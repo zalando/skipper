@@ -60,6 +60,17 @@ func argsString(args []interface{}) string {
 			sargs = appendFmt(sargs, f, a)
 		case string:
 			sargs = appendFmtEscape(sargs, `"%s"`, `"`, a)
+		default:
+			if m, ok := a.(interface{ MarshalText() ([]byte, error) }); ok {
+				t, err := m.MarshalText()
+				if err != nil {
+					sargs = append(sargs, `"[error]"`)
+				} else {
+					sargs = appendFmtEscape(sargs, `"%s"`, `"`, string(t))
+				}
+			} else {
+				sargs = appendFmtEscape(sargs, `"%s"`, `"`, a)
+			}
 		}
 	}
 

@@ -58,6 +58,8 @@ func (duration) CreateFilter(args []interface{}) (filters.Filter, error) {
 	case string:
 		d, err := time.ParseDuration(v)
 		return duration(d), err
+	case time.Duration:
+		return duration(v), nil
 	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -146,7 +148,7 @@ func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) 
 	}
 
 	ec := endpointCreated{which: endpointKey(s, h)}
-	switch v := args[0].(type) {
+	switch v := args[1].(type) {
 	case int:
 		ec.when = time.Unix(int64(v), 0)
 	case float64:
@@ -164,7 +166,7 @@ func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	// mitigate potentially flakyness caused by clock skew. When the created time is in the future based on
+	// mitigate potential flakyness caused by clock skew. When the created time is in the future based on
 	// the local clock, we ignore it.
 	now := time.Now()
 	if ec.when.After(now) {
@@ -194,6 +196,7 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 		}
 
 		ri.LBFadeInDuration = 0
+		ri.LBFadeInEase = 1
 		endpointsCreated := make(map[string]time.Time)
 		for _, f := range ri.Filters {
 			if d, ok := f.Filter.(duration); ok {

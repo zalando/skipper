@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -33,10 +32,11 @@ too. The harness implements the following setup:
 */
 
 const (
-	testFadeInDuration = 120 * time.Millisecond
-	statBucketCount    = 8
-	easeClientTimeout  = 20 * time.Microsecond
-	minStats           = 120
+	testFadeInDuration  = 1800 * time.Millisecond
+	statBucketCount     = 4
+	clientRate          = 120 * time.Microsecond
+	minStats            = 120
+	fadeInStepTolerance = 0.5
 )
 
 type fadeInDataClient struct {
@@ -90,11 +90,15 @@ func randomURLs(t *testing.T, n int) []string {
 		l, err := net.Listen("tcp", ":0")
 		if err != nil {
 			t.Fatal(err)
-			return nil
 		}
 
-		u = append(u, fmt.Sprintf("http://%s", l.Addr()))
+		_, p, err := net.SplitHostPort(l.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		l.Close()
+		u = append(u, fmt.Sprintf(":%s", p))
 	}
 
 	return u
@@ -145,7 +149,10 @@ func (b *fadeInBackend) route() *eskip.Route {
 		if !i.created.IsZero() {
 			r.Filters = append(r.Filters, &eskip.Filter{
 				Name: fadein.EndpointCreatedName,
-				Args: []interface{}{i.created},
+				Args: []interface{}{
+					i.server.URL,
+					i.created,
+				},
 			})
 		}
 	}
@@ -159,23 +166,20 @@ func (b *fadeInBackend) createDataClient() routing.DataClient {
 	return c
 }
 
-func (b *fadeInBackend) addInstances(u ...string) {
+func (b *fadeInBackend) addInstances(u ...string) error {
 	var instances []fadeInBackendInstance
 	for _, ui := range u {
-		func(u string) {
-			uu, err := url.Parse(u)
+		if err := func(u string) error {
+			l, err := net.Listen("tcp", u)
 			if err != nil {
-				b.test.Fatal(err)
+				return err
 			}
 
-			server := httptest.NewUnstartedServer(nil)
-			server.Config = &http.Server{
-				Addr: uu.Host,
-				Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("X-Backend-Endpoint", u)
-				}),
-			}
-
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("X-Backend-Endpoint", u)
+			}))
+			server.Listener.Close()
+			server.Listener = l
 			server.Start()
 			instance := fadeInBackendInstance{
 				server: server,
@@ -186,7 +190,14 @@ func (b *fadeInBackend) addInstances(u ...string) {
 			}
 
 			instances = append(instances, instance)
-		}(ui)
+			return nil
+		}(ui); err != nil {
+			for _, i := range instances {
+				i.server.Close()
+			}
+
+			return err
+		}
 	}
 
 	b.instances = append(b.instances, instances...)
@@ -201,6 +212,8 @@ func (b *fadeInBackend) addInstances(u ...string) {
 		c.reset <- r
 		c.update <- r
 	}
+
+	return nil
 }
 
 func (b *fadeInBackend) close() {
@@ -229,11 +242,15 @@ func (p *fadeInProxy) addInstances(n int) {
 
 	for i := 0; i < n; i++ {
 		client := p.backend.createDataClient()
+		fr := make(filters.Registry)
+		fr.Register(fadein.NewDuration())
+		fr.Register(fadein.NewEndpointCreated())
 		rt := routing.New(routing.Options{
-			FilterRegistry: make(filters.Registry),
+			FilterRegistry: fr,
 			DataClients:    []routing.DataClient{client},
 			PostProcessors: []routing.PostProcessor{
 				loadbalancer.NewAlgorithmProvider(),
+				fadein.NewPostProcessor(),
 			},
 		})
 
@@ -296,19 +313,21 @@ func (c *fadeInClient) run() {
 
 	for {
 		proxyEndpoints := c.proxy.endpoints()
+		var requestStart time.Time
 		if len(proxyEndpoints) > 0 {
 			endpoint := proxyEndpoints[counter%len(proxyEndpoints)]
 			counter++
 
+			requestStart = time.Now()
 			if rsp, err := c.httpClient.Get(endpoint); err != nil {
 				stats = append(stats, stat{
-					timestamp: time.Now(),
+					timestamp: requestStart,
 					err:       err,
 				})
 			} else {
 				rsp.Body.Close()
 				stats = append(stats, stat{
-					timestamp: time.Now(),
+					timestamp: requestStart,
 					status:    rsp.StatusCode,
 					endpoint:  rsp.Header.Get("X-Backend-Endpoint"),
 				})
@@ -319,6 +338,13 @@ func (c *fadeInClient) run() {
 			sr <- stats
 		}
 
+		var nextRequest <-chan time.Time
+		if !requestStart.IsZero() {
+			nextRequest = time.After(clientRate - time.Now().Sub(requestStart))
+		} else {
+			nextRequest = time.After(clientRate)
+		}
+
 		statRequests = nil
 		select {
 		case sr := <-c.statRequests:
@@ -327,7 +353,7 @@ func (c *fadeInClient) run() {
 			stats = nil
 		case <-c.quit:
 			return
-		case <-time.After(easeClientTimeout):
+		case <-nextRequest:
 		}
 	}
 }
@@ -348,7 +374,7 @@ func (c *fadeInClient) warmUpD(d time.Duration) {
 }
 
 func (c *fadeInClient) warmUp() {
-	c.warmUpD(testFadeInDuration / 4)
+	c.warmUpD(testFadeInDuration)
 }
 
 func (c *fadeInClient) close() {
@@ -442,7 +468,7 @@ func checkEndpointFadeIn(t *testing.T, s []stat) {
 			prev = sizes[i-1]
 		}
 
-		if !eqWithTolerance(sizes[i]-prev, averageStep, averageStep/3) {
+		if !eqWithTolerance(sizes[i]-prev, averageStep, averageStep*fadeInStepTolerance) {
 			t.Fatalf(
 				"Unexpected fade-in step at %d. Expected: %f, got: %f.",
 				i,
@@ -458,7 +484,8 @@ func checkStableOrDecrease(t *testing.T, s []stat) {
 	buckets := statBuckets(s)
 	sizes := bucketSizes(buckets)
 	for i := 1; i < len(sizes); i++ {
-		if sizes[i] > sizes[i-1] && !eqWithTolerance(sizes[i], sizes[i-1], sizes[i-1]/3) {
+		if sizes[i] > sizes[i-1] &&
+			!eqWithTolerance(sizes[i], sizes[i-1], sizes[i-1]*fadeInStepTolerance) {
 			t.Fatalf(
 				"Unexpected increase at step %d. Expected max: %f, got: %f.",
 				i,
@@ -488,8 +515,12 @@ func endpointStartTest(
 	return func(t *testing.T) {
 		b := startBackend(t, withFadeIn, withCreated)
 		defer b.close()
+
 		initial := randomURLs(t, initialEndpoints)
-		b.addInstances(initial...)
+		if err := b.addInstances(initial...); err != nil {
+			t.Fatal(err)
+		}
+
 		doFade := make([]bool, initialEndpoints)
 
 		p := startProxy(t, b)
