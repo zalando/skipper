@@ -5,8 +5,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	teePredicate "github.com/zalando/skipper/predicates/tee"
-	"io"
-	"net/http"
 	"net/url"
 )
 
@@ -15,35 +13,6 @@ const FilterName = "teeLoopback"
 type teeLoopbackSpec struct{}
 type teeLoopbackFilter struct {
 	teeKey string
-}
-
-func cloneRequestWithTee(req *http.Request) (*http.Request, io.ReadCloser, error) {
-	u := new(url.URL)
-	*u = *req.URL
-	h := make(http.Header)
-	for k, v := range req.Header {
-		h[k] = v
-	}
-
-	var teeBody io.ReadCloser
-	mainBody := req.Body
-
-	// see proxy.go:231
-	if req.ContentLength != 0 {
-		pr, pw := io.Pipe()
-		teeBody = pr
-		mainBody = &teeTie{mainBody, pw}
-	}
-
-	clone, err := http.NewRequest(req.Method, u.String(), teeBody)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	clone.Header = h
-	clone.ContentLength = req.ContentLength
-
-	return clone, mainBody, nil
 }
 
 func (t *teeLoopbackSpec) Name() string {
