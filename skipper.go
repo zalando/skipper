@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/zalando/skipper/predicates/tee"
 	"io"
 	"io/ioutil"
 	"net"
@@ -1118,6 +1119,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAllKVRegexp(),
 		pauth.NewJWTPayloadAnyKVRegexp(),
 		methods.New(),
+		tee.New(),
 	)
 
 	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
