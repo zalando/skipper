@@ -70,8 +70,11 @@ func NewTeeLoopback() filters.Spec {
 func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	origRequest := ctx.Request()
 	// prevent the loopback to be executed indefinitely
-	v, _ := ctx.Request().Context().Value(teePredicate.ContextTeeKey).(string)
-	if v == f.teeKey {
+	teeRegistry, registryExists := ctx.Request().Context().Value(teePredicate.ContextTeeKey).(map[string]bool)
+	if !registryExists {
+		teeRegistry = map[string]bool{}
+	}
+	if _, ok := teeRegistry[f.teeKey]; ok {
 		return
 	}
 	cr, body, err := cloneRequestWithTee(origRequest)
@@ -80,7 +83,8 @@ func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 	origRequest.Body = body
-	newReqContext := context.WithValue(cr.Context(), teePredicate.ContextTeeKey, f.teeKey)
+	teeRegistry[f.teeKey] = true
+	newReqContext := context.WithValue(cr.Context(), teePredicate.ContextTeeKey, teeRegistry)
 	newReqWithContext := cr.WithContext(newReqContext)
 	cc, _ := ctx.SplitWithRequest(newReqWithContext)
 	go cc.Loopback()
