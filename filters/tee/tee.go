@@ -144,7 +144,10 @@ func (r *tee) Response(filters.FilterContext) {}
 // Request is copied and then modified to adopt changes in new backend
 func (r *tee) Request(fc filters.FilterContext) {
 	req := fc.Request()
-	copyOfRequest, tr, err := cloneRequest(r, req)
+	u := cloneURL(r, req)
+	copyOfRequest, tr, err := cloneRequest(u, req)
+	copyOfRequest = removeHopHeaders(copyOfRequest)
+	copyOfRequest.Host = r.host
 	if err != nil {
 		log.Warn("tee: error while cloning the tee request", err)
 		return
@@ -169,10 +172,7 @@ func (r *tee) Request(fc filters.FilterContext) {
 	}()
 }
 
-// copies requests changes URL and Host in request.
-// If 2nd and 3rd params are given path is also modified by applying regexp
-// Returns the cloned request and the tee body to be used on the main request.
-func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, error) {
+func cloneURL(t *tee, req *http.Request) *url.URL{
 	u := new(url.URL)
 	*u = *req.URL
 	u.Host = t.host
@@ -180,14 +180,21 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 	if t.typ == pathModified {
 		u.Path = t.rx.ReplaceAllString(u.Path, t.replacement)
 	}
+	return u
+}
 
+func removeHopHeaders(req *http.Request) *http.Request {
+	for _, k := range hopHeaders {
+		req.Header.Del(k)
+	}
+	return req
+}
+
+// Returns the cloned request and the tee body to be used on the main request.
+func cloneRequest(u *url.URL, req *http.Request) (*http.Request, io.ReadCloser, error) {
 	h := make(http.Header)
 	for k, v := range req.Header {
 		h[k] = v
-	}
-
-	for _, k := range hopHeaders {
-		h.Del(k)
 	}
 
 	var teeBody io.ReadCloser
@@ -206,7 +213,6 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 	}
 
 	clone.Header = h
-	clone.Host = t.host
 	clone.ContentLength = req.ContentLength
 
 	return clone, mainBody, nil

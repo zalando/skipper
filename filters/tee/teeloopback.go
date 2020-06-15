@@ -77,7 +77,9 @@ func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	if _, ok := teeRegistry[f.teeKey]; ok {
 		return
 	}
-	cr, body, err := cloneRequestWithTee(origRequest)
+	u := new(url.URL)
+	*u = *origRequest.URL
+	cr, body, err := cloneRequest(u, origRequest)
 	if err != nil {
 		log.Error("teeloopback: failed to clone request")
 		return
