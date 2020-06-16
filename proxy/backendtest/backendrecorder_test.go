@@ -42,8 +42,7 @@ func TestServerShouldTimeoutMissingRequestsToResolve(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			c, _ := ioutil.ReadAll(resp.Body)
-			println(string(c))
+			_, _ = ioutil.ReadAll(resp.Body)
 		}(i)
 	}
 	select {
