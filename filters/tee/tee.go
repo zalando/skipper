@@ -145,7 +145,7 @@ func (r *tee) Response(filters.FilterContext) {}
 func (r *tee) Request(fc filters.FilterContext) {
 	req := fc.Request()
 	u := cloneURL(r, req)
-	copyOfRequest, tr, err := cloneRequest(u, req)
+	copyOfRequest, body, err := cloneRequest(u, req)
 	copyOfRequest = removeHopHeaders(copyOfRequest)
 	copyOfRequest.Host = r.host
 	if err != nil {
@@ -153,7 +153,7 @@ func (r *tee) Request(fc filters.FilterContext) {
 		return
 	}
 
-	req.Body = tr
+	req.Body = body
 
 	go func() {
 		defer func() {

@@ -20,7 +20,7 @@ func (t *teeLoopbackSpec) Name() string {
 }
 
 func (t *teeLoopbackSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) < 1 {
+	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 	teeKey, ok := args[0].(string)
@@ -39,9 +39,9 @@ func NewTeeLoopback() filters.Spec {
 func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	origRequest := ctx.Request()
 	// prevent the loopback to be executed indefinitely
-	teeRegistry, registryExists := ctx.Request().Context().Value(teePredicate.ContextTeeKey).(map[string]bool)
+	teeRegistry, registryExists := ctx.Request().Context().Value(teePredicate.ContextTeeKey).(map[string]struct{})
 	if !registryExists {
-		teeRegistry = map[string]bool{}
+		teeRegistry = map[string]struct{}{}
 	}
 	if _, ok := teeRegistry[f.teeKey]; ok {
 		return
@@ -50,11 +50,11 @@ func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	*u = *origRequest.URL
 	cr, body, err := cloneRequest(u, origRequest)
 	if err != nil {
-		log.Error("teeloopback: failed to clone request")
+		log.Errorf("teeloopback: failed to clone request: %v", err)
 		return
 	}
 	origRequest.Body = body
-	teeRegistry[f.teeKey] = true
+	teeRegistry[f.teeKey] = struct{}{}
 	newReqContext := context.WithValue(cr.Context(), teePredicate.ContextTeeKey, teeRegistry)
 	newReqWithContext := cr.WithContext(newReqContext)
 	cc, _ := ctx.SplitWithRequest(newReqWithContext)

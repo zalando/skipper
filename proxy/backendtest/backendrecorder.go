@@ -28,12 +28,12 @@ type backendRecorderHandler struct {
 func (rec *backendRecorderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Error("backendrecorder: error while reading request body")
+		log.Errorf("backendrecorder: error while reading request body: %v", err)
 	}
 	// return request body in the response
 	_, err = w.Write(body)
 	if err != nil {
-		log.Error("backendrecorder: error while writing the response body")
+		log.Errorf("backendrecorder: error writing reading request body: %v", err)
 	}
 	rec.mutex.Lock()
 	rec.pendingRequests--
