@@ -11,21 +11,14 @@ import (
 	"github.com/zalando/skipper/routing"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 )
 
 func waitForAll(channels []backendtest.Done, done chan struct{}) {
-	var wg sync.WaitGroup
 	for _, ch := range channels {
-		wg.Add(1)
-		go func(ch backendtest.Done) {
-			<-ch
-			wg.Done()
-		}(ch)
+		<-ch
 	}
-	wg.Wait()
 	close(done)
 }
 
