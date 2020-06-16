@@ -236,14 +236,14 @@ func (c *context) setMetricsPrefix(prefix string) {
 	c.metrics.prefix = prefix + ".custom."
 }
 
-func (c *context) SplitWithRequest(cr *http.Request) (filters.FilterContext, error) {
+func (c *context) SplitWithRequest(cr *http.Request) filters.FilterContext {
 	cc := c.clone()
 	cc.metrics = &filterMetrics{
 		prefix: cc.metrics.prefix,
 		impl: cc.proxy.metrics,
 	}
 	cc.request = cr
-	return cc, nil
+	return cc
 }
 
 func (c *context) Loopback() {

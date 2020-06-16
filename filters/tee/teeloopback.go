@@ -57,7 +57,7 @@ func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	teeRegistry[f.teeKey] = struct{}{}
 	newReqContext := context.WithValue(cr.Context(), teePredicate.ContextTeeKey, teeRegistry)
 	newReqWithContext := cr.WithContext(newReqContext)
-	cc, _ := ctx.SplitWithRequest(newReqWithContext)
+	cc := ctx.SplitWithRequest(newReqWithContext)
 	go cc.Loopback()
 
 }
