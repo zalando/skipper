@@ -1,11 +1,9 @@
 package tee
 
 import (
-	"context"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	teePredicate "github.com/zalando/skipper/predicates/tee"
-	"net/url"
 )
 
 const FilterName = "teeLoopback"
@@ -37,27 +35,12 @@ func NewTeeLoopback() filters.Spec {
 }
 
 func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
-	origRequest := ctx.Request()
-	// prevent the loopback to be executed indefinitely
-	teeRegistry, registryExists := ctx.Request().Context().Value(teePredicate.ContextTeeKey).(map[string]struct{})
-	if !registryExists {
-		teeRegistry = map[string]struct{}{}
-	}
-	if _, ok := teeRegistry[f.teeKey]; ok {
-		return
-	}
-	u := new(url.URL)
-	*u = *origRequest.URL
-	cr, body, err := cloneRequest(u, origRequest)
+	cc, err := ctx.Split()
 	if err != nil {
-		log.Errorf("teeloopback: failed to clone request: %v", err)
+		log.Errorf("teeloopback: failed to split the context request: %v", err)
 		return
 	}
-	origRequest.Body = body
-	teeRegistry[f.teeKey] = struct{}{}
-	newReqContext := context.WithValue(cr.Context(), teePredicate.ContextTeeKey, teeRegistry)
-	newReqWithContext := cr.WithContext(newReqContext)
-	cc := ctx.SplitWithRequest(newReqWithContext)
+	cc.Request().Header.Set(teePredicate.HeaderKey, f.teeKey)
 	go cc.Loopback()
 
 }

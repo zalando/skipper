@@ -34,9 +34,7 @@ func TestTeeHostHeaderChanges(t *testing.T) {
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
-	req := fc.Request()
-	u := cloneURL(rep, req)
-	modifiedRequest, _, err := cloneRequest(u, req)
+	modifiedRequest, _, err := cloneRequest(rep, fc.Request())
 	if err != nil {
 		t.Error(err)
 		return
@@ -57,9 +55,7 @@ func TestTeeSchemeChanges(t *testing.T) {
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
-	req := fc.Request()
-	u := cloneURL(rep, req)
-	modifiedRequest, _, err := cloneRequest(u, req)
+	modifiedRequest, _, err := cloneRequest(rep, fc.Request())
 	if err != nil {
 		t.Error(err)
 		return
@@ -80,9 +76,7 @@ func TestTeeUrlHostChanges(t *testing.T) {
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
-	req := fc.Request()
-	u := cloneURL(rep, req)
-	modifiedRequest, _, err := cloneRequest(u, req)
+	modifiedRequest, _, err := cloneRequest(rep, fc.Request())
 	if err != nil {
 		t.Error(err)
 		return
@@ -103,9 +97,7 @@ func TestTeeWithPathChanges(t *testing.T) {
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
-	req := fc.Request()
-	u := cloneURL(rep, req)
-	modifiedRequest, _, err := cloneRequest(u, req)
+	modifiedRequest, _, err := cloneRequest(rep, fc.Request())
 	if err != nil {
 		t.Error(err)
 		return
