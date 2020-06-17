@@ -314,6 +314,15 @@ func (c *context) Split() (filters.FilterContext, error) {
 
 func (c *context) Loopback() {
 	err := c.proxy.do(c)
+	if c.response != nil && c.response.Body != nil{
+		if _, err := io.Copy(ioutil.Discard, c.response.Body); err != nil {
+			c.proxy.log.Errorf("context: error while discarding remainder response body: %v.", err)
+		}
+		err := c.response.Body.Close()
+		if err != nil {
+			c.proxy.log.Error("context: error during closing the response body", err)
+		}
+	}
 	if err != nil {
 		log.Error("context: failed to execute loopback request", err)
 	}
