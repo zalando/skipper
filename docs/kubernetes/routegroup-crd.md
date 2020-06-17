@@ -2,7 +2,7 @@
 
 This document contains the semantic definition of the RouteGroup CRD. For more information, see the [route group
 documentation](../routegroups/), or see the [CRD yaml
-definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/routegroups/apply/routegroups_crd.yaml).
+definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/apply/routegroups_crd.yaml).
 
 ## Concepts
 
