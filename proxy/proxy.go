@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/scheduler"
 	"io"
 	"io/ioutil"
 	"net"
@@ -35,7 +36,6 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/rfc"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -1052,7 +1052,12 @@ func (p *Proxy) do(ctx *context) error {
 	}
 
 	ctx.loopCounter++
-
+	defer func() {
+		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
+		for _, done := range pendingLIFO {
+			done()
+		}
+	}()
 	// proxy global setting
 	if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
 		rerr := newRatelimitError(settings, retryAfter)
@@ -1434,12 +1439,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// TODO: Is this required?
 	if err == nil {
 		err = p.do(ctx)
-		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
-		for _, done := range pendingLIFO {
-			done()
-		}
 	}
 
 	if err != nil {
