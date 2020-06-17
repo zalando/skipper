@@ -323,6 +323,9 @@ func (c *context) Loopback() {
 			c.proxy.log.Error("context: error during closing the response body", err)
 		}
 	}
+	if c.proxySpan != nil {
+		c.proxySpan.Finish()
+	}
 	if err != nil {
 		log.Error("context: failed to execute loopback request", err)
 	}
