@@ -36,7 +36,7 @@ type context struct {
 	outgoingHost         string
 	debugFilterPanics    []interface{}
 	outgoingDebugRequest *http.Request
-	id                   int
+	executionCounter     int
 	startServe           time.Time
 	metrics              *filterMetrics
 	tracer               opentracing.Tracer
@@ -237,8 +237,8 @@ func (c *context) clone() *context {
 	return &cc
 }
 
-func (c *context) isRootContext()bool {
-	return c.id == 0
+func (c *context) wasExecuted()bool {
+	return c.executionCounter != 0
 }
 
 func (c *context) setMetricsPrefix(prefix string) {

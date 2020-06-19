@@ -1047,7 +1047,7 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 }
 
 func (p *Proxy) do(ctx *context) error {
-	if ctx.id > p.maxLoops {
+	if ctx.executionCounter > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
 	defer func() {
@@ -1058,15 +1058,15 @@ func (p *Proxy) do(ctx *context) error {
 	}()
 
 	// proxy global setting
-	if ctx.isRootContext() {
+	if !ctx.wasExecuted() {
 		if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
 			rerr := newRatelimitError(settings, retryAfter)
 			return rerr
 		}
 	}
-	// every time the context is used for a request the context id is incremented
-	// a context id equal to zero represents a root context.
-	ctx.id++
+	// every time the context is used for a request the context executionCounter is incremented
+	// a context executionCounter equal to zero represents a root context.
+	ctx.executionCounter++
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx)
 	p.metrics.MeasureRouteLookup(lookupStart)
