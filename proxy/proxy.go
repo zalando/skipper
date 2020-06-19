@@ -1084,13 +1084,12 @@ func (p *Proxy) do(ctx *context) error {
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
-	if ctx.isRootContext() {
-		// per route rate limit
-		if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
-			rerr := newRatelimitError(settings, retryAfter)
-			return rerr
-		}
+	// per route rate limit
+	if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
+		rerr := newRatelimitError(settings, retryAfter)
+		return rerr
 	}
+
 
 	if ctx.deprecatedShunted() {
 		p.log.Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
