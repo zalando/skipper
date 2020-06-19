@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sync"
+	"time"
 )
 
 type RecordedRequest struct {
@@ -14,18 +15,15 @@ type RecordedRequest struct {
 	Body string
 }
 
-type Done chan struct{}
 
-type backendRecorderHandler struct {
+type BackendRecorderHandler struct {
 	server           *httptest.Server
 	requests         []RecordedRequest
 	mutex            sync.RWMutex
-	expectedRequests int
-	pendingRequests  int
-	Done             Done
+	Done             <- chan time.Time
 }
 
-func (rec *backendRecorderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (rec *BackendRecorderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Errorf("backendrecorder: error while reading request body: %v", err)
@@ -36,57 +34,27 @@ func (rec *backendRecorderHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		log.Errorf("backendrecorder: error writing reading request body: %v", err)
 	}
 	rec.mutex.Lock()
-	rec.pendingRequests--
 	rec.requests = append(rec.requests, RecordedRequest{
 		URL:  r.URL,
 		Body: string(body),
 	})
-	if rec.pendingRequests == 0 {
-		close(rec.Done)
-	}
 	rec.mutex.Unlock()
 }
 
-func (rec *backendRecorderHandler) GetRequests() []RecordedRequest {
+func (rec *BackendRecorderHandler) GetRequests() []RecordedRequest {
 	rec.mutex.RLock()
 	requests := rec.requests
 	rec.mutex.RUnlock()
 	return requests
 }
 
-func (rec *backendRecorderHandler) GetPendingRequests() int {
-	rec.mutex.RLock()
-	expected := rec.expectedRequests - rec.pendingRequests
-	rec.mutex.RUnlock()
-	return expected
-}
-
-func (rec *backendRecorderHandler) GetServedRequests() int {
-	rec.mutex.RLock()
-	served := rec.expectedRequests - rec.pendingRequests
-	rec.mutex.RUnlock()
-	return served
-}
-
-func (rec *backendRecorderHandler) GetExpectedRequests() int {
-	rec.mutex.RLock()
-	expected := rec.expectedRequests
-	rec.mutex.RUnlock()
-	return expected
-}
-
-func (rec *backendRecorderHandler) GetURL() string {
+func (rec *BackendRecorderHandler) GetURL() string {
 	return rec.server.URL
 }
 
-func NewBackendRecorder(expectedRequests int) *backendRecorderHandler {
-	handler := &backendRecorderHandler{
-		pendingRequests:  expectedRequests,
-		expectedRequests: expectedRequests,
-		Done:             make(chan struct{}),
-	}
-	if expectedRequests == 0 {
-		close(handler.Done)
+func NewBackendRecorder(closeAfter time.Duration) *BackendRecorderHandler {
+	handler := &BackendRecorderHandler{
+		Done:   time.After(closeAfter),
 	}
 	server := httptest.NewServer(handler)
 	handler.server = server
