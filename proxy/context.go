@@ -36,7 +36,7 @@ type context struct {
 	outgoingHost         string
 	debugFilterPanics    []interface{}
 	outgoingDebugRequest *http.Request
-	loopCounter          int
+	id                   int
 	startServe           time.Time
 	metrics              *filterMetrics
 	tracer               opentracing.Tracer

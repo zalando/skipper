@@ -1047,21 +1047,24 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 }
 
 func (p *Proxy) do(ctx *context) error {
-	if ctx.loopCounter > p.maxLoops {
+	if ctx.id > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
 
-	ctx.loopCounter++
 	defer func() {
+		ctx.id++
 		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
 		for _, done := range pendingLIFO {
 			done()
 		}
 	}()
+
 	// proxy global setting
-	if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
-		rerr := newRatelimitError(settings, retryAfter)
-		return rerr
+	if ctx.id == 0 {
+		if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
+			rerr := newRatelimitError(settings, retryAfter)
+			return rerr
+		}
 	}
 
 	lookupStart := time.Now()
@@ -1082,9 +1085,11 @@ func (p *Proxy) do(ctx *context) error {
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
 	// per route rate limit
-	if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
-		rerr := newRatelimitError(settings, retryAfter)
-		return rerr
+	if ctx.id == 0 {
+		if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
+			rerr := newRatelimitError(settings, retryAfter)
+			return rerr
+		}
 	}
 
 	if ctx.deprecatedShunted() {
@@ -1439,10 +1444,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// TODO: Is this required?
-	if err == nil {
-		err = p.do(ctx)
-	}
+	err = p.do(ctx)
 
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)
