@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const listenFor = 15 * time.Millisecond
+const listenFor = 10 * time.Millisecond
 
 func waitForAll(handlers... *backendtest.BackendRecorderHandler) {
 	for _, h := range handlers {
@@ -129,6 +129,7 @@ func TestInfiniteLoopback(t *testing.T) {
 	 	split: Path("/foo") -> teeLoopback("A") ->"%v";
 		shadow: Path("/foo") && Tee("A") -> teeLoopback("A") -> "%v";
 	`
+	listenFor := 30 * time.Millisecond
 	split := backendtest.NewBackendRecorder(listenFor)
 	shadow := backendtest.NewBackendRecorder(listenFor)
 
