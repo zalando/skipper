@@ -1060,7 +1060,7 @@ func (p *Proxy) do(ctx *context) error {
 	}()
 
 	// proxy global setting
-	if ctx.id == 0 {
+	if ctx.isRootContext() {
 		if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
 			rerr := newRatelimitError(settings, retryAfter)
 			return rerr
@@ -1084,8 +1084,8 @@ func (p *Proxy) do(ctx *context) error {
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
-	// per route rate limit
-	if ctx.id == 0 {
+	if ctx.isRootContext() {
+		// per route rate limit
 		if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
 			rerr := newRatelimitError(settings, retryAfter)
 			return rerr

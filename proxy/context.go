@@ -237,6 +237,10 @@ func (c *context) clone() *context {
 	return &cc
 }
 
+func (c *context) isRootContext()bool {
+	return c.id == 0
+}
+
 func (c *context) setMetricsPrefix(prefix string) {
 	c.metrics.prefix = prefix + ".custom."
 }
