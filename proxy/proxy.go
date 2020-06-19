@@ -1050,9 +1050,7 @@ func (p *Proxy) do(ctx *context) error {
 	if ctx.id > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
-
 	defer func() {
-		ctx.id++
 		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
 		for _, done := range pendingLIFO {
 			done()
@@ -1066,11 +1064,12 @@ func (p *Proxy) do(ctx *context) error {
 			return rerr
 		}
 	}
-
+	// every time the context is used for a request the context id is incremented
+	// a context id equal to zero represents a root context.
+	ctx.id++
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx)
 	p.metrics.MeasureRouteLookup(lookupStart)
-
 	if route == nil {
 		if !p.flags.Debug() {
 			p.metrics.IncRoutingFailures()
