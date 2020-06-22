@@ -3,7 +3,7 @@ package tee
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	teePredicate "github.com/zalando/skipper/predicates/tee"
+	teepredicate "github.com/zalando/skipper/predicates/tee"
 )
 
 const FilterName = "teeLoopback"
@@ -18,11 +18,12 @@ func (t *teeLoopbackSpec) Name() string {
 }
 
 func (t *teeLoopbackSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-	teeKey, ok := args[0].(string)
-	if !ok || teeKey == "" {
+	teeKey, _ := args[0].(string)
+	if teeKey == "" {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 	return &teeLoopbackFilter{
@@ -40,7 +41,7 @@ func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 		log.Errorf("teeloopback: failed to split the context request: %v", err)
 		return
 	}
-	cc.Request().Header.Set(teePredicate.HeaderKey, f.teeKey)
+	cc.Request().Header.Set(teepredicate.HeaderKey, f.teeKey)
 	go cc.Loopback()
 
 }

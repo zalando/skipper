@@ -98,6 +98,11 @@ type FilterContext interface {
 	ParentSpan() opentracing.Span
 
 	// Returns a clone of the FilterContext including a brand new request object.
+	// The stream body of the new request is shared with the original.
+	// Whenever the request body of the original request is read, the body of the
+	// new request body is written.
+	// The StateBag and filterMetrics object are not preserved in the new context.
+	// Therefore, you can't access state bag values set in the previous context.
 	Split() (FilterContext, error)
 
 	// Performs a new route lookup and executes the matched route if any

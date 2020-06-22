@@ -237,7 +237,7 @@ func (c *context) clone() *context {
 	return &cc
 }
 
-func (c *context) wasExecuted()bool {
+func (c *context) wasExecuted() bool {
 	return c.executionCounter != 0
 }
 
@@ -278,7 +278,6 @@ func cloneRequest(u *url.URL, req *http.Request) (*http.Request, io.ReadCloser, 
 	var teeBody io.ReadCloser
 	mainBody := req.Body
 
-	// see proxy.go:231
 	if req.ContentLength != 0 {
 		pr, pw := io.Pipe()
 		teeBody = pr

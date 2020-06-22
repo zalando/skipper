@@ -26,8 +26,12 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
+	teeKey, _ := args[0].(string)
+	if teeKey == "" {
+		return nil, predicates.ErrInvalidPredicateParameters
+	}
 	return &predicate{
-		key: args[0].(string),
+		key: teeKey,
 	}, nil
 }
 
