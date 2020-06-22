@@ -1089,7 +1089,6 @@ func (p *Proxy) do(ctx *context) error {
 		return rerr
 	}
 
-
 	if ctx.deprecatedShunted() {
 		p.log.Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}

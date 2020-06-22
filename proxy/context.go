@@ -317,7 +317,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 
 func (c *context) Loopback() {
 	err := c.proxy.do(c)
-	if c.response != nil && c.response.Body != nil{
+	if c.response != nil && c.response.Body != nil {
 		if _, err := io.Copy(ioutil.Discard, c.response.Body); err != nil {
 			c.proxy.log.Errorf("context: error while discarding remainder response body: %v.", err)
 		}
@@ -329,6 +329,12 @@ func (c *context) Loopback() {
 	if c.proxySpan != nil {
 		c.proxySpan.Finish()
 	}
+
+	perr, ok := err.(*proxyError)
+	if ok && perr.handled {
+		return
+	}
+
 	if err != nil {
 		log.Error("context: failed to execute loopback request", err)
 	}

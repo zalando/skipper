@@ -17,13 +17,13 @@ import (
 
 const listenFor = 10 * time.Millisecond
 
-func waitForAll(handlers... *backendtest.BackendRecorderHandler) {
+func waitForAll(handlers ...*backendtest.BackendRecorderHandler) {
 	for _, h := range handlers {
 		<-h.Done
 	}
 }
 
-func matchRequestsCount(handler *backendtest.BackendRecorderHandler, count int)bool {
+func matchRequestsCount(handler *backendtest.BackendRecorderHandler, count int) bool {
 	return len(handler.GetRequests()) == count
 }
 

@@ -15,12 +15,11 @@ type RecordedRequest struct {
 	Body string
 }
 
-
 type BackendRecorderHandler struct {
-	server           *httptest.Server
-	requests         []RecordedRequest
-	mutex            sync.RWMutex
-	Done             <- chan time.Time
+	server   *httptest.Server
+	requests []RecordedRequest
+	mutex    sync.RWMutex
+	Done     <-chan time.Time
 }
 
 func (rec *BackendRecorderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +53,7 @@ func (rec *BackendRecorderHandler) GetURL() string {
 
 func NewBackendRecorder(closeAfter time.Duration) *BackendRecorderHandler {
 	handler := &BackendRecorderHandler{
-		Done:   time.After(closeAfter),
+		Done: time.After(closeAfter),
 	}
 	server := httptest.NewServer(handler)
 	handler.server = server
