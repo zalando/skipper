@@ -52,7 +52,9 @@ type filterMetrics struct {
 	impl   metrics.Metrics
 }
 
-type noopFlushedResponseWriter struct{}
+type noopFlushedResponseWriter struct{
+	ignoredHeader http.Header
+}
 
 func defaultBody() io.ReadCloser {
 	return ioutil.NopCloser(&bytes.Buffer{})
@@ -311,11 +313,15 @@ func (m *filterMetrics) IncFloatCounterBy(key string, value float64) {
 	m.impl.IncFloatCounterBy(m.prefix+key, value)
 }
 
-func (r noopFlushedResponseWriter) Header() http.Header {
-	return map[string][]string{}
+func (w noopFlushedResponseWriter) Header() http.Header {
+	if w.ignoredHeader == nil {
+		w.ignoredHeader = make(http.Header)
+	}
+
+	return w.ignoredHeader
 }
-func (r noopFlushedResponseWriter) Write([]byte) (int, error) {
+func (w noopFlushedResponseWriter) Write([]byte) (int, error) {
 	return 0, nil
 }
-func (r noopFlushedResponseWriter) WriteHeader(_ int) {}
-func (r noopFlushedResponseWriter) Flush()            {}
+func (w noopFlushedResponseWriter) WriteHeader(_ int) {}
+func (w noopFlushedResponseWriter) Flush()            {}
