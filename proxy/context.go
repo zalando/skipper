@@ -3,7 +3,6 @@ package proxy
 import (
 	"bytes"
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"net/http"
