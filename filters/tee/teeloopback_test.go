@@ -6,6 +6,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/predicates/primitive"
 	teePredicate "github.com/zalando/skipper/predicates/tee"
+	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy/backendtest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -34,7 +35,7 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	// the backend set in the original route should not be called
 	const routeDoc = `
 		original: Path("/foo") -> "%v";
-	 	split: Path("/foo") && True()  -> teeLoopback("A") ->"%v";
+	 	split: Path("/foo") && Traffic(1) -> teeLoopback("A") ->"%v";
 		shadow: Path("/foo") && True() && Tee("A") -> "%v";
 	`
 	original := backendtest.NewBackendRecorder(listenFor)
@@ -48,6 +49,7 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 		Predicates: []routing.PredicateSpec{
 			teePredicate.New(),
 			primitive.NewTrue(),
+			traffic.New(),
 		},
 	}, routes...)
 	_, err := http.Get(p.URL + "/foo")
@@ -66,7 +68,7 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	const routeDoc = `
 		original: Path("/foo") -> "%v";
-	 	split: Path("/foo") && True()  -> teeLoopback("A") ->"%v";
+	 	split: Path("/foo") && Traffic(1)  -> teeLoopback("A") ->"%v";
 		shadow: Path("/foo") && True() && Tee("A") -> "%v";
 	`
 	original := backendtest.NewBackendRecorder(listenFor)
@@ -81,6 +83,7 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 		Predicates: []routing.PredicateSpec{
 			teePredicate.New(),
 			primitive.NewTrue(),
+			traffic.New(),
 		},
 	}, routes...)
 	_, err := http.Get(p.URL + "/foo")
@@ -101,7 +104,7 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 func TestOriginalBackendServeEvenWhenShadowIsDown(t *testing.T) {
 	const routeDoc = `
 		original: Path("/foo") -> "%v";
-	 	split: Path("/foo") && True() -> teeLoopback("A") ->"%v";
+	 	split: Path("/foo") && Traffic(1) -> teeLoopback("A") ->"%v";
 		shadow: Path("/foo") && True() && Tee("A") -> "%v";
 	`
 	split := backendtest.NewBackendRecorder(listenFor)
@@ -112,6 +115,7 @@ func TestOriginalBackendServeEvenWhenShadowIsDown(t *testing.T) {
 		Predicates: []routing.PredicateSpec{
 			teePredicate.New(),
 			primitive.NewTrue(),
+			traffic.New(),
 		},
 	}, routes...)
 	_, err := http.Get(p.URL + "/foo")
@@ -139,7 +143,6 @@ func TestInfiniteLoopback(t *testing.T) {
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
 		Predicates: []routing.PredicateSpec{
 			teePredicate.New(),
-			primitive.NewTrue(),
 		},
 	}, routes...)
 	_, err := http.Get(p.URL + "/foo")
