@@ -262,7 +262,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 	u.Host = originalRequest.Host
 	cr, body, err := cloneRequest(u, originalRequest)
 	if err != nil {
-		log.Errorf("context: failed to clone request: %v", err)
+		c.proxy.log.Errorf("context: failed to clone request: %v", err)
 		return nil, err
 	}
 	serverSpan := opentracing.SpanFromContext(originalRequest.Context())
@@ -280,7 +280,7 @@ func (c *context) Loopback() {
 		}
 		err := c.response.Body.Close()
 		if err != nil {
-			c.proxy.log.Error("context: error during closing the response body", err)
+			c.proxy.log.Errorf("context: error during closing the response body: %v", err)
 		}
 	}
 	if c.proxySpan != nil {
@@ -293,7 +293,7 @@ func (c *context) Loopback() {
 	}
 
 	if err != nil {
-		log.Errorf("context: failed to execute loopback request: %v", err)
+		c.proxy.log.Errorf("context: failed to execute loopback request: %v", err)
 	}
 }
 
