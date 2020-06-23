@@ -250,6 +250,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 	}
 	u := new(url.URL)
 	*u = *originalRequest.URL
+	u.Host = originalRequest.Host
 	cr, body, err := cloneRequest(u, originalRequest)
 	if err != nil {
 		log.Errorf("context: failed to clone request: %v", err)
@@ -281,7 +282,7 @@ func (c *context) Loopback() {
 	}
 
 	if err != nil {
-		log.Error("context: failed to execute loopback request", err)
+		log.Errorf("context: failed to execute loopback request: %v", err)
 	}
 }
 
@@ -300,3 +301,4 @@ func (m *filterMetrics) MeasureSince(key string, start time.Time) {
 func (m *filterMetrics) IncFloatCounterBy(key string, value float64) {
 	m.impl.IncFloatCounterBy(m.prefix+key, value)
 }
+
