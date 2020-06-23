@@ -51,6 +51,8 @@ type filterMetrics struct {
 	impl   metrics.Metrics
 }
 
+type noopFlushedResponseWriter struct{}
+
 func defaultBody() io.ReadCloser {
 	return ioutil.NopCloser(&bytes.Buffer{})
 }
@@ -243,7 +245,8 @@ func (c *context) setMetricsPrefix(prefix string) {
 func (c *context) Split() (filters.FilterContext, error) {
 	originalRequest := c.Request()
 	cc := c.clone()
-	c.stateBag = map[string]interface{}{}
+	cc.stateBag = map[string]interface{}{}
+	cc.responseWriter = noopFlushedResponseWriter{}
 	cc.metrics = &filterMetrics{
 		prefix: cc.metrics.prefix,
 		impl:   cc.proxy.metrics,
@@ -256,6 +259,8 @@ func (c *context) Split() (filters.FilterContext, error) {
 		log.Errorf("context: failed to clone request: %v", err)
 		return nil, err
 	}
+	serverSpan := opentracing.SpanFromContext(originalRequest.Context())
+	cr = cr.WithContext(opentracing.ContextWithSpan(cr.Context(), serverSpan))
 	originalRequest.Body = body
 	cc.request = cr
 	return cc, nil
@@ -302,3 +307,11 @@ func (m *filterMetrics) IncFloatCounterBy(key string, value float64) {
 	m.impl.IncFloatCounterBy(m.prefix+key, value)
 }
 
+func (r noopFlushedResponseWriter) Header() http.Header {
+	return map[string][]string{}
+}
+func (r noopFlushedResponseWriter) Write([]byte) (int, error) {
+	return 0, nil
+}
+func (r noopFlushedResponseWriter) WriteHeader(_ int) {}
+func (r noopFlushedResponseWriter) Flush()            {}
