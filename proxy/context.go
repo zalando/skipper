@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
@@ -244,6 +245,9 @@ func (c *context) setMetricsPrefix(prefix string) {
 
 func (c *context) Split() (filters.FilterContext, error) {
 	originalRequest := c.Request()
+	if c.proxy.experimentalUpgrade && isUpgradeRequest(originalRequest) {
+		return nil, errors.New("context: cannot split the context that contains an upgraded request")
+	}
 	cc := c.clone()
 	cc.stateBag = map[string]interface{}{}
 	cc.responseWriter = noopFlushedResponseWriter{}
