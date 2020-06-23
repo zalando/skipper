@@ -52,7 +52,7 @@ type filterMetrics struct {
 	impl   metrics.Metrics
 }
 
-type noopFlushedResponseWriter struct{
+type noopFlushedResponseWriter struct {
 	ignoredHeader http.Header
 }
 
