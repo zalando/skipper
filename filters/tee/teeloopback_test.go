@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/predicates/primitive"
 	teePredicate "github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy/backendtest"
@@ -36,7 +35,7 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	const routeDoc = `
 		original: Path("/foo") -> "%v";
 	 	split: Path("/foo") && Traffic(1) -> teeLoopback("A") ->"%v";
-		shadow: Path("/foo") && True() && Tee("A") -> "%v";
+		shadow: Path("/foo") && Traffic(1) && Tee("A") -> "%v";
 	`
 	original := backendtest.NewBackendRecorder(listenFor)
 	split := backendtest.NewBackendRecorder(listenFor)
@@ -48,7 +47,6 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
 		Predicates: []routing.PredicateSpec{
 			teePredicate.New(),
-			primitive.NewTrue(),
 			traffic.New(),
 		},
 	}, routes...)
@@ -69,7 +67,7 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	const routeDoc = `
 		original: Path("/foo") -> "%v";
 	 	split: Path("/foo") && Traffic(1)  -> teeLoopback("A") ->"%v";
-		shadow: Path("/foo") && True() && Tee("A") -> "%v";
+		shadow: Path("/foo") && Traffic(1) && Tee("A") -> "%v";
 	`
 	original := backendtest.NewBackendRecorder(listenFor)
 	split := backendtest.NewBackendRecorder(listenFor)
@@ -82,7 +80,6 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
 		Predicates: []routing.PredicateSpec{
 			teePredicate.New(),
-			primitive.NewTrue(),
 			traffic.New(),
 		},
 	}, routes...)
@@ -105,7 +102,7 @@ func TestOriginalBackendServeEvenWhenShadowIsDown(t *testing.T) {
 	const routeDoc = `
 		original: Path("/foo") -> "%v";
 	 	split: Path("/foo") && Traffic(1) -> teeLoopback("A") ->"%v";
-		shadow: Path("/foo") && True() && Tee("A") -> "%v";
+		shadow: Path("/foo") && Traffic(1) && Tee("A") -> "%v";
 	`
 	split := backendtest.NewBackendRecorder(listenFor)
 	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, split.GetURL(), split.GetURL(), "http://fakeurl"))
@@ -114,7 +111,6 @@ func TestOriginalBackendServeEvenWhenShadowIsDown(t *testing.T) {
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
 		Predicates: []routing.PredicateSpec{
 			teePredicate.New(),
-			primitive.NewTrue(),
 			traffic.New(),
 		},
 	}, routes...)
