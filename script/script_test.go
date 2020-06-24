@@ -90,6 +90,10 @@ func (l *luaContext) Tracer() opentracing.Tracer { return nil }
 
 func (l *luaContext) ParentSpan() opentracing.Span { return nil }
 
+func (l *luaContext) Split() (filters.FilterContext, error) { return nil, nil }
+
+func (l *luaContext) Loopback() {}
+
 func TestStateBag(t *testing.T) {
 	code := `function request(ctx, params); ctx.state_bag["foo"] = "bar"; end`
 	ls := &luaScript{}

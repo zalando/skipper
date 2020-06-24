@@ -70,3 +70,9 @@ func (fc *Context) Serve(resp *http.Response) {
 func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
 	return &Filter{spec.FilterName, config}, nil
 }
+
+func (fc *Context) Loopback() {}
+
+func (fc *Context) Split() (filters.FilterContext, error) {
+	return fc, nil
+}

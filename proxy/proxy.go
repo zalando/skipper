@@ -1047,22 +1047,29 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 }
 
 func (p *Proxy) do(ctx *context) error {
-	if ctx.loopCounter > p.maxLoops {
+	if ctx.executionCounter > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
-
-	ctx.loopCounter++
+	defer func() {
+		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
+		for _, done := range pendingLIFO {
+			done()
+		}
+	}()
 
 	// proxy global setting
-	if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
-		rerr := newRatelimitError(settings, retryAfter)
-		return rerr
+	if !ctx.wasExecuted() {
+		if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
+			rerr := newRatelimitError(settings, retryAfter)
+			return rerr
+		}
 	}
-
+	// every time the context is used for a request the context executionCounter is incremented
+	// a context executionCounter equal to zero represents a root context.
+	ctx.executionCounter++
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx)
 	p.metrics.MeasureRouteLookup(lookupStart)
-
 	if route == nil {
 		if !p.flags.Debug() {
 			p.metrics.IncRoutingFailures()
@@ -1421,7 +1428,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
-	ctx = newContext(lw, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
+	ctx = newContext(lw, r, p)
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 
@@ -1434,13 +1441,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	if err == nil {
-		err = p.do(ctx)
-		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
-		for _, done := range pendingLIFO {
-			done()
-		}
-	}
+	err = p.do(ctx)
 
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)
