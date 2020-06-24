@@ -283,6 +283,7 @@ func (c *context) Loopback() {
 		}
 	}
 	if c.proxySpan != nil {
+		c.proxy.tracing.setTag(c.proxySpan, "shadow", "true")
 		c.proxySpan.Finish()
 	}
 

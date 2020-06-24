@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/scheduler"
 	"io"
 	"io/ioutil"
 	"net"
@@ -36,6 +35,7 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/rfc"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
 )
 
