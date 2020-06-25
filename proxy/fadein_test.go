@@ -246,6 +246,7 @@ func TestFadeIn(t *testing.T) {
 				sub(
 					"with created time",
 					sub("start single", endpointStartTest(1, 1, 1, true, true, true)),
+					sub("start multiple", endpointStartTest(1, 1, 3, true, true, true)),
 				),
 			),
 		),
