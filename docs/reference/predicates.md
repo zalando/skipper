@@ -452,6 +452,22 @@ Examples:
 SourceFromLast("1.2.3.4", "2.2.2.0/24")
 ```
 
+## Tee
+
+The Tee predicate matches a route when a request is spawn from the
+[teeLoopback](../filters/#teeloopback) filter as a tee request, using
+the same provided label.
+
+Parameters:
+
+* tee label (string): the predicate will match only those requests that
+  were spawn from a teeLoopback filter using the same label.
+
+See also:
+
+* [teeLoopback filter](../filters/#teeloopback)
+* [Shadow Traffic Tutorial](../../tutorials/shadow-traffic)
+
 ## Traffic
 
 Traffic implements a predicate to control the matching probability for
