@@ -670,7 +670,7 @@ func (f *tokenOidcFilter) setHeaders(ctx filters.FilterContext, container tokenC
 
 	// backwards compatible
 	if len(f.upstreamHeaders) == 0 {
-		ctx.Request().Header.Add(oidcInfoHeader, string(oidcInfoJson))
+		ctx.Request().Header.Set(oidcInfoHeader, string(oidcInfoJson))
 		return
 	}
 
@@ -683,7 +683,7 @@ func (f *tokenOidcFilter) setHeaders(ctx filters.FilterContext, container tokenC
 			log.Errorf("Lookup failed for upstream header '%s'", query)
 			continue
 		}
-		ctx.Request().Header.Add(key, match.String())
+		ctx.Request().Header.Set(key, match.String())
 	}
 	return
 }
