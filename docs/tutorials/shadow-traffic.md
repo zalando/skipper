@@ -41,7 +41,7 @@ The route introduced next won't handle directly any incoming requests, because t
 ```
 main: * -> "https://main.example.org";
 split: Traffic(.1) -> "https://main.example.org";
-shadow: Tee("shadow-test-1") -> "https://shadow.example.org";
+shadow: Tee("shadow-test-1") && True() -> "https://shadow.example.org";
 ```
 
 ### 4. Apply the teeLoopback filter
