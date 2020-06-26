@@ -32,6 +32,7 @@ nav:
         - Common Use Cases: tutorials/common-use-cases.md
         - Authentication and Autorization: tutorials/auth.md
         - Ratelimits: tutorials/ratelimit.md
+        - Shadow Traffic: tutorials/shadow-traffic.md
         - Operations: tutorials/operations.md
         - Development: tutorials/development.md
 theme:

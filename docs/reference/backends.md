@@ -189,6 +189,9 @@ $ curl -sv localhost:9090/api >/dev/null
 
 ```
 
+If the request processing reaches the maximum number of loopbacks (by default max=9), the routing will
+result in an error.
+
 ## Dynamic backend
 
 The dynamic backend, `<dynamic>`, will get the backend to call by data
