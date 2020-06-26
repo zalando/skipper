@@ -571,17 +571,17 @@ routing facilities are used for the outgoing tee requests as for the normal
 requests, and all the filters and backend types are supported.
 
 To ensure that the right route, or one of the right set of routes, is matched
-after the loopback, use the filter together with the [Tee](../predicates/#tee)
+after the loopback, use the filter together with the [Tee](predicates.md#tee)
 predicate, however, this is not mandatory if the request is changed via other
 filters, such that other predicates ensure matching the right route. To avoid
 infinite looping, the number of requests spawn from a single incoming request
 is limited similarly as in case of the
-[loopback backend](../backends/#loopback-backend).
+[loopback backend](backends.md#loopback-backend).
 
 Parameters:
 
 * tee group (string): a label identifying which routes should match the loopback
-  request, marked with the [Tee](../predicates/#tee) predicate
+  request, marked with the [Tee](predicates.md#tee) predicate
 
 Example, generate shadow traffic from 10% of the production traffic:
 
@@ -593,8 +593,8 @@ shadow: Tee("test-A") && True() -> "https://test-backend.example.org";
 
 See also:
 
-* [Tee predicate](../predicates/#tee)
-* [Shadow Traffic Tutorial](../../tutorials/shadow-traffic)
+* [Tee predicate](predicates.md#tee)
+* [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
 
 ## sed
 

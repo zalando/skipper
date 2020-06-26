@@ -455,7 +455,7 @@ SourceFromLast("1.2.3.4", "2.2.2.0/24")
 ## Tee
 
 The Tee predicate matches a route when a request is spawn from the
-[teeLoopback](../filters/#teeloopback) filter as a tee request, using
+[teeLoopback](filters.md#teeloopback) filter as a tee request, using
 the same provided label.
 
 Parameters:
@@ -465,8 +465,8 @@ Parameters:
 
 See also:
 
-* [teeLoopback filter](../filters/#teeloopback)
-* [Shadow Traffic Tutorial](../../tutorials/shadow-traffic)
+* [teeLoopback filter](filters.md#teeloopback)
+* [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
 
 ## Traffic
 
