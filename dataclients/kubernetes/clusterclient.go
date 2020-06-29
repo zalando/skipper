@@ -291,26 +291,6 @@ func (c *clusterClient) loadIngresses() ([]*ingressItem, error) {
 	return fItems, nil
 }
 
-// skipRouteGroup decides whether a found RouteGroup should be skipped or not.
-func (c *clusterClient) skipRouteGroup(i *routeGroupItem) bool {
-
-	// Validate RouteGroup item
-	if err := i.validate(); err != nil {
-		log.Errorf("[routegroup] %v", err)
-		return true
-	}
-
-	// Filter on RouteGroup class annotation
-	if i.Metadata != nil {
-		cls, ok := i.Metadata.Annotations[routeGroupClassKey]
-		if ok && cls != "" && !c.routeGroupClass.MatchString(cls) {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
 	var rgl routeGroupList
 	if err := c.getJSON(c.routeGroupsURI, &rgl); err != nil {
@@ -319,8 +299,20 @@ func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
 
 	rgs := []*routeGroupItem{}
 	for _, i := range rgl.Items {
-		if c.skipRouteGroup(i) {
+
+		// Validate RouteGroup item.
+		if err := i.validate(); err != nil {
+			log.Errorf("[routegroup] %v", err)
 			continue
+		}
+
+		// Check the RouteGroup has a valid class annotation.
+		// Not defined, or empty are ok too.
+		if i.Metadata != nil {
+			cls, ok := i.Metadata.Annotations[routeGroupClassKey]
+			if ok && cls != "" && !c.routeGroupClass.MatchString(cls) {
+				continue
+			}
 		}
 
 		rgs = append(rgs, i)

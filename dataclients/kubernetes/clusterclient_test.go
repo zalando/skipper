@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"net/http/httptest"
 	"os"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -71,106 +70,180 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	}
 }
 
-func TestSkipRouteGroups(t *testing.T) {
+func TestLoadRouteGroups(t *testing.T) {
 
-	ingClsRx, err := regexp.Compile("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, tt := range []struct {
+		msg     string
+		rgClass string
+		spec    string
+		loads   bool
+	}{{
+		msg:     "annotation set, and matches class",
+		rgClass: "test",
+		spec: `
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: foo
+  annotations:
+    zalando.org/routegroup.class: test
+spec:
+  hosts:
+  - foo.example.org
+  backends:
+  - name: foo
+    type: service
+    serviceName: foo
+    servicePort: 80
+  routes:
+  - pathSubtree: /
+    backends:
+    - backendName: foo
+`,
+		loads: true,
+	}, {
+		msg:     "annotation set, and class doesn't match",
+		rgClass: "test",
+		spec: `
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: foo
+  annotations:
+    zalando.org/routegroup.class: incorrectclass
+spec:
+  hosts:
+  - foo.example.org
+  backends:
+  - name: foo
+    type: service
+    serviceName: foo
+    servicePort: 80
+  routes:
+  - pathSubtree: /
+    backends:
+    - backendName: foo
+`,
+		loads: false,
+	}, {
+		msg:     "no annotation is loaded",
+		rgClass: "test",
+		spec: `
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: foo
+  annotations: {}
+spec:
+  hosts:
+  - foo.example.org
+  backends:
+  - name: foo
+    type: service
+    serviceName: foo
+    servicePort: 80
+  routes:
+  - pathSubtree: /
+    backends:
+    - backendName: foo
+`,
+		loads: true,
+	}, {
+		msg:     "empty annotation is loaded",
+		rgClass: "test",
+		spec: `
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: foo
+  annotations:
+    zalando.org/routegroup.class: ""
+spec:
+  hosts:
+  - foo.example.org
+  backends:
+  - name: foo
+    type: service
+    serviceName: foo
+    servicePort: 80
+  routes:
+  - pathSubtree: /
+    backends:
+    - backendName: foo
+`,
+		loads: true,
+	}, {
+		msg:     "annotation matches regexp class, route group loads",
+		rgClass: "^test.*",
+		spec: `
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: foo
+  annotations:
+    zalando.org/routegroup.class: testing
+spec:
+  hosts:
+  - foo.example.org
+  backends:
+  - name: foo
+    type: service
+    serviceName: foo
+    servicePort: 80
+  routes:
+  - pathSubtree: /
+    backends:
+    - backendName: foo
+`,
+		loads: true,
+	}, {
+		msg:     "annotation doesn't matches regexp class, route group isn't loaded",
+		rgClass: "^test.*",
+		spec: `
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: foo
+  annotations:
+    zalando.org/routegroup.class: a-test
+spec:
+  hosts:
+  - foo.example.org
+  backends:
+  - name: foo
+    type: service
+    serviceName: foo
+    servicePort: 80
+  routes:
+  - pathSubtree: /
+    backends:
+    - backendName: foo
+`,
+		loads: false,
+	}} {
 
-	tests := []struct {
-		Name            string
-		RouteGroupClass string
-		Annotations     map[string]string
-		Skipped         bool
-	}{
-		{
-			Name:            "class-matches",
-			RouteGroupClass: "test",
-			Annotations: map[string]string{
-				"zalando.org/routegroup.class": "test",
-			},
-			Skipped: false,
-		},
-		{
-			Name:            "class-doesnt-match",
-			RouteGroupClass: "test",
-			Annotations: map[string]string{
-				"zalando.org/routegroup.class": "nottheclass",
-			},
-			Skipped: true,
-		},
-		{
-			Name:            "no-class-matches",
-			RouteGroupClass: "test",
-			Annotations:     map[string]string{},
-			Skipped:         false,
-		},
-		{
-			Name:            "empty-class-matches",
-			RouteGroupClass: "test",
-			Annotations: map[string]string{
-				"zalando.org/routegroup.class": "",
-			},
-			Skipped: false,
-		},
-		{
-			Name:            "class-regexp-matches",
-			RouteGroupClass: "^test.*",
-			Annotations: map[string]string{
-				"zalando.org/routegroup.class": "testing",
-			},
-			Skipped: false,
-		},
-		{
-			Name:            "class-regexp-doesnt-match",
-			RouteGroupClass: "^test.*",
-			Annotations: map[string]string{
-				"zalando.org/routegroup.class": "a-test",
-			},
-			Skipped: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.Name, func(t *testing.T) {
-
-			rgClsRx, err := regexp.Compile(tt.RouteGroupClass)
+		t.Run(tt.msg, func(t *testing.T) {
+			a, err := newAPI(testAPIOptions{}, bytes.NewBufferString(tt.spec))
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 
-			c := &clusterClient{
-				ingressesURI:    ingressesClusterURI,
-				routeGroupsURI:  routeGroupsClusterURI,
-				servicesURI:     servicesClusterURI,
-				endpointsURI:    endpointsClusterURI,
-				ingressClass:    ingClsRx,
-				routeGroupClass: rgClsRx,
+			s := httptest.NewServer(a)
+			defer s.Close()
+
+			c, err := New(Options{KubernetesURL: s.URL, RouteGroupClass: tt.rgClass})
+			if err != nil {
+				t.Error(err)
+			}
+			defer c.Close()
+
+			rgs, err := c.clusterClient.loadRouteGroups()
+			if err != nil {
+				t.Error(err)
 			}
 
-			item := &routeGroupItem{
-				Metadata: &metadata{
-					Name:        "rg",
-					Annotations: tt.Annotations,
-				},
-				Spec: &routeGroupSpec{
-					DefaultBackends: []*backendReference{
-						{
-							BackendName: "test",
-						},
-					},
-					Backends: []*skipperBackend{
-						{
-							Name:    "test",
-							Address: "localhost",
-						},
-					},
-				},
-			}
-
-			if c.skipRouteGroup(item) != tt.Skipped {
-				t.Error("routegroup filtered incorrectly")
+			if tt.loads != (len(rgs) == 1) {
+				t.Errorf("mismatch when loading route groups. Expected loads: %t, actual %t", tt.loads, (len(rgs) == 1))
 			}
 		})
 	}
