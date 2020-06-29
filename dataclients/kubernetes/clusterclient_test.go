@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -67,5 +68,86 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 
 	if !containsEveryLineCount(logBuf.String(), routeGroupsNotInstalledMessage, 1) {
 		t.Error("missing RouteGroups CRD was not reported exactly once")
+	}
+}
+
+func TestFilterRouteGroups(t *testing.T) {
+
+	ingClsRx, err := regexp.Compile("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		Name            string
+		RouteGroupClass string
+		Annotations     map[string]string
+		Filtered        bool
+	}{
+		{
+			Name:            "class-matches",
+			RouteGroupClass: "test",
+			Annotations: map[string]string{
+				"zalando.org/routegroup-class": "test",
+			},
+			Filtered: false,
+		},
+		{
+			Name:            "class-doesnt-match",
+			RouteGroupClass: "test",
+			Annotations: map[string]string{
+				"zalando.org/routegroup-class": "nottheclass",
+			},
+			Filtered: true,
+		},
+		{
+			Name:            "no-class-matches",
+			RouteGroupClass: "test",
+			Annotations:     map[string]string{},
+			Filtered:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+
+			rgClsRx, err := regexp.Compile(tt.RouteGroupClass)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			c := &clusterClient{
+				ingressesURI:    ingressesClusterURI,
+				routeGroupsURI:  routeGroupsClusterURI,
+				servicesURI:     servicesClusterURI,
+				endpointsURI:    endpointsClusterURI,
+				ingressClass:    ingClsRx,
+				routeGroupClass: rgClsRx,
+			}
+
+			item := &routeGroupItem{
+				Metadata: &metadata{
+					Name:        "rg",
+					Annotations: tt.Annotations,
+				},
+				Spec: &routeGroupSpec{
+					DefaultBackends: []*backendReference{
+						&backendReference{
+							BackendName: "test",
+						},
+					},
+					Backends: []*skipperBackend{
+						&skipperBackend{
+							Name:    "test",
+							Address: "localhost",
+						},
+					},
+				},
+			}
+
+			if c.filterRouteGroup(item) != tt.Filtered {
+				t.Error("routegroup filtered incorrectly")
+			}
+		})
 	}
 }
