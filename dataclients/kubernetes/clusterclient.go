@@ -297,7 +297,7 @@ func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
 		return nil, err
 	}
 
-	rgs := []*routeGroupItem{}
+	rgs := make([]*routeGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
 
 		// Validate RouteGroup item.
