@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/zalando/skipper/predicates/tee"
 	"io"
 	"io/ioutil"
 	"net"
@@ -16,9 +15,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/zalando/skipper/predicates/cron"
-	"github.com/zalando/skipper/predicates/primitive"
 
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
@@ -40,10 +36,13 @@ import (
 	"github.com/zalando/skipper/metrics"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
+	"github.com/zalando/skipper/predicates/cron"
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/methods"
+	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
+	"github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/queuelistener"
@@ -166,11 +165,17 @@ type Options struct {
 	KubernetesHTTPSRedirectCode int
 
 	// KubernetesIngressClass is a regular expression, that will make
-	// skipper load only the ingress resources that that have a matching
+	// skipper load only the ingress resources that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,
 	// the ingresses without an annotation, or an empty annotation, will
 	// be loaded, too.
 	KubernetesIngressClass string
+
+	// KubernetesRouteGroupClass is a regular expression, that will make skipper
+	// load only the RouteGroup resources that have a matching
+	// zalando.org/routegroup.class annotation. Any RouteGroups without the
+	// annotation, or which an empty annotation, will be loaded too.
+	KubernetesRouteGroupClass string
 
 	// PathMode controls the default interpretation of ingress paths in cases
 	// when the ingress doesn't specify it with an annotation.
@@ -694,6 +699,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
 			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
 			IngressClass:               o.KubernetesIngressClass,
+			RouteGroupClass:            o.KubernetesRouteGroupClass,
 			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
 			PathMode:                   o.KubernetesPathMode,

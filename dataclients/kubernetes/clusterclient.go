@@ -25,7 +25,7 @@ const (
 	clusterZalandoResourcesURI = "/apis/zalando.org/v1"
 	routeGroupsName            = "routegroups"
 	routeGroupsClusterURI      = "/apis/zalando.org/v1/routegroups"
-	routeGroupClassKey         = "zalando.org/routegroup-class"
+	routeGroupClassKey         = "zalando.org/routegroup.class"
 	servicesClusterURI         = "/api/v1/services"
 	endpointsClusterURI        = "/api/v1/endpoints"
 	defaultKubernetesURL       = "http://localhost:8001"
@@ -291,7 +291,8 @@ func (c *clusterClient) loadIngresses() ([]*ingressItem, error) {
 	return fItems, nil
 }
 
-func (c *clusterClient) filterRouteGroup(i *routeGroupItem) bool {
+// skipRouteGroup decides whether a found RouteGroup should be skipped or not.
+func (c *clusterClient) skipRouteGroup(i *routeGroupItem) bool {
 
 	// Validate RouteGroup item
 	if err := i.validate(); err != nil {
@@ -316,9 +317,9 @@ func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
 		return nil, err
 	}
 
-	rgs := make([]*routeGroupItem, 0, len(rgl.Items))
+	rgs := []*routeGroupItem{}
 	for _, i := range rgl.Items {
-		if c.filterRouteGroup(i) {
+		if c.skipRouteGroup(i) {
 			continue
 		}
 

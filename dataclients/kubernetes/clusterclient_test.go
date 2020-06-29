@@ -71,7 +71,7 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	}
 }
 
-func TestFilterRouteGroups(t *testing.T) {
+func TestSkipRouteGroups(t *testing.T) {
 
 	ingClsRx, err := regexp.Compile("")
 	if err != nil {
@@ -82,29 +82,45 @@ func TestFilterRouteGroups(t *testing.T) {
 		Name            string
 		RouteGroupClass string
 		Annotations     map[string]string
-		Filtered        bool
+		Skipped         bool
 	}{
 		{
 			Name:            "class-matches",
 			RouteGroupClass: "test",
 			Annotations: map[string]string{
-				"zalando.org/routegroup-class": "test",
+				"zalando.org/routegroup.class": "test",
 			},
-			Filtered: false,
+			Skipped: false,
 		},
 		{
 			Name:            "class-doesnt-match",
 			RouteGroupClass: "test",
 			Annotations: map[string]string{
-				"zalando.org/routegroup-class": "nottheclass",
+				"zalando.org/routegroup.class": "nottheclass",
 			},
-			Filtered: true,
+			Skipped: true,
 		},
 		{
 			Name:            "no-class-matches",
 			RouteGroupClass: "test",
 			Annotations:     map[string]string{},
-			Filtered:        false,
+			Skipped:         false,
+		},
+		{
+			Name:            "class-regexp-matches",
+			RouteGroupClass: "^test.*",
+			Annotations: map[string]string{
+				"zalando.org/routegroup.class": "testing",
+			},
+			Skipped: false,
+		},
+		{
+			Name:            "class-regexp-doesnt-match",
+			RouteGroupClass: "^test.*",
+			Annotations: map[string]string{
+				"zalando.org/routegroup.class": "a-test",
+			},
+			Skipped: true,
 		},
 	}
 
@@ -132,12 +148,12 @@ func TestFilterRouteGroups(t *testing.T) {
 				},
 				Spec: &routeGroupSpec{
 					DefaultBackends: []*backendReference{
-						&backendReference{
+						{
 							BackendName: "test",
 						},
 					},
 					Backends: []*skipperBackend{
-						&skipperBackend{
+						{
 							Name:    "test",
 							Address: "localhost",
 						},
@@ -145,7 +161,7 @@ func TestFilterRouteGroups(t *testing.T) {
 				},
 			}
 
-			if c.filterRouteGroup(item) != tt.Filtered {
+			if c.skipRouteGroup(item) != tt.Skipped {
 				t.Error("routegroup filtered incorrectly")
 			}
 		})
