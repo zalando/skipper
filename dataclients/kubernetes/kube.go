@@ -20,7 +20,7 @@ import (
 
 const (
 	defaultIngressClass          = "skipper"
-	defaultRoutegroupClass       = "skipper"
+	defaultRouteGroupClass       = "skipper"
 	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
 	healthcheckRouteID           = "kube__healthz"
@@ -192,7 +192,7 @@ func New(o Options) (*Client, error) {
 		ingCls = o.IngressClass
 	}
 
-	rgCls := defaultRoutegroupClass
+	rgCls := defaultRouteGroupClass
 	if o.RouteGroupClass != "" {
 		rgCls = o.RouteGroupClass
 	}

@@ -107,6 +107,14 @@ func TestSkipRouteGroups(t *testing.T) {
 			Skipped:         false,
 		},
 		{
+			Name:            "empty-class-matches",
+			RouteGroupClass: "test",
+			Annotations: map[string]string{
+				"zalando.org/routegroup.class": "",
+			},
+			Skipped: false,
+		},
+		{
 			Name:            "class-regexp-matches",
 			RouteGroupClass: "^test.*",
 			Annotations: map[string]string{
