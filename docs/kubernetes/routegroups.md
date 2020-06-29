@@ -119,7 +119,7 @@ spec:
     serviceName: my-service
     servicePort: 80
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
 ```
 
 This is equivalent to the ingress:
@@ -344,7 +344,7 @@ spec:
     serviceName: my-service
     servicePort: 80
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
 ```
 
 ### Ingress with path rule
@@ -540,7 +540,7 @@ spec:
   - name: options200
     type: shunt
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
   routes:
   - pathSubtree: /
   - pathSubtree: /
@@ -576,7 +576,7 @@ spec:
   - name: redirectShunt
     type: shunt
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
   routes:
   - pathSubtree: /
   - pathSubtree: /
