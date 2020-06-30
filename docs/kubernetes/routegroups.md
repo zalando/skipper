@@ -249,7 +249,7 @@ spec:
   routes:
   - pathSubtree: /api
     backends:
-    - backendName: api-svc
+    - backendName: api-svc-v1
       weight: 80
     - backendName: api-svc-v2
       weight: 20
