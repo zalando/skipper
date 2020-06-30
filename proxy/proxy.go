@@ -230,6 +230,12 @@ type Params struct {
 	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
 	// check OpenTracingParams
 	OpenTracing *OpenTracingParams
+
+	// CustomHttpRoundTripperWrap provides ability to wrap http.RoundTripper created by skipper.
+	// http.RoundTripper is used for making outgoing requests (backends)
+	// It allows to add additional logic (for example tracing) by providing a wrapper function
+	// which accepts original skipper http.RoundTripper as an argument and returns a wrapped roundtripper
+	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
 }
 
 type (
@@ -309,7 +315,7 @@ type Proxy struct {
 	maxLoops                 int
 	defaultHTTPStatus        int
 	routing                  *routing.Routing
-	roundTripper             *http.Transport
+	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
 	metrics                  metrics.Metrics
@@ -323,6 +329,7 @@ type Proxy struct {
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
 	auditLogHook             chan struct{}
+	clientTLS                *tls.Config
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -605,6 +612,13 @@ func WithParams(p Params) *Proxy {
 		p.ExpectContinueTimeout = DefaultExpectContinueTimeout
 	}
 
+	if p.CustomHttpRoundTripperWrap == nil {
+		// default wrapper which does nothing
+		p.CustomHttpRoundTripperWrap = func(original http.RoundTripper) http.RoundTripper {
+			return original
+		}
+	}
+
 	tr := &http.Transport{
 		DialContext: newSkipperDialer(net.Dialer{
 			Timeout:   p.Timeout,
@@ -673,7 +687,7 @@ func WithParams(p Params) *Proxy {
 
 	return &Proxy{
 		routing:                  p.Routing,
-		roundTripper:             tr,
+		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
 		metrics:                  m,
@@ -691,6 +705,7 @@ func WithParams(p Params) *Proxy {
 		accessLogDisabled:        p.AccessLogDisabled,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
+		clientTLS:                p.ClientTLS,
 	}
 }
 
@@ -836,7 +851,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 		backendAddr:     backendURL,
 		reverseProxy:    reverseProxy,
 		insecure:        p.flags.Insecure(),
-		tlsClientConfig: p.roundTripper.TLSClientConfig,
+		tlsClientConfig: p.clientTLS,
 		useAuditLog:     p.experimentalUpgradeAudit,
 		auditLogOut:     p.upgradeAuditLogOut,
 		auditLogErr:     p.upgradeAuditLogErr,
