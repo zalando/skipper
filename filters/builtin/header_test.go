@@ -97,6 +97,8 @@ func TestHeader(t *testing.T) {
 		args           []interface{}
 		context        map[string]interface{}
 		host           string
+		pathPredicate  string
+		path           string
 		valid          bool
 		requestHeader  http.Header
 		responseHeader http.Header
@@ -132,6 +134,19 @@ func TestHeader(t *testing.T) {
 			args:  []interface{}{"Host", "www.example.org"},
 			valid: true,
 			host:  "www.example.org",
+		}, {
+			msg:            "set request header from context and path params",
+			args:           []interface{}{"X-Test-Name", "Mit ${was} zu ${wo}"},
+			pathPredicate:  "/path/:wo",
+			path:           "/path/Planeten",
+			context:        map[string]interface{}{"was": "Raketen"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"Mit Raketen zu Planeten"}},
+		}, {
+			msg:     "set request header from context when missing",
+			args:    []interface{}{"X-Test-Name", "${one} ${two}"},
+			context: map[string]interface{}{"one": "1"},
+			valid:   true,
 		}},
 		"appendRequestHeader": {{
 			msg:            "append request header when none",
@@ -149,6 +164,19 @@ func TestHeader(t *testing.T) {
 			args:  []interface{}{"Host", "www.example.org"},
 			valid: true,
 			host:  "www.example.org",
+		}, {
+			msg:            "append request header from context",
+			args:           []interface{}{"X-Test-Name", "a ${foo}ter"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0", "value1", "a barter"}},
+		}, {
+			msg:            "append request header from context when missing",
+			args:           []interface{}{"X-Test-Name", "${foo}"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0", "value1"}},
 		}},
 		"dropRequestHeader": {{
 			msg:   "drop request header when none",
@@ -171,6 +199,18 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Name": []string{"value"}},
+		}, {
+			msg:            "set response header from context and path params",
+			args:           []interface{}{"X-Test-Name", "a ${sizeof} ${foo}ter"},
+			pathPredicate:  "/path/:sizeof",
+			path:           "/path/small",
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Name": []string{"a small barter"}},
+		}, {
+			msg:   "set response header from context when missing",
+			args:  []interface{}{"X-Test-Name", "a ${foo}ter"},
+			valid: true,
 		}},
 		"appendResponseHeader": {{
 			msg:            "append response header when none",
@@ -183,6 +223,19 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Name": []string{"value0", "value1", "value"}},
+		}, {
+			msg:            "append response header from context",
+			args:           []interface{}{"X-Test-Name", "a ${foo}ter"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Name": []string{"value0", "value1", "a barter"}},
+		}, {
+			msg:            "append response header from context when missing",
+			args:           []interface{}{"X-Test-Name", "a ${foo}ter"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 		}},
 		"dropResponseHeader": {{
 			msg:   "drop response header when none",
@@ -364,13 +417,24 @@ func TestHeader(t *testing.T) {
 						}}, filters...)
 					}
 
-					pr := proxytest.New(fr, &eskip.Route{
+					r := &eskip.Route{
 						Filters: filters,
-						Backend: bs.URL},
-					)
+						Backend: bs.URL,
+					}
+
+					if ti.pathPredicate != "" {
+						r.Predicates = append(r.Predicates, &eskip.Predicate{Name: "Path", Args: []interface{}{ti.pathPredicate}})
+					}
+
+					pr := proxytest.New(fr, r)
 					defer pr.Close()
 
-					req, err := http.NewRequest("GET", pr.URL, nil)
+					path := pr.URL
+					if ti.path != "" {
+						path += ti.path
+					}
+
+					req, err := http.NewRequest("GET", path, nil)
 					if err != nil {
 						t.Error(err)
 						return
@@ -390,7 +454,7 @@ func TestHeader(t *testing.T) {
 
 					if ti.valid && rsp.StatusCode != http.StatusOK ||
 						!ti.valid && rsp.StatusCode != http.StatusNotFound {
-						t.Error("failed to validate arguments")
+						t.Errorf("failed to validate arguments, valid: %v, status: %v", ti.valid, rsp.StatusCode)
 						return
 					}
 
