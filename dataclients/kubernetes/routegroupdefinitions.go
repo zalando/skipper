@@ -9,10 +9,6 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 )
 
-type routeGroupList struct {
-	Items []*routeGroupItem `json:"items"`
-}
-
 // skipperBackendParser is an intermediate type required for parsing
 // skipperBackend and adding type safety for Algorithm and Type with
 // skipperBackend type.

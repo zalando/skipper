@@ -1,4 +1,4 @@
-package routegroups
+package definitions
 
 import (
 	"errors"
@@ -32,11 +32,6 @@ var (
 	errUnnamedBackend           = errors.New("unnamed backend")
 	errUnnamedBackendReference  = errors.New("unnamed backend reference")
 )
-
-type RouteGroupItem struct {
-	Metadata *metadata       `json:"metadata"`
-	Spec     *routeGroupSpec `json:"spec"`
-}
 
 type metadata struct {
 	Namespace   string            `json:"namespace"`
@@ -323,18 +318,18 @@ func (r *routeSpec) validate(hasDefault bool, backends map[string]bool) error {
 	return nil
 }
 
-func (rg *RouteGroupItem) Validate() error {
+func (rg *RouteGroupItem) validate() error {
 	// has metadata and name:
 	if rg == nil || rg.Metadata == nil || rg.Metadata.Name == "" {
 		return errRouteGroupWithoutName
 	}
 
 	// has spec:
-	if rg.Spec == nil {
+	if rg.spec == nil {
 		return routeGroupError(rg.Metadata, errRouteGroupWithoutSpec)
 	}
 
-	if err := rg.Spec.validate(); err != nil {
+	if err := rg.spec.validate(); err != nil {
 		return routeGroupError(rg.Metadata, err)
 	}
 
