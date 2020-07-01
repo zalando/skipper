@@ -20,8 +20,8 @@ var (
 )
 
 func admit(ar *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
-	rg := kubernetes.RouteGroupItem{}
-	err := json.Unmarshal(ar.Object.Raw, &rg)
+	rgItem := kubernetes.RouteGroupItem{}
+	err := json.Unmarshal(ar.Object.Raw, &rgItem)
 	if err != nil {
 		emsg := fmt.Errorf("could not parse RouteGroup, %w", err)
 		log.Error(emsg)
@@ -31,10 +31,9 @@ func admit(ar *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
 				Message: emsg.Error(),
 			},
 		}
-
 	}
 
-	err = rg.Validate()
+	err = rgItem.Validate()
 	if err != nil {
 		emsg := fmt.Errorf("could not validate RouteGroup, %w", err)
 		log.Error(emsg)
