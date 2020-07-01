@@ -10,15 +10,15 @@ import (
 )
 
 type routeGroupList struct {
-	Items []*routeGroupItem `json:"items"`
+	Items []*RouteGroupItem `json:"items"`
 }
 
-type routeGroupItem struct {
-	Metadata *metadata       `json:"metadata"`
-	Spec     *routeGroupSpec `json:"spec"`
+type RouteGroupItem struct {
+	Metadata *Metadata       `json:"Metadata"`
+	Spec     *RouteGroupSpec `json:"spec"`
 }
 
-type routeGroupSpec struct {
+type RouteGroupSpec struct {
 	// Hosts specifies the host headers, that will be matched for
 	// all routes created by this route group. No hosts mean
 	// catchall.
@@ -141,7 +141,7 @@ var (
 	errInvalidMethod            = errors.New("invalid method")
 )
 
-func routeGroupError(m *metadata, err error) error {
+func routeGroupError(m *Metadata, err error) error {
 	return fmt.Errorf("error in route group %s/%s: %w", namespaceString(m.Namespace), m.Name, err)
 }
 
@@ -191,8 +191,8 @@ func hasEmpty(s []string) bool {
 	return false
 }
 
-func (rg *routeGroupItem) validate() error {
-	// has metadata and name:
+func (rg *RouteGroupItem) Validate() error {
+	// has Metadata and name:
 	if rg == nil || rg.Metadata == nil || rg.Metadata.Name == "" {
 		return errRouteGroupWithoutName
 	}
@@ -224,11 +224,11 @@ func uniqueStrings(s []string) []string {
 	return u
 }
 
-func (rg *routeGroupSpec) uniqueHosts() []string {
+func (rg *RouteGroupSpec) uniqueHosts() []string {
 	return uniqueStrings(rg.Hosts)
 }
 
-func (rg *routeGroupSpec) validate() error {
+func (rg *RouteGroupSpec) validate() error {
 	// has at least one backend:
 	if len(rg.Backends) == 0 {
 		return errRouteGroupWithoutBackend

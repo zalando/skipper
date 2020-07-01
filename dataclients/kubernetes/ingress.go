@@ -87,7 +87,7 @@ func getServiceURL(svc *service, port backendPort) (string, error) {
 	return "", errServiceNotFound
 }
 
-func getLoadBalancerAlgorithm(m *metadata) string {
+func getLoadBalancerAlgorithm(m *Metadata) string {
 	algorithm := defaultLoadBalancerAlgorithm
 	if algorithmAnnotationValue, ok := m.Annotations[skipperLoadBalancerAnnotationKey]; ok {
 		algorithm = algorithmAnnotationValue
@@ -133,7 +133,7 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 
 func convertPathRule(
 	state *clusterState,
-	metadata *metadata,
+	metadata *Metadata,
 	host string,
 	prule *pathRule,
 	pathMode PathMode,
@@ -670,7 +670,7 @@ func (ing *ingress) ingressRoute(
 ) (*eskip.Route, error) {
 	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 		i.Spec == nil {
-		log.Error("invalid ingress item: missing metadata")
+		log.Error("invalid ingress item: missing Metadata")
 		return nil, nil
 	}
 	logger := log.WithFields(log.Fields{

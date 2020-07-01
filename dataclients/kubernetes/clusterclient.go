@@ -237,7 +237,7 @@ func (c *clusterClient) filterIngressesByClass(items []*ingressItem) []*ingressI
 	validIngs := []*ingressItem{}
 
 	for _, ing := range items {
-		// No metadata is the same as no annotations for us
+		// No Metadata is the same as no annotations for us
 		if ing.Metadata != nil {
 			cls, ok := ing.Metadata.Annotations[ingressClassKey]
 			// Skip loop iteration if not valid ingress (non defined, empty or non defined one)
@@ -251,7 +251,7 @@ func (c *clusterClient) filterIngressesByClass(items []*ingressItem) []*ingressI
 	return validIngs
 }
 
-func sortByMetadata(slice interface{}, getMetadata func(int) *metadata) {
+func sortByMetadata(slice interface{}, getMetadata func(int) *Metadata) {
 	sort.Slice(slice, func(i, j int) bool {
 		mI := getMetadata(i)
 		mJ := getMetadata(j)
@@ -279,19 +279,19 @@ func (c *clusterClient) loadIngresses() ([]*ingressItem, error) {
 	log.Debugf("all ingresses received: %d", len(il.Items))
 	fItems := c.filterIngressesByClass(il.Items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
-	sortByMetadata(fItems, func(i int) *metadata { return fItems[i].Metadata })
+	sortByMetadata(fItems, func(i int) *Metadata { return fItems[i].Metadata })
 	return fItems, nil
 }
 
-func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
+func (c *clusterClient) loadRouteGroups() ([]*RouteGroupItem, error) {
 	var rgl routeGroupList
 	if err := c.getJSON(c.routeGroupsURI, &rgl); err != nil {
 		return nil, err
 	}
 
-	rgs := make([]*routeGroupItem, 0, len(rgl.Items))
+	rgs := make([]*RouteGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
-		if err := i.validate(); err != nil {
+		if err := i.Validate(); err != nil {
 			log.Errorf("[routegroup] %v", err)
 			continue
 		}
@@ -299,7 +299,7 @@ func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
 		rgs = append(rgs, i)
 	}
 
-	sortByMetadata(rgs, func(i int) *metadata { return rgs[i].Metadata })
+	sortByMetadata(rgs, func(i int) *Metadata { return rgs[i].Metadata })
 	return rgs, nil
 }
 
@@ -360,7 +360,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		return nil, err
 	}
 
-	var routeGroups []*routeGroupItem
+	var routeGroups []*RouteGroupItem
 	if hasRouteGroups, err := c.clusterHasRouteGroups(); errors.Is(err, errResourceNotFound) {
 		c.logMissingRouteGroupsOnce()
 	} else if err != nil {

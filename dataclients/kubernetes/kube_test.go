@@ -67,7 +67,7 @@ func testServiceWithTargetPort(namespace, name string, clusterIP string, ports m
 	}
 
 	return &service{
-		Meta: &metadata{
+		Meta: &Metadata{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -99,7 +99,7 @@ func testRule(host string, paths ...*pathRule) *rule {
 
 func setAnnotation(i *ingressItem, key, value string) {
 	if i.Metadata == nil {
-		i.Metadata = &metadata{}
+		i.Metadata = &Metadata{}
 	}
 
 	if i.Metadata.Annotations == nil {
@@ -119,7 +119,7 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 		}
 	}
 
-	meta := metadata{
+	meta := Metadata{
 		Namespace:   ns,
 		Name:        name,
 		Annotations: make(map[string]string),
@@ -572,7 +572,7 @@ func TestIngressData(t *testing.T) {
 		"ingress with service type ExternalName should proxy to externalName",
 		[]*service{
 			{
-				Meta: &metadata{
+				Meta: &Metadata{
 					Namespace: "foo",
 					Name:      "extname",
 				},
@@ -616,7 +616,7 @@ func TestIngressData(t *testing.T) {
 			"kube_foo__qux______www_zalando_de": "https://www.zalando.de:443",
 		},
 	}, {
-		"ignore ingress entries with missing metadata",
+		"ignore ingress entries with missing Metadata",
 		[]*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
@@ -743,19 +743,19 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter no class ingresses",
 			items: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid2",
 				}},
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid2",
 				}},
 			},
@@ -763,13 +763,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter specific key ingress",
 			items: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
 					},
 				}},
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -778,7 +778,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -786,13 +786,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "filter empty class ingresses",
 			items: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -801,7 +801,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "^test-filter$",
 			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -809,13 +809,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "explicitly include any ingress class",
 			items: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
@@ -824,10 +824,10 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: ".*",
 			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid2",
 				}},
 			},
@@ -835,13 +835,13 @@ func TestIngressClassFilter(t *testing.T) {
 		{
 			testTitle: "match from a set of ingress classes",
 			items: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "skipper-test, other-test",
 					},
 				}},
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "other-test",
@@ -850,7 +850,7 @@ func TestIngressClassFilter(t *testing.T) {
 			},
 			ingressClass: "skipper-test",
 			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+				{Metadata: &Metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -1505,7 +1505,7 @@ func TestConvertPathRule(t *testing.T) {
 		api.services = &serviceList{
 			Items: []*service{
 				{
-					Meta: &metadata{
+					Meta: &Metadata{
 						Namespace: "namespace1",
 						Name:      "svcname1",
 					},
@@ -1531,7 +1531,7 @@ func TestConvertPathRule(t *testing.T) {
 		api.ingresses.Items = append(
 			api.ingresses.Items,
 			&ingressItem{
-				Metadata: &metadata{
+				Metadata: &Metadata{
 					Namespace: "namespace1",
 					Name:      "test1",
 				},
@@ -1739,7 +1739,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		api.services = &serviceList{
 			Items: []*service{
 				{
-					Meta: &metadata{
+					Meta: &Metadata{
 						Namespace: "namespace1",
 						Name:      "svcname1",
 					},
@@ -1765,7 +1765,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		api.ingresses.Items = append(
 			api.ingresses.Items,
 			&ingressItem{
-				Metadata: &metadata{
+				Metadata: &Metadata{
 					Namespace: "namespace1",
 					Name:      "test1",
 				},
@@ -1901,7 +1901,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 			state, err := dc.clusterClient.fetchClusterState()
 			require.NoError(t, err)
 
-			route, err := convertPathRule(state, &metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
+			route, err := convertPathRule(state, &Metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}

@@ -20,7 +20,7 @@ type routeGroups struct {
 type routeGroupContext struct {
 	clusterState          *clusterState
 	defaultFilters        defaultFilters
-	routeGroup            *routeGroupItem
+	routeGroup            *RouteGroupItem
 	hosts                 []string
 	hostRx                string
 	hostRoutes            map[string][]*eskip.Route
@@ -73,7 +73,7 @@ func notSupportedServiceType(s *service) error {
 	)
 }
 
-func defaultFiltersError(m *metadata, service string, err error) error {
+func defaultFiltersError(m *Metadata, service string, err error) error {
 	return fmt.Errorf(
 		"error while applying default filters for route group and service: %s/%s %s, %w",
 		namespaceString(m.Namespace),
@@ -120,7 +120,7 @@ func rgRouteID(namespace, name, subName string, index, subIndex int) string {
 	)
 }
 
-func crdRouteID(m *metadata, method string, routeIndex, backendIndex int) string {
+func crdRouteID(m *Metadata, method string, routeIndex, backendIndex int) string {
 	return rgRouteID(
 		toSymbol(namespaceString(m.Namespace)),
 		toSymbol(m.Name),

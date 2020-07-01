@@ -32,7 +32,7 @@ func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
 	}
 }
 
-func (r *redirectInfo) initCurrent(m *metadata) {
+func (r *redirectInfo) initCurrent(m *Metadata) {
 	r.enable = !r.defaultEnabled && m.Annotations[redirectAnnotationKey] == "true"
 	r.disable = r.defaultEnabled && m.Annotations[redirectAnnotationKey] == "false"
 

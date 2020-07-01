@@ -135,7 +135,7 @@ func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 				return nil, errInvalidFixture
 			}
 
-			meta, ok := o["metadata"].(map[interface{}]interface{})
+			meta, ok := o["Metadata"].(map[interface{}]interface{})
 			if !ok {
 				return nil, errInvalidFixture
 			}
@@ -228,7 +228,7 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 const testAPISpec1 = `
 apiVersion: v1
 kind: Service
-metadata:
+Metadata:
   labels:
     application: foo
   name: foo
@@ -244,7 +244,7 @@ spec:
 ---
 apiVersion: extensions/v1beta1
 kind: Ingress
-metadata:
+Metadata:
   labels:
     application: foo
   name: foo
@@ -260,7 +260,7 @@ spec:
 ---
 apiVersion: v1
 kind: Endpoints
-metadata:
+Metadata:
   labels:
     application: foo
   name: foo
@@ -279,7 +279,7 @@ subsets:
 const testAPISpec2 = `
 apiVersion: v1
 kind: Service
-metadata:
+Metadata:
   labels:
     application: bar
   name: bar
@@ -295,7 +295,7 @@ spec:
 ---
 apiVersion: zalando.org/v1
 kind: RouteGroup
-metadata:
+Metadata:
   name: foo
   namespace: internal
 spec:
@@ -313,7 +313,7 @@ spec:
 ---
 apiVersion: v1
 kind: Endpoints
-metadata:
+Metadata:
   labels:
     application: bar
   name: bar

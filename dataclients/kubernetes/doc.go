@@ -30,7 +30,7 @@ A basic ingress specification:
 
     apiVersion: extensions/v1beta1
     kind: Ingress
-    metadata:
+    Metadata:
       name: app
     spec:
       rules:
@@ -48,7 +48,7 @@ instance for the given ingress.
 
     apiVersion: extensions/v1beta1
     kind: Ingress
-    metadata:
+    Metadata:
       annotations:
         zalando.org/ratelimit: ratelimit(50, "1m")
       name: app
@@ -69,7 +69,7 @@ set, are allowed to each skipper instance for the given ingress.
 
     apiVersion: extensions/v1beta1
     kind: Ingress
-    metadata:
+    Metadata:
       annotations:
         zalando.org/ratelimit: localRatelimit(3, "1m")
       name: app
@@ -88,7 +88,7 @@ given ingress.
 
     apiVersion: extensions/v1beta1
     kind: Ingress
-    metadata:
+    Metadata:
       annotations:
         zalando.org/ratelimit: localRatelimit(500, "1h", "auth")
       name: app
@@ -108,7 +108,7 @@ defined route in ingress.
 
     apiVersion: extensions/v1beta1
     kind: Ingress
-    metadata:
+    Metadata:
       annotations:
         zalando.org/skipper-filter: localRatelimit(50, "10m") -> requestCookie("test-session", "abc")
       name: app
@@ -128,7 +128,7 @@ defined route in ingress.
 
     apiVersion: extensions/v1beta1
     kind: Ingress
-    metadata:
+    Metadata:
       annotations:
         zalando.org/skipper-predicate: QueryParam("query", "^example$")
       name: app
@@ -148,7 +148,7 @@ routes generated for the ingress.
 
     apiVersion: extensions/v1beta1
     kind: Ingress
-    metadata:
+    Metadata:
       annotations:
         zalando.org/skipper-routes: |
           Method("OPTIONS") ->
@@ -176,7 +176,7 @@ https://godoc.org/github.com/zalando/skipper/filters/tee for details.
 
     apiVersion: extensions/v1beta1
     kind: Ingress
-    metadata:
+    Metadata:
       annotations:
         zalando.org/skipper-filter: tee("https://app.shadow.example.org")
       name: app

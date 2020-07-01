@@ -46,7 +46,7 @@ func TestLBWithTrafficControl(t *testing.T) {
 	endpoints := &endpointList{
 		[]*endpoint{
 			{
-				Meta: &metadata{Namespace: "namespace1", Name: "service1v1"},
+				Meta: &Metadata{Namespace: "namespace1", Name: "service1v1"},
 				Subsets: []*subset{
 					{
 						Addresses: []*address{{
@@ -69,7 +69,7 @@ func TestLBWithTrafficControl(t *testing.T) {
 				},
 			},
 			{
-				Meta: &metadata{Namespace: "namespace1", Name: "service1v2"},
+				Meta: &Metadata{Namespace: "namespace1", Name: "service1v2"},
 				Subsets: []*subset{
 					{
 						Addresses: []*address{{

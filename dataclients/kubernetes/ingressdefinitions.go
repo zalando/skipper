@@ -13,7 +13,7 @@ type resourceID struct {
 	name      string
 }
 
-type metadata struct {
+type Metadata struct {
 	Namespace   string            `json:"namespace"`
 	Name        string            `json:"name"`
 	Created     time.Time         `json:"creationTimestamp"`
@@ -29,7 +29,7 @@ func namespaceString(ns string) string {
 	return ns
 }
 
-func (meta *metadata) toResourceID() resourceID {
+func (meta *Metadata) toResourceID() resourceID {
 	return resourceID{
 		namespace: namespaceString(meta.Namespace),
 		name:      meta.Name,
@@ -125,7 +125,7 @@ type ingressSpec struct {
 }
 
 type ingressItem struct {
-	Metadata *metadata    `json:"metadata"`
+	Metadata *Metadata    `json:"Metadata"`
 	Spec     *ingressSpec `json:"spec"`
 }
 
@@ -157,7 +157,7 @@ type serviceSpec struct {
 }
 
 type service struct {
-	Meta *metadata    `json:"metadata"`
+	Meta *Metadata    `json:"Metadata"`
 	Spec *serviceSpec `json:"spec"`
 }
 
@@ -185,7 +185,7 @@ func (s service) getTargetPortByValue(p int) (*backendPort, bool) {
 }
 
 type endpoint struct {
-	Meta    *metadata `json:"metadata"`
+	Meta    *Metadata `json:"Metadata"`
 	Subsets []*subset `json:"subsets"`
 }
 

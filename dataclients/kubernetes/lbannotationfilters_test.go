@@ -37,7 +37,7 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 	endpoints := &endpointList{
 		Items: []*endpoint{
 			{
-				Meta:    &metadata{Namespace: "namespace1", Name: "service1"},
+				Meta:    &Metadata{Namespace: "namespace1", Name: "service1"},
 				Subsets: subsets,
 			},
 		},
@@ -131,7 +131,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 	endpoints := &endpointList{
 		Items: []*endpoint{
 			{
-				Meta:    &metadata{Namespace: "namespace1", Name: "service1"},
+				Meta:    &Metadata{Namespace: "namespace1", Name: "service1"},
 				Subsets: subsets,
 			},
 		},

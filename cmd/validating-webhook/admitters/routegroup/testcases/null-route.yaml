@@ -1,0 +1,19 @@
+operation: CREATE
+object:
+  apiVersion: zalando.org/v1
+  kind: RouteGroup
+  metadata:
+    name: test-route-group
+  spec:
+    hosts:
+    - example.org
+    backends:
+    - name: app
+      type: service
+      serviceName: app-svc
+      servicePort: 80
+    defaultBackends:
+    - backendName: app
+    routes:
+    - null
+error: invalid route spec
