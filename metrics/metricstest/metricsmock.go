@@ -1,9 +1,13 @@
 package metricstest
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/zalando/skipper/metrics"
 )
 
 type MockMetrics struct {
@@ -65,13 +69,14 @@ func (m *MockMetrics) WithGauges(f func(map[string]float64)) {
 //
 
 func (m *MockMetrics) MeasureSince(key string, start time.Time) {
+	now := m.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+
 	key = m.Prefix + key
 	m.WithMeasures(func(measures map[string][]time.Duration) {
-		measure, ok := m.measures[key]
-		if !ok {
-			measure = make([]time.Duration, 0)
-		}
-		measures[key] = append(measure, m.Now.Sub(start))
+		measures[key] = append(measures[key], now.Sub(start))
 	})
 }
 
@@ -108,16 +113,22 @@ func (m *MockMetrics) IncFloatCounterBy(key string, value float64) {
 	})
 }
 
-func (*MockMetrics) MeasureRouteLookup(start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureRouteLookup(start time.Time) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[metrics.KeyRouteLookup] = append(measures[metrics.KeyRouteLookup], time.Since(start))
+	})
 }
 
-func (*MockMetrics) MeasureFilterRequest(filterName string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureFilterRequest(filterName string, start time.Time) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[filterName] = append(measures[filterName], time.Since(start))
+	})
 }
 
-func (*MockMetrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureAllFiltersRequest(routeID string, start time.Time) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[routeID] = append(measures[routeID], time.Since(start))
+	})
 }
 
 func (*MockMetrics) MeasureBackend(routeId string, start time.Time) {
@@ -128,20 +139,42 @@ func (*MockMetrics) MeasureBackendHost(routeBackendHost string, start time.Time)
 	panic("implement me")
 }
 
-func (*MockMetrics) MeasureFilterResponse(filterName string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureFilterResponse(filterName string, start time.Time) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[filterName] = append(measures[filterName], time.Since(start))
+	})
 }
 
-func (*MockMetrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureAllFiltersResponse(routeID string, start time.Time) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[routeID] = append(measures[routeID], time.Since(start))
+	})
 }
 
-func (*MockMetrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureResponse(code int, method string, routeID string, start time.Time) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		duration := time.Since(start)
+		key := fmt.Sprintf(metrics.KeyResponseCombined, code, method)
+		measures[key] = append(measures[key], duration)
+		key = fmt.Sprintf(metrics.KeyResponse, code, method, routeID)
+		measures[key] = append(measures[key], duration)
+	})
 }
 
-func (*MockMetrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
-	panic("implement me")
+func hostForKey(h string) string {
+	h = strings.Replace(h, ".", "_", -1)
+	h = strings.Replace(h, ":", "__", -1)
+	return h
+}
+
+func (m *MockMetrics) MeasureServe(routeID, host, method string, code int, start time.Time) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		duration := time.Since(start)
+		key := fmt.Sprintf(metrics.KeyServeRoute, routeID, method, code)
+		measures[key] = append(measures[key], duration)
+		key = fmt.Sprintf(metrics.KeyServeHost, hostForKey(host), method, code)
+		measures[key] = append(measures[key], duration)
+	})
 }
 
 func (*MockMetrics) IncRoutingFailures() {
@@ -176,4 +209,16 @@ func (m *MockMetrics) Gauge(key string) (v float64, ok bool) {
 	})
 
 	return
+}
+
+func (m *MockMetrics) Timer(key string) (d []time.Duration, ok bool) {
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		d, ok = measures[key]
+	})
+
+	return
+}
+
+func (m *MockMetrics) Measure(key string) ([]time.Duration, bool) {
+	return m.Timer(key)
 }

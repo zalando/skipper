@@ -236,6 +236,9 @@ type Params struct {
 	// It allows to add additional logic (for example tracing) by providing a wrapper function
 	// which accepts original skipper http.RoundTripper as an argument and returns a wrapped roundtripper
 	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
+
+	// Metrics accepts custom metrics implementations, overriding the metrics used by default.
+	Metrics metrics.Metrics
 }
 
 type (
@@ -666,9 +669,12 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 
-	m := metrics.Default
-	if p.Flags.Debug() {
-		m = metrics.Void
+	m := p.Metrics
+	if m == nil {
+		m = metrics.Default
+		if p.Flags.Debug() {
+			m = metrics.Void
+		}
 	}
 
 	if p.MaxLoopbacks == 0 {
