@@ -27,7 +27,8 @@ type IngressItem struct {
 	Spec     *ingressSpec `json:"spec"`
 }
 
-func (rl RouteGroupList) MarshalJSON() ([]byte, error) {
+// MarshalJSON marshals a RouteGroupList
+func (rl *RouteGroupList) MarshalJSON() ([]byte, error) {
 	b, err := json.Marshal(rl)
 	if err != nil {
 		return nil, err
@@ -35,11 +36,12 @@ func (rl RouteGroupList) MarshalJSON() ([]byte, error) {
 	return b, nil
 }
 
-func (rl RouteGroupList) UnmarshalJSON(d []byte) error {
-	return json.Unmarshal(d, &rl)
+func (rl *RouteGroupList) UnmarshalJSON(d []byte) error {
+	return json.Unmarshal(d, rl)
 }
 
-func (rl RouteGroupList) MarshalYAML() ([]byte, error) {
+// MarshalYAML marshals a RouteGroupList
+func (rl *RouteGroupList) MarshalYAML() ([]byte, error) {
 	b, err := yaml.Marshal(rl)
 	if err != nil {
 		return nil, err
@@ -47,14 +49,12 @@ func (rl RouteGroupList) MarshalYAML() ([]byte, error) {
 	return b, nil
 }
 
-// TODO: figure out if this should implement github.com/go-yaml/yaml/yaml.go
-//  Marshaler interface
-// UnmarshalYAML unmarshalls RouteGroupList
-func (rl RouteGroupList) UnmarshalYAML(d []byte) error {
-	return yaml.Unmarshal(d, &rl)
+func (rl *RouteGroupList) UnmarshalYAML(d []byte) error {
+	return yaml.Unmarshal(d, rl)
 }
 
-func (r RouteGroupItem) MarshalJSON() ([]byte, error) {
+// MarshalJSON marshals RouteGroupItem
+func (r *RouteGroupItem) MarshalJSON() ([]byte, error) {
 	b, err := json.Marshal(r)
 	if err != nil {
 		return nil, err
@@ -62,12 +62,12 @@ func (r RouteGroupItem) MarshalJSON() ([]byte, error) {
 	return b, nil
 }
 
-func (r RouteGroupItem) UnmarshalJSON(d []byte) error {
-	return json.Unmarshal(d, &r)
+func (r *RouteGroupItem) UnmarshalJSON(d []byte) error {
+	return json.Unmarshal(d, r)
 }
 
 // MarshalYAML marshals RouteGroupItem
-func (r RouteGroupItem) MarshalYAML() ([]byte, error) {
+func (r *RouteGroupItem) MarshalYAML() ([]byte, error) {
 	b, err := yaml.Marshal(r)
 	if err != nil {
 		return nil, err
@@ -75,33 +75,31 @@ func (r RouteGroupItem) MarshalYAML() ([]byte, error) {
 	return b, nil
 }
 
-// UnmarshalYAML unmarshals RouteGroupItem
-func (r RouteGroupItem) UnmarshalYAML(d []byte) error {
+func (r *RouteGroupItem) UnmarshalYAML(d []byte) error {
 	return yaml.Unmarshal(d, &r)
 }
 
-// ParseRouteGroupsJSON parses a json list of Rouetegroups into RouteGroupList
+// ParseRouteGroupsJSON parses a json list of RouteGroups into RouteGroupList
 func ParseRouteGroupsJSON(d []byte) (RouteGroupList, error) {
 	var rl RouteGroupList
 	err := rl.UnmarshalJSON(d)
 	return rl, err
 }
 
-// ParseRouteGroupsYAML parses a YAML list of Rouetegroups into RouteGroupList
+// ParseRouteGroupsYAML parses a YAML list of RouteGroups into RouteGroupList
 func ParseRouteGroupsYAML(d []byte) (RouteGroupList, error) {
 	var rl RouteGroupList
-	// TODO: implement
 	err := rl.UnmarshalYAML(d)
 	return rl, err
 }
 
-// ValidateRouteGroup validates RouteGroupItem
+// ValidateRouteGroup validates a RouteGroupItem
 func ValidateRouteGroup(rg *RouteGroupItem) error {
 	return rg.validate()
 }
 
-// ValidateRouteGroups validates RouteGroupList
-func ValidateRouteGroups(rl RouteGroupList) error {
+// ValidateRouteGroups validates a RouteGroupList
+func ValidateRouteGroups(rl *RouteGroupList) error {
 	var err error
 	// avoid the user having to repeatedly validate to discover all errors
 	for _, i := range rl.Items {
@@ -118,21 +116,62 @@ func ValidateRouteGroups(rl RouteGroupList) error {
 	return nil
 }
 
-func (IngressList) MarshalJSON() ([]byte, error)   {}
-func (IngressList) UnmarshalJSON() ([]byte, error) {}
-func (IngressList) MarshalYAML() ([]byte, error)   {}
-func (IngressList) UnmarshalYAML() ([]byte, error) {}
-func (IngressItem) MarshalJSON() ([]byte, error)   {}
-func (IngressItem) UnmarshalJSON() ([]byte, error) {}
-func (IngressItem) MarshalYAML() ([]byte, error)   {}
-func (IngressItem) UnmarshalYAML() ([]byte, error) {}
-func ParseIngressJSON([]byte) (IngressList, error) {}
-func ParseIngressYAML([]byte) (IngressList, error) {}
+// MarshalJSON marshals an IngressList
+func (il *IngressList) MarshalJSON() ([]byte, error) {
+	return json.Marshal(il)
+}
 
+func (il *IngressList) UnmarshalJSON(d []byte) error {
+	return json.Unmarshal(d, il)
+}
+
+// MarshalYAML marshals an IngressList
+func (il *IngressList) MarshalYAML() ([]byte, error) {
+	return yaml.Marshal(il)
+}
+
+func (il *IngressList) UnmarshalYAML(d []byte) error {
+	return yaml.Unmarshal(d, il)
+}
+
+// MarshalJSON marshals an IngressItem
+func (i *IngressItem) MarshalJSON() ([]byte, error) {
+	return json.Marshal(i)
+}
+
+func (i *IngressItem) UnmarshalJSON(d []byte) error {
+	return json.Unmarshal(d, i)
+}
+
+// MarshalYAML marshals an IngressItem
+func (i *IngressItem) MarshalYAML() ([]byte, error) {
+	return yaml.Marshal(i)
+}
+func (i *IngressItem) UnmarshalYAML(d []byte) error {
+	return yaml.Unmarshal(d, i)
+}
+
+// ParseIngressJSON parse JSON into an IngressList
+func ParseIngressJSON(d []byte) (IngressList, error) {
+	var il IngressList
+	err := il.UnmarshalJSON(d)
+	return il, err
+}
+
+// ParseIngressYAML parse YAML into an IngressList
+func ParseIngressYAML(d []byte) (IngressList, error) {
+	var il IngressList
+	err := il.UnmarshalYAML(d)
+	return il, err
+}
+
+// TODO: implement
+// ValidateIngress is a no-op
 func ValidateIngress(_ *IngressItem) error {
 	return nil
 }
 
+// ValidateIngresses is a no-op
 func ValidateIngresses(ingressList IngressList) error {
 	var err error
 	// avoid the user having to repeatedly validate to discover all errors
