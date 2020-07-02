@@ -13,6 +13,7 @@ import (
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/flowid"
 	logfilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/filters/metrics"
 	"github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/rfc"
 	"github.com/zalando/skipper/filters/scheduler"
@@ -169,6 +170,7 @@ func MakeRegistry() filters.Registry {
 		scheduler.NewLIFO(),
 		scheduler.NewLIFOGroup(),
 		rfc.NewPath(),
+		metrics.NewTimer(),
 	} {
 		r.Register(s)
 	}
