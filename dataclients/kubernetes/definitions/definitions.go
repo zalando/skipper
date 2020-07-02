@@ -3,6 +3,9 @@ validation for Kubernetes resources used by Skipper. */
 package definitions
 
 import (
+	"encoding/json"
+
+	"github.com/go-yaml/yaml"
 	"github.com/pkg/errors"
 )
 
@@ -24,16 +27,71 @@ type IngressItem struct {
 	Spec     *ingressSpec `json:"spec"`
 }
 
-func (RouteGroupList) MarshalJSON() ([]byte, error)      {}
-func (RouteGroupList) UnmarshalJSON() ([]byte, error)    {}
-func (RouteGroupList) MarshalYAML() ([]byte, error)      {}
-func (RouteGroupList) UnmarshalYAML() ([]byte, error)    {}
-func (RouteGroupItem) MarshalJSON() ([]byte, error)      {}
-func (RouteGroupItem) UnmarshalJSON() ([]byte, error)    {}
-func (RouteGroupItem) MarshalYAML() ([]byte, error)      {}
-func (RouteGroupItem) UnmarshalYAML() ([]byte, error)    {}
-func ParseRouteGroupJSON([]byte) (RouteGroupList, error) {}
-func ParseRouteGroupYAML([]byte) (RouteGroupList, error) {}
+func (rl RouteGroupList) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(rl)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (rl RouteGroupList) UnmarshalJSON(d []byte) error {
+	return json.Unmarshal(d, &rl)
+}
+
+func (rl RouteGroupList) MarshalYAML() (interface{}, error) {
+	b, err := yaml.Marshal(rl)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// TODO: implement
+// UnmarshalYAML is a no-op
+func (rl RouteGroupList) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	return nil
+}
+
+func (r RouteGroupItem) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (r RouteGroupItem) UnmarshalJSON(d []byte) error {
+	return json.Unmarshal(d, &r)
+}
+
+func (r RouteGroupItem) MarshalYAML() (interface{}, error) {
+	b, err := yaml.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// TODO: implement
+// UnmarshalYAML is a no-op
+func (r RouteGroupItem) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	return nil
+}
+
+func ParseRouteGroupsJSON(d []byte) (RouteGroupList, error) {
+	var rl RouteGroupList
+	err := rl.UnmarshalJSON(d)
+	return rl, err
+}
+
+func ParseRouteGroupsYAML(d []byte) (RouteGroupList, error) {
+	var rl RouteGroupList
+	// TODO: implement
+	f := func(_ interface{}) error {}
+	err := rl.UnmarshalYAML(f)
+	return rl, err
+}
 
 // ValidateRouteGroup validates RouteGroupItem
 func ValidateRouteGroup(rg *RouteGroupItem) error {

@@ -318,19 +318,19 @@ func (r *routeSpec) validate(hasDefault bool, backends map[string]bool) error {
 	return nil
 }
 
-func (rg *RouteGroupItem) validate() error {
+func (r *RouteGroupItem) validate() error {
 	// has metadata and name:
-	if rg == nil || rg.Metadata == nil || rg.Metadata.Name == "" {
+	if r == nil || r.Metadata == nil || r.Metadata.Name == "" {
 		return errRouteGroupWithoutName
 	}
 
 	// has spec:
-	if rg.spec == nil {
-		return routeGroupError(rg.Metadata, errRouteGroupWithoutSpec)
+	if r.spec == nil {
+		return routeGroupError(r.Metadata, errRouteGroupWithoutSpec)
 	}
 
-	if err := rg.spec.validate(); err != nil {
-		return routeGroupError(rg.Metadata, err)
+	if err := r.spec.validate(); err != nil {
+		return routeGroupError(r.Metadata, err)
 	}
 
 	return nil
