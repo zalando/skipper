@@ -55,7 +55,7 @@ split: Traffic(.1) -> teeLoopback("shadow-test-1") -> "https://main.example.org"
 shadow: Tee("shadow-test-1") && True() -> "https://shadow.example.org";
 ```
 
-*Note that as of now, we need to increase the weight of the 'shadow' route in order to avoid that the 'split'
+*Note that as of now, we need to increase the weight of the 'shadow' route by adding the `True()` predicate in order to avoid that the 'split'
 route would match the cloned request again.*
 
 After this, the 'split' route will still send all the handled requests, 10% of the total traffic, to the main
