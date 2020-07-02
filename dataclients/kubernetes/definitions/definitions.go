@@ -39,7 +39,7 @@ func (rl RouteGroupList) UnmarshalJSON(d []byte) error {
 	return json.Unmarshal(d, &rl)
 }
 
-func (rl RouteGroupList) MarshalYAML() (interface{}, error) {
+func (rl RouteGroupList) MarshalYAML() ([]byte, error) {
 	b, err := yaml.Marshal(rl)
 	if err != nil {
 		return nil, err
@@ -47,10 +47,11 @@ func (rl RouteGroupList) MarshalYAML() (interface{}, error) {
 	return b, nil
 }
 
-// TODO: implement
-// UnmarshalYAML is a no-op
-func (rl RouteGroupList) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	return nil
+// TODO: figure out if this should implement github.com/go-yaml/yaml/yaml.go
+//  Marshaler interface
+// UnmarshalYAML unmarshalls RouteGroupList
+func (rl RouteGroupList) UnmarshalYAML(d []byte) error {
+	return yaml.Unmarshal(d, &rl)
 }
 
 func (r RouteGroupItem) MarshalJSON() ([]byte, error) {
@@ -65,7 +66,8 @@ func (r RouteGroupItem) UnmarshalJSON(d []byte) error {
 	return json.Unmarshal(d, &r)
 }
 
-func (r RouteGroupItem) MarshalYAML() (interface{}, error) {
+// MarshalYAML marshals RouteGroupItem
+func (r RouteGroupItem) MarshalYAML() ([]byte, error) {
 	b, err := yaml.Marshal(r)
 	if err != nil {
 		return nil, err
@@ -73,23 +75,23 @@ func (r RouteGroupItem) MarshalYAML() (interface{}, error) {
 	return b, nil
 }
 
-// TODO: implement
-// UnmarshalYAML is a no-op
-func (r RouteGroupItem) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	return nil
+// UnmarshalYAML unmarshals RouteGroupItem
+func (r RouteGroupItem) UnmarshalYAML(d []byte) error {
+	return yaml.Unmarshal(d, &r)
 }
 
+// ParseRouteGroupsJSON parses a json list of Rouetegroups into RouteGroupList
 func ParseRouteGroupsJSON(d []byte) (RouteGroupList, error) {
 	var rl RouteGroupList
 	err := rl.UnmarshalJSON(d)
 	return rl, err
 }
 
+// ParseRouteGroupsYAML parses a YAML list of Rouetegroups into RouteGroupList
 func ParseRouteGroupsYAML(d []byte) (RouteGroupList, error) {
 	var rl RouteGroupList
 	// TODO: implement
-	f := func(_ interface{}) error {}
-	err := rl.UnmarshalYAML(f)
+	err := rl.UnmarshalYAML(d)
 	return rl, err
 }
 
@@ -99,10 +101,10 @@ func ValidateRouteGroup(rg *RouteGroupItem) error {
 }
 
 // ValidateRouteGroups validates RouteGroupList
-func ValidateRouteGroups(rgs RouteGroupList) error {
+func ValidateRouteGroups(rl RouteGroupList) error {
 	var err error
 	// avoid the user having to repeatedly validate to discover all errors
-	for _, i := range rgs.Items {
+	for _, i := range rl.Items {
 		nerr := ValidateRouteGroup(i)
 		if nerr != nil {
 			err = errors.Wrap(err, nerr.Error())
