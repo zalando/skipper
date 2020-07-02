@@ -165,11 +165,17 @@ type Options struct {
 	KubernetesHTTPSRedirectCode int
 
 	// KubernetesIngressClass is a regular expression, that will make
-	// skipper load only the ingress resources that that have a matching
+	// skipper load only the ingress resources that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,
 	// the ingresses without an annotation, or an empty annotation, will
 	// be loaded, too.
 	KubernetesIngressClass string
+
+	// KubernetesRouteGroupClass is a regular expression, that will make skipper
+	// load only the RouteGroup resources that have a matching
+	// zalando.org/routegroup.class annotation. Any RouteGroups without the
+	// annotation, or which an empty annotation, will be loaded too.
+	KubernetesRouteGroupClass string
 
 	// PathMode controls the default interpretation of ingress paths in cases
 	// when the ingress doesn't specify it with an annotation.
@@ -705,6 +711,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
 			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
 			IngressClass:               o.KubernetesIngressClass,
+			RouteGroupClass:            o.KubernetesRouteGroupClass,
 			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
 			PathMode:                   o.KubernetesPathMode,
