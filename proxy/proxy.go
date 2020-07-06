@@ -1224,7 +1224,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	err := copyStream(ctx.responseWriter, ctx.response.Body, p.tracing, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
-		p.log.Error("error while copying the response stream", err)
+		p.log.Errorf("error while copying the response stream: %v", err)
 	} else {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
@@ -1451,7 +1451,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if ctx.response != nil && ctx.response.Body != nil {
 			err := ctx.response.Body.Close()
 			if err != nil {
-				p.log.Error("error during closing the response body", err)
+				p.log.Errorf("error during closing the response body: %v", err)
 			}
 		}
 	}()
