@@ -77,6 +77,7 @@ type (
 
 	tokenContainer struct {
 		OAuth2Token *oauth2.Token          `json:"oauth2token"`
+		OIDCIDToken string            	   `json:"oidctoken"`
 		UserInfo    *oidc.UserInfo         `json:"userInfo,omitempty"`
 		Subject     string                 `json:"subject"`
 		Claims      map[string]interface{} `json:"claims"`
@@ -457,6 +458,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		resp        tokenContainer
 		sub         string
 		userInfo    *oidc.UserInfo
+		oidcIDToken string
 	)
 
 	r := ctx.Request()
@@ -512,7 +514,22 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 
 			return
 		}
+		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
+		if err != nil {
+			if _, ok := err.(*requestError); !ok {
+				log.Errorf("Error while getting id token : %v.", err)
+			}
 
+			unauthorized(
+				ctx,
+				"",
+				invalidClaim,
+				r.Host,
+				fmt.Sprintf("Failed to get id token : %v.", err),
+			)
+
+			return
+		}
 		sub = userInfo.Subject
 		claimsMap, _, err = f.tokenClaims(ctx, oauth2Token)
 		if err != nil {
@@ -526,6 +543,22 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			return
 		}
 	case checkOIDCAnyClaims, checkOIDCAllClaims:
+		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
+		if err != nil {
+			if _, ok := err.(*requestError); !ok {
+				log.Errorf("Error while getting id token : %v.", err)
+			}
+
+			unauthorized(
+				ctx,
+				"",
+				invalidClaim,
+				r.Host,
+				fmt.Sprintf("Failed to get id token : %v.", err),
+			)
+
+			return
+		}
 		claimsMap, sub, err = f.tokenClaims(ctx, oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
@@ -550,6 +583,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 
 	resp = tokenContainer{
 		OAuth2Token: oauth2Token,
+		OIDCIDToken: oidcIDToken,
 		UserInfo:    userInfo,
 		Subject:     sub,
 		Claims:      claimsMap,
@@ -712,6 +746,14 @@ func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oa
 	}
 
 	return tokenMap, sub, nil
+}
+
+func (f *tokenOidcFilter) getidtoken(ctx filters.FilterContext, oauth2Token *oauth2.Token) (string, error) {
+	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+	if !ok {
+		return "", requestErrorf("invalid token, no id_token field in oauth2 token")
+	}
+	return rawIDToken, nil
 }
 
 func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthState, error) {
