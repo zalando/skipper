@@ -412,7 +412,7 @@ func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing,
 	for {
 		l, rerr := from.Read(b)
 
-		tracing.logStreamEvent(span, "streamBody.byte", fmt.Sprintf("%d", l))
+		tracing.logStreamEvent(span, StreamBodyEvent, fmt.Sprintf("%d", l))
 
 		if rerr != nil && rerr != io.EOF {
 			return rerr
@@ -1225,6 +1225,9 @@ func (p *Proxy) serveResponse(ctx *context) {
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		p.log.Errorf("error while copying the response stream: %v", err)
+		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
+		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
+		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
