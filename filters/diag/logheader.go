@@ -66,10 +66,16 @@ func (lh logHeader) Response(ctx filters.FilterContext) {
 	buf.WriteString(resp.Status)
 	buf.WriteString("\r\n")
 	for k, v := range resp.Header {
-		buf.WriteString(k)
-		buf.WriteString(": ")
-		buf.WriteString(strings.Join(v, " "))
-		buf.WriteString("\r\n")
+		if strings.ToLower(k) == "authorization" {
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.WriteString("TRUNCATED\r\n")
+		} else {
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.WriteString(strings.Join(v, " "))
+			buf.WriteString("\r\n")
+		}
 	}
 	buf.WriteString("\r\n")
 
@@ -93,10 +99,16 @@ func (lh logHeader) Request(ctx filters.FilterContext) {
 	buf.WriteString(req.Host)
 	buf.WriteString("\r\n")
 	for k, v := range req.Header {
-		buf.WriteString(k)
-		buf.WriteString(": ")
-		buf.WriteString(strings.Join(v, " "))
-		buf.WriteString("\r\n")
+		if strings.ToLower(k) == "authorization" {
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.WriteString("TRUNCATED\r\n")
+		} else {
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.WriteString(strings.Join(v, " "))
+			buf.WriteString("\r\n")
+		}
 	}
 	buf.WriteString("\r\n")
 
