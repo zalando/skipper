@@ -521,7 +521,23 @@ It logs with INFO level and a unique ID per request:
 The logHeader filter prints the request line and the header, but not the body, to
 stderr. Note that this filter should be used only in diagnostics setup and with care,
 since the request headers may contain sensitive data, and they also can explode the
-amount of logs.
+amount of logs. Authorization headers will be truncated in request and
+response header logs. You can log request or response headers, which
+defaults for backwards compatibility to request headers.
+
+Parameters:
+
+* no arg, similar to: "request"
+* "request" or "response" (string varargs)
+
+Example:
+
+```
+* -> logHeader() -> "https://www.example.org";
+* -> logHeader("request") -> "https://www.example.org";
+* -> logHeader("response") -> "https://www.example.org";
+* -> logHeader("request", "response") -> "https://www.example.org";
+```
 
 ## tee
 
@@ -1104,8 +1120,8 @@ requestCookie("test-session", "abc")
 oidcClaimsQuery("<path>:[<query>]", ...)
 ```
 
-The filter is chained after `oauthOidc*` authentication as it parses the ID token that has been saved in the internal `StateBag` for this request. It validates access control of the requested path against the defined query.  
-It accepts one or more arguments, thats is a path prefix which is granted access to when the query definition evaluates positive.  
+The filter is chained after `oauthOidc*` authentication as it parses the ID token that has been saved in the internal `StateBag` for this request. It validates access control of the requested path against the defined query.
+It accepts one or more arguments, thats is a path prefix which is granted access to when the query definition evaluates positive.
 It supports exact matches of keys, key-value pairs, introspecting of arrays or exact and wildcard matching of nested structures.
 The query definition can be one or more queries per path, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) with a convenience modifier of `@_` which unfolds to `[@this].#("+arg+")`
 
