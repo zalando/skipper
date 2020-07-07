@@ -17,10 +17,11 @@ func TestLogHeader(t *testing.T) {
 		log.SetOutput(os.Stderr)
 	}()
 
-	req, err := http.NewRequest("GET", "https://example.org", nil)
+	req, err := http.NewRequest("GET", "https://example.org/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	req.Header.Set("User-Agent", "Go-http-client/1.1")
 
 	ctx := &filtertest.Context{
 		FRequest: req,
@@ -40,7 +41,13 @@ func TestLogHeader(t *testing.T) {
 	log.SetOutput(loggerTest)
 
 	req.Body = ioutil.NopCloser(bytes.NewBufferString("foo bar baz"))
-	(logHeader{}).Request(ctx)
+
+	lh, err := (logHeader{}).CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lh.Request(ctx)
 	if loggerTest.Len() == 0 || !bytes.Equal(loggerTest.Bytes(), loggerVerify.Bytes()) {
 		t.Error("failed to log the request header")
 		t.Log("expected:")
