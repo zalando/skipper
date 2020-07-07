@@ -2,16 +2,20 @@
 package script
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	lua "github.com/yuin/gopher-lua"
+	lua_parse "github.com/yuin/gopher-lua/parse"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/script/base64"
 
@@ -89,41 +93,68 @@ func (s *script) putState(L *lua.LState) {
 }
 
 func (s *script) newState() (*lua.LState, error) {
-	l := lua.NewState()
-	l.PreloadModule("base64", base64.Loader)
-	l.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
-	l.PreloadModule("url", gluaurl.Loader)
-	l.PreloadModule("json", gjson.Loader)
+	L := lua.NewState()
+	L.PreloadModule("base64", base64.Loader)
+	L.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
+	L.PreloadModule("url", gluaurl.Loader)
+	L.PreloadModule("json", gjson.Loader)
 
-	var err error
-	if strings.HasSuffix(s.source, ".lua") {
-		err = l.DoFile(s.source)
-	} else {
-		err = l.DoString(s.source)
-	}
+	L.Push(L.NewFunctionFromProto(s.proto))
+
+	err := L.PCall(0, lua.MultRet, nil)
 	if err != nil {
 		log.Printf("ERROR loading `%s`: %s", s.source, err)
-		l.Close()
+		L.Close()
 		return nil, err
 	}
-
-	hasFuncs := false
-	for _, name := range []string{"request", "response"} {
-		fn := l.GetGlobal(name)
-		if fn.Type() == lua.LTFunction {
-			hasFuncs = true
-		}
-	}
-	if !hasFuncs {
-		log.Printf("ERROR: at least one of `request` and `response` function must be present")
-		l.Close()
-		return nil, errors.New("at least one of `request` and `response` function must be present")
-	}
-
-	return l, nil
+	return L, nil
 }
 
 func (s *script) initScript() error {
+	// Compile
+	var reader io.Reader
+	var name string
+
+	if strings.HasSuffix(s.source, ".lua") {
+		file, err := os.Open(s.source)
+		defer file.Close()
+		if err != nil {
+			return err
+		}
+		reader = bufio.NewReader(file)
+		name = s.source
+	} else {
+		reader = strings.NewReader(s.source)
+		name = "<script>"
+	}
+	chunk, err := lua_parse.Parse(reader, name)
+	if err != nil {
+		return err
+	}
+	proto, err := lua.Compile(chunk, name)
+	if err != nil {
+		return err
+	}
+	s.proto = proto
+
+	// Detect request and response functions
+	L, err := s.newState()
+	if err != nil {
+		return err
+	}
+	defer L.Close()
+
+	if fn := L.GetGlobal("request"); fn.Type() == lua.LTFunction {
+		s.hasRequest = true
+	}
+	if fn := L.GetGlobal("response"); fn.Type() == lua.LTFunction {
+		s.hasResponse = true
+	}
+	if !s.hasRequest && !s.hasResponse {
+		return errors.New("at least one of `request` and `response` function must be present")
+	}
+
+	// Init state pool
 	s.pool = make(chan *lua.LState, MaxPoolSize) // FIXME make configurable
 	for i := 0; i < InitialPoolSize; i++ {
 		L, err := s.newState()
@@ -136,17 +167,23 @@ func (s *script) initScript() error {
 }
 
 type script struct {
-	source      string
-	routeParams []string
-	pool        chan *lua.LState
+	source                  string
+	routeParams             []string
+	pool                    chan *lua.LState
+	proto                   *lua.FunctionProto
+	hasRequest, hasResponse bool
 }
 
 func (s *script) Request(f filters.FilterContext) {
-	s.runFunc("request", f)
+	if s.hasRequest {
+		s.runFunc("request", f)
+	}
 }
 
 func (s *script) Response(f filters.FilterContext) {
-	s.runFunc("response", f)
+	if s.hasResponse {
+		s.runFunc("response", f)
+	}
 }
 
 func (s *script) runFunc(name string, f filters.FilterContext) {
@@ -157,12 +194,7 @@ func (s *script) runFunc(name string, f filters.FilterContext) {
 	}
 	defer s.putState(L)
 
-	fn := L.GetGlobal(name)
-	if fn.Type() != lua.LTFunction {
-		return
-	}
-
-	pt := L.NewTable()
+	pt := L.CreateTable(0, 0)
 	for _, p := range s.routeParams {
 		parts := strings.SplitN(p, "=", 2)
 		if len(parts) == 1 {
@@ -173,7 +205,7 @@ func (s *script) runFunc(name string, f filters.FilterContext) {
 
 	err = L.CallByParam(
 		lua.P{
-			Fn:      fn,
+			Fn:      L.GetGlobal(name),
 			NRet:    0,
 			Protect: true,
 		},
@@ -187,46 +219,11 @@ func (s *script) runFunc(name string, f filters.FilterContext) {
 
 func (s *script) filterContextAsLuaTable(L *lua.LState, f filters.FilterContext) *lua.LTable {
 	// this will be passed as parameter to the lua functions
-	t := L.NewTable()
-
-	// access to f.Request():
-	req := L.NewTable()
-	t.RawSet(lua.LString("request"), req)
-
-	// add metatable to dynamically access fields in the request
-	req_mt := L.NewTable()
-	req_mt.RawSet(lua.LString("__index"), L.NewFunction(getRequestValue(f)))
-	req_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setRequestValue(f)))
-	L.SetMetatable(req, req_mt)
-
-	sb := L.NewTable()
-	sb_mt := L.NewTable()
-	sb_mt.RawSet(lua.LString("__index"), L.NewFunction(getStateBag(f)))
-	sb_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setStateBag(f)))
-	L.SetMetatable(sb, sb_mt)
-	t.RawSet(lua.LString("state_bag"), sb)
-
-	// and the request headers
-	reqhdr := L.NewTable()
-	reqhdr_mt := L.NewTable()
-	reqhdr_mt.RawSet(lua.LString("__index"), L.NewFunction(getRequestHeader(f)))
-	reqhdr_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setRequestHeader(f)))
-	req.RawSet(lua.LString("header"), reqhdr)
-	L.SetMetatable(reqhdr, reqhdr_mt)
-
-	// same for response, a bit simpler
-	res := L.NewTable()
-	reshdr := L.NewTable()
-	reshdr_mt := L.NewTable()
-	reshdr_mt.RawSet(lua.LString("__index"), L.NewFunction(getResponseHeader(f)))
-	reshdr_mt.RawSet(lua.LString("__newindex"), L.NewFunction(setResponseHeader(f)))
-	L.SetMetatable(reshdr, reshdr_mt)
-	res.RawSet(lua.LString("header"), reshdr)
-	t.RawSet(lua.LString("response"), res)
-
-	// finally
-	t.RawSet(lua.LString("serve"), L.NewFunction(serveRequest(f)))
-
+	// add metatable to dynamically access fields in the context
+	t := L.CreateTable(0, 0)
+	mt := L.CreateTable(0, 1)
+	mt.RawSetString("__index", L.NewFunction(getContextValue(f)))
+	L.SetMetatable(t, mt)
 	return t
 }
 
@@ -292,11 +289,69 @@ func serveHeaderWalk(h http.Header) func(lua.LValue, lua.LValue) {
 	}
 }
 
-func getRequestValue(f filters.FilterContext) func(*lua.LState) int {
+func getContextValue(f filters.FilterContext) func(*lua.LState) int {
+	var request, response, state_bag *lua.LTable
+	var serve *lua.LFunction
 	return func(s *lua.LState) int {
 		key := s.ToString(-1)
 		var ret lua.LValue
 		switch key {
+		case "request":
+			// initialize access to request on first use
+			if request == nil {
+				request = s.CreateTable(0, 0)
+				mt := s.CreateTable(0, 2)
+				mt.RawSetString("__index", s.NewFunction(getRequestValue(f)))
+				mt.RawSetString("__newindex", s.NewFunction(setRequestValue(f)))
+				s.SetMetatable(request, mt)
+			}
+			ret = request
+		case "response":
+			if response == nil {
+				response = s.CreateTable(0, 0)
+				mt := s.CreateTable(0, 2)
+				mt.RawSetString("__index", s.NewFunction(getResponseValue(f)))
+				//mt.RawSetString("__newindex", s.NewFunction(setResponseValue(f)))
+				s.SetMetatable(response, mt)
+			}
+			ret = response
+		case "state_bag":
+			if state_bag == nil {
+				state_bag = s.CreateTable(0, 0)
+				mt := s.CreateTable(0, 2)
+				mt.RawSetString("__index", s.NewFunction(getStateBag(f)))
+				mt.RawSetString("__newindex", s.NewFunction(setStateBag(f)))
+				s.SetMetatable(state_bag, mt)
+			}
+			ret = state_bag
+		case "serve":
+			if serve == nil {
+				serve = s.NewFunction(serveRequest(f))
+			}
+			ret = serve
+		default:
+			ret = lua.LNil
+		}
+		s.Push(ret)
+		return 1
+	}
+}
+
+func getRequestValue(f filters.FilterContext) func(*lua.LState) int {
+	var header *lua.LTable
+	return func(s *lua.LState) int {
+		key := s.ToString(-1)
+		var ret lua.LValue
+		switch key {
+		case "header":
+			if header == nil {
+				header = s.CreateTable(0, 0)
+				mt := s.CreateTable(0, 2)
+				mt.RawSetString("__index", s.NewFunction(getRequestHeader(f)))
+				mt.RawSetString("__newindex", s.NewFunction(setRequestHeader(f)))
+				s.SetMetatable(header, mt)
+			}
+			ret = header
 		case "outgoing_host":
 			ret = lua.LString(f.OutgoingHost())
 		case "backend_url":
@@ -338,6 +393,29 @@ func setRequestValue(f filters.FilterContext) func(*lua.LState) int {
 			// do nothing for now
 		}
 		return 0
+	}
+}
+
+func getResponseValue(f filters.FilterContext) func(*lua.LState) int {
+	var header *lua.LTable
+	return func(s *lua.LState) int {
+		key := s.ToString(-1)
+		var ret lua.LValue
+		switch key {
+		case "header":
+			if header == nil {
+				header = s.CreateTable(0, 0)
+				mt := s.CreateTable(0, 2)
+				mt.RawSetString("__index", s.NewFunction(getResponseHeader(f)))
+				mt.RawSetString("__newindex", s.NewFunction(setResponseHeader(f)))
+				s.SetMetatable(header, mt)
+			}
+			ret = header
+		default:
+			ret = lua.LNil
+		}
+		s.Push(ret)
+		return 1
 	}
 }
 
