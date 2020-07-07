@@ -16,6 +16,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/secrets"
 )
 
@@ -241,8 +242,8 @@ func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
-func (c *clusterClient) filterIngressesByClass(items []*ingressItem) []*ingressItem {
-	validIngs := []*ingressItem{}
+func (c *clusterClient) filterIngressesByClass(items []*definitions.IngressItem) []*definitions.IngressItem {
+	validIngs := []*definitions.IngressItem{}
 
 	for _, ing := range items {
 		// No metadata is the same as no annotations for us
@@ -277,7 +278,7 @@ func sortByMetadata(slice interface{}, getMetadata func(int) *metadata) {
 	})
 }
 
-func (c *clusterClient) loadIngresses() ([]*ingressItem, error) {
+func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
 	var il ingressList
 	if err := c.getJSON(c.ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
@@ -291,8 +292,8 @@ func (c *clusterClient) loadIngresses() ([]*ingressItem, error) {
 	return fItems, nil
 }
 
-func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
-	var rgl routeGroupList
+func (c *clusterClient) loadRouteGroups() ([]*definitions.RouteGroupItem, error) {
+	var rgl definitions.RouteGroupList
 	if err := c.getJSON(c.routeGroupsURI, &rgl); err != nil {
 		return nil, err
 	}

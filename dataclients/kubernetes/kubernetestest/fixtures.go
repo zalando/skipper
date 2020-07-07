@@ -1,4 +1,4 @@
-package kubernetes
+package kubernetestest
 
 import (
 	"bytes"
@@ -16,6 +16,7 @@ import (
 	"github.com/go-yaml/yaml"
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -163,7 +164,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		}
 	}()
 
-	var o Options
+	var o kubernetes.Options
 	if f.kube != "" {
 		ko, err := os.Open(f.kube)
 		if err != nil {
@@ -189,7 +190,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 
 	o.KubernetesURL = s.URL
 	o.DefaultFiltersDir = f.defaultFilters
-	c, err := New(o)
+	c, err := kubernetes.New(o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +246,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 	}
 }
 
-func testFixtures(t *testing.T, dir string) {
+func FixturesToTest(t *testing.T, dir string) {
 	if !filepath.IsAbs(dir) {
 		wd, err := os.Getwd()
 		if err != nil {

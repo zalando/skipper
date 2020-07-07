@@ -1,4 +1,4 @@
-package kubernetes
+package kubernetestest
 
 import (
 	"bytes"
@@ -102,9 +102,9 @@ func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 		),
 	}
 
-	var clr clusterResourceList
+	var clr kubernetes.clusterResourceList
 	if !o.DisableRouteGroups {
-		clr.Items = append(clr.Items, &clusterResource{Name: routeGroupsName})
+		clr.Items = append(clr.Items, &kubernetes.clusterResource{Name: kubernetes.routeGroupsName})
 	}
 
 	a.failOn = mapStrings(o.FailOn)
@@ -191,7 +191,7 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path == clusterZalandoResourcesURI {
+	if r.URL.Path == kubernetes.clusterZalandoResourcesURI {
 		w.Write(a.resourceList)
 		return
 	}
@@ -380,14 +380,14 @@ func TestTestAPI(t *testing.T) {
 		const namespace = "internal"
 
 		var s map[string]interface{}
-		if err := get(fmt.Sprintf(servicesNamespaceFmt, namespace), &s); err != nil {
+		if err := get(fmt.Sprintf(kubernetes.servicesNamespaceFmt, namespace), &s); err != nil {
 			t.Fatal(err)
 		}
 
 		check(t, s, 1, "Service")
 
 		var i map[string]interface{}
-		if err := get(fmt.Sprintf(ingressesNamespaceFmt, namespace), &i); err != nil {
+		if err := get(fmt.Sprintf(kubernetes.ingressesNamespaceFmt, namespace), &i); err != nil {
 			t.Fatal(err)
 		}
 
@@ -401,7 +401,7 @@ func TestTestAPI(t *testing.T) {
 		check(t, r, 1, "RouteGroup")
 
 		var e map[string]interface{}
-		if err := get(fmt.Sprintf(endpointsNamespaceFmt, namespace), &e); err != nil {
+		if err := get(fmt.Sprintf(kubernetes.endpointsNamespaceFmt, namespace), &e); err != nil {
 			t.Fatal(err)
 		}
 
@@ -410,14 +410,14 @@ func TestTestAPI(t *testing.T) {
 
 	t.Run("without namespace", func(t *testing.T) {
 		var s map[string]interface{}
-		if err := get(servicesClusterURI, &s); err != nil {
+		if err := get(kubernetes.servicesClusterURI, &s); err != nil {
 			t.Fatal(err)
 		}
 
 		check(t, s, 2, "Service")
 
 		var i map[string]interface{}
-		if err := get(ingressesClusterURI, &i); err != nil {
+		if err := get(kubernetes.ingressesClusterURI, &i); err != nil {
 			t.Fatal(err)
 		}
 
@@ -431,7 +431,7 @@ func TestTestAPI(t *testing.T) {
 		check(t, r, 1, "RouteGroup")
 
 		var e map[string]interface{}
-		if err := get(endpointsClusterURI, &e); err != nil {
+		if err := get(kubernetes.endpointsClusterURI, &e); err != nil {
 			t.Fatal(err)
 		}
 

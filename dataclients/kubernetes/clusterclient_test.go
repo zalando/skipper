@@ -39,7 +39,7 @@ func containsEveryLineCount(s, substr string, count int) bool {
 }
 
 func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
-	a, err := newAPI(testAPIOptions{FindNot: []string{clusterZalandoResourcesURI}})
+	a, err := kubernetestest.newAPI(kubernetestest.testAPIOptions{FindNot: []string{clusterZalandoResourcesURI}})
 	if err != nil {
 		t.Fatal(err)
 	}

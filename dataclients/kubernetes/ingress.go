@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/traffic"
@@ -28,7 +29,7 @@ const (
 
 type ingressContext struct {
 	state               *clusterState
-	ingress             *ingressItem
+	ingress             *definitions.IngressItem
 	logger              *log.Entry
 	annotationFilters   []*eskip.Filter
 	annotationPredicate string

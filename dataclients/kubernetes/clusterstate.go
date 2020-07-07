@@ -5,11 +5,13 @@ import (
 	"sort"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 type clusterState struct {
-	ingresses       []*ingressItem
-	routeGroups     []*routeGroupItem
+	ingresses       []*definitions.IngressItem
+	routeGroups     []*definitions.RouteGroupItem
 	services        map[resourceID]*service
 	endpoints       map[resourceID]*endpoint
 	cachedEndpoints map[endpointID][]string

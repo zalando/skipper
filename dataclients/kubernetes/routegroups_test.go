@@ -1,39 +1,39 @@
-package kubernetes
+package kubernetes_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
+)
 
 func TestRouteGroupExamples(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/examples")
-}
-
-func TestRouteGroupValidation(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/validation")
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/examples")
 }
 
 func TestRouteGroupConvert(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/convert")
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/convert")
 }
 
 func TestRouteGroupClusterState(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/cluster-state")
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/cluster-state")
 }
 
 func TestRouteGroupTraffic(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/traffic")
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/traffic")
 }
 
 func TestRouteGroupEastWest(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/east-west")
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/east-west")
 }
 
 func TestRouteGroupHTTPSRedirect(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/https-redirect")
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/https-redirect")
 }
 
 func TestRouteGroupDefaultFilters(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/default-filters")
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/default-filters")
 }
 
 func TestRouteGroupWithIngress(t *testing.T) {
-	testFixtures(t, "testdata/routegroups/with-ingress")
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/with-ingress")
 }
