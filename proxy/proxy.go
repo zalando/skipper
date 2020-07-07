@@ -1225,6 +1225,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		p.log.Errorf("error while copying the response stream: %v", err)
+		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
