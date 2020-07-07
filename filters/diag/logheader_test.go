@@ -57,6 +57,56 @@ func TestLogHeader(t *testing.T) {
 	}
 }
 
+// TODO: test better with proxy, because we want to check if we log
+// Headers and in REsponse we can check these. If we chec raw string
+// we dependend on internal ordering of hashmap which shows in local
+// tests to be flaky.
+func TestLogHeaderPost(t *testing.T) {
+	defer func() {
+		log.SetOutput(os.Stderr)
+	}()
+
+	body := ioutil.NopCloser(bytes.NewBufferString("my body"))
+	req, err := http.NewRequest("POST", "https://example.org/", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("User-Agent", "Go-http-client/1.1")
+	req.Header.Set("Transfer-Encoding", "chunked")
+
+	ctx := &filtertest.Context{
+		FRequest: req,
+	}
+
+	outputVerify := bytes.NewBuffer(nil)
+	if err := req.Write(outputVerify); err != nil {
+		t.Fatal(err)
+	}
+
+	loggerVerify := bytes.NewBuffer(nil)
+	log.SetOutput(loggerVerify)
+	log.Println(outputVerify.String())
+
+	loggerTest := bytes.NewBuffer(nil)
+	log.SetOutput(loggerTest)
+
+	lh, err := (logHeader{
+		request: true,
+	}).CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lh.Request(ctx)
+	if loggerTest.Len() == 0 || !bytes.Equal(loggerTest.Bytes(), loggerVerify.Bytes()) {
+		t.Error("failed to log the request header")
+		t.Log("expected:")
+		t.Log(loggerVerify.String())
+		t.Log("got:")
+		t.Log(loggerTest.String())
+	}
+}
+
 func TestLogHeaderRequestResponse(t *testing.T) {
 	defer func() {
 		log.SetOutput(os.Stderr)
