@@ -1,6 +1,8 @@
 package loadbalancer
 
 import (
+	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
@@ -172,4 +174,73 @@ func TestSelectAlgorithm(t *testing.T) {
 			t.Fatal("failed to drop invalid LB route")
 		}
 	})
+}
+
+func TestApply(t *testing.T) {
+	N := 10
+	eps := make([]string, 0, N)
+	for i := 0; i < N; i++ {
+		ep := fmt.Sprintf("http://127.0.0.1:123%d/foo", i)
+		eps = append(eps, ep)
+	}
+
+	for _, tt := range []struct {
+		name          string
+		iterations    int
+		jitter        int
+		expected      int
+		algorithm     routing.LBAlgorithm
+		algorithmName string
+	}{
+		{
+			name:          "random algorithm",
+			iterations:    100,
+			jitter:        1,
+			expected:      N,
+			algorithm:     newRandom(eps),
+			algorithmName: "random",
+		}, {
+			name:          "roundrobin algorithm",
+			iterations:    100,
+			jitter:        1,
+			expected:      N,
+			algorithm:     newRoundRobin(eps),
+			algorithmName: "roundRobin",
+		}, {
+			name:          "consistentHash algorithm",
+			iterations:    100,
+			jitter:        0,
+			expected:      1,
+			algorithm:     newConsistentHash(eps),
+			algorithmName: "consistentHash",
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+			p := NewAlgorithmProvider()
+			r := &routing.Route{
+				Route: eskip.Route{
+					BackendType: eskip.LBBackend,
+					LBAlgorithm: tt.algorithmName,
+					LBEndpoints: eps,
+				},
+			}
+			rt := p.Do([]*routing.Route{r})
+
+			lbctx := &routing.LBContext{
+				Request: req,
+				Route:   rt[0],
+			}
+
+			// test
+			h := make(map[string]int)
+			for i := 0; i < tt.iterations; i++ {
+				lbe := tt.algorithm.Apply(lbctx)
+				h[lbe.Host] += 1
+			}
+
+			if len(h) != tt.expected {
+				t.Fatalf("Failed to get expected result %d != %d", tt.expected, len(h))
+			}
+		})
+	}
 }
