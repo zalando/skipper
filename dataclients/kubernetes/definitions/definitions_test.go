@@ -7,5 +7,5 @@ import (
 )
 
 func TestRouteGroupValidation(t *testing.T) {
-	kubernetestest.FixturesToTest(t, "testdata/routegroups/validation")
+	kubernetestest.FixturesToTest(t, "testdata/validation")
 }
