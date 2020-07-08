@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
 )
@@ -20,7 +21,7 @@ type routeGroups struct {
 type routeGroupContext struct {
 	clusterState          *clusterState
 	defaultFilters        defaultFilters
-	routeGroup            *routeGroupItem
+	routeGroup            *definitions.RouteGroupItem
 	hosts                 []string
 	hostRx                string
 	hostRoutes            map[string][]*eskip.Route
@@ -29,16 +30,16 @@ type routeGroupContext struct {
 	eastWestDomain        string
 	provideHTTPSRedirect  bool
 	httpsRedirectCode     int
-	backendsByName        map[string]*skipperBackend
+	backendsByName        map[string]*definitions.SkipperBackend
 	defaultBackendTraffic map[string]*calculatedTraffic
 }
 
 type routeContext struct {
 	group      *routeGroupContext
-	groupRoute *routeSpec
+	groupRoute *definitions.RouteSpec
 	id         string
 	method     string
-	backend    *skipperBackend
+	backend    *definitions.SkipperBackend
 }
 
 type calculatedTraffic struct {
@@ -73,7 +74,7 @@ func notSupportedServiceType(s *service) error {
 	)
 }
 
-func defaultFiltersError(m *metadata, service string, err error) error {
+func defaultFiltersError(m *definitions.Metadata, service string, err error) error {
 	return fmt.Errorf(
 		"error while applying default filters for route group and service: %s/%s %s, %w",
 		namespaceString(m.Namespace),
@@ -120,7 +121,7 @@ func rgRouteID(namespace, name, subName string, index, subIndex int) string {
 	)
 }
 
-func crdRouteID(m *metadata, method string, routeIndex, backendIndex int) string {
+func crdRouteID(m *definitions.Metadata, method string, routeIndex, backendIndex int) string {
 	return rgRouteID(
 		toSymbol(namespaceString(m.Namespace)),
 		toSymbol(m.Name),
@@ -130,8 +131,8 @@ func crdRouteID(m *metadata, method string, routeIndex, backendIndex int) string
 	)
 }
 
-func mapBackends(backends []*skipperBackend) map[string]*skipperBackend {
-	m := make(map[string]*skipperBackend)
+func mapBackends(backends []*definitions.SkipperBackend) map[string]*definitions.SkipperBackend {
+	m := make(map[string]*definitions.SkipperBackend)
 	for _, b := range backends {
 		m[b.Name] = b
 	}
@@ -142,7 +143,7 @@ func mapBackends(backends []*skipperBackend) map[string]*skipperBackend {
 // calculateTraffic calculates the traffic values for the skipper Traffic() predicates
 // based on the weight values in the backend references. It represents the remainder
 // traffic as 1, where no Traffic predicate is meant to be set.
-func calculateTraffic(b []*backendReference) map[string]*calculatedTraffic {
+func calculateTraffic(b []*definitions.BackendReference) map[string]*calculatedTraffic {
 	var sum int
 	weights := make([]int, len(b))
 	for i, bi := range b {
@@ -205,7 +206,7 @@ func configureTraffic(r *eskip.Route, t *calculatedTraffic) {
 	r.Predicates = append(r.Predicates, trafficBalance(t)...)
 }
 
-func getBackendService(ctx *routeGroupContext, backend *skipperBackend) (*service, error) {
+func getBackendService(ctx *routeGroupContext, backend *definitions.SkipperBackend) (*service, error) {
 	s, err := ctx.clusterState.getServiceRG(
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		backend.ServiceName,
@@ -221,7 +222,7 @@ func getBackendService(ctx *routeGroupContext, backend *skipperBackend) (*servic
 	return s, nil
 }
 
-func createClusterIPBackend(s *service, backend *skipperBackend) (string, error) {
+func createClusterIPBackend(s *service, backend *definitions.SkipperBackend) (string, error) {
 	if s.Spec.ClusterIP == "" {
 		return "", errMissingClusterIP
 	}
@@ -229,7 +230,7 @@ func createClusterIPBackend(s *service, backend *skipperBackend) (string, error)
 	return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, backend.ServicePort), nil
 }
 
-func applyServiceBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Route) error {
+func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
 	s, err := getBackendService(ctx, backend)
 	if err != nil {
 		return err
@@ -292,7 +293,7 @@ func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Ro
 	return nil
 }
 
-func applyBackend(ctx *routeGroupContext, backend *skipperBackend, r *eskip.Route) error {
+func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
 	r.BackendType = backend.Type
 	switch r.BackendType {
 	case serviceBackend:
@@ -460,7 +461,7 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			backendTraffic = calculateTraffic(rgr.Backends)
 		}
 
-		for _, method := range rgr.uniqueMethods() {
+		for _, method := range rgr.UniqueMethods() {
 			for backendIndex, bref := range backendRefs {
 				be := ctx.backendsByName[bref.BackendName]
 				idMethod := strings.ToLower(method)
@@ -505,7 +506,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 
 	hostRoutes := make(map[string][]*eskip.Route)
 	for _, rg := range s.routeGroups {
-		hosts := rg.Spec.uniqueHosts()
+		hosts := rg.Spec.UniqueHosts()
 		ctx := &routeGroupContext{
 			clusterState:         s,
 			defaultFilters:       df,

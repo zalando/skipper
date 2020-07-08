@@ -11,7 +11,7 @@ import (
 // the filter and predicate annotations are in the first ingress with the same host
 const ingressDocSucceed = `{
 	"items": [{
-		"metadata": {
+		"Metadata": {
 			"namespace": "default",
 			"name": "sszuecs-demo-new",
 			"annotations": {
@@ -33,7 +33,7 @@ const ingressDocSucceed = `{
 			}]
 		}
 	}, {
-		"metadata": {
+		"Metadata": {
 			"namespace": "default",
 			"name": "sszuecs-demo-v1"
 		},
@@ -56,7 +56,7 @@ const ingressDocSucceed = `{
 // the filter and predicate annotations are in the second ingress with the same host
 const ingressDocFail = `{
 	"items": [{
-		"metadata": {
+		"Metadata": {
 			"namespace": "default",
 			"name": "sszuecs-demo-v1"
 		},
@@ -74,7 +74,7 @@ const ingressDocFail = `{
 			}]
 		}
 	}, {
-		"metadata": {
+		"Metadata": {
 			"namespace": "default",
 			"name": "sszuecs-demo-new",
 			"annotations": {
@@ -101,7 +101,7 @@ const ingressDocFail = `{
 const servicesDoc = `{
   "items": [
     {
-      "metadata": {
+      "Metadata": {
         "namespace": "default",
         "name": "sszuecs-demo-v1"
       },
@@ -116,7 +116,7 @@ const servicesDoc = `{
       }
     },
     {
-      "metadata": {
+      "Metadata": {
         "namespace": "default",
         "name": "sszuecs-demo-v2"
       },
@@ -140,13 +140,13 @@ type apiV1 struct {
 
 func (api apiV1) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case ingressesClusterURI:
+	case IngressesClusterURI:
 		w.Write(api.ingresses)
 		return
-	case servicesClusterURI:
+	case ServicesClusterURI:
 		w.Write(api.services)
 		return
-	case endpointsClusterURI:
+	case EndpointsClusterURI:
 		w.Write([]byte("{}"))
 		return
 	default:

@@ -14,8 +14,8 @@ type RouteGroupList struct {
 }
 
 type RouteGroupItem struct {
-	Metadata *metadata       `json:"metadata"`
-	spec     *routeGroupSpec `json:"spec"`
+	Metadata *Metadata       `json:"metadata"`
+	Spec     *RouteGroupSpec `json:"spec"`
 }
 
 type IngressList struct {
@@ -23,7 +23,7 @@ type IngressList struct {
 }
 
 type IngressItem struct {
-	Metadata *metadata    `json:"metadata"`
+	Metadata *Metadata    `json:"metadata"`
 	Spec     *ingressSpec `json:"spec"`
 }
 

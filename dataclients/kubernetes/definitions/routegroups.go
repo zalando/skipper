@@ -33,7 +33,7 @@ var (
 	errUnnamedBackendReference  = errors.New("unnamed backend reference")
 )
 
-type metadata struct {
+type Metadata struct {
 	Namespace   string            `json:"namespace"`
 	Name        string            `json:"name"`
 	Created     time.Time         `json:"creationTimestamp"`
@@ -41,7 +41,7 @@ type metadata struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
-type routeGroupSpec struct {
+type RouteGroupSpec struct {
 	// Hosts specifies the host headers, that will be matched for
 	// all routes created by this route group. No hosts mean
 	// catchall.
@@ -49,22 +49,22 @@ type routeGroupSpec struct {
 
 	// Backends specify the list of backends that can be
 	// referenced from routes or DefaultBackends.
-	Backends []*skipperBackend `json:"backends"`
+	Backends []*SkipperBackend `json:"backends"`
 
 	// DefaultBackends should be in most cases only one default
 	// backend which is applied to all routes, if no override was
 	// added to a route. A special case is Traffic Switching which
 	// will have more than one default backend definition.
-	DefaultBackends []*backendReference `json:"defaultBackends,omitempty"`
+	DefaultBackends []*BackendReference `json:"defaultBackends,omitempty"`
 
 	// Routes specifies the list of route based on path, method
 	// and predicates. It defaults to catchall, if there are no
 	// routes.
-	Routes []*routeSpec `json:"routes,omitempty"`
+	Routes []*RouteSpec `json:"routes,omitempty"`
 }
 
 // skipperBackend is the type safe version of skipperBackendParser
-type skipperBackend struct {
+type SkipperBackend struct {
 	// Name is the backendName that can be referenced as backendReference
 	Name string
 
@@ -91,7 +91,7 @@ type skipperBackend struct {
 	parseError error
 }
 
-type backendReference struct {
+type BackendReference struct {
 	// BackendName references the skipperBackend by name
 	BackendName string `json:"backendName"`
 
@@ -100,7 +100,7 @@ type backendReference struct {
 	Weight int `json:"weight"`
 }
 
-type routeSpec struct {
+type RouteSpec struct {
 	// Path specifies Path predicate, only one of Path or PathSubtree is allowed
 	Path string `json:"path,omitempty"`
 
@@ -112,16 +112,23 @@ type routeSpec struct {
 
 	// Backends specifies the list of backendReference that should
 	// be applied to override the defaultBackends
-	Backends []*backendReference `json:"backends,omitempty"`
+	Backends []*BackendReference `json:"backends,omitempty"`
 
-	// Filters specifies the list of filters applied to the routeSpec
+	// Filters specifies the list of filters applied to the RouteSpec
 	Filters []string `json:"filters,omitempty"`
 
-	// Predicates specifies the list of predicates applied to the routeSpec
+	// Predicates specifies the list of predicates applied to the RouteSpec
 	Predicates []string `json:"predicates,omitempty"`
 
-	// Methods defines valid HTTP methods for the specified routeSpec
+	// Methods defines valid HTTP methods for the specified RouteSpec
 	Methods []string `json:"methods,omitempty"`
+}
+
+func (meta *Metadata) ToResourceID() ResourceID {
+	return ResourceID{
+		Namespace: namespaceString(meta.Namespace),
+		Name:      meta.Name,
+	}
 }
 
 func backendsWithDuplicateName(name string) error {
@@ -168,7 +175,7 @@ func namespaceString(ns string) string {
 	return ns
 }
 
-func routeGroupError(m *metadata, err error) error {
+func routeGroupError(m *Metadata, err error) error {
 	return fmt.Errorf("error in route group %s/%s: %w", namespaceString(m.Namespace), m.Name, err)
 }
 
@@ -187,7 +194,7 @@ func uniqueStrings(s []string) []string {
 	return u
 }
 
-func (sb *skipperBackend) validate() error {
+func (sb *SkipperBackend) validate() error {
 	if sb.parseError != nil {
 		return sb.parseError
 	}
@@ -211,7 +218,7 @@ func (sb *skipperBackend) validate() error {
 	return nil
 }
 
-func (rg *routeGroupSpec) uniqueHosts() []string {
+func (rg *RouteGroupSpec) UniqueHosts() []string {
 	return uniqueStrings(rg.Hosts)
 }
 
@@ -225,7 +232,7 @@ func hasEmpty(s []string) bool {
 	return false
 }
 
-func (br *backendReference) validate(backends map[string]bool) error {
+func (br *BackendReference) validate(backends map[string]bool) error {
 	if br == nil || br.BackendName == "" {
 		return errUnnamedBackendReference
 	}
@@ -241,11 +248,11 @@ func (br *backendReference) validate(backends map[string]bool) error {
 	return nil
 }
 
-func (r *routeSpec) uniqueMethods() []string {
+func (r *RouteSpec) UniqueMethods() []string {
 	return uniqueStrings(r.Methods)
 }
 
-func (rg *routeGroupSpec) validate() error {
+func (rg *RouteGroupSpec) validate() error {
 	// has at least one backend:
 	if len(rg.Backends) == 0 {
 		return errRouteGroupWithoutBackend
@@ -284,7 +291,7 @@ func (rg *routeGroupSpec) validate() error {
 	return nil
 }
 
-func (r *routeSpec) validate(hasDefault bool, backends map[string]bool) error {
+func (r *RouteSpec) validate(hasDefault bool, backends map[string]bool) error {
 	if r == nil {
 		return errInvalidRouteSpec
 	}
@@ -325,11 +332,11 @@ func (r *RouteGroupItem) validate() error {
 	}
 
 	// has spec:
-	if r.spec == nil {
+	if r.Spec == nil {
 		return routeGroupError(r.Metadata, errRouteGroupWithoutSpec)
 	}
 
-	if err := r.spec.validate(); err != nil {
+	if err := r.Spec.validate(); err != nil {
 		return routeGroupError(r.Metadata, err)
 	}
 

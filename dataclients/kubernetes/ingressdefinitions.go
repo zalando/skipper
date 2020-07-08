@@ -1,25 +1,20 @@
 package kubernetes
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
-	"time"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
-type resourceID struct {
-	namespace string
-	name      string
-}
-
-type metadata struct {
-	Namespace   string            `json:"namespace"`
-	Name        string            `json:"name"`
-	Created     time.Time         `json:"creationTimestamp"`
-	Uid         string            `json:"uid"`
-	Annotations map[string]string `json:"annotations"`
-}
+// moved this to definitions/ingress.go
+// type Metadata struct {
+// 	Namespace   string            `json:"namespace"`
+// 	Name        string            `json:"name"`
+// 	Created     time.Time         `json:"creationTimestamp"`
+// 	Uid         string            `json:"uid"`
+// 	Annotations map[string]string `json:"annotations"`
+// }
 
 func namespaceString(ns string) string {
 	if ns == "" {
@@ -29,72 +24,13 @@ func namespaceString(ns string) string {
 	return ns
 }
 
-func (meta *metadata) toResourceID() resourceID {
-	return resourceID{
-		namespace: namespaceString(meta.Namespace),
-		name:      meta.Name,
-	}
-}
-
-var errInvalidPortType = errors.New("invalid port type")
-
-func (p backendPort) name() (string, bool) {
-	s, ok := p.value.(string)
-	return s, ok
-}
-
-func (p backendPort) number() (int, bool) {
-	i, ok := p.value.(int)
-	return i, ok
-}
-
-func (p *backendPort) UnmarshalJSON(value []byte) error {
-	if value[0] == '"' {
-		var s string
-		if err := json.Unmarshal(value, &s); err != nil {
-			return err
-		}
-
-		p.value = s
-		return nil
-	}
-
-	var i int
-	if err := json.Unmarshal(value, &i); err != nil {
-		return err
-	}
-
-	p.value = i
-	return nil
-}
-
-func (p backendPort) MarshalJSON() ([]byte, error) {
-	switch p.value.(type) {
-	case string, int:
-		return json.Marshal(p.value)
-	default:
-		return nil, errInvalidPortType
-	}
-}
-
-func (p backendPort) String() string {
-	switch v := p.value.(type) {
-	case string:
-		return v
-	case int:
-		return strconv.Itoa(v)
-	default:
-		return ""
-	}
-}
-
 type servicePort struct {
-	Name       string       `json:"name"`
-	Port       int          `json:"port"`
-	TargetPort *backendPort `json:"targetPort"` // string or int
+	Name       string                   `json:"name"`
+	Port       int                      `json:"port"`
+	TargetPort *definitions.BackendPort `json:"targetPort"` // string or int
 }
 
-func (sp servicePort) matchingPort(svcPort backendPort) bool {
+func (sp servicePort) matchingPort(svcPort definitions.BackendPort) bool {
 	s := svcPort.String()
 	spt := strconv.Itoa(sp.Port)
 	return s != "" && (spt == s || sp.Name == s)
@@ -112,15 +48,15 @@ type serviceSpec struct {
 }
 
 type service struct {
-	Meta *metadata    `json:"metadata"`
-	Spec *serviceSpec `json:"spec"`
+	Meta *definitions.Metadata `json:"Metadata"`
+	Spec *serviceSpec          `json:"spec"`
 }
 
 type serviceList struct {
 	Items []*service `json:"items"`
 }
 
-func (s service) getTargetPort(svcPort backendPort) (string, error) {
+func (s service) getTargetPort(svcPort definitions.BackendPort) (string, error) {
 	for _, sp := range s.Spec.Ports {
 		if sp.matchingPort(svcPort) && sp.TargetPort != nil {
 			return sp.TargetPort.String(), nil
@@ -129,7 +65,7 @@ func (s service) getTargetPort(svcPort backendPort) (string, error) {
 	return "", fmt.Errorf("getTargetPort: target port not found %v given %v", s.Spec.Ports, svcPort)
 }
 
-func (s service) getTargetPortByValue(p int) (*backendPort, bool) {
+func (s service) getTargetPortByValue(p int) (*definitions.BackendPort, bool) {
 	for _, pi := range s.Spec.Ports {
 		if pi.Port == p {
 			return pi.TargetPort, true
@@ -140,8 +76,8 @@ func (s service) getTargetPortByValue(p int) (*backendPort, bool) {
 }
 
 type endpoint struct {
-	Meta    *metadata `json:"metadata"`
-	Subsets []*subset `json:"subsets"`
+	Meta    *definitions.Metadata `json:"Metadata"`
+	Subsets []*subset             `json:"subsets"`
 }
 
 type endpointList struct {
@@ -173,9 +109,9 @@ func (ep endpoint) targets(svcPortName, svcPortTarget, protocol string) []string
 	return result
 }
 
-func (ep endpoint) targetsByServiceTarget(serviceTarget *backendPort) []string {
-	portName, named := serviceTarget.value.(string)
-	portValue, byValue := serviceTarget.value.(int)
+func (ep endpoint) targetsByServiceTarget(serviceTarget *definitions.BackendPort) []string {
+	portName, named := serviceTarget.Value.(string)
+	portValue, byValue := serviceTarget.Value.(int)
 	for _, s := range ep.Subsets {
 		for _, p := range s.Ports {
 			if named && p.Name != portName || byValue && p.Port != portValue {
@@ -210,22 +146,22 @@ type port struct {
 	Protocol string `json:"protocol"`
 }
 
-func newResourceID(namespace, name string) resourceID {
-	return resourceID{namespace: namespace, name: name}
+func newResourceID(namespace, name string) definitions.ResourceID {
+	return definitions.ResourceID{Namespace: namespace, Name: name}
 }
 
 type endpointID struct {
-	resourceID
+	definitions.ResourceID
 	servicePort string
 	targetPort  string
 }
 
-type clusterResource struct {
+type ClusterResource struct {
 	Name string `json:"name"`
 }
 
-type clusterResourceList struct {
+type ClusterResourceList struct {
 
 	// Items, aka "resources".
-	Items []*clusterResource `json:"resources"`
+	Items []*ClusterResource `json:"resources"`
 }

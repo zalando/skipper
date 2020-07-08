@@ -12,8 +12,8 @@ import (
 type clusterState struct {
 	ingresses       []*definitions.IngressItem
 	routeGroups     []*definitions.RouteGroupItem
-	services        map[resourceID]*service
-	endpoints       map[resourceID]*endpoint
+	services        map[definitions.ResourceID]*service
+	endpoints       map[definitions.ResourceID]*endpoint
 	cachedEndpoints map[endpointID][]string
 }
 
@@ -42,7 +42,7 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 
 func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort, protocol string) ([]string, error) {
 	epID := endpointID{
-		resourceID:  newResourceID(namespace, name),
+		ResourceID:  newResourceID(namespace, name),
 		servicePort: servicePort,
 		targetPort:  targetPort,
 	}
@@ -51,7 +51,7 @@ func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort
 		return cached, nil
 	}
 
-	ep, ok := state.endpoints[epID.resourceID]
+	ep, ok := state.endpoints[epID.ResourceID]
 	if !ok {
 		return nil, errEndpointNotFound
 	}
@@ -70,9 +70,9 @@ func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort
 	return targets, nil
 }
 
-func (state *clusterState) getEndpointsByTarget(namespace, name string, target *backendPort) []string {
+func (state *clusterState) getEndpointsByTarget(namespace, name string, target *definitions.BackendPort) []string {
 	epID := endpointID{
-		resourceID: newResourceID(namespace, name),
+		ResourceID: newResourceID(namespace, name),
 		targetPort: target.String(),
 	}
 
@@ -80,7 +80,7 @@ func (state *clusterState) getEndpointsByTarget(namespace, name string, target *
 		return cached
 	}
 
-	ep, ok := state.endpoints[epID.resourceID]
+	ep, ok := state.endpoints[epID.ResourceID]
 	if !ok {
 		return nil
 	}

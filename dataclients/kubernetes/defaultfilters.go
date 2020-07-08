@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -18,7 +20,7 @@ type filterSet struct {
 	err     error
 }
 
-type defaultFilters map[resourceID]*filterSet
+type defaultFilters map[definitions.ResourceID]*filterSet
 
 func readDefaultFilters(dir string) (defaultFilters, error) {
 	files, err := ioutil.ReadDir(dir)
@@ -41,7 +43,7 @@ func readDefaultFilters(dir string) (defaultFilters, error) {
 			continue
 		}
 
-		filters[resourceID{name: r[0], namespace: r[1]}] = &filterSet{text: string(config)}
+		filters[definitions.ResourceID{Name: r[0], Namespace: r[1]}] = &filterSet{text: string(config)}
 	}
 
 	return filters, nil
@@ -60,7 +62,7 @@ func (fs *filterSet) parse() {
 	fs.parsed = true
 }
 
-func (df defaultFilters) get(serviceID resourceID) ([]*eskip.Filter, error) {
+func (df defaultFilters) get(serviceID definitions.ResourceID) ([]*eskip.Filter, error) {
 	fs, ok := df[serviceID]
 	if !ok {
 		return nil, nil
@@ -77,5 +79,5 @@ func (df defaultFilters) get(serviceID resourceID) ([]*eskip.Filter, error) {
 }
 
 func (df defaultFilters) getNamed(namespace, serviceName string) ([]*eskip.Filter, error) {
-	return df.get(resourceID{namespace: namespace, name: serviceName})
+	return df.get(definitions.ResourceID{Namespace: namespace, Name: serviceName})
 }
