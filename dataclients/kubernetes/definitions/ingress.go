@@ -25,14 +25,14 @@ type Backend struct {
 
 type Rule struct {
 	Host string    `json:"host"`
-	Http *httpRule `json:"http"`
+	Http *HTTPRule `json:"http"`
 }
 
 type BackendPort struct {
 	Value interface{}
 }
 
-type httpRule struct {
+type HTTPRule struct {
 	Paths []*PathRule `json:"paths"`
 }
 

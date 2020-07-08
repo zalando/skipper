@@ -144,7 +144,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		}
 	}
 
-	a, err := newAPI(apiOptions, resources...)
+	a, err := NewAPI(apiOptions, resources...)
 	if err != nil {
 		t.Fatal(err)
 	}

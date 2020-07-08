@@ -43,7 +43,7 @@ type testAPI struct {
 	test      *testing.T
 	services  *serviceList
 	endpoints *endpointList
-	ingresses *ingressList
+	ingresses *definitions.IngressList
 	server    *httptest.Server
 	failNext  bool
 }
@@ -57,7 +57,7 @@ func testService(namespace, name string, clusterIP string, ports map[string]int)
 	return testServiceWithTargetPort(namespace, name, clusterIP, ports, nil)
 }
 
-func testServiceWithTargetPort(namespace, name string, clusterIP string, ports map[string]int, targetPorts map[int]*backendPort) *service {
+func testServiceWithTargetPort(namespace, name string, clusterIP string, ports map[string]int, targetPorts map[int]*definitions.BackendPort) *service {
 	sports := make([]*servicePort, 0, len(ports))
 	for name, port := range ports {
 		sports = append(sports, &servicePort{
@@ -68,7 +68,7 @@ func testServiceWithTargetPort(namespace, name string, clusterIP string, ports m
 	}
 
 	return &service{
-		Meta: &Metadata{
+		Meta: &definitions.Metadata{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -79,28 +79,28 @@ func testServiceWithTargetPort(namespace, name string, clusterIP string, ports m
 	}
 }
 
-func testPathRule(path, serviceName string, port backendPort) *pathRule {
-	return &pathRule{
+func testPathRule(path, serviceName string, port definitions.BackendPort) *definitions.PathRule {
+	return &definitions.PathRule{
 		Path: path,
-		Backend: &backend{
+		Backend: &definitions.Backend{
 			ServiceName: serviceName,
 			ServicePort: port,
 		},
 	}
 }
 
-func testRule(host string, paths ...*pathRule) *rule {
-	return &rule{
+func testRule(host string, paths ...*definitions.PathRule) *definitions.Rule {
+	return &definitions.Rule{
 		Host: host,
-		Http: &httpRule{
+		Http: &definitions.HTTPRule{
 			Paths: paths,
 		},
 	}
 }
 
-func setAnnotation(i *ingressItem, key, value string) {
+func setAnnotation(i *definitions.IngressItem, key, value string) {
 	if i.Metadata == nil {
-		i.Metadata = &Metadata{}
+		i.Metadata = &definitions.Metadata{}
 	}
 
 	if i.Metadata.Annotations == nil {
@@ -110,22 +110,22 @@ func setAnnotation(i *ingressItem, key, value string) {
 	i.Metadata.Annotations[key] = value
 }
 
-func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString, lbAlgorithm string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
-	var defaultBackend *backend
+func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString, lbAlgorithm string, defaultPort definitions.BackendPort, traffic float64, rules ...*definitions.Rule) *definitions.IngressItem {
+	var defaultBackend *definitions.Backend
 	if len(defaultService) != 0 {
-		defaultBackend = &backend{
+		defaultBackend = &definitions.Backend{
 			ServiceName: defaultService,
 			ServicePort: defaultPort,
 			Traffic:     traffic,
 		}
 	}
 
-	meta := Metadata{
+	meta := definitions.Metadata{
 		Namespace:   ns,
 		Name:        name,
 		Annotations: make(map[string]string),
 	}
-	i := &ingressItem{
+	i := &definitions.IngressItem{
 		Metadata: &meta,
 		Spec: &ingressSpec{
 			DefaultBackend: defaultBackend,
@@ -154,7 +154,7 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 	return i
 }
 
-func testIngressSimple(ns, name, defaultService string, defaultPort backendPort, rules ...*rule) *ingressItem {
+func testIngressSimple(ns, name, defaultService string, defaultPort definitions.BackendPort, rules ...*definitions.Rule) *definitions.IngressItem {
 	return testIngress(
 		ns,
 		name,
@@ -182,9 +182,9 @@ func testServices() *serviceList {
 	}
 }
 
-func testIngresses() []*ingressItem {
-	return []*ingressItem{
-		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", backendPort{8080}, 1.0),
+func testIngresses() []*definitions.IngressItem {
+	return []*definitions.IngressItem{
+		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", definitions.BackendPort{8080}, 1.0),
 		testIngress(
 			"namespace2",
 			"path-rule-only",
@@ -195,11 +195,11 @@ func testIngresses() []*ingressItem {
 			"",
 			"",
 			"",
-			backendPort{},
+			definitions.BackendPort{},
 			1.0,
 			testRule(
 				"www.example.org",
-				testPathRule("/", "service3", backendPort{"port3"}),
+				testPathRule("/", "service3", definitions.BackendPort{"port3"}),
 			),
 		),
 		testIngress(
@@ -212,22 +212,22 @@ func testIngresses() []*ingressItem {
 			"",
 			"",
 			"",
-			backendPort{"port1"},
+			definitions.BackendPort{"port1"},
 			1.0,
 			testRule(
 				"foo.example.org",
-				testPathRule("/test1", "service1", backendPort{"port1"}),
-				testPathRule("/test2", "service2", backendPort{"port2"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
+				testPathRule("/test2", "service2", definitions.BackendPort{"port2"}),
 			),
 			testRule(
 				"bar.example.org",
-				testPathRule("/test1", "service1", backendPort{"port1"}),
-				testPathRule("/test2", "service2", backendPort{"port2"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
+				testPathRule("/test2", "service2", definitions.BackendPort{"port2"}),
 			),
 		),
-		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", backendPort{8080}, 1.0),
-		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", backendPort{8080}, 1.0),
-		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", backendPort{4444}, 1.0),
+		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", definitions.BackendPort{8080}, 1.0),
+		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0),
+		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", definitions.BackendPort{4444}, 1.0),
 	}
 }
 
@@ -406,11 +406,11 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, rever
 	}
 }
 
-func newTestAPI(t *testing.T, s *serviceList, i *ingressList) *testAPI {
+func newTestAPI(t *testing.T, s *serviceList, i *definitions.IngressList) *testAPI {
 	return newTestAPIWithEndpoints(t, s, i, &endpointList{})
 }
 
-func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *ingressList, e *endpointList) *testAPI {
+func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *definitions.IngressList, e *endpointList) *testAPI {
 	api := &testAPI{
 		test:      t,
 		services:  s,
@@ -469,14 +469,14 @@ func TestIngressData(t *testing.T) {
 	for _, ti := range []struct {
 		msg            string
 		services       []*service
-		ingresses      []*ingressItem
+		ingresses      []*definitions.IngressItem
 		expectedRoutes map[string]string
 	}{{
 		"service backend from ingress and service, default",
 		[]*service{
 			testService("foo", "bar", "1.2.3.4", nil),
 		},
-		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", "", "", "", backendPort{8080}, 1.0)},
+		[]*definitions.IngressItem{testIngress("foo", "baz", "bar", "", "", "", "", "", "", definitions.BackendPort{8080}, 1.0)},
 		map[string]string{
 			"kube_foo__baz______": "http://1.2.3.4:8080",
 		},
@@ -485,7 +485,7 @@ func TestIngressData(t *testing.T) {
 		[]*service{
 			testService("foo", "bar", "1.2.3.4", nil),
 		},
-		[]*ingressItem{testIngress(
+		[]*definitions.IngressItem{testIngress(
 			"foo",
 			"baz",
 			"",
@@ -495,14 +495,14 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			"",
-			backendPort{},
+			definitions.BackendPort{},
 			1.0,
 			testRule(
 				"www.example.org",
 				testPathRule(
 					"/",
 					"bar",
-					backendPort{8181},
+					definitions.BackendPort{8181},
 				),
 			),
 		)},
@@ -515,7 +515,7 @@ func TestIngressData(t *testing.T) {
 			testService("foo", "bar", "1.2.3.4", nil),
 			testService("foo", "baz", "5.6.7.8", nil),
 		},
-		[]*ingressItem{testIngress(
+		[]*definitions.IngressItem{testIngress(
 			"foo",
 			"qux",
 			"bar",
@@ -525,14 +525,14 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			"",
-			backendPort{8080},
+			definitions.BackendPort{8080},
 			1.0,
 			testRule(
 				"www.example.org",
 				testPathRule(
 					"/",
 					"baz",
-					backendPort{8181},
+					definitions.BackendPort{8181},
 				),
 			),
 		)},
@@ -545,7 +545,7 @@ func TestIngressData(t *testing.T) {
 		[]*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		[]*ingressItem{testIngress(
+		[]*definitions.IngressItem{testIngress(
 			"foo",
 			"qux",
 			"",
@@ -555,14 +555,14 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			"",
-			backendPort{},
+			definitions.BackendPort{},
 			1.0,
 			testRule(
 				"www.example.org",
 				testPathRule(
 					"/",
 					"bar",
-					backendPort{"baz"},
+					definitions.BackendPort{"baz"},
 				),
 			),
 		)},
@@ -573,7 +573,7 @@ func TestIngressData(t *testing.T) {
 		"ingress with service type ExternalName should proxy to externalName",
 		[]*service{
 			{
-				Meta: &Metadata{
+				Meta: &definitions.Metadata{
 					Namespace: "foo",
 					Name:      "extname",
 				},
@@ -584,15 +584,15 @@ func TestIngressData(t *testing.T) {
 						{
 							Name: "ext",
 							Port: 443,
-							TargetPort: &backendPort{
-								value: 443,
+							TargetPort: &definitions.BackendPort{
+								Value: 443,
 							},
 						},
 					},
 				},
 			},
 		},
-		[]*ingressItem{testIngress(
+		[]*definitions.IngressItem{testIngress(
 			"foo",
 			"qux",
 			"",
@@ -602,14 +602,14 @@ func TestIngressData(t *testing.T) {
 			"",
 			"",
 			"",
-			backendPort{value: 443},
+			definitions.BackendPort{Value: 443},
 			1.0,
 			testRule(
 				"www.zalando.de",
 				testPathRule(
 					"/",
 					"extname",
-					backendPort{value: 443},
+					definitions.BackendPort{Value: 443},
 				),
 			),
 		)},
@@ -621,7 +621,7 @@ func TestIngressData(t *testing.T) {
 		[]*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		[]*ingressItem{
+		[]*definitions.IngressItem{
 			testIngress(
 				"foo",
 				"qux",
@@ -632,26 +632,26 @@ func TestIngressData(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{},
+				definitions.BackendPort{},
 				1.0,
 				testRule(
 					"www.example.org",
 					testPathRule(
 						"/",
 						"bar",
-						backendPort{"baz"},
+						definitions.BackendPort{"baz"},
 					),
 				),
 			),
 			{
 				Spec: &ingressSpec{
-					Rules: []*rule{
+					Rules: []*definitions.Rule{
 						testRule(
 							"ignored.example.org",
 							testPathRule(
 								"/ignored",
 								"ignored",
-								backendPort{"baz"},
+								definitions.BackendPort{"baz"},
 							),
 						),
 					},
@@ -666,7 +666,7 @@ func TestIngressData(t *testing.T) {
 		[]*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		[]*ingressItem{testIngress(
+		[]*definitions.IngressItem{testIngress(
 			"foo",
 			"qux",
 			"",
@@ -676,14 +676,14 @@ func TestIngressData(t *testing.T) {
 			`Method("OPTIONS") -> <shunt>`,
 			"",
 			"",
-			backendPort{},
+			definitions.BackendPort{},
 			1.0,
 			testRule(
 				"www1.example.org",
 				testPathRule(
 					"/",
 					"bar",
-					backendPort{"baz"},
+					definitions.BackendPort{"baz"},
 				),
 			),
 			testRule(
@@ -691,7 +691,7 @@ func TestIngressData(t *testing.T) {
 				testPathRule(
 					"/",
 					"bar",
-					backendPort{"baz"},
+					definitions.BackendPort{"baz"},
 				),
 			),
 			testRule(
@@ -699,7 +699,7 @@ func TestIngressData(t *testing.T) {
 				testPathRule(
 					"/foo",
 					"bar",
-					backendPort{"baz"},
+					definitions.BackendPort{"baz"},
 				),
 			),
 		)},
@@ -714,7 +714,7 @@ func TestIngressData(t *testing.T) {
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPI(t, &serviceList{Items: ti.services}, &ingressList{Items: ti.ingresses})
+			api := newTestAPI(t, &serviceList{Items: ti.services}, &definitions.IngressList{Items: ti.ingresses})
 			defer api.Close()
 			dc, err := New(Options{KubernetesURL: api.server.URL})
 			if err != nil {
@@ -737,40 +737,40 @@ func TestIngressData(t *testing.T) {
 func TestIngressClassFilter(t *testing.T) {
 	tests := []struct {
 		testTitle     string
-		items         []*ingressItem
+		items         []*definitions.IngressItem
 		ingressClass  string
-		expectedItems []*ingressItem
+		expectedItems []*definitions.IngressItem
 	}{
 		{
 			testTitle: "filter no class ingresses",
-			items: []*ingressItem{
-				{Metadata: &Metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &Metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 				}},
 			},
 			ingressClass: "^test-filter$",
-			expectedItems: []*ingressItem{
-				{Metadata: &Metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &Metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 				}},
 			},
 		},
 		{
 			testTitle: "filter specific key ingress",
-			items: []*ingressItem{
-				{Metadata: &Metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
 					},
 				}},
-				{Metadata: &Metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -778,22 +778,22 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 			ingressClass: "^test-filter$",
-			expectedItems: []*ingressItem{
-				{Metadata: &Metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
 			},
 		},
 		{
 			testTitle: "filter empty class ingresses",
-			items: []*ingressItem{
-				{Metadata: &Metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				{Metadata: &Metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -801,22 +801,22 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 			ingressClass: "^test-filter$",
-			expectedItems: []*ingressItem{
-				{Metadata: &Metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
 			},
 		},
 		{
 			testTitle: "explicitly include any ingress class",
-			items: []*ingressItem{
-				{Metadata: &Metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				{Metadata: &Metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
@@ -824,25 +824,25 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 			ingressClass: ".*",
-			expectedItems: []*ingressItem{
-				{Metadata: &Metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &Metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 				}},
 			},
 		},
 		{
 			testTitle: "match from a set of ingress classes",
-			items: []*ingressItem{
-				{Metadata: &Metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "skipper-test, other-test",
 					},
 				}},
-				{Metadata: &Metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "other-test",
@@ -850,8 +850,8 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 			ingressClass: "skipper-test",
-			expectedItems: []*ingressItem{
-				{Metadata: &Metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -891,7 +891,7 @@ func TestIngressClassFilter(t *testing.T) {
 }
 
 func TestIngress(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("no services, no ingresses, load empty initial and update", func(t *testing.T) {
@@ -968,7 +968,7 @@ func TestIngress(t *testing.T) {
 	t.Run("receives invalid ingress, parses the rest, gets fixed", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = backendPort{"not-existing"}
+		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = definitions.BackendPort{"not-existing"}
 		dc, err := New(Options{KubernetesURL: api.server.URL})
 		if err != nil {
 			t.Error(err)
@@ -1042,8 +1042,8 @@ func TestIngress(t *testing.T) {
 			return
 		}
 
-		api.ingresses.Items[0].Spec.DefaultBackend.ServicePort = backendPort{6363}
-		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = backendPort{9999}
+		api.ingresses.Items[0].Spec.DefaultBackend.ServicePort = definitions.BackendPort{6363}
+		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = definitions.BackendPort{9999}
 
 		r, d, err := dc.LoadUpdate()
 		if err != nil || len(d) != 0 {
@@ -1194,11 +1194,11 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/", "service1", backendPort{"port1"}),
+					testPathRule("/", "service1", definitions.BackendPort{"port1"}),
 				),
 			),
 			testIngress(
@@ -1211,11 +1211,11 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{""},
 				1.0,
 				testRule(
 					"new2.example.org",
-					testPathRule("/", "service2", backendPort{"port2"}),
+					testPathRule("/", "service2", definitions.BackendPort{"port2"}),
 				),
 			),
 		)
@@ -1260,11 +1260,11 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/", "service1", backendPort{"port1"}),
+					testPathRule("/", "service1", definitions.BackendPort{"port1"}),
 				),
 			),
 			testIngress(
@@ -1277,11 +1277,11 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{""},
 				1.0,
 				testRule(
 					"new2.example.org",
-					testPathRule("/", "service2", backendPort{"port2"}),
+					testPathRule("/", "service2", definitions.BackendPort{"port2"}),
 				),
 			),
 		)

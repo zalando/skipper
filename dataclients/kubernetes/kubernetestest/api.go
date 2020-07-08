@@ -96,7 +96,7 @@ func mapStrings(s []string) map[string]bool {
 	return m
 }
 
-func newAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
+func NewAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
@@ -350,7 +350,7 @@ func getJSON(u string, o interface{}) error {
 }
 
 func TestTestAPI(t *testing.T) {
-	a, err := newAPI(testAPIOptions{}, bytes.NewBufferString(testAPISpec1), bytes.NewBufferString(testAPISpec2))
+	a, err := NewAPI(testAPIOptions{}, bytes.NewBufferString(testAPISpec1), bytes.NewBufferString(testAPISpec2))
 	if err != nil {
 		t.Fatal(err)
 	}

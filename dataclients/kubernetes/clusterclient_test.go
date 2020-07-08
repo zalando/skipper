@@ -1,4 +1,4 @@
-package kubernetes
+package kubernetes_test
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 )
 
 func containsCount(s, substr string, count int) bool {
@@ -39,7 +41,7 @@ func containsEveryLineCount(s, substr string, count int) bool {
 }
 
 func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
-	a, err := kubernetestest.newAPI(kubernetestest.testAPIOptions{FindNot: []string{ClusterZalandoResourcesURI}})
+	a, err := kubernetestest.NewAPI(kubernetestest.testAPIOptions{FindNot: []string{ClusterZalandoResourcesURI}})
 	if err != nil {
 		t.Fatal(err)
 	}
