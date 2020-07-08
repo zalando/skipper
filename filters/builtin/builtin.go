@@ -43,6 +43,8 @@ const (
 	AppendContextRequestHeaderName  = "appendContextRequestHeader"
 	SetContextResponseHeaderName    = "setContextResponseHeader"
 	AppendContextResponseHeaderName = "appendContextResponseHeader"
+	CopyRequestHeaderName           = "copyRequestHeader"
+	CopyResponseHeaderName          = "copyResponseHeader"
 
 	SetDynamicBackendHostFromHeader   = "setDynamicBackendHostFromHeader"
 	SetDynamicBackendSchemeFromHeader = "setDynamicBackendSchemeFromHeader"
@@ -90,6 +92,10 @@ func MakeRegistry() filters.Registry {
 		NewAppendContextRequestHeader(),
 		NewSetContextResponseHeader(),
 		NewAppendContextResponseHeader(),
+		NewCopyRequestHeader(),
+		NewCopyResponseHeader(),
+		NewCopyRequestHeaderDeprecated(),
+		NewCopyResponseHeaderDeprecated(),
 		NewModPath(),
 		NewSetPath(),
 		NewModRequestHeader(),
@@ -111,8 +117,6 @@ func MakeRegistry() filters.Registry {
 		NewStatus(),
 		NewCompress(),
 		NewDecompress(),
-		NewCopyRequestHeader(),
-		NewCopyResponseHeader(),
 		NewHeaderToQuery(),
 		NewQueryToHeader(),
 		NewSetDynamicBackendHostFromHeader(),
@@ -134,6 +138,7 @@ func MakeRegistry() filters.Registry {
 		tee.NewTee(),
 		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),
+		tee.NewTeeLoopback(),
 		sed.New(),
 		sed.NewDelimited(),
 		sed.NewRequest(),

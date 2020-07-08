@@ -521,7 +521,23 @@ It logs with INFO level and a unique ID per request:
 The logHeader filter prints the request line and the header, but not the body, to
 stderr. Note that this filter should be used only in diagnostics setup and with care,
 since the request headers may contain sensitive data, and they also can explode the
-amount of logs.
+amount of logs. Authorization headers will be truncated in request and
+response header logs. You can log request or response headers, which
+defaults for backwards compatibility to request headers.
+
+Parameters:
+
+* no arg, similar to: "request"
+* "request" or "response" (string varargs)
+
+Example:
+
+```
+* -> logHeader() -> "https://www.example.org";
+* -> logHeader("request") -> "https://www.example.org";
+* -> logHeader("response") -> "https://www.example.org";
+* -> logHeader("request", "response") -> "https://www.example.org";
+```
 
 ## tee
 
@@ -559,6 +575,42 @@ incoming requests.
 ## teenf
 
 The same as [tee filter](#tee), but does not follow redirects from the backend.
+
+## teeLoopback
+
+This filter provides a unix-like tee feature for routing, but unlike the [tee](#tee),
+this filter feeds the copied request to the start of the routing, including the
+route lookup and executing the filters on the matched route.
+
+It is recommended to use this solution instead of the tee filter, because the same
+routing facilities are used for the outgoing tee requests as for the normal
+requests, and all the filters and backend types are supported.
+
+To ensure that the right route, or one of the right set of routes, is matched
+after the loopback, use the filter together with the [Tee](predicates.md#tee)
+predicate, however, this is not mandatory if the request is changed via other
+filters, such that other predicates ensure matching the right route. To avoid
+infinite looping, the number of requests spawn from a single incoming request
+is limited similarly as in case of the
+[loopback backend](backends.md#loopback-backend).
+
+Parameters:
+
+* tee group (string): a label identifying which routes should match the loopback
+  request, marked with the [Tee](predicates.md#tee) predicate
+
+Example, generate shadow traffic from 10% of the production traffic:
+
+```
+main: * -> "https://main-backend.example.org;
+main-split: Traffic(.1) -> teeLoopback("test-A") -> "https://main-backend.example.org";
+shadow: Tee("test-A") && True() -> "https://test-backend.example.org";
+```
+
+See also:
+
+* [Tee predicate](predicates.md#tee)
+* [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
 
 ## sed
 
@@ -1068,8 +1120,8 @@ requestCookie("test-session", "abc")
 oidcClaimsQuery("<path>:[<query>]", ...)
 ```
 
-The filter is chained after `oauthOidc*` authentication as it parses the ID token that has been saved in the internal `StateBag` for this request. It validates access control of the requested path against the defined query.  
-It accepts one or more arguments, thats is a path prefix which is granted access to when the query definition evaluates positive.  
+The filter is chained after `oauthOidc*` authentication as it parses the ID token that has been saved in the internal `StateBag` for this request. It validates access control of the requested path against the defined query.
+It accepts one or more arguments, thats is a path prefix which is granted access to when the query definition evaluates positive.
 It supports exact matches of keys, key-value pairs, introspecting of arrays or exact and wildcard matching of nested structures.
 The query definition can be one or more queries per path, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) with a convenience modifier of `@_` which unfolds to `[@this].#("+arg+")`
 

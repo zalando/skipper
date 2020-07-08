@@ -20,6 +20,7 @@ import (
 
 const (
 	defaultIngressClass          = "skipper"
+	defaultRouteGroupClass       = "skipper"
 	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
 	healthcheckRouteID           = "kube__healthz"
@@ -126,6 +127,11 @@ type Options struct {
 	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
 	IngressClass string
 
+	// RouteGroupClass is a regular expression to filter only those RouteGroups that match. If a RouteGroup
+	// does not have the required annotation (zalando.org/routegroup.class) or the annotation is an empty string,
+	// skipper will load it. The default value for the RouteGroup class is 'skipper'.
+	RouteGroupClass string
+
 	// ReverseSourcePredicate set to true will do the Source IP
 	// whitelisting for the heartbeat endpoint correctly in AWS.
 	// Amazon's ALB writes the client IP to the last item of the
@@ -186,9 +192,14 @@ func New(o Options) (*Client, error) {
 		ingCls = o.IngressClass
 	}
 
+	rgCls := defaultRouteGroupClass
+	if o.RouteGroupClass != "" {
+		rgCls = o.RouteGroupClass
+	}
+
 	log.Debugf(
-		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. namespace: %s",
-		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, o.KubernetesNamespace,
+		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. routegroup.class filter: %s. namespace: %s",
+		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, rgCls, o.KubernetesNamespace,
 	)
 
 	var sigs chan os.Signal
@@ -219,7 +230,7 @@ func New(o Options) (*Client, error) {
 		}
 	}
 
-	clusterClient, err := newClusterClient(o, apiURL, ingCls, quit)
+	clusterClient, err := newClusterClient(o, apiURL, ingCls, rgCls, quit)
 	if err != nil {
 		return nil, err
 	}

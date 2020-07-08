@@ -25,6 +25,7 @@ const (
 	clusterZalandoResourcesURI = "/apis/zalando.org/v1"
 	routeGroupsName            = "routegroups"
 	routeGroupsClusterURI      = "/apis/zalando.org/v1/routegroups"
+	routeGroupClassKey         = "zalando.org/routegroup.class"
 	servicesClusterURI         = "/api/v1/services"
 	endpointsClusterURI        = "/api/v1/endpoints"
 	defaultKubernetesURL       = "http://localhost:8001"
@@ -41,14 +42,15 @@ const routeGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the 
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
 
 type clusterClient struct {
-	ingressesURI   string
-	routeGroupsURI string
-	servicesURI    string
-	endpointsURI   string
-	ingressClass   *regexp.Regexp
-	tokenProvider  secrets.SecretsProvider
-	httpClient     *http.Client
-	apiURL         string
+	ingressesURI    string
+	routeGroupsURI  string
+	servicesURI     string
+	endpointsURI    string
+	ingressClass    *regexp.Regexp
+	routeGroupClass *regexp.Regexp
+	tokenProvider   secrets.SecretsProvider
+	httpClient      *http.Client
+	apiURL          string
 
 	loggedMissingRouteGroups bool
 }
@@ -109,7 +111,7 @@ func buildHTTPClient(certFilePath string, inCluster bool, quit <-chan struct{}) 
 	}, nil
 }
 
-func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*clusterClient, error) {
+func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struct{}) (*clusterClient, error) {
 	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
 	if err != nil {
 		return nil, err
@@ -120,14 +122,20 @@ func newClusterClient(o Options, apiURL, ingCls string, quit <-chan struct{}) (*
 		return nil, err
 	}
 
+	rgClsRx, err := regexp.Compile(rgCls)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &clusterClient{
-		ingressesURI:   ingressesClusterURI,
-		routeGroupsURI: routeGroupsClusterURI,
-		servicesURI:    servicesClusterURI,
-		endpointsURI:   endpointsClusterURI,
-		ingressClass:   ingClsRx,
-		httpClient:     httpClient,
-		apiURL:         apiURL,
+		ingressesURI:    ingressesClusterURI,
+		routeGroupsURI:  routeGroupsClusterURI,
+		servicesURI:     servicesClusterURI,
+		endpointsURI:    endpointsClusterURI,
+		ingressClass:    ingClsRx,
+		routeGroupClass: rgClsRx,
+		httpClient:      httpClient,
+		apiURL:          apiURL,
 	}
 
 	if o.KubernetesInCluster {
@@ -291,9 +299,20 @@ func (c *clusterClient) loadRouteGroups() ([]*routeGroupItem, error) {
 
 	rgs := make([]*routeGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
+
+		// Validate RouteGroup item.
 		if err := i.validate(); err != nil {
 			log.Errorf("[routegroup] %v", err)
 			continue
+		}
+
+		// Check the RouteGroup has a valid class annotation.
+		// Not defined, or empty are ok too.
+		if i.Metadata != nil {
+			cls, ok := i.Metadata.Annotations[routeGroupClassKey]
+			if ok && cls != "" && !c.routeGroupClass.MatchString(cls) {
+				continue
+			}
 		}
 
 		rgs = append(rgs, i)

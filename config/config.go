@@ -125,6 +125,7 @@ type Config struct {
 	KubernetesHTTPSRedirect     bool                `yaml:"kubernetes-https-redirect"`
 	KubernetesHTTPSRedirectCode int                 `yaml:"kubernetes-https-redirect-code"`
 	KubernetesIngressClass      string              `yaml:"kubernetes-ingress-class"`
+	KubernetesRouteGroupClass   string              `yaml:"kubernetes-routegroup-class"`
 	WhitelistedHealthCheckCIDR  string              `yaml:"whitelisted-healthcheck-cidr"`
 	KubernetesPathModeString    string              `yaml:"kubernetes-path-mode"`
 	KubernetesPathMode          kubernetes.PathMode `yaml:"-"`
@@ -332,6 +333,7 @@ const (
 	kubernetesHTTPSRedirectUsage     = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
 	kubernetesHTTPSRedirectCodeUsage = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
 	kubernetesIngressClassUsage      = "ingress class regular expression used to filter ingress resources for kubernetes"
+	kubernetesRouteGroupClassUsage   = "route group class regular expression used to filter route group resources for kubernetes"
 	whitelistedHealthCheckCIDRUsage  = "sets the iprange/CIDRS to be whitelisted during healthcheck"
 	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>"
 	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
@@ -515,6 +517,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.KubernetesHTTPSRedirect, "kubernetes-https-redirect", true, kubernetesHTTPSRedirectUsage)
 	flag.IntVar(&cfg.KubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, kubernetesHTTPSRedirectCodeUsage)
 	flag.StringVar(&cfg.KubernetesIngressClass, "kubernetes-ingress-class", "", kubernetesIngressClassUsage)
+	flag.StringVar(&cfg.KubernetesRouteGroupClass, "kubernetes-routegroup-class", "", kubernetesRouteGroupClassUsage)
 	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
 	flag.StringVar(&cfg.KubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
 	flag.StringVar(&cfg.KubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
@@ -758,6 +761,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesHTTPSRedirect:     c.KubernetesHTTPSRedirect,
 		KubernetesHTTPSRedirectCode: c.KubernetesHTTPSRedirectCode,
 		KubernetesIngressClass:      c.KubernetesIngressClass,
+		KubernetesRouteGroupClass:   c.KubernetesRouteGroupClass,
 		WhitelistedHealthCheckCIDR:  whitelistCIDRS,
 		KubernetesPathMode:          c.KubernetesPathMode,
 		KubernetesNamespace:         c.KubernetesNamespace,

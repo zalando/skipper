@@ -27,6 +27,8 @@ const (
 	EndEvent           = "end"
 	StartEvent         = "start"
 	StreamHeadersEvent = "stream_Headers"
+	StreamBodyEvent    = "streamBody.byte"
+	StreamBodyError    = "streamBody error"
 )
 
 type proxyTracing struct {

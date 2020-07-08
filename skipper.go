@@ -16,9 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/zalando/skipper/predicates/cron"
-	"github.com/zalando/skipper/predicates/primitive"
-
 	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 
@@ -39,10 +36,13 @@ import (
 	"github.com/zalando/skipper/metrics"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
+	"github.com/zalando/skipper/predicates/cron"
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/methods"
+	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
+	"github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/queuelistener"
@@ -165,11 +165,17 @@ type Options struct {
 	KubernetesHTTPSRedirectCode int
 
 	// KubernetesIngressClass is a regular expression, that will make
-	// skipper load only the ingress resources that that have a matching
+	// skipper load only the ingress resources that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,
 	// the ingresses without an annotation, or an empty annotation, will
 	// be loaded, too.
 	KubernetesIngressClass string
+
+	// KubernetesRouteGroupClass is a regular expression, that will make skipper
+	// load only the RouteGroup resources that have a matching
+	// zalando.org/routegroup.class annotation. Any RouteGroups without the
+	// annotation, or which an empty annotation, will be loaded too.
+	KubernetesRouteGroupClass string
 
 	// PathMode controls the default interpretation of ingress paths in cases
 	// when the ingress doesn't specify it with an annotation.
@@ -308,6 +314,18 @@ type Options struct {
 
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient
+
+	// CustomHttpHandlerWrap provides ability to wrap http.Handler created by skipper.
+	// http.Handler is used for accepting incoming http requests.
+	// It allows to add additional logic (for example tracing) by providing a wrapper function
+	// which accepts original skipper handler as an argument and returns a wrapped handler
+	CustomHttpHandlerWrap func(http.Handler) http.Handler
+
+	// CustomHttpRoundTripperWrap provides ability to wrap http.RoundTripper created by skipper.
+	// http.RoundTripper is used for making outgoing requests (backends)
+	// It allows to add additional logic (for example tracing) by providing a wrapper function
+	// which accepts original skipper http.RoundTripper as an argument and returns a wrapped roundtripper
+	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
 
 	// WaitFirstRouteLoad prevents starting the listener before the first batch
 	// of routes were applied.
@@ -693,6 +711,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
 			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
 			IngressClass:               o.KubernetesIngressClass,
+			RouteGroupClass:            o.KubernetesRouteGroupClass,
 			ReverseSourcePredicate:     o.ReverseSourcePredicate,
 			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
 			PathMode:                   o.KubernetesPathMode,
@@ -1118,7 +1137,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAllKVRegexp(),
 		pauth.NewJWTPayloadAnyKVRegexp(),
 		methods.New(),
+		tee.New(),
 	)
+
+	// provide default value for wrapper if not defined
+	if o.CustomHttpHandlerWrap == nil {
+		o.CustomHttpHandlerWrap = func(original http.Handler) http.Handler {
+			return original
+		}
+	}
 
 	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
 		Metrics:                mtr,
@@ -1151,27 +1178,28 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
-		Routing:                  routing,
-		Flags:                    proxyFlags,
-		PriorityRoutes:           o.PriorityRoutes,
-		IdleConnectionsPerHost:   o.IdleConnectionsPerHost,
-		CloseIdleConnsPeriod:     o.CloseIdleConnsPeriod,
-		FlushInterval:            o.BackendFlushInterval,
-		ExperimentalUpgrade:      o.ExperimentalUpgrade,
-		ExperimentalUpgradeAudit: o.ExperimentalUpgradeAudit,
-		MaxLoopbacks:             o.MaxLoopbacks,
-		DefaultHTTPStatus:        o.DefaultHTTPStatus,
-		LoadBalancer:             lbInstance,
-		Timeout:                  o.TimeoutBackend,
-		ResponseHeaderTimeout:    o.ResponseHeaderTimeoutBackend,
-		ExpectContinueTimeout:    o.ExpectContinueTimeoutBackend,
-		KeepAlive:                o.KeepAliveBackend,
-		DualStack:                o.DualStackBackend,
-		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
-		MaxIdleConns:             o.MaxIdleConnsBackend,
-		DisableHTTPKeepalives:    o.DisableHTTPKeepalives,
-		AccessLogDisabled:        o.AccessLogDisabled,
-		ClientTLS:                o.ClientTLS,
+		Routing:                    routing,
+		Flags:                      proxyFlags,
+		PriorityRoutes:             o.PriorityRoutes,
+		IdleConnectionsPerHost:     o.IdleConnectionsPerHost,
+		CloseIdleConnsPeriod:       o.CloseIdleConnsPeriod,
+		FlushInterval:              o.BackendFlushInterval,
+		ExperimentalUpgrade:        o.ExperimentalUpgrade,
+		ExperimentalUpgradeAudit:   o.ExperimentalUpgradeAudit,
+		MaxLoopbacks:               o.MaxLoopbacks,
+		DefaultHTTPStatus:          o.DefaultHTTPStatus,
+		LoadBalancer:               lbInstance,
+		Timeout:                    o.TimeoutBackend,
+		ResponseHeaderTimeout:      o.ResponseHeaderTimeoutBackend,
+		ExpectContinueTimeout:      o.ExpectContinueTimeoutBackend,
+		KeepAlive:                  o.KeepAliveBackend,
+		DualStack:                  o.DualStackBackend,
+		TLSHandshakeTimeout:        o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:               o.MaxIdleConnsBackend,
+		DisableHTTPKeepalives:      o.DisableHTTPKeepalives,
+		AccessLogDisabled:          o.AccessLogDisabled,
+		ClientTLS:                  o.ClientTLS,
+		CustomHttpRoundTripperWrap: o.CustomHttpRoundTripperWrap,
 	}
 
 	var swarmer ratelimit.Swarmer
@@ -1317,7 +1345,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
 
-	return listenAndServeQuit(proxy, &o, sig, idleConnsCH, mtr)
+	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr)
 }
 
 // Run skipper.

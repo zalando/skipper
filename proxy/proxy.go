@@ -230,6 +230,12 @@ type Params struct {
 	// OpenTracing contains parameters related to OpenTracing instrumentation. For default values
 	// check OpenTracingParams
 	OpenTracing *OpenTracingParams
+
+	// CustomHttpRoundTripperWrap provides ability to wrap http.RoundTripper created by skipper.
+	// http.RoundTripper is used for making outgoing requests (backends)
+	// It allows to add additional logic (for example tracing) by providing a wrapper function
+	// which accepts original skipper http.RoundTripper as an argument and returns a wrapped roundtripper
+	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
 }
 
 type (
@@ -309,7 +315,7 @@ type Proxy struct {
 	maxLoops                 int
 	defaultHTTPStatus        int
 	routing                  *routing.Routing
-	roundTripper             *http.Transport
+	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
 	metrics                  metrics.Metrics
@@ -323,6 +329,7 @@ type Proxy struct {
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
 	auditLogHook             chan struct{}
+	clientTLS                *tls.Config
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -405,7 +412,7 @@ func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing,
 	for {
 		l, rerr := from.Read(b)
 
-		tracing.logStreamEvent(span, "streamBody.byte", fmt.Sprintf("%d", l))
+		tracing.logStreamEvent(span, StreamBodyEvent, fmt.Sprintf("%d", l))
 
 		if rerr != nil && rerr != io.EOF {
 			return rerr
@@ -605,6 +612,13 @@ func WithParams(p Params) *Proxy {
 		p.ExpectContinueTimeout = DefaultExpectContinueTimeout
 	}
 
+	if p.CustomHttpRoundTripperWrap == nil {
+		// default wrapper which does nothing
+		p.CustomHttpRoundTripperWrap = func(original http.RoundTripper) http.RoundTripper {
+			return original
+		}
+	}
+
 	tr := &http.Transport{
 		DialContext: newSkipperDialer(net.Dialer{
 			Timeout:   p.Timeout,
@@ -673,7 +687,7 @@ func WithParams(p Params) *Proxy {
 
 	return &Proxy{
 		routing:                  p.Routing,
-		roundTripper:             tr,
+		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
 		metrics:                  m,
@@ -691,6 +705,7 @@ func WithParams(p Params) *Proxy {
 		accessLogDisabled:        p.AccessLogDisabled,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
+		clientTLS:                p.ClientTLS,
 	}
 }
 
@@ -836,7 +851,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 		backendAddr:     backendURL,
 		reverseProxy:    reverseProxy,
 		insecure:        p.flags.Insecure(),
-		tlsClientConfig: p.roundTripper.TLSClientConfig,
+		tlsClientConfig: p.clientTLS,
 		useAuditLog:     p.experimentalUpgradeAudit,
 		auditLogOut:     p.upgradeAuditLogOut,
 		auditLogErr:     p.upgradeAuditLogErr,
@@ -1047,22 +1062,29 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 }
 
 func (p *Proxy) do(ctx *context) error {
-	if ctx.loopCounter > p.maxLoops {
+	if ctx.executionCounter > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
-
-	ctx.loopCounter++
+	defer func() {
+		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
+		for _, done := range pendingLIFO {
+			done()
+		}
+	}()
 
 	// proxy global setting
-	if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
-		rerr := newRatelimitError(settings, retryAfter)
-		return rerr
+	if !ctx.wasExecuted() {
+		if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
+			rerr := newRatelimitError(settings, retryAfter)
+			return rerr
+		}
 	}
-
+	// every time the context is used for a request the context executionCounter is incremented
+	// a context executionCounter equal to zero represents a root context.
+	ctx.executionCounter++
 	lookupStart := time.Now()
 	route, params := p.lookupRoute(ctx)
 	p.metrics.MeasureRouteLookup(lookupStart)
-
 	if route == nil {
 		if !p.flags.Debug() {
 			p.metrics.IncRoutingFailures()
@@ -1202,7 +1224,10 @@ func (p *Proxy) serveResponse(ctx *context) {
 	err := copyStream(ctx.responseWriter, ctx.response.Body, p.tracing, ctx.proxySpan)
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
-		p.log.Error("error while copying the response stream", err)
+		p.log.Errorf("error while copying the response stream: %v", err)
+		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
+		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
+		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
@@ -1421,7 +1446,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
-	ctx = newContext(lw, r, p.flags.PreserveOriginal(), p.metrics, p.routing.Get())
+	ctx = newContext(lw, r, p)
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 
@@ -1429,18 +1454,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if ctx.response != nil && ctx.response.Body != nil {
 			err := ctx.response.Body.Close()
 			if err != nil {
-				p.log.Error("error during closing the response body", err)
+				p.log.Errorf("error during closing the response body: %v", err)
 			}
 		}
 	}()
 
-	if err == nil {
-		err = p.do(ctx)
-		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
-		for _, done := range pendingLIFO {
-			done()
-		}
-	}
+	err = p.do(ctx)
 
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)

@@ -119,7 +119,7 @@ spec:
     serviceName: my-service
     servicePort: 80
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
 ```
 
 This is equivalent to the ingress:
@@ -249,7 +249,7 @@ spec:
   routes:
   - pathSubtree: /api
     backends:
-    - backendName: api-svc
+    - backendName: api-svc-v1
       weight: 80
     - backendName: api-svc-v2
       weight: 20
@@ -344,7 +344,7 @@ spec:
     serviceName: my-service
     servicePort: 80
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
 ```
 
 ### Ingress with path rule
@@ -540,7 +540,7 @@ spec:
   - name: options200
     type: shunt
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
   routes:
   - pathSubtree: /
   - pathSubtree: /
@@ -576,7 +576,7 @@ spec:
   - name: redirectShunt
     type: shunt
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
   routes:
   - pathSubtree: /
   - pathSubtree: /
@@ -620,3 +620,32 @@ Ingress: | RouteGroup:
 `path-regexp` and `/foo` | pathRegexp: `/foo`
 `path-prefix` and `/foo` | pathSubtree: `/foo`
 `kubernetes-ingress` and /foo$ | path: `/foo`
+
+## Multiple skipper deployments
+
+If you want to split for example `internal` and `public` traffic, it
+might be a good choice to split your RouteGroups. Skipper has
+the flag `--kubernetes-routegroup-class=<string>` to only select RouteGroup
+objects that have the annotation `zalando.org/routegroup.class` set to
+`<string>`. Skipper will only create routes for RouteGroup objects with
+it's annotation or RouteGroup objects that do not have this annotation. The
+default class is `skipper`, if not set. 
+
+Example RouteGroup:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+  annotations:
+    zalando.org/routegroup.class: internal
+spec:
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  defaultBackends:
+  - backendName: my-service
+```

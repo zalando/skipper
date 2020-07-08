@@ -81,6 +81,30 @@ func Test_ratelimitFlags_Set(t *testing.T) {
 			},
 		},
 		{
+			name:    "test clusterClient ratelimit",
+			args:    "type=clusterClient,max-hits=50,time-window=2m",
+			wantErr: false,
+			want: ratelimit.Settings{
+				Type:          ratelimit.ClusterClientRatelimit,
+				MaxHits:       50,
+				TimeWindow:    2 * time.Minute,
+				Group:         "",
+				CleanInterval: 2 * time.Minute * 10,
+			},
+		},
+		{
+			name:    "test clusterService ratelimit",
+			args:    "type=clusterService,max-hits=50,time-window=2m",
+			wantErr: false,
+			want: ratelimit.Settings{
+				Type:          ratelimit.ClusterServiceRatelimit,
+				MaxHits:       50,
+				TimeWindow:    2 * time.Minute,
+				Group:         "",
+				CleanInterval: 2 * time.Minute * 10,
+			},
+		},
+		{
 			name:    "test invalid type",
 			args:    "type=invalid,max-hits=50,time-window=2m",
 			wantErr: true,

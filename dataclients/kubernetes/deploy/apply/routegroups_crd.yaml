@@ -29,11 +29,13 @@ spec:
     status: {}
   validation:
     openAPIV3Schema:
+      type: object
       properties:
         spec:
           required:
           - backends
           - routes
+          type: object
           properties:
             hosts:
               type: array
@@ -43,6 +45,7 @@ spec:
               type: array
               minLength: 1
               items:
+                type: object
                 required:
                 - type
                 - name
@@ -78,6 +81,7 @@ spec:
             defaultBackends:
               type: array
               items:
+                type: object
                 properties:
                   backendName:
                     type: string
@@ -88,6 +92,7 @@ spec:
               type: array
               minLength: 1
               items:
+                type: object
                 properties:
                   path:
                     type: string
@@ -98,6 +103,7 @@ spec:
                   backends:
                     type: array
                     items:
+                      type: object
                       properties:
                         backendName:
                           type: string

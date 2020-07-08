@@ -58,6 +58,10 @@ func (rt *RatelimitType) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		*rt = ClientRatelimit
 	case "service":
 		*rt = ServiceRatelimit
+	case "clusterClient":
+		*rt = ClusterClientRatelimit
+	case "clusterService":
+		*rt = ClusterServiceRatelimit
 	case "disabled":
 		*rt = DisableRatelimit
 	default:
