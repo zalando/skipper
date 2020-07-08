@@ -1,6 +1,7 @@
 package definitions
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -89,6 +90,32 @@ type SkipperBackend struct {
 	Endpoints []string
 
 	parseError error
+}
+
+// skipperBackendParser is an intermediate type required for parsing
+// skipperBackend and adding type safety for Algorithm and Type with
+// skipperBackend type.
+type skipperBackendParser struct {
+	// Name is the backendName that can be referenced as backendReference
+	Name string `json:"name"`
+
+	// Type is one of "service|shunt|loopback|dynamic|lb|network"
+	Type string `json:"type"`
+
+	// Address is required for Type network
+	Address string `json:"address"`
+
+	// Algorithm is required for Type lb
+	Algorithm string `json:"algorithm"`
+
+	// Endpoints is required for Type lb
+	Endpoints []string `json:"endpoints"`
+
+	// ServiceName is required for Type service
+	ServiceName string `json:"serviceName"`
+
+	// ServicePort is required for Type service
+	ServicePort int `json:"servicePort"`
 }
 
 type BackendReference struct {
@@ -194,6 +221,15 @@ func uniqueStrings(s []string) []string {
 	return u
 }
 
+func backendTypeFromString(s string) (eskip.BackendType, error) {
+	switch s {
+	case "", "service":
+		return serviceBackend, nil
+	default:
+		return eskip.BackendTypeFromString(s)
+	}
+}
+
 func (sb *SkipperBackend) validate() error {
 	if sb.parseError != nil {
 		return sb.parseError
@@ -215,6 +251,52 @@ func (sb *SkipperBackend) validate() error {
 		return missingEndpoints(sb.Name)
 	}
 
+	return nil
+}
+
+// UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
+func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
+	if sb == nil {
+		return nil
+	}
+
+	var p skipperBackendParser
+	if err := json.Unmarshal(value, &p); err != nil {
+		return err
+	}
+
+	var perr error
+	bt, err := backendTypeFromString(p.Type)
+	if err != nil {
+		// we cannot return an error here, because then the parsing of
+		// all route groups would fail. We'll report the error in the
+		// validation phase, only for the containing route group
+		perr = err
+	}
+
+	a, err := loadbalancer.AlgorithmFromString(p.Algorithm)
+	if err != nil {
+		// we cannot return an error here, because then the parsing of
+		// all route groups would fail. We'll report the error in the
+		// validation phase, only for the containing route group
+		perr = err
+	}
+
+	if a == loadbalancer.None {
+		a = loadbalancer.RoundRobin
+	}
+
+	var b SkipperBackend
+	b.Name = p.Name
+	b.Type = bt
+	b.Address = p.Address
+	b.ServiceName = p.ServiceName
+	b.ServicePort = p.ServicePort
+	b.Algorithm = a
+	b.Endpoints = p.Endpoints
+	b.parseError = perr
+
+	*sb = b
 	return nil
 }
 
