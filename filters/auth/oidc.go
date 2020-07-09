@@ -517,7 +517,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
-				log.Errorf("Error while getting id token : %v", err)
+				log.Errorf("Error while getting id token: %v", err)
 			}
 
 			unauthorized(
@@ -525,7 +525,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 				"",
 				invalidClaim,
 				r.Host,
-				fmt.Sprintf("Failed to get id token : %v", err),
+				fmt.Sprintf("Failed to get id token: %v", err),
 			)
 
 			return
@@ -546,7 +546,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
-				log.Errorf("Error while getting id token : %v", err)
+				log.Errorf("Error while getting id token: %v", err)
 			}
 
 			unauthorized(
@@ -554,7 +554,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 				"",
 				invalidClaim,
 				r.Host,
-				fmt.Sprintf("Failed to get id token : %v", err),
+				fmt.Sprintf("Failed to get id token: %v", err),
 			)
 
 			return
