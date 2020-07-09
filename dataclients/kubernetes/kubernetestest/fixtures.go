@@ -130,7 +130,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		resources = append(resources, r)
 	}
 
-	var apiOptions testAPIOptions
+	var apiOptions TestAPIOptions
 	if f.api != "" {
 		a, err := os.Open(f.api)
 		if err != nil {

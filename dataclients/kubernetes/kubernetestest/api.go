@@ -25,7 +25,7 @@ type namespace struct {
 	endpoints   []byte
 }
 
-type testAPIOptions struct {
+type TestAPIOptions struct {
 	FailOn             []string `yaml:"failOn"`
 	FindNot            []string `yaml:"findNot"`
 	DisableRouteGroups bool     `yaml:"disableRouteGroups"`
@@ -76,7 +76,7 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 	return
 }
 
-func readAPIOptions(r io.Reader) (o testAPIOptions, err error) {
+func readAPIOptions(r io.Reader) (o TestAPIOptions, err error) {
 	var b []byte
 	b, err = ioutil.ReadAll(r)
 	if err != nil {
@@ -96,7 +96,7 @@ func mapStrings(s []string) map[string]bool {
 	return m
 }
 
-func NewAPI(o testAPIOptions, specs ...io.Reader) (*api, error) {
+func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
@@ -350,7 +350,7 @@ func getJSON(u string, o interface{}) error {
 }
 
 func TestTestAPI(t *testing.T) {
-	a, err := NewAPI(testAPIOptions{}, bytes.NewBufferString(testAPISpec1), bytes.NewBufferString(testAPISpec2))
+	a, err := NewAPI(TestAPIOptions{}, bytes.NewBufferString(testAPISpec1), bytes.NewBufferString(testAPISpec2))
 	if err != nil {
 		t.Fatal(err)
 	}

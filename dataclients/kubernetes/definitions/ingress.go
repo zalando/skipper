@@ -9,7 +9,7 @@ import (
 
 var errInvalidPortType = errors.New("invalid port type")
 
-type ingressSpec struct {
+type IngressSpec struct {
 	DefaultBackend *Backend `json:"backend"`
 	Rules          []*Rule  `json:"rules"`
 }

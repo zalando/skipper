@@ -2,6 +2,8 @@ package kubernetes
 
 import (
 	"testing"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 func TestLBWithTrafficControl(t *testing.T) {
@@ -32,13 +34,13 @@ func TestLBWithTrafficControl(t *testing.T) {
 				"namespace1", "service1v1",
 				"1.2.3.4",
 				map[string]int{"port1": 8080},
-				map[int]*backendPort{8080: {8080}},
+				map[int]*definitions.BackendPort{8080: {8080}},
 			),
 			testServiceWithTargetPort(
 				"namespace1", "service1v2",
 				"1.2.3.5",
 				map[string]int{"port1": 8080},
-				map[int]*backendPort{8080: {8080}},
+				map[int]*definitions.BackendPort{8080: {8080}},
 			),
 		},
 	}
@@ -46,7 +48,7 @@ func TestLBWithTrafficControl(t *testing.T) {
 	endpoints := &endpointList{
 		[]*endpoint{
 			{
-				Meta: &Metadata{Namespace: "namespace1", Name: "service1v1"},
+				Meta: &definitions.Metadata{Namespace: "namespace1", Name: "service1v1"},
 				Subsets: []*subset{
 					{
 						Addresses: []*address{{
@@ -69,7 +71,7 @@ func TestLBWithTrafficControl(t *testing.T) {
 				},
 			},
 			{
-				Meta: &Metadata{Namespace: "namespace1", Name: "service1v2"},
+				Meta: &definitions.Metadata{Namespace: "namespace1", Name: "service1v2"},
 				Subsets: []*subset{
 					{
 						Addresses: []*address{{
@@ -96,30 +98,30 @@ func TestLBWithTrafficControl(t *testing.T) {
 
 	ingress := testIngress("namespace1", "ingress1", "service1v1",
 		"", "", "", "", "", "",
-		backendPort{"port1"},
+		definitions.BackendPort{"port1"},
 		1.0,
 		testRule(
 			"test.example.org",
-			&pathRule{
+			&definitions.PathRule{
 				Path: "/test1",
-				Backend: &backend{
+				Backend: &definitions.Backend{
 					ServiceName: "service1v1",
-					ServicePort: backendPort{"port1"},
+					ServicePort: definitions.BackendPort{"port1"},
 				},
 			},
-			&pathRule{
+			&definitions.PathRule{
 				Path: "/test1",
-				Backend: &backend{
+				Backend: &definitions.Backend{
 					ServiceName: "service1v2",
-					ServicePort: backendPort{"port1"},
+					ServicePort: definitions.BackendPort{"port1"},
 				},
 			},
 		),
 	)
 	ingress.Metadata.Annotations["zalando.org/backend-weights"] = `{"service1v1": 30, "service1v2": 70}`
-	ingresses := []*ingressItem{ingress}
+	ingresses := []*definitions.IngressItem{ingress}
 
-	api := newTestAPIWithEndpoints(t, services, &ingressList{Items: ingresses}, endpoints)
+	api := newTestAPIWithEndpoints(t, services, &definitions.IngressList{Items: ingresses}, endpoints)
 	defer api.Close()
 
 	dc, err := New(Options{KubernetesURL: api.server.URL})

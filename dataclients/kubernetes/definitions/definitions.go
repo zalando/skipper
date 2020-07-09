@@ -24,7 +24,7 @@ type IngressList struct {
 
 type IngressItem struct {
 	Metadata *Metadata    `json:"metadata"`
-	Spec     *ingressSpec `json:"spec"`
+	Spec     *IngressSpec `json:"spec"`
 }
 
 // ParseRouteGroupsJSON parses a json list of RouteGroups into RouteGroupList

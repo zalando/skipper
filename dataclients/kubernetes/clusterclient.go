@@ -40,7 +40,7 @@ const (
 	serviceAccountRootCAKey    = "ca.crt"
 )
 
-const routeGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the cluster.
+const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the cluster.
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
 
 type clusterClient struct {
@@ -371,7 +371,7 @@ func (c *clusterClient) logMissingRouteGroupsOnce() {
 	}
 
 	c.loggedMissingRouteGroups = true
-	log.Warn(routeGroupsNotInstalledMessage)
+	log.Warn(RouteGroupsNotInstalledMessage)
 }
 
 func (c *clusterClient) fetchClusterState() (*clusterState, error) {

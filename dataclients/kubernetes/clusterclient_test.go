@@ -9,6 +9,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 )
 
@@ -41,7 +42,7 @@ func containsEveryLineCount(s, substr string, count int) bool {
 }
 
 func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
-	a, err := kubernetestest.NewAPI(kubernetestest.testAPIOptions{FindNot: []string{ClusterZalandoResourcesURI}})
+	a, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{FindNot: []string{kubernetes.ClusterZalandoResourcesURI}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +54,7 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	log.SetOutput(&logBuf)
 	defer log.SetOutput(os.Stderr)
 
-	c, err := New(Options{KubernetesURL: s.URL})
+	c, err := kubernetes.New(kubernetes.Options{KubernetesURL: s.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +68,7 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !containsEveryLineCount(logBuf.String(), routeGroupsNotInstalledMessage, 1) {
+	if !containsEveryLineCount(logBuf.String(), kubernetes.RouteGroupsNotInstalledMessage, 1) {
 		t.Error("missing RouteGroups CRD was not reported exactly once")
 	}
 }
