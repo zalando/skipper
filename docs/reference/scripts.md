@@ -208,72 +208,75 @@ See skptesting/benchmark-lua.sh
 Route for "skipper" is `* -> redirectTo(302, "http://localhost:9980") -> <shunt>`,
 route for "lua" is `* -> lua("function request(c,p); c.serve({status_code=302, header={location='http://localhost:9980'}});end") -> <shunt>`
 
+Benchmark results
 ```
 [benchmarking skipper-redirectTo]
 Running 12s test @ http://127.0.0.1:9990/lorem.html
   2 threads and 128 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     3.91ms    4.87ms  59.40ms   85.80%
-    Req/Sec    24.92k     6.05k   36.78k    60.83%
+    Latency     4.19ms    5.38ms  69.50ms   85.10%
+    Req/Sec    26.16k     2.63k   33.22k    64.58%
   Latency Distribution
-     50%    1.83ms
-     75%    6.01ms
-     90%   10.37ms
-     99%   21.33ms
-  596683 requests in 12.04s, 87.07MB read
-Requests/sec:  49542.84
-Transfer/sec:      7.23MB
+     50%    1.85ms
+     75%    6.38ms
+     90%   11.66ms
+     99%   23.34ms
+  626122 requests in 12.04s, 91.36MB read
+Requests/sec:  51996.22
+Transfer/sec:      7.59MB
 [benchmarking skipper-redirectTo done]
 
 [benchmarking redirect-lua]
 Running 12s test @ http://127.0.0.1:9991/lorem.html
   2 threads and 128 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    14.86ms   21.87ms 342.03ms   87.17%
-    Req/Sec    10.44k     2.00k   15.07k    67.08%
+    Latency     6.81ms    9.69ms 122.19ms   85.95%
+    Req/Sec    21.17k     2.83k   30.63k    73.75%
   Latency Distribution
-     50%    4.48ms
-     75%   22.31ms
-     90%   42.07ms
-     99%   98.44ms
-  250358 requests in 12.05s, 33.90MB read
-Requests/sec:  20775.38
-Transfer/sec:      2.81MB
+     50%    2.21ms
+     75%   10.22ms
+     90%   19.88ms
+     99%   42.54ms
+  507434 requests in 12.06s, 68.72MB read
+Requests/sec:  42064.69
+Transfer/sec:      5.70MB
 [benchmarking redirect-lua done]
 ```
+show lua performance is ~80% of native.
+
 The benchmark was run with the default pool size of `script.InitialPoolSize = 3; script.MaxPoolSize = 10`.
-With `script.InitialPoolSize = 128; script.MaxPoolSize = 128` (tweaked for this benchmark) you get about 31k req/s in lua:
+With `script.InitialPoolSize = 128; script.MaxPoolSize = 128` (tweaked for this benchmark) you get >95% of native performance in lua:
 ```
 [benchmarking skipper-redirectTo]
 Running 12s test @ http://127.0.0.1:9990/lorem.html
   2 threads and 128 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     3.96ms    4.89ms  78.09ms   85.34%
-    Req/Sec    24.45k     3.74k   37.68k    77.92%
+    Latency     4.15ms    5.24ms  62.27ms   84.88%
+    Req/Sec    25.81k     2.64k   32.74k    70.00%
   Latency Distribution
-     50%    1.78ms
-     75%    6.13ms
-     90%   10.57ms
-     99%   21.11ms
-  585192 requests in 12.04s, 85.39MB read
-Requests/sec:  48617.36
-Transfer/sec:      7.09MB
+     50%    1.88ms
+     75%    6.49ms
+     90%   11.43ms
+     99%   22.49ms
+  617499 requests in 12.03s, 90.10MB read
+Requests/sec:  51336.87
+Transfer/sec:      7.49MB
 [benchmarking skipper-redirectTo done]
 
 [benchmarking redirect-lua]
 Running 12s test @ http://127.0.0.1:9991/lorem.html
   2 threads and 128 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     8.25ms   12.37ms 170.95ms   87.93%
-    Req/Sec    15.82k     1.96k   22.00k    69.33%
+    Latency     3.79ms    4.98ms  91.19ms   87.15%
+    Req/Sec    25.14k     4.71k   51.45k    72.38%
   Latency Distribution
-     50%    2.80ms
-     75%   10.20ms
-     90%   23.99ms
-     99%   57.44ms
-  378803 requests in 12.05s, 51.30MB read
-Requests/sec:  31447.98
-Transfer/sec:      4.26MB
+     50%    1.61ms
+     75%    5.17ms
+     90%   10.05ms
+     99%   21.83ms
+  602630 requests in 12.10s, 81.61MB read
+Requests/sec:  49811.24
+Transfer/sec:      6.75MB
 [benchmarking redirect-lua done]
 ```
 

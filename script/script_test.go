@@ -1,6 +1,8 @@
 package script
 
 import (
+	"bytes"
+	"io/ioutil"
 	"net/http"
 	"testing"
 
@@ -15,9 +17,19 @@ func TestLoadScript(t *testing.T) {
 		returnsOK bool
 	}{
 		{
-			"load_ok",
+			"file load ok",
+			`load_ok.lua`,
+			true,
+		},
+		{
+			"load ok",
 			`function request(ctx, params); print(ctx.request.method); end`,
 			true,
+		},
+		{
+			"malformed file",
+			`not_a_filter.lua`,
+			false,
 		},
 		{
 			"missing func",
@@ -108,7 +120,7 @@ func TestStateBag(t *testing.T) {
 	}
 }
 
-func TestGetHeader(t *testing.T) {
+func TestGetRequestHeader(t *testing.T) {
 	code := `function request(ctx, params); ctx.state_bag["User-Agent"] = ctx.request.header["User-Agent"]; end`
 	ls := &luaScript{}
 	scr, err := ls.CreateFilter([]interface{}{code})
@@ -127,7 +139,7 @@ func TestGetHeader(t *testing.T) {
 	}
 }
 
-func TestSetHeader(t *testing.T) {
+func TestSetRequestHeader(t *testing.T) {
 	code := `function request(ctx, params); ctx.request.header["User-Agent"] = "skipper.lua/1.0"; end`
 	ls := &luaScript{}
 	scr, err := ls.CreateFilter([]interface{}{code})
@@ -142,5 +154,44 @@ func TestSetHeader(t *testing.T) {
 	scr.Request(fc)
 	if fc.request.Header.Get("User-Agent") != "skipper.lua/1.0" {
 		t.Errorf("failed to set request header value")
+	}
+}
+
+func TestResponseHeader(t *testing.T) {
+	code := `
+	function response(ctx, params)
+		ctx.response.header["X-Baz"] = ctx.request.header["X-Foo"] .. ctx.response.header["X-Bar"];
+	end`
+	ls := &luaScript{}
+	scr, err := ls.CreateFilter([]interface{}{code})
+	if err != nil {
+		t.Errorf("failed to compile test code: %s", err)
+	}
+	req, _ := http.NewRequest("GET", "http://www.example.com/foo/bar", nil)
+	req.Header.Add("X-Foo", "Foo")
+	fc := &luaContext{
+		bag:     make(map[string]interface{}),
+		request: req,
+	}
+	scr.Request(fc)
+
+	body := "Hello world"
+	fc.response = &http.Response{
+		Status:        "200 OK",
+		StatusCode:    200,
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Body:          ioutil.NopCloser(bytes.NewBufferString(body)),
+		ContentLength: int64(len(body)),
+		Request:       req,
+		Header:        make(http.Header, 0),
+	}
+	fc.response.Header.Add("X-Bar", "Bar")
+
+	scr.Response(fc)
+
+	if fc.response.Header.Get("X-Baz") != "FooBar" {
+		t.Errorf("failed to set response header, got: %v", fc.response.Header.Get("X-Baz"))
 	}
 }
