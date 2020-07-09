@@ -185,7 +185,7 @@ func TestResponseHeader(t *testing.T) {
 		Body:          ioutil.NopCloser(bytes.NewBufferString(body)),
 		ContentLength: int64(len(body)),
 		Request:       req,
-		Header:        make(http.Header, 0),
+		Header:        make(http.Header),
 	}
 	fc.response.Header.Add("X-Bar", "Bar")
 

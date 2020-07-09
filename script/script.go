@@ -117,10 +117,10 @@ func (s *script) initScript() error {
 
 	if strings.HasSuffix(s.source, ".lua") {
 		file, err := os.Open(s.source)
-		defer file.Close()
 		if err != nil {
 			return err
 		}
+		defer file.Close()
 		reader = bufio.NewReader(file)
 		name = s.source
 	} else {
