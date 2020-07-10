@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
@@ -296,7 +297,7 @@ func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Ro
 func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
 	r.BackendType = backend.Type
 	switch r.BackendType {
-	case serviceBackend:
+	case definitions.ServiceBackend:
 		if err := applyServiceBackend(ctx, backend, r); err != nil {
 			return err
 		}
@@ -372,7 +373,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		}
 
 		configureTraffic(ri, ctx.defaultBackendTraffic[beref.BackendName])
-		if be.Type == serviceBackend {
+		if be.Type == definitions.ServiceBackend {
 			if err := applyDefaultFilters(ctx, be.ServiceName, ri); err != nil {
 				log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
 			}
@@ -435,7 +436,7 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 		return nil, err
 	}
 
-	if ctx.backend.Type == serviceBackend {
+	if ctx.backend.Type == definitions.ServiceBackend {
 		if err := applyDefaultFilters(ctx.group, ctx.backend.ServiceName, r); err != nil {
 			log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
 		}

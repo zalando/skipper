@@ -1899,7 +1899,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			state, err := dc.clusterClient.fetchClusterState()
+			state, err := dc.ClusterClient.fetchClusterState()
 			require.NoError(t, err)
 
 			route, err := convertPathRule(state, &definitions.Metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)

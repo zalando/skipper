@@ -17,7 +17,7 @@ import (
 // contain the pod endpoints, and ignore the global option for skipper?
 // --> As CRD we have to lookup endpoints ourselves, maybe via kube.go
 const (
-	serviceBackend = eskip.LBBackend + 1 + iota
+	ServiceBackend = eskip.LBBackend + 1 + iota
 )
 
 var (
@@ -224,7 +224,7 @@ func uniqueStrings(s []string) []string {
 func backendTypeFromString(s string) (eskip.BackendType, error) {
 	switch s {
 	case "", "service":
-		return serviceBackend, nil
+		return ServiceBackend, nil
 	default:
 		return eskip.BackendTypeFromString(s)
 	}
@@ -242,9 +242,9 @@ func (sb *SkipperBackend) validate() error {
 	switch {
 	case sb.Type == eskip.NetworkBackend && sb.Address == "":
 		return missingAddress(sb.Name)
-	case sb.Type == serviceBackend && sb.ServiceName == "":
+	case sb.Type == ServiceBackend && sb.ServiceName == "":
 		return missingServiceName(sb.Name)
-	case sb.Type == serviceBackend &&
+	case sb.Type == ServiceBackend &&
 		(sb.ServicePort == 0 || sb.ServicePort != int(uint16(sb.ServicePort))):
 		return invalidServicePort(sb.Name, sb.ServicePort)
 	case sb.Type == eskip.LBBackend && len(sb.Endpoints) == 0:

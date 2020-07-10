@@ -78,7 +78,7 @@ func ParseIngressYAML(d []byte) (IngressList, error) {
 	return il, err
 }
 
-// TODO: implement
+// TODO: implement once IngressItem has a validate method
 // ValidateIngress is a no-op
 func ValidateIngress(_ *IngressItem) error {
 	return nil
@@ -87,7 +87,7 @@ func ValidateIngress(_ *IngressItem) error {
 // ValidateIngresses is a no-op
 func ValidateIngresses(ingressList IngressList) error {
 	var err error
-	// avoid the user having to repeatedly validate to discover all errors
+	// discover all errors to avoid the user having to repeatedly validate
 	for _, i := range ingressList.Items {
 		nerr := ValidateIngress(i)
 		if nerr != nil {

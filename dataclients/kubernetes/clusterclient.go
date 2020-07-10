@@ -293,7 +293,7 @@ func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
 	return fItems, nil
 }
 
-func (c *clusterClient) loadRouteGroups() ([]*definitions.RouteGroupItem, error) {
+func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error) {
 	var rgl definitions.RouteGroupList
 	if err := c.getJSON(c.routeGroupsURI, &rgl); err != nil {
 		return nil, err
@@ -387,7 +387,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		log.Errorf("Error while checking known resource types: %v.", err)
 	} else if hasRouteGroups {
 		c.loggedMissingRouteGroups = false
-		if routeGroups, err = c.loadRouteGroups(); err != nil {
+		if routeGroups, err = c.LoadRouteGroups(); err != nil {
 			return nil, err
 		}
 	}

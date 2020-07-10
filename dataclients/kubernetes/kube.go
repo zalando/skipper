@@ -162,7 +162,7 @@ type Options struct {
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	clusterClient          *clusterClient
+	ClusterClient          *clusterClient
 	ingress                *ingress
 	routeGroups            *routeGroups
 	provideHealthcheck     bool
@@ -239,7 +239,7 @@ func New(o Options) (*Client, error) {
 	rg := newRouteGroups(o)
 
 	return &Client{
-		clusterClient:          clusterClient,
+		ClusterClient:          clusterClient,
 		ingress:                ing,
 		routeGroups:            rg,
 		provideHealthcheck:     o.ProvideHealthcheck,
@@ -308,7 +308,7 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 }
 
 func (c *Client) loadAndConvert() (*clusterState, []*eskip.Route, error) {
-	state, err := c.clusterClient.fetchClusterState()
+	state, err := c.ClusterClient.fetchClusterState()
 	if err != nil {
 		return nil, nil, err
 	}
