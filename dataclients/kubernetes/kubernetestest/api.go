@@ -330,8 +330,8 @@ subsets:
     protocol: TCP
 `
 
-/* #nosec */
 func getJSON(u string, o interface{}) error {
+	/* #nosec */
 	rsp, err := http.Get(u)
 	if err != nil {
 		return err
