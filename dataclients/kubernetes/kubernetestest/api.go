@@ -193,7 +193,7 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path == kubernetes.ClusterZalandoResourcesURI {
+	if r.URL.Path == kubernetes.ZalandoResourcesClusterURI {
 		w.Write(a.resourceList)
 		return
 	}

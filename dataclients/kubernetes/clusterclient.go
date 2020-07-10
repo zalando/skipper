@@ -24,7 +24,7 @@ import (
 const (
 	ingressClassKey            = "kubernetes.io/ingress.class"
 	IngressesClusterURI        = "/apis/extensions/v1beta1/ingresses"
-	ClusterZalandoResourcesURI = "/apis/zalando.org/v1"
+	ZalandoResourcesClusterURI = "/apis/zalando.org/v1"
 	RouteGroupsName            = "routegroups"
 	routeGroupsClusterURI      = "/apis/zalando.org/v1/routegroups"
 	routeGroupClassKey         = "zalando.org/routegroup.class"
@@ -228,7 +228,7 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 
 func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 	var crl ClusterResourceList
-	if err := c.getJSON(ClusterZalandoResourcesURI, &crl); err != nil { // it probably should bounce once
+	if err := c.getJSON(ZalandoResourcesClusterURI, &crl); err != nil { // it probably should bounce once
 		return false, err
 	}
 
