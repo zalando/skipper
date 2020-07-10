@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -24,6 +25,7 @@ func Example() {
 		Address:           ":9999",
 		CustomDataClients: []routing.DataClient{rs},
 	})
+	time.Sleep(1 * time.Millisecond)
 
 	rsp, err := http.Get("http://localhost:9999")
 	if err != nil {

@@ -57,6 +57,63 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 	})
 	defer cli.Close()
 
+	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer backend.Close()
+
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(489)
+			return
+		}
+
+		if r.URL.Path != testAuthPath {
+			w.WriteHeader(488)
+			return
+		}
+
+		token, err2 := introspectionEndpointGetToken(r)
+		if err2 != nil || token != testToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		d := tokenIntrospectionInfo{
+			"uid":        testUID,
+			testRealmKey: testRealm,
+			"claims": map[string]string{
+				validClaim1: validClaim1Value,
+				validClaim2: validClaim2Value,
+			},
+			"sub":    "testSub",
+			"active": true,
+		}
+
+		e := json.NewEncoder(w)
+		err2 = e.Encode(&d)
+		if err2 != nil && err2 != io.EOF {
+			t.Errorf("Failed to json encode: %v", err2)
+		}
+	}))
+	defer authServer.Close()
+
+	testOidcConfig := getTestOidcConfig()
+	issuerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != TokenIntrospectionConfigPath {
+			w.WriteHeader(486)
+			return
+		}
+		e := json.NewEncoder(w)
+		err := e.Encode(testOidcConfig)
+		if err != nil {
+			t.Fatalf("Could not encode testOidcConfig: %v", err)
+		}
+	}))
+	defer issuerServer.Close()
+
+	// patch openIDConfig to the current testservers
+	testOidcConfig.Issuer = "http://" + issuerServer.Listener.Addr().String()
+	testOidcConfig.IntrospectionEndpoint = "http://" + authServer.Listener.Addr().String() + testAuthPath
+
 	for _, ti := range []struct {
 		msg         string
 		authType    string
@@ -474,64 +531,6 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 			if ti.msg == "" {
 				t.Fatalf("unknown ti: %+v", ti)
 			}
-
-			backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-			defer backend.Close()
-
-			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != "POST" {
-					w.WriteHeader(489)
-					return
-				}
-
-				if r.URL.Path != testAuthPath {
-					w.WriteHeader(488)
-					return
-				}
-
-				token, err2 := introspectionEndpointGetToken(r)
-				if err2 != nil || token != testToken {
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-
-				d := tokenIntrospectionInfo{
-					"uid":        testUID,
-					testRealmKey: testRealm,
-					"claims": map[string]string{
-						validClaim1: validClaim1Value,
-						validClaim2: validClaim2Value,
-					},
-					"sub":    "testSub",
-					"active": true,
-				}
-
-				e := json.NewEncoder(w)
-				err2 = e.Encode(&d)
-				if err2 != nil && err2 != io.EOF {
-					t.Errorf("Failed to json encode: %v", err2)
-				}
-			}))
-			defer authServer.Close()
-
-			testOidcConfig := getTestOidcConfig()
-			issuerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != TokenIntrospectionConfigPath {
-					w.WriteHeader(486)
-					return
-				}
-				e := json.NewEncoder(w)
-				err := e.Encode(testOidcConfig)
-				if err != nil {
-					t.Fatalf("Could not encode testOidcConfig: %v", err)
-				}
-
-			}))
-			defer issuerServer.Close()
-
-			// patch openIDConfig to the current testservers
-			testOidcConfig.Issuer = "http://" + issuerServer.Listener.Addr().String()
-			testOidcConfig.IntrospectionEndpoint = "http://" + authServer.Listener.Addr().String() + testAuthPath
 
 			var spec filters.Spec
 			switch ti.authType {
