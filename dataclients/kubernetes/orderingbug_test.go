@@ -140,13 +140,13 @@ type apiV1 struct {
 
 func (api apiV1) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case ingressesClusterURI:
+	case IngressesClusterURI:
 		w.Write(api.ingresses)
 		return
-	case servicesClusterURI:
+	case ServicesClusterURI:
 		w.Write(api.services)
 		return
-	case endpointsClusterURI:
+	case EndpointsClusterURI:
 		w.Write([]byte("{}"))
 		return
 	default:

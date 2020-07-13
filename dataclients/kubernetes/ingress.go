@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/traffic"
@@ -28,7 +29,7 @@ const (
 
 type ingressContext struct {
 	state               *clusterState
-	ingress             *ingressItem
+	ingress             *definitions.IngressItem
 	logger              *log.Entry
 	annotationFilters   []*eskip.Filter
 	annotationPredicate string
@@ -69,13 +70,13 @@ func newIngress(o Options) *ingress {
 	}
 }
 
-func getServiceURL(svc *service, port backendPort) (string, error) {
-	if p, ok := port.number(); ok {
+func getServiceURL(svc *service, port definitions.BackendPort) (string, error) {
+	if p, ok := port.Number(); ok {
 		log.Debugf("service port as number: %d", p)
 		return fmt.Sprintf("http://%s:%d", svc.Spec.ClusterIP, p), nil
 	}
 
-	pn, _ := port.name()
+	pn, _ := port.Name()
 	for _, pi := range svc.Spec.Ports {
 		if pi.Name == pn {
 			log.Debugf("service port found by name: %s -> %d", pn, pi.Port)
@@ -87,7 +88,7 @@ func getServiceURL(svc *service, port backendPort) (string, error) {
 	return "", errServiceNotFound
 }
 
-func getLoadBalancerAlgorithm(m *metadata) string {
+func getLoadBalancerAlgorithm(m *definitions.Metadata) string {
 	algorithm := defaultLoadBalancerAlgorithm
 	if algorithmAnnotationValue, ok := m.Annotations[skipperLoadBalancerAnnotationKey]; ok {
 		algorithm = algorithmAnnotationValue
@@ -133,9 +134,9 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 
 func convertPathRule(
 	state *clusterState,
-	metadata *metadata,
+	metadata *definitions.Metadata,
 	host string,
-	prule *pathRule,
+	prule *definitions.PathRule,
 	pathMode PathMode,
 ) (*eskip.Route, error) {
 
@@ -211,7 +212,7 @@ func convertPathRule(
 		}
 
 		setPath(pathMode, r, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
 		return r, nil
 
 	} else if err != nil {
@@ -232,7 +233,7 @@ func convertPathRule(
 		}
 
 		setPath(pathMode, r, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
 		return r, nil
 	}
 
@@ -244,7 +245,7 @@ func convertPathRule(
 		HostRegexps: hostRegexp,
 	}
 	setPath(pathMode, r, prule.Path)
-	setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.noopCount)
+	setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
 	return r, nil
 }
 
@@ -301,7 +302,7 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 	return nil
 }
 
-func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *pathRule) error {
+func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *definitions.PathRule) error {
 	endpointsRoute, err := convertPathRule(ic.state, ic.ingress.Metadata, host, prule, ic.pathMode)
 	if err != nil {
 		// if the service is not found the route should be removed
@@ -389,10 +390,10 @@ func addExtraRoutes(ic ingressContext, hosts []string, host string, path string)
 //      backend-3: 1.0
 //
 // where for a weight of 1.0 no Traffic predicate will be generated.
-func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
+func computeBackendWeights(backendWeights map[string]float64, rule *definitions.Rule) {
 	type pathInfo struct {
 		sum          float64
-		lastActive   *backend
+		lastActive   *definitions.Backend
 		count        int
 		weightsCount int
 	}
@@ -436,7 +437,7 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 				// noops are required to make sure that routes are in order selected by
 				// routing tree
 				if sc.weightsCount > 2 {
-					path.Backend.noopCount = sc.weightsCount - 2
+					path.Backend.NoopCount = sc.weightsCount - 2
 				}
 				sc.weightsCount--
 			} else if sc.sum == 0 && sc.count > 0 {
@@ -451,7 +452,7 @@ func computeBackendWeights(backendWeights map[string]float64, rule *rule) {
 
 // TODO: default filters not applied to 'extra' routes from the custom route annotations. Is it on purpose?
 // https://github.com/zalando/skipper/issues/1287
-func (ing *ingress) addSpecRule(ic ingressContext, ru *rule) error {
+func (ing *ingress) addSpecRule(ic ingressContext, ru *definitions.Rule) error {
 	if ru.Http == nil {
 		ic.logger.Warn("invalid ingress item: rule missing http definitions")
 		return nil
@@ -475,7 +476,7 @@ func (ing *ingress) addSpecRule(ic ingressContext, ru *rule) error {
 }
 
 // converts the default backend if any
-func (ing *ingress) convertDefaultBackend(state *clusterState, i *ingressItem) (*eskip.Route, bool, error) {
+func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.IngressItem) (*eskip.Route, bool, error) {
 	// the usage of the default backend depends on what we want
 	// we can generate a hostname out of it based on shared rules
 	// and instructions in annotations, if there are no rules defined
@@ -579,7 +580,7 @@ func countPathRoutes(r *eskip.Route) int {
 }
 
 // TODO: check if this creates additional routes also for routes like the HTTPS redirect
-func (ing *ingress) addEastWestRoutes(hostRoutes map[string][]*eskip.Route, i *ingressItem) {
+func (ing *ingress) addEastWestRoutes(hostRoutes map[string][]*eskip.Route, i *definitions.IngressItem) {
 	for _, rule := range i.Spec.Rules {
 		if rs, ok := hostRoutes[rule.Host]; ok {
 			rs = append(rs, createEastWestRoutesIng(ing.eastWestDomainRegexpPostfix, i.Metadata.Name, i.Metadata.Namespace, rs)...)
@@ -589,7 +590,7 @@ func (ing *ingress) addEastWestRoutes(hostRoutes map[string][]*eskip.Route, i *i
 }
 
 // parse filter and ratelimit annotation
-func annotationFilter(i *ingressItem, logger *log.Entry) []*eskip.Filter {
+func annotationFilter(i *definitions.IngressItem, logger *log.Entry) []*eskip.Filter {
 	var annotationFilter string
 	if ratelimitAnnotationValue, ok := i.Metadata.Annotations[ratelimitAnnotationKey]; ok {
 		annotationFilter = ratelimitAnnotationValue
@@ -612,7 +613,7 @@ func annotationFilter(i *ingressItem, logger *log.Entry) []*eskip.Filter {
 }
 
 // parse predicate annotation
-func annotationPredicate(i *ingressItem) string {
+func annotationPredicate(i *definitions.IngressItem) string {
 	var annotationPredicate string
 	if val, ok := i.Metadata.Annotations[skipperpredicateAnnotationKey]; ok {
 		annotationPredicate = val
@@ -621,7 +622,7 @@ func annotationPredicate(i *ingressItem) string {
 }
 
 // parse routes annotation
-func extraRoutes(i *ingressItem, logger *log.Entry) []*eskip.Route {
+func extraRoutes(i *definitions.IngressItem, logger *log.Entry) []*eskip.Route {
 	var extraRoutes []*eskip.Route
 	annotationRoutes := i.Metadata.Annotations[skipperRoutesAnnotationKey]
 	if annotationRoutes != "" {
@@ -635,7 +636,7 @@ func extraRoutes(i *ingressItem, logger *log.Entry) []*eskip.Route {
 }
 
 // parse backend-weights annotation if it exists
-func backendWeights(i *ingressItem, logger *log.Entry) map[string]float64 {
+func backendWeights(i *definitions.IngressItem, logger *log.Entry) map[string]float64 {
 	var backendWeights map[string]float64
 	if backends, ok := i.Metadata.Annotations[backendWeightsAnnotationKey]; ok {
 		err := json.Unmarshal([]byte(backends), &backendWeights)
@@ -647,7 +648,7 @@ func backendWeights(i *ingressItem, logger *log.Entry) map[string]float64 {
 }
 
 // parse pathmode from annotation or fallback to global default
-func pathMode(i *ingressItem, globalDefault PathMode) PathMode {
+func pathMode(i *definitions.IngressItem, globalDefault PathMode) PathMode {
 	pathMode := globalDefault
 
 	if pathModeString, ok := i.Metadata.Annotations[pathModeAnnotationKey]; ok {
@@ -662,7 +663,7 @@ func pathMode(i *ingressItem, globalDefault PathMode) PathMode {
 }
 
 func (ing *ingress) ingressRoute(
-	i *ingressItem,
+	i *definitions.IngressItem,
 	redirect *redirectInfo,
 	state *clusterState,
 	hostRoutes map[string][]*eskip.Route,
@@ -670,7 +671,7 @@ func (ing *ingress) ingressRoute(
 ) (*eskip.Route, error) {
 	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
 		i.Spec == nil {
-		log.Error("invalid ingress item: missing metadata")
+		log.Error("invalid ingress item: missing Metadata")
 		return nil, nil
 	}
 	logger := log.WithFields(log.Fields{

@@ -2,6 +2,8 @@ package kubernetes
 
 import (
 	"testing"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 func TestAnnotationFiltersInLBRoutes(t *testing.T) {
@@ -9,7 +11,7 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		"namespace1", "service1",
 		"1.2.3.4",
 		map[string]int{"port1": 8080},
-		map[int]*backendPort{8080: {8080}},
+		map[int]*definitions.BackendPort{8080: {8080}},
 	)
 
 	services := &serviceList{
@@ -37,7 +39,7 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 	endpoints := &endpointList{
 		Items: []*endpoint{
 			{
-				Meta:    &metadata{Namespace: "namespace1", Name: "service1"},
+				Meta:    &definitions.Metadata{Namespace: "namespace1", Name: "service1"},
 				Subsets: subsets,
 			},
 		},
@@ -53,15 +55,15 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		"",
 		"",
 		"",
-		backendPort{"port1"},
+		definitions.BackendPort{"port1"},
 		1.0,
 		testRule(
 			"test.example.org",
-			testPathRule("/test1", "service1", backendPort{"port1"}),
+			testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
 		),
 	)
 
-	api := newTestAPIWithEndpoints(t, services, &ingressList{Items: []*ingressItem{ingress}}, endpoints)
+	api := newTestAPIWithEndpoints(t, services, &definitions.IngressList{Items: []*definitions.IngressItem{ingress}}, endpoints)
 	defer api.Close()
 
 	dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -103,7 +105,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 		"namespace1", "service1",
 		"1.2.3.4",
 		map[string]int{"port1": 8080},
-		map[int]*backendPort{8080: {8080}},
+		map[int]*definitions.BackendPort{8080: {8080}},
 	)
 
 	services := &serviceList{
@@ -131,7 +133,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 	endpoints := &endpointList{
 		Items: []*endpoint{
 			{
-				Meta:    &metadata{Namespace: "namespace1", Name: "service1"},
+				Meta:    &definitions.Metadata{Namespace: "namespace1", Name: "service1"},
 				Subsets: subsets,
 			},
 		},
@@ -139,7 +141,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 
 	for _, ti := range []struct {
 		msg            string
-		ingress        *ingressItem
+		ingress        *definitions.IngressItem
 		expectedRoutes string
 	}{{
 		msg: "random algorithm should be set",
@@ -153,11 +155,11 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 			"",
 			"",
 			"random",
-			backendPort{"port1"},
+			definitions.BackendPort{"port1"},
 			1.0,
 			testRule(
 				"test.example.org",
-				testPathRule("/test1", "service1", backendPort{"port1"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
 			),
 		),
 		expectedRoutes: `
@@ -190,11 +192,11 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 			"",
 			"",
 			"consistentHash",
-			backendPort{"port1"},
+			definitions.BackendPort{"port1"},
 			1.0,
 			testRule(
 				"test.example.org",
-				testPathRule("/test1", "service1", backendPort{"port1"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
 			),
 		),
 		expectedRoutes: `
@@ -227,11 +229,11 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 			"",
 			"",
 			"roundRobin",
-			backendPort{"port1"},
+			definitions.BackendPort{"port1"},
 			1.0,
 			testRule(
 				"test.example.org",
-				testPathRule("/test1", "service1", backendPort{"port1"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
 			),
 		),
 		expectedRoutes: `
@@ -255,7 +257,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 
-			api := newTestAPIWithEndpoints(t, services, &ingressList{Items: []*ingressItem{ti.ingress}}, endpoints)
+			api := newTestAPIWithEndpoints(t, services, &definitions.IngressList{Items: []*definitions.IngressItem{ti.ingress}}, endpoints)
 			defer api.Close()
 
 			dc, err := New(Options{KubernetesURL: api.server.URL})

@@ -3,11 +3,12 @@ package kubernetes
 import (
 	"testing"
 
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 )
 
 func TestUpdateOnlyChangedRoutes(t *testing.T) {
-	api := newTestAPIWithEndpoints(t, &serviceList{}, &ingressList{}, &endpointList{})
+	api := newTestAPIWithEndpoints(t, &serviceList{}, &definitions.IngressList{}, &endpointList{})
 	defer api.Close()
 
 	k, err := New(Options{
@@ -74,16 +75,16 @@ func TestOriginMarkerNotStored(t *testing.T) {
 					map[string]int{"port1": 8080},
 				),
 			}},
-		&ingressList{
-			Items: []*ingressItem{
+		&definitions.IngressList{
+			Items: []*definitions.IngressItem{
 				testIngressSimple(
 					"namespace1",
 					"ingress1",
 					"service1",
-					backendPort{8080},
+					definitions.BackendPort{8080},
 					testRule(
 						"example.org",
-						testPathRule("/", "service1", backendPort{8080}),
+						testPathRule("/", "service1", definitions.BackendPort{8080}),
 					),
 				),
 			},
@@ -130,10 +131,10 @@ func TestOriginMarkerNotStored(t *testing.T) {
 			"namespace1",
 			"ingress2",
 			"service1",
-			backendPort{8080},
+			definitions.BackendPort{8080},
 			testRule(
 				"api.example.org",
-				testPathRule("/v1", "service1", backendPort{8080}),
+				testPathRule("/v1", "service1", definitions.BackendPort{8080}),
 			),
 		),
 	)

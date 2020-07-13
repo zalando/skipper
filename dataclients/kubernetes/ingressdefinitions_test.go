@@ -3,13 +3,15 @@ package kubernetes
 import (
 	"reflect"
 	"testing"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 func TestGetTargetPort(t *testing.T) {
 	tests := []struct {
 		name        string
 		svc         *service
-		svcPort     backendPort
+		svcPort     definitions.BackendPort
 		expected    string
 		errExpected bool
 	}{
@@ -20,11 +22,11 @@ func TestGetTargetPort(t *testing.T) {
 					Ports: []*servicePort{
 						{
 							Port:       80,
-							TargetPort: &backendPort{value: 5000},
+							TargetPort: &definitions.BackendPort{Value: 5000},
 						},
 					},
 				}},
-			svcPort:     backendPort{value: 80},
+			svcPort:     definitions.BackendPort{Value: 80},
 			expected:    "80",
 			errExpected: false,
 		},
@@ -38,7 +40,7 @@ func TestGetTargetPort(t *testing.T) {
 						},
 					},
 				}},
-			svcPort:     backendPort{value: 80},
+			svcPort:     definitions.BackendPort{Value: 80},
 			expected:    "",
 			errExpected: true,
 		},
@@ -56,16 +58,16 @@ func TestMatchingPort(t *testing.T) {
 	tests := []struct {
 		name       string
 		sp         *servicePort
-		targetPort backendPort
+		targetPort definitions.BackendPort
 		expected   bool
 	}{
 		{
 			name: "svc-port",
 			sp: &servicePort{
 				Port:       80,
-				TargetPort: &backendPort{value: 5000},
+				TargetPort: &definitions.BackendPort{Value: 5000},
 			},
-			targetPort: backendPort{value: 80},
+			targetPort: definitions.BackendPort{Value: 80},
 			expected:   true,
 		},
 		{
@@ -73,9 +75,9 @@ func TestMatchingPort(t *testing.T) {
 			sp: &servicePort{
 				Name:       "web",
 				Port:       80,
-				TargetPort: &backendPort{value: 5000},
+				TargetPort: &definitions.BackendPort{Value: 5000},
 			},
-			targetPort: backendPort{value: "web"},
+			targetPort: definitions.BackendPort{Value: "web"},
 			expected:   true,
 		},
 	}
@@ -93,7 +95,7 @@ func Test_endpoint_Targets(t *testing.T) {
 		name       string
 		Subsets    []*subset
 		ingSvcPort string
-		targetPort *backendPort
+		targetPort *definitions.BackendPort
 		want       []string
 	}{
 		{
@@ -116,7 +118,7 @@ func Test_endpoint_Targets(t *testing.T) {
 				},
 			},
 			ingSvcPort: "http",
-			targetPort: &backendPort{value: 80},
+			targetPort: &definitions.BackendPort{Value: 80},
 			want:       []string{"http://1.2.3.4:80"},
 		},
 		{
@@ -139,7 +141,7 @@ func Test_endpoint_Targets(t *testing.T) {
 				},
 			},
 			ingSvcPort: "80",
-			targetPort: &backendPort{value: 80},
+			targetPort: &definitions.BackendPort{Value: 80},
 			want:       []string{"http://1.2.3.4:80"},
 		},
 		{
@@ -167,7 +169,7 @@ func Test_endpoint_Targets(t *testing.T) {
 				},
 			},
 			ingSvcPort: "http",
-			targetPort: &backendPort{value: 80},
+			targetPort: &definitions.BackendPort{Value: 80},
 			want:       []string{"http://1.2.3.4:80"},
 		},
 		{
@@ -195,7 +197,7 @@ func Test_endpoint_Targets(t *testing.T) {
 				},
 			},
 			ingSvcPort: "80",
-			targetPort: &backendPort{value: 80},
+			targetPort: &definitions.BackendPort{Value: 80},
 			want:       []string{"http://1.2.3.4:80"},
 		},
 	}

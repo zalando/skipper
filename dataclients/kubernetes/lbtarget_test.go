@@ -2,6 +2,8 @@ package kubernetes
 
 import (
 	"testing"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes string) {
@@ -9,7 +11,7 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 		"namespace1", "service1",
 		"1.2.3.4",
 		map[string]int{"port1": 8080},
-		map[int]*backendPort{8080: {8080}},
+		map[int]*definitions.BackendPort{8080: {8080}},
 	)
 
 	services := &serviceList{
@@ -32,7 +34,7 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 	endpoints := &endpointList{
 		Items: []*endpoint{
 			{
-				Meta:    &metadata{Namespace: "namespace1", Name: "service1"},
+				Meta:    &definitions.Metadata{Namespace: "namespace1", Name: "service1"},
 				Subsets: subsets,
 			},
 		},
@@ -48,15 +50,15 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 		"",
 		"",
 		"",
-		backendPort{"port1"},
+		definitions.BackendPort{"port1"},
 		1.0,
 		testRule(
 			"test.example.org",
-			testPathRule("/test1", "service1", backendPort{"port1"}),
+			testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
 		),
 	)
 
-	api := newTestAPIWithEndpoints(t, services, &ingressList{Items: []*ingressItem{ingress}}, endpoints)
+	api := newTestAPIWithEndpoints(t, services, &definitions.IngressList{Items: []*definitions.IngressItem{ingress}}, endpoints)
 	defer api.Close()
 
 	dc, err := New(Options{KubernetesURL: api.server.URL})

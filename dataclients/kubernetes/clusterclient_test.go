@@ -1,4 +1,4 @@
-package kubernetes
+package kubernetes_test
 
 import (
 	"bytes"
@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 )
 
 func containsCount(s, substr string, count int) bool {
@@ -39,7 +42,7 @@ func containsEveryLineCount(s, substr string, count int) bool {
 }
 
 func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
-	a, err := newAPI(testAPIOptions{FindNot: []string{clusterZalandoResourcesURI}})
+	a, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{FindNot: []string{kubernetes.ZalandoResourcesClusterURI}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +54,7 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 	log.SetOutput(&logBuf)
 	defer log.SetOutput(os.Stderr)
 
-	c, err := New(Options{KubernetesURL: s.URL})
+	c, err := kubernetes.New(kubernetes.Options{KubernetesURL: s.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +68,7 @@ func TestMissingRouteGroupsCRDLoggedOnlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !containsEveryLineCount(logBuf.String(), routeGroupsNotInstalledMessage, 1) {
+	if !containsEveryLineCount(logBuf.String(), kubernetes.RouteGroupsNotInstalledMessage, 1) {
 		t.Error("missing RouteGroups CRD was not reported exactly once")
 	}
 }
@@ -223,7 +226,7 @@ spec:
 	}} {
 
 		t.Run(tt.msg, func(t *testing.T) {
-			a, err := newAPI(testAPIOptions{}, bytes.NewBufferString(tt.spec))
+			a, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(tt.spec))
 			if err != nil {
 				t.Error(err)
 			}
@@ -231,13 +234,13 @@ spec:
 			s := httptest.NewServer(a)
 			defer s.Close()
 
-			c, err := New(Options{KubernetesURL: s.URL, RouteGroupClass: tt.rgClass})
+			c, err := kubernetes.New(kubernetes.Options{KubernetesURL: s.URL, RouteGroupClass: tt.rgClass})
 			if err != nil {
 				t.Error(err)
 			}
 			defer c.Close()
 
-			rgs, err := c.clusterClient.loadRouteGroups()
+			rgs, err := c.ClusterClient.LoadRouteGroups()
 			if err != nil {
 				t.Error(err)
 			}

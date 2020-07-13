@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
 )
@@ -32,7 +33,7 @@ func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
 	}
 }
 
-func (r *redirectInfo) initCurrent(m *metadata) {
+func (r *redirectInfo) initCurrent(m *definitions.Metadata) {
 	r.enable = !r.defaultEnabled && m.Annotations[redirectAnnotationKey] == "true"
 	r.disable = r.defaultEnabled && m.Annotations[redirectAnnotationKey] == "false"
 
