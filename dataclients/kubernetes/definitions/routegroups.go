@@ -330,11 +330,11 @@ func (br *BackendReference) validate(backends map[string]bool) error {
 	return nil
 }
 
-// TODO: we need to pass namespace/name in all errors
 func (r *RouteSpec) UniqueMethods() []string {
 	return uniqueStrings(r.Methods)
 }
 
+// TODO: we need to pass namespace/name in all errors
 func (rg *RouteGroupSpec) validate() error {
 	// has at least one backend:
 	if len(rg.Backends) == 0 {
