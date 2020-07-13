@@ -66,6 +66,14 @@ func newRouteGroups(o Options) *routeGroups {
 	return &routeGroups{options: o}
 }
 
+func namespaceString(ns string) string {
+	if ns == "" {
+		return "default"
+	}
+
+	return ns
+}
+
 func notSupportedServiceType(s *service) error {
 	return fmt.Errorf(
 		"not supported service type in service/%s/%s: %s",

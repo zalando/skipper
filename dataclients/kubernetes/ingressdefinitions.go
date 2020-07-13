@@ -7,23 +7,6 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
-// moved this to definitions/ingress.go
-// type Metadata struct {
-// 	Namespace   string            `json:"namespace"`
-// 	Name        string            `json:"name"`
-// 	Created     time.Time         `json:"creationTimestamp"`
-// 	Uid         string            `json:"uid"`
-// 	Annotations map[string]string `json:"annotations"`
-// }
-
-func namespaceString(ns string) string {
-	if ns == "" {
-		return "default"
-	}
-
-	return ns
-}
-
 type servicePort struct {
 	Name       string                   `json:"name"`
 	Port       int                      `json:"port"`

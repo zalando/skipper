@@ -373,6 +373,7 @@ func (rg *RouteGroupSpec) validate() error {
 	return nil
 }
 
+// TODO: we need to pass namespace/name in all errors
 func (r *RouteSpec) validate(hasDefault bool, backends map[string]bool) error {
 	if r == nil {
 		return errInvalidRouteSpec
@@ -407,6 +408,7 @@ func (r *RouteSpec) validate(hasDefault bool, backends map[string]bool) error {
 	return nil
 }
 
+// TODO: we need to pass namespace/name in all errors
 func (r *RouteGroupItem) validate() error {
 	// has metadata and name:
 	if r == nil || r.Metadata == nil || r.Metadata.Name == "" {
