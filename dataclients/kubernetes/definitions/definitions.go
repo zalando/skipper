@@ -4,6 +4,7 @@ package definitions
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/go-yaml/yaml"
 	"github.com/pkg/errors"
@@ -91,6 +92,9 @@ func ValidateIngresses(ingressList IngressList) error {
 	for _, i := range ingressList.Items {
 		nerr := ValidateIngress(i)
 		if nerr != nil {
+			name := i.Metadata.Name
+			namespace := i.Metadata.Namespace
+			nerr = fmt.Errorf("%s/%s: %w", name, namespace, nerr)
 			err = errors.Wrap(err, nerr.Error())
 		}
 	}
