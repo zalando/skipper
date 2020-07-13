@@ -24,4 +24,7 @@ jobs:
       - run: go version
       - run: sudo apt-get install redis-server
       - run: make deps
+      - run: make check-fmt
+      - run: make vet
+      - run: make staticcheck
       - run: make cicheck

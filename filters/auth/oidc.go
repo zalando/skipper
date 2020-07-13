@@ -77,7 +77,7 @@ type (
 
 	tokenContainer struct {
 		OAuth2Token *oauth2.Token          `json:"oauth2token"`
-		OIDCIDToken string            	   `json:"oidctoken"`
+		OIDCIDToken string                 `json:"oidctoken"`
 		UserInfo    *oidc.UserInfo         `json:"userInfo,omitempty"`
 		Subject     string                 `json:"subject"`
 		Claims      map[string]interface{} `json:"claims"`
