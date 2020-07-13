@@ -273,7 +273,7 @@ func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
 
 type OauthState struct {
 	Validity    int64  `json:"validity"`
-	Nonce       string `json:"none"`
+	Nonce       string `json:"nonce"`
 	RedirectUrl string `json:"redirectUrl"`
 }
 
