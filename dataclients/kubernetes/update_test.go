@@ -81,10 +81,10 @@ func TestOriginMarkerNotStored(t *testing.T) {
 					"namespace1",
 					"ingress1",
 					"service1",
-					definitions.BackendPort{8080},
+					definitions.BackendPort{Value: 8080},
 					testRule(
 						"example.org",
-						testPathRule("/", "service1", definitions.BackendPort{8080}),
+						testPathRule("/", "service1", definitions.BackendPort{Value: 8080}),
 					),
 				),
 			},
@@ -131,10 +131,10 @@ func TestOriginMarkerNotStored(t *testing.T) {
 			"namespace1",
 			"ingress2",
 			"service1",
-			definitions.BackendPort{8080},
+			definitions.BackendPort{Value: 8080},
 			testRule(
 				"api.example.org",
-				testPathRule("/v1", "service1", definitions.BackendPort{8080}),
+				testPathRule("/v1", "service1", definitions.BackendPort{Value: 8080}),
 			),
 		),
 	)

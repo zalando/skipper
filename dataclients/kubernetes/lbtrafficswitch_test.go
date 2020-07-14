@@ -34,13 +34,13 @@ func TestLBWithTrafficControl(t *testing.T) {
 				"namespace1", "service1v1",
 				"1.2.3.4",
 				map[string]int{"port1": 8080},
-				map[int]*definitions.BackendPort{8080: {8080}},
+				map[int]*definitions.BackendPort{8080: {Value: 8080}},
 			),
 			testServiceWithTargetPort(
 				"namespace1", "service1v2",
 				"1.2.3.5",
 				map[string]int{"port1": 8080},
-				map[int]*definitions.BackendPort{8080: {8080}},
+				map[int]*definitions.BackendPort{8080: {Value: 8080}},
 			),
 		},
 	}
@@ -98,7 +98,7 @@ func TestLBWithTrafficControl(t *testing.T) {
 
 	ingress := testIngress("namespace1", "ingress1", "service1v1",
 		"", "", "", "", "", "",
-		definitions.BackendPort{"port1"},
+		definitions.BackendPort{Value: "port1"},
 		1.0,
 		testRule(
 			"test.example.org",
@@ -106,14 +106,14 @@ func TestLBWithTrafficControl(t *testing.T) {
 				Path: "/test1",
 				Backend: &definitions.Backend{
 					ServiceName: "service1v1",
-					ServicePort: definitions.BackendPort{"port1"},
+					ServicePort: definitions.BackendPort{Value: "port1"},
 				},
 			},
 			&definitions.PathRule{
 				Path: "/test1",
 				Backend: &definitions.Backend{
 					ServiceName: "service1v2",
-					ServicePort: definitions.BackendPort{"port1"},
+					ServicePort: definitions.BackendPort{Value: "port1"},
 				},
 			},
 		),

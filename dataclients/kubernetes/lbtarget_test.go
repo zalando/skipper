@@ -11,7 +11,7 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 		"namespace1", "service1",
 		"1.2.3.4",
 		map[string]int{"port1": 8080},
-		map[int]*definitions.BackendPort{8080: {8080}},
+		map[int]*definitions.BackendPort{8080: {Value: 8080}},
 	)
 
 	services := &serviceList{
@@ -50,11 +50,11 @@ func testSingleIngressWithTargets(t *testing.T, targets []string, expectedRoutes
 		"",
 		"",
 		"",
-		definitions.BackendPort{"port1"},
+		definitions.BackendPort{Value: "port1"},
 		1.0,
 		testRule(
 			"test.example.org",
-			testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
+			testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
 		),
 	)
 
