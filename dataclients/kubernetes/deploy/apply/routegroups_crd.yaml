@@ -44,7 +44,7 @@ spec:
                 pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$'
             backends:
               type: array
-              minLength: 1
+              minItems: 1
               items:
                 type: object
                 required:
@@ -74,7 +74,7 @@ spec:
                     - consistentHash
                   endpoints:
                     type: array
-                    minLength: 1
+                    minItems: 1
                     items:
                       type: string
                   address:
@@ -91,7 +91,7 @@ spec:
                     minimum: 0
             routes:
               type: array
-              minLength: 1
+              minItems: 1
               items:
                 type: object
                 properties:
