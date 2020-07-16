@@ -41,6 +41,7 @@ spec:
               type: array
               items:
                 type: string
+                pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$'
             backends:
               type: array
               minLength: 1
