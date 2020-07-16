@@ -50,17 +50,17 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 			"",
 			"",
 			"",
-			definitions.BackendPort{"port1"},
+			definitions.BackendPort{Value: "port1"},
 			1.0,
 			testRule(
 				"foo.example.org",
-				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
-				testPathRule("/test2", "service2", definitions.BackendPort{"port2"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
+				testPathRule("/test2", "service2", definitions.BackendPort{Value: "port2"}),
 			),
 			testRule(
 				"bar.example.org",
-				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
-				testPathRule("/test2", "service2", definitions.BackendPort{"port2"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
+				testPathRule("/test2", "service2", definitions.BackendPort{Value: "port2"}),
 			),
 		),
 	}}
@@ -275,10 +275,10 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 		"namespace1",
 		"ingress1",
 		"service1",
-		definitions.BackendPort{"port1"},
+		definitions.BackendPort{Value: "port1"},
 		testRule(
 			"www.example.org",
-			testPathRule("/foo", "service1", definitions.BackendPort{"port1"}),
+			testPathRule("/foo", "service1", definitions.BackendPort{Value: "port1"}),
 		),
 	)
 	setAnnotation(ingressWithRedirect, redirectAnnotationKey, "true")
@@ -287,10 +287,10 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 		"namespace1",
 		"ingress2",
 		"service2",
-		definitions.BackendPort{"port2"},
+		definitions.BackendPort{Value: "port2"},
 		testRule(
 			"api.example.org",
-			testPathRule("/bar", "service2", definitions.BackendPort{"port2"}),
+			testPathRule("/bar", "service2", definitions.BackendPort{Value: "port2"}),
 		),
 	)
 
@@ -382,10 +382,10 @@ func TestDisableHTTPSRedirectFromIngress(t *testing.T) {
 		"namespace1",
 		"ingress1",
 		"service1",
-		definitions.BackendPort{"port1"},
+		definitions.BackendPort{Value: "port1"},
 		testRule(
 			"www.example.org",
-			testPathRule("/foo", "service1", definitions.BackendPort{"port1"}),
+			testPathRule("/foo", "service1", definitions.BackendPort{Value: "port1"}),
 		),
 	)
 
@@ -393,10 +393,10 @@ func TestDisableHTTPSRedirectFromIngress(t *testing.T) {
 		"namespace1",
 		"ingress2",
 		"service2",
-		definitions.BackendPort{"port2"},
+		definitions.BackendPort{Value: "port2"},
 		testRule(
 			"api.example.org",
-			testPathRule("/bar", "service2", definitions.BackendPort{"port2"}),
+			testPathRule("/bar", "service2", definitions.BackendPort{Value: "port2"}),
 		),
 	)
 	setAnnotation(ingressWithoutRedirect, redirectAnnotationKey, "false")
@@ -485,10 +485,10 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 		"namespace1",
 		"ingress1",
 		"service1",
-		definitions.BackendPort{"port1"},
+		definitions.BackendPort{Value: "port1"},
 		testRule(
 			"www.example.org",
-			testPathRule("/foo", "service1", definitions.BackendPort{"port1"}),
+			testPathRule("/foo", "service1", definitions.BackendPort{Value: "port1"}),
 		),
 	)
 	setAnnotation(ingressWithCustomRedirectCode, redirectCodeAnnotationKey, "301")
@@ -497,10 +497,10 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 		"namespace1",
 		"ingress2",
 		"service2",
-		definitions.BackendPort{"port2"},
+		definitions.BackendPort{Value: "port2"},
 		testRule(
 			"api.example.org",
-			testPathRule("/bar", "service2", definitions.BackendPort{"port2"}),
+			testPathRule("/bar", "service2", definitions.BackendPort{Value: "port2"}),
 		),
 	)
 
@@ -589,10 +589,10 @@ func TestEnableRedirectWithCustomCode(t *testing.T) {
 		"namespace1",
 		"ingress1",
 		"service1",
-		definitions.BackendPort{"port1"},
+		definitions.BackendPort{Value: "port1"},
 		testRule(
 			"www.example.org",
-			testPathRule("/foo", "service1", definitions.BackendPort{"port1"}),
+			testPathRule("/foo", "service1", definitions.BackendPort{Value: "port1"}),
 		),
 	)
 	setAnnotation(ingressWithRedirect, redirectAnnotationKey, "true")
@@ -602,10 +602,10 @@ func TestEnableRedirectWithCustomCode(t *testing.T) {
 		"namespace1",
 		"ingress2",
 		"service2",
-		definitions.BackendPort{"port2"},
+		definitions.BackendPort{Value: "port2"},
 		testRule(
 			"api.example.org",
-			testPathRule("/bar", "service2", definitions.BackendPort{"port2"}),
+			testPathRule("/bar", "service2", definitions.BackendPort{Value: "port2"}),
 		),
 	)
 

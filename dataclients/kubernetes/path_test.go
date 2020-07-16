@@ -80,8 +80,8 @@ func TestPathMatchingModes(t *testing.T) {
 
 	setIngressWithPath := func(p string, annotations ...string) {
 		i := testIngress(
-			"namespace1", "ingress1", "service1", "", "", "", "", "", "", definitions.BackendPort{8080}, 1.0,
-			testRule("www.example.org", testPathRule(p, "service1", definitions.BackendPort{8080})),
+			"namespace1", "ingress1", "service1", "", "", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0,
+			testRule("www.example.org", testPathRule(p, "service1", definitions.BackendPort{Value: 8080})),
 		)
 
 		annotation := strings.Join(annotations, " && ")
@@ -338,13 +338,13 @@ func TestIngressSpecificMode(t *testing.T) {
 	defer api.Close()
 
 	ingressWithDefault := testIngress(
-		"namespace1", "ingress1", "service1", "", "", "", "", "", "", definitions.BackendPort{8080}, 1.0,
-		testRule("www.example.org", testPathRule("^/foo", "service1", definitions.BackendPort{8080})),
+		"namespace1", "ingress1", "service1", "", "", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0,
+		testRule("www.example.org", testPathRule("^/foo", "service1", definitions.BackendPort{Value: 8080})),
 	)
 
 	ingressWithCustom := testIngress(
-		"namespace1", "ingress1", "service1", "", "", "", "", "", "", definitions.BackendPort{8080}, 1.0,
-		testRule("www.example.org", testPathRule("/bar", "service1", definitions.BackendPort{8080})),
+		"namespace1", "ingress1", "service1", "", "", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0,
+		testRule("www.example.org", testPathRule("/bar", "service1", definitions.BackendPort{Value: 8080})),
 	)
 	ingressWithCustom.Metadata.Annotations[pathModeAnnotationKey] = pathPrefixString
 

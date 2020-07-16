@@ -11,7 +11,7 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		"namespace1", "service1",
 		"1.2.3.4",
 		map[string]int{"port1": 8080},
-		map[int]*definitions.BackendPort{8080: {8080}},
+		map[int]*definitions.BackendPort{8080: {Value: 8080}},
 	)
 
 	services := &serviceList{
@@ -55,11 +55,11 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		"",
 		"",
 		"",
-		definitions.BackendPort{"port1"},
+		definitions.BackendPort{Value: "port1"},
 		1.0,
 		testRule(
 			"test.example.org",
-			testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
+			testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
 		),
 	)
 
@@ -105,7 +105,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 		"namespace1", "service1",
 		"1.2.3.4",
 		map[string]int{"port1": 8080},
-		map[int]*definitions.BackendPort{8080: {8080}},
+		map[int]*definitions.BackendPort{8080: {Value: 8080}},
 	)
 
 	services := &serviceList{
@@ -155,11 +155,11 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 			"",
 			"",
 			"random",
-			definitions.BackendPort{"port1"},
+			definitions.BackendPort{Value: "port1"},
 			1.0,
 			testRule(
 				"test.example.org",
-				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
 			),
 		),
 		expectedRoutes: `
@@ -192,11 +192,11 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 			"",
 			"",
 			"consistentHash",
-			definitions.BackendPort{"port1"},
+			definitions.BackendPort{Value: "port1"},
 			1.0,
 			testRule(
 				"test.example.org",
-				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
 			),
 		),
 		expectedRoutes: `
@@ -229,11 +229,11 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 			"",
 			"",
 			"roundRobin",
-			definitions.BackendPort{"port1"},
+			definitions.BackendPort{Value: "port1"},
 			1.0,
 			testRule(
 				"test.example.org",
-				testPathRule("/test1", "service1", definitions.BackendPort{"port1"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
 			),
 		),
 		expectedRoutes: `
