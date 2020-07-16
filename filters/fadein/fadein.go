@@ -35,6 +35,7 @@ type (
 	}
 
 	postProcessor struct {
+		// "http://10.2.1.53:1234": {t0 60s t0-10s}
 		detected map[string]detectedFadeIn
 	}
 )
@@ -132,6 +133,8 @@ func endpointKey(scheme, host string) string {
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
 
+// endpointCreated("", <int,float64,string,time>)
+// endpointCreated("http://10.2.4.123:2156", $time)
 func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -242,6 +245,11 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 
 	// cleanup old detected, considering last active
 	for key, d := range p.detected {
+		// TODO(szuecs): I think this is the correct one and lastActive can be deleted.
+		// if d.when.Add(d.duration).After(now) {
+		// 	delete(p.detected, key)
+		// }
+
 		// this allows tolerating when a fade-in endpoint temporarily disappears:
 		if d.lastActive.Add(d.duration).Before(now) {
 			delete(p.detected, key)

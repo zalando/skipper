@@ -120,7 +120,7 @@ func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []float64, now t
 }
 */
 func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []int, now time.Time, from int) routing.LBEndpoint {
-	fd, ep := ctx.Route.LBFadeInDuration, ctx.Route.LBEndpoints
+	d, ep := ctx.Route.LBFadeInDuration, ctx.Route.LBEndpoints
 
 	var (
 		sum  int
@@ -134,7 +134,7 @@ func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []int, now time.
 			break
 		}
 
-		if _, fadingIn := fadeInState(now, fd, ep[i].Detected); !fadingIn {
+		if _, fadingIn := fadeInState(now, d, ep[i].Detected); !fadingIn {
 			sum++
 		}
 
@@ -148,7 +148,7 @@ func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []int, now time.
 		return ep[from]
 	}
 
-	r := rand.Intn(sum)
+	r := rand.Intn(sum) // [0..sum]
 	i = from
 	for {
 		i = (i + 1) % len(ep)
@@ -171,6 +171,10 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, w []int, choice int) rou
 		return ctx.Route.LBEndpoints[choice]
 	}
 
+	// TODO(sszuecs): I think we should store
+	// ctx.Route.LBEndpoints[choice] and re-Apply() algorithm
+	// until we found one that can have the traffic and fallback
+	// to the first choice
 	return shiftToRemaining(rnd, ctx, w, now, choice)
 }
 
