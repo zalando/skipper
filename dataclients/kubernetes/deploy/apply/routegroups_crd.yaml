@@ -35,15 +35,18 @@ spec:
           required:
           - backends
           - routes
+          - hosts
           type: object
           properties:
             hosts:
               type: array
               items:
                 type: string
+                pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$'
+              minItems: 1
             backends:
               type: array
-              minLength: 1
+              minItems: 1
               items:
                 type: object
                 required:
@@ -73,7 +76,7 @@ spec:
                     - consistentHash
                   endpoints:
                     type: array
-                    minLength: 1
+                    minItems: 1
                     items:
                       type: string
                   address:
@@ -90,7 +93,7 @@ spec:
                     minimum: 0
             routes:
               type: array
-              minLength: 1
+              minItems: 1
               items:
                 type: object
                 properties:
