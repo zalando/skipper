@@ -40,7 +40,7 @@ require (
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
 	github.com/uber/jaeger-lib v2.0.0+incompatible
 	github.com/yookoala/gofast v0.4.0
-	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036
+	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e
 	go.uber.org/atomic v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
 	golang.org/x/net v0.0.0-20190628185345-da137c7871d7

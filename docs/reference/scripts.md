@@ -5,7 +5,7 @@ current implementation supports [Lua 5.1](https://www.lua.org/manual/5.1/).
 
 ## Route filters
 
-The lua scripts can be added to a route description with the lua() filter,
+The lua scripts can be added to a route description with the `lua()` filter,
 the first parameter for the filter is the script. This can be either a file
 name (ending with `.lua`) or inline code, e.g. as
 
@@ -13,9 +13,9 @@ name (ending with `.lua`) or inline code, e.g. as
  is relative to skipper's working directory.
 * inline `lua("function request(c, p); print(c.request.url); end")`
 
-Any other additional parameters for the filter must be `key=value` strings.
-These will be passed as table to the called functions as second parameter.
-**NOTE**: Any parameter starting with "lua-" should not be used to pass
+Any other additional parameters for the filter will be passed as
+a second table parameter to the called functions.
+> Any parameter starting with "lua-" should not be used to pass
 values for the script - those will be used for configuring the filter.
 
 ## Script requirements
@@ -26,12 +26,24 @@ in the route as table like
 ```lua
 -- route looks like
 --
--- any: * -> lua("./test.lua", "myparam=foo", "other=bar") -> <shunt>
+-- any: * -> lua("./test.lua", "myparam=foo", "other=bar", "justkey") -> <shunt>
 --
 function request(ctx, params)
-    print(ctx.request.method .. " " .. ctx.request.url .. " -> " .. params.myparam)
+    print(params[1])      -- myparam=foo
+    print(params[2])      -- other=bar
+    print(params[3])      -- justkey
+    print(params[4])      -- nil
+    print(params.myparam) -- foo
+    print(params.other)   -- bar
+    print(params.justkey) -- (empty string)
+    print(params.x)       -- nil
 end
 ```
+> Parameter table allows index access as well as key-value access
+
+## print builtin
+
+Lua `print` builtin function writes skipper info log messages.
 
 ## Available lua modules
 
@@ -60,29 +72,36 @@ in the request and accessing it in the response will most likely fail and lead
 to hard debuggable errors. Use the `ctx.state_bag` to propagate values from
 `request` to `response` - and any other filter in the chain.
 
-# Request
+# Request and response
 
-The `request()` function is run for an incoming request.
+The `request()` function is run for an incoming request and `response()` for backend response.
 
 ## Headers
 
-Request headers can be accessed by accessing the `ctx.request.header` map like
+Request headers can be accessed via `ctx.request.header` table like
 ```lua
 ua = ctx.request.header["user-agent"]
 ```
+and iterated like
+```lua
+for k, v in ctx.request.header() do
+    print(k, "=", v);
+end
+```
+> Header table is a [functable](http://lua-users.org/wiki/FuncTables) that returns [iterator](https://www.lua.org/pil/7.2.html)
 
 Header names are normalized by the `net/http` go module
 [like usual](https://godoc.org/net/http#CanonicalHeaderKey). Setting a
-header is done by assigning to the headers map. Setting a header to `nil` or
+header is done by assigning to the header table. Setting a header to `nil` or
 an empty string deletes the header - setting to `nil` is preferred.
 
 ```lua
 ctx.request.header["user-agent"] = "skipper.lua/0.0.1"
 ctx.request.header["Authorization"] = nil -- delete authorization header
 ```
+> `header` table returns empty string for missing keys
 
-Response headers work the same way by accessing / assigning to
-`ctx.response.header` - this is of course only valid in the `response()` phase.
+Response headers `ctx.response.header` work the same way - this is of course only valid in the `response()` phase.
 
 ## Other request fields
 
@@ -97,6 +116,13 @@ Response headers work the same way by accessing / assigning to
 * `proto` - (read only) something like "HTTP/1.1"
 * `method` - (read only) request method, e.g. "GET" or "POST"
 * `url` - (read/write) request URL as string
+* `url_path` - (read/write) request URL path as string
+* `url_query` - (read/write) request URL query parameter table, similar to header table but returns `nil` for missing keys
+* `url_raw_query` - (read/write) encoded request URL query values, without '?' as string
+
+## Other response fields
+
+* `status_code` - (read/write) response status code as number, e.g. 200
 
 ## Serving requests from lua
 Requests can be served with `ctx.serve(table)`, you must return after this
@@ -108,6 +134,14 @@ call. Possible keys for the table:
 
 See also [redirect](#redirect) and [internal server error](#internal-server-error)
 examples below
+
+## Path parameters
+
+Path parameters (if any) can be read via `ctx.path_param` table
+```
+Path("/api/:id") -> lua("function request(ctx, params); print(ctx.path_param.id); end") -> <shunt>
+```
+> `path_param` table returns `nil` for missing keys
 
 ## StateBag
 
@@ -123,11 +157,12 @@ function response(ctx, params)
     print(ctx.state_bag["mykey"])
 end
 ```
+> `state_bag` table returns `nil` for missing keys
 
 # Examples
 
-Note: the examples serve as examples. If there is a go based plugin available,
-use that instead. The overhead of calling lua is 4-5 times slower than pure go.
+>The examples serve as examples. If there is a go based plugin available,
+use that instead. For overhead estimate see [benchmark](#Benchmark).
 
 ## OAuth2 token as basic auth password
 ```lua
@@ -197,6 +232,16 @@ function request(ctx, params)
             body="Internal Server Error.\n",
         })
     end
+end
+```
+
+## set request header from params
+```lua
+function request(ctx, params)
+	ctx.request.header[params[1]] = params[2]
+	if params[1]:lower() == "host" then
+		ctx.request.outgoing_host = params[2]
+	end
 end
 ```
 
