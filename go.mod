@@ -33,6 +33,7 @@ require (
 	github.com/sony/gobreaker v0.4.1
 	github.com/stretchr/testify v1.4.0
 	github.com/szuecs/rate-limit-buffer v0.7.1
+	github.com/szuecs/routegroup-client v0.17.7
 	github.com/tidwall/gjson v1.4.0
 	github.com/tidwall/pretty v1.0.1 // indirect
 	github.com/uber-go/atomic v1.4.0 // indirect
@@ -41,14 +42,14 @@ require (
 	github.com/yookoala/gofast v0.4.0
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e
 	go.uber.org/atomic v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
-	golang.org/x/net v0.0.0-20191004110552-13f9640d40b9
+	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
+	golang.org/x/net v0.0.0-20200528225125-3c3fba18258b
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	golang.org/x/tools v0.0.0-20200227222343-706bc42d1f0d // indirect
 	google.golang.org/grpc v1.22.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
-	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.18.6
 	k8s.io/apimachinery v0.18.6
 	layeh.com/gopher-json v0.0.0-20190114024228-97fed8db8427

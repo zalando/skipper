@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	zv1 "github.com/szuecs/routegroup-client/apis/zalando.org/v1"
 	admissionv1 "k8s.io/api/admission/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
@@ -58,9 +60,8 @@ func TestUnsupportedContentType(t *testing.T) {
 }
 
 func TestRequestDecoding(t *testing.T) {
-	// TODO: switch this with zv1.RouteGroup to make sure that decodes properly
-	expectedRg := definitions.RouteGroupItem{
-		Metadata: &definitions.Metadata{
+	expectedRg := zv1.RouteGroup{
+		ObjectMeta: v1.ObjectMeta{
 			Name:      "r1",
 			Namespace: "n1",
 		},
@@ -97,7 +98,8 @@ func TestRequestDecoding(t *testing.T) {
 		err := json.Unmarshal(req.Object.Raw, &rg)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedRg, rg)
+		assert.Equal(t, expectedRg.Name, rg.Metadata.Name)
+		assert.Equal(t, expectedRg.Namespace, rg.Metadata.Namespace)
 
 		return admissionv1.AdmissionResponse{
 			Allowed: true,
