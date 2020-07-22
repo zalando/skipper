@@ -9,6 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 type testAdmitter struct {
@@ -55,16 +58,28 @@ func TestUnsupportedContentType(t *testing.T) {
 }
 
 func TestRequestDecoding(t *testing.T) {
-	review := &admissionv1.AdmissionReview{}
-	review.Request = &admissionv1.AdmissionRequest{
-		Name:      "r1",
-		Namespace: "n1",
+	// TODO: switch this with zv1.RouteGroup to make sure that decodes properly
+	expectedRg := definitions.RouteGroupItem{
+		Metadata: &definitions.Metadata{
+			Name:      "r1",
+			Namespace: "n1",
+		},
+	}
+
+	rb, err := json.Marshal(expectedRg)
+	assert.NoError(t, err)
+
+	review := &admissionv1.AdmissionReview{
+		Request: &admissionv1.AdmissionRequest{
+			Name:      "r1",
+			Namespace: "n1",
+			Object:    runtime.RawExtension{Raw: rb},
+		},
 	}
 
 	bbuffer := bytes.NewBuffer([]byte{})
 	enc := json.NewEncoder(bbuffer)
-
-	err := enc.Encode(review)
+	err = enc.Encode(review)
 	assert.NoError(t, err, "could not encode admission review")
 
 	req := httptest.NewRequest("POST", "http://example.com/foo", bbuffer)
@@ -76,6 +91,13 @@ func TestRequestDecoding(t *testing.T) {
 	tadm.validate = func(req *admissionv1.AdmissionRequest) (admissionv1.AdmissionResponse, error) {
 		// TODO: add a differ here so the message is more readable
 		assert.Equal(t, review.Request, req, "AdmissionReview.Request is not as expected")
+
+		// decode a RouteGroup from req.Object.Raw and validate it
+		var rg definitions.RouteGroupItem
+		err := json.Unmarshal(req.Object.Raw, &rg)
+		assert.NoError(t, err)
+
+		assert.Equal(t, expectedRg, rg)
 
 		return admissionv1.AdmissionResponse{
 			Allowed: true,

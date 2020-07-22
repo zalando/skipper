@@ -50,6 +50,7 @@ require (
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.2.8
 	k8s.io/api v0.18.6
+	k8s.io/apimachinery v0.18.6
 	layeh.com/gopher-json v0.0.0-20190114024228-97fed8db8427
 )
 
