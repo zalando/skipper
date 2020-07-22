@@ -3,6 +3,7 @@ package admission
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -74,7 +75,8 @@ func TestRequestDecoding(t *testing.T) {
 		Request: &admissionv1.AdmissionRequest{
 			Name:      "r1",
 			Namespace: "n1",
-			Object:    runtime.RawExtension{Raw: rb},
+			// TODO: why doesnt runtime.RawExtension{Object: rg} work here?
+			Object: runtime.RawExtension{Raw: rb},
 		},
 	}
 
@@ -112,15 +114,34 @@ func TestRequestDecoding(t *testing.T) {
 }
 
 func TestResponseEncoding(t *testing.T) {
-	// resp := w.Result()
-	// assert.Equal(t, http.StatusOK, resp.StatusCode)
-	//
-	// admresp := &admissionv1.AdmissionResponse{}
-	// rb, err := ioutil.ReadAll(resp.Body)
-	// assert.NoError(t, err, "could not read response")
-	// // TODO: instead of just looking at the response, write a test admitter
-	// //  that verifies the AdmissionReview{} Received and sends back a test
-	// //  response
-	// err = json.Unmarshal(rb, &admresp)
-	// assert.NoError(t, err, "could not parse admission response")
+	review := &admissionv1.AdmissionReview{
+		Request: &admissionv1.AdmissionRequest{
+			Name:      "r1",
+			Namespace: "n1",
+		},
+	}
+
+	bbuffer := bytes.NewBuffer([]byte{})
+	enc := json.NewEncoder(bbuffer)
+	err := enc.Encode(review)
+	assert.NoError(t, err, "could not encode admission review")
+
+	req := httptest.NewRequest("POST", "http://example.com/foo", bbuffer)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	tadm := NewTestAdmitter()
+
+	h := Handler(tadm)
+	h(w, req)
+	resp := w.Result()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	admresp := &admissionv1.AdmissionResponse{}
+	rb, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err, "could not read response")
+	//  that verifies the AdmissionReview{} Received and sends back a test
+	//  response
+	err = json.Unmarshal(rb, &admresp)
+	assert.NoError(t, err, "could not parse admission response")
 }

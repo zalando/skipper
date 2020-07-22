@@ -9,11 +9,11 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 )
 
-type Admitter interface {
+type admitter interface {
 	Admit(req *admissionv1.AdmissionRequest) (admissionv1.AdmissionResponse, error)
 }
 
-func Handler(admitter Admitter) http.HandlerFunc {
+func Handler(admitter admitter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" {
 			// TODO: inc prometheus invalid req counter
@@ -38,7 +38,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			return
 		}
 
-		_, err = admitter.Admit(review.Request)
+		admResp, err := admitter.Admit(review.Request)
 		if err != nil {
 			// TODO: add op info
 			log.Errorf("Rejected: %v", err)
@@ -49,9 +49,19 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			return
 		}
 
-		if _, err := w.Write([]byte("ok")); err != nil {
-			log.Errorf("unable to write response: %v", err)
-		}
+		writeResponse(w, &admResp)
+	}
+}
 
+func writeResponse(writer http.ResponseWriter, response *admissionv1.AdmissionResponse) {
+	resp, err := json.Marshal(admissionv1.AdmissionReview{
+		Response: response,
+	})
+	if err != nil {
+		log.Errorf("unable to serialize response: %v", err)
+		writer.WriteHeader(http.StatusInternalServerError)
+	}
+	if _, err := writer.Write(resp); err != nil {
+		log.Errorf("unable to write response: %v", err)
 	}
 }
