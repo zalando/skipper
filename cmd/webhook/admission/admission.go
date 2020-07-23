@@ -14,19 +14,19 @@ import (
 )
 
 type admitter interface {
-	Admit(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error)
+	Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error)
 }
 
 type routegroupAdmitter struct {
 }
 
-func (r routegroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error) {
+func (r routegroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
 	rgItem := definitions.RouteGroupItem{}
 	err := json.Unmarshal(req.Object.Raw, &rgItem)
 	if err != nil {
 		emsg := fmt.Errorf("could not parse RouteGroup, %w", err)
 		log.Error(emsg)
-		return admissionsv1.AdmissionResponse{
+		return &admissionsv1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: emsg.Error(),
@@ -38,7 +38,7 @@ func (r routegroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (admission
 	if err != nil {
 		emsg := fmt.Errorf("could not validate RouteGroup, %w", err)
 		log.Error(emsg)
-		return admissionsv1.AdmissionResponse{
+		return &admissionsv1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: emsg.Error(),
@@ -46,7 +46,7 @@ func (r routegroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (admission
 		}, nil
 	}
 
-	return admissionsv1.AdmissionResponse{
+	return &admissionsv1.AdmissionResponse{
 		Allowed: true,
 	}, nil
 }
@@ -88,7 +88,7 @@ func Handler(admitter admitter) http.HandlerFunc {
 		}
 
 		// TODO: match UID of requests with response
-		writeResponse(w, &admResp)
+		writeResponse(w, admResp)
 	}
 }
 

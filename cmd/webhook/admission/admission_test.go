@@ -20,15 +20,15 @@ import (
 
 type testAdmitter struct {
 	// validate validates & plugs parameters for Admit
-	validate func(response *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error)
+	validate func(response *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error)
 }
 
-func (t testAdmitter) Admit(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error) {
+func (t testAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
 	return t.validate(req)
 }
 
-func (t testAdmitter) AdmitAll(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error) {
-	return admissionsv1.AdmissionResponse{
+func (t testAdmitter) AdmitAll(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
+	return &admissionsv1.AdmissionResponse{
 		Allowed: true,
 	}, nil
 }
@@ -92,7 +92,7 @@ func TestRequestDecoding(t *testing.T) {
 	w := httptest.NewRecorder()
 	tadm := NewTestAdmitter()
 
-	tadm.validate = func(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error) {
+	tadm.validate = func(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
 		// TODO: add a differ here so the message is more readable
 		assert.Equal(t, review.Request, req, "AdmissionReview.Request is not as expected")
 
@@ -104,7 +104,7 @@ func TestRequestDecoding(t *testing.T) {
 		assert.Equal(t, expectedRg.Name, rg.Metadata.Name)
 		assert.Equal(t, expectedRg.Namespace, rg.Metadata.Namespace)
 
-		return admissionsv1.AdmissionResponse{
+		return &admissionsv1.AdmissionResponse{
 			Allowed: true,
 		}, nil
 	}
@@ -121,7 +121,12 @@ func TestResponseEncoding(t *testing.T) {
 			Namespace: "n1",
 		},
 	}
-
+	expectedResp := &admissionsv1.AdmissionResponse{
+		Allowed: false,
+		Result: &metav1.Status{
+			Message: "failed to validate",
+		},
+	}
 	bbuffer := bytes.NewBuffer([]byte{})
 	enc := json.NewEncoder(bbuffer)
 	err := enc.Encode(review)
@@ -132,32 +137,51 @@ func TestResponseEncoding(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	tadm := NewTestAdmitter()
+	tadm.validate = func(ar *admissionsv1.AdmissionRequest) (
+		*admissionsv1.AdmissionResponse,
+		error,
+	) {
+		return expectedResp, nil
+	}
 
 	h := Handler(tadm)
 	h(w, req)
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	admresp := &admissionsv1.AdmissionResponse{}
+	admresp := admissionsv1.AdmissionResponse{Result: &metav1.Status{}}
 	rb, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err, "could not read response")
-	//  that verifies the AdmissionReview{} Received and sends back a test
-	//  response
+
 	err = json.Unmarshal(rb, &admresp)
-	assert.NoError(t, err, "could not parse admission response")
+	if assert.NoError(t, err) {
+		assert.Equal(t, expectedResp.Allowed, admresp.Allowed)
+		assert.Equal(t, expectedResp.Result.Message, admresp.Result.Message)
+	}
 }
 
 func TestAdmitRouteGroups(t *testing.T) {
-	review := &admissionsv1.AdmissionReview{
-		Request: &admissionsv1.AdmissionRequest{
+	rg := zv1.RouteGroup{
+		ObjectMeta: v1.ObjectMeta{
 			Name:      "r1",
 			Namespace: "n1",
 		},
 	}
 
+	rgB, err := json.Marshal(rg)
+	assert.NoError(t, err)
+
+	review := &admissionsv1.AdmissionReview{
+		Request: &admissionsv1.AdmissionRequest{
+			Name:      "r1",
+			Namespace: "n1",
+			Object:    runtime.RawExtension{Raw: rgB},
+		},
+	}
+
 	bbuffer := bytes.NewBuffer([]byte{})
 	enc := json.NewEncoder(bbuffer)
-	err := enc.Encode(review)
+	err = enc.Encode(review)
 	assert.NoError(t, err, "could not encode admission review")
 
 	req := httptest.NewRequest("POST", "http://example.com/foo", bbuffer)
@@ -174,8 +198,6 @@ func TestAdmitRouteGroups(t *testing.T) {
 	admresp := &admissionsv1.AdmissionResponse{Result: &metav1.Status{}}
 	rb, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err, "could not read response")
-	//  that verifies the AdmissionReview{} Received and sends back a test
-	//  response
 	err = json.Unmarshal(rb, &admresp)
 	if assert.NoError(t, err) {
 		assert.Equal(t, false, admresp.Allowed)
