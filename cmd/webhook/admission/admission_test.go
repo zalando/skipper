@@ -149,14 +149,13 @@ func TestResponseEncoding(t *testing.T) {
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	admresp := admissionsv1.AdmissionResponse{Result: &metav1.Status{}}
+	reviewResp := admissionsv1.AdmissionReview{}
 	rb, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err, "could not read response")
 
-	err = json.Unmarshal(rb, &admresp)
+	err = json.Unmarshal(rb, &reviewResp)
 	if assert.NoError(t, err) {
-		assert.Equal(t, expectedResp.Allowed, admresp.Allowed)
-		assert.Equal(t, expectedResp.Result.Message, admresp.Result.Message)
+		assert.Equal(t, expectedResp, reviewResp.Response)
 	}
 }
 
@@ -195,13 +194,10 @@ func TestAdmitRouteGroups(t *testing.T) {
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	admresp := &admissionsv1.AdmissionResponse{Result: &metav1.Status{}}
+	respReview := &admissionsv1.AdmissionReview{}
 	rb, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err, "could not read response")
-	err = json.Unmarshal(rb, &admresp)
-	if assert.NoError(t, err) {
-		assert.Equal(t, false, admresp.Allowed)
-		assert.Contains(t, admresp.Result.Message, "could not validate RouteGroup")
-	}
+	err = json.Unmarshal(rb, &respReview)
+	assert.NoError(t, err)
 
 }
