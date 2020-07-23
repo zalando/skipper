@@ -2,15 +2,53 @@ package admission
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
-	admissionv1 "k8s.io/api/admission/v1"
+	admissionsv1 "k8s.io/api/admission/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 type admitter interface {
-	Admit(req *admissionv1.AdmissionRequest) (admissionv1.AdmissionResponse, error)
+	Admit(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error)
+}
+
+type routegroupAdmitter struct {
+}
+
+func (r routegroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error) {
+	rgItem := definitions.RouteGroupItem{}
+	err := json.Unmarshal(req.Object.Raw, &rgItem)
+	if err != nil {
+		emsg := fmt.Errorf("could not parse RouteGroup, %w", err)
+		log.Error(emsg)
+		return admissionsv1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Message: emsg.Error(),
+			},
+		}, nil
+	}
+
+	err = definitions.ValidateRouteGroup(&rgItem)
+	if err != nil {
+		emsg := fmt.Errorf("could not validate RouteGroup, %w", err)
+		log.Error(emsg)
+		return admissionsv1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Message: emsg.Error(),
+			},
+		}, nil
+	}
+
+	return admissionsv1.AdmissionResponse{
+		Allowed: true,
+	}, nil
 }
 
 func Handler(admitter admitter) http.HandlerFunc {
@@ -28,7 +66,7 @@ func Handler(admitter admitter) http.HandlerFunc {
 			return
 		}
 
-		review := admissionv1.AdmissionReview{}
+		review := admissionsv1.AdmissionReview{}
 		err = json.Unmarshal(body, &review)
 		if err != nil {
 			log.Errorf("Unable to parse request: %v", err)
@@ -49,12 +87,13 @@ func Handler(admitter admitter) http.HandlerFunc {
 			return
 		}
 
+		// TODO: match UID of requests with response
 		writeResponse(w, &admResp)
 	}
 }
 
-func writeResponse(writer http.ResponseWriter, response *admissionv1.AdmissionResponse) {
-	resp, err := json.Marshal(admissionv1.AdmissionReview{
+func writeResponse(writer http.ResponseWriter, response *admissionsv1.AdmissionResponse) {
+	resp, err := json.Marshal(admissionsv1.AdmissionReview{
 		Response: response,
 	})
 	if err != nil {

@@ -10,7 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	zv1 "github.com/szuecs/routegroup-client/apis/zalando.org/v1"
-	admissionv1 "k8s.io/api/admission/v1"
+	admissionsv1 "k8s.io/api/admission/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -19,15 +20,15 @@ import (
 
 type testAdmitter struct {
 	// validate validates & plugs parameters for Admit
-	validate func(response *admissionv1.AdmissionRequest) (admissionv1.AdmissionResponse, error)
+	validate func(response *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error)
 }
 
-func (t testAdmitter) Admit(req *admissionv1.AdmissionRequest) (admissionv1.AdmissionResponse, error) {
+func (t testAdmitter) Admit(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error) {
 	return t.validate(req)
 }
 
-func (t testAdmitter) AdmitAll(req *admissionv1.AdmissionRequest) (admissionv1.AdmissionResponse, error) {
-	return admissionv1.AdmissionResponse{
+func (t testAdmitter) AdmitAll(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error) {
+	return admissionsv1.AdmissionResponse{
 		Allowed: true,
 	}, nil
 }
@@ -71,8 +72,8 @@ func TestRequestDecoding(t *testing.T) {
 	rb, err := json.Marshal(expectedRg)
 	assert.NoError(t, err)
 
-	review := &admissionv1.AdmissionReview{
-		Request: &admissionv1.AdmissionRequest{
+	review := &admissionsv1.AdmissionReview{
+		Request: &admissionsv1.AdmissionRequest{
 			Name:      "r1",
 			Namespace: "n1",
 			// TODO: why doesnt runtime.RawExtension{Object: rg} work here?
@@ -91,7 +92,7 @@ func TestRequestDecoding(t *testing.T) {
 	w := httptest.NewRecorder()
 	tadm := NewTestAdmitter()
 
-	tadm.validate = func(req *admissionv1.AdmissionRequest) (admissionv1.AdmissionResponse, error) {
+	tadm.validate = func(req *admissionsv1.AdmissionRequest) (admissionsv1.AdmissionResponse, error) {
 		// TODO: add a differ here so the message is more readable
 		assert.Equal(t, review.Request, req, "AdmissionReview.Request is not as expected")
 
@@ -103,7 +104,7 @@ func TestRequestDecoding(t *testing.T) {
 		assert.Equal(t, expectedRg.Name, rg.Metadata.Name)
 		assert.Equal(t, expectedRg.Namespace, rg.Metadata.Namespace)
 
-		return admissionv1.AdmissionResponse{
+		return admissionsv1.AdmissionResponse{
 			Allowed: true,
 		}, nil
 	}
@@ -114,8 +115,8 @@ func TestRequestDecoding(t *testing.T) {
 }
 
 func TestResponseEncoding(t *testing.T) {
-	review := &admissionv1.AdmissionReview{
-		Request: &admissionv1.AdmissionRequest{
+	review := &admissionsv1.AdmissionReview{
+		Request: &admissionsv1.AdmissionRequest{
 			Name:      "r1",
 			Namespace: "n1",
 		},
@@ -137,11 +138,48 @@ func TestResponseEncoding(t *testing.T) {
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	admresp := &admissionv1.AdmissionResponse{}
+	admresp := &admissionsv1.AdmissionResponse{}
 	rb, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err, "could not read response")
 	//  that verifies the AdmissionReview{} Received and sends back a test
 	//  response
 	err = json.Unmarshal(rb, &admresp)
 	assert.NoError(t, err, "could not parse admission response")
+}
+
+func TestAdmitRouteGroups(t *testing.T) {
+	review := &admissionsv1.AdmissionReview{
+		Request: &admissionsv1.AdmissionRequest{
+			Name:      "r1",
+			Namespace: "n1",
+		},
+	}
+
+	bbuffer := bytes.NewBuffer([]byte{})
+	enc := json.NewEncoder(bbuffer)
+	err := enc.Encode(review)
+	assert.NoError(t, err, "could not encode admission review")
+
+	req := httptest.NewRequest("POST", "http://example.com/foo", bbuffer)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	rgAdm := routegroupAdmitter{}
+
+	h := Handler(rgAdm)
+	h(w, req)
+	resp := w.Result()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	admresp := &admissionsv1.AdmissionResponse{Result: &metav1.Status{}}
+	rb, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err, "could not read response")
+	//  that verifies the AdmissionReview{} Received and sends back a test
+	//  response
+	err = json.Unmarshal(rb, &admresp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, false, admresp.Allowed)
+		assert.Contains(t, admresp.Result.Message, "could not validate RouteGroup")
+	}
+
 }
