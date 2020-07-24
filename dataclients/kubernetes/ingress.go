@@ -128,7 +128,7 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 	case PathRegexp:
 		r.PathRegexps = []string{p}
 	default:
-		r.PathRegexps = []string{"^" + p}
+		r.PathRegexps = []string{"^(" + p + ")"}
 	}
 }
 
