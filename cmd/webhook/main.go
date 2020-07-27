@@ -36,6 +36,9 @@ func main() {
 	handler.Handle("/routegroups", admission.Handler(rgAdmitter))
 	handler.Handle("/metrics", promhttp.Handler())
 	handler.HandleFunc("/healthz", healthCheck)
+
+	// One can use generate_cert.go in https://golang.org/pkg/crypto/tls
+	// to generate cert.pem and key.pem.
 	serve(address, certFile, keyFile, handler)
 }
 
