@@ -45,7 +45,7 @@ func main() {
 func healthCheck(writer http.ResponseWriter, _ *http.Request) {
 	writer.WriteHeader(http.StatusOK)
 	if _, err := writer.Write([]byte("ok")); err != nil {
-		log.Error("failed to write health check: %v", err)
+		log.Errorf("failed to write health check: %v", err)
 	}
 
 }
