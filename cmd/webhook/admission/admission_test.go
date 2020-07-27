@@ -12,7 +12,6 @@ import (
 	zv1 "github.com/szuecs/routegroup-client/apis/zalando.org/v1"
 	admissionsv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
@@ -63,7 +62,7 @@ func TestUnsupportedContentType(t *testing.T) {
 
 func TestRequestDecoding(t *testing.T) {
 	expectedRg := zv1.RouteGroup{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "r1",
 			Namespace: "n1",
 		},
@@ -161,7 +160,7 @@ func TestResponseEncoding(t *testing.T) {
 
 func TestAdmitRouteGroups(t *testing.T) {
 	rg := zv1.RouteGroup{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "r1",
 			Namespace: "n1",
 		},
