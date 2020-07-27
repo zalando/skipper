@@ -187,7 +187,7 @@ func TestAdmitRouteGroups(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
-	rgAdm := routegroupAdmitter{}
+	rgAdm := RouteGroupAdmitter{}
 
 	h := Handler(rgAdm)
 	h(w, req)

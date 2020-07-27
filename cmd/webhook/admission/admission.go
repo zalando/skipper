@@ -13,14 +13,14 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
-type admitter interface {
+type Admitter interface {
 	Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error)
 }
 
-type routegroupAdmitter struct {
+type RouteGroupAdmitter struct {
 }
 
-func (r routegroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
+func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
 	rgItem := definitions.RouteGroupItem{}
 	err := json.Unmarshal(req.Object.Raw, &rgItem)
 	if err != nil {
@@ -51,7 +51,7 @@ func (r routegroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 	}, nil
 }
 
-func Handler(admitter admitter) http.HandlerFunc {
+func Handler(admitter Admitter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" {
 			// TODO: inc prometheus invalid req counter
