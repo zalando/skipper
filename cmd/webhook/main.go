@@ -49,7 +49,7 @@ func (c *config) parse() {
 }
 
 func main() {
-	var cfg config
+	var cfg = &config{}
 	cfg.parse()
 
 	rgAdmitter := admission.RouteGroupAdmitter{}
@@ -71,7 +71,7 @@ func healthCheck(writer http.ResponseWriter, _ *http.Request) {
 
 }
 
-func serve(cfg config, handler http.Handler) {
+func serve(cfg *config, handler http.Handler) {
 	server := &http.Server{
 		Addr:    cfg.address,
 		Handler: handler,
