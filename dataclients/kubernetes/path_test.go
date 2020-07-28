@@ -167,7 +167,10 @@ func TestPathMatchingModes(t *testing.T) {
 
 	t.Run("additional exact path from annotation", func(t *testing.T) {
 		extendableModes := []PathMode{KubernetesIngressMode, PathRegexp}
-
+		expectedRouteRegex := map[PathMode]string{
+			KubernetesIngressMode: "^(/foo)",
+			PathRegexp:            "^/foo",
+		}
 		for _, mode := range extendableModes {
 			t.Run(mode.String(), func(t *testing.T) {
 				prx := "/foo"
@@ -186,7 +189,7 @@ func TestPathMatchingModes(t *testing.T) {
 					t.Fatal("route with path regexp not found")
 				}
 
-				if routeWithRx.PathRegexps[0] != "^/foo" {
+				if routeWithRx.PathRegexps[0] != expectedRouteRegex[mode] {
 					t.Error("invalid path regexp value", routeWithRx.PathRegexps[0])
 				}
 
@@ -204,6 +207,10 @@ func TestPathMatchingModes(t *testing.T) {
 
 	t.Run("additional path prefix from annotation", func(t *testing.T) {
 		extendableModes := []PathMode{KubernetesIngressMode, PathRegexp}
+		expectedRouteRegex := map[PathMode]string{
+			KubernetesIngressMode: "^(/foo)",
+			PathRegexp:            "^/foo",
+		}
 
 		for _, mode := range extendableModes {
 			t.Run(mode.String(), func(t *testing.T) {
@@ -223,7 +230,7 @@ func TestPathMatchingModes(t *testing.T) {
 					t.Fatal("route with path regexp not found")
 				}
 
-				if routeWithRx.PathRegexps[0] != "^/foo" {
+				if routeWithRx.PathRegexps[0] != expectedRouteRegex[mode] {
 					t.Error("invalid path regexp value", routeWithRx.PathRegexps[0])
 				}
 
