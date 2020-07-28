@@ -171,6 +171,7 @@ func TestAdmitRouteGroups(t *testing.T) {
 
 	review := &admissionsv1.AdmissionReview{
 		Request: &admissionsv1.AdmissionRequest{
+			UID:       "uid",
 			Name:      "r1",
 			Namespace: "n1",
 			Object:    runtime.RawExtension{Raw: rgB},
@@ -198,5 +199,8 @@ func TestAdmitRouteGroups(t *testing.T) {
 	assert.NoError(t, err, "could not read response")
 	err = json.Unmarshal(rb, &respReview)
 	assert.NoError(t, err)
+
+	// Request Response UID should match
+	assert.Equal(t, review.Request.UID, respReview.Response.UID)
 
 }

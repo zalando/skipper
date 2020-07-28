@@ -27,6 +27,7 @@ func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 		emsg := fmt.Errorf("could not parse RouteGroup, %w", err)
 		log.Error(emsg)
 		return &admissionsv1.AdmissionResponse{
+			UID:     req.UID,
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: emsg.Error(),
@@ -39,6 +40,7 @@ func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 		emsg := fmt.Errorf("could not validate RouteGroup, %w", err)
 		log.Error(emsg)
 		return &admissionsv1.AdmissionResponse{
+			UID:     req.UID,
 			Allowed: false,
 			Result: &metav1.Status{
 				Message: emsg.Error(),
@@ -47,6 +49,7 @@ func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 	}
 
 	return &admissionsv1.AdmissionResponse{
+		UID:     req.UID,
 		Allowed: true,
 	}, nil
 }
@@ -87,7 +90,6 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			return
 		}
 
-		// TODO: match UID of requests with response
 		writeResponse(w, admResp)
 	}
 }
