@@ -60,7 +60,7 @@ func main() {
 
 	// One can use generate_cert.go in https://golang.org/pkg/crypto/tls
 	// to generate cert.pem and key.pem.
-	serve(cfg.address, cfg.certFile, cfg.keyFile, handler)
+	serve(cfg, handler)
 }
 
 func healthCheck(writer http.ResponseWriter, _ *http.Request) {
@@ -71,13 +71,13 @@ func healthCheck(writer http.ResponseWriter, _ *http.Request) {
 
 }
 
-func serve(address, certFile, keyFile string, handler http.Handler) {
+func serve(cfg config, handler http.Handler) {
 	server := &http.Server{
-		Addr:    address,
+		Addr:    cfg.address,
 		Handler: handler,
 	}
 
-	log.Infof("Starting server on %s", address)
+	log.Infof("Starting server on %s", cfg.address)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
@@ -87,8 +87,8 @@ func serve(address, certFile, keyFile string, handler http.Handler) {
 	}()
 
 	var err error
-	if certFile != "" && keyFile != "" {
-		err = server.ListenAndServeTLS(certFile, keyFile)
+	if cfg.certFile != "" && cfg.keyFile != "" {
+		err = server.ListenAndServeTLS(cfg.certFile, cfg.keyFile)
 	} else {
 		// support non-HTTPS for local testing
 		err = server.ListenAndServe()
