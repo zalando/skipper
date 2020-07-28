@@ -117,7 +117,7 @@ func TestPathMatchingModes(t *testing.T) {
 			t.Fatal("route with path regexp not found")
 		}
 
-		if routeWithRx.PathRegexps[0] != "^/foo" {
+		if routeWithRx.PathRegexps[0] != "^(/foo)" {
 			t.Error("invalid path regexp value", routeWithRx.PathRegexps[0])
 		}
 	})
@@ -186,7 +186,7 @@ func TestPathMatchingModes(t *testing.T) {
 					t.Fatal("route with path regexp not found")
 				}
 
-				if routeWithRx.PathRegexps[0] != "^/foo" {
+				if routeWithRx.PathRegexps[0] != "^(/foo)" {
 					t.Error("invalid path regexp value", routeWithRx.PathRegexps[0])
 				}
 
@@ -223,7 +223,7 @@ func TestPathMatchingModes(t *testing.T) {
 					t.Fatal("route with path regexp not found")
 				}
 
-				if routeWithRx.PathRegexps[0] != "^/foo" {
+				if routeWithRx.PathRegexps[0] != "^(/foo)" {
 					t.Error("invalid path regexp value", routeWithRx.PathRegexps[0])
 				}
 
