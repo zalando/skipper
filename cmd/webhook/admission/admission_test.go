@@ -158,6 +158,7 @@ func TestResponseEncoding(t *testing.T) {
 	}
 }
 
+// Test RouteGroupAdmitter.Admit
 func TestAdmitRouteGroups(t *testing.T) {
 	rg := zv1.RouteGroup{
 		ObjectMeta: metav1.ObjectMeta{
