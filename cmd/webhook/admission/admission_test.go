@@ -22,6 +22,10 @@ type testAdmitter struct {
 	validate func(response *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error)
 }
 
+func (t testAdmitter) Name() string {
+	return "testRouteGroup"
+}
+
 func (t testAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
 	return t.validate(req)
 }
