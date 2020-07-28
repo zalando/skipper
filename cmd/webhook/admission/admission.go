@@ -89,13 +89,13 @@ func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 
 	err = definitions.ValidateRouteGroup(&rgItem)
 	if err != nil {
-		emsg := fmt.Errorf("could not validate RouteGroup, %w", err)
+		emsg := fmt.Sprintf("could not validate RouteGroup, %v", err)
 		log.Error(emsg)
 		return &admissionsv1.AdmissionResponse{
 			UID:     req.UID,
 			Allowed: false,
 			Result: &metav1.Status{
-				Message: emsg.Error(),
+				Message: emsg,
 			},
 		}, nil
 	}
