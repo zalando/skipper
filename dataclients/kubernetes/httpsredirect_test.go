@@ -318,12 +318,12 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 		kube_namespace1__ingress2______: *-> "http://5.6.7.8:8181";
 		kube_namespace1__ingress1__www_example_org___foo__service1:
 			Host("^www[.]example[.]org$") &&
-			PathRegexp("^/foo")
+			PathRegexp("^(/foo)")
 			-> "http://1.2.3.4:8080";
 		kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect:
 			Header("X-Forwarded-Proto", "http") &&
 			Host("^www[.]example[.]org$") &&
-			PathRegexp("^/foo") &&
+			PathRegexp("^(/foo)") &&
 
 			// increase priority of the redirect routes.
 			Weight(1000)
@@ -344,7 +344,7 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 			-> <shunt>;
 		kube_namespace1__ingress2__api_example_org___bar__service2:
 			Host("^api[.]example[.]org$") &&
-			PathRegexp("^/bar")
+			PathRegexp("^(/bar)")
 			-> "http://5.6.7.8:8181";
 		kube___catchall__api_example_org____:
 			Host("^api[.]example[.]org$")
@@ -368,7 +368,7 @@ func diffRoutes(t *testing.T, expect []*eskip.Route, actual []*eskip.Route) {
 	sort.Sort(sortRoutes(actual))
 	sort.Sort(sortRoutes(expect))
 
-	diff := cmp.Diff(actual, expect)
+	diff := cmp.Diff(expect, actual)
 	if diff != "" {
 		t.Error(diff)
 	}
