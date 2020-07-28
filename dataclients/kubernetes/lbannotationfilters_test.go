@@ -87,7 +87,7 @@ func TestAnnotationFiltersInLBRoutes(t *testing.T) {
 		// path rule, target 1:
 		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
-		  && PathRegexp(/^\/test1/)
+		  && PathRegexp(/^(\/test1)/)
 		  -> setPath("/foo")
 		  -> <roundRobin, "http://42.0.1.0:8080", "http://42.1.0.1:8080">;
 
@@ -171,7 +171,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 		// path rule, target 1:
 		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
-		  && PathRegexp(/^\/test1/)
+		  && PathRegexp(/^(\/test1)/)
 		  -> setPath("/foo")
 		  -> <random, "http://42.0.1.0:8080", "http://42.1.0.1:8080">;
 
@@ -208,7 +208,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 		// path rule, target 1:
 		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
-		  && PathRegexp(/^\/test1/)
+		  && PathRegexp(/^(\/test1)/)
 		  -> setPath("/foo")
 		  -> <consistentHash, "http://42.0.1.0:8080", "http://42.1.0.1:8080">;
 
@@ -245,7 +245,7 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 		// path rule, target 1:
 		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
-		  && PathRegexp(/^\/test1/)
+		  && PathRegexp(/^(\/test1)/)
 		  -> setPath("/foo")
 		  -> <roundRobin, "http://42.0.1.0:8080", "http://42.1.0.1:8080">;
 
