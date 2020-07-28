@@ -208,3 +208,21 @@ func TestAdmitRouteGroups(t *testing.T) {
 	assert.Equal(t, review.Request.UID, respReview.Response.UID)
 
 }
+
+func TestExtractName(t *testing.T) {
+	rg := zv1.RouteGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "r2",
+			Namespace: "n1",
+		},
+	}
+
+	rb, err := json.Marshal(rg)
+	assert.NoError(t, err)
+
+	request := &admissionsv1.AdmissionRequest{
+		Object: runtime.RawExtension{Raw: rb},
+	}
+	name := extractName(request)
+	assert.Equal(t, rg.Name, name)
+}

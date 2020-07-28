@@ -14,21 +14,43 @@ import (
 )
 
 const (
-	defaultAddress = ":8080"
+	defaultHTTPSAddress = ":9443"
+	defaultHTTPAddress  = ":9080"
 )
 
-func main() {
-	var (
-		certFile string
-		keyFile  string
-		address  string
-	)
+type config struct {
+	debug    bool
+	certFile string
+	keyFile  string
+	address  string
+}
 
-	kingpin.Flag("tls-cert-file", "File containing the certificate for HTTPS").Required().Envar("CERT_FILE").StringVar(&certFile)
-	kingpin.Flag("tls-key-file", "File containing the private key for HTTPS").Required().Envar("KEY_FILE").StringVar(&keyFile)
-	kingpin.Flag("address", "The address to listen on").Default(defaultAddress).StringVar(&address)
+func (c *config) parse() {
+	kingpin.Flag("debug", "Enable debug logging").BoolVar(&c.debug)
+	kingpin.Flag("tls-cert-file", "File containing the certificate for HTTPS").Envar("CERT_FILE").StringVar(&c.certFile)
+	kingpin.Flag("tls-key-file", "File containing the private key for HTTPS").Envar("KEY_FILE").StringVar(&c.keyFile)
+	kingpin.Flag("address", "The address to listen on").Default(defaultHTTPSAddress).StringVar(&c.address)
 
 	kingpin.Parse()
+
+	if (c.certFile != "" || c.keyFile != "") && !(c.certFile != "" && c.keyFile != "") {
+		log.Fatal("config parse error: both of TLS cert & key must be provided or neither (for testing )")
+		return
+	}
+
+	// support non-HTTPS for local testing
+	if (c.certFile == "" && c.keyFile == "") && c.address == defaultHTTPSAddress {
+		c.address = defaultHTTPAddress
+	}
+
+	if c.debug {
+		log.SetLevel(log.DebugLevel)
+	}
+}
+
+func main() {
+	var cfg config
+	cfg.parse()
 
 	rgAdmitter := admission.RouteGroupAdmitter{}
 	handler := http.NewServeMux()
@@ -38,7 +60,7 @@ func main() {
 
 	// One can use generate_cert.go in https://golang.org/pkg/crypto/tls
 	// to generate cert.pem and key.pem.
-	serve(address, certFile, keyFile, handler)
+	serve(cfg.address, cfg.certFile, cfg.keyFile, handler)
 }
 
 func healthCheck(writer http.ResponseWriter, _ *http.Request) {
@@ -64,7 +86,13 @@ func serve(address, certFile, keyFile string, handler http.Handler) {
 		server.Shutdown(context.Background())
 	}()
 
-	err := server.ListenAndServeTLS(certFile, keyFile)
+	var err error
+	if certFile != "" && keyFile != "" {
+		err = server.ListenAndServeTLS(certFile, keyFile)
+	} else {
+		// support non-HTTPS for local testing
+		err = server.ListenAndServe()
+	}
 	if err != nil {
 		if err != http.ErrServerClosed {
 			log.Fatal(err)

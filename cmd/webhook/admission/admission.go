@@ -76,13 +76,13 @@ func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 	rgItem := definitions.RouteGroupItem{}
 	err := json.Unmarshal(req.Object.Raw, &rgItem)
 	if err != nil {
-		emsg := fmt.Errorf("could not parse RouteGroup, %w", err)
+		emsg := fmt.Sprintf("could not parse RouteGroup, %w", err)
 		log.Error(emsg)
 		return &admissionsv1.AdmissionResponse{
 			UID:     req.UID,
 			Allowed: false,
 			Result: &metav1.Status{
-				Message: emsg.Error(),
+				Message: emsg,
 			},
 		}, nil
 	}
@@ -114,6 +114,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 		if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" {
 			invalidRequests.WithLabelValues(admitterName).Inc()
 			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 
 		body, err := ioutil.ReadAll(r.Body)
@@ -168,7 +169,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			return
 		}
 
-		log.Infof("Allowed %s", operationInfo)
+		log.Debugf("Allowed %s", operationInfo)
 		approvedRequests.With(labelValues).Inc()
 		writeResponse(w, admResp)
 	}
@@ -181,6 +182,7 @@ func writeResponse(writer http.ResponseWriter, response *admissionsv1.AdmissionR
 	if err != nil {
 		log.Errorf("unable to serialize response: %v", err)
 		writer.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	if _, err := writer.Write(resp); err != nil {
 		log.Errorf("unable to write response: %v", err)
