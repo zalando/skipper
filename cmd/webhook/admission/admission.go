@@ -76,7 +76,7 @@ func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 	rgItem := definitions.RouteGroupItem{}
 	err := json.Unmarshal(req.Object.Raw, &rgItem)
 	if err != nil {
-		emsg := fmt.Sprintf("could not parse RouteGroup, %w", err)
+		emsg := fmt.Sprintf("could not parse RouteGroup, %v", err)
 		log.Error(emsg)
 		return &admissionsv1.AdmissionResponse{
 			UID:     req.UID,
