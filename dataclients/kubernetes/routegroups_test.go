@@ -37,3 +37,7 @@ func TestRouteGroupDefaultFilters(t *testing.T) {
 func TestRouteGroupWithIngress(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/with-ingress")
 }
+
+func TestRouteGroupTracingTag(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/tracing-tag")
+}

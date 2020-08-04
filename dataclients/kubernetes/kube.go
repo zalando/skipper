@@ -158,6 +158,10 @@ type Options struct {
 
 	// If the OriginMarker should be added as a filter
 	OriginMarker bool
+
+	// If the OpenTracing tag containing RouteGroup backend name
+	// (using tracingTag filter) should be added to all routes
+	BackendNameTracingTag bool
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -176,6 +180,7 @@ type Client struct {
 	quit                   chan struct{}
 	defaultFiltersDir      string
 	originMarker           bool
+	BackendNameTracingTag  bool
 }
 
 // New creates and initializes a Kubernetes DataClient.
@@ -251,6 +256,7 @@ func New(o Options) (*Client, error) {
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
 		originMarker:           o.OriginMarker,
+		BackendNameTracingTag:  o.BackendNameTracingTag,
 	}, nil
 }
 
