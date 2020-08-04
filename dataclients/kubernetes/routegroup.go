@@ -12,6 +12,8 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 )
 
+const tracingSkipperBackendNameTag = "skipper.backend_name"
+
 // TODO:
 // - consider catchall for east-west routes
 
@@ -302,6 +304,17 @@ func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Ro
 	return nil
 }
 
+func appendFilter(f []*eskip.Filter, name string, args ...interface{}) []*eskip.Filter {
+	return append(f, &eskip.Filter{
+		Name: name,
+		Args: args,
+	})
+}
+
+func applyBackendFilters(backend *definitions.SkipperBackend, r *eskip.Route) {
+	appendFilter(r.Filters, "tracingTag", tracingSkipperBackendNameTag, backend.Name)
+}
+
 func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
 	r.BackendType = backend.Type
 	switch r.BackendType {
@@ -318,6 +331,8 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 			r.LBAlgorithm = backend.Algorithm.String()
 		}
 	}
+
+	applyBackendFilters(backend, r)
 
 	return nil
 }

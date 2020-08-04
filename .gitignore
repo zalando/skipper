@@ -1,5 +1,6 @@
 .*.sw?
 bin
+.bin
 pkg
 src/github.com/mailgun
 default.etcd
