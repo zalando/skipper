@@ -312,7 +312,7 @@ func appendFilter(f []*eskip.Filter, name string, args ...interface{}) []*eskip.
 }
 
 func applyBackendFilters(backend *definitions.SkipperBackend, r *eskip.Route) {
-	appendFilter(r.Filters, "tracingTag", tracingSkipperBackendNameTag, backend.Name)
+	r.Filters = appendFilter(r.Filters, "tracingTag", tracingSkipperBackendNameTag, backend.Name)
 }
 
 func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
