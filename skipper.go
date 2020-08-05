@@ -527,6 +527,10 @@ type Options struct {
 	// times when response headers & payload are streamed to the client
 	OpenTracingLogStreamEvents bool
 
+	// OpenTracingBackendNameTag enables an additional tracing tag containing a backend name
+	// for a route when it's available (e.g. for RouteGroups)
+	OpenTracingBackendNameTag bool
+
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
 	// PluginDirs defines the directories to load plugins from
@@ -720,6 +724,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			KubernetesEastWestDomain:   o.KubernetesEastWestDomain,
 			DefaultFiltersDir:          o.DefaultFiltersDir,
 			OriginMarker:               o.EnableRouteCreationMetrics,
+			BackendNameTracingTag:      o.OpenTracingBackendNameTag,
 		})
 		if err != nil {
 			return nil, err
