@@ -32,10 +32,11 @@ type fixtureSet struct {
 }
 
 type kubeOptionsParser struct {
-	EastWest          bool   `yaml:"eastWest"`
-	EastWestDomain    string `yaml:"eastWestDomain"`
-	HTTPSRedirect     bool   `yaml:"httpsRedirect"`
-	HTTPSRedirectCode int    `yaml:"httpsRedirectCode"`
+	EastWest              bool   `yaml:"eastWest"`
+	EastWestDomain        string `yaml:"eastWestDomain"`
+	HTTPSRedirect         bool   `yaml:"httpsRedirect"`
+	HTTPSRedirectCode     int    `yaml:"httpsRedirectCode"`
+	BackendNameTracingTag bool   `yaml:"backendNameTracingTag"`
 }
 
 func baseNoExt(n string) string {
@@ -186,6 +187,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.KubernetesEastWestDomain = kop.EastWestDomain
 		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
+		o.BackendNameTracingTag = kop.BackendNameTracingTag
 	}
 
 	o.KubernetesURL = s.URL

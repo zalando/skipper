@@ -12,6 +12,8 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 )
 
+const backendNameTracingTagName = "skipper.backend_name"
+
 // TODO:
 // - consider catchall for east-west routes
 
@@ -33,6 +35,7 @@ type routeGroupContext struct {
 	httpsRedirectCode     int
 	backendsByName        map[string]*definitions.SkipperBackend
 	defaultBackendTraffic map[string]*calculatedTraffic
+	backendNameTracingTag bool
 }
 
 type routeContext struct {
@@ -302,6 +305,13 @@ func applyDefaultFilters(ctx *routeGroupContext, serviceName string, r *eskip.Ro
 	return nil
 }
 
+func appendFilter(f []*eskip.Filter, name string, args ...interface{}) []*eskip.Filter {
+	return append(f, &eskip.Filter{
+		Name: name,
+		Args: args,
+	})
+}
+
 func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
 	r.BackendType = backend.Type
 	switch r.BackendType {
@@ -317,6 +327,10 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 		if backend.Algorithm != loadbalancer.None {
 			r.LBAlgorithm = backend.Algorithm.String()
 		}
+	}
+
+	if ctx.backendNameTracingTag {
+		r.Filters = appendFilter(r.Filters, "tracingTag", backendNameTracingTagName, backend.Name)
 	}
 
 	return nil
@@ -517,18 +531,19 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 	for _, rg := range s.routeGroups {
 		hosts := rg.Spec.UniqueHosts()
 		ctx := &routeGroupContext{
-			clusterState:         s,
-			defaultFilters:       df,
-			routeGroup:           rg,
-			hosts:                hosts,
-			hostRx:               createHostRx(hosts...),
-			hostRoutes:           make(map[string][]*eskip.Route),
-			hasEastWestHost:      hasEastWestHost(r.options.KubernetesEastWestDomain, hosts),
-			eastWestEnabled:      r.options.KubernetesEnableEastWest,
-			eastWestDomain:       r.options.KubernetesEastWestDomain,
-			provideHTTPSRedirect: r.options.ProvideHTTPSRedirect,
-			httpsRedirectCode:    r.options.HTTPSRedirectCode,
-			backendsByName:       mapBackends(rg.Spec.Backends),
+			clusterState:          s,
+			defaultFilters:        df,
+			routeGroup:            rg,
+			hosts:                 hosts,
+			hostRx:                createHostRx(hosts...),
+			hostRoutes:            make(map[string][]*eskip.Route),
+			hasEastWestHost:       hasEastWestHost(r.options.KubernetesEastWestDomain, hosts),
+			eastWestEnabled:       r.options.KubernetesEnableEastWest,
+			eastWestDomain:        r.options.KubernetesEastWestDomain,
+			provideHTTPSRedirect:  r.options.ProvideHTTPSRedirect,
+			httpsRedirectCode:     r.options.HTTPSRedirectCode,
+			backendsByName:        mapBackends(rg.Spec.Backends),
+			backendNameTracingTag: r.options.BackendNameTracingTag,
 		}
 
 		ri, err := transformRouteGroup(ctx)

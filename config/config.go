@@ -69,6 +69,7 @@ type Config struct {
 	OpenTracingExcludedProxyTags        string    `yaml:"opentracing-excluded-proxy-tags"`
 	OpentracingLogFilterLifecycleEvents bool      `yaml:"opentracing-log-filter-lifecycle-events"`
 	OpentracingLogStreamEvents          bool      `yaml:"opentracing-log-stream-events"`
+	OpentracingBackendNameTag           bool      `yaml:"opentracing-backend-name-tag"`
 	MetricsListener                     string    `yaml:"metrics-listener"`
 	MetricsPrefix                       string    `yaml:"metrics-prefix"`
 	EnableProfile                       bool      `yaml:"enable-profile"`
@@ -280,6 +281,7 @@ const (
 	openTracingExcludedProxyTagsUsage        = "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings."
 	opentracingLogFilterLifecycleEventsUsage = "enables the logs for request & response filters' lifecycle events that are marking start & end times."
 	opentracingLogStreamEventsUsage          = "enables the logs for events marking the times response headers & payload are streamed to the client"
+	opentracingBackendNameTag                = "enables an additional tracing tag that contains a backend name for a route when it's available  (e.g. for RouteGroups) (default false)"
 	metricsListenerUsage                     = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
 	metricsPrefixUsage                       = "allows setting a custom path prefix for metrics export"
 	enableProfileUsage                       = "enable profile information on the metrics endpoint with path /pprof"
@@ -463,6 +465,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.OpenTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", openTracingExcludedProxyTagsUsage)
 	flag.BoolVar(&cfg.OpentracingLogFilterLifecycleEvents, "opentracing-log-filter-lifecycle-events", true, opentracingLogFilterLifecycleEventsUsage)
 	flag.BoolVar(&cfg.OpentracingLogStreamEvents, "opentracing-log-stream-events", true, opentracingLogStreamEventsUsage)
+	flag.BoolVar(&cfg.OpentracingBackendNameTag, "opentracing-backend-name-tag", false, opentracingBackendNameTag)
 	flag.StringVar(&cfg.MetricsListener, "metrics-listener", defaultMetricsListener, metricsListenerUsage)
 	flag.StringVar(&cfg.MetricsPrefix, "metrics-prefix", defaultMetricsPrefix, metricsPrefixUsage)
 	flag.BoolVar(&cfg.EnableProfile, "enable-profile", false, enableProfileUsage)
