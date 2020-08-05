@@ -180,7 +180,6 @@ type Client struct {
 	quit                   chan struct{}
 	defaultFiltersDir      string
 	originMarker           bool
-	BackendNameTracingTag  bool
 }
 
 // New creates and initializes a Kubernetes DataClient.
@@ -256,7 +255,6 @@ func New(o Options) (*Client, error) {
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
 		originMarker:           o.OriginMarker,
-		BackendNameTracingTag:  o.BackendNameTracingTag,
 	}, nil
 }
 
