@@ -2,10 +2,12 @@ package logging
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -39,5 +41,39 @@ func TestCustomOutputForAccessLog(t *testing.T) {
 	LogAccess(&AccessEntry{StatusCode: http.StatusTeapot}, nil)
 	if !strings.Contains(buf.String(), strconv.Itoa(http.StatusTeapot)) {
 		t.Error("failed to use custom access log output")
+	}
+}
+
+func TestApplicationLogJSONEnabled(t *testing.T) {
+	var buf bytes.Buffer
+	Init(Options{ApplicationLogOutput: &buf, ApplicationLogJSONEnabled: true})
+	msg := "Hello, world!"
+	log.Infof(msg)
+
+	parsed := make(map[string]interface{})
+	err := json.Unmarshal(buf.Bytes(), &parsed)
+	if err != nil {
+		t.Errorf("failed to parse json log: %v", err)
+	}
+
+	if got := parsed["level"]; got != "info" {
+		t.Errorf("invalid level, expected: info, got: %v", got)
+	}
+
+	if got := parsed["msg"]; got != msg {
+		t.Errorf("invalid msg, expected: %s, got: %v", msg, got)
+	}
+
+	if got, ok := parsed["time"]; ok {
+		_, err := time.Parse(time.RFC3339, got.(string))
+		if err != nil {
+			t.Errorf("failed to parse time: %v", err)
+		}
+	} else {
+		t.Error("time is missing")
+	}
+
+	if len(parsed) != 3 {
+		t.Errorf("unexpected field count")
 	}
 }
