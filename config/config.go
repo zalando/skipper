@@ -93,6 +93,7 @@ type Config struct {
 	ApplicationLogLevel                 log.Level `yaml:"-"`
 	ApplicationLogLevelString           string    `yaml:"application-log-level"`
 	ApplicationLogPrefix                string    `yaml:"application-log-prefix"`
+	ApplicationLogJSONEnabled           bool      `yaml:"application-log-json-enabled"`
 	AccessLog                           string    `yaml:"access-log"`
 	AccessLogDisabled                   bool      `yaml:"access-log-disabled"`
 	AccessLogJSONEnabled                bool      `yaml:"access-log-json-enabled"`
@@ -304,6 +305,7 @@ const (
 	applicationLogUsage                      = "output file for the application log. When not set, /dev/stderr is used"
 	applicationLogLevelUsage                 = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
 	applicationLogPrefixUsage                = "prefix for each log entry"
+	applicationLogJSONEnabledUsage           = "when this flag is set, log in JSON format is used"
 	accessLogUsage                           = "output file for the access log, When not set, /dev/stderr is used"
 	accessLogDisabledUsage                   = "when this flag is set, no access log is printed"
 	accessLogJSONEnabledUsage                = "when this flag is set, log in JSON format is used"
@@ -487,6 +489,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.ApplicationLog, "application-log", "", applicationLogUsage)
 	flag.StringVar(&cfg.ApplicationLogLevelString, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
 	flag.StringVar(&cfg.ApplicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
+	flag.BoolVar(&cfg.ApplicationLogJSONEnabled, "application-log-json-enabled", false, applicationLogJSONEnabledUsage)
 	flag.StringVar(&cfg.AccessLog, "access-log", "", accessLogUsage)
 	flag.BoolVar(&cfg.AccessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
 	flag.BoolVar(&cfg.AccessLogJSONEnabled, "access-log-json-enabled", false, accessLogJSONEnabledUsage)
@@ -729,6 +732,7 @@ func (c *Config) ToOptions() skipper.Options {
 		DisableMetricsCompatibilityDefaults: c.DisableMetricsCompat,
 		ApplicationLogOutput:                c.ApplicationLog,
 		ApplicationLogPrefix:                c.ApplicationLogPrefix,
+		ApplicationLogJSONEnabled:           c.ApplicationLogJSONEnabled,
 		AccessLogOutput:                     c.AccessLog,
 		AccessLogDisabled:                   c.AccessLogDisabled,
 		AccessLogJSONEnabled:                c.AccessLogJSONEnabled,

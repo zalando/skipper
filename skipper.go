@@ -437,6 +437,9 @@ type Options struct {
 	// Application log prefix. Default value: "[APP]".
 	ApplicationLogPrefix string
 
+	// Enables logs in JSON format
+	ApplicationLogJSONEnabled bool
+
 	// Output file for the access log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
@@ -771,11 +774,12 @@ func initLog(o Options) error {
 	}
 
 	logging.Init(logging.Options{
-		ApplicationLogPrefix: o.ApplicationLogPrefix,
-		ApplicationLogOutput: logOutput,
-		AccessLogOutput:      accessLogOutput,
-		AccessLogJSONEnabled: o.AccessLogJSONEnabled,
-		AccessLogStripQuery:  o.AccessLogStripQuery,
+		ApplicationLogPrefix:      o.ApplicationLogPrefix,
+		ApplicationLogOutput:      logOutput,
+		ApplicationLogJSONEnabled: o.ApplicationLogJSONEnabled,
+		AccessLogOutput:           accessLogOutput,
+		AccessLogJSONEnabled:      o.AccessLogJSONEnabled,
+		AccessLogStripQuery:       o.AccessLogStripQuery,
 	})
 
 	return nil

@@ -24,6 +24,9 @@ type Options struct {
 	// os.Stderr is used.
 	ApplicationLogOutput io.Writer
 
+	// When set, log in JSON format is used
+	ApplicationLogJSONEnabled bool
+
 	// Output for the access log entries, when nil, os.Stderr is
 	// used.
 	AccessLogOutput io.Writer
@@ -45,14 +48,15 @@ func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return append([]byte(f.prefix), b...), nil
 }
 
-func initApplicationLog(prefix string, output io.Writer) {
-	if prefix != "" {
-		logrus.SetFormatter(&prefixFormatter{
-			prefix, logrus.StandardLogger().Formatter})
+func initApplicationLog(o Options) {
+	if o.ApplicationLogJSONEnabled {
+		logrus.SetFormatter(&logrus.JSONFormatter{})
+	} else if o.ApplicationLogPrefix != "" {
+		logrus.SetFormatter(&prefixFormatter{o.ApplicationLogPrefix, logrus.StandardLogger().Formatter})
 	}
 
-	if output != nil {
-		logrus.SetOutput(output)
+	if o.ApplicationLogOutput != nil {
+		logrus.SetOutput(o.ApplicationLogOutput)
 	}
 }
 
@@ -71,9 +75,7 @@ func initAccessLog(o Options) {
 
 // Initializes logging.
 func Init(o Options) {
-	if o.ApplicationLogPrefix != "" || o.ApplicationLogOutput != nil {
-		initApplicationLog(o.ApplicationLogPrefix, o.ApplicationLogOutput)
-	}
+	initApplicationLog(o)
 
 	if o.AccessLogOutput == nil {
 		o.AccessLogOutput = os.Stderr
