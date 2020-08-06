@@ -17,6 +17,7 @@ import (
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/circuit"
@@ -567,6 +568,11 @@ type Options struct {
 	// use the MetricsFlavours option.
 	EnablePrometheusMetrics bool
 
+	// An instance of a Prometheus registry. It allows registering and serving custom metrics when skipper is used as a
+	// library.
+	// A new registry is created if this option is nil.
+	PrometheusRegistry *prometheus.Registry
+
 	// MetricsFlavours sets the metrics storage and exposed format
 	// of metrics endpoints.
 	MetricsFlavours []string
@@ -982,6 +988,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		UseExpDecaySample:                  o.MetricsUseExpDecaySample,
 		HistogramBuckets:                   o.HistogramMetricBuckets,
 		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
+		PrometheusRegistry:                 o.PrometheusRegistry,
 	}
 
 	mtr := o.MetricsBackend

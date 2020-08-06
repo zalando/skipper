@@ -222,8 +222,12 @@ func NewPrometheus(opts Options) *Prometheus {
 		customGaugeM:               customGauge,
 		customHistogramM:           customHistogram,
 
+		registry: opts.PrometheusRegistry,
 		opts:     opts,
-		registry: prometheus.NewRegistry(),
+	}
+
+	if p.registry == nil {
+		p.registry = prometheus.NewRegistry()
 	}
 
 	// Register all metrics.

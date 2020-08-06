@@ -6,6 +6,8 @@ import (
 	"net/http/pprof"
 	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -152,6 +154,11 @@ type Options struct {
 	// EnableProfile exposes profiling information on /pprof of the
 	// metrics listener.
 	EnableProfile bool
+
+	// An instance of a Prometheus registry. It allows registering and serving custom metrics when skipper is used as a
+	// library.
+	// A new registry is created if this option is nil.
+	PrometheusRegistry *prometheus.Registry
 }
 
 var (
