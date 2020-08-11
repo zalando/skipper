@@ -170,6 +170,14 @@ func (m *MockMetrics) UpdateGauge(key string, value float64) {
 	})
 }
 
+func (*MockMetrics) IncGauge(key string) {
+	panic("implement me")
+}
+
+func (*MockMetrics) DecGauge(key string) {
+	panic("implement me")
+}
+
 func (m *MockMetrics) Gauge(key string) (v float64, ok bool) {
 	m.WithGauges(func(g map[string]float64) {
 		v, ok = g[key]
