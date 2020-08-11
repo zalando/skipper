@@ -114,6 +114,16 @@ func (c *CodaHale) UpdateGauge(key string, v float64) {
 	}
 }
 
+// Codahale supports decrements in counters but not on Gauges
+func (c *CodaHale) IncGauge(key string) {
+	c.incCounter(key, 1)
+}
+
+// Codahale supports decrements in counters but not on Gauges
+func (c *CodaHale) DecGauge(key string) {
+	c.decCounter(key, 1)
+}
+
 func (c *CodaHale) IncCounter(key string) {
 	c.incCounter(key, 1)
 }
@@ -198,11 +208,15 @@ func (c *CodaHale) getCounter(key string) metrics.Counter {
 }
 
 func (c *CodaHale) incCounter(key string, value int64) {
-	go func() {
-		if c := c.getCounter(key); c != nil {
-			c.Inc(value)
-		}
-	}()
+	if c := c.getCounter(key); c != nil {
+		c.Inc(value)
+	}
+}
+
+func (c *CodaHale) decCounter(key string, value int64) {
+	if c := c.getCounter(key); c != nil {
+		c.Dec(value)
+	}
 }
 
 func (c *CodaHale) IncRoutingFailures() {

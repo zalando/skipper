@@ -314,6 +314,16 @@ func (p *Prometheus) UpdateGauge(key string, v float64) {
 	p.customGaugeM.WithLabelValues(key).Set(v)
 }
 
+// IncGauge satisfies Metrics interface.
+func (p *Prometheus) IncGauge(key string) {
+	p.customGaugeM.WithLabelValues(key).Inc()
+}
+
+// DecGauge satisfies Metrics interface.
+func (p *Prometheus) DecGauge(key string) {
+	p.customGaugeM.WithLabelValues(key).Dec()
+}
+
 // MeasureRouteLookup satisfies Metrics interface.
 func (p *Prometheus) MeasureRouteLookup(start time.Time) {
 	t := p.sinceS(start)

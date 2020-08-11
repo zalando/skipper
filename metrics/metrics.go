@@ -76,6 +76,8 @@ type Metrics interface {
 	IncErrorsStreaming(routeId string)
 	RegisterHandler(path string, handler *http.ServeMux)
 	UpdateGauge(key string, value float64)
+	IncGauge(key string)
+	DecGauge(key string)
 }
 
 // Options for initializing metrics collection.

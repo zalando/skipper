@@ -39,6 +39,14 @@ func (a *All) UpdateGauge(key string, v float64) {
 	a.prometheus.UpdateGauge(key, v)
 	a.codaHale.UpdateGauge(key, v)
 }
+func (a *All) IncGauge(key string) {
+	a.prometheus.IncGauge(key)
+	a.codaHale.IncGauge(key)
+}
+func (a *All) DecGauge(key string) {
+	a.prometheus.DecGauge(key)
+	a.codaHale.DecGauge(key)
+}
 func (a *All) MeasureRouteLookup(start time.Time) {
 	a.prometheus.MeasureRouteLookup(start)
 	a.codaHale.MeasureRouteLookup(start)
