@@ -178,6 +178,8 @@ and detailed information on these topics:
 - Performance Considerations
 - [Rate Limiters](https://godoc.org/github.com/zalando/skipper/reference/filters/#ratelimit)
 - [Opentracing plugin](https://github.com/skipper-plugins/opentracing/) or extend [create your own](https://opensource.zalando.com/skipper/reference/plugins/#opentracing-plugins)
+- [Web Application Firewall Plugin](https://github.com/jptosso/coraza-waf/) WAF filter for your routes.
+
 
 #### 1 Minute Skipper introduction
 
