@@ -67,7 +67,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	// https://tools.ietf.org/html/rfc7230#section-6.7
 	// and https://tools.ietf.org/html/rfc6455 (websocket)
 	if (req.ProtoMajor <= 1 && req.ProtoMinor < 1) ||
-		strings.ToLower(req.Header.Get("Connection")) != "upgrade" ||
+		!isUpgradeRequest(req) ||
 		req.Header.Get("Upgrade") == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(http.StatusText(http.StatusBadRequest)))
