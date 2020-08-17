@@ -871,7 +871,14 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
 		return nil, &proxyError{err: err}
 	}
-
+	if ctx.route.BackendType == eskip.LBBackend && ctx.route.LBEndpoints != nil {
+		// TODO: check req.URL vs req.Host
+		endpoint := ctx.route.LBEndpoints.Get(req.URL.Host)
+		endpoint.Metrics.IncInflightRequest()
+		defer func() {
+			endpoint.Metrics.DecInflightRequest()
+		}()
+	}
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
 		if err = p.makeUpgradeRequest(ctx, req); err != nil {
 			return nil, &proxyError{err: err}

@@ -2,6 +2,7 @@ package loadbalancer_test
 
 import (
 	"fmt"
+	"github.com/zalando/skipper/routing"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy/proxytest"
-	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 )
 
@@ -40,16 +40,49 @@ func (c counter) String() string {
 	return fmt.Sprint(c.value())
 }
 
-func TestConcurrencySingleRoute(t *testing.T) {
+func TestConcurrencySingleRouteRoundRobin(t *testing.T) {
+	executeSingleRouteTest(t, "roundRobin", 5)
+}
+
+func TestConcurrencySingleRoutePowerOfChoices(t *testing.T) {
+	executeSingleRouteTest(t, "powerOfChoices",5)
+}
+
+func TestConcurrencySingleRouteRandom(t *testing.T) {
+	executeSingleRouteTest(t, "random", 7)
+}
+
+func TestConstantlyUpdatingRoutesRoundRobin(t *testing.T) {
+	executeConstantlyUpdatingRoutes(t, "roundRobin", 5)
+}
+func TestConstantlyUpdatingRoutesPowerOfChoices(t *testing.T) {
+	executeConstantlyUpdatingRoutes(t, "powerOfChoices", 7)
+}
+func TestConstantlyUpdatingRoutesRandom(t *testing.T) {
+	executeConstantlyUpdatingRoutes(t, "random", 9)
+}
+
+func TestConcurrencyMultipleRoutesRoundRobin(t *testing.T) {
+	executeConcurrencyMultipleRoutes(t, "roundRobin", 5)
+}
+
+func TestConcurrencyMultipleRoutesPowerOfChoices(t *testing.T) {
+	executeConcurrencyMultipleRoutes(t, "powerOfChoices", 7)
+}
+
+func TestConcurrencyMultipleRoutesRandom(t *testing.T) {
+	executeConcurrencyMultipleRoutes(t, "random", 9)
+}
+
+func executeSingleRouteTest(t *testing.T, algorithmName string, distributionToleranceRatio int) {
 	const (
 		backendCount     = 7
 		concurrency      = 32
 		repeatedRequests = 300
 
 		// 5% tolerated
-		distributionTolerance = concurrency * repeatedRequests / backendCount * 5 / 100
 	)
-
+	var distributionTolerance = concurrency * repeatedRequests / backendCount * distributionToleranceRatio / 100
 	startBackend := func(content []byte) *httptest.Server {
 		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write(content)
@@ -74,7 +107,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 		Id:          "foo",
 		BackendType: eskip.LBBackend,
 		LBEndpoints: backends,
-		LBAlgorithm: "roundRobin",
+		LBAlgorithm: algorithmName,
 	}
 
 	p := proxytest.New(builtin.MakeRegistry(), route)
@@ -137,7 +170,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 	checkDistribution(t, memberCounters, distributionTolerance)
 }
 
-func TestConstantlyUpdatingRoutes(t *testing.T) {
+func executeConstantlyUpdatingRoutes(t *testing.T, algorithmName string, distributionToleranceRatio int){
 	const (
 		backendCount     = 7
 		concurrency      = 32
@@ -148,9 +181,9 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 		clientRequestTimeout = routeUpdateTimeout
 
 		// 5% tolerated
-		distributionTolerance = concurrency * repeatedRequests / backendCount * 5 / 100
-	)
 
+	)
+	var distributionTolerance = concurrency * repeatedRequests / backendCount * distributionToleranceRatio / 100
 	startBackend := func(content []byte) *httptest.Server {
 		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write(content)
@@ -176,7 +209,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 			Id:          "foo",
 			BackendType: eskip.LBBackend,
 			LBEndpoints: backends,
-			LBAlgorithm: "roundRobin",
+			LBAlgorithm: algorithmName,
 		},
 	}
 
@@ -247,19 +280,19 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 	checkDistribution(t, memberCounters, distributionTolerance)
 }
 
-func TestConcurrencyMultipleRoutes(t *testing.T) {
+func executeConcurrencyMultipleRoutes(t *testing.T, algorithmName string, distributionToleranceRatio int) {
 	const (
 		backendCount     = 7
 		concurrency      = 32
 		repeatedRequests = 300
 
 		// 5% tolerated
-		distributionTolerance = concurrency * repeatedRequests / backendCount * 5 / 100
-	)
 
+	)
+	var distributionTolerance = concurrency * repeatedRequests / backendCount * distributionToleranceRatio / 100
 	startBackend := func(content []byte) *httptest.Server {
 		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(time.Duration(rand.Intn(100)) * time.Microsecond)
+			time.Sleep(time.Duration(rand.Intn(300)) * time.Microsecond)
 			w.Write(content)
 		}))
 	}
@@ -288,7 +321,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 			Path:        fmt.Sprintf("/%s", app),
 			BackendType: eskip.LBBackend,
 			LBEndpoints: backends[app],
-			LBAlgorithm: "roundRobin",
+			LBAlgorithm: algorithmName,
 		})
 	}
 

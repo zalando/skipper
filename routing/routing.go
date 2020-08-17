@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -140,11 +142,85 @@ type RouteFilter struct {
 	Index int
 }
 
+// Contains metrics used by LB algorithms
+type LBMetrics struct {
+	inflightRequests int
+	mutex sync.RWMutex
+}
+
+// Increment the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) IncInflightRequest() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.inflightRequests++
+}
+
+// Decrement the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) DecInflightRequest() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.inflightRequests--
+}
+
+// Decrement the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) GetInflightRequests() int{
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.inflightRequests
+}
+
 // LBEndpoint represents the scheme and the host of load balanced
 // backends.
 type LBEndpoint struct {
 	Scheme, Host string
+	Metrics *LBMetrics
 }
+
+type LBEndpointCollection struct {
+	endpoints []LBEndpoint
+	endpointsMap map[string]LBEndpoint
+}
+
+// LBEndpointCollection represents a collection of endpoints.
+// The underlying endpoints can be accessed using public getters and setters.
+// Internally endpoints are stored in two synchronized data structures, so
+// it is possible to reference them by index or key.
+func NewEndpointCollection(r *Route) (error, *LBEndpointCollection) {
+	collection := &LBEndpointCollection{
+		endpoints: make([]LBEndpoint, 0, len(r.Route.LBEndpoints)),
+		endpointsMap: map[string]LBEndpoint{},
+	}
+	for _, e := range r.Route.LBEndpoints {
+		eu, err := url.ParseRequestURI(e)
+		if err != nil {
+			return err, nil
+		}
+		collection.Set(eu.Host, LBEndpoint{Scheme: eu.Scheme, Host: eu.Host, Metrics: &LBMetrics{}})
+	}
+	return  nil, collection
+}
+
+// Stores an endpoint indexed by key
+func (e *LBEndpointCollection) Set(key string, item LBEndpoint) {
+	e.endpoints = append(e.endpoints, item)
+	e.endpointsMap[key] = item
+}
+
+// Returns an endpoint by key
+func (e *LBEndpointCollection) Get(key string) LBEndpoint {
+	return e.endpointsMap[key]
+}
+
+// Returns an endpoint by index
+func (e *LBEndpointCollection) At(index int) LBEndpoint {
+	return e.endpoints[index]
+}
+
+// Returns the length of the collection.
+func (e *LBEndpointCollection) Length() int {
+	return len(e.endpoints)
+}
+
 
 // LBAlgorithm implementations apply a load balancing algorithm
 // over the possible endpoints of a load balanced route.
@@ -194,11 +270,12 @@ type Route struct {
 
 	// LBEndpoints contain the possible endpoints of a load
 	// balanced route.
-	LBEndpoints []LBEndpoint
+	LBEndpoints *LBEndpointCollection
 
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
 	LBAlgorithm LBAlgorithm
+
 }
 
 // PostProcessor is an interface for custom post-processors applying changes

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"hash/fnv"
 	"math/rand"
-	"net/url"
 	"sync"
 	"time"
 
@@ -29,13 +28,17 @@ const (
 
 	// ConsistentHash indicates choice between the backends based on their hashed address.
 	ConsistentHash
+
+	// PowerOfChoices selects N random endpoints and picks the one with least outstanding requests from them.
+	PowerOfChoices
 )
 
 var (
-	algorithms = map[Algorithm]initializeAgorithm{
+	algorithms = map[Algorithm]initializeAlgorithm{
 		RoundRobin:     newRoundRobin,
 		Random:         newRandom,
 		ConsistentHash: newConsistentHash,
+		PowerOfChoices: newPowerOfChoices,
 	}
 	defaultAlgorithm = newRoundRobin
 )
@@ -57,12 +60,13 @@ type roundRobin struct {
 func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	r.mx.Lock()
 	defer r.mx.Unlock()
-	r.index = (r.index + 1) % len(ctx.Route.LBEndpoints)
-	return ctx.Route.LBEndpoints[r.index]
+	r.index = (r.index + 1) % ctx.Route.LBEndpoints.Length()
+	return ctx.Route.LBEndpoints.At(r.index)
 }
 
 type random struct {
 	rand *rand.Rand
+	mutex sync.Mutex
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
@@ -72,7 +76,10 @@ func newRandom(endpoints []string) routing.LBAlgorithm {
 
 // Apply implements routing.LBAlgorithm with a stateless random algorithm.
 func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	return ctx.Route.LBEndpoints[r.rand.Intn(len(ctx.Route.LBEndpoints))]
+	r.mutex.Lock()
+	index := r.rand.Intn(ctx.Route.LBEndpoints.Length())
+	r.mutex.Unlock()
+	return ctx.Route.LBEndpoints.At(index)
 }
 
 type consistentHash struct{}
@@ -89,19 +96,70 @@ func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	key := net.RemoteHost(ctx.Request).String()
 	if _, err := h.Write([]byte(key)); err != nil {
 		log.Errorf("Failed to write '%s' into hash: %v", key, err)
-		return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))]
+		return ctx.Route.LBEndpoints.At(rand.Intn(ctx.Route.LBEndpoints.Length()))
 	}
 	sum = h.Sum32()
-	choice := int(sum) % len(ctx.Route.LBEndpoints)
+	choice := int(sum) % ctx.Route.LBEndpoints.Length()
 	if choice < 0 {
-		choice = len(ctx.Route.LBEndpoints) + choice
+		choice = ctx.Route.LBEndpoints.Length() + choice
 	}
-	return ctx.Route.LBEndpoints[choice]
+	return ctx.Route.LBEndpoints.At(choice)
+}
+
+type powerOfChoices struct{
+	rand *rand.Rand
+	numberOfChoices int
+	mutex sync.Mutex
+}
+
+// Selects N random backends and picks the one with less outstanding requests.
+func newPowerOfChoices(endpoints []string) routing.LBAlgorithm {
+	t := time.Now().UnixNano()
+	return &powerOfChoices{
+		rand: rand.New(rand.NewSource(t)),
+		numberOfChoices: 2, // TODO: make this the value part of skipper configuration.
+	}
+}
+func (a *powerOfChoices) GetRandomChoice(length int) int {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+	return a.rand.Intn(length)
+}
+
+func contains(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *powerOfChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	chosen := make([]int, 0, a.numberOfChoices)
+	for i := 0 ; i < a.numberOfChoices ; i++  {
+		candidate := a.GetRandomChoice(ctx.Route.LBEndpoints.Length())
+		// Pick a different endpoint if was already selected
+		for contains(chosen, candidate) {
+			candidate = a.GetRandomChoice(ctx.Route.LBEndpoints.Length())
+		}
+		chosen = append(chosen, candidate)
+	}
+	bestEndpoint := ctx.Route.LBEndpoints.At(chosen[0])
+	bestScore := bestEndpoint.Metrics.GetInflightRequests()
+	for _, endpointIdx := range chosen {
+		endpoint := ctx.Route.LBEndpoints.At(endpointIdx)
+		inflight := endpoint.Metrics.GetInflightRequests()
+		if inflight < bestScore {
+			bestEndpoint = endpoint
+		}
+	}
+	return bestEndpoint
 }
 
 type (
-	algorithmProvider  struct{}
-	initializeAgorithm func(endpoints []string) routing.LBAlgorithm
+	algorithmProvider   struct{}
+	initializeAlgorithm func(endpoints []string) routing.LBAlgorithm
 )
 
 // NewAlgorithmProvider creates a routing.PostProcessor used to initialize
@@ -109,6 +167,7 @@ type (
 func NewAlgorithmProvider() routing.PostProcessor {
 	return &algorithmProvider{}
 }
+
 
 // AlgorithmFromString parses the string representation of the algorithm definition.
 func AlgorithmFromString(a string) (Algorithm, error) {
@@ -123,6 +182,8 @@ func AlgorithmFromString(a string) (Algorithm, error) {
 		return Random, nil
 	case "consistentHash":
 		return ConsistentHash, nil
+	case "powerOfChoices":
+		return PowerOfChoices, nil
 	default:
 		return None, errors.New("unsupported algorithm")
 	}
@@ -137,22 +198,19 @@ func (a Algorithm) String() string {
 		return "random"
 	case ConsistentHash:
 		return "consistentHash"
+	case PowerOfChoices:
+		return "powerOfChoices"
 	default:
 		return ""
 	}
 }
 
 func parseEndpoints(r *routing.Route) error {
-	r.LBEndpoints = make([]routing.LBEndpoint, len(r.Route.LBEndpoints))
-	for i, e := range r.Route.LBEndpoints {
-		eu, err := url.ParseRequestURI(e)
-		if err != nil {
-			return err
-		}
-
-		r.LBEndpoints[i] = routing.LBEndpoint{Scheme: eu.Scheme, Host: eu.Host}
+	err, endpoints := routing.NewEndpointCollection(r)
+	if err != nil {
+		return err
 	}
-
+	r.LBEndpoints = endpoints
 	return nil
 }
 
