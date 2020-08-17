@@ -34,7 +34,7 @@ func (c *config) parse() {
 	kingpin.Parse()
 
 	if (c.certFile != "" || c.keyFile != "") && !(c.certFile != "" && c.keyFile != "") {
-		log.Fatal("config parse error: both of TLS cert & key must be provided or neither (for testing )")
+		log.Fatal("Config parse error: both of TLS cert & key must be provided or neither (for testing )")
 		return
 	}
 
@@ -66,7 +66,7 @@ func main() {
 func healthCheck(writer http.ResponseWriter, _ *http.Request) {
 	writer.WriteHeader(http.StatusOK)
 	if _, err := writer.Write([]byte("ok")); err != nil {
-		log.Errorf("failed to write health check: %v", err)
+		log.Errorf("Failed to write health check: %v", err)
 	}
 
 }
@@ -82,6 +82,7 @@ func serve(cfg *config, handler http.Handler) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
 	go func() {
+		log.Info("Shutting down...")
 		<-sig
 		server.Shutdown(context.Background())
 	}()
@@ -93,9 +94,8 @@ func serve(cfg *config, handler http.Handler) {
 		// support non-HTTPS for local testing
 		err = server.ListenAndServe()
 	}
-	if err != nil {
-		if err != http.ErrServerClosed {
-			log.Fatal(err)
-		}
+
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatalf("Listener error: %v.", err)
 	}
 }

@@ -71,7 +71,7 @@ func TestRequestDecoding(t *testing.T) {
 		},
 	}
 
-	rb, err := json.Marshal(expectedRg)
+	expectedBytes, err := json.Marshal(expectedRg)
 	assert.NoError(t, err)
 
 	review := &admissionsv1.AdmissionReview{
@@ -79,7 +79,7 @@ func TestRequestDecoding(t *testing.T) {
 			Name:      "r1",
 			Namespace: "n1",
 			// TODO: why doesnt runtime.RawExtension{Object: rg} work here?
-			Object: runtime.RawExtension{Raw: rb},
+			Object: runtime.RawExtension{Raw: expectedBytes},
 		},
 	}
 

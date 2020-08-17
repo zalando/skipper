@@ -119,7 +119,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			log.Errorf("Unable to read request: %v", err)
+			log.Errorf("Failed to read request: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			invalidRequests.WithLabelValues(admitterName).Inc()
 			return
@@ -128,7 +128,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 		review := admissionsv1.AdmissionReview{}
 		err = json.Unmarshal(body, &review)
 		if err != nil {
-			log.Errorf("Unable to parse request: %v", err)
+			log.Errorf("Failed to parse request: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			invalidRequests.WithLabelValues(admitterName).Inc()
 			return
@@ -180,12 +180,12 @@ func writeResponse(writer http.ResponseWriter, response *admissionsv1.AdmissionR
 		Response: response,
 	})
 	if err != nil {
-		log.Errorf("unable to serialize response: %v", err)
+		log.Errorf("failed to serialize response: %v", err)
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if _, err := writer.Write(resp); err != nil {
-		log.Errorf("unable to write response: %v", err)
+		log.Errorf("failed to write response: %v", err)
 	}
 }
 
@@ -206,7 +206,7 @@ func extractName(request *admissionsv1.AdmissionRequest) string {
 
 	obj := metav1.PartialObjectMetadata{}
 	if err := json.Unmarshal(request.Object.Raw, &obj); err != nil {
-		log.Warnf("unable to parse object: %v", err)
+		log.Warnf("failed to parse object: %v", err)
 		return "<unknown>"
 	}
 
