@@ -126,7 +126,7 @@ func newPowerOfChoices(endpoints []string) routing.LBAlgorithm {
 	}
 }
 
-func (a *powerOfChoices) GetRandomIndex(length int) int {
+func (a *powerOfChoices) getRandomIndex(length int) int {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 	return a.rand.Intn(length)
@@ -134,22 +134,11 @@ func (a *powerOfChoices) GetRandomIndex(length int) int {
 
 func (a *powerOfChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	numEndpoints := ctx.Route.LBEndpoints.Length()
-
-	// no need to compute a random endpoint if only one is given
-	if numEndpoints == 1 && a.numberOfChoices == 1 {
-		return ctx.Route.LBEndpoints.At(0)
-	}
-	candidateIdx := a.GetRandomIndex(numEndpoints)
+	candidateIdx := a.getRandomIndex(numEndpoints)
 	bestEndpoint := ctx.Route.LBEndpoints.At(candidateIdx)
-
-	// no need to compute the scores when only one endpoint can be chosen
-	if a.numberOfChoices == 1 {
-		return bestEndpoint
-	}
-	var currEndpoint routing.LBEndpoint
 	for i := 1; i < a.numberOfChoices; i++ {
-		candidateIdx = a.GetRandomIndex(numEndpoints)
-		currEndpoint = ctx.Route.LBEndpoints.At(candidateIdx)
+		candidateIdx = a.getRandomIndex(numEndpoints)
+		currEndpoint := ctx.Route.LBEndpoints.At(candidateIdx)
 		if a.GetScore(currEndpoint) > a.GetScore(bestEndpoint) {
 			bestEndpoint = currEndpoint
 		}

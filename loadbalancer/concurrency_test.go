@@ -59,7 +59,7 @@ func TestConstantlyUpdatingRoutesPowerOfChoices(t *testing.T) {
 	executeConstantlyUpdatingRoutes(t, "powerOfChoices", 9)
 }
 func TestConstantlyUpdatingRoutesRandom(t *testing.T) {
-	executeConstantlyUpdatingRoutes(t, "random", 9)
+	executeConstantlyUpdatingRoutes(t, "random", 10)
 }
 
 func TestConcurrencyMultipleRoutesRoundRobin(t *testing.T) {
@@ -71,7 +71,7 @@ func TestConcurrencyMultipleRoutesPowerOfChoices(t *testing.T) {
 }
 
 func TestConcurrencyMultipleRoutesRandom(t *testing.T) {
-	executeConcurrencyMultipleRoutes(t, "random", 9)
+	executeConcurrencyMultipleRoutes(t, "random", 10)
 }
 
 func executeSingleRouteTest(t *testing.T, algorithmName string, distributionToleranceRatio int) {
