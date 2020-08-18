@@ -243,7 +243,7 @@ func TestApply(t *testing.T) {
 			name:          "powerOfChoices algorithm",
 			iterations:    100,
 			jitter:        0,
-			expected:      1,
+			expected:      N,
 			algorithm:     newPowerOfChoices(eps),
 			algorithmName: "powerOfChoices",
 		}} {
