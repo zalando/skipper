@@ -872,12 +872,9 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 		return nil, &proxyError{err: err}
 	}
 	if ctx.route.BackendType == eskip.LBBackend && ctx.route.LBEndpoints != nil {
-		// TODO: check req.URL vs req.Host
 		endpoint := ctx.route.LBEndpoints.Get(req.URL.Host)
 		endpoint.Metrics.IncInflightRequest()
-		defer func() {
-			endpoint.Metrics.DecInflightRequest()
-		}()
+		defer endpoint.Metrics.DecInflightRequest()
 	}
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
 		if err = p.makeUpgradeRequest(ctx, req); err != nil {

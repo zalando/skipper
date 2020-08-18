@@ -78,7 +78,7 @@ func executeSingleRouteTest(t *testing.T, algorithmName string, distributionTole
 	const (
 		backendCount     = 7
 		concurrency      = 32
-		repeatedRequests = 300
+		repeatedRequests = 400
 
 		// 5% tolerated
 	)
@@ -174,7 +174,7 @@ func executeConstantlyUpdatingRoutes(t *testing.T, algorithmName string, distrib
 	const (
 		backendCount     = 7
 		concurrency      = 32
-		repeatedRequests = 300
+		repeatedRequests = 400
 
 		routeUpdateTimeout   = 5 * time.Millisecond
 		routePollTimeout     = 10 * time.Millisecond
@@ -284,7 +284,7 @@ func executeConcurrencyMultipleRoutes(t *testing.T, algorithmName string, distri
 	const (
 		backendCount     = 7
 		concurrency      = 32
-		repeatedRequests = 300
+		repeatedRequests = 400
 
 		// 5% tolerated
 

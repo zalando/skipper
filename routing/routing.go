@@ -142,27 +142,27 @@ type RouteFilter struct {
 	Index int
 }
 
-// Contains metrics used by LB algorithms
+// LBMetrics contains metrics used by LB algorithms
 type LBMetrics struct {
 	inflightRequests int
 	mutex sync.RWMutex
 }
 
-// Increment the number of outstanding requests from the proxy to a given backend.
+// IncInflightRequest increments the number of outstanding requests from the proxy to a given backend.
 func (m *LBMetrics) IncInflightRequest() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.inflightRequests++
 }
 
-// Decrement the number of outstanding requests from the proxy to a given backend.
+// DecInflightRequest decrements the number of outstanding requests from the proxy to a given backend.
 func (m *LBMetrics) DecInflightRequest() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.inflightRequests--
 }
 
-// Decrement the number of outstanding requests from the proxy to a given backend.
+// GetInflightRequests decrements the number of outstanding requests from the proxy to a given backend.
 func (m *LBMetrics) GetInflightRequests() int{
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()

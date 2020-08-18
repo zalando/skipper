@@ -77,9 +77,8 @@ func newRandom(endpoints []string) routing.LBAlgorithm {
 // Apply implements routing.LBAlgorithm with a stateless random algorithm.
 func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	r.mutex.Lock()
-	index := r.rand.Intn(ctx.Route.LBEndpoints.Length())
-	r.mutex.Unlock()
-	return ctx.Route.LBEndpoints.At(index)
+	defer r.mutex.Unlock()
+	return ctx.Route.LBEndpoints.At(r.rand.Intn(ctx.Route.LBEndpoints.Length()))
 }
 
 type consistentHash struct{}
@@ -112,7 +111,13 @@ type powerOfChoices struct{
 	mutex sync.Mutex
 }
 
-// Selects N random backends and picks the one with less outstanding requests.
+func (a *powerOfChoices) GetScore(e routing.LBEndpoint) int {
+	// TODO: support more metrics. E.g., least connections.
+	// endpoints with higher inflight request should have lower score
+	return -e.Metrics.GetInflightRequests()
+}
+
+// newPowerOfChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfChoices(endpoints []string) routing.LBAlgorithm {
 	t := time.Now().UnixNano()
 	return &powerOfChoices{
@@ -120,38 +125,33 @@ func newPowerOfChoices(endpoints []string) routing.LBAlgorithm {
 		numberOfChoices: 2, // TODO: make this the value part of skipper configuration.
 	}
 }
-func (a *powerOfChoices) GetRandomChoice(length int) int {
+
+func (a *powerOfChoices) GetRandomIndex(length int) int {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 	return a.rand.Intn(length)
 }
 
-func contains(s []int, e int) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 func (a *powerOfChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	chosen := make([]int, 0, a.numberOfChoices)
-	for i := 0 ; i < a.numberOfChoices ; i++  {
-		candidate := a.GetRandomChoice(ctx.Route.LBEndpoints.Length())
-		// Pick a different endpoint if was already selected
-		for contains(chosen, candidate) {
-			candidate = a.GetRandomChoice(ctx.Route.LBEndpoints.Length())
-		}
-		chosen = append(chosen, candidate)
+	numEndpoints := ctx.Route.LBEndpoints.Length()
+
+	// no need to compute a random endpoint if only one is given
+	if numEndpoints == 1 && a.numberOfChoices == 1 {
+		return ctx.Route.LBEndpoints.At(0)
 	}
-	bestEndpoint := ctx.Route.LBEndpoints.At(chosen[0])
-	bestScore := bestEndpoint.Metrics.GetInflightRequests()
-	for _, endpointIdx := range chosen {
-		endpoint := ctx.Route.LBEndpoints.At(endpointIdx)
-		inflight := endpoint.Metrics.GetInflightRequests()
-		if inflight < bestScore {
-			bestEndpoint = endpoint
+	candidateIdx := a.GetRandomIndex(numEndpoints)
+	bestEndpoint := ctx.Route.LBEndpoints.At(candidateIdx)
+
+	// no need to compute the scores when only one endpoint can be chosen
+	if a.numberOfChoices == 1 {
+		return bestEndpoint
+	}
+	var currEndpoint routing.LBEndpoint
+	for i := 1 ; i < a.numberOfChoices ; i++  {
+		candidateIdx = a.GetRandomIndex(numEndpoints)
+		currEndpoint = ctx.Route.LBEndpoints.At(candidateIdx)
+		if a.GetScore(currEndpoint) > a.GetScore(bestEndpoint) {
+			bestEndpoint = currEndpoint
 		}
 	}
 	return bestEndpoint
