@@ -29,8 +29,8 @@ const (
 	// ConsistentHash indicates choice between the backends based on their hashed address.
 	ConsistentHash
 
-	// PowerOfChoices selects N random endpoints and picks the one with least outstanding requests from them.
-	PowerOfChoices
+	// RandomNChoices selects N random endpoints and picks the one with least outstanding requests from them.
+	RandomNChoices
 )
 
 var (
@@ -38,7 +38,7 @@ var (
 		RoundRobin:     newRoundRobin,
 		Random:         newRandom,
 		ConsistentHash: newConsistentHash,
-		PowerOfChoices: newPowerOfChoices,
+		RandomNChoices: newRandomNChoices,
 	}
 	defaultAlgorithm = newRoundRobin
 )
@@ -105,34 +105,34 @@ func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return ctx.Route.LBEndpoints.At(choice)
 }
 
-type powerOfChoices struct {
+type randomNChoices struct {
 	rand            *rand.Rand
 	numberOfChoices int
 	mutex           sync.Mutex
 }
 
-func (a *powerOfChoices) GetScore(e routing.LBEndpoint) int {
+func (a *randomNChoices) GetScore(e routing.LBEndpoint) int {
 	// TODO: support more metrics. E.g., least connections.
 	// endpoints with higher inflight request should have lower score
 	return -e.Metrics.GetInflightRequests()
 }
 
-// newPowerOfChoices selects N random backends and picks the one with less outstanding requests.
-func newPowerOfChoices(endpoints []string) routing.LBAlgorithm {
+// newRandomNChoices selects N random backends and picks the one with less outstanding requests.
+func newRandomNChoices(endpoints []string) routing.LBAlgorithm {
 	t := time.Now().UnixNano()
-	return &powerOfChoices{
+	return &randomNChoices{
 		rand:            rand.New(rand.NewSource(t)),
 		numberOfChoices: 2, // TODO: make this the value part of skipper configuration.
 	}
 }
 
-func (a *powerOfChoices) getRandomIndex(length int) int {
+func (a *randomNChoices) getRandomIndex(length int) int {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 	return a.rand.Intn(length)
 }
 
-func (a *powerOfChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+func (a *randomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	numEndpoints := ctx.Route.LBEndpoints.Length()
 	candidateIdx := a.getRandomIndex(numEndpoints)
 	bestEndpoint := ctx.Route.LBEndpoints.At(candidateIdx)
@@ -170,8 +170,8 @@ func AlgorithmFromString(a string) (Algorithm, error) {
 		return Random, nil
 	case "consistentHash":
 		return ConsistentHash, nil
-	case "powerOfChoices":
-		return PowerOfChoices, nil
+	case "randomNChoices":
+		return RandomNChoices, nil
 	default:
 		return None, errors.New("unsupported algorithm")
 	}
@@ -186,8 +186,8 @@ func (a Algorithm) String() string {
 		return "random"
 	case ConsistentHash:
 		return "consistentHash"
-	case PowerOfChoices:
-		return "powerOfChoices"
+	case RandomNChoices:
+		return "randomNChoices"
 	default:
 		return ""
 	}
