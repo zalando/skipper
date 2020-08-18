@@ -45,7 +45,7 @@ func TestConcurrencySingleRouteRoundRobin(t *testing.T) {
 }
 
 func TestConcurrencySingleRoutePowerOfChoices(t *testing.T) {
-	executeSingleRouteTest(t, "powerOfChoices", 5)
+	executeSingleRouteTest(t, "powerOfChoices", 7)
 }
 
 func TestConcurrencySingleRouteRandom(t *testing.T) {
@@ -56,7 +56,7 @@ func TestConstantlyUpdatingRoutesRoundRobin(t *testing.T) {
 	executeConstantlyUpdatingRoutes(t, "roundRobin", 5)
 }
 func TestConstantlyUpdatingRoutesPowerOfChoices(t *testing.T) {
-	executeConstantlyUpdatingRoutes(t, "powerOfChoices", 7)
+	executeConstantlyUpdatingRoutes(t, "powerOfChoices", 9)
 }
 func TestConstantlyUpdatingRoutesRandom(t *testing.T) {
 	executeConstantlyUpdatingRoutes(t, "random", 9)
@@ -67,7 +67,7 @@ func TestConcurrencyMultipleRoutesRoundRobin(t *testing.T) {
 }
 
 func TestConcurrencyMultipleRoutesPowerOfChoices(t *testing.T) {
-	executeConcurrencyMultipleRoutes(t, "powerOfChoices", 7)
+	executeConcurrencyMultipleRoutes(t, "powerOfChoices", 9)
 }
 
 func TestConcurrencyMultipleRoutesRandom(t *testing.T) {
