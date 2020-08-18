@@ -45,7 +45,7 @@ func TestConcurrencySingleRouteRoundRobin(t *testing.T) {
 }
 
 func TestConcurrencySingleRoutePowerOfChoices(t *testing.T) {
-	executeSingleRouteTest(t, "powerOfChoices",5)
+	executeSingleRouteTest(t, "powerOfChoices", 5)
 }
 
 func TestConcurrencySingleRouteRandom(t *testing.T) {
@@ -170,7 +170,7 @@ func executeSingleRouteTest(t *testing.T, algorithmName string, distributionTole
 	checkDistribution(t, memberCounters, distributionTolerance)
 }
 
-func executeConstantlyUpdatingRoutes(t *testing.T, algorithmName string, distributionToleranceRatio int){
+func executeConstantlyUpdatingRoutes(t *testing.T, algorithmName string, distributionToleranceRatio int) {
 	const (
 		backendCount     = 7
 		concurrency      = 32

@@ -145,7 +145,7 @@ type RouteFilter struct {
 // LBMetrics contains metrics used by LB algorithms
 type LBMetrics struct {
 	inflightRequests int
-	mutex sync.RWMutex
+	mutex            sync.RWMutex
 }
 
 // IncInflightRequest increments the number of outstanding requests from the proxy to a given backend.
@@ -163,7 +163,7 @@ func (m *LBMetrics) DecInflightRequest() {
 }
 
 // GetInflightRequests decrements the number of outstanding requests from the proxy to a given backend.
-func (m *LBMetrics) GetInflightRequests() int{
+func (m *LBMetrics) GetInflightRequests() int {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.inflightRequests
@@ -173,11 +173,11 @@ func (m *LBMetrics) GetInflightRequests() int{
 // backends.
 type LBEndpoint struct {
 	Scheme, Host string
-	Metrics *LBMetrics
+	Metrics      *LBMetrics
 }
 
 type LBEndpointCollection struct {
-	endpoints []LBEndpoint
+	endpoints    []LBEndpoint
 	endpointsMap map[string]LBEndpoint
 }
 
@@ -187,7 +187,7 @@ type LBEndpointCollection struct {
 // it is possible to reference them by index or key.
 func NewEndpointCollection(r *Route) (error, *LBEndpointCollection) {
 	collection := &LBEndpointCollection{
-		endpoints: make([]LBEndpoint, 0, len(r.Route.LBEndpoints)),
+		endpoints:    make([]LBEndpoint, 0, len(r.Route.LBEndpoints)),
 		endpointsMap: map[string]LBEndpoint{},
 	}
 	for _, e := range r.Route.LBEndpoints {
@@ -197,7 +197,7 @@ func NewEndpointCollection(r *Route) (error, *LBEndpointCollection) {
 		}
 		collection.Set(eu.Host, LBEndpoint{Scheme: eu.Scheme, Host: eu.Host, Metrics: &LBMetrics{}})
 	}
-	return  nil, collection
+	return nil, collection
 }
 
 // Stores an endpoint indexed by key
@@ -220,7 +220,6 @@ func (e *LBEndpointCollection) At(index int) LBEndpoint {
 func (e *LBEndpointCollection) Length() int {
 	return len(e.endpoints)
 }
-
 
 // LBAlgorithm implementations apply a load balancing algorithm
 // over the possible endpoints of a load balanced route.
@@ -275,7 +274,6 @@ type Route struct {
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
 	LBAlgorithm LBAlgorithm
-
 }
 
 // PostProcessor is an interface for custom post-processors applying changes

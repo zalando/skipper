@@ -65,7 +65,7 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 }
 
 type random struct {
-	rand *rand.Rand
+	rand  *rand.Rand
 	mutex sync.Mutex
 }
 
@@ -105,10 +105,10 @@ func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return ctx.Route.LBEndpoints.At(choice)
 }
 
-type powerOfChoices struct{
-	rand *rand.Rand
+type powerOfChoices struct {
+	rand            *rand.Rand
 	numberOfChoices int
-	mutex sync.Mutex
+	mutex           sync.Mutex
 }
 
 func (a *powerOfChoices) GetScore(e routing.LBEndpoint) int {
@@ -121,7 +121,7 @@ func (a *powerOfChoices) GetScore(e routing.LBEndpoint) int {
 func newPowerOfChoices(endpoints []string) routing.LBAlgorithm {
 	t := time.Now().UnixNano()
 	return &powerOfChoices{
-		rand: rand.New(rand.NewSource(t)),
+		rand:            rand.New(rand.NewSource(t)),
 		numberOfChoices: 2, // TODO: make this the value part of skipper configuration.
 	}
 }
@@ -147,7 +147,7 @@ func (a *powerOfChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return bestEndpoint
 	}
 	var currEndpoint routing.LBEndpoint
-	for i := 1 ; i < a.numberOfChoices ; i++  {
+	for i := 1; i < a.numberOfChoices; i++ {
 		candidateIdx = a.GetRandomIndex(numEndpoints)
 		currEndpoint = ctx.Route.LBEndpoints.At(candidateIdx)
 		if a.GetScore(currEndpoint) > a.GetScore(bestEndpoint) {
@@ -167,7 +167,6 @@ type (
 func NewAlgorithmProvider() routing.PostProcessor {
 	return &algorithmProvider{}
 }
-
 
 // AlgorithmFromString parses the string representation of the algorithm definition.
 func AlgorithmFromString(a string) (Algorithm, error) {
