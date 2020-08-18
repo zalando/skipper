@@ -185,7 +185,7 @@ type LBEndpointCollection struct {
 // The underlying endpoints can be accessed using public getters and setters.
 // Internally endpoints are stored in two synchronized data structures, so
 // it is possible to reference them by index or key.
-func NewEndpointCollection(r *Route) (error, *LBEndpointCollection) {
+func NewEndpointCollection(r *Route) (*LBEndpointCollection, error) {
 	collection := &LBEndpointCollection{
 		endpoints:    make([]LBEndpoint, 0, len(r.Route.LBEndpoints)),
 		endpointsMap: map[string]LBEndpoint{},
@@ -193,11 +193,11 @@ func NewEndpointCollection(r *Route) (error, *LBEndpointCollection) {
 	for _, e := range r.Route.LBEndpoints {
 		eu, err := url.ParseRequestURI(e)
 		if err != nil {
-			return err, nil
+			return nil, err
 		}
 		collection.Set(eu.Host, LBEndpoint{Scheme: eu.Scheme, Host: eu.Host, Metrics: &LBMetrics{}})
 	}
-	return nil, collection
+	return collection, nil
 }
 
 // Stores an endpoint indexed by key

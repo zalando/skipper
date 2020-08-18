@@ -205,7 +205,7 @@ func (a Algorithm) String() string {
 }
 
 func parseEndpoints(r *routing.Route) error {
-	err, endpoints := routing.NewEndpointCollection(r)
+	endpoints, err := routing.NewEndpointCollection(r)
 	if err != nil {
 		return err
 	}
