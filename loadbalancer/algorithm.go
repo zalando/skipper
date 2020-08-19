@@ -105,6 +105,7 @@ func (*consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return ctx.Route.LBEndpoints.At(choice)
 }
 
+// Paper http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
 type powerOfRandomNChoices struct {
 	rand            *rand.Rand
 	numberOfChoices int
