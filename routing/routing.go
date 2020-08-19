@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -145,7 +144,6 @@ type RouteFilter struct {
 // LBMetrics contains metrics used by LB algorithms
 type LBMetrics struct {
 	inflightRequests int32
-	mutex            sync.RWMutex
 }
 
 // IncInflightRequest increments the number of outstanding requests from the proxy to a given backend.
@@ -170,17 +168,17 @@ type LBEndpoint struct {
 	Metrics      *LBMetrics
 }
 
-type LBEndpointCollection struct {
+type lbEndpointCollection struct {
 	endpoints    []LBEndpoint
 	endpointsMap map[string]LBEndpoint
 }
 
-// LBEndpointCollection represents a collection of endpoints.
+// lbEndpointCollection represents a collection of endpoints.
 // The underlying endpoints can be accessed using public getters and setters.
 // Internally endpoints are stored in two synchronized data structures, so
 // it is possible to reference them by index or key.
-func NewEndpointCollection(r *Route) (*LBEndpointCollection, error) {
-	collection := &LBEndpointCollection{
+func NewEndpointCollection(r *Route) (*lbEndpointCollection, error) {
+	collection := &lbEndpointCollection{
 		endpoints:    make([]LBEndpoint, 0, len(r.Route.LBEndpoints)),
 		endpointsMap: map[string]LBEndpoint{},
 	}
@@ -195,23 +193,23 @@ func NewEndpointCollection(r *Route) (*LBEndpointCollection, error) {
 }
 
 // Stores an endpoint indexed by key
-func (e *LBEndpointCollection) Set(key string, item LBEndpoint) {
+func (e *lbEndpointCollection) Set(key string, item LBEndpoint) {
 	e.endpoints = append(e.endpoints, item)
 	e.endpointsMap[key] = item
 }
 
 // Returns an endpoint by key
-func (e *LBEndpointCollection) Get(key string) LBEndpoint {
+func (e *lbEndpointCollection) Get(key string) LBEndpoint {
 	return e.endpointsMap[key]
 }
 
 // Returns an endpoint by index
-func (e *LBEndpointCollection) At(index int) LBEndpoint {
+func (e *lbEndpointCollection) At(index int) LBEndpoint {
 	return e.endpoints[index]
 }
 
 // Returns the length of the collection.
-func (e *LBEndpointCollection) Length() int {
+func (e *lbEndpointCollection) Length() int {
 	return len(e.endpoints)
 }
 
@@ -263,7 +261,7 @@ type Route struct {
 
 	// LBEndpoints contain the possible endpoints of a load
 	// balanced route.
-	LBEndpoints *LBEndpointCollection
+	LBEndpoints *lbEndpointCollection
 
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
