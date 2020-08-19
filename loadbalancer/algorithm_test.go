@@ -128,12 +128,12 @@ func TestSelectAlgorithm(t *testing.T) {
 		}
 	})
 
-	t.Run("LB route with explicit randomNChoices algorithm", func(t *testing.T) {
+	t.Run("LB route with explicit powerOfRandomNChoices algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
-				LBAlgorithm: "randomNChoices",
+				LBAlgorithm: "powerOfRandomNChoices",
 				LBEndpoints: []string{"https://www.example.org"},
 			},
 		}
@@ -149,7 +149,7 @@ func TestSelectAlgorithm(t *testing.T) {
 			t.Fatal("failed to set the endpoints")
 		}
 
-		if _, ok := rr[0].LBAlgorithm.(*randomNChoices); !ok {
+		if _, ok := rr[0].LBAlgorithm.(*powerOfRandomNChoices); !ok {
 			t.Fatal("failed to set the right algorithm")
 		}
 	})
@@ -240,12 +240,12 @@ func TestApply(t *testing.T) {
 			algorithm:     newConsistentHash(eps),
 			algorithmName: "consistentHash",
 		}, {
-			name:          "randomNChoices algorithm",
+			name:          "powerOfRandomNChoices algorithm",
 			iterations:    100,
 			jitter:        0,
 			expected:      N,
-			algorithm:     newRandomNChoices(eps),
-			algorithmName: "randomNChoices",
+			algorithm:     newPowerOfRandomNChoices(eps),
+			algorithmName: "powerOfRandomNChoices",
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
