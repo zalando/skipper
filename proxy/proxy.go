@@ -635,10 +635,6 @@ func WithParams(p Params) *Proxy {
 		Proxy:                 proxyFromHeader,
 	}
 
-	if p.ClientTLS != nil {
-		tr.TLSClientConfig = p.ClientTLS
-	}
-
 	quit := make(chan struct{})
 	// We need this to reliably fade on DNS change, which is right
 	// now not fixed with IdleConnTimeout in the http.Transport.
@@ -654,6 +650,10 @@ func WithParams(p Params) *Proxy {
 				}
 			}
 		}()
+	}
+
+	if p.ClientTLS != nil {
+		tr.TLSClientConfig = p.ClientTLS
 	}
 
 	if p.Flags.Insecure() {
@@ -705,7 +705,7 @@ func WithParams(p Params) *Proxy {
 		accessLogDisabled:        p.AccessLogDisabled,
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
-		clientTLS:                p.ClientTLS,
+		clientTLS:                tr.TLSClientConfig,
 	}
 }
 
