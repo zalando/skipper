@@ -121,7 +121,7 @@ Parameters:
 * header name (string)
 * key in the state bag (string)
 
-The the route in the following example checkes whether the request is authorized with the
+The route in the following example checks whether the request is authorized with the
 oauthTokeninfoAllScope() filter. This filter stores the authenticated user with "auth-user"
 key in the context, and the setContextRequestHeader() filter in the next step stores it in
 the header of the outgoing request with the X-Uid name:
@@ -1941,6 +1941,25 @@ tracingBaggageToTag("<baggage_item_name>", "<tag_name>")
 Example: If a trace consists of baggage item named `foo` with a value `bar`. Adding below filter will add a tag named `baz` with value `bar`
 ```
 tracingBaggageToTag("foo", "baz")
+```
+
+## stateBagToTag
+
+This filter sets an opentracing tag from the filter context (state bag). 
+If the provided key (first parameter) cannot be found in the state bag, then it doesn't set the tag.
+
+Parameters:
+
+* key in the state bag (string)
+* tag name (string)
+
+The route in the following example checks whether the request is authorized with the
+oauthTokeninfoAllScope() filter. This filter stores the authenticated user with "auth-user"
+key in the context, and the stateBagToTag() filter in the next step stores it in
+the opentracing tag "client_id":
+
+```
+foo: * -> oauthTokeninfoAllScope("address_service.all") -> stateBagToTag("auth-user", "client_id") -> "https://backend.example.org";
 ```
 
 ## tracingTag
