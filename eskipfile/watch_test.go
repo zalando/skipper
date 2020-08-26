@@ -36,30 +36,36 @@ type watchTest struct {
 	routing *routing.Routing
 }
 
-func deleteFile() {
-	os.RemoveAll(testWatchFile)
+func deleteFile(t *testing.T) {
+	err := os.Remove(testWatchFile)
+	if err != nil {
+		t.Logf("Ignoring %v", err)
+	}
 }
 
-func createFileWith(content string) {
+func createFileWith(content string, t *testing.T) {
 	f, err := os.Create(testWatchFile)
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
-
 	defer f.Close()
-	f.Write([]byte(content))
+
+	_, еrr := f.WriteString(content)
+	if еrr != nil {
+		t.Fatal(еrr)
+	}
 }
 
-func createFile() {
-	createFileWith(testWatchFileContent)
+func createFile(t *testing.T) {
+	createFileWith(testWatchFileContent, t)
 }
 
-func invalidFile() {
-	createFileWith(testWatchFileInvalidContent)
+func invalidFile(t *testing.T) {
+	createFileWith(testWatchFileInvalidContent, t)
 }
 
-func updateFile() {
-	createFileWith(testWatchFileUpdatedContent)
+func updateFile(t *testing.T) {
+	createFileWith(testWatchFileUpdatedContent, t)
 }
 
 func initWatchTest(t *testing.T) *watchTest {
@@ -186,47 +192,45 @@ func (t *watchTest) close() {
 }
 
 func TestWatchInitialFails(t *testing.T) {
-	deleteFile()
 	test := initWatchTest(t)
 	defer test.close()
 	test.timeoutOrFailInitial()
 }
 
 func TestWatchInitialRecovers(t *testing.T) {
-	deleteFile()
 	test := initWatchTest(t)
 	defer test.close()
 	test.timeoutOrFailInitial()
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test.waitAndSucceedInitial()
 }
 
 func TestWatchUpdateFails(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
-	invalidFile()
+	invalidFile(t)
 	test.timeoutAndSucceedInitial()
 }
 
 func TestWatchUpdateRecover(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
-	invalidFile()
+	invalidFile(t)
 	test.timeoutAndSucceedInitial()
-	updateFile()
+	updateFile(t)
 	test.waitAndSucceedUpdated()
 }
 
 func TestInitialAndUnchanged(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
@@ -234,21 +238,21 @@ func TestInitialAndUnchanged(t *testing.T) {
 }
 
 func TestInitialAndDeleteFile(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
-	deleteFile()
+	deleteFile(t)
 	test.waitAndFailInitial()
 }
 
 func TestWatchUpdate(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
-	updateFile()
+	updateFile(t)
 	test.waitAndSucceedUpdated()
 }
