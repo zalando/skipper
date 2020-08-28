@@ -140,13 +140,11 @@ func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	if lf, ok := args[0].(float64); ok && math.Trunc(lf) == lf {
 		f.level = int(lf)
-		_, err := gzip.NewWriterLevel(nil, f.level)
-		if err != nil {
+		if f.level < gzip.HuffmanOnly || f.level > gzip.BestCompression {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
-		_, err = flate.NewWriter(nil, f.level)
-		if err != nil {
+		if f.level < flate.HuffmanOnly || f.level > flate.BestCompression {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
