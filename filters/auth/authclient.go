@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -80,6 +81,7 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != 200 {
+		io.Copy(ioutil.Discard, rsp.Body)
 		return nil, errInvalidToken
 	}
 
@@ -110,6 +112,7 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != 200 {
+		io.Copy(ioutil.Discard, rsp.Body)
 		return doc, errInvalidToken
 	}
 
