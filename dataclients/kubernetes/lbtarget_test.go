@@ -86,7 +86,7 @@ func TestSingleLBTarget(t *testing.T) {
 		// path rule:
 		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
-		  && PathRegexp(/^\/test1/)
+		  && PathRegexp(/^(\/test1)/)
 		  -> "http://42.0.1.2:8080";
 
 		// catch all:
@@ -109,7 +109,7 @@ func TestLBTargets(t *testing.T) {
 		// path rule, target 1:
 		kube_namespace1__ingress1__test_example_org___test1__service1:
 		  Host(/^test[.]example[.]org$/)
-		  && PathRegexp(/^\/test1/)
+		  && PathRegexp(/^(\/test1)/)
 		  -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
 
 		// catch all:

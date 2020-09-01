@@ -14,13 +14,13 @@ func TestLBWithTrafficControl(t *testing.T) {
 
 		kube_namespace1__ingress1__test_example_org___test1__service1v1:
 		  Host(/^test[.]example[.]org$/) &&
-		  PathRegexp(/^\/test1/) &&
+		  PathRegexp(/^(\/test1)/) &&
 		  Traffic(0.3)
 		  -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
 
 		kube_namespace1__ingress1__test_example_org___test1__service1v2:
 		  Host(/^test[.]example[.]org$/) &&
-		  PathRegexp(/^\/test1/)
+		  PathRegexp(/^(\/test1)/)
 		  -> <roundRobin, "http://42.0.1.4:8080", "http://42.0.1.5:8080">;
 
 		kube___catchall__test_example_org____:
