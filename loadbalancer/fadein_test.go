@@ -9,17 +9,35 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-/*
-algorithm
-single endpoint
-has fade-in duration
-stabilizes after fade-in
-*/
-
 const (
-	fadeInDuration = 100 * time.Millisecond
-	bucketCount    = 20
+	fadeInDuration    = 100 * time.Millisecond
+	bucketCount       = 20
+	monotonyTolerance = 0.03
 )
+
+func absint(i int) int {
+	if i < 0 {
+		return -i
+	}
+
+	return i
+}
+
+func tolerance(prev, next int) int {
+	return int(float64(prev+next) * monotonyTolerance / 2)
+}
+
+func checkMonotony(direction, prev, next int) bool {
+	t := tolerance(prev, next)
+	switch direction {
+	case 1:
+		return next-prev >= -t
+	case -1:
+		return next-prev <= t
+	default:
+		return absint(next-prev) < t
+	}
+}
 
 func testFadeIn(
 	t *testing.T,
@@ -37,7 +55,7 @@ func testFadeIn(
 
 		var ep []string
 		for i := range endpointAges {
-			ep = append(ep, string('a'+i))
+			ep = append(ep, string('a'+rune(i)))
 		}
 
 		a := algorithm(ep)
@@ -61,7 +79,6 @@ func testFadeIn(
 		stop := time.After(fadeInDuration)
 		func() {
 			for {
-				// try with copy-on-write
 				ep := a.Apply(ctx)
 				stats = append(stats, ep.Host)
 				select {
@@ -73,44 +90,73 @@ func testFadeIn(
 		}()
 
 		t.Log("test done", time.Now())
-		var header []string
-		for _, epi := range ep {
-			header = append(header, epi)
-		}
-		t.Log("CSV " + strings.Join(header, ","))
+		t.Log("CSV " + strings.Join(ep, ","))
 		bucketSize := len(stats) / bucketCount
+		var allBuckets []map[string]int
 		for i := 0; i < bucketCount; i++ {
 			bucketStats := make(map[string]int)
 			for j := i * bucketSize; j < (i+1)*bucketSize; j++ {
 				bucketStats[stats[j]]++
 			}
 
+			allBuckets = append(allBuckets, bucketStats)
+		}
+
+		directions := make(map[string]int)
+		for _, epi := range ep {
+			first := allBuckets[0][epi]
+			last := allBuckets[len(allBuckets)-1][epi]
+			t := tolerance(first, last)
+			switch {
+			case last-first > t:
+				directions[epi] = 1
+			case last-first < t:
+				directions[epi] = -1
+			}
+		}
+
+		for i := range allBuckets {
+			// trim first and last (warmup and settling)
+			if i < 2 || i == len(allBuckets)-1 {
+				continue
+			}
+
+			for _, epi := range ep {
+				if !checkMonotony(
+					directions[epi],
+					allBuckets[i-1][epi],
+					allBuckets[i][epi],
+				) {
+					t.Error("non-monotonic change", epi)
+				}
+			}
+		}
+
+		for _, bucketStats := range allBuckets {
 			var showStats []string
 			for _, epi := range ep {
 				showStats = append(showStats, fmt.Sprintf("%d", bucketStats[epi]))
 			}
 
 			t.Log("CSV " + strings.Join(showStats, ","))
-			// TODO: verify results
 		}
 	})
 }
 
 func TestFadeIn(t *testing.T) {
 	old := 2 * fadeInDuration
-	// testFadeIn(t, newRoundRobin, , old)
-	// testFadeIn(t, newRoundRobin, 0, 0)
-	testFadeIn(t, "1st", newRoundRobin, old, 0)
-	testFadeIn(t, "2nd", newRoundRobin, old, old, old, 0)
-	testFadeIn(t, "3rd", newRoundRobin, old, old, old, 0, 0, 0)
-	testFadeIn(t, "4th", newRoundRobin, old, 0, 0, 0)
+	testFadeIn(t, "round-robin, 0", newRoundRobin, 0, old)
+	testFadeIn(t, "round-robin, 1", newRoundRobin, 0, 0)
+	testFadeIn(t, "round-robin, 2", newRoundRobin, old, 0)
+	testFadeIn(t, "round-robin, 3", newRoundRobin, old, old, old, 0)
+	testFadeIn(t, "round-robin, 4", newRoundRobin, old, old, old, 0, 0, 0)
+	testFadeIn(t, "round-robin, 5", newRoundRobin, old, 0, 0, 0)
+	testFadeIn(t, "round-robin, 6", newRoundRobin, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
 
-	// testFadeIn(t, newRandom, old, old)
-	// testFadeIn(t, newRandom, 0, 0)
-	// testFadeIn(t, newRandom, old, 0)
-	// testFadeIn(t, newRandom, old, 0, 0, 0)
-	// testFadeIn(t, newRandom, old, 0, 0, 0, 0, 0, 0)
-	// testFadeIn(t, newRandom, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "random, 0", newRandom, old, old)
+	testFadeIn(t, "random, 1", newRandom, 0, 0)
+	testFadeIn(t, "random, 2", newRandom, old, 0)
+	testFadeIn(t, "random, 3", newRandom, old, 0, 0, 0)
+	testFadeIn(t, "random, 4", newRandom, old, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "random, 5", newRandom, 0, 0, 0, 0, 0, 0)
 }
-
-// TODO: test consistent hash separately

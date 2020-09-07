@@ -41,22 +41,6 @@ var (
 	defaultAlgorithm = newRoundRobin
 )
 
-func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return &roundRobin{
-		index:      rnd.Intn(len(endpoints)),
-		rnd:        rnd,
-		fadeInCalc: make([]int, len(endpoints)),
-	}
-}
-
-type roundRobin struct {
-	mx         sync.Mutex
-	index      int
-	rnd        *rand.Rand
-	fadeInCalc []int
-}
-
 func fadeInState(now time.Time, duration time.Duration, detected time.Time) (time.Duration, bool) {
 	rel := now.Sub(detected)
 	return rel, rel < duration
@@ -71,91 +55,37 @@ func fadeIn(now time.Time, duration time.Duration, ease float64, detected time.T
 	return math.Pow(float64(rel)/float64(duration), ease)
 }
 
-/*
-func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, now time.Time, from int) routing.LBEndpoint {
-	fd, fe, ep := ctx.Route.LBFadeInDuration, ctx.Route.LBFadeInEase, ctx.Route.LBEndpoints
-	i, c := from, len(ep)
-	for {
-		i = (i + 1) % len(ep)
-		c--
-		if c == 1 {
-			return ep[i]
-		}
-
-		f := fadeIn(now, fd, fe, ep[i].Detected)
-		if chance(rnd, f/float64(c)) {
-			return ep[i]
+func shiftToOldest(ctx *routing.LBContext) routing.LBEndpoint {
+	ep := ctx.Route.LBEndpoints
+	oldest := ep[0]
+	for _, epi := range ep[1:] {
+		if epi.Detected.Before(oldest.Detected) {
+			oldest = epi
 		}
 	}
+
+	return oldest
 }
-func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []float64, now time.Time, from int) routing.LBEndpoint {
-	fd, fe, ep := ctx.Route.LBFadeInDuration, ctx.Route.LBFadeInEase, ctx.Route.LBEndpoints
 
-	var (
-		sum float64
-		last int
-	)
-
-	i := from
-	for {
-		i = (i + 1) % len(ep)
-		if i == from {
-			break
-		}
-
-		f := fadeIn(now, fd, fe, ep[i].Detected)
-		sum += f
-		w[i] = sum
-		last = i
-	}
-
-	r := sum * rand.Float64()
-	i = from
-	for {
-		i = (i + 1) % len(ep)
-		if i == last || r < w[i] {
-			return ep[i]
+func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []int, now time.Time) routing.LBEndpoint {
+	notFadingIndexes := w
+	ep := ctx.Route.LBEndpoints
+	for i := 0; i < len(ep); i++ {
+		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, ep[i].Detected); !fadingIn {
+			notFadingIndexes = append(notFadingIndexes, i)
 		}
 	}
-}
-*/
-func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []int, now time.Time, from int) routing.LBEndpoint {
-	d, ep := ctx.Route.LBFadeInDuration, ctx.Route.LBEndpoints
 
-	var (
-		sum  int
-		last int
-	)
-
-	i := from
-	for {
-		i = (i + 1) % len(ep)
-		if i == from {
-			break
-		}
-
-		if _, fadingIn := fadeInState(now, d, ep[i].Detected); !fadingIn {
-			sum++
-		}
-
-		w[i] = sum
-		last = i
+	// if all endpoints are fading, the simplest approach is to use the oldest,
+	// this departs from the desired curve, but guarantees monotonic fade-in. From
+	// the perspective of the oldest endpoint, this is temporarily the same as if
+	// there was no fade-in.
+	if len(notFadingIndexes) == 0 {
+		return shiftToOldest(ctx)
 	}
 
-	// this may not be good, because the endpoints can be in different stages of fading in
-	// TODO: use an alternative in this case
-	if sum == 0 {
-		return ep[from]
-	}
-
-	r := rand.Intn(sum) // [0..sum]
-	i = from
-	for {
-		i = (i + 1) % len(ep)
-		if i == last || r < w[i] {
-			return ep[i]
-		}
-	}
+	// otherwise equally distribute between the old endpoints
+	return ep[notFadingIndexes[rnd.Intn(len(notFadingIndexes))]]
 }
 
 func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, w []int, choice int) routing.LBEndpoint {
@@ -171,11 +101,25 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, w []int, choice int) rou
 		return ctx.Route.LBEndpoints[choice]
 	}
 
-	// TODO(sszuecs): I think we should store
-	// ctx.Route.LBEndpoints[choice] and re-Apply() algorithm
-	// until we found one that can have the traffic and fallback
-	// to the first choice
-	return shiftToRemaining(rnd, ctx, w, now, choice)
+	return shiftToRemaining(rnd, ctx, w, now)
+}
+
+type roundRobin struct {
+	mx         sync.Mutex
+	index      int
+	rnd        *rand.Rand
+	fadeInCalc []int
+}
+
+func newRoundRobin(endpoints []string) routing.LBAlgorithm {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return &roundRobin{
+		index: rnd.Intn(len(endpoints)),
+		rnd:   rnd,
+
+		// preallocating frequently used slice
+		fadeInCalc: make([]int, 0, len(endpoints)),
+	}
 }
 
 // Apply implements routing.LBAlgorithm with a roundrobin algorithm.
@@ -203,8 +147,10 @@ type random struct {
 func newRandom(endpoints []string) routing.LBAlgorithm {
 	t := time.Now().UnixNano()
 	return &random{
-		rand:       rand.New(rand.NewSource(t)),
-		fadeInCalc: make([]int, len(endpoints)),
+		rand: rand.New(rand.NewSource(t)),
+
+		// preallocating frequently used slice
+		fadeInCalc: make([]int, 0, len(endpoints)),
 	}
 }
 
@@ -215,7 +161,6 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	}
 
 	i := r.rand.Intn(len(ctx.Route.LBEndpoints))
-
 	if ctx.Route.LBFadeInDuration <= 0 {
 		return ctx.Route.LBEndpoints[i]
 	}
@@ -224,14 +169,12 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 }
 
 type consistentHash struct {
-	rnd        *rand.Rand
-	fadeInCalc []int
+	rnd *rand.Rand
 }
 
 func newConsistentHash(endpoints []string) routing.LBAlgorithm {
 	return &consistentHash{
-		rnd:        rand.New(rand.NewSource(time.Now().UnixNano())),
-		fadeInCalc: make([]int, len(endpoints)),
+		rnd: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -255,11 +198,7 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		choice = len(ctx.Route.LBEndpoints) + choice
 	}
 
-	if ctx.Route.LBFadeInDuration <= 0 {
-		return ctx.Route.LBEndpoints[choice]
-	}
-
-	return withFadeIn(ch.rnd, ctx, ch.fadeInCalc, choice)
+	return ctx.Route.LBEndpoints[choice]
 }
 
 type (
