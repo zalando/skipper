@@ -12,7 +12,7 @@ import (
 const (
 	fadeInDuration    = 100 * time.Millisecond
 	bucketCount       = 20
-	monotonyTolerance = 0.1 // we need to use a high tolerance for CI testing
+	monotonyTolerance = 0.3 // we need to use a high tolerance for CI testing
 )
 
 func absint(i int) int {
