@@ -40,6 +40,7 @@ type (
 	}
 )
 
+// NewDuration creates a filter spec for the fade-in duration filter.
 func NewDuration() filters.Spec {
 	return duration(0)
 }
@@ -69,6 +70,7 @@ func (duration) CreateFilter(args []interface{}) (filters.Filter, error) {
 func (duration) Request(filters.FilterContext)  {}
 func (duration) Response(filters.FilterContext) {}
 
+// NewExponent creates a filter spec for the fade-in duration filter.
 func NewExponent() filters.Spec {
 	return exponent(0)
 }
@@ -93,6 +95,7 @@ func (exponent) CreateFilter(args []interface{}) (filters.Filter, error) {
 func (exponent) Request(filters.FilterContext)  {}
 func (exponent) Response(filters.FilterContext) {}
 
+// NewEndpointCreated creates a filter spec for the endpointCreated filter.
 func NewEndpointCreated() filters.Spec {
 	var ec endpointCreated
 	return ec
@@ -190,6 +193,8 @@ func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) 
 func (endpointCreated) Request(filters.FilterContext)  {}
 func (endpointCreated) Response(filters.FilterContext) {}
 
+// NewPostProcessor creates post-processor for maintaining the detection time of LB endpoints with fade-in
+// behavior.
 func NewPostProcessor() routing.PostProcessor {
 	return &postProcessor{
 		detected: make(map[string]detectedFadeIn),
