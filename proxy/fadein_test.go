@@ -18,7 +18,7 @@ Available data:
 
 States, all the combinations of:
 - single or multiple proxy instances
-- proxies with or without syncing
+- proxies with or without syncing (not implemented)
 - zero, one or more endpoints
 - endpoints with or without fade-in
 - endpoints with or without available created time
@@ -26,11 +26,11 @@ States, all the combinations of:
 Events:
 - endpoint created
 - endpoint detected
-- endpoint restarted
-- endpoint restarted fast
-- endpoint deleted
-- proxy (re)started
-- proxy (re)started during fade-in
+- endpoint restarted (not implemented)
+- endpoint restarted fast (not implemented)
+- endpoint deleted (not implemented)
+- proxy (re)started (not implemented)
+- proxy (re)started during fade-in (not implemented)
 
 Tests:
 
@@ -208,35 +208,37 @@ multiple proxies, with sync
 */
 
 func TestFadeIn(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	run(t,
-		"single proxy, no sync",
+		"single proxy",
 		sub(
 			"no endpoints",
 			sub(
 				"with fade-in",
 				sub(
 					"with created time",
-					sub("start single", endpointStartTest(1, 0, 1, true, true, false)),
-					sub("start multiple", endpointStartTest(1, 0, 3, true, true, false)),
+					sub("start single", endpointStartTest(1, 0, 1, true, true,
+						false)),
+					sub("start multiple", endpointStartTest(1, 0, 3, true, true,
+						false, true, true)),
 				),
 				sub(
 					"without created time",
-					sub("start single", endpointStartTest(1, 0, 1, true, false, false)),
-					sub("start multiple", endpointStartTest(1, 0, 3, true, false, false)),
+					sub("start single", endpointStartTest(1, 0, 1, true, false,
+						false)),
+					sub("start multiple", endpointStartTest(1, 0, 3, true, false,
+						false, true, true)),
 				),
 			),
 			sub(
 				"without fade-in",
-				sub(
-					"with created time",
-					sub("start single", endpointStartTest(1, 0, 1, false, true, false)),
-					sub("start multiple", endpointStartTest(1, 0, 3, false, true, false)),
-				),
-				sub(
-					"without created time",
-					sub("start single", endpointStartTest(1, 0, 1, false, false, false)),
-					sub("start multiple", endpointStartTest(1, 0, 3, false, false, false)),
-				),
+				sub("start single", endpointStartTest(1, 0, 1, false, false,
+					false)),
+				sub("start multiple", endpointStartTest(1, 0, 3, false, false,
+					false, false, false)),
 			),
 		),
 		sub(
@@ -245,9 +247,137 @@ func TestFadeIn(t *testing.T) {
 				"with fade-in",
 				sub(
 					"with created time",
-					sub("start single", endpointStartTest(1, 1, 1, true, true, true)),
-					sub("start multiple", endpointStartTest(1, 1, 3, true, true, true)),
+					sub("start single", endpointStartTest(1, 1, 1, true, true,
+						false, true)),
+					sub("start multiple", endpointStartTest(1, 1, 3, true, true,
+						false, true, true, true)),
 				),
+				sub(
+					"without created time",
+					sub("start single", endpointStartTest(1, 1, 1, true, false,
+						false, true)),
+					sub("start multiple", endpointStartTest(1, 1, 3, true, false,
+						false, true, true, true)),
+				),
+			),
+			sub(
+				"without fade-in",
+				sub("start single", endpointStartTest(1, 1, 1, false, false,
+					false, false)),
+				sub("start multiple", endpointStartTest(1, 1, 3, false, false,
+					false, false, false, false)),
+			),
+		),
+		sub(
+			"multiple endpoints",
+			sub(
+				"with fade-in",
+				sub(
+					"with created time",
+					sub("start single", endpointStartTest(1, 3, 1, true, true,
+						false, false, false, true)),
+					sub("start multiple", endpointStartTest(1, 3, 3, true, true,
+						false, false, false, true, true, true)),
+				),
+				sub(
+					"without created time",
+					sub("start single", endpointStartTest(1, 3, 1, true, false,
+						false, false, false, true)),
+					sub("start multiple", endpointStartTest(1, 3, 3, true, false,
+						false, false, false, true, true, true)),
+				),
+			),
+			sub(
+				"without fade-in",
+				sub("start single", endpointStartTest(1, 3, 1, false, false,
+					false, false, false, false)),
+				sub("start multiple", endpointStartTest(1, 3, 3, false, false,
+					false, false, false, false, false, false)),
+			),
+		),
+	)
+
+	run(t,
+		"multiple proxies, no sync",
+		sub(
+			"no endpoints",
+			sub(
+				"with fade-in",
+				sub(
+					"with created time",
+					sub("start single", endpointStartTest(3, 0, 1, true, true,
+						false)),
+					sub("start multiple", endpointStartTest(3, 0, 3, true, true,
+						false, true, true)),
+				),
+				sub(
+					"without created time",
+					sub("start single", endpointStartTest(3, 0, 1, true, false,
+						false)),
+					sub("start multiple", endpointStartTest(3, 0, 3, true, false,
+						false, true, true)),
+				),
+			),
+			sub(
+				"without fade-in",
+				sub("start single", endpointStartTest(3, 0, 1, false, false,
+					false)),
+				sub("start multiple", endpointStartTest(3, 0, 3, false, false,
+					false, false, false)),
+			),
+		),
+		sub(
+			"single endpoint",
+			sub(
+				"with fade-in",
+				sub(
+					"with created time",
+					sub("start single", endpointStartTest(3, 1, 1, true, true,
+						false, true)),
+					sub("start multiple", endpointStartTest(3, 1, 3, true, true,
+						false, true, true, true)),
+				),
+				sub(
+					"without created time",
+					sub("start single", endpointStartTest(3, 1, 1, true, false,
+						false, true)),
+					sub("start multiple", endpointStartTest(3, 1, 3, true, false,
+						false, true, true, true)),
+				),
+			),
+			sub(
+				"without fade-in",
+				sub("start single", endpointStartTest(3, 1, 1, false, false,
+					false, false)),
+				sub("start multiple", endpointStartTest(3, 1, 3, false, false,
+					false, false, false, false)),
+			),
+		),
+		sub(
+			"multiple endpoints",
+			sub(
+				"with fade-in",
+				sub(
+					"with created time",
+					sub("start single", endpointStartTest(3, 3, 1, true, true,
+						false, false, false, true)),
+					sub("start multiple", endpointStartTest(3, 3, 3, true, true,
+						false, false, false, true, true, true)),
+				),
+				sub(
+					"without created time",
+					sub("start single", endpointStartTest(3, 3, 1, true, false,
+						false, false, false, true)),
+					sub("start multiple", endpointStartTest(3, 3, 3, true, false,
+						false, false, false, true, true, true)),
+				),
+			),
+			sub(
+				"without fade-in",
+				sub("start single", endpointStartTest(3, 3, 1, false, false,
+					false, false, false, false)),
+				sub("start multiple", endpointStartTest(3, 3, 3, false, false,
+					false, false, false, false, false, false)),
 			),
 		),
 	)

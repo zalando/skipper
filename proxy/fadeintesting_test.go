@@ -2,7 +2,6 @@ package proxy_test
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -32,11 +31,11 @@ too. The harness implements the following setup:
 */
 
 const (
-	testFadeInDuration  = 1800 * time.Millisecond
-	statBucketCount     = 4
-	clientRate          = 120 * time.Microsecond
-	minStats            = 120
-	fadeInStepTolerance = 0.5
+	testFadeInDuration = 6000 * time.Millisecond
+	statBucketCount    = 10
+	clientRate         = time.Millisecond
+	minStats           = 300
+	fadeInTolerance    = 0.3
 )
 
 type fadeInDataClient struct {
@@ -447,10 +446,6 @@ func bucketSizes(b [][]stat) []float64 {
 	return sizes
 }
 
-func eqWithTolerance(left, right, tolerance float64) bool {
-	return math.Abs(left-right) < tolerance
-}
-
 func checkSamples(t *testing.T, s []stat) {
 	if len(s) < minStats {
 		t.Fatalf("No sufficient stats: %d, expected at least: %d.", len(s), minStats)
@@ -461,38 +456,23 @@ func checkEndpointFadeIn(t *testing.T, s []stat) {
 	checkSamples(t, s)
 	buckets := statBuckets(s)
 	sizes := bucketSizes(buckets)
-	averageStep := sizes[len(sizes)-1] / float64(len(sizes))
-	for i := range sizes {
-		var prev float64
-		if i > 0 {
-			prev = sizes[i-1]
-		}
-
-		if !eqWithTolerance(sizes[i]-prev, averageStep, averageStep*fadeInStepTolerance) {
-			t.Fatalf(
-				"Unexpected fade-in step at %d. Expected: %f, got: %f.",
-				i,
-				averageStep,
-				sizes[i]-prev,
-			)
-		}
+	if sizes[0] >= sizes[len(sizes)/2] || sizes[len(sizes)/2] >= sizes[len(sizes)-1] {
+		t.Fatal("Failed to fade-in.")
 	}
+}
+
+func lessOrEqWithTolerance(left, right float64) bool {
+	t := (left + right) * fadeInTolerance / 2
+	return left < right+t
 }
 
 func checkStableOrDecrease(t *testing.T, s []stat) {
 	checkSamples(t, s)
 	buckets := statBuckets(s)
 	sizes := bucketSizes(buckets)
-	for i := 1; i < len(sizes); i++ {
-		if sizes[i] > sizes[i-1] &&
-			!eqWithTolerance(sizes[i], sizes[i-1], sizes[i-1]*fadeInStepTolerance) {
-			t.Fatalf(
-				"Unexpected increase at step %d. Expected max: %f, got: %f.",
-				i,
-				sizes[i-1],
-				sizes[i],
-			)
-		}
+	if !lessOrEqWithTolerance(sizes[len(sizes)/2], sizes[0]) ||
+		!lessOrEqWithTolerance(sizes[len(sizes)-1], sizes[len(sizes)/2]) {
+		t.Fatal("Unexpected increase.")
 	}
 }
 
@@ -500,9 +480,9 @@ func checkFadeIn(t *testing.T, u []string, stats []stat, doFade []bool) {
 	checkSuccess(t, stats)
 	statsByEndpoint := mapStats(stats)
 	for i := range u {
-		if doFade[i] {
+		if i < len(doFade) && doFade[i] {
 			checkEndpointFadeIn(t, statsByEndpoint[u[i]])
-		} else {
+		} else if i < len(doFade) {
 			checkStableOrDecrease(t, statsByEndpoint[u[i]])
 		}
 	}
@@ -510,7 +490,8 @@ func checkFadeIn(t *testing.T, u []string, stats []stat, doFade []bool) {
 
 func endpointStartTest(
 	proxies, initialEndpoints, addEndpoints int,
-	withFadeIn, withCreated, expectFadeIn bool,
+	withFadeIn, withCreated bool,
+	expectFadeIn ...bool,
 ) func(*testing.T) {
 	return func(t *testing.T) {
 		b := startBackend(t, withFadeIn, withCreated)
@@ -520,8 +501,6 @@ func endpointStartTest(
 		if err := b.addInstances(initial...); err != nil {
 			t.Fatal(err)
 		}
-
-		doFade := make([]bool, initialEndpoints)
 
 		p := startProxy(t, b)
 		defer p.close()
@@ -534,14 +513,10 @@ func endpointStartTest(
 		add := randomURLs(t, addEndpoints)
 		b.addInstances(add...)
 
-		for range add {
-			doFade = append(doFade, expectFadeIn)
-		}
-
 		time.Sleep(testFadeInDuration)
 		stats := c.getStats()
 		stats = trimFailed(stats)
-		checkFadeIn(t, append(initial, add...), stats, doFade)
+		checkFadeIn(t, append(initial, add...), stats, expectFadeIn)
 	}
 }
 
