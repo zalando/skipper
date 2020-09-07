@@ -46,13 +46,13 @@ func fadeInState(now time.Time, duration time.Duration, detected time.Time) (tim
 	return rel, rel < duration
 }
 
-func fadeIn(now time.Time, duration time.Duration, ease float64, detected time.Time) float64 {
+func fadeIn(now time.Time, duration time.Duration, exponent float64, detected time.Time) float64 {
 	rel, fadingIn := fadeInState(now, duration, detected)
 	if !fadingIn {
 		return 1
 	}
 
-	return math.Pow(float64(rel)/float64(duration), ease)
+	return math.Pow(float64(rel)/float64(duration), exponent)
 }
 
 func shiftToOldest(ctx *routing.LBContext) routing.LBEndpoint {
@@ -93,7 +93,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, w []int, choice int) rou
 	f := fadeIn(
 		now,
 		ctx.Route.LBFadeInDuration,
-		ctx.Route.LBFadeInEase,
+		ctx.Route.LBFadeInExponent,
 		ctx.Route.LBEndpoints[choice].Detected,
 	)
 

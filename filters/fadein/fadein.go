@@ -15,13 +15,13 @@ import (
 
 const (
 	DurationName        = "fadeInDuration"
-	EaseName            = "fadeInEase"
+	ExponentName        = "fadeInExponent"
 	EndpointCreatedName = "endpointCreated"
 )
 
 type (
 	duration time.Duration
-	ease     float64
+	exponent float64
 
 	endpointCreated struct {
 		when  time.Time
@@ -69,29 +69,29 @@ func (duration) CreateFilter(args []interface{}) (filters.Filter, error) {
 func (duration) Request(filters.FilterContext)  {}
 func (duration) Response(filters.FilterContext) {}
 
-func NewEase() filters.Spec {
-	return ease(0)
+func NewExponent() filters.Spec {
+	return exponent(0)
 }
 
-func (ease) Name() string { return EaseName }
+func (exponent) Name() string { return ExponentName }
 
-func (ease) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (exponent) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
 	switch v := args[0].(type) {
 	case int:
-		return ease(v), nil
+		return exponent(v), nil
 	case float64:
-		return ease(v), nil
+		return exponent(v), nil
 	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}
 }
 
-func (ease) Request(filters.FilterContext)  {}
-func (ease) Response(filters.FilterContext) {}
+func (exponent) Request(filters.FilterContext)  {}
+func (exponent) Response(filters.FilterContext) {}
 
 func NewEndpointCreated() filters.Spec {
 	var ec endpointCreated
@@ -199,15 +199,15 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 		}
 
 		ri.LBFadeInDuration = 0
-		ri.LBFadeInEase = 1
+		ri.LBFadeInExponent = 1
 		endpointsCreated := make(map[string]time.Time)
 		for _, f := range ri.Filters {
 			if d, ok := f.Filter.(duration); ok {
 				ri.LBFadeInDuration = time.Duration(d)
 			}
 
-			if e, ok := f.Filter.(ease); ok {
-				ri.LBFadeInEase = float64(e)
+			if e, ok := f.Filter.(exponent); ok {
+				ri.LBFadeInExponent = float64(e)
 			}
 
 			if ec, ok := f.Filter.(endpointCreated); ok {
@@ -245,11 +245,6 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 
 	// cleanup old detected, considering last active
 	for key, d := range p.detected {
-		// TODO(szuecs): I think this is the correct one and lastActive can be deleted.
-		// if d.when.Add(d.duration).After(now) {
-		// 	delete(p.detected, key)
-		// }
-
 		// this allows tolerating when a fade-in endpoint temporarily disappears:
 		if d.lastActive.Add(d.duration).Before(now) {
 			delete(p.detected, key)

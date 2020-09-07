@@ -172,7 +172,7 @@ func MakeRegistry() filters.Registry {
 		scheduler.NewLIFOGroup(),
 		rfc.NewPath(),
 		fadein.NewDuration(),
-		fadein.NewEase(),
+		fadein.NewExponent(),
 		fadein.NewEndpointCreated(),
 	} {
 		r.Register(s)

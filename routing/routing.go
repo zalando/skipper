@@ -202,7 +202,7 @@ type Route struct {
 	LBAlgorithm LBAlgorithm
 
 	LBFadeInDuration time.Duration
-	LBFadeInEase     float64
+	LBFadeInExponent float64
 }
 
 // PostProcessor is an interface for custom post-processors applying changes

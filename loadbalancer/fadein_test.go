@@ -63,7 +63,7 @@ func testFadeIn(
 		ctx := &routing.LBContext{
 			Route: &routing.Route{
 				LBFadeInDuration: fadeInDuration,
-				LBFadeInEase:     1,
+				LBFadeInExponent: 1,
 			},
 		}
 
