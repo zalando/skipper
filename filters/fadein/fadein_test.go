@@ -297,7 +297,7 @@ func TestPostProcessor(t *testing.T) {
 		rt, _ := createRouting(t, routes)
 		r := route(rt, "/")
 		if r == nil || len(r.LBEndpoints) == 0 || !r.LBEndpoints[0].Detected.IsZero() {
-			t.Fatal("failed to ignore invalid LB endpoint")
+			t.Fatal("failed to ignore negative duration")
 		}
 	})
 
@@ -341,7 +341,7 @@ func TestPostProcessor(t *testing.T) {
 		firstDetected := time.Now()
 
 		const nextRoutes = `
-			* -> fadeInDuration("1m") -> <"http://10.0.0.1:8080">
+			* -> fadeInDuration("1m") -> <"http://10.0.0.2:8080">
 		`
 
 		update(nextRoutes)
