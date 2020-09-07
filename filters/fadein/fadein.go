@@ -104,9 +104,16 @@ func normalizeSchemeHost(s, h string) (string, string, error) {
 	// endpoint address cannot contain path, the rest is not case sensitive
 	s, h = strings.ToLower(s), strings.ToLower(h)
 
-	h, p, err := net.SplitHostPort(h)
+	hh, p, err := net.SplitHostPort(h)
 	if err != nil {
-		return "", "", err
+		// what is the actual right way of doing this, considering IPv6 addresses, too?
+		if !strings.Contains(err.Error(), "missing port") {
+			return "", "", err
+		}
+
+		p = ""
+	} else {
+		h = hh
 	}
 
 	switch {
