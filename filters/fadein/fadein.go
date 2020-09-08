@@ -209,14 +209,12 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 		ri.LBFadeInExponent = 1
 		endpointsCreated := make(map[string]time.Time)
 		for _, f := range ri.Filters {
-			if fi, ok := f.Filter.(fadeIn); ok {
+			switch fi := f.Filter.(type) {
+			case fadeIn:
 				ri.LBFadeInDuration = fi.duration
 				ri.LBFadeInExponent = fi.exponent
-				continue
-			}
-
-			if ec, ok := f.Filter.(endpointCreated); ok {
-				endpointsCreated[ec.which] = ec.when
+			case endpointCreated:
+				endpointsCreated[fi.which] = fi.when
 			}
 		}
 
