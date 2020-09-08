@@ -43,7 +43,7 @@ var (
 
 func fadeInState(now time.Time, duration time.Duration, detected time.Time) (time.Duration, bool) {
 	rel := now.Sub(detected)
-	return rel, rel < duration
+	return rel, rel > 0 && rel < duration
 }
 
 func fadeIn(now time.Time, duration time.Duration, exponent float64, detected time.Time) float64 {

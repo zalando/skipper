@@ -2019,7 +2019,7 @@ fadeInDuration("3m")
 This filter, when used together with the [fadeInDuration](#fadeInDuration) filter, can be used to adjust the
 shape of the fade-in function, based on the following equation:
 
-current-rate = proportional-rate * (time-since-detection / duration) ^ exponent
+current-rate = proportional-rate * min((now - detected) / duration, 1) ^ exponent
 
 Parameters:
 
