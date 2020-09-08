@@ -82,8 +82,8 @@ func serve(cfg *config, handler http.Handler) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM)
 	go func() {
-		log.Info("Shutting down...")
 		<-sig
+		log.Info("Shutting down...")
 		server.Shutdown(context.Background())
 	}()
 
