@@ -27,7 +27,7 @@ too. The harness implements the following setup:
 	          |-> proxy instance 1    |-> backend instance 1
 	          |-> proxy instance 2    |-> backend instance 2
 	          \-> proxy instance 3    |-> backend instance 3
-		                         \-> backend instance 4
+	                                  \-> backend instance 4
 */
 
 const (
