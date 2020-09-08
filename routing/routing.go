@@ -144,6 +144,10 @@ type RouteFilter struct {
 // backends.
 type LBEndpoint struct {
 	Scheme, Host string
+
+	// Detected represents the time when skipper instances first detected a new LB endpoint. This detection
+	// time is used for the fade-in feature of the round-robin and random LB algorithms.
+	Detected time.Time
 }
 
 // LBAlgorithm implementations apply a load balancing algorithm
@@ -199,6 +203,19 @@ type Route struct {
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
 	LBAlgorithm LBAlgorithm
+
+	// LBFadeInDuration defines the duration of the fade-in
+	// function to be applied to new LB endpoints associated
+	// with this route.
+	LBFadeInDuration time.Duration
+
+	// LBExponent defines a secondary exponent modifier of
+	// the fade-in function configured mainly by the LBFadeInDuration
+	// field, adjusting the shape of the fade-in. By default,
+	// its value is usually 1, meaning linear fade-in, and it's
+	// configured by the post-processor found in the filters/fadein
+	// package.
+	LBFadeInExponent float64
 }
 
 // PostProcessor is an interface for custom post-processors applying changes

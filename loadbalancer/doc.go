@@ -19,6 +19,10 @@ consistentHash Algorithm
     client IP, which will be looked up from X-Forwarded-For header
     with remote IP as the fallback.
 
+The roundRobin and the random algorithms also provide fade-in behavior for LB endpoints of routes where the
+fade-in duration was configured. This feature can be used to gradually add traffic to new instances of
+applications that require a certain amount of warm-up time.
+
 Eskip example:
 
 
