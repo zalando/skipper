@@ -391,7 +391,9 @@ func trimFailed(s []stat) []stat {
 }
 
 func checkSuccess(t *testing.T, s []stat) {
+	var foundAny bool
 	for _, si := range s {
+		foundAny = true
 		if si.status != http.StatusOK || si.endpoint == "" {
 			t.Fatalf(
 				"Failed request to: '%s', with status: %d.",
@@ -399,6 +401,10 @@ func checkSuccess(t *testing.T, s []stat) {
 				si.status,
 			)
 		}
+	}
+
+	if !foundAny {
+		t.Fatal("Failed to generate stats.")
 	}
 }
 
