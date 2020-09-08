@@ -168,14 +168,10 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return withFadeIn(r.rand, ctx, r.fadeInCalc, i)
 }
 
-type consistentHash struct {
-	rnd *rand.Rand
-}
+type consistentHash struct{}
 
 func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	return &consistentHash{
-		rnd: rand.New(rand.NewSource(time.Now().UnixNano())),
-	}
+	return &consistentHash{}
 }
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
