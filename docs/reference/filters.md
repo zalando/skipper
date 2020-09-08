@@ -1994,46 +1994,35 @@ Example:
 originMarker("apiUsageMonitoring", "deployment1", "2019-08-30T09:55:51Z")
 ```
 
-## fadeInDuration
+## fadeIn
 
 When this filter is set, and the route has a load balanced backend, then the newly added endpoints will receive
 the traffic in a gradually increasing way, starting from their detection for the specified duration, after which
-they receive equal amount traffic as the previously existing routes. By default, the fade-in function is linear,
-but it can be adjusted with the [fadeInExponent](#fadeInExponent) filter. The detection time of an load balanced
+they receive equal amount traffic as the previously existing routes. The detection time of an load balanced
 backend endpoint is preserved over multiple generations of the route configuration (over route changes). This
 filter can be used to saturate the load of autoscaling applications that require a warm-up time and therefore a
 smooth ramp-up. The fade-in feature can be used together with the round-robin and random LB algorithms.
 
-Parameters:
-
-* the duration of the fade-in in milliseconds or as a duration string
-
-Example:
-
-```
-fadeInDuration("3m")
-```
-
-## fadeInExponent
-
-This filter, when used together with the [fadeInDuration](#fadeInDuration) filter, can be used to adjust the
-shape of the fade-in function, based on the following equation:
+While the default fade-in curve is linear, the optional exponent parameter can be used to adjust the shape of
+the fade-in curve, based on the following equation:
 
 current-rate = proportional-rate * min((now - detected) / duration, 1) ^ exponent
 
 Parameters:
 
-* a floating point number, default: 1
+* duration: duration of the fade-in in milliseconds or as a duration string
+* fade-in curve exponent - optional: a floating point number, default: 1
 
-Example:
+Examples:
 
 ```
-fadeInExponent(2)
+fadeIn("3m")
+fadeIn("3m", 1.5)
 ```
 
 ## endpointCreated
 
-This filter marks the creation time of a load balanced endpoint. When used together with the fadeInDuration
+This filter marks the creation time of a load balanced endpoint. When used together with the fadeIn
 filter, it prevents missing the detection of a new backend instance with the same hostname. This filter is
 typically automatically appended, and it's parameters are based on external sources, e.g. the Kubernetes API.
 

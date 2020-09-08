@@ -138,7 +138,7 @@ func (b *fadeInBackend) route() *eskip.Route {
 
 	if b.withFadeIn {
 		r.Filters = append(r.Filters, &eskip.Filter{
-			Name: fadein.DurationName,
+			Name: fadein.FadeInName,
 			Args: []interface{}{testFadeInDuration},
 		})
 	}
@@ -242,7 +242,7 @@ func (p *fadeInProxy) addInstances(n int) {
 	for i := 0; i < n; i++ {
 		client := p.backend.createDataClient()
 		fr := make(filters.Registry)
-		fr.Register(fadein.NewDuration())
+		fr.Register(fadein.NewFadeIn())
 		fr.Register(fadein.NewEndpointCreated())
 		rt := routing.New(routing.Options{
 			FilterRegistry: fr,

@@ -43,71 +43,52 @@ func (test createTestItem) run(
 	}
 }
 
-func TestCreateDuration(t *testing.T) {
+func TestCreateFadeIn(t *testing.T) {
 	for _, test := range []createTestItem{{
 		name: "no args",
 		fail: true,
 	}, {
 		name: "too many args",
-		args: []interface{}{1, 2},
+		args: []interface{}{1, 2, 3},
 		fail: true,
 	}, {
-		name: "wrong string",
+		name: "wrong duration string",
 		args: []interface{}{"foo"},
 		fail: true,
 	}, {
-		name:   "int",
+		name: "wrong exponent type",
+		args: []interface{}{"3m", "foo"},
+		fail: true,
+	}, {
+		name:   "duration as int",
 		args:   []interface{}{1000},
-		expect: time.Second,
+		expect: fadeIn{duration: time.Second, exponent: 1},
 	}, {
-		name:   "float",
+		name:   "duration as float",
 		args:   []interface{}{float64(1000)},
-		expect: time.Second,
+		expect: fadeIn{duration: time.Second, exponent: 1},
 	}, {
-		name:   "string",
+		name:   "duration as string",
 		args:   []interface{}{"1s"},
-		expect: time.Second,
+		expect: fadeIn{duration: time.Second, exponent: 1},
 	}, {
-		name:   "time.Duration",
+		name:   "duration as time.Duration",
 		args:   []interface{}{time.Second},
-		expect: time.Second,
+		expect: fadeIn{duration: time.Second, exponent: 1},
+	}, {
+		name:   "exponent as int",
+		args:   []interface{}{"3m", 2},
+		expect: fadeIn{duration: 3 * time.Minute, exponent: 2},
+	}, {
+		name:   "exponent as float",
+		args:   []interface{}{"3m", 2.0},
+		expect: fadeIn{duration: 3 * time.Minute, exponent: 2},
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			test.run(
 				t,
-				NewDuration,
-				func(f filters.Filter) interface{} { return time.Duration(f.(duration)) },
-			)
-		})
-	}
-}
-
-func TestCreateExponent(t *testing.T) {
-	for _, test := range []createTestItem{{
-		name: "no args",
-		fail: true,
-	}, {
-		name: "too many args",
-		args: []interface{}{1, 2},
-		fail: true,
-	}, {
-		name: "wrong type",
-		args: []interface{}{"foo"},
-		fail: true,
-	}, {
-		name:   "int",
-		args:   []interface{}{2},
-		expect: 2.0,
-	}, {
-		name:   "float",
-		args:   []interface{}{2.0},
-		expect: 2.0,
-	}} {
-		t.Run(test.name, func(t *testing.T) {
-			test.run(
-				t,
-				NewExponent,
-				func(f filters.Filter) interface{} { return float64(f.(exponent)) },
+				NewFadeIn,
+				func(f filters.Filter) interface{} { return f.(fadeIn) },
 			)
 		})
 	}
@@ -211,7 +192,7 @@ func TestPostProcessor(t *testing.T) {
 		rt := routing.New(routing.Options{
 			DataClients: []routing.DataClient{dc},
 			FilterRegistry: filters.Registry{
-				DurationName:        NewDuration(),
+				FadeInName:          NewFadeIn(),
 				EndpointCreatedName: NewEndpointCreated(),
 			},
 			PostProcessors: []routing.PostProcessor{
@@ -249,7 +230,7 @@ func TestPostProcessor(t *testing.T) {
 	t.Run("post-process LB route with fade-in", func(t *testing.T) {
 		const routes = `
 			foo: Path("/foo") -> "https://www.example.org";
-			bar: Path("/bar") -> fadeInDuration("1m") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">;
+			bar: Path("/bar") -> fadeIn("1m") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">;
 			baz: Path("/baz") -> <"http://10.0.1.1:8080", "http://10.0.1.2:8080">
 		`
 
@@ -279,7 +260,7 @@ func TestPostProcessor(t *testing.T) {
 
 	t.Run("invalid endpoint address", func(t *testing.T) {
 		const routes = `
-			* -> fadeInDuration("1m") -> <"http://::">
+			* -> fadeIn("1m") -> <"http://::">
 		`
 
 		rt, _ := createRouting(t, routes)
@@ -291,7 +272,7 @@ func TestPostProcessor(t *testing.T) {
 
 	t.Run("negative duration", func(t *testing.T) {
 		const routes = `
-			* -> fadeInDuration("-1m") -> <"http://10.0.0.1:8080">
+			* -> fadeIn("-1m") -> <"http://10.0.0.1:8080">
 		`
 
 		rt, _ := createRouting(t, routes)
@@ -303,14 +284,14 @@ func TestPostProcessor(t *testing.T) {
 
 	t.Run("endpoint already detected", func(t *testing.T) {
 		const routes = `
-			* -> fadeInDuration("1m") -> <"http://10.0.0.1:8080">
+			* -> fadeIn("1m") -> <"http://10.0.0.1:8080">
 		`
 
 		rt, update := createRouting(t, routes)
 		firstDetected := time.Now()
 
 		const nextRoutes = `
-			* -> fadeInDuration("1m") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
+			* -> fadeIn("1m") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
 		`
 
 		update(nextRoutes)
@@ -334,14 +315,14 @@ func TestPostProcessor(t *testing.T) {
 
 	t.Run("endpoint temporarily disappears", func(t *testing.T) {
 		const initialRoutes = `
-			* -> fadeInDuration("1m") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
+			* -> fadeIn("1m") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
 		`
 
 		rt, update := createRouting(t, initialRoutes)
 		firstDetected := time.Now()
 
 		const nextRoutes = `
-			* -> fadeInDuration("1m") -> <"http://10.0.0.2:8080">
+			* -> fadeIn("1m") -> <"http://10.0.0.2:8080">
 		`
 
 		update(nextRoutes)
@@ -367,14 +348,14 @@ func TestPostProcessor(t *testing.T) {
 
 	t.Run("clear detected when gone for long enough", func(t *testing.T) {
 		const initialRoutes = `
-			* -> fadeInDuration("15ms") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
+			* -> fadeIn("15ms") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
 		`
 
 		rt, update := createRouting(t, initialRoutes)
 		firstDetected := time.Now()
 
 		const nextRoutes = `
-			* -> fadeInDuration("1m") -> <"http://10.0.0.2:8080">
+			* -> fadeIn("1m") -> <"http://10.0.0.2:8080">
 		`
 
 		time.Sleep(15 * time.Millisecond)
@@ -401,7 +382,7 @@ func TestPostProcessor(t *testing.T) {
 
 	t.Run("a more recent created time resets detection time", func(t *testing.T) {
 		const routesFmt = `
-			* -> fadeInDuration("1m") -> endpointCreated("http://10.0.0.1:8080", "%s") -> <"http://10.0.0.1:8080">
+			* -> fadeIn("1m") -> endpointCreated("http://10.0.0.1:8080", "%s") -> <"http://10.0.0.1:8080">
 		`
 
 		routes := fmt.Sprintf(routesFmt, nows(t))
@@ -410,7 +391,7 @@ func TestPostProcessor(t *testing.T) {
 
 		const nextRoutesFmt = `
 			*
-			-> fadeInDuration("1m")
+			-> fadeIn("1m")
 			-> endpointCreated("http://10.0.0.1:8080", "%s")
 			-> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
 		`

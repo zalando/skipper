@@ -14,14 +14,15 @@ import (
 )
 
 const (
-	DurationName        = "fadeInDuration"
-	ExponentName        = "fadeInExponent"
+	FadeInName          = "fadeIn"
 	EndpointCreatedName = "endpointCreated"
 )
 
 type (
-	duration time.Duration
-	exponent float64
+	fadeIn struct {
+		duration time.Duration
+		exponent float64
+	}
 
 	endpointCreated struct {
 		when  time.Time
@@ -40,60 +41,54 @@ type (
 	}
 )
 
-// NewDuration creates a filter spec for the fade-in duration filter.
-func NewDuration() filters.Spec {
-	return duration(0)
+// NewFadeIn creates a filter spec for the fade-in filter.
+func NewFadeIn() filters.Spec {
+	return fadeIn{}
 }
 
-func (duration) Name() string { return DurationName }
+func (fadeIn) Name() string { return FadeInName }
 
-func (duration) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 1 {
+func (fadeIn) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) == 0 || len(args) > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	var f fadeIn
 	switch v := args[0].(type) {
 	case int:
-		return duration(v * int(time.Millisecond)), nil
+		f.duration = time.Duration(v * int(time.Millisecond))
 	case float64:
-		return duration(int(v) * int(time.Millisecond)), nil
+		f.duration = time.Duration(int(v) * int(time.Millisecond))
 	case string:
 		d, err := time.ParseDuration(v)
-		return duration(d), err
+		if err != nil {
+			return nil, err
+		}
+
+		f.duration = d
 	case time.Duration:
-		return duration(v), nil
+		f.duration = v
 	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}
-}
 
-func (duration) Request(filters.FilterContext)  {}
-func (duration) Response(filters.FilterContext) {}
-
-// NewExponent creates a filter spec for the fade-in duration filter.
-func NewExponent() filters.Spec {
-	return exponent(0)
-}
-
-func (exponent) Name() string { return ExponentName }
-
-func (exponent) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 1 {
-		return nil, filters.ErrInvalidFilterParameters
+	f.exponent = 1
+	if len(args) == 2 {
+		switch v := args[1].(type) {
+		case int:
+			f.exponent = float64(v)
+		case float64:
+			f.exponent = v
+		default:
+			return nil, filters.ErrInvalidFilterParameters
+		}
 	}
 
-	switch v := args[0].(type) {
-	case int:
-		return exponent(v), nil
-	case float64:
-		return exponent(v), nil
-	default:
-		return nil, filters.ErrInvalidFilterParameters
-	}
+	return f, nil
 }
 
-func (exponent) Request(filters.FilterContext)  {}
-func (exponent) Response(filters.FilterContext) {}
+func (fadeIn) Request(filters.FilterContext)  {}
+func (fadeIn) Response(filters.FilterContext) {}
 
 // NewEndpointCreated creates a filter spec for the endpointCreated filter.
 func NewEndpointCreated() filters.Spec {
@@ -214,12 +209,10 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 		ri.LBFadeInExponent = 1
 		endpointsCreated := make(map[string]time.Time)
 		for _, f := range ri.Filters {
-			if d, ok := f.Filter.(duration); ok {
-				ri.LBFadeInDuration = time.Duration(d)
-			}
-
-			if e, ok := f.Filter.(exponent); ok {
-				ri.LBFadeInExponent = float64(e)
+			if fi, ok := f.Filter.(fadeIn); ok {
+				ri.LBFadeInDuration = fi.duration
+				ri.LBFadeInExponent = fi.exponent
+				continue
 			}
 
 			if ec, ok := f.Filter.(endpointCreated); ok {
