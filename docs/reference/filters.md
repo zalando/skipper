@@ -2006,7 +2006,7 @@ smooth ramp-up. The fade-in feature can be used together with the round-robin an
 While the default fade-in curve is linear, the optional exponent parameter can be used to adjust the shape of
 the fade-in curve, based on the following equation:
 
-current-rate = proportional-rate * min((now - detected) / duration, 1) ^ exponent
+current_rate = proportional_rate * min((now - detected) / duration, 1) ^ exponent
 
 Parameters:
 

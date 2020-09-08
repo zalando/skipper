@@ -58,7 +58,7 @@ func (fadeIn) CreateFilter(args []interface{}) (filters.Filter, error) {
 	case int:
 		f.duration = time.Duration(v * int(time.Millisecond))
 	case float64:
-		f.duration = time.Duration(int(v) * int(time.Millisecond))
+		f.duration = time.Duration(v * float64(time.Millisecond))
 	case string:
 		d, err := time.ParseDuration(v)
 		if err != nil {
@@ -138,8 +138,6 @@ func endpointKey(scheme, host string) string {
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
 
-// endpointCreated("", <int,float64,string,time>)
-// endpointCreated("http://10.2.4.123:2156", $time)
 func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -178,7 +176,11 @@ func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) 
 	// the local clock, we ignore it.
 	now := time.Now()
 	if ec.when.After(now) {
-		log.Errorf("Endpoint created time in the future: %v. Potential clock skew.", ec.when)
+		log.Errorf(
+			"Endpoint created time in the future, fading in without endpoint creation time: %v. Potential clock skew.",
+			ec.when,
+		)
+
 		ec.when = time.Time{}
 	}
 
