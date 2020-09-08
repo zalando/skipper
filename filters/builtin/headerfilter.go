@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -39,35 +40,42 @@ const (
 type headerFilter struct {
 	typ        headerType
 	key, value string
+	template   *eskip.Template
 }
 
 // verifies that the filter config has two string parameters
-func headerFilterConfig(typ headerType, config []interface{}) (string, string, error) {
+func headerFilterConfig(typ headerType, config []interface{}) (string, string, *eskip.Template, error) {
 	switch typ {
 	case dropRequestHeader, dropResponseHeader:
 		if len(config) != 1 {
-			return "", "", filters.ErrInvalidFilterParameters
+			return "", "", nil, filters.ErrInvalidFilterParameters
 		}
 	default:
 		if len(config) != 2 {
-			return "", "", filters.ErrInvalidFilterParameters
+			return "", "", nil, filters.ErrInvalidFilterParameters
 		}
 	}
 
 	key, ok := config[0].(string)
 	if !ok {
-		return "", "", filters.ErrInvalidFilterParameters
+		return "", "", nil, filters.ErrInvalidFilterParameters
 	}
 
 	var value string
 	if len(config) == 2 {
 		value, ok = config[1].(string)
 		if !ok {
-			return "", "", filters.ErrInvalidFilterParameters
+			return "", "", nil, filters.ErrInvalidFilterParameters
 		}
 	}
 
-	return key, value, nil
+	switch typ {
+	case setRequestHeader, appendRequestHeader,
+		setResponseHeader, appendResponseHeader:
+		return key, "", eskip.NewTemplate(value), nil
+	default:
+		return key, value, nil, nil
+	}
 }
 
 // Deprecated: use setRequestHeader or appendRequestHeader
@@ -221,8 +229,8 @@ func (spec *headerFilter) Name() string {
 
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter
 func (spec *headerFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
-	key, value, err := headerFilterConfig(spec.typ, config)
-	return &headerFilter{typ: spec.typ, key: key, value: value}, err
+	key, value, template, err := headerFilterConfig(spec.typ, config)
+	return &headerFilter{typ: spec.typ, key: key, value: value, template: template}, err
 }
 
 func valueFromContext(
@@ -244,15 +252,44 @@ func valueFromContext(
 	}
 }
 
+func renderValueTemplate(template *eskip.Template, ctx filters.FilterContext) (result string, ok bool) {
+	missing := false
+	result = template.Apply(func(key string) string {
+		if v := ctx.PathParam(key); v != "" {
+			return v
+		}
+		if v, ok := ctx.StateBag()[key]; ok {
+			if s, ok := v.(string); ok {
+				return s
+			}
+		}
+		missing = true
+		return ""
+	})
+	ok = !missing
+	return
+}
+
 func (f *headerFilter) Request(ctx filters.FilterContext) {
 	header := ctx.Request().Header
 	switch f.typ {
 	case setRequestHeader:
-		header.Set(f.key, f.value)
-		if strings.ToLower(f.key) == "host" {
-			ctx.SetOutgoingHost(f.value)
+		value, ok := renderValueTemplate(f.template, ctx)
+		if ok {
+			header.Set(f.key, value)
+			if strings.ToLower(f.key) == "host" {
+				ctx.SetOutgoingHost(value)
+			}
 		}
-	case appendRequestHeader, depRequestHeader:
+	case appendRequestHeader:
+		value, ok := renderValueTemplate(f.template, ctx)
+		if ok {
+			header.Add(f.key, value)
+			if strings.ToLower(f.key) == "host" {
+				ctx.SetOutgoingHost(value)
+			}
+		}
+	case depRequestHeader:
 		header.Add(f.key, f.value)
 		if strings.ToLower(f.key) == "host" {
 			ctx.SetOutgoingHost(f.value)
@@ -278,8 +315,16 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	header := ctx.Response().Header
 	switch f.typ {
 	case setResponseHeader:
-		header.Set(f.key, f.value)
-	case appendResponseHeader, depResponseHeader:
+		value, ok := renderValueTemplate(f.template, ctx)
+		if ok {
+			header.Set(f.key, value)
+		}
+	case appendResponseHeader:
+		value, ok := renderValueTemplate(f.template, ctx)
+		if ok {
+			header.Add(f.key, value)
+		}
+	case depResponseHeader:
 		header.Add(f.key, f.value)
 	case dropResponseHeader:
 		header.Del(f.key)

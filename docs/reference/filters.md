@@ -68,15 +68,23 @@ enforce_www: * -> modRequestHeader("Host", "^zalando\.(\w+)$", "www.zalando.$1")
 
 Set headers for requests.
 
+Header value may contain template variables (`${var}`) resolved from filter context path params and state bag.
+If a template variable can't be found then filter does not set the header.
+
 Parameters:
 
 * header name (string)
 * header value (string)
 
-Example:
+Examples:
 
 ```
 foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.example.org";
+```
+
+```
+// oauthTokeninfoAllScope checks whether request is authorized and stores the authenticated user with "auth-user" key in the context
+foo: * -> oauthTokeninfoAllScope("address_service.all") -> setRequestHeader("X-Uid", "${auth-user}") -> "https://backend.example.org";
 ```
 
 ## appendRequestHeader
@@ -101,6 +109,16 @@ foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
 ## setResponseHeader
 
 Same as [setRequestHeader](#setrequestheader), only for responses
+
+Example:
+
+```
+set_cookie_with_path_param:
+  Path("/path/:id") && Method("GET")
+  -> setResponseHeader("Set-Cookie", "cid=${id}; Max-Age=36000; Secure")
+  -> redirectTo(302, "/")
+  -> <shunt>
+```
 
 ## appendResponseHeader
 
