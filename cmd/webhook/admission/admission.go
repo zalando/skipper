@@ -124,6 +124,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			invalidRequests.WithLabelValues(admitterName).Inc()
 			return
 		}
+		log.Debugln("request received", r.Method, r.URL.Path, r.Header, string(body))
 
 		review := admissionsv1.AdmissionReview{}
 		err = json.Unmarshal(body, &review)
@@ -177,6 +178,10 @@ func Handler(admitter Admitter) http.HandlerFunc {
 
 func writeResponse(writer http.ResponseWriter, response *admissionsv1.AdmissionResponse) {
 	resp, err := json.Marshal(admissionsv1.AdmissionReview{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "AdmissionReview",
+			APIVersion: "admission.k8s.io/v1",
+		},
 		Response: response,
 	})
 	if err != nil {
