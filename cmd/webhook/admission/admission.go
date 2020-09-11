@@ -110,7 +110,9 @@ func Handler(admitter Admitter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		admitterName := admitter.Name()
 		totalRequests.WithLabelValues(admitterName).Inc()
-		log.Debugf("received req:\n %v", r)
+
+		body, err := ioutil.ReadAll(r.Body)
+		log.Debugln("request received", r.Method, r.URL.Path, r.Header, string(body))
 
 		if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" {
 			invalidRequests.WithLabelValues(admitterName).Inc()
@@ -118,7 +120,6 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			return
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			log.Errorf("Failed to read request: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
