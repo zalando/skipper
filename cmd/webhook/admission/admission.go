@@ -111,21 +111,20 @@ func Handler(admitter Admitter) http.HandlerFunc {
 		admitterName := admitter.Name()
 		totalRequests.WithLabelValues(admitterName).Inc()
 
-		body, err := ioutil.ReadAll(r.Body)
-		log.Debugln("request received", r.Method, r.URL.Path, r.Header, string(body))
-
 		if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" {
 			invalidRequests.WithLabelValues(admitterName).Inc()
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
+		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			log.Errorf("Failed to read request: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			invalidRequests.WithLabelValues(admitterName).Inc()
 			return
 		}
+		log.Debugln("request received", r.Method, r.URL.Path, r.Header, string(body))
 
 		review := admissionsv1.AdmissionReview{}
 		err = json.Unmarshal(body, &review)
