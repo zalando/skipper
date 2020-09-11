@@ -110,6 +110,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		admitterName := admitter.Name()
 		totalRequests.WithLabelValues(admitterName).Inc()
+		log.Debug("received req:\n %v", r)
 
 		if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" {
 			invalidRequests.WithLabelValues(admitterName).Inc()
