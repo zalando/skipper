@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -613,6 +614,9 @@ type Options struct {
 	// CredentialsUpdateInterval sets the interval to update secrets
 	CredentialsUpdateInterval time.Duration
 
+	// MaskRealms is the pattern for OAuth realms which should be masked in logging and tracing
+	MaskRealms *regexp.Regexp
+
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
 	ApiUsageMonitoringRealmKeys             string
@@ -1052,6 +1056,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			Timeout:      o.OAuthTokeninfoTimeout,
 			MaxIdleConns: o.IdleConnectionsPerHost,
 			Tracer:       tracer,
+			MaskRealms:   o.MaskRealms,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,

@@ -2,12 +2,15 @@ package auth
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/filters"
+	logfilter "github.com/zalando/skipper/filters/log"
 )
 
 const (
@@ -23,6 +26,7 @@ type TokeninfoOptions struct {
 	Timeout      time.Duration
 	MaxIdleConns int
 	Tracer       opentracing.Tracer
+	MaskRealms   *regexp.Regexp
 }
 
 type (
@@ -36,6 +40,7 @@ type (
 		authClient *authClient
 		scopes     []string
 		kv         kv
+		maskRealms *regexp.Regexp
 	}
 )
 
@@ -183,7 +188,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		tokeninfoAuthClient[s.options.URL] = ac
 	}
 
-	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string][]string)}
+	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string][]string), maskRealms: s.options.MaskRealms}
 	switch f.typ {
 	// all scopes
 	case checkOAuthTokeninfoAllScopes:
@@ -353,6 +358,12 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	}
 
 	authorized(ctx, uid)
+
+	realm, _ := authMap[realmKey].(string)
+	if f.maskRealms.MatchString(realm) {
+		ctx.StateBag()[logfilter.MaskedAuthUserKey] = realm
+	}
+
 	ctx.StateBag()[tokeninfoCacheKey] = authMap
 }
 

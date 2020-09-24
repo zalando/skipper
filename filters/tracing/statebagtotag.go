@@ -6,6 +6,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/zalando/skipper/filters"
+	logfilter "github.com/zalando/skipper/filters/log"
 )
 
 const (
@@ -57,6 +58,15 @@ func (f stateBagToTagFilter) Request(ctx filters.FilterContext) {
 	if span == nil {
 		return
 	}
+
+	if f.stateBagItemName == logfilter.AuthUserKey {
+		value, ok := ctx.StateBag()[logfilter.MaskedAuthUserKey]
+		if ok {
+			span.SetTag(f.tagName, value.(string))
+			return
+		}
+	}
+
 	value, ok := ctx.StateBag()[f.stateBagItemName]
 	if !ok {
 		return

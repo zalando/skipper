@@ -26,6 +26,8 @@ const (
 	// information into the state bag to pass the information to
 	// the auditLog filter.
 	AuthUserKey = "auth-user"
+	// MaskedAuthUserKey is the same as AuthUserKey, but some realms are masked
+	MaskedAuthUserKey = "masked-auth-user"
 	// AuthRejectReasonKey is used by the auth package to set the
 	// reject reason information into the state bag to pass the
 	// information to the auditLog filter.

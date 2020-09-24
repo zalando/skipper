@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,6 +150,7 @@ type Config struct {
 	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
 	CredentialPaths                 *listFlag     `yaml:"credentials-paths"`
 	CredentialsUpdateInterval       time.Duration `yaml:"credentials-update-interval"`
+	MaskRealms                      string        `yaml:"mask-realms"`
 
 	// TLS client certs
 	ClientKeyFile  string            `yaml:"client-tls-key"`
@@ -240,6 +242,7 @@ const (
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
 	defaultCredentialsUpdateInterval      = 10 * time.Minute
+	defaultMaskRealms                     = "employees"
 
 	// API Monitoring
 	defaultApiUsageMonitoringRealmKeys                    = ""
@@ -355,6 +358,7 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 	credentialPathsUsage                 = "directories or files to watch for credentials to use by bearerinjector filter"
 	credentialsUpdateIntervalUsage       = "sets the interval to update secrets"
+	maskRealmsUsage                      = "sets the pattern for OAuth realms which should be masked in logging and tracing"
 
 	// TLS client certs
 	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
@@ -541,6 +545,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 	flag.Var(cfg.CredentialPaths, "credentials-paths", credentialPathsUsage)
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", defaultCredentialsUpdateInterval, credentialsUpdateIntervalUsage)
+	flag.StringVar(&cfg.MaskRealms, "mask-realms", defaultMaskRealms, maskRealmsUsage)
 
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", clientKeyFileUsage)
@@ -795,6 +800,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OIDCSecretsFile:                c.OidcSecretsFile,
 		CredentialsPaths:               c.CredentialPaths.values,
 		CredentialsUpdateInterval:      c.CredentialsUpdateInterval,
+		MaskRealms:                     regexp.MustCompile(c.MaskRealms),
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,

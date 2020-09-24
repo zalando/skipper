@@ -55,6 +55,7 @@ const (
 	// tokenKey defined at https://tools.ietf.org/html/rfc7662#section-2.1
 	tokenKey = "token"
 	scopeKey = "scope"
+	realmKey = "realm"
 	uidKey   = "uid"
 )
 
