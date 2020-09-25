@@ -614,8 +614,8 @@ type Options struct {
 	// CredentialsUpdateInterval sets the interval to update secrets
 	CredentialsUpdateInterval time.Duration
 
-	// MaskRealms is the pattern for OAuth realms which should be masked in logging and tracing
-	MaskRealms *regexp.Regexp
+	// MaskOAuthRealms is the pattern for OAuth realms which should be masked in logging and tracing
+	MaskOAuthRealms *regexp.Regexp
 
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
@@ -1052,11 +1052,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
-			URL:          o.OAuthTokeninfoURL,
-			Timeout:      o.OAuthTokeninfoTimeout,
-			MaxIdleConns: o.IdleConnectionsPerHost,
-			Tracer:       tracer,
-			MaskRealms:   o.MaskRealms,
+			URL:             o.OAuthTokeninfoURL,
+			Timeout:         o.OAuthTokeninfoTimeout,
+			MaxIdleConns:    o.IdleConnectionsPerHost,
+			Tracer:          tracer,
+			MaskOAuthRealms: o.MaskOAuthRealms,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,

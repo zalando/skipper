@@ -10,7 +10,7 @@ const (
 	testScope    = "test-scope"
 	testScope2   = "test-scope2"
 	testScope3   = "test-scope3"
-	testRealmKey = "/realm"
+	testRealmKey = "realm"
 	testRealm    = "/immortals"
 	testKey      = "uid"
 	testValue    = "jdoe"

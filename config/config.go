@@ -150,7 +150,7 @@ type Config struct {
 	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
 	CredentialPaths                 *listFlag     `yaml:"credentials-paths"`
 	CredentialsUpdateInterval       time.Duration `yaml:"credentials-update-interval"`
-	MaskRealms                      string        `yaml:"mask-realms"`
+	MaskOAuthRealms                 string        `yaml:"mask-oauth-realms"`
 
 	// TLS client certs
 	ClientKeyFile  string            `yaml:"client-tls-key"`
@@ -242,7 +242,7 @@ const (
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
 	defaultCredentialsUpdateInterval      = 10 * time.Minute
-	defaultMaskRealms                     = "employees"
+	defaultMaskOAuthRealms                = ""
 
 	// API Monitoring
 	defaultApiUsageMonitoringRealmKeys                    = ""
@@ -358,7 +358,7 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 	credentialPathsUsage                 = "directories or files to watch for credentials to use by bearerinjector filter"
 	credentialsUpdateIntervalUsage       = "sets the interval to update secrets"
-	maskRealmsUsage                      = "sets the pattern for OAuth realms which should be masked in logging and tracing"
+	maskOAuthRealmsUsage                 = "sets the pattern for OAuth realms which should be masked in logging and tracing"
 
 	// TLS client certs
 	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
@@ -545,7 +545,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 	flag.Var(cfg.CredentialPaths, "credentials-paths", credentialPathsUsage)
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", defaultCredentialsUpdateInterval, credentialsUpdateIntervalUsage)
-	flag.StringVar(&cfg.MaskRealms, "mask-realms", defaultMaskRealms, maskRealmsUsage)
+	flag.StringVar(&cfg.MaskOAuthRealms, "mask-oauth-realms", defaultMaskOAuthRealms, maskOAuthRealmsUsage)
 
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", clientKeyFileUsage)
@@ -668,7 +668,7 @@ func (c *Config) Parse() error {
 	return nil
 }
 
-func (c *Config) ToOptions() skipper.Options {
+func (c *Config) ToOptions() (skipper.Options, error) {
 	var eus []string
 	if len(c.EtcdUrls) > 0 {
 		eus = strings.Split(c.EtcdUrls, ",")
@@ -677,6 +677,15 @@ func (c *Config) ToOptions() skipper.Options {
 	var whitelistCIDRS []string
 	if len(c.WhitelistedHealthCheckCIDR) > 0 {
 		whitelistCIDRS = strings.Split(c.WhitelistedHealthCheckCIDR, ",")
+	}
+
+	var realms *regexp.Regexp
+	if c.MaskOAuthRealms != "" {
+		var err error
+		realms, err = regexp.Compile(c.MaskOAuthRealms)
+		if err != nil {
+			return skipper.Options{}, fmt.Errorf("mask-oauth-realms is not a valid regex %v", c.MaskOAuthRealms)
+		}
 	}
 
 	options := skipper.Options{
@@ -800,7 +809,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OIDCSecretsFile:                c.OidcSecretsFile,
 		CredentialsPaths:               c.CredentialPaths.values,
 		CredentialsUpdateInterval:      c.CredentialsUpdateInterval,
-		MaskRealms:                     regexp.MustCompile(c.MaskRealms),
+		MaskOAuthRealms:                realms,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,
@@ -871,7 +880,7 @@ func (c *Config) ToOptions() skipper.Options {
 		}
 	}
 
-	return options
+	return options, nil
 }
 
 func (c *Config) parseHistogramBuckets() ([]float64, error) {

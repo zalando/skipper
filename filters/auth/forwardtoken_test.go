@@ -130,7 +130,7 @@ func TestForwardTokenInfo(t *testing.T) {
 			fr := make(filters.Registry)
 
 			if ti.oauthFilterPresent {
-				oauthTokenSpec := NewOAuthTokeninfoAnyScope(authServer.URL, oauthTimeout)
+				oauthTokenSpec := NewOAuthTokeninfoAnyScope(authServer.URL, oauthTimeout, nil)
 				oauthFilterArgs := []interface{}{uidScope}
 				oauthFilter, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
 				if err != nil {

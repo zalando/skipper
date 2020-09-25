@@ -72,7 +72,6 @@ func Test_NewConfig(t *testing.T) {
 				WebhookTimeout:                          2 * time.Second,
 				CredentialPaths:                         commaListFlag(),
 				CredentialsUpdateInterval:               10 * time.Minute,
-				MaskRealms:                              "users",
 				ApiUsageMonitoringClientKeys:            "sub",
 				ApiUsageMonitoringRealmsTrackingPattern: "services",
 				WaitForHealthcheckInterval:              45 * time.Second,

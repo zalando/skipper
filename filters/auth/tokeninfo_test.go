@@ -5,11 +5,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -17,13 +22,15 @@ const testAuthTimeout = 100 * time.Millisecond
 
 func TestOAuth2Tokeninfo(t *testing.T) {
 	for _, ti := range []struct {
-		msg         string
-		authType    string
-		authBaseURL string
-		args        []interface{}
-		hasAuth     bool
-		auth        string
-		expected    int
+		msg            string
+		authType       string
+		authBaseURL    string
+		args           []interface{}
+		maskOauthRealm *regexp.Regexp
+		hasAuth        bool
+		auth           string
+		expected       int
+		authUser       string
 	}{{
 		msg:      "uninitialized filter, no authorization header, scope check",
 		authType: OAuthTokeninfoAnyScopeName,
@@ -149,14 +156,6 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
-		msg:         "allKV(): valid token, one valid key value pair, check realm",
-		authType:    OAuthTokeninfoAllKVName,
-		authBaseURL: testAuthPath,
-		args:        []interface{}{testRealmKey, testRealm, testKey, testValue},
-		hasAuth:     true,
-		auth:        testToken,
-		expected:    http.StatusOK,
-	}, {
 		msg:         "allKV(): valid token, valid key value pairs",
 		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath,
@@ -180,6 +179,26 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusForbidden,
+	}, {
+		msg:            "create tag for auth-user",
+		authType:       OAuthTokeninfoAllKVName,
+		authBaseURL:    testAuthPath,
+		args:           []interface{}{testKey, testValue},
+		hasAuth:        true,
+		auth:           testToken,
+		expected:       http.StatusOK,
+		maskOauthRealm: regexp.MustCompile("foo"),
+		authUser:       "jdoe",
+	}, {
+		msg:            "create tag for auth-user (masked)",
+		authType:       OAuthTokeninfoAllKVName,
+		authBaseURL:    testAuthPath,
+		args:           []interface{}{testKey, testValue},
+		hasAuth:        true,
+		auth:           testToken,
+		expected:       http.StatusOK,
+		maskOauthRealm: regexp.MustCompile(testRealm),
+		authUser:       "/immortals",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
@@ -213,13 +232,13 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 			u := authServer.URL + ti.authBaseURL
 			switch ti.authType {
 			case OAuthTokeninfoAnyScopeName:
-				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout, ti.maskOauthRealm)
 			case OAuthTokeninfoAllScopeName:
-				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout, ti.maskOauthRealm)
 			case OAuthTokeninfoAnyKVName:
-				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout, ti.maskOauthRealm)
 			case OAuthTokeninfoAllKVName:
-				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
+				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout, ti.maskOauthRealm)
 			}
 
 			args = append(args, ti.args...)
@@ -233,7 +252,15 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 
 			fr := make(filters.Registry)
 			fr.Register(spec)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+			fr.Register(tracing.NewStateBagToTag())
+			filterDef := []*eskip.Filter{{Name: spec.Name(), Args: args}}
+			if ti.maskOauthRealm != nil {
+				filterDef = append(filterDef, &eskip.Filter{
+					Name: tracing.StateBagToTagFilterName, Args: []interface{}{log.AuthUserKey, "client_id"},
+				})
+			}
+
+			r := &eskip.Route{Filters: filterDef, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			reqURL, err := url.Parse(proxy.URL)
@@ -263,6 +290,19 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 				buf := make([]byte, rsp.ContentLength)
 				rsp.Body.Read(buf)
 			}
+
+			authUser := ""
+			spans := proxy.Tracer.FinishedSpans()
+			for _, span := range spans {
+				if span.OperationName == "ingress" {
+					tag := span.Tag("client_id")
+					if tag != nil {
+						authUser = tag.(string)
+					}
+				}
+			}
+
+			assert.Equal(t, ti.authUser, authUser)
 		})
 	}
 }
@@ -321,7 +361,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
-			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout)
+			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout, nil)
 
 			scopes := []interface{}{"read-x"}
 			f, err := spec.CreateFilter(scopes)
@@ -374,7 +414,7 @@ func BenchmarkOAuthTokeninfoFilter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var spec filters.Spec
 		args := []interface{}{"uid"}
-		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second)
+		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second, nil)
 		f, err := spec.CreateFilter(args)
 		if err != nil {
 			b.Logf("error in creating filter")
