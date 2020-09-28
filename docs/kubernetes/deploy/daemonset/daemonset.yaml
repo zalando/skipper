@@ -22,6 +22,7 @@ spec:
         component: ingress
     spec:
       priorityClassName: system-node-critical
+      serviceAccountName: skipper-ingress
       tolerations:
       - key: dedicated
         operator: Exists
