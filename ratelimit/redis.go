@@ -11,11 +11,6 @@ import (
 	"github.com/zalando/skipper/metrics"
 )
 
-const (
-	allowMetricsFormat      = "ratelimit.redis.allow.%s"
-	retryAfterMetricsPrefix = "ratelimit.redis.retryafter.%s"
-)
-
 // RedisOptions is used to configure the redis.Ring
 type RedisOptions struct {
 	// Addrs are the list of redis shards
@@ -56,8 +51,12 @@ const (
 	DefaultMinConns     = 100
 	DefaultMaxConns     = 100
 
-	defaultConnMetricsInterval = 60 * time.Second
-	redisMetricsPrefix         = "swarm.redis."
+	defaultConnMetricsInterval       = 60 * time.Second
+	redisMetricsPrefix               = "swarm.redis."
+	allowMetricsFormat               = redisMetricsPrefix + "query.allow.%s"
+	retryAfterMetricsFormat          = redisMetricsPrefix + "query.retryafter.%s"
+	allowMetricsFormatWithGroup      = redisMetricsPrefix + "query.allow.%s.%s"
+	retryAfterMetricsFormatWithGroup = redisMetricsPrefix + "query.retryafter.%s.%s"
 )
 
 func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
@@ -145,12 +144,20 @@ func (c *clusterLimitRedis) prefixKey(s string) string {
 	return fmt.Sprintf(swarmKeyFormat, c.group, s)
 }
 
-func (c *clusterLimitRedis) allowMetricsKey() string {
-	return fmt.Sprintf(allowMetricsFormat, c.group)
-}
+func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool, start time.Time) {
+	result := "success"
+	if fail != nil && *fail {
+		result = "failure"
+	}
 
-func (c *clusterLimitRedis) retryAfterMetricsKey() string {
-	return fmt.Sprintf(retryAfterMetricsPrefix, c.group)
+	var key string
+	if c.group == "" {
+		key = fmt.Sprintf(format, result)
+	} else {
+		key = fmt.Sprintf(groupFormat, result, c.group)
+	}
+
+	c.metrics.MeasureSince(key, start)
 }
 
 // Allow returns true if the request calculated across the cluster of
@@ -169,14 +176,22 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 	key := c.prefixKey(s)
 
 	now := time.Now()
-	defer c.metrics.MeasureSince(c.allowMetricsKey(), now)
+	var queryFailure bool
+	defer c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &queryFailure, now)
 
 	nowNanos := now.UnixNano()
 	clearBefore := now.Add(-c.window).UnixNano()
 
-	count := c.allowCheckCard(key, clearBefore)
+	count, err := c.allowCheckCard(key, clearBefore)
+	if err != nil {
+		log.Errorf("Failed to get redis cardinality for %s: %v", key, err)
+		queryFailure = true
+		// we don't return here, as we still want to record the request with ZAdd, but we mark it as a
+		// failure for the metrics
+	}
+
 	// we increase later with ZAdd, so max-1
-	if count >= c.maxHits {
+	if err == nil && count >= c.maxHits {
 		c.metrics.IncCounter(redisMetricsPrefix + "forbids")
 		log.Debugf("redis disallow %s request: %d >= %d = %v", key, count, c.maxHits, count > c.maxHits)
 		return false
@@ -186,9 +201,10 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 	defer pipe.Close()
 	pipe.ZAdd(key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
 	pipe.Expire(key, c.window+time.Second)
-	_, err := pipe.Exec()
+	_, err = pipe.Exec()
 	if err != nil {
 		log.Errorf("Failed to ZAdd and Expire for %s: %v", key, err)
+		queryFailure = true
 		return true
 	}
 
@@ -196,7 +212,7 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 	return true
 }
 
-func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 {
+func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) (int64, error) {
 	pipe := c.ring.TxPipeline()
 	defer pipe.Close()
 	// drop all elements of the set which occurred before one interval ago.
@@ -205,10 +221,9 @@ func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 
 	zcardResult := pipe.ZCard(key)
 	_, err := pipe.Exec()
 	if err != nil {
-		log.Errorf("Failed to get redis cardinality for %s: %v", key, err)
-		return 0
+		return 0, err
 	}
-	return zcardResult.Val()
+	return zcardResult.Val(), nil
 }
 
 // Close can not decide to teardown redis ring, because it is not the
@@ -274,7 +289,7 @@ func (*clusterLimitRedis) Resize(string, int) {}
 // Redis.
 func (c *clusterLimitRedis) RetryAfter(s string) int {
 	now := time.Now()
-	defer c.metrics.MeasureSince(c.retryAfterMetricsKey(), now)
+	defer c.measureQuery(retryAfterMetricsFormat, retryAfterMetricsFormatWithGroup, nil, now)
 
 	retr := c.deltaFrom(s, now)
 	res := int(retr / time.Second)
