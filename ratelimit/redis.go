@@ -11,6 +11,11 @@ import (
 	"github.com/zalando/skipper/metrics"
 )
 
+const (
+	allowMetricsFormat      = "ratelimit.redis.allow.%s"
+	retryAfterMetricsPrefix = "ratelimit.redis.retryafter.%s"
+)
+
 // RedisOptions is used to configure the redis.Ring
 type RedisOptions struct {
 	// Addrs are the list of redis shards
@@ -136,6 +141,18 @@ func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimit
 	return rl
 }
 
+func (c *clusterLimitRedis) prefixKey(s string) string {
+	return fmt.Sprintf(swarmKeyFormat, c.group, s)
+}
+
+func (c *clusterLimitRedis) allowMetricsKey() string {
+	return fmt.Sprintf(allowMetricsFormat, c.group)
+}
+
+func (c *clusterLimitRedis) retryAfterMetricsKey() string {
+	return fmt.Sprintf(retryAfterMetricsPrefix, c.group)
+}
+
 // Allow returns true if the request calculated across the cluster of
 // skippers should be allowed else false. It will share it's own data
 // and use the current cluster information to calculate global rates
@@ -149,8 +166,11 @@ func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimit
 // roundtrip.
 func (c *clusterLimitRedis) Allow(s string) bool {
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
-	key := swarmPrefix + c.group + "." + s
+	key := c.prefixKey(s)
+
 	now := time.Now()
+	defer c.metrics.MeasureSince(c.allowMetricsKey(), now)
+
 	nowNanos := now.UnixNano()
 	clearBefore := now.Add(-c.window).UnixNano()
 
@@ -195,13 +215,17 @@ func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) int64 
 // owner of it.
 func (c *clusterLimitRedis) Close() {}
 
+func (c *clusterLimitRedis) deltaFrom(s string, from time.Time) time.Duration {
+	oldest := c.Oldest(s)
+	gab := from.Sub(oldest)
+	return c.window - gab
+}
+
 // Delta returns the time.Duration until the next call is allowed,
 // negative means immediate calls are allowed
 func (c *clusterLimitRedis) Delta(s string) time.Duration {
 	now := time.Now()
-	oldest := c.Oldest(s)
-	gab := now.Sub(oldest)
-	return c.window - gab
+	return c.deltaFrom(s, now)
 }
 
 // Oldest returns the oldest known request time.
@@ -211,7 +235,7 @@ func (c *clusterLimitRedis) Delta(s string) time.Duration {
 // It will use ZRANGEBYSCORE with offset 0 and count 1 to get the
 // oldest item stored in redis.
 func (c *clusterLimitRedis) Oldest(s string) time.Time {
-	key := swarmPrefix + c.group + "." + s
+	key := c.prefixKey(s)
 	now := time.Now()
 
 	res := c.ring.ZRangeByScoreWithScores(key, &redis.ZRangeBy{
@@ -249,7 +273,10 @@ func (*clusterLimitRedis) Resize(string, int) {}
 // Performance considerations: It uses Oldest() to get the data from
 // Redis.
 func (c *clusterLimitRedis) RetryAfter(s string) int {
-	retr := c.Delta(s)
+	now := time.Now()
+	defer c.metrics.MeasureSince(c.retryAfterMetricsKey(), now)
+
+	retr := c.deltaFrom(s, now)
 	res := int(retr / time.Second)
 	if res > 0 {
 		return res + 1
