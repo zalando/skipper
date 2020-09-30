@@ -1234,6 +1234,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				MinIdleConns:        o.SwarmRedisMinIdleConns,
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
 				ConnMetricsInterval: o.redisConnMetricsInterval,
+				Tracer:              tracer,
 			}
 		} else {
 			log.Infof("Start swim based swarm")
