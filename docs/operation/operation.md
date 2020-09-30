@@ -446,6 +446,22 @@ are exposed from skipper to the metrics endpoint, default listener
       }
    }
 
+
+### Redis - Rate limiting metrics
+
+Timer metrics for the latencies and errors of the communication with the auxiliary Redis instances are enabled
+by the default, and exposed among the timers via the following keys:
+
+- skipper.swarm.redis.query.allow.success: successful allow requests to the rate limiter, ungrouped
+- skipper.swarm.redis.query.allow.failure: failed allow requests to the rate limiter, ungrouped, where the redis
+  communication failed
+- skipper.swarm.redis.query.retryafter.success.<group>: successful allow requests to the rate limiter, grouped
+  by the rate limiter group name when used
+- skipper.swarm.redis.query.retryafter.failure.<group>: failed allow requests to the rate limiter, ungrouped,
+  where the redis communication faileds, grouped by the rate limiter group name when used
+
+See more details about rate limiting at [Rate limiting](../reference/filters.md#clusterclientratelimit).
+
 ## OpenTracing
 
 Skipper has support for different [OpenTracing API](http://opentracing.io/) vendors, including
@@ -546,6 +562,23 @@ The auth filters have trace log values `start` and `end` for DNS, TCP
 connect, TLS handshake and connection pool:
 
 ![tokeninfo auth filter span with logs](../img/skipper_opentracing_auth_filter_tokeninfo_span_with_logs.png)
+
+### Redis rate limiting spans
+
+#### Operation: redis_allow_check_card
+
+Operation executed when the cluster rate limiting relies on the auxiliary Redis instances, and the Allow method
+checks if the rate exceeds the configured limit.
+
+#### Operation: redis_allow_add_card
+
+Operation setting the counter of the measured request rate for cluster rate limiting with auxiliary Redis
+instances.
+
+#### Operation: redis_oldest_score
+
+Operation querying the oldest request event for the rate limiting Retry-After header with cluster rate limiting
+when used with auxiliary Redis instances.
 
 ## Dataclient
 
