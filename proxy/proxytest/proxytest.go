@@ -72,6 +72,11 @@ func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 	return WithParams(fr, proxy.Params{CloseIdleConnsPeriod: -time.Second}, routes...)
 }
 
+func (p *TestProxy) Reset() {
+	p.Log.Reset()
+	p.Tracer.Reset()
+}
+
 func (p *TestProxy) Close() error {
 	p.Log.Close()
 	p.routing.Close()

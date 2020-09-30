@@ -313,7 +313,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 
 			r := &eskip.Route{Filters: filterDef, Backend: backend.URL}
 
-			proxy.Log.Reset()
+			proxy.Reset()
 			dc.Update([]*eskip.Route{r}, nil)
 			if err = proxy.Log.WaitFor("route settings applied", 1*time.Second); err != nil {
 				t.Fatalf("Failed to get update: %v", err)
