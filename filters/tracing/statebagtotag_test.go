@@ -10,6 +10,7 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
@@ -18,6 +19,7 @@ func TestStateBagToTag(t *testing.T) {
 		msg         string
 		stateBag    map[string]interface{}
 		item        string
+		maskedUser  string
 		expectedTag string
 	}{
 		{
@@ -32,8 +34,9 @@ func TestStateBagToTag(t *testing.T) {
 			expectedTag: "val",
 		}, {
 			msg:         "masked auth",
-			stateBag:    map[string]interface{}{"auth-user": "val", "masked-auth-user": "masked"},
+			stateBag:    map[string]interface{}{},
 			item:        "auth-user",
+			maskedUser:  "masked",
 			expectedTag: "masked",
 		},
 	} {
@@ -47,7 +50,12 @@ func TestStateBagToTag(t *testing.T) {
 				ctx.StateBag()[k] = v
 			}
 
-			f, err := NewStateBagToTag().CreateFilter([]interface{}{ti.item, "tag"})
+			f, err := NewStateBagToTag([]oauth.MaskOAuthUser{func(stateBag map[string]interface{}) (string, bool) {
+				if ti.maskedUser != "" {
+					return ti.maskedUser, true
+				}
+				return "", false
+			}}).CreateFilter([]interface{}{ti.item, "tag"})
 			require.NoError(t, err)
 
 			f.Request(ctx)
@@ -89,7 +97,7 @@ func TestStateBagToTag_CreateFilter(t *testing.T) {
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			f, err := NewStateBagToTag().CreateFilter(ti.args)
+			f, err := NewStateBagToTag(nil).CreateFilter(ti.args)
 
 			assert.Equal(t, ti.err, err)
 			if err == nil {

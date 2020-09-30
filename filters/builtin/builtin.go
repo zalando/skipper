@@ -163,7 +163,6 @@ func MakeRegistry() filters.Registry {
 		tracing.NewSpanName(),
 		tracing.NewBaggageToTagFilter(),
 		tracing.NewTag(),
-		tracing.NewStateBagToTag(),
 		accesslog.NewAccessLogDisabled(),
 		accesslog.NewDisableAccessLog(),
 		accesslog.NewEnableAccessLog(),

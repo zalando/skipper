@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -10,7 +13,7 @@ const (
 	testScope    = "test-scope"
 	testScope2   = "test-scope2"
 	testScope3   = "test-scope3"
-	testRealmKey = "realm"
+	testRealmKey = "/realm"
 	testRealm    = "/immortals"
 	testKey      = "uid"
 	testValue    = "jdoe"
@@ -96,5 +99,32 @@ func Test_all(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func TestParseMaskOAuthUser(t *testing.T) {
+	for _, ti := range []struct {
+		msg             string
+		config          string
+		stateBag        map[string]interface{}
+		wantErr         error
+		wantMatch       bool
+		wantReplacement string
+	}{{
+		msg:     "no :",
+		config:  "foo",
+		wantErr: errors.New("mask-oauth-user has invalid format. expected <replacement>:<key>=<value> got foo"),
+	}, {
+		msg:     "no =",
+		config:  "foo:bar",
+		wantErr: errors.New("mask-oauth-user has invalid format. expected <replacement>:<key>=<value> got foo:bar"),
+	}, {
+		msg:    "ok",
+		config: "foo:bar=baz",
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			_, err := ParseMaskOAuthUser(ti.config)
+			assert.Equal(t, ti.wantErr, err)
+		})
 	}
 }

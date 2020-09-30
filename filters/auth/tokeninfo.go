@@ -2,15 +2,12 @@ package auth
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper/filters"
-	logfilter "github.com/zalando/skipper/filters/log"
 )
 
 const (
@@ -22,11 +19,10 @@ const (
 )
 
 type TokeninfoOptions struct {
-	URL             string
-	Timeout         time.Duration
-	MaxIdleConns    int
-	Tracer          opentracing.Tracer
-	MaskOAuthRealms *regexp.Regexp
+	URL          string
+	Timeout      time.Duration
+	MaxIdleConns int
+	Tracer       opentracing.Tracer
 }
 
 type (
@@ -36,11 +32,10 @@ type (
 	}
 
 	tokeninfoFilter struct {
-		typ             roleCheckType
-		authClient      *authClient
-		scopes          []string
-		kv              kv
-		maskOAuthRealms *regexp.Regexp
+		typ        roleCheckType
+		authClient *authClient
+		scopes     []string
+		kv         kv
 	}
 )
 
@@ -57,11 +52,10 @@ func NewOAuthTokeninfoAllScopeWithOptions(to TokeninfoOptions) filters.Spec {
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all scopes.
-func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout time.Duration, maskOAuthRealms *regexp.Regexp) filters.Spec {
+func NewOAuthTokeninfoAllScope(oauthTokeninfoURL string, oauthTokeninfoTimeout time.Duration) filters.Spec {
 	return NewOAuthTokeninfoAllScopeWithOptions(TokeninfoOptions{
-		URL:             oauthTokeninfoURL,
-		Timeout:         oauthTokeninfoTimeout,
-		MaskOAuthRealms: maskOAuthRealms,
+		URL:     oauthTokeninfoURL,
+		Timeout: oauthTokeninfoTimeout,
 	})
 }
 
@@ -76,13 +70,12 @@ func NewOAuthTokeninfoAnyScopeWithOptions(to TokeninfoOptions) filters.Spec {
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one scope.
-func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, maskOAuthRealms *regexp.Regexp) filters.Spec {
+func NewOAuthTokeninfoAnyScope(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAnyScopes,
 		options: TokeninfoOptions{
-			URL:             OAuthTokeninfoURL,
-			Timeout:         OAuthTokeninfoTimeout,
-			MaskOAuthRealms: maskOAuthRealms,
+			URL:     OAuthTokeninfoURL,
+			Timeout: OAuthTokeninfoTimeout,
 		},
 	}
 }
@@ -98,13 +91,12 @@ func NewOAuthTokeninfoAllKVWithOptions(to TokeninfoOptions) filters.Spec {
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains all key value pairs provided.
-func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, maskOAuthRealms *regexp.Regexp) filters.Spec {
+func NewOAuthTokeninfoAllKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAllKV,
 		options: TokeninfoOptions{
-			URL:             OAuthTokeninfoURL,
-			Timeout:         OAuthTokeninfoTimeout,
-			MaskOAuthRealms: maskOAuthRealms,
+			URL:     OAuthTokeninfoURL,
+			Timeout: OAuthTokeninfoTimeout,
 		},
 	}
 }
@@ -120,13 +112,12 @@ func NewOAuthTokeninfoAnyKVWithOptions(to TokeninfoOptions) filters.Spec {
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
 // contains at least one key value pair provided.
-func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration, maskOAuthRealms *regexp.Regexp) filters.Spec {
+func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time.Duration) filters.Spec {
 	return &tokeninfoSpec{
 		typ: checkOAuthTokeninfoAnyKV,
 		options: TokeninfoOptions{
-			URL:             OAuthTokeninfoURL,
-			Timeout:         OAuthTokeninfoTimeout,
-			MaskOAuthRealms: maskOAuthRealms,
+			URL:     OAuthTokeninfoURL,
+			Timeout: OAuthTokeninfoTimeout,
 		},
 	}
 }
@@ -192,7 +183,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		tokeninfoAuthClient[s.options.URL] = ac
 	}
 
-	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string][]string), maskOAuthRealms: s.options.MaskOAuthRealms}
+	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string][]string)}
 	switch f.typ {
 	// all scopes
 	case checkOAuthTokeninfoAllScopes:
@@ -362,14 +353,6 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	}
 
 	authorized(ctx, uid)
-
-	if f.maskOAuthRealms != nil {
-		realm, ok := authMap[realmKey].(string)
-		if ok && f.maskOAuthRealms.MatchString(realm) {
-			ctx.StateBag()[logfilter.MaskedAuthUserKey] = realm
-		}
-	}
-
 	ctx.StateBag()[tokeninfoCacheKey] = authMap
 }
 

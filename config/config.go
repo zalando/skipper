@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,9 +16,12 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/swarm"
@@ -150,7 +152,7 @@ type Config struct {
 	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
 	CredentialPaths                 *listFlag     `yaml:"credentials-paths"`
 	CredentialsUpdateInterval       time.Duration `yaml:"credentials-update-interval"`
-	MaskOAuthRealms                 string        `yaml:"mask-oauth-realms"`
+	MaskOAuthUser                   string        `yaml:"mask-oauth-user"`
 
 	// TLS client certs
 	ClientKeyFile  string            `yaml:"client-tls-key"`
@@ -242,7 +244,7 @@ const (
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
 	defaultCredentialsUpdateInterval      = 10 * time.Minute
-	defaultMaskOAuthRealms                = ""
+	defaultMaskOAuthUser                  = ""
 
 	// API Monitoring
 	defaultApiUsageMonitoringRealmKeys                    = ""
@@ -358,7 +360,7 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 	credentialPathsUsage                 = "directories or files to watch for credentials to use by bearerinjector filter"
 	credentialsUpdateIntervalUsage       = "sets the interval to update secrets"
-	maskOAuthRealmsUsage                 = "sets the pattern for OAuth realms which should be masked in logging and tracing"
+	maskOAuthUserUsage                   = "sets the pattern for OAuth users shich should be masked in tracing in the format <replacement>:<key>=<value>,<replacement2>:<key2>=<value2>"
 
 	// TLS client certs
 	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
@@ -545,7 +547,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 	flag.Var(cfg.CredentialPaths, "credentials-paths", credentialPathsUsage)
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", defaultCredentialsUpdateInterval, credentialsUpdateIntervalUsage)
-	flag.StringVar(&cfg.MaskOAuthRealms, "mask-oauth-realms", defaultMaskOAuthRealms, maskOAuthRealmsUsage)
+	flag.StringVar(&cfg.MaskOAuthUser, "mask-oauth-user", defaultMaskOAuthUser, maskOAuthUserUsage)
 
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", clientKeyFileUsage)
@@ -679,12 +681,12 @@ func (c *Config) ToOptions() (skipper.Options, error) {
 		whitelistCIDRS = strings.Split(c.WhitelistedHealthCheckCIDR, ",")
 	}
 
-	var realms *regexp.Regexp
-	if c.MaskOAuthRealms != "" {
-		var err error
-		realms, err = regexp.Compile(c.MaskOAuthRealms)
+	var err error
+	var maskUser []oauth.MaskOAuthUser
+	if c.MaskOAuthUser != "" {
+		maskUser, err = auth.ParseMaskOAuthUser(c.MaskOAuthUser)
 		if err != nil {
-			return skipper.Options{}, fmt.Errorf("mask-oauth-realms is not a valid regex %v", c.MaskOAuthRealms)
+			return skipper.Options{}, err
 		}
 	}
 
@@ -809,7 +811,7 @@ func (c *Config) ToOptions() (skipper.Options, error) {
 		OIDCSecretsFile:                c.OidcSecretsFile,
 		CredentialsPaths:               c.CredentialPaths.values,
 		CredentialsUpdateInterval:      c.CredentialsUpdateInterval,
-		MaskOAuthRealms:                realms,
+		MaskOAuthUser:                  maskUser,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,

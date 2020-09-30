@@ -115,13 +115,15 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 	testOidcConfig.IntrospectionEndpoint = "http://" + authServer.Listener.Addr().String() + testAuthPath
 
 	for _, ti := range []struct {
-		msg         string
-		authType    string
-		authBaseURL string
-		args        []interface{}
-		hasAuth     bool
-		auth        string
-		expected    int
+		msg           string
+		authType      string
+		authBaseURL   string
+		args          []interface{}
+		hasAuth       bool
+		auth          string
+		maskOauthUser string
+		expected      int
+		authUser      string
 	}{{
 
 		msg:      "oauthTokenintrospectionAnyClaims: uninitialized filter, no authorization header, scope check",
@@ -526,6 +528,26 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusUnauthorized,
+	}, {
+		msg:           "create tag for auth-user",
+		authType:      OAuthTokenintrospectionAllKVName,
+		authBaseURL:   testAuthPath,
+		args:          []interface{}{testKey, testValue, testKey, testValue},
+		hasAuth:       true,
+		auth:          testToken,
+		expected:      http.StatusOK,
+		maskOauthUser: "immortals:sub=foo",
+		authUser:      "testSub",
+	}, {
+		msg:           "create tag for auth-user (masked)",
+		authType:      OAuthTokenintrospectionAllKVName,
+		authBaseURL:   testAuthPath,
+		args:          []interface{}{testKey, testValue, testKey, testValue},
+		hasAuth:       true,
+		auth:          testToken,
+		expected:      http.StatusOK,
+		maskOauthUser: "immortals:sub=testSub",
+		authUser:      "immortals",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			if ti.msg == "" {
@@ -570,7 +592,9 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 
 			fr := make(filters.Registry)
 			fr.Register(spec)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+			filterDef := []*eskip.Filter{{Name: spec.Name(), Args: args}}
+			filterDef = addMaskOAuthUser(t, ti.maskOauthUser, fr, filterDef)
+			r := &eskip.Route{Filters: filterDef, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			defer proxy.Close()
@@ -602,6 +626,7 @@ func TestOAuth2Tokenintrospection(t *testing.T) {
 				t.Errorf("unexpected status code: %v != %v", rsp.StatusCode, ti.expected)
 				return
 			}
+			assertAuthUser(t, proxy, ti.authUser)
 		})
 	}
 }

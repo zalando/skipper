@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"regexp"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -22,15 +22,15 @@ const testAuthTimeout = 100 * time.Millisecond
 
 func TestOAuth2Tokeninfo(t *testing.T) {
 	for _, ti := range []struct {
-		msg            string
-		authType       string
-		authBaseURL    string
-		args           []interface{}
-		maskOauthRealm *regexp.Regexp
-		hasAuth        bool
-		auth           string
-		expected       int
-		authUser       string
+		msg           string
+		authType      string
+		authBaseURL   string
+		args          []interface{}
+		maskOauthUser string
+		hasAuth       bool
+		auth          string
+		expected      int
+		authUser      string
 	}{{
 		msg:      "uninitialized filter, no authorization header, scope check",
 		authType: OAuthTokeninfoAnyScopeName,
@@ -156,6 +156,14 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusOK,
 	}, {
+		msg:         "allKV(): valid token, one valid key value pair, check realm",
+		authType:    OAuthTokeninfoAllKVName,
+		authBaseURL: testAuthPath,
+		args:        []interface{}{testRealmKey, testRealm, testKey, testValue},
+		hasAuth:     true,
+		auth:        testToken,
+		expected:    http.StatusOK,
+	}, {
 		msg:         "allKV(): valid token, valid key value pairs",
 		authType:    OAuthTokeninfoAllKVName,
 		authBaseURL: testAuthPath,
@@ -180,25 +188,25 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		auth:        testToken,
 		expected:    http.StatusForbidden,
 	}, {
-		msg:            "create tag for auth-user",
-		authType:       OAuthTokeninfoAllKVName,
-		authBaseURL:    testAuthPath,
-		args:           []interface{}{testKey, testValue},
-		hasAuth:        true,
-		auth:           testToken,
-		expected:       http.StatusOK,
-		maskOauthRealm: regexp.MustCompile("foo"),
-		authUser:       "jdoe",
+		msg:           "create tag for auth-user",
+		authType:      OAuthTokeninfoAllKVName,
+		authBaseURL:   testAuthPath,
+		args:          []interface{}{testKey, testValue},
+		hasAuth:       true,
+		auth:          testToken,
+		expected:      http.StatusOK,
+		maskOauthUser: "immortals:/realm=foo",
+		authUser:      "jdoe",
 	}, {
-		msg:            "create tag for auth-user (masked)",
-		authType:       OAuthTokeninfoAllKVName,
-		authBaseURL:    testAuthPath,
-		args:           []interface{}{testKey, testValue},
-		hasAuth:        true,
-		auth:           testToken,
-		expected:       http.StatusOK,
-		maskOauthRealm: regexp.MustCompile(testRealm),
-		authUser:       "/immortals",
+		msg:           "create tag for auth-user (masked)",
+		authType:      OAuthTokeninfoAllKVName,
+		authBaseURL:   testAuthPath,
+		args:          []interface{}{testKey, testValue},
+		hasAuth:       true,
+		auth:          testToken,
+		expected:      http.StatusOK,
+		maskOauthUser: "immortals:/realm=/immortals",
+		authUser:      "immortals",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
@@ -232,13 +240,13 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 			u := authServer.URL + ti.authBaseURL
 			switch ti.authType {
 			case OAuthTokeninfoAnyScopeName:
-				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout, ti.maskOauthRealm)
+				spec = NewOAuthTokeninfoAnyScope(u, testAuthTimeout)
 			case OAuthTokeninfoAllScopeName:
-				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout, ti.maskOauthRealm)
+				spec = NewOAuthTokeninfoAllScope(u, testAuthTimeout)
 			case OAuthTokeninfoAnyKVName:
-				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout, ti.maskOauthRealm)
+				spec = NewOAuthTokeninfoAnyKV(u, testAuthTimeout)
 			case OAuthTokeninfoAllKVName:
-				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout, ti.maskOauthRealm)
+				spec = NewOAuthTokeninfoAllKV(u, testAuthTimeout)
 			}
 
 			args = append(args, ti.args...)
@@ -252,13 +260,8 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 
 			fr := make(filters.Registry)
 			fr.Register(spec)
-			fr.Register(tracing.NewStateBagToTag())
 			filterDef := []*eskip.Filter{{Name: spec.Name(), Args: args}}
-			if ti.maskOauthRealm != nil {
-				filterDef = append(filterDef, &eskip.Filter{
-					Name: tracing.StateBagToTagFilterName, Args: []interface{}{log.AuthUserKey, "client_id"},
-				})
-			}
+			filterDef = addMaskOAuthUser(t, ti.maskOauthUser, fr, filterDef)
 
 			r := &eskip.Route{Filters: filterDef, Backend: backend.URL}
 
@@ -291,20 +294,36 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 				rsp.Body.Read(buf)
 			}
 
-			authUser := ""
-			spans := proxy.Tracer.FinishedSpans()
-			for _, span := range spans {
-				if span.OperationName == "ingress" {
-					tag := span.Tag("client_id")
-					if tag != nil {
-						authUser = tag.(string)
-					}
-				}
-			}
-
-			assert.Equal(t, ti.authUser, authUser)
+			assertAuthUser(t, proxy, ti.authUser)
 		})
 	}
+}
+
+func assertAuthUser(t *testing.T, proxy *proxytest.TestProxy, expected string) {
+	authUser := ""
+	spans := proxy.Tracer.FinishedSpans()
+	for _, span := range spans {
+		if span.OperationName == "ingress" {
+			tag := span.Tag("client_id")
+			if tag != nil {
+				authUser = tag.(string)
+			}
+		}
+	}
+
+	assert.Equal(t, expected, authUser)
+}
+
+func addMaskOAuthUser(t *testing.T, maskOauthUser string, fr filters.Registry, filterDef []*eskip.Filter) []*eskip.Filter {
+	if maskOauthUser != "" {
+		user, err := ParseMaskOAuthUser(maskOauthUser)
+		require.NoError(t, err)
+		fr.Register(tracing.NewStateBagToTag(user))
+		filterDef = append(filterDef, &eskip.Filter{
+			Name: tracing.StateBagToTagFilterName, Args: []interface{}{log.AuthUserKey, "client_id"},
+		})
+	}
+	return filterDef
 }
 
 func TestOAuth2TokenTimeout(t *testing.T) {
@@ -361,7 +380,7 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 
 			args := []interface{}{testScope}
 			u := authServer.URL + testAuthPath
-			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout, nil)
+			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout)
 
 			scopes := []interface{}{"read-x"}
 			f, err := spec.CreateFilter(scopes)
@@ -414,7 +433,7 @@ func BenchmarkOAuthTokeninfoFilter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var spec filters.Spec
 		args := []interface{}{"uid"}
-		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second, nil)
+		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second)
 		f, err := spec.CreateFilter(args)
 		if err != nil {
 			b.Logf("error in creating filter")

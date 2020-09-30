@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/filters"
 	logfilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/oauth"
 )
 
 type roleCheckType int
@@ -55,9 +57,38 @@ const (
 	// tokenKey defined at https://tools.ietf.org/html/rfc7662#section-2.1
 	tokenKey = "token"
 	scopeKey = "scope"
-	realmKey = "realm"
 	uidKey   = "uid"
 )
+
+var authCacheKeys = []func(stateBag map[string]interface{}) map[string]interface{}{
+	func(stateBag map[string]interface{}) map[string]interface{} {
+		m, ok := stateBag[tokeninfoCacheKey]
+		if ok {
+			return m.(map[string]interface{})
+		}
+		return nil
+	},
+	func(stateBag map[string]interface{}) map[string]interface{} {
+		m, ok := stateBag[tokenintrospectionCacheKey]
+		if ok {
+			return m.(tokenIntrospectionInfo)
+		}
+		return nil
+	},
+	func(stateBag map[string]interface{}) map[string]interface{} {
+		m, ok := stateBag[oidcClaimsCacheKey]
+		if ok {
+			return m.(tokenContainer).Claims
+		}
+		return nil
+	},
+}
+
+type maskOAuthUser struct {
+	key         string
+	valuePrefix string
+	replacement string
+}
 
 type kv map[string][]string
 
@@ -69,7 +100,48 @@ var (
 	errUnsupportedClaimSpecified     = errors.New("unsupported claim specified in filter")
 	errInvalidToken                  = errors.New("invalid token")
 	errInvalidTokenintrospectionData = errors.New("invalid tokenintrospection data")
+	errInvalidOAuthUserFormat        = "mask-oauth-user has invalid format. expected <replacement>:<key>=<value> got %s"
 )
+
+func ParseMaskOAuthUser(config string) ([]oauth.MaskOAuthUser, error) {
+	var result []oauth.MaskOAuthUser
+	for _, entry := range strings.Split(config, ",") {
+		r := strings.SplitN(entry, ":", 2)
+		if len(r) != 2 {
+			return nil, fmt.Errorf(errInvalidOAuthUserFormat, entry)
+		}
+		kv := strings.SplitN(r[1], "=", 2)
+		if len(kv) != 2 {
+			return nil, fmt.Errorf(errInvalidOAuthUserFormat, entry)
+		}
+
+		user := maskOAuthUser{
+			key:         kv[0],
+			valuePrefix: kv[1],
+			replacement: r[0],
+		}
+
+		result = append(result, user.match)
+	}
+	return result, nil
+}
+
+func (m maskOAuthUser) match(stateBag map[string]interface{}) (string, bool) {
+	for _, getMap := range authCacheKeys {
+		am := getMap(stateBag)
+		if am == nil {
+			continue
+		}
+
+		value, ok := am[m.key].(string)
+		if ok && strings.HasPrefix(value, m.valuePrefix) {
+			return m.replacement, true
+		}
+
+		return "", false
+	}
+	return "", false
+}
 
 func (kv kv) String() string {
 	var res []string
