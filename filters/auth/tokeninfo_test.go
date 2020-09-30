@@ -300,6 +300,13 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 }
 
 func assertAuthUser(t *testing.T, proxy *proxytest.TestProxy, expected string) {
+	if expected == "" {
+		return
+	}
+
+	//spans are finished in goroutine
+	time.Sleep(time.Second)
+
 	authUser := ""
 	spans := proxy.Tracer.FinishedSpans()
 	for _, span := range spans {
