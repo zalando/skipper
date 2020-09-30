@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -227,7 +228,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, s string) bool {
 
 	count, err := c.allowCheckCard(ctx, key, clearBefore)
 	if err != nil {
-		log.Errorf("Failed to get redis cardinality for %s: %v", key, err)
+		log.Errorf("Failed to get redis cardinality: %v", err)
 		queryFailure = true
 		// we don't return here, as we still want to record the request with ZAdd, but we mark it as a
 		// failure for the metrics
@@ -236,7 +237,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, s string) bool {
 	// we increase later with ZAdd, so max-1
 	if err == nil && count >= c.maxHits {
 		c.metrics.IncCounter(redisMetricsPrefix + "forbids")
-		log.Debugf("redis disallow %s request: %d >= %d = %v", key, count, c.maxHits, count > c.maxHits)
+		log.Debugf("redis disallow request: %d >= %d = %v", count, c.maxHits, count > c.maxHits)
 		return false
 	}
 
@@ -247,7 +248,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, s string) bool {
 	finishSpan := c.startSpan(ctx, allowAddSpanName)
 	_, err = pipe.Exec()
 	if err != nil {
-		log.Errorf("Failed to ZAdd and Expire for %s: %v", key, err)
+		log.Errorf("Failed to ZAdd and Expire: %v", err)
 		queryFailure = true
 		finishSpan(true)
 		return true
@@ -331,7 +332,7 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, s string) (time.Time, er
 	}
 
 	if len(zs) == 0 {
-		log.Debugf("Oldest() for key %s got no valid data: %v", key, res)
+		log.Debugf("Oldest() got no valid data: %v", res)
 		finishSpan(false)
 		return time.Time{}, nil
 	}
@@ -340,13 +341,13 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, s string) (time.Time, er
 	s, ok := z.Member.(string)
 	if !ok {
 		finishSpan(true)
-		return time.Time{}, fmt.Errorf("failed to evaluate redis data: %v", z.Member)
+		return time.Time{}, errors.New("failed to evaluate redis data")
 	}
 
 	oldest, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		finishSpan(true)
-		return time.Time{}, fmt.Errorf("failed to convert '%v' to int64: %w", s, err)
+		return time.Time{}, fmt.Errorf("failed to convert value to int64: %w", err)
 	}
 
 	finishSpan(false)
