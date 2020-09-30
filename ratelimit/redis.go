@@ -256,7 +256,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, s string) bool {
 
 // Allow is like AllowContext, but not using a context.
 func (c *clusterLimitRedis) Allow(s string) bool {
-	return c.AllowContext(nil, s)
+	return c.AllowContext(context.Background(), s)
 }
 
 func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clearBefore int64) (int64, error) {
@@ -288,15 +288,15 @@ func (c *clusterLimitRedis) deltaFrom(ctx context.Context, s string, from time.T
 		return 0, err
 	}
 
-	gab := from.Sub(oldest)
-	return c.window - gab, nil
+	gap := from.Sub(oldest)
+	return c.window - gap, nil
 }
 
 // Delta returns the time.Duration until the next call is allowed,
 // negative means immediate calls are allowed
 func (c *clusterLimitRedis) Delta(s string) time.Duration {
 	now := time.Now()
-	d, err := c.deltaFrom(nil, s, now)
+	d, err := c.deltaFrom(context.Background(), s, now)
 	if err != nil {
 		log.Errorf("Failed to get the duration until the next call is allowed: %v", err)
 
@@ -356,7 +356,7 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, s string) (time.Time, er
 // It will use ZRANGEBYSCORE with offset 0 and count 1 to get the
 // oldest item stored in redis.
 func (c *clusterLimitRedis) Oldest(s string) time.Time {
-	t, err := c.oldest(nil, s)
+	t, err := c.oldest(context.Background(), s)
 	if err != nil {
 		log.Errorf("Failed to get the oldest known request time: %v", err)
 		return time.Time{}
@@ -404,5 +404,5 @@ func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, s string) int
 
 // RetryAfter is like RetryAfterContext, but not using a context.
 func (c *clusterLimitRedis) RetryAfter(s string) int {
-	return c.RetryAfterContext(nil, s)
+	return c.RetryAfterContext(context.Background(), s)
 }

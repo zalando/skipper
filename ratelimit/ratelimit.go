@@ -348,7 +348,7 @@ func (l *Ratelimit) Allow(s string) bool {
 	return l.impl.Allow(s)
 }
 
-// AllowContext is like Allos but accepts an optional context.Context, e.g. to
+// AllowContext is like Allow but accepts an optional context.Context, e.g. to
 // support OpenTracing. When the context handling is not provided by the
 // implementation, it falls back to the normal Allow method.
 func (l *Ratelimit) AllowContext(ctx context.Context, s string) bool {
