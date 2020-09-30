@@ -9,6 +9,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/go-redis/redis/v7"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/metrics"
 )
@@ -129,6 +130,10 @@ func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimit
 		tracer:  r.tracer,
 	}
 
+	if rl.tracer == nil {
+		rl.tracer = &opentracing.NoopTracer{}
+	}
+
 	var err error
 
 	err = backoff.Retry(func() error {
@@ -168,6 +173,30 @@ func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool,
 	c.metrics.MeasureSince(key, start)
 }
 
+func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func(bool) {
+	nop := func(bool) {}
+	if ctx == nil {
+		return nop
+	}
+
+	parentSpan := opentracing.SpanFromContext(ctx)
+	if parentSpan == nil {
+		return nop
+	}
+
+	span := c.tracer.StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
+	ext.Component.Set(span, "skipper")
+	ext.SpanKind.Set(span, "client")
+
+	return func(failed bool) {
+		if failed {
+			ext.Error.Set(span, true)
+		}
+
+		span.Finish()
+	}
+}
+
 // AllowContext returns true if the request calculated across the cluster of
 // skippers should be allowed else false. It will share it's own data
 // and use the current cluster information to calculate global rates
@@ -192,7 +221,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, s string) bool {
 	nowNanos := now.UnixNano()
 	clearBefore := now.Add(-c.window).UnixNano()
 
-	count, err := c.allowCheckCard(key, clearBefore)
+	count, err := c.allowCheckCard(ctx, key, clearBefore)
 	if err != nil {
 		log.Errorf("Failed to get redis cardinality for %s: %v", key, err)
 		queryFailure = true
@@ -211,14 +240,17 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, s string) bool {
 	defer pipe.Close()
 	pipe.ZAdd(key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
 	pipe.Expire(key, c.window+time.Second)
+	finishSpan := c.startSpan(ctx, "redis_allow_add_card")
 	_, err = pipe.Exec()
 	if err != nil {
 		log.Errorf("Failed to ZAdd and Expire for %s: %v", key, err)
 		queryFailure = true
+		finishSpan(true)
 		return true
 	}
 
 	c.metrics.IncCounter(redisMetricsPrefix + "allows")
+	finishSpan(false)
 	return true
 }
 
@@ -227,26 +259,31 @@ func (c *clusterLimitRedis) Allow(s string) bool {
 	return c.AllowContext(nil, s)
 }
 
-func (c *clusterLimitRedis) allowCheckCard(key string, clearBefore int64) (int64, error) {
+func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clearBefore int64) (int64, error) {
 	pipe := c.ring.TxPipeline()
 	defer pipe.Close()
 	// drop all elements of the set which occurred before one interval ago.
 	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprint(float64(clearBefore)))
 	// get cardinality
 	zcardResult := pipe.ZCard(key)
+	finishSpan := c.startSpan(ctx, "redis_allow_check_card")
 	_, err := pipe.Exec()
 	if err != nil {
+		finishSpan(true)
 		return 0, err
 	}
-	return zcardResult.Val(), nil
+
+	v := zcardResult.Val()
+	finishSpan(false)
+	return v, nil
 }
 
 // Close can not decide to teardown redis ring, because it is not the
 // owner of it.
 func (c *clusterLimitRedis) Close() {}
 
-func (c *clusterLimitRedis) deltaFrom(s string, from time.Time) (time.Duration, error) {
-	oldest, err := c.oldest(s)
+func (c *clusterLimitRedis) deltaFrom(ctx context.Context, s string, from time.Time) (time.Duration, error) {
+	oldest, err := c.oldest(ctx, s)
 	if err != nil {
 		return 0, err
 	}
@@ -259,7 +296,7 @@ func (c *clusterLimitRedis) deltaFrom(s string, from time.Time) (time.Duration, 
 // negative means immediate calls are allowed
 func (c *clusterLimitRedis) Delta(s string) time.Duration {
 	now := time.Now()
-	d, err := c.deltaFrom(s, now)
+	d, err := c.deltaFrom(nil, s, now)
 	if err != nil {
 		log.Errorf("Failed to get the duration until the next call is allowed: %v", err)
 
@@ -271,10 +308,11 @@ func (c *clusterLimitRedis) Delta(s string) time.Duration {
 	return d
 }
 
-func (c *clusterLimitRedis) oldest(s string) (time.Time, error) {
+func (c *clusterLimitRedis) oldest(ctx context.Context, s string) (time.Time, error) {
 	key := c.prefixKey(s)
 	now := time.Now()
 
+	finishSpan := c.startSpan(ctx, "redis_oldest_score")
 	res := c.ring.ZRangeByScoreWithScores(key, &redis.ZRangeBy{
 		Min:    "0.0",
 		Max:    fmt.Sprint(float64(now.UnixNano())),
@@ -284,22 +322,31 @@ func (c *clusterLimitRedis) oldest(s string) (time.Time, error) {
 
 	zs, err := res.Result()
 	if err != nil {
+		finishSpan(true)
 		return time.Time{}, err
 	}
 
-	if len(zs) > 0 {
-		z := zs[0]
-		if s, ok := z.Member.(string); ok {
-			oldest, err := strconv.ParseInt(s, 10, 64)
-			if err != nil {
-				return time.Time{}, fmt.Errorf("failed to convert '%v' to int64: %w", s, err)
-			}
-			return time.Unix(0, oldest), nil
-		}
-		return time.Time{}, fmt.Errorf("failed to convert redis data to int64: %v", z.Member)
+	if len(zs) == 0 {
+		log.Debugf("Oldest() for key %s got no valid data: %v", key, res)
+		finishSpan(false)
+		return time.Time{}, nil
 	}
-	log.Debugf("Oldest() for key %s got no valid data: %v", key, res)
-	return time.Time{}, nil
+
+	z := zs[0]
+	s, ok := z.Member.(string)
+	if !ok {
+		finishSpan(true)
+		return time.Time{}, fmt.Errorf("failed to evaluate redis data: %v", z.Member)
+	}
+
+	oldest, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		finishSpan(true)
+		return time.Time{}, fmt.Errorf("failed to convert '%v' to int64: %w", s, err)
+	}
+
+	finishSpan(false)
+	return time.Unix(0, oldest), nil
 }
 
 // Oldest returns the oldest known request time.
@@ -309,7 +356,7 @@ func (c *clusterLimitRedis) oldest(s string) (time.Time, error) {
 // It will use ZRANGEBYSCORE with offset 0 and count 1 to get the
 // oldest item stored in redis.
 func (c *clusterLimitRedis) Oldest(s string) time.Time {
-	t, err := c.oldest(s)
+	t, err := c.oldest(nil, s)
 	if err != nil {
 		log.Errorf("Failed to get the oldest known request time: %v", err)
 		return time.Time{}
@@ -340,7 +387,7 @@ func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, s string) int
 	var queryFailure bool
 	defer c.measureQuery(retryAfterMetricsFormat, retryAfterMetricsFormatWithGroup, &queryFailure, now)
 
-	retr, err := c.deltaFrom(s, now)
+	retr, err := c.deltaFrom(ctx, s, now)
 	if err != nil {
 		log.Errorf("Failed to get the duration to wait with the next request: %v", err)
 		queryFailure = true
