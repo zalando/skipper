@@ -64,6 +64,10 @@ const (
 	retryAfterMetricsFormat          = redisMetricsPrefix + "query.retryafter.%s"
 	allowMetricsFormatWithGroup      = redisMetricsPrefix + "query.allow.%s.%s"
 	retryAfterMetricsFormatWithGroup = redisMetricsPrefix + "query.retryafter.%s.%s"
+
+	allowAddSpanName    = "redis_allow_add_card"
+	allowCheckSpanName  = "redis_allow_check_card"
+	oldestScoreSpanName = "redis_oldest_score"
 )
 
 func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
@@ -240,7 +244,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, s string) bool {
 	defer pipe.Close()
 	pipe.ZAdd(key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
 	pipe.Expire(key, c.window+time.Second)
-	finishSpan := c.startSpan(ctx, "redis_allow_add_card")
+	finishSpan := c.startSpan(ctx, allowAddSpanName)
 	_, err = pipe.Exec()
 	if err != nil {
 		log.Errorf("Failed to ZAdd and Expire for %s: %v", key, err)
@@ -266,7 +270,7 @@ func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clea
 	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprint(float64(clearBefore)))
 	// get cardinality
 	zcardResult := pipe.ZCard(key)
-	finishSpan := c.startSpan(ctx, "redis_allow_check_card")
+	finishSpan := c.startSpan(ctx, allowCheckSpanName)
 	_, err := pipe.Exec()
 	if err != nil {
 		finishSpan(true)
@@ -312,7 +316,7 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, s string) (time.Time, er
 	key := c.prefixKey(s)
 	now := time.Now()
 
-	finishSpan := c.startSpan(ctx, "redis_oldest_score")
+	finishSpan := c.startSpan(ctx, oldestScoreSpanName)
 	res := c.ring.ZRangeByScoreWithScores(key, &redis.ZRangeBy{
 		Min:    "0.0",
 		Max:    fmt.Sprint(float64(now.UnixNano())),
