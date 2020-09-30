@@ -1026,7 +1026,7 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 			continue
 		}
 
-		if !rl.Allow(s) {
+		if !rl.AllowContext(nil, s) {
 			return setting, rl.RetryAfter(s)
 		}
 	}

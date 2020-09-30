@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -324,6 +325,13 @@ type limiter interface {
 	RetryAfter(string) int
 }
 
+// contextLimiter extends limiter with an AllowContext method that accepts an additional
+// context.Context, e.g. to support OpenTracing.
+type contextLimiter interface {
+	limiter
+	AllowContext(context.Context, string) bool
+}
+
 // Ratelimit is a proxy object that delegates to limiter
 // implemetations and stores settings for the ratelimiter
 type Ratelimit struct {
@@ -338,6 +346,26 @@ func (l *Ratelimit) Allow(s string) bool {
 		return true
 	}
 	return l.impl.Allow(s)
+}
+
+// AllowContext is like Allos but accepts an optional context.Context, e.g. to
+// support OpenTracing. When the context handling is not provided by the
+// implementation, it falls back to the normal Allow method.
+func (l *Ratelimit) AllowContext(ctx context.Context, s string) bool {
+	if l == nil {
+		return true
+	}
+
+	if ctx == nil {
+		return l.impl.Allow(s)
+	}
+
+	implc, ok := l.impl.(contextLimiter)
+	if !ok {
+		return l.impl.Allow(s)
+	}
+
+	return implc.AllowContext(ctx, s)
 }
 
 // Close will stop any cleanup goroutines in underlying limiter implementation.
