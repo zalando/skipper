@@ -60,6 +60,10 @@ func (ac *authClient) Close() {
 	ac.cli.Close()
 }
 
+func bindContext(ctx filters.FilterContext, req *http.Request) *http.Request {
+	return req.WithContext(ctx.Request().Context())
+}
+
 func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext) (tokenIntrospectionInfo, error) {
 	body := url.Values{}
 	body.Add(tokenKey, token)
@@ -67,6 +71,8 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	if err != nil {
 		return nil, err
 	}
+
+	req = bindContext(ctx, req)
 
 	if ac.url.User != nil {
 		authorization := base64.StdEncoding.EncodeToString([]byte(ac.url.User.String()))
@@ -101,6 +107,9 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	if err != nil {
 		return doc, err
 	}
+
+	req = bindContext(ctx, req)
+
 	if token != "" {
 		req.Header.Set(authHeaderName, authHeaderPrefix+token)
 	}
@@ -126,6 +135,8 @@ func (ac *authClient) getWebhook(ctx filters.FilterContext) (*http.Response, err
 	if err != nil {
 		return nil, err
 	}
+
+	req = bindContext(ctx, req)
 	copyHeader(req.Header, ctx.Request().Header)
 
 	rsp, err := ac.cli.Do(req)
