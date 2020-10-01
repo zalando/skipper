@@ -159,8 +159,8 @@ func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimit
 	return rl
 }
 
-func (c *clusterLimitRedis) prefixKey(s string) string {
-	return fmt.Sprintf(swarmKeyFormat, c.group, s)
+func (c *clusterLimitRedis) prefixKey(clearText string) string {
+	return fmt.Sprintf(swarmKeyFormat, c.group, clearText)
 }
 
 func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool, start time.Time) {
@@ -217,7 +217,7 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 //
 // If a context is provided, it uses it for creating an OpenTracing span.
 func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
-	s := fmt.Sprintf("%x", sha256.Sum256([]byte(clearText)))
+	s := getHashedKey(clearText)
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
 	key := c.prefixKey(s)
 
@@ -262,8 +262,8 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 }
 
 // Allow is like AllowContext, but not using a context.
-func (c *clusterLimitRedis) Allow(s string) bool {
-	return c.AllowContext(context.Background(), s)
+func (c *clusterLimitRedis) Allow(clearText string) bool {
+	return c.AllowContext(context.Background(), clearText)
 }
 
 func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clearBefore int64) (int64, error) {
@@ -289,8 +289,8 @@ func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clea
 // owner of it.
 func (c *clusterLimitRedis) Close() {}
 
-func (c *clusterLimitRedis) deltaFrom(ctx context.Context, s string, from time.Time) (time.Duration, error) {
-	oldest, err := c.oldest(ctx, s)
+func (c *clusterLimitRedis) deltaFrom(ctx context.Context, clearText string, from time.Time) (time.Duration, error) {
+	oldest, err := c.oldest(ctx, clearText)
 	if err != nil {
 		return 0, err
 	}
@@ -301,9 +301,9 @@ func (c *clusterLimitRedis) deltaFrom(ctx context.Context, s string, from time.T
 
 // Delta returns the time.Duration until the next call is allowed,
 // negative means immediate calls are allowed
-func (c *clusterLimitRedis) Delta(s string) time.Duration {
+func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 	now := time.Now()
-	d, err := c.deltaFrom(context.Background(), s, now)
+	d, err := c.deltaFrom(context.Background(), clearText, now)
 	if err != nil {
 		log.Errorf("Failed to get the duration until the next call is allowed: %v", err)
 
@@ -315,7 +315,8 @@ func (c *clusterLimitRedis) Delta(s string) time.Duration {
 	return d
 }
 
-func (c *clusterLimitRedis) oldest(ctx context.Context, s string) (time.Time, error) {
+func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.Time, error) {
+	s := getHashedKey(clearText)
 	key := c.prefixKey(s)
 	now := time.Now()
 
@@ -362,8 +363,8 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, s string) (time.Time, er
 //
 // It will use ZRANGEBYSCORE with offset 0 and count 1 to get the
 // oldest item stored in redis.
-func (c *clusterLimitRedis) Oldest(s string) time.Time {
-	t, err := c.oldest(context.Background(), s)
+func (c *clusterLimitRedis) Oldest(clearText string) time.Time {
+	t, err := c.oldest(context.Background(), clearText)
 	if err != nil {
 		log.Errorf("Failed to get the oldest known request time: %v", err)
 		return time.Time{}
@@ -382,11 +383,10 @@ func (*clusterLimitRedis) Resize(string, int) {}
 // ratelimits being not strongly consistent across calls to Allow()
 // and RetryAfter() (or AllowContext and RetryAfterContext accordingly).
 //
-// Performance considerations: It uses Oldest() to get the data from
-// Redis.
-//
 // If a context is provided, it uses it for creating an OpenTracing span.
-func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, s string) int {
+func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText string) int {
+	s := getHashedKey(clearText)
+
 	// If less than 1s to wait -> so set to 1
 	const minWait = 1
 
@@ -410,6 +410,10 @@ func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, s string) int
 }
 
 // RetryAfter is like RetryAfterContext, but not using a context.
-func (c *clusterLimitRedis) RetryAfter(s string) int {
-	return c.RetryAfterContext(context.Background(), s)
+func (c *clusterLimitRedis) RetryAfter(clearText string) int {
+	return c.RetryAfterContext(context.Background(), clearText)
+}
+
+func getHashedKey(clearText string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(clearText)))
 }
