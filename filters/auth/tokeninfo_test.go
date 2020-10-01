@@ -305,20 +305,20 @@ func assertAuthUser(t *testing.T, proxy *proxytest.TestProxy, expected string) {
 	}
 
 	//spans are finished in goroutine
-	time.Sleep(time.Second)
-
-	authUser := ""
-	spans := proxy.Tracer.FinishedSpans()
-	for _, span := range spans {
-		if span.OperationName == "ingress" {
-			tag := span.Tag("client_id")
-			if tag != nil {
-				authUser = tag.(string)
+	assert.Eventually(t, func() bool {
+		authUser := ""
+		spans := proxy.Tracer.FinishedSpans()
+		for _, span := range spans {
+			if span.OperationName == "ingress" {
+				tag := span.Tag("client_id")
+				if tag != nil {
+					authUser = tag.(string)
+				}
 			}
 		}
-	}
 
-	assert.Equal(t, expected, authUser)
+		return expected == authUser
+	}, time.Second, 10*time.Millisecond)
 }
 
 func addMaskOAuthUser(t *testing.T, maskOauthUser string, fr filters.Registry, filterDef []*eskip.Filter) []*eskip.Filter {
