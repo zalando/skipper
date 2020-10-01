@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strconv"
@@ -215,7 +216,8 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 // roundtrip.
 //
 // If a context is provided, it uses it for creating an OpenTracing span.
-func (c *clusterLimitRedis) AllowContext(ctx context.Context, s string) bool {
+func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
+	s := fmt.Sprintf("%x", sha256.Sum256([]byte(clearText)))
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
 	key := c.prefixKey(s)
 
