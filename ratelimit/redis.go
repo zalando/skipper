@@ -385,8 +385,6 @@ func (*clusterLimitRedis) Resize(string, int) {}
 //
 // If a context is provided, it uses it for creating an OpenTracing span.
 func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText string) int {
-	s := getHashedKey(clearText)
-
 	// If less than 1s to wait -> so set to 1
 	const minWait = 1
 
@@ -394,7 +392,7 @@ func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText str
 	var queryFailure bool
 	defer c.measureQuery(retryAfterMetricsFormat, retryAfterMetricsFormatWithGroup, &queryFailure, now)
 
-	retr, err := c.deltaFrom(ctx, s, now)
+	retr, err := c.deltaFrom(ctx, clearText, now)
 	if err != nil {
 		log.Errorf("Failed to get the duration to wait with the next request: %v", err)
 		queryFailure = true
