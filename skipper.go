@@ -463,6 +463,11 @@ type Options struct {
 	// from the request URI in the access logs.
 	AccessLogStripQuery bool
 
+	// LogrusJsonFormatter is passed along to to the underlying Logrus logging if JSON logging is enabled.
+	// To enable structured logging, use the ApplicationLogJSONEnabled and AccessLogJSONEnabled settings.
+	// In the case of access logs, the timestamp format will be overwritten and timestamps will be disabled.
+	LogrusJsonFormatter log.JSONFormatter
+
 	DebugListener string
 
 	// Path of certificate(s) when using TLS, mutiple may be given comma separated
@@ -787,6 +792,7 @@ func initLog(o Options) error {
 		AccessLogOutput:           accessLogOutput,
 		AccessLogJSONEnabled:      o.AccessLogJSONEnabled,
 		AccessLogStripQuery:       o.AccessLogStripQuery,
+		LogrusJsonFormatter:       o.LogrusJsonFormatter,
 	})
 
 	return nil

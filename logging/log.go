@@ -37,6 +37,11 @@ type Options struct {
 	// AccessLogStripQuery, when set, causes the query strings stripped
 	// from the request URI in the access logs.
 	AccessLogStripQuery bool
+
+	// LogrusJsonFormatter is passed along to to the underlying Logrus logging if JSON logging is enabled.
+	// To enable structured logging, use the ApplicationLogJSONEnabled and AccessLogJSONEnabled settings.
+	// In the case of access logs, the timestamp format will be overwritten and timestamps will be disabled.
+	LogrusJsonFormatter logrus.JSONFormatter
 }
 
 func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
@@ -50,7 +55,7 @@ func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 func initApplicationLog(o Options) {
 	if o.ApplicationLogJSONEnabled {
-		logrus.SetFormatter(&logrus.JSONFormatter{})
+		logrus.SetFormatter(&o.LogrusJsonFormatter)
 	} else if o.ApplicationLogPrefix != "" {
 		logrus.SetFormatter(&prefixFormatter{o.ApplicationLogPrefix, logrus.StandardLogger().Formatter})
 	}
@@ -63,7 +68,9 @@ func initApplicationLog(o Options) {
 func initAccessLog(o Options) {
 	l := logrus.New()
 	if o.AccessLogJSONEnabled {
-		l.Formatter = &logrus.JSONFormatter{TimestampFormat: dateFormat, DisableTimestamp: true}
+		o.LogrusJsonFormatter.TimestampFormat = dateFormat
+		o.LogrusJsonFormatter.DisableTimestamp = true
+		l.Formatter = &o.LogrusJsonFormatter
 	} else {
 		l.Formatter = &accessLogFormatter{accessLogFormat}
 	}
