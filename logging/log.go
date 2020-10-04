@@ -27,6 +27,10 @@ type Options struct {
 	// When set, log in JSON format is used
 	ApplicationLogJSONEnabled bool
 
+	// ApplicationLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// Logrus logger for application logs. To enable structured logging, use ApplicationLogJSONEnabled.
+	ApplicationLogJsonFormatter *logrus.JSONFormatter
+
 	// Output for the access log entries, when nil, os.Stderr is
 	// used.
 	AccessLogOutput io.Writer
@@ -38,10 +42,9 @@ type Options struct {
 	// from the request URI in the access logs.
 	AccessLogStripQuery bool
 
-	// LogrusJsonFormatter is passed along to to the underlying Logrus logging if JSON logging is enabled.
-	// To enable structured logging, use the ApplicationLogJSONEnabled and AccessLogJSONEnabled settings.
-	// In the case of access logs, the timestamp format will be overwritten and timestamps will be disabled.
-	LogrusJsonFormatter logrus.JSONFormatter
+	// AccessLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// Logrus logger for access logs. To enable structured logging, use AccessLogJSONEnabled.
+	AccessLogJsonFormatter *logrus.JSONFormatter
 }
 
 func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
@@ -55,7 +58,11 @@ func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 func initApplicationLog(o Options) {
 	if o.ApplicationLogJSONEnabled {
-		logrus.SetFormatter(&o.LogrusJsonFormatter)
+		if o.ApplicationLogJsonFormatter != nil {
+			logrus.SetFormatter(o.ApplicationLogJsonFormatter)
+		} else {
+			logrus.SetFormatter(&logrus.JSONFormatter{})
+		}
 	} else if o.ApplicationLogPrefix != "" {
 		logrus.SetFormatter(&prefixFormatter{o.ApplicationLogPrefix, logrus.StandardLogger().Formatter})
 	}
@@ -68,9 +75,11 @@ func initApplicationLog(o Options) {
 func initAccessLog(o Options) {
 	l := logrus.New()
 	if o.AccessLogJSONEnabled {
-		o.LogrusJsonFormatter.TimestampFormat = dateFormat
-		o.LogrusJsonFormatter.DisableTimestamp = true
-		l.Formatter = &o.LogrusJsonFormatter
+		if o.AccessLogJsonFormatter != nil {
+			l.Formatter = o.AccessLogJsonFormatter
+		} else {
+			l.Formatter = &logrus.JSONFormatter{TimestampFormat: dateFormat, DisableTimestamp: true}
+		}
 	} else {
 		l.Formatter = &accessLogFormatter{accessLogFormat}
 	}

@@ -442,6 +442,10 @@ type Options struct {
 	// Enables logs in JSON format
 	ApplicationLogJSONEnabled bool
 
+	// ApplicationLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// Logrus logger for application logs. To enable structured logging, use ApplicationLogJSONEnabled.
+	ApplicationLogJsonFormatter *log.JSONFormatter
+
 	// Output file for the access log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
@@ -463,10 +467,9 @@ type Options struct {
 	// from the request URI in the access logs.
 	AccessLogStripQuery bool
 
-	// LogrusJsonFormatter is passed along to to the underlying Logrus logging if JSON logging is enabled.
-	// To enable structured logging, use the ApplicationLogJSONEnabled and AccessLogJSONEnabled settings.
-	// In the case of access logs, the timestamp format will be overwritten and timestamps will be disabled.
-	LogrusJsonFormatter log.JSONFormatter
+	// AccessLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// Logrus logger for access logs. To enable structured logging, use AccessLogJSONEnabled.
+	AccessLogJsonFormatter *log.JSONFormatter
 
 	DebugListener string
 
@@ -786,13 +789,14 @@ func initLog(o Options) error {
 	}
 
 	logging.Init(logging.Options{
-		ApplicationLogPrefix:      o.ApplicationLogPrefix,
-		ApplicationLogOutput:      logOutput,
-		ApplicationLogJSONEnabled: o.ApplicationLogJSONEnabled,
-		AccessLogOutput:           accessLogOutput,
-		AccessLogJSONEnabled:      o.AccessLogJSONEnabled,
-		AccessLogStripQuery:       o.AccessLogStripQuery,
-		LogrusJsonFormatter:       o.LogrusJsonFormatter,
+		ApplicationLogPrefix:        o.ApplicationLogPrefix,
+		ApplicationLogOutput:        logOutput,
+		ApplicationLogJSONEnabled:   o.ApplicationLogJSONEnabled,
+		ApplicationLogJsonFormatter: o.ApplicationLogJsonFormatter,
+		AccessLogOutput:             accessLogOutput,
+		AccessLogJSONEnabled:        o.AccessLogJSONEnabled,
+		AccessLogStripQuery:         o.AccessLogStripQuery,
+		AccessLogJsonFormatter:      o.AccessLogJsonFormatter,
 	})
 
 	return nil
