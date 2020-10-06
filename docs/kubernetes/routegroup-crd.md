@@ -15,7 +15,7 @@ detected during processing a route group, none of the generated routes from that
 ### Hosts
 
 A list of allowed DNS host names that an incoming HTTP request should match in order to be handled by the route
-group. Hosts are optional.
+group. Host list is mandatory.
 
 ### Backend
 
@@ -46,8 +46,7 @@ section of the reference.
 
 ## RouteGroup - top level object
 
-The route group spec can or must contain the hosts, backends, default backends and routes. Mandatory fields are
-the backends, and either the defaultBackends or the routes.
+The route group spec must contain hosts, backends, routes and optional default backends.
 
 ```yaml
 apiVersion: zalando.org/v1
