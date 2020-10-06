@@ -262,7 +262,6 @@ var (
 		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
 
-	hostname          = ""
 	disabledAccessLog = al.AccessLogFilter{Enable: false, Prefixes: nil}
 	enabledAccessLog  = al.AccessLogFilter{Enable: true, Prefixes: nil}
 	hopHeaders        = map[string]bool{
@@ -330,6 +329,7 @@ type Proxy struct {
 	upgradeAuditLogErr       io.Writer
 	auditLogHook             chan struct{}
 	clientTLS                *tls.Config
+	hostname                 string
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -683,7 +683,7 @@ func WithParams(p Params) *Proxy {
 		defaultHTTPStatus = p.DefaultHTTPStatus
 	}
 
-	hostname = os.Getenv("HOSTNAME")
+	hostname := os.Getenv("HOSTNAME")
 
 	return &Proxy{
 		routing:                  p.Routing,
@@ -706,6 +706,7 @@ func WithParams(p Params) *Proxy {
 		upgradeAuditLogOut:       os.Stdout,
 		upgradeAuditLogErr:       os.Stderr,
 		clientTLS:                tr.TLSClientConfig,
+		hostname:                 hostname,
 	}
 }
 
@@ -1491,7 +1492,7 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 		setTag(s, ComponentTag, "skipper").
 		setTag(s, HTTPUrlTag, u.String()).
 		setTag(s, HTTPMethodTag, r.Method).
-		setTag(s, HostnameTag, hostname).
+		setTag(s, HostnameTag, p.hostname).
 		setTag(s, HTTPRemoteAddrTag, r.RemoteAddr).
 		setTag(s, HTTPPathTag, u.Path).
 		setTag(s, HTTPHostTag, r.Host)
