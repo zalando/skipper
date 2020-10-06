@@ -548,7 +548,7 @@ spec:
     filters:
     - status(200)
     backends:
-    - options200
+    - backendName: options200
 ```
 
 ### zalando.org/ratelimit
@@ -559,7 +559,7 @@ The ratelimiting can be defined on the route level among the filters, in the sam
 
 Skipper ingress provides global HTTPS redirect, but it allows individual ingresses to override the global
 settings: enabling/disabling it and changing the default redirect code. With route groups, this override can be
-achieved by simply defining an addtional route, with the same matching rules, and therefore the override can be
+achieved by simply defining an additional route, with the same matching rules, and therefore the override can be
 controlled eventually on a route basis. E.g:
 
 ```yaml
@@ -585,7 +585,7 @@ spec:
     filters:
     - redirectTo(302, "https:")
     backends:
-    - redirectShunt
+    - backendName: redirectShunt
 ```
 
 ### zalando.org/skipper-loadbalancer
