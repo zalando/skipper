@@ -24,6 +24,7 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		port             int
 		host, token      string
 		cmdLine          string
+		plaintext        bool
 		logCmdLine       bool
 		logEvents        bool
 		maxBufferedSpans int
@@ -84,6 +85,12 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 			if err != nil {
 				return lightstep.Options{}, fmt.Errorf("failed to parse %s as int: %v", sport, err)
 			}
+		case "plaintext":
+			var err error
+			plaintext, err = strconv.ParseBool(parts[1])
+			if err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as bool: %v", parts[1], err)
+			}
 		case "cmd-line":
 			cmdLine = parts[1]
 			logCmdLine = true
@@ -130,8 +137,9 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 	return lightstep.Options{
 		AccessToken: token,
 		Collector: lightstep.Endpoint{
-			Host: host,
-			Port: port,
+			Host:      host,
+			Port:      port,
+			Plaintext: plaintext,
 		},
 		UseGRPC:                     true,
 		Tags:                        tags,

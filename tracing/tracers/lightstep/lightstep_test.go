@@ -190,6 +190,30 @@ func TestParseOptions(t *testing.T) {
 			want:    lightstep.Options{},
 			wantErr: true,
 		},
+		{
+			name: "test with plaintext set",
+			opts: []string{
+				"token=" + token,
+				"collector=collector.example.com:8888",
+				"plaintext=true",
+			},
+			want: lightstep.Options{
+				AccessToken: token,
+				Collector: lightstep.Endpoint{
+					Host:      "collector.example.com",
+					Port:      8888,
+					Plaintext: true,
+				},
+				UseGRPC: true,
+				Tags: map[string]interface{}{
+					lightstep.ComponentNameKey: defComponentName,
+				},
+				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
+				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
+				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
