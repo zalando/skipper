@@ -1022,7 +1022,7 @@ func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
 
 		s := setting.Lookuper.Lookup(ctx.Request())
 		if s == "" {
-			p.log.Errorf("Lookuper found no data in request for setting: %s and request: %v", setting, ctx.Request())
+			p.log.Debugf("Lookuper found no data in request for setting: %s and request: %v", setting, ctx.Request())
 			continue
 		}
 
