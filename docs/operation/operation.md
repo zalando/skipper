@@ -894,10 +894,10 @@ listener, which defaults to `:9911`.
 Start skipper with enabled profiling:
 
 ```
-./bin/skipper -routes-file examples/shadow-2-routes.eskip -enable-profile
+skipper -inline-routes='r1: * -> inlineContent("hello") -> <shunt>' -enable-profile
 ```
 
-Use Go tool pprof to download profiling sample to analyze:
+Use Go tool pprof to download profiling sample to analyze (sample is not from the example):
 
 ```
 go tool pprof http://127.0.0.1:9911
