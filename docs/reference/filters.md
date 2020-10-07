@@ -391,12 +391,15 @@ Example:
 ```
 * -> inlineContent("<h1>Hello</h1>") -> <shunt>
 * -> inlineContent("[1,2,3]", "application/json") -> <shunt>
+* -> status(418) -> inlineContent("Would you like a cup of tea?") -> <shunt>
 ```
 
-Content type will be automatically detected when not provided.
+Content type will be automatically detected when not provided using https://mimesniff.spec.whatwg.org/#rules-for-identifying-an-unknown-mime-type algorithm.
+Note that content detection algorithm does not contain any rules for recognizing JSON.
 
 !!! note
-    `inlineContent` filter is special and must be the last in the filter chain.
+    `inlineContent` filter sets the response on request path and starts the response path immediately.
+    The rest of the filter chain and backend are ignored and therefore `inlineContent` filter must be the last in the chain.
 
 ## inlineContentIfStatus
 
