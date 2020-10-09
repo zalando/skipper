@@ -37,6 +37,8 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
+
+	"github.com/dimfeld/httppath"
 )
 
 const (
@@ -1442,6 +1444,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p.flags.patchPath() {
 		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
 	}
+
+	// Change /foo/../bar to /bar for matching and passing upstream
+	r.URL.Path = httppath.Clean(r.URL.Path)
 
 	p.tracing.setTag(span, SpanKindTag, SpanKindServer)
 	p.setCommonSpanInfo(r.URL, r, span)
