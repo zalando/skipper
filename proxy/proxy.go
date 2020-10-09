@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dimfeld/httppath"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
@@ -37,8 +38,6 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
-
-	"github.com/dimfeld/httppath"
 )
 
 const (
