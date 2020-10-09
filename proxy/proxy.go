@@ -1440,12 +1440,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// Change /foo/../bar to /bar for matching and passing upstream
+	r.URL.Path = httppath.Clean(r.URL.Path)
+
 	if p.flags.patchPath() {
 		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
 	}
-
-	// Change /foo/../bar to /bar for matching and passing upstream
-	r.URL.Path = httppath.Clean(r.URL.Path)
 
 	p.tracing.setTag(span, SpanKindTag, SpanKindServer)
 	p.setCommonSpanInfo(r.URL, r, span)
