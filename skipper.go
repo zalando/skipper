@@ -32,6 +32,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
+	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
@@ -1121,6 +1122,84 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		),
 	)
 
+	var swarmer ratelimit.Swarmer
+	var redisOptions *ratelimit.RedisOptions
+	if o.EnableSwarm {
+		if len(o.SwarmRedisURLs) > 0 {
+			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
+			redisOptions = &ratelimit.RedisOptions{
+				Addrs:               o.SwarmRedisURLs,
+				ReadTimeout:         o.SwarmRedisReadTimeout,
+				WriteTimeout:        o.SwarmRedisWriteTimeout,
+				PoolTimeout:         o.SwarmRedisPoolTimeout,
+				MinIdleConns:        o.SwarmRedisMinIdleConns,
+				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
+				ConnMetricsInterval: o.redisConnMetricsInterval,
+				Tracer:              tracer,
+			}
+		} else {
+			log.Infof("Start swim based swarm")
+			swops := &swarm.Options{
+				SwarmPort:        uint16(o.SwarmPort),
+				MaxMessageBuffer: o.SwarmMaxMessageBuffer,
+				LeaveTimeout:     o.SwarmLeaveTimeout,
+				Debug:            log.GetLevel() == log.DebugLevel,
+			}
+
+			if o.Kubernetes {
+				swops.KubernetesOptions = &swarm.KubernetesOptions{
+					KubernetesInCluster:  o.KubernetesInCluster,
+					KubernetesAPIBaseURL: o.KubernetesURL,
+					Namespace:            o.SwarmKubernetesNamespace,
+					LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
+					LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
+				}
+			}
+
+			if o.SwarmStaticSelf != "" {
+				self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
+				if err != nil {
+					log.Fatalf("Failed to get static NodeInfo: %v", err)
+				}
+				other := []*swarm.NodeInfo{self}
+
+				for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
+					ni, err := swarm.NewStaticNodeInfo(addr, addr)
+					if err != nil {
+						log.Fatalf("Failed to get static NodeInfo: %v", err)
+					}
+					other = append(other, ni)
+				}
+
+				swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
+			}
+
+			theSwarm, err := swarm.NewSwarm(swops)
+			if err != nil {
+				log.Errorf("failed to init swarm with options %+v: %v", swops, err)
+			}
+			defer theSwarm.Leave()
+			swarmer = theSwarm
+		}
+	}
+
+	var ratelimitRegistry *ratelimit.Registry
+	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
+		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
+		ratelimitRegistry := ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
+		defer ratelimitRegistry.Close()
+
+		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
+		o.CustomFilters = append(o.CustomFilters,
+			ratelimitfilters.NewClientRatelimit(provider),
+			ratelimitfilters.NewLocalRatelimit(provider),
+			ratelimitfilters.NewRatelimit(provider),
+			ratelimitfilters.NewClusterRateLimit(provider),
+			ratelimitfilters.NewClusterClientRateLimit(provider),
+			ratelimitfilters.NewDisableRatelimit(provider),
+		)
+	}
+
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
 	registry := builtin.MakeRegistry()
@@ -1228,75 +1307,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		AccessLogDisabled:          o.AccessLogDisabled,
 		ClientTLS:                  o.ClientTLS,
 		CustomHttpRoundTripperWrap: o.CustomHttpRoundTripperWrap,
-	}
-
-	var swarmer ratelimit.Swarmer
-	var swops *swarm.Options
-	var redisOptions *ratelimit.RedisOptions
-	if o.EnableSwarm {
-		if len(o.SwarmRedisURLs) > 0 {
-			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
-			redisOptions = &ratelimit.RedisOptions{
-				Addrs:               o.SwarmRedisURLs,
-				ReadTimeout:         o.SwarmRedisReadTimeout,
-				WriteTimeout:        o.SwarmRedisWriteTimeout,
-				PoolTimeout:         o.SwarmRedisPoolTimeout,
-				MinIdleConns:        o.SwarmRedisMinIdleConns,
-				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
-				ConnMetricsInterval: o.redisConnMetricsInterval,
-				Tracer:              tracer,
-			}
-		} else {
-			log.Infof("Start swim based swarm")
-			swops = &swarm.Options{
-				SwarmPort:        uint16(o.SwarmPort),
-				MaxMessageBuffer: o.SwarmMaxMessageBuffer,
-				LeaveTimeout:     o.SwarmLeaveTimeout,
-				Debug:            log.GetLevel() == log.DebugLevel,
-			}
-
-			if o.Kubernetes {
-				swops.KubernetesOptions = &swarm.KubernetesOptions{
-					KubernetesInCluster:  o.KubernetesInCluster,
-					KubernetesAPIBaseURL: o.KubernetesURL,
-					Namespace:            o.SwarmKubernetesNamespace,
-					LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
-					LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
-				}
-			}
-
-			if o.SwarmStaticSelf != "" {
-				self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
-				if err != nil {
-					log.Fatalf("Failed to get static NodeInfo: %v", err)
-				}
-				other := []*swarm.NodeInfo{self}
-
-				for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
-					ni, err := swarm.NewStaticNodeInfo(addr, addr)
-					if err != nil {
-						log.Fatalf("Failed to get static NodeInfo: %v", err)
-					}
-					other = append(other, ni)
-				}
-
-				swops.StaticSwarm = swarm.NewStaticSwarm(self, other)
-			}
-
-			theSwarm, err := swarm.NewSwarm(swops)
-			if err != nil {
-				log.Errorf("failed to init swarm with options %+v: %v", swops, err)
-			}
-			defer theSwarm.Leave()
-			swarmer = theSwarm
-		}
-	}
-
-	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
-		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		reg := ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
-		defer reg.Close()
-		proxyParams.RateLimiters = reg
+		RateLimiters:               ratelimitRegistry,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {

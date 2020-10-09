@@ -28,7 +28,6 @@ import (
 	al "github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
-	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
@@ -1014,46 +1013,6 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	return response, nil
 }
 
-// checkRatelimit is used in case of a route ratelimit
-// configuration. It returns the used ratelimit.Settings and 0 if
-// the request passed in the context should be allowed.
-// otherwise it returns the used ratelimit.Settings and the retry-after period.
-func (p *Proxy) checkRatelimit(ctx *context) (ratelimit.Settings, int) {
-	if p.limiters == nil {
-		return ratelimit.Settings{}, 0
-	}
-
-	settings, ok := ctx.stateBag[ratelimitfilters.RouteSettingsKey].([]ratelimit.Settings)
-	if !ok || len(settings) < 1 {
-		return ratelimit.Settings{}, 0
-	}
-
-	for _, setting := range settings {
-		rl := p.limiters.Get(setting)
-		if rl == nil {
-			p.log.Errorf("RateLimiter is nil for setting: %s", setting)
-			continue
-		}
-
-		if setting.Lookuper == nil {
-			p.log.Errorf("Lookuper is nil for setting: %s", setting)
-			continue
-		}
-
-		s := setting.Lookuper.Lookup(ctx.Request())
-		if s == "" {
-			p.log.Debugf("Lookuper found no data in request for setting: %s and request: %v", setting, ctx.Request())
-			continue
-		}
-
-		if !rl.AllowContext(ctx.Request().Context(), s) {
-			return setting, rl.RetryAfter(s)
-		}
-	}
-
-	return ratelimit.Settings{}, 0
-}
-
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	if p.breakers == nil {
 		return nil, true
@@ -1073,12 +1032,9 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 
 func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 	return &proxyError{
-		err:  errRatelimit,
-		code: http.StatusTooManyRequests,
-		additionalHeader: http.Header{
-			ratelimit.Header:           []string{strconv.Itoa(settings.MaxHits * int(time.Hour/settings.TimeWindow))},
-			ratelimit.RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
-		},
+		err:              errRatelimit,
+		code:             http.StatusTooManyRequests,
+		additionalHeader: ratelimit.Headers(&settings, retryAfter),
 	}
 }
 
@@ -1118,12 +1074,6 @@ func (p *Proxy) do(ctx *context) error {
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
-
-	// per route rate limit
-	if settings, retryAfter := p.checkRatelimit(ctx); retryAfter > 0 {
-		rerr := newRatelimitError(settings, retryAfter)
-		return rerr
-	}
 
 	if ctx.deprecatedShunted() {
 		p.log.Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
