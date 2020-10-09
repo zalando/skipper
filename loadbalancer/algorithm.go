@@ -30,13 +30,17 @@ const (
 
 	// ConsistentHash indicates choice between the backends based on their hashed address.
 	ConsistentHash
+
+	// PowerOfRandomNChoices selects N random endpoints and picks the one with least outstanding requests from them.
+	PowerOfRandomNChoices
 )
 
 var (
-	algorithms = map[Algorithm]initializeAgorithm{
-		RoundRobin:     newRoundRobin,
-		Random:         newRandom,
-		ConsistentHash: newConsistentHash,
+	algorithms = map[Algorithm]initializeAlgorithm{
+		RoundRobin:            newRoundRobin,
+		Random:                newRandom,
+		ConsistentHash:        newConsistentHash,
+		PowerOfRandomNChoices: newPowerOfRandomNChoices,
 	}
 	defaultAlgorithm = newRoundRobin
 )
@@ -197,9 +201,66 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return ctx.Route.LBEndpoints[choice]
 }
 
+type powerOfRandomNChoices struct {
+	rand            *rand.Rand
+	numberOfChoices int
+}
+
+// getScore returns negative value of inflightrequests count.
+func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int {
+	// endpoints with higher inflight request should have lower score
+	return -e.Metrics.GetInflightRequests()
+}
+
+// getRandomIndex returns random integer with the range of 0 and l
+// and skips excluded integers. If the length is equal to excluded length
+// it behaves as if excluded list is empty
+func (p *powerOfRandomNChoices) getRandomIndex(l int, exl map[int]struct{}) int {
+	if len(exl) == 0 || len(exl) == l {
+		return p.rand.Intn(l)
+	}
+
+	for {
+		r := p.rand.Intn(l)
+		if _, ok := exl[r]; !ok {
+			return r
+		}
+	}
+}
+
+// Apply implements routing.LBAlgorithm with power of random N choices algorithm.
+func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	ne := len(ctx.Route.LBEndpoints)
+	exl := make(map[int]struct{}, p.numberOfChoices)
+
+	c := p.getRandomIndex(ne, exl)
+	best := ctx.Route.LBEndpoints[c]
+	exl[c] = struct{}{}
+
+	for i := 1; i < p.numberOfChoices; i++ {
+		newC := p.getRandomIndex(ne, exl)
+		ce := ctx.Route.LBEndpoints[newC]
+		exl[newC] = struct{}{}
+
+		if p.getScore(ce) > p.getScore(best) {
+			best = ce
+		}
+	}
+	return best
+}
+
+// newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
+func newPowerOfRandomNChoices(endpoints []string) routing.LBAlgorithm {
+	t := time.Now().UnixNano()
+	return &powerOfRandomNChoices{
+		rand:            rand.New(rand.NewSource(t)),
+		numberOfChoices: 2,
+	}
+}
+
 type (
-	algorithmProvider  struct{}
-	initializeAgorithm func(endpoints []string) routing.LBAlgorithm
+	algorithmProvider   struct{}
+	initializeAlgorithm func(endpoints []string) routing.LBAlgorithm
 )
 
 // NewAlgorithmProvider creates a routing.PostProcessor used to initialize
@@ -221,6 +282,8 @@ func AlgorithmFromString(a string) (Algorithm, error) {
 		return Random, nil
 	case "consistentHash":
 		return ConsistentHash, nil
+	case "powerOfRandomNChoices":
+		return PowerOfRandomNChoices, nil
 	default:
 		return None, errors.New("unsupported algorithm")
 	}
@@ -235,6 +298,8 @@ func (a Algorithm) String() string {
 		return "random"
 	case ConsistentHash:
 		return "consistentHash"
+	case PowerOfRandomNChoices:
+		return "powerOfRandomNChoices"
 	default:
 		return ""
 	}
@@ -248,7 +313,11 @@ func parseEndpoints(r *routing.Route) error {
 			return err
 		}
 
-		r.LBEndpoints[i] = routing.LBEndpoint{Scheme: eu.Scheme, Host: eu.Host}
+		r.LBEndpoints[i] = routing.LBEndpoint{
+			Scheme:  eu.Scheme,
+			Host:    eu.Host,
+			Metrics: &routing.LBMetrics{},
+		}
 	}
 
 	return nil
