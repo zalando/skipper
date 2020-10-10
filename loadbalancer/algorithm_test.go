@@ -244,8 +244,7 @@ func TestApply(t *testing.T) {
 			expected:      1,
 			algorithm:     newConsistentHash(eps),
 			algorithmName: "consistentHash",
-		},
-		{
+		}, {
 			name:          "powerOfRandomNChoices algorithm",
 			iterations:    100,
 			jitter:        0,
