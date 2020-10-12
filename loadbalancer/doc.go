@@ -35,6 +35,7 @@ Eskip example:
         r1: * -> <roundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
         r2: * -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
         r3: * -> <random, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+		r4: * -> <powerOfRandomNChoices, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 
 
 Package loadbalancer also implements health checking of pool members for

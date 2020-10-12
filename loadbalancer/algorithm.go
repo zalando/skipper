@@ -1,4 +1,4 @@
-package loadbalancer
+package algorithm
 
 import (
 	"errors"
@@ -71,7 +71,7 @@ func shiftToOldest(ctx *routing.LBContext) routing.LBEndpoint {
 	return oldest
 }
 
-func shiftToRemaining(sr *safeRand, ctx *routing.LBContext, w []int, now time.Time) routing.LBEndpoint {
+func shiftToRemaining(ctx *routing.LBContext, sr *safeRand, w []int, now time.Time) routing.LBEndpoint {
 	notFadingIndexes := w
 	ep := ctx.Route.LBEndpoints
 	for i := 0; i < len(ep); i++ {
@@ -92,7 +92,7 @@ func shiftToRemaining(sr *safeRand, ctx *routing.LBContext, w []int, now time.Ti
 	return ep[notFadingIndexes[sr.getIntn(len(notFadingIndexes))]]
 }
 
-func withFadeIn(sr *safeRand, ctx *routing.LBContext, w []int, choice int) routing.LBEndpoint {
+func withFadeIn(ctx *routing.LBContext, sr *safeRand, w []int, choice int) routing.LBEndpoint {
 	now := time.Now()
 	f := fadeIn(
 		now,
@@ -105,7 +105,7 @@ func withFadeIn(sr *safeRand, ctx *routing.LBContext, w []int, choice int) routi
 		return ctx.Route.LBEndpoints[choice]
 	}
 
-	return shiftToRemaining(sr, ctx, w, now)
+	return shiftToRemaining(ctx, sr, w, now)
 }
 
 // safeRand is a struct for managing concurrent safe random access
@@ -168,7 +168,7 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[r.index]
 	}
 
-	return withFadeIn(r.sr, ctx, r.fadeInCalc, r.index)
+	return withFadeIn(ctx, r.sr, r.fadeInCalc, r.index)
 }
 
 type random struct {
@@ -179,7 +179,6 @@ type random struct {
 func newRandom(endpoints []string) routing.LBAlgorithm {
 	return &random{
 		sr: newSafeRand(),
-
 		// preallocating frequently used slice
 		fadeInCalc: make([]int, 0, len(endpoints)),
 	}
@@ -196,13 +195,17 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[i]
 	}
 
-	return withFadeIn(r.sr, ctx, r.fadeInCalc, i)
+	return withFadeIn(ctx, r.sr, r.fadeInCalc, i)
 }
 
-type consistentHash struct{}
+type consistentHash struct {
+	sr *safeRand
+}
 
 func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	return &consistentHash{}
+	return &consistentHash{
+		sr: newSafeRand(),
+	}
 }
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
@@ -217,7 +220,7 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	key := net.RemoteHost(ctx.Request).String()
 	if _, err := h.Write([]byte(key)); err != nil {
 		log.Errorf("Failed to write '%s' into hash: %v", key, err)
-		return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))]
+		return ctx.Route.LBEndpoints[ch.sr.getIntn(len(ctx.Route.LBEndpoints))]
 	}
 	sum = h.Sum32()
 	choice := int(sum) % len(ctx.Route.LBEndpoints)
