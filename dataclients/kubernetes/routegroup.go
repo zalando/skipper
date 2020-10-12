@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -50,8 +49,6 @@ type calculatedTraffic struct {
 	value   float64
 	balance int
 }
-
-var errMissingClusterIP = errors.New("missing cluster IP")
 
 func eskipError(typ, e string, err error) error {
 	if len(e) > 48 {
@@ -234,14 +231,6 @@ func getBackendService(ctx *routeGroupContext, backend *definitions.SkipperBacke
 	return s, nil
 }
 
-func createClusterIPBackend(s *service, backend *definitions.SkipperBackend) (string, error) {
-	if s.Spec.ClusterIP == "" {
-		return "", errMissingClusterIP
-	}
-
-	return fmt.Sprintf("http://%s:%d", s.Spec.ClusterIP, backend.ServicePort), nil
-}
-
 func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
 	s, err := getBackendService(ctx, backend)
 	if err != nil {
@@ -260,21 +249,15 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	)
 
 	if len(eps) == 0 {
-		b, err := createClusterIPBackend(s, backend)
-		if err != nil {
-			return err
-		}
-
 		log.Infof(
-			"[routegroup] Target endpoints not found, using service cluster IP as a fallback for %s/%s %s:%d",
+			"[routegroup] Target endpoints not found, shuntroute for %s/%s %s:%d",
 			namespaceString(ctx.routeGroup.Metadata.Namespace),
 			ctx.routeGroup.Metadata.Name,
 			backend.ServiceName,
 			backend.ServicePort,
 		)
 
-		r.BackendType = eskip.NetworkBackend
-		r.Backend = b
+		shuntRoute(r)
 		return nil
 	}
 
