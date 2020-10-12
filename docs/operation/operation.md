@@ -879,3 +879,55 @@ predicates and filters involved in the route processing:
   ]
 }
 ```
+
+## Profiling skipper
+
+Go profiling is explained in Go's
+[diagnostics](https://golang.org/doc/diagnostics.html) documentation.
+
+To enable profiling in skipper you have to use `-enable-profile`. This
+will start a profiling route at `/debug/pprof/profile` on the support
+listener, which defaults to `:9911`.
+
+### Profiling example
+
+Start skipper with enabled profiling:
+
+```
+skipper -inline-routes='r1: * -> inlineContent("hello") -> <shunt>' -enable-profile
+```
+
+Use Go tool pprof to download profiling sample to analyze (sample is not from the example):
+
+```
+go tool pprof http://127.0.0.1:9911
+Fetching profile over HTTP from http://127.0.0.1:9911/debug/pprof/profile
+Saved profile in /$HOME/pprof/pprof.skipper.samples.cpu.004.pb.gz
+File: skipper
+Build ID: 272c31a7bd60c9fabb637bdada37a3331a919b01
+Type: cpu
+Time: Oct 7, 2020 at 6:17pm (CEST)
+Duration: 30s, Total samples = 0
+No samples were found with the default sample value type.
+Try "sample_index" command to analyze different sample values.
+Entering interactive mode (type "help" for commands, "o" for options)
+(pprof) top
+Showing nodes accounting for 2140ms, 50.00% of 4280ms total
+Dropped 330 nodes (cum <= 21.40ms)
+Showing top 10 nodes out of 303
+      flat  flat%   sum%        cum   cum%
+     560ms 13.08% 13.08%      640ms 14.95%  syscall.Syscall
+     420ms  9.81% 22.90%      430ms 10.05%  runtime.nanotime
+     410ms  9.58% 32.48%      410ms  9.58%  runtime.futex
+     170ms  3.97% 36.45%      450ms 10.51%  runtime.mallocgc
+     170ms  3.97% 40.42%      180ms  4.21%  runtime.walltime
+     160ms  3.74% 44.16%      220ms  5.14%  runtime.scanobject
+      80ms  1.87% 46.03%       80ms  1.87%  runtime.heapBitsSetType
+      70ms  1.64% 47.66%       70ms  1.64%  runtime.epollwait
+      50ms  1.17% 48.83%      120ms  2.80%  compress/flate.(*compressor).deflate
+      50ms  1.17% 50.00%       50ms  1.17%  encoding/json.stateInString
+(pprof) web
+--> opens browser with SVG
+```
+
+![pprof svg in web browser](../img/skipper_pprof.svg)
