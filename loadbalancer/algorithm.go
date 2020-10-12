@@ -71,7 +71,7 @@ func shiftToOldest(ctx *routing.LBContext) routing.LBEndpoint {
 	return oldest
 }
 
-func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []int, now time.Time) routing.LBEndpoint {
+func shiftToRemaining(sr *safeRand, ctx *routing.LBContext, w []int, now time.Time) routing.LBEndpoint {
 	notFadingIndexes := w
 	ep := ctx.Route.LBEndpoints
 	for i := 0; i < len(ep); i++ {
@@ -89,10 +89,10 @@ func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, w []int, now time.
 	}
 
 	// otherwise equally distribute between the old endpoints
-	return ep[notFadingIndexes[rnd.Intn(len(notFadingIndexes))]]
+	return ep[notFadingIndexes[sr.getIntn(len(notFadingIndexes))]]
 }
 
-func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, w []int, choice int) routing.LBEndpoint {
+func withFadeIn(sr *safeRand, ctx *routing.LBContext, w []int, choice int) routing.LBEndpoint {
 	now := time.Now()
 	f := fadeIn(
 		now,
@@ -101,25 +101,53 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, w []int, choice int) rou
 		ctx.Route.LBEndpoints[choice].Detected,
 	)
 
-	if rnd.Float64() < f {
+	if sr.getFloat64() < f {
 		return ctx.Route.LBEndpoints[choice]
 	}
 
-	return shiftToRemaining(rnd, ctx, w, now)
+	return shiftToRemaining(sr, ctx, w, now)
+}
+
+// safeRand is a struct for managing concurrent safe random access
+// with the custom source.
+type safeRand struct {
+	rnd *rand.Rand
+	mx  sync.Mutex
+}
+
+func newSafeRand() *safeRand {
+	src := rand.NewSource(time.Now().UnixNano())
+	return &safeRand{
+		rnd: rand.New(src),
+	}
+}
+
+// getIntn returns random int within the given range.
+func (s *safeRand) getIntn(lbe int) int {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	return s.rnd.Intn(lbe)
+}
+
+// getFloat64 returns random float64
+func (s *safeRand) getFloat64() float64 {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	return s.rnd.Float64()
 }
 
 type roundRobin struct {
 	mx         sync.Mutex
 	index      int
-	rnd        *rand.Rand
+	sr         *safeRand
 	fadeInCalc []int
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	sr := newSafeRand()
 	return &roundRobin{
-		index: rnd.Intn(len(endpoints)),
-		rnd:   rnd,
+		index: sr.getIntn(len(endpoints)),
+		sr:    sr,
 
 		// preallocating frequently used slice
 		fadeInCalc: make([]int, 0, len(endpoints)),
@@ -140,18 +168,17 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[r.index]
 	}
 
-	return withFadeIn(r.rnd, ctx, r.fadeInCalc, r.index)
+	return withFadeIn(r.sr, ctx, r.fadeInCalc, r.index)
 }
 
 type random struct {
-	rand       *rand.Rand
+	sr         *safeRand
 	fadeInCalc []int
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
-	t := time.Now().UnixNano()
 	return &random{
-		rand: rand.New(rand.NewSource(t)),
+		sr: newSafeRand(),
 
 		// preallocating frequently used slice
 		fadeInCalc: make([]int, 0, len(endpoints)),
@@ -164,12 +191,12 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[0]
 	}
 
-	i := r.rand.Intn(len(ctx.Route.LBEndpoints))
+	i := r.sr.getIntn(len(ctx.Route.LBEndpoints))
 	if ctx.Route.LBFadeInDuration <= 0 {
 		return ctx.Route.LBEndpoints[i]
 	}
 
-	return withFadeIn(r.rand, ctx, r.fadeInCalc, i)
+	return withFadeIn(r.sr, ctx, r.fadeInCalc, i)
 }
 
 type consistentHash struct{}
@@ -202,45 +229,26 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 }
 
 type powerOfRandomNChoices struct {
-	rand            *rand.Rand
+	sr              *safeRand
 	numberOfChoices int
 }
 
-// getScore returns negative value of inflightrequests count.
-func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int {
-	// endpoints with higher inflight request should have lower score
-	return -e.Metrics.GetInflightRequests()
-}
-
-// getRandomIndex returns random integer with the range of 0 and l
-// and skips excluded integers. If the length is equal to excluded length
-// it behaves as if excluded list is empty
-func (p *powerOfRandomNChoices) getRandomIndex(l int, exl map[int]struct{}) int {
-	if len(exl) == 0 || len(exl) == l {
-		return p.rand.Intn(l)
-	}
-
-	for {
-		r := p.rand.Intn(l)
-		if _, ok := exl[r]; !ok {
-			return r
-		}
+// newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
+func newPowerOfRandomNChoices(endpoints []string) routing.LBAlgorithm {
+	return &powerOfRandomNChoices{
+		sr:              newSafeRand(),
+		numberOfChoices: 2,
 	}
 }
 
 // Apply implements routing.LBAlgorithm with power of random N choices algorithm.
 func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	ne := len(ctx.Route.LBEndpoints)
-	exl := make(map[int]struct{}, p.numberOfChoices)
 
-	c := p.getRandomIndex(ne, exl)
-	best := ctx.Route.LBEndpoints[c]
-	exl[c] = struct{}{}
+	best := ctx.Route.LBEndpoints[p.sr.getIntn(ne)]
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		newC := p.getRandomIndex(ne, exl)
-		ce := ctx.Route.LBEndpoints[newC]
-		exl[newC] = struct{}{}
+		ce := ctx.Route.LBEndpoints[p.sr.getIntn(ne)]
 
 		if p.getScore(ce) > p.getScore(best) {
 			best = ce
@@ -249,13 +257,10 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	return best
 }
 
-// newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
-func newPowerOfRandomNChoices(endpoints []string) routing.LBAlgorithm {
-	t := time.Now().UnixNano()
-	return &powerOfRandomNChoices{
-		rand:            rand.New(rand.NewSource(t)),
-		numberOfChoices: 2,
-	}
+// getScore returns negative value of inflightrequests count.
+func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int {
+	// endpoints with higher inflight request should have lower score
+	return -e.Metrics.GetInflightRequests()
 }
 
 type (
