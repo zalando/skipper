@@ -77,3 +77,47 @@ func TestApplicationLogJSONEnabled(t *testing.T) {
 		t.Errorf("unexpected field count")
 	}
 }
+
+func TestApplicationLogJSONWithCustomFormatter(t *testing.T) {
+	var buf bytes.Buffer
+	Init(Options{
+		ApplicationLogOutput:      &buf,
+		ApplicationLogJSONEnabled: true,
+		ApplicationLogJsonFormatter: &log.JSONFormatter{
+			FieldMap: log.FieldMap{
+				log.FieldKeyLevel: "my_level",
+				log.FieldKeyMsg:   "my_message",
+				log.FieldKeyTime:  "my_time",
+			},
+		}})
+
+	msg := "Hello, customized world!"
+	log.Infof(msg)
+
+	parsed := make(map[string]interface{})
+	err := json.Unmarshal(buf.Bytes(), &parsed)
+	if err != nil {
+		t.Errorf("failed to parse json log: %v", err)
+	}
+
+	if got := parsed["my_level"]; got != "info" {
+		t.Errorf("invalid level, expected: info, got: %v", got)
+	}
+
+	if got := parsed["my_message"]; got != msg {
+		t.Errorf("invalid msg, expected: %s, got: %v", msg, got)
+	}
+
+	if got, ok := parsed["my_time"]; ok {
+		_, err := time.Parse(time.RFC3339, got.(string))
+		if err != nil {
+			t.Errorf("failed to parse time: %v", err)
+		}
+	} else {
+		t.Error("time is missing")
+	}
+
+	if len(parsed) != 3 {
+		t.Errorf("unexpected field count")
+	}
+}

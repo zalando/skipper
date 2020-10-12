@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	logFilter "github.com/zalando/skipper/filters/log"
 )
 
@@ -195,6 +197,23 @@ func TestPresentAuditJSON(t *testing.T) {
 		entry,
 		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
+	)
+}
+
+func TestPresentAuditJSONWithCustomFormatter(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set(logFilter.UnverifiedAuditHeader, "c4ddfe9d-a0d3-4afb-bf26-24b9588731a0")
+	jsonFormatter := &logrus.JSONFormatter{
+		DisableTimestamp: true,
+		FieldMap: logrus.FieldMap{
+			logrus.FieldKeyLevel: "my_level",
+			logrus.FieldKeyMsg:   "my_message",
+		}}
+	testAccessLog(
+		t,
+		entry,
+		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","duration":42,"flow-id":"","host":"127.0.0.1","method":"GET","my_level":"info","my_message":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		Options{AccessLogJSONEnabled: true, AccessLogJsonFormatter: jsonFormatter},
 	)
 }
 

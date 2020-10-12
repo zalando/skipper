@@ -442,6 +442,10 @@ type Options struct {
 	// Enables logs in JSON format
 	ApplicationLogJSONEnabled bool
 
+	// ApplicationLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// Logrus logger for application logs. To enable structured logging, use ApplicationLogJSONEnabled.
+	ApplicationLogJsonFormatter *log.JSONFormatter
+
 	// Output file for the access log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
@@ -462,6 +466,10 @@ type Options struct {
 	// AccessLogStripQuery, when set, causes the query strings stripped
 	// from the request URI in the access logs.
 	AccessLogStripQuery bool
+
+	// AccessLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// Logrus logger for access logs. To enable structured logging, use AccessLogJSONEnabled.
+	AccessLogJsonFormatter *log.JSONFormatter
 
 	DebugListener string
 
@@ -781,12 +789,14 @@ func initLog(o Options) error {
 	}
 
 	logging.Init(logging.Options{
-		ApplicationLogPrefix:      o.ApplicationLogPrefix,
-		ApplicationLogOutput:      logOutput,
-		ApplicationLogJSONEnabled: o.ApplicationLogJSONEnabled,
-		AccessLogOutput:           accessLogOutput,
-		AccessLogJSONEnabled:      o.AccessLogJSONEnabled,
-		AccessLogStripQuery:       o.AccessLogStripQuery,
+		ApplicationLogPrefix:        o.ApplicationLogPrefix,
+		ApplicationLogOutput:        logOutput,
+		ApplicationLogJSONEnabled:   o.ApplicationLogJSONEnabled,
+		ApplicationLogJsonFormatter: o.ApplicationLogJsonFormatter,
+		AccessLogOutput:             accessLogOutput,
+		AccessLogJSONEnabled:        o.AccessLogJSONEnabled,
+		AccessLogStripQuery:         o.AccessLogStripQuery,
+		AccessLogJsonFormatter:      o.AccessLogJsonFormatter,
 	})
 
 	return nil
