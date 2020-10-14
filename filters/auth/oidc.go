@@ -810,11 +810,6 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 	return oauth2Token, err
 }
 
-func (f *tokenOidcFilter) Close() error {
-	f.encrypter.Close()
-	return nil
-}
-
 func newDeflatePoolCompressor(level int) *deflatePoolCompressor {
 	return &deflatePoolCompressor{
 		poolWriter: &sync.Pool{

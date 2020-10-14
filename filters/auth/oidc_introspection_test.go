@@ -266,8 +266,6 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 			} else if err != nil {
 				t.Fatalf("Unexpected error while creating filter: %v", err)
 			}
-			fOIDC := f.(*tokenOidcFilter)
-			defer fOIDC.Close()
 
 			// adding the OIDCQueryClaimsFilter to the route
 			querySpec := NewOIDCQueryClaimsFilter()

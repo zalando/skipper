@@ -132,13 +132,12 @@ func TestForwardTokenInfo(t *testing.T) {
 			if ti.oauthFilterPresent {
 				oauthTokenSpec := NewOAuthTokeninfoAnyScope(authServer.URL, oauthTimeout)
 				oauthFilterArgs := []interface{}{uidScope}
-				oauthFilter, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
+				_, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
 				if err != nil {
 					t.Errorf("error creating oauth filter.")
 					return
 				}
-				f1 := oauthFilter.(*tokeninfoFilter)
-				defer f1.Close()
+
 				routeFilters = append(routeFilters, &eskip.Filter{Name: oauthTokenSpec.Name(), Args: oauthFilterArgs})
 				fr.Register(oauthTokenSpec)
 			}
@@ -251,13 +250,12 @@ func TestForwardTokenIntrospection(t *testing.T) {
 			if ti.oauthFilterPresent {
 				oauthTokenSpec := NewOAuthTokenintrospectionAllClaims(oauthTimeout)
 				oauthFilterArgs := []interface{}{"http://" + issuerServer.Listener.Addr().String(), emailClaim}
-				oauthFilter, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
+				_, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
 				if err != nil {
 					t.Errorf("error creating oauth filter. %v", err)
 					return
 				}
-				f1 := oauthFilter.(*tokenintrospectFilter)
-				defer f1.Close()
+
 				routeFilters = append(routeFilters, &eskip.Filter{Name: oauthTokenSpec.Name(), Args: oauthFilterArgs})
 				fr.Register(oauthTokenSpec)
 			}

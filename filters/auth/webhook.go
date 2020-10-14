@@ -127,6 +127,7 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 func (*webhookFilter) Response(filters.FilterContext) {}
 
 // Close cleans-up the authClient
-func (f *webhookFilter) Close() {
+func (f *webhookFilter) Close() error {
 	f.authClient.Close()
+	return nil
 }

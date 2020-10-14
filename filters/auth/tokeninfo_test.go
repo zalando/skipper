@@ -223,13 +223,11 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 			}
 
 			args = append(args, ti.args...)
-			f, err := spec.CreateFilter(args)
+			_, err := spec.CreateFilter(args)
 			if err != nil {
 				t.Logf("error in creating filter")
 				return
 			}
-			f2 := f.(*tokeninfoFilter)
-			defer f2.Close()
 
 			fr := make(filters.Registry)
 			fr.Register(spec)
@@ -324,13 +322,11 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 			spec := NewOAuthTokeninfoAnyScope(u, ti.timeout)
 
 			scopes := []interface{}{"read-x"}
-			f, err := spec.CreateFilter(scopes)
+			_, err := spec.CreateFilter(scopes)
 			if err != nil {
 				t.Error(err)
 				return
 			}
-			f2 := f.(*tokeninfoFilter)
-			defer f2.Close()
 
 			fr := make(filters.Registry)
 			fr.Register(spec)
@@ -370,21 +366,14 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 }
 
 func BenchmarkOAuthTokeninfoFilter(b *testing.B) {
-	allF := make([]*tokeninfoFilter, 0)
 	for i := 0; i < b.N; i++ {
 		var spec filters.Spec
 		args := []interface{}{"uid"}
 		spec = NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second)
-		f, err := spec.CreateFilter(args)
+		_, err := spec.CreateFilter(args)
 		if err != nil {
 			b.Logf("error in creating filter")
 			break
 		}
-		f2 := f.(*tokeninfoFilter)
-		allF = append(allF, f2)
-	}
-
-	for i := range allF {
-		allF[i].Close()
 	}
 }

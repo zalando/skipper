@@ -748,8 +748,6 @@ func TestOIDCSetup(t *testing.T) {
 			} else if err != nil {
 				t.Fatalf("Unexpected error while creating filter: %v", err)
 			}
-			fOIDC := f.(*tokenOidcFilter)
-			defer fOIDC.Close()
 
 			r := &eskip.Route{
 				Filters: []*eskip.Filter{{
