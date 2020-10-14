@@ -1426,6 +1426,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
 	ctx = newContext(lw, r, p)
+	ctx.routeLookup = p.routing.Get()
+
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 
@@ -1439,6 +1441,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	err = p.do(ctx)
+
+	// Release route table before serving possibly long-running response
+	// so it could be cleaned-up if not used by any other request.
+	// TODO: errorResponse and serveResponse still use resolved Route
+	ctx.routeLookup.Release()
+	ctx.routeLookup = nil
 
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)

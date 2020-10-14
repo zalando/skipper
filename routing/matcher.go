@@ -74,6 +74,7 @@ type matcher struct {
 	paths           *pathmux.Tree
 	rootLeaves      leafMatchers
 	matchingOptions MatchingOptions
+	routes          []*Route
 }
 
 // An error created if a route definition cannot be processed.
@@ -353,7 +354,7 @@ func newMatcher(rs []*Route, o MatchingOptions) (*matcher, []*definitionError) {
 	// sort root leaves during construction time, based on their priority
 	sort.Stable(rootLeaves)
 
-	return &matcher{pathTree, rootLeaves, o}, errors
+	return &matcher{pathTree, rootLeaves, o, rs}, errors
 }
 
 // matches a path in the path trie structure.

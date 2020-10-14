@@ -92,7 +92,9 @@ func (tr *testRouting) waitForRouteSetting() error {
 }
 
 func (tr *testRouting) checkRequest(req *http.Request) (*routing.Route, error) {
-	if r, _ := tr.routing.Route(req); r != nil {
+	lookup := tr.routing.Get()
+	defer lookup.Release()
+	if r, _ := lookup.Do(req); r != nil {
 		return r, nil
 	}
 
@@ -908,4 +910,54 @@ func TestSignalFirstLoad(t *testing.T) {
 			t.Error("the first load signal was blocking")
 		}
 	})
+}
+
+func TestClosesFilter(t *testing.T) {
+	fr := make(filters.Registry)
+	fs := &filtertest.Filter{FilterName: "filter1"}
+	fr.Register(fs)
+
+	dc := testdataclient.New([]*eskip.Route{{
+		Id:      "route1",
+		Path:    "/some-path",
+		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "Hello, world!"}}},
+		Backend: "https://www.example.org"}})
+
+	tr, err := newTestRoutingWithFilters(fr, dc)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	defer tr.close()
+
+	var r *routing.Route
+	if r, err = tr.checkGetRequest("https://www.example.com/some-path"); r == nil || err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(r.Filters) != 1 {
+		t.Error("failed to process filters")
+		return
+	}
+
+	f, _ := r.Filters[0].Filter.(*filtertest.Filter)
+	if f.Closed() {
+		t.Error("filter is not expected to be closed for active route")
+	}
+
+	dc.Update(nil, []string{"route1"})
+
+	if err := tr.waitForRouteSetting(); err != nil {
+		t.Error(err)
+		return
+	}
+
+	// Lets hope cleanup has finished 🤞
+	time.Sleep(100 * time.Millisecond)
+
+	if !f.Closed() {
+		t.Error("filter expected to be closed for deleted route")
+	}
 }

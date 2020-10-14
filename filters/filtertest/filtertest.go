@@ -6,6 +6,7 @@ package filtertest
 
 import (
 	"net/http"
+	"sync/atomic"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
@@ -16,6 +17,7 @@ import (
 type Filter struct {
 	FilterName string
 	Args       []interface{}
+	closed     int64
 }
 
 // Simple FilterContext implementation.
@@ -33,9 +35,15 @@ type Context struct {
 	FTracer             opentracing.Tracer
 }
 
-func (spec *Filter) Name() string                    { return spec.FilterName }
+func (f *Filter) Name() string { return f.FilterName }
+func (f *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
+	return &Filter{f.FilterName, config, 0}, nil
+}
+
 func (f *Filter) Request(ctx filters.FilterContext)  {}
 func (f *Filter) Response(ctx filters.FilterContext) {}
+func (f *Filter) Close() error                       { atomic.AddInt64(&f.closed, 1); return nil }
+func (f *Filter) Closed() bool                       { return atomic.LoadInt64(&f.closed) > 0 }
 
 func (fc *Context) ResponseWriter() http.ResponseWriter { return fc.FResponseWriter }
 func (fc *Context) Request() *http.Request              { return fc.FRequest }
@@ -64,11 +72,6 @@ func (fc *Context) Serve(resp *http.Response) {
 	fc.FServedWithResponse = true
 	fc.FResponse = resp
 	fc.FServed = true
-}
-
-//lint:ignore ST1016 ignore receiver name, because of type reuse
-func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
-	return &Filter{spec.FilterName, config}, nil
 }
 
 func (fc *Context) Loopback() {}

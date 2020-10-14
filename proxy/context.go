@@ -138,7 +138,6 @@ func newContext(
 		outgoingHost:   r.Host,
 		metrics:        &filterMetrics{impl: p.metrics},
 		proxy:          p,
-		routeLookup:    p.routing.Get(),
 	}
 
 	if p.flags.PreserveOriginal() {

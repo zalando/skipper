@@ -3,8 +3,10 @@ package routing
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/zalando/skipper/eskip"
@@ -515,11 +517,12 @@ type routeTable struct {
 	validRoutes   []*eskip.Route
 	invalidRoutes []*eskip.Route
 	created       time.Time
+	users         sync.WaitGroup
 }
 
 // receives the next version of the routing table on the output channel,
 // when an update is received on one of the data clients.
-func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}) {
+func receiveRouteTable(o Options, out chan<- *routeTable, quit <-chan struct{}) {
 	updates := receiveRouteDefs(o, quit)
 	var (
 		rt           *routeTable
@@ -580,4 +583,24 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			return
 		}
 	}
+}
+
+func cleanupRouteTable(o Options, rt *routeTable) {
+	// in order not to block route updates
+	// perform cleanup in separate routine
+	go func() {
+		// wait for all users of this table to complete
+		rt.users.Wait()
+
+		for _, r := range rt.m.routes {
+			for _, f := range r.Filters {
+				if c, ok := f.Filter.(io.Closer); ok {
+					err := c.Close()
+					if err != nil {
+						o.Log.Errorf("failed to close filter (%s): %v", f.Name, err)
+					}
+				}
+			}
+		}
+	}()
 }

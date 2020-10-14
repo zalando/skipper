@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -259,7 +260,8 @@ type PreProcessor interface {
 // Routing ('router') instance providing live
 // updatable request matching.
 type Routing struct {
-	routeTable        atomic.Value // of struct routeTable
+	mx                sync.RWMutex
+	routeTable        *routeTable
 	log               logging.Logger
 	firstLoad         chan struct{}
 	firstLoadSignaled bool
@@ -280,11 +282,10 @@ func New(o Options) *Routing {
 	}
 
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
-	rt := &routeTable{
+	r.routeTable = &routeTable{
 		m:       initialMatcher,
 		created: time.Now().UTC(),
 	}
-	r.routeTable.Store(rt)
 	r.startReceivingUpdates(o)
 	return r
 }
@@ -296,9 +297,14 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	rt := r.routeTable.Load().(*routeTable)
+	// matcher is not used so do not add users and unlock right away
+	r.mx.RLock()
+	created := r.routeTable.created
+	validRoutes := r.routeTable.validRoutes
+	r.mx.RUnlock()
+
 	req.ParseForm()
-	createdUnix := strconv.FormatInt(rt.created.Unix(), 10)
+	createdUnix := strconv.FormatInt(created.Unix(), 10)
 	ts := req.Form.Get("timestamp")
 	if ts != "" && createdUnix != ts {
 		http.Error(w, "invalid timestamp", http.StatusBadRequest)
@@ -307,7 +313,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if req.Method == "HEAD" {
 		w.Header().Set(routesTimestampName, createdUnix)
-		w.Header().Set(routesCountName, strconv.Itoa(len(rt.validRoutes)))
+		w.Header().Set(routesCountName, strconv.Itoa(len(validRoutes)))
 
 		if strings.Contains(req.Header.Get("Accept"), "application/json") {
 			w.Header().Set("Content-Type", "application/json")
@@ -331,9 +337,9 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set(routesTimestampName, createdUnix)
-	w.Header().Set(routesCountName, strconv.Itoa(len(rt.validRoutes)))
+	w.Header().Set(routesCountName, strconv.Itoa(len(validRoutes)))
 
-	routes := slice(rt.validRoutes, offset, limit)
+	routes := slice(validRoutes, offset, limit)
 	if strings.Contains(req.Header.Get("Accept"), "application/json") {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(routes); err != nil {
@@ -352,16 +358,25 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (r *Routing) startReceivingUpdates(o Options) {
 	c := make(chan *routeTable)
-	go receiveRouteMatcher(o, c, r.quit)
+	go receiveRouteTable(o, c, r.quit)
 	go func() {
 		for {
 			select {
-			case rt := <-c:
-				r.routeTable.Store(rt)
+			case new := <-c:
+				// After this critical section
+				// old route table users can not be added
+				// and therefore it is safe to wait for in-progress
+				// users (if any) to complete and perform cleanup
+				r.mx.Lock()
+				old := r.routeTable
+				r.routeTable = new
+				r.mx.Unlock()
+
 				if !r.firstLoadSignaled {
 					close(r.firstLoad)
 					r.firstLoadSignaled = true
 				}
+				cleanupRouteTable(o, old)
 				r.log.Info("route settings applied")
 			case <-r.quit:
 				return
@@ -376,7 +391,11 @@ func (r *Routing) startReceivingUpdates(o Options) {
 // parameters constructed from the wildcard parameters in the path
 // condition if any. If there is no match, it returns nil.
 func (r *Routing) Route(req *http.Request) (*Route, map[string]string) {
-	rt := r.routeTable.Load().(*routeTable)
+	// Routing.Route() is not used (deprecated in favor of RouteLookup) so
+	// do not add users and unlock right away
+	r.mx.RLock()
+	rt := r.routeTable
+	r.mx.RUnlock()
 	return rt.m.match(req)
 }
 
@@ -397,20 +416,28 @@ func (r *Routing) FirstLoad() <-chan struct{} {
 // against is found, the feature is experimental and its exported interface may
 // change.
 type RouteLookup struct {
-	matcher *matcher
+	routeTable *routeTable
 }
 
 // Do executes the lookup against the captured routing table. Equivalent to
 // Routing.Route().
 func (rl *RouteLookup) Do(req *http.Request) (*Route, map[string]string) {
-	return rl.matcher.match(req)
+	return rl.routeTable.m.match(req)
 }
 
-// Get returns a captured generation of the lookup table. This feature is
+// Get returns a captured generation of the route table. This feature is
 // experimental. See the description of the RouteLookup type.
 func (r *Routing) Get() *RouteLookup {
-	rt := r.routeTable.Load().(*routeTable)
-	return &RouteLookup{matcher: rt.m}
+	r.mx.RLock()
+	rt := r.routeTable
+	rt.users.Add(1)
+	r.mx.RUnlock()
+	return &RouteLookup{rt}
+}
+
+// Releases RouteLookup to allow route table cleanup
+func (rl *RouteLookup) Release() {
+	rl.routeTable.users.Add(-1)
 }
 
 // Close closes routing, stops receiving routes.
