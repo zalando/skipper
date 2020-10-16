@@ -123,10 +123,7 @@ func New() *Logger {
 				lw.count(req)
 			case c := <-clear:
 				lw.clear()
-				select {
-				case c <- struct{}{}:
-				default:
-				}
+				c <- struct{}{}
 			case m := <-mute:
 				muted = m
 			case <-quit:
