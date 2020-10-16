@@ -186,10 +186,11 @@ func convertPathRule(
 			return nil, e
 		}
 		return &eskip.Route{
-			Id:          routeID(ns, name, "", "", svc.Spec.ExternalName),
+			Id:          routeID(ns, name, host, "", svc.Spec.ExternalName),
 			BackendType: eskip.NetworkBackend,
 			Backend:     u,
 			Filters:     f,
+			HostRegexps: hostRegexp,
 		}, nil
 	} else {
 		protocol := "http"

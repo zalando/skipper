@@ -614,7 +614,7 @@ func TestIngressData(t *testing.T) {
 			),
 		)},
 		map[string]string{
-			"kube_foo__qux______www_zalando_de": "https://www.zalando.de:443",
+			"kube_foo__qux__www_zalando_de____www_zalando_de": "https://www.zalando.de:443",
 		},
 	}, {
 		"ignore ingress entries with missing Metadata",
