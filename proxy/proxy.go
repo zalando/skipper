@@ -881,7 +881,6 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
-	var err error
 	req, endpoint, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
@@ -900,6 +899,12 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 		// We are not owner of the connection anymore.
 		return nil, &proxyError{handled: true}
+	}
+
+	roundTripper, err := p.getRoundTripper(ctx, req)
+	if err != nil {
+		p.log.Errorf("Failed to get roundtripper: %v", err)
+		return nil, &proxyError{err: err, code: http.StatusBadGateway}
 	}
 
 	bag := ctx.StateBag()
@@ -927,38 +932,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
 
-	var response *http.Response
-	switch req.URL.Scheme {
-	case "fastcgi":
-		f := "index.php"
-		if sf, ok := ctx.StateBag()["fastCgiFilename"]; ok {
-			f = sf.(string)
-		}
-		rt, err := fastcgi.NewRoundTripper(p.log, req.URL.Host, f)
-		if err != nil {
-			p.log.Errorf("Failed to create fastcgi roundtripper: %v", err)
-
-			return nil, &proxyError{err: err}
-		}
-
-		// FastCgi expects the Host to be in form host:port
-		// It will then be split and added as 2 separate params to the backend process
-		if _, _, err := net.SplitHostPort(req.Host); err != nil {
-			req.Host = req.Host + ":" + req.URL.Port()
-		}
-
-		// RemoteAddr is needed to pass to the backend process as param
-		req.RemoteAddr = ctx.request.RemoteAddr
-
-		response, err = rt.RoundTrip(req)
-		if err != nil {
-			p.log.Errorf("Failed to roundtrip to fastcgi: %v", err)
-
-			return nil, &proxyError{err: err}
-		}
-	default:
-		response, err = p.roundTripper.RoundTrip(req)
-	}
+	response, err := roundTripper.RoundTrip(req)
 
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
@@ -975,31 +949,16 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 		} else if nerr, ok := err.(net.Error); ok {
 			p.log.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
+			var status int
 			if nerr.Timeout() {
-				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusGatewayTimeout))
-				return nil, &proxyError{
-					err:  err,
-					code: http.StatusGatewayTimeout,
-				}
-			} else if !nerr.Temporary() {
-				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusServiceUnavailable))
-				return nil, &proxyError{
-					err:  err,
-					code: http.StatusServiceUnavailable,
-				}
-			} else if !nerr.Timeout() && nerr.Temporary() {
-				p.log.Errorf("Backend error see https://github.com/zalando/skipper/issues/768: %v", err)
-				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusServiceUnavailable))
-				return nil, &proxyError{
-					err:  err,
-					code: http.StatusServiceUnavailable,
-				}
+				status = http.StatusGatewayTimeout
 			} else {
-				p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusInternalServerError))
-				return nil, &proxyError{
-					err:  err,
-					code: http.StatusInternalServerError,
-				}
+				status = http.StatusServiceUnavailable
+			}
+			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
+			return nil, &proxyError{
+				err:  err,
+				code: status,
 			}
 		}
 
@@ -1014,6 +973,33 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	}
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
 	return response, nil
+}
+
+func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTripper, error) {
+	switch req.URL.Scheme {
+	case "fastcgi":
+		f := "index.php"
+		if sf, ok := ctx.StateBag()["fastCgiFilename"]; ok {
+			f = sf.(string)
+		}
+		rt, err := fastcgi.NewRoundTripper(p.log, req.URL.Host, f)
+		if err != nil {
+			return nil, err
+		}
+
+		// FastCgi expects the Host to be in form host:port
+		// It will then be split and added as 2 separate params to the backend process
+		if _, _, err := net.SplitHostPort(req.Host); err != nil {
+			req.Host = req.Host + ":" + req.URL.Port()
+		}
+
+		// RemoteAddr is needed to pass to the backend process as param
+		req.RemoteAddr = ctx.request.RemoteAddr
+
+		return rt, nil
+	default:
+		return p.roundTripper, nil
+	}
 }
 
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
