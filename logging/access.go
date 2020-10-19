@@ -63,20 +63,14 @@ func stripPort(address string) string {
 	return address
 }
 
-// The remote address of the client. When the 'X-Forwarded-For'
-// header is set, then it is used instead.
-func remoteAddr(r *http.Request) string {
+// The remote host of the client. When the 'X-Forwarded-For'
+// header is set, then its value is used as is.
+func remoteHost(r *http.Request) string {
 	ff := r.Header.Get("X-Forwarded-For")
 	if ff != "" {
 		return ff
 	}
-
-	return r.RemoteAddr
-}
-
-func remoteHost(r *http.Request) string {
-	a := remoteAddr(r)
-	return stripPort(a)
+	return stripPort(r.RemoteAddr)
 }
 
 func omitWhitespace(h string) string {
