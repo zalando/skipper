@@ -202,12 +202,16 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 }
 
 type powerOfRandomNChoices struct {
+	mx              sync.Mutex
+	rand            *rand.Rand
 	numberOfChoices int
 }
 
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices(endpoints []string) routing.LBAlgorithm {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return &powerOfRandomNChoices{
+		rand:            rnd,
 		numberOfChoices: 2,
 	}
 }
@@ -216,10 +220,13 @@ func newPowerOfRandomNChoices(endpoints []string) routing.LBAlgorithm {
 func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	ne := len(ctx.Route.LBEndpoints)
 
-	best := ctx.Route.LBEndpoints[rand.Intn(ne)]
+	p.mx.Lock()
+	defer p.mx.Unlock()
+
+	best := ctx.Route.LBEndpoints[p.rand.Intn(ne)]
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		ce := ctx.Route.LBEndpoints[rand.Intn(ne)]
+		ce := ctx.Route.LBEndpoints[p.rand.Intn(ne)]
 
 		if p.getScore(ce) > p.getScore(best) {
 			best = ce
