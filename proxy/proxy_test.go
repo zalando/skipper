@@ -1921,7 +1921,7 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1"`, http.StatusBadGateway, rsp.ContentLength)
+	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1"`, http.StatusBadGateway, len(http.StatusText(http.StatusBadGateway))+1)
 	if !strings.Contains(output, expected) || !strings.Contains(output, proxyURL.Host) {
 		t.Error("failed to log access", output, expected)
 		t.Log(output)
