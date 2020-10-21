@@ -836,6 +836,7 @@ func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]
 func (p *Proxy) sendError(c *context, id string, code int) {
 	addBranding(c.responseWriter.Header())
 	http.Error(c.responseWriter, http.StatusText(code), code)
+	c.responseWriter.Flush()
 	p.metrics.MeasureServe(
 		id,
 		c.metricsHost(),
@@ -1231,6 +1232,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
+		ctx.responseWriter.Flush()
 	} else {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
