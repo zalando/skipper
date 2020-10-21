@@ -1458,12 +1458,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
-			ctx.responseWriter.Flush()
 			err := ctx.response.Body.Close()
 			if err != nil {
 				p.log.Errorf("error during closing the response body: %v", err)
 			}
 		}
+		ctx.responseWriter.Flush()
 	}()
 
 	err = p.do(ctx)
