@@ -1439,6 +1439,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			logging.LogAccess(entry, additionalData)
 		}
+		// This flush is required in I/O error
+		lw.Flush()
 	}()
 
 	// Change /foo/../bar to /bar for matching and passing upstream
@@ -1463,7 +1465,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				p.log.Errorf("error during closing the response body: %v", err)
 			}
 		}
-		ctx.responseWriter.Flush()
 	}()
 
 	err = p.do(ctx)
