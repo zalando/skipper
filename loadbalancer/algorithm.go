@@ -66,14 +66,9 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, w []float64, now time
 		weightSums = append(weightSums, sum)
 	}
 
-	var choice routing.LBEndpoint
+	choice := ep[len(weightSums)-1]
 	r := rnd.Float64() * sum
 	for i := range weightSums {
-		if i == len(weightSums)-1 {
-			choice = ep[i]
-			break
-		}
-
 		if weightSums[i] > r {
 			choice = ep[i]
 			break
@@ -124,8 +119,8 @@ type roundRobin struct {
 	mx               sync.Mutex
 	index            int
 	rnd              *rand.Rand
-	fadeInCalcInts   []int
-	fadeInCalcFloats []float64
+	notFadingIndexes []int
+	fadingWeights    []float64
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
@@ -135,8 +130,8 @@ func newRoundRobin(endpoints []string) routing.LBAlgorithm {
 		rnd:   rnd,
 
 		// preallocating frequently used slice
-		fadeInCalcInts:   make([]int, 0, len(endpoints)),
-		fadeInCalcFloats: make([]float64, 0, len(endpoints)),
+		notFadingIndexes: make([]int, 0, len(endpoints)),
+		fadingWeights:    make([]float64, 0, len(endpoints)),
 	}
 }
 
@@ -154,13 +149,13 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[r.index]
 	}
 
-	return withFadeIn(r.rnd, ctx, r.fadeInCalcInts, r.fadeInCalcFloats, r.index)
+	return withFadeIn(r.rnd, ctx, r.notFadingIndexes, r.fadingWeights, r.index)
 }
 
 type random struct {
 	rand             *rand.Rand
-	fadeInCalcInts   []int
-	fadeInCalcFloats []float64
+	notFadingIndexes []int
+	fadingWeights    []float64
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
@@ -169,8 +164,8 @@ func newRandom(endpoints []string) routing.LBAlgorithm {
 		rand: rand.New(rand.NewSource(t)),
 
 		// preallocating frequently used slice
-		fadeInCalcInts:   make([]int, 0, len(endpoints)),
-		fadeInCalcFloats: make([]float64, 0, len(endpoints)),
+		notFadingIndexes: make([]int, 0, len(endpoints)),
+		fadingWeights:    make([]float64, 0, len(endpoints)),
 	}
 }
 
@@ -185,7 +180,7 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[i]
 	}
 
-	return withFadeIn(r.rand, ctx, r.fadeInCalcInts, r.fadeInCalcFloats, i)
+	return withFadeIn(r.rand, ctx, r.notFadingIndexes, r.fadingWeights, i)
 }
 
 type consistentHash struct{}
