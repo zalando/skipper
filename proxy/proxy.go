@@ -835,7 +835,15 @@ func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]
 // send a premature error response
 func (p *Proxy) sendError(c *context, id string, code int) {
 	addBranding(c.responseWriter.Header())
-	http.Error(c.responseWriter, http.StatusText(code), code)
+
+	text := http.StatusText(code) + "\n"
+
+	c.responseWriter.Header().Set("Content-Length", strconv.Itoa(len(text)))
+	c.responseWriter.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	c.responseWriter.Header().Set("X-Content-Type-Options", "nosniff")
+	c.responseWriter.WriteHeader(code)
+	c.responseWriter.Write([]byte(text))
+
 	p.metrics.MeasureServe(
 		id,
 		c.metricsHost(),
