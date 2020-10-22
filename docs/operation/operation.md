@@ -528,10 +528,31 @@ Proxy span has logs to measure
 [connect](https://golang.org/pkg/net/http/#Transport.DialContext) (`dial_context`),
 [http roundtrip](https://golang.org/pkg/net/http/#Transport.RoundTrip)
 (`http_roundtrip`), stream headers from backend to client
-(`stream_Headers`) and stream body from backend to client
-(`streamBody.byte`).
+(`stream_Headers`), stream body from backend to client
+(`streamBody.byte`) and events by the [Go runtime](https://golang.org/pkg/net/http/httptrace/#ClientTrace).
 
 ![Proxy span with logs](../img/skipper_opentracing_proxy_span_with_logs.png)
+
+In addition to the manual instrumented proxy client logs, we use
+`net/http/httptrace.ClientTrace` to show events by the Go
+runtime. Full logs of the Proxy span:
+
+- `http_roundtrip: "start"`: just before [http roundtrip](https://golang.org/pkg/net/http/#Transport.RoundTrip)
+- `http_roundtrip: "end"`: just after [http roundtrip](https://golang.org/pkg/net/http/#Transport.RoundTrip)
+- `get_conn: "start"`: try to get a connection from the connection pool [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `get_conn: "end"`: got a connection from the connection pool [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `DNS: "start"`: try to resolve DNS [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `DNS: "end"`: got an IP [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `TLS: "start"`: start TLS connection [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `TLS: "end"`: established TLS connection [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `connect: "start"`: start to establish TCP/IP connection [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `connect: "end"`: established TCP/IP connection [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `wrote_headers: "done"`: wrote HTTP Headers into the socket [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `wrote_request: "done"`: wrote full HTTP Request into the socket [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `got_first_byte: "done"`: Got first byte of the HTTP response from
+  the backend [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+
+![Proxy span logs](../img/skipper_opentracing_proxy_span_logs.png)
 
 ### Request filters span
 

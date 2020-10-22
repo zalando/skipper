@@ -1546,6 +1546,9 @@ func injectClientTrace(req *http.Request, span ot.Span) *http.Request {
 				span.LogKV("wrote_request", "done")
 			}
 		},
+		GotFirstResponseByte: func() {
+			span.LogKV("got_first_byte", "done")
+		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 }
