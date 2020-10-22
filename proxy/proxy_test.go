@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	stdlibcontext "context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -196,12 +197,12 @@ func hasArg(arg string) bool {
 
 func voidCheck(*http.Request) {}
 
-func writeParts(w io.Writer, parts int, data []byte) {
+func writeParts(w io.Writer, parts int, data []byte, delay time.Duration) {
 	partSize := len(data) / parts
 	i := 0
 	for ; i+partSize <= len(data); i += partSize {
 		w.Write(data[i : i+partSize])
-		time.Sleep(streamingDelay)
+		time.Sleep(delay)
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
@@ -211,6 +212,10 @@ func writeParts(w io.Writer, parts int, data []byte) {
 }
 
 func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Server {
+	return startSlowTestServer(payload, parts, 0, 0, streamingDelay, check)
+}
+
+func startSlowTestServer(payload []byte, parts int, headerDelay, beforeBodyDelay, bodyDelay time.Duration, check requestCheck) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		check(r)
 
@@ -222,15 +227,257 @@ func startTestServer(payload []byte, parts int, check requestCheck) *httptest.Se
 
 		w.Header().Set("Content-Type", "text/plain")
 		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+		time.Sleep(headerDelay)
 		w.WriteHeader(http.StatusOK)
 
+		time.Sleep(beforeBodyDelay)
 		if parts > 0 {
-			writeParts(w, parts, payload)
+			writeParts(w, parts, payload, bodyDelay)
 			return
 		}
 
 		w.Write(payload)
 	}))
+}
+
+type slowDialer struct {
+	net.Dialer
+	f func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+}
+
+func newSlowDialer(d net.Dialer) *slowDialer {
+	return &slowDialer{
+		Dialer: d,
+		f:      d.DialContext,
+	}
+}
+
+func (dc *slowDialer) DialContext(ctx stdlibcontext.Context, network, addr string) (net.Conn, error) {
+	con, err := dc.f(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	} else if cerr := ctx.Err(); cerr != nil {
+		return nil, cerr
+	}
+
+	return &slowConn{con: con}, nil
+}
+
+type slowConn struct {
+	con net.Conn
+}
+
+func (sc *slowConn) Read(b []byte) (n int, err error) {
+	println("wrapped read")
+	n, err = sc.con.Read(b)
+	println(string(b))
+	time.Sleep(time.Second)
+
+	return n, err
+}
+func (sc *slowConn) Write(b []byte) (n int, err error) {
+	println("wrapped write")
+	println(string(b))
+	time.Sleep(time.Second)
+	return sc.con.Write(b)
+}
+func (sc *slowConn) Close() error {
+	println("wrapped close")
+	return sc.con.Close()
+}
+func (sc *slowConn) LocalAddr() net.Addr {
+	println("wrapped LocalAddr")
+	return sc.con.LocalAddr()
+}
+func (sc *slowConn) RemoteAddr() net.Addr {
+	println("wrapped RemoteAddr")
+	return sc.con.RemoteAddr()
+}
+func (sc *slowConn) SetDeadline(t time.Time) error {
+	println("wrapped SetDeadline")
+	return sc.con.SetDeadline(t)
+}
+func (sc *slowConn) SetReadDeadline(t time.Time) error {
+	println("wrapped SetReadDeadline")
+	return sc.con.SetReadDeadline(t)
+}
+func (sc *slowConn) SetWriteDeadline(t time.Time) error {
+	println("wrapped SetWriteDeadline")
+	return sc.con.SetWriteDeadline(t)
+}
+
+func newSlowClient() http.RoundTripper {
+	tr := &http.Transport{
+		DialContext: newSlowDialer(net.Dialer{
+			Timeout:   time.Second,
+			KeepAlive: -1,
+			DualStack: false,
+		}).DialContext,
+		ResponseHeaderTimeout: 3 * time.Second,
+	}
+
+	return tr
+}
+
+func TestSandor(t *testing.T) {
+	want := "Hello World!"
+	payload := []byte(want)
+	s := startSlowTestServer(payload, len(payload), 5*time.Millisecond, 5*time.Millisecond, 5*time.Millisecond, voidCheck)
+	defer s.Close()
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	tp, err := newTestProxyWithParams(doc, Params{
+		ResponseHeaderTimeout: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Error()
+		return
+	}
+	defer tp.close()
+
+	a := fmt.Sprintf(":%d", 1<<16-rand.Intn(1<<15))
+	ps := &http.Server{Addr: a, Handler: tp.proxy}
+	go ps.ListenAndServe()
+
+	// let the server start listening
+	time.Sleep(15 * time.Millisecond)
+
+	start := time.Now()
+	req, err := http.NewRequest("GET", "http://127.0.0.1"+a+"/hello", bytes.NewBuffer(payload))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	cli := newSlowClient()
+	rsp, err := cli.RoundTrip(req)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer rsp.Body.Close()
+	fmt.Printf("GET returned: %s\n", time.Since(start))
+
+	b, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	fmt.Printf("Body read: %s\n", time.Since(start))
+
+	if res := string(b); res != want {
+		t.Errorf("failed to receive response: '%s' != '%s'", res, want)
+	}
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
+	}
+}
+
+/*
+type slowClient struct {
+	sendDelay time.Duration
+	t         *testing.T
+}
+
+func (c *slowClient) RoundTrip(req *http.Request) *http.Response {
+	time.Sleep(c.sendDelay)
+	if req.Method != "GET" {
+		return nil
+	}
+	conn, err := net.Dial("tcp", req.URL.Host)
+	if err != nil {
+		c.t.Fatalf("Failed to dial: %v", err)
+	}
+
+	if req.ProtoMajor != 1 {
+		c.t.Fatal("only HTTP 1.x is supported")
+	}
+
+	// send request
+	switch req.ProtoMinor {
+	case 0:
+		fmt.Fprintf(conn, "%s %s HTTP/1.0\r\n", req.Method, req.URL.Path)
+	case 1:
+		fmt.Fprintf(conn, "%s %s HTTP/1.1\r\n", req.Method, req.URL.Path)
+		fmt.Fprintf(conn, "Host: %s\r\n", req.URL.Host)
+	}
+
+	fmt.Fprintf(conn, "\r\n")
+	// end sending request headers
+
+	// start reading response
+	status, err := bufio.NewReader(conn).ReadString('\n')
+	statusFields := strings.Fields(status) // HTTP/1.1 200 OK
+	var major, minor int
+	switch word := statusFields[0]; strings.TrimLeft(word, "HTTP/") {
+	case "1.1":
+		major = 1
+		minor = 1
+	case "1.0":
+		major = 1
+		minor = 0
+	default:
+		c.t.Fatal("only HTTP 1.0 and 1.1 are supported")
+	}
+
+	h := http.Header{}
+	return &http.Response{
+		Status:     status,
+		StatusCode: 200,
+		Proto:      statusFields[0],
+		ProtoMajor: major,
+		ProtoMinor: minor,
+		Header:     h,
+	}
+}
+*/
+
+// see also TestStreaming
+func TestSlowServer(t *testing.T) {
+	want := "Hello World!"
+	payload := []byte(want)
+	s := startSlowTestServer(payload, len(payload), 500*time.Millisecond, 100*time.Millisecond, 100*time.Millisecond, voidCheck)
+	defer s.Close()
+	w := httptest.NewRecorder()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
+	tp, err := newTestProxy(doc, FlagsNone)
+	if err != nil {
+		t.Error()
+		return
+	}
+	defer tp.close()
+
+	a := fmt.Sprintf(":%d", 1<<16-rand.Intn(1<<15))
+	ps := &http.Server{Addr: a, Handler: tp.proxy}
+	go ps.ListenAndServe()
+
+	// let the server start listening
+	time.Sleep(15 * time.Millisecond)
+
+	start := time.Now()
+	rsp, err := http.Get("http://127.0.0.1" + a + "/hello")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer rsp.Body.Close()
+	fmt.Printf("GET returned: %s\n", time.Since(start))
+
+	b, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	fmt.Printf("Body read: %s\n", time.Since(start))
+
+	if res := string(b); res != want {
+		t.Errorf("failed to receive response: '%s' != '%s'", res, want)
+	}
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
+	}
 }
 
 func (l *listener) Accept() (c net.Conn, err error) {
