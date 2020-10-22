@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/http/httputil"
 	"net/url"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/dimfeld/httppath"
+	"github.com/opentracing/opentracing-go"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
@@ -906,6 +908,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
+	req = injectClientTrace(req, ctx.proxySpan)
 
 	var response *http.Response
 	switch req.URL.Scheme {
@@ -1505,4 +1508,45 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 	if val := r.Header.Get("X-Flow-Id"); val != "" {
 		p.tracing.setTag(s, FlowIDTag, val)
 	}
+}
+
+// TODO(sszuecs): copy from net.Client, we should refactor this to use net.Client
+func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) {
+			span.LogKV("DNS", "start")
+		},
+		DNSDone: func(httptrace.DNSDoneInfo) {
+			span.LogKV("DNS", "end")
+		},
+		ConnectStart: func(string, string) {
+			span.LogKV("connect", "start")
+		},
+		ConnectDone: func(string, string, error) {
+			span.LogKV("connect", "end")
+		},
+		TLSHandshakeStart: func() {
+			span.LogKV("TLS", "start")
+		},
+		TLSHandshakeDone: func(tls.ConnectionState, error) {
+			span.LogKV("TLS", "end")
+		},
+		GetConn: func(string) {
+			span.LogKV("get_conn", "start")
+		},
+		GotConn: func(httptrace.GotConnInfo) {
+			span.LogKV("get_conn", "end")
+		},
+		WroteHeaders: func() {
+			span.LogKV("wrote_headers", "done")
+		},
+		WroteRequest: func(wri httptrace.WroteRequestInfo) {
+			if wri.Err != nil {
+				span.LogKV("wrote_request", wri.Err.Error())
+			} else {
+				span.LogKV("wrote_request", "done")
+			}
+		},
+	}
+	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 }
