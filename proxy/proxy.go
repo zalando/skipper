@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/dimfeld/httppath"
-	"github.com/opentracing/opentracing-go"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
@@ -1511,7 +1510,7 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 }
 
 // TODO(sszuecs): copy from net.Client, we should refactor this to use net.Client
-func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
+func injectClientTrace(req *http.Request, span ot.Span) *http.Request {
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(httptrace.DNSStartInfo) {
 			span.LogKV("DNS", "start")
