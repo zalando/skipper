@@ -870,6 +870,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 	}
 
 	upgradeProxy.serveHTTP(ctx.responseWriter, req)
+	ctx.stateBag["upgraded-connection"] = true
 	p.log.Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
 	return nil
 }
@@ -1448,7 +1449,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			logging.LogAccess(entry, additionalData)
 		}
 		// This flush is required in I/O error
-		lw.Flush()
+		if _, ok := ctx.stateBag["upgraded-connection"]; !ok {
+			lw.Flush()
+		}
 	}()
 
 	// Change /foo/../bar to /bar for matching and passing upstream
