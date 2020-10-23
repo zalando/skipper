@@ -20,6 +20,9 @@ const (
 
 	// BackendIsProxyKey is the key used in the state bag to notify proxy that the backend is also a proxy.
 	BackendIsProxyKey = "backend:isproxy"
+
+	// BackendTimeout is the key used in the state bag to configure backend timeout in proxy
+	BackendTimeout = "backend:timeout"
 )
 
 // Context object providing state and information that is unique to a request.

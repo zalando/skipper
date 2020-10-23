@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	stdlibcontext "context"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -45,6 +46,7 @@ type context struct {
 	parentSpan           opentracing.Span
 	proxy                *Proxy
 	routeLookup          *routing.RouteLookup
+	cancelBackendContext stdlibcontext.CancelFunc
 }
 
 type filterMetrics struct {

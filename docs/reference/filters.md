@@ -521,6 +521,23 @@ Example:
 * -> repeatContent("I will not waste chalk. ", 1000) -> <shunt>;
 ```
 
+## backendTimeout
+
+Configure backend timeout. Skipper responds with `504 Gateway Timeout` status if obtaining a connection,
+sending the request, and reading the backend response headers and body takes longer than the configured timeout.
+However, if response streaming has already started it will be terminated, i.e. client will receive backend response
+status and truncated response body.
+
+Parameters:
+
+* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+
+Example:
+
+```
+* -> backendTimeout("10ms") -> "https://www.example.org";
+```
+
 ## latency
 
 Enable adding artificial latency

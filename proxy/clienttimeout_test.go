@@ -25,7 +25,9 @@ func TestClientTimeout(t *testing.T) {
 		t.Error()
 		return
 	}
-	tp.log.Unmute()
+	if testing.Verbose() {
+		tp.log.Unmute()
+	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer func() {
@@ -43,7 +45,7 @@ func TestClientTimeout(t *testing.T) {
 	}).Do(req)
 
 	if err == nil {
-		t.Error("err should be nil")
+		t.Error("err should not be nil")
 	}
 	if rsp != nil {
 		t.Error("response should be nil")
@@ -112,4 +114,39 @@ func postTruncated(addr string) (err error) {
 		return
 	}
 	return conn.Close()
+}
+
+func TestClientTimeoutBeforeStreaming(t *testing.T) {
+	backend := startTestServer([]byte("backend reply"), 0, func(*http.Request) {})
+	defer backend.Close()
+
+	doc := fmt.Sprintf(`hello: * -> latency("100ms") -> "%s"`, backend.URL)
+	tp, err := newTestProxy(doc, FlagsNone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+	if testing.Verbose() {
+		tp.log.Unmute()
+	}
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rsp, err := (&http.Client{
+		Timeout: 50 * time.Millisecond,
+	}).Do(req)
+	if err == nil || rsp != nil {
+		t.Errorf("unexpected err or response: %v %v", err, rsp)
+	}
+
+	const msg = "Client request: context canceled"
+	if err = tp.log.WaitFor(msg, 200*time.Millisecond); err != nil {
+		t.Errorf("log should contain '%s'", msg)
+	}
 }
