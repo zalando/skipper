@@ -29,6 +29,7 @@ type context struct {
 	route                *routing.Route
 	deprecatedServed     bool
 	servedWithResponse   bool // to support the deprecated way independently
+	successfulUpgrade   bool
 	pathParams           map[string]string
 	stateBag             map[string]interface{}
 	originalRequest      *http.Request
