@@ -1320,6 +1320,14 @@ func TestBackendServiceUnavailable(t *testing.T) {
 	if rsp.StatusCode != http.StatusBadGateway {
 		t.Error("failed to return 502 Bad Gateway on failing backend connection")
 	}
+
+	if rsp.Header.Get("Content-Length") != "12" { // len("Bad Gateway\n")
+		t.Errorf("expected content length of 12, got %s", rsp.Header.Get("Content-Length"))
+	}
+
+	if rsp.Header.Get("Transfer-Encoding") != "" {
+		t.Error("unexpected transfer encoding")
+	}
 }
 
 func TestRoundtripperRetry(t *testing.T) {
