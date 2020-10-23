@@ -393,6 +393,19 @@ func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
 		GotConn: func(httptrace.GotConnInfo) {
 			span.LogKV("get_conn", "end")
 		},
+		WroteHeaders: func() {
+			span.LogKV("wrote_headers", "done")
+		},
+		WroteRequest: func(wri httptrace.WroteRequestInfo) {
+			if wri.Err != nil {
+				span.LogKV("wrote_request", wri.Err.Error())
+			} else {
+				span.LogKV("wrote_request", "done")
+			}
+		},
+		GotFirstResponseByte: func() {
+			span.LogKV("got_first_byte", "done")
+		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 }
