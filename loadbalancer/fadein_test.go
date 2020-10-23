@@ -46,7 +46,6 @@ func testFadeIn(
 	endpointAges ...time.Duration,
 ) {
 	t.Run(name, func(t *testing.T) {
-
 		var detectionTimes []time.Time
 		now := time.Now()
 		for _, ea := range endpointAges {
@@ -145,18 +144,25 @@ func testFadeIn(
 
 func TestFadeIn(t *testing.T) {
 	old := 2 * fadeInDuration
-	testFadeIn(t, "round-robin, 0", newRoundRobin, 0, old)
-	testFadeIn(t, "round-robin, 1", newRoundRobin, 0, 0)
-	testFadeIn(t, "round-robin, 2", newRoundRobin, old, 0)
-	testFadeIn(t, "round-robin, 3", newRoundRobin, old, old, old, 0)
-	testFadeIn(t, "round-robin, 4", newRoundRobin, old, old, old, 0, 0, 0)
-	testFadeIn(t, "round-robin, 5", newRoundRobin, old, 0, 0, 0)
-	testFadeIn(t, "round-robin, 6", newRoundRobin, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+	testFadeIn(t, "round-robin, 0", newRoundRobin, old, old)
+	testFadeIn(t, "round-robin, 1", newRoundRobin, 0, old)
+	testFadeIn(t, "round-robin, 2", newRoundRobin, 0, 0)
+	testFadeIn(t, "round-robin, 3", newRoundRobin, old, 0)
+	testFadeIn(t, "round-robin, 4", newRoundRobin, old, old, old, 0)
+	testFadeIn(t, "round-robin, 5", newRoundRobin, old, old, old, 0, 0, 0)
+	testFadeIn(t, "round-robin, 6", newRoundRobin, old, 0, 0, 0)
+	testFadeIn(t, "round-robin, 7", newRoundRobin, old, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "round-robin, 8", newRoundRobin, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "round-robin, 9", newRoundRobin, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
 
 	testFadeIn(t, "random, 0", newRandom, old, old)
-	testFadeIn(t, "random, 1", newRandom, 0, 0)
-	testFadeIn(t, "random, 2", newRandom, old, 0)
-	testFadeIn(t, "random, 3", newRandom, old, 0, 0, 0)
-	testFadeIn(t, "random, 4", newRandom, old, 0, 0, 0, 0, 0, 0)
-	testFadeIn(t, "random, 5", newRandom, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "random, 1", newRandom, 0, old)
+	testFadeIn(t, "random, 2", newRandom, 0, 0)
+	testFadeIn(t, "random, 3", newRandom, old, 0)
+	testFadeIn(t, "random, 4", newRandom, old, old, old, 0)
+	testFadeIn(t, "random, 5", newRandom, old, old, old, 0, 0, 0)
+	testFadeIn(t, "random, 6", newRandom, old, 0, 0, 0)
+	testFadeIn(t, "random, 7", newRandom, old, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "random, 8", newRandom, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "random, 9", newRandom, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
 }
