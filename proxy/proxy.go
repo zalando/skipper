@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dimfeld/httppath"
@@ -406,10 +407,29 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 	return hh
 }
 
+// The sync.Pool's New function should generally only return pointer types,
+// since a pointer can be put into the return interface value without an allocation.
+//
+// It is fine to store slice as per https://github.com/golang/go/issues/16323
+// but staticcheck complains about non-pointer type (https://staticcheck.io/docs/checks#SA6002)
+// therefore slice pointer is used.
+//
+// Note: sync.Pool example suggests to use bytes.Buffer that can dynamically grow and thus
+// cause problems, see https://github.com/golang/go/issues/23199 for details.
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, proxyBufferSize)
+		return &b
+	},
+}
+
 // copies a stream with flushing on every successful read operation
 // (similar to io.Copy but with flushing)
 func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing, span ot.Span) error {
-	b := make([]byte, proxyBufferSize)
+	buffer := bufferPool.Get().(*[]byte)
+	defer bufferPool.Put(buffer)
+
+	b := *buffer
 
 	for {
 		l, rerr := from.Read(b)
