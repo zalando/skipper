@@ -1,6 +1,8 @@
 kube_rg__default__myapp__all__0_0:
 	Host("^(example[.]org)$")
 	&& Path("/app")
-	-> "http://10.1.0.1:80";
+	-> status(502)
+	-> inlineContent("no endpoints")
+	-> <shunt>;
 
 kube_rg____example_org__catchall__0_0: Host("^(example[.]org)$") -> <shunt>;
