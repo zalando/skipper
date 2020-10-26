@@ -294,7 +294,7 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	// safe prepend, see: https://play.golang.org/p/zg5aGKJpRyK
 	filters := make([]*eskip.Filter, len(endpointsRoute.Filters)+len(ic.annotationFilters))
 	copy(filters, ic.annotationFilters)
-	copy(filters, endpointsRoute.Filters)
+	copy(filters[len(ic.annotationFilters):], endpointsRoute.Filters)
 	endpointsRoute.Filters = filters
 
 	// add pre-configured default filters
