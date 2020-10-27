@@ -1,5 +1,5 @@
 FROM alpine
-MAINTAINER Skipper Maintainers <team-pathfinder@zalando.de>
+LABEL maintainer="Team Teapot @ Zalando SE <team-teapot@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates
 RUN mkdir -p /usr/bin
 ADD skipper eskip webhook /usr/bin/
