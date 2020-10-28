@@ -1337,7 +1337,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			}
 		}()
 	} else {
-		log.Infoln("Metrics are disabled")
+		log.Infoln("Support listener is disabled")
 	}
 
 	proxyParams.OpenTracing = &proxy.OpenTracingParams{
