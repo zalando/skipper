@@ -329,6 +329,10 @@ type Options struct {
 	// which accepts original skipper http.RoundTripper as an argument and returns a wrapped roundtripper
 	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
 
+	// CustomSupportHttpHandlers allows adding custom HTTP handlers to listen on SupportListener address.
+	// It is ignored if SupportListener == false.
+	CustomSupportHttpHandlers map[string]http.Handler
+
 	// WaitFirstRouteLoad prevents starting the listener before the first batch
 	// of routes were applied.
 	WaitFirstRouteLoad bool
@@ -1329,6 +1333,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		mux.Handle("/metrics/", metricsHandler)
 		mux.Handle("/debug/pprof", metricsHandler)
 		mux.Handle("/debug/pprof/", metricsHandler)
+
+		for pattern, handler := range o.CustomSupportHttpHandlers {
+			mux.Handle(pattern, handler)
+		}
 
 		log.Infof("support listener on %s", supportListener)
 		go func() {
