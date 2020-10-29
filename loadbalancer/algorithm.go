@@ -35,6 +35,8 @@ const (
 	PowerOfRandomNChoices
 )
 
+const powerOfRandomNChoicesDefaultN = 2
+
 var (
 	algorithms = map[Algorithm]initializeAlgorithm{
 		RoundRobin:            newRoundRobin,
@@ -212,7 +214,7 @@ func newPowerOfRandomNChoices(endpoints []string) routing.LBAlgorithm {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return &powerOfRandomNChoices{
 		rand:            rnd,
-		numberOfChoices: 2,
+		numberOfChoices: powerOfRandomNChoicesDefaultN,
 	}
 }
 
