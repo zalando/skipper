@@ -63,14 +63,14 @@ func (a absorb) Request(ctx filters.FilterContext) {
 		}
 	}
 
-	a.logger.Infof("received request to be absorbed: %s", id)
+	// a.logger.Infof("received request to be absorbed: %s", id)
 
 	var count = 0
 	buf := make([]byte, 1<<12)
 	for {
 		n, err := req.Body.Read(buf)
 		count += n
-		a.logger.Infof("request %s, consumed bytes: %d", id, count)
+		// a.logger.Infof("request %s, consumed bytes: %d", id, count)
 		if err != nil {
 			if err != io.EOF {
 				a.logger.Infof("request %s, error while consuming request: %v", id, err)
@@ -80,7 +80,7 @@ func (a absorb) Request(ctx filters.FilterContext) {
 		}
 	}
 
-	a.logger.Infof("request %s, consumed bytes: %d", id, count)
-	a.logger.Infof("request finished: %s", id)
+	// a.logger.Infof("request %s, consumed bytes: %d", id, count)
+	// a.logger.Infof("request finished: %s", id)
 	ctx.Serve(&http.Response{StatusCode: http.StatusOK})
 }
