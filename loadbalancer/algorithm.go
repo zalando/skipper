@@ -30,13 +30,19 @@ const (
 
 	// ConsistentHash indicates choice between the backends based on their hashed address.
 	ConsistentHash
+
+	// PowerOfRandomNChoices selects N random endpoints and picks the one with least outstanding requests from them.
+	PowerOfRandomNChoices
 )
 
+const powerOfRandomNChoicesDefaultN = 2
+
 var (
-	algorithms = map[Algorithm]initializeAgorithm{
-		RoundRobin:     newRoundRobin,
-		Random:         newRandom,
-		ConsistentHash: newConsistentHash,
+	algorithms = map[Algorithm]initializeAlgorithm{
+		RoundRobin:            newRoundRobin,
+		Random:                newRandom,
+		ConsistentHash:        newConsistentHash,
+		PowerOfRandomNChoices: newPowerOfRandomNChoices,
 	}
 	defaultAlgorithm = newRoundRobin
 )
@@ -212,9 +218,49 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return ctx.Route.LBEndpoints[choice]
 }
 
+type powerOfRandomNChoices struct {
+	mx              sync.Mutex
+	rand            *rand.Rand
+	numberOfChoices int
+}
+
+// newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
+func newPowerOfRandomNChoices(endpoints []string) routing.LBAlgorithm {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return &powerOfRandomNChoices{
+		rand:            rnd,
+		numberOfChoices: powerOfRandomNChoicesDefaultN,
+	}
+}
+
+// Apply implements routing.LBAlgorithm with power of random N choices algorithm.
+func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+	ne := len(ctx.Route.LBEndpoints)
+
+	p.mx.Lock()
+	defer p.mx.Unlock()
+
+	best := ctx.Route.LBEndpoints[p.rand.Intn(ne)]
+
+	for i := 1; i < p.numberOfChoices; i++ {
+		ce := ctx.Route.LBEndpoints[p.rand.Intn(ne)]
+
+		if p.getScore(ce) > p.getScore(best) {
+			best = ce
+		}
+	}
+	return best
+}
+
+// getScore returns negative value of inflightrequests count.
+func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int {
+	// endpoints with higher inflight request should have lower score
+	return -e.Metrics.GetInflightRequests()
+}
+
 type (
-	algorithmProvider  struct{}
-	initializeAgorithm func(endpoints []string) routing.LBAlgorithm
+	algorithmProvider   struct{}
+	initializeAlgorithm func(endpoints []string) routing.LBAlgorithm
 )
 
 // NewAlgorithmProvider creates a routing.PostProcessor used to initialize
@@ -236,6 +282,8 @@ func AlgorithmFromString(a string) (Algorithm, error) {
 		return Random, nil
 	case "consistentHash":
 		return ConsistentHash, nil
+	case "powerOfRandomNChoices":
+		return PowerOfRandomNChoices, nil
 	default:
 		return None, errors.New("unsupported algorithm")
 	}
@@ -250,6 +298,8 @@ func (a Algorithm) String() string {
 		return "random"
 	case ConsistentHash:
 		return "consistentHash"
+	case PowerOfRandomNChoices:
+		return "powerOfRandomNChoices"
 	default:
 		return ""
 	}
@@ -263,7 +313,11 @@ func parseEndpoints(r *routing.Route) error {
 			return err
 		}
 
-		r.LBEndpoints[i] = routing.LBEndpoint{Scheme: eu.Scheme, Host: eu.Host}
+		r.LBEndpoints[i] = routing.LBEndpoint{
+			Scheme:  eu.Scheme,
+			Host:    eu.Host,
+			Metrics: &routing.LBMetrics{},
+		}
 	}
 
 	return nil

@@ -41,7 +41,8 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" {
+			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
 
@@ -67,7 +68,8 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" {
+			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
 
@@ -93,7 +95,8 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" {
+			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
 
@@ -119,11 +122,39 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" {
+			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
 
 		if _, ok := rr[0].LBAlgorithm.(*random); !ok {
+			t.Fatal("failed to set the right algorithm")
+		}
+	})
+
+	t.Run("LB route with explicit powerOfRandomNChoices algorithm", func(t *testing.T) {
+		p := NewAlgorithmProvider()
+		r := &routing.Route{
+			Route: eskip.Route{
+				BackendType: eskip.LBBackend,
+				LBAlgorithm: "powerOfRandomNChoices",
+				LBEndpoints: []string{"https://www.example.org"},
+			},
+		}
+
+		rr := p.Do([]*routing.Route{r})
+		if len(rr) != 1 {
+			t.Fatal("failed to process LB route")
+		}
+
+		if len(rr[0].LBEndpoints) != 1 ||
+			rr[0].LBEndpoints[0].Scheme != "https" ||
+			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Metrics == nil {
+			t.Fatal("failed to set the endpoints")
+		}
+
+		if _, ok := rr[0].LBAlgorithm.(*powerOfRandomNChoices); !ok {
 			t.Fatal("failed to set the right algorithm")
 		}
 	})
@@ -213,6 +244,13 @@ func TestApply(t *testing.T) {
 			expected:      1,
 			algorithm:     newConsistentHash(eps),
 			algorithmName: "consistentHash",
+		}, {
+			name:          "powerOfRandomNChoices algorithm",
+			iterations:    100,
+			jitter:        0,
+			expected:      N,
+			algorithm:     newPowerOfRandomNChoices(eps),
+			algorithmName: "powerOfRandomNChoices",
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)

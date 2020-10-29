@@ -140,10 +140,31 @@ type RouteFilter struct {
 	Index int
 }
 
+// LBMetrics contains metrics used by LB algorithms
+type LBMetrics struct {
+	inflightRequests int64
+}
+
+// IncInflightRequest increments the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) IncInflightRequest() {
+	atomic.AddInt64(&m.inflightRequests, 1)
+}
+
+// DecInflightRequest decrements the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) DecInflightRequest() {
+	atomic.AddInt64(&m.inflightRequests, -1)
+}
+
+// GetInflightRequests decrements the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) GetInflightRequests() int {
+	return int(atomic.LoadInt64(&m.inflightRequests))
+}
+
 // LBEndpoint represents the scheme and the host of load balanced
 // backends.
 type LBEndpoint struct {
 	Scheme, Host string
+	Metrics      *LBMetrics
 
 	// Detected represents the time when skipper instances first detected a new LB endpoint. This detection
 	// time is used for the fade-in feature of the round-robin and random LB algorithms.

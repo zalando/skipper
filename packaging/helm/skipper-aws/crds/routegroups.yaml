@@ -68,6 +68,7 @@ spec:
                     - roundRobin
                     - random
                     - consistentHash
+                    - powerOfRandomNChoices
                   endpoints:
                     type: array
                     minLength: 1

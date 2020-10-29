@@ -472,22 +472,24 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{})
 	}
 }
 
-func setRequestURLForLoadBalancedBackend(u *url.URL, rt *routing.Route, lbctx *routing.LBContext) {
+func setRequestURLForLoadBalancedBackend(u *url.URL, rt *routing.Route, lbctx *routing.LBContext) *routing.LBEndpoint {
 	e := rt.LBAlgorithm.Apply(lbctx)
 	u.Scheme = e.Scheme
 	u.Host = e.Host
+	return &e
 }
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool, stateBag map[string]interface{}) (*http.Request, error) {
+func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool, stateBag map[string]interface{}) (*http.Request, *routing.LBEndpoint, error) {
+	var endpoint *routing.LBEndpoint
 	u := r.URL
 	switch rt.BackendType {
 	case eskip.DynamicBackend:
 		setRequestURLFromRequest(u, r)
 		setRequestURLForDynamicBackend(u, stateBag)
 	case eskip.LBBackend:
-		setRequestURLForLoadBalancedBackend(u, rt, routing.NewLBContext(r, rt))
+		endpoint = setRequestURLForLoadBalancedBackend(u, rt, routing.NewLBContext(r, rt))
 	default:
 		u.Scheme = rt.Scheme
 		u.Host = rt.Host
@@ -500,7 +502,7 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 
 	rr, err := http.NewRequest(r.Method, u.String(), body)
 	if err != nil {
-		return nil, err
+		return nil, endpoint, err
 	}
 
 	rr = rr.WithContext(r.Context())
@@ -529,7 +531,7 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 		rr = rr.WithContext(ot.ContextWithSpan(rr.Context(), ctxspan))
 	}
 
-	return rr, nil
+	return rr, endpoint, nil
 }
 
 func forwardToProxy(incoming, outgoing *http.Request) {
@@ -878,10 +880,15 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 
 func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	var err error
-	req, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
+	req, endpoint, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
 		return nil, &proxyError{err: err}
+	}
+
+	if endpoint != nil {
+		endpoint.Metrics.IncInflightRequest()
+		defer endpoint.Metrics.DecInflightRequest()
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
@@ -1138,7 +1145,7 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
-		debugReq, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
+		debugReq, _, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
 		if err != nil {
 			return &proxyError{err: err}
 		}

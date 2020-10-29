@@ -19,6 +19,12 @@ consistentHash Algorithm
     client IP, which will be looked up from X-Forwarded-For header
     with remote IP as the fallback.
 
+powerOfRandomNChoices Algorithm
+
+	The powerOfRandomNChoices algorithm selects N random endpoints
+	and picks the one with least outstanding requests from them.
+	Currently, N is 2.
+
 The roundRobin and the random algorithms also provide fade-in behavior for LB endpoints of routes where the
 fade-in duration was configured. This feature can be used to gradually add traffic to new instances of
 applications that require a certain amount of warm-up time.
@@ -29,6 +35,7 @@ Eskip example:
         r1: * -> <roundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
         r2: * -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
         r3: * -> <random, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+        r4: * -> <powerOfRandomNChoices, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 
 
 Package loadbalancer also implements health checking of pool members for

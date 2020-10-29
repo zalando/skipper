@@ -254,6 +254,43 @@ func TestLoadBalancerAnnotation(t *testing.T) {
 		  Host(/^test[.]example[.]org$/)
 		  -> <shunt>;
 	`,
+	}, {
+		msg: "powerOfRandomNChoices algorithm should be set",
+		ingress: testIngress(
+			"namespace1",
+			"ingress1",
+			"service1",
+			"",
+			`setPath("/foo")`,
+			"",
+			"",
+			"",
+			"powerOfRandomNChoices",
+			definitions.BackendPort{Value: "port1"},
+			1.0,
+			testRule(
+				"test.example.org",
+				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
+			),
+		),
+		expectedRoutes: `
+		// default backend:
+		kube_namespace1__ingress1______:
+		  *
+		  -> <powerOfRandomNChoices, "http://42.0.1.0:8080", "http://42.1.0.1:8080">;
+
+		// path rule, target 1:
+		kube_namespace1__ingress1__test_example_org___test1__service1:
+		  Host(/^test[.]example[.]org$/)
+		  && PathRegexp(/^(\/test1)/)
+		  -> setPath("/foo")
+		  -> <powerOfRandomNChoices, "http://42.0.1.0:8080", "http://42.1.0.1:8080">;
+
+		// catch all:
+		kube___catchall__test_example_org____:
+		  Host(/^test[.]example[.]org$/)
+		  -> <shunt>;
+	`,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 
