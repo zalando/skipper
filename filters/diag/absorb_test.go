@@ -14,15 +14,15 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-func TestAbsorb(t *testing.T) {
-	const (
-		bodySize   = 1 << 12
-		logTimeout = 3 * time.Second
-	)
+const (
+	bodySize   = 1 << 12
+	logTimeout = 3 * time.Second
+)
 
+func testAbsorb(t *testing.T, silent bool) {
 	l := loggingtest.New()
 	defer l.Close()
-	a := withLogger(l)
+	a := withLogger(silent, l)
 	fr := make(filters.Registry)
 	fr.Register(a)
 	p := proxytest.New(
@@ -57,15 +57,39 @@ func TestAbsorb(t *testing.T) {
 		t.Fatalf("invalid status code received: %d", rsp.StatusCode)
 	}
 
-	check := func(prefix string, err error) {
+	expectLog := func(content string, err error) {
 		if err != nil {
-			t.Fatalf("%s: %v", prefix, err)
+			t.Fatalf("%s: %v", content, err)
 		}
 	}
 
-	check("received", l.WaitFor("received request", logTimeout))
-	check("flow ID", l.WaitFor("foo-bar-baz", logTimeout))
-	check("consumed", l.WaitFor("consumed", logTimeout))
-	check("consumed bytes", l.WaitFor(fmt.Sprint(bodySize), logTimeout))
-	check("finished", l.WaitFor("request finished", logTimeout))
+	expectNoLog := func(content string, err error) {
+		if err != loggingtest.ErrWaitTimeout {
+			t.Fatalf("%s: unexpected log entry", content)
+		}
+	}
+
+	for _, content := range []string{
+		"received request",
+		"foo-bar-baz",
+		"consumed",
+		fmt.Sprint(bodySize),
+		"request finished",
+	} {
+		err := l.WaitFor(content, logTimeout)
+		if silent {
+			expectNoLog(content, err)
+			continue
+		}
+
+		expectLog(content, err)
+	}
+}
+
+func TestAbsorb(t *testing.T) {
+	testAbsorb(t, false)
+}
+
+func TestAbsorbSilent(t *testing.T) {
+	testAbsorb(t, true)
 }

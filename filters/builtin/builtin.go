@@ -135,6 +135,7 @@ func MakeRegistry() filters.Registry {
 		diag.NewBackendBandwidth(),
 		diag.NewBackendChunks(),
 		diag.NewAbsorb(),
+		diag.NewAbsorbSilent(),
 		diag.NewLogHeader(),
 		tee.NewTee(),
 		tee.NewTeeDeprecated(),
