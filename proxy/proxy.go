@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dimfeld/httppath"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
@@ -1462,9 +1461,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			lw.Flush()
 		}
 	}()
-
-	// Change /foo/../bar to /bar for matching and passing upstream
-	r.URL.Path = httppath.Clean(r.URL.Path)
 
 	if p.flags.patchPath() {
 		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
