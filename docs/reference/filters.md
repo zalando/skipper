@@ -537,6 +537,11 @@ It logs with INFO level and a unique ID per request:
 - the finishing event of the request
 - any read errors other than EOF
 
+## absorbSilent
+
+The absorbSilent filter reads and discards the payload of the incoming requests. It only
+logs read errors other than EOF.
+
 ## logHeader
 
 The logHeader filter prints the request line and the header, but not the body, to
