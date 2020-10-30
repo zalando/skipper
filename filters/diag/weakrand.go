@@ -13,17 +13,17 @@ type reader struct {
 
 var randomChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
-func weakRandom() reader {
+func weakRandom() *reader {
 	c := make([]byte, len(randomChars))
 	copy(c, randomChars)
 	rand.Shuffle(len(c), func(i, j int) {
 		c[i], c[j] = c[j], c[i]
 	})
 
-	return reader{c: c, mx: &sync.Mutex{}}
+	return &reader{c: c, mx: &sync.Mutex{}}
 }
 
-func (r reader) Read(p []byte) (int, error) {
+func (r *reader) Read(p []byte) (int, error) {
 	r.mx.Lock()
 	i := r.i
 	r.mx.Unlock()
