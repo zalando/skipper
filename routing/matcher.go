@@ -487,8 +487,9 @@ func matchLeaves(leaves leafMatchers, req *http.Request, path, exactPath string)
 // returns the associated value, and the wildcard parameters from the path definition,
 // if any.
 func (m *matcher) match(r *http.Request) (*Route, map[string]string) {
+	// normalize path before matching
 	// in case ignoring trailing slashes, match without the trailing slash
-	path := r.URL.Path
+	path := httppath.Clean(r.URL.Path)
 	exact := path
 	if m.matchingOptions.ignoreTrailingSlash() {
 		path = trimTrailingSlash(path)
