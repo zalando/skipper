@@ -9,7 +9,6 @@ package diag
 
 import (
 	"io"
-	"math/rand"
 	"net/http"
 	"time"
 
@@ -42,7 +41,8 @@ const (
 )
 
 type random struct {
-	len int
+	reader io.Reader
+	len    int
 }
 
 type throttle struct {
@@ -50,8 +50,6 @@ type throttle struct {
 	chunkSize int
 	delay     time.Duration
 }
-
-var randomChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
 func kbps2bpms(kbps float64) float64 {
 	return kbps * 1024 / 1000
@@ -120,31 +118,15 @@ func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if l, ok := args[0].(float64); ok {
-		return &random{int(l)}, nil
+		return &random{reader: weakRandom(), len: int(l)}, nil
 	} else {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 }
 
 func (r *random) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	for n := 0; n < r.len; {
-		l := defaultChunkSize
-		if n+l > r.len {
-			l = r.len - n
-		}
-
-		b := make([]byte, l)
-		for i := 0; i < l; i++ {
-			b[i] = randomChars[rand.Intn(len(randomChars))]
-		}
-
-		ni, err := w.Write(b)
-		if err != nil {
-			log.Error("error while writing random content", err)
-			return
-		}
-
-		n += ni
+	if _, err := io.Copy(w, io.LimitReader(r.reader, int64(r.len))); err != nil {
+		log.Error("error while writing random content", err)
 	}
 }
 
