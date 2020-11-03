@@ -71,6 +71,8 @@ func formatEndpoint(a *address, p *port, protocol string) string {
 	return fmt.Sprintf("%s://%s:%d", protocol, a.IP, p.Port)
 }
 
+// svcPortName is the truncated value of int or string from kubernetes service svcPort (should not be used here)
+// svcPortTarget is the truncated value of int or string from kubernetes service targetPort
 func (ep endpoint) targets(svcPortName, svcPortTarget, protocol string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
@@ -82,7 +84,7 @@ func (ep endpoint) targets(svcPortName, svcPortTarget, protocol string) []string
 			//
 			// https://github.com/zalando/skipper/tree/improvement/service-port-fallback-handling
 			//
-			if port.Name == svcPortName || strconv.Itoa(port.Port) == svcPortTarget {
+			if port.Name == svcPortName || port.Name == svcPortTarget || strconv.Itoa(port.Port) == svcPortTarget {
 				for _, addr := range s.Addresses {
 					result = append(result, formatEndpoint(addr, port, protocol))
 				}

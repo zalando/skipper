@@ -24,7 +24,7 @@ spec:
   - name: web
     port: 80
     protocol: TCP
-    targetPort: web
+    targetPort: foo
   selector:
     application: myapp
   type: ClusterIP
@@ -40,6 +40,6 @@ subsets:
   - ip: 10.2.9.103
   - ip: 10.2.9.104
   ports:
-  - name: web
+  - name: foo
     port: 8080
     protocol: TCP
