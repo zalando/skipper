@@ -161,6 +161,25 @@ Same as [setContextRequestHeader](#setContextRequestHeader), except for response
 
 Same as [appendContextRequestHeader](#appendContextRequestHeader), except for responses.
 
+## copyRequestHeader
+
+Copies value of a given request header to another header.
+
+Parameters:
+
+* source header name (string)
+* target header name (string)
+
+Example:
+
+```
+foo: * -> copyRequestHeader("X-Foo", "X-Bar") -> "https://backend.example.org";
+```
+
+## copyResponseHeader
+
+Same as [copyRequestHeader](#copyRequestHeader), except for responses.
+
 ## modPath
 
 Replace all matched regex expressions in the path.
