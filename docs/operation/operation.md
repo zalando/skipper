@@ -134,7 +134,7 @@ size of the http header from your clients.
 ### TCP LIFO
 
 Skipper implements now controlling the maximum incoming TCP client
-connections. This is an experimental feature.
+connections.
 
 The purpose of the mechanism is to prevent Skipper requesting more memory
 than available in case of too many concurrent connections, especially in

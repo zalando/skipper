@@ -85,11 +85,11 @@ type Options struct {
 	// Network address that skipper should listen on.
 	Address string
 
-	// EnableTCPQueue is an experimental feature. It enables controlling the
+	// EnableTCPQueue enables controlling the
 	// concurrently processed requests at the TCP listener.
 	EnableTCPQueue bool
 
-	// ExpectedBytesPerRequest is used by the experimental TCP LIFO listener.
+	// ExpectedBytesPerRequest is used by the TCP LIFO listener.
 	// It defines the expected average memory required to process an incoming
 	// request. It is used only when MaxTCPListenerConcurrency is not defined.
 	// It is used together with the memory limit defined in:
@@ -98,14 +98,14 @@ type Options struct {
 	// See also: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
 	ExpectedBytesPerRequest int
 
-	// MaxTCPListenerConcurrency is used by the experimental TCP LIFO listener.
+	// MaxTCPListenerConcurrency is used by the TCP LIFO listener.
 	// It defines the max number of concurrently accepted connections, excluding
 	// the pending ones in the queue.
 	//
 	// When undefined and the EnableTCPQueue is true,
 	MaxTCPListenerConcurrency int
 
-	// MaxTCPListenerQueue is used by the experimental TCP LIFO listener.
+	// MaxTCPListenerQueue is used by the TCP LIFO listener.
 	// If defines the maximum number of pending connection waiting in the queue.
 	MaxTCPListenerQueue int
 
@@ -832,7 +832,7 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
 			}
 
-			// 1GB, temporarily, as part of the experimental phase:
+			// 1GB, temporarily, as a tested magic number until a better mechanism is in place:
 			if memoryLimit > 1<<30 {
 				memoryLimit = 1 << 30
 			}
