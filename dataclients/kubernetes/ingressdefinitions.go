@@ -71,6 +71,7 @@ func formatEndpoint(a *address, p *port, protocol string) string {
 	return fmt.Sprintf("%s://%s:%d", protocol, a.IP, p.Port)
 }
 
+// TODO(sszuecs): refactoring and replace it with clusterState.getEndpointsByTarget, but we need to support protocol to have feature parity with current ingress
 // svcPortName is the truncated value of int or string from kubernetes service svcPort (should not be used here)
 // svcPortTarget is the truncated value of int or string from kubernetes service targetPort
 func (ep endpoint) targets(svcPortName, svcPortTarget, protocol string) []string {
