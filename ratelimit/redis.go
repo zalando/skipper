@@ -267,17 +267,23 @@ func (c *clusterLimitRedis) Allow(clearText string) bool {
 }
 
 func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clearBefore int64) (int64, error) {
-	pipe := c.ring.TxPipeline()
-	defer pipe.Close()
+	// If we need to, then we can force a cleanup of old items here:
 	// drop all elements of the set which occurred before one interval ago.
-	pipe.ZRemRangeByScore(ctx, key, "0.0", fmt.Sprint(float64(clearBefore)))
+	//
+	// E.g:
+	// pipe := c.ring.TxPipeline()
+	// defer pipe.Close()
+	// pipe.ZRemRangeByScore(ctx, key, "0.0", fmt.Sprint(float64(clearBefore)))
+	//
+	// In this case, use the pipe also for ZCard.
+
 	// get cardinality
-	zcardResult := pipe.ZCard(ctx, key)
 	finishSpan := c.startSpan(ctx, allowCheckSpanName)
-	_, err := pipe.Exec(ctx)
+	zcardResult := c.ring.ZCard(ctx, key)
+	err := zcardResult.Err()
 	if err != nil {
 		finishSpan(true)
-		return 0, err
+		return 0, fmt.Errorf("zcard: %w", err)
 	}
 
 	v := zcardResult.Val()
