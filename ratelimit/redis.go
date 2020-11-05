@@ -67,9 +67,10 @@ const (
 	allowMetricsFormatWithGroup      = redisMetricsPrefix + "query.allow.%s.%s"
 	retryAfterMetricsFormatWithGroup = redisMetricsPrefix + "query.retryafter.%s.%s"
 
-	allowAddSpanName    = "redis_allow_add_card"
-	allowCheckSpanName  = "redis_allow_check_card"
-	oldestScoreSpanName = "redis_oldest_score"
+	allowAddSpanName        = "redis_allow_add_card"
+	allowCheckSpanName      = "redis_allow_check_card"
+	allowCheckSpanNameRetry = "redis_allow_check_card_retry"
+	oldestScoreSpanName     = "redis_oldest_score"
 )
 
 func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
@@ -278,16 +279,29 @@ func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clea
 	// In this case, use the pipe also for ZCard.
 
 	// get cardinality
-	finishSpan := c.startSpan(ctx, allowCheckSpanName)
-	zcardResult := c.ring.ZCard(ctx, key)
-	err := zcardResult.Err()
+	var (
+		v   int64
+		err error
+	)
+
+	for _, spanName := range []string{allowCheckSpanName, allowCheckSpanNameRetry} {
+		finishSpan := c.startSpan(ctx, spanName)
+		zcardResult := c.ring.ZCard(ctx, key)
+		err = zcardResult.Err()
+		if err != nil {
+			finishSpan(true)
+			continue
+		}
+
+		finishSpan(false)
+		v = zcardResult.Val()
+		break
+	}
+
 	if err != nil {
-		finishSpan(true)
 		return 0, fmt.Errorf("zcard: %w", err)
 	}
 
-	v := zcardResult.Val()
-	finishSpan(false)
 	return v, nil
 }
 
