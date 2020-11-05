@@ -189,7 +189,7 @@ func convertPathRule(
 	}
 	if len(eps) == 0 || err == errEndpointNotFound {
 		// add shunt route https://github.com/zalando/skipper/issues/1525
-		log.Errorf("convertPathRule: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints: %v", ns, name, svcName, len(eps), err)
+		log.Debugf("convertPathRule: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints: %v", ns, name, svcName, len(eps), err)
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			HostRegexps: hostRegexp,
@@ -519,7 +519,7 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.In
 
 	if len(eps) == 0 || err == errEndpointNotFound {
 		// add shunt route https://github.com/zalando/skipper/issues/1525
-		log.Errorf("convertDefaultBackend: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints: %v", ns, name, svcName, len(eps), err)
+		log.Debugf("convertDefaultBackend: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints: %v", ns, name, svcName, len(eps), err)
 		r := &eskip.Route{
 			Id: routeID(ns, name, "", "", ""),
 		}
