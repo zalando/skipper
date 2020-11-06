@@ -140,6 +140,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
+
 	defer requestHijackedConn.Close()
 	// NOTE: from this point forward, we own the connection and we can't use
 	// w.Header(), w.Write(), or w.WriteHeader any more

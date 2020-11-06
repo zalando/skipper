@@ -1460,8 +1460,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			logging.LogAccess(entry, additionalData)
 		}
+
 		// This flush is required in I/O error
-		if ctx.successfulUpgrade {
+		if !ctx.successfulUpgrade {
 			lw.Flush()
 		}
 	}()
