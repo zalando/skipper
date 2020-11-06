@@ -194,10 +194,9 @@ func TestRandom(t *testing.T) {
 				return
 			}
 
-			randBytes := []byte(randomChars)
 			for _, bi := range b {
 				found := false
-				for _, rbi := range randBytes {
+				for _, rbi := range randomChars {
 					if rbi == bi {
 						found = true
 						break

@@ -9,13 +9,13 @@ package diag
 
 import (
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/serve"
 )
 
 const defaultChunkSize = 512
@@ -42,7 +42,9 @@ const (
 )
 
 type random struct {
-	len int
+	mx   sync.Mutex
+	rand *rand.Rand
+	len  int64
 }
 
 type throttle struct {
@@ -120,36 +122,26 @@ func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if l, ok := args[0].(float64); ok {
-		return &random{int(l)}, nil
+		return &random{rand: rand.New(rand.NewSource(time.Now().UnixNano())), len: int64(l)}, nil
 	} else {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 }
 
-func (r *random) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	for n := 0; n < r.len; {
-		l := defaultChunkSize
-		if n+l > r.len {
-			l = r.len - n
-		}
-
-		b := make([]byte, l)
-		for i := 0; i < l; i++ {
-			b[i] = randomChars[rand.Intn(len(randomChars))]
-		}
-
-		ni, err := w.Write(b)
-		if err != nil {
-			log.Error("error while writing random content", err)
-			return
-		}
-
-		n += ni
+func (r *random) Read(p []byte) (int, error) {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+	for i := 0; i < len(p); i++ {
+		p[i] = randomChars[r.rand.Intn(len(randomChars))]
 	}
+	return len(p), nil
 }
 
 func (r *random) Request(ctx filters.FilterContext) {
-	serve.ServeHTTP(ctx, r)
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusOK,
+		Body:       ioutil.NopCloser(io.LimitReader(r, r.len)),
+	})
 }
 
 func (r *random) Response(ctx filters.FilterContext) {}
