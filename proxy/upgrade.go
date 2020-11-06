@@ -133,12 +133,16 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	requestHijackedConn, _, err := w.(http.Hijacker).Hijack()
+	requestHijackedConn, rw, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		log.Errorf("Error hijacking request connection: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
+	}
+
+	if rw != nil {
+		defer rw.Flush()
 	}
 	defer requestHijackedConn.Close()
 	// NOTE: from this point forward, we own the connection and we can't use
