@@ -413,8 +413,6 @@ func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing,
 	for {
 		l, rerr := from.Read(b)
 
-		tracing.logStreamEvent(span, StreamBodyEvent, fmt.Sprintf("%d", l))
-
 		if rerr != nil && rerr != io.EOF {
 			return rerr
 		}
