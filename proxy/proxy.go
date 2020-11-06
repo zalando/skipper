@@ -410,6 +410,11 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing, span ot.Span) error {
 	b := make([]byte, proxyBufferSize)
 
+	var bytesCopied int
+	defer func() {
+		tracing.logStreamEvent(span, StreamBodyEvent, fmt.Sprintf("%d", bytesCopied))
+	}()
+
 	for {
 		l, rerr := from.Read(b)
 
@@ -424,6 +429,7 @@ func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing,
 			}
 
 			to.Flush()
+			bytesCopied += l
 		}
 
 		if rerr == io.EOF {
