@@ -12,9 +12,9 @@ require (
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/felixge/httpsnoop v1.0.0 // indirect
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-redis/redis/v7 v7.0.0-beta.4
+	github.com/go-redis/redis/v8 v8.3.3
 	github.com/go-yaml/yaml v2.1.0+incompatible
-	github.com/google/go-cmp v0.4.0
+	github.com/google/go-cmp v0.5.2
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16
 	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-bc2310a04743 // indirect
@@ -31,7 +31,7 @@ require (
 	github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011
 	github.com/sirupsen/logrus v1.4.2
 	github.com/sony/gobreaker v0.4.1
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.6.1
 	github.com/szuecs/rate-limit-buffer v0.7.1
 	github.com/szuecs/routegroup-client v0.17.7
 	github.com/tidwall/gjson v1.4.0
@@ -42,8 +42,8 @@ require (
 	github.com/yookoala/gofast v0.4.0
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e
 	go.uber.org/atomic v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
-	golang.org/x/net v0.0.0-20200528225125-3c3fba18258b
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/net v0.0.0-20201006153459-a7d1128ccaa0
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	golang.org/x/tools v0.0.0-20200227222343-706bc42d1f0d // indirect

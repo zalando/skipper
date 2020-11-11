@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/go-redis/redis/v7"
+	"github.com/go-redis/redis/v8"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	log "github.com/sirupsen/logrus"
@@ -67,9 +67,11 @@ const (
 	allowMetricsFormatWithGroup      = redisMetricsPrefix + "query.allow.%s.%s"
 	retryAfterMetricsFormatWithGroup = redisMetricsPrefix + "query.retryafter.%s.%s"
 
-	allowAddSpanName    = "redis_allow_add_card"
-	allowCheckSpanName  = "redis_allow_check_card"
-	oldestScoreSpanName = "redis_oldest_score"
+	allowAddSpanName           = "redis_allow_add_card"
+	allowExpireSpanName        = "redis_allow_expire"
+	allowCheckSpanName         = "redis_allow_check_card"
+	allowCheckRemRangeSpanName = "redis_allow_check_rem_range"
+	oldestScoreSpanName        = "redis_oldest_score"
 )
 
 func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
@@ -143,7 +145,7 @@ func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimit
 	var err error
 
 	err = backoff.Retry(func() error {
-		_, err = rl.ring.Ping().Result()
+		_, err = rl.ring.Ping(context.Background()).Result()
 		if err != nil {
 			log.Infof("Failed to ping redis, retry with backoff: %v", err)
 		}
@@ -243,21 +245,26 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 		return false
 	}
 
-	pipe := c.ring.TxPipeline()
-	defer pipe.Close()
-	pipe.ZAdd(key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
-	pipe.Expire(key, c.window+time.Second)
 	finishSpan := c.startSpan(ctx, allowAddSpanName)
-	_, err = pipe.Exec()
+	zaddResult := c.ring.ZAdd(ctx, key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
+	err = zaddResult.Err()
+	finishSpan(err != nil)
 	if err != nil {
-		log.Errorf("Failed to ZAdd and Expire: %v", err)
+		log.Errorf("Failed to ZAdd proceeding with Expire: %v", err)
 		queryFailure = true
-		finishSpan(true)
+	}
+
+	finishSpan = c.startSpan(ctx, allowExpireSpanName)
+	expireResult := c.ring.Expire(ctx, key, c.window+time.Second)
+	err = expireResult.Err()
+	finishSpan(err != nil)
+	if err != nil {
+		log.Errorf("Failed to Expire: %v", err)
+		queryFailure = true
 		return true
 	}
 
 	c.metrics.IncCounter(redisMetricsPrefix + "allows")
-	finishSpan(false)
 	return true
 }
 
@@ -267,22 +274,25 @@ func (c *clusterLimitRedis) Allow(clearText string) bool {
 }
 
 func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clearBefore int64) (int64, error) {
-	pipe := c.ring.TxPipeline()
-	defer pipe.Close()
 	// drop all elements of the set which occurred before one interval ago.
-	pipe.ZRemRangeByScore(key, "0.0", fmt.Sprint(float64(clearBefore)))
-	// get cardinality
-	zcardResult := pipe.ZCard(key)
-	finishSpan := c.startSpan(ctx, allowCheckSpanName)
-	_, err := pipe.Exec()
+	finishSpan := c.startSpan(ctx, allowCheckRemRangeSpanName)
+	zremRangeResult := c.ring.ZRemRangeByScore(ctx, key, "0.0", fmt.Sprint(float64(clearBefore)))
+	err := zremRangeResult.Err()
+	finishSpan(err != nil)
 	if err != nil {
-		finishSpan(true)
-		return 0, err
+		return 0, fmt.Errorf("zremrangebyscore: %w", err)
 	}
 
-	v := zcardResult.Val()
-	finishSpan(false)
-	return v, nil
+	// get cardinality
+	finishSpan = c.startSpan(ctx, allowCheckSpanName)
+	zcardResult := c.ring.ZCard(ctx, key)
+	err = zcardResult.Err()
+	finishSpan(err != nil)
+	if err != nil {
+		return 0, fmt.Errorf("zcard: %w", err)
+	}
+
+	return zcardResult.Val(), nil
 }
 
 // Close can not decide to teardown redis ring, because it is not the
@@ -321,7 +331,7 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 	now := time.Now()
 
 	finishSpan := c.startSpan(ctx, oldestScoreSpanName)
-	res := c.ring.ZRangeByScoreWithScores(key, &redis.ZRangeBy{
+	res := c.ring.ZRangeByScoreWithScores(ctx, key, &redis.ZRangeBy{
 		Min:    "0.0",
 		Max:    fmt.Sprint(float64(now.UnixNano())),
 		Offset: 0,
