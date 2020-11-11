@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
@@ -12,7 +11,7 @@ func TestGetTargetPort(t *testing.T) {
 		name        string
 		svc         *service
 		svcPort     definitions.BackendPort
-		expected    string
+		expected    *definitions.BackendPort
 		errExpected bool
 	}{
 		{
@@ -27,7 +26,7 @@ func TestGetTargetPort(t *testing.T) {
 					},
 				}},
 			svcPort:     definitions.BackendPort{Value: 80},
-			expected:    "80",
+			expected:    &definitions.BackendPort{Value: 80},
 			errExpected: false,
 		},
 		{
@@ -41,7 +40,7 @@ func TestGetTargetPort(t *testing.T) {
 					},
 				}},
 			svcPort:     definitions.BackendPort{Value: 80},
-			expected:    "",
+			expected:    nil,
 			errExpected: true,
 		},
 	}
@@ -85,129 +84,6 @@ func TestMatchingPort(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.sp.matchingPort(tt.targetPort); got != tt.expected {
 				t.Errorf("matchingPort: %v, expected: %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func Test_endpoint_Targets(t *testing.T) {
-	tests := []struct {
-		name       string
-		Subsets    []*subset
-		ingSvcPort string
-		targetPort *definitions.BackendPort
-		want       []string
-	}{
-		{
-			name: "single node and port fully specified by name",
-			Subsets: []*subset{
-				{
-					Addresses: []*address{
-						{
-							IP:   "1.2.3.4",
-							Node: "nodeA",
-						},
-					},
-					Ports: []*port{
-						{
-							Name:     "http",
-							Port:     80,
-							Protocol: "tcp",
-						},
-					},
-				},
-			},
-			ingSvcPort: "http",
-			targetPort: &definitions.BackendPort{Value: 80},
-			want:       []string{"http://1.2.3.4:80"},
-		},
-		{
-			name: "single node and port fully specified by port number",
-			Subsets: []*subset{
-				{
-					Addresses: []*address{
-						{
-							IP:   "1.2.3.4",
-							Node: "nodeA",
-						},
-					},
-					Ports: []*port{
-						{
-							Name:     "http",
-							Port:     80,
-							Protocol: "tcp",
-						},
-					},
-				},
-			},
-			ingSvcPort: "80",
-			targetPort: &definitions.BackendPort{Value: 80},
-			want:       []string{"http://1.2.3.4:80"},
-		},
-		{
-			name: "single node and 2 ports fully specified by name",
-			Subsets: []*subset{
-				{
-					Addresses: []*address{
-						{
-							IP:   "1.2.3.4",
-							Node: "nodeA",
-						},
-					},
-					Ports: []*port{
-						{
-							Name:     "http",
-							Port:     80,
-							Protocol: "tcp",
-						},
-						{
-							Name:     "metrics",
-							Port:     9911,
-							Protocol: "tcp",
-						},
-					},
-				},
-			},
-			ingSvcPort: "http",
-			targetPort: &definitions.BackendPort{Value: 80},
-			want:       []string{"http://1.2.3.4:80"},
-		},
-		{
-			name: "single node and 2 ports fully specified by port number",
-			Subsets: []*subset{
-				{
-					Addresses: []*address{
-						{
-							IP:   "1.2.3.4",
-							Node: "nodeA",
-						},
-					},
-					Ports: []*port{
-						{
-							Name:     "http",
-							Port:     80,
-							Protocol: "tcp",
-						},
-						{
-							Name:     "metrics",
-							Port:     9911,
-							Protocol: "tcp",
-						},
-					},
-				},
-			},
-			ingSvcPort: "80",
-			targetPort: &definitions.BackendPort{Value: 80},
-			want:       []string{"http://1.2.3.4:80"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ep := endpoint{
-				Subsets: tt.Subsets,
-			}
-			if got := ep.targets(tt.ingSvcPort, tt.targetPort.String(), "http"); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("endpoint.targets() = %v, want %v", got, tt.want)
 			}
 		})
 	}
