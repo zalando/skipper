@@ -67,10 +67,11 @@ const (
 	allowMetricsFormatWithGroup      = redisMetricsPrefix + "query.allow.%s.%s"
 	retryAfterMetricsFormatWithGroup = redisMetricsPrefix + "query.retryafter.%s.%s"
 
-	allowAddSpanName    = "redis_allow_add_card"
-	allowCheckSpanName  = "redis_allow_check_card"
+	allowAddSpanName           = "redis_allow_add_card"
+	allowExpireSpanName        = "redis_allow_expire"
+	allowCheckSpanName         = "redis_allow_check_card"
 	allowCheckRemRangeSpanName = "redis_allow_check_rem_range"
-	oldestScoreSpanName = "redis_oldest_score"
+	oldestScoreSpanName        = "redis_oldest_score"
 )
 
 func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
@@ -244,21 +245,26 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 		return false
 	}
 
-	pipe := c.ring.TxPipeline()
-	defer pipe.Close()
-	pipe.ZAdd(ctx, key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
-	pipe.Expire(ctx, key, c.window+time.Second)
 	finishSpan := c.startSpan(ctx, allowAddSpanName)
-	_, err = pipe.Exec(ctx)
+	zaddResult := c.ring.ZAdd(ctx, key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
+	err = zaddResult.Err()
+	finishSpan(err != nil)
 	if err != nil {
-		log.Errorf("Failed to ZAdd and Expire: %v", err)
+		log.Errorf("Failed to ZAdd proceeding with Expire: %v", err)
 		queryFailure = true
-		finishSpan(true)
+	}
+
+	finishSpan = c.startSpan(ctx, allowExpireSpanName)
+	expireResult := c.ring.Expire(ctx, key, c.window+time.Second)
+	err = expireResult.Err()
+	finishSpan(err != nil)
+	if err != nil {
+		log.Errorf("Failed to Expire: %v", err)
+		queryFailure = true
 		return true
 	}
 
 	c.metrics.IncCounter(redisMetricsPrefix + "allows")
-	finishSpan(false)
 	return true
 }
 
