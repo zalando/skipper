@@ -29,12 +29,15 @@ eskip: $(SOURCES) bindir
 webhook: $(SOURCES) bindir
 	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook/*.go
 
+rsample: $(SOURCES) bindir
+	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/rsample ./cmd/rsample/*.go
+
 fixlimits:
 ifeq (LIMIT_FDS, 256)
 	ulimit -n 1024
 endif
 
-build: $(SOURCES) lib skipper eskip webhook
+build: $(SOURCES) lib skipper eskip webhook rsample
 
 build.linux.armv8:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
