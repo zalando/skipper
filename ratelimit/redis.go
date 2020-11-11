@@ -69,6 +69,7 @@ const (
 
 	allowAddSpanName    = "redis_allow_add_card"
 	allowCheckSpanName  = "redis_allow_check_card"
+	allowCheckRemRangeSpanName = "redis_allow_check_rem_range"
 	oldestScoreSpanName = "redis_oldest_score"
 )
 
@@ -267,22 +268,25 @@ func (c *clusterLimitRedis) Allow(clearText string) bool {
 }
 
 func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clearBefore int64) (int64, error) {
-	pipe := c.ring.TxPipeline()
-	defer pipe.Close()
 	// drop all elements of the set which occurred before one interval ago.
-	pipe.ZRemRangeByScore(ctx, key, "0.0", fmt.Sprint(float64(clearBefore)))
-	// get cardinality
-	zcardResult := pipe.ZCard(ctx, key)
-	finishSpan := c.startSpan(ctx, allowCheckSpanName)
-	_, err := pipe.Exec(ctx)
+	finishSpan := c.startSpan(ctx, allowCheckRemRangeSpanName)
+	zremRangeResult := c.ring.ZRemRangeByScore(ctx, key, "0.0", fmt.Sprint(float64(clearBefore)))
+	err := zremRangeResult.Err()
+	finishSpan(err != nil)
 	if err != nil {
-		finishSpan(true)
-		return 0, err
+		return 0, fmt.Errorf("zremrangebyscore: %w", err)
 	}
 
-	v := zcardResult.Val()
-	finishSpan(false)
-	return v, nil
+	// get cardinality
+	finishSpan = c.startSpan(ctx, allowCheckSpanName)
+	zcardResult := c.ring.ZCard(ctx, key)
+	err = zcardResult.Err()
+	finishSpan(err != nil)
+	if err != nil {
+		return 0, fmt.Errorf("zcard: %w", err)
+	}
+
+	return zcardResult.Val(), nil
 }
 
 // Close can not decide to teardown redis ring, because it is not the
