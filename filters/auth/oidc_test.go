@@ -559,6 +559,8 @@ func TestOIDCSetup(t *testing.T) {
 		clientsecret    string
 		scopes          []string
 		claims          []string
+		authCodeOpts    []string
+		queries         []string
 		authType        roleCheckType
 		upstreamheaders string
 		expected        int
@@ -683,6 +685,22 @@ func TestOIDCSetup(t *testing.T) {
 		claims:          []string{"sub", "uid"},
 		upstreamheaders: "x-auth-email:claims.email x-auth-something:claims.sub x-auth-groups:claims.groups.#[%\"*-Users\"]",
 		expectRequest:   "X-Auth-Email: someone@example.org\r\nX-Auth-Groups: AppX-Test-Users\r\nX-Auth-Something: somesub",
+	}, {
+		msg:          "invalid auth code option",
+		client:       validClient,
+		clientsecret: "mysec",
+		authType:     checkOIDCAnyClaims,
+		authCodeOpts: []string{"foo"},
+		expectErr:    true,
+	}, {
+		msg:          "auth code with a placeholder and a regular option",
+		client:       validClient,
+		clientsecret: "mysec",
+		authType:     checkOIDCAnyClaims,
+		authCodeOpts: []string{"foo=skipper-request-query", "bar=baz"},
+		queries:      []string{"foo=bar"},
+		expected:     200,
+		expectErr:    false,
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -732,8 +750,16 @@ func TestOIDCSetup(t *testing.T) {
 
 			sargs = append(sargs, strings.Join(tc.scopes, " "))
 			sargs = append(sargs, strings.Join(tc.claims, " "))
-			// test not implemented for authCodeOptions
-			sargs = append(sargs, "")
+			sargs = append(sargs, strings.Join(tc.authCodeOpts, " "))
+
+			if tc.queries != nil {
+				q := reqURL.Query()
+				for _, rq := range tc.queries {
+					splitRQ := strings.Split(rq, "=")
+					q.Add(splitRQ[0], splitRQ[1])
+				}
+				reqURL.RawQuery = q.Encode()
+			}
 
 			if tc.upstreamheaders != "" {
 				sargs = append(sargs, tc.upstreamheaders)
