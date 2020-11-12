@@ -183,8 +183,8 @@ func main() {
 			}
 
 			if !ok {
-				log.Fatalln(
-					"invalid predicate type in route: %s, predicate: %s",
+				log.Fatalf(
+					"invalid predicate type in route: %s, predicate: %s\n",
 					ri.Id,
 					p.Name,
 				)
