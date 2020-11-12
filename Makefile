@@ -26,9 +26,6 @@ skipper: $(SOURCES) bindir
 eskip: $(SOURCES) bindir
 	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip/*.go
 
-eskip2rg: $(SOURCES) bindir
-	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip2rg ./cmd/eskip2rg/*.go
-
 webhook: $(SOURCES) bindir
 	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook/*.go
 
@@ -37,7 +34,7 @@ ifeq (LIMIT_FDS, 256)
 	ulimit -n 1024
 endif
 
-build: $(SOURCES) lib skipper eskip webhook eskip2rg
+build: $(SOURCES) lib skipper eskip webhook
 
 build.linux.armv8:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
@@ -57,7 +54,6 @@ build.windows:
 install: $(SOURCES)
 	GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 	GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
-	GO111MODULE=$(GO111) go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip2rg
 
 check: build check-plugins
 	# go test $(PACKAGES)

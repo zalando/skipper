@@ -27,13 +27,14 @@ type (
 )
 
 const (
-	check  command = "check"
-	print  command = "print"
-	upsert command = "upsert"
-	reset  command = "reset"
-	delete command = "delete"
-	patch  command = "patch"
-	ver    command = "version"
+	check      command = "check"
+	print      command = "print"
+	upsert     command = "upsert"
+	reset      command = "reset"
+	delete     command = "delete"
+	patch      command = "patch"
+	routeGroup command = "routegroup"
+	ver        command = "version"
 )
 
 var (
@@ -43,13 +44,15 @@ var (
 
 // map command string to command function
 var commands = map[command]commandFunc{
-	check:  checkCmd,
-	print:  printCmd,
-	upsert: upsertCmd,
-	reset:  resetCmd,
-	delete: deleteCmd,
-	patch:  patchCmd,
-	ver:    versionCmd}
+	check:      checkCmd,
+	print:      printCmd,
+	upsert:     upsertCmd,
+	reset:      resetCmd,
+	delete:     deleteCmd,
+	patch:      patchCmd,
+	routeGroup: routeGroupCmd,
+	ver:        versionCmd,
+}
 
 var (
 	missingCommand = errors.New("missing command")

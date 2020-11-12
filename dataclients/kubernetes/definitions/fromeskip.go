@@ -163,15 +163,15 @@ func FromEskip(r []*eskip.Route) (*RouteGroupItem, error) {
 					rs.Path, ok = p.Args[0].(string)
 				}
 			case "PathSubtree":
-				if len(p.Args) != 1 {
+				if len(p.Args) == 1 {
 					rs.PathSubtree, ok = p.Args[0].(string)
 				}
 			case "PathRegexp":
-				if len(p.Args) != 1 {
+				if len(p.Args) == 1 {
 					rs.PathRegexp, ok = p.Args[0].(string)
 				}
 			case "Method":
-				if len(p.Args) != 1 {
+				if len(p.Args) == 1 {
 					var m string
 					m, ok = p.Args[0].(string)
 					if ok {

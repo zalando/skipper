@@ -357,7 +357,7 @@ func (sb *SkipperBackend) MarshalYAML() (interface{}, error) {
 		m["servicePort"] = sb.ServicePort
 	}
 
-	if sb.Type == eskip.LBBackend {
+	if sb.Type == eskip.LBBackend || sb.Type == ServiceBackend {
 		m["algorithm"] = sb.Algorithm.String()
 	}
 

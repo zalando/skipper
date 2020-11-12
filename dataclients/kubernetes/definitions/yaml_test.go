@@ -32,20 +32,19 @@ func TestRouteGroupYAML(t *testing.T) {
 			}, {
 				Name:        "backend1-0",
 				Type:        ServiceBackend,
-				Algorithm:   loadbalancer.RoundRobin, // unmarshaling enforces this
+				Algorithm:   loadbalancer.RoundRobin,
 				ServiceName: "service1-0",
 				ServicePort: 80,
 			}, {
 				Name:        "backend1-1",
 				Type:        ServiceBackend,
-				Algorithm:   loadbalancer.RoundRobin, // marshaling enforces this
+				Algorithm:   loadbalancer.RoundRobin,
 				ServiceName: "service1-1",
 				ServicePort: 80,
 			}, {
-				Name:      "backend2",
-				Type:      eskip.NetworkBackend,
-				Algorithm: loadbalancer.RoundRobin, // marshaling enforces this
-				Address:   "http://service1.cluster.local",
+				Name:    "backend2",
+				Type:    eskip.NetworkBackend,
+				Address: "http://service1.cluster.local",
 			}},
 			DefaultBackends: []*BackendReference{{
 				BackendName: "backend1-0",
