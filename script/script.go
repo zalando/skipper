@@ -367,7 +367,7 @@ func getContextValue(f filters.FilterContext) func(*lua.LState) int {
 }
 
 func getRequestValue(f filters.FilterContext) func(*lua.LState) int {
-	var header, url_query *lua.LTable
+	var header, cookie, url_query *lua.LTable
 	return func(s *lua.LState) int {
 		key := s.ToString(-1)
 		var ret lua.LValue
@@ -382,6 +382,16 @@ func getRequestValue(f filters.FilterContext) func(*lua.LState) int {
 				s.SetMetatable(header, mt)
 			}
 			ret = header
+		case "cookie":
+			if cookie == nil {
+				cookie = s.CreateTable(0, 0)
+				mt := s.CreateTable(0, 3)
+				mt.RawSetString("__index", s.NewFunction(getRequestCookie(f)))
+				mt.RawSetString("__newindex", s.NewFunction(unsupported("setting cookie is not supported")))
+				mt.RawSetString("__call", s.NewFunction(iterateRequestCookie(f)))
+				s.SetMetatable(cookie, mt)
+			}
+			ret = cookie
 		case "outgoing_host":
 			ret = lua.LString(f.OutgoingHost())
 		case "backend_url":
@@ -580,6 +590,39 @@ func iterateRequestHeader(f filters.FilterContext) func(*lua.LState) int {
 	}
 }
 
+func getRequestCookie(f filters.FilterContext) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		k := s.ToString(-1)
+		c, err := f.Request().Cookie(k)
+		if err == nil {
+			s.Push(lua.LString(c.Value))
+			return 1
+		}
+		return 0
+	}
+}
+
+func iterateRequestCookie(f filters.FilterContext) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		s.Push(s.NewFunction(nextCookie(f.Request().Cookies())))
+		return 1
+	}
+}
+
+func nextCookie(cookies []*http.Cookie) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		if len(cookies) > 0 {
+			c := cookies[0]
+			s.Push(lua.LString(c.Name))
+			s.Push(lua.LString(c.Value))
+			cookies[0] = nil // mind peace
+			cookies = cookies[1:]
+			return 2
+		}
+		return 0
+	}
+}
+
 func getResponseHeader(f filters.FilterContext) func(*lua.LState) int {
 	return func(s *lua.LState) int {
 		hdr := s.ToString(-1)
@@ -711,6 +754,13 @@ func getPathParam(f filters.FilterContext) func(*lua.LState) int {
 			s.Push(lua.LString(p))
 			return 1
 		}
+		return 0
+	}
+}
+
+func unsupported(message string) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		s.RaiseError(message)
 		return 0
 	}
 }
