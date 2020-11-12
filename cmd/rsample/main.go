@@ -29,6 +29,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -48,10 +49,10 @@ type (
 	histogramSlice []*histogram
 )
 
-func (h histogram) Count() int                 { return len(h.v) }
-func (h histogram) Min() int64                 { return h.v[0] }
-func (h histogram) Max() int64                 { return h.v[len(h.v)-1] }
-func (h histogram) Percentile(p float64) int64 { return h.v[int(math.Floor(p*float64(len(h.v))))] }
+func (h *histogram) Count() int                 { return len(h.v) }
+func (h *histogram) Min() int64                 { return h.v[0] }
+func (h *histogram) Max() int64                 { return h.v[len(h.v)-1] }
+func (h *histogram) Percentile(p float64) int64 { return h.v[int(math.Floor(p*float64(len(h.v))))] }
 
 func (hs histogramSlice) Len() int           { return len(hs) }
 func (hs histogramSlice) Swap(i, j int)      { hs[i], hs[j] = hs[j], hs[i] }
@@ -60,10 +61,11 @@ func (hs histogramSlice) Less(i, j int) bool { return hs[i].Count() > hs[j].Coun
 func main() {
 	urlList := flag.String("swarm-redis-urls", "", "Redis URLs as comma separated list")
 	samples := flag.Int("samples", 0, "Number of random keys to check")
+	threads := flag.Int("threads", 1, "Number of threads to use for sampling")
 	flag.Parse()
 
 	urls := strings.Split(*urlList, ",")
-	if urls[0] == "" || *samples < 0 {
+	if urls[0] == "" || *samples < 0 || *threads < 1 {
 		usage()
 	}
 
@@ -75,7 +77,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	histograms := measure(ctx, ring, *samples)
+	histograms := measure(ctx, ring, *samples, *threads)
 
 	report(keyspaces, histograms)
 }
@@ -116,32 +118,46 @@ func keyspaces(ctx context.Context, ring *redis.Ring) (result []keyspace, err er
 	return
 }
 
-func measure(ctx context.Context, ring *redis.Ring, samples int) (hs histogramSlice) {
-	hm := make(map[string]*histogram)
-	for i := 0; i < samples; i++ {
-		key := ring.RandomKey(ctx).Val()
+func measure(ctx context.Context, ring *redis.Ring, samples int, threads int) (hs histogramSlice) {
+	var maps []map[string][]int64
+	var wg sync.WaitGroup
 
-		group, ok := group(key)
-		if !ok {
-			// ignore unrecognized keys
-			continue
-		}
+	for i := 0; i < threads; i++ {
+		m := make(map[string][]int64)
+		maps = append(maps, m)
 
-		count, err := ring.ZCard(ctx, key).Result()
-		if err != nil {
-			continue
-		}
+		wg.Add(1)
+		go func() {
+			for j := 0; j < samples/threads; j++ {
+				key := ring.RandomKey(ctx).Val()
 
-		h, ok := hm[group]
-		if !ok {
-			h = &histogram{group, nil}
-			hm[group] = h
-		}
-		h.v = append(h.v, count)
+				group, ok := group(key)
+				if !ok {
+					// ignore unrecognized keys
+					continue
+				}
+
+				count, err := ring.ZCard(ctx, key).Result()
+				if err != nil {
+					continue
+				}
+				m[group] = append(m[group], count)
+			}
+			wg.Done()
+		}()
 	}
-	for _, h := range hm {
-		sort.Slice(h.v, func(i, j int) bool { return h.v[i] < h.v[j] })
-		hs = append(hs, h)
+	wg.Wait()
+
+	combined := make(map[string][]int64)
+	for _, m := range maps {
+		for group, counts := range m {
+			combined[group] = append(combined[group], counts...)
+		}
+	}
+
+	for group, counts := range combined {
+		sort.Slice(counts, func(i, j int) bool { return counts[i] < counts[j] })
+		hs = append(hs, &histogram{group, counts})
 	}
 	sort.Sort(hs)
 	return
