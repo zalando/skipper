@@ -11,7 +11,7 @@ import (
 )
 
 type RouteGroupList struct {
-	Items []*RouteGroupItem `json:"items"`
+	Items []*RouteGroupItem `json:"items" yaml:"items"`
 }
 
 type RouteGroupItem struct {

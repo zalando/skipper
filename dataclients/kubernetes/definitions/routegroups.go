@@ -112,10 +112,10 @@ type skipperBackendParser struct {
 	Endpoints []string `json:"endpoints"`
 
 	// ServiceName is required for Type service
-	ServiceName string `json:"serviceName"`
+	ServiceName string `json:"serviceName" yaml:"serviceName"`
 
 	// ServicePort is required for Type service
-	ServicePort int `json:"servicePort"`
+	ServicePort int `json:"servicePort" yaml:"servicePort"`
 }
 
 type BackendReference struct {
@@ -139,7 +139,7 @@ type RouteSpec struct {
 
 	// Backends specifies the list of backendReference that should
 	// be applied to override the defaultBackends
-	Backends []*BackendReference `json:"backends,omitempty"`
+	Backends []*BackendReference `json:"backends,omitempty" yaml:",omitempty"`
 
 	// Filters specifies the list of filters applied to the RouteSpec
 	Filters []string `json:"filters,omitempty" yaml:",omitempty"`
@@ -254,17 +254,44 @@ func (sb *SkipperBackend) validate() error {
 	return nil
 }
 
-// UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
-func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
-	if sb == nil {
-		return nil
+func (sb *SkipperBackend) marshalObject() interface{} {
+	m := make(map[string]interface{})
+	m["name"] = sb.Name
+	if sb.Type == ServiceBackend {
+		m["type"] = "service"
+	} else {
+		m["type"] = sb.Type.String()
 	}
 
-	var p skipperBackendParser
-	if err := json.Unmarshal(value, &p); err != nil {
-		return err
+	if sb.Address != "" {
+		m["address"] = sb.Address
 	}
 
+	if sb.ServiceName != "" {
+		m["serviceName"] = sb.ServiceName
+	}
+
+	if sb.Type == ServiceBackend {
+		m["servicePort"] = sb.ServicePort
+	}
+
+	if sb.Type == eskip.LBBackend {
+		m["algorithm"] = sb.Algorithm.String()
+	}
+
+	if len(sb.Endpoints) > 0 {
+		m["endpoints"] = sb.Endpoints
+	}
+
+	return m
+}
+
+func (sb *SkipperBackend) MarshalJSON() ([]byte, error) {
+	o := sb.marshalObject()
+	return json.Marshal(o)
+}
+
+func backendFromParser(p skipperBackendParser) SkipperBackend {
 	var perr error
 	bt, err := backendTypeFromString(p.Type)
 	if err != nil {
@@ -282,7 +309,7 @@ func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
 		perr = err
 	}
 
-	if a == loadbalancer.None {
+	if a == loadbalancer.None && (bt == eskip.LBBackend || bt == ServiceBackend) {
 		a = loadbalancer.RoundRobin
 	}
 
@@ -295,8 +322,17 @@ func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
 	b.Algorithm = a
 	b.Endpoints = p.Endpoints
 	b.parseError = perr
+	return b
+}
 
-	*sb = b
+// UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
+func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
+	var p skipperBackendParser
+	if err := json.Unmarshal(value, &p); err != nil {
+		return err
+	}
+
+	*sb = backendFromParser(p)
 	return nil
 }
 
@@ -330,6 +366,16 @@ func (sb *SkipperBackend) MarshalYAML() (interface{}, error) {
 	}
 
 	return m, nil
+}
+
+func (sb *SkipperBackend) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var p skipperBackendParser
+	if err := unmarshal(&p); err != nil {
+		return err
+	}
+
+	*sb = backendFromParser(p)
+	return nil
 }
 
 func (rg *RouteGroupSpec) UniqueHosts() []string {
