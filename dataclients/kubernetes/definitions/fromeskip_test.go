@@ -129,11 +129,11 @@ func expectNumberOfBackendNamesAndTypes(nameCount, typeCount int) func(
 
 func TestFromEskip(t *testing.T) {
 	for _, test := range []struct {
-		title     string
-		eskip     string
-		routes    []*eskip.Route
-		expect    string
-		expectErr bool
+		title      string
+		eskip      string
+		routes     []*eskip.Route
+		expect     string
+		expectErr  bool
 		expectFunc func(*testing.T, *RouteGroupItem, error)
 	}{{
 		title:  "no routes",

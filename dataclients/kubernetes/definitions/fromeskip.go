@@ -133,7 +133,7 @@ func FromEskip(r []*eskip.Route) (*RouteGroupItem, error) {
 
 	var (
 		defaultBackend string
-		maxRefs int
+		maxRefs        int
 	)
 
 	for name, refs := range backendReferences {
