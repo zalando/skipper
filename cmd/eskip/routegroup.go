@@ -47,6 +47,10 @@ func routeGroupCmd(a cmdArgs) error {
 		return err
 	}
 
+	if len(lr.parseErrors) > 0 {
+		return errInvalidRouteExpression
+	}
+
 	rg, err := definitions.FromEskip(lr.routes)
 	if err != nil {
 		return err
@@ -71,10 +75,6 @@ func routeGroupCmd(a cmdArgs) error {
 
 	if _, err := stdout.Write(b); err != nil {
 		return err
-	}
-
-	if len(lr.parseErrors) > 0 {
-		return invalidRouteExpression
 	}
 
 	return nil
