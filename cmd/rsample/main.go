@@ -59,15 +59,20 @@ func (hs histogramSlice) Swap(i, j int)      { hs[i], hs[j] = hs[j], hs[i] }
 func (hs histogramSlice) Less(i, j int) bool { return hs[i].Count() > hs[j].Count() }
 
 func main() {
-	urlList := flag.String("swarm-redis-urls", "", "Redis URLs as comma separated list")
-	samples := flag.Int("samples", 0, "Number of random keys to check")
-	threads := flag.Int("threads", 1, "Number of threads to use for sampling")
+	var urlList string
+	var samples, threads int
+
+	flag.StringVar(&urlList, "swarm-redis-urls", "", "Redis URLs as comma separated list")
+	flag.IntVar(&samples, "samples", 0, "Number of random keys to check, skip sampling if zero")
+	flag.IntVar(&threads, "threads", 1, "Number of threads to use for sampling")
 	flag.Parse()
 
-	urls := strings.Split(*urlList, ",")
-	if urls[0] == "" || *samples < 0 || *threads < 1 {
-		usage()
-	}
+	urls := strings.Split(urlList, ",")
+
+	check(urls[0] != "", "Redis URLs are missing")
+	check(samples >= 0, "samples can't be negative")
+	check(threads > 0, "threads must be positive")
+	check(samples == 0 || samples >= threads, "samples can't be less than threads")
 
 	ctx := context.Background()
 	ring := newRing(urls)
@@ -78,15 +83,21 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	histograms := measure(sampler(ctx, ring), *samples, *threads)
+	var histograms histogramSlice
+	if samples > 0 {
+		histograms = measure(sampler(ctx, ring), samples, threads)
+	}
 
 	report(keyspaces, histograms)
 }
 
-func usage() {
-	fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-	flag.PrintDefaults()
-	os.Exit(1)
+func check(cond bool, message string) {
+	if !cond {
+		fmt.Fprintln(os.Stderr, message)
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
 }
 
 func newRing(urls []string) *redis.Ring {
