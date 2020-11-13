@@ -10,10 +10,14 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-const fromEskipExpectNoRoutes = `metadata: {}
+const fromEskipExpectNoRoutes = `apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata: {}
 spec: {}`
 
-const fromEskipEmptyShunt = `metadata: {}
+const fromEskipEmptyShunt = `apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata: {}
 spec:
   backends:
   - name: backend0
@@ -22,7 +26,9 @@ spec:
   - backends:
     - backendName: backend0`
 
-const fromEskipExpectNotCanonical = `metadata: {}
+const fromEskipExpectNotCanonical = `apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata: {}
 spec:
   backends:
   - name: backend0
@@ -33,7 +39,9 @@ spec:
     predicates:
     - Header("X-Test", "foo")`
 
-const fromEskipServiceBackend = `metadata: {}
+const fromEskipServiceBackend = `apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata: {}
 spec:
   backends:
   - name: backend0
@@ -43,7 +51,9 @@ spec:
   - backends:
     - backendName: backend0`
 
-const fromEskipPredicatesAndFilters = `metadata: {}
+const fromEskipPredicatesAndFilters = `apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata: {}
 spec:
   backends:
   - name: backend0

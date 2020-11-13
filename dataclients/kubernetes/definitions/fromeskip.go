@@ -23,6 +23,8 @@ func FromEskip(r []*eskip.Route) (*RouteGroupItem, error) {
 	}
 
 	var rg RouteGroupItem
+	rg.APIVersion = "zalando.org/v1"
+	rg.Kind = "RouteGroup"
 	rg.Metadata = &Metadata{}
 	rg.Spec = &RouteGroupSpec{}
 	backendNames := make(map[string]string)
