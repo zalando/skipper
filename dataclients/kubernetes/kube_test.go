@@ -320,39 +320,6 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	}
 }
 
-func checkRoutesDoc(t *testing.T, r []*eskip.Route, expect string) {
-	expectRoutes, err := eskip.Parse(expect)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	checkRoutesExact(t, r, expectRoutes)
-}
-
-func checkRoutesExact(t *testing.T, r []*eskip.Route, expect []*eskip.Route) {
-	if len(r) != len(expect) {
-		t.Error("length doesn't match")
-		t.Log("got:     ", len(r))
-		t.Log("expected:", len(expect))
-		return
-	}
-
-	for i := range r {
-		var found bool
-		for j := range expect {
-			if r[i].Id == expect[j].Id && r[i].String() == expect[j].String() {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			t.Errorf("route not found: %s: %v", r[i].Id, r[i])
-			return
-		}
-	}
-}
-
 func checkIDs(t *testing.T, got []string, expected ...string) {
 	if len(got) != len(expected) {
 		t.Errorf("number of IDs %d doesn't match expected %d", len(got), len(expected))
