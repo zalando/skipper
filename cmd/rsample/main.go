@@ -77,7 +77,8 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	histograms := measure(ctx, ring, *samples, *threads)
+
+	histograms := measure(sampler(ctx, ring), *samples, *threads)
 
 	report(keyspaces, histograms)
 }
@@ -118,7 +119,27 @@ func keyspaces(ctx context.Context, ring *redis.Ring) (result []keyspace, err er
 	return
 }
 
-func measure(ctx context.Context, ring *redis.Ring, samples int, threads int) (hs histogramSlice) {
+func sampler(ctx context.Context, ring *redis.Ring) func() (group string, count int64, ok bool) {
+	return func() (string, int64, bool) {
+		key, err := ring.RandomKey(ctx).Result()
+		if err != nil {
+			return "", 0, false
+		}
+
+		parts := strings.Split(key, ".")
+		if len(parts) < 3 || parts[0] != "ratelimit" {
+			return "", 0, false
+		}
+
+		count, err := ring.ZCard(ctx, key).Result()
+		if err != nil {
+			return "", 0, false
+		}
+		return parts[1], count, true
+	}
+}
+
+func measure(sample func() (group string, count int64, ok bool), samples int, threads int) (hs histogramSlice) {
 	var maps []map[string][]int64
 	var wg sync.WaitGroup
 
@@ -129,16 +150,8 @@ func measure(ctx context.Context, ring *redis.Ring, samples int, threads int) (h
 		wg.Add(1)
 		go func() {
 			for j := 0; j < samples/threads; j++ {
-				key := ring.RandomKey(ctx).Val()
-
-				group, ok := group(key)
+				group, count, ok := sample()
 				if !ok {
-					// ignore unrecognized keys
-					continue
-				}
-
-				count, err := ring.ZCard(ctx, key).Result()
-				if err != nil {
 					continue
 				}
 				m[group] = append(m[group], count)
@@ -161,14 +174,6 @@ func measure(ctx context.Context, ring *redis.Ring, samples int, threads int) (h
 	}
 	sort.Sort(hs)
 	return
-}
-
-func group(key string) (string, bool) {
-	parts := strings.Split(key, ".")
-	if len(parts) < 3 || parts[0] != "ratelimit" {
-		return "", false
-	}
-	return parts[1], true
 }
 
 func report(keyspaces []keyspace, histograms histogramSlice) {
