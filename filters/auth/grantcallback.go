@@ -24,9 +24,10 @@ func (s grantCallbackSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	return grantCallbackFilter(s), nil
 }
 
-func (f grantCallbackFilter) exchangeAccessToken(code string) (*oauth2.Token, error) {
+func (f grantCallbackFilter) exchangeAccessToken(code string, redirectURI string) (*oauth2.Token, error) {
 	ctx := providerContext(f.config)
-	return f.config.oauthConfig.Exchange(ctx, code)
+	params := f.config.GetAuthURLParameters(redirectURI)
+	return f.config.GetConfig().Exchange(ctx, code, params...)
 }
 
 func (f grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
@@ -48,18 +49,27 @@ func (f grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 	state, err := f.config.flowState.extractState(queryState)
 	if err != nil {
 		log.Errorf("Error when extracting flow state: %v.", err)
-		serverError(ctx)
+
+		if err == errExpiredAuthState {
+			// The login flow state expired. Instead of just returning an
+			// error, restart the login process with the original request
+			// URL.
+			loginRedirectWithOverride(ctx, f.config, state.RequestURL)
+		} else {
+			serverError(ctx)
+		}
 		return
 	}
 
-	token, err := f.exchangeAccessToken(code)
+	redirectURI, _ := f.config.RedirectURLs(req)
+	token, err := f.exchangeAccessToken(code, redirectURI)
 	if err != nil {
 		log.Errorf("Error when exchanging access token: %v.", err)
 		serverError(ctx)
 		return
 	}
 
-	c, err := createCookie(f.config, req.Host, token)
+	c, err := CreateCookie(f.config, req.Host, token)
 	if err != nil {
 		log.Errorf("Error while creating OAuth grant cookie: %v.", err)
 		serverError(ctx)
