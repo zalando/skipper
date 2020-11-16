@@ -2,7 +2,12 @@ package auth
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
+	"regexp"
+	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
@@ -14,7 +19,6 @@ type OAuthConfig struct {
 	initialized bool
 	initErr     error
 	flowState   *flowState
-	oauthConfig *oauth2.Config
 
 	// TokeninfoURL is the URL of the service to validate OAuth2 tokens.
 	TokeninfoURL string
@@ -39,17 +43,31 @@ type OAuthConfig struct {
 	CallbackPath string
 
 	// ClientID, the OAuth2 client id of the current service, used to exchange
-	// the access code.
+	// the access code. Must be set if ClientIDFile is not provided.
 	ClientID string
 
 	// ClientSecret, the secret associated with the ClientID, used to exchange
-	// the access code.
+	// the access code. Must be set if ClientSecretFile is not provided.
 	ClientSecret string
+
+	// ClientIDFile, the path to the file containing the OAuth2 client id of
+	// the current service, used to exchange the access code. Must be set if
+	// ClientID is not provided.
+	ClientIDFile string
+
+	// ClientSecretFile, the path to the file containing the secret associated
+	// with the ClientID, used to exchange the access code. Must be set if
+	// ClientSecret is not provided.
+	ClientSecretFile string
+
+	// SecretsProvider is used to read client ID and secret values from the
+	// file system. Supports secret rotation.
+	SecretsProvider secrets.SecretsProvider
 
 	// TokeninfoClient, optional. When set, it will be used for the
 	// authorization requests to TokeninfoURL. When not set, a new default
 	// client is created.
-	TokeninfoClient *net.Client
+	TokeninfoClient *authClient
 
 	// AuthClient, optional. When set, it will be used for the
 	// access code exchange requests to TokenURL. When not set, a new default
@@ -58,6 +76,35 @@ type OAuthConfig struct {
 
 	// DisableRefresh prevents refreshing the token.
 	DisableRefresh bool
+
+	// AuthURLParameters, optional. Extra URL parameters to add when calling
+	// the OAuth2 authorize or token endpoints.
+	AuthURLParameters map[string]string
+
+	// AccessTokenHeaderName, optional. When set, the access token will be set
+	// on the request to a header with this name.
+	AccessTokenHeaderName string
+
+	// TokeninfoSubjectKey, optional. When set, it is used to look up the subject
+	// ID in the tokeninfo map received from a tokeninfo endpoint request.
+	TokeninfoSubjectKey string
+
+	// TokenCookieName, optional. The name of the cookie used to store the
+	// encrypted access token after a successful token exchange.
+	TokenCookieName string
+
+	// TokenCookieRegexp compiled regexp used to search for the token cookie in
+	// a Cookie header.
+	TokenCookieRegexp *regexp.Regexp
+
+	// ConnectionTimeout used for tokeninfo endpoint.
+	ConnectionTimeout time.Duration
+
+	// MaxIdleConnectionsPerHost used for tokeninfo endpoint.
+	MaxIdleConnectionsPerHost int
+
+	// Tracer used for tokeninfo endpoint.
+	Tracer opentracing.Tracer
 }
 
 var (
@@ -94,12 +141,12 @@ func (c *OAuthConfig) init() error {
 		return c.initErr
 	}
 
-	if c.ClientID == "" {
+	if c.ClientID == "" && c.ClientIDFile == "" {
 		c.initErr = ErrMissingClientID
 		return c.initErr
 	}
 
-	if c.ClientSecret == "" {
+	if c.ClientSecret == "" && c.ClientSecretFile == "" {
 		c.initErr = ErrMissingClientSecret
 		return c.initErr
 	}
@@ -108,8 +155,28 @@ func (c *OAuthConfig) init() error {
 		c.CallbackPath = defaultCallbackPath
 	}
 
+	if c.TokenCookieName == "" {
+		c.TokenCookieName = defaultTokenCookieName
+	}
+
+	re, err := regexp.Compile(fmt.Sprint(c.TokenCookieName, "=[^;]+[;]?[[:blank:]]*"))
+	if err != nil {
+		return err
+	}
+	c.TokenCookieRegexp = re
+
 	if c.TokeninfoClient == nil {
-		c.TokeninfoClient = net.NewClient(net.Options{})
+		client, err := newAuthClient(
+			c.TokeninfoURL,
+			"granttokeninfo",
+			c.ConnectionTimeout,
+			c.MaxIdleConnectionsPerHost,
+			c.Tracer,
+		)
+		if err != nil {
+			return err
+		}
+		c.TokeninfoClient = client
 	}
 
 	if c.AuthClient == nil {
@@ -117,13 +184,13 @@ func (c *OAuthConfig) init() error {
 	}
 
 	c.flowState = newFlowState(c.Secrets, c.SecretFile)
-	c.oauthConfig = &oauth2.Config{
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  c.AuthURL,
-			TokenURL: c.TokenURL,
-		},
-		ClientID:     c.ClientID,
-		ClientSecret: c.ClientSecret,
+
+	if c.ClientIDFile != "" {
+		c.SecretsProvider.Add(c.ClientIDFile)
+	}
+
+	if c.ClientSecretFile != "" {
+		c.SecretsProvider.Add(c.ClientSecretFile)
 	}
 
 	c.initialized = true
@@ -146,10 +213,96 @@ func (c *OAuthConfig) NewGrantCallback() (filters.Spec, error) {
 	return &grantCallbackSpec{config: *c}, nil
 }
 
+func (c *OAuthConfig) NewGrantClaimsQuery() (filters.Spec, error) {
+	if err := c.init(); err != nil {
+		return nil, err
+	}
+
+	return &grantClaimsQuerySpec{
+		oidcSpec: oidcIntrospectionSpec{
+			typ: checkOIDCQueryClaims,
+		},
+	}, nil
+}
+
 func (c *OAuthConfig) NewGrantPreprocessor() (routing.PreProcessor, error) {
 	if err := c.init(); err != nil {
 		return nil, err
 	}
 
 	return grantPrep{config: *c}, nil
+}
+
+func (c *OAuthConfig) GetConfig() *oauth2.Config {
+	return &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  c.AuthURL,
+			TokenURL: c.TokenURL,
+		},
+		ClientID:     c.GetClientID(),
+		ClientSecret: c.GetClientSecret(),
+	}
+}
+
+func (c *OAuthConfig) GetAuthURLParameters(redirectURI string) []oauth2.AuthCodeOption {
+	params := []oauth2.AuthCodeOption{oauth2.SetAuthURLParam("redirect_uri", redirectURI)}
+
+	if c.AuthURLParameters != nil {
+		for k, v := range c.AuthURLParameters {
+			params = append(params, oauth2.SetAuthURLParam(k, v))
+		}
+	}
+
+	return params
+}
+
+func (c *OAuthConfig) GetClientID() string {
+	if c.ClientID != "" {
+		return c.ClientID
+	}
+
+	if id, exists := c.SecretsProvider.GetSecret(c.ClientIDFile); exists {
+		return string(id)
+	}
+
+	return ""
+}
+
+func (c *OAuthConfig) GetClientSecret() string {
+	if c.ClientSecret != "" {
+		return c.ClientSecret
+	}
+
+	if secret, exists := c.SecretsProvider.GetSecret(c.ClientSecretFile); exists {
+		return string(secret)
+	}
+
+	return ""
+}
+
+// RedirectURLs constructs the redirect URI based on the request and the
+// configured CallbackPath.
+func (c OAuthConfig) RedirectURLs(req *http.Request) (redirect, original string) {
+	u := *req.URL
+
+	if fp := req.Header.Get("X-Forwarded-Proto"); fp != "" {
+		u.Scheme = fp
+	} else if req.TLS != nil {
+		u.Scheme = "https"
+	} else {
+		u.Scheme = "http"
+	}
+
+	if fh := req.Header.Get("X-Forwarded-Host"); fh != "" {
+		u.Host = fh
+	} else {
+		u.Host = req.Host
+	}
+
+	original = u.String()
+
+	u.Path = c.CallbackPath
+	u.RawQuery = ""
+	redirect = u.String()
+	return
 }

@@ -33,7 +33,7 @@ func newFlowState(secrets *secrets.Registry, secretsFile string) *flowState {
 }
 
 func stateValidityTime() int64 {
-	return time.Now().Add(time.Minute).Unix()
+	return time.Now().Add(time.Hour).Unix()
 }
 
 func (s *flowState) createState(redirectURL string) (string, error) {

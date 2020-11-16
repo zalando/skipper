@@ -1084,6 +1084,98 @@ forwardToken("X-Tokeninfo-Forward")
 forwardToken("X-Tokeninfo-Forward", "access_token")
 ```
 
+## oauthGrant
+
+Enables authentication and authorization with an OAuth2 authorization code grant flow.
+Automatically redirects unauthenticated users to log in at their provider's authorization
+endpoint. Supports token refreshing and stores access and refresh tokens in an encrypted
+cookie. Supports credential rotation for the OAuth2 client ID and secret.
+
+The filter consumes and drops the grant token request cookie to prevent it from leaking
+to untrusted downstream services.
+
+The filter must be used in conjuction with the [grantCallback](#grantCallback) filter
+where the OAuth2 provider can redirect authenticated users with an authorization code.
+
+The filter may be used with the [grantClaimsQuery](#grantClaimsQuery) filter to perform
+authz and access control.
+
+See the [tutorial](../tutorials/auth.md#oauth2-authorization-grant-flow) for step-by-step 
+instructions.
+
+Examples:
+
+```
+callback:
+    Path("/oauth/callback")
+    -> grantCallback()
+    -> <shunt>;
+
+all:
+    *
+    -> oauthGrant()
+    -> "http://localhost:9090";
+```
+
+Program arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-enable-oauth2-grant-flow` | **yes** | toggle flag to enable the `oauthGrant()` filter. Must be set if you use the filter in routes. Example: `-enable-oauth2-grant-flow` |
+| `-oauth2-auth-url` | **yes** | URL of the OAuth2 provider's authorize endpoint. Example: `-oauth2-auth-url=https://identity.example.com/oauth2/authorize` |
+| `-oauth2-token-url` | **yes** | URL of the OAuth2 provider's token endpoint. Example: `-oauth2-token-url=https://identity.example.com/oauth2/token` |
+| `-oauth2-tokeninfo-url` | **yes** | URL of the OAuth2 provider's tokeninfo endpoint. Example: `-oauth2-tokeninfo-url=https://identity.example.com/oauth2/tokeninfo` |
+| `-oauth2-callback-path` | **yes** | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
+| `-oauth2-secret-file` | **yes** | path to the file containing the secret for encrypting and decrypting the grant token cookie (the secret can be anything). Example: `-oauth2-secret-file=/path/to/secret` |
+| `-oauth2-client-id-file` | conditional | path to the file containing the OAuth2 client ID. Required if you have not set `-oauth2-client-id`. Example: `-oauth2-client-id-file=/path/to/client_id` |
+| `-oauth2-client-secret-file` | conditional | path to the file containing the OAuth2 client secret. Required if you have not set `-oauth2-client-secret`. Example: `-oauth2-client-secret-file=/path/to/client_secret` |
+| `-oauth2-client-id` | conditional | OAuth2 client ID for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-id-file`. Example: `-oauth2-client-id=myclientid` |
+| `-oauth2-client-secret` | conditional | OAuth2 client secret for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-secret-file`. Example: `-oauth2-client-secret=myclientsecret` |
+| `-credentials-paths` | conditional | path to the directories containing the cookie encryption secret client ID, and client secret files. Required if you want Skipper to automatically update the secrets periodically. Example: `-credentials-paths=/path/to/secrets/,/path/to/othersecrets/` |
+| `-credentials-update-interval` | no | the time interval for updating credentials from files. Example: `-credentials-update-interval=30s` |
+| `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Default: `Authorization`. Example: `-oauth2-access-token-header-name=X-Grant-Authorization` |
+| `-oauth2-auth-url-parameters` | no | any additional URL query parameters to set for the OAuth2 provider's authorize and token endpoint calls. Example: `-oauth2-auth-url-parameters=key1=foo,key2=bar` |
+| `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`.  Example: `-oauth2-token-cookie-name=SESSION` |
+
+## grantCallback
+
+The filter accepts authorization codes as a result of an OAuth2 authorization code grant
+flow triggered by [oauthGrant](#oauthGrant). It uses the code to request access and
+refresh tokens from the OAuth2 provider's token endpoint.
+
+Examples:
+
+```
+grantCallback()
+```
+
+Program arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-oauth2-callback-path` | **yes** | path of the Skipper route containing the `grantCallback()` filter. Example: `-oauth2-callback-path=/oauth/callback` |
+
+## grantClaimsQuery
+
+The filter allows defining access control rules based on claims in a tokeninfo JSON
+payload.
+
+This filter is an alias for `oidcClaimsQuery` and functions identically to it.
+See [oidcClaimsQuery](#oidcClaimsQuery) for more information.
+
+Examples:
+
+```
+oauthGrant() -> grantClaimsQuery("/path:@_:sub%\"userid\"")
+oauthGrant() -> grantClaimsQuery("/path:scope.#[==\"email\"]")
+```
+
+Program arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-oauth2-tokeninfo-subject-key` | **yes** | the key of the attribute containing the OAuth2 subject ID in the OAuth2 provider's tokeninfo JSON payload. Default: `uid`. Example: `-oauth2-tokeninfo-subject-key=sub` |
+
 ## oauthOidcUserInfo
 
 ```

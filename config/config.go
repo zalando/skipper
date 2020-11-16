@@ -150,8 +150,14 @@ type Config struct {
 	Oauth2SecretFile                string        `yaml:"oauth2-secret-file"`
 	Oauth2ClientID                  string        `yaml:"oauth2-client-id"`
 	Oauth2ClientSecret              string        `yaml:"oauth2-client-secret"`
+	Oauth2ClientIDFile              string        `yaml:"oauth2-client-id-file"`
+	Oauth2ClientSecretFile          string        `yaml:"oauth2-client-secret-file"`
+	Oauth2AuthURLParameters         mapFlags      `yaml:"oauth2-auth-url-parameters"`
 	Oauth2CallbackPath              string        `yaml:"oauth2-callback-path"`
 	Oauth2TokenintrospectionTimeout time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
+	Oauth2AccessTokenHeaderName     string        `yaml:"oauth2-access-token-header-name"`
+	Oauth2TokeninfoSubjectKey       string        `yaml:"oauth2-tokeninfo-subject-key"`
+	Oauth2TokenCookieName           string        `yaml:"oauth2-token-cookie-name"`
 	WebhookTimeout                  time.Duration `yaml:"webhook-timeout"`
 	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
 	CredentialPaths                 *listFlag     `yaml:"credentials-paths"`
@@ -363,8 +369,14 @@ const (
 	oauth2SecretFileUsage                = "sets the filename with the encryption key for the authentication cookie and grant flow state stored in secrets registry"
 	oauth2ClientIDUsage                  = "sets the OAuth2 client id of the current service, used to exchange the access code"
 	oauth2ClientSecretUsage              = "sets the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code"
+	oauth2ClientIDFileUsage              = "sets the path of the file containing the OAuth2 client id of the current service, used to exchange the access code"
+	oauth2ClientSecretFileUsage          = "sets the path of the file containing the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code"
 	oauth2CallbackPathUsage              = "sets the path where the OAuth2 callback requests with the authorization code should be redirected to"
 	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
+	oauth2AuthURLParametersUsage         = "sets additional parameters to send when calling the OAuth2 authorize or token endpoints as key-value pairs"
+	oauth2AccessTokenHeaderNameUsage     = "sets the access token to a header on the request with this name"
+	oauth2TokeninfoSubjectKeyUsage       = "the key containing the subject ID in the tokeninfo map"
+	oauth2TokenCookieNameUsage           = "sets the name of the cookie where the encrypted token is stored"
 	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 	credentialPathsUsage                 = "directories or files to watch for credentials to use by bearerinjector filter"
@@ -555,9 +567,15 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.Oauth2SecretFile, "oauth2-secret-file", "", oauth2SecretFileUsage)
 	flag.StringVar(&cfg.Oauth2ClientID, "oauth2-client-id", "", oauth2ClientIDUsage)
 	flag.StringVar(&cfg.Oauth2ClientSecret, "oauth2-client-secret", "", oauth2ClientSecretUsage)
+	flag.StringVar(&cfg.Oauth2ClientIDFile, "oauth2-client-id-file", "", oauth2ClientIDFileUsage)
+	flag.StringVar(&cfg.Oauth2ClientSecretFile, "oauth2-client-secret-file", "", oauth2ClientSecretFileUsage)
 	flag.StringVar(&cfg.Oauth2CallbackPath, "oauth2-callback-path", "", oauth2CallbackPathUsage)
 	flag.DurationVar(&cfg.Oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
 	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
+	flag.Var(&cfg.Oauth2AuthURLParameters, "oauth2-auth-url-parameters", oauth2AuthURLParametersUsage)
+	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", oauth2AccessTokenHeaderNameUsage)
+	flag.StringVar(&cfg.Oauth2TokeninfoSubjectKey, "oauth2-tokeninfo-subject-key", "uid", oauth2AccessTokenHeaderNameUsage)
+	flag.StringVar(&cfg.Oauth2TokenCookieName, "oauth2-token-cookie-name", "oauth2-grant", oauth2TokenCookieNameUsage)
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 	flag.Var(cfg.CredentialPaths, "credentials-paths", credentialPathsUsage)
@@ -817,8 +835,14 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuth2SecretFile:               c.Oauth2SecretFile,
 		OAuth2ClientID:                 c.Oauth2ClientID,
 		OAuth2ClientSecret:             c.Oauth2ClientSecret,
+		OAuth2ClientIDFile:             c.Oauth2ClientIDFile,
+		OAuth2ClientSecretFile:         c.Oauth2ClientSecretFile,
 		OAuth2CallbackPath:             c.Oauth2CallbackPath,
 		OAuthTokenintrospectionTimeout: c.Oauth2TokenintrospectionTimeout,
+		OAuth2AuthURLParameters:        c.Oauth2AuthURLParameters.values,
+		OAuth2AccessTokenHeaderName:    c.Oauth2AccessTokenHeaderName,
+		OAuth2TokeninfoSubjectKey:      c.Oauth2TokeninfoSubjectKey,
+		OAuth2TokenCookieName:          c.Oauth2TokenCookieName,
 		WebhookTimeout:                 c.WebhookTimeout,
 		OIDCSecretsFile:                c.OidcSecretsFile,
 		CredentialsPaths:               c.CredentialPaths.values,

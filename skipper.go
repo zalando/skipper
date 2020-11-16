@@ -629,12 +629,35 @@ type Options struct {
 	// the access code.
 	OAuth2ClientSecret string
 
+	// OAuth2ClientIDFile, the path of the file containing the OAuth2 client id of
+	// the current service, used to exchange the access code.
+	OAuth2ClientIDFile string
+
+	// OAuth2ClientSecretFile, the path of the file containing the secret associated
+	// with the ClientID, used to exchange the access code.
+	OAuth2ClientSecretFile string
+
 	// OAuth2CallbackPath contains the path where the OAuth2 callback requests with the
 	// authorization code should be redirected to.
 	OAuth2CallbackPath string
 
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
+
+	// OAuth2AuthURLParameters the additional parameters to send to OAuth2 authorize and token endpoints.
+	OAuth2AuthURLParameters map[string]string
+
+	// OAuth2AccessTokenHeaderName the name of the header to which the access token
+	// should be assigned after the oauthGrant filter.
+	OAuth2AccessTokenHeaderName string
+
+	// OAuth2TokeninfoSubjectKey the key of the subject ID attribute in the
+	// tokeninfo map. Used for downstream oidcClaimsQuery compatibility.
+	OAuth2TokeninfoSubjectKey string
+
+	// OAuth2TokenCookieName the name of the cookie that Skipper sets after a
+	// successful OAuth2 token exchange. Stores the encrypted access token.
+	OAuth2TokenCookieName string
 
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
@@ -992,7 +1015,12 @@ func initGrant(c *auth.OAuthConfig, o *Options) error {
 		return err
 	}
 
-	o.CustomFilters = append(o.CustomFilters, grant, grantCallback)
+	grantClaimsQuery, err := c.NewGrantClaimsQuery()
+	if err != nil {
+		return err
+	}
+
+	o.CustomFilters = append(o.CustomFilters, grant, grantCallback, grantClaimsQuery)
 	return nil
 }
 
@@ -1249,9 +1277,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.SecretFile = o.OAuth2SecretFile
 		oauthConfig.ClientID = o.OAuth2ClientID
 		oauthConfig.ClientSecret = o.OAuth2ClientSecret
+		oauthConfig.ClientIDFile = o.OAuth2ClientIDFile
+		oauthConfig.ClientSecretFile = o.OAuth2ClientSecretFile
 		oauthConfig.CallbackPath = o.OAuth2CallbackPath
-
+		oauthConfig.AuthURLParameters = o.OAuth2AuthURLParameters
+		oauthConfig.SecretsProvider = sp
 		oauthConfig.Secrets = secrets.NewRegistry()
+		oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
+		oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
+		oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
+		oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout
+		oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
+		oauthConfig.Tracer = tracer
 
 		if err := initGrant(oauthConfig, &o); err != nil {
 			log.Errorf("Error while initializing oauth grant filter: %v.", err)
