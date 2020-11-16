@@ -69,6 +69,8 @@ func Test_NewConfig(t *testing.T) {
 				KubernetesPathModeString:                "kubernetes-ingress",
 				Oauth2TokeninfoTimeout:                  2 * time.Second,
 				Oauth2TokenintrospectionTimeout:         2 * time.Second,
+				Oauth2TokeninfoSubjectKey:               "uid",
+				Oauth2TokenCookieName:                   "oauth2-grant",
 				WebhookTimeout:                          2 * time.Second,
 				CredentialPaths:                         commaListFlag(),
 				CredentialsUpdateInterval:               10 * time.Minute,
@@ -117,8 +119,8 @@ func Test_NewConfig(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				if cmp.Equal(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{})) == false {
-					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{})))
+				if cmp.Equal(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{})) == false {
+					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{})))
 				}
 			}
 		})
