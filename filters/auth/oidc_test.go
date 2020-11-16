@@ -795,7 +795,7 @@ func TestChunkAndMergerCookie(t *testing.T) {
 	emptyCookie.Value = ""
 	largeCookie := tinyCookie
 	for i := 0; i < 5*cookieMaxSize; i++ {
-		largeCookie.Value += fmt.Sprint(rand.Intn('Z'-'A') + 'A' + i%2*32)
+		largeCookie.Value += string(rune(rand.Intn('Z'-'A') + 'A' + i%2*32))
 	}
 	oneCookie := largeCookie
 	oneCookie.Value = oneCookie.Value[:len(oneCookie.Value)-(len(oneCookie.String())-cookieMaxSize)-1]
