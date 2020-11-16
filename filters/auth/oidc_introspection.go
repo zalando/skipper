@@ -110,7 +110,7 @@ func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 	default:
-		unauthorized(ctx, string(filter.typ), invalidClaim, r.Host, "Wrong oidcIntrospectionFilter type")
+		unauthorized(ctx, fmt.Sprint(filter.typ), invalidClaim, r.Host, "Wrong oidcIntrospectionFilter type")
 		return
 	}
 
