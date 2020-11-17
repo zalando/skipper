@@ -271,6 +271,38 @@ func TestScript(t *testing.T) {
 			},
 			expectedRequestHeader: map[string]string{"x-id": "hello"},
 		},
+		{
+			name: "get request cookie",
+			context: testContext{
+				requestHeader: map[string]string{"Cookie": "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1"},
+				script: `function request(ctx, params)
+					ctx.state_bag.PHPSESSID = ctx.request.cookie.PHPSESSID
+					ctx.state_bag.csrftoken = ctx.request.cookie.csrftoken
+					ctx.state_bag._gat = ctx.request.cookie._gat
+					ctx.state_bag.absent = ctx.request.cookie.absent
+				end`,
+			},
+			expectedStateBag: map[string]string{
+				"PHPSESSID": "298zf09hf012fh2",
+				"csrftoken": "u32t4o3tb3gg43",
+				"_gat":      "1",
+			},
+		},
+		{
+			name: "iterate request cookies",
+			context: testContext{
+				requestHeader: map[string]string{"Cookie": "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1; csrftoken=repeat"},
+				script: `function request(ctx, params)
+					ctx.state_bag.result = ""
+					for n, v in ctx.request.cookie() do
+						ctx.state_bag.result = ctx.state_bag.result .. n .. "=" .. v .. " "
+					end
+				end`,
+			},
+			expectedStateBag: map[string]string{
+				"result": "PHPSESSID=298zf09hf012fh2 csrftoken=u32t4o3tb3gg43 _gat=1 csrftoken=repeat ",
+			},
+		},
 	} {
 		log.Println("Running", test.name, "test")
 
@@ -754,4 +786,18 @@ func (f *exampleLogFormatter) Format(entry *log.Entry) ([]byte, error) {
 	b.WriteString(strings.ReplaceAll(entry.Message, "\r", `\r`))
 	b.WriteByte('\n')
 	return b.Bytes(), nil
+}
+
+const SetRequestCookieIsNotSupported = `function request(ctx, params); ctx.request.cookie["test"] = "test"; end`
+
+func ExampleSetRequestCookieIsNotSupported() {
+	runExample(&testContext{
+		script: SetRequestCookieIsNotSupported,
+	})
+	// Output:
+	// Error calling request from function request(ctx, params); ctx.request.cookie["test"] = "test"; end: <script>:1: setting cookie is not supported
+	// stack traceback:
+	// 	[G]: in function (anonymous)
+	// 	<script>:1: in main chunk
+	// 	[G]: ?
 }

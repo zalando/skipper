@@ -119,6 +119,7 @@ Response headers `ctx.response.header` work the same way - this is of course onl
 * `url_path` - (read/write) request URL path as string
 * `url_query` - (read/write) request URL query parameter table, similar to header table but returns `nil` for missing keys
 * `url_raw_query` - (read/write) encoded request URL query values, without '?' as string
+* `cookie` - (read only) request cookie table, similar to header table but returns `nil` for missing keys
 
 ## Other response fields
 
