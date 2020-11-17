@@ -97,6 +97,26 @@ func TestUseXForwarded(t *testing.T) {
 	)
 }
 
+func TestUseXForwardedList(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3, 192.168.4.4")
+	testAccessLogDefault(
+		t,
+		entry,
+		`192.168.3.3, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+	)
+}
+
+func TestUseXForwardedListLiteral(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:80, 192.168.4.4")
+	testAccessLogDefault(
+		t,
+		entry,
+		`192.168.3.3:80, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+	)
+}
+
 func TestUseXForwardedJSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3")
@@ -108,22 +128,22 @@ func TestUseXForwardedJSON(t *testing.T) {
 	)
 }
 
-func TestStripPortFwd4(t *testing.T) {
+func TestPortFwd4(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3:6969 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
 	)
 }
 
-func TestStripPortFwd4JSON(t *testing.T) {
+func TestPortFwd4JSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
 	testAccessLog(
 		t, entry,
-		`{"audit":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"","duration":42,"flow-id":"","host":"192.168.3.3:6969","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
