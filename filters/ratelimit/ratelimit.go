@@ -6,6 +6,7 @@ For detailed documentation of the ratelimit, see https://godoc.org/github.com/za
 package ratelimit
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -15,24 +16,51 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
-// RetryAfterKey is used as key in the context state bag
-const RetryAfterKey = "#ratelimitretryafter"
-
-// RouteSettingsKey is used as key in the context state bag
-const RouteSettingsKey = "#ratelimitsettings"
-
 type spec struct {
 	typ        ratelimit.RatelimitType
+	provider   RatelimitProvider
 	filterName string
 }
 
 type filter struct {
 	settings ratelimit.Settings
+	provider RatelimitProvider
+}
+
+// RatelimitProvider returns a limit instance for provided Settings
+type RatelimitProvider interface {
+	get(s ratelimit.Settings) limit
+}
+
+type limit interface {
+	// AllowContext is used to decide if call is allowed to pass
+	AllowContext(context.Context, string) bool
+
+	// RetryAfter is used to inform the client how many seconds it
+	// should wait before making a new request
+	RetryAfter(string) int
+}
+
+// RegistryAdapter adapts ratelimit.Registry to RateLimitProvider interface.
+// ratelimit.Registry is not an interface and its Get method returns
+// ratelimit.Ratelimit which is not an interface either
+// RegistryAdapter narrows ratelimit interfaces to necessary minimum
+// and enables easier test stubbing
+type registryAdapter struct {
+	registry *ratelimit.Registry
+}
+
+func (a *registryAdapter) get(s ratelimit.Settings) limit {
+	return a.registry.Get(s)
+}
+
+func NewRatelimitProvider(registry *ratelimit.Registry) RatelimitProvider {
+	return &registryAdapter{registry}
 }
 
 // NewLocalRatelimit is *DEPRECATED*, use NewClientRatelimit, instead
-func NewLocalRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.LocalRatelimit, filterName: ratelimit.LocalRatelimitName}
+func NewLocalRatelimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.LocalRatelimit, provider: provider, filterName: ratelimit.LocalRatelimitName}
 }
 
 // NewClientRatelimit creates a instance based client rate limit.  If
@@ -53,8 +81,8 @@ func NewLocalRatelimit() filters.Spec {
 //    login: Path("/login")
 //    -> clientRatelimit(3, "1m", "Authorization")
 //    -> "https://login.backend.net";
-func NewClientRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.ClientRatelimit, filterName: ratelimit.ClientRatelimitName}
+func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.ClientRatelimit, provider: provider, filterName: ratelimit.ClientRatelimitName}
 }
 
 // NewRatelimit creates a service rate limiting, that is
@@ -66,8 +94,8 @@ func NewClientRatelimit() filters.Spec {
 //    backendHealthcheck: Path("/healthcheck")
 //    -> ratelimit(20, "1s")
 //    -> "https://foo.backend.net";
-func NewRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.ServiceRatelimit, filterName: ratelimit.ServiceRatelimitName}
+func NewRatelimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: ratelimit.ServiceRatelimitName}
 }
 
 // NewClusterRatelimit creates a rate limiting that is aware of the
@@ -81,8 +109,8 @@ func NewRatelimit() filters.Spec {
 //    -> clusterRatelimit("groupA", 200, "1m")
 //    -> "https://foo.backend.net";
 //
-func NewClusterRateLimit() filters.Spec {
-	return &spec{typ: ratelimit.ClusterServiceRatelimit, filterName: ratelimit.ClusterServiceRatelimitName}
+func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: ratelimit.ClusterServiceRatelimitName}
 }
 
 // NewClusterClientRatelimit creates a rate limiting that is aware of
@@ -110,8 +138,8 @@ func NewClusterRateLimit() filters.Spec {
 //    -> clusterClientRatelimit("groupC", 20, "1h", "Authorization")
 //    -> "https://foo.backend.net";
 //
-func NewClusterClientRateLimit() filters.Spec {
-	return &spec{typ: ratelimit.ClusterClientRatelimit, filterName: ratelimit.ClusterClientRatelimitName}
+func NewClusterClientRateLimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.ClusterClientRatelimit, provider: provider, filterName: ratelimit.ClusterClientRatelimitName}
 }
 
 // NewDisableRatelimit disables rate limiting
@@ -121,15 +149,15 @@ func NewClusterClientRateLimit() filters.Spec {
 //    backendHealthcheck: Path("/healthcheck")
 //    -> disableRatelimit()
 //    -> "https://foo.backend.net";
-func NewDisableRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.DisableRatelimit, filterName: ratelimit.DisableRatelimitName}
+func NewDisableRatelimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.DisableRatelimit, provider: provider, filterName: ratelimit.DisableRatelimitName}
 }
 
 func (s *spec) Name() string {
 	return s.filterName
 }
 
-func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
+func serviceRatelimitFilter(args []interface{}) (*filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -154,7 +182,7 @@ func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
+func clusterRatelimitFilter(args []interface{}) (*filter, error) {
 	if len(args) != 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -185,7 +213,7 @@ func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
 	return &filter{settings: s}, nil
 }
 
-func clusterClientRatelimitFilter(args []interface{}) (filters.Filter, error) {
+func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -243,7 +271,7 @@ func getLookuper(s string) ratelimit.Lookuper {
 	}
 }
 
-func clientRatelimitFilter(args []interface{}) (filters.Filter, error) {
+func clientRatelimitFilter(args []interface{}) (*filter, error) {
 	if !(len(args) == 2 || len(args) == 3) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -288,7 +316,7 @@ func clientRatelimitFilter(args []interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func disableFilter([]interface{}) (filters.Filter, error) {
+func disableFilter([]interface{}) (*filter, error) {
 	return &filter{
 		settings: ratelimit.Settings{
 			Type: ratelimit.DisableRatelimit,
@@ -297,6 +325,14 @@ func disableFilter([]interface{}) (filters.Filter, error) {
 }
 
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	f, err := s.createFilter(args)
+	if f != nil {
+		f.provider = s.provider
+	}
+	return f, err
+}
+
+func (s *spec) createFilter(args []interface{}) (*filter, error) {
 	switch s.typ {
 	case ratelimit.ServiceRatelimit:
 		return serviceRatelimitFilter(args)
@@ -343,13 +379,30 @@ func getDurationArg(a interface{}) (time.Duration, error) {
 	return time.Duration(i) * time.Second, err
 }
 
-// Request stores the configured ratelimit.Settings in the state bag,
-// such that it can be used in the proxy to check ratelimit.
+// Request checks ratelimit using filter settings and serves `429 Too Many Requests` response if limit is reached
 func (f *filter) Request(ctx filters.FilterContext) {
-	if settings, ok := ctx.StateBag()[RouteSettingsKey].([]ratelimit.Settings); ok {
-		ctx.StateBag()[RouteSettingsKey] = append(settings, f.settings)
-	} else {
-		ctx.StateBag()[RouteSettingsKey] = []ratelimit.Settings{f.settings}
+	rateLimiter := f.provider.get(f.settings)
+	if rateLimiter == nil {
+		log.Errorf("RateLimiter is nil for settings: %s", f.settings)
+		return
+	}
+
+	if f.settings.Lookuper == nil {
+		log.Errorf("Lookuper is nil for settings: %s", f.settings)
+		return
+	}
+
+	s := f.settings.Lookuper.Lookup(ctx.Request())
+	if s == "" {
+		log.Debugf("Lookuper found no data in request for settings: %s and request: %v", f.settings, ctx.Request())
+		return
+	}
+
+	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
+		ctx.Serve(&http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s)),
+		})
 	}
 }
 

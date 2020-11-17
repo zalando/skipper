@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -420,5 +421,13 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *ring) *Ratelimit {
 	return &Ratelimit{
 		settings: s,
 		impl:     impl,
+	}
+}
+
+func Headers(s *Settings, retryAfter int) http.Header {
+	limitPerHour := int64(s.MaxHits) * int64(time.Hour) / int64(s.TimeWindow)
+	return http.Header{
+		Header:           []string{strconv.FormatInt(limitPerHour, 10)},
+		RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
 	}
 }
