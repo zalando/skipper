@@ -759,7 +759,7 @@ func TestOIDCSetup(t *testing.T) {
 				Backend: backend.URL,
 			}
 
-			proxy.Log.Reset()
+			proxy.Reset()
 			dc.Update([]*eskip.Route{r}, nil)
 			if err = proxy.Log.WaitFor("route settings applied", 1*time.Second); err != nil {
 				t.Fatalf("Failed to get update: %v", err)

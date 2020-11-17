@@ -16,9 +16,12 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/oauth"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/swarm"
@@ -149,6 +152,7 @@ type Config struct {
 	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
 	CredentialPaths                 *listFlag     `yaml:"credentials-paths"`
 	CredentialsUpdateInterval       time.Duration `yaml:"credentials-update-interval"`
+	MaskOAuthUser                   string        `yaml:"mask-oauth-user"`
 
 	// TLS client certs
 	ClientKeyFile  string            `yaml:"client-tls-key"`
@@ -240,6 +244,7 @@ const (
 	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
 	defaultWebhookTimeout                 = 2 * time.Second
 	defaultCredentialsUpdateInterval      = 10 * time.Minute
+	defaultMaskOAuthUser                  = ""
 
 	// API Monitoring
 	defaultApiUsageMonitoringRealmKeys                    = ""
@@ -355,6 +360,7 @@ const (
 	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
 	credentialPathsUsage                 = "directories or files to watch for credentials to use by bearerinjector filter"
 	credentialsUpdateIntervalUsage       = "sets the interval to update secrets"
+	maskOAuthUserUsage                   = "sets the pattern for OAuth users shich should be masked in tracing in the format <replacement>:<key>=<value>,<replacement2>:<key2>=<value2>"
 
 	// TLS client certs
 	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
@@ -541,6 +547,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
 	flag.Var(cfg.CredentialPaths, "credentials-paths", credentialPathsUsage)
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", defaultCredentialsUpdateInterval, credentialsUpdateIntervalUsage)
+	flag.StringVar(&cfg.MaskOAuthUser, "mask-oauth-user", defaultMaskOAuthUser, maskOAuthUserUsage)
 
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", clientKeyFileUsage)
@@ -663,7 +670,7 @@ func (c *Config) Parse() error {
 	return nil
 }
 
-func (c *Config) ToOptions() skipper.Options {
+func (c *Config) ToOptions() (skipper.Options, error) {
 	var eus []string
 	if len(c.EtcdUrls) > 0 {
 		eus = strings.Split(c.EtcdUrls, ",")
@@ -672,6 +679,15 @@ func (c *Config) ToOptions() skipper.Options {
 	var whitelistCIDRS []string
 	if len(c.WhitelistedHealthCheckCIDR) > 0 {
 		whitelistCIDRS = strings.Split(c.WhitelistedHealthCheckCIDR, ",")
+	}
+
+	var err error
+	var maskUser []oauth.MaskOAuthUser
+	if c.MaskOAuthUser != "" {
+		maskUser, err = auth.ParseMaskOAuthUser(c.MaskOAuthUser)
+		if err != nil {
+			return skipper.Options{}, err
+		}
 	}
 
 	options := skipper.Options{
@@ -795,6 +811,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OIDCSecretsFile:                c.OidcSecretsFile,
 		CredentialsPaths:               c.CredentialPaths.values,
 		CredentialsUpdateInterval:      c.CredentialsUpdateInterval,
+		MaskOAuthUser:                  maskUser,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,
@@ -865,7 +882,7 @@ func (c *Config) ToOptions() skipper.Options {
 		}
 	}
 
-	return options
+	return options, nil
 }
 
 func (c *Config) parseHistogramBuckets() ([]float64, error) {

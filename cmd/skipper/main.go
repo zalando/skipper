@@ -43,5 +43,9 @@ func main() {
 	}
 
 	log.SetLevel(cfg.ApplicationLogLevel)
-	log.Fatal(skipper.Run(cfg.ToOptions()))
+	options, err := cfg.ToOptions()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Fatal(skipper.Run(options))
 }

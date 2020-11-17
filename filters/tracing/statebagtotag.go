@@ -6,24 +6,29 @@ import (
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/zalando/skipper/filters"
+	logfilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/oauth"
 )
 
 const (
 	StateBagToTagFilterName = "stateBagToTag"
 )
 
-type stateBagToTagSpec struct{}
+type stateBagToTagSpec struct {
+	maskUser []oauth.MaskOAuthUser
+}
 
 type stateBagToTagFilter struct {
 	stateBagItemName string
 	tagName          string
+	maskUser         []oauth.MaskOAuthUser
 }
 
 func (stateBagToTagSpec) Name() string {
 	return StateBagToTagFilterName
 }
 
-func (stateBagToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s stateBagToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) < 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -45,11 +50,12 @@ func (stateBagToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error
 	return stateBagToTagFilter{
 		stateBagItemName: stateBagItemName,
 		tagName:          tagName,
+		maskUser:         s.maskUser,
 	}, nil
 }
 
-func NewStateBagToTag() filters.Spec {
-	return stateBagToTagSpec{}
+func NewStateBagToTag(maskUser []oauth.MaskOAuthUser) filters.Spec {
+	return stateBagToTagSpec{maskUser: maskUser}
 }
 
 func (f stateBagToTagFilter) Request(ctx filters.FilterContext) {
@@ -57,7 +63,18 @@ func (f stateBagToTagFilter) Request(ctx filters.FilterContext) {
 	if span == nil {
 		return
 	}
-	value, ok := ctx.StateBag()[f.stateBagItemName]
+
+	stateBag := ctx.StateBag()
+	if f.stateBagItemName == logfilter.AuthUserKey {
+		for _, user := range f.maskUser {
+			if replacement, ok := user(stateBag); ok {
+				span.SetTag(f.tagName, replacement)
+				return
+			}
+		}
+	}
+
+	value, ok := stateBag[f.stateBagItemName]
 	if !ok {
 		return
 	}

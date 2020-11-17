@@ -8,8 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -17,13 +22,15 @@ const testAuthTimeout = 100 * time.Millisecond
 
 func TestOAuth2Tokeninfo(t *testing.T) {
 	for _, ti := range []struct {
-		msg         string
-		authType    string
-		authBaseURL string
-		args        []interface{}
-		hasAuth     bool
-		auth        string
-		expected    int
+		msg           string
+		authType      string
+		authBaseURL   string
+		args          []interface{}
+		maskOauthUser string
+		hasAuth       bool
+		auth          string
+		expected      int
+		authUser      string
 	}{{
 		msg:      "uninitialized filter, no authorization header, scope check",
 		authType: OAuthTokeninfoAnyScopeName,
@@ -180,6 +187,26 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		hasAuth:     true,
 		auth:        testToken,
 		expected:    http.StatusForbidden,
+	}, {
+		msg:           "create tag for auth-user",
+		authType:      OAuthTokeninfoAllKVName,
+		authBaseURL:   testAuthPath,
+		args:          []interface{}{testKey, testValue},
+		hasAuth:       true,
+		auth:          testToken,
+		expected:      http.StatusOK,
+		maskOauthUser: "immortals:/realm=foo",
+		authUser:      "jdoe",
+	}, {
+		msg:           "create tag for auth-user (masked)",
+		authType:      OAuthTokeninfoAllKVName,
+		authBaseURL:   testAuthPath,
+		args:          []interface{}{testKey, testValue},
+		hasAuth:       true,
+		auth:          testToken,
+		expected:      http.StatusOK,
+		maskOauthUser: "immortals:/realm=/immortals",
+		authUser:      "immortals",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
@@ -233,7 +260,10 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 
 			fr := make(filters.Registry)
 			fr.Register(spec)
-			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+			filterDef := []*eskip.Filter{{Name: spec.Name(), Args: args}}
+			filterDef = addMaskOAuthUser(t, ti.maskOauthUser, fr, filterDef)
+
+			r := &eskip.Route{Filters: filterDef, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
 			reqURL, err := url.Parse(proxy.URL)
@@ -263,8 +293,44 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 				buf := make([]byte, rsp.ContentLength)
 				rsp.Body.Read(buf)
 			}
+
+			assertAuthUser(t, proxy, ti.authUser)
 		})
 	}
+}
+
+func assertAuthUser(t *testing.T, proxy *proxytest.TestProxy, expected string) {
+	if expected == "" {
+		return
+	}
+
+	//spans are finished in goroutine
+	assert.Eventually(t, func() bool {
+		authUser := ""
+		spans := proxy.Tracer.FinishedSpans()
+		for _, span := range spans {
+			if span.OperationName == "ingress" {
+				tag := span.Tag("client_id")
+				if tag != nil {
+					authUser = tag.(string)
+				}
+			}
+		}
+
+		return expected == authUser
+	}, time.Second, 10*time.Millisecond)
+}
+
+func addMaskOAuthUser(t *testing.T, maskOauthUser string, fr filters.Registry, filterDef []*eskip.Filter) []*eskip.Filter {
+	if maskOauthUser != "" {
+		user, err := ParseMaskOAuthUser(maskOauthUser)
+		require.NoError(t, err)
+		fr.Register(tracing.NewStateBagToTag(user))
+		filterDef = append(filterDef, &eskip.Filter{
+			Name: tracing.StateBagToTagFilterName, Args: []interface{}{log.AuthUserKey, "client_id"},
+		})
+	}
+	return filterDef
 }
 
 func TestOAuth2TokenTimeout(t *testing.T) {

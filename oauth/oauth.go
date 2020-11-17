@@ -49,6 +49,8 @@ const (
 	userJsonFn   = "user.json"
 )
 
+type MaskOAuthUser func(stateBag map[string]interface{}) (string, bool)
+
 type clientCredentials struct {
 	Id     string `json:"client_id"`
 	Secret string `json:"client_secret"`

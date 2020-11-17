@@ -4,6 +4,8 @@ import (
 	"net/http/httptest"
 	"time"
 
+	"github.com/opentracing/opentracing-go/mocktracer"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/loadbalancer"
@@ -16,6 +18,7 @@ import (
 type TestProxy struct {
 	URL     string
 	Log     *loggingtest.Logger
+	Tracer  *mocktracer.MockTracer
 	routing *routing.Routing
 	proxy   *proxy.Proxy
 	server  *httptest.Server
@@ -41,8 +44,12 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 	routingOptions.Log = tl
 	routingOptions.PostProcessors = []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()}
 
+	tracer := mocktracer.New()
 	rt := routing.New(routingOptions)
 	proxyParams.Routing = rt
+	proxyParams.OpenTracing = &proxy.OpenTracingParams{
+		Tracer: tracer,
+	}
 
 	pr := proxy.WithParams(proxyParams)
 	tsp := httptest.NewServer(pr)
@@ -57,11 +64,17 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 		routing: rt,
 		proxy:   pr,
 		server:  tsp,
+		Tracer:  tracer,
 	}
 }
 
 func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 	return WithParams(fr, proxy.Params{CloseIdleConnsPeriod: -time.Second}, routes...)
+}
+
+func (p *TestProxy) Reset() {
+	p.Log.Reset()
+	p.Tracer.Reset()
 }
 
 func (p *TestProxy) Close() error {

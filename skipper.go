@@ -32,10 +32,12 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
+	tracing2 "github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/oauth"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/cron"
@@ -621,6 +623,9 @@ type Options struct {
 	// CredentialsUpdateInterval sets the interval to update secrets
 	CredentialsUpdateInterval time.Duration
 
+	// MaskOAuthUser is the pattern for OAuth users which should be masked in logging and tracing
+	MaskOAuthUser []oauth.MaskOAuthUser
+
 	// API Monitoring feature is active (feature toggle)
 	ApiUsageMonitoringEnable                bool
 	ApiUsageMonitoringRealmKeys             string
@@ -1113,6 +1118,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		auth.NewOAuthOidcAnyClaims(o.OIDCSecretsFile, o.SecretsRegistry),
 		auth.NewOAuthOidcAllClaims(o.OIDCSecretsFile, o.SecretsRegistry),
 		auth.NewOIDCQueryClaimsFilter(),
+		tracing2.NewStateBagToTag(o.MaskOAuthUser),
 		apiusagemonitoring.NewApiUsageMonitoring(
 			o.ApiUsageMonitoringEnable,
 			o.ApiUsageMonitoringRealmKeys,

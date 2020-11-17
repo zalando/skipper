@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -104,11 +105,13 @@ func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 
 func TestOIDCQueryClaimsFilter(t *testing.T) {
 	for _, tc := range []struct {
-		msg       string
-		path      string
-		expected  int
-		expectErr bool
-		args      []interface{}
+		msg           string
+		path          string
+		maskOauthUser string
+		expected      int
+		expectErr     bool
+		args          []interface{}
+		authUser      string
 	}{
 		{
 			msg: "secure sub/path not permitted",
@@ -218,6 +221,30 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 			expected:  401,
 			expectErr: false,
 		},
+		{
+			msg: "create tag for auth-user",
+			args: []interface{}{
+				"/login:groups.#[==\"AppX-Test-Users\"]",
+				"/:@_:email%\"*@example.org\"",
+			},
+			path:          "/login/page",
+			expected:      200,
+			expectErr:     false,
+			maskOauthUser: "immortals:aud=foo",
+			authUser:      "somesub",
+		},
+		{
+			msg: "create tag for auth-user (masked)",
+			args: []interface{}{
+				"/login:groups.#[==\"AppX-Test-Users\"]",
+				"/:@_:email%\"*@example.org\"",
+			},
+			path:          "/login/page",
+			expected:      200,
+			expectErr:     false,
+			maskOauthUser: "immortals:aud=valid-client",
+			authUser:      "immortals",
+		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -272,21 +299,21 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 			// adding the OIDCQueryClaimsFilter to the route
 			querySpec := NewOIDCQueryClaimsFilter()
 			fr.Register(querySpec)
-			r := &eskip.Route{
-				Filters: []*eskip.Filter{
-					{
-						Name: spec.Name(),
-						Args: sargs,
-					},
-					{
-						Name: querySpec.Name(),
-						Args: tc.args,
-					},
+			filterDef := []*eskip.Filter{
+				{
+					Name: spec.Name(),
+					Args: sargs,
 				},
-				Backend: backend.URL,
+				{
+					Name: querySpec.Name(),
+					Args: tc.args,
+				},
 			}
+			filterDef = addMaskOAuthUser(t, tc.maskOauthUser, fr, filterDef)
 
-			proxy.Log.Reset()
+			r := &eskip.Route{Filters: filterDef, Backend: backend.URL}
+
+			proxy.Reset()
 			dc.Update([]*eskip.Route{r}, nil)
 			if err = proxy.Log.WaitFor("route settings applied", 1*time.Second); err != nil {
 				t.Fatalf("Failed to get update: %v", err)
@@ -320,6 +347,8 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 				b, _ := ioutil.ReadAll(resp.Body)
 				t.Fatalf("Response body: %s", string(b))
 			}
+
+			assertAuthUser(t, proxy, tc.authUser)
 		})
 	}
 }
