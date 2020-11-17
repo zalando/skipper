@@ -195,6 +195,9 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 	span := c.tracer.StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
 	ext.Component.Set(span, "skipper")
 	ext.SpanKind.Set(span, "client")
+	span.SetTag("group", c.group)
+	span.SetTag("max_hits", c.maxHits)
+	span.SetTag("window", c.window.String())
 
 	return func(failed bool) {
 		if failed {
