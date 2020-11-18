@@ -1186,7 +1186,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	var ratelimitRegistry *ratelimit.Registry
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		ratelimitRegistry := ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
+		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
 		defer ratelimitRegistry.Close()
 
 		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
