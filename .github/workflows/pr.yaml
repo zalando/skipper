@@ -1,7 +1,5 @@
 name: pr
 on: [pull_request]
-env:
-  GO111MODULE: on
 jobs:
   check-race:
     runs-on: ubuntu-latest
