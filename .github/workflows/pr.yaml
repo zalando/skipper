@@ -1,13 +1,11 @@
 name: pr
 on: [pull_request]
-env:
-  GO111MODULE: on
 jobs:
   check-race:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2-beta
+      - uses: actions/setup-go@v2
         with:
           go-version: '^1.15'
       - run: go version
@@ -18,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2-beta
+      - uses: actions/setup-go@v2
         with:
           go-version: '^1.15'
       - run: go version
