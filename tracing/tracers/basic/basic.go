@@ -14,7 +14,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	fmt.Printf("DO NOT USE IN PRODUCTION\n")
 	var dropAllLogs bool
 	var sampleModulo uint64 = 1
-	var maxLogsPerSpan int64 = 0
+	var maxLogsPerSpan int = 0
 	var recorder basic.SpanRecorder = basic.NewInMemoryRecorder()
 	var err error
 
@@ -37,7 +37,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 			if len(parts) == 1 {
 				return nil, missingArg(parts[0])
 			}
-			maxLogsPerSpan, err = strconv.ParseInt(parts[1], 10, 64)
+			maxLogsPerSpan, err = strconv.Atoi(parts[1])
 			if err != nil {
 				return nil, invalidArg(parts[0], err)
 			}
@@ -70,7 +70,7 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	return basic.NewWithOptions(basic.Options{
 		DropAllLogs:    dropAllLogs,
 		ShouldSample:   func(traceID uint64) bool { return traceID%sampleModulo == 0 },
-		MaxLogsPerSpan: int(maxLogsPerSpan),
+		MaxLogsPerSpan: maxLogsPerSpan,
 		Recorder:       recorder,
 	}), nil
 }

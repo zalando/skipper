@@ -24,7 +24,7 @@ func parseOptions(opts []string) (*config.Configuration, error) {
 	var samplerType string
 	var samplerURL string
 	var localAgent string
-	var reporterQueue int64
+	var reporterQueue int
 	var reporterInterval time.Duration
 	var globalTags []opentracing.Tag
 
@@ -70,7 +70,7 @@ func parseOptions(opts []string) (*config.Configuration, error) {
 			if len(parts) == 1 {
 				return nil, missingArg(parts[0])
 			}
-			reporterQueue, _ = strconv.ParseInt(parts[1], 10, 64)
+			reporterQueue, _ = strconv.Atoi(parts[1])
 		case "reporter-interval":
 			if len(parts) == 1 {
 				return nil, missingArg(parts[0])
@@ -105,7 +105,7 @@ func parseOptions(opts []string) (*config.Configuration, error) {
 			SamplingServerURL: samplerURL,
 		},
 		Reporter: &config.ReporterConfig{
-			QueueSize:           int(reporterQueue),
+			QueueSize:           reporterQueue,
 			BufferFlushInterval: reporterInterval,
 			LocalAgentHostPort:  localAgent,
 		},
