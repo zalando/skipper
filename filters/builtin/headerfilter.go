@@ -301,8 +301,8 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 	case appendContextRequestHeader:
 		valueFromContext(ctx, f.key, f.value, true, header.Add)
 	case copyRequestHeader, copyRequestHeaderDeprecated:
-		if _, ok := header[f.key]; ok {
-			headerValue := header.Get(f.key)
+		headerValue := header.Get(f.key)
+		if headerValue != "" {
 			header.Set(f.value, headerValue)
 			if strings.ToLower(f.value) == "host" {
 				ctx.SetOutgoingHost(headerValue)
@@ -333,8 +333,9 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	case appendContextResponseHeader:
 		valueFromContext(ctx, f.key, f.value, false, header.Add)
 	case copyResponseHeader, copyResponseHeaderDeprecated:
-		if _, ok := header[f.key]; ok {
-			header.Set(f.value, header.Get(f.key))
+		headerValue := header.Get(f.key)
+		if headerValue != "" {
+			header.Set(f.value, headerValue)
 		}
 	}
 }

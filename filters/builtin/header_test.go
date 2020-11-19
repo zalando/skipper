@@ -337,6 +337,15 @@ func TestHeader(t *testing.T) {
 			expectedHeader: http.Header{
 				"X-Test-Request-Source-Host": []string{"www.example.org"},
 			},
+		}, {
+			msg:           "lowercase params",
+			args:          []interface{}{"x-test-foo", "x-test-bar"},
+			valid:         true,
+			requestHeader: http.Header{"X-Test-Foo": []string{"foo"}},
+			expectedHeader: http.Header{
+				"X-Test-Request-Foo": []string{"foo"},
+				"X-Test-Request-Bar": []string{"foo"},
+			},
 		}},
 		"copyResponseHeader": {{
 			msg:  "too few args",
@@ -371,6 +380,15 @@ func TestHeader(t *testing.T) {
 				"X-Test-Foo": []string{"foo"},
 				"X-Test-Bar": []string{"bar"},
 			},
+			expectedHeader: http.Header{
+				"X-Test-Foo": []string{"foo"},
+				"X-Test-Bar": []string{"foo"},
+			},
+		}, {
+			msg:            "lowercase params",
+			args:           []interface{}{"x-test-foo", "x-test-bar"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"foo"}},
 			expectedHeader: http.Header{
 				"X-Test-Foo": []string{"foo"},
 				"X-Test-Bar": []string{"foo"},
