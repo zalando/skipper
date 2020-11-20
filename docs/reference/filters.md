@@ -485,6 +485,21 @@ Example:
 * -> randomContent(42) -> <shunt>;
 ```
 
+## repeatContent
+
+Generate response of specified size from repeated text.
+
+Parameters:
+
+* text to repeat (string)
+* size of response in bytes (int)
+
+Example:
+
+```
+* -> repeatContent("I will not waste chalk. ", 1000) -> <shunt>;
+```
+
 ## latency
 
 Enable adding artificial latency

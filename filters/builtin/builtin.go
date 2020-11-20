@@ -127,6 +127,7 @@ func MakeRegistry() filters.Registry {
 		NewSetDynamicBackendUrl(),
 		NewOriginMarkerSpec(),
 		diag.NewRandom(),
+		diag.NewRepeat(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),
 		diag.NewChunks(),
