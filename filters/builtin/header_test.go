@@ -147,6 +147,11 @@ func TestHeader(t *testing.T) {
 			args:    []interface{}{"X-Test-Name", "${one} ${two}"},
 			context: map[string]interface{}{"one": "1"},
 			valid:   true,
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name", "Value"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"Value"}},
 		}},
 		"appendRequestHeader": {{
 			msg:            "append request header when none",
@@ -177,6 +182,11 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0", "value1"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name", "Value"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"Value"}},
 		}},
 		"dropRequestHeader": {{
 			msg:   "drop request header when none",
@@ -185,6 +195,11 @@ func TestHeader(t *testing.T) {
 		}, {
 			msg:           "drop request header when exists",
 			args:          []interface{}{"X-Test-Name"},
+			valid:         true,
+			requestHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		}, {
+			msg:           "name parameter is case-insensitive",
+			args:          []interface{}{"x-test-name"},
 			valid:         true,
 			requestHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 		}},
@@ -211,6 +226,11 @@ func TestHeader(t *testing.T) {
 			msg:   "set response header from context when missing",
 			args:  []interface{}{"X-Test-Name", "a ${foo}ter"},
 			valid: true,
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name", "Value"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Name": []string{"Value"}},
 		}},
 		"appendResponseHeader": {{
 			msg:            "append response header when none",
@@ -236,6 +256,11 @@ func TestHeader(t *testing.T) {
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name", "Value"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Name": []string{"Value"}},
 		}},
 		"dropResponseHeader": {{
 			msg:   "drop response header when none",
@@ -244,6 +269,11 @@ func TestHeader(t *testing.T) {
 		}, {
 			msg:            "drop response header when exists",
 			args:           []interface{}{"X-Test-Name"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 		}},
@@ -259,6 +289,12 @@ func TestHeader(t *testing.T) {
 			context: map[string]interface{}{"foo": "www.example.org"},
 			valid:   true,
 			host:    "www.example.org",
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar"}},
 		}},
 		"appendContextRequestHeader": {{
 			msg:            "append request header from context",
@@ -273,6 +309,13 @@ func TestHeader(t *testing.T) {
 			context: map[string]interface{}{"foo": "www.example.org"},
 			valid:   true,
 			host:    "www.example.org",
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "baz"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar", "baz"}},
 		}},
 		"setContextResponseHeader": {{
 			msg:            "set response header from context",
@@ -280,10 +323,23 @@ func TestHeader(t *testing.T) {
 			context:        map[string]interface{}{"foo": "bar"},
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Foo": []string{"bar"}},
 		}},
 		"appendContextResponseHeader": {{
 			msg:            "append response header from context",
 			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": "baz"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Foo": []string{"bar", "baz"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
 			context:        map[string]interface{}{"foo": "baz"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
@@ -338,7 +394,7 @@ func TestHeader(t *testing.T) {
 				"X-Test-Request-Source-Host": []string{"www.example.org"},
 			},
 		}, {
-			msg:           "lowercase params",
+			msg:           "name parameters are case-insensitive",
 			args:          []interface{}{"x-test-foo", "x-test-bar"},
 			valid:         true,
 			requestHeader: http.Header{"X-Test-Foo": []string{"foo"}},
@@ -385,7 +441,7 @@ func TestHeader(t *testing.T) {
 				"X-Test-Bar": []string{"foo"},
 			},
 		}, {
-			msg:            "lowercase params",
+			msg:            "name parameters are case-insensitive",
 			args:           []interface{}{"x-test-foo", "x-test-bar"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Foo": []string{"foo"}},
