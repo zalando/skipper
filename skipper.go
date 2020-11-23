@@ -1229,6 +1229,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	o.CustomPredicates = append(o.CustomPredicates,
 		source.New(),
 		source.NewFromLast(),
+		source.NewClientIP(),
 		interval.NewBetween(),
 		interval.NewBefore(),
 		interval.NewAfter(),

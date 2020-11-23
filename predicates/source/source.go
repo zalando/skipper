@@ -50,29 +50,43 @@ import (
 )
 
 const (
-	Name     = "Source"
-	NameLast = "SourceFromLast"
+	Name         = "Source"
+	NameLast     = "SourceFromLast"
+	NameClientIP = "ClientIP"
 )
 
 var InvalidArgsError = errors.New("invalid arguments")
 
+type sourcePred int
+
+const (
+	source sourcePred = iota
+	sourceFromLast
+	clientIP
+)
+
 type spec struct {
-	fromLast bool
+	typ sourcePred
 }
 
 type predicate struct {
-	fromLast           bool
+	typ                sourcePred
 	acceptedSourceNets []net.IPNet
 }
 
-func New() routing.PredicateSpec         { return &spec{} }
-func NewFromLast() routing.PredicateSpec { return &spec{fromLast: true} }
+func New() routing.PredicateSpec         { return &spec{typ: source} }
+func NewFromLast() routing.PredicateSpec { return &spec{typ: sourceFromLast} }
+func NewClientIP() routing.PredicateSpec { return &spec{typ: clientIP} }
 
 func (s *spec) Name() string {
-	if s.fromLast {
+	switch s.typ {
+	case sourceFromLast:
 		return NameLast
+	case clientIP:
+		return NameClientIP
+	default:
+		return Name
 	}
-	return Name
 }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
@@ -80,7 +94,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, InvalidArgsError
 	}
 
-	p := &predicate{fromLast: s.fromLast}
+	p := &predicate{typ: s.typ}
 
 	for i := range args {
 		if s, ok := args[i].(string); ok {
@@ -105,9 +119,13 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 
 func (p *predicate) Match(r *http.Request) bool {
 	var src net.IP
-	if p.fromLast {
+	switch p.typ {
+	case sourceFromLast:
 		src = snet.RemoteHostFromLast(r)
-	} else {
+	case clientIP:
+		h, _, _ := net.SplitHostPort(r.RemoteAddr)
+		src = net.ParseIP(h)
+	default:
 		src = snet.RemoteHost(r)
 	}
 
