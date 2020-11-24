@@ -5,6 +5,18 @@ import (
 	"testing"
 )
 
+func TestName(t *testing.T) {
+	if s := New().Name(); s != Name {
+		t.Fatalf("Failed to get Name %s, got %s", Name, s)
+	}
+	if s := NewFromLast().Name(); s != NameLast {
+		t.Fatalf("Failed to get Name %s, got %s", NameLast, s)
+	}
+	if s := NewClientIP().Name(); s != NameClientIP {
+		t.Fatalf("Failed to get Name %s, got %s", NameClientIP, s)
+	}
+}
+
 func TestCreate(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
@@ -48,11 +60,15 @@ func TestCreate(t *testing.T) {
 		false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			_, err := (&spec{}).Create(ti.args)
+			_, err := (New()).Create(ti.args)
 			if err == nil && ti.err || err != nil && !ti.err {
 				t.Error(ti.msg, "failure case", err, ti.err)
 			}
-			_, err = (&spec{fromLast: true}).Create(ti.args)
+			_, err = (NewFromLast()).Create(ti.args)
+			if err == nil && ti.err || err != nil && !ti.err {
+				t.Error(ti.msg, "failure case", err, ti.err)
+			}
+			_, err = (NewClientIP()).Create(ti.args)
 			if err == nil && ti.err || err != nil && !ti.err {
 				t.Error(ti.msg, "failure case", err, ti.err)
 			}
@@ -109,17 +125,17 @@ func TestMatching(t *testing.T) {
 	}, {
 		"should work for IPv6",
 		[]interface{}{"C0:FF::EE"},
-		&http.Request{RemoteAddr: "C0:FF::EE"},
+		&http.Request{RemoteAddr: "[C0:FF::EE]:5123"},
 		true,
 	}, {
 		"should work for IPv6 with mask - pass",
 		[]interface{}{"C0:FF::EE/127"},
-		&http.Request{RemoteAddr: "C0:FF::EF"},
+		&http.Request{RemoteAddr: "[C0:FF::EF]:5123"},
 		true,
 	}, {
 		"should work for IPv6 with mask - reject",
 		[]interface{}{"C0:FF::EE/127"},
-		&http.Request{RemoteAddr: "C0:FF::EC"},
+		&http.Request{RemoteAddr: "[C0:FF::EC]:5123"},
 		false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -185,27 +201,103 @@ func TestMatchingFromLast(t *testing.T) {
 	}, {
 		"should work for IPv6",
 		[]interface{}{"C0:FF::EE"},
-		&http.Request{RemoteAddr: "C0:FF::EE"},
+		&http.Request{RemoteAddr: "[C0:FF::EE]:4123"},
 		true,
 	}, {
 		"should work for IPv6 with mask - pass",
 		[]interface{}{"C0:FF::EE/127"},
-		&http.Request{RemoteAddr: "C0:FF::EF"},
+		&http.Request{RemoteAddr: "[C0:FF::EF]:4123"},
 		true,
 	}, {
 		"should work for IPv6 with mask - reject",
 		[]interface{}{"C0:FF::EE/127"},
-		&http.Request{RemoteAddr: "C0:FF::EC"},
+		&http.Request{RemoteAddr: "[C0:FF::EC]:4123"},
 		false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			pred, err := (&spec{fromLast: true}).Create(ti.args)
+			pred, err := (&spec{typ: sourceFromLast}).Create(ti.args)
 			if err != nil {
 				t.Error("failed to create predicate", err)
 			} else {
 				matches := pred.Match(ti.req)
 				if matches != ti.matches {
 					t.Error(ti.msg, "failed to match from last as expected")
+				}
+			}
+		})
+	}
+}
+
+func TestMatchingClientIP(t *testing.T) {
+	for _, ti := range []struct {
+		msg     string
+		args    []interface{}
+		req     *http.Request
+		matches bool
+	}{{
+		"happy case",
+		[]interface{}{"127.0.0.1"},
+		&http.Request{RemoteAddr: "127.0.0.1:1234"},
+		true,
+	}, {
+		"sad case",
+		[]interface{}{"127.0.0.1"},
+		&http.Request{RemoteAddr: "127.0.0.2:51234"},
+		false,
+	}, {
+		"should match on netmask",
+		[]interface{}{"127.0.0.1/30"},
+		&http.Request{RemoteAddr: "127.0.0.2:1234"},
+		true,
+	}, {
+		"should correctly handle netmask",
+		[]interface{}{"127.0.0.0/31"},
+		&http.Request{RemoteAddr: "127.0.0.2:1234"},
+		false,
+	}, {
+		"should correctly handle netmask",
+		[]interface{}{"127.0.0.0/30"},
+		&http.Request{RemoteAddr: "127.0.0.2:1234"},
+		true,
+	}, {
+		"should consider multiple masks",
+		[]interface{}{"127.0.0.1", "8.8.8.8/24"},
+		&http.Request{RemoteAddr: "8.8.8.127:1234"},
+		true,
+	}, {
+		"if available, should not use X-Forwarded-For for matching,match",
+		[]interface{}{"127.0.0.1"},
+		&http.Request{RemoteAddr: "127.0.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8"}}},
+		true,
+	}, {
+		"if available, should not use X-Forwarded-For for matching, no match",
+		[]interface{}{"8.8.8.8"},
+		&http.Request{RemoteAddr: "127.0.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8"}}},
+		false,
+	}, {
+		"should work for IPv6",
+		[]interface{}{"C0:FF::EE"},
+		&http.Request{RemoteAddr: "[C0:FF::EE]:1234"},
+		true,
+	}, {
+		"should work for IPv6 with mask - pass",
+		[]interface{}{"C0:FF::EE/127"},
+		&http.Request{RemoteAddr: "[C0:FF::EF]:1234"},
+		true,
+	}, {
+		"should work for IPv6 with mask - reject",
+		[]interface{}{"C0:FF::EE/127"},
+		&http.Request{RemoteAddr: "[C0:FF::EC]:1234"},
+		false,
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			pred, err := (&spec{typ: clientIP}).Create(ti.args)
+			if err != nil {
+				t.Error("failed to create predicate", err)
+			} else {
+				matches := pred.Match(ti.req)
+				if matches != ti.matches {
+					t.Error(ti.msg, "failed to match as expected")
 				}
 			}
 		})

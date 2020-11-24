@@ -452,6 +452,28 @@ Examples:
 SourceFromLast("1.2.3.4", "2.2.2.0/24")
 ```
 
+## ClientIP
+
+ClientIP implements a custom predicate to match routes based on
+the client IP of a request.
+
+Parameters:
+
+* ClientIP (string, ..) varargs with IPs or CIDR
+
+Examples:
+
+```
+// only match requests from 1.2.3.4
+ClientIP("1.2.3.4")
+
+// only match requests from 1.2.3.0 - 1.2.3.255
+ClientIP("1.2.3.0/24")
+
+// only match requests from 1.2.3.4 and the 2.2.2.0/24 network
+ClientIP("1.2.3.4", "2.2.2.0/24")
+```
+
 ## Tee
 
 The Tee predicate matches a route when a request is spawn from the
