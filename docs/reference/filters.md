@@ -1118,7 +1118,7 @@ all:
     -> "http://localhost:9090";
 ```
 
-Program arguments:
+Skipper arguments:
 
 | Argument | Required? | Description |
 | -------- | --------- | ----------- |
@@ -1150,7 +1150,7 @@ Examples:
 grantCallback()
 ```
 
-Program arguments:
+Skipper arguments:
 
 | Argument | Required? | Description |
 | -------- | --------- | ----------- |
@@ -1171,7 +1171,7 @@ oauthGrant() -> grantClaimsQuery("/path:@_:sub%\"userid\"")
 oauthGrant() -> grantClaimsQuery("/path:scope.#[==\"email\"]")
 ```
 
-Program arguments:
+Skipper arguments:
 
 | Argument | Required? | Description |
 | -------- | --------- | ----------- |
