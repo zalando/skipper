@@ -2,9 +2,7 @@ package auth
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -93,10 +91,6 @@ type OAuthConfig struct {
 	// encrypted access token after a successful token exchange.
 	TokenCookieName string
 
-	// TokenCookieRegexp compiled regexp used to search for the token cookie in
-	// a Cookie header.
-	TokenCookieRegexp *regexp.Regexp
-
 	// ConnectionTimeout used for tokeninfo endpoint.
 	ConnectionTimeout time.Duration
 
@@ -158,12 +152,6 @@ func (c *OAuthConfig) init() error {
 	if c.TokenCookieName == "" {
 		c.TokenCookieName = defaultTokenCookieName
 	}
-
-	re, err := regexp.Compile(fmt.Sprint(c.TokenCookieName, "=[^;]+[;]?[[:blank:]]*"))
-	if err != nil {
-		return err
-	}
-	c.TokenCookieRegexp = re
 
 	if c.TokeninfoClient == nil {
 		client, err := newAuthClient(

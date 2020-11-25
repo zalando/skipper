@@ -158,7 +158,7 @@ func (f grantFilter) createTokenContainer(token *oauth2.Token, tokeninfo map[str
 func (f grantFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 
-	c, err := getCookie(req, f.config)
+	c, err := extractCookie(req, f.config)
 	if err == http.ErrNoCookie {
 		loginRedirect(ctx, f.config)
 		return
@@ -216,10 +216,6 @@ func (f grantFilter) Request(ctx filters.FilterContext) {
 	// Set the tokeninfo also in the tokeninfoCacheKey state bag, so we
 	// can reuse e.g. the forwardToken() filter.
 	ctx.StateBag()[tokeninfoCacheKey] = tokeninfo
-
-	// Drop the token cookie so it does not get exposed to untrusted downstream
-	// services.
-	dropCookie(req, f.config)
 }
 
 func (f grantFilter) Response(ctx filters.FilterContext) {

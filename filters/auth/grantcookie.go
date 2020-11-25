@@ -57,28 +57,36 @@ func (c cookie) isAccessTokenExpired() bool {
 	return now.After(c.Expiry)
 }
 
-// GetCookie extracts the OAuth Grant token cookie from a HTTP request.
+// extractCookie removes and returns the OAuth Grant token cookie from a HTTP request.
 // The function supports multiple cookies with the same name and returns
 // the best match (the one that decodes properly).
 // The client may send multiple cookies if a parent domain has set a
 // cookie of the same name.
-func getCookie(request *http.Request, config OAuthConfig) (c *cookie, err error) {
-	for _, c := range request.Cookies() {
+// The grant token cookie is extracted so it does not get exposed to untrusted downstream
+// services.
+func extractCookie(request *http.Request, config OAuthConfig) (cookie *cookie, err error) {
+	old := request.Cookies()
+	new := make([]*http.Cookie, 0, len(old))
+
+	for i, c := range old {
 		if c.Name == config.TokenCookieName {
-			cookie, _ := decodeCookie(c.Value, config)
+			cookie, _ = decodeCookie(c.Value, config)
 			if cookie != nil {
-				return cookie, nil
+				new = append(new, old[i+1:]...)
+				break
 			}
 		}
+		new = append(new, c)
+	}
+
+	if cookie != nil {
+		request.Header.Del("Cookie")
+		for _, c := range new {
+			request.AddCookie(c)
+		}
+		return cookie, nil
 	}
 	return nil, http.ErrNoCookie
-}
-
-// Drops the grant token cookie from the request
-func dropCookie(request *http.Request, config OAuthConfig) {
-	cookies := request.Header.Get("Cookie")
-	cookies = config.TokenCookieRegexp.ReplaceAllString(cookies, "")
-	request.Header.Set("Cookie", cookies)
 }
 
 func CreateCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
