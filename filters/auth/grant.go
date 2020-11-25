@@ -14,7 +14,6 @@ import (
 const (
 	OAuthGrantName = "oauthGrant"
 
-	bearerPrefix              = "Bearer "
 	secretsRefreshInternal    = time.Minute
 	oauthGrantRefreshTokenKey = "oauth-grant-token"
 )
@@ -67,7 +66,7 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config OAuthConfig, or
 
 	state, err := config.flowState.createState(original)
 	if err != nil {
-		log.Errorf("failed to create login redirect: %v", err)
+		log.Errorf("Failed to create login redirect: %v", err)
 		serverError(ctx)
 		return
 	}
@@ -82,6 +81,8 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config OAuthConfig, or
 }
 
 func (f grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
+	// Set the expiry of the token to the past to trigger oauth2.TokenSource
+	// to refresh the access token.
 	token := &oauth2.Token{
 		AccessToken:  c.AccessToken,
 		RefreshToken: c.RefreshToken,
@@ -180,7 +181,7 @@ func (f grantFilter) Request(ctx filters.FilterContext) {
 	}
 
 	if token == nil {
-		// Token can be null if:
+		// Token can be nil if:
 		// 1. No refresh was necessary, so it is not yet initialized.
 		// 2. Refresh failed, but we still have a valid access token.
 		//    Let the request processing continue and defer the login

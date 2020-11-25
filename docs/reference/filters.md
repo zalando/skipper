@@ -1086,7 +1086,8 @@ forwardToken("X-Tokeninfo-Forward", "access_token")
 
 ## oauthGrant
 
-Enables authentication and authorization with an OAuth2 authorization code grant flow.
+Enables authentication and authorization with an OAuth2 authorization code grant flow as
+specified by [RFC 6749 Section 1.3.1](https://tools.ietf.org/html/rfc6749#section-1.3.1).
 Automatically redirects unauthenticated users to log in at their provider's authorization
 endpoint. Supports token refreshing and stores access and refresh tokens in an encrypted
 cookie. Supports credential rotation for the OAuth2 client ID and secret.

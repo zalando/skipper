@@ -9,10 +9,7 @@ import (
 	"github.com/zalando/skipper/secrets"
 )
 
-const randomStringLength = 20
-
 type state struct {
-	Rand       string `json:"rand"`
 	Validity   int64  `json:"validity"`
 	Nonce      string `json:"nonce"`
 	RequestURL string `json:"redirectUrl"`
@@ -48,7 +45,6 @@ func (s *flowState) createState(redirectURL string) (string, error) {
 	}
 
 	state := state{
-		Rand:       randString(randomStringLength),
 		Validity:   stateValidityTime(),
 		Nonce:      fmt.Sprintf("%x", nonce),
 		RequestURL: redirectURL,

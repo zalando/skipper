@@ -31,7 +31,7 @@ type OAuthConfig struct {
 	// cookie and grant flow state stored in Secrets.
 	SecretFile string
 
-	// AuthURL, the url to redirect the requests to when login is require.
+	// AuthURL, the url to redirect the requests to when login is required.
 	AuthURL string
 
 	// TokenURL, the url where the access code should be exchanged for the
