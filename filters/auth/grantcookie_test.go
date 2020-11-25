@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	TestToken        = "foobarbaz"
-	TestRefreshToken = "refreshfoobarbaz"
+	TestToken                = "foobarbaz"
+	TestRefreshToken         = "refreshfoobarbaz"
+	TestAccessTokenExpiresIn = int(time.Hour / time.Second)
 )
 
 func NewGrantCookieWithExpiration(config OAuthConfig, expiry time.Time) (*http.Cookie, error) {
@@ -39,6 +40,17 @@ func NewGrantCookieWithInvalidRefreshToken(config OAuthConfig) (*http.Cookie, er
 		AccessToken:  TestToken,
 		RefreshToken: "invalid",
 		Expiry:       time.Now().Add(time.Duration(-1) * time.Minute),
+	}
+
+	cookie, err := createCookie(config, "", token)
+	return cookie, err
+}
+
+func NewGrantCookieWithTokens(config OAuthConfig, refreshToken string, accessToken string) (*http.Cookie, error) {
+	token := &oauth2.Token{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Expiry:       time.Now().Add(time.Second * time.Duration(TestAccessTokenExpiresIn)),
 	}
 
 	cookie, err := createCookie(config, "", token)

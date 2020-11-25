@@ -610,6 +610,10 @@ type Options struct {
 	// access token.
 	OAuth2TokenURL string
 
+	// OAuth2RevokeTokenURL, the url where the access and refresh tokens can be
+	// revoked during a logout.
+	OAuth2RevokeTokenURL string
+
 	// OAuthTokeninfoURL sets the the URL to be queried for
 	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
@@ -1009,7 +1013,14 @@ func initGrant(c *auth.OAuthConfig, o *Options) error {
 		return err
 	}
 
-	o.CustomFilters = append(o.CustomFilters, c.NewGrant(), c.NewGrantCallback(), c.NewGrantClaimsQuery())
+	o.CustomFilters = append(
+		o.CustomFilters,
+		c.NewGrant(),
+		c.NewGrantCallback(),
+		c.NewGrantClaimsQuery(),
+		c.NewGrantLogout(),
+		)
+
 	return nil
 }
 
@@ -1262,6 +1273,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
 		oauthConfig.AuthURL = o.OAuth2AuthURL
 		oauthConfig.TokenURL = o.OAuth2TokenURL
+		oauthConfig.RevokeTokenURL = o.OAuth2RevokeTokenURL
 		oauthConfig.TokeninfoURL = o.OAuthTokeninfoURL
 		oauthConfig.SecretFile = o.OAuth2SecretFile
 		oauthConfig.ClientID = o.OAuth2ClientID

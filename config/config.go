@@ -145,6 +145,7 @@ type Config struct {
 	OauthCredentialsDir             string        `yaml:"oauth-credentials-dir"`
 	Oauth2AuthURL                   string        `yaml:"oauth2-auth-url"`
 	Oauth2TokenURL                  string        `yaml:"oauth2-token-url"`
+	Oauth2RevokeTokenURL            string        `yaml:"oauth2-revoke-token-url"`
 	Oauth2TokeninfoURL              string        `yaml:"oauth2-tokeninfo-url"`
 	Oauth2TokeninfoTimeout          time.Duration `yaml:"oauth2-tokeninfo-timeout"`
 	Oauth2SecretFile                string        `yaml:"oauth2-secret-file"`
@@ -364,6 +365,7 @@ const (
 	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
 	oauth2AuthURLUsage                   = "sets the OAuth2 Auth URL to redirect the requests to when login is required"
 	oauth2TokenURLUsage                  = "the url where the access code should be exchanged for the access token"
+	oauth2RevokeTokenURLUsage            = "the url where the access and refresh tokens can be revoked when logging out"
 	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
 	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
 	oauth2SecretFileUsage                = "sets the filename with the encryption key for the authentication cookie and grant flow state stored in secrets registry"
@@ -563,6 +565,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.OauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
 	flag.StringVar(&cfg.Oauth2AuthURL, "oauth2-auth-url", "", oauth2AuthURLUsage)
 	flag.StringVar(&cfg.Oauth2TokenURL, "oauth2-token-url", "", oauth2TokenURLUsage)
+	flag.StringVar(&cfg.Oauth2RevokeTokenURL, "oauth2-revoke-token-url", "", oauth2RevokeTokenURLUsage)
 	flag.StringVar(&cfg.Oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
 	flag.StringVar(&cfg.Oauth2SecretFile, "oauth2-secret-file", "", oauth2SecretFileUsage)
 	flag.StringVar(&cfg.Oauth2ClientID, "oauth2-client-id", "", oauth2ClientIDUsage)
@@ -830,6 +833,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuthCredentialsDir:            c.OauthCredentialsDir,
 		OAuth2AuthURL:                  c.Oauth2AuthURL,
 		OAuth2TokenURL:                 c.Oauth2TokenURL,
+		OAuth2RevokeTokenURL:           c.Oauth2RevokeTokenURL,
 		OAuthTokeninfoURL:              c.Oauth2TokeninfoURL,
 		OAuthTokeninfoTimeout:          c.Oauth2TokeninfoTimeout,
 		OAuth2SecretFile:               c.Oauth2SecretFile,

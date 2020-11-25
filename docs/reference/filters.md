@@ -1195,6 +1195,24 @@ Skipper arguments:
 | -------- | --------- | ----------- |
 | `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter. Example: `-oauth2-callback-path=/oauth/callback` |
 
+## grantLogout
+
+The filter revokes the refresh and access tokens in the cookie set by
+[oauthGrant](#oauthGrant). It also deletes the cookie by setting the `Set-Cookie`
+response header to an empty value after a successful token revocation.
+
+Examples:
+
+```
+grantLogout()
+```
+
+Skipper arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-oauth2-revoke-token-url` | **yes** | URL of the OAuth2 provider's token revocation endpoint. Example: `-oauth2-revoke-token-url=https://identity.example.com/oauth2/revoke` |
+
 ## grantClaimsQuery
 
 The filter allows defining access control rules based on claims in a tokeninfo JSON

@@ -1,0 +1,194 @@
+package auth_test
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/auth"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+type testRevokeError struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+func newGrantLogoutTestServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		revoke := func(w http.ResponseWriter, r *http.Request) {
+			expectedCredentials := base64.StdEncoding.EncodeToString([]byte(testClientID + ":" + testClientSecret))
+			expectedAuthorization := "Basic " + expectedCredentials
+			if expectedAuthorization != r.Header.Get("Authorization") {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			paramValue := r.URL.Query().Get(testQueryParamKey)
+			if testQueryParamValue != paramValue {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			err := r.ParseForm()
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			token := r.Form.Get("token")
+			tokenType := r.Form.Get("token_type_hint")
+
+			if token == "" || tokenType == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			if tokenType == "access_token" && token == testToken {
+				// Simulate a provider that only supports revoking refresh tokens
+				w.WriteHeader(http.StatusBadRequest)
+				w.Header().Set("Content-Type", "application/json")
+
+				errorResponse := testRevokeError{
+					Error:            "unsupported_token_type",
+					ErrorDescription: "simulate unsupported access token revocation",
+				}
+
+				b, _ := json.Marshal(errorResponse)
+				w.Write(b)
+			} else if tokenType == "refresh_token" && token == testRefreshToken {
+				w.WriteHeader(http.StatusOK)
+			} else {
+				w.WriteHeader(http.StatusUnauthorized)
+			}
+		}
+
+		switch r.URL.Path {
+		case "/revoke":
+			revoke(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+}
+
+func checkDeletedCookie(t *testing.T, rsp *http.Response, cookieName string) {
+	for _, c := range rsp.Cookies() {
+		if c.Name == cookieName {
+			if c.Value != "" {
+				t.Fatalf(
+					"Unexpected cookie value, got: '%s', expected: ''.",
+					c.Value,
+				)
+			}
+			if c.MaxAge != -1 {
+				t.Fatalf(
+					"Unexpected cookie MaxAge, got: %d, expected: -1.",
+					c.MaxAge,
+				)
+			}
+			return
+		}
+	}
+
+	t.Fatalf("Cookie not found in response: '%s'", cookieName)
+}
+
+func TestGrantLogout(t *testing.T) {
+	t.Log("create a test provider")
+	provider := newGrantLogoutTestServer()
+	defer provider.Close()
+
+	t.Log("create a test tokeninfo")
+	tokeninfo := newGrantTestTokeninfo(testToken, "{\"scope\":[\"match\"], \"uid\":\"foo\"}")
+	defer tokeninfo.Close()
+
+	t.Log("create a test config")
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+
+	t.Log("create a client without redirects, to check it manually")
+	client := newGrantHTTPClient()
+
+	proxy, err := newAuthProxy(config, &eskip.Route{
+		Filters: []*eskip.Filter{
+			{Name: auth.GrantLogoutName},
+			{Name: "status", Args: []interface{}{http.StatusNoContent}},
+		},
+		BackendType: eskip.ShuntBackend,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer proxy.Close()
+
+	t.Run("check that logout with both tokens revokes refresh token", func(t *testing.T) {
+		t.Log("make a logout request")
+		cookie, err := auth.NewGrantCookieWithTokens(*config, testRefreshToken, testToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+		t.Log("check for successful request")
+		checkStatus(t, rsp, http.StatusNoContent)
+	})
+
+	t.Run("check that logout with no refresh token revokes access token", func(t *testing.T) {
+		t.Log("make a logout request")
+		cookie, err := auth.NewGrantCookieWithTokens(*config, "", testToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+		t.Log("check for successful request")
+		checkStatus(t, rsp, http.StatusNoContent)
+	})
+
+	t.Run("check that logout deletes grant token cookie", func(t *testing.T) {
+		t.Log("make a logout request")
+		cookie, err := auth.NewGrantCookieWithTokens(*config, testRefreshToken, testToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+		t.Log("check for deleted cookie")
+		checkDeletedCookie(t, rsp, config.TokenCookieName)
+		checkStatus(t, rsp, http.StatusNoContent)
+	})
+
+	t.Run("check that logout with no tokens results in a 401", func(t *testing.T) {
+		t.Log("make a logout request")
+		cookie, err := auth.NewGrantCookieWithTokens(*config, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+		t.Log("check for unauthorized")
+		checkStatus(t, rsp, http.StatusUnauthorized)
+	})
+
+	t.Run("check that logout with no cookie results in 401", func(t *testing.T) {
+		t.Log("make a logout request without a cookie")
+		req, err := http.NewRequest("GET", proxy.URL, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+
+		t.Log("check for unauthorized")
+		checkStatus(t, rsp, http.StatusUnauthorized)
+	})
+}

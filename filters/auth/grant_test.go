@@ -21,10 +21,14 @@ import (
 const (
 	testToken                = auth.TestToken
 	testRefreshToken         = auth.TestRefreshToken
+	testAccessTokenExpiresIn = auth.TestAccessTokenExpiresIn
+	testClientID             = "some-id"
+	testClientSecret         = "some-secret"
 	testAccessCode           = "quxquuxquz"
 	testSecretFile           = "testdata/authsecret"
-	testAccessTokenExpiresIn = int(time.Hour / time.Second)
 	testCookieName           = "testcookie"
+	testQueryParamKey        = "param_key"
+	testQueryParamValue      = "param_value"
 )
 
 func newGrantTestTokeninfo(validToken string, tokenInfoJSON string) *httptest.Server {
@@ -129,14 +133,16 @@ func newGrantTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 
 func newGrantTestConfig(tokeninfoURL, providerURL string) *auth.OAuthConfig {
 	return &auth.OAuthConfig{
-		ClientID:        "some-id",
-		ClientSecret:    "some-secret",
-		Secrets:         secrets.NewRegistry(),
-		SecretFile:      testSecretFile,
-		TokeninfoURL:    tokeninfoURL,
-		AuthURL:         providerURL + "/auth",
-		TokenURL:        providerURL + "/token",
-		TokenCookieName: testCookieName,
+		ClientID:          testClientID,
+		ClientSecret:      testClientSecret,
+		Secrets:           secrets.NewRegistry(),
+		SecretFile:        testSecretFile,
+		TokeninfoURL:      tokeninfoURL,
+		AuthURL:           providerURL + "/auth",
+		TokenURL:          providerURL + "/token",
+		RevokeTokenURL:    providerURL + "/revoke",
+		TokenCookieName:   testCookieName,
+		AuthURLParameters: map[string]string{testQueryParamKey: testQueryParamValue},
 	}
 }
 
@@ -154,10 +160,13 @@ func newAuthProxy(config *auth.OAuthConfig, routes ...*eskip.Route) (*proxytest.
 
 	grantPrep := config.NewGrantPreprocessor()
 
+	grantLogoutSpec := config.NewGrantLogout()
+
 	fr := builtin.MakeRegistry()
 	fr.Register(grantSpec)
 	fr.Register(grantCallbackSpec)
 	fr.Register(grantClaimsQuerySpec)
+	fr.Register(grantLogoutSpec)
 
 	ro := routing.Options{
 		PreProcessors: []routing.PreProcessor{grantPrep},

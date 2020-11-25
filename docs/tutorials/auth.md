@@ -337,9 +337,13 @@ with the following arguments:
 skipper -enable-oauth2-grant-flow \
     -oauth2-auth-url=<OAUTH2_AUTHORIZE_ENDPOINT> \
     -oauth2-token-url=<OAUTH2_TOKEN_ENDPOINT> \
+    -oauth2-revoke-token-url=<OAUTH2_REVOKE_TOKEN_ENDPOINT> \
     -oauth2-tokeninfo-url=<OAUTH2_TOKENINFO_ENDPOINT> \
     -oauth2-callback-path=/oauth/callback
 ```
+
+The `-oauth2-revoke-token-url` is optional, and must only be supplied if you plan
+on using the [grantLogout](../reference/filters.md#grantLogout) filter.
 
 You can configure the `oauthGrant()` filter further for your needs. See the
 [oauthGrant](../reference/filters.md#oauthGrant) filter reference for more details.
@@ -353,11 +357,18 @@ Skipper will automatically add a callback route for you with the `grantCallback`
 on it. The path for this route can be configured with the `-oauth2-callback-path` parameter.
 If the parameter is not given, it will be `/.well-known/oauth2-callback`
 
+You can optionally add a `grantLogout()` filter for revoking access and refresh tokens:
+
 ```
 foo:
     Path("/foo")
     -> oauthGrant()
     -> "http://localhost:9090";
+
+logout:
+    Path("/logout)
+    -> grantLogout()
+    -> <shunt>;
 ```
 
 #### (Optional) AuthZ and access control
