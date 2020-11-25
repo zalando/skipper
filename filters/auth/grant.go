@@ -103,35 +103,20 @@ func (f grantFilter) refreshTokenIfRequired(c cookie) (*oauth2.Token, error) {
 	canRefresh := !f.config.DisableRefresh && c.RefreshToken != ""
 	shouldRefresh := isAccessTokenExpired || now.After(c.RefreshAfter)
 
-	var token *oauth2.Token
-	var err error
-
-	if canRefresh && shouldRefresh {
-		log.Debugf(
-			"Refreshing token. Can refresh: %v, Should refresh: %v, Expired: %v",
-			canRefresh, shouldRefresh, isAccessTokenExpired,
-		)
-
-		token, err = f.refreshToken(c)
-
-		if err != nil {
-			return nil, err
+	if shouldRefresh {
+		if canRefresh {
+			return f.refreshToken(c)
+		} else {
+			return nil, errExpiredToken
 		}
+	} else {
+		return &oauth2.Token{
+			AccessToken:  c.AccessToken,
+			TokenType:    "Bearer",
+			RefreshToken: c.RefreshToken,
+			Expiry:       c.Expiry,
+		}, nil
 	}
-
-	return token, err
-}
-
-func (f grantFilter) checkAccessTokenValidity(ctx filters.FilterContext, c cookie) (map[string]interface{}, error) {
-	if c.isAccessTokenExpired() {
-		return nil, errExpiredToken
-	}
-
-	tokeninfo, err := f.config.TokeninfoClient.getTokeninfo(c.AccessToken, ctx)
-	if err != nil {
-		return nil, err
-	}
-	return tokeninfo, nil
 }
 
 func (f grantFilter) setAccessTokenHeader(req *http.Request, token string) {
@@ -164,15 +149,6 @@ func (f grantFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	tokeninfo, err := f.checkAccessTokenValidity(ctx, *c)
-	if err != nil && err != errExpiredToken {
-		if err != errInvalidToken {
-			log.Errorf("Error while calling tokeninfo: %v.", err)
-		}
-		loginRedirect(ctx, f.config)
-		return
-	}
-
 	token, err := f.refreshTokenIfRequired(*c)
 	if err != nil && c.isAccessTokenExpired() {
 		// Refresh failed and we no longer have a valid access token.
@@ -180,30 +156,13 @@ func (f grantFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if token == nil {
-		// Token can be nil if:
-		// 1. No refresh was necessary, so it is not yet initialized.
-		// 2. Refresh failed, but we still have a valid access token.
-		//    Let the request processing continue and defer the login
-		//    redirect until the access token becomes invalid.
-		token = &oauth2.Token{
-			AccessToken:  c.AccessToken,
-			TokenType:    "Bearer",
-			RefreshToken: c.RefreshToken,
-			Expiry:       c.Expiry,
+	tokeninfo, err := f.config.TokeninfoClient.getTokeninfo(token.AccessToken, ctx)
+	if err != nil || tokeninfo == nil {
+		if err == errInvalidToken {
+			log.Errorf("Error while calling tokeninfo: %v.", err)
 		}
-	}
-
-	if tokeninfo == nil {
-		// We need to fetch tokeninfo again if we refreshed the token.
-		tokeninfo, err = f.config.TokeninfoClient.getTokeninfo(token.AccessToken, ctx)
-		if err != nil {
-			if err == errInvalidToken {
-				log.Errorf("Error while calling tokeninfo: %v.", err)
-			}
-			loginRedirect(ctx, f.config)
-			return
-		}
+		loginRedirect(ctx, f.config)
+		return
 	}
 
 	f.setAccessTokenHeader(req, token.AccessToken)
