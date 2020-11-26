@@ -71,6 +71,7 @@ type (
 		redirectPath    string
 		encrypter       secrets.Encryption
 		authCodeOptions []oauth2.AuthCodeOption
+		queryParams     []string
 		compressor      cookieCompression
 		upstreamHeaders map[string]string
 	}
@@ -205,7 +206,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 			if len(splitP) != 2 {
 				return nil, filters.ErrInvalidFilterParameters
 			}
-			f.authCodeOptions = append(f.authCodeOptions, oauth2.SetAuthURLParam(splitP[0], splitP[1]))
+			if splitP[1] == "skipper-request-query" {
+				f.queryParams = append(f.queryParams, splitP[0])
+			} else {
+				f.authCodeOptions = append(f.authCodeOptions, oauth2.SetAuthURLParam(splitP[0], splitP[1]))
+			}
 		}
 	}
 	log.Debugf("Auth Code Options: %v", f.authCodeOptions)
@@ -327,7 +332,18 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 		return
 	}
 
-	oauth2URL := f.config.AuthCodeURL(fmt.Sprintf("%x", stateEnc), f.authCodeOptions...)
+	opts := f.authCodeOptions
+	if f.queryParams != nil {
+		opts = make([]oauth2.AuthCodeOption, len(f.authCodeOptions), len(f.authCodeOptions)+len(f.queryParams))
+		copy(opts, f.authCodeOptions)
+		for _, p := range f.queryParams {
+			if v := ctx.Request().URL.Query().Get(p); v != "" {
+				opts = append(opts, oauth2.SetAuthURLParam(p, v))
+			}
+		}
+	}
+
+	oauth2URL := f.config.AuthCodeURL(fmt.Sprintf("%x", stateEnc), opts...)
 	rsp := &http.Response{
 		Header: http.Header{
 			"Location": []string{oauth2URL},

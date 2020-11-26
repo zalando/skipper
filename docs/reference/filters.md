@@ -1101,7 +1101,7 @@ The filter needs the following parameters:
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** The claims which should be present in the token returned by the provider.
-* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint.
+* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
 * **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
 
 ## oauthOidcAnyClaims
@@ -1121,7 +1121,7 @@ The filter needs the following parameters:
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** Several claims can be specified and the request is allowed as long as at least one of them is present.
-* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint.
+* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
 * **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
 
 ## oauthOidcAllClaims
@@ -1141,7 +1141,7 @@ The filter needs the following parameters:
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** Several claims can be specified and the request is allowed only when all claims are present.
-* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint.
+* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
 * **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
 
 ## requestCookie
