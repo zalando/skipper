@@ -110,9 +110,9 @@ var (
 	ErrMissingProviderURLs    = errors.New("missing provider URLs")
 )
 
-func (c *OAuthConfig) init() error {
+func (c *OAuthConfig) Init() error {
 	if c.initialized {
-		return c.initErr
+		return nil
 	}
 
 	if c.TokeninfoURL == "" {
@@ -185,40 +185,24 @@ func (c *OAuthConfig) init() error {
 	return nil
 }
 
-func (c *OAuthConfig) NewGrant() (filters.Spec, error) {
-	if err := c.init(); err != nil {
-		return nil, err
-	}
-
-	return &grantSpec{config: *c}, nil
+func (c *OAuthConfig) NewGrant() filters.Spec {
+	return &grantSpec{config: *c}
 }
 
-func (c *OAuthConfig) NewGrantCallback() (filters.Spec, error) {
-	if err := c.init(); err != nil {
-		return nil, err
-	}
-
-	return &grantCallbackSpec{config: *c}, nil
+func (c *OAuthConfig) NewGrantCallback() filters.Spec {
+	return &grantCallbackSpec{config: *c}
 }
 
-func (c *OAuthConfig) NewGrantClaimsQuery() (filters.Spec, error) {
-	if err := c.init(); err != nil {
-		return nil, err
-	}
-
+func (c *OAuthConfig) NewGrantClaimsQuery() filters.Spec {
 	return &grantClaimsQuerySpec{
 		oidcSpec: oidcIntrospectionSpec{
 			typ: checkOIDCQueryClaims,
 		},
-	}, nil
+	}
 }
 
-func (c *OAuthConfig) NewGrantPreprocessor() (routing.PreProcessor, error) {
-	if err := c.init(); err != nil {
-		return nil, err
-	}
-
-	return grantPrep{config: *c}, nil
+func (c *OAuthConfig) NewGrantPreprocessor() routing.PreProcessor {
+	return grantPrep{config: *c}
 }
 
 func (c *OAuthConfig) GetConfig() *oauth2.Config {
@@ -270,7 +254,7 @@ func (c *OAuthConfig) GetClientSecret() string {
 
 // RedirectURLs constructs the redirect URI based on the request and the
 // configured CallbackPath.
-func (c OAuthConfig) RedirectURLs(req *http.Request) (redirect, original string) {
+func (c *OAuthConfig) RedirectURLs(req *http.Request) (redirect, original string) {
 	u := *req.URL
 
 	if fp := req.Header.Get("X-Forwarded-Proto"); fp != "" {

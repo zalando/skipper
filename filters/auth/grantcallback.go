@@ -48,8 +48,6 @@ func (f grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 
 	state, err := f.config.flowState.extractState(queryState)
 	if err != nil {
-		log.Errorf("Error when extracting flow state: %v.", err)
-
 		if err == errExpiredAuthState {
 			// The login flow state expired. Instead of just returning an
 			// error, restart the login process with the original request

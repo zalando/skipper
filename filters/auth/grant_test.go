@@ -142,25 +142,18 @@ func newGrantTestConfig(tokeninfoURL, providerURL string) *auth.OAuthConfig {
 }
 
 func newAuthProxy(config *auth.OAuthConfig, routes ...*eskip.Route) (*proxytest.TestProxy, error) {
-	grantSpec, err := config.NewGrant()
+	err := config.Init()
 	if err != nil {
 		return nil, err
 	}
 
-	grantCallbackSpec, err := config.NewGrantCallback()
-	if err != nil {
-		return nil, err
-	}
+	grantSpec := config.NewGrant()
 
-	grantClaimsQuerySpec, err := config.NewGrantClaimsQuery()
-	if err != nil {
-		return nil, err
-	}
+	grantCallbackSpec := config.NewGrantCallback()
 
-	grantPrep, err := config.NewGrantPreprocessor()
-	if err != nil {
-		return nil, err
-	}
+	grantClaimsQuerySpec := config.NewGrantClaimsQuery()
+
+	grantPrep := config.NewGrantPreprocessor()
 
 	fr := builtin.MakeRegistry()
 	fr.Register(grantSpec)

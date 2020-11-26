@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -10,6 +9,14 @@ import (
 // Use when option keys are not predetermined.
 type mapFlags struct {
 	values map[string]string
+}
+
+const formatErrorString = "invalid map key-value pair, expected format key=value but got: '%v'"
+
+func newMapFlags() *mapFlags {
+	return &mapFlags{
+		values: make(map[string]string),
+	}
 }
 
 func (m mapFlags) String() string {
@@ -31,14 +38,17 @@ func (m *mapFlags) Set(value string) error {
 
 	vs := strings.Split(value, ",")
 	for _, vi := range vs {
-		kv := strings.Split(vi, "=")
+		kv := strings.SplitN(vi, "=", 2)
+
+		if len(kv) != 2 {
+			return fmt.Errorf(formatErrorString, vi)
+		}
 
 		k := strings.TrimSpace(kv[0])
 		v := strings.TrimSpace(kv[1])
 
-		if len(kv) != 2 || k == "" || v == "" {
-			message := fmt.Sprint("invalid map key-value pair, expected format key=value but got: '", vi, "'")
-			return errors.New(message)
+		if k == "" || v == "" {
+			return fmt.Errorf(formatErrorString, vi)
 		}
 
 		m.values[k] = v

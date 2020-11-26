@@ -19,11 +19,11 @@ type cookie struct {
 
 func refreshAfter(expiry time.Time) time.Time {
 	now := time.Now()
-	d := expiry.Sub(now)
-	if d <= 0 {
+	if now.After(expiry) {
 		return now
 	}
 
+	d := expiry.Sub(now)
 	d /= 10
 	if d < time.Minute {
 		d = time.Minute

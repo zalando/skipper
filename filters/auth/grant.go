@@ -157,7 +157,7 @@ func (f grantFilter) Request(ctx filters.FilterContext) {
 	}
 
 	tokeninfo, err := f.config.TokeninfoClient.getTokeninfo(token.AccessToken, ctx)
-	if err != nil || tokeninfo == nil {
+	if err != nil {
 		if err == errInvalidToken {
 			log.Errorf("Error while calling tokeninfo: %v.", err)
 		}

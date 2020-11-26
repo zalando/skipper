@@ -1005,22 +1005,12 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 }
 
 func initGrant(c *auth.OAuthConfig, o *Options) error {
-	grant, err := c.NewGrant()
-	if err != nil {
+	if err := c.Init(); err != nil {
+		log.Errorf("Error while initializing oauth grant filters: %v.", err)
 		return err
 	}
 
-	grantCallback, err := c.NewGrantCallback()
-	if err != nil {
-		return err
-	}
-
-	grantClaimsQuery, err := c.NewGrantClaimsQuery()
-	if err != nil {
-		return err
-	}
-
-	o.CustomFilters = append(o.CustomFilters, grant, grantCallback, grantClaimsQuery)
+	o.CustomFilters = append(o.CustomFilters, c.NewGrant(), c.NewGrantCallback(), c.NewGrantClaimsQuery())
 	return nil
 }
 
@@ -1379,12 +1369,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
-		grantPrep, err := oauthConfig.NewGrantPreprocessor()
-		if err != nil {
-			log.Errorf("Error while initializing oauth grant preprocessor: %v.", err)
-		}
-
-		ro.PreProcessors = append(ro.PreProcessors, grantPrep)
+		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
 	}
 
 	routing := routing.New(ro)
