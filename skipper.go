@@ -1006,7 +1006,6 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 
 func initGrant(c *auth.OAuthConfig, o *Options) error {
 	if err := c.Init(); err != nil {
-		log.Errorf("Error while initializing oauth grant filters: %v.", err)
 		return err
 	}
 
@@ -1281,7 +1280,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.Tracer = tracer
 
 		if err := initGrant(oauthConfig, &o); err != nil {
-			log.Errorf("Error while initializing oauth grant filter: %v.", err)
+			log.Errorf("Failed to initialize oauth grant filter: %v.", err)
+			return err
 		}
 	}
 
