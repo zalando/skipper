@@ -19,7 +19,7 @@ func newMapFlags() *mapFlags {
 	}
 }
 
-func (m mapFlags) String() string {
+func (m *mapFlags) String() string {
 	var pairs []string
 
 	for k, v := range m.values {
