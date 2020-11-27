@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -430,4 +431,8 @@ func Headers(s *Settings, retryAfter int) http.Header {
 		Header:           []string{strconv.FormatInt(limitPerHour, 10)},
 		RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
 	}
+}
+
+func getHashedKey(clearText string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(clearText)))
 }

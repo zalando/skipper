@@ -82,7 +82,8 @@ func newClusterRateLimiterSwim(s Settings, sw Swarmer, group string) *clusterLim
 // skippers should be allowed else false. It will share it's own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
-func (c *clusterLimitSwim) Allow(s string) bool {
+func (c *clusterLimitSwim) Allow(clearText string) bool {
+	s := getHashedKey(clearText)
 	key := swarmPrefix + c.group + "." + s
 
 	// t0 is the oldest entry in the local circularbuffer
