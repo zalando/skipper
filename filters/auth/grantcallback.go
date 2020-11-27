@@ -18,19 +18,21 @@ type grantCallbackFilter struct {
 	config OAuthConfig
 }
 
-func (grantCallbackSpec) Name() string { return GrantCallbackName }
+func (*grantCallbackSpec) Name() string { return GrantCallbackName }
 
-func (s grantCallbackSpec) CreateFilter([]interface{}) (filters.Filter, error) {
-	return grantCallbackFilter(s), nil
+func (s *grantCallbackSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+	return &grantCallbackFilter{
+		config: s.config,
+	}, nil
 }
 
-func (f grantCallbackFilter) exchangeAccessToken(code string, redirectURI string) (*oauth2.Token, error) {
+func (f *grantCallbackFilter) exchangeAccessToken(code string, redirectURI string) (*oauth2.Token, error) {
 	ctx := providerContext(f.config)
 	params := f.config.GetAuthURLParameters(redirectURI)
 	return f.config.GetConfig().Exchange(ctx, code, params...)
 }
 
-func (f grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
+func (f *grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 	req := ctx.Request()
 	q := req.URL.Query()
 
@@ -83,8 +85,8 @@ func (f grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 	})
 }
 
-func (f grantCallbackFilter) Request(ctx filters.FilterContext) {
+func (f *grantCallbackFilter) Request(ctx filters.FilterContext) {
 	f.loginCallback(ctx)
 }
 
-func (f grantCallbackFilter) Response(ctx filters.FilterContext) {}
+func (f *grantCallbackFilter) Response(ctx filters.FilterContext) {}

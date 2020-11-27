@@ -15,10 +15,10 @@ type grantClaimsQuerySpec struct {
 	oidcSpec oidcIntrospectionSpec
 }
 
-func (s grantClaimsQuerySpec) Name() string {
+func (s *grantClaimsQuerySpec) Name() string {
 	return GrantClaimsQueryName
 }
 
-func (s grantClaimsQuerySpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *grantClaimsQuerySpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return s.oidcSpec.CreateFilter(args)
 }

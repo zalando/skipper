@@ -202,7 +202,7 @@ func (c *OAuthConfig) NewGrantClaimsQuery() filters.Spec {
 }
 
 func (c *OAuthConfig) NewGrantPreprocessor() routing.PreProcessor {
-	return grantPrep{config: *c}
+	return &grantPrep{config: *c}
 }
 
 func (c *OAuthConfig) GetConfig() *oauth2.Config {

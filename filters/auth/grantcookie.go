@@ -52,7 +52,7 @@ func decodeCookie(cookieHeader string, config OAuthConfig) (c *cookie, err error
 	return
 }
 
-func (c cookie) isAccessTokenExpired() bool {
+func (c *cookie) isAccessTokenExpired() bool {
 	now := time.Now()
 	return now.After(c.Expiry)
 }

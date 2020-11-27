@@ -12,7 +12,7 @@ type grantPrep struct {
 	config OAuthConfig
 }
 
-func (p grantPrep) Do(r []*eskip.Route) []*eskip.Route {
+func (p *grantPrep) Do(r []*eskip.Route) []*eskip.Route {
 	// In the future, route IDs will serve only logging purpose and won't
 	// need to be unique.
 	id := defaultCallbackRouteID

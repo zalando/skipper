@@ -30,10 +30,12 @@ type grantFilter struct {
 	config OAuthConfig
 }
 
-func (s grantSpec) Name() string { return OAuthGrantName }
+func (s *grantSpec) Name() string { return OAuthGrantName }
 
-func (s grantSpec) CreateFilter([]interface{}) (filters.Filter, error) {
-	return grantFilter(s), nil
+func (s *grantSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+	return &grantFilter{
+		config: s.config,
+	}, nil
 }
 
 func providerContext(c OAuthConfig) context.Context {
@@ -80,7 +82,7 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config OAuthConfig, or
 	})
 }
 
-func (f grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
+func (f *grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
 	// Set the expiry of the token to the past to trigger oauth2.TokenSource
 	// to refresh the access token.
 	token := &oauth2.Token{
@@ -97,7 +99,7 @@ func (f grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
 	return tokenSource.Token()
 }
 
-func (f grantFilter) refreshTokenIfRequired(c cookie) (*oauth2.Token, error) {
+func (f *grantFilter) refreshTokenIfRequired(c cookie) (*oauth2.Token, error) {
 	now := time.Now()
 	isAccessTokenExpired := c.isAccessTokenExpired()
 	canRefresh := !f.config.DisableRefresh && c.RefreshToken != ""
@@ -119,13 +121,13 @@ func (f grantFilter) refreshTokenIfRequired(c cookie) (*oauth2.Token, error) {
 	}
 }
 
-func (f grantFilter) setAccessTokenHeader(req *http.Request, token string) {
+func (f *grantFilter) setAccessTokenHeader(req *http.Request, token string) {
 	if f.config.AccessTokenHeaderName != "" {
 		req.Header.Set(f.config.AccessTokenHeaderName, authHeaderPrefix+token)
 	}
 }
 
-func (f grantFilter) createTokenContainer(token *oauth2.Token, tokeninfo map[string]interface{}) tokenContainer {
+func (f *grantFilter) createTokenContainer(token *oauth2.Token, tokeninfo map[string]interface{}) tokenContainer {
 	subject := ""
 	if f.config.TokeninfoSubjectKey != "" {
 		subject = tokeninfo[f.config.TokeninfoSubjectKey].(string)
@@ -140,7 +142,7 @@ func (f grantFilter) createTokenContainer(token *oauth2.Token, tokeninfo map[str
 	}
 }
 
-func (f grantFilter) Request(ctx filters.FilterContext) {
+func (f *grantFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 
 	c, err := extractCookie(req, f.config)
@@ -177,7 +179,7 @@ func (f grantFilter) Request(ctx filters.FilterContext) {
 	ctx.StateBag()[tokeninfoCacheKey] = tokeninfo
 }
 
-func (f grantFilter) Response(ctx filters.FilterContext) {
+func (f *grantFilter) Response(ctx filters.FilterContext) {
 	container, ok := ctx.StateBag()[oidcClaimsCacheKey].(tokenContainer)
 	if !ok {
 		return
