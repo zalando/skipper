@@ -28,7 +28,7 @@ func testAbsorb(t *testing.T, silent bool) {
 	p := proxytest.New(
 		fr,
 		&eskip.Route{
-			Filters:     []*eskip.Filter{{Name: "absorb"}},
+			Filters:     []*eskip.Filter{{Name: a.Name()}},
 			BackendType: eskip.ShuntBackend,
 		},
 	)
@@ -87,9 +87,15 @@ func testAbsorb(t *testing.T, silent bool) {
 }
 
 func TestAbsorb(t *testing.T) {
+	if NewAbsorb().Name() != AbsorbName {
+		t.Error("wrong filter name")
+	}
 	testAbsorb(t, false)
 }
 
 func TestAbsorbSilent(t *testing.T) {
+	if NewAbsorbSilent().Name() != AbsorbSilentName {
+		t.Error("wrong filter name")
+	}
 	testAbsorb(t, true)
 }
