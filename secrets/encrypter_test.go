@@ -2,8 +2,10 @@ package secrets
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -97,4 +99,60 @@ func Test_GetSecret(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetEncrypter(t *testing.T) {
+	var wg sync.WaitGroup
+	reg := NewRegistry()
+	defer reg.Close()
+	fd, err := ioutil.TempFile(".", "")
+	if err != nil {
+		t.Fatalf("Failed to create temp file for test: %v", err)
+	}
+	defer func() {
+		fd.Close()
+		os.Remove(fd.Name())
+	}()
+
+	_, err = fd.WriteString("very secure password")
+	if err != nil {
+		t.Fatalf("Failed to write secret: %v", err)
+	}
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			wg.Add(1)
+			enc, err := reg.GetEncrypter(time.Second, fd.Name())
+			if err != nil {
+				t.Errorf("Failed to get encrypter: %v", err)
+			}
+
+			nonce, err := enc.CreateNonce()
+			if err != nil {
+				t.Errorf("Failed to create nonce: %v", err)
+			}
+			if len(nonce) == 0 {
+				t.Error("Failed to create vaild nonce")
+			}
+
+			clearText := "hello"
+			encText, err := enc.Encrypt([]byte(clearText))
+			if err != nil {
+				t.Errorf("Failed to create cipher text: %v", err)
+			}
+
+			decText, err := enc.Decrypt(encText)
+			if err != nil {
+				t.Errorf("Failed to decrypt cipher text: %v", err)
+			}
+			if s := string(decText); s != clearText {
+				t.Errorf("Failed to decrypt cipher text: %s != %s", s, clearText)
+			}
+			wg.Done()
+		}()
+		wg.Done()
+	}
+	wg.Wait()
+	//time.Sleep(2 * time.Second)
 }
