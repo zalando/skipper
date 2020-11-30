@@ -584,3 +584,62 @@ func Test_CreatePathPattern(t *testing.T) {
 		assert.Equalf(t, path.expectedPathPattern, actualPathPattern, message)
 	}
 }
+
+func Benchmark_CreateFilter_FullConfigSingleApiNakadi(b *testing.B) {
+	// Includes paths:
+	//   - normal (no variable part)
+	//   - with {name} variable paths
+	//   - with :name variable paths
+	//   - with/without head/trailing slash
+	spec := NewApiUsageMonitoring(
+		true,
+		"https://identity.zalando.com/realm",
+		"https://identity.zalando.com/managed-id,sub",
+		"services[.].*")
+
+	args := []interface{}{`{
+		"application_id": "my_app",
+		"tag": "staging",
+		"api_id": "my_api",
+		"path_templates": [
+			"/event-types",
+			"/event-types/{name}",
+			"/event-types/{name}/cursor-distances",
+			"/event-types/{name}/cursors-lag",
+			"/event-types/{name}/deleted-events",
+			"/event-types/{name}/events",
+			"/event-types/{name}/partition-count",
+			"/event-types/{name}/partitions",
+			"/event-types/{name}/partitions/{partition}",
+			"/event-types/{name}/schemas",
+			"/event-types/{name}/schemas/{version}",
+			"/event-types/{name}/shifted-cursors",
+			"/event-types/{name}/timelines",
+			"/metrics",
+			"/registry/enrichment-strategies",
+			"/registry/partition-strategies",
+			"/settings/admins",
+			"/settings/blacklist",
+			"/settings/blacklist/{blacklist_type}/{name}",
+			"/settings/features",
+			"/storages",
+			"/storages/default/{id}",
+			"/storages/{id}",
+			"/subscriptions",
+			"/subscriptions/{subscription_id}",
+			"/subscriptions/{subscription_id}/cursors",
+			"/subscriptions/{subscription_id}/events",
+			"/subscriptions/{subscription_id}/stats"
+		]
+	}`}
+	for n := 0; n < b.N; n++ {
+		f, err := spec.CreateFilter(args)
+		if err != nil {
+			b.Fatalf("Failed to run CreateFilter: %v", err)
+		}
+		filter, ok := f.(*apiUsageMonitoringFilter)
+		if !ok || filter == nil {
+			b.Fatal("Failed to convert filter")
+		}
+	}
+}
