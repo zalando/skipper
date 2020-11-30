@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -434,5 +435,6 @@ func Headers(s *Settings, retryAfter int) http.Header {
 }
 
 func getHashedKey(clearText string) string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(clearText)))
+	h := sha256.Sum256([]byte(clearText))
+	return hex.EncodeToString(h[:])
 }
