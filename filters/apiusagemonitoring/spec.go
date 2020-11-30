@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 
@@ -20,7 +21,9 @@ const (
 )
 
 var (
-	log = logrus.WithField("filter", Name)
+	log      = logrus.WithField("filter", Name)
+	regCache = make(map[string]*regexp.Regexp)
+	mu       sync.RWMutex
 )
 
 // NewApiUsageMonitoring creates a new instance of the API Monitoring filter
@@ -52,8 +55,14 @@ func NewApiUsageMonitoring(
 			clientKeyList = append(clientKeyList, strippedKey)
 		}
 	}
-	// compile realms regex
-	realmsTrackingMatcher, err := regexp.Compile(realmsTrackingPattern)
+
+	var err error
+	mu.Lock()
+	realmsTrackingMatcher, ok := regCache[realmsTrackingPattern]
+	if !ok {
+		// compile realms regex
+		realmsTrackingMatcher, err = regexp.Compile(realmsTrackingPattern)
+	}
 	if err != nil {
 		log.Errorf(
 			"api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config) ignored: error compiling regular expression %q: %v",
@@ -61,6 +70,8 @@ func NewApiUsageMonitoring(
 		realmsTrackingMatcher = regexp.MustCompile("services")
 		log.Warn("defaulting to 'services' as api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config)")
 	}
+	regCache[realmsTrackingPattern] = realmsTrackingMatcher
+	mu.Unlock()
 
 	// Create the filter Spec
 	var unknownPathClientTracking *clientTrackingInfo = nil // client metrics feature is disabled
@@ -232,13 +243,27 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			existingPathPattern[pathPattern] = info
 
 			// Compile the regular expression
-			pathPatternMatcher, err := regexp.Compile(pathPattern)
-			if err != nil {
-				log.Errorf(
-					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
-					apiIndex, templateIndex, pathPattern, info.PathTemplate, err)
+			var err error
+			mu.Lock()
+			pathPatternMatcher, ok := regCache[pathPattern]
+			if !ok {
+				pathPatternMatcher, err = regexp.Compile(pathPattern)
+				if err != nil {
+					regCache[pathPattern] = nil
+					mu.Unlock()
+					log.Errorf(
+						"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
+						apiIndex, templateIndex, pathPattern, info.PathTemplate, err)
+					continue
+				}
+				regCache[pathPattern] = pathPatternMatcher
+
+			}
+			mu.Unlock()
+			if pathPatternMatcher == nil {
 				continue
 			}
+
 			info.Matcher = pathPatternMatcher
 
 			// Add valid entry to the results
@@ -272,11 +297,21 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 		return nil
 	}
 
-	clientTrackingMatcher, err := regexp.Compile(api.ClientTrackingPattern)
+	var err error
+	mu.Lock()
+	clientTrackingMatcher, ok := regCache[api.ClientTrackingPattern]
+	if !ok {
+		clientTrackingMatcher, err = regexp.Compile(api.ClientTrackingPattern)
+		regCache[api.ClientTrackingPattern] = clientTrackingMatcher
+	}
+	mu.Unlock()
 	if err != nil {
 		log.Errorf(
 			"args[%d].client_tracking_pattern ignored (no client tracking): error compiling regular expression %q: %v",
 			apiIndex, api.ClientTrackingPattern, err)
+		return nil
+	}
+	if clientTrackingMatcher == nil {
 		return nil
 	}
 
