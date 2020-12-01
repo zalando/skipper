@@ -14,22 +14,6 @@ type cookie struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
 	Expiry       time.Time `json:"expiry,omitempty"`
-	RefreshAfter time.Time `json:"refresh_after,omitempty"`
-}
-
-func refreshAfter(expiry time.Time) time.Time {
-	now := time.Now()
-	if now.After(expiry) {
-		return now
-	}
-
-	d := expiry.Sub(now)
-	d /= 10
-	if d < time.Minute {
-		d = time.Minute
-	}
-
-	return now.Add(d)
 }
 
 func decodeCookie(cookieHeader string, config OAuthConfig) (c *cookie, err error) {
@@ -94,10 +78,6 @@ func CreateCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cooki
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,
 		Expiry:       t.Expiry,
-	}
-
-	if !config.DisableRefresh {
-		c.RefreshAfter = refreshAfter(t.Expiry)
 	}
 
 	b, err := json.Marshal(c)

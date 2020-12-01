@@ -72,9 +72,6 @@ type OAuthConfig struct {
 	// client is created.
 	AuthClient *net.Client
 
-	// DisableRefresh prevents refreshing the token.
-	DisableRefresh bool
-
 	// AuthURLParameters, optional. Extra URL parameters to add when calling
 	// the OAuth2 authorize or token endpoints.
 	AuthURLParameters map[string]string

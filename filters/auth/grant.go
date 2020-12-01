@@ -100,12 +100,9 @@ func (f *grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
 }
 
 func (f *grantFilter) refreshTokenIfRequired(c cookie) (*oauth2.Token, error) {
-	now := time.Now()
-	isAccessTokenExpired := c.isAccessTokenExpired()
-	canRefresh := !f.config.DisableRefresh && c.RefreshToken != ""
-	shouldRefresh := isAccessTokenExpired || now.After(c.RefreshAfter)
+	canRefresh := c.RefreshToken != ""
 
-	if shouldRefresh {
+	if c.isAccessTokenExpired() {
 		if canRefresh {
 			return f.refreshToken(c)
 		} else {
