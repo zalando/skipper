@@ -31,10 +31,10 @@ func loadOrCompileRegex(pattern string) (*regexp.Regexp, error) {
 	regI, ok := regCache.Load(pattern)
 	if !ok {
 		reg, err = regexp.Compile(pattern)
+		regCache.Store(pattern, reg)
 	} else {
 		reg = regI.(*regexp.Regexp)
 	}
-	regCache.Store(pattern, reg)
 	return reg, err
 }
 
