@@ -230,7 +230,7 @@ func (c *OAuthConfig) GetClientID() string {
 		return c.ClientID
 	}
 
-	if id, exists := c.SecretsProvider.GetSecret(c.ClientIDFile); exists {
+	if id, ok := c.SecretsProvider.GetSecret(c.ClientIDFile); ok {
 		return string(id)
 	}
 
@@ -242,7 +242,7 @@ func (c *OAuthConfig) GetClientSecret() string {
 		return c.ClientSecret
 	}
 
-	if secret, exists := c.SecretsProvider.GetSecret(c.ClientSecretFile); exists {
+	if secret, ok := c.SecretsProvider.GetSecret(c.ClientSecretFile); ok {
 		return string(secret)
 	}
 
