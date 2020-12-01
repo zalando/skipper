@@ -14,7 +14,6 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/source"
 )
 
@@ -156,7 +155,7 @@ type Options struct {
 	// The provided filters are then applied to all routes.
 	DefaultFiltersDir string
 
-	// If the OriginMarker should be added as a filter
+	// OriginMarker is *deprecated* and not used anymore. It will be deleted in v1.
 	OriginMarker bool
 
 	// If the OpenTracing tag containing RouteGroup backend name
@@ -179,11 +178,13 @@ type Client struct {
 	sigs                   chan os.Signal
 	quit                   chan struct{}
 	defaultFiltersDir      string
-	originMarker           bool
 }
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
+	if o.OriginMarker {
+		log.Warning("OriginMarker is deprecated")
+	}
 	quit := make(chan struct{})
 
 	apiURL, err := buildAPIURL(o)
@@ -254,7 +255,6 @@ func New(o Options) (*Client, error) {
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
-		originMarker:           o.OriginMarker,
 	}, nil
 }
 
@@ -311,25 +311,25 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	return m
 }
 
-func (c *Client) loadAndConvert() (*clusterState, []*eskip.Route, error) {
+func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	state, err := c.ClusterClient.fetchClusterState()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
 	ri, err := c.ingress.convert(state, defaultFilters)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	rg, err := c.routeGroups.convert(state, defaultFilters)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return state, append(ri, rg...), nil
+	return append(ri, rg...), nil
 }
 
 func shuntRoute(r *eskip.Route) {
@@ -389,32 +389,9 @@ func (c *Client) hasReceivedTerm() bool {
 	return c.termReceived
 }
 
-func setOriginMarker(s *clusterState, r []*eskip.Route) []*eskip.Route {
-	or := &eskip.Route{
-		Id: "kube__originMarkers",
-		Predicates: []*eskip.Predicate{{
-			Name: primitive.NameFalse,
-		}},
-		BackendType: eskip.ShuntBackend,
-	}
-
-	for _, i := range s.ingresses {
-		or.Filters = append(
-			or.Filters,
-			builtin.NewOriginMarker(
-				ingressOriginName,
-				i.Metadata.Uid,
-				i.Metadata.Created,
-			),
-		)
-	}
-
-	return append(r, or)
-}
-
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	log.Debug("loading all")
-	clusterState, r, err := c.loadAndConvert()
+	r, err := c.loadAndConvert()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load cluster state: %w", err)
 	}
@@ -432,10 +409,6 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	c.current = mapRoutes(r)
 	log.Debugf("all routes loaded and mapped")
 
-	if c.originMarker {
-		r = setOriginMarker(clusterState, r)
-	}
-
 	return r, nil
 }
 
@@ -445,7 +418,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 // TODO: implement a force reset after some time.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
-	clusterState, r, err := c.loadAndConvert()
+	r, err := c.loadAndConvert()
 	if err != nil {
 		log.Errorf("polling for updates failed: %v", err)
 		return nil, nil, err
@@ -487,10 +460,6 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 			next[healthcheckRouteID] = hc
 			updatedRoutes = append(updatedRoutes, hc)
 		}
-	}
-
-	if c.originMarker && (len(updatedRoutes) > 0 || len(deletedIDs) > 0) {
-		updatedRoutes = setOriginMarker(clusterState, updatedRoutes)
 	}
 
 	c.current = next
