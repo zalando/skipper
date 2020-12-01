@@ -124,7 +124,6 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			invalidRequests.WithLabelValues(admitterName).Inc()
 			return
 		}
-		log.Debugln("request received", r.Method, r.URL.Path, r.Header, string(body))
 
 		review := admissionsv1.AdmissionReview{}
 		err = json.Unmarshal(body, &review)

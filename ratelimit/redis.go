@@ -2,7 +2,6 @@ package ratelimit
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strconv"
@@ -423,8 +422,4 @@ func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText str
 // RetryAfter is like RetryAfterContext, but not using a context.
 func (c *clusterLimitRedis) RetryAfter(clearText string) int {
 	return c.RetryAfterContext(context.Background(), clearText)
-}
-
-func getHashedKey(clearText string) string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(clearText)))
 }
