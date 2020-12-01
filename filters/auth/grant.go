@@ -157,8 +157,8 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 
 	tokeninfo, err := f.config.TokeninfoClient.getTokeninfo(token.AccessToken, ctx)
 	if err != nil {
-		if err == errInvalidToken {
-			log.Errorf("Error while calling tokeninfo: %v.", err)
+		if err != errInvalidToken {
+			log.Errorf("Failed to call tokeninfo: %v.", err)
 		}
 		loginRedirect(ctx, f.config)
 		return
@@ -185,7 +185,7 @@ func (f *grantFilter) Response(ctx filters.FilterContext) {
 	req := ctx.Request()
 	c, err := CreateCookie(f.config, req.Host, container.OAuth2Token)
 	if err != nil {
-		log.Errorf("Error while generating cookie: %v.", err)
+		log.Errorf("Failed to generate cookie: %v.", err)
 		return
 	}
 

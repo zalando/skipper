@@ -64,14 +64,14 @@ func (f *grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 	redirectURI, _ := f.config.RedirectURLs(req)
 	token, err := f.exchangeAccessToken(code, redirectURI)
 	if err != nil {
-		log.Errorf("Error when exchanging access token: %v.", err)
+		log.Errorf("Failed to exchange access token: %v.", err)
 		serverError(ctx)
 		return
 	}
 
 	c, err := CreateCookie(f.config, req.Host, token)
 	if err != nil {
-		log.Errorf("Error while creating OAuth grant cookie: %v.", err)
+		log.Errorf("Failed to create OAuth grant cookie: %v.", err)
 		serverError(ctx)
 		return
 	}
