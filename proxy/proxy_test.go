@@ -639,6 +639,27 @@ func TestFastCgi(t *testing.T) {
 	}
 }
 
+func TestFastCgiServiceUnavailable(t *testing.T) {
+	tp, err := newTestProxy(`fastcgi: * -> "fastcgi://invalid.test"`, FlagsNone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	rsp, err := http.Get(ps.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("expected 502, got: %v", rsp)
+	}
+}
+
 // This test is sensitive for timing, and occasionally fails.
 // To run this test, set `-args stream` for the test command.
 func TestStreaming(t *testing.T) {
@@ -1399,6 +1420,33 @@ func TestRoundtripperRetry(t *testing.T) {
 
 	if rsp.StatusCode != http.StatusOK {
 		t.Error("failed to retry failing connection")
+	}
+}
+
+func TestResponseHeaderTimeout(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(5 * time.Microsecond)
+	}))
+	defer s.Close()
+
+	p, err := newTestProxyWithParams(fmt.Sprintf(`* -> "%s"`, s.URL), Params{ResponseHeaderTimeout: 1 * time.Microsecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	// Prevent retry
+	rsp, err := http.Post(ps.URL, "text/plain", strings.NewReader("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504, got: %v", rsp)
 	}
 }
 
