@@ -244,6 +244,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 	if f.log != "" {
 		if err := matchOutput(f.log, logBuf.String()); err != nil {
 			t.Errorf("Failed to match log: %v.", err)
+			t.Logf("Got: %s", f.log)
 		}
 	}
 }

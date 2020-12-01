@@ -162,7 +162,7 @@ func convertPathRule(
 		}
 	} else if svc.Spec.Type == "ExternalName" {
 		scheme := "https"
-		if targetPort != "443" {
+		if n, _ := targetPort.Number(); n != 443 {
 			scheme = "http"
 		}
 		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
@@ -183,13 +183,12 @@ func convertPathRule(
 			protocol = p
 		}
 
-		// err handled below
-		eps, err = state.getEndpoints(ns, svcName, svcPort.String(), targetPort, protocol)
+		eps = state.getEndpointsByTarget(ns, svcName, protocol, targetPort)
 		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
 	}
-	if len(eps) == 0 || err == errEndpointNotFound {
+	if len(eps) == 0 {
 		// add shunt route https://github.com/zalando/skipper/issues/1525
-		log.Debugf("convertPathRule: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints: %v", ns, name, svcName, len(eps), err)
+		log.Debugf("convertPathRule: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints", ns, name, svcName, len(eps))
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			HostRegexps: hostRegexp,
@@ -198,8 +197,6 @@ func convertPathRule(
 		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
 		shuntRoute(r)
 		return r, nil
-	} else if err != nil {
-		return nil, err
 	}
 
 	log.Debugf("convertPathRule: %d routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
@@ -487,7 +484,7 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.In
 		err = nil
 	} else if svc.Spec.Type == "ExternalName" {
 		scheme := "https"
-		if targetPort != "443" {
+		if n, _ := targetPort.Number(); n != 443 {
 			scheme = "http"
 		}
 		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
@@ -507,19 +504,19 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.In
 		if p, ok := i.Metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
 			protocol = p
 		}
-		eps, err = state.getEndpoints(
+
+		eps = state.getEndpointsByTarget(
 			ns,
 			svcName,
-			svcPort.String(),
-			targetPort,
 			protocol,
+			targetPort,
 		)
 		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
 
-	if len(eps) == 0 || err == errEndpointNotFound {
+	if len(eps) == 0 {
 		// add shunt route https://github.com/zalando/skipper/issues/1525
-		log.Debugf("convertDefaultBackend: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints: %v", ns, name, svcName, len(eps), err)
+		log.Debugf("convertDefaultBackend: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints", ns, name, svcName, len(eps))
 		r := &eskip.Route{
 			Id: routeID(ns, name, "", "", ""),
 		}
@@ -530,8 +527,6 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.In
 			Id:      routeID(ns, name, "", "", ""),
 			Backend: eps[0],
 		}, true, nil
-	} else if err != nil {
-		return nil, false, err
 	}
 
 	return &eskip.Route{

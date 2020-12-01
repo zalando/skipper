@@ -8,4 +8,5 @@ import (
 
 func TestIngressFixtures(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/ingress/named-ports")
+	kubernetestest.FixturesToTest(t, "testdata/ingress/ingress-data")
 }

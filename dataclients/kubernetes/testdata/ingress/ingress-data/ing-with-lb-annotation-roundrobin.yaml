@@ -1,35 +1,32 @@
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: myapp
-  namespace: default
+  namespace: foo
+  name: qux
+  annotations:
+    zalando.org/skipper-loadbalancer: roundRobin
 spec:
   rules:
-  - host: example.org
+  - host: www.example.org
     http:
       paths:
-      - backend:
-          serviceName: myapp
-          servicePort: web
+      - path: "/"
+        backend:
+          serviceName: bar
+          servicePort: baz
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
-    application: myapp
-  name: myapp
-  namespace: default
+  namespace: foo
+  name: bar
 spec:
   clusterIP: 10.3.190.97
   ports:
-  - name: foo
-    port: 8080
+  - name: baz
+    port: 8181
     protocol: TCP
-    targetPort: web
-  - name: web
-    port: 80
-    protocol: TCP
-    targetPort: foo
+    targetPort: 8080
   selector:
     application: myapp
   type: ClusterIP
@@ -39,16 +36,13 @@ kind: Endpoints
 metadata:
   labels:
     application: myapp
-  name: myapp
-  namespace: default
+  namespace: foo
+  name: bar
 subsets:
 - addresses:
   - ip: 10.2.9.103
   - ip: 10.2.9.104
   ports:
-  - name: foo
+  - name: baz
     port: 8080
-    protocol: TCP
-  - name: web
-    port: 80
     protocol: TCP

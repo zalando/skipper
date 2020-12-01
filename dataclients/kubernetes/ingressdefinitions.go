@@ -39,13 +39,13 @@ type serviceList struct {
 	Items []*service `json:"items"`
 }
 
-func (s service) getTargetPort(svcPort definitions.BackendPort) (string, error) {
+func (s service) getTargetPort(svcPort definitions.BackendPort) (*definitions.BackendPort, error) {
 	for _, sp := range s.Spec.Ports {
 		if sp.matchingPort(svcPort) && sp.TargetPort != nil {
-			return sp.TargetPort.String(), nil
+			return sp.TargetPort, nil
 		}
 	}
-	return "", fmt.Errorf("getTargetPort: target port not found %v given %v", s.Spec.Ports, svcPort)
+	return nil, fmt.Errorf("getTargetPort: target port not found %v given %v", s.Spec.Ports, svcPort)
 }
 
 func (s service) getTargetPortByValue(p int) (*definitions.BackendPort, bool) {
@@ -71,31 +71,7 @@ func formatEndpoint(a *address, p *port, protocol string) string {
 	return fmt.Sprintf("%s://%s:%d", protocol, a.IP, p.Port)
 }
 
-// TODO(sszuecs): refactoring and replace it with clusterState.getEndpointsByTarget, but we need to support protocol to have feature parity with current ingress
-// svcPortName is the truncated value of int or string from kubernetes service svcPort (should not be used here)
-// svcPortTarget is the truncated value of int or string from kubernetes service targetPort
-func (ep endpoint) targets(svcPortName, svcPortTarget, protocol string) []string {
-	result := make([]string, 0)
-	for _, s := range ep.Subsets {
-		for _, port := range s.Ports {
-			// TODO: we need to distinguish between the cases when there is no endpoints
-			// and conversely, when there are endpoints and we just could not map the ports,
-			// primarily when the service references the target port by name. Changes have
-			// been started in this branch:
-			//
-			// https://github.com/zalando/skipper/tree/improvement/service-port-fallback-handling
-			//
-			if port.Name == svcPortName || port.Name == svcPortTarget || strconv.Itoa(port.Port) == svcPortTarget {
-				for _, addr := range s.Addresses {
-					result = append(result, formatEndpoint(addr, port, protocol))
-				}
-			}
-		}
-	}
-	return result
-}
-
-func (ep endpoint) targetsByServiceTarget(serviceTarget *definitions.BackendPort) []string {
+func (ep endpoint) targetsByServiceTarget(protocol string, serviceTarget *definitions.BackendPort) []string {
 	portName, named := serviceTarget.Value.(string)
 	portValue, byValue := serviceTarget.Value.(int)
 	for _, s := range ep.Subsets {
@@ -106,7 +82,7 @@ func (ep endpoint) targetsByServiceTarget(serviceTarget *definitions.BackendPort
 
 			var result []string
 			for _, a := range s.Addresses {
-				result = append(result, formatEndpoint(a, p, "http"))
+				result = append(result, formatEndpoint(a, p, protocol))
 			}
 
 			return result
@@ -138,8 +114,8 @@ func newResourceID(namespace, name string) definitions.ResourceID {
 
 type endpointID struct {
 	definitions.ResourceID
-	servicePort string
-	targetPort  string
+	targetPort string
+	protocol   string
 }
 
 type ClusterResource struct {

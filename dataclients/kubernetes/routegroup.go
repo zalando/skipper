@@ -232,6 +232,11 @@ func getBackendService(ctx *routeGroupContext, backend *definitions.SkipperBacke
 }
 
 func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r *eskip.Route) error {
+	protocol := "http"
+	if p, ok := ctx.routeGroup.Metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
+		protocol = p
+	}
+
 	s, err := getBackendService(ctx, backend)
 	if err != nil {
 		return err
@@ -245,6 +250,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	eps := ctx.clusterState.getEndpointsByTarget(
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		s.Meta.Name,
+		protocol,
 		targetPort,
 	)
 
