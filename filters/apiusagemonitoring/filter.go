@@ -36,7 +36,8 @@ const (
 // apiUsageMonitoringFilter implements filters.Filter interface and is the structure
 // created for every route invocation of the `apiUsageMonitoring` filter.
 type apiUsageMonitoringFilter struct {
-	Spec        *apiUsageMonitoringSpec
+	clientKeys  []string
+	realmKeys   []string
 	Paths       []*pathInfo
 	UnknownPath *pathInfo
 }
@@ -131,7 +132,7 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 	}
 
 	// no realm in JWT ==> {unknown}.{unknown}
-	realm, ok := jwt.getOneOfString(f.Spec.realmKeys)
+	realm, ok := jwt.getOneOfString(f.realmKeys)
 	if !ok {
 		return unknownUnknown
 	}
@@ -142,7 +143,7 @@ func (f *apiUsageMonitoringFilter) getRealmClientKey(r *http.Request, path *path
 	}
 
 	// no client in JWT ==> realm.{unknown}
-	client, ok := jwt.getOneOfString(f.Spec.clientKeys)
+	client, ok := jwt.getOneOfString(f.clientKeys)
 	if !ok {
 		return realm + "." + unknownPlaceholder
 	}
