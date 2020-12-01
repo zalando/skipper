@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 
@@ -20,8 +21,22 @@ const (
 )
 
 var (
-	log = logrus.WithField("filter", Name)
+	log      = logrus.WithField("filter", Name)
+	regCache = sync.Map{}
 )
+
+func loadOrCompileRegex(pattern string) (*regexp.Regexp, error) {
+	var err error
+	var reg *regexp.Regexp
+	regI, ok := regCache.Load(pattern)
+	if !ok {
+		reg, err = regexp.Compile(pattern)
+		regCache.Store(pattern, reg)
+	} else {
+		reg = regI.(*regexp.Regexp)
+	}
+	return reg, err
+}
 
 // NewApiUsageMonitoring creates a new instance of the API Monitoring filter
 // specification (its factory).
@@ -52,8 +67,8 @@ func NewApiUsageMonitoring(
 			clientKeyList = append(clientKeyList, strippedKey)
 		}
 	}
-	// compile realms regex
-	realmsTrackingMatcher, err := regexp.Compile(realmsTrackingPattern)
+
+	realmsTrackingMatcher, err := loadOrCompileRegex(realmsTrackingPattern)
 	if err != nil {
 		log.Errorf(
 			"api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config) ignored: error compiling regular expression %q: %v",
@@ -231,14 +246,17 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			}
 			existingPathPattern[pathPattern] = info
 
-			// Compile the regular expression
-			pathPatternMatcher, err := regexp.Compile(pathPattern)
+			pathPatternMatcher, err := loadOrCompileRegex(pathPattern)
 			if err != nil {
 				log.Errorf(
 					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, err)
 				continue
 			}
+			if pathPatternMatcher == nil {
+				continue
+			}
+
 			info.Matcher = pathPatternMatcher
 
 			// Add valid entry to the results
@@ -272,11 +290,14 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 		return nil
 	}
 
-	clientTrackingMatcher, err := regexp.Compile(api.ClientTrackingPattern)
+	clientTrackingMatcher, err := loadOrCompileRegex(api.ClientTrackingPattern)
 	if err != nil {
 		log.Errorf(
 			"args[%d].client_tracking_pattern ignored (no client tracking): error compiling regular expression %q: %v",
 			apiIndex, api.ClientTrackingPattern, err)
+		return nil
+	}
+	if clientTrackingMatcher == nil {
 		return nil
 	}
 
