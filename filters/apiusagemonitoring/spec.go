@@ -248,7 +248,6 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			pathPatternMatcher, err := loadOrCompileRegex(pathPattern)
 			if err != nil {
-				regCache.Store(pathPattern, nil)
 				log.Errorf(
 					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, err)
