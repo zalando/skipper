@@ -254,7 +254,7 @@ access token for a user. Skipper supports the flow with the `oauthGrant()` filte
 It works as follows:
 
 1. A user makes a request to a route with `oauthGrant()`.
-1. The filter checks whether the request has a cookie called `oauth-grant`. If it does not, or
+1. The filter checks whether the request has a cookie called `oauth-grant`<sup>1</sup>. If it does not, or
    if the cookie and its tokens are invalid, it redirects the user to the OAuth2 provider's 
    authorization endpoint.
 1. The user logs into the external OAuth2 provider, e.g. by providing a username and password.
@@ -264,9 +264,11 @@ It works as follows:
    when the OAuth2 authorization grant flow feature is enabled.
 1. Skipper calls the provider's token URL with the authorization code, and receives a response 
    with the access and refresh tokens.
-1. Skipper stores the tokens in an `oauth-grant` cookie which is stored in the user's browser.
+1. Skipper stores the tokens in an `oauth-grant`<sup>1</sup> cookie which is stored in the user's browser.
 1. Subsequent calls to any route with an `oauthGrant()` filter will now pass as long as the
    access token is valid.
+   
+1: The name of this cookie can be changed by providing the `-oauth2-token-cookie-name` parameter.
 
 ### Encrypted cookie tokens
 
