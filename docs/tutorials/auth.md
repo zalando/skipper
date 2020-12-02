@@ -260,7 +260,8 @@ It works as follows:
 1. The user logs into the external OAuth2 provider, e.g. by providing a username and password.
 1. The provider redirects the user back to Skipper with an authorization code, using the 
    callback URL parameter which was part of the previous redirect. The callback route must
-   have a `grantCallback()` filter defined.
+   have a `grantCallback()` filter defined. Skipper automatically adds this callback route for you
+   when the OAuth2 authorization grant flow feature is enabled.
 1. Skipper calls the provider's token URL with the authorization code, and receives a response 
    with the access and refresh tokens.
 1. Skipper stores the tokens in an `oauth-grant` cookie which is stored in the user's browser.
@@ -332,17 +333,17 @@ skipper -enable-oauth2-grant-flow \
     -oauth2-callback-path=/oauth/callback
 ```
 
-The `-oauth2-callback-path` must match the path of the route configured with the
-`grantCallback()` filter (refer to the next section).
-
 You can configure the `oauthGrant()` filter further for your needs. See the
 [oauthGrant](../reference/filters.md#oauthGrant) filter reference for more details.
 
 #### Add filters to your routes
 
 You can protect any number of routes with the `oauthGrant()` filter. Unauthenticated users
-will be refused access and redirected to log in. You also need one `grantCallback()` filter
-which receives the authorization code:
+will be refused access and redirected to log in.
+
+Skipper will automatically add a callback route for you with the `grantCallback` filter registered 
+on it. The path for this route can be configured with the `-oauth2-callback-path` parameter.
+If the parameter is not given, it will be `/.well-known/oauth2-callback`
 
 ```
 foo:
@@ -354,15 +355,7 @@ bar:
     Path("/bar")
     -> oauthGrant()
     -> "http://localhost:9090/";
-
-callback:
-    Path("/oauth/callback")
-    -> grantCallback()
-    -> <shunt>;
 ```
-
-Make sure the `callback` route `Path()` predicate matches the path you set for the
-`-oauth2-callback-path` argument in the previous section.
 
 #### (Optional) AuthZ and access control
 

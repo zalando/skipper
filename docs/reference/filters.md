@@ -1095,8 +1095,10 @@ cookie. Supports credential rotation for the OAuth2 client ID and secret.
 The filter consumes and drops the grant token request cookie to prevent it from leaking
 to untrusted downstream services.
 
-The filter must be used in conjuction with the [grantCallback](#grantCallback) filter
+The filter must be used in conjunction with the [grantCallback](#grantCallback) filter
 where the OAuth2 provider can redirect authenticated users with an authorization code.
+Skipper will make sure to add the `grantCallback` filter for you to your routes when
+you pass the `-enable-oauth2-grant-flow` flag.
 
 The filter may be used with the [grantClaimsQuery](#grantClaimsQuery) filter to perform
 authz and access control.
@@ -1107,11 +1109,6 @@ instructions.
 Examples:
 
 ```
-callback:
-    Path("/oauth/callback")
-    -> grantCallback()
-    -> <shunt>;
-
 all:
     *
     -> oauthGrant()
@@ -1126,7 +1123,6 @@ Skipper arguments:
 | `-oauth2-auth-url` | **yes** | URL of the OAuth2 provider's authorize endpoint. Example: `-oauth2-auth-url=https://identity.example.com/oauth2/authorize` |
 | `-oauth2-token-url` | **yes** | URL of the OAuth2 provider's token endpoint. Example: `-oauth2-token-url=https://identity.example.com/oauth2/token` |
 | `-oauth2-tokeninfo-url` | **yes** | URL of the OAuth2 provider's tokeninfo endpoint. Example: `-oauth2-tokeninfo-url=https://identity.example.com/oauth2/tokeninfo` |
-| `-oauth2-callback-path` | **yes** | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
 | `-oauth2-secret-file` | **yes** | path to the file containing the secret for encrypting and decrypting the grant token cookie (the secret can be anything). Example: `-oauth2-secret-file=/path/to/secret` |
 | `-oauth2-client-id-file` | conditional | path to the file containing the OAuth2 client ID. Required if you have not set `-oauth2-client-id`. Example: `-oauth2-client-id-file=/path/to/client_id` |
 | `-oauth2-client-secret-file` | conditional | path to the file containing the OAuth2 client secret. Required if you have not set `-oauth2-client-secret`. Example: `-oauth2-client-secret-file=/path/to/client_secret` |
@@ -1136,6 +1132,7 @@ Skipper arguments:
 | `-credentials-update-interval` | no | the time interval for updating credentials from files. Example: `-credentials-update-interval=30s` |
 | `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Default: `Authorization`. Example: `-oauth2-access-token-header-name=X-Grant-Authorization` |
 | `-oauth2-auth-url-parameters` | no | any additional URL query parameters to set for the OAuth2 provider's authorize and token endpoint calls. Example: `-oauth2-auth-url-parameters=key1=foo,key2=bar` |
+| `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
 | `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`.  Example: `-oauth2-token-cookie-name=SESSION` |
 
 ## grantCallback
@@ -1147,14 +1144,20 @@ refresh tokens from the OAuth2 provider's token endpoint.
 Examples:
 
 ```
-grantCallback()
+// The callback route is automatically added when the `-enable-oauth2-grant-flow`
+// flag is passed. You do not need to register it yourself. This is the equivalent
+// of the route that Skipper adds for you:
+callback:
+    Path("/.well-known/oauth2-callback")
+    -> grantCallback()
+    -> <shunt>;
 ```
 
 Skipper arguments:
 
 | Argument | Required? | Description |
 | -------- | --------- | ----------- |
-| `-oauth2-callback-path` | **yes** | path of the Skipper route containing the `grantCallback()` filter. Example: `-oauth2-callback-path=/oauth/callback` |
+| `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter. Example: `-oauth2-callback-path=/oauth/callback` |
 
 ## grantClaimsQuery
 

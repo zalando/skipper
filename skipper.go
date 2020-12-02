@@ -638,7 +638,7 @@ type Options struct {
 	OAuth2ClientSecretFile string
 
 	// OAuth2CallbackPath contains the path where the OAuth2 callback requests with the
-	// authorization code should be redirected to.
+	// authorization code should be redirected to. Defaults to /.well-known/oauth2-callback
 	OAuth2CallbackPath string
 
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
