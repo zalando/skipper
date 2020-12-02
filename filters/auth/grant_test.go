@@ -16,12 +16,11 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/secrets"
-	"golang.org/x/oauth2"
 )
 
 const (
-	testToken                = "foobarbaz"
-	testRefreshToken         = "refreshfoobarbaz"
+	testToken                = auth.TestToken
+	testRefreshToken         = auth.TestRefreshToken
 	testAccessCode           = "quxquuxquz"
 	testSecretFile           = "testdata/authsecret"
 	testAccessTokenExpiresIn = int(time.Hour / time.Second)
@@ -192,18 +191,7 @@ func newGrantHTTPClient() *http.Client {
 }
 
 func newGrantCookie(config auth.OAuthConfig) (*http.Cookie, error) {
-	return newGrantCookieWithExpiration(config, time.Now().Add(time.Second*time.Duration(testAccessTokenExpiresIn)))
-}
-
-func newGrantCookieWithExpiration(config auth.OAuthConfig, expiry time.Time) (*http.Cookie, error) {
-	token := &oauth2.Token{
-		AccessToken:  testToken,
-		RefreshToken: testRefreshToken,
-		Expiry:       expiry,
-	}
-
-	cookie, err := auth.CreateCookie(config, "", token)
-	return cookie, err
+	return auth.NewGrantCookieWithExpiration(config, time.Now().Add(time.Second*time.Duration(testAccessTokenExpiresIn)))
 }
 
 func checkStatus(t *testing.T, rsp *http.Response, expectedStatus int) {
@@ -357,13 +345,7 @@ func TestGrantFlow(t *testing.T) {
 
 	t.Run("check login is triggered access token is invalid", func(t *testing.T) {
 		t.Log("create expired cookie with invalid refresh token")
-		token := &oauth2.Token{
-			AccessToken:  "invalid",
-			RefreshToken: testRefreshToken,
-			Expiry:       time.Now().Add(time.Duration(1) * time.Hour),
-		}
-
-		cookie, err := auth.CreateCookie(*config, "", token)
+		cookie, err := auth.NewGrantCookieWithInvalidAccessToken(*config)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -427,7 +409,7 @@ func TestGrantRefresh(t *testing.T) {
 
 	t.Run("check token is refreshed if it expired", func(t *testing.T) {
 		t.Log("create a valid cookie")
-		cookie, err := newGrantCookieWithExpiration(*config, time.Now().Add(time.Duration(-1)*time.Minute))
+		cookie, err := auth.NewGrantCookieWithExpiration(*config, time.Now().Add(time.Duration(-1)*time.Minute))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -440,13 +422,7 @@ func TestGrantRefresh(t *testing.T) {
 
 	t.Run("check login is triggered if refresh token is invalid", func(t *testing.T) {
 		t.Log("create expired cookie with invalid refresh token")
-		token := &oauth2.Token{
-			AccessToken:  testToken,
-			RefreshToken: "invalid",
-			Expiry:       time.Now().Add(time.Duration(-1) * time.Minute),
-		}
-
-		cookie, err := auth.CreateCookie(*config, "", token)
+		cookie, err := auth.NewGrantCookieWithInvalidRefreshToken(*config)
 		if err != nil {
 			t.Fatal(err)
 		}

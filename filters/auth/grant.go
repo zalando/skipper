@@ -183,7 +183,7 @@ func (f *grantFilter) Response(ctx filters.FilterContext) {
 	}
 
 	req := ctx.Request()
-	c, err := CreateCookie(f.config, req.Host, container.OAuth2Token)
+	c, err := createCookie(f.config, req.Host, container.OAuth2Token)
 	if err != nil {
 		log.Errorf("Failed to generate cookie: %v.", err)
 		return

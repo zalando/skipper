@@ -73,7 +73,7 @@ func extractCookie(request *http.Request, config OAuthConfig) (cookie *cookie, e
 	return nil, http.ErrNoCookie
 }
 
-func CreateCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
+func createCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
 	c := cookie{
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,

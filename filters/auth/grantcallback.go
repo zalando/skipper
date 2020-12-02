@@ -69,7 +69,7 @@ func (f *grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 		return
 	}
 
-	c, err := CreateCookie(f.config, req.Host, token)
+	c, err := createCookie(f.config, req.Host, token)
 	if err != nil {
 		log.Errorf("Failed to create OAuth grant cookie: %v.", err)
 		serverError(ctx)
