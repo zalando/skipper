@@ -1271,7 +1271,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.CallbackPath = o.OAuth2CallbackPath
 		oauthConfig.AuthURLParameters = o.OAuth2AuthURLParameters
 		oauthConfig.SecretsProvider = sp
-		oauthConfig.Secrets = secrets.NewRegistry()
+		oauthConfig.Secrets = o.SecretsRegistry
 		oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
 		oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
 		oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
