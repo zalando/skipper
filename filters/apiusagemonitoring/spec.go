@@ -135,7 +135,8 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	}
 
 	filter = &apiUsageMonitoringFilter{
-		Spec:        s,
+		realmKeys:   s.realmKeys,
+		clientKeys:  s.clientKeys,
 		Paths:       paths,
 		UnknownPath: s.buildUnknownPathInfo(paths),
 	}
