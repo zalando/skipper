@@ -358,11 +358,6 @@ foo:
     Path("/foo")
     -> oauthGrant()
     -> "http://localhost:9090";
-
-bar: 
-    Path("/bar")
-    -> oauthGrant()
-    -> "http://localhost:9090/";
 ```
 
 #### (Optional) AuthZ and access control
