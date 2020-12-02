@@ -284,11 +284,15 @@ updated cookie in the response.
 
 To use authorization grant flow, you need to:
 
-1. Configure OAuth2 credentials.
-1. Configure the grant filters with OAuth2 URLs.
-1. Add the OAuth2 grant filters to routes.
+1. [Configure OAuth2 credentials.](#configure-oauth2-credentials)
+1. [Configure the grant filters with OAuth2 URLs.](#configure-the-grant-filters)
+1. [Add the OAuth2 grant filters to routes.](#add-filters-to-your-routes)
 
 #### Configure OAuth2 credentials
+Before you start, you need to register your application with the OAuth2 provider.
+If your provider asks you for the callback URL, provide the URL that you set 
+as the `-oauth2-callback-path` parameter. If you did not provide a value, use the default
+route : `/.well-known/oauth2-callback`. 
 
 Skipper must be configured with the following credentials and secrets:
 1. OAuth2 client ID for authenticating with the OAuth2 provider.
