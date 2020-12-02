@@ -270,6 +270,8 @@ It works as follows:
    
 1: The name of this cookie can be changed by providing the `-oauth2-token-cookie-name` parameter.
 
+Please note that it is not currently possible to use multiple OAuth2 providers with Skipper.
+
 ### Encrypted cookie tokens
 
 The cookie set by the `oauthGrant()` filter contains the OAuth2 access and refresh tokens in 
