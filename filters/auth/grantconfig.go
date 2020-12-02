@@ -88,13 +88,13 @@ type OAuthConfig struct {
 	// encrypted access token after a successful token exchange.
 	TokenCookieName string
 
-	// ConnectionTimeout used for tokeninfo endpoint.
+	// ConnectionTimeout used for tokeninfo, access-token and refresh-token endpoint.
 	ConnectionTimeout time.Duration
 
-	// MaxIdleConnectionsPerHost used for tokeninfo endpoint.
+	// MaxIdleConnectionsPerHost used for tokeninfo, access-token and refresh-token endpoint.
 	MaxIdleConnectionsPerHost int
 
-	// Tracer used for tokeninfo endpoint.
+	// Tracer used for tokeninfo , access-token and refresh-token endpoint.
 	Tracer opentracing.Tracer
 }
 
@@ -165,7 +165,14 @@ func (c *OAuthConfig) Init() error {
 	}
 
 	if c.AuthClient == nil {
-		c.AuthClient = net.NewClient(net.Options{})
+		c.AuthClient = net.NewClient(net.Options{
+			ResponseHeaderTimeout:   c.ConnectionTimeout,
+			TLSHandshakeTimeout:     c.ConnectionTimeout,
+			MaxIdleConnsPerHost:     c.MaxIdleConnectionsPerHost,
+			Tracer:                  c.Tracer,
+			OpentracingComponentTag: "skipper",
+			OpentracingSpanName:     "grantauth",
+		})
 	}
 
 	c.flowState = newFlowState(c.Secrets, c.SecretFile)
