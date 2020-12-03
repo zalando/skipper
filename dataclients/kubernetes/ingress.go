@@ -318,6 +318,10 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 		redirect.setHostDisabled(host)
 	}
 
+	if ing.kubernetesEnableEastWest {
+		ewRoute := createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, ic.ingress.Metadata.Name, ic.ingress.Metadata.Namespace, endpointsRoute)
+		ic.addHostRoute(ewRoute.HostRegexps[0], ewRoute)
+	}
 	return nil
 }
 
@@ -550,16 +554,6 @@ func countPathRoutes(r *eskip.Route) int {
 	return i
 }
 
-// TODO: check if this creates additional routes also for routes like the HTTPS redirect
-func (ing *ingress) addEastWestRoutes(hostRoutes map[string][]*eskip.Route, i *definitions.IngressItem) {
-	for _, rule := range i.Spec.Rules {
-		if rs, ok := hostRoutes[rule.Host]; ok {
-			rs = append(rs, createEastWestRoutesIng(ing.eastWestDomainRegexpPostfix, i.Metadata.Name, i.Metadata.Namespace, rs)...)
-			hostRoutes[rule.Host] = rs
-		}
-	}
-}
-
 // parse filter and ratelimit annotation
 func annotationFilter(i *definitions.IngressItem, logger *log.Entry) []*eskip.Filter {
 	var annotationFilter string
@@ -675,9 +669,6 @@ func (ing *ingress) ingressRoute(
 			return nil, err
 		}
 	}
-	if ing.kubernetesEnableEastWest {
-		ing.addEastWestRoutes(hostRoutes, i)
-	}
 	return route, nil
 }
 
@@ -728,6 +719,10 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 // because Ingress status field is v1beta1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
 func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Route, error) {
+	var ewIngInfo map[string][]string // r.Id -> {namespace, name}
+	if ing.kubernetesEnableEastWest {
+		ewIngInfo = make(map[string][]string)
+	}
 	routes := make([]*eskip.Route, 0, len(state.ingresses))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
@@ -738,6 +733,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 		}
 		if r != nil {
 			routes = append(routes, r)
+			ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
 		}
 	}
 
@@ -753,6 +749,16 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 		if !hasCatchAllRoutes(rs) {
 			routes = append(routes, ing.addCatchAllRoutes(host, rs[0], redirect)...)
 		}
+	}
+
+	if ing.kubernetesEnableEastWest && len(routes) > 0 && len(ewIngInfo) > 0 {
+		ewroutes := make([]*eskip.Route, 0, len(routes))
+		for _, r := range routes {
+			ewroutes = append(ewroutes, createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, ewIngInfo[r.Id][0], ewIngInfo[r.Id][1], r))
+		}
+		l := len(routes)
+		routes = append(routes, ewroutes...)
+		log.Infof("enabled east west routes: %d %d %d %d", l, len(routes), len(ewroutes), len(hostRoutes))
 	}
 
 	return routes, nil
