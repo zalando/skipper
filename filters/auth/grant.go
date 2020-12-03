@@ -14,8 +14,8 @@ import (
 const (
 	OAuthGrantName = "oauthGrant"
 
-	secretsRefreshInternal    = time.Minute
-	oauthGrantRefreshTokenKey = "oauth-grant-token"
+	secretsRefreshInternal = time.Minute
+	tokenWasRefreshed      = "oauth-did-refresh"
 )
 
 var (
@@ -99,12 +99,18 @@ func (f *grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
 	return tokenSource.Token()
 }
 
-func (f *grantFilter) refreshTokenIfRequired(c cookie) (*oauth2.Token, error) {
+func (f *grantFilter) refreshTokenIfRequired(c cookie, ctx filters.FilterContext) (*oauth2.Token, error) {
 	canRefresh := c.RefreshToken != ""
 
 	if c.isAccessTokenExpired() {
 		if canRefresh {
-			return f.refreshToken(c)
+			token, err := f.refreshToken(c)
+			if err == nil {
+				// Remember that this token was just successfully refreshed
+				// so that we can send  an updated cookie in the response.
+				ctx.StateBag()[tokenWasRefreshed] = true
+			}
+			return token, err
 		} else {
 			return nil, errExpiredToken
 		}
@@ -148,7 +154,7 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	token, err := f.refreshTokenIfRequired(*c)
+	token, err := f.refreshTokenIfRequired(*c, ctx)
 	if err != nil && c.isAccessTokenExpired() {
 		// Refresh failed and we no longer have a valid access token.
 		loginRedirect(ctx, f.config)
@@ -177,6 +183,15 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *grantFilter) Response(ctx filters.FilterContext) {
+	// If the token was refreshed in this request flow,
+	// we want to send an updated cookie. If it wasn't, the
+	// users will still have their old cookie and we do not
+	// need to send it again and this function can exit early.
+	didRefresh, ok := ctx.StateBag()[tokenWasRefreshed].(bool)
+	if !didRefresh || !ok {
+		return
+	}
+
 	container, ok := ctx.StateBag()[oidcClaimsCacheKey].(tokenContainer)
 	if !ok {
 		return

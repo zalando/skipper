@@ -386,6 +386,20 @@ func TestGrantFlow(t *testing.T) {
 		t.Log("check for successful request")
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
+
+	t.Run("check does not send cookie again if token was not refreshed", func(t *testing.T) {
+		t.Log("send an authenticated request. This should not have a cookie in the response.")
+		goodCookie, _ := newGrantCookie(*config)
+
+		rsp := grantQueryWithCookie(t, client, proxy.URL, goodCookie)
+
+		_, ok := findAuthCookie(rsp)
+		if ok {
+			t.Fatalf(
+				"The auth cookie should only be added to the response if there was a refresh.",
+			)
+		}
+	})
 }
 
 func TestGrantRefresh(t *testing.T) {
