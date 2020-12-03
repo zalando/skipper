@@ -106,6 +106,14 @@ route. Make sure your settings are the same for the whole group. In
 case of different settings for the same group the behavior is
 undefined and could toggle between different configurations.
 
+Settings - ResponseContentType
+
+Defines the "Content-Type" header in responses to the client when the rate limit is exceeded.
+
+Settings - ResponseBody
+
+Defines the response body in responses to the client when the rate limit is exceeded.
+
 HTTP Response
 
 In case of rate limiting, the HTTP response status will be 429 Too

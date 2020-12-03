@@ -1354,11 +1354,17 @@ Parameters:
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
 * optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* optional parameter to set the "Content-Type" header in responses to the client when the rate limit is exceeded (string)
+* optional parameter to set the response body in responses to the client when the rate limit is exceeded (string)
+
+Note: To set Content-Type and Response body, you will also need to define the preceeding optional parameter, which specifies the header to use for identifying a client.
+The default value for this header is "X-Forwarded-For", so specify this value in order to add custom rate limit response and retain your previous behaviour.
 
 ```
 clusterClientRatelimit("groupA", 10, "1h")
 clusterClientRatelimit("groupA", 10, "1h", "Authorization")
 clusterClientRatelimit("groupA", 10, "1h", "X-Forwarded-For,Authorization,User-Agent")
+clusterClientRatelimit("groupA", 10, "1h", "X-Forwarded-For", "application/problem+json", "{\"title\":\"Rate limit exceeded\",\"detail\":\"You have exceeded your ratelimit. See the retry-after and x-rate-limit headers for details.\",\"status\":429}")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
