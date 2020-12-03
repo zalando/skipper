@@ -1,7 +1,9 @@
 package ratelimit
 
 import (
+	"bytes"
 	"context"
+	"io/ioutil"
 	"net/http"
 	"reflect"
 	"testing"
@@ -326,6 +328,35 @@ func TestRateLimit(t *testing.T) {
 		3,
 		"1s",
 		"Authorization",
+	))
+
+	t.Run("ratelimit clusterClient custom response body", test(
+		NewClusterClientRateLimit,
+		ratelimit.Settings{
+			Type:                ratelimit.ClusterClientRatelimit,
+			MaxHits:             3,
+			TimeWindow:          1 * time.Second,
+			CleanInterval:       10 * time.Second,
+			Lookuper:            ratelimit.NewXForwardedForLookuper(),
+			Group:               "mygroup",
+			ResponseContentType: "application/problem+json",
+			ResponseBody:        "{\"title\":\"Rate limit exceeded\",\"detail\":\"You have exceeded your ratelimit. See the retry-after and x-rate-limit headers for details.\",\"status\":429}",
+		},
+		&http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Body:       ioutil.NopCloser(bytes.NewBufferString("{\"title\":\"Rate limit exceeded\",\"detail\":\"You have exceeded your ratelimit. See the retry-after and x-rate-limit headers for details.\",\"status\":429}")),
+			Header: http.Header{
+				"X-Rate-Limit": []string{"10800"},
+				"Retry-After":  []string{"31415"},
+				"Content-Type": []string{"application/problem+json"},
+			},
+		},
+		"mygroup",
+		3,
+		"1s",
+		"X-Forwarded-For",
+		"application/problem+json",
+		"{\"title\":\"Rate limit exceeded\",\"detail\":\"You have exceeded your ratelimit. See the retry-after and x-rate-limit headers for details.\",\"status\":429}",
 	))
 
 	t.Run("ratelimit disable", test(

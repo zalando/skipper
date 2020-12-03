@@ -6,7 +6,9 @@ For detailed documentation of the ratelimit, see https://godoc.org/github.com/za
 package ratelimit
 
 import (
+	"bytes"
 	"context"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -214,7 +216,7 @@ func clusterRatelimitFilter(args []interface{}) (*filter, error) {
 }
 
 func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
-	if !(len(args) == 3 || len(args) == 4) {
+	if !(len(args) >= 3 && len(args) <= 6) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -257,6 +259,22 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 		}
 	} else {
 		s.Lookuper = ratelimit.NewXForwardedForLookuper()
+	}
+
+	if len(args) > 4 {
+		contentType, err := getStringArg(args[4])
+		if err != nil {
+			return nil, err
+		}
+		s.ResponseContentType = contentType
+	}
+
+	if len(args) > 5 {
+		responseBody, err := getStringArg(args[5])
+		if err != nil {
+			return nil, err
+		}
+		s.ResponseBody = responseBody
 	}
 
 	return &filter{settings: s}, nil
@@ -399,10 +417,17 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	}
 
 	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
-		ctx.Serve(&http.Response{
+		response := &http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header:     ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s)),
-		})
+		}
+		if f.settings.ResponseBody != "" {
+			response.Body = ioutil.NopCloser(bytes.NewBufferString(f.settings.ResponseBody))
+		}
+		if f.settings.ResponseContentType != "" {
+			response.Header.Set("Content-Type", f.settings.ResponseContentType)
+		}
+		ctx.Serve(response)
 	}
 }
 

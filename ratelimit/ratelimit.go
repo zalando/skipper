@@ -277,6 +277,14 @@ type Settings struct {
 	// A ratelimit group considers all hits to the same group as
 	// one target.
 	Group string `yaml:"group"`
+
+	// The Content-Type header to be used in http responses to clients
+	// when the rate limit is exceeded.
+	ResponseContentType string `yaml:"response-content-type-header"`
+
+	// The response body to be used in http responses to clients
+	// when the rate limit is exceeded.
+	ResponseBody string `yaml:"response-body"`
 }
 
 func (s Settings) Empty() bool {
@@ -296,7 +304,7 @@ func (s Settings) String() string {
 	case ClusterServiceRatelimit:
 		return fmt.Sprintf("ratelimit(type=clusterService,max-hits=%d,time-window=%s,group=%s)", s.MaxHits, s.TimeWindow, s.Group)
 	case ClusterClientRatelimit:
-		return fmt.Sprintf("ratelimit(type=clusterClient,max-hits=%d,time-window=%s,group=%s)", s.MaxHits, s.TimeWindow, s.Group)
+		return fmt.Sprintf("ratelimit(type=clusterClient,max-hits=%d,time-window=%s,group=%s,responseContentType=%s,responseBody=%s)", s.MaxHits, s.TimeWindow, s.Group, s.ResponseContentType, s.ResponseBody)
 	default:
 		return "non"
 	}
