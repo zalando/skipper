@@ -399,10 +399,9 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	}
 
 	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
-		ctx.Serve(&http.Response{
-			StatusCode: http.StatusTooManyRequests,
-			Header:     ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s)),
-		})
+		ctx.Response().StatusCode = http.StatusTooManyRequests
+		ctx.Response().Header = ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s))
+		return
 	}
 }
 

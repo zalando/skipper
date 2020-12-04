@@ -2,10 +2,11 @@ package builtin
 
 import (
 	"bytes"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/filters"
 )
