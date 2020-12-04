@@ -1462,12 +1462,12 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
-			"kube___catchall__new1_example_org____":                     "",
-			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
-			//"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
-			"kubeew___catchall__new1_example_org____":                     "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":            "http://1.1.1.0:8080",
+			"kube___catchall__new1_example_org____":                                "",
+			"kube_namespace1__new1__new1_example_org___test2__service1":            "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1":          "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test2__service1":          "http://1.1.1.0:8080",
+			"kube___catchall___new1___namespace1___skipper___cluster___local_____": "",
 		})
 	})
 
@@ -1574,6 +1574,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 			"kube_namespace1__test1__host1_____svcname1":   "http://2.2.2.0:8080",
 			"kube_namespace1__test1__host2_____svcname1":   "http://2.2.2.0:8181",
 			"kube_namespace1__test1______":                 "http://2.2.2.0:8080",
+			"kubeew_namespace1__test1______":               "http://2.2.2.0:8080",
 			"kubeew_namespace1__test1__host1_____svcname1": "http://2.2.2.0:8080",
 			"kubeew_namespace1__test1__host2_____svcname1": "http://2.2.2.0:8181",
 		})
