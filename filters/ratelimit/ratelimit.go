@@ -16,6 +16,10 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
+const (
+	stateBagKey = "rate-limit-state-key"
+)
+
 type spec struct {
 	typ        ratelimit.RatelimitType
 	provider   RatelimitProvider
@@ -48,6 +52,11 @@ type limit interface {
 // and enables easier test stubbing
 type registryAdapter struct {
 	registry *ratelimit.Registry
+}
+
+type rateLimitingStateBag struct {
+	retryAfter    int
+	breachedLimit bool
 }
 
 func (a *registryAdapter) get(s ratelimit.Settings) limit {
@@ -399,10 +408,19 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	}
 
 	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
-		ctx.Response().StatusCode = http.StatusTooManyRequests
-		ctx.Response().Header = ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s))
+		ctx.StateBag()[stateBagKey] = rateLimitingStateBag{
+			breachedLimit: true,
+			retryAfter:    rateLimiter.RetryAfter(s),
+		}
+
 		return
 	}
 }
 
-func (*filter) Response(filters.FilterContext) {}
+func (f *filter) Response(ctx filters.FilterContext) {
+	stateBag, ok := ctx.StateBag()[stateBagKey].(rateLimitingStateBag)
+	if ok {
+		ctx.Response().StatusCode = http.StatusTooManyRequests
+		ctx.Response().Header = ratelimit.Headers(&f.settings, stateBag.retryAfter)
+	}
+}
