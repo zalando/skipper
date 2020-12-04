@@ -733,7 +733,9 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 		}
 		if r != nil {
 			routes = append(routes, r)
-			ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
+			if ing.kubernetesEnableEastWest {
+				ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
+			}
 		}
 	}
 
@@ -754,7 +756,9 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 	if ing.kubernetesEnableEastWest && len(routes) > 0 && len(ewIngInfo) > 0 {
 		ewroutes := make([]*eskip.Route, 0, len(routes))
 		for _, r := range routes {
-			ewroutes = append(ewroutes, createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, ewIngInfo[r.Id][0], ewIngInfo[r.Id][1], r))
+			if v, ok := ewIngInfo[r.Id]; ok {
+				ewroutes = append(ewroutes, createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, v[0], v[1], r))
+			}
 		}
 		l := len(routes)
 		routes = append(routes, ewroutes...)
