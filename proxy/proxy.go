@@ -937,9 +937,15 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
-		ctx.proxySpan.LogKV(
-			"event", "error",
-			"message", err.Error())
+
+		// Check if the request has been cancelled or timed out
+		// The roundtrip error `err` may be different
+		if cerr := req.Context().Err(); cerr != nil {
+			ctx.proxySpan.LogKV("event", "error", "message", cerr.Error())
+			return nil, &proxyError{err: cerr, code: 499}
+		}
+
+		ctx.proxySpan.LogKV("event", "error", "message", err.Error())
 
 		if perr, ok := err.(*proxyError); ok {
 			p.log.Errorf("Failed to do backend roundtrip to %s: %v", ctx.route.Backend, perr)
@@ -956,16 +962,7 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 				status = http.StatusServiceUnavailable
 			}
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
-			return nil, &proxyError{
-				err:  err,
-				code: status,
-			}
-		}
-
-		if cerr := req.Context().Err(); cerr != nil {
-			// deadline exceeded or canceled in stdlib, proxy client closed request
-			// see https://github.com/zalando/skipper/issues/687#issuecomment-405557503
-			return nil, &proxyError{err: cerr, code: 499}
+			return nil, &proxyError{err: err, code: status}
 		}
 
 		p.log.Errorf("Unexpected error from Go stdlib net/http package during roundtrip: %v", err)
