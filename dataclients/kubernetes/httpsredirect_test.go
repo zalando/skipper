@@ -91,11 +91,6 @@ func newRedirectTest(t *testing.T, redirectEnabled bool) (*redirectTest, error) 
 		t.Fatal("waiting for route settings", err)
 	}
 
-	if err != nil {
-		t.Error(err)
-		return nil, err
-	}
-
 	ingress := i.Items[0]
 	rule := ingress.Spec.Rules[0]
 	service := s.Items[0].Spec
