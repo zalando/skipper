@@ -1422,7 +1422,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err = p.do(ctx)
+	err := p.do(ctx)
 
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)
