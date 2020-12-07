@@ -152,7 +152,7 @@ func convertPathRule(
 		return nil, err
 	}
 
-	targetPort, err := svc.getTargetPort(svcPort)
+	servicePort, err := svc.getServicePort(svcPort)
 	if err != nil {
 		// service definition is wrong or no pods
 		err = nil
@@ -162,10 +162,10 @@ func convertPathRule(
 		}
 	} else if svc.Spec.Type == "ExternalName" {
 		scheme := "https"
-		if n, _ := targetPort.Number(); n != 443 {
+		if n, _ := servicePort.TargetPort.Number(); n != 443 {
 			scheme = "http"
 		}
-		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
+		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, servicePort.TargetPort)
 		f, e := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
 		if e != nil {
 			return nil, e
@@ -183,8 +183,8 @@ func convertPathRule(
 			protocol = p
 		}
 
-		eps = state.getEndpointsByTarget(ns, svcName, protocol, targetPort)
-		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), targetPort, svcName)
+		eps = state.getEndpointsByService(ns, svcName, protocol, servicePort)
+		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), servicePort, svcName)
 	}
 	if len(eps) == 0 {
 		// add shunt route https://github.com/zalando/skipper/issues/1525
@@ -491,16 +491,16 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.In
 		return nil, false, err
 	}
 
-	targetPort, err := svc.getTargetPort(svcPort)
+	servicePort, err := svc.getServicePort(svcPort)
 	if err != nil {
 		log.Errorf("convertDefaultBackend: Failed to find target port %v, %s, for ingress %s/%s and service %s add shuntroute: %v", svc.Spec.Ports, svcPort, ns, name, svcName, err)
 		err = nil
 	} else if svc.Spec.Type == "ExternalName" {
 		scheme := "https"
-		if n, _ := targetPort.Number(); n != 443 {
+		if n, _ := servicePort.TargetPort.Number(); n != 443 {
 			scheme = "http"
 		}
-		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, targetPort)
+		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, servicePort.TargetPort)
 		f, err := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
 		if err != nil {
 			return nil, false, err
@@ -512,17 +512,17 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.In
 			Filters:     f,
 		}, true, nil
 	} else {
-		log.Debugf("convertDefaultBackend: Found target port %v, for service %s", targetPort, svcName)
+		log.Debugf("convertDefaultBackend: Found target port %v, for service %s", servicePort.TargetPort, svcName)
 		protocol := "http"
 		if p, ok := i.Metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
 			protocol = p
 		}
 
-		eps = state.getEndpointsByTarget(
+		eps = state.getEndpointsByService(
 			ns,
 			svcName,
 			protocol,
-			targetPort,
+			servicePort,
 		)
 		log.Debugf("convertDefaultBackend: Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}

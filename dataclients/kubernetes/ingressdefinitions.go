@@ -39,13 +39,13 @@ type serviceList struct {
 	Items []*service `json:"items"`
 }
 
-func (s service) getTargetPort(svcPort definitions.BackendPort) (*definitions.BackendPort, error) {
+func (s service) getServicePort(port definitions.BackendPort) (*servicePort, error) {
 	for _, sp := range s.Spec.Ports {
-		if sp.matchingPort(svcPort) && sp.TargetPort != nil {
-			return sp.TargetPort, nil
+		if sp.matchingPort(port) && sp.TargetPort != nil {
+			return sp, nil
 		}
 	}
-	return nil, fmt.Errorf("getTargetPort: target port not found %v given %v", s.Spec.Ports, svcPort)
+	return nil, fmt.Errorf("getServicePort: service port not found %v given %v", s.Spec.Ports, port)
 }
 
 func (s service) getTargetPortByValue(p int) (*definitions.BackendPort, bool) {
@@ -69,6 +69,25 @@ type endpointList struct {
 
 func formatEndpoint(a *address, p *port, protocol string) string {
 	return fmt.Sprintf("%s://%s:%d", protocol, a.IP, p.Port)
+}
+
+func (ep endpoint) targetsByServicePort(protocol string, servicePort *servicePort) []string {
+	for _, s := range ep.Subsets {
+		for _, p := range s.Ports {
+			if p.Name != servicePort.Name {
+				continue
+			}
+
+			var result []string
+			for _, a := range s.Addresses {
+				result = append(result, formatEndpoint(a, p, protocol))
+			}
+
+			return result
+		}
+	}
+
+	return nil
 }
 
 func (ep endpoint) targetsByServiceTarget(protocol string, serviceTarget *definitions.BackendPort) []string {

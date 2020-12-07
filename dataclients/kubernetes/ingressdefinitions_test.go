@@ -3,15 +3,17 @@ package kubernetes
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
-func TestGetTargetPort(t *testing.T) {
+func TestGetServicePort(t *testing.T) {
 	tests := []struct {
 		name        string
 		svc         *service
 		svcPort     definitions.BackendPort
-		expected    *definitions.BackendPort
+		expected    *servicePort
 		errExpected bool
 	}{
 		{
@@ -24,9 +26,34 @@ func TestGetTargetPort(t *testing.T) {
 							TargetPort: &definitions.BackendPort{Value: 5000},
 						},
 					},
-				}},
-			svcPort:     definitions.BackendPort{Value: 80},
-			expected:    &definitions.BackendPort{Value: 80},
+				},
+			},
+			svcPort: definitions.BackendPort{Value: 80},
+			expected: &servicePort{
+				Port:       80,
+				TargetPort: &definitions.BackendPort{Value: 5000},
+			},
+			errExpected: false,
+		},
+		{
+			name: "named service port",
+			svc: &service{
+				Spec: &serviceSpec{
+					Ports: []*servicePort{
+						{
+							Name:       "web",
+							Port:       80,
+							TargetPort: &definitions.BackendPort{Value: 5000},
+						},
+					},
+				},
+			},
+			svcPort: definitions.BackendPort{Value: "web"},
+			expected: &servicePort{
+				Name:       "web",
+				Port:       80,
+				TargetPort: &definitions.BackendPort{Value: 5000},
+			},
 			errExpected: false,
 		},
 		{
@@ -38,16 +65,76 @@ func TestGetTargetPort(t *testing.T) {
 							Port: 80,
 						},
 					},
-				}},
+				},
+			},
 			svcPort:     definitions.BackendPort{Value: 80},
 			expected:    nil,
 			errExpected: true,
 		},
+		{
+			name: "multiple service ports, by value",
+			svc: &service{
+				Spec: &serviceSpec{
+					Ports: []*servicePort{
+						{
+							Name:       "web",
+							Port:       80,
+							TargetPort: &definitions.BackendPort{Value: 8080},
+						},
+						{
+							Name:       "metrics",
+							Port:       81,
+							TargetPort: &definitions.BackendPort{Value: 8181},
+						},
+					},
+				},
+			},
+			svcPort: definitions.BackendPort{Value: 80},
+			expected: &servicePort{
+				Name:       "web",
+				Port:       80,
+				TargetPort: &definitions.BackendPort{Value: 8080},
+			},
+			errExpected: false,
+		},
+		{
+			name: "multiple service ports, by name",
+			svc: &service{
+				Spec: &serviceSpec{
+					Ports: []*servicePort{
+						{
+							Name:       "web",
+							Port:       80,
+							TargetPort: &definitions.BackendPort{Value: 8080},
+						},
+						{
+							Name:       "metrics",
+							Port:       81,
+							TargetPort: &definitions.BackendPort{Value: 8181},
+						},
+					},
+				},
+			},
+			svcPort: definitions.BackendPort{Value: "web"},
+			expected: &servicePort{
+				Name:       "web",
+				Port:       80,
+				TargetPort: &definitions.BackendPort{Value: 8080},
+			},
+			errExpected: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, err := tt.svc.getTargetPort(tt.svcPort); got != tt.expected && (err != nil && !tt.errExpected) {
-				t.Errorf("getTargetPort: %v, expected: %v, err: %v", got, tt.expected, err)
+			got, err := tt.svc.getServicePort(tt.svcPort)
+			if err != nil && !tt.errExpected {
+				t.Errorf("did not expect err, but got: %v", err)
+			}
+			if err == nil && tt.errExpected {
+				t.Errorf("expected err, but got: %v, getServicePort: %v", err, got)
+			}
+			if diff := cmp.Diff(tt.expected, got); diff != "" {
+				t.Errorf("err: %v\n%s", err, diff)
 			}
 		})
 	}
