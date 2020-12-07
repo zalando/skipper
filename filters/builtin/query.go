@@ -21,15 +21,7 @@ type modQuery struct {
 // Returns a new dropQuery filter Spec, whose instances drop a corresponding
 // query parameter.
 //
-// As an EXPERIMENTAL feature: the dropQuery filter provides the possiblity
-// to apply template operations. The current solution supports templates
-// with placeholders of the format: ${param1}, and the placeholders will
-// be replaced with the values of the same name from the wildcards in the
-// Path() predicate.
-// The templating feature will stay in Skipper, but the syntax of the
-// templating may change.
-//
-// See also: https://github.com/zalando/skipper/issues/182
+// Instances expect the name string or template parameter, see eskip.Template.ApplyRequestContext
 //
 // Name: "dropQuery".
 func NewDropQuery() filters.Spec { return &modQuery{behavior: drop} }
@@ -37,21 +29,8 @@ func NewDropQuery() filters.Spec { return &modQuery{behavior: drop} }
 // Returns a new setQuery filter Spec, whose instances replace
 // the query parameters.
 //
-// As an EXPERIMENTAL feature: the setPath filter provides the possiblity
-// to apply template operations. The current solution supports templates
-// with placeholders of the format: ${param1}, and the placeholders will
-// be replaced with the values of the same name from the wildcards in the
-// Path() predicate.
-//
-// See: https://godoc.org/github.com/zalando/skipper/routing#hdr-Wildcards
-//
-// The templating feature will stay in Skipper, but the syntax of the
-// templating may change.
-//
-// See also: https://github.com/zalando/skipper/issues/182
-//
 // Instances expect two parameters: the name and the value to be set, either
-// strings or templates are valid.
+// strings or templates are valid, see eskip.Template.ApplyRequestContext
 //
 // Name: "setQuery".
 func NewSetQuery() filters.Spec { return &modQuery{behavior: set} }
@@ -123,14 +102,16 @@ func (f *modQuery) Request(ctx filters.FilterContext) {
 
 	switch f.behavior {
 	case drop:
-		params.Del(f.name.Apply(ctx.PathParam))
+		name, _ := f.name.ApplyRequestContext(ctx)
+		params.Del(name)
 	case set:
 		if f.value == nil {
-			req.URL.RawQuery = f.name.Apply(ctx.PathParam)
+			req.URL.RawQuery, _ = f.name.ApplyRequestContext(ctx)
 			return
 		} else {
-			params.Set(f.name.Apply(ctx.PathParam), f.value.Apply(ctx.PathParam))
-
+			name, _ := f.name.ApplyRequestContext(ctx)
+			value, _ := f.value.ApplyRequestContext(ctx)
+			params.Set(name, value)
 		}
 	default:
 		panic("unspecified behavior")

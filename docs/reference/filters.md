@@ -16,6 +16,18 @@ Example route with a match all, 2 filters and a backend:
 all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
 ```
 
+## Template placeholders
+
+Several filters support template placeholders (`${var}`) in string parameters.
+Template placeholder is replaced by the value that is looked up in filter context path parameters.
+Missing template placeholder value interpretation depends on the filter.
+
+Example route that rewrites path using template placeholder:
+
+```
+u1: Path("/user/:id") -> setPath("/v2/user/${id}") -> <loopback>;
+```
+
 ## backendIsProxy
 
 Notifies the proxy that the backend handling this request is also a
@@ -68,8 +80,8 @@ enforce_www: * -> modRequestHeader("Host", "^zalando\.(\w+)$", "www.zalando.$1")
 
 Set headers for requests.
 
-Header value may contain template variables (`${var}`) resolved from filter context path params and state bag.
-If a template variable can't be found then filter does not set the header.
+Header value may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then filter does not set the header.
 
 Parameters:
 
@@ -83,8 +95,8 @@ foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.examp
 ```
 
 ```
-// oauthTokeninfoAllScope checks whether request is authorized and stores the authenticated user with "auth-user" key in the context
-foo: * -> oauthTokeninfoAllScope("address_service.all") -> setRequestHeader("X-Uid", "${auth-user}") -> "https://backend.example.org";
+// Ratelimit per resource
+Path("/resource/:id") -> setRequestHeader("X-Resource-Id", "${id}") -> clusterClientRateLimit("resource", 10, "1m", "X-Resource-Id") -> "https://backend.example.org";
 ```
 
 ## appendRequestHeader
@@ -205,6 +217,9 @@ Replace the path of the original request to the replacement.
 Parameters:
 
 * the replacement (string)
+
+The replacement may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
 
 ## redirectTo
 
@@ -375,6 +390,9 @@ Parameters:
 * key (string)
 * value (string)
 
+Key and value may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
+
 Example:
 
 ```
@@ -389,6 +407,9 @@ given key.
 Parameters:
 
 * key (string)
+
+Key may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
 
 Example:
 

@@ -89,7 +89,8 @@ func NewResponseHeader() filters.Spec {
 }
 
 // Returns a filter specification that is used to set headers for requests.
-// Instances expect two parameters: the header name and the header value.
+// Instances expect two parameters: the header name and the header value template,
+// see eskip.Template.ApplyRequestContext
 // Name: "setRequestHeader".
 //
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
@@ -100,7 +101,8 @@ func NewSetRequestHeader() filters.Spec {
 }
 
 // Returns a filter specification that is used to append headers for requests.
-// Instances expect two parameters: the header name and the header value.
+// Instances expect two parameters: the header name and the header value template,
+// see eskip.Template.ApplyRequestContext
 // Name: "appendRequestHeader".
 //
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
@@ -118,14 +120,16 @@ func NewDropRequestHeader() filters.Spec {
 }
 
 // Returns a filter specification that is used to set headers for responses.
-// Instances expect two parameters: the header name and the header value.
+// Instances expect two parameters: the header name and the header value template,
+// see eskip.Template.ApplyResponseContext
 // Name: "setResponseHeader".
 func NewSetResponseHeader() filters.Spec {
 	return &headerFilter{typ: setResponseHeader}
 }
 
 // Returns a filter specification that is used to append headers for responses.
-// Instances expect two parameters: the header name and the header value.
+// Instances expect two parameters: the header name and the header value template,
+// see eskip.Template.ApplyResponseContext
 // Name: "appendResponseHeader".
 func NewAppendResponseHeader() filters.Spec {
 	return &headerFilter{typ: appendResponseHeader}
@@ -252,29 +256,11 @@ func valueFromContext(
 	}
 }
 
-func renderValueTemplate(template *eskip.Template, ctx filters.FilterContext) (result string, ok bool) {
-	missing := false
-	result = template.Apply(func(key string) string {
-		if v := ctx.PathParam(key); v != "" {
-			return v
-		}
-		if v, ok := ctx.StateBag()[key]; ok {
-			if s, ok := v.(string); ok {
-				return s
-			}
-		}
-		missing = true
-		return ""
-	})
-	ok = !missing
-	return
-}
-
 func (f *headerFilter) Request(ctx filters.FilterContext) {
 	header := ctx.Request().Header
 	switch f.typ {
 	case setRequestHeader:
-		value, ok := renderValueTemplate(f.template, ctx)
+		value, ok := f.template.ApplyRequestContext(ctx)
 		if ok {
 			header.Set(f.key, value)
 			if strings.ToLower(f.key) == "host" {
@@ -282,7 +268,7 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 			}
 		}
 	case appendRequestHeader:
-		value, ok := renderValueTemplate(f.template, ctx)
+		value, ok := f.template.ApplyRequestContext(ctx)
 		if ok {
 			header.Add(f.key, value)
 			if strings.ToLower(f.key) == "host" {
@@ -315,12 +301,12 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	header := ctx.Response().Header
 	switch f.typ {
 	case setResponseHeader:
-		value, ok := renderValueTemplate(f.template, ctx)
+		value, ok := f.template.ApplyResponseContext(ctx)
 		if ok {
 			header.Set(f.key, value)
 		}
 	case appendResponseHeader:
-		value, ok := renderValueTemplate(f.template, ctx)
+		value, ok := f.template.ApplyResponseContext(ctx)
 		if ok {
 			header.Add(f.key, value)
 		}
