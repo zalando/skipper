@@ -11,7 +11,7 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-// The predicate can be referenced in eskip by the name "Cookie".
+// Name the predicate can be referenced in eskip by the name "Cookie".
 const Name = "Cookie"
 
 type (
