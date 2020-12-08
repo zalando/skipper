@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ const defaultChunkSize = 512
 
 const (
 	RandomName           = "randomContent"
+	RepeatName           = "repeatContent"
 	LatencyName          = "latency"
 	ChunksName           = "chunks"
 	BandwidthName        = "bandwidth"
@@ -47,6 +49,16 @@ type random struct {
 	len  int64
 }
 
+type repeat struct {
+	bytes []byte
+	len   int64
+}
+
+type repeatReader struct {
+	bytes  []byte
+	offset int
+}
+
 type throttle struct {
 	typ       throttleType
 	chunkSize int
@@ -67,6 +79,15 @@ func kbps2bpms(kbps float64) float64 {
 // 	* -> randomContent(2048) -> <shunt>;
 //
 func NewRandom() filters.Spec { return &random{} }
+
+// NewRepeat creates a filter specification whose filter instances can be used
+// to respond to requests with a repeated text. It expects the text and
+// the byte length of the response body to be generated as arguments.
+// Eskip example:
+//
+// 	* -> repeatContent("x", 100) -> <shunt>;
+//
+func NewRepeat() filters.Spec { return &repeat{} }
 
 // NewLatency creates a filter specification whose filter instances can be used
 // to add additional latency to responses. It expects the latency in milliseconds
@@ -145,6 +166,59 @@ func (r *random) Request(ctx filters.FilterContext) {
 }
 
 func (r *random) Response(ctx filters.FilterContext) {}
+
+func (r *repeat) Name() string { return RepeatName }
+
+func (r *repeat) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	text, ok := args[0].(string)
+	if !ok || text == "" {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	var len int64
+	switch v := args[1].(type) {
+	case float64:
+		len = int64(v)
+	case int:
+		len = int64(v)
+	case int64:
+		len = v
+	default:
+		return nil, filters.ErrInvalidFilterParameters
+	}
+	if len < 0 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return &repeat{[]byte(text), len}, nil
+}
+
+func (r *repeat) Request(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Length": []string{strconv.FormatInt(r.len, 10)}},
+		Body:       ioutil.NopCloser(io.LimitReader(&repeatReader{r.bytes, 0}, r.len)),
+	})
+}
+
+func (r *repeatReader) Read(p []byte) (int, error) {
+	n := copy(p, r.bytes[r.offset:])
+	if n < len(p) {
+		n += copy(p[n:], r.bytes[:r.offset])
+		for n < len(p) {
+			copy(p[n:], p[:n])
+			n *= 2
+		}
+	}
+	r.offset = (r.offset + len(p)) % len(r.bytes)
+	return len(p), nil
+}
+
+func (r *repeat) Response(ctx filters.FilterContext) {}
 
 func (t *throttle) Name() string {
 	switch t.typ {
