@@ -30,21 +30,8 @@ func NewModPath() filters.Spec { return &modPath{behavior: regexpReplace} }
 // Returns a new setPath filter Spec, whose instances replace
 // the request path.
 //
-// As an EXPERIMENTAL feature: the setPath filter provides the possiblity
-// to apply template operations. The current solution supports templates
-// with placeholders of the format: ${param1}, and the placeholders will
-// be replaced with the values of the same name from the wildcards in the
-// Path() predicate.
-//
-// See: https://godoc.org/github.com/zalando/skipper/routing#hdr-Wildcards
-//
-// The templating feature will stay in Skipper, but the syntax of the
-// templating may change.
-//
-// See also: https://github.com/zalando/skipper/issues/182
-//
 // Instances expect one parameter: the new path to be set, or the path
-// template to be evaluated.
+// template to be evaluated, see eskip.Template.ApplyRequestContext
 //
 // Name: "setPath".
 func NewSetPath() filters.Spec { return &modPath{behavior: fullReplace} }
@@ -118,7 +105,7 @@ func (f *modPath) Request(ctx filters.FilterContext) {
 	case regexpReplace:
 		req.URL.Path = f.rx.ReplaceAllString(req.URL.Path, f.replacement)
 	case fullReplace:
-		req.URL.Path = f.template.Apply(ctx.PathParam)
+		req.URL.Path, _ = f.template.ApplyRequestContext(ctx)
 	default:
 		panic("unspecified behavior")
 	}
