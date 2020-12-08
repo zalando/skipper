@@ -133,6 +133,8 @@ func (c *Client) CloseIdleConnections() {
 // which can be nil to get the
 // https://godoc.org/github.com/opentracing/opentracing-go#NoopTracer.
 type Options struct {
+	// Proxy see https://golang.org/pkg/net/http/#Transport.Proxy
+	Proxy func(req *http.Request) (*url.URL, error)
 	// DisableKeepAlives see https://golang.org/pkg/net/http/#Transport.DisableKeepAlives
 	DisableKeepAlives bool
 	// DisableCompression see https://golang.org/pkg/net/http/#Transport.DisableCompression
@@ -233,8 +235,12 @@ func NewTransport(options Options) *Transport {
 	if options.ExpectContinueTimeout == 0 {
 		options.ExpectContinueTimeout = options.Timeout
 	}
+	if options.Proxy == nil {
+		options.Proxy = http.ProxyFromEnvironment
+	}
 
 	htransport := &http.Transport{
+		Proxy:                  options.Proxy,
 		DisableKeepAlives:      options.DisableKeepAlives,
 		DisableCompression:     options.DisableCompression,
 		ForceAttemptHTTP2:      options.ForceAttemptHTTP2,
