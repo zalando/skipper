@@ -2,7 +2,9 @@ package diag
 
 import (
 	"io"
+	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/flowid"
@@ -14,6 +16,8 @@ const AbsorbName = "absorb"
 
 // AbsorbSilentName contains the name of the absorbSilent filter.
 const AbsorbSilentName = "absorbSilent"
+
+const loggingInterval = time.Second
 
 type absorb struct {
 	logger logging.Logger
@@ -60,11 +64,18 @@ func NewAbsorbSilent() filters.Spec {
 	return withLogger(true, nil)
 }
 
-func (a absorb) Name() string                                            { return AbsorbName }
-func (a absorb) CreateFilter(args []interface{}) (filters.Filter, error) { return a, nil }
-func (a absorb) Response(filters.FilterContext)                          {}
+func (a *absorb) Name() string {
+	if a.silent {
+		return AbsorbSilentName
+	} else {
+		return AbsorbName
+	}
+}
 
-func (a absorb) Request(ctx filters.FilterContext) {
+func (a *absorb) CreateFilter(args []interface{}) (filters.Filter, error) { return a, nil }
+func (a *absorb) Response(filters.FilterContext)                          {}
+
+func (a *absorb) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	id := req.Header.Get(flowid.HeaderName)
 	if id == "" {
@@ -78,32 +89,38 @@ func (a absorb) Request(ctx filters.FilterContext) {
 		}
 	}
 
+	sink := ioutil.Discard
 	if !a.silent {
 		a.logger.Infof("received request to be absorbed: %s", id)
+		sink = &loggingSink{id: id, logger: a.logger, next: time.Now().Add(loggingInterval)}
 	}
 
-	var count = 0
-	buf := make([]byte, 1<<12)
-	for {
-		n, err := req.Body.Read(buf)
-		count += n
-		if !a.silent {
-			a.logger.Infof("request %s, consumed bytes: %d", id, count)
-		}
-
-		if err != nil {
-			if err != io.EOF {
-				a.logger.Infof("request %s, error while consuming request: %v", id, err)
-			}
-
-			break
-		}
-	}
+	count, err := io.Copy(sink, req.Body)
 
 	if !a.silent {
+		if err != nil {
+			a.logger.Infof("request %s, error while consuming request: %v", id, err)
+		}
 		a.logger.Infof("request %s, consumed bytes: %d", id, count)
 		a.logger.Infof("request finished: %s", id)
 	}
 
 	ctx.Serve(&http.Response{StatusCode: http.StatusOK})
+}
+
+type loggingSink struct {
+	id     string
+	logger logging.Logger
+	next   time.Time
+	count  int64
+}
+
+func (s *loggingSink) Write(p []byte) (n int, err error) {
+	n, err = len(p), nil
+	s.count += int64(n)
+	if time.Now().After(s.next) {
+		s.logger.Infof("request %s, consumed bytes: %d", s.id, s.count)
+		s.next = s.next.Add(loggingInterval)
+	}
+	return
 }
