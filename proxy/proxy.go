@@ -1340,12 +1340,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var ctx *context
 
 	var span ot.Span
-	wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header))
-	if err == nil {
-		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
-	} else {
+	if wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header)); err != nil {
 		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName)
-		err = nil
+	} else {
+		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
 	}
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
@@ -1407,7 +1405,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err = p.do(ctx)
+	err := p.do(ctx)
 
 	if err != nil {
 		p.tracing.setTag(span, ErrorTag, true)
