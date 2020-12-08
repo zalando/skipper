@@ -404,37 +404,22 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 	return hh
 }
 
-// copies a stream with flushing on every successful read operation
-// (similar to io.Copy but with flushing)
-func copyStream(to flushedResponseWriter, from io.Reader, tracing *proxyTracing, span ot.Span) error {
+type flusher struct {
+	w flushedResponseWriter
+}
+
+func (f *flusher) Write(p []byte) (n int, err error) {
+	n, err = f.w.Write(p)
+	if err == nil {
+		f.w.Flush()
+	}
+	return
+}
+
+func copyStream(to flushedResponseWriter, from io.Reader) (int64, error) {
 	b := make([]byte, proxyBufferSize)
 
-	var bytesCopied int
-	defer func() {
-		tracing.logStreamEvent(span, StreamBodyEvent, fmt.Sprintf("%d", bytesCopied))
-	}()
-
-	for {
-		l, rerr := from.Read(b)
-
-		if rerr != nil && rerr != io.EOF {
-			return rerr
-		}
-
-		if l > 0 {
-			_, werr := to.Write(b[:l])
-			if werr != nil {
-				return werr
-			}
-
-			to.Flush()
-			bytesCopied += l
-		}
-
-		if rerr == io.EOF {
-			return nil
-		}
-	}
+	return io.CopyBuffer(&flusher{to}, from, b)
 }
 
 func schemeFromRequest(r *http.Request) string {
@@ -1178,7 +1163,8 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
-	err := copyStream(ctx.responseWriter, ctx.response.Body, p.tracing, ctx.proxySpan)
+	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
+	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		p.log.Errorf("error while copying the response stream: %v", err)
