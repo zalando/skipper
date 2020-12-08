@@ -254,11 +254,11 @@ The local build will write into `./bin/` directory.
 The current used CI flow to build the official docker container, you
 can see in [delivery.yaml](https://github.com/zalando/skipper/blob/master/delivery.yaml).
 Official release versions you will find at
-`registry.opensource.zalan.do/pathfinder/skipper:${RELEASE_VERSION}`,
+`registry.opensource.zalan.do/teapot/skipper:${RELEASE_VERSION}`,
 where `${RELEASE_VERSION}` is the git tag got by `$(git describe --tags --always --dirty)`.
 
 Test versions are released at
-`registry.opensource.zalan.do/pathfinder/skipper-test:${CDP_BUILD_VERSION}`
+`registry.opensource.zalan.do/teapot/skipper-test:${CDP_BUILD_VERSION}`
 for every pull request, limited to only repository members, because of
 compliance and security reasons.
 

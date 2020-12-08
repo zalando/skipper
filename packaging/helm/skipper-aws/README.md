@@ -108,8 +108,8 @@ helm install --name skipper-aws .
 | kube_ingress_aws_controller.version | The version of kube-ingress-aws-controller to install | 0.10.1 |
 | kube_ingress_aws_controller.image | The image of kube-ingress-aws-controller to install | registry.opensource.zalan.do/teapot/kube-ingress-aws-controller |
 | kube_ingress_aws_controller.ssl_policy | The SSL policy to use | ELBSecurityPolicy-TLS-1-2-2017-01 |
-| skipper.version | The version of Skipper to install | 0.11.48 |
-| skipper.image | The image of Skipper to install | registry.opensource.zalan.do/pathfinder/skipper |
+| skipper.version | The version of Skipper to install | 0.12.0 |
+| skipper.image | The image of Skipper to install | registry.opensource.zalan.do/teapot/skipper |
 | skipper.cluster_ratelimit | Enable rate limiting in Skipper | false |
 | skipper.redis.version | The version of Redis to install | 4.0.9-master-6 |
 | skipper.redis.image | The image of Redis to install | registry.opensource.zalan.do/zmon/redis |
