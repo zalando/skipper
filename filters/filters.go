@@ -157,7 +157,7 @@ type Spec interface {
 // Registry used to lookup Spec objects while initializing routes.
 type Registry map[string]Spec
 
-// Error used in case of invalid filter parameters.
+// ErrInvalidFilterParameters is used in case of invalid filter parameters.
 var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
 
 // Registers a filter specification.
