@@ -1,7 +1,7 @@
 .PHONY: docker-push
 
 VERSION            ?= $(shell git rev-parse HEAD)
-REGISTRY           ?= registry-write.opensource.zalan.do/pathfinder
+REGISTRY           ?= registry-write.opensource.zalan.do/teapot
 IMAGE              ?= $(REGISTRY)/skipper:$(VERSION)
 ARM64_IMAGE        ?= $(REGISTRY)/skipper-arm64:$(VERSION)
 ARM_IMAGE          ?= $(REGISTRY)/skipper-armv7:$(VERSION)
