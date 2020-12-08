@@ -600,6 +600,16 @@ type Options struct {
 	// header, in this case you want to set this to true.
 	ReverseSourcePredicate bool
 
+	// EnableOAuth2GrantFlow, enables OAuth2 Grant Flow filter
+	EnableOAuth2GrantFlow bool
+
+	// OAuth2AuthURL, the url to redirect the requests to when login is required.
+	OAuth2AuthURL string
+
+	// OAuth2TokenURL, the url where the access code should be exchanged for the
+	// access token.
+	OAuth2TokenURL string
+
 	// OAuthTokeninfoURL sets the the URL to be queried for
 	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
@@ -607,8 +617,47 @@ type Options struct {
 	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
 
+	// OAuth2SecretFile contains the filename with the encryption key for the
+	// authentication cookie and grant flow state stored in Secrets.
+	OAuth2SecretFile string
+
+	// OAuth2ClientID, the OAuth2 client id of the current service, used to exchange
+	// the access code.
+	OAuth2ClientID string
+
+	// OAuth2ClientSecret, the secret associated with the ClientID, used to exchange
+	// the access code.
+	OAuth2ClientSecret string
+
+	// OAuth2ClientIDFile, the path of the file containing the OAuth2 client id of
+	// the current service, used to exchange the access code.
+	OAuth2ClientIDFile string
+
+	// OAuth2ClientSecretFile, the path of the file containing the secret associated
+	// with the ClientID, used to exchange the access code.
+	OAuth2ClientSecretFile string
+
+	// OAuth2CallbackPath contains the path where the OAuth2 callback requests with the
+	// authorization code should be redirected to. Defaults to /.well-known/oauth2-callback
+	OAuth2CallbackPath string
+
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
+
+	// OAuth2AuthURLParameters the additional parameters to send to OAuth2 authorize and token endpoints.
+	OAuth2AuthURLParameters map[string]string
+
+	// OAuth2AccessTokenHeaderName the name of the header to which the access token
+	// should be assigned after the oauthGrant filter.
+	OAuth2AccessTokenHeaderName string
+
+	// OAuth2TokeninfoSubjectKey the key of the subject ID attribute in the
+	// tokeninfo map. Used for downstream oidcClaimsQuery compatibility.
+	OAuth2TokeninfoSubjectKey string
+
+	// OAuth2TokenCookieName the name of the cookie that Skipper sets after a
+	// successful OAuth2 token exchange. Stores the encrypted access token.
+	OAuth2TokenCookieName string
 
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
@@ -955,6 +1004,15 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	return listenAndServeQuit(proxy, o, nil, nil, nil)
 }
 
+func initGrant(c *auth.OAuthConfig, o *Options) error {
+	if err := c.Init(); err != nil {
+		return err
+	}
+
+	o.CustomFilters = append(o.CustomFilters, c.NewGrant(), c.NewGrantCallback(), c.NewGrantClaimsQuery())
+	return nil
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	err := initLog(o)
@@ -1200,6 +1258,33 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
+	oauthConfig := &auth.OAuthConfig{}
+	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
+		oauthConfig.AuthURL = o.OAuth2AuthURL
+		oauthConfig.TokenURL = o.OAuth2TokenURL
+		oauthConfig.TokeninfoURL = o.OAuthTokeninfoURL
+		oauthConfig.SecretFile = o.OAuth2SecretFile
+		oauthConfig.ClientID = o.OAuth2ClientID
+		oauthConfig.ClientSecret = o.OAuth2ClientSecret
+		oauthConfig.ClientIDFile = o.OAuth2ClientIDFile
+		oauthConfig.ClientSecretFile = o.OAuth2ClientSecretFile
+		oauthConfig.CallbackPath = o.OAuth2CallbackPath
+		oauthConfig.AuthURLParameters = o.OAuth2AuthURLParameters
+		oauthConfig.SecretsProvider = sp
+		oauthConfig.Secrets = o.SecretsRegistry
+		oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
+		oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
+		oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
+		oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout
+		oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
+		oauthConfig.Tracer = tracer
+
+		if err := initGrant(oauthConfig, &o); err != nil {
+			log.Errorf("Failed to initialize oauth grant filter: %v.", err)
+			return err
+		}
+	}
+
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
 	registry := builtin.MakeRegistry()
@@ -1278,9 +1363,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
+
 	if o.DefaultFilters != nil {
-		ro.PreProcessors = []routing.PreProcessor{o.DefaultFilters}
+		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
 	}
+
+	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
+		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
+	}
+
 	routing := routing.New(ro)
 	defer routing.Close()
 
