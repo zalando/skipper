@@ -16,7 +16,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
