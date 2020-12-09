@@ -73,7 +73,6 @@ func extractCookie(request *http.Request, config OAuthConfig) (cookie *cookie, e
 	return nil, http.ErrNoCookie
 }
 
-
 // createDeleteCookie creates a cookie, which instructs the client to clear the grant
 // token cookie when used with a Set-Cookie header.
 func createDeleteCookie(config OAuthConfig, host string) *http.Cookie {

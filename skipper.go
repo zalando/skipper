@@ -1019,7 +1019,7 @@ func initGrant(c *auth.OAuthConfig, o *Options) error {
 		c.NewGrantCallback(),
 		c.NewGrantClaimsQuery(),
 		c.NewGrantLogout(),
-		)
+	)
 
 	return nil
 }
