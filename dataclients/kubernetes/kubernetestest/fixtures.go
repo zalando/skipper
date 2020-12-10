@@ -217,6 +217,12 @@ func testFixture(t *testing.T, f fixtureSet) {
 		}
 
 		if !eskip.EqLists(routes, expectedRoutes) {
+			sort.SliceStable(routes, func(i, j int) bool {
+				return routes[i].Id < routes[j].Id
+			})
+			sort.SliceStable(expectedRoutes, func(i, j int) bool {
+				return expectedRoutes[i].Id < expectedRoutes[j].Id
+			})
 			t.Error("Failed to convert the resources to the right routes.")
 			t.Logf("routes: %d, expected: %d", len(routes), len(expectedRoutes))
 			t.Logf("got:\n%s", eskip.String(eskip.CanonicalList(routes)...))
