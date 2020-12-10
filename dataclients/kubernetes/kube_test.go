@@ -300,8 +300,10 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	}
 
 	for id, backend := range expected {
+		t.Logf("id: %s", id)
 		var found bool
 		for _, ri := range r {
+			t.Logf("%s", ri.Id)
 			if ri.Id == id {
 				if ri.Backend != backend {
 					t.Errorf("invalid backend for route %s, %v", ri.Id, cmp.Diff(ri.Backend, backend))
@@ -1390,10 +1392,10 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube___catchall__new1_example_org____":                                "",
-			"kube_namespace1__new1__new1_example_org___test1__service1":            "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test1__service1":          "http://1.1.1.0:8080",
-			"kube___catchall___new1___namespace1___skipper___cluster___local_____": "",
+			"kube___catchall__new1_example_org____":                             "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":         "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1":       "http://1.1.1.0:8080",
+			"kube___catchall__new1_namespace1____skipper___cluster___local____": "",
 		})
 	})
 
@@ -1462,12 +1464,12 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___test1__service1":            "http://1.1.1.0:8080",
-			"kube___catchall__new1_example_org____":                                "",
-			"kube_namespace1__new1__new1_example_org___test2__service1":            "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test1__service1":          "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test2__service1":          "http://1.1.1.0:8080",
-			"kube___catchall___new1___namespace1___skipper___cluster___local_____": "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":         "http://1.1.1.0:8080",
+			"kube___catchall__new1_example_org____":                             "",
+			"kube_namespace1__new1__new1_example_org___test2__service1":         "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1":       "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test2__service1":       "http://1.1.1.0:8080",
+			"kube___catchall__new1_namespace1____skipper___cluster___local____": "",
 		})
 	})
 
