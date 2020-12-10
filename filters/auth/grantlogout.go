@@ -7,7 +7,6 @@
 package auth
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +41,11 @@ type revokeErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+type basicAuthCredentials struct {
+	clientId     string
+	clientSecret string
+}
+
 func (*grantLogoutSpec) Name() string { return GrantLogoutName }
 
 func (s *grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
@@ -50,21 +54,21 @@ func (s *grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func (f *grantLogoutFilter) basicAuthHeader() (string, error) {
+func (f *grantLogoutFilter) getBasicAuthCredentials() (*basicAuthCredentials, error) {
 	clientID := f.config.GetClientID()
 	if clientID == "" {
-		return "", errors.New("failed to create token revoke auth header: no client ID")
+		return nil, errors.New("failed to create token revoke auth header: no client ID")
 	}
 
 	clientSecret := f.config.GetClientSecret()
 	if clientSecret == "" {
-		return "", errors.New("failed to create token revoke auth header: no client secret")
+		return nil, errors.New("failed to create token revoke auth header: no client secret")
 	}
 
-	credentials := fmt.Sprint(clientID, ":", clientSecret)
-	header := fmt.Sprint("Basic ", base64.StdEncoding.EncodeToString([]byte(credentials)))
-
-	return header, nil
+	return &basicAuthCredentials{
+		clientId:     clientID,
+		clientSecret: clientSecret,
+	}, nil
 }
 
 func (f *grantLogoutFilter) getErrorResponse(response *http.Response) *revokeErrorResponse {
@@ -106,12 +110,12 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 		return err
 	}
 
-	auth, err := f.basicAuthHeader()
+	authCredentials, err := f.getBasicAuthCredentials()
 	if err != nil {
 		return err
 	}
 
-	revokeRequest.Header.Add("Authorization", auth)
+	revokeRequest.SetBasicAuth(authCredentials.clientId, authCredentials.clientSecret)
 	revokeRequest.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	revokeResponse, err := f.config.AuthClient.Do(revokeRequest)
