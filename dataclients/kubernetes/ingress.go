@@ -278,7 +278,8 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 }
 
 func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *definitions.PathRule) error {
-	endpointsRoute, err := convertPathRule(ic.state, ic.ingress.Metadata, host, prule, ic.pathMode)
+	meta := ic.ingress.Metadata
+	endpointsRoute, err := convertPathRule(ic.state, meta, host, prule, ic.pathMode)
 	if err != nil {
 		// if the service is not found the route should be removed
 		if err == errServiceNotFound || err == errResourceNotFound {
@@ -295,7 +296,7 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	endpointsRoute.Filters = filters
 
 	// add pre-configured default filters
-	df, err := ic.defaultFilters.getNamed(ic.ingress.Metadata.Namespace, prule.Backend.ServiceName)
+	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.ServiceName)
 	if err != nil {
 		ic.logger.Errorf("Failed to retrieve default filters: %v.", err)
 	} else {
@@ -319,8 +320,9 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	}
 
 	if ing.kubernetesEnableEastWest {
-		ewRoute := createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, ic.ingress.Metadata.Name, ic.ingress.Metadata.Namespace, endpointsRoute)
-		ic.addHostRoute(ewRoute.HostRegexps[0], ewRoute)
+		ewRoute := createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, meta.Name, meta.Namespace, endpointsRoute)
+		ewHost := fmt.Sprintf("%s.%s.%s", meta.Name, meta.Namespace, ing.eastWestDomainRegexpPostfix)
+		ic.addHostRoute(ewHost, ewRoute)
 	}
 	return nil
 }
