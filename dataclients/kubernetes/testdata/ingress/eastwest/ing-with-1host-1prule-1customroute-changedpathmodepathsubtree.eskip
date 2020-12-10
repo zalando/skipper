@@ -1,0 +1,13 @@
+kube_foo__qux__0__www_example_org_____:
+	Host("^www[.]example[.]org$") && PathSubtree("/") && Method("OPTIONS") -> <shunt>;
+kube_foo__qux__www_example_org_____qux:
+	Host("^www[.]example[.]org$") && PathSubtree("/")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+kubeew_foo__qux__0__www_example_org_____:
+	Host("^qux[.]foo[.]skipper[.]cluster[.]local$") &&
+	Method("OPTIONS") && PathSubtree("/")
+	-> <shunt>;
+kubeew_foo__qux__www_example_org_____qux:
+	Host("^qux[.]foo[.]skipper[.]cluster[.]local$") && PathSubtree("/")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+

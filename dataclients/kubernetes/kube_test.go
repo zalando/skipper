@@ -300,8 +300,10 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	}
 
 	for id, backend := range expected {
+		t.Logf("id: %s", id)
 		var found bool
 		for _, ri := range r {
+			t.Logf("%s", ri.Id)
 			if ri.Id == id {
 				if ri.Backend != backend {
 					t.Errorf("invalid backend for route %s, %v", ri.Id, cmp.Diff(ri.Backend, backend))
@@ -1390,10 +1392,10 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube___catchall__new1_example_org____":                       "",
-			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
-			"kubeew___catchall__new1_example_org____":                     "",
+			"kube___catchall__new1_example_org____":                             "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":         "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1":       "http://1.1.1.0:8080",
+			"kube___catchall__new1_namespace1____skipper___cluster___local____": "",
 		})
 	})
 
@@ -1462,12 +1464,12 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
-			"kube___catchall__new1_example_org____":                     "",
-			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
-			//"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
-			"kubeew___catchall__new1_example_org____":                     "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":         "http://1.1.1.0:8080",
+			"kube___catchall__new1_example_org____":                             "",
+			"kube_namespace1__new1__new1_example_org___test2__service1":         "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1":       "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test2__service1":       "http://1.1.1.0:8080",
+			"kube___catchall__new1_namespace1____skipper___cluster___local____": "",
 		})
 	})
 
@@ -1574,6 +1576,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 			"kube_namespace1__test1__host1_____svcname1":   "http://2.2.2.0:8080",
 			"kube_namespace1__test1__host2_____svcname1":   "http://2.2.2.0:8181",
 			"kube_namespace1__test1______":                 "http://2.2.2.0:8080",
+			"kubeew_namespace1__test1______":               "http://2.2.2.0:8080",
 			"kubeew_namespace1__test1__host1_____svcname1": "http://2.2.2.0:8080",
 			"kubeew_namespace1__test1__host2_____svcname1": "http://2.2.2.0:8181",
 		})
@@ -3156,256 +3159,6 @@ func TestSkipperCustomRoutes(t *testing.T) {
 	}
 }
 
-func TestSkipperCustomRoutesEastWest(t *testing.T) {
-	for _, ti := range []struct {
-		msg            string
-		endpoints      []*endpoint
-		services       []*service
-		ingresses      []*definitions.IngressItem
-		expectedRoutes map[string]string
-	}{{
-		msg:       "ingress with 1 host definitions and 1 additional custom route",
-		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"", "", definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux__0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux__www1_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-		},
-	}, {
-		msg:       "ingress with 1 host definitions with path and 1 additional custom route",
-		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"", "", definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org___a_path__bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux__0__www1_example_org_a_path____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www1_example_org____":         "Host(/^www1[.]example[.]org$/) -> <shunt>",
-			//"kubeew_foo__qux__www1_example_org___a_path__bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kubeew___catchall__www1_example_org____":         "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>",
-		},
-	}, {
-		msg:       "ingress with 2 host definitions and 1 additional custom route",
-		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"", "", definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux__0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux__www2_example_org_____bar": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux__0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux__www1_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux__www2_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux__0__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-		},
-	}, {
-		msg:       "ingress with 2 host definitions with path and 1 additional custom route",
-		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"", "", definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
-			testRule("www2.example.org", testPathRule("/another/path", "bar", definitions.BackendPort{Value: "baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org___a_path__bar":       "Host(/^www1[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux__0__www1_example_org_a_path____":       "Host(/^www1[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www1_example_org____":               "Host(/^www1[.]example[.]org$/) -> <shunt>",
-			"kube_foo__qux__www2_example_org___another_path__bar": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^(\\/another\\/path)/) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux__0__www2_example_org_another_path____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^(\\/another\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www2_example_org____":               "Host(/^www2[.]example[.]org$/) -> <shunt>",
-			//"kubeew_foo__qux__www1_example_org___a_path__bar":       "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kubeew___catchall__www1_example_org____":         "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>",
-			//"kubeew_foo__qux__www2_example_org___another_path__bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/another\\/path)/) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux__0__www2_example_org_another_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/another\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kubeew___catchall__www2_example_org____":               "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>",
-		},
-	}, {
-		msg: "ingress with 3 host definitions with one path and 3 additional custom routes",
-		endpoints: append(testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
-			testEndpoints("foo", "baz", "1.1.2", 1, map[string]int{"baz": 8181})...),
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
-			`a: Method("OPTIONS") -> <shunt>;
-                         b: Cookie("alpha", /^enabled$/) -> "http://1.1.2.0:8181";
-                         c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", "", definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-			testRule("www3.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar":  "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux_a_0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kube_foo__qux_c_2__www1_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube_foo__qux__www2_example_org_____bar":  "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux_a_0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kube_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube_foo__qux__www3_example_org___a_path__bar":  "Host(/^www3[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^www3[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kube___catchall__www3_example_org____":          "Host(/^www3[.]example[.]org$/) -> <shunt>",
-
-			//"kubeew_foo__qux__www1_example_org_____bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux_a_0__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			//"kubeew_foo__qux__www2_example_org_____bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux_a_0__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-
-			//"kubeew_foo__qux__www3_example_org___a_path__bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux_a_0__www3_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www3_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-
-			"kubeew_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/a\\/path)/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kubeew_foo__qux_c_2__www1_example_org_____":       "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kubeew_foo__qux_c_2__www2_example_org_____":       "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kubeew___catchall__www3_example_org____":          "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>"},
-	}, {
-		msg: "ingress with 3 host definitions with one without path and 3 additional custom routes",
-		endpoints: append(testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
-			testEndpoints("foo", "baz", "1.1.2", 1, map[string]int{"baz": 8181})...),
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
-			`a: Method("OPTIONS") -> <shunt>;
-		                 b: Cookie("alpha", /^enabled$/) -> "http://1.1.2.0:8181";
-		                 c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", "", definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("", "bar", definitions.BackendPort{Value: "baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-			testRule("www3.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org____bar":  "Host(/^www1[.]example[.]org$/) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux_a_0__www1_example_org____": "Host(/^www1[.]example[.]org$/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www1_example_org____": "Host(/^www1[.]example[.]org$/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kube_foo__qux_c_2__www1_example_org____": "Path(\"/a/path/somewhere\") && Host(/^www1[.]example[.]org$/) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			//"kubeew_foo__qux__www1_example_org____bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> \"http://1.1.1.0:8181\"",
-			//"kubeew_foo__qux__www2_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-
-			"kubeew_foo__qux_a_0__www1_example_org____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www1_example_org____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kubeew_foo__qux_c_2__www1_example_org____": "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube_foo__qux__www2_example_org_____bar":  "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux_a_0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kube_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kubeew_foo__qux_a_0__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kubeew_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube_foo__qux__www3_example_org___a_path__bar":  "Host(/^www3[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^www3[.]example[.]org$/) && PathRegexp(/^(\\/a\\/path)/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			//"kubeew_foo__qux__www3_example_org___a_path__bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux_a_0__www3_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www3_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
-			"kubeew_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^(\\/a\\/path)/) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube___catchall__www3_example_org____":   "Host(/^www3[.]example[.]org$/) -> <shunt>",
-			"kubeew___catchall__www3_example_org____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>",
-		},
-	}, {
-		msg:       "ingress with 1 host definitions and 1 additional custom route, changed pathmode to PathSubtree",
-		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"path-prefix", "", definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar":   "Host(/^www1[.]example[.]org$/) && PathSubtree(\"/\") -> \"http://1.1.1.0:8181\"",
-			"kube_foo__qux__0__www1_example_org_____":   "Host(/^www1[.]example[.]org$/) && Method(\"OPTIONS\") && PathSubtree(\"/\") -> <shunt>",
-			"kubeew_foo__qux__www1_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathSubtree(\"/\") -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && Method(\"OPTIONS\") && PathSubtree(\"/\") -> <shunt>",
-		},
-	}, {
-		msg:       "ingress with 1 host definitions and 1 additional custom route with path predicate, changed pathmode to PathSubtree",
-		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
-			`Path("/foo") -> <shunt>`,
-			"path-prefix", "", definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar":   "Host(/^www1[.]example[.]org$/) && PathSubtree(\"/\") -> \"http://1.1.1.0:8181\"",
-			"kubeew_foo__qux__www1_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathSubtree(\"/\") -> \"http://1.1.1.0:8181\"",
-		},
-	}} {
-		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPIWithEndpoints(t, &serviceList{Items: ti.services}, &definitions.IngressList{Items: ti.ingresses}, &endpointList{
-				Items: ti.endpoints,
-			})
-			defer api.Close()
-			dc, err := New(Options{
-				KubernetesURL:            api.server.URL,
-				KubernetesEnableEastWest: true,
-			})
-			if err != nil {
-				t.Error(err)
-			}
-
-			defer dc.Close()
-
-			r, err := dc.LoadAll()
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			checkPrettyRoutes(t, r, ti.expectedRoutes)
-		})
-	}
-}
-
 func checkPrettyRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	if len(r) != len(expected) {
 		curIDs := make([]string, len(r))
@@ -3474,8 +3227,7 @@ func TestCreateEastWestRoute(t *testing.T) {
 		expectedID: "kubeew_foo__qux__www3_example_org___a_path__bar",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			ewrs := createEastWestRoutesIng(rxDots("."+defaultEastWestDomain), "foo", "qux", []*eskip.Route{ti.route})
-			ewr := ewrs[0]
+			ewr := createEastWestRouteIng(rxDots("."+defaultEastWestDomain), "foo", "qux", ti.route)
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
 			}
@@ -3549,8 +3301,7 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 			}
 
 			ing := kube.ingress
-			ewrs := createEastWestRoutesIng(ing.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
-			ewr := ewrs[0]
+			ewr := createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, ti.name, ti.namespace, ti.route)
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
 			}
