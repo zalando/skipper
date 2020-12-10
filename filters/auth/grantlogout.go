@@ -42,13 +42,15 @@ type revokeErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-func (grantLogoutSpec) Name() string { return GrantLogoutName }
+func (*grantLogoutSpec) Name() string { return GrantLogoutName }
 
-func (s grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
-	return grantLogoutFilter(s), nil
+func (s *grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+	return &grantLogoutFilter{
+		config: s.config,
+	}, nil
 }
 
-func (f grantLogoutFilter) basicAuthHeader() (string, error) {
+func (f *grantLogoutFilter) basicAuthHeader() (string, error) {
 	clientID := f.config.GetClientID()
 	if clientID == "" {
 		return "", errors.New("failed to create token revoke auth header: no client ID")
@@ -65,7 +67,7 @@ func (f grantLogoutFilter) basicAuthHeader() (string, error) {
 	return header, nil
 }
 
-func (f grantLogoutFilter) getErrorResponse(response *http.Response) *revokeErrorResponse {
+func (f *grantLogoutFilter) getErrorResponse(response *http.Response) *revokeErrorResponse {
 	buf, err := ioutil.ReadAll(response.Body)
 	if err == nil && buf != nil {
 		var errorResponse revokeErrorResponse
@@ -79,7 +81,7 @@ func (f grantLogoutFilter) getErrorResponse(response *http.Response) *revokeErro
 	return nil
 }
 
-func (f grantLogoutFilter) revokeTokenType(tokenType string, token string) error {
+func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) error {
 	revokeURL, err := url.Parse(f.config.RevokeTokenURL)
 	if err != nil {
 		return err
@@ -145,7 +147,7 @@ func (f grantLogoutFilter) revokeTokenType(tokenType string, token string) error
 }
 
 // revokeTokens revokes the access and refresh tokens in the grant token cookie.
-func (f grantLogoutFilter) revokeTokens(cookie *cookie) error {
+func (f *grantLogoutFilter) revokeTokens(cookie *cookie) error {
 	if cookie.AccessToken != "" {
 		if err := f.revokeTokenType(accessTokenType, cookie.AccessToken); err != nil {
 			return err
@@ -161,7 +163,7 @@ func (f grantLogoutFilter) revokeTokens(cookie *cookie) error {
 	return nil
 }
 
-func (f grantLogoutFilter) Request(ctx filters.FilterContext) {
+func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 
 	c, err := extractCookie(req, f.config)
@@ -192,7 +194,7 @@ func (f grantLogoutFilter) Request(ctx filters.FilterContext) {
 	}
 }
 
-func (f grantLogoutFilter) Response(ctx filters.FilterContext) {
+func (f *grantLogoutFilter) Response(ctx filters.FilterContext) {
 	deleteCookie := createDeleteCookie(f.config, ctx.Request().Host)
 	ctx.Response().Header.Add("Set-Cookie", deleteCookie.String())
 }
