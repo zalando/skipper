@@ -134,13 +134,12 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 			}
 		}
 
-		message := fmt.Sprintf(
+		return fmt.Errorf(
 			"%s revocation failed: %d %s",
 			tokenType,
 			revokeResponse.StatusCode,
 			errorDescription,
 		)
-		return errors.New(message)
 	}
 
 	return nil
