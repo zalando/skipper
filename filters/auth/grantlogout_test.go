@@ -17,58 +17,54 @@ type testRevokeError struct {
 
 func newGrantLogoutTestServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		revoke := func(w http.ResponseWriter, r *http.Request) {
-			expectedCredentials := base64.StdEncoding.EncodeToString([]byte(testClientID + ":" + testClientSecret))
-			expectedAuthorization := "Basic " + expectedCredentials
-			if expectedAuthorization != r.Header.Get("Authorization") {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-
-			paramValue := r.URL.Query().Get(testQueryParamKey)
-			if testQueryParamValue != paramValue {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			err := r.ParseForm()
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			token := r.Form.Get("token")
-			tokenType := r.Form.Get("token_type_hint")
-
-			if token == "" || tokenType == "" {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			if tokenType == "access_token" && token == testToken {
-				// Simulate a provider that only supports revoking refresh tokens
-				w.WriteHeader(http.StatusBadRequest)
-				w.Header().Set("Content-Type", "application/json")
-
-				errorResponse := testRevokeError{
-					Error:            "unsupported_token_type",
-					ErrorDescription: "simulate unsupported access token revocation",
-				}
-
-				b, _ := json.Marshal(errorResponse)
-				w.Write(b)
-			} else if tokenType == "refresh_token" && token == testRefreshToken {
-				w.WriteHeader(http.StatusOK)
-			} else {
-				w.WriteHeader(http.StatusUnauthorized)
-			}
+		if r.URL.Path != "/revoke" {
+			w.WriteHeader(http.StatusNotFound)
+			return
 		}
 
-		switch r.URL.Path {
-		case "/revoke":
-			revoke(w, r)
-		default:
-			w.WriteHeader(http.StatusNotFound)
+		expectedCredentials := base64.StdEncoding.EncodeToString([]byte(testClientID + ":" + testClientSecret))
+		expectedAuthorization := "Basic " + expectedCredentials
+		if expectedAuthorization != r.Header.Get("Authorization") {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		paramValue := r.URL.Query().Get(testQueryParamKey)
+		if testQueryParamValue != paramValue {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		err := r.ParseForm()
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		token := r.Form.Get("token")
+		tokenType := r.Form.Get("token_type_hint")
+
+		if token == "" || tokenType == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if tokenType == "access_token" && token == testToken {
+			// Simulate a provider that only supports revoking refresh tokens
+			w.WriteHeader(http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+
+			errorResponse := testRevokeError{
+				Error:            "unsupported_token_type",
+				ErrorDescription: "simulate unsupported access token revocation",
+			}
+
+			b, _ := json.Marshal(errorResponse)
+			w.Write(b)
+		} else if tokenType == "refresh_token" && token == testRefreshToken {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusUnauthorized)
 		}
 	}))
 }
