@@ -187,4 +187,30 @@ func TestGrantLogout(t *testing.T) {
 		t.Log("check for unauthorized")
 		checkStatus(t, rsp, http.StatusUnauthorized)
 	})
+
+	t.Run("check that logout with a refresh token which fails to revoke on the upstream server results in 500", func(t *testing.T) {
+		t.Log("make a logout request with a refresh_token that fails to revoke")
+		cookie, err := auth.NewGrantCookieWithTokens(*config, "another_refresh_token", testToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+		t.Log("check for server error")
+		checkStatus(t, rsp, http.StatusInternalServerError)
+	})
+
+	t.Run("check that logout with an access token which fails to revoke on the upstream server results in 500", func(t *testing.T) {
+		t.Log("make a logout request with a refresh_token that fails to revoke")
+		cookie, err := auth.NewGrantCookieWithTokens(*config, testRefreshToken, "another_access_token")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+		t.Log("check for server error")
+		checkStatus(t, rsp, http.StatusInternalServerError)
+	})
 }

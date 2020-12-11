@@ -149,23 +149,6 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 	return nil
 }
 
-// revokeTokens revokes the access and refresh tokens in the grant token cookie.
-func (f *grantLogoutFilter) revokeTokens(cookie *cookie) error {
-	if cookie.AccessToken != "" {
-		if err := f.revokeTokenType(accessTokenType, cookie.AccessToken); err != nil {
-			return err
-		}
-	}
-
-	if cookie.RefreshToken != "" {
-		if err := f.revokeTokenType(refreshTokenType, cookie.RefreshToken); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 
@@ -190,9 +173,22 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	err = f.revokeTokens(c)
-	if err != nil {
-		log.Errorf("Error revoking tokens: %v", err)
+	var accessTokenRevokeError, refreshTokenRevokeError error
+	if c.AccessToken != "" {
+		accessTokenRevokeError = f.revokeTokenType(accessTokenType, c.AccessToken)
+		if accessTokenRevokeError != nil {
+			log.Error(err)
+		}
+	}
+
+	if c.RefreshToken != "" {
+		refreshTokenRevokeError = f.revokeTokenType(refreshTokenType, c.RefreshToken)
+		if refreshTokenRevokeError != nil {
+			log.Error(err)
+		}
+	}
+
+	if refreshTokenRevokeError != nil || accessTokenRevokeError != nil {
 		serverError(ctx)
 	}
 }
