@@ -59,6 +59,6 @@ subsets:
   - ip: 10.2.9.103
   - ip: 10.2.9.104
   ports:
-  - name: bar
+  - name: baz
     port: 8080
     protocol: TCP
