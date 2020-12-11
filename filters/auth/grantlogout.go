@@ -71,7 +71,7 @@ func (f *grantLogoutFilter) getBasicAuthCredentials() (*basicAuthCredentials, er
 	}, nil
 }
 
-func (f *grantLogoutFilter) getErrorResponse(response *http.Response) *revokeErrorResponse {
+func getErrorResponse(response *http.Response) *revokeErrorResponse {
 	buf, err := ioutil.ReadAll(response.Body)
 	if err == nil && buf != nil {
 		var errorResponse revokeErrorResponse
@@ -83,6 +83,21 @@ func (f *grantLogoutFilter) getErrorResponse(response *http.Response) *revokeErr
 	}
 
 	return nil
+}
+
+func responseToError(response *http.Response, tokenType string) error {
+	errorResponse := getErrorResponse(response)
+	if errorResponse.Error == unsupportedTokenTypeError && tokenType == accessTokenType {
+		// Provider does not support revoking access tokens, which can happen according to RFC 7009.
+		// In that case this is not really an error.
+		return nil
+	}
+	return fmt.Errorf(
+		"%s revocation failed: %d %s",
+		tokenType,
+		response.StatusCode,
+		errorResponse.Error+": "+errorResponse.ErrorDescription,
+	)
 }
 
 func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) error {
@@ -124,25 +139,13 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 	}
 	defer revokeResponse.Body.Close()
 
-	if revokeResponse.StatusCode != 200 {
-		errorDescription := ""
-		if revokeResponse.StatusCode == 400 {
-			errorResponse := f.getErrorResponse(revokeResponse)
-
-			if errorResponse != nil && errorResponse.Error == unsupportedTokenTypeError && tokenType == accessTokenType {
-				// Provider does not support revoking access tokens, which can happen according to RFC 7009.
-				// In that case this is not really an error.
-				return nil
-			} else if errorResponse != nil {
-				errorDescription = errorResponse.Error + ": " + errorResponse.ErrorDescription
-			}
-		}
-
+	if revokeResponse.StatusCode == 400 {
+		return responseToError(revokeResponse, tokenType)
+	} else if revokeResponse.StatusCode != 200 {
 		return fmt.Errorf(
-			"%s revocation failed: %d %s",
+			"%s revocation failed: %d",
 			tokenType,
 			revokeResponse.StatusCode,
-			errorDescription,
 		)
 	}
 
