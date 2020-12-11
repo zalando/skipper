@@ -107,7 +107,7 @@ func newGrantTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 			token := tokenJSON{
 				AccessToken:  testToken,
 				RefreshToken: testRefreshToken,
-				ExpiresIn:    testAccessTokenExpiresIn,
+				ExpiresIn:    int(testAccessTokenExpiresIn / time.Second),
 			}
 
 			b, err := json.Marshal(token)
@@ -200,7 +200,7 @@ func newGrantHTTPClient() *http.Client {
 }
 
 func newGrantCookie(config auth.OAuthConfig) (*http.Cookie, error) {
-	return auth.NewGrantCookieWithExpiration(config, time.Now().Add(time.Second*time.Duration(testAccessTokenExpiresIn)))
+	return auth.NewGrantCookieWithExpiration(config, time.Now().Add(testAccessTokenExpiresIn))
 }
 
 func checkStatus(t *testing.T, rsp *http.Response, expectedStatus int) {
@@ -253,7 +253,7 @@ func checkCookie(t *testing.T, rsp *http.Response) {
 		t.Fatalf("Cookie not HTTP only")
 	}
 
-	accessTokenExpiryTime := time.Now().Add(time.Second * time.Duration(testAccessTokenExpiresIn))
+	accessTokenExpiryTime := time.Now().Add(testAccessTokenExpiresIn)
 	if c.Expires.Before(accessTokenExpiryTime) || c.Expires == accessTokenExpiryTime {
 		t.Fatalf("Cookie expires with or before access token.")
 	}

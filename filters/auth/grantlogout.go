@@ -170,7 +170,7 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 
 	c, err := extractCookie(req, f.config)
-	if err != nil || c == nil {
+	if err != nil {
 		unauthorized(
 			ctx,
 			"",
