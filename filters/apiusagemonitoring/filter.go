@@ -1,8 +1,6 @@
 package apiusagemonitoring
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/jwt"
 )
 
 const (
@@ -211,30 +210,17 @@ func createAndCacheMetricsNames(path *pathInfo, method string, methodIndex int) 
 // It returns `nil` if it was not possible to parse the JWT body.
 func parseJwtBody(req *http.Request) jwtTokenPayload {
 	ahead := req.Header.Get(authorizationHeaderName)
-	if !strings.HasPrefix(ahead, authorizationHeaderPrefix) {
+	tv := strings.TrimPrefix(ahead, authorizationHeaderPrefix)
+	if tv == ahead {
 		return nil
 	}
 
-	// split the header into the 3 JWT parts
-	fields := strings.Split(ahead, ".")
-	if len(fields) != 3 {
-		return nil
-	}
-
-	// base64-decode the JWT body part
-	bodyJSON, err := base64.RawURLEncoding.DecodeString(fields[1])
+	token, err := jwt.Parse(tv)
 	if err != nil {
 		return nil
 	}
 
-	// un-marshall the JWT body from JSON
-	var bodyObject map[string]interface{}
-	err = json.Unmarshal(bodyJSON, &bodyObject)
-	if err != nil {
-		return nil
-	}
-
-	return bodyObject
+	return token.Claims
 }
 
 type jwtTokenPayload map[string]interface{}

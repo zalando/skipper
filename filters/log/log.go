@@ -7,7 +7,6 @@ package log
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"os"
@@ -17,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/jwt"
 )
 
 const (
@@ -209,31 +209,21 @@ func (ual *unverifiedAuditLogSpec) CreateFilter(args []interface{}) (filters.Fil
 func (ual *unverifiedAuditLogFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	ahead := req.Header.Get(authHeaderName)
-	if !strings.HasPrefix(ahead, authHeaderPrefix) {
+	tv := strings.TrimPrefix(ahead, authHeaderPrefix)
+	if tv == ahead {
 		return
 	}
 
-	fields := strings.FieldsFunc(ahead, func(r rune) bool {
-		return r == []rune(".")[0]
-	})
-	if len(fields) == 3 {
-		sDec, err := base64.RawURLEncoding.DecodeString(fields[1])
-		if err != nil {
-			return
-		}
+	token, err := jwt.Parse(tv)
+	if err != nil {
+		return
+	}
 
-		var j map[string]interface{}
-		err = json.Unmarshal(sDec, &j)
-		if err != nil {
-			return
-		}
-
-		for i := 0; i < len(ual.TokenKeys); i++ {
-			if k, ok := j[ual.TokenKeys[i]]; ok {
-				if v, ok2 := k.(string); ok2 {
-					req.Header.Add(UnverifiedAuditHeader, cleanSub(v))
-					return
-				}
+	for i := 0; i < len(ual.TokenKeys); i++ {
+		if k, ok := token.Claims[ual.TokenKeys[i]]; ok {
+			if v, ok2 := k.(string); ok2 {
+				req.Header.Add(UnverifiedAuditHeader, cleanSub(v))
+				return
 			}
 		}
 	}
