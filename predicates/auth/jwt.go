@@ -17,12 +17,11 @@ Examples:
 package auth
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"regexp"
 	"strings"
 
+	"github.com/zalando/skipper/jwt"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
@@ -153,33 +152,21 @@ func (m regexMatcher) Match(jwtValue string) bool {
 
 func (p *predicate) Match(r *http.Request) bool {
 	ahead := r.Header.Get(authHeaderName)
-	if !strings.HasPrefix(ahead, authHeaderPrefix) {
+	tv := strings.TrimPrefix(ahead, authHeaderPrefix)
+	if tv == ahead {
 		return false
 	}
 
-	fields := strings.FieldsFunc(ahead, func(r rune) bool {
-		return r == []rune(".")[0]
-	})
-	if len(fields) != 3 {
-		return false
-	}
-
-	sDec, err := base64.RawURLEncoding.DecodeString(fields[1])
-	if err != nil {
-		return false
-	}
-
-	var payload map[string]interface{}
-	err = json.Unmarshal(sDec, &payload)
+	token, err := jwt.Parse(tv)
 	if err != nil {
 		return false
 	}
 
 	switch p.matchBehavior {
 	case matchBehaviorAll:
-		return allMatch(p.kv, payload)
+		return allMatch(p.kv, token.Claims)
 	case matchBehaviorAny:
-		return anyMatch(p.kv, payload)
+		return anyMatch(p.kv, token.Claims)
 	default:
 		return false
 	}
