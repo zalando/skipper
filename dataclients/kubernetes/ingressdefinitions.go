@@ -71,19 +71,30 @@ func formatEndpoint(a *address, p *port, protocol string) string {
 	return fmt.Sprintf("%s://%s:%d", protocol, a.IP, p.Port)
 }
 
+func formatEndpointsForSubsetAddresses(addresses []*address, port *port, protocol string) []string {
+	var result []string
+	for _, address := range addresses {
+		result = append(result, formatEndpoint(address, port, protocol))
+	}
+
+	return result
+
+}
+
 func (ep endpoint) targetsByServicePort(protocol string, servicePort *servicePort) []string {
 	for _, s := range ep.Subsets {
+		// If only one port exists in the endpoint, use it
+		if len(s.Ports) == 1 {
+			return formatEndpointsForSubsetAddresses(s.Addresses, s.Ports[0], protocol)
+		}
+
+		// Otherwise match port by name
 		for _, p := range s.Ports {
 			if p.Name != servicePort.Name {
 				continue
 			}
 
-			var result []string
-			for _, a := range s.Addresses {
-				result = append(result, formatEndpoint(a, p, protocol))
-			}
-
-			return result
+			return formatEndpointsForSubsetAddresses(s.Addresses, p, protocol)
 		}
 	}
 
