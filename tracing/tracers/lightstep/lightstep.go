@@ -28,6 +28,7 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		logCmdLine       bool
 		logEvents        bool
 		maxBufferedSpans int
+		propagators      map[opentracing.BuiltinFormat]lightstep.Propagator
 
 		grpcMaxMsgSize     = defaultGRPMaxMsgSize
 		minReportingPeriod = lightstep.DefaultMinReportingPeriod
@@ -101,6 +102,25 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 			if maxBufferedSpans, err = strconv.Atoi(parts[1]); err != nil {
 				return lightstep.Options{}, fmt.Errorf("failed to parse max buffered spans: %v", err)
 			}
+		case "propagators":
+			prStack := lightstep.PropagatorStack{}
+			if len(parts) == 0 {
+				prStack.PushPropagator(lightstep.LightStepPropagator)
+			} else {
+				prs := strings.SplitN(parts[1], ",", 2)
+				for _, pr := range prs {
+					switch pr {
+					case "lightstep", "ls":
+						prStack.PushPropagator(lightstep.LightStepPropagator)
+					case "b3":
+						prStack.PushPropagator(lightstep.B3Propagator)
+					default:
+						return lightstep.Options{}, fmt.Errorf("unknown propagator `%v`", pr)
+					}
+				}
+			}
+			propagators = make(map[opentracing.BuiltinFormat]lightstep.Propagator)
+			propagators[opentracing.HTTPHeaders] = prStack
 		}
 	}
 
@@ -147,6 +167,7 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		GRPCMaxCallSendMsgSizeBytes: grpcMaxMsgSize,
 		ReportingPeriod:             maxReportingPeriod,
 		MinReportingPeriod:          minReportingPeriod,
+		Propagators:                 propagators,
 	}, nil
 }
 
