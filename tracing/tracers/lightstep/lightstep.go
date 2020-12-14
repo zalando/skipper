@@ -28,15 +28,19 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		logCmdLine       bool
 		logEvents        bool
 		maxBufferedSpans int
-		propagators      map[opentracing.BuiltinFormat]lightstep.Propagator
 
 		grpcMaxMsgSize     = defaultGRPMaxMsgSize
 		minReportingPeriod = lightstep.DefaultMinReportingPeriod
 		maxReportingPeriod = lightstep.DefaultMaxReportingPeriod
+		propagators        = make(map[opentracing.BuiltinFormat]lightstep.Propagator)
 	)
 
 	componentName := defComponentName
 	globalTags := make(map[string]string)
+
+	defPropagator := lightstep.PropagatorStack{}
+	defPropagator.PushPropagator(lightstep.LightStepPropagator)
+	propagators[opentracing.HTTPHeaders] = defPropagator
 
 	for _, o := range opts {
 		parts := strings.SplitN(o, "=", 2)
@@ -103,10 +107,8 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 				return lightstep.Options{}, fmt.Errorf("failed to parse max buffered spans: %v", err)
 			}
 		case "propagators":
-			prStack := lightstep.PropagatorStack{}
-			if len(parts) == 0 {
-				prStack.PushPropagator(lightstep.LightStepPropagator)
-			} else {
+			if len(parts) > 0 {
+				prStack := lightstep.PropagatorStack{}
 				prs := strings.SplitN(parts[1], ",", 2)
 				for _, pr := range prs {
 					switch pr {
@@ -118,9 +120,8 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 						return lightstep.Options{}, fmt.Errorf("unknown propagator `%v`", pr)
 					}
 				}
+				propagators[opentracing.HTTPHeaders] = prStack
 			}
-			propagators = make(map[opentracing.BuiltinFormat]lightstep.Propagator)
-			propagators[opentracing.HTTPHeaders] = prStack
 		}
 	}
 
