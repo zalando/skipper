@@ -107,7 +107,7 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 				return lightstep.Options{}, fmt.Errorf("failed to parse max buffered spans: %v", err)
 			}
 		case "propagators":
-			if len(parts) > 0 {
+			if len(parts) > 1 {
 				prStack := lightstep.PropagatorStack{}
 				prs := strings.SplitN(parts[1], ",", 2)
 				for _, pr := range prs {
