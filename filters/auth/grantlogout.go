@@ -85,10 +85,11 @@ func responseToError(response *http.Response, tokenType string) error {
 		return nil
 	}
 	return fmt.Errorf(
-		"%s revocation failed: %d %s",
+		"%s revocation failed: %d %s: %s",
 		tokenType,
 		response.StatusCode,
-		errorResponse.Error+": "+errorResponse.ErrorDescription,
+		errorResponse.Error,
+		errorResponse.ErrorDescription,
 	)
 }
 
