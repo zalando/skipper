@@ -10,4 +10,5 @@ func TestIngressFixtures(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/ingress/named-ports")
 	kubernetestest.FixturesToTest(t, "testdata/ingress/ingress-data")
 	kubernetestest.FixturesToTest(t, "testdata/ingress/eastwest")
+	kubernetestest.FixturesToTest(t, "testdata/ingress/service-ports")
 }
