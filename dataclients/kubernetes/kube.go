@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates/source"
 )
@@ -348,9 +349,19 @@ func shuntRoute(r *eskip.Route) {
 }
 
 func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
-	status := http.StatusOK
+	logFilters := []*eskip.Filter{{
+		Name: builtin.StatusName,
+		Args: []interface{}{http.StatusOK}},
+	}
 	if !healthy {
-		status = http.StatusServiceUnavailable
+		logFilters[0].Args = []interface{}{http.StatusServiceUnavailable}
+	}
+	// log if unhealthy or a debug loglevel
+	if healthy && !log.IsLevelEnabled(log.DebugLevel) {
+		logFilters = append(logFilters, &eskip.Filter{
+			Name: accesslog.DisableAccessLogName,
+			Args: []interface{}{200},
+		})
 	}
 
 	var p []*eskip.Predicate
@@ -370,11 +381,8 @@ func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 		Id:         healthcheckRouteID,
 		Predicates: p,
 		Path:       healthcheckPath,
-		Filters: []*eskip.Filter{{
-			Name: builtin.StatusName,
-			Args: []interface{}{status}},
-		},
-		Shunt: true,
+		Filters:    logFilters,
+		Shunt:      true,
 	}
 }
 
