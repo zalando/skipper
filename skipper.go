@@ -221,10 +221,11 @@ type Options struct {
 	// *DEPRECATED* The whitespace separated list of OAuth2 scopes.
 	OAuthScope string
 
-	// File containing static route definitions.
+	// File containing static route definitions. Multiple may be given comma separated.
 	RoutesFile string
 
-	// File containing route definitions with file watch enabled. (For the skipper
+	// File containing route definitions with file watch enabled.
+	// Multiple may be given comma separated. (For the skipper
 	// command this option is used when starting it with the -routes-file flag.)
 	WatchRoutesFile string
 
@@ -716,18 +717,21 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
-		f, err := eskipfile.Open(o.RoutesFile)
-		if err != nil {
-			log.Error("error while opening eskip file", err)
-			return nil, err
-		}
+		for _, rf := range strings.Split(o.RoutesFile, ",") {
+			f, err := eskipfile.Open(rf)
+			if err != nil {
+				log.Error("error while opening eskip file", err)
+				return nil, err
+			}
 
-		clients = append(clients, f)
+			clients = append(clients, f)
+		}
 	}
 
 	if o.WatchRoutesFile != "" {
-		f := eskipfile.Watch(o.WatchRoutesFile)
-		clients = append(clients, f)
+		for _, rf := range strings.Split(o.WatchRoutesFile, ",") {
+			clients = append(clients, eskipfile.Watch(rf))
+		}
 	}
 
 	if o.InlineRoutes != "" {
