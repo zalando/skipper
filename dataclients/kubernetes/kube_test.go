@@ -300,10 +300,8 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	}
 
 	for id, backend := range expected {
-		t.Logf("id: %s", id)
 		var found bool
 		for _, ri := range r {
-			t.Logf("%s", ri.Id)
 			if ri.Id == id {
 				if ri.Backend != backend {
 					t.Errorf("invalid backend for route %s, %v", ri.Id, cmp.Diff(ri.Backend, backend))
