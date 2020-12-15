@@ -41,11 +41,6 @@ type revokeErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-type basicAuthCredentials struct {
-	clientId     string
-	clientSecret string
-}
-
 func (*grantLogoutSpec) Name() string { return GrantLogoutName }
 
 func (s *grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
@@ -54,21 +49,18 @@ func (s *grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func (f *grantLogoutFilter) getBasicAuthCredentials() (*basicAuthCredentials, error) {
+func (f *grantLogoutFilter) getBasicAuthCredentials() (string, string, error) {
 	clientID := f.config.GetClientID()
 	if clientID == "" {
-		return nil, errors.New("failed to create token revoke auth header: no client ID")
+		return "", "", errors.New("failed to create token revoke auth header: no client ID")
 	}
 
 	clientSecret := f.config.GetClientSecret()
 	if clientSecret == "" {
-		return nil, errors.New("failed to create token revoke auth header: no client secret")
+		return "", "", errors.New("failed to create token revoke auth header: no client secret")
 	}
 
-	return &basicAuthCredentials{
-		clientId:     clientID,
-		clientSecret: clientSecret,
-	}, nil
+	return clientID, clientSecret, nil
 }
 
 func getErrorResponse(response *http.Response) *revokeErrorResponse {
@@ -125,12 +117,12 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 		return err
 	}
 
-	authCredentials, err := f.getBasicAuthCredentials()
+	clientId, clientSecret, err := f.getBasicAuthCredentials()
 	if err != nil {
 		return err
 	}
 
-	revokeRequest.SetBasicAuth(authCredentials.clientId, authCredentials.clientSecret)
+	revokeRequest.SetBasicAuth(clientId, clientSecret)
 	revokeRequest.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	revokeResponse, err := f.config.AuthClient.Do(revokeRequest)
