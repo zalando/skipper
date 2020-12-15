@@ -63,22 +63,14 @@ func (f *grantLogoutFilter) getBasicAuthCredentials() (string, string, error) {
 	return clientID, clientSecret, nil
 }
 
-func getErrorResponse(response *http.Response) *revokeErrorResponse {
-	buf, err := ioutil.ReadAll(response.Body)
-	if err == nil && buf != nil {
-		var errorResponse revokeErrorResponse
-		err = json.Unmarshal(buf, &errorResponse)
+func responseToError(responseData []byte, statusCode int, tokenType string) error {
+	var errorResponse revokeErrorResponse
+	err := json.Unmarshal(responseData, &errorResponse)
 
-		if err == nil {
-			return &errorResponse
-		}
+	if err != nil {
+		return err
 	}
 
-	return nil
-}
-
-func responseToError(response *http.Response, tokenType string) error {
-	errorResponse := getErrorResponse(response)
 	if errorResponse.Error == unsupportedTokenTypeError && tokenType == accessTokenType {
 		// Provider does not support revoking access tokens, which can happen according to RFC 7009.
 		// In that case this is not really an error.
@@ -87,7 +79,7 @@ func responseToError(response *http.Response, tokenType string) error {
 	return fmt.Errorf(
 		"%s revocation failed: %d %s: %s",
 		tokenType,
-		response.StatusCode,
+		statusCode,
 		errorResponse.Error,
 		errorResponse.ErrorDescription,
 	)
@@ -132,8 +124,13 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 	}
 	defer revokeResponse.Body.Close()
 
+	buf, err := ioutil.ReadAll(revokeResponse.Body)
+	if err != nil {
+		return err
+	}
+
 	if revokeResponse.StatusCode == 400 {
-		return responseToError(revokeResponse, tokenType)
+		return responseToError(buf, revokeResponse.StatusCode, tokenType)
 	} else if revokeResponse.StatusCode != 200 {
 		return fmt.Errorf(
 			"%s revocation failed: %d",
