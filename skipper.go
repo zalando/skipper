@@ -1263,6 +1263,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
+	if o.TLSMinVersion == 0 {
+		o.TLSMinVersion = tls.VersionTLS12
+	}
+
 	oauthConfig := &auth.OAuthConfig{}
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
 		oauthConfig.AuthURL = o.OAuth2AuthURL

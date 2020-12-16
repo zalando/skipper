@@ -924,7 +924,7 @@ func (c *Config) ToOptions() skipper.Options {
 	}
 
 	if c.Certificates != nil && len(c.Certificates) > 0 {
-		var tlsVersion uint16
+		var tlsVersion uint16 = tls.VersionTLS13
 
 		for _, s := range []string{c.TLSMinVersion, defaultMinTLSVersion} {
 			switch s {
