@@ -125,7 +125,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicate) takeChance() bool {
-	return rand.Float64() < p.chance
+	return rand.Float64() < p.chance // #nosec
 }
 
 func (p *predicate) Match(r *http.Request) bool {

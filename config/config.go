@@ -168,6 +168,9 @@ type Config struct {
 	ClientCertFile string            `yaml:"client-tls-cert"`
 	Certificates   []tls.Certificate `yaml:"-"`
 
+	// TLS version
+	TLSMinVersion string `yaml:"tls-min-version"`
+
 	// API Monitoring
 	ApiUsageMonitoringEnable                       bool   `yaml:"enable-api-usage-monitoring"`
 	ApiUsageMonitoringRealmKeys                    string `yaml:"api-usage-monitoring-realm-keys"`
@@ -259,6 +262,9 @@ const (
 	defaultApiUsageMonitoringClientKeys                   = "sub"
 	defaultApiUsageMonitoringDefaultClientTrackingPattern = ""
 	defaultApiUsageMonitoringRealmsTrackingPattern        = "services"
+
+	// TLS
+	defaultMinTLSVersion = "1.2"
 
 	configFileUsage = "if provided the flags will be loaded/overwritten by the values on the file (yaml)"
 
@@ -385,6 +391,9 @@ const (
 	// TLS client certs
 	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
 	clientCertFileUsage = "TLS certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys"
+
+	// TLS version
+	minTLSVersionUsage = "minimal TLS Version to be used in server, proxy and client connections"
 
 	// API Monitoring:
 	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
@@ -584,6 +593,9 @@ func NewConfig() *Config {
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", clientKeyFileUsage)
 	flag.StringVar(&cfg.ClientCertFile, "client-tls-cert", "", clientCertFileUsage)
+
+	// TLS version
+	flag.StringVar(&cfg.TLSMinVersion, "tls-min-version", defaultMinTLSVersion, minTLSVersionUsage)
 
 	// API Monitoring:
 	flag.BoolVar(&cfg.ApiUsageMonitoringEnable, "enable-api-usage-monitoring", false, apiUsageMonitoringEnableUsage)
@@ -912,8 +924,27 @@ func (c *Config) ToOptions() skipper.Options {
 	}
 
 	if c.Certificates != nil && len(c.Certificates) > 0 {
+		var tlsVersion uint16 = tls.VersionTLS13
+
+		for _, s := range []string{c.TLSMinVersion, defaultMinTLSVersion} {
+			switch s {
+			case "1.3", "13":
+				tlsVersion = tls.VersionTLS13
+			case "1.2", "12":
+				tlsVersion = tls.VersionTLS12
+			case "1.1", "11":
+				tlsVersion = tls.VersionTLS11
+			case "1.0", "10":
+				tlsVersion = tls.VersionTLS10
+			default:
+				log.Infof("No valid minimal TLS version confiured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
+				continue
+			}
+			break
+		}
 		options.ClientTLS = &tls.Config{
 			Certificates: c.Certificates,
+			MinVersion:   tlsVersion,
 		}
 	}
 

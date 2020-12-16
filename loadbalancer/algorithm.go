@@ -130,7 +130,7 @@ type roundRobin struct {
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
 	return &roundRobin{
 		index: rnd.Intn(len(endpoints)),
 		rnd:   rnd,
@@ -166,6 +166,7 @@ type random struct {
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
 	t := time.Now().UnixNano()
+	// #nosec
 	return &random{
 		rand: rand.New(rand.NewSource(t)),
 
@@ -207,7 +208,7 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	key := net.RemoteHost(ctx.Request).String()
 	if _, err := h.Write([]byte(key)); err != nil {
 		log.Errorf("Failed to write '%s' into hash: %v", key, err)
-		return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))]
+		return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))] // #nosec
 	}
 	sum = h.Sum32()
 	choice := int(sum) % len(ctx.Route.LBEndpoints)
@@ -226,7 +227,7 @@ type powerOfRandomNChoices struct {
 
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
 	return &powerOfRandomNChoices{
 		rand:            rnd,
 		numberOfChoices: powerOfRandomNChoicesDefaultN,

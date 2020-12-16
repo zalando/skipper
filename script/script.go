@@ -5,13 +5,14 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	lua "github.com/yuin/gopher-lua"
 	lua_parse "github.com/yuin/gopher-lua/parse"
@@ -129,7 +130,11 @@ func (s *script) initScript() error {
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() {
+			if err = file.Close(); err != nil {
+				log.Errorf("Failed to close lua file %s: %v", s.source, err)
+			}
+		}()
 		reader = bufio.NewReader(file)
 		name = s.source
 	} else {

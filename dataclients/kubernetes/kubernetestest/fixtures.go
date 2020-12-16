@@ -119,6 +119,12 @@ func matchOutput(matchFile, output string) error {
 	return nil
 }
 
+func safeFileClose(t *testing.T, fd *os.File) {
+	if err := fd.Close(); err != nil {
+		t.Fatalf("Failed to close file: %v", err)
+	}
+}
+
 func testFixture(t *testing.T, f fixtureSet) {
 	var resources []io.Reader
 	if f.resources != "" {
@@ -127,7 +133,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
-		defer r.Close()
+		defer safeFileClose(t, r)
 		resources = append(resources, r)
 	}
 
@@ -138,7 +144,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
-		defer a.Close()
+		defer safeFileClose(t, a)
 		apiOptions, err = readAPIOptions(a)
 		if err != nil {
 			t.Fatal(err)
@@ -172,7 +178,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
-		defer ko.Close()
+		defer safeFileClose(t, ko)
 		b, err := ioutil.ReadAll(ko)
 		if err != nil {
 			t.Fatal(err)
@@ -205,7 +211,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
-		defer eskp.Close()
+		defer safeFileClose(t, eskp)
 		b, err := ioutil.ReadAll(eskp)
 		if err != nil {
 			t.Fatal(err)
@@ -269,8 +275,8 @@ func FixturesToTest(t *testing.T, dir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer safeFileClose(t, d)
 
-	defer d.Close()
 	fs, err := d.Readdir(0)
 	if err != nil {
 		t.Fatal(err)

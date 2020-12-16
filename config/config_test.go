@@ -103,6 +103,7 @@ func Test_NewConfig(t *testing.T) {
 				SwarmPort:                               9990,
 				SwarmMaxMessageBuffer:                   4194304,
 				SwarmLeaveTimeout:                       5 * time.Second,
+				TLSMinVersion:                           defaultMinTLSVersion,
 			},
 			wantErr: false,
 		},

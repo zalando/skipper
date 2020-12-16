@@ -117,13 +117,13 @@ deps:
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	mkdir -p .bin
-	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2020.1.3/staticcheck_linux_amd64.tar.gz
-	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q 0f6fab088826fb6d52a5aa4986b39790b795ff37d5319dc605a98be919fdd070
+	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2020.2/staticcheck_linux_amd64.tar.gz
+	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q c8ace91188247190c0537d90d7617a9273a1944ce737082e9ea0afc2865ccc7b
 	@tar -C /tmp -xzf /tmp/staticcheck_linux_amd64.tar.gz
 	@mv /tmp/staticcheck/staticcheck .bin
 	@chmod +x .bin/staticcheck
-	@curl -o /tmp/gosec.tgz -LO https://github.com/securego/gosec/releases/download/2.0.0/gosec_2.0.0_linux_amd64.tar.gz
-	@sha256sum /tmp/gosec.tgz | grep -q 490c2a0434b2b9cbb2f4c5031eafe228023f1ac41b36dddd757bff9e1de76a2b
+	@curl -o /tmp/gosec.tgz -LO https://github.com/securego/gosec/releases/download/v2.5.0/gosec_2.5.0_linux_amd64.tar.gz
+	@sha256sum /tmp/gosec.tgz | grep -q c7d13ddf58d3937939f97c9c33675e9fb1a8eb66ea0a7691ba1f432bfc9c18a4
 	@tar -C /tmp -xzf /tmp/gosec.tgz
 	@mv /tmp/gosec .bin
 	@chmod +x .bin/gosec
