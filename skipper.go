@@ -486,6 +486,9 @@ type Options struct {
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
 
+	// TLSMinVersion to set the minimal TLS version for all TLS configurations
+	TLSMinVersion uint16
+
 	// Flush interval for upgraded Proxy connections
 	BackendFlushInterval time.Duration
 
@@ -939,7 +942,9 @@ func listenAndServeQuit(
 			o.CertPathTLS = ""
 			o.KeyPathTLS = ""
 		} else if strings.Index(o.CertPathTLS, ",") > 0 && strings.Index(o.KeyPathTLS, ",") > 0 {
-			tlsCfg := &tls.Config{}
+			tlsCfg := &tls.Config{
+				MinVersion: o.TLSMinVersion,
+			}
 			crts := strings.Split(o.CertPathTLS, ",")
 			keys := strings.Split(o.KeyPathTLS, ",")
 			if len(crts) != len(keys) {

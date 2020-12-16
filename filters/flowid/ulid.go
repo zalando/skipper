@@ -1,12 +1,13 @@
 package flowid
 
 import (
-	"github.com/oklog/ulid"
 	"io"
 	"math/rand"
 	"regexp"
 	"sync"
 	"time"
+
+	"github.com/oklog/ulid"
 )
 
 const (
@@ -25,7 +26,7 @@ var ulidFlowIDRegex = regexp.MustCompile(`^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26
 // It uses a shared, pseudo-random source of entropy, seeded with the current timestamp.
 // It is safe for concurrent usage.
 func NewULIDGenerator() Generator {
-	return NewULIDGeneratorWithEntropyProvider(rand.New(rand.NewSource(time.Now().UTC().UnixNano())))
+	return NewULIDGeneratorWithEntropyProvider(rand.New(rand.NewSource(time.Now().UTC().UnixNano()))) // #nosec
 }
 
 // NewULIDGeneratorWithEntropyProvider behaves like NewULIDGenerator but allows you to specify your own source of

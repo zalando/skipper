@@ -34,7 +34,7 @@ func makeLocalUrls(ports ...int) []string {
 }
 
 func randPort() int {
-	return (1 << 15) + rand.Intn(1<<15)
+	return (1 << 15) + rand.Intn(1<<15) // #nosec
 }
 
 // Starts an etcd server.
