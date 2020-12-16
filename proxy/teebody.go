@@ -56,6 +56,7 @@ func cloneRequest(u *url.URL, req *http.Request) (*http.Request, io.ReadCloser, 
 		return nil, nil, err
 	}
 
+	clone.RequestURI = req.RequestURI
 	clone.Header = h
 	clone.ContentLength = req.ContentLength
 
