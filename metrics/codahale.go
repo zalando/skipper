@@ -95,9 +95,7 @@ func (c *CodaHale) getTimer(key string) metrics.Timer {
 }
 
 func (c *CodaHale) updateTimer(key string, d time.Duration) {
-	if t := c.getTimer(key); t != nil {
-		t.Update(d)
-	}
+	c.getTimer(key).Update(d)
 }
 
 func (c *CodaHale) MeasureSince(key string, start time.Time) {
@@ -109,9 +107,7 @@ func (c *CodaHale) getGauge(key string) metrics.GaugeFloat64 {
 }
 
 func (c *CodaHale) UpdateGauge(key string, v float64) {
-	if t := c.getGauge(key); t != nil {
-		t.Update(v)
-	}
+	c.getGauge(key).Update(v)
 }
 
 func (c *CodaHale) IncCounter(key string) {
@@ -198,11 +194,7 @@ func (c *CodaHale) getCounter(key string) metrics.Counter {
 }
 
 func (c *CodaHale) incCounter(key string, value int64) {
-	go func() {
-		if c := c.getCounter(key); c != nil {
-			c.Inc(value)
-		}
-	}()
+	go c.getCounter(key).Inc(value)
 }
 
 func (c *CodaHale) IncRoutingFailures() {
