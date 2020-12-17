@@ -468,9 +468,14 @@ func setRequestURLForLoadBalancedBackend(u *url.URL, rt *routing.Route, lbctx *r
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeaders bool, stateBag map[string]interface{}) (*http.Request, *routing.LBEndpoint, error) {
+func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHeaders bool) (*http.Request, *routing.LBEndpoint, error) {
 	var endpoint *routing.LBEndpoint
+	r := ctx.request
+	rt := ctx.route
+	host := ctx.outgoingHost
+	stateBag := ctx.StateBag()
 	u := r.URL
+
 	switch rt.BackendType {
 	case eskip.DynamicBackend:
 		setRequestURLFromRequest(u, r)
@@ -487,12 +492,10 @@ func mapRequest(r *http.Request, rt *routing.Route, host string, removeHopHeader
 		body = nil
 	}
 
-	rr, err := http.NewRequest(r.Method, u.String(), body)
+	rr, err := http.NewRequestWithContext(requestContext, r.Method, u.String(), body)
 	if err != nil {
 		return nil, endpoint, err
 	}
-
-	rr = rr.WithContext(r.Context())
 
 	rr.ContentLength = r.ContentLength
 	if removeHopHeaders {
@@ -865,8 +868,8 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 	return nil
 }
 
-func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
-	req, endpoint, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
+func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
+	req, endpoint, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval())
 	if err != nil {
 		p.log.Errorf("could not map backend request, caused by: %v", err)
 		return nil, &proxyError{err: err}
@@ -924,10 +927,16 @@ func (p *Proxy) makeBackendRequest(ctx *context) (*http.Response, *proxyError) {
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 
 		// Check if the request has been cancelled or timed out
-		// The roundtrip error `err` may be different
+		// The roundtrip error `err` may be different:
+		// - for `Canceled` it could be either the same `context canceled` or `unexpected EOF` (net.OpError)
+		// - for `DeadlineExceeded` it is net.Error(timeout=true, temporary=true) wrapping this `context deadline exceeded`
 		if cerr := req.Context().Err(); cerr != nil {
 			ctx.proxySpan.LogKV("event", "error", "message", cerr.Error())
-			return nil, &proxyError{err: cerr, code: 499}
+			if cerr == stdlibcontext.Canceled {
+				return nil, &proxyError{err: cerr, code: 499}
+			} else if cerr == stdlibcontext.DeadlineExceeded {
+				return nil, &proxyError{err: cerr, code: http.StatusGatewayTimeout}
+			}
 		}
 
 		ctx.proxySpan.LogKV("event", "error", "message", err.Error())
@@ -1066,7 +1075,7 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
-		debugReq, _, err := mapRequest(ctx.request, ctx.route, ctx.outgoingHost, p.flags.HopHeadersRemoval(), ctx.StateBag())
+		debugReq, _, err := mapRequest(ctx, ctx.request.Context(), p.flags.HopHeadersRemoval())
 		if err != nil {
 			return &proxyError{err: err}
 		}
@@ -1081,8 +1090,13 @@ func (p *Proxy) do(ctx *context) error {
 			return errCircuitBreakerOpen
 		}
 
+		backendContext := ctx.request.Context()
+		if timeout, ok := ctx.StateBag()[filters.BackendTimeout]; ok {
+			backendContext, ctx.cancelBackendContext = stdlibcontext.WithTimeout(backendContext, timeout.(time.Duration))
+		}
+
 		backendStart := time.Now()
-		rsp, perr := p.makeBackendRequest(ctx)
+		rsp, perr := p.makeBackendRequest(ctx, backendContext)
 		if perr != nil {
 			if done != nil {
 				done(false)
@@ -1100,7 +1114,7 @@ func (p *Proxy) do(ctx *context) error {
 
 				perr = nil
 				var perr2 *proxyError
-				rsp, perr2 = p.makeBackendRequest(ctx)
+				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
 				if perr2 != nil {
 					p.log.Errorf("Failed to do retry backend request: %v", perr2)
 					if perr2.code >= http.StatusInternalServerError {
@@ -1174,6 +1188,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	} else {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
+	p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
 }
 
 func (p *Proxy) errorResponse(ctx *context, err error) {
@@ -1206,6 +1221,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	if span := ot.SpanFromContext(ctx.Request().Context()); span != nil {
+		p.tracing.setTag(span, ErrorTag, true)
 		p.tracing.setTag(span, HTTPStatusCodeTag, uint16(code))
 	}
 
@@ -1408,19 +1424,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := p.do(ctx)
 
 	if err != nil {
-		p.tracing.setTag(span, ErrorTag, true)
 		p.errorResponse(ctx, err)
-		return
+	} else {
+		p.serveResponse(ctx)
 	}
 
-	p.serveResponse(ctx)
-	p.metrics.MeasureServe(
-		ctx.route.Id,
-		ctx.metricsHost(),
-		r.Method,
-		ctx.response.StatusCode,
-		ctx.startServe,
-	)
+	if ctx.cancelBackendContext != nil {
+		ctx.cancelBackendContext()
+	}
 }
 
 // Close causes the proxy to stop closing idle

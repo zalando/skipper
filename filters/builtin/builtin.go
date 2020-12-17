@@ -71,6 +71,7 @@ const (
 	InlineContentIfStatusName = "inlineContentIfStatus"
 	HeaderToQueryName         = "headerToQuery"
 	QueryToHeaderName         = "queryToHeader"
+	BackendTimeoutName        = "backendTimeout"
 )
 
 // Returns a Registry object initialized with the default set of filter
@@ -119,6 +120,7 @@ func MakeRegistry() filters.Registry {
 		NewDecompress(),
 		NewHeaderToQuery(),
 		NewQueryToHeader(),
+		NewBackendTimeout(),
 		NewSetDynamicBackendHostFromHeader(),
 		NewSetDynamicBackendSchemeFromHeader(),
 		NewSetDynamicBackendUrlFromHeader(),
