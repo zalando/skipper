@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	GrantLogoutName           = "grantLogout"
-	revokeTokenKey            = "token"
-	revokeTokenTypeKey        = "token_type_hint"
-	refreshTokenType          = "refresh_token"
-	accessTokenType           = "access_token"
-	unsupportedTokenTypeError = "unsupported_token_type"
+	GrantLogoutName         = "grantLogout"
+	revokeTokenKey          = "token"
+	revokeTokenTypeKey      = "token_type_hint"
+	refreshTokenType        = "refresh_token"
+	accessTokenType         = "access_token"
+	errUnsupportedTokenType = "unsupported_token_type"
 )
 
 type grantLogoutSpec struct {
@@ -65,7 +65,7 @@ func responseToError(responseData []byte, statusCode int, tokenType string) erro
 		return err
 	}
 
-	if errorResponse.Error == unsupportedTokenTypeError && tokenType == accessTokenType {
+	if errorResponse.Error == errUnsupportedTokenType && tokenType == accessTokenType {
 		// Provider does not support revoking access tokens, which can happen according to RFC 7009.
 		// In that case this is not really an error.
 		return nil
