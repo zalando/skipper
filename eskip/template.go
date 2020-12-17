@@ -11,7 +11,7 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-var parameterRegexp = regexp.MustCompile(`\$\{(\w+)\}`)
+var placeholderRegexp = regexp.MustCompile(`\$\{([^{}]+)\}`)
 
 // TemplateGetter functions return the value for a template parameter name.
 type TemplateGetter func(string) string
@@ -28,7 +28,7 @@ type Template struct {
 // 	Hello, ${who}!
 //
 func NewTemplate(template string) *Template {
-	matches := parameterRegexp.FindAllStringSubmatch(template, -1)
+	matches := placeholderRegexp.FindAllStringSubmatch(template, -1)
 	placeholders := make([]string, len(matches))
 
 	for index, placeholder := range matches {
@@ -51,27 +51,39 @@ func (t *Template) Apply(get TemplateGetter) string {
 // ApplyRequestContext evaluates the template using a filter context and request attributes to resolve the
 // placeholders. Returns true if all placeholders resolved to non-empty values.
 func (t *Template) ApplyRequestContext(ctx filters.FilterContext) (string, bool) {
-	return t.apply(requestGetter(ctx))
+	return t.apply(contextGetter(ctx, false))
 }
 
 // ApplyResponseContext evaluates the template using a filter context, request and response attributes to resolve the
 // placeholders. Returns true if all placeholders resolved to non-empty values.
 func (t *Template) ApplyResponseContext(ctx filters.FilterContext) (string, bool) {
-	return t.apply(responseGetter(ctx))
+	return t.apply(contextGetter(ctx, true))
 }
 
-func requestGetter(ctx filters.FilterContext) func(key string) string {
+func contextGetter(ctx filters.FilterContext, response bool) func(key string) string {
 	return func(key string) string {
-		if v := ctx.PathParam(key); v != "" {
-			return v
+		if h := strings.TrimPrefix(key, "request.header."); h != key {
+			return ctx.Request().Header.Get(h)
 		}
-		return ""
+		if q := strings.TrimPrefix(key, "request.query."); q != key {
+			return ctx.Request().URL.Query().Get(q)
+		}
+		if c := strings.TrimPrefix(key, "request.cookie."); c != key {
+			if cookie, err := ctx.Request().Cookie(c); err == nil {
+				return cookie.Value
+			}
+			return ""
+		}
+		if key == "request.path" {
+			return ctx.Request().URL.Path
+		}
+		if response {
+			if h := strings.TrimPrefix(key, "response.header."); h != key {
+				return ctx.Response().Header.Get(h)
+			}
+		}
+		return ctx.PathParam(key)
 	}
-}
-
-func responseGetter(ctx filters.FilterContext) func(key string) string {
-	// same as request for now
-	return requestGetter(ctx)
 }
 
 // apply evaluates the template using a TemplateGetter function to resolve the

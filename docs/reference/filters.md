@@ -19,13 +19,27 @@ all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
 ## Template placeholders
 
 Several filters support template placeholders (`${var}`) in string parameters.
-Template placeholder is replaced by the value that is looked up in filter context path parameters.
-Missing template placeholder value interpretation depends on the filter.
+
+Template placeholder is replaced by the value that is looked up in the following sources:
+
+* request url path (`${request.path}`)
+* request url query (if starts with `request.query.` prefix, e.g `${request.query.q}` is replaced by `q` query parameter value)
+* request headers (if starts with `request.header.` prefix, e.g `${request.header.Content-Type}` is replaced by `Content-Type` request header value)
+* request cookies (if starts with `request.cookie.` prefix, e.g `${request.cookie.PHPSESSID}` is replaced by `PHPSESSID` request cookie value)
+* response headers (if starts with `response.header.` prefix, e.g `${response.header.Location}` is replaced by `Location` response header value)
+* filter context path parameters (e.g. `${id}` is replaced by `id` path parameter value)
+
+Missing value interpretation depends on the filter.
 
 Example route that rewrites path using template placeholder:
 
 ```
 u1: Path("/user/:id") -> setPath("/v2/user/${id}") -> <loopback>;
+```
+
+Example route that creates header from query parameter:
+```
+r: Path("/redirect") && QueryParam("to") -> status(303) -> setResponseHeader("Location", "${request.query.to}") -> <shunt>;
 ```
 
 ## backendIsProxy
