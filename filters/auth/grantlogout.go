@@ -110,7 +110,7 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 	}
 
 	revokeRequest.SetBasicAuth(clientId, clientSecret)
-	revokeRequest.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	revokeRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	revokeResponse, err := f.config.AuthClient.Do(revokeRequest)
 	if err != nil {
