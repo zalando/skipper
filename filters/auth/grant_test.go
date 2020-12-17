@@ -280,26 +280,20 @@ func grantQueryWithCookie(t *testing.T, client *http.Client, url string, cookies
 }
 
 func TestGrantFlow(t *testing.T) {
-	t.Log("create a test provider")
 	provider := newGrantTestAuthServer(testToken, testAccessCode)
 	defer provider.Close()
 
-	t.Log("create a test tokeninfo")
 	tokeninfo := newGrantTestTokeninfo(testToken, "")
 	defer tokeninfo.Close()
 
-	t.Log("create a test config")
 	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
 
-	t.Log("create a proxy, returning 204, oauthGrant filter, initially without parameters")
 	proxy := newSimpleGrantAuthProxy(t, config)
 	defer proxy.Close()
 
-	t.Log("create a client without redirects, to check it manually")
 	client := newGrantHTTPClient()
 
 	t.Run("check full grant flow", func(t *testing.T) {
-		t.Log("make a request to the proxy without a cookie")
 		rsp, err := client.Get(proxy.URL)
 		if err != nil {
 			t.Fatal(err)
@@ -307,10 +301,8 @@ func TestGrantFlow(t *testing.T) {
 
 		defer rsp.Body.Close()
 
-		t.Log("get redirected to the auth endpoint")
 		checkRedirect(t, rsp, provider.URL+"/auth")
 
-		t.Log("follow the redirect")
 		rsp, err = client.Get(rsp.Header.Get("Location"))
 		if err != nil {
 			t.Fatalf("Failed to make request to provider: %v.", err)
@@ -318,10 +310,8 @@ func TestGrantFlow(t *testing.T) {
 
 		defer rsp.Body.Close()
 
-		t.Log("get redirected back to the proxy callback URL")
 		checkRedirect(t, rsp, proxy.URL+"/.well-known/oauth2-callback")
 
-		t.Log("follow the redirect")
 		rsp, err = client.Get(rsp.Header.Get("Location"))
 		if err != nil {
 			t.Fatalf("Failed to make request to proxy: %v.", err)
@@ -329,13 +319,10 @@ func TestGrantFlow(t *testing.T) {
 
 		defer rsp.Body.Close()
 
-		t.Log("get redirected back to the proxy")
 		checkRedirect(t, rsp, proxy.URL)
 
-		t.Log("check auth cookie was set")
 		checkCookie(t, rsp)
 
-		t.Log("follow the redirect, with the cookie")
 		req, err := http.NewRequest("GET", rsp.Header.Get("Location"), nil)
 		if err != nil {
 			t.Fatalf("Failed to create request: %v.", err)
@@ -348,12 +335,10 @@ func TestGrantFlow(t *testing.T) {
 			t.Fatalf("Failed to make request to proxy: %v.", err)
 		}
 
-		t.Log("check for successful request")
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
 
 	t.Run("check login is triggered access token is invalid", func(t *testing.T) {
-		t.Log("create expired cookie with invalid refresh token")
 		cookie, err := auth.NewGrantCookieWithInvalidAccessToken(*config)
 		if err != nil {
 			t.Fatal(err)
@@ -361,12 +346,10 @@ func TestGrantFlow(t *testing.T) {
 
 		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
-		t.Log("get redirected to the auth endpoint")
 		checkRedirect(t, rsp, provider.URL+"/auth")
 	})
 
 	t.Run("check login is triggered when cookie is corrupted", func(t *testing.T) {
-		t.Log("create expired cookie with invalid refresh token")
 		url, _ := url.Parse(proxy.URL)
 		cookie := &http.Cookie{
 			Name:     config.TokenCookieName,
@@ -380,24 +363,20 @@ func TestGrantFlow(t *testing.T) {
 
 		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
-		t.Log("get redirected to the auth endpoint")
 		checkRedirect(t, rsp, provider.URL+"/auth")
 	})
 
 	t.Run("check handles multiple cookies with same name and uses the first decodable one", func(t *testing.T) {
-		t.Log("send a request with a bad and good cookie")
 		badCookie, _ := newGrantCookie(*config)
 		badCookie.Value = "invalid"
 		goodCookie, _ := newGrantCookie(*config)
 
 		rsp := grantQueryWithCookie(t, client, proxy.URL, badCookie, goodCookie)
 
-		t.Log("check for successful request")
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
 
 	t.Run("check does not send cookie again if token was not refreshed", func(t *testing.T) {
-		t.Log("send an authenticated request. This should not have a cookie in the response.")
 		goodCookie, _ := newGrantCookie(*config)
 
 		rsp := grantQueryWithCookie(t, client, proxy.URL, goodCookie)
@@ -412,26 +391,20 @@ func TestGrantFlow(t *testing.T) {
 }
 
 func TestGrantRefresh(t *testing.T) {
-	t.Log("create a test provider")
 	provider := newGrantTestAuthServer(testToken, testAccessCode)
 	defer provider.Close()
 
-	t.Log("create a test tokeninfo")
 	tokeninfo := newGrantTestTokeninfo(testToken, "")
 	defer tokeninfo.Close()
 
-	t.Log("create a test config")
 	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
 
-	t.Log("create a client without redirects, to check it manually")
 	client := newGrantHTTPClient()
 
-	t.Log("create a proxy, returning 204, oauthGrant filter")
 	proxy := newSimpleGrantAuthProxy(t, config)
 	defer proxy.Close()
 
 	t.Run("check token is refreshed if it expired", func(t *testing.T) {
-		t.Log("create a valid cookie")
 		cookie, err := auth.NewGrantCookieWithExpiration(*config, time.Now().Add(time.Duration(-1)*time.Minute))
 		if err != nil {
 			t.Fatal(err)
@@ -439,12 +412,10 @@ func TestGrantRefresh(t *testing.T) {
 
 		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
-		t.Log("check for successful request")
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
 
 	t.Run("check login is triggered if refresh token is invalid", func(t *testing.T) {
-		t.Log("create expired cookie with invalid refresh token")
 		cookie, err := auth.NewGrantCookieWithInvalidRefreshToken(*config)
 		if err != nil {
 			t.Fatal(err)
@@ -452,7 +423,6 @@ func TestGrantRefresh(t *testing.T) {
 
 		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
-		t.Log("get redirected to the auth endpoint")
 		checkRedirect(t, rsp, provider.URL+"/auth")
 	})
 }
