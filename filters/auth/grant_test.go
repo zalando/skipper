@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	testToken                = auth.TestToken
-	testRefreshToken         = auth.TestRefreshToken
-	testAccessTokenExpiresIn = auth.TestAccessTokenExpiresIn
+	testToken                = "test-token"
+	testRefreshToken         = "refreshfoobarbaz"
+	testAccessTokenExpiresIn = time.Hour
 	testClientID             = "some-id"
 	testClientSecret         = "some-secret"
 	testAccessCode           = "quxquuxquz"
