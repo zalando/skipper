@@ -10,7 +10,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
-	"github.com/zalando/skipper/predicates"
+	pathpredicate "github.com/zalando/skipper/predicates/path"
 )
 
 type incomingType uint
@@ -397,19 +397,6 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 	return cps, weight, nil
 }
 
-// returns the subtree path if it is a valid definition
-func processPathOrSubTree(p *eskip.Predicate) (string, error) {
-	if len(p.Args) != 1 {
-		return "", predicates.ErrInvalidPredicateParameters
-	}
-
-	if s, ok := p.Args[0].(string); ok {
-		return s, nil
-	}
-
-	return "", predicates.ErrInvalidPredicateParameters
-}
-
 func validTreePredicates(predicates []*eskip.Predicate) bool {
 	var has bool
 	for _, p := range predicates {
@@ -438,13 +425,13 @@ func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
 	for _, p := range predicates {
 		switch p.Name {
 		case PathName:
-			path, err := processPathOrSubTree(p)
+			path, err := pathpredicate.ProcessPathOrSubTree(p)
 			if err != nil {
 				return err
 			}
 			r.path = path
 		case PathSubtreeName:
-			pst, err := processPathOrSubTree(p)
+			pst, err := pathpredicate.ProcessPathOrSubTree(p)
 			if err != nil {
 				return err
 			}
