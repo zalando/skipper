@@ -1195,8 +1195,7 @@ Skipper arguments:
 | `-oauth2-client-secret-file` | conditional | path to the file containing the OAuth2 client secret. Required if you have not set `-oauth2-client-secret`. Example: `-oauth2-client-secret-file=/path/to/client_secret` |
 | `-oauth2-client-id` | conditional | OAuth2 client ID for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-id-file`. Example: `-oauth2-client-id=myclientid` |
 | `-oauth2-client-secret` | conditional | OAuth2 client secret for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-secret-file`. Example: `-oauth2-client-secret=myclientsecret` |
-| `-credentials-paths` | conditional | path to the directories containing the cookie encryption secret client ID, and client secret files. Required if you want Skipper to automatically update the secrets periodically. Example: `-credentials-paths=/path/to/secrets/,/path/to/othersecrets/` |
-| `-credentials-update-interval` | no | the time interval for updating credentials from files. Example: `-credentials-update-interval=30s` |
+| `-credentials-update-interval` | no | the time interval for updating client id and client secret from files. Example: `-credentials-update-interval=30s` |
 | `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Default: `Authorization`. Example: `-oauth2-access-token-header-name=X-Grant-Authorization` |
 | `-oauth2-auth-url-parameters` | no | any additional URL query parameters to set for the OAuth2 provider's authorize and token endpoint calls. Example: `-oauth2-auth-url-parameters=key1=foo,key2=bar` |
 | `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
