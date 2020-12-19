@@ -9,7 +9,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
-	pathpredicate "github.com/zalando/skipper/predicates/path"
+	corepredicates "github.com/zalando/skipper/predicates/core"
 	weightpredicate "github.com/zalando/skipper/predicates/weight"
 )
 
@@ -260,29 +260,6 @@ func isTreePredicate(name string) bool {
 	}
 }
 
-func getFreeStringArgs(count int, p *eskip.Predicate) ([]string, error) {
-	if len(p.Args) != count {
-		return nil, fmt.Errorf(
-			"invalid length of predicate args in %s, %d instead of %d",
-			p.Name,
-			len(p.Args),
-			count,
-		)
-	}
-
-	var a []string
-	for i := range p.Args {
-		s, ok := p.Args[i].(string)
-		if !ok {
-			return nil, fmt.Errorf("expected argument of type string, %s", p.Name)
-		}
-
-		a = append(a, s)
-	}
-
-	return a, nil
-}
-
 func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 	var rest []*eskip.Predicate
 	c := r.Copy()
@@ -295,28 +272,28 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 
 		switch p.Name {
 		case hostRegexpName:
-			a, err := getFreeStringArgs(1, p)
+			a, err := corepredicates.ValidateHostRegexpPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.HostRegexps = append(c.HostRegexps, a[0])
 		case pathRegexpName:
-			a, err := getFreeStringArgs(1, p)
+			a, err := corepredicates.ValidatePathRegexpPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.PathRegexps = append(c.PathRegexps, a[0])
 		case methodName:
-			a, err := getFreeStringArgs(1, p)
+			a, err := corepredicates.ValidateMethodPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.Method = a[0]
 		case headerName:
-			a, err := getFreeStringArgs(2, p)
+			a, err := corepredicates.ValidateHeaderPredicate(p)
 			if err != nil {
 				return nil, err
 			}
@@ -327,7 +304,7 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 
 			c.Headers[a[0]] = a[1]
 		case headerRegexpName:
-			a, err := getFreeStringArgs(2, p)
+			a, err := corepredicates.ValidateHeaderRegexpPredicate(p)
 			if err != nil {
 				return nil, err
 			}
@@ -408,13 +385,13 @@ func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
 	for _, p := range predicates {
 		switch p.Name {
 		case PathName:
-			path, err := pathpredicate.ProcessPathOrSubTree(p)
+			path, err := corepredicates.ProcessPathOrSubTree(p)
 			if err != nil {
 				return err
 			}
 			r.path = path
 		case PathSubtreeName:
-			pst, err := pathpredicate.ProcessPathOrSubTree(p)
+			pst, err := corepredicates.ProcessPathOrSubTree(p)
 			if err != nil {
 				return err
 			}
