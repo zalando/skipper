@@ -54,7 +54,20 @@ const (
 	after
 )
 
-const rfc3339nz = "2006-01-02T15:04:05" // RFC3339 without numeric timezone offset
+const (
+	rfc3339nz = "2006-01-02T15:04:05" // RFC3339 without numeric timezone offset
+
+	// BetweenName represents the name of the builtin between predicate.
+	BetweenName = "Between"
+	// BeforeName represents the name of the builtin before predicate.
+	BeforeName = "Before"
+	// AfterName represents the name of the builtin after predicate.
+	AfterName = "After"
+)
+
+//type spec struct {
+//	typ intervalType
+//}
 
 type predicate struct {
 	typ     spec
@@ -75,11 +88,11 @@ func NewAfter() routing.PredicateSpec { return after }
 func (s spec) Name() string {
 	switch s {
 	case between:
-		return "Between"
+		return BetweenName
 	case before:
-		return "Before"
+		return BeforeName
 	case after:
-		return "After"
+		return AfterName
 	default:
 		panic("invalid interval predicate type")
 	}

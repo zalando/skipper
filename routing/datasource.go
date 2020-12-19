@@ -22,13 +22,21 @@ const (
 
 // legacy, non-tree predicate names:
 const (
-	hostRegexpName   = "Host"
-	pathRegexpName   = "PathRegexp"
-	methodName       = "Method"
-	headerName       = "Header"
-	headerRegexpName = "HeaderRegexp"
-)
+	// HostRegexpName represents the name of the builtin host regexp predicate.
+	HostRegexpName = "Host"
 
+	// PathRegexpName represents the name of the builtin path regexp predicate.
+	PathRegexpName = "PathRegexp"
+
+	// MethodName represents the name of the builtin method predicate.
+	MethodName = "Method"
+
+	// HeaderName represents the name of the builtin header predicate.
+	HeaderName = "Header"
+
+	// HeaderRegexpName represents the name of the builtin header regexp predicate.
+	HeaderRegexpName = "HeaderRegexp"
+)
 
 func (it incomingType) String() string {
 	switch it {
@@ -219,7 +227,7 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]PredicateSpec) (filters.Filter, error) {
 	spec, ok := fr[def.Name]
 	if !ok {
-		if isTreePredicate(def.Name) || def.Name == hostRegexpName || def.Name == pathRegexpName || def.Name == methodName || def.Name == headerName || def.Name == headerRegexpName {
+		if isTreePredicate(def.Name) || def.Name == HostRegexpName || def.Name == PathRegexpName || def.Name == MethodName || def.Name == HeaderName || def.Name == HeaderRegexpName {
 			return nil, fmt.Errorf("trying to use '%s' as filter, but it is only available as predicate", def.Name)
 		}
 
@@ -271,28 +279,28 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 		}
 
 		switch p.Name {
-		case hostRegexpName:
+		case HostRegexpName:
 			a, err := corepredicates.ValidateHostRegexpPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.HostRegexps = append(c.HostRegexps, a[0])
-		case pathRegexpName:
+		case PathRegexpName:
 			a, err := corepredicates.ValidatePathRegexpPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.PathRegexps = append(c.PathRegexps, a[0])
-		case methodName:
+		case MethodName:
 			a, err := corepredicates.ValidateMethodPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.Method = a[0]
-		case headerName:
+		case HeaderName:
 			a, err := corepredicates.ValidateHeaderPredicate(p)
 			if err != nil {
 				return nil, err
@@ -303,7 +311,7 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 			}
 
 			c.Headers[a[0]] = a[1]
-		case headerRegexpName:
+		case HeaderRegexpName:
 			a, err := corepredicates.ValidateHeaderRegexpPredicate(p)
 			if err != nil {
 				return nil, err
