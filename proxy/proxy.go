@@ -1259,7 +1259,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 			uri = uri[:i]
 		}
 
-		p.log.Errorf(
+		p.log.Infof(
 			`client canceled after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
 			time.Since(ctx.startServe),
 			id,
