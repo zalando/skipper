@@ -1,7 +1,6 @@
 package routing
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"sort"
@@ -11,6 +10,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
 	pathpredicate "github.com/zalando/skipper/predicates/path"
+	weightpredicate "github.com/zalando/skipper/predicates/weight"
 )
 
 type incomingType uint
@@ -29,7 +29,6 @@ const (
 	headerRegexpName = "HeaderRegexp"
 )
 
-var errInvalidWeightParams = errors.New("invalid argument for the Weight predicate")
 
 func (it incomingType) String() string {
 	switch it {
@@ -347,30 +346,14 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 	return c, nil
 }
 
-func parseWeightPredicateArgs(args []interface{}) (int, error) {
-	if len(args) != 1 {
-		return 0, errInvalidWeightParams
-	}
-
-	if weight, ok := args[0].(float64); ok {
-		return int(weight), nil
-	}
-
-	if weight, ok := args[0].(int); ok {
-		return weight, nil
-	}
-
-	return 0, errInvalidWeightParams
-}
-
 // initialize predicate instances from their spec with the concrete arguments
 func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, int, error) {
 	cps := make([]Predicate, 0, len(defs))
 	var weight int
 	for _, def := range defs {
-		if def.Name == "Weight" {
+		if def.Name == WeightPredicateName {
 			var err error
-			if weight, err = parseWeightPredicateArgs(def.Args); err != nil {
+			if weight, err = weightpredicate.ParseWeightPredicateArgs(def.Args); err != nil {
 				return nil, 0, err
 			}
 
