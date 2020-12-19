@@ -33,17 +33,17 @@ func TestPredicateCreation(t *testing.T) {
 	kvPair := NewKVPair("iss", "https://accounts.google.com")
 	kvRegexPair := NewKVRegexPair("iss", regex)
 
-	t.Run("Path()", testPathFn(Path("/skipper")))
-	t.Run("PathSubtree()", testPathFn(PathSubtree("/skipper")))
-	t.Run("PathRegexp()", testCorePredicates(PathRegexp(regex)))
-	t.Run("Host()", testCorePredicates(Host(regex)))
-	t.Run("Weight()", testWeightFn(Weight(42)))
+	t.Run("Path()", testPredicatesWithoutSpec(Path("/skipper")))
+	t.Run("PathSubtree()", testPredicatesWithoutSpec(PathSubtree("/skipper")))
+	t.Run("PathRegexp()", testPredicatesWithoutSpec(PathRegexp(regex)))
+	t.Run("Host()", testPredicatesWithoutSpec(Host(regex)))
+	t.Run("Weight()", testPredicatesWithoutSpec(Weight(42)))
 	t.Run("True()", testWithSpecFn(primitive.NewTrue(), True()))
 	t.Run("False()", testWithSpecFn(primitive.NewFalse(), False()))
-	t.Run("Method()", testCorePredicates(Method("test blalalalaal")))
+	t.Run("Method()", testPredicatesWithoutSpec(Method("test blalalalaal")))
 	t.Run("Methods()", testWithSpecFn(methods.New(), Methods(http.MethodGet, http.MethodPost)))
-	t.Run("Header()", testCorePredicates(Header("key", "value")))
-	t.Run("HeaderRegexp()", testCorePredicates(HeaderRegexp("key", regex)))
+	t.Run("Header()", testPredicatesWithoutSpec(Header("key", "value")))
+	t.Run("HeaderRegexp()", testPredicatesWithoutSpec(HeaderRegexp("key", regex)))
 	t.Run("Cookie()", testWithSpecFn(cookie.New(), Cookie("cookieName", regex)))
 	t.Run("JWTPayloadAnyKV(single arg)", testWithSpecFn(auth.NewJWTPayloadAnyKV(), JWTPayloadAnyKV(kvPair)))
 	t.Run("JWTPayloadAnyKV(multiple args)", testWithSpecFn(auth.NewJWTPayloadAnyKV(), JWTPayloadAnyKV(kvPair, kvPair)))
@@ -88,25 +88,7 @@ func testWithSpecFn(predicateSpec routing.PredicateSpec, predicate *eskip.Predic
 	}
 }
 
-func testPathFn(predicate *eskip.Predicate) func(t *testing.T) {
-	return func(t *testing.T) {
-		_, err := core.ProcessPathOrSubTree(predicate)
-		if err != nil {
-			t.Errorf("unexpected error while parsing %s predicate with args %s, %v", predicate.Name, predicate.Args, err)
-		}
-	}
-}
-
-func testWeightFn(predicate *eskip.Predicate) func(t *testing.T) {
-	return func(t *testing.T) {
-		_, err := weight.ParseWeightPredicateArgs(predicate.Args)
-		if err != nil {
-			t.Errorf("unexpected error while parsing %s predicate with args %s, %v", predicate.Name, predicate.Args, err)
-		}
-	}
-}
-
-func testCorePredicates(predicate *eskip.Predicate) func(t *testing.T) {
+func testPredicatesWithoutSpec(predicate *eskip.Predicate) func(t *testing.T) {
 	return func(t *testing.T) {
 		var err error
 		switch predicate.Name {
@@ -120,6 +102,10 @@ func testCorePredicates(predicate *eskip.Predicate) func(t *testing.T) {
 			_, err = core.ValidateHeaderPredicate(predicate)
 		case routing.HeaderRegexpName:
 			_, err = core.ValidateHeaderRegexpPredicate(predicate)
+		case routing.WeightPredicateName:
+			_, err = weight.ParseWeightPredicateArgs(predicate.Args)
+		case routing.PathName, routing.PathSubtreeName:
+			_, err = core.ProcessPathOrSubTree(predicate)
 		default:
 			t.Errorf("Unknown predicate provided %q", predicate.Name)
 		}
