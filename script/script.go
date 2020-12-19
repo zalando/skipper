@@ -25,6 +25,10 @@ import (
 	gjson "layeh.com/gopher-json"
 )
 
+const (
+	LuaFilterName = "lua"
+)
+
 // InitialPoolSize is the number of lua states created initially per route
 var InitialPoolSize int = 3
 
@@ -41,7 +45,7 @@ func NewLuaScript() filters.Spec {
 
 // Name returns the name of the filter ("lua")
 func (ls *luaScript) Name() string {
-	return "lua"
+	return LuaFilterName
 }
 
 // CreateFilter creates the filter

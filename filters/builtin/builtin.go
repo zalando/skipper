@@ -66,6 +66,7 @@ const (
 	SetFastCgiFilenameName    = "setFastCgiFilename"
 	StatusName                = "status"
 	CompressName              = "compress"
+	DecompressName            = "decompress"
 	SetQueryName              = "setQuery"
 	DropQueryName             = "dropQuery"
 	InlineContentName         = "inlineContent"
