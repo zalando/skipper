@@ -115,8 +115,7 @@ func Cookie(name string, value *regexp.Regexp) *eskip.Predicate {
 func JWTPayloadAnyKV(pairs ...KVPair) *eskip.Predicate {
 	args := make([]interface{}, 0, len(pairs)*2)
 	for _, pair := range pairs {
-		args = append(args, pair.Key)
-		args = append(args, pair.Value)
+		args = append(args, pair.Key, pair.Value)
 	}
 	return &eskip.Predicate{
 		Name: auth.MatchJWTPayloadAnyKVName,
@@ -128,8 +127,7 @@ func JWTPayloadAnyKV(pairs ...KVPair) *eskip.Predicate {
 func JWTPayloadAllKV(pairs ...KVPair) *eskip.Predicate {
 	args := make([]interface{}, 0, len(pairs)*2)
 	for _, pair := range pairs {
-		args = append(args, pair.Key)
-		args = append(args, pair.Value)
+		args = append(args, pair.Key, pair.Value)
 	}
 	return &eskip.Predicate{
 		Name: auth.MatchJWTPayloadAllKVName,
@@ -141,8 +139,7 @@ func JWTPayloadAllKV(pairs ...KVPair) *eskip.Predicate {
 func JWTPayloadAnyKVRegexp(pairs ...KVRegexPair) *eskip.Predicate {
 	args := make([]interface{}, 0, len(pairs)*2)
 	for _, pair := range pairs {
-		args = append(args, pair.Key)
-		args = append(args, pair.Regex.String())
+		args = append(args, pair.Key, pair.Regex.String())
 	}
 	return &eskip.Predicate{
 		Name: auth.MatchJWTPayloadAnyKVRegexpName,
@@ -154,8 +151,7 @@ func JWTPayloadAnyKVRegexp(pairs ...KVRegexPair) *eskip.Predicate {
 func JWTPayloadAllKVRegexp(pairs ...KVRegexPair) *eskip.Predicate {
 	args := make([]interface{}, 0, len(pairs)*2)
 	for _, pair := range pairs {
-		args = append(args, pair.Key)
-		args = append(args, pair.Regex.String())
+		args = append(args, pair.Key, pair.Regex.String())
 	}
 	return &eskip.Predicate{
 		Name: auth.MatchJWTPayloadAllKVRegexpName,

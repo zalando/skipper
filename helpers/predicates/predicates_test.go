@@ -21,10 +21,21 @@ import (
 	"time"
 )
 
-func Test(t *testing.T) {
-	p := Methods(http.MethodGet, http.MethodPost)
-	if len(p.Args) != 2 {
-		t.Errorf("expected 2 arguments in Methods predicate, got %d", len(p.Args))
+func TestArgumentConversion(t *testing.T) {
+	methodPredicate := Methods(http.MethodGet, http.MethodPost)
+	if len(methodPredicate.Args) != 2 {
+		t.Errorf("expected 2 arguments in Methods predicate, got %d", len(methodPredicate.Args))
+	}
+
+	kvPredicate := JWTPayloadAllKV(NewKVPair("k1", "v1"), NewKVPair("k2", "v2"))
+	if len(kvPredicate.Args) != 4 {
+		t.Errorf("expected 4 arguments in JWTPayloadAllKV predicate, got %d", len(kvPredicate.Args))
+	}
+
+	r := regexp.MustCompile(`/\d+/`)
+	kvRegexPredicate := JWTPayloadAllKVRegexp(NewKVRegexPair("k1", r), NewKVRegexPair("k2", r))
+	if len(kvRegexPredicate.Args) != 4 {
+		t.Errorf("expected 4 arguments in JWTPayloadAllKV predicate, got %d", len(kvRegexPredicate.Args))
 	}
 }
 
