@@ -2,6 +2,7 @@ package predicates
 
 import (
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/helpers"
 	"github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/core"
@@ -27,13 +28,13 @@ func TestArgumentConversion(t *testing.T) {
 		t.Errorf("expected 2 arguments in Methods predicate, got %d", len(methodPredicate.Args))
 	}
 
-	kvPredicate := JWTPayloadAllKV(NewKVPair("k1", "v1"), NewKVPair("k2", "v2"))
+	kvPredicate := JWTPayloadAllKV(helpers.NewKVPair("k1", "v1"), helpers.NewKVPair("k2", "v2"))
 	if len(kvPredicate.Args) != 4 {
 		t.Errorf("expected 4 arguments in JWTPayloadAllKV predicate, got %d", len(kvPredicate.Args))
 	}
 
 	r := regexp.MustCompile(`/\d+/`)
-	kvRegexPredicate := JWTPayloadAllKVRegexp(NewKVRegexPair("k1", r), NewKVRegexPair("k2", r))
+	kvRegexPredicate := JWTPayloadAllKVRegexp(helpers.NewKVRegexPair("k1", r), helpers.NewKVRegexPair("k2", r))
 	if len(kvRegexPredicate.Args) != 4 {
 		t.Errorf("expected 4 arguments in JWTPayloadAllKV predicate, got %d", len(kvRegexPredicate.Args))
 	}
@@ -41,8 +42,8 @@ func TestArgumentConversion(t *testing.T) {
 
 func TestPredicateCreation(t *testing.T) {
 	regex := regexp.MustCompile("/[a-z]+/")
-	kvPair := NewKVPair("iss", "https://accounts.google.com")
-	kvRegexPair := NewKVRegexPair("iss", regex)
+	kvPair := helpers.NewKVPair("iss", "https://accounts.google.com")
+	kvRegexPair := helpers.NewKVRegexPair("iss", regex)
 
 	t.Run("Path()", testPredicatesWithoutSpec(Path("/skipper")))
 	t.Run("PathSubtree()", testPredicatesWithoutSpec(PathSubtree("/skipper")))
