@@ -961,7 +961,7 @@ token, it will allow the request to pass.
 Examples:
 
 ```
-oauthTokenintrospectionAnyClaims("c1", "c2", "c3")
+oauthTokenintrospectionAnyClaims("https://accounts.google.com", c1", "c2", "c3")
 ```
 
 ## oauthTokenintrospectionAllClaims
@@ -980,7 +980,7 @@ token, it will allow the request to pass.
 Examples:
 
 ```
-oauthTokenintrospectionAllClaims("c1", "c2", "c3")
+oauthTokenintrospectionAllClaims("https://accounts.google.com", c1", "c2", "c3")
 ```
 
 ## oauthTokenintrospectionAnyKV
@@ -1000,8 +1000,8 @@ it will allow the request to pass.
 Examples:
 
 ```
-oauthTokenintrospectionAnyKV("k1", "v1", "k2", "v2")
-oauthTokenintrospectionAnyKV("k1", "v1", "k1", "v2")
+oauthTokenintrospectionAnyKV("https://accounts.google.com", "k1", "v1", "k2", "v2")
+oauthTokenintrospectionAnyKV("https://accounts.google.com", "k1", "v1", "k1", "v2")
 ```
 
 ## oauthTokenintrospectionAllKV
@@ -1021,7 +1021,7 @@ it will allow the request to pass.
 Examples:
 
 ```
-oauthTokenintrospectionAllKV("k1", "v1", "k2", "v2")
+oauthTokenintrospectionAllKV("https://accounts.google.com", "k1", "v1", "k2", "v2")
 ```
 
 ## secureOauthTokenintrospectionAnyClaims
@@ -1033,6 +1033,7 @@ for example `https://accounts.google.com`, that will be used as
 described in [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
 to find the configuration and for example supported claims.
 
+Second and third arguments are the client-id and client-secret.
 Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
 The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
 
@@ -1060,6 +1061,7 @@ for example `https://accounts.google.com`, that will be used as
 described in [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
 to find the configuration and for example supported claims.
 
+Second and third arguments are the client-id and client-secret.
 Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
 The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
 
@@ -1088,6 +1090,7 @@ that will be used as described in
 [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
 to find the configuration and for example supported claims.
 
+Second and third arguments are the client-id and client-secret.
 Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
 The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
 
@@ -1116,6 +1119,7 @@ that will be used as described in
 [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
 to find the configuration and for example supported claims.
 
+Second and third arguments are the client-id and client-secret.
 Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
 The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
 
@@ -1441,7 +1445,8 @@ and allows the same breaker characteristics for low and high rate traffic.
 Parameters:
 
 * number of consecutive failures to open (int)
-* sliding window (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
+* sliding window (int)
+* timeout (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 * half-open requests (int) - optional
 * idle-ttl (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 
