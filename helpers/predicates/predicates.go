@@ -2,6 +2,7 @@ package predicates
 
 import (
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/helpers"
 	"github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/cron"
@@ -112,50 +113,34 @@ func Cookie(name string, value *regexp.Regexp) *eskip.Predicate {
 }
 
 // JWTPayloadAnyKV
-func JWTPayloadAnyKV(pairs ...KVPair) *eskip.Predicate {
-	args := make([]interface{}, 0, len(pairs)*2)
-	for _, pair := range pairs {
-		args = append(args, pair.Key, pair.Value)
-	}
+func JWTPayloadAnyKV(pairs ...helpers.KVPair) *eskip.Predicate {
 	return &eskip.Predicate{
 		Name: auth.MatchJWTPayloadAnyKVName,
-		Args: args,
+		Args: helpers.KVPairToArgs(pairs),
 	}
 }
 
 // JWTPayloadAllKV
-func JWTPayloadAllKV(pairs ...KVPair) *eskip.Predicate {
-	args := make([]interface{}, 0, len(pairs)*2)
-	for _, pair := range pairs {
-		args = append(args, pair.Key, pair.Value)
-	}
+func JWTPayloadAllKV(pairs ...helpers.KVPair) *eskip.Predicate {
 	return &eskip.Predicate{
 		Name: auth.MatchJWTPayloadAllKVName,
-		Args: args,
+		Args: helpers.KVPairToArgs(pairs),
 	}
 }
 
 // JWTPayloadAnyKVRegexp
-func JWTPayloadAnyKVRegexp(pairs ...KVRegexPair) *eskip.Predicate {
-	args := make([]interface{}, 0, len(pairs)*2)
-	for _, pair := range pairs {
-		args = append(args, pair.Key, pair.Regex.String())
-	}
+func JWTPayloadAnyKVRegexp(pairs ...helpers.KVRegexPair) *eskip.Predicate {
 	return &eskip.Predicate{
 		Name: auth.MatchJWTPayloadAnyKVRegexpName,
-		Args: args,
+		Args: helpers.KVRegexPairToArgs(pairs),
 	}
 }
 
 // JWTPayloadAllKVRegexp
-func JWTPayloadAllKVRegexp(pairs ...KVRegexPair) *eskip.Predicate {
-	args := make([]interface{}, 0, len(pairs)*2)
-	for _, pair := range pairs {
-		args = append(args, pair.Key, pair.Regex.String())
-	}
+func JWTPayloadAllKVRegexp(pairs ...helpers.KVRegexPair) *eskip.Predicate {
 	return &eskip.Predicate{
 		Name: auth.MatchJWTPayloadAllKVRegexpName,
-		Args: args,
+		Args: helpers.KVRegexPairToArgs(pairs),
 	}
 }
 
@@ -301,27 +286,6 @@ func TrafficSticky(chance float64, trafficGroupCookie, trafficGroup string) *esk
 		Name: traffic.PredicateName,
 		Args: []interface{}{chance, trafficGroupCookie, trafficGroup},
 	}
-}
-
-// KVRegexPair
-type KVRegexPair struct {
-	Key   string
-	Regex *regexp.Regexp
-}
-
-// NewKVRegexPair creates a new KVRegexPair
-func NewKVRegexPair(key string, regex *regexp.Regexp) KVRegexPair {
-	return KVRegexPair{Key: key, Regex: regex}
-}
-
-// KVPair
-type KVPair struct {
-	Key, Value string
-}
-
-// NewKVPair creates a new KVPair
-func NewKVPair(key, value string) KVPair {
-	return KVPair{Key: key, Value: value}
 }
 
 func stringSliceToArgs(strings []string) []interface{} {
