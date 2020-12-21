@@ -7,23 +7,23 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-type noopSpec struct {
+type multiSpec struct {
 	Type string
 }
 
 func InitPlugin(opts []string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error) {
-	return []filters.Spec{noopSpec{"noop"}}, []routing.PredicateSpec{noopSpec{"None"}}, nil, nil
+	return []filters.Spec{multiSpec{"noop"}}, []routing.PredicateSpec{multiSpec{"None"}}, nil, nil
 }
 
-func (s noopSpec) Name() string {
+func (s multiSpec) Name() string {
 	return s.Type
 }
 
-func (s noopSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (s multiSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
 	return noop{}, nil
 }
 
-func (s noopSpec) Create(config []interface{}) (routing.Predicate, error) {
+func (s multiSpec) Create(config []interface{}) (routing.Predicate, error) {
 	return noop{}, nil
 }
 
