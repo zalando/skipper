@@ -118,8 +118,6 @@ spec:
     type: service
     serviceName: my-service
     servicePort: 80
-  defaultBackends:
-  - backendName: my-backend
   routes:
     - pathSubtree: /
       backends:
