@@ -2179,9 +2179,17 @@ Syntax:
 tracingTag("<tag_name>", "<tag_value>")
 ```
 
+Tag value may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then filter does not set the tag.
+
 Example: Adding the below filter will add a tag named `foo` with the value `bar`.
 ```
 tracingTag("foo", "bar")
+```
+
+Example: Set tag from request header
+```
+tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 ```
 
 ## originMarker
