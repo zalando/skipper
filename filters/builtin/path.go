@@ -31,7 +31,7 @@ func NewModPath() filters.Spec { return &modPath{behavior: regexpReplace} }
 // the request path.
 //
 // Instances expect one parameter: the new path to be set, or the path
-// template to be evaluated, see eskip.Template.ApplyRequestContext
+// template to be evaluated, see eskip.Template.ApplyContext
 //
 // Name: "setPath".
 func NewSetPath() filters.Spec { return &modPath{behavior: fullReplace} }
@@ -105,7 +105,7 @@ func (f *modPath) Request(ctx filters.FilterContext) {
 	case regexpReplace:
 		req.URL.Path = f.rx.ReplaceAllString(req.URL.Path, f.replacement)
 	case fullReplace:
-		req.URL.Path, _ = f.template.ApplyRequestContext(ctx)
+		req.URL.Path, _ = f.template.ApplyContext(ctx)
 	default:
 		panic("unspecified behavior")
 	}

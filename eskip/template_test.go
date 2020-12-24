@@ -64,7 +64,7 @@ func TestTemplateGetter(t *testing.T) {
 	}})
 }
 
-func TestTemplateApplyRequestResponseContext(t *testing.T) {
+func TestTemplateApplyContext(t *testing.T) {
 	parseUrl := func(s string) *url.URL {
 		u, err := url.Parse(s)
 		if err != nil {
@@ -74,13 +74,11 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 	}
 
 	for _, ti := range []struct {
-		name           string
-		template       string
-		context        *filtertest.Context
-		requestExpect  string
-		requestOk      bool
-		responseExpect string
-		responseOk     bool
+		name     string
+		template string
+		context  *filtertest.Context
+		expected string
+		ok       bool
 	}{{
 		"path params",
 		"hello ${p1} ${p2}",
@@ -92,14 +90,10 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 		},
 		"hello path params",
 		true,
-		"hello path params",
-		true,
 	}, {
 		"all missing",
 		"hello ${p1} ${p2}",
 		&filtertest.Context{},
-		"hello  ",
-		false,
 		"hello  ",
 		false,
 	}, {
@@ -110,8 +104,6 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 				"p1": "X",
 			},
 		},
-		"hello X ",
-		false,
 		"hello X ",
 		false,
 	}, {
@@ -126,8 +118,6 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 		},
 		"hello foo",
 		true,
-		"hello foo",
-		true,
 	}, {
 		"missing request header",
 		"hello ${request.header.X-Foo}",
@@ -136,30 +126,30 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 		},
 		"hello ",
 		false,
-		"hello ",
-		false,
 	}, {
 		"response header",
 		"hello ${response.header.X-Foo}",
 		&filtertest.Context{
 			FResponse: &http.Response{
 				Header: http.Header{
-					"X-Foo": []string{"foo"},
+					"X-Foo": []string{"bar"},
 				},
 			},
 		},
-		"hello ",
-		false, // response headers are not available in request context
-		"hello foo",
+		"hello bar",
 		true,
+	}, {
+		"response header when response is absent",
+		"hello ${response.header.X-Foo}",
+		&filtertest.Context{},
+		"hello ",
+		false,
 	}, {
 		"missing response header",
 		"hello ${response.header.X-Foo}",
 		&filtertest.Context{
 			FResponse: &http.Response{},
 		},
-		"hello ",
-		false,
 		"hello ",
 		false,
 	}, {
@@ -177,10 +167,20 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 				},
 			},
 		},
-		"hello bar ",
-		false, // response headers are not available in request context
 		"hello bar baz",
 		true,
+	}, {
+		"request and response headers when response is absent",
+		"hello ${request.header.x-foo} ${response.header.x-foo}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				Header: http.Header{
+					"X-Foo": []string{"bar"},
+				},
+			},
+		},
+		"hello bar ",
+		false,
 	}, {
 		"request query",
 		"hello ${request.query.q-Q} ${request.query.P_p}",
@@ -191,8 +191,6 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 		},
 		"hello foo bar",
 		true,
-		"hello foo bar",
-		true,
 	}, {
 		"missing request query",
 		"hello ${request.query.missing}",
@@ -201,8 +199,6 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 				URL: parseUrl("http://example.com/path?p=foo"),
 			},
 		},
-		"hello ",
-		false,
 		"hello ",
 		false,
 	}, {
@@ -217,8 +213,6 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 		},
 		"hello bar y",
 		true,
-		"hello bar y",
-		true,
 	}, {
 		"missing request cookie",
 		"hello ${request.cookie.missing}",
@@ -231,8 +225,6 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 		},
 		"hello ",
 		false,
-		"hello ",
-		false,
 	}, {
 		"request path",
 		"hello ${request.path}",
@@ -241,8 +233,6 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 				URL: parseUrl("http://example.com/foo/bar"),
 			},
 		},
-		"hello /foo/bar",
-		true,
 		"hello /foo/bar",
 		true,
 	}, {
@@ -255,8 +245,7 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 		},
 		"hello ",
 		false, // path is empty
-		"hello ",
-		false,
+
 	}, {
 		"all in one",
 		"Hello ${name} ${request.header.name} ${request.query.name} ${request.cookie.name} ${response.header.name}",
@@ -277,22 +266,15 @@ func TestTemplateApplyRequestResponseContext(t *testing.T) {
 				},
 			},
 		},
-		"Hello one two three four ",
-		false, // response headers are not available in request context
 		"Hello one two three four five",
 		true,
 	},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			template := NewTemplate(ti.template)
-			result, ok := template.ApplyRequestContext(ti.context)
-			if result != ti.requestExpect || ok != ti.requestOk {
-				t.Errorf("Apply request context result mismatch: '%s' (%v) != '%s' (%v)", result, ok, ti.requestExpect, ti.requestOk)
-			}
-
-			result, ok = template.ApplyResponseContext(ti.context)
-			if result != ti.responseExpect || ok != ti.responseOk {
-				t.Errorf("Apply response context result mismatch: '%s' (%v) != '%s' (%v)", result, ok, ti.responseExpect, ti.responseOk)
+			result, ok := template.ApplyContext(ti.context)
+			if result != ti.expected || ok != ti.ok {
+				t.Errorf("Apply context result mismatch: '%s' (%v) != '%s' (%v)", result, ok, ti.expected, ti.ok)
 			}
 		})
 	}

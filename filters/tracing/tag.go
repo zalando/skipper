@@ -55,7 +55,7 @@ func (f tagFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if v, ok := f.tagValue.ApplyRequestContext(ctx); ok {
+	if v, ok := f.tagValue.ApplyContext(ctx); ok {
 		span.SetTag(f.tagName, v)
 	}
 }

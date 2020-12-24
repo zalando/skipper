@@ -90,7 +90,7 @@ func NewResponseHeader() filters.Spec {
 
 // Returns a filter specification that is used to set headers for requests.
 // Instances expect two parameters: the header name and the header value template,
-// see eskip.Template.ApplyRequestContext
+// see eskip.Template.ApplyContext
 // Name: "setRequestHeader".
 //
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
@@ -102,7 +102,7 @@ func NewSetRequestHeader() filters.Spec {
 
 // Returns a filter specification that is used to append headers for requests.
 // Instances expect two parameters: the header name and the header value template,
-// see eskip.Template.ApplyRequestContext
+// see eskip.Template.ApplyContext
 // Name: "appendRequestHeader".
 //
 // If the header name is 'Host', the filter uses the `SetOutgoingHost()`
@@ -121,7 +121,7 @@ func NewDropRequestHeader() filters.Spec {
 
 // Returns a filter specification that is used to set headers for responses.
 // Instances expect two parameters: the header name and the header value template,
-// see eskip.Template.ApplyResponseContext
+// see eskip.Template.ApplyContext
 // Name: "setResponseHeader".
 func NewSetResponseHeader() filters.Spec {
 	return &headerFilter{typ: setResponseHeader}
@@ -129,7 +129,7 @@ func NewSetResponseHeader() filters.Spec {
 
 // Returns a filter specification that is used to append headers for responses.
 // Instances expect two parameters: the header name and the header value template,
-// see eskip.Template.ApplyResponseContext
+// see eskip.Template.ApplyContext
 // Name: "appendResponseHeader".
 func NewAppendResponseHeader() filters.Spec {
 	return &headerFilter{typ: appendResponseHeader}
@@ -260,7 +260,7 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 	header := ctx.Request().Header
 	switch f.typ {
 	case setRequestHeader:
-		value, ok := f.template.ApplyRequestContext(ctx)
+		value, ok := f.template.ApplyContext(ctx)
 		if ok {
 			header.Set(f.key, value)
 			if strings.ToLower(f.key) == "host" {
@@ -268,7 +268,7 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 			}
 		}
 	case appendRequestHeader:
-		value, ok := f.template.ApplyRequestContext(ctx)
+		value, ok := f.template.ApplyContext(ctx)
 		if ok {
 			header.Add(f.key, value)
 			if strings.ToLower(f.key) == "host" {
@@ -301,12 +301,12 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	header := ctx.Response().Header
 	switch f.typ {
 	case setResponseHeader:
-		value, ok := f.template.ApplyResponseContext(ctx)
+		value, ok := f.template.ApplyContext(ctx)
 		if ok {
 			header.Set(f.key, value)
 		}
 	case appendResponseHeader:
-		value, ok := f.template.ApplyResponseContext(ctx)
+		value, ok := f.template.ApplyContext(ctx)
 		if ok {
 			header.Add(f.key, value)
 		}

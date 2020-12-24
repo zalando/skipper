@@ -5,10 +5,9 @@
 package eskip
 
 import (
+	"net/http"
 	"regexp"
 	"strings"
-
-	"github.com/zalando/skipper/filters"
 )
 
 var placeholderRegexp = regexp.MustCompile(`\$\{([^{}]+)\}`)
@@ -20,6 +19,14 @@ type TemplateGetter func(string) string
 type Template struct {
 	template     string
 	placeholders []string
+}
+
+type TemplateContext interface {
+	PathParam(string) string
+
+	Request() *http.Request
+
+	Response() *http.Response
 }
 
 // New parses a template string and returns a reusable *Template object.
@@ -48,20 +55,10 @@ func (t *Template) Apply(get TemplateGetter) string {
 	return result
 }
 
-// ApplyRequestContext evaluates the template using a filter context and request attributes to resolve the
+// ApplyContext evaluates the template using template context to resolve the
 // placeholders. Returns true if all placeholders resolved to non-empty values.
-func (t *Template) ApplyRequestContext(ctx filters.FilterContext) (string, bool) {
-	return t.apply(contextGetter(ctx, false))
-}
-
-// ApplyResponseContext evaluates the template using a filter context, request and response attributes to resolve the
-// placeholders. Returns true if all placeholders resolved to non-empty values.
-func (t *Template) ApplyResponseContext(ctx filters.FilterContext) (string, bool) {
-	return t.apply(contextGetter(ctx, true))
-}
-
-func contextGetter(ctx filters.FilterContext, response bool) func(key string) string {
-	return func(key string) string {
+func (t *Template) ApplyContext(ctx TemplateContext) (string, bool) {
+	return t.apply(func(key string) string {
 		if h := strings.TrimPrefix(key, "request.header."); h != key {
 			return ctx.Request().Header.Get(h)
 		}
@@ -77,13 +74,13 @@ func contextGetter(ctx filters.FilterContext, response bool) func(key string) st
 		if key == "request.path" {
 			return ctx.Request().URL.Path
 		}
-		if response {
+		if ctx.Response() != nil {
 			if h := strings.TrimPrefix(key, "response.header."); h != key {
 				return ctx.Response().Header.Get(h)
 			}
 		}
 		return ctx.PathParam(key)
-	}
+	})
 }
 
 // apply evaluates the template using a TemplateGetter function to resolve the
