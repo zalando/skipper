@@ -14,7 +14,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -91,6 +91,7 @@ func TestServeHTTP(t *testing.T) {
 		route                   string
 		method                  string
 		backendClosesConnection bool
+		backendHangs            bool
 		noBackend               bool
 		backendStatusCode       int
 		expectedResponseBody    string
@@ -135,8 +136,21 @@ func TestServeHTTP(t *testing.T) {
 			expectedResponseBody:    "BACKEND ERROR",
 			backendClosesConnection: true,
 		},
+		{
+			msg:               "backend hangs",
+			route:             `route: Path("/ws") -> "%s";`,
+			method:            http.MethodGet,
+			backendStatusCode: http.StatusSwitchingProtocols,
+			backendHangs:      true,
+		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
+			ti := ti // trick race detector
+			var clientConnClosed atomic.Value
+			clientAlive := func() bool {
+				return clientConnClosed.Load() == nil
+			}
+
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(ti.backendStatusCode)
 				if ti.backendClosesConnection {
@@ -157,12 +171,18 @@ func TestServeHTTP(t *testing.T) {
 					return
 				}
 				defer conn.Close()
+
 				for {
 					s, err := bufrw.ReadString('\n')
-					if err != nil {
+					if err != nil && clientAlive() {
 						t.Errorf("error reading string: %v", err)
 						return
 					}
+
+					if ti.backendHangs {
+						return // will close connection without response
+					}
+
 					var resp string
 					if strings.Compare(s, "ping\n") == 0 {
 						resp = "pong\n"
@@ -171,12 +191,12 @@ func TestServeHTTP(t *testing.T) {
 					}
 
 					_, err = bufrw.WriteString(resp)
-					if err != nil {
+					if err != nil && clientAlive() {
 						t.Error(err)
 						return
 					}
 					err = bufrw.Flush()
-					if err != nil {
+					if err != nil && clientAlive() {
 						t.Error(err)
 						return
 					}
@@ -205,7 +225,10 @@ func TestServeHTTP(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			defer conn.Close()
+			defer func() {
+				clientConnClosed.Store(true)
+				conn.Close()
+			}()
 
 			u, _ := url.ParseRequestURI("wss://www.example.org/ws")
 			r := &http.Request{
@@ -245,7 +268,7 @@ func TestServeHTTP(t *testing.T) {
 				if ti.method == http.MethodPost || ti.noBackend {
 					return
 				}
-				t.Errorf("wrong response status <%d>, expeted <%d>", resp.StatusCode, ti.backendStatusCode)
+				t.Errorf("wrong response status <%d>, expected <%d>", resp.StatusCode, ti.backendStatusCode)
 				return
 			}
 
@@ -255,6 +278,12 @@ func TestServeHTTP(t *testing.T) {
 				return
 			}
 			pong, err := reader.ReadString('\n')
+			if ti.backendHangs {
+				if err != io.EOF {
+					t.Error("expected EOF on closed connection read")
+				}
+				return
+			}
 			if err != nil {
 				t.Error(err)
 				return
@@ -320,21 +349,6 @@ func TestInvalidHTTPDialBackend(t *testing.T) {
 	_, err = p.dialBackend(req)
 	if err == nil {
 		t.Errorf("Could dial to %s, but should not be possible, caused by: %v", req.Host, err)
-	}
-}
-
-func TestCopyAsync(t *testing.T) {
-	var dst bytes.Buffer
-	var wg sync.WaitGroup
-	wg.Add(1)
-	s := "foo"
-	src := bytes.NewBufferString(s)
-
-	copyAsync(&wg, src, &dst)
-	wg.Wait()
-	res := dst.String()
-	if res != s {
-		t.Errorf("%s != %s after copy", res, s)
 	}
 }
 
