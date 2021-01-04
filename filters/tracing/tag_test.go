@@ -5,35 +5,62 @@ import (
 	"testing"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/filters/filtertest"
-	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestTracingTag(t *testing.T) {
-	const tagName = "test_tag"
-	const tagValue = "test_value"
+	tracer := mocktracer.New()
 
-	req := &http.Request{}
+	for _, ti := range []struct {
+		name     string
+		value    string
+		context  *filtertest.Context
+		expected interface{}
+	}{{
+		"plain key value",
+		"test_value",
+		&filtertest.Context{
+			FRequest: &http.Request{},
+		},
+		"test_value",
+	}, {
+		"tag from header",
+		"${request.header.X-Flow-Id}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				Header: http.Header{
+					"X-Flow-Id": []string{"foo"},
+				},
+			},
+		},
+		"foo",
+	}, {
+		"tag from missing header",
+		"${request.header.missing}",
+		&filtertest.Context{
+			FRequest: &http.Request{},
+		},
+		nil,
+	},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			span := tracer.StartSpan("proxy").(*mocktracer.MockSpan)
+			defer span.Finish()
 
-	span := tracingtest.NewSpan("proxy")
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
-	ctx := &filtertest.Context{FRequest: req}
-	s := NewTag()
-	f, err := s.CreateFilter([]interface{}{tagName, tagValue})
-	if err != nil {
-		t.Error(err)
-		return
-	}
+			ti.context.FRequest = ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span))
 
-	f.Request(ctx)
+			s := NewTag()
+			f, err := s.CreateFilter([]interface{}{"test_tag", ti.value})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	v, ok := span.Tags[tagName]
-	if !ok {
-		t.Errorf("tag was not set: %s", tagName)
-	}
+			f.Request(ti.context)
 
-	vs, ok := v.(string)
-	if !ok || vs != tagValue {
-		t.Errorf("invalid tag value '%s' != '%s'", vs, tagValue)
+			if got := span.Tag("test_tag"); got != ti.expected {
+				t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
+			}
+		})
 	}
 }
