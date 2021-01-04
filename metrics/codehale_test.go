@@ -168,39 +168,14 @@ var proxyMetricsTests = []proxyMetricTest{
 	{fmt.Sprintf(KeyErrorsStreaming, "r1"), func(m Metrics) { m.IncErrorsStreaming("r1") }},
 }
 
-func waitForNewMetric(c *CodaHale, key string, timeout time.Duration, maxTries int) bool {
-	done := make(chan bool)
-	to := time.After(timeout)
-	go func() {
-		for {
-			if c.reg.Get(key) != nil {
-				done <- true
-				return
-			}
-
-			select {
-			case <-to:
-				done <- false
-				return
-			case <-time.After(time.Duration(int(timeout) / maxTries)):
-			}
-		}
-	}()
-
-	return <-done
-}
-
 func TestCodaHaleProxyMetrics(t *testing.T) {
-	const (
-		registryTimeout  = time.Millisecond
-		registryMaxTries = 16
-	)
-
 	for _, pmt := range proxyMetricsTests {
 		t.Run(pmt.metricsKey, func(t *testing.T) {
 			m := NewCodaHale(Options{})
 			pmt.measureFunc(m)
-			if !waitForNewMetric(m, pmt.metricsKey, registryTimeout, registryMaxTries) {
+
+			time.Sleep(20 * time.Millisecond)
+			if m.reg.Get(pmt.metricsKey) == nil {
 				t.Errorf("expected metric was not found: '%s'", pmt.metricsKey)
 			}
 		})
