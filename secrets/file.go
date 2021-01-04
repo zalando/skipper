@@ -76,7 +76,7 @@ func (sp *SecretPaths) updateSecret(s string, dat []byte) {
 }
 
 // Add adds a file or directory to find secrets in all files
-// found. The basename of the file will be the key to get the
+// found. The path of the file will be the key to get the
 // secret. Add is not synchronized and is not safe to call
 // concurrently. Add has a side effect of lazily init a goroutine to
 // start a single background refresher for the SecretPaths instance.
