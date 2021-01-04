@@ -924,31 +924,31 @@ func (c *Config) ToOptions() skipper.Options {
 	}
 
 	if c.Certificates != nil && len(c.Certificates) > 0 {
-		var tlsVersion uint16 = tls.VersionTLS13
-
-		for _, s := range []string{c.TLSMinVersion, defaultMinTLSVersion} {
-			switch s {
-			case "1.3", "13":
-				tlsVersion = tls.VersionTLS13
-			case "1.2", "12":
-				tlsVersion = tls.VersionTLS12
-			case "1.1", "11":
-				tlsVersion = tls.VersionTLS11
-			case "1.0", "10":
-				tlsVersion = tls.VersionTLS10
-			default:
-				log.Infof("No valid minimal TLS version confiured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
-				continue
-			}
-			break
-		}
 		options.ClientTLS = &tls.Config{
 			Certificates: c.Certificates,
-			MinVersion:   tlsVersion,
+			MinVersion:   c.getMinTLSVersion(),
 		}
 	}
 
 	return options
+}
+
+func (c *Config) getMinTLSVersion() uint16 {
+	tlsVersionTable := map[string]uint16{
+		"1.3": tls.VersionTLS13,
+		"13":  tls.VersionTLS13,
+		"1.2": tls.VersionTLS12,
+		"12":  tls.VersionTLS12,
+		"1.1": tls.VersionTLS11,
+		"11":  tls.VersionTLS11,
+		"1.0": tls.VersionTLS10,
+		"10":  tls.VersionTLS10,
+	}
+	if v, ok := tlsVersionTable[c.TLSMinVersion]; ok {
+		return v
+	}
+	log.Infof("No valid minimal TLS version confiured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
+	return tlsVersionTable[defaultMinTLSVersion]
 }
 
 func (c *Config) parseHistogramBuckets() ([]float64, error) {
