@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/tls"
 	"os"
 	"reflect"
 	"testing"
@@ -157,4 +158,24 @@ func Test_parseHistogramBuckets(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMinTLSVersion(t *testing.T) {
+	t.Run("test default", func(t *testing.T) {
+		cfg := new(Config)
+		if cfg.getMinTLSVersion() != tls.VersionTLS12 {
+			t.Error("Failed to get default min TLS version")
+		}
+	})
+	t.Run("test configured TLS version", func(t *testing.T) {
+		cfg := new(Config)
+		cfg.TLSMinVersion = "1.3"
+		if cfg.getMinTLSVersion() != tls.VersionTLS13 {
+			t.Error(`Failed to get correct TLS version for "1.3"`)
+		}
+		cfg.TLSMinVersion = "11"
+		if cfg.getMinTLSVersion() != tls.VersionTLS11 {
+			t.Error(`Failed to get correct TLS version for "11"`)
+		}
+	})
 }
