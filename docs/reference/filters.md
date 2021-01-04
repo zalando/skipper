@@ -2142,8 +2142,8 @@ This filter should be used as an [egress](egress.md) only feature.
 Example:
 
 ```
-egress1: Method("POST") && Host("api.example.com") -> bearerinjector("write-token") -> "https://api.example.com/shoes";
-egress2: Method("GET") && Host("api.example.com") -> bearerinjector("read-token") -> "https://api.example.com/shoes";
+egress1: Method("POST") && Host("api.example.com") -> bearerinjector("/tmp/secrets/write-token") -> "https://api.example.com/shoes";
+egress2: Method("GET") && Host("api.example.com") -> bearerinjector("/tmp/secrets/read-token") -> "https://api.example.com/shoes";
 ```
 
 To integrate with the `bearerinjector` filter you need to run skipper
