@@ -2,7 +2,6 @@ package proxy_test
 
 import (
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -24,47 +23,7 @@ func TestWithoutRateLimit(t *testing.T) {
 	p := proxytest.New(fr, r)
 	defer p.Close()
 
-	doc := func(l int) []byte {
-		b := make([]byte, l)
-		n, err := rand.Read(b)
-		if err != nil || n != l {
-			t.Fatal("failed to generate doc", err, n, l)
-		}
-
-		return b
-	}
-
-	request := func(doc []byte) {
-		req, err := http.NewRequest("GET", p.URL+"/", nil)
-		if err != nil {
-			t.Fatal("foo", "failed to create request", err)
-			return
-		}
-
-		req.Close = true
-
-		rsp, err := (&http.Client{}).Do(req)
-		if err != nil {
-			t.Fatal("Do req", "failed to make request", err)
-			return
-		}
-
-		defer rsp.Body.Close()
-		_, err = ioutil.ReadAll(rsp.Body)
-		if err != nil {
-			t.Fatal("read", "failed to read response", err)
-		}
-
-		if rsp.StatusCode == http.StatusTooManyRequests {
-			t.Fatal("should not be ratelimitted")
-		}
-	}
-
-	for i := 0; i < 100; i++ {
-		d0 := doc(128)
-		request(d0)
-	}
-
+	requestAndExpect(t, p.URL, 100, http.StatusOK, nil)
 }
 
 func TestCheckDisableRateLimit(t *testing.T) {
@@ -83,47 +42,7 @@ func TestCheckDisableRateLimit(t *testing.T) {
 	}, r...)
 	defer p.Close()
 
-	doc := func(l int) []byte {
-		b := make([]byte, l)
-		n, err := rand.Read(b)
-		if err != nil || n != l {
-			t.Fatal("failed to generate doc", err, n, l)
-		}
-
-		return b
-	}
-
-	request := func(doc []byte) int {
-		req, err := http.NewRequest("GET", p.URL+"/", nil)
-		if err != nil {
-			t.Fatal("foo", "failed to create request", err)
-			return -1
-		}
-
-		req.Close = true
-
-		rsp, err := (&http.Client{}).Do(req)
-		if err != nil {
-			t.Fatal("Do req", "failed to make request", err)
-			return -1
-		}
-
-		defer rsp.Body.Close()
-		_, err = ioutil.ReadAll(rsp.Body)
-		if err != nil {
-			t.Fatal("read", "failed to read response", err)
-		}
-
-		return rsp.StatusCode
-	}
-
-	for i := 0; i < 100; i++ {
-		d0 := doc(128)
-		if request(d0) == http.StatusTooManyRequests {
-			t.Fatal("should not be ratelimitted")
-		}
-	}
-
+	requestAndExpect(t, p.URL, 100, http.StatusOK, nil)
 }
 
 func TestCheckLocalRateLimitForShuntRoutes(t *testing.T) {
@@ -144,74 +63,15 @@ func TestCheckLocalRateLimitForShuntRoutes(t *testing.T) {
 	}, r...)
 	defer p.Close()
 
-	doc := func(l int) []byte {
-		b := make([]byte, l)
-		n, err := rand.Read(b)
-		if err != nil || n != l {
-			t.Fatal("failed to generate doc", err, n, l)
-		}
+	requestAndExpect(t, p.URL, 10, http.StatusNotFound, nil)
 
-		return b
-	}
+	expectHeader := strconv.Itoa(ratelimitSettings.MaxHits * int(time.Hour/ratelimitSettings.TimeWindow))
 
-	request := func(doc []byte) (int, http.Header) {
-		req, err := http.NewRequest("GET", p.URL+"/", nil)
-		if err != nil {
-			t.Fatal("foo", "failed to create request", err)
-			return -1, nil
-		}
+	requestAndExpect(t, p.URL, 10, http.StatusTooManyRequests, http.Header{ratelimit.Header: []string{expectHeader}})
 
-		req.Close = true
-
-		rsp, err := (&http.Client{}).Do(req)
-		if err != nil {
-			t.Fatal("Do req", "failed to make request", err)
-			return -1, nil
-		}
-
-		defer rsp.Body.Close()
-		_, err = ioutil.ReadAll(rsp.Body)
-		if err != nil {
-			t.Fatal("read", "failed to read response", err)
-		}
-
-		return rsp.StatusCode, rsp.Header
-	}
-
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, _ := request(d0)
-		if code == http.StatusTooManyRequests {
-			t.Fatal("should not be ratelimitted")
-		}
-	}
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, header := request(d0)
-		if code != http.StatusTooManyRequests {
-			t.Fatal("should be ratelimitted")
-		}
-		v := header.Get(ratelimit.Header)
-		if v == "" {
-			t.Fatalf("should set ratelimit header %s", ratelimit.Header)
-		}
-		expected := ratelimitSettings.MaxHits * int(time.Hour/ratelimitSettings.TimeWindow)
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			t.Fatalf("failed to convert string number %s to number: %v", v, err)
-		}
-		if i != expected {
-			t.Fatalf("should calculateratelimit header correctly: %d expected: %d", i, expected)
-		}
-	}
 	time.Sleep(timeWindow)
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, _ := request(d0)
-		if code == http.StatusTooManyRequests {
-			t.Fatal("should not be ratelimitted")
-		}
-	}
+
+	requestAndExpect(t, p.URL, 10, http.StatusNotFound, nil)
 }
 
 func TestCheckLocalRateLimit(t *testing.T) {
@@ -232,74 +92,15 @@ func TestCheckLocalRateLimit(t *testing.T) {
 	}, r...)
 	defer p.Close()
 
-	doc := func(l int) []byte {
-		b := make([]byte, l)
-		n, err := rand.Read(b)
-		if err != nil || n != l {
-			t.Fatal("failed to generate doc", err, n, l)
-		}
+	requestAndExpect(t, p.URL, 10, http.StatusOK, nil)
 
-		return b
-	}
+	expectHeader := strconv.Itoa(ratelimitSettings.MaxHits * int(time.Hour/ratelimitSettings.TimeWindow))
 
-	request := func(doc []byte) (int, http.Header) {
-		req, err := http.NewRequest("GET", p.URL+"/", nil)
-		if err != nil {
-			t.Fatal("foo", "failed to create request", err)
-			return -1, nil
-		}
+	requestAndExpect(t, p.URL, 10, http.StatusTooManyRequests, http.Header{ratelimit.Header: []string{expectHeader}})
 
-		req.Close = true
-
-		rsp, err := (&http.Client{}).Do(req)
-		if err != nil {
-			t.Fatal("Do req", "failed to make request", err)
-			return -1, nil
-		}
-
-		defer rsp.Body.Close()
-		_, err = ioutil.ReadAll(rsp.Body)
-		if err != nil {
-			t.Fatal("read", "failed to read response", err)
-		}
-
-		return rsp.StatusCode, rsp.Header
-	}
-
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, _ := request(d0)
-		if code == http.StatusTooManyRequests {
-			t.Fatal("should not be ratelimitted")
-		}
-	}
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, header := request(d0)
-		if code != http.StatusTooManyRequests {
-			t.Fatal("should be ratelimitted")
-		}
-		v := header.Get(ratelimit.Header)
-		if v == "" {
-			t.Fatalf("should set ratelimit header %s", ratelimit.Header)
-		}
-		expected := ratelimitSettings.MaxHits * int(time.Hour/ratelimitSettings.TimeWindow)
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			t.Fatalf("failed to convert string number %s to number: %v", v, err)
-		}
-		if i != expected {
-			t.Fatalf("should calculateratelimit header correctly: %d expected: %d", i, expected)
-		}
-	}
 	time.Sleep(timeWindow)
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, _ := request(d0)
-		if code == http.StatusTooManyRequests {
-			t.Fatal("should not be ratelimitted")
-		}
-	}
+
+	requestAndExpect(t, p.URL, 10, http.StatusOK, nil)
 }
 
 func TestCheckServiceRateLimit(t *testing.T) {
@@ -319,74 +120,15 @@ func TestCheckServiceRateLimit(t *testing.T) {
 	}, r...)
 	defer p.Close()
 
-	doc := func(l int) []byte {
-		b := make([]byte, l)
-		n, err := rand.Read(b)
-		if err != nil || n != l {
-			t.Fatal("failed to generate doc", err, n, l)
-		}
+	requestAndExpect(t, p.URL, 10, http.StatusOK, nil)
 
-		return b
-	}
+	expectHeader := strconv.Itoa(ratelimitSettings.MaxHits * int(time.Hour/ratelimitSettings.TimeWindow))
 
-	request := func(doc []byte) (int, http.Header) {
-		req, err := http.NewRequest("GET", p.URL+"/", nil)
-		if err != nil {
-			t.Fatal("foo", "failed to create request", err)
-			return -1, nil
-		}
+	requestAndExpect(t, p.URL, 10, http.StatusTooManyRequests, http.Header{ratelimit.Header: []string{expectHeader}})
 
-		req.Close = true
-
-		rsp, err := (&http.Client{}).Do(req)
-		if err != nil {
-			t.Fatal("Do req", "failed to make request", err)
-			return -1, nil
-		}
-
-		defer rsp.Body.Close()
-		_, err = ioutil.ReadAll(rsp.Body)
-		if err != nil {
-			t.Fatal("read", "failed to read response", err)
-		}
-
-		return rsp.StatusCode, rsp.Header
-	}
-
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, _ := request(d0)
-		if code == http.StatusTooManyRequests {
-			t.Fatal("should not be ratelimitted")
-		}
-	}
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, header := request(d0)
-		if code != http.StatusTooManyRequests {
-			t.Fatal("should be ratelimitted")
-		}
-		v := header.Get(ratelimit.Header)
-		if v == "" {
-			t.Fatalf("should set ratelimit header %s", ratelimit.Header)
-		}
-		expected := ratelimitSettings.MaxHits * int(time.Hour/ratelimitSettings.TimeWindow)
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			t.Fatalf("failed to convert string number %s to number: %v", v, err)
-		}
-		if i != expected {
-			t.Fatalf("should calculate ratelimit header correctly: %d expected: %d", i, expected)
-		}
-	}
 	time.Sleep(timeWindow)
-	for i := 0; i < 10; i++ {
-		d0 := doc(128)
-		code, _ := request(d0)
-		if code == http.StatusTooManyRequests {
-			t.Fatal("should not be ratelimitted")
-		}
-	}
+
+	requestAndExpect(t, p.URL, 10, http.StatusOK, nil)
 }
 
 func TestRetryAfterHeader(t *testing.T) {
@@ -407,61 +149,47 @@ func TestRetryAfterHeader(t *testing.T) {
 	}, r...)
 	defer p.Close()
 
-	doc := func(l int) []byte {
-		b := make([]byte, l)
-		n, err := rand.Read(b)
-		if err != nil || n != l {
-			t.Fatal("failed to generate doc", err, n, l)
-		}
+	requestAndExpect(t, p.URL, 1, http.StatusOK, nil)
 
-		return b
-	}
+	requestAndExpect(t, p.URL, 1, http.StatusTooManyRequests, http.Header{ratelimit.RetryAfterHeader: []string{strconv.Itoa(limit)}})
+}
 
-	request := func(doc []byte) (int, http.Header) {
-		req, err := http.NewRequest("GET", p.URL+"/", nil)
+func requestAndExpect(t *testing.T, url string, repeat int, expectCode int, expectHeader http.Header) {
+	for i := 0; i < repeat; i++ {
+		code, header, err := doRequest(url)
 		if err != nil {
-			t.Fatal("foo", "failed to create request", err)
-			return -1, nil
+			t.Fatal(err)
+		}
+		if code != expectCode {
+			t.Fatalf("unexpected code, expected %d, got %d", expectCode, code)
 		}
 
-		req.Close = true
-
-		rsp, err := (&http.Client{}).Do(req)
-		if err != nil {
-			t.Fatal("Do req", "failed to make request", err)
-			return -1, nil
+		for name := range expectHeader {
+			expected := expectHeader.Get(name)
+			got := header.Get(name)
+			if got != expected {
+				t.Fatalf("unexpected header %s, expected %s, got %s", name, expected, got)
+			}
 		}
-
-		defer rsp.Body.Close()
-		_, err = ioutil.ReadAll(rsp.Body)
-		if err != nil {
-			t.Fatal("read", "failed to read response", err)
-		}
-
-		return rsp.StatusCode, rsp.Header
 	}
+}
 
-	d0 := doc(128)
-	code, _ := request(d0)
-	if code == http.StatusTooManyRequests {
-		t.Fatal("should not be ratelimitted")
-	}
-
-	d1 := doc(128)
-	code, header := request(d1)
-	if code != http.StatusTooManyRequests {
-		t.Fatal("should be ratelimitted")
-	}
-	v := header.Get(ratelimit.RetryAfterHeader)
-	if v == "" {
-		t.Fatalf("should set retry header %s", ratelimit.RetryAfterHeader)
-	}
-	expected := limit
-	i, err := strconv.Atoi(v)
+func doRequest(url string) (int, http.Header, error) {
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		t.Fatalf("failed to convert string number %s to number: %v", v, err)
+		return -1, nil, err
 	}
-	if i != expected {
-		t.Fatalf("should calculate ratelimit header correctly: %d expected: %d", i, expected)
+	req.Close = true
+
+	rsp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return -1, nil, err
 	}
+	defer rsp.Body.Close()
+
+	_, err = ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return -1, nil, err
+	}
+	return rsp.StatusCode, rsp.Header, nil
 }
