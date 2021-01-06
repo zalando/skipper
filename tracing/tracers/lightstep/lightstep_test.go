@@ -7,22 +7,16 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	lightstep "github.com/lightstep/lightstep-tracer-go"
-	opentracing "github.com/opentracing/opentracing-go"
 )
 
 func TestParseOptions(t *testing.T) {
 	token := "mytoken"
-	defPropagator := lightstep.PropagatorStack{}
-	defPropagator.PushPropagator(lightstep.LightStepPropagator)
-	b3Propagator := lightstep.PropagatorStack{}
-	b3Propagator.PushPropagator(lightstep.B3Propagator)
 
 	tests := []struct {
-		name        string
-		opts        []string
-		want        lightstep.Options
-		wantErr     bool
-		propagators map[opentracing.BuiltinFormat]lightstep.Propagator
+		name    string
+		opts    []string
+		want    lightstep.Options
+		wantErr bool
 	}{
 		{
 			name:    "test without token should fail",
@@ -47,8 +41,7 @@ func TestParseOptions(t *testing.T) {
 				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
 				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
 			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+			wantErr: false,
 		},
 		{
 			name: "test with token set collector",
@@ -70,8 +63,7 @@ func TestParseOptions(t *testing.T) {
 				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
 				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
 			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+			wantErr: false,
 		},
 		{
 			name: "test with token set component name",
@@ -93,8 +85,7 @@ func TestParseOptions(t *testing.T) {
 				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
 				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
 			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+			wantErr: false,
 		},
 		{
 			name: "test with token set tags",
@@ -119,8 +110,7 @@ func TestParseOptions(t *testing.T) {
 				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
 				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
 			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+			wantErr: false,
 		},
 		{
 			name: "test with token set max buffered spans",
@@ -143,8 +133,7 @@ func TestParseOptions(t *testing.T) {
 				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
 				MaxBufferedSpans:            8192,
 			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+			wantErr: false,
 		},
 		{
 			name: "test with token set max call message size",
@@ -166,8 +155,7 @@ func TestParseOptions(t *testing.T) {
 				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
 				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
 			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+			wantErr: false,
 		},
 		{
 			name: "test with token set reporting periods",
@@ -190,8 +178,7 @@ func TestParseOptions(t *testing.T) {
 				ReportingPeriod:             2100 * time.Millisecond,
 				MinReportingPeriod:          100 * time.Millisecond,
 			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+			wantErr: false,
 		},
 		{
 			name: "test with token and wront reporting period values should fail",
@@ -225,32 +212,7 @@ func TestParseOptions(t *testing.T) {
 				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
 				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
 			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
-		},
-		{
-			name: "test with b3 propagator",
-			opts: []string{
-				"token=" + token,
-				"collector=collector.example.com:8888",
-				"propagators=b3",
-			},
-			want: lightstep.Options{
-				AccessToken: token,
-				Collector: lightstep.Endpoint{
-					Host: "collector.example.com",
-					Port: 8888,
-				},
-				UseGRPC: true,
-				Tags: map[string]interface{}{
-					lightstep.ComponentNameKey: defComponentName,
-				},
-				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
-				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
-				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
-			},
-			wantErr:     false,
-			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: b3Propagator},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -260,12 +222,6 @@ func TestParseOptions(t *testing.T) {
 				t.Errorf("parseOptions() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got.Propagators, tt.propagators) {
-				t.Logf("diff: %v", cmp.Diff(tt.propagators, got.Propagators))
-				t.Errorf("propagators = %v, want %v", got.Propagators, tt.propagators)
-			}
-			got.Propagators = nil
-
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Logf("diff: %v", cmp.Diff(tt.want, got))
 				t.Errorf("parseOptions() = %v, want %v", got, tt.want)
