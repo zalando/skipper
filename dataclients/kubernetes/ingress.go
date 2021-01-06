@@ -47,6 +47,8 @@ type ingress struct {
 	pathMode                    PathMode
 	kubernetesEnableEastWest    bool
 	eastWestDomainRegexpPostfix string
+	eastWestRangeDomains        []string
+	eastWestRangePredicates     []*eskip.Predicate
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -67,6 +69,8 @@ func newIngress(o Options) *ingress {
 		pathMode:                    o.PathMode,
 		kubernetesEnableEastWest:    o.KubernetesEnableEastWest,
 		eastWestDomainRegexpPostfix: ewPostfix,
+		eastWestRangeDomains:        o.KubernetesEastWestRangeDomains,
+		eastWestRangePredicates:     o.KubernetesEastWestRangePredicates,
 	}
 }
 
@@ -753,6 +757,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 			continue
 		}
 
+		applyEastWestRange(ing.eastWestRangeDomains, ing.eastWestRangePredicates, host, rs)
 		routes = append(routes, rs...)
 
 		// if routes were configured, but there is no catchall route

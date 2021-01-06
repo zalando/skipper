@@ -26,6 +26,10 @@ func TestRouteGroupEastWest(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/east-west")
 }
 
+func TestRouteGroupEastWestRange(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/east-west-range")
+}
+
 func TestRouteGroupHTTPSRedirect(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/https-redirect")
 }

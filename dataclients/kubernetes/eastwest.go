@@ -43,3 +43,17 @@ func createEastWestRouteRG(name, ns, postfix string, r *eskip.Route) *eskip.Rout
 	ewr.Predicates = p
 	return ewr
 }
+
+func applyEastWestRange(domains []string, predicates []*eskip.Predicate, host string, routes []*eskip.Route) {
+	for _, d := range domains {
+		if strings.HasSuffix(host, d) {
+			applyEastWestRangePredicates(routes, predicates)
+		}
+	}
+}
+
+func applyEastWestRangePredicates(routes []*eskip.Route, predicates []*eskip.Predicate) {
+	for _, route := range routes {
+		route.Predicates = append(route.Predicates, predicates...)
+	}
+}

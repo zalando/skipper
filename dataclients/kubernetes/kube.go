@@ -152,6 +152,15 @@ type Options struct {
 	// KubernetesEastWestDomain sets the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
 
+	// KubernetesEastWestRangeDomains set the the cluster internal domains for
+	// east west traffic. Identified routes to such domains will include
+	// the KubernetesEastWestRangePredicates.
+	KubernetesEastWestRangeDomains []string
+
+	// KubernetesEastWestRangePredicates set the Predicates that will be
+	// appended to routes identified as to KubernetesEastWestRangeDomains.
+	KubernetesEastWestRangePredicates []*eskip.Predicate
+
 	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters.
 	// The provided filters are then applied to all routes.
 	DefaultFiltersDir string

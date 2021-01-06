@@ -51,7 +51,7 @@ supports.
 The Kubernetes Ingress spec defines a
 [path](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.14/#httpingresspath-v1beta1-networking-k8s-io)
 as regular expression, which is not what most people would expect, nor
-want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../../reference/predicates#pathregexp)
+want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../reference/predicates.md#pathregexp)
 for routing, because of the spec. We believe the better default is the
 path prefix mode, that uses [PathSubtree predicate](../../reference/predicates#pathsubtree),
 instead. Path prefix search is much more scalable and can not lead to
@@ -107,6 +107,73 @@ domain
 `-kubernetes-east-west-domain=.ingress.cluster.local`. Be warned: There is a
 [known bug](https://github.com/zalando/skipper/issues/1024), if you
 combine it with custom routes.
+
+Alternatively, you can use Kubernetes East West Range feature. Use the
+flag `-kubernetes-east-west-range-domains` to define the cluster
+internal domains `-kubernetes-east-west-range-predicates` to define the
+[predicates](../../reference/predicates) that will be appended to every
+route identified as an internal domain. Differently from the
+`-enable-kubernetes-east-west` and the
+`-kubernetes-east-west-domain=.ingress.cluster.local` flags this feature
+will not automatically create routes for you and both features shouldn't
+be used in combination. The ingress and/or route groups resources must
+opt-in for east west range routes, explicitly defining them. For example,
+given that Skipper was initialized with the following east-west range flags:
+
+```
+skipper \
+  -kubernetes-east-west-range-domains="ingress.cluster.local" \
+  -kubernetes-east-west-range-predicates='ClientIP("10.2.0.0/16")'
+```
+
+and the following ingress is defined:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: qux
+  namespace: foo
+spec:
+  rules:
+  - host: example.ingress.cluster.local
+    http:
+      paths:
+      - path: "/"
+        backend:
+          serviceName: qux
+          servicePort: baz
+```
+
+Skipper will secure this route adding the predicate `ClientIP("10.2.0.0/16")`.
+
+The same ingress might be used for internal and external hostnames. For
+example, given a slightly modified version of the ingress:
+
+ ```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+...
+spec:
+  rules:
+  - host: example.ingress.cluster.local
+    http: ...
+  - host: example.mydomain.org
+    http: ...
+```
+
+will make the service accessible through `example.ingress.cluster.local`
+and `example.mydomain.org`, but the first hostname will only accept
+connections from the network `10.2.0.0/16`, on this specific scenario.
+
+You can specify multiple east-west range domains and predicates:
+
+```
+skippper \
+  -kubernetes-east-west-range-domains="ingress.cluster.local,another.cluster.local"
+  -kubernetes-east-west-range-predicates='ClientIP("10.2.0.0/16") && SourceLastFrom("10.2.0.0/16")'
+```
 
 As part of API Gateway features, skipper supports [API
 monitoring](https://opensource.zalando.com/skipper/reference/filters/#apiusagemonitoring)

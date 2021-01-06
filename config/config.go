@@ -120,20 +120,23 @@ type Config struct {
 	WaitFirstRouteLoad        bool                 `yaml:"wait-first-route-load"`
 
 	// Kubernetes:
-	KubernetesIngress           bool                `yaml:"kubernetes"`
-	KubernetesInCluster         bool                `yaml:"kubernetes-in-cluster"`
-	KubernetesURL               string              `yaml:"kubernetes-url"`
-	KubernetesHealthcheck       bool                `yaml:"kubernetes-healthcheck"`
-	KubernetesHTTPSRedirect     bool                `yaml:"kubernetes-https-redirect"`
-	KubernetesHTTPSRedirectCode int                 `yaml:"kubernetes-https-redirect-code"`
-	KubernetesIngressClass      string              `yaml:"kubernetes-ingress-class"`
-	KubernetesRouteGroupClass   string              `yaml:"kubernetes-routegroup-class"`
-	WhitelistedHealthCheckCIDR  string              `yaml:"whitelisted-healthcheck-cidr"`
-	KubernetesPathModeString    string              `yaml:"kubernetes-path-mode"`
-	KubernetesPathMode          kubernetes.PathMode `yaml:"-"`
-	KubernetesNamespace         string              `yaml:"kubernetes-namespace"`
-	KubernetesEnableEastWest    bool                `yaml:"enable-kubernetes-east-west"`
-	KubernetesEastWestDomain    string              `yaml:"kubernetes-east-west-domain"`
+	KubernetesIngress                       bool                `yaml:"kubernetes"`
+	KubernetesInCluster                     bool                `yaml:"kubernetes-in-cluster"`
+	KubernetesURL                           string              `yaml:"kubernetes-url"`
+	KubernetesHealthcheck                   bool                `yaml:"kubernetes-healthcheck"`
+	KubernetesHTTPSRedirect                 bool                `yaml:"kubernetes-https-redirect"`
+	KubernetesHTTPSRedirectCode             int                 `yaml:"kubernetes-https-redirect-code"`
+	KubernetesIngressClass                  string              `yaml:"kubernetes-ingress-class"`
+	KubernetesRouteGroupClass               string              `yaml:"kubernetes-routegroup-class"`
+	WhitelistedHealthCheckCIDR              string              `yaml:"whitelisted-healthcheck-cidr"`
+	KubernetesPathModeString                string              `yaml:"kubernetes-path-mode"`
+	KubernetesPathMode                      kubernetes.PathMode `yaml:"-"`
+	KubernetesNamespace                     string              `yaml:"kubernetes-namespace"`
+	KubernetesEnableEastWest                bool                `yaml:"enable-kubernetes-east-west"`
+	KubernetesEastWestDomain                string              `yaml:"kubernetes-east-west-domain"`
+	KubernetesEastWestRangeDomains          *listFlag           `yaml:"kubernetes-east-west-range-domains"`
+	KubernetesEastWestRangePredicatesString string              `yaml:"kubernetes-east-west-range-predicates"`
+	KubernetesEastWestRangePredicates       []*eskip.Predicate  `yaml:"-"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -350,19 +353,21 @@ const (
 	waitFirstRouteLoadUsage        = "prevent starting the listener before the first batch of routes were loaded"
 
 	// Kubernetes:
-	kubernetesUsage                  = "enables skipper to generate routes for ingress resources in kubernetes cluster"
-	kubernetesInClusterUsage         = "specify if skipper is running inside kubernetes cluster"
-	kubernetesURLUsage               = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
-	kubernetesHealthcheckUsage       = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
-	kubernetesHTTPSRedirectUsage     = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
-	kubernetesHTTPSRedirectCodeUsage = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
-	kubernetesIngressClassUsage      = "ingress class regular expression used to filter ingress resources for kubernetes"
-	kubernetesRouteGroupClassUsage   = "route group class regular expression used to filter route group resources for kubernetes"
-	whitelistedHealthCheckCIDRUsage  = "sets the iprange/CIDRS to be whitelisted during healthcheck"
-	kubernetesPathModeUsage          = "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>"
-	kubernetesNamespaceUsage         = "watch only this namespace for ingresses"
-	kubernetesEnableEastWestUsage    = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
-	kubernetesEastWestDomainUsage    = "set the east-west domain, defaults to .skipper.cluster.local"
+	kubernetesUsage                        = "enables skipper to generate routes for ingress resources in kubernetes cluster"
+	kubernetesInClusterUsage               = "specify if skipper is running inside kubernetes cluster"
+	kubernetesURLUsage                     = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
+	kubernetesHealthcheckUsage             = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
+	kubernetesHTTPSRedirectUsage           = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
+	kubernetesHTTPSRedirectCodeUsage       = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
+	kubernetesIngressClassUsage            = "ingress class regular expression used to filter ingress resources for kubernetes"
+	kubernetesRouteGroupClassUsage         = "route group class regular expression used to filter route group resources for kubernetes"
+	whitelistedHealthCheckCIDRUsage        = "sets the iprange/CIDRS to be whitelisted during healthcheck"
+	kubernetesPathModeUsage                = "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>"
+	kubernetesNamespaceUsage               = "watch only this namespace for ingresses"
+	kubernetesEnableEastWestUsage          = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
+	kubernetesEastWestDomainUsage          = "set the east-west domain, defaults to .skipper.cluster.local"
+	kubernetesEastWestRangeDomainsUsage    = "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates"
+	kubernetesEastWestRangePredicatesUsage = "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains"
 
 	// Auth:
 	oauth2GrantFlowEnableUsage           = "enables OAuth2 Grant Flow filter"
@@ -459,6 +464,7 @@ func NewConfig() *Config {
 	cfg.SwarmRedisURLs = commaListFlag()
 	cfg.AppendFilters = &defaultFiltersFlags{}
 	cfg.PrependFilters = &defaultFiltersFlags{}
+	cfg.KubernetesEastWestRangeDomains = commaListFlag()
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", configFileUsage)
 
@@ -566,6 +572,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
 	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, kubernetesEnableEastWestUsage)
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", kubernetesEastWestDomainUsage)
+	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", kubernetesEastWestRangeDomainsUsage)
+	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", kubernetesEastWestRangePredicatesUsage)
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, oauth2GrantFlowEnableUsage)
@@ -688,6 +696,11 @@ func (c *Config) Parse() error {
 		return err
 	}
 
+	kubernetesEastWestRangePredicates, err := eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
+	if err != nil {
+		return fmt.Errorf("invalid east-west-range-predicates: %w", err)
+	}
+
 	histogramBuckets, err := c.parseHistogramBuckets()
 	if err != nil {
 		return err
@@ -695,6 +708,7 @@ func (c *Config) Parse() error {
 
 	c.ApplicationLogLevel = logLevel
 	c.KubernetesPathMode = kubernetesPathMode
+	c.KubernetesEastWestRangePredicates = kubernetesEastWestRangePredicates
 	c.HistogramMetricBuckets = histogramBuckets
 
 	if c.ClientKeyFile != "" && c.ClientCertFile != "" {
@@ -815,19 +829,21 @@ func (c *Config) ToOptions() skipper.Options {
 		WaitFirstRouteLoad: c.WaitFirstRouteLoad,
 
 		// Kubernetes:
-		Kubernetes:                  c.KubernetesIngress,
-		KubernetesInCluster:         c.KubernetesInCluster,
-		KubernetesURL:               c.KubernetesURL,
-		KubernetesHealthcheck:       c.KubernetesHealthcheck,
-		KubernetesHTTPSRedirect:     c.KubernetesHTTPSRedirect,
-		KubernetesHTTPSRedirectCode: c.KubernetesHTTPSRedirectCode,
-		KubernetesIngressClass:      c.KubernetesIngressClass,
-		KubernetesRouteGroupClass:   c.KubernetesRouteGroupClass,
-		WhitelistedHealthCheckCIDR:  whitelistCIDRS,
-		KubernetesPathMode:          c.KubernetesPathMode,
-		KubernetesNamespace:         c.KubernetesNamespace,
-		KubernetesEnableEastWest:    c.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:    c.KubernetesEastWestDomain,
+		Kubernetes:                        c.KubernetesIngress,
+		KubernetesInCluster:               c.KubernetesInCluster,
+		KubernetesURL:                     c.KubernetesURL,
+		KubernetesHealthcheck:             c.KubernetesHealthcheck,
+		KubernetesHTTPSRedirect:           c.KubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode:       c.KubernetesHTTPSRedirectCode,
+		KubernetesIngressClass:            c.KubernetesIngressClass,
+		KubernetesRouteGroupClass:         c.KubernetesRouteGroupClass,
+		WhitelistedHealthCheckCIDR:        whitelistCIDRS,
+		KubernetesPathMode:                c.KubernetesPathMode,
+		KubernetesNamespace:               c.KubernetesNamespace,
+		KubernetesEnableEastWest:          c.KubernetesEnableEastWest,
+		KubernetesEastWestDomain:          c.KubernetesEastWestDomain,
+		KubernetesEastWestRangeDomains:    c.KubernetesEastWestRangeDomains.values,
+		KubernetesEastWestRangePredicates: c.KubernetesEastWestRangePredicates,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,
