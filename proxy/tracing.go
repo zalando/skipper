@@ -8,7 +8,7 @@ const (
 	ClientRequestStateTag = "client.request"
 	ComponentTag          = "component"
 	ErrorTag              = "error"
-	FlowIDTag             = "component"
+	FlowIDTag             = "flow_id"
 	HostnameTag           = "hostname"
 	HTTPHostTag           = "http.host"
 	HTTPMethodTag         = "http.method"
