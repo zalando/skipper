@@ -1017,22 +1017,6 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	return listenAndServeQuit(proxy, o, nil, nil, nil)
 }
 
-func initGrant(c *auth.OAuthConfig, o *Options) error {
-	if err := c.Init(); err != nil {
-		return err
-	}
-
-	o.CustomFilters = append(
-		o.CustomFilters,
-		c.NewGrant(),
-		c.NewGrantCallback(),
-		c.NewGrantClaimsQuery(),
-		c.NewGrantLogout(),
-	)
-
-	return nil
-}
-
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	err := initLog(o)
@@ -1284,6 +1268,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	oauthConfig := &auth.OAuthConfig{}
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
+		grantSecrets := secrets.NewSecretPaths(o.CredentialsUpdateInterval)
+		defer grantSecrets.Close()
+
 		oauthConfig.AuthURL = o.OAuth2AuthURL
 		oauthConfig.TokenURL = o.OAuth2TokenURL
 		oauthConfig.RevokeTokenURL = o.OAuth2RevokeTokenURL
@@ -1295,7 +1282,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.ClientSecretFile = o.OAuth2ClientSecretFile
 		oauthConfig.CallbackPath = o.OAuth2CallbackPath
 		oauthConfig.AuthURLParameters = o.OAuth2AuthURLParameters
-		oauthConfig.SecretsProvider = sp
+		oauthConfig.SecretsProvider = grantSecrets
 		oauthConfig.Secrets = o.SecretsRegistry
 		oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
 		oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
@@ -1304,10 +1291,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
 		oauthConfig.Tracer = tracer
 
-		if err := initGrant(oauthConfig, &o); err != nil {
+		if err := oauthConfig.Init(); err != nil {
 			log.Errorf("Failed to initialize oauth grant filter: %v.", err)
 			return err
 		}
+
+		o.CustomFilters = append(o.CustomFilters,
+			oauthConfig.NewGrant(),
+			oauthConfig.NewGrantCallback(),
+			oauthConfig.NewGrantClaimsQuery(),
+			oauthConfig.NewGrantLogout(),
+		)
 	}
 
 	// create a filter registry with the available filter specs registered,

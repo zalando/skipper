@@ -311,12 +311,14 @@ secret as follows:
 skipper -oauth2-client-id-file=/path/to/client_id \
     -oauth2-client-secret-file=/path/to/client_secret \
     -oauth2-secret-file=/path/to/cookie_encryption_secret \
-    -credentials-paths=/path/to/ \
     -credentials-update-interval=30s
 ```
 
-You must set the `-credentials-paths` argument to the directory containing the secrets. You 
-can modify the secret update interval using the `-credentials-update-interval` argument. In
+Care must be taken when used in conjunction with `-credentials-paths` option because files
+from `-credentials-paths` are available to `bearerinjector` filter.
+That is `-credentials-paths=/path/to` in above example will expose grant files to `bearerinjector` filter.
+
+You can modify the secret update interval using the `-credentials-update-interval` argument. In
 example above, the interval is configured to reload the secrets from the files every 30
 seconds.
 
