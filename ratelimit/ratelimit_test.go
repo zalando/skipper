@@ -99,6 +99,13 @@ func TestLocalRatelimit(t *testing.T) {
 		waitClean()
 		checkNotRatelimitted(t, rl, client1)
 	})
+
+	t.Run("max hits 0", func(t *testing.T) {
+		s := s
+		s.MaxHits = 0
+		rl := newRatelimit(s, nil, nil)
+		checkRatelimitted(t, rl, client1)
+	})
 }
 
 func TestDisableRatelimit(t *testing.T) {

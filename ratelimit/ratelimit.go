@@ -401,23 +401,45 @@ func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
+type zeroRatelimit struct{}
+
+const (
+	// Delta() and RetryAfter() should return consistent values of type int64 and int respectively.
+	//
+	// News had just come over,
+	// We had five years left to cry in
+	zeroDelta time.Duration = 5 * 365 * 24 * time.Hour
+	zeroRetry int           = int(zeroDelta / time.Second)
+)
+
+func (zeroRatelimit) Allow(string) bool          { return false }
+func (zeroRatelimit) Close()                     {}
+func (zeroRatelimit) Oldest(string) time.Time    { return time.Time{} }
+func (zeroRatelimit) RetryAfter(string) int      { return zeroRetry }
+func (zeroRatelimit) Delta(string) time.Duration { return zeroDelta }
+func (zeroRatelimit) Resize(string, int)         {}
+
 func newRatelimit(s Settings, sw Swarmer, redisRing *ring) *Ratelimit {
 	var impl limiter
-	switch s.Type {
-	case ServiceRatelimit:
-		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
-	case LocalRatelimit:
-		log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
-		fallthrough
-	case ClientRatelimit:
-		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
-	case ClusterServiceRatelimit:
-		s.CleanInterval = 0
-		fallthrough
-	case ClusterClientRatelimit:
-		impl = newClusterRateLimiter(s, sw, redisRing, s.Group)
-	default:
-		impl = voidRatelimit{}
+	if s.MaxHits == 0 {
+		impl = zeroRatelimit{}
+	} else {
+		switch s.Type {
+		case ServiceRatelimit:
+			impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
+		case LocalRatelimit:
+			log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
+			fallthrough
+		case ClientRatelimit:
+			impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
+		case ClusterServiceRatelimit:
+			s.CleanInterval = 0
+			fallthrough
+		case ClusterClientRatelimit:
+			impl = newClusterRateLimiter(s, sw, redisRing, s.Group)
+		default:
+			impl = voidRatelimit{}
+		}
 	}
 
 	return &Ratelimit{
