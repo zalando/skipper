@@ -15,6 +15,9 @@ spec:
     kind: RouteGroup
     listKind: RouteGroupList
     plural: routegroups
+    shortNames:
+    - rg
+    - rgs
     singular: routegroup
   scope: Namespaced
   versions:
