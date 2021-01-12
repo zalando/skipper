@@ -21,6 +21,7 @@ type breakerTestContext struct {
 	t        *testing.T
 	proxy    *proxytest.TestProxy
 	backends map[string]*failingBackend
+	step     int
 }
 
 type scenarioStep func(*breakerTestContext)
@@ -34,7 +35,7 @@ type breakerScenario struct {
 
 const (
 	testConsecutiveFailureCount = 5
-	testBreakerTimeout          = 3 * time.Millisecond
+	testBreakerTimeout          = 100 * time.Millisecond
 	testHalfOpenRequests        = 3
 	testRateWindow              = 10
 	testRateFailures            = 4
@@ -108,16 +109,18 @@ func testBreaker(t *testing.T, s breakerScenario) {
 	p := newBreakerProxy(backends, s.settings, s.filters)
 	defer p.Close()
 
-	steps := s.steps
 	c := &breakerTestContext{
 		t:        t,
 		proxy:    p,
 		backends: backends,
 	}
 
-	for !t.Failed() && len(steps) > 0 {
-		steps[0](c)
-		steps = steps[1:]
+	for i, step := range s.steps {
+		c.step = i
+		step(c)
+		if t.Failed() {
+			break
+		}
 	}
 }
 
@@ -170,18 +173,14 @@ func proxyRequestHost(c *breakerTestContext, host string) (*http.Response, error
 
 func checkStatus(c *breakerTestContext, rsp *http.Response, expected int) {
 	if rsp.StatusCode != expected {
-		c.t.Errorf(
-			"wrong response status: %d, expected %d",
-			rsp.StatusCode,
-			expected,
-		)
+		c.t.Errorf("step %d: wrong response status: %d, expected %d", c.step, rsp.StatusCode, expected)
 	}
 }
 
 func requestHostForStatus(c *breakerTestContext, host string, expectedStatus int) *http.Response {
 	rsp, err := proxyRequestHost(c, host)
 	if err != nil {
-		c.t.Error(err)
+		c.t.Errorf("step %d: %v", c.step, err)
 		return nil
 	}
 
@@ -208,7 +207,7 @@ func requestOpenForHost(c *breakerTestContext, host string) {
 	}
 
 	if rsp.Header.Get("X-Circuit-Open") != "true" {
-		c.t.Error("failed to set circuit open header")
+		c.t.Errorf("step %d: failed to set circuit open header", c.step)
 	}
 }
 
@@ -222,9 +221,9 @@ func requestOpen(c *breakerTestContext) {
 	requestOpenForHost(c, defaultHost)
 }
 
-func checkBackendForCounter(c *breakerTestContext, host string, count int) {
-	if c.backends[host].counter() != count {
-		c.t.Error("invalid number of requests on the backend")
+func checkBackendForCounter(c *breakerTestContext, host string, expected int) {
+	if counter := c.backends[host].counter(); counter != expected {
+		c.t.Errorf("step %d: invalid number of requests on the backend: %d, expected: %d", c.step, counter, expected)
 	}
 
 	c.backends[host].resetCounter()
