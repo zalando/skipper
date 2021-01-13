@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	NameTrue = "True"
+	TrueName = "True"
 )
 
 type trueSpec struct{}
@@ -18,7 +18,7 @@ type truePredicate struct{}
 func NewTrue() routing.PredicateSpec { return &trueSpec{} }
 
 func (*trueSpec) Name() string {
-	return NameTrue
+	return TrueName
 }
 
 // Create a predicate instance that always evaluates to true

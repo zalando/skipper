@@ -50,9 +50,9 @@ import (
 )
 
 const (
-	Name         = "Source"
-	NameLast     = "SourceFromLast"
-	NameClientIP = "ClientIP"
+	SourceName         = "Source"
+	SourceFromLastName = "SourceFromLast"
+	ClientIPName       = "ClientIP"
 )
 
 var InvalidArgsError = errors.New("invalid arguments")
@@ -81,11 +81,11 @@ func NewClientIP() routing.PredicateSpec { return &spec{typ: clientIP} }
 func (s *spec) Name() string {
 	switch s.typ {
 	case sourceFromLast:
-		return NameLast
+		return SourceFromLastName
 	case clientIP:
-		return NameClientIP
+		return ClientIPName
 	default:
-		return Name
+		return SourceName
 	}
 }
 

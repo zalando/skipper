@@ -44,11 +44,11 @@ import (
 )
 
 const (
-	RequestCookieFilterName    = "requestCookie"
-	ResponseCookieFilterName   = "responseCookie"
-	ResponseJSCookieFilterName = "jsCookie"
-	ChangeOnlyArg              = "change-only"
-	SetCookieHttpHeader        = "Set-Cookie"
+	RequestCookieName    = "requestCookie"
+	ResponseCookieName   = "responseCookie"
+	ResponseJSCookieName = "jsCookie"
+	ChangeOnlyArg        = "change-only"
+	SetCookieHttpHeader  = "Set-Cookie"
 )
 
 type direction int
@@ -75,20 +75,20 @@ type filter struct {
 // Creates a filter spec for appending cookies to requests.
 // Name: requestCookie
 func NewRequestCookie() filters.Spec {
-	return &spec{request, RequestCookieFilterName}
+	return &spec{request, RequestCookieName}
 }
 
 // Creates a filter spec for appending cookies to responses.
 // Name: responseCookie
 func NewResponseCookie() filters.Spec {
-	return &spec{response, ResponseCookieFilterName}
+	return &spec{response, ResponseCookieName}
 }
 
 // Creates a filter spec for appending cookies to responses without the
 // HttpOnly directive.
 // Name: jsCookie
 func NewJSCookie() filters.Spec {
-	return &spec{responseJS, ResponseJSCookieFilterName}
+	return &spec{responseJS, ResponseJSCookieName}
 }
 
 func (s *spec) Name() string { return s.filterName }

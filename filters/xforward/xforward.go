@@ -9,10 +9,10 @@ import (
 
 const (
 	// Name of the "xforward" filter.
-	Name = "xforward"
+	XforwardName = "xforward"
 
 	// NameFirst is the name of the "xforwardFirst" filter.
-	NameFirst = "xforwardFirst"
+	XforwardNameFirst = "xforwardFirst"
 )
 
 type filter struct {
@@ -37,10 +37,10 @@ func NewFirst() filters.Spec {
 
 func (f filter) Name() string {
 	if f.prepend {
-		return NameFirst
+		return XforwardNameFirst
 	}
 
-	return Name
+	return XforwardName
 }
 
 func (f filter) CreateFilter([]interface{}) (filters.Filter, error) {

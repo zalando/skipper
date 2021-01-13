@@ -79,7 +79,7 @@ import (
 
 const (
 	// The eskip name of the predicate.
-	PredicateName = "Traffic"
+	TrafficName = "Traffic"
 )
 
 type spec struct{}
@@ -93,7 +93,7 @@ type predicate struct {
 // Creates a new traffic control predicate specification.
 func New() routing.PredicateSpec { return &spec{} }
 
-func (s *spec) Name() string { return PredicateName }
+func (s *spec) Name() string { return TrafficName }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if !(len(args) == 1 || len(args) == 3) {

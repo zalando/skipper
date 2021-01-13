@@ -114,7 +114,7 @@ func testPredicatesWithoutSpec(predicate *eskip.Predicate) func(t *testing.T) {
 			_, err = core.ValidateHeaderPredicate(predicate)
 		case routing.HeaderRegexpName:
 			_, err = core.ValidateHeaderRegexpPredicate(predicate)
-		case routing.WeightPredicateName:
+		case routing.WeightName:
 			_, err = weight.ParseWeightPredicateArgs(predicate.Args)
 		case routing.PathName, routing.PathSubtreeName:
 			_, err = core.ProcessPathOrSubTree(predicate)

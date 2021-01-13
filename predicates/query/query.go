@@ -48,13 +48,13 @@ type predicate struct {
 type spec struct{}
 
 // Name represents the name of the builtin query param predicate.
-const Name = "QueryParam"
+const QueryParamName = "QueryParam"
 
 // New creates a new QueryParam predicate specification.
 func New() routing.PredicateSpec { return &spec{} }
 
 func (s *spec) Name() string {
-	return Name
+	return QueryParamName
 }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {

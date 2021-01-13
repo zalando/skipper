@@ -6,7 +6,7 @@ import (
 	teepredicate "github.com/zalando/skipper/predicates/tee"
 )
 
-const FilterName = "teeLoopback"
+const TeeLoopbackName = "teeLoopback"
 
 type teeLoopbackSpec struct{}
 type teeLoopbackFilter struct {
@@ -14,7 +14,7 @@ type teeLoopbackFilter struct {
 }
 
 func (t *teeLoopbackSpec) Name() string {
-	return FilterName
+	return TeeLoopbackName
 }
 
 func (t *teeLoopbackSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

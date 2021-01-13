@@ -228,14 +228,14 @@ func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) {
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
 	if 0.0 < weight && weight < 1.0 {
 		r.Predicates = append([]*eskip.Predicate{{
-			Name: traffic.PredicateName,
+			Name: traffic.TrafficName,
 			Args: []interface{}{weight},
 		}}, r.Predicates...)
 		log.Debugf("Traffic weight %.2f for backend '%s'", weight, svcName)
 	}
 	for i := 0; i < noopCount; i++ {
 		r.Predicates = append([]*eskip.Predicate{{
-			Name: primitive.NameTrue,
+			Name: primitive.TrueName,
 			Args: []interface{}{},
 		}}, r.Predicates...)
 	}

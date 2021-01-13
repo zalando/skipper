@@ -24,7 +24,7 @@ import (
 	"strings"
 )
 
-const Name = "Methods"
+const MethodsName = "Methods"
 
 var ErrInvalidArgumentsCount = errors.New("at least one method should be specified")
 var ErrInvalidArgumentType = errors.New("only string values are allowed")
@@ -54,7 +54,7 @@ func New() routing.PredicateSpec {
 	}}
 }
 
-func (s *spec) Name() string { return Name }
+func (s *spec) Name() string { return MethodsName }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) == 0 {

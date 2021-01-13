@@ -295,7 +295,7 @@ func FlowId(reuseExisting bool) *eskip.Filter {
 		args = []interface{}{flowid.ReuseParameterValue}
 	}
 	return &eskip.Filter{
-		Name: flowid.Name,
+		Name: flowid.FlowIDName,
 		Args: args,
 	}
 }
@@ -303,21 +303,21 @@ func FlowId(reuseExisting bool) *eskip.Filter {
 // xforward
 func Xforward() *eskip.Filter {
 	return &eskip.Filter{
-		Name: xforward.Name,
+		Name: xforward.XforwardName,
 	}
 }
 
 // xforwardFirst
 func XforwardFirst() *eskip.Filter {
 	return &eskip.Filter{
-		Name: xforward.NameFirst,
+		Name: xforward.XforwardNameFirst,
 	}
 }
 
 // randomContent
 func RandomContent(length int64) *eskip.Filter {
 	return &eskip.Filter{
-		Name: diag.RandomName,
+		Name: diag.RandomContentName,
 		Args: []interface{}{float64(length)},
 	}
 }
@@ -395,7 +395,7 @@ func LogHeader(args ...string) *eskip.Filter {
 // tee
 func Tee(backend string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: tee.Name,
+		Name: tee.TeeName,
 		Args: []interface{}{backend},
 	}
 }
@@ -403,7 +403,7 @@ func Tee(backend string) *eskip.Filter {
 // tee
 func TeeWithPathMod(backend string, pathExpression *regexp.Regexp, pathReplacement string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: tee.Name,
+		Name: tee.TeeName,
 		Args: []interface{}{backend, pathExpression.String(), pathReplacement},
 	}
 }
@@ -411,7 +411,7 @@ func TeeWithPathMod(backend string, pathExpression *regexp.Regexp, pathReplaceme
 // teenf
 func Teenf(backend string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: tee.NoFollowName,
+		Name: tee.TeeNoFollowName,
 		Args: []interface{}{backend},
 	}
 }
@@ -419,7 +419,7 @@ func Teenf(backend string) *eskip.Filter {
 // teenf
 func TeenfWithPathMod(backend string, pathExpression *regexp.Regexp, pathReplacement string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: tee.NoFollowName,
+		Name: tee.TeeNoFollowName,
 		Args: []interface{}{backend, pathExpression.String(), pathReplacement},
 	}
 }
@@ -427,7 +427,7 @@ func TeenfWithPathMod(backend string, pathExpression *regexp.Regexp, pathReplace
 // teeLoopback
 func TeeLoopback(teeGroup string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: tee.FilterName,
+		Name: tee.TeeLoopbackName,
 		Args: []interface{}{teeGroup},
 	}
 }
@@ -435,7 +435,7 @@ func TeeLoopback(teeGroup string) *eskip.Filter {
 // sed
 func Sed(pattern *regexp.Regexp, replacement string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.Name,
+		Name: sed.SedName,
 		Args: []interface{}{pattern.String(), replacement},
 	}
 }
@@ -443,7 +443,7 @@ func Sed(pattern *regexp.Regexp, replacement string) *eskip.Filter {
 // sed
 func SedWithMaxBuf(pattern *regexp.Regexp, replacement string, maxBuf int) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.Name,
+		Name: sed.SedName,
 		Args: []interface{}{pattern.String(), replacement, maxBuf},
 	}
 }
@@ -451,7 +451,7 @@ func SedWithMaxBuf(pattern *regexp.Regexp, replacement string, maxBuf int) *eski
 // sed
 func SedWithMaxBufAndBufHandling(pattern *regexp.Regexp, replacement string, maxBuf int, maxBufHandling string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.Name,
+		Name: sed.SedName,
 		Args: []interface{}{pattern.String(), replacement, maxBuf, maxBufHandling},
 	}
 }
@@ -459,7 +459,7 @@ func SedWithMaxBufAndBufHandling(pattern *regexp.Regexp, replacement string, max
 // sedDelim
 func SedDelim(pattern *regexp.Regexp, replacement, delimiterString string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameDelimit,
+		Name: sed.SedDelimitName,
 		Args: []interface{}{pattern.String(), replacement, delimiterString},
 	}
 }
@@ -467,7 +467,7 @@ func SedDelim(pattern *regexp.Regexp, replacement, delimiterString string) *eski
 // sedDelim
 func SedDelimWithMaxBuf(pattern *regexp.Regexp, replacement, delimiterString string, maxBuf int) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameDelimit,
+		Name: sed.SedDelimitName,
 		Args: []interface{}{pattern.String(), replacement, delimiterString, maxBuf},
 	}
 }
@@ -475,7 +475,7 @@ func SedDelimWithMaxBuf(pattern *regexp.Regexp, replacement, delimiterString str
 // sedDelim
 func SedDelimWithMaxBufAndBufHandling(pattern *regexp.Regexp, replacement, delimiterString string, maxBuf int, maxBufHandling string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameDelimit,
+		Name: sed.SedDelimitName,
 		Args: []interface{}{pattern.String(), replacement, delimiterString, maxBuf, maxBufHandling},
 	}
 }
@@ -483,7 +483,7 @@ func SedDelimWithMaxBufAndBufHandling(pattern *regexp.Regexp, replacement, delim
 // sedRequest
 func SedRequest(pattern *regexp.Regexp, replacement string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameRequest,
+		Name: sed.SedRequestName,
 		Args: []interface{}{pattern.String(), replacement},
 	}
 }
@@ -491,7 +491,7 @@ func SedRequest(pattern *regexp.Regexp, replacement string) *eskip.Filter {
 // sedRequest
 func SedRequestWithMaxBuf(pattern *regexp.Regexp, replacement string, maxBuf int) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameRequest,
+		Name: sed.SedRequestName,
 		Args: []interface{}{pattern.String(), replacement, maxBuf},
 	}
 }
@@ -499,7 +499,7 @@ func SedRequestWithMaxBuf(pattern *regexp.Regexp, replacement string, maxBuf int
 // sedRequest
 func SedRequestWithMaxBufAndBufHandling(pattern *regexp.Regexp, replacement string, maxBuf int, maxBufHandling string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameRequest,
+		Name: sed.SedRequestName,
 		Args: []interface{}{pattern.String(), replacement, maxBuf, maxBufHandling},
 	}
 }
@@ -507,7 +507,7 @@ func SedRequestWithMaxBufAndBufHandling(pattern *regexp.Regexp, replacement stri
 // sedRequestDelim
 func SedRequestDelim(pattern *regexp.Regexp, replacement, delimiterString string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameRequestDelimit,
+		Name: sed.SedRequestDelimitName,
 		Args: []interface{}{pattern.String(), replacement, delimiterString},
 	}
 }
@@ -515,7 +515,7 @@ func SedRequestDelim(pattern *regexp.Regexp, replacement, delimiterString string
 // sedRequestDelim
 func SedRequestDelimWithMaxBuf(pattern *regexp.Regexp, replacement, delimiterString string, maxBuf int) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameRequestDelimit,
+		Name: sed.SedRequestDelimitName,
 		Args: []interface{}{pattern.String(), replacement, delimiterString, maxBuf},
 	}
 }
@@ -523,7 +523,7 @@ func SedRequestDelimWithMaxBuf(pattern *regexp.Regexp, replacement, delimiterStr
 // sedRequestDelim
 func SedRequestDelimWithMaxBufAndBufHandling(pattern *regexp.Regexp, replacement, delimiterString string, maxBuf int, maxBufHandling string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: sed.NameRequestDelimit,
+		Name: sed.SedRequestDelimitName,
 		Args: []interface{}{pattern.String(), replacement, delimiterString, maxBuf, maxBufHandling},
 	}
 }
@@ -531,7 +531,7 @@ func SedRequestDelimWithMaxBufAndBufHandling(pattern *regexp.Regexp, replacement
 // basicAuth
 func BasicAuth(pathToHtpasswd string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: auth.Name,
+		Name: auth.BasicAuthName,
 		Args: []interface{}{pathToHtpasswd},
 	}
 }
@@ -539,7 +539,7 @@ func BasicAuth(pathToHtpasswd string) *eskip.Filter {
 // basicAuth
 func BasicAuthWithRealmName(pathToHtpasswd string, realmName string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: auth.Name,
+		Name: auth.BasicAuthName,
 		Args: []interface{}{pathToHtpasswd, realmName},
 	}
 }
@@ -771,7 +771,7 @@ func OAuthOidcAllClaims(openIdConnectProviderURL, clientId, clientSecret, callba
 // requestCookie
 func RequestCookie(name, value string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: cookie.RequestCookieFilterName,
+		Name: cookie.RequestCookieName,
 		Args: []interface{}{name, value},
 	}
 }
@@ -787,7 +787,7 @@ func OidcClaimsQuery(pathQueries ...string) *eskip.Filter {
 // ResponseCookie
 func ResponseCookie(name, value string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: cookie.ResponseCookieFilterName,
+		Name: cookie.ResponseCookieName,
 		Args: []interface{}{name, value},
 	}
 }
@@ -800,7 +800,7 @@ func ResponseCookieWithSettings(name, value string, ttl time.Duration, changeOnl
 		coParam = cookie.ChangeOnlyArg
 	}
 	return &eskip.Filter{
-		Name: cookie.ResponseCookieFilterName,
+		Name: cookie.ResponseCookieName,
 		Args: []interface{}{name, value, ttl.Seconds(), coParam},
 	}
 }
@@ -808,7 +808,7 @@ func ResponseCookieWithSettings(name, value string, ttl time.Duration, changeOnl
 // jsCookie
 func JsCookie(name, value string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: cookie.ResponseJSCookieFilterName,
+		Name: cookie.ResponseJSCookieName,
 		Args: []interface{}{name, value},
 	}
 }
@@ -820,7 +820,7 @@ func JsCookieWithSettings(name, value string, ttl time.Duration, changeOnly bool
 		coParam = cookie.ChangeOnlyArg
 	}
 	return &eskip.Filter{
-		Name: cookie.ResponseJSCookieFilterName,
+		Name: cookie.ResponseJSCookieName,
 		Args: []interface{}{name, value, ttl.Seconds(), coParam},
 	}
 }
@@ -952,7 +952,7 @@ func Lua(pathOrScript string, params ...string) *eskip.Filter {
 // corsOrigin
 func CorsOrigin(acceptableOriginParameters ...string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: cors.Name,
+		Name: cors.CorsOriginName,
 		Args: stringSliceToArgs(acceptableOriginParameters),
 	}
 }
@@ -1023,7 +1023,7 @@ func UnverifiedAuditLog(authorizationTokenKeys ...string) *eskip.Filter {
 // setDynamicBackendHostFromHeader
 func SetDynamicBackendHostFromHeader(headerName string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: builtin.SetDynamicBackendHostFromHeader,
+		Name: builtin.SetDynamicBackendHostFromHeaderName,
 		Args: []interface{}{headerName},
 	}
 }
@@ -1031,7 +1031,7 @@ func SetDynamicBackendHostFromHeader(headerName string) *eskip.Filter {
 // setDynamicBackendSchemeFromHeader
 func SetDynamicBackendSchemeFromHeader(headerName string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: builtin.SetDynamicBackendSchemeFromHeader,
+		Name: builtin.SetDynamicBackendSchemeFromHeaderName,
 		Args: []interface{}{headerName},
 	}
 }
@@ -1039,7 +1039,7 @@ func SetDynamicBackendSchemeFromHeader(headerName string) *eskip.Filter {
 // setDynamicBackendUrlFromHeader
 func SetDynamicBackendUrlFromHeader(headerName string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: builtin.SetDynamicBackendUrlFromHeader,
+		Name: builtin.SetDynamicBackendUrlFromHeaderName,
 		Args: []interface{}{headerName},
 	}
 }
@@ -1047,7 +1047,7 @@ func SetDynamicBackendUrlFromHeader(headerName string) *eskip.Filter {
 // setDynamicBackendHost
 func SetDynamicBackendHost(host string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: builtin.SetDynamicBackendHost,
+		Name: builtin.SetDynamicBackendHostName,
 		Args: []interface{}{host},
 	}
 }
@@ -1055,7 +1055,7 @@ func SetDynamicBackendHost(host string) *eskip.Filter {
 // setDynamicBackendScheme
 func SetDynamicBackendScheme(scheme string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: builtin.SetDynamicBackendScheme,
+		Name: builtin.SetDynamicBackendSchemeName,
 		Args: []interface{}{scheme},
 	}
 }
@@ -1063,7 +1063,7 @@ func SetDynamicBackendScheme(scheme string) *eskip.Filter {
 // setDynamicBackendUrl
 func SetDynamicBackendUrl(url string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: builtin.SetDynamicBackendUrl,
+		Name: builtin.SetDynamicBackendUrlName,
 		Args: []interface{}{url},
 	}
 }
@@ -1079,7 +1079,7 @@ func ApiUsageMonitoring(apiConfigs ...*apiusagemonitoring.ApiConfig) (*eskip.Fil
 		args = append(args, string(marshalledConfig))
 	}
 	return &eskip.Filter{
-		Name: apiusagemonitoring.Name,
+		Name: apiusagemonitoring.ApiUsageMonitoringName,
 		Args: args,
 	}, nil
 }
@@ -1150,7 +1150,7 @@ func LifoGroupWithCustomConcurrencyQueueSizeAndTimeout(groupName string, maxConc
 // rfcPath
 func RfcPath() *eskip.Filter {
 	return &eskip.Filter{
-		Name: rfc.Name,
+		Name: rfc.RfcPathName,
 	}
 }
 
@@ -1181,7 +1181,7 @@ func StateBagToTag(stateBagItemName, tagName string) *eskip.Filter {
 // tracingTag
 func TracingTag(tagName, tagValue string) *eskip.Filter {
 	return &eskip.Filter{
-		Name: tracing.Name,
+		Name: tracing.TracingTagName,
 		Args: []interface{}{tagName, tagValue},
 	}
 }

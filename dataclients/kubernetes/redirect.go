@@ -91,7 +91,7 @@ func initRedirectRoute(r *eskip.Route, code int) {
 
 	// Give this route a higher weight so that it will get precedence over existing routes
 	r.Predicates = append([]*eskip.Predicate{{
-		Name: routing.WeightPredicateName,
+		Name: routing.WeightName,
 		Args: []interface{}{float64(1000)},
 	}}, r.Predicates...)
 
@@ -112,7 +112,7 @@ func initDisableRedirectRoute(r *eskip.Route) {
 
 	// Give this route a higher weight so that it will get precedence over existing routes
 	r.Predicates = append([]*eskip.Predicate{{
-		Name: routing.WeightPredicateName,
+		Name: routing.WeightName,
 		Args: []interface{}{float64(1000)},
 	}}, r.Predicates...)
 }

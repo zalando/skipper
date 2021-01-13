@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	NameFalse = "False"
+	FalseName = "False"
 )
 
 type falseSpec struct{}
@@ -18,7 +18,7 @@ type falsePredicate struct{}
 func NewFalse() routing.PredicateSpec { return &falseSpec{} }
 
 func (*falseSpec) Name() string {
-	return NameFalse
+	return FalseName
 }
 
 // Create a predicate instance that always evaluates to false

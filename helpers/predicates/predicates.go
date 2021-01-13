@@ -53,7 +53,7 @@ func Host(host *regexp.Regexp) *eskip.Predicate {
 // Weight (priority)
 func Weight(weight int) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.WeightPredicateName,
+		Name: routing.WeightName,
 		Args: []interface{}{weight},
 	}
 }
@@ -61,14 +61,14 @@ func Weight(weight int) *eskip.Predicate {
 // True
 func True() *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: primitive.NameTrue,
+		Name: primitive.TrueName,
 	}
 }
 
 // False
 func False() *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: primitive.NameFalse,
+		Name: primitive.FalseName,
 	}
 }
 
@@ -83,7 +83,7 @@ func Method(method string) *eskip.Predicate {
 // Methods
 func Methods(methods ...string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: methodpredicate.Name,
+		Name: methodpredicate.MethodsName,
 		Args: stringSliceToArgs(methods),
 	}
 }
@@ -107,7 +107,7 @@ func HeaderRegexp(key string, value *regexp.Regexp) *eskip.Predicate {
 // Cookie
 func Cookie(name string, value *regexp.Regexp) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: cookie.Name,
+		Name: cookie.CookieName,
 		Args: []interface{}{name, value.String()},
 	}
 }
@@ -219,7 +219,7 @@ func BetweenWithUnixTime(from, until int64) *eskip.Predicate {
 // Cron
 func Cron(expression string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: cron.Name,
+		Name: cron.CronName,
 		Args: []interface{}{expression},
 	}
 }
@@ -227,7 +227,7 @@ func Cron(expression string) *eskip.Predicate {
 // QueryParam
 func QueryParam(name string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: query.Name,
+		Name: query.QueryParamName,
 		Args: []interface{}{name},
 	}
 }
@@ -235,7 +235,7 @@ func QueryParam(name string) *eskip.Predicate {
 // QueryParamWithValueRegex
 func QueryParamWithValueRegex(name string, value *regexp.Regexp) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: query.Name,
+		Name: query.QueryParamName,
 		Args: []interface{}{name, value.String()},
 	}
 }
@@ -243,7 +243,7 @@ func QueryParamWithValueRegex(name string, value *regexp.Regexp) *eskip.Predicat
 // Source
 func Source(networkRanges ...string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: source.Name,
+		Name: source.SourceName,
 		Args: stringSliceToArgs(networkRanges),
 	}
 }
@@ -251,7 +251,7 @@ func Source(networkRanges ...string) *eskip.Predicate {
 // SourceFromLast
 func SourceFromLast(networkRanges ...string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: source.NameLast,
+		Name: source.SourceFromLastName,
 		Args: stringSliceToArgs(networkRanges),
 	}
 }
@@ -259,7 +259,7 @@ func SourceFromLast(networkRanges ...string) *eskip.Predicate {
 // ClientIP
 func ClientIP(networkRanges ...string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: source.NameClientIP,
+		Name: source.ClientIPName,
 		Args: stringSliceToArgs(networkRanges),
 	}
 }
@@ -267,7 +267,7 @@ func ClientIP(networkRanges ...string) *eskip.Predicate {
 // Tee
 func Tee(label string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: tee.PredicateName,
+		Name: tee.TeeName,
 		Args: []interface{}{label},
 	}
 }
@@ -275,7 +275,7 @@ func Tee(label string) *eskip.Predicate {
 // Traffic
 func Traffic(chance float64) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: traffic.PredicateName,
+		Name: traffic.TrafficName,
 		Args: []interface{}{chance},
 	}
 }
@@ -283,7 +283,7 @@ func Traffic(chance float64) *eskip.Predicate {
 // TrafficSticky
 func TrafficSticky(chance float64, trafficGroupCookie, trafficGroup string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: traffic.PredicateName,
+		Name: traffic.TrafficName,
 		Args: []interface{}{chance, trafficGroupCookie, trafficGroup},
 	}
 }

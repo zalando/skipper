@@ -19,7 +19,7 @@ import (
 )
 
 // Name represents the name of the builtin cron predicate.
-const Name = "Cron"
+const CronName = "Cron"
 
 type clock func() time.Time
 
@@ -27,7 +27,7 @@ type spec struct {
 }
 
 func (*spec) Name() string {
-	return Name
+	return CronName
 }
 
 func (*spec) Create(args []interface{}) (routing.Predicate, error) {

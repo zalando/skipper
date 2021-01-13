@@ -173,8 +173,8 @@ func TestSed(t *testing.T) {
 		body:   "foobarbazfoobarbazfoobarbaz",
 		expect: "foobarbazbarbazfoobarbazbarbazfoobarbazbarbaz",
 	}} {
-		t.Run(fmt.Sprintf("%s/%s", sed.NameRequest, test.title), testRequest(sed.NameRequest, test))
-		t.Run(fmt.Sprintf("%s/%s", sed.Name, test.title), testResponse(sed.Name, test))
+		t.Run(fmt.Sprintf("%s/%s", sed.SedRequestName, test.title), testRequest(sed.SedRequestName, test))
+		t.Run(fmt.Sprintf("%s/%s", sed.SedName, test.title), testResponse(sed.SedName, test))
 	}
 }
 
@@ -197,18 +197,18 @@ func TestSedLongStream(t *testing.T) {
 
 	baseArgs := []interface{}{pattern, outputString}
 
-	t.Run("below max buffer size", testResponse(sed.Name, testItem{
+	t.Run("below max buffer size", testResponse(sed.SedName, testItem{
 		args:       append(baseArgs, bodySize*2),
 		bodyReader: createBody(),
 		expect:     "qux",
 	}))
 
-	t.Run("above max buffer size, abort", testResponse(sed.Name, testItem{
+	t.Run("above max buffer size, abort", testResponse(sed.SedName, testItem{
 		args:       append(baseArgs, bodySize/2, "abort"),
 		bodyReader: createBody(),
 	}))
 
-	t.Run("above max buffer size, best effort", testResponse(sed.Name, testItem{
+	t.Run("above max buffer size, best effort", testResponse(sed.SedName, testItem{
 		args:       append(baseArgs, bodySize/2),
 		bodyReader: createBody(),
 		expect:     "quxqux",

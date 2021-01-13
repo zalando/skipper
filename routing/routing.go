@@ -25,7 +25,7 @@ const (
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathSubtreeName = "PathSubtree"
 
-	WeightPredicateName = "Weight"
+	WeightName = "Weight"
 
 	routesTimestampName      = "X-Timestamp"
 	routesCountName          = "X-Count"

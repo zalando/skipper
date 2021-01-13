@@ -73,11 +73,11 @@ func TestSedDelim(t *testing.T) {
 		expect: "foobarbazbarbaz\nfoobarbazbarbaz\nfoobarbazbarbaz",
 	}} {
 		t.Run(
-			fmt.Sprintf("%s/%s", sed.NameRequestDelimit, test.title),
-			testRequest(sed.NameRequestDelimit, test),
+			fmt.Sprintf("%s/%s", sed.SedRequestDelimitName, test.title),
+			testRequest(sed.SedRequestDelimitName, test),
 		)
 
-		t.Run(fmt.Sprintf("%s/%s", sed.NameDelimit, test.title), testResponse(sed.NameDelimit, test))
+		t.Run(fmt.Sprintf("%s/%s", sed.SedDelimitName, test.title), testResponse(sed.SedDelimitName, test))
 	}
 }
 
@@ -128,11 +128,11 @@ func TestSedDelimNoDelim(t *testing.T) {
 		expect: "foobarbazbarbazfoobarbazbarbazfoobarbazbarbaz",
 	}} {
 		t.Run(
-			fmt.Sprintf("%s/%s", sed.NameRequestDelimit, test.title),
-			testRequest(sed.NameRequestDelimit, test),
+			fmt.Sprintf("%s/%s", sed.SedRequestDelimitName, test.title),
+			testRequest(sed.SedRequestDelimitName, test),
 		)
 
-		t.Run(fmt.Sprintf("%s/%s", sed.NameDelimit, test.title), testResponse(sed.NameDelimit, test))
+		t.Run(fmt.Sprintf("%s/%s", sed.SedDelimitName, test.title), testResponse(sed.SedDelimitName, test))
 	}
 }
 
@@ -155,18 +155,18 @@ func TestSedDelimLongStream(t *testing.T) {
 
 	baseArgs := []interface{}{pattern, outputString, "\n"}
 
-	t.Run("below max buffer size", testResponse(sed.NameDelimit, testItem{
+	t.Run("below max buffer size", testResponse(sed.SedDelimitName, testItem{
 		args:       append(baseArgs, bodySize*2),
 		bodyReader: createBody(),
 		expect:     "qux",
 	}))
 
-	t.Run("above max buffer size, abort", testResponse(sed.NameDelimit, testItem{
+	t.Run("above max buffer size, abort", testResponse(sed.SedDelimitName, testItem{
 		args:       append(baseArgs, bodySize/2, "abort"),
 		bodyReader: createBody(),
 	}))
 
-	t.Run("above max buffer size, best effort", testResponse(sed.NameDelimit, testItem{
+	t.Run("above max buffer size, best effort", testResponse(sed.SedDelimitName, testItem{
 		args:       append(baseArgs, bodySize/2),
 		bodyReader: createBody(),
 		expect:     "quxqux",

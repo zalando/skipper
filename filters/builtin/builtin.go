@@ -46,12 +46,12 @@ const (
 	CopyRequestHeaderName           = "copyRequestHeader"
 	CopyResponseHeaderName          = "copyResponseHeader"
 
-	SetDynamicBackendHostFromHeader   = "setDynamicBackendHostFromHeader"
-	SetDynamicBackendSchemeFromHeader = "setDynamicBackendSchemeFromHeader"
-	SetDynamicBackendUrlFromHeader    = "setDynamicBackendUrlFromHeader"
-	SetDynamicBackendHost             = "setDynamicBackendHost"
-	SetDynamicBackendScheme           = "setDynamicBackendScheme"
-	SetDynamicBackendUrl              = "setDynamicBackendUrl"
+	SetDynamicBackendHostFromHeaderName   = "setDynamicBackendHostFromHeader"
+	SetDynamicBackendSchemeFromHeaderName = "setDynamicBackendSchemeFromHeader"
+	SetDynamicBackendUrlFromHeaderName    = "setDynamicBackendUrlFromHeader"
+	SetDynamicBackendHostName             = "setDynamicBackendHost"
+	SetDynamicBackendSchemeName           = "setDynamicBackendScheme"
+	SetDynamicBackendUrlName              = "setDynamicBackendUrl"
 
 	HealthCheckName           = "healthcheck"
 	ModPathName               = "modPath"

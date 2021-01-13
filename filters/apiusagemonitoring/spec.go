@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	Name = "apiUsageMonitoring"
+	ApiUsageMonitoringName = "apiUsageMonitoring"
 
 	unknownPlaceholder = "{unknown}"
 	noMatchPlaceholder = "{no-match}"
@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	log      = logrus.WithField("filter", Name)
+	log      = logrus.WithField("filter", ApiUsageMonitoringName)
 	regCache = sync.Map{}
 )
 
@@ -47,7 +47,7 @@ func NewApiUsageMonitoring(
 	realmsTrackingPattern string,
 ) filters.Spec {
 	if !enabled {
-		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", Name)
+		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", ApiUsageMonitoringName)
 		return &noopSpec{&noopFilter{}}
 	}
 
@@ -122,7 +122,7 @@ type apiUsageMonitoringSpec struct {
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
-	return Name
+	return ApiUsageMonitoringName
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {

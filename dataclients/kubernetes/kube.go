@@ -367,12 +367,12 @@ func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 	var p []*eskip.Predicate
 	if reverseSourcePredicate {
 		p = []*eskip.Predicate{{
-			Name: source.NameLast,
+			Name: source.SourceFromLastName,
 			Args: internalIPs,
 		}}
 	} else {
 		p = []*eskip.Predicate{{
-			Name: source.Name,
+			Name: source.SourceName,
 			Args: internalIPs,
 		}}
 	}

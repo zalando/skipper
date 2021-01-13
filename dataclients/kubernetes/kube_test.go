@@ -367,10 +367,10 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, rever
 
 		var found bool
 		for _, p := range r.Predicates {
-			if reversed && p.Name != source.NameLast {
+			if reversed && p.Name != source.SourceFromLastName {
 				continue
 			}
-			if !reversed && p.Name != source.Name {
+			if !reversed && p.Name != source.SourceName {
 				continue
 			}
 

@@ -8,8 +8,8 @@ import (
 
 const (
 	// The eskip name of the predicate.
-	PredicateName = "Tee"
-	HeaderKey     = "x-tee-loopback-key"
+	TeeName   = "Tee"
+	HeaderKey = "x-tee-loopback-key"
 )
 
 type spec struct{}
@@ -20,7 +20,7 @@ type predicate struct {
 
 func New() routing.PredicateSpec { return &spec{} }
 
-func (s *spec) Name() string { return PredicateName }
+func (s *spec) Name() string { return TeeName }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 1 {

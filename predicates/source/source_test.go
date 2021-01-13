@@ -6,14 +6,14 @@ import (
 )
 
 func TestName(t *testing.T) {
-	if s := New().Name(); s != Name {
-		t.Fatalf("Failed to get Name %s, got %s", Name, s)
+	if s := New().Name(); s != SourceName {
+		t.Fatalf("Failed to get Name %s, got %s", SourceName, s)
 	}
-	if s := NewFromLast().Name(); s != NameLast {
-		t.Fatalf("Failed to get Name %s, got %s", NameLast, s)
+	if s := NewFromLast().Name(); s != SourceFromLastName {
+		t.Fatalf("Failed to get Name %s, got %s", SourceFromLastName, s)
 	}
-	if s := NewClientIP().Name(); s != NameClientIP {
-		t.Fatalf("Failed to get Name %s, got %s", NameClientIP, s)
+	if s := NewClientIP().Name(); s != ClientIPName {
+		t.Fatalf("Failed to get Name %s, got %s", ClientIPName, s)
 	}
 }
 
