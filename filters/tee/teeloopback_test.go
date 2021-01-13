@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/predicates"
 	teePredicate "github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy/backendtest"
@@ -45,7 +46,7 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
-		Predicates: []routing.PredicateSpec{
+		Predicates: []predicates.PredicateSpec{
 			teePredicate.New(),
 			traffic.New(),
 		},
@@ -78,7 +79,7 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
-		Predicates: []routing.PredicateSpec{
+		Predicates: []predicates.PredicateSpec{
 			teePredicate.New(),
 			traffic.New(),
 		},
@@ -109,7 +110,7 @@ func TestOriginalBackendServeEvenWhenShadowIsDown(t *testing.T) {
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
-		Predicates: []routing.PredicateSpec{
+		Predicates: []predicates.PredicateSpec{
 			teePredicate.New(),
 			traffic.New(),
 		},
@@ -137,7 +138,7 @@ func TestInfiniteLoopback(t *testing.T) {
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
-		Predicates: []routing.PredicateSpec{
+		Predicates: []predicates.PredicateSpec{
 			teePredicate.New(),
 		},
 	}, routes...)

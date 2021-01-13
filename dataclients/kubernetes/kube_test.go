@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/zalando/skipper/predicates"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -34,7 +35,6 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/predicates/source"
 )
 
 type testAPI struct {
@@ -367,10 +367,10 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, rever
 
 		var found bool
 		for _, p := range r.Predicates {
-			if reversed && p.Name != source.SourceFromLastName {
+			if reversed && p.Name != predicates.SourceFromLastName {
 				continue
 			}
-			if !reversed && p.Name != source.SourceName {
+			if !reversed && p.Name != predicates.SourceName {
 				continue
 			}
 

@@ -3,17 +3,6 @@ package predicates
 import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/helpers"
-	"github.com/zalando/skipper/predicates/auth"
-	"github.com/zalando/skipper/predicates/cookie"
-	"github.com/zalando/skipper/predicates/cron"
-	"github.com/zalando/skipper/predicates/interval"
-	methodpredicate "github.com/zalando/skipper/predicates/methods"
-	"github.com/zalando/skipper/predicates/primitive"
-	"github.com/zalando/skipper/predicates/query"
-	"github.com/zalando/skipper/predicates/source"
-	"github.com/zalando/skipper/predicates/tee"
-	"github.com/zalando/skipper/predicates/traffic"
-	"github.com/zalando/skipper/routing"
 	"regexp"
 	"time"
 )
@@ -21,7 +10,7 @@ import (
 // Path
 func Path(path string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.PathName,
+		Name: PathName,
 		Args: []interface{}{path},
 	}
 }
@@ -29,7 +18,7 @@ func Path(path string) *eskip.Predicate {
 // PathSubtree
 func PathSubtree(path string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.PathSubtreeName,
+		Name: PathSubtreeName,
 		Args: []interface{}{path},
 	}
 }
@@ -37,7 +26,7 @@ func PathSubtree(path string) *eskip.Predicate {
 // PathRegexp
 func PathRegexp(path *regexp.Regexp) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.PathRegexpName,
+		Name: PathRegexpName,
 		Args: []interface{}{path.String()},
 	}
 }
@@ -45,7 +34,7 @@ func PathRegexp(path *regexp.Regexp) *eskip.Predicate {
 // Host
 func Host(host *regexp.Regexp) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.HostRegexpName,
+		Name: HostRegexpName,
 		Args: []interface{}{host.String()},
 	}
 }
@@ -53,7 +42,7 @@ func Host(host *regexp.Regexp) *eskip.Predicate {
 // Weight (priority)
 func Weight(weight int) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.WeightName,
+		Name: WeightName,
 		Args: []interface{}{weight},
 	}
 }
@@ -61,21 +50,21 @@ func Weight(weight int) *eskip.Predicate {
 // True
 func True() *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: primitive.TrueName,
+		Name: TrueName,
 	}
 }
 
 // False
 func False() *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: primitive.FalseName,
+		Name: FalseName,
 	}
 }
 
 // Method
 func Method(method string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.MethodName,
+		Name: MethodName,
 		Args: []interface{}{method},
 	}
 }
@@ -83,7 +72,7 @@ func Method(method string) *eskip.Predicate {
 // Methods
 func Methods(methods ...string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: methodpredicate.MethodsName,
+		Name: MethodsName,
 		Args: stringSliceToArgs(methods),
 	}
 }
@@ -91,7 +80,7 @@ func Methods(methods ...string) *eskip.Predicate {
 // Header
 func Header(key, value string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.HeaderName,
+		Name: HeaderName,
 		Args: []interface{}{key, value},
 	}
 }
@@ -99,7 +88,7 @@ func Header(key, value string) *eskip.Predicate {
 // HeaderRegexp
 func HeaderRegexp(key string, value *regexp.Regexp) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: routing.HeaderRegexpName,
+		Name: HeaderRegexpName,
 		Args: []interface{}{key, value.String()},
 	}
 }
@@ -107,7 +96,7 @@ func HeaderRegexp(key string, value *regexp.Regexp) *eskip.Predicate {
 // Cookie
 func Cookie(name string, value *regexp.Regexp) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: cookie.CookieName,
+		Name: CookieName,
 		Args: []interface{}{name, value.String()},
 	}
 }
@@ -115,7 +104,7 @@ func Cookie(name string, value *regexp.Regexp) *eskip.Predicate {
 // JWTPayloadAnyKV
 func JWTPayloadAnyKV(pairs ...helpers.KVPair) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: auth.MatchJWTPayloadAnyKVName,
+		Name: MatchJWTPayloadAnyKVName,
 		Args: helpers.KVPairToArgs(pairs),
 	}
 }
@@ -123,7 +112,7 @@ func JWTPayloadAnyKV(pairs ...helpers.KVPair) *eskip.Predicate {
 // JWTPayloadAllKV
 func JWTPayloadAllKV(pairs ...helpers.KVPair) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: auth.MatchJWTPayloadAllKVName,
+		Name: MatchJWTPayloadAllKVName,
 		Args: helpers.KVPairToArgs(pairs),
 	}
 }
@@ -131,7 +120,7 @@ func JWTPayloadAllKV(pairs ...helpers.KVPair) *eskip.Predicate {
 // JWTPayloadAnyKVRegexp
 func JWTPayloadAnyKVRegexp(pairs ...helpers.KVRegexPair) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: auth.MatchJWTPayloadAnyKVRegexpName,
+		Name: MatchJWTPayloadAnyKVRegexpName,
 		Args: helpers.KVRegexPairToArgs(pairs),
 	}
 }
@@ -139,7 +128,7 @@ func JWTPayloadAnyKVRegexp(pairs ...helpers.KVRegexPair) *eskip.Predicate {
 // JWTPayloadAllKVRegexp
 func JWTPayloadAllKVRegexp(pairs ...helpers.KVRegexPair) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: auth.MatchJWTPayloadAllKVRegexpName,
+		Name: MatchJWTPayloadAllKVRegexpName,
 		Args: helpers.KVRegexPairToArgs(pairs),
 	}
 }
@@ -147,7 +136,7 @@ func JWTPayloadAllKVRegexp(pairs ...helpers.KVRegexPair) *eskip.Predicate {
 // After
 func After(date time.Time) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.AfterName,
+		Name: AfterName,
 		Args: []interface{}{date.Format(time.RFC3339)},
 	}
 }
@@ -155,7 +144,7 @@ func After(date time.Time) *eskip.Predicate {
 // AfterWithDateString
 func AfterWithDateString(date string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.AfterName,
+		Name: AfterName,
 		Args: []interface{}{date},
 	}
 }
@@ -163,7 +152,7 @@ func AfterWithDateString(date string) *eskip.Predicate {
 // AfterWithUnixTime
 func AfterWithUnixTime(time int64) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.AfterName,
+		Name: AfterName,
 		Args: []interface{}{time},
 	}
 }
@@ -171,7 +160,7 @@ func AfterWithUnixTime(time int64) *eskip.Predicate {
 // Before
 func Before(date time.Time) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.BeforeName,
+		Name: BeforeName,
 		Args: []interface{}{date.Format(time.RFC3339)},
 	}
 }
@@ -179,7 +168,7 @@ func Before(date time.Time) *eskip.Predicate {
 // BeforeWithDateString
 func BeforeWithDateString(date string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.BeforeName,
+		Name: BeforeName,
 		Args: []interface{}{date},
 	}
 }
@@ -187,7 +176,7 @@ func BeforeWithDateString(date string) *eskip.Predicate {
 // BeforeWithUnixTime
 func BeforeWithUnixTime(time int64) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.BeforeName,
+		Name: BeforeName,
 		Args: []interface{}{time},
 	}
 }
@@ -195,7 +184,7 @@ func BeforeWithUnixTime(time int64) *eskip.Predicate {
 // Between
 func Between(from, until time.Time) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.BetweenName,
+		Name: BetweenName,
 		Args: []interface{}{from.Format(time.RFC3339), until.Format(time.RFC3339)},
 	}
 }
@@ -203,7 +192,7 @@ func Between(from, until time.Time) *eskip.Predicate {
 // BetweenWithDateString
 func BetweenWithDateString(from, until string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.BetweenName,
+		Name: BetweenName,
 		Args: []interface{}{from, until},
 	}
 }
@@ -211,7 +200,7 @@ func BetweenWithDateString(from, until string) *eskip.Predicate {
 // BetweenWithUnixTime
 func BetweenWithUnixTime(from, until int64) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: interval.BetweenName,
+		Name: BetweenName,
 		Args: []interface{}{from, until},
 	}
 }
@@ -219,7 +208,7 @@ func BetweenWithUnixTime(from, until int64) *eskip.Predicate {
 // Cron
 func Cron(expression string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: cron.CronName,
+		Name: CronName,
 		Args: []interface{}{expression},
 	}
 }
@@ -227,7 +216,7 @@ func Cron(expression string) *eskip.Predicate {
 // QueryParam
 func QueryParam(name string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: query.QueryParamName,
+		Name: QueryParamName,
 		Args: []interface{}{name},
 	}
 }
@@ -235,7 +224,7 @@ func QueryParam(name string) *eskip.Predicate {
 // QueryParamWithValueRegex
 func QueryParamWithValueRegex(name string, value *regexp.Regexp) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: query.QueryParamName,
+		Name: QueryParamName,
 		Args: []interface{}{name, value.String()},
 	}
 }
@@ -243,7 +232,7 @@ func QueryParamWithValueRegex(name string, value *regexp.Regexp) *eskip.Predicat
 // Source
 func Source(networkRanges ...string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: source.SourceName,
+		Name: SourceName,
 		Args: stringSliceToArgs(networkRanges),
 	}
 }
@@ -251,7 +240,7 @@ func Source(networkRanges ...string) *eskip.Predicate {
 // SourceFromLast
 func SourceFromLast(networkRanges ...string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: source.SourceFromLastName,
+		Name: SourceFromLastName,
 		Args: stringSliceToArgs(networkRanges),
 	}
 }
@@ -259,7 +248,7 @@ func SourceFromLast(networkRanges ...string) *eskip.Predicate {
 // ClientIP
 func ClientIP(networkRanges ...string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: source.ClientIPName,
+		Name: ClientIPName,
 		Args: stringSliceToArgs(networkRanges),
 	}
 }
@@ -267,7 +256,7 @@ func ClientIP(networkRanges ...string) *eskip.Predicate {
 // Tee
 func Tee(label string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: tee.TeeName,
+		Name: TeeName,
 		Args: []interface{}{label},
 	}
 }
@@ -275,7 +264,7 @@ func Tee(label string) *eskip.Predicate {
 // Traffic
 func Traffic(chance float64) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: traffic.TrafficName,
+		Name: TrafficName,
 		Args: []interface{}{chance},
 	}
 }
@@ -283,7 +272,7 @@ func Traffic(chance float64) *eskip.Predicate {
 // TrafficSticky
 func TrafficSticky(chance float64, trafficGroupCookie, trafficGroup string) *eskip.Predicate {
 	return &eskip.Predicate{
-		Name: traffic.TrafficName,
+		Name: TrafficName,
 		Args: []interface{}{chance, trafficGroupCookie, trafficGroup},
 	}
 }

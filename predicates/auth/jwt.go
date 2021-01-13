@@ -23,7 +23,6 @@ import (
 
 	"github.com/zalando/skipper/jwt"
 	"github.com/zalando/skipper/predicates"
-	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -42,13 +41,12 @@ type valueMatcher interface {
 
 const (
 	// MatchJWTPayloadAllKVName represents the name of the builtin JWT Payload all Key/Value predicate.
-	MatchJWTPayloadAllKVName = "JWTPayloadAllKV"
+
 	// MatchJWTPayloadAnyKVName represents the name of the builtin JWT Payload any Key/Value predicate.
-	MatchJWTPayloadAnyKVName = "JWTPayloadAnyKV"
+
 	// MatchJWTPayloadAllKVRegexpName represents the name of the builtin JWT Payload all Key/Value regexp predicate.
-	MatchJWTPayloadAllKVRegexpName = "JWTPayloadAllKVRegexp"
+
 	// MatchJWTPayloadAnyKVRegexpName represents the name of the builtin JWT Payload any Key/Value regexp predicate.
-	MatchJWTPayloadAnyKVRegexpName = "JWTPayloadAnyKVRegexp"
 
 	matchBehaviorAll matchBehavior = iota
 	matchBehaviorAny
@@ -75,33 +73,33 @@ type (
 	}
 )
 
-func NewJWTPayloadAnyKV() routing.PredicateSpec {
+func NewJWTPayloadAnyKV() predicates.PredicateSpec {
 	return &spec{
-		name:          MatchJWTPayloadAnyKVName,
+		name:          predicates.MatchJWTPayloadAnyKVName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeExact,
 	}
 }
 
-func NewJWTPayloadAllKV() routing.PredicateSpec {
+func NewJWTPayloadAllKV() predicates.PredicateSpec {
 	return &spec{
-		name:          MatchJWTPayloadAllKVName,
+		name:          predicates.MatchJWTPayloadAllKVName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeExact,
 	}
 }
 
-func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
+func NewJWTPayloadAnyKVRegexp() predicates.PredicateSpec {
 	return &spec{
-		name:          MatchJWTPayloadAnyKVRegexpName,
+		name:          predicates.MatchJWTPayloadAnyKVRegexpName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeRegexp,
 	}
 }
 
-func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
+func NewJWTPayloadAllKVRegexp() predicates.PredicateSpec {
 	return &spec{
-		name:          MatchJWTPayloadAllKVRegexpName,
+		name:          predicates.MatchJWTPayloadAllKVRegexpName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeRegexp,
 	}
@@ -111,7 +109,7 @@ func (s *spec) Name() string {
 	return s.name
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) == 0 || len(args)%2 != 0 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

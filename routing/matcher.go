@@ -3,6 +3,7 @@ package routing
 import (
 	"errors"
 	"fmt"
+	predicates2 "github.com/zalando/skipper/predicates"
 	"net/http"
 	"regexp"
 	"sort"
@@ -38,7 +39,7 @@ type leafMatcher struct {
 	pathRxs              []*regexp.Regexp
 	headersExact         map[string]string
 	headersRegexp        map[string][]*regexp.Regexp
-	predicates           []Predicate
+	predicates           []predicates2.Predicate
 	route                *Route
 }
 
@@ -433,7 +434,7 @@ func matchHeaders(exact map[string]string, hrxs map[string][]*regexp.Regexp, h h
 }
 
 // check if all defined custom predicates are matched
-func matchPredicates(cps []Predicate, req *http.Request) bool {
+func matchPredicates(cps []predicates2.Predicate, req *http.Request) bool {
 	for _, cp := range cps {
 		if !cp.Match(req) {
 			return false

@@ -3,6 +3,7 @@ package routing
 import (
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/predicates"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,9 +17,9 @@ import (
 
 type truePredicate struct{}
 
-func (tp *truePredicate) Name() string                                 { return "True" }
-func (tp *truePredicate) Create(args []interface{}) (Predicate, error) { return tp, nil }
-func (tp *truePredicate) Match(r *http.Request) bool                   { return true }
+func (tp *truePredicate) Name() string                                            { return "True" }
+func (tp *truePredicate) Create(args []interface{}) (predicates.Predicate, error) { return tp, nil }
+func (tp *truePredicate) Match(r *http.Request) bool                              { return true }
 
 const (
 	benchmarkingCountPhase1 = 1
@@ -101,7 +102,7 @@ func docToRoutes(doc string) ([]*Route, error) {
 	if err != nil {
 		return nil, err
 	}
-	routes, _ := processRouteDefs(Options{Predicates: []PredicateSpec{&truePredicate{}}}, nil, defs)
+	routes, _ := processRouteDefs(Options{Predicates: []predicates.PredicateSpec{&truePredicate{}}}, nil, defs)
 	return routes, nil
 }
 

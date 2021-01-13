@@ -3,6 +3,7 @@ package routing
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/zalando/skipper/predicates"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,18 +16,6 @@ import (
 )
 
 const (
-	// PathName represents the name of builtin path predicate.
-	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
-	PathName = "Path"
-
-	// PathSubtreeName represents the name of the builtin path subtree predicate.
-	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
-	PathSubtreeName = "PathSubtree"
-
-	WeightName = "Weight"
-
 	routesTimestampName      = "X-Timestamp"
 	routesCountName          = "X-Count"
 	defaultRouteListingLimit = 1024
@@ -54,26 +43,6 @@ type DataClient interface {
 	LoadUpdate() ([]*eskip.Route, []string, error)
 }
 
-// Predicate instances are used as custom user defined route
-// matching predicates.
-type Predicate interface {
-
-	// Returns true if the request matches the predicate.
-	Match(*http.Request) bool
-}
-
-// PredicateSpec instances are used to create custom predicates
-// (of type Predicate) with concrete arguments during the
-// construction of the routing tree.
-type PredicateSpec interface {
-
-	// Name of the predicate as used in the route definitions.
-	Name() string
-
-	// Creates a predicate instance with concrete arguments.
-	Create([]interface{}) (Predicate, error)
-}
-
 // Options for initialization for routing.
 type Options struct {
 
@@ -95,7 +64,7 @@ type Options struct {
 	DataClients []DataClient
 
 	// Specifications of custom, user defined predicates.
-	Predicates []PredicateSpec
+	Predicates []predicates.PredicateSpec
 
 	// Performance tuning option.
 	//
@@ -212,7 +181,7 @@ type Route struct {
 	Scheme, Host string
 
 	// The preprocessed custom predicate instances.
-	Predicates []Predicate
+	Predicates []predicates.Predicate
 
 	// The preprocessed filter instances.
 	Filters []*RouteFilter

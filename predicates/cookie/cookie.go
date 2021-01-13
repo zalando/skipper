@@ -8,11 +8,7 @@ import (
 	"regexp"
 
 	"github.com/zalando/skipper/predicates"
-	"github.com/zalando/skipper/routing"
 )
-
-// Name the predicate can be referenced in eskip by the name "Cookie".
-const CookieName = "Cookie"
 
 type (
 	spec struct{}
@@ -32,11 +28,11 @@ type (
 //
 // 	Cookie("tcial", /^enabled$/) -> "https://www.example.org";
 //
-func New() routing.PredicateSpec { return &spec{} }
+func New() predicates.PredicateSpec { return &spec{} }
 
-func (s *spec) Name() string { return CookieName }
+func (s *spec) Name() string { return predicates.CookieName }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) != 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

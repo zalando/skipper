@@ -13,13 +13,9 @@ package cron
 import (
 	"github.com/sarslanhan/cronmask"
 	"github.com/zalando/skipper/predicates"
-	"github.com/zalando/skipper/routing"
 	"net/http"
 	"time"
 )
-
-// Name represents the name of the builtin cron predicate.
-const CronName = "Cron"
 
 type clock func() time.Time
 
@@ -27,10 +23,10 @@ type spec struct {
 }
 
 func (*spec) Name() string {
-	return CronName
+	return predicates.CronName
 }
 
-func (*spec) Create(args []interface{}) (routing.Predicate, error) {
+func (*spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -62,6 +58,6 @@ func (p *predicate) Match(r *http.Request) bool {
 	return p.mask.Match(now)
 }
 
-func New() routing.PredicateSpec {
+func New() predicates.PredicateSpec {
 	return &spec{}
 }

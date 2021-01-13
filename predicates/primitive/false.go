@@ -1,13 +1,8 @@
 package primitive
 
 import (
+	"github.com/zalando/skipper/predicates"
 	"net/http"
-
-	"github.com/zalando/skipper/routing"
-)
-
-const (
-	FalseName = "False"
 )
 
 type falseSpec struct{}
@@ -15,14 +10,14 @@ type falseSpec struct{}
 type falsePredicate struct{}
 
 // NewFalse provides a predicate spec to create a Predicate instance that evaluates to false
-func NewFalse() routing.PredicateSpec { return &falseSpec{} }
+func NewFalse() predicates.PredicateSpec { return &falseSpec{} }
 
 func (*falseSpec) Name() string {
-	return FalseName
+	return predicates.FalseName
 }
 
 // Create a predicate instance that always evaluates to false
-func (*falseSpec) Create(args []interface{}) (routing.Predicate, error) {
+func (*falseSpec) Create(args []interface{}) (predicates.Predicate, error) {
 	return &falsePredicate{}, nil
 }
 

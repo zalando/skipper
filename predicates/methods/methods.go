@@ -19,12 +19,10 @@ package methods
 import (
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/predicates"
 	"net/http"
 	"strings"
 )
-
-const MethodsName = "Methods"
 
 var ErrInvalidArgumentsCount = errors.New("at least one method should be specified")
 var ErrInvalidArgumentType = errors.New("only string values are allowed")
@@ -40,7 +38,7 @@ type (
 )
 
 // New creates a new Methods predicate specification
-func New() routing.PredicateSpec {
+func New() predicates.PredicateSpec {
 	return &spec{allowedMethods: map[string]bool{
 		http.MethodGet:     true,
 		http.MethodHead:    true,
@@ -54,9 +52,9 @@ func New() routing.PredicateSpec {
 	}}
 }
 
-func (s *spec) Name() string { return MethodsName }
+func (s *spec) Name() string { return predicates.MethodsName }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) == 0 {
 		return nil, ErrInvalidArgumentsCount
 	}

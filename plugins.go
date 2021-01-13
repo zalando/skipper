@@ -2,6 +2,7 @@ package skipper
 
 import (
 	"fmt"
+	"github.com/zalando/skipper/predicates"
 	"io/ioutil"
 
 	"os"
@@ -177,7 +178,7 @@ func (o *Options) loadPlugins(found map[string]string, done map[string][]string)
 	return nil
 }
 
-func loadPlugin(path string, args []string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error) {
+func loadPlugin(path string, args []string) ([]filters.Spec, []predicates.PredicateSpec, []routing.DataClient, error) {
 	mod, err := plugin.Open(path)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("open multitype plugin %s: %s", path, err)
@@ -195,8 +196,8 @@ func loadPlugin(path string, args []string) ([]filters.Spec, []routing.Predicate
 	return initPlugin(sym, path, append(conf, args...))
 }
 
-func initPlugin(sym plugin.Symbol, path string, args []string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error) {
-	fn, ok := sym.(func([]string) ([]filters.Spec, []routing.PredicateSpec, []routing.DataClient, error))
+func initPlugin(sym plugin.Symbol, path string, args []string) ([]filters.Spec, []predicates.PredicateSpec, []routing.DataClient, error) {
+	fn, ok := sym.(func([]string) ([]filters.Spec, []predicates.PredicateSpec, []routing.DataClient, error))
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("plugin %s's InitPlugin function has wrong signature", path)
 	}
@@ -273,7 +274,7 @@ func (o *Options) loadPredicatePlugins(found map[string]string, done map[string]
 	return nil
 }
 
-func loadPredicatePlugin(path string, args []string) (routing.PredicateSpec, error) {
+func loadPredicatePlugin(path string, args []string) (predicates.PredicateSpec, error) {
 	mod, err := plugin.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open predicate module %s: %s", path, err)
@@ -290,8 +291,8 @@ func loadPredicatePlugin(path string, args []string) (routing.PredicateSpec, err
 	return initPredicatePlugin(sym, path, append(conf, args...))
 }
 
-func initPredicatePlugin(sym plugin.Symbol, path string, args []string) (routing.PredicateSpec, error) {
-	fn, ok := sym.(func([]string) (routing.PredicateSpec, error))
+func initPredicatePlugin(sym plugin.Symbol, path string, args []string) (predicates.PredicateSpec, error) {
+	fn, ok := sym.(func([]string) (predicates.PredicateSpec, error))
 	if !ok {
 		return nil, fmt.Errorf("plugin %s's InitPredicate function has wrong signature", path)
 	}

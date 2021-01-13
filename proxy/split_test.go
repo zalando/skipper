@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"github.com/zalando/skipper/predicates"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -41,7 +42,7 @@ func TestRequestURIClonedOnSplit(t *testing.T) {
 	fr := builtin.MakeRegistry()
 	fr.Register(df)
 
-	p := proxytest.WithRoutingOptions(fr, routing.Options{Predicates: []routing.PredicateSpec{tee.New()}}, r...)
+	p := proxytest.WithRoutingOptions(fr, routing.Options{Predicates: []predicates.PredicateSpec{tee.New()}}, r...)
 	defer p.Close()
 
 	rsp, err := http.Get(p.URL + "/foo")
