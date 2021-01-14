@@ -260,9 +260,9 @@ We moved the opentracing plugin source into the `tracing` package.
 
 User or developer questions can be asked in our [public Google Group](https://groups.google.com/forum/#!forum/skipper-router)
 
-We also have a slack channel #skipper in gophers.slack.com. Get an [invite](https://join.slack.com/t/gophers/shared_invite/zt-hrlv37qv-UMwK_CUh7Qrhu_NSBer1Ag) (invite link works only for 30d and 2000 people, so please create an issue to get this updated).
-The [old gophers official invite page](https://invite.slack.golangbridge.org)
-does not work anymore, because of slack changes as far as we know.
+We also have a slack channel #skipper in gophers.slack.com. Get an [invite](https://invite.slack.golangbridge.org).
+If for some reason this link doesn't work, you can find more information about
+the gophers communities [here](https://github.com/gobridge/about-us/blob/master/README.md#onlineoffline-communities).
 
 ### Proposals
 
