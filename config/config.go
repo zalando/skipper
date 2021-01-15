@@ -208,6 +208,7 @@ type Config struct {
 	EnableSwarm bool `yaml:"enable-swarm"`
 	// redis based
 	SwarmRedisURLs         *listFlag     `yaml:"swarm-redis-urls"`
+	SwarmRedisDialTimeout  time.Duration `yaml:"swarm-redis-dial-timeout"`
 	SwarmRedisReadTimeout  time.Duration `yaml:"swarm-redis-read-timeout"`
 	SwarmRedisWriteTimeout time.Duration `yaml:"swarm-redis-write-timeout"`
 	SwarmRedisPoolTimeout  time.Duration `yaml:"swarm-redis-pool-timeout"`
@@ -445,6 +446,7 @@ const (
 	swarmRedisURLsUsage                    = "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits"
 	swarmStaticSelfUsage                   = "set static swarm self node, for example 127.0.0.1:9001"
 	swarmStaticOtherUsage                  = "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003"
+	swarmRedisDialTimeoutUsage             = "set redis client dial timeout"
 	swarmRedisReadTimeoutUsage             = "set redis socket read timeout"
 	swarmRedisWriteTimeoutUsage            = "set redis socket write timeout"
 	swarmRedisPoolTimeoutUsage             = "set redis get connection from pool timeout"
@@ -643,6 +645,7 @@ func NewConfig() *Config {
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, enableSwarmUsage)
 	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", swarmRedisURLsUsage)
+	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", ratelimit.DefaultDialTimeout, swarmRedisDialTimeoutUsage)
 	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", ratelimit.DefaultReadTimeout, swarmRedisReadTimeoutUsage)
 	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", ratelimit.DefaultWriteTimeout, swarmRedisWriteTimeoutUsage)
 	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", ratelimit.DefaultPoolTimeout, swarmRedisPoolTimeoutUsage)
@@ -906,6 +909,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableSwarm: c.EnableSwarm,
 		// redis based
 		SwarmRedisURLs:         c.SwarmRedisURLs.values,
+		SwarmRedisDialTimeout:  c.SwarmRedisDialTimeout,
 		SwarmRedisReadTimeout:  c.SwarmRedisReadTimeout,
 		SwarmRedisWriteTimeout: c.SwarmRedisWriteTimeout,
 		SwarmRedisPoolTimeout:  c.SwarmRedisPoolTimeout,
