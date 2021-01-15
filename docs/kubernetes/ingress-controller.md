@@ -251,8 +251,11 @@ kubectl create -f docs/kubernetes/deploy/daemonset
 ```
 
 Please check, that you are using the [latest
-release](https://github.com/zalando/skipper/releases/latest), we do
-not maintain the **latest** tag.
+release](https://github.com/zalando/skipper/releases/latest), and do
+not use **latest** tag in production. While skipper is quite stable as
+library and proxy, there is ongoing development to make skipper more
+safe, increase visibility, fix issues that lead to incidents and add
+features.
 
 #### Deployment
 
