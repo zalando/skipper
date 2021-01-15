@@ -26,6 +26,7 @@ nav:
         - Ingress Backends: kubernetes/ingress-backends.md
         - RouteGroups: kubernetes/routegroups.md
         - RouteGroup CRD Semantics: kubernetes/routegroup-crd.md
+        - RouteGroup Validation: kubernetes/routegroup-validation.md
         - East-West aka svc-to-svc: kubernetes/east-west-usage.md
     - Tutorials:
         - Basics: tutorials/basics.md
