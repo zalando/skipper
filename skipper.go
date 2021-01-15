@@ -195,6 +195,15 @@ type Options struct {
 	// KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
 	KubernetesEastWestDomain string
 
+	// KubernetesEastWestRangeDomains set the the cluster internal domains for
+	// east west traffic. Identified routes to such domains will include
+	// the KubernetesEastWestRangePredicates.
+	KubernetesEastWestRangeDomains []string
+
+	// KubernetesEastWestRangePredicates set the Predicates that will be
+	// appended to routes identified as to KubernetesEastWestRangeDomains.
+	KubernetesEastWestRangePredicates []*eskip.Predicate
+
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -788,22 +797,24 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster:        o.KubernetesInCluster,
-			KubernetesURL:              o.KubernetesURL,
-			ProvideHealthcheck:         o.KubernetesHealthcheck,
-			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
-			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
-			IngressClass:               o.KubernetesIngressClass,
-			RouteGroupClass:            o.KubernetesRouteGroupClass,
-			ReverseSourcePredicate:     o.ReverseSourcePredicate,
-			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
-			PathMode:                   o.KubernetesPathMode,
-			KubernetesNamespace:        o.KubernetesNamespace,
-			KubernetesEnableEastWest:   o.KubernetesEnableEastWest,
-			KubernetesEastWestDomain:   o.KubernetesEastWestDomain,
-			DefaultFiltersDir:          o.DefaultFiltersDir,
-			OriginMarker:               o.EnableRouteCreationMetrics,
-			BackendNameTracingTag:      o.OpenTracingBackendNameTag,
+			KubernetesInCluster:               o.KubernetesInCluster,
+			KubernetesURL:                     o.KubernetesURL,
+			ProvideHealthcheck:                o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect:              o.KubernetesHTTPSRedirect,
+			HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
+			IngressClass:                      o.KubernetesIngressClass,
+			RouteGroupClass:                   o.KubernetesRouteGroupClass,
+			ReverseSourcePredicate:            o.ReverseSourcePredicate,
+			WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
+			PathMode:                          o.KubernetesPathMode,
+			KubernetesNamespace:               o.KubernetesNamespace,
+			KubernetesEnableEastWest:          o.KubernetesEnableEastWest,
+			KubernetesEastWestDomain:          o.KubernetesEastWestDomain,
+			KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
+			KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
+			DefaultFiltersDir:                 o.DefaultFiltersDir,
+			OriginMarker:                      o.EnableRouteCreationMetrics,
+			BackendNameTracingTag:             o.OpenTracingBackendNameTag,
 		})
 		if err != nil {
 			return nil, err
