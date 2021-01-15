@@ -20,8 +20,8 @@ import (
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
-	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/swarm"
 )
 
@@ -650,12 +650,12 @@ func NewConfig() *Config {
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, enableSwarmUsage)
 	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", swarmRedisURLsUsage)
-	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", ratelimit.DefaultDialTimeout, swarmRedisDialTimeoutUsage)
-	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", ratelimit.DefaultReadTimeout, swarmRedisReadTimeoutUsage)
-	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", ratelimit.DefaultWriteTimeout, swarmRedisWriteTimeoutUsage)
-	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", ratelimit.DefaultPoolTimeout, swarmRedisPoolTimeoutUsage)
-	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", ratelimit.DefaultMinConns, swarmRedisMinConnsUsage)
-	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", ratelimit.DefaultMaxConns, swarmRedisMaxConnsUsage)
+	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", net.DefaultDialTimeout, swarmRedisDialTimeoutUsage)
+	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", net.DefaultReadTimeout, swarmRedisReadTimeoutUsage)
+	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", net.DefaultWriteTimeout, swarmRedisWriteTimeoutUsage)
+	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", net.DefaultPoolTimeout, swarmRedisPoolTimeoutUsage)
+	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", net.DefaultMinConns, swarmRedisMinConnsUsage)
+	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", net.DefaultMaxConns, swarmRedisMaxConnsUsage)
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, swarmKubernetesNamespaceUsage)
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, swarmKubernetesLabelSelectorKeyUsage)
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, swarmKubernetesLabelSelectorValueUsage)

@@ -419,7 +419,7 @@ func (zeroRatelimit) RetryAfter(string) int      { return zeroRetry }
 func (zeroRatelimit) Delta(string) time.Duration { return zeroDelta }
 func (zeroRatelimit) Resize(string, int)         {}
 
-func newRatelimit(s Settings, sw Swarmer, redisRing *ring) *Ratelimit {
+func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratelimit {
 	var impl limiter
 	if s.MaxHits == 0 {
 		impl = zeroRatelimit{}

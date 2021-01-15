@@ -24,8 +24,7 @@ type Registry struct {
 	global    Settings
 	lookup    map[Settings]*Ratelimit
 	swarm     Swarmer
-	redisRing *ring
-	quit      chan<- struct{}
+	redisRing *net.RedisRingClient
 }
 
 // NewRegistry initializes a registry with the provided default settings.
@@ -36,7 +35,7 @@ func NewRegistry(settings ...Settings) *Registry {
 // NewSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
-func NewSwarmRegistry(swarm Swarmer, ro *RedisOptions, settings ...Settings) *Registry {
+func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -44,15 +43,19 @@ func NewSwarmRegistry(swarm Swarmer, ro *RedisOptions, settings ...Settings) *Re
 		CleanInterval: DefaultCleanInterval,
 	}
 
-	q := make(chan struct{})
+	if ro != nil && ro.MetricsPrefix == "" {
+		ro.MetricsPrefix = redisMetricsPrefix
+	}
 
 	r := &Registry{
 		defaults:  defaults,
 		global:    defaults,
 		lookup:    make(map[Settings]*Ratelimit),
 		swarm:     swarm,
-		redisRing: newRing(ro, q),
-		quit:      q,
+		redisRing: net.NewRedisRingClient(ro),
+	}
+	if ro != nil {
+		r.redisRing.StartMetricsCollection()
 	}
 
 	if len(settings) > 0 {
@@ -64,7 +67,7 @@ func NewSwarmRegistry(swarm Swarmer, ro *RedisOptions, settings ...Settings) *Re
 
 // Close teardown Registry and dependent resources
 func (r *Registry) Close() {
-	close(r.quit)
+	r.redisRing.Close()
 }
 
 func (r *Registry) get(s Settings) *Ratelimit {
