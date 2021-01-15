@@ -94,6 +94,7 @@ func Test_NewConfig(t *testing.T) {
 				ResponseHeaderTimeoutBackend:            1 * time.Minute,
 				ExpectContinueTimeoutBackend:            30 * time.Second,
 				SwarmRedisURLs:                          commaListFlag(),
+				SwarmRedisDialTimeout:                   25 * time.Millisecond,
 				SwarmRedisReadTimeout:                   25 * time.Millisecond,
 				SwarmRedisWriteTimeout:                  25 * time.Millisecond,
 				SwarmRedisPoolTimeout:                   25 * time.Millisecond,
