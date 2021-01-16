@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/go-redis/redis/v8"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -140,22 +139,6 @@ func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimit
 	if rl.tracer == nil {
 		rl.tracer = &opentracing.NoopTracer{}
 	}
-
-	var err error
-
-	err = backoff.Retry(func() error {
-		_, err = rl.ring.Ping(context.Background()).Result()
-		if err != nil {
-			log.Infof("Failed to ping redis, retry with backoff: %v", err)
-		}
-		return err
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 7))
-
-	if err != nil {
-		log.Errorf("Failed to connect to redis: %v", err)
-		return nil
-	}
-	log.Debug("Redis ring is reachable")
 
 	return rl
 }
