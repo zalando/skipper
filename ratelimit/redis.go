@@ -19,6 +19,8 @@ import (
 type RedisOptions struct {
 	// Addrs are the list of redis shards
 	Addrs []string
+	// DialTimeout is the max time.Duration to dial a new connection
+	DialTimeout time.Duration
 	// ReadTimeout for redis socket reads
 	ReadTimeout time.Duration
 	// WriteTimeout for redis socket writes
@@ -53,6 +55,7 @@ type clusterLimitRedis struct {
 }
 
 const (
+	DefaultDialTimeout  = 25 * time.Millisecond
 	DefaultReadTimeout  = 25 * time.Millisecond
 	DefaultWriteTimeout = 25 * time.Millisecond
 	DefaultPoolTimeout  = 25 * time.Millisecond
@@ -84,6 +87,7 @@ func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
 		for idx, addr := range ro.Addrs {
 			ringOptions.Addrs[fmt.Sprintf("redis%d", idx)] = addr
 		}
+		ringOptions.DialTimeout = ro.DialTimeout
 		ringOptions.ReadTimeout = ro.ReadTimeout
 		ringOptions.WriteTimeout = ro.WriteTimeout
 		ringOptions.PoolTimeout = ro.PoolTimeout
