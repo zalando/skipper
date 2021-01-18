@@ -105,6 +105,10 @@ because storing the data in memory is good enough for this use case.
 
 #### East West
 
+!!! attention
+    This feature is deprecated. Consider using [EastWest
+    Range](#east-west-range).
+
 Skipper supports cluster internal service-to-service communication as
 part of running as an [API Gateway with an East-West
 setup](../../kubernetes/ingress-controller/#run-as-api-gateway-with-east-west-setup).

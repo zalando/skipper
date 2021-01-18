@@ -92,7 +92,7 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
-	// KubernetesEnableEastWest if set adds automatically routes
+	// *DEPRECATED* KubernetesEnableEastWest if set adds automatically routes
 	// with "%s.%s.skipper.cluster.local" domain pattern
 	KubernetesEnableEastWest bool
 
@@ -149,7 +149,8 @@ type Options struct {
 	// specify it with an annotation.
 	PathMode PathMode
 
-	// KubernetesEastWestDomain sets the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
+	// *DEPRECATED *KubernetesEastWestDomain sets the DNS domain to be
+	// used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
 
 	// KubernetesEastWestRangeDomains set the the cluster internal domains for
