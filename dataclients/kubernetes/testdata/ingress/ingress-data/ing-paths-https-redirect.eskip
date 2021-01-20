@@ -1,0 +1,13 @@
+kube__redirect: Header("X-Forwarded-Proto", "http") && Weight(1000)
+	-> redirectTo(302, "https:")
+	-> <shunt>;
+
+kube_foo__qux__www_example_org_____bar:
+	Host("^www[.]example[.]org$") && PathRegexp("^/")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+// Missing route for path redirect
+//kube_foo__qux__www_example_org_____bar_https_redirect:
+//	Header("X-Forwarded-Proto", "http") && Host("^www[.]example[.]org$") && PathRegexp("^/") && Weight(1000)
+//	-> redirectTo(302, "https:")
+//	-> <shunt>;
