@@ -1482,7 +1482,7 @@ defined HTTP header to put the request in the same client bucket,
 else the X-Forwarded-For Header will be used. You need to run skipper
 with command line flag `-enable-ratelimits`.
 
-One filter consumes memory calculated by the following formular, where
+One filter consumes memory calculated by the following formula, where
 N is the number of individual clients put into the same bucket, M the
 maximum number of requests allowed:
 
