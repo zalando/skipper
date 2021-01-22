@@ -17,8 +17,7 @@ require (
 	github.com/google/go-cmp v0.5.2
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16
-	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-bc2310a04743 // indirect
-	github.com/lightstep/lightstep-tracer-go v0.16.0
+	github.com/lightstep/lightstep-tracer-go v0.24.0
 	github.com/looplab/fsm v0.1.0 // indirect
 	github.com/oklog/ulid v1.3.1
 	github.com/opentracing/basictracer-go v1.0.0
