@@ -1170,7 +1170,7 @@ you pass the `-enable-oauth2-grant-flow` flag.
 The filter may be used with the [grantClaimsQuery](#grantClaimsQuery) filter to perform
 authz and access control.
 
-See the [tutorial](../tutorials/auth.md#oauth2-authorization-grant-flow) for step-by-step 
+See the [tutorial](../tutorials/auth.md#oauth2-authorization-grant-flow) for step-by-step
 instructions.
 
 Examples:
@@ -1480,8 +1480,21 @@ of the http header and can be changed with an optional third
 parameter. If the third parameter is set skipper will use the
 defined HTTP header to put the request in the same client bucket,
 else the X-Forwarded-For Header will be used. You need to run skipper
-with command line flag `-enable-ratelimits`. Skipper will consume
-roughly 15 MB per filter for 100.000 clients.
+with command line flag `-enable-ratelimits`.
+
+One filter consumes memory calculated by the following formula, where
+N is the number of individual clients put into the same bucket, M the
+maximum number of requests allowed:
+
+```
+memory = N * M * 15 byte
+```
+
+Memory usage examples:
+
+- 5MB   for M=3  and N=100000
+- 15MB  for M=10 and N=100000
+- 150MB for M=100 and N=100000
 
 Parameters:
 
@@ -2170,7 +2183,7 @@ tracingBaggageToTag("foo", "baz")
 
 ## stateBagToTag
 
-This filter sets an opentracing tag from the filter context (state bag). 
+This filter sets an opentracing tag from the filter context (state bag).
 If the provided key (first parameter) cannot be found in the state bag, then it doesn't set the tag.
 
 Parameters:
