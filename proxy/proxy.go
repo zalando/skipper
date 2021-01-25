@@ -1212,12 +1212,14 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	code := http.StatusInternalServerError
-	if ok && perr.code != 0 {
-		if perr.code == -1 { // -1 == dial connection refused
-			code = http.StatusBadGateway
-		} else {
-			code = perr.code
-		}
+	switch {
+	case err == errRouteLookupFailed:
+		code = p.defaultHTTPStatus
+	case ok && perr.code == -1:
+		// -1 == dial connection refused
+		code = http.StatusBadGateway
+	case ok && perr.code != 0:
+		code = perr.code
 	}
 
 	if span := ot.SpanFromContext(ctx.Request().Context()); span != nil {
@@ -1247,10 +1249,6 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	switch {
-	case err == errRouteLookupFailed:
-		code = p.defaultHTTPStatus
-	case ok && perr.err == errRatelimit:
-		code = perr.code
 	case code == 499:
 		req := ctx.Request()
 		remoteAddr := remoteHost(req)
