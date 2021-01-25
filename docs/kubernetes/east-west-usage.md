@@ -4,9 +4,8 @@ If you run Skipper with an [East-West
 setup](ingress-controller.md#run-as-api-gateway-with-east-west-setup),
 you can use the configured ingress also to do service-to-service
 calls, bypassing your ingress loadbalancer and stay inside the
-cluster. It depends on the configuration, but the default is that you
-can connect via HTTP to  `<name>.<namespace>.skipper.cluster.local`
-to your application based on the ingress configuration.
+cluster. You can connect via HTTP to your application based on its
+ingress configuration.
 
 Example:
 
@@ -18,7 +17,7 @@ metadata:
   namespace: default
 spec:
   rules:
-  - host: demo.example.org
+  - host: demo.skipper.cluster.local
     http:
       paths:
       - backend:
@@ -26,7 +25,7 @@ spec:
           servicePort: 80
 ```
 
-Or as a [RouteGroup](../routegroups/):
+Or as a [RouteGroup](./routegroups.md):
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -36,7 +35,7 @@ metadata:
   namespace: default
 spec:
   hosts:
-  - demo.example.org
+  - demo.skipper.cluster.local
   backends:
   - name: backend
     type: service
@@ -47,11 +46,57 @@ spec:
 ```
 
 Your clients inside the cluster should call this example with
-`demo.default.skipper.cluster.local` in their host header. Example
+`demo.skipper.cluster.local` in their host header. Example
 from inside a container:
 
 ```
-curl http://demo.default.skipper.cluster.local/
+curl http://demo.skipper.cluster.local/
+```
+
+You can also use the same ingress or RouteGroup object to accept
+internal and external traffic:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: demo
+  namespace: default
+spec:
+  rules:
+  - host: demo.example.com
+    http:
+      paths:
+      - backend:
+          serviceName: example
+          servicePort: 80
+  - host: demo.skipper.cluster.local
+    http:
+      paths:
+      - backend:
+          serviceName: example
+          servicePort: 80
+```
+
+Or, again, as a [RouteGroup](./routegroups.md):
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: demo
+  namespace: default
+spec:
+  hosts:
+  - demo.skipper.cluster.local
+  - demo.example.com
+  backends:
+  - name: backend
+    type: service
+    serviceName: example
+    servicePort: 80
+  defaultBackends:
+  - backendName: backend
 ```
 
 Metrics will change, because skipper stores metrics per HTTP Host

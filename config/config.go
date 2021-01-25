@@ -365,8 +365,8 @@ const (
 	whitelistedHealthCheckCIDRUsage        = "sets the iprange/CIDRS to be whitelisted during healthcheck"
 	kubernetesPathModeUsage                = "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>"
 	kubernetesNamespaceUsage               = "watch only this namespace for ingresses"
-	kubernetesEnableEastWestUsage          = "enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
-	kubernetesEastWestDomainUsage          = "set the east-west domain, defaults to .skipper.cluster.local"
+	kubernetesEnableEastWestUsage          = "*Deprecated*: use -kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
+	kubernetesEastWestDomainUsage          = "set the east-west domain. *Deprecated*: use -kubernetes-east-west-range feature. Defaults to .skipper.cluster.local"
 	kubernetesEastWestRangeDomainsUsage    = "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates"
 	kubernetesEastWestRangePredicatesUsage = "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains"
 
@@ -697,6 +697,10 @@ func (c *Config) Parse() error {
 	kubernetesPathMode, err := kubernetes.ParsePathMode(c.KubernetesPathModeString)
 	if err != nil {
 		return err
+	}
+
+	if c.KubernetesEnableEastWest {
+		log.Warn(`"kubernetes-enable-east-west" parameter is deprecated. Check the "kubernetes-east-west-range" feature`)
 	}
 
 	kubernetesEastWestRangePredicates, err := eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
