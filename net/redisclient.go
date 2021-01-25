@@ -156,11 +156,6 @@ func (r *RedisRingClient) Close() {
 	}
 }
 
-// TODO(sszuecs): drop this
-func (r *RedisRingClient) Ring() *redis.Ring {
-	return r.ring
-}
-
 func (r *RedisRingClient) ZAdd(ctx context.Context, key string, members ...*redis.Z) *redis.IntCmd {
 	return r.ring.ZAdd(ctx, key, members...)
 }
