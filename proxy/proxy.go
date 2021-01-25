@@ -1225,6 +1225,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	if span := ot.SpanFromContext(ctx.Request().Context()); span != nil {
 		p.tracing.setTag(span, ErrorTag, true)
 		p.tracing.setTag(span, HTTPStatusCodeTag, uint16(code))
+		if err == errRouteLookupFailed {
+			span.LogKV("event", "error", "message", errRouteLookup.Error())
+		}
+
 	}
 
 	if p.flags.Debug() {
