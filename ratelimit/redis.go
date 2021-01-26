@@ -54,6 +54,8 @@ type clusterLimitRedis struct {
 }
 
 const (
+	RateHeaderOverwrite = "X-Rate"
+
 	DefaultDialTimeout  = 25 * time.Millisecond
 	DefaultReadTimeout  = 25 * time.Millisecond
 	DefaultWriteTimeout = 25 * time.Millisecond
@@ -147,21 +149,21 @@ func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimit
 	return rl
 }
 
-func (c *clusterLimitRedis) prefixKey(clearText string) string {
-	return fmt.Sprintf(swarmKeyFormat, c.group, clearText)
+func prefixKey(clearText, group string) string {
+	return fmt.Sprintf(swarmKeyFormat, group, clearText)
 }
 
-func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool, start time.Time) {
+func (c *clusterLimitRedis) measureQuery(group, format, groupFormat string, fail *bool, start time.Time) {
 	result := "success"
 	if fail != nil && *fail {
 		result = "failure"
 	}
 
 	var key string
-	if c.group == "" {
+	if group == "" {
 		key = fmt.Sprintf(format, result)
 	} else {
-		key = fmt.Sprintf(groupFormat, result, c.group)
+		key = fmt.Sprintf(groupFormat, result, group)
 	}
 
 	c.metrics.MeasureSince(key, start)
@@ -208,16 +210,27 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 //
 // If a context is provided, it uses it for creating an OpenTracing span.
 func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
+	maxHits := c.maxHits
+	window := c.window
+	group := c.group
+	if overwrite, ok := ctx.Value(RateHeaderOverwrite).(Settings); ok {
+		// change threshold
+		maxHits = int64(overwrite.MaxHits)
+		window = overwrite.TimeWindow
+		// change how to merge a client into a group
+		group = overwrite.Group
+	}
+
 	s := getHashedKey(clearText)
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
-	key := c.prefixKey(s)
+	key := prefixKey(s, group)
 
 	now := time.Now()
 	var queryFailure bool
-	defer c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &queryFailure, now)
+	defer c.measureQuery(group, allowMetricsFormat, allowMetricsFormatWithGroup, &queryFailure, now)
 
 	nowNanos := now.UnixNano()
-	clearBefore := now.Add(-c.window).UnixNano()
+	clearBefore := now.Add(-window).UnixNano()
 
 	count, err := c.allowCheckCard(ctx, key, clearBefore)
 	if err != nil {
@@ -228,9 +241,9 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 	}
 
 	// we increase later with ZAdd, so max-1
-	if err == nil && count >= c.maxHits {
+	if err == nil && count >= maxHits {
 		c.metrics.IncCounter(redisMetricsPrefix + "forbids")
-		log.Debugf("redis disallow request: %d >= %d = %v", count, c.maxHits, count > c.maxHits)
+		log.Debugf("redis disallow request: %d >= %d = %v", count, maxHits, count > maxHits)
 		return false
 	}
 
@@ -244,7 +257,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 	}
 
 	finishSpan = c.startSpan(ctx, allowExpireSpanName)
-	expireResult := c.ring.Expire(ctx, key, c.window+time.Second)
+	expireResult := c.ring.Expire(ctx, key, window+time.Second)
 	err = expireResult.Err()
 	finishSpan(err != nil)
 	if err != nil {
@@ -294,8 +307,13 @@ func (c *clusterLimitRedis) deltaFrom(ctx context.Context, clearText string, fro
 		return 0, err
 	}
 
+	window := c.window
+	if overwrite, ok := ctx.Value(RateHeaderOverwrite).(Settings); ok {
+		window = overwrite.TimeWindow
+	}
+
 	gap := from.Sub(oldest)
-	return c.window - gap, nil
+	return window - gap, nil
 }
 
 // Delta returns the time.Duration until the next call is allowed,
@@ -316,7 +334,7 @@ func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 
 func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.Time, error) {
 	s := getHashedKey(clearText)
-	key := c.prefixKey(s)
+	key := prefixKey(s, c.group)
 	now := time.Now()
 
 	finishSpan := c.startSpan(ctx, oldestScoreSpanName)
@@ -389,7 +407,7 @@ func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText str
 
 	now := time.Now()
 	var queryFailure bool
-	defer c.measureQuery(retryAfterMetricsFormat, retryAfterMetricsFormatWithGroup, &queryFailure, now)
+	defer c.measureQuery(c.group, retryAfterMetricsFormat, retryAfterMetricsFormatWithGroup, &queryFailure, now)
 
 	retr, err := c.deltaFrom(ctx, clearText, now)
 	if err != nil {

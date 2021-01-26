@@ -8,7 +8,9 @@ package ratelimit
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -23,8 +25,10 @@ type spec struct {
 }
 
 type filter struct {
-	settings ratelimit.Settings
-	provider RatelimitProvider
+	mu         sync.Mutex
+	settings   ratelimit.Settings
+	provider   RatelimitProvider
+	overwrites map[string]ratelimit.Settings
 }
 
 // RatelimitProvider returns a limit instance for provided Settings
@@ -259,7 +263,10 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 		s.Lookuper = ratelimit.NewXForwardedForLookuper()
 	}
 
-	return &filter{settings: s}, nil
+	return &filter{
+		settings:   s,
+		overwrites: make(map[string]ratelimit.Settings),
+	}, nil
 }
 
 func getLookuper(s string) ratelimit.Lookuper {
@@ -398,12 +405,50 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
+	setting := f.settings
+	reqCtx := ctx.Request().Context()
+
+	f.mu.Lock()
+	set, ok := f.overwrites[s]
+	f.mu.Unlock()
+	if ok {
+		reqCtx = context.WithValue(reqCtx, ratelimit.RateHeaderOverwrite, set)
+		setting = set
+	}
+
+	if !rateLimiter.AllowContext(reqCtx, s) {
 		ctx.Serve(&http.Response{
 			StatusCode: http.StatusTooManyRequests,
-			Header:     ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s)),
+			Header:     ratelimit.Headers(&setting, rateLimiter.RetryAfter(s)),
 		})
 	}
 }
 
-func (*filter) Response(filters.FilterContext) {}
+func (f *filter) Response(ctx filters.FilterContext) {
+	s := ctx.Response().Header.Get(ratelimit.RateHeaderOverwrite)
+	a := strings.Split(s, " ")
+	if len(a) != 2 {
+		return
+	}
+	n, err := strconv.Atoi(a[0])
+	if err != nil {
+		return
+	}
+	d, err := time.ParseDuration(a[1])
+	if err != nil {
+		return
+	}
+
+	identifyClient := f.settings.Lookuper.Lookup(ctx.Request())
+	f.mu.Lock()
+	f.overwrites[identifyClient] = ratelimit.Settings{
+		Type:          f.settings.Type,
+		Group:         f.settings.Group, // TODO(sszuecs): we could change group to merge clients
+		MaxHits:       n,
+		TimeWindow:    d,
+		CleanInterval: 10 * d,
+	}
+	f.mu.Unlock()
+
+	log.Infof("Added overwrite for %s with %d/%v", identifyClient, n, d)
+}
