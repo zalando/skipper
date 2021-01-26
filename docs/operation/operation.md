@@ -476,8 +476,8 @@ information and tags to the tracer:
 -opentracing=<vendor> component-name=skipper-ingress ... tag=cluster=mycluster ...
 ```
 
-The best tested tracer is the lightstep tracer, because we use it in
-our setup. In case you miss something for your chosen tracer, please
+The best tested tracer is the [lightstep tracer](https://github.com/zalando/skipper/tree/master/tracing/tracers/lightstep/README.md),
+because we use it in our setup. In case you miss something for your chosen tracer, please
 open an issue or pull request in our [repository](https://github.com/zalando/skipper).
 
 Skipper creates up to 5 different
