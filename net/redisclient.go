@@ -53,6 +53,11 @@ type RedisOptions struct {
 	Log logging.Logger
 }
 
+// RedisRingClient is a redis client that does access redis by
+// computing a ring hash. It logs to the logging.Logger interface,
+// that you can pass. It adds metrics and operations are traced with
+// opentracing. You can set timeouts and the defaults are set to be ok
+// to be in the hot path of low latency production requests.
 type RedisRingClient struct {
 	ring          *redis.Ring
 	log           logging.Logger
@@ -64,12 +69,18 @@ type RedisRingClient struct {
 }
 
 const (
-	DefaultReadTimeout  = 25 * time.Millisecond
+	// DefaultReadTimeout is the default socket read timeout
+	DefaultReadTimeout = 25 * time.Millisecond
+	// DefaultWriteTimeout is the default socket write timeout
 	DefaultWriteTimeout = 25 * time.Millisecond
-	DefaultPoolTimeout  = 25 * time.Millisecond
-	DefaultDialTimeout  = 25 * time.Millisecond
-	DefaultMinConns     = 100
-	DefaultMaxConns     = 100
+	// DefaultPoolTimeout is the default timeout to access the connection pool
+	DefaultPoolTimeout = 25 * time.Millisecond
+	// DefaultDialTimeout is the default dial timeout
+	DefaultDialTimeout = 25 * time.Millisecond
+	// DefaultMinConns is the default minimum of connections
+	DefaultMinConns = 100
+	// DefaultMaxConns is the default maximum of connections
+	DefaultMaxConns = 100
 
 	defaultConnMetricsInterval = 60 * time.Second
 )
@@ -156,22 +167,41 @@ func (r *RedisRingClient) Close() {
 	}
 }
 
-func (r *RedisRingClient) ZAdd(ctx context.Context, key string, members ...*redis.Z) *redis.IntCmd {
-	return r.ring.ZAdd(ctx, key, members...)
+func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val int64, score float64) (int64, error) {
+	res := r.ring.ZAdd(ctx, key, &redis.Z{Member: val, Score: score})
+	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) Expire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd {
-	return r.ring.Expire(ctx, key, expiration)
+func (r *RedisRingClient) Expire(ctx context.Context, key string, expiration time.Duration) (bool, error) {
+	res := r.ring.Expire(ctx, key, expiration)
+	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) ZRemRangeByScore(ctx context.Context, key, min, max string) *redis.IntCmd {
-	return r.ring.ZRemRangeByScore(ctx, key, min, max)
+func (r *RedisRingClient) ZRemRangeByScore(ctx context.Context, key string, min, max float64) (int64, error) {
+	res := r.ring.ZRemRangeByScore(ctx, key, fmt.Sprint(min), fmt.Sprint(max))
+	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) ZCard(ctx context.Context, key string) *redis.IntCmd {
-	return r.ring.ZCard(ctx, key)
+func (r *RedisRingClient) ZCard(ctx context.Context, key string) (int64, error) {
+	res := r.ring.ZCard(ctx, key)
+	return res.Val(), res.Err()
 }
 
-func (r *RedisRingClient) ZRangeByScoreWithScores(ctx context.Context, key string, opt *redis.ZRangeBy) *redis.ZSliceCmd {
-	return r.ring.ZRangeByScoreWithScores(ctx, key, opt)
+func (r *RedisRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key string, min, max float64, offset, count int64) (interface{}, error) {
+	opt := &redis.ZRangeBy{
+		Min:    fmt.Sprint(min),
+		Max:    fmt.Sprint(max),
+		Offset: offset,
+		Count:  count,
+	}
+	res := r.ring.ZRangeByScoreWithScores(ctx, key, opt)
+	zs, err := res.Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(zs) == 0 {
+		return nil, nil
+	}
+
+	return zs[0].Member, nil
 }
