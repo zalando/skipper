@@ -147,10 +147,6 @@ func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimit
 	return rl
 }
 
-func (c *clusterLimitRedis) prefixKey(clearText string) string {
-	return fmt.Sprintf(swarmKeyFormat, c.group, clearText)
-}
-
 func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool, start time.Time) {
 	result := "success"
 	if fail != nil && *fail {
@@ -208,9 +204,8 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 //
 // If a context is provided, it uses it for creating an OpenTracing span.
 func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
-	s := getHashedKey(clearText)
+	key := getRatelimitKey(c.group, clearText)
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
-	key := c.prefixKey(s)
 
 	now := time.Now()
 	var queryFailure bool
@@ -315,8 +310,7 @@ func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 }
 
 func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.Time, error) {
-	s := getHashedKey(clearText)
-	key := c.prefixKey(s)
+	key := getRatelimitKey(c.group, clearText)
 	now := time.Now()
 
 	finishSpan := c.startSpan(ctx, oldestScoreSpanName)

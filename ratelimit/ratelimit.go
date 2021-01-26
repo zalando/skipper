@@ -3,8 +3,8 @@ package ratelimit
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
+	"crypto/md5" // #nosec
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -456,7 +456,19 @@ func Headers(s *Settings, retryAfter int) http.Header {
 	}
 }
 
-func getHashedKey(clearText string) string {
-	h := sha256.Sum256([]byte(clearText))
-	return hex.EncodeToString(h[:])
+func getRatelimitKey(group, text string) string {
+	return buildKey("R", group, text)
+}
+
+func buildKey(prefix, group, text string) string {
+	h := md5.New() // #nosec
+	h.Write([]byte(group))
+	h.Write([]byte(text))
+	s := h.Sum(nil)
+
+	b := make([]byte, len(prefix)+base64.RawURLEncoding.EncodedLen(md5.Size))
+	copy(b, prefix)
+	base64.RawURLEncoding.Encode(b[len(prefix):], s)
+
+	return string(b)
 }

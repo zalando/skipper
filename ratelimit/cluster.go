@@ -1,10 +1,5 @@
 package ratelimit
 
-const (
-	swarmPrefix    = `ratelimit.`
-	swarmKeyFormat = swarmPrefix + "%s.%s"
-)
-
 // newClusterRateLimiter will return a limiter instance, that has a
 // cluster wide knowledge of ongoing requests. Settings are the normal
 // ratelimit settings, Swarmer is an instance satisfying the Swarmer

@@ -335,3 +335,13 @@ func TestSettingsRatelimit(t *testing.T) {
 		}
 	})
 }
+
+func TestGetRatelimitKey(t *testing.T) {
+	// echo -n helloworld | md5sum | cut -d' ' -f1 | xxd -r -p | base64 | tr -d '=' | tr '+/' '-_'
+	const expected = "R" + "_F4DjTilcDIIVEHn_nAQsA"
+
+	key := getRatelimitKey("hello", "world")
+	if key != expected {
+		t.Errorf("expected %s, got %s", expected, key)
+	}
+}

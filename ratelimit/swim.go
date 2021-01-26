@@ -83,25 +83,24 @@ func newClusterRateLimiterSwim(s Settings, sw Swarmer, group string) *clusterLim
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
 func (c *clusterLimitSwim) Allow(clearText string) bool {
-	s := getHashedKey(clearText)
-	key := swarmPrefix + c.group + "." + s
+	key := getRatelimitKey(c.group, clearText)
 
 	// t0 is the oldest entry in the local circularbuffer
 	// [ t3, t4, t0, t1, t2]
 	//           ^- current pointer to oldest
 	// now - t0
-	t0 := c.Oldest(s).UTC().UnixNano()
+	t0 := c.Oldest(key).UTC().UnixNano()
 
-	_ = c.local.Allow(s) // update local rate limit
+	_ = c.local.Allow(key) // update local rate limit
 
 	if err := c.swarm.ShareValue(key, t0); err != nil {
 		log.Errorf("%s clusterRatelimit failed to share value: %v", c.group, err)
 	}
 
 	swarmValues := c.swarm.Values(key)
-	log.Debugf("%s: clusterRatelimit swarmValues(%d) for '%s': %v", c.group, len(swarmValues), swarmPrefix+s, swarmValues)
+	log.Debugf("%s: clusterRatelimit swarmValues(%d) for '%s': %v", c.group, len(swarmValues), key, swarmValues)
 
-	c.resize <- resizeLimit{s: s, n: len(swarmValues)}
+	c.resize <- resizeLimit{s: key, n: len(swarmValues)}
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
