@@ -11,7 +11,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"sync"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -151,19 +150,22 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	done := make(chan struct{}, 2)
 
 	if p.useAuditLog {
-		copyAsync(&wg, backendConn, requestHijackedConn, p.auditLogOut)
+		copyAsync("backend->request+audit", backendConn, io.MultiWriter(requestHijackedConn, p.auditLogOut), done)
 	} else {
-		copyAsync(&wg, backendConn, requestHijackedConn)
+		copyAsync("backend->request", backendConn, requestHijackedConn, done)
 	}
 
-	copyAsync(&wg, requestHijackedConn, backendConn)
+	copyAsync("request->backend", requestHijackedConn, backendConn, done)
+
 	log.Debugf("Successfully upgraded to protocol %s by user request", getUpgradeRequest(req))
-	// Wait for goroutine to finish, such that the established connection does not break.
-	wg.Wait()
+
+	// Wait for either copyAsync to complete.
+	// Return from this method closes both request and backend connections via defer
+	// and thus unblocks the second copyAsync.
+	<-done
 
 	if p.useAuditLog {
 		select {
@@ -203,14 +205,14 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 	}
 }
 
-func copyAsync(wg *sync.WaitGroup, src io.Reader, dst ...io.Writer) {
+func copyAsync(dir string, src io.Reader, dst io.Writer, done chan<- struct{}) {
 	go func() {
-		w := io.MultiWriter(dst...)
-		_, err := io.Copy(w, src)
+		_, err := io.Copy(dst, src)
+		// net: errClosing not exported https://github.com/golang/go/issues/4373
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-			log.Errorf("error proxying data from src to dst: %v", err)
+			log.Errorf("error copying data %s: %v", dir, err)
 		}
-		wg.Done()
+		done <- struct{}{}
 	}()
 }
 
