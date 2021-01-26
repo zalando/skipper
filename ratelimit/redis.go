@@ -18,6 +18,8 @@ import (
 type RedisOptions struct {
 	// Addrs are the list of redis shards
 	Addrs []string
+	// Password is the password needed to connect to Redis server
+	Password string
 	// DialTimeout is the max time.Duration to dial a new connection
 	DialTimeout time.Duration
 	// ReadTimeout for redis socket reads
@@ -92,6 +94,7 @@ func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
 		ringOptions.PoolTimeout = ro.PoolTimeout
 		ringOptions.MinIdleConns = ro.MinIdleConns
 		ringOptions.PoolSize = ro.MaxIdleConns
+		ringOptions.Password = ro.Password
 
 		if ro.ConnMetricsInterval <= 0 {
 			ro.ConnMetricsInterval = defaultConnMetricsInterval

@@ -710,6 +710,7 @@ type Options struct {
 	EnableSwarm bool
 	// redis based swarm
 	SwarmRedisURLs         []string
+	SwarmRedisPassword     string
 	SwarmRedisDialTimeout  time.Duration
 	SwarmRedisReadTimeout  time.Duration
 	SwarmRedisWriteTimeout time.Duration
@@ -1203,6 +1204,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 			redisOptions = &ratelimit.RedisOptions{
 				Addrs:               o.SwarmRedisURLs,
+				Password:            o.SwarmRedisPassword,
 				DialTimeout:         o.SwarmRedisDialTimeout,
 				ReadTimeout:         o.SwarmRedisReadTimeout,
 				WriteTimeout:        o.SwarmRedisWriteTimeout,

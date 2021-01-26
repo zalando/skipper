@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -207,7 +208,8 @@ type Config struct {
 	// swarm:
 	EnableSwarm bool `yaml:"enable-swarm"`
 	// redis based
-	SwarmRedisURLs         *listFlag     `yaml:"swarm-redis-urls"`
+	SwarmRedisURLs         *listFlag `yaml:"swarm-redis-urls"`
+	SwarmRedisPassword     string
 	SwarmRedisDialTimeout  time.Duration `yaml:"swarm-redis-dial-timeout"`
 	SwarmRedisReadTimeout  time.Duration `yaml:"swarm-redis-read-timeout"`
 	SwarmRedisWriteTimeout time.Duration `yaml:"swarm-redis-write-timeout"`
@@ -735,6 +737,7 @@ func (c *Config) Parse() error {
 		c.Certificates = certificates
 	}
 
+	c.parseEnv()
 	return nil
 }
 
@@ -913,6 +916,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableSwarm: c.EnableSwarm,
 		// redis based
 		SwarmRedisURLs:         c.SwarmRedisURLs.values,
+		SwarmRedisPassword:     c.SwarmRedisPassword,
 		SwarmRedisDialTimeout:  c.SwarmRedisDialTimeout,
 		SwarmRedisReadTimeout:  c.SwarmRedisReadTimeout,
 		SwarmRedisWriteTimeout: c.SwarmRedisWriteTimeout,
@@ -995,4 +999,9 @@ func (c *Config) parseHistogramBuckets() ([]float64, error) {
 	}
 	sort.Float64s(result)
 	return result, nil
+}
+
+func (c *Config) parseEnv() {
+	// Redis password
+	c.SwarmRedisPassword = os.Getenv("SWARM_REDIS_PASSWORD")
 }

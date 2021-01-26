@@ -12,9 +12,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func Test_NewConfig(t *testing.T) {
-	cfg := NewConfig()
+// Move configuration init here to avoid race conditions when parsing flags in multiple tests
+var cfg = NewConfig()
 
+var redisPasswordEnv = "SWARM_REDIS_PASSWORD"
+
+func Test_NewConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		args    []string
@@ -180,4 +183,46 @@ func TestMinTLSVersion(t *testing.T) {
 			t.Error(`Failed to get correct TLS version for "11"`)
 		}
 	})
+}
+
+func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		env  string
+		want string
+	}{
+		{
+			name: "set redis password from environment",
+			args: []string{"skipper"},
+			env:  "set_from_env",
+			want: "set_from_env",
+		},
+		{
+			name: "don't set redis password from environment",
+			args: []string{"skipper"},
+			env:  "",
+			want: "",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			oldArgs := os.Args
+			defer func() {
+				os.Args = oldArgs
+				os.Unsetenv(redisPasswordEnv)
+			}()
+			os.Args = tt.args
+			if tt.env != "" {
+				os.Setenv(redisPasswordEnv, tt.env)
+			}
+			err := cfg.Parse()
+			if err != nil {
+				t.Errorf("config.NewConfig() error = %v", err)
+			}
+
+			if cfg.SwarmRedisPassword != tt.want {
+				t.Errorf("cfg.SwarmRedisPassword didn't set correctly: Want '%s', got '%s'", tt.want, cfg.SwarmRedisPassword)
+			}
+		})
+	}
 }
