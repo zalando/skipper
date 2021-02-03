@@ -958,7 +958,14 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
 			return nil, &proxyError{err: err, code: status}
 		}
-
+		if req.URL.Scheme == "fastcgi" {
+			var status int
+			if strings.Contains(err.Error(), "Primary script unknown") {
+				status = http.StatusNotFound
+			}
+			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
+			return nil, &proxyError{err: err, code: status}
+		}
 		p.log.Errorf("Unexpected error from Go stdlib net/http package during roundtrip: %v", err)
 		return nil, &proxyError{err: err}
 	}
@@ -1256,6 +1263,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	switch {
+	case code == 404:
 	case code == 499:
 		req := ctx.Request()
 		remoteAddr := remoteHost(req)
