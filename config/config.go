@@ -208,8 +208,8 @@ type Config struct {
 	// swarm:
 	EnableSwarm bool `yaml:"enable-swarm"`
 	// redis based
-	SwarmRedisURLs         *listFlag `yaml:"swarm-redis-urls"`
-	SwarmRedisPassword     string
+	SwarmRedisURLs         *listFlag     `yaml:"swarm-redis-urls"`
+	SwarmRedisPassword     string        `yaml:"swarm-redis-password"`
 	SwarmRedisDialTimeout  time.Duration `yaml:"swarm-redis-dial-timeout"`
 	SwarmRedisReadTimeout  time.Duration `yaml:"swarm-redis-read-timeout"`
 	SwarmRedisWriteTimeout time.Duration `yaml:"swarm-redis-write-timeout"`
@@ -445,7 +445,7 @@ const (
 	swarmPortUsage                         = "swarm port to use to communicate with our peers"
 	swarmMaxMessageBufferUsage             = "swarm max message buffer size to use for member list messages"
 	swarmLeaveTimeoutUsage                 = "swarm leave timeout to use for leaving the memberlist on timeout"
-	swarmRedisURLsUsage                    = "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits"
+	swarmRedisURLsUsage                    = "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits.\nUse " + redisPasswordEnv + " environment variable or 'swarm-redis-password' key in config file to set redis password"
 	swarmStaticSelfUsage                   = "set static swarm self node, for example 127.0.0.1:9001"
 	swarmStaticOtherUsage                  = "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003"
 	swarmRedisDialTimeoutUsage             = "set redis client dial timeout"
@@ -454,6 +454,9 @@ const (
 	swarmRedisPoolTimeoutUsage             = "set redis get connection from pool timeout"
 	swarmRedisMaxConnsUsage                = "set max number of connections to redis"
 	swarmRedisMinConnsUsage                = "set min number of connections to redis"
+
+	// environment keys:
+	redisPasswordEnv = "SWARM_REDIS_PASSWORD"
 )
 
 func NewConfig() *Config {
@@ -1002,6 +1005,8 @@ func (c *Config) parseHistogramBuckets() ([]float64, error) {
 }
 
 func (c *Config) parseEnv() {
-	// Redis password
-	c.SwarmRedisPassword = os.Getenv("SWARM_REDIS_PASSWORD")
+	// Set Redis password from environment variable if not set earlier (configuration file)
+	if c.SwarmRedisPassword == "" {
+		c.SwarmRedisPassword = os.Getenv(redisPasswordEnv)
+	}
 }
