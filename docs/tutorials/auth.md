@@ -261,7 +261,10 @@ It works as follows:
 1. The provider redirects the user back to Skipper with an authorization code, using the 
    callback URL parameter which was part of the previous redirect. The callback route must
    have a `grantCallback()` filter defined. Skipper automatically adds this callback route for you
-   when the OAuth2 authorization grant flow feature is enabled.
+   when the OAuth2 authorization grant flow feature is enabled. Note that the automatically added
+	 callback route does not apply [default filters](../../operation/operation/#default-filters).
+	 If you need default filters to be applied to the callback route as well, please register
+	 the route manually in your routes files.
 1. Skipper calls the provider's token URL with the authorization code, and receives a response 
    with the access and refresh tokens.
 1. Skipper stores the tokens in an `oauth-grant`<sup>1</sup> cookie which is stored in the user's browser.
