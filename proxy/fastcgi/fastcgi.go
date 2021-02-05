@@ -3,8 +3,10 @@ package fastcgi
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"github.com/yookoala/gofast"
 	"github.com/zalando/skipper/logging"
@@ -70,7 +72,19 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp.WriteTo(rr, errBuffer)
 
 	if errBuffer.Len() > 0 {
-		return nil, fmt.Errorf("gofast: error stream from application process %s", errBuffer.String())
+		if strings.Contains(errBuffer.String(), "Primary script unknown") {
+			body := "Not Found"
+			return &http.Response{
+				Status:        "404 Not Found",
+				StatusCode:    404,
+				Body:          ioutil.NopCloser(bytes.NewBufferString(body)),
+				ContentLength: int64(len(body)),
+				Request:       req,
+				Header:        make(http.Header),
+			}, nil
+		} else {
+			return nil, fmt.Errorf("gofast: error stream from application process %s", errBuffer.String())
+		}
 	}
 
 	return rr.Result(), nil
