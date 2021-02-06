@@ -76,7 +76,7 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 			body := "Not Found"
 			return &http.Response{
 				Status:        "404 Not Found",
-				StatusCode:    404,
+				StatusCode:    http.StatusNotFound,
 				Body:          ioutil.NopCloser(bytes.NewBufferString(body)),
 				ContentLength: int64(len(body)),
 				Request:       req,
