@@ -73,7 +73,7 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	if errBuffer.Len() > 0 {
 		if strings.Contains(errBuffer.String(), "Primary script unknown") {
-			body := "Not Found"
+			body := http.StatusText(http.StatusNotFound)
 			return &http.Response{
 				Status:        "404 Not Found",
 				StatusCode:    http.StatusNotFound,
