@@ -351,6 +351,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Routing) startReceivingUpdates(o Options) {
+	dc := len(o.DataClients)
 	c := make(chan *routeTable)
 	go receiveRouteMatcher(o, c, r.quit)
 	go func() {
@@ -359,8 +360,11 @@ func (r *Routing) startReceivingUpdates(o Options) {
 			case rt := <-c:
 				r.routeTable.Store(rt)
 				if !r.firstLoadSignaled {
-					close(r.firstLoad)
-					r.firstLoadSignaled = true
+					dc--
+					if dc == 0 {
+						close(r.firstLoad)
+						r.firstLoadSignaled = true
+					}
 				}
 				r.log.Info("route settings applied")
 			case <-r.quit:
