@@ -5,9 +5,12 @@
 package eskip
 
 import (
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
+
+	snet "github.com/zalando/skipper/net"
 )
 
 var placeholderRegexp = regexp.MustCompile(`\$\{([^{}]+)\}`)
@@ -71,8 +74,17 @@ func (t *Template) ApplyContext(ctx TemplateContext) (string, bool) {
 			}
 			return ""
 		}
-		if key == "request.path" {
+		switch key {
+		case "request.path":
 			return ctx.Request().URL.Path
+		case "request.source":
+			return snet.RemoteHost(ctx.Request()).String()
+		case "request.sourceFromLast":
+			return snet.RemoteHostFromLast(ctx.Request()).String()
+		case "request.clientIP":
+			if host, _, err := net.SplitHostPort(ctx.Request().RemoteAddr); err == nil {
+				return host
+			}
 		}
 		if ctx.Response() != nil {
 			if h := strings.TrimPrefix(key, "response.header."); h != key {

@@ -26,6 +26,10 @@ Template placeholder is replaced by the value that is looked up in the following
 * request url query (if starts with `request.query.` prefix, e.g `${request.query.q}` is replaced by `q` query parameter value)
 * request headers (if starts with `request.header.` prefix, e.g `${request.header.Content-Type}` is replaced by `Content-Type` request header value)
 * request cookies (if starts with `request.cookie.` prefix, e.g `${request.cookie.PHPSESSID}` is replaced by `PHPSESSID` request cookie value)
+* request IP address 
+    - `${request.source}` - first IP address from `X-Forwarded-For` header or request remote IP address if header is absent, similar to [Source](predicates.md#source) predicate
+    - `${request.sourceFromLast}` - last IP address from `X-Forwarded-For` header or request remote IP address if header is absent, similar to [SourceFromLast](predicates.md#sourcefromlast) predicate
+    - `${request.clientIP}` - request remote IP address similar to [ClientIP](predicates.md#clientip) predicate
 * response headers (if starts with `response.header.` prefix, e.g `${response.header.Location}` is replaced by `Location` response header value)
 * filter context path parameters (e.g. `${id}` is replaced by `id` path parameter value)
 
