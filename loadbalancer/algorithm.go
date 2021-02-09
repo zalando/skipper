@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"net/url"
+	"sort"
 	"sync"
 	"time"
 
@@ -190,31 +191,51 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return withFadeIn(r.rand, ctx, r.notFadingIndexes, r.fadingWeights, i)
 }
 
-type consistentHash struct{}
+type (
+	endpointHash struct {
+		index int    // index of endpoint in endpoint list
+		hash  uint32 // hash of endpoint
+	}
+	consistentHash []endpointHash // list of endpoints sorted by hash value
+)
+
+func (ch consistentHash) Len() int           { return len(ch) }
+func (ch consistentHash) Less(i, j int) bool { return ch[i].hash < ch[j].hash }
+func (ch consistentHash) Swap(i, j int)      { ch[i], ch[j] = ch[j], ch[i] }
 
 func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	return &consistentHash{}
+	ch := consistentHash(make([]endpointHash, len(endpoints)))
+	for i, ep := range endpoints {
+		ch[i] = endpointHash{i, hash(ep)}
+	}
+	sort.Sort(ch)
+	return ch
+}
+
+func hash(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
+}
+
+// Returns index of endpoint with closest hash to key's hash
+func (ch consistentHash) search(key string) int {
+	h := hash(key)
+	i := sort.Search(ch.Len(), func(i int) bool { return ch[i].hash >= h })
+	if i == ch.Len() { // rollover
+		i = 0
+	}
+	return ch[i].index
 }
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
-func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+func (ch consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	if len(ctx.Route.LBEndpoints) == 1 {
 		return ctx.Route.LBEndpoints[0]
 	}
 
-	var sum uint32
-	h := fnv.New32()
-
 	key := net.RemoteHost(ctx.Request).String()
-	if _, err := h.Write([]byte(key)); err != nil {
-		log.Errorf("Failed to write '%s' into hash: %v", key, err)
-		return ctx.Route.LBEndpoints[rand.Intn(len(ctx.Route.LBEndpoints))] // #nosec
-	}
-	sum = h.Sum32()
-	choice := int(sum) % len(ctx.Route.LBEndpoints)
-	if choice < 0 {
-		choice = len(ctx.Route.LBEndpoints) + choice
-	}
+	choice := ch.search(key)
 
 	return ctx.Route.LBEndpoints[choice]
 }
