@@ -1,30 +1,109 @@
-//+build redis
-
 package ratelimit
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os/exec"
 	"testing"
 	"time"
 )
 
-func startRedis(port string) func() {
+func startRedis(port, password string) func() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
-	cmd := exec.CommandContext(ctx, "redis-server", "--port", port)
+	cmdArgs := []string{"--port", port}
+	if password != "" {
+		cmdArgs = append(cmdArgs, "--requirepass")
+		cmdArgs = append(cmdArgs, password)
+	}
+	cmd := exec.CommandContext(ctx, "redis-server", cmdArgs...)
 	err := cmd.Start()
 	if err != nil {
 		log.Fatalf("Run '%q %q' failed, caused by: %s", cmd.Path, cmd.Args, err)
 	}
+
 	return func() { cancel(); _ = cmd.Wait() }
+}
+
+func Test_clusterLimitRedis_WithPass(t *testing.T) {
+	redisPort := "16379"
+	redisPassword := "pass"
+
+	cancel := startRedis(redisPort, redisPassword)
+	defer cancel()
+
+	clusterClientlimit := Settings{
+		Type:       ClusterClientRatelimit,
+		Lookuper:   NewHeaderLookuper("X-Test"),
+		MaxHits:    5,
+		TimeWindow: time.Second,
+		Group:      "Auth",
+	}
+
+	tests := []struct {
+		name       string
+		settings   Settings
+		iterations int
+		args       string
+		addrs      []string
+		password   string
+		want       bool
+	}{
+		{
+			name:       "correct password",
+			settings:   clusterClientlimit,
+			args:       "clientAuth",
+			addrs:      []string{fmt.Sprintf("127.0.0.1:%s", redisPort)},
+			password:   redisPassword,
+			iterations: 6,
+			want:       false,
+		},
+		{
+			name:       "wrong password",
+			settings:   clusterClientlimit,
+			args:       "clientAuth",
+			addrs:      []string{fmt.Sprintf("127.0.0.1:%s", redisPort)},
+			password:   "wrong",
+			iterations: 6,
+			want:       true,
+		},
+		{
+			name:       "no password",
+			settings:   clusterClientlimit,
+			args:       "clientAuth",
+			addrs:      []string{fmt.Sprintf("127.0.0.1:%s", redisPort)},
+			password:   "",
+			iterations: 6,
+			want:       true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			q := make(chan struct{})
+			defer close(q)
+			c := newClusterRateLimiterRedis(
+				tt.settings,
+				newRing(&RedisOptions{Addrs: tt.addrs, Password: tt.password}, q),
+				tt.settings.Group,
+			)
+
+			var got bool
+			for i := 0; i < tt.iterations; i++ {
+				got = c.Allow(tt.args)
+			}
+			if got != tt.want {
+				t.Errorf("clusterLimitRedis.Allow() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func Test_clusterLimitRedis_Allow(t *testing.T) {
 	redisPort := "16379"
 
-	cancel := startRedis(redisPort)
+	cancel := startRedis(redisPort, "")
 	defer cancel()
 
 	clusterlimit := Settings{
@@ -103,7 +182,7 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 func Test_clusterLimitRedis_Delta(t *testing.T) {
 	redisPort := "16380"
 
-	cancel := startRedis(redisPort)
+	cancel := startRedis(redisPort, "")
 	defer cancel()
 
 	clusterlimit := Settings{
@@ -169,7 +248,7 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 func Test_clusterLimitRedis_Oldest(t *testing.T) {
 	redisPort := "16381"
 
-	cancel := startRedis(redisPort)
+	cancel := startRedis(redisPort, "")
 	defer cancel()
 
 	clusterlimit := Settings{
@@ -236,7 +315,7 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 	redisPort := "16382"
 
-	cancel := startRedis(redisPort)
+	cancel := startRedis(redisPort, "")
 	defer cancel()
 
 	clusterlimit := Settings{

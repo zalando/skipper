@@ -12,9 +12,57 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func Test_NewConfig(t *testing.T) {
-	cfg := NewConfig()
+// Move configuration init here to avoid race conditions when parsing flags in multiple tests
+var cfg = NewConfig()
 
+func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		env  string
+		want string
+	}{
+		{
+			name: "don't set redis password either from file nor environment",
+			args: []string{"skipper"},
+			env:  "",
+			want: "",
+		},
+		{
+			name: "set redis password from environment",
+			args: []string{"skipper"},
+			env:  "set_from_env",
+			want: "set_from_env",
+		},
+		{
+			name: "set redis password from config file and ignore environment",
+			args: []string{"skipper", "-config-file=test.yaml"},
+			env:  "set_from_env",
+			want: "set_from_file",
+		},
+	} {
+		// Run test in non-concurrent way to avoid colisions of other test cases that parse config file
+		oldArgs := os.Args
+		defer func() {
+			os.Args = oldArgs
+			os.Unsetenv(redisPasswordEnv)
+		}()
+		os.Args = tt.args
+		if tt.env != "" {
+			os.Setenv(redisPasswordEnv, tt.env)
+		}
+		err := cfg.Parse()
+		if err != nil {
+			t.Errorf("config.NewConfig() error = %v", err)
+		}
+
+		if cfg.SwarmRedisPassword != tt.want {
+			t.Errorf("cfg.SwarmRedisPassword didn't set correctly: Want '%s', got '%s'", tt.want, cfg.SwarmRedisPassword)
+		}
+	}
+}
+
+func Test_NewConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		args    []string
@@ -94,6 +142,7 @@ func Test_NewConfig(t *testing.T) {
 				ResponseHeaderTimeoutBackend:            1 * time.Minute,
 				ExpectContinueTimeoutBackend:            30 * time.Second,
 				SwarmRedisURLs:                          commaListFlag(),
+				SwarmRedisPassword:                      "set_from_file",
 				SwarmRedisDialTimeout:                   25 * time.Millisecond,
 				SwarmRedisReadTimeout:                   25 * time.Millisecond,
 				SwarmRedisWriteTimeout:                  25 * time.Millisecond,
