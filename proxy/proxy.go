@@ -481,7 +481,7 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 		setRequestURLFromRequest(u, r)
 		setRequestURLForDynamicBackend(u, stateBag)
 	case eskip.LBBackend:
-		endpoint = setRequestURLForLoadBalancedBackend(u, rt, routing.NewLBContext(r, rt))
+		endpoint = setRequestURLForLoadBalancedBackend(u, rt, &routing.LBContext{Request: r, Route: rt, Params: stateBag})
 	default:
 		u.Scheme = rt.Scheme
 		u.Host = rt.Host

@@ -8,6 +8,7 @@ import (
 	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/circuit"
+	"github.com/zalando/skipper/filters/consistenthash"
 	"github.com/zalando/skipper/filters/cookie"
 	"github.com/zalando/skipper/filters/cors"
 	"github.com/zalando/skipper/filters/diag"
@@ -170,6 +171,7 @@ func MakeRegistry() filters.Registry {
 		rfc.NewPath(),
 		fadein.NewFadeIn(),
 		fadein.NewEndpointCreated(),
+		consistenthash.NewConsistentHashKey(),
 	} {
 		r.Register(s)
 	}

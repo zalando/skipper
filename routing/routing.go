@@ -182,10 +182,12 @@ type LBAlgorithm interface {
 type LBContext struct {
 	Request *http.Request
 	Route   *Route
+	Params  map[string]interface{}
 }
 
 // NewLBContext is used to create a new LBContext, to pass data to the
 // load balancer algorithms.
+// Deprecated: create LBContext instead
 func NewLBContext(r *http.Request, rt *Route) *LBContext {
 	return &LBContext{
 		Request: r,
