@@ -268,6 +268,65 @@ func TestTemplateApplyContext(t *testing.T) {
 		},
 		"Hello one two three four five",
 		true,
+	}, {
+		"request source and X-Forwarded-For present",
+		"${request.source}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				RemoteAddr: "192.168.0.1:9876",
+				Header: http.Header{
+					"X-Forwarded-For": []string{"203.0.113.195, 70.41.3.18, 150.172.238.178"},
+				},
+			},
+		},
+		"203.0.113.195",
+		true,
+	}, {
+		"request source and X-Forwarded-For absent",
+		"${request.source}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				RemoteAddr: "192.168.0.1:9876",
+			},
+		},
+		"192.168.0.1",
+		true,
+	}, {
+		"request sourceFromLast and X-Forwarded-For present",
+		"${request.sourceFromLast}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				RemoteAddr: "192.168.0.1:9876",
+				Header: http.Header{
+					"X-Forwarded-For": []string{"203.0.113.195, 70.41.3.18, 150.172.238.178"},
+				},
+			},
+		},
+		"150.172.238.178",
+		true,
+	}, {
+		"request sourceFromLast and X-Forwarded-For absent",
+		"${request.sourceFromLast}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				RemoteAddr: "192.168.0.1:9876",
+			},
+		},
+		"192.168.0.1",
+		true,
+	}, {
+		"request clientIP (ignores X-Forwarded-For)",
+		"${request.clientIP}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				RemoteAddr: "192.168.0.1:9876",
+				Header: http.Header{
+					"X-Forwarded-For": []string{"203.0.113.195, 70.41.3.18, 150.172.238.178"},
+				},
+			},
+		},
+		"192.168.0.1",
+		true,
 	},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
