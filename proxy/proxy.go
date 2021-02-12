@@ -972,7 +972,7 @@ func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTrip
 		f := "index.php"
 		if sf, ok := ctx.StateBag()["fastCgiFilename"]; ok {
 			f = sf.(string)
-		} else if req.URL.Path != "/" {
+		} else if len(req.URL.Path) > 1 && req.URL.Path != "/" {
 			f = req.URL.Path[1:]
 		}
 		rt, err := fastcgi.NewRoundTripper(p.log, req.URL.Host, f)

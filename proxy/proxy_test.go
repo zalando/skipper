@@ -590,53 +590,67 @@ func TestRoute(t *testing.T) {
 }
 
 func TestFastCgi(t *testing.T) {
-	payload := []byte("Hello, World!")
-	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Test-Response-Header", "response header value")
+	testTables := []struct {
+		path        string
+		payload     []byte
+		requestURI  string
+		httpRetCode int
+	}{
+		{"/hello", []byte("Hello, World!"), "https://www.example.org/hello", http.StatusOK},
+		{"/world", []byte("404 page not found\n"), "https://www.example.org/world/test.php", http.StatusNotFound},
+	}
 
-		if len(payload) <= 0 {
+	for _, table := range testTables {
+		payload := table.payload
+		http.HandleFunc(table.path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Test-Response-Header", "response header value")
+
+			if len(payload) <= 0 {
+				return
+			}
+
+			w.Header().Set("Content-Type", "text/plain")
+			w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+			w.WriteHeader(http.StatusOK)
+
+			w.Write(payload)
+		})
+
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			panic(err)
+		}
+		defer l.Close()
+
+		go fcgi.Serve(l, nil)
+
+		doc := fmt.Sprintf(`fastcgi: * -> "%s"`, "fastcgi://"+l.Addr().String())
+		tp, err := newTestProxy(doc, FlagsNone)
+		if err != nil {
+			t.Error(err)
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/plain")
-		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
-		w.WriteHeader(http.StatusOK)
+		defer tp.close()
 
-		w.Write(payload)
-	})
+		var (
+			r *http.Request
+			w *httptest.ResponseRecorder
+			u *url.URL
+		)
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		panic(err)
-	}
-	defer l.Close()
-
-	go fcgi.Serve(l, nil)
-
-	doc := fmt.Sprintf(`fastcgi: * -> "%s"`, "fastcgi://"+l.Addr().String())
-	tp, err := newTestProxy(doc, FlagsNone)
-	if err != nil {
-		t.Error(err)
-		return
+		u, _ = url.ParseRequestURI(table.requestURI)
+		r = &http.Request{
+			URL:    u,
+			Method: "GET"}
+		w = httptest.NewRecorder()
+		tp.proxy.ServeHTTP(w, r)
+		if w.Code != table.httpRetCode || !bytes.Equal(w.Body.Bytes(), table.payload) {
+			t.Errorf("wrong routing for %s, body got:%s want:%s", table.requestURI, w.Body.Bytes(), table.payload)
+			t.Errorf("wrong routing for %s, status got: %d, want: %d.", table.requestURI, w.Code, table.httpRetCode)
+		}
 	}
 
-	defer tp.close()
-
-	var (
-		r *http.Request
-		w *httptest.ResponseRecorder
-		u *url.URL
-	)
-
-	u, _ = url.ParseRequestURI("https://www.example.org/hello")
-	r = &http.Request{
-		URL:    u,
-		Method: "GET"}
-	w = httptest.NewRecorder()
-	tp.proxy.ServeHTTP(w, r)
-	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload) {
-		t.Error("wrong routing 1")
-	}
 }
 
 func TestFastCgiServiceUnavailable(t *testing.T) {
