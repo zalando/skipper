@@ -2226,6 +2226,14 @@ Example: Set tag from request header
 tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 ```
 
+## tracingSpanName
+
+This filter sets the name of the outgoing (client span) in opentracing. The default name is "proxy". Example:
+
+```
+tracingSpanName("api-operation")
+```
+
 ## originMarker
 
 This filter is used to measure the time it took to create a route. Other than that, it's a no-op.
