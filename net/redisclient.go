@@ -153,12 +153,8 @@ func (r *RedisRingClient) StartMetricsCollection() {
 	}()
 }
 
-func (r *RedisRingClient) Metrics() metrics.Metrics {
-	return r.metrics
-}
-
-func (r *RedisRingClient) Tracer() opentracing.Tracer {
-	return r.tracer
+func (r *RedisRingClient) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
+	return r.tracer.StartSpan(operationName, opts...)
 }
 
 func (r *RedisRingClient) Close() {

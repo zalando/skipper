@@ -87,7 +87,7 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 		return nop
 	}
 
-	span := c.ringClient.Tracer().StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
+	span := c.ringClient.StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
 	ext.Component.Set(span, "skipper")
 	ext.SpanKind.Set(span, "client")
 	span.SetTag("group", c.group)
