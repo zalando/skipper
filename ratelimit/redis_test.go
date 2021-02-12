@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/net"
 )
 
 func startRedis(port, password string) func() {
@@ -81,11 +83,14 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{
+				Addrs:    []string{"127.0.0.1:" + redisPort},
+				Password: tt.password,
+			})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: tt.addrs, Password: tt.password}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
@@ -160,11 +165,11 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
@@ -226,11 +231,11 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
@@ -292,11 +297,11 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
@@ -359,11 +364,11 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
