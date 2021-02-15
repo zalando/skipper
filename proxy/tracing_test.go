@@ -134,7 +134,7 @@ func TestTracingIngressSpan(t *testing.T) {
 	verifyTag(t, span, HTTPPathTag, "/hello")
 	verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
-	verifyTag(t, span, HTTPStatusCodeTag, nil) // status tag is not set on ingress span
+	verifyTag(t, span, HTTPStatusCodeTag, uint16(200))
 }
 
 func TestTracingSpanName(t *testing.T) {
