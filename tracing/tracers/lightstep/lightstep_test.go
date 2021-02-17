@@ -97,11 +97,33 @@ func TestParseOptions(t *testing.T) {
 			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
 		},
 		{
-			name: "test with token set tags",
+			name: "test with token set component name",
 			opts: []string{
 				"token=" + token,
-				"tag=cluster=my-test",
-				"tag=foo=bar",
+				"component-name=skipper-ingress",
+			},
+			want: lightstep.Options{
+				AccessToken: token,
+				Collector: lightstep.Endpoint{
+					Host: lightstep.DefaultGRPCCollectorHost,
+					Port: lightstep.DefaultSecurePort,
+				},
+				UseGRPC: true,
+				Tags: map[string]interface{}{
+					lightstep.ComponentNameKey: "skipper-ingress",
+				},
+				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
+				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
+				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
+			},
+			wantErr:     false,
+			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+		},
+		{
+			name: "test with token set protocol to grpc use grpc",
+			opts: []string{
+				"token=" + token,
+				"protocol=grpc",
 			},
 			want: lightstep.Options{
 				AccessToken: token,
@@ -112,8 +134,29 @@ func TestParseOptions(t *testing.T) {
 				UseGRPC: true,
 				Tags: map[string]interface{}{
 					lightstep.ComponentNameKey: defComponentName,
-					"cluster":                  "my-test",
-					"foo":                      "bar",
+				},
+				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
+				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
+				MinReportingPeriod:          lightstep.DefaultMinReportingPeriod,
+			},
+			wantErr:     false,
+			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
+		},
+		{
+			name: "test with token set protocol to http does not use grpc",
+			opts: []string{
+				"token=" + token,
+				"protocol=http",
+			},
+			want: lightstep.Options{
+				AccessToken: token,
+				Collector: lightstep.Endpoint{
+					Host: lightstep.DefaultGRPCCollectorHost,
+					Port: lightstep.DefaultSecurePort,
+				},
+				UseGRPC: false,
+				Tags: map[string]interface{}{
+					lightstep.ComponentNameKey: defComponentName,
 				},
 				GRPCMaxCallSendMsgSizeBytes: defaultGRPMaxMsgSize,
 				ReportingPeriod:             lightstep.DefaultMaxReportingPeriod,
@@ -194,7 +237,7 @@ func TestParseOptions(t *testing.T) {
 			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
 		},
 		{
-			name: "test with token and wront reporting period values should fail",
+			name: "test with token and wrong reporting period values should fail",
 			opts: []string{
 				"token=" + token,
 				"min-period=2100ms",

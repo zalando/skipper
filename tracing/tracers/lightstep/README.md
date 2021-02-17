@@ -1,10 +1,11 @@
 # lightstep tracer
 
-As with [other tracers](https://pkg.go.dev/github.com/zalando/skipper/tracing), the lightstep tracer is configured by setting 
+As with [other tracers](https://pkg.go.dev/github.com/zalando/skipper/tracing), the lightstep tracer is configured by setting
 `-opentracing="lightstep OPTIONS"`. Valid options are:
 
 * `component-name` - set component name instead of `skipper`
 * `token` - Access token for the lightstep satellites (REQUIRED)
+* `protocol` - sets `UseGRPC` option to true if set to `"grpc"`, defaults to `"grpc"`
 * `grpc-max-msg-size` - maximum size for gRPC messages
 * `min-period` - minimum time to wait before sending spans to the satellites, string with value parseable by `time.ParseDuration`
 * `max-period` - maximum time to wait before sending spans to the satellites, string with value parseable by `time.ParseDuration`
