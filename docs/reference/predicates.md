@@ -310,9 +310,10 @@ JWTPayloadAnyKVRegexp("iss", "^https://")
 An interval implements custom predicates to match routes only during some period of time.
 
 There are three predicates: Between, Before and After. All
-predicates can be created using the date represented as a string in
-RFC3339 format (see https://golang.org/pkg/time/#pkg-constants), int64
-or float64 number. float64 number will be converted into int64 number.
+predicates can be created using the date represented as:
+* a string in RFC3339 format (see https://golang.org/pkg/time/#pkg-constants)
+* a string in RFC3339 format without numeric timezone offset and a location name corresponding to a file in the IANA Time Zone database
+* an `int64` or `float64` number corresponding to the given Unix time in seconds since January 1, 1970 UTC. `float64` number will be converted into `int64` number
 
 ### After
 
@@ -320,13 +321,15 @@ Matches if the request is after the specified time
 
 Parameters:
 
-* After (string) date string
-* After (int) unixtime
+* After (string) RFC3339 datetime string
+* After (string, string) RFC3339 datetime string without timezone offset, location name
+* After (int) unixtime in seconds
 
 Examples:
 
 ```
 After("2016-01-01T12:00:00+02:00")
+After("2021-02-18T00:00:00", "Europe/Berlin")
 After(1451642400)
 ```
 
@@ -336,28 +339,33 @@ Matches if the request is before the specified time
 
 Parameters:
 
-* Before (string) date string
-* Before (int) unixtime
+* Before (string) RFC3339 datetime string
+* Before (string, string) RFC3339 datetime string without timezone offset, location name
+* Before (int) unixtime in seconds
 
 Examples:
 
 ```
 Before("2016-01-01T12:00:00+02:00")
+Before("2021-02-18T00:00:00", "Europe/Berlin")
 Before(1451642400)
 ```
+
 ### Between
 
 Matches if the request is between the specified timeframe
 
 Parameters:
 
-* Between (string, string) date string, from - till
-* Between (int, int) unixtime, from - till
+* Between (string, string) RFC3339 datetime string, from - till
+* Between (string, string, string) RFC3339 datetime string without timezone offset, from - till and a location name
+* Between (int, int) unixtime in seconds, from - till
 
 Examples:
 
 ```
 Between("2016-01-01T12:00:00+02:00", "2016-02-01T12:00:00+02:00")
+Between("2021-02-18T00:00:00", "2021-02-18T01:00:00", "Europe/Berlin")
 Between(1451642400, 1454320800)
 ```
 

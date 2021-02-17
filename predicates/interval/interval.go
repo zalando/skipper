@@ -2,11 +2,12 @@
 Package interval implements custom predicates to match routes
 only during some period of time.
 
-Package includes three predicates:
-Between, Before and After. All predicates can be created using the date
-represented as a string in RFC3339 format (see https://golang.org/pkg/time/#pkg-constants),
-int64 or float64 number. float64 number will be converted into int64
-number.
+Package includes three predicates: Between, Before and After.
+All predicates can be created using the date represented as:
+- a string in RFC3339 format (see https://golang.org/pkg/time/#pkg-constants)
+- a string in RFC3339 format without numeric timezone offset and a location name (see https://golang.org/pkg/time/#LoadLocation)
+- an int64 or float64 number corresponding to the given Unix time in seconds since January 1, 1970 UTC.
+  float64 number will be converted into int64 number.
 
 Between predicate matches only if current date is inside the specified
 range of dates. Between predicate requires two dates to be constructed.
@@ -27,8 +28,12 @@ Examples:
 	example3: Path("/zalando") && Before("2016-02-01T12:00:00+02:00") -> "https://www.zalando.de";
 	example4: Path("/zalando") && Before(1454320800) -> "https://www.zalando.de";
 
-	example3: Path("/zalando") && After("2016-01-01T12:00:00+02:00") -> "https://www.zalando.de";
-	example4: Path("/zalando") && After(1451642400) -> "https://www.zalando.de";
+	example5: Path("/zalando") && After("2016-01-01T12:00:00+02:00") -> "https://www.zalando.de";
+	example6: Path("/zalando") && After(1451642400) -> "https://www.zalando.de";
+
+	example7: Path("/zalando") && Between("2021-02-18T00:00:00", "2021-02-18T01:00:00", "Europe/Berlin") -> "https://www.zalando.de";
+	example8: Path("/zalando") && Before("2021-02-18T00:00:00", "Europe/Berlin") -> "https://www.zalando.de";
+	example9: Path("/zalando") && After("2021-02-18T00:00:00", "Europe/Berlin") -> "https://www.zalando.de";
 
 */
 package interval
@@ -41,36 +46,34 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-type intervalType int
+type spec int
 
 const (
-	between intervalType = iota
+	between spec = iota
 	before
 	after
 )
 
-type spec struct {
-	typ intervalType
-}
+const rfc3339nz = "2006-01-02T15:04:05" // RFC3339 without numeric timezone offset
 
 type predicate struct {
-	typ     intervalType
+	typ     spec
 	begin   time.Time
 	end     time.Time
 	getTime func() time.Time
 }
 
 // Creates Between predicate.
-func NewBetween() routing.PredicateSpec { return &spec{between} }
+func NewBetween() routing.PredicateSpec { return between }
 
 // Creates Before predicate.
-func NewBefore() routing.PredicateSpec { return &spec{before} }
+func NewBefore() routing.PredicateSpec { return before }
 
 // Creates After predicate.
-func NewAfter() routing.PredicateSpec { return &spec{after} }
+func NewAfter() routing.PredicateSpec { return after }
 
-func (s *spec) Name() string {
-	switch s.typ {
+func (s spec) Name() string {
+	switch s {
 	case between:
 		return "Between"
 	case before:
@@ -82,66 +85,71 @@ func (s *spec) Name() string {
 	}
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
-	switch s.typ {
-	case between:
-		if len(args) != 2 {
-			return nil, predicates.ErrInvalidPredicateParameters
-		}
-	default:
-		if len(args) != 1 {
-			return nil, predicates.ErrInvalidPredicateParameters
-		}
-	}
+func (s spec) Create(args []interface{}) (routing.Predicate, error) {
+	p := predicate{typ: s, getTime: time.Now}
+	var loc *time.Location
+	switch {
+	case
+		s == between && len(args) == 3 && parseLocation(args[2], &loc) && parseRFCnz(args[0], &p.begin, loc) && parseRFCnz(args[1], &p.end, loc) && p.begin.Before(p.end),
+		s == between && len(args) == 2 && parseRFC(args[0], &p.begin) && parseRFC(args[1], &p.end) && p.begin.Before(p.end),
+		s == between && len(args) == 2 && parseUnix(args[0], &p.begin) && parseUnix(args[1], &p.end) && p.begin.Before(p.end),
 
-	defaultGetTime := func() time.Time {
-		return time.Now()
-	}
+		s == before && len(args) == 2 && parseLocation(args[1], &loc) && parseRFCnz(args[0], &p.end, loc),
+		s == before && len(args) == 1 && parseRFC(args[0], &p.end),
+		s == before && len(args) == 1 && parseUnix(args[0], &p.end),
 
-	switch s.typ {
-	case between:
-		if begin, end, ok := parseArgs(args[0], args[1]); ok {
-			if begin.Before(end) {
-				return &predicate{s.typ, begin, end, defaultGetTime}, nil
-			}
-		}
-	case before:
-		if end, ok := parseArg(args[0]); ok {
-			return &predicate{typ: s.typ, end: end, getTime: defaultGetTime}, nil
-		}
-	case after:
-		if begin, ok := parseArg(args[0]); ok {
-			return &predicate{typ: s.typ, begin: begin, getTime: defaultGetTime}, nil
-		}
-	}
+		s == after && len(args) == 2 && parseLocation(args[1], &loc) && parseRFCnz(args[0], &p.begin, loc),
+		s == after && len(args) == 1 && parseRFC(args[0], &p.begin),
+		s == after && len(args) == 1 && parseUnix(args[0], &p.begin):
 
+		return &p, nil
+	}
 	return nil, predicates.ErrInvalidPredicateParameters
 }
 
-func parseArgs(arg1, arg2 interface{}) (time.Time, time.Time, bool) {
-	if begin, ok := parseArg(arg1); ok {
-		if end, ok := parseArg(arg2); ok {
-			return begin, end, true
-		}
+func parseUnix(arg interface{}, t *time.Time) bool {
+	switch a := arg.(type) {
+	case float64:
+		*t = time.Unix(int64(a), 0)
+		return true
+	case int64:
+		*t = time.Unix(a, 0)
+		return true
 	}
-
-	return time.Time{}, time.Time{}, false
+	return false
 }
 
-func parseArg(arg interface{}) (time.Time, bool) {
-	switch a := arg.(type) {
-	case string:
-		t, err := time.Parse(time.RFC3339, a)
+func parseRFC(arg interface{}, t *time.Time) bool {
+	if s, ok := arg.(string); ok {
+		tt, err := time.Parse(time.RFC3339, s)
 		if err == nil {
-			return t, true
+			*t = tt
+			return true
 		}
-	case float64:
-		return time.Unix(int64(a), 0), true
-	case int64:
-		return time.Unix(a, 0), true
 	}
+	return false
+}
 
-	return time.Time{}, false
+func parseRFCnz(arg interface{}, t *time.Time, loc *time.Location) bool {
+	if s, ok := arg.(string); ok {
+		tt, err := time.ParseInLocation(rfc3339nz, s, loc)
+		if err == nil {
+			*t = tt
+			return true
+		}
+	}
+	return false
+}
+
+func parseLocation(arg interface{}, loc **time.Location) bool {
+	if s, ok := arg.(string); ok {
+		location, err := time.LoadLocation(s)
+		if err == nil {
+			*loc = location
+			return true
+		}
+	}
+	return false
 }
 
 func (p *predicate) Match(r *http.Request) bool {
