@@ -143,6 +143,15 @@ func TestParseOptions(t *testing.T) {
 			propagators: map[opentracing.BuiltinFormat]lightstep.Propagator{opentracing.HTTPHeaders: defPropagator},
 		},
 		{
+			name: "test with token set protocol to foo returns error",
+			opts: []string{
+				"token=" + token,
+				"protocol=foo",
+			},
+			want:    lightstep.Options{},
+			wantErr: true,
+		},
+		{
 			name: "test with token set protocol to http does not use grpc",
 			opts: []string{
 				"token=" + token,
