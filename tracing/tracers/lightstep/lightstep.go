@@ -101,9 +101,7 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 			cmdLine = parts[1]
 			logCmdLine = true
 		case "protocol":
-			if parts[1] != "grpc" {
-				useGRPC = false
-			}
+			useGRPC = parts[1] != "http"
 		case "log-events":
 			logEvents = true
 		case "max-buffered-spans":
