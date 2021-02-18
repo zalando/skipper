@@ -33,6 +33,7 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		minReportingPeriod = lightstep.DefaultMinReportingPeriod
 		maxReportingPeriod = lightstep.DefaultMaxReportingPeriod
 		propagators        = make(map[opentracing.BuiltinFormat]lightstep.Propagator)
+		useGRPC            = true
 	)
 
 	componentName := defComponentName
@@ -99,6 +100,15 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		case "cmd-line":
 			cmdLine = parts[1]
 			logCmdLine = true
+		case "protocol":
+			switch parts[1] {
+			case "http":
+				useGRPC = false
+			case "grpc":
+				useGRPC = true
+			default:
+				return lightstep.Options{}, fmt.Errorf("failed to parse protocol allowed 'http' or 'grpc', got: %s", parts[1])
+			}
 		case "log-events":
 			logEvents = true
 		case "max-buffered-spans":
@@ -162,7 +172,7 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 			Port:      port,
 			Plaintext: plaintext,
 		},
-		UseGRPC:                     true,
+		UseGRPC:                     useGRPC,
 		Tags:                        tags,
 		MaxBufferedSpans:            maxBufferedSpans,
 		GRPCMaxCallSendMsgSizeBytes: grpcMaxMsgSize,
