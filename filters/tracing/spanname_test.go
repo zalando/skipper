@@ -22,4 +22,26 @@ func Test(t *testing.T) {
 	if bag[OpenTracingProxySpanKey] != spanName {
 		t.Error("failed to set the span name")
 	}
+
+	f.Response(&ctx)
+}
+
+func TestInvalid(t *testing.T) {
+	const spanName = "test-span"
+
+	_, err := NewSpanName().CreateFilter([]interface{}{spanName, "foo"})
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	_, err = NewSpanName().CreateFilter([]interface{}{3})
+	if err == nil {
+		t.Fatal(err)
+	}
+}
+func TestBoring(t *testing.T) {
+	s := NewSpanName().Name()
+	if s != SpanNameFilterName {
+		t.Fatalf("Wrong name")
+	}
 }

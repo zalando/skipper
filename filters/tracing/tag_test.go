@@ -9,6 +9,25 @@ import (
 	"github.com/zalando/skipper/filters/filtertest"
 )
 
+func TestTracingTagNil(t *testing.T) {
+	tracer := mocktracer.New()
+
+	ti.context.FRequest = ti.context.FRequest.WithContext()
+
+	s := NewTag()
+	f, err := s.CreateFilter([]interface{}{"test_tag", ti.value})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f.Request(ti.context)
+
+	if got := span.Tag("test_tag"); got != ti.expected {
+		t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
+	}
+
+}
+
 func TestTracingTag(t *testing.T) {
 	tracer := mocktracer.New()
 
