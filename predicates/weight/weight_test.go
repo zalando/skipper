@@ -1,4 +1,4 @@
-package routing
+package weight
 
 import (
 	"testing"
@@ -37,7 +37,7 @@ func TestWeightArgs(t *testing.T) {
 		false,
 	}} {
 		func() {
-			p, err := parseWeightPredicateArgs(ti.args)
+			p, err := ParseWeightPredicateArgs(ti.args)
 			if ti.err && err == nil {
 				t.Error(ti.msg, "failed to fail")
 			} else if !ti.err && err != nil {

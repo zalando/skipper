@@ -49,6 +49,15 @@ const (
 	after
 )
 
+const (
+	// BetweenName represents the name of the builtin between predicate.
+	BetweenName = "Between"
+	// BeforeName represents the name of the builtin before predicate.
+	BeforeName = "Before"
+	// AfterName represents the name of the builtin after predicate.
+	AfterName = "After"
+)
+
 type spec struct {
 	typ intervalType
 }
@@ -72,11 +81,11 @@ func NewAfter() routing.PredicateSpec { return &spec{after} }
 func (s *spec) Name() string {
 	switch s.typ {
 	case between:
-		return "Between"
+		return BetweenName
 	case before:
-		return "Before"
+		return BeforeName
 	case after:
-		return "After"
+		return AfterName
 	default:
 		panic("invalid interval predicate type")
 	}

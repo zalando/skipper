@@ -41,10 +41,14 @@ type valueMatcher interface {
 }
 
 const (
-	matchJWTPayloadAllKVName       = "JWTPayloadAllKV"
-	matchJWTPayloadAnyKVName       = "JWTPayloadAnyKV"
-	matchJWTPayloadAllKVRegexpName = "JWTPayloadAllKVRegexp"
-	matchJWTPayloadAnyKVRegexpName = "JWTPayloadAnyKVRegexp"
+	// MatchJWTPayloadAllKVName represents the name of the builtin JWT Payload all Key/Value predicate.
+	MatchJWTPayloadAllKVName = "JWTPayloadAllKV"
+	// MatchJWTPayloadAnyKVName represents the name of the builtin JWT Payload any Key/Value predicate.
+	MatchJWTPayloadAnyKVName = "JWTPayloadAnyKV"
+	// MatchJWTPayloadAllKVRegexpName represents the name of the builtin JWT Payload all Key/Value regexp predicate.
+	MatchJWTPayloadAllKVRegexpName = "JWTPayloadAllKVRegexp"
+	// MatchJWTPayloadAnyKVRegexpName represents the name of the builtin JWT Payload any Key/Value regexp predicate.
+	MatchJWTPayloadAnyKVRegexpName = "JWTPayloadAnyKVRegexp"
 
 	matchBehaviorAll matchBehavior = iota
 	matchBehaviorAny
@@ -73,7 +77,7 @@ type (
 
 func NewJWTPayloadAnyKV() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAnyKVName,
+		name:          MatchJWTPayloadAnyKVName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeExact,
 	}
@@ -81,7 +85,7 @@ func NewJWTPayloadAnyKV() routing.PredicateSpec {
 
 func NewJWTPayloadAllKV() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAllKVName,
+		name:          MatchJWTPayloadAllKVName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeExact,
 	}
@@ -89,7 +93,7 @@ func NewJWTPayloadAllKV() routing.PredicateSpec {
 
 func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAnyKVRegexpName,
+		name:          MatchJWTPayloadAnyKVRegexpName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeRegexp,
 	}
@@ -97,7 +101,7 @@ func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 
 func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAllKVRegexpName,
+		name:          MatchJWTPayloadAllKVRegexpName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeRegexp,
 	}

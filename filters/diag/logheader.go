@@ -8,6 +8,10 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	LogHeaderName = "logHeader"
+)
+
 type logHeader struct {
 	request  bool
 	response bool
@@ -15,7 +19,7 @@ type logHeader struct {
 
 // NewLogHeader creates a filter specification for the 'logHeader()' filter.
 func NewLogHeader() filters.Spec { return logHeader{} }
-func (logHeader) Name() string   { return "logHeader" }
+func (logHeader) Name() string   { return LogHeaderName }
 
 func (logHeader) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var (

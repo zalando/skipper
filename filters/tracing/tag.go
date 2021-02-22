@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	name = "tracingTag"
+	Name = "tracingTag"
 )
 
 type tagSpec struct {
@@ -24,7 +24,7 @@ func NewTag() filters.Spec {
 }
 
 func (s tagSpec) Name() string {
-	return name
+	return Name
 }
 
 func (s tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

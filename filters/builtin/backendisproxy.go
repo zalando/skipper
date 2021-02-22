@@ -2,6 +2,10 @@ package builtin
 
 import "github.com/zalando/skipper/filters"
 
+const (
+	BackendIsProxyName = "backendIsProxy"
+)
+
 type backendIsProxySpec struct{}
 
 type backendIsProxyFilter struct{}
@@ -12,7 +16,7 @@ func NewBackendIsProxy() filters.Spec {
 }
 
 func (s *backendIsProxySpec) Name() string {
-	return "backendIsProxy"
+	return BackendIsProxyName
 }
 
 func (s *backendIsProxySpec) CreateFilter(args []interface{}) (filters.Filter, error) {
