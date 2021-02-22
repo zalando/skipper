@@ -12,9 +12,13 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/dataclients/routestring"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -300,4 +304,36 @@ func TestHTTPServerShutdown(t *testing.T) {
 	}
 	wg.Wait()
 	time.Sleep(d)
+}
+
+type (
+	customRatelimitSpec   struct{ registry *ratelimit.Registry }
+	customRatelimitFilter struct{}
+)
+
+func (s *customRatelimitSpec) Name() string { return "customRatelimit" }
+func (s *customRatelimitSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+	log.Infof("Registry: %v", s.registry)
+	return &customRatelimitFilter{}, nil
+}
+func (f *customRatelimitFilter) Request(ctx filters.FilterContext)  {}
+func (f *customRatelimitFilter) Response(ctx filters.FilterContext) {}
+
+func Example_ratelimitRegistryBinding() {
+	s := &customRatelimitSpec{}
+
+	o := Options{
+		Address:            ":9090",
+		InlineRoutes:       `* -> customRatelimit() -> <shunt>`,
+		EnableRatelimiters: true,
+		EnableSwarm:        true,
+		SwarmRedisURLs:     []string{":6379"},
+		CustomFilters:      []filters.Spec{s},
+		SwarmRegistry: func(registry *ratelimit.Registry) {
+			s.registry = registry
+		},
+	}
+
+	log.Fatal(Run(o))
+	// Example functions without output comments are compiled but not executed
 }

@@ -728,6 +728,10 @@ type Options struct {
 	SwarmStaticSelf  string // 127.0.0.1:9001
 	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
 
+	// SwarmRegistry specifies an optional callback function that is
+	// called after ratelimit registry is initialized
+	SwarmRegistry func(*ratelimit.Registry)
+
 	testOptions
 }
 
@@ -1265,6 +1269,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
 		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
 		defer ratelimitRegistry.Close()
+
+		if hook := o.SwarmRegistry; hook != nil {
+			hook(ratelimitRegistry)
+		}
 
 		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
 		o.CustomFilters = append(o.CustomFilters,
