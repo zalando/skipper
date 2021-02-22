@@ -1177,6 +1177,8 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
 	}
 
+	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, uint16(ctx.response.StatusCode))
+
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
 	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
@@ -1224,13 +1226,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		code = perr.code
 	}
 
-	if span := ot.SpanFromContext(ctx.Request().Context()); span != nil {
-		p.tracing.setTag(span, ErrorTag, true)
-		p.tracing.setTag(span, HTTPStatusCodeTag, uint16(code))
-		if err == errRouteLookupFailed {
-			span.LogKV("event", "error", "message", errRouteLookup.Error())
-		}
-
+	p.tracing.setTag(ctx.initialSpan, ErrorTag, true)
+	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, uint16(code))
+	if err == errRouteLookupFailed {
+		ctx.initialSpan.LogKV("event", "error", "message", errRouteLookup.Error())
 	}
 
 	if p.flags.Debug() {
@@ -1415,6 +1414,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = newContext(lw, r, p)
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
+	ctx.initialSpan = span
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
