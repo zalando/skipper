@@ -72,6 +72,13 @@ func TestTemplateApplyContext(t *testing.T) {
 		}
 		return u
 	}
+	request := func(method, url string) *http.Request {
+		r, err := http.NewRequest(method, url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
 
 	for _, ti := range []struct {
 		name     string
@@ -326,6 +333,14 @@ func TestTemplateApplyContext(t *testing.T) {
 			},
 		},
 		"192.168.0.1",
+		true,
+	}, {
+		"request method host",
+		"${request.method} ${request.host}",
+		&filtertest.Context{
+			FRequest: request("GET", "https://example.com/test/1"),
+		},
+		"GET example.com",
 		true,
 	},
 	} {

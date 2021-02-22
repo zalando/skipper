@@ -22,11 +22,13 @@ Several filters support template placeholders (`${var}`) in string parameters.
 
 Template placeholder is replaced by the value that is looked up in the following sources:
 
+* request method (`${request.method}`)
+* request host (`${request.host}`)
 * request url path (`${request.path}`)
 * request url query (if starts with `request.query.` prefix, e.g `${request.query.q}` is replaced by `q` query parameter value)
 * request headers (if starts with `request.header.` prefix, e.g `${request.header.Content-Type}` is replaced by `Content-Type` request header value)
 * request cookies (if starts with `request.cookie.` prefix, e.g `${request.cookie.PHPSESSID}` is replaced by `PHPSESSID` request cookie value)
-* request IP address 
+* request IP address
     - `${request.source}` - first IP address from `X-Forwarded-For` header or request remote IP address if header is absent, similar to [Source](predicates.md#source) predicate
     - `${request.sourceFromLast}` - last IP address from `X-Forwarded-For` header or request remote IP address if header is absent, similar to [SourceFromLast](predicates.md#sourcefromlast) predicate
     - `${request.clientIP}` - request remote IP address similar to [ClientIP](predicates.md#clientip) predicate

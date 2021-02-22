@@ -75,6 +75,10 @@ func (t *Template) ApplyContext(ctx TemplateContext) (string, bool) {
 			return ""
 		}
 		switch key {
+		case "request.method":
+			return ctx.Request().Method
+		case "request.host":
+			return ctx.Request().Host
 		case "request.path":
 			return ctx.Request().URL.Path
 		case "request.source":
