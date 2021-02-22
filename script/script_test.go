@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
@@ -350,6 +351,22 @@ func TestScript(t *testing.T) {
 		if test.expectedStatus != 0 && test.expectedStatus != fc.Response().StatusCode {
 			t.Errorf("[%s] response status: expected %d, got: %d", test.name, test.expectedStatus, fc.Response().StatusCode)
 		}
+	}
+}
+
+func TestSleep(t *testing.T) {
+	ctx := &testContext{
+		script: `function request(ctx, params) sleep(100.1) end`,
+	}
+	t0 := time.Now()
+	_, err := runFilter(ctx)
+	if err != nil {
+		t.Fatalf("failed to run filter: %v", err)
+	}
+	t1 := time.Now()
+
+	if t1.Sub(t0) < 100*time.Millisecond {
+		t.Error("expected delay of 100 ms")
 	}
 }
 

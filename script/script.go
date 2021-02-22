@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -99,6 +100,7 @@ func (s *script) newState() (*lua.LState, error) {
 	L.PreloadModule("url", gluaurl.Loader)
 	L.PreloadModule("json", gjson.Loader)
 	L.SetGlobal("print", L.NewFunction(printToLog))
+	L.SetGlobal("sleep", L.NewFunction(sleep))
 
 	L.Push(L.NewFunctionFromProto(s.proto))
 
@@ -117,6 +119,11 @@ func printToLog(L *lua.LState) int {
 		args = append(args, L.ToStringMeta(L.Get(i)).String())
 	}
 	log.Print(args...)
+	return 0
+}
+
+func sleep(L *lua.LState) int {
+	time.Sleep(time.Duration(L.CheckInt64(1)) * time.Millisecond)
 	return 0
 }
 
