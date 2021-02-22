@@ -1,8 +1,8 @@
 package routing
 
 import (
-	"errors"
 	"fmt"
+	"github.com/zalando/skipper/predicates"
 	"net/url"
 	"sort"
 	"time"
@@ -10,7 +10,8 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
-	"github.com/zalando/skipper/predicates"
+	corepredicates "github.com/zalando/skipper/predicates/core"
+	weightpredicate "github.com/zalando/skipper/predicates/weight"
 )
 
 type incomingType uint
@@ -19,17 +20,6 @@ const (
 	incomingReset incomingType = iota
 	incomingUpdate
 )
-
-// legacy, non-tree predicate names:
-const (
-	hostRegexpName   = "Host"
-	pathRegexpName   = "PathRegexp"
-	methodName       = "Method"
-	headerName       = "Header"
-	headerRegexpName = "HeaderRegexp"
-)
-
-var errInvalidWeightParams = errors.New("invalid argument for the Weight predicate")
 
 func (it incomingType) String() string {
 	switch it {
@@ -217,10 +207,10 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 
 // creates a filter instance based on its definition and its
 // specification in the filter registry.
-func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]PredicateSpec) (filters.Filter, error) {
+func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]predicates.PredicateSpec) (filters.Filter, error) {
 	spec, ok := fr[def.Name]
 	if !ok {
-		if isTreePredicate(def.Name) || def.Name == hostRegexpName || def.Name == pathRegexpName || def.Name == methodName || def.Name == headerName || def.Name == headerRegexpName {
+		if isTreePredicate(def.Name) || def.Name == predicates.HostRegexpName || def.Name == predicates.PathRegexpName || def.Name == predicates.MethodName || def.Name == predicates.HeaderName || def.Name == predicates.HeaderRegexpName {
 			return nil, fmt.Errorf("trying to use '%s' as filter, but it is only available as predicate", def.Name)
 		}
 
@@ -236,7 +226,7 @@ func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]Predica
 
 // creates filter instances based on their definition
 // and the filter registry.
-func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]PredicateSpec) ([]*RouteFilter, error) {
+func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]predicates.PredicateSpec) ([]*RouteFilter, error) {
 	var fs []*RouteFilter
 	for i, def := range defs {
 		f, err := createFilter(fr, def, cpm)
@@ -252,36 +242,13 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]Pre
 // check if a predicate is a distinguished, path tree predicate
 func isTreePredicate(name string) bool {
 	switch name {
-	case PathSubtreeName:
+	case predicates.PathSubtreeName:
 		return true
-	case PathName:
+	case predicates.PathName:
 		return true
 	default:
 		return false
 	}
-}
-
-func getFreeStringArgs(count int, p *eskip.Predicate) ([]string, error) {
-	if len(p.Args) != count {
-		return nil, fmt.Errorf(
-			"invalid length of predicate args in %s, %d instead of %d",
-			p.Name,
-			len(p.Args),
-			count,
-		)
-	}
-
-	var a []string
-	for i := range p.Args {
-		s, ok := p.Args[i].(string)
-		if !ok {
-			return nil, fmt.Errorf("expected argument of type string, %s", p.Name)
-		}
-
-		a = append(a, s)
-	}
-
-	return a, nil
 }
 
 func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
@@ -295,29 +262,29 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 		}
 
 		switch p.Name {
-		case hostRegexpName:
-			a, err := getFreeStringArgs(1, p)
+		case predicates.HostRegexpName:
+			a, err := corepredicates.ValidateHostRegexpPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.HostRegexps = append(c.HostRegexps, a[0])
-		case pathRegexpName:
-			a, err := getFreeStringArgs(1, p)
+		case predicates.PathRegexpName:
+			a, err := corepredicates.ValidatePathRegexpPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.PathRegexps = append(c.PathRegexps, a[0])
-		case methodName:
-			a, err := getFreeStringArgs(1, p)
+		case predicates.MethodName:
+			a, err := corepredicates.ValidateMethodPredicate(p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.Method = a[0]
-		case headerName:
-			a, err := getFreeStringArgs(2, p)
+		case predicates.HeaderName:
+			a, err := corepredicates.ValidateHeaderPredicate(p)
 			if err != nil {
 				return nil, err
 			}
@@ -327,8 +294,8 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 			}
 
 			c.Headers[a[0]] = a[1]
-		case headerRegexpName:
-			a, err := getFreeStringArgs(2, p)
+		case predicates.HeaderRegexpName:
+			a, err := corepredicates.ValidateHeaderRegexpPredicate(p)
 			if err != nil {
 				return nil, err
 			}
@@ -347,30 +314,14 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 	return c, nil
 }
 
-func parseWeightPredicateArgs(args []interface{}) (int, error) {
-	if len(args) != 1 {
-		return 0, errInvalidWeightParams
-	}
-
-	if weight, ok := args[0].(float64); ok {
-		return int(weight), nil
-	}
-
-	if weight, ok := args[0].(int); ok {
-		return weight, nil
-	}
-
-	return 0, errInvalidWeightParams
-}
-
 // initialize predicate instances from their spec with the concrete arguments
-func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, int, error) {
-	cps := make([]Predicate, 0, len(defs))
+func processPredicates(cpm map[string]predicates.PredicateSpec, defs []*eskip.Predicate) ([]predicates.Predicate, int, error) {
+	cps := make([]predicates.Predicate, 0, len(defs))
 	var weight int
 	for _, def := range defs {
-		if def.Name == "Weight" {
+		if def.Name == predicates.WeightName {
 			var err error
-			if weight, err = parseWeightPredicateArgs(def.Args); err != nil {
+			if weight, err = weightpredicate.ParseWeightPredicateArgs(def.Args); err != nil {
 				return nil, 0, err
 			}
 
@@ -397,24 +348,11 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 	return cps, weight, nil
 }
 
-// returns the subtree path if it is a valid definition
-func processPathOrSubTree(p *eskip.Predicate) (string, error) {
-	if len(p.Args) != 1 {
-		return "", predicates.ErrInvalidPredicateParameters
-	}
-
-	if s, ok := p.Args[0].(string); ok {
-		return s, nil
-	}
-
-	return "", predicates.ErrInvalidPredicateParameters
-}
-
-func validTreePredicates(predicates []*eskip.Predicate) bool {
+func validTreePredicates(preds []*eskip.Predicate) bool {
 	var has bool
-	for _, p := range predicates {
+	for _, p := range preds {
 		switch p.Name {
-		case PathName, PathSubtreeName:
+		case predicates.PathName, predicates.PathSubtreeName:
 			if has {
 				return false
 			}
@@ -425,26 +363,26 @@ func validTreePredicates(predicates []*eskip.Predicate) bool {
 }
 
 // processes path tree relevant predicates
-func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
+func processTreePredicates(r *Route, preds []*eskip.Predicate) error {
 	// backwards compatibility
 	if r.Path != "" {
-		predicates = append(predicates, &eskip.Predicate{Name: PathName, Args: []interface{}{r.Path}})
+		preds = append(preds, &eskip.Predicate{Name: predicates.PathName, Args: []interface{}{r.Path}})
 	}
 
-	if !validTreePredicates(predicates) {
+	if !validTreePredicates(preds) {
 		return fmt.Errorf("multiple tree predicates (Path, PathSubtree) in the route: %s", r.Id)
 	}
 
-	for _, p := range predicates {
+	for _, p := range preds {
 		switch p.Name {
-		case PathName:
-			path, err := processPathOrSubTree(p)
+		case predicates.PathName:
+			path, err := corepredicates.ProcessPathOrSubTree(p)
 			if err != nil {
 				return err
 			}
 			r.path = path
-		case PathSubtreeName:
-			pst, err := processPathOrSubTree(p)
+		case predicates.PathSubtreeName:
+			pst, err := corepredicates.ProcessPathOrSubTree(p)
 			if err != nil {
 				return err
 			}
@@ -456,7 +394,7 @@ func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
 }
 
 // processes a route definition for the routing table
-func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *eskip.Route) (*Route, error) {
+func processRouteDef(cpm map[string]predicates.PredicateSpec, fr filters.Registry, def *eskip.Route) (*Route, error) {
 	scheme, host, err := splitBackend(def)
 	if err != nil {
 		return nil, err
@@ -486,8 +424,8 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 }
 
 // convert a slice of predicate specs to a map keyed by their names
-func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
-	cpm := make(map[string]PredicateSpec)
+func mapPredicates(cps []predicates.PredicateSpec) map[string]predicates.PredicateSpec {
+	cpm := make(map[string]predicates.PredicateSpec)
 	for _, cp := range cps {
 		cpm[cp.Name()] = cp
 	}

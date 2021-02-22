@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	Name = "apiUsageMonitoring"
+	ApiUsageMonitoringName = "apiUsageMonitoring"
 
 	unknownPlaceholder = "{unknown}"
 	noMatchPlaceholder = "{no-match}"
@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	log      = logrus.WithField("filter", Name)
+	log      = logrus.WithField("filter", ApiUsageMonitoringName)
 	regCache = sync.Map{}
 )
 
@@ -47,7 +47,7 @@ func NewApiUsageMonitoring(
 	realmsTrackingPattern string,
 ) filters.Spec {
 	if !enabled {
-		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", Name)
+		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", ApiUsageMonitoringName)
 		return &noopSpec{&noopFilter{}}
 	}
 
@@ -104,8 +104,8 @@ func NewApiUsageMonitoring(
 	return spec
 }
 
-// apiConfig is the structure used to parse the parameters of the filter.
-type apiConfig struct {
+// ApiConfig is the structure used to parse the parameters of the filter.
+type ApiConfig struct {
 	ApplicationId         string   `json:"application_id"`
 	Tag                   string   `json:"tag"`
 	ApiId                 string   `json:"api_id"`
@@ -122,7 +122,7 @@ type apiUsageMonitoringSpec struct {
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
-	return Name
+	return ApiUsageMonitoringName
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
@@ -143,15 +143,15 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	return
 }
 
-func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*apiConfig {
-	apis := make([]*apiConfig, 0, len(args))
+func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*ApiConfig {
+	apis := make([]*ApiConfig, 0, len(args))
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)
 		if !ok {
 			log.Errorf("args[%d] ignored: expecting a string, was %t", i, a)
 			continue
 		}
-		config := &apiConfig{
+		config := &ApiConfig{
 			ClientTrackingPattern: ".*", // track all clients per default
 		}
 		decoder := json.NewDecoder(strings.NewReader(rawJsonConfiguration))
@@ -186,7 +186,7 @@ func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(paths []*pathInfo) *pathIn
 	return s.unknownPath
 }
 
-func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiConfig) []*pathInfo {
+func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*ApiConfig) []*pathInfo {
 	var paths []*pathInfo
 	existingPathTemplates := make(map[string]*pathInfo)
 	existingPathPattern := make(map[string]*pathInfo)
@@ -271,7 +271,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 	return paths
 }
 
-func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig, realmsTrackingMatcher *regexp.Regexp) *clientTrackingInfo {
+func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *ApiConfig, realmsTrackingMatcher *regexp.Regexp) *clientTrackingInfo {
 	if len(s.realmKeys) == 0 {
 		log.Infof(
 			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-keys" not provided, not tracking client metrics`,

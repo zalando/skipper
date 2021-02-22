@@ -158,8 +158,8 @@ func TestRandom(t *testing.T) {
 		defaultChunkSize*2 + defaultChunkSize/2,
 	}} {
 		func() {
-			p := proxytest.New(filters.Registry{RandomName: &random{}}, &eskip.Route{
-				Filters: []*eskip.Filter{{Name: RandomName, Args: []interface{}{float64(ti.len)}}},
+			p := proxytest.New(filters.Registry{RandomContentName: &random{}}, &eskip.Route{
+				Filters: []*eskip.Filter{{Name: RandomContentName, Args: []interface{}{float64(ti.len)}}},
 				Shunt:   true})
 			defer p.Close()
 
@@ -596,13 +596,13 @@ func TestThrottle(t *testing.T) {
 
 	rc := &requestCheck{}
 	r := filters.Registry{
-		requestCheckName: rc,
-		RandomName:       &random{}}
+		requestCheckName:  rc,
+		RandomContentName: &random{}}
 
 	testServer := proxytest.New(r, &eskip.Route{
 		Filters: []*eskip.Filter{
 			{Name: requestCheckName, Args: nil},
-			{Name: RandomName, Args: []interface{}{float64(testDataLen)}}},
+			{Name: RandomContentName, Args: []interface{}{float64(testDataLen)}}},
 		Shunt: true})
 	defer testServer.Close()
 

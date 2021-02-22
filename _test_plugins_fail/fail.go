@@ -1,10 +1,10 @@
 package main
 
 import (
+	"github.com/zalando/skipper/predicates"
 	"net/http"
 
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/routing"
 )
 
 // this fails to load, because it implements multiple Init* functions
@@ -13,7 +13,7 @@ func InitFilter(opts []string) (filters.Spec, error) {
 	return noopSpec{}, nil
 }
 
-func InitPredicate(opts []string) (routing.PredicateSpec, error) {
+func InitPredicate(opts []string) (predicates.PredicateSpec, error) {
 	return noneSpec{}, nil
 }
 
@@ -36,7 +36,7 @@ type noneSpec struct{}
 func (s noneSpec) Name() string {
 	return "None"
 }
-func (s noneSpec) Create(config []interface{}) (routing.Predicate, error) {
+func (s noneSpec) Create(config []interface{}) (predicates.Predicate, error) {
 	return nonePredicate{}, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/zalando/skipper/predicates"
 	"io"
 	"io/ioutil"
 	"net"
@@ -323,7 +324,7 @@ type Options struct {
 	PriorityRoutes []proxy.PriorityRoute
 
 	// Specifications of custom, user defined predicates.
-	CustomPredicates []routing.PredicateSpec
+	CustomPredicates []predicates.PredicateSpec
 
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient

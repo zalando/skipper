@@ -41,18 +41,12 @@ package source
 
 import (
 	"errors"
+	"github.com/zalando/skipper/predicates"
 	"net"
 	"net/http"
 	"strings"
 
 	snet "github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/routing"
-)
-
-const (
-	Name         = "Source"
-	NameLast     = "SourceFromLast"
-	NameClientIP = "ClientIP"
 )
 
 var InvalidArgsError = errors.New("invalid arguments")
@@ -74,22 +68,22 @@ type predicate struct {
 	acceptedSourceNets []net.IPNet
 }
 
-func New() routing.PredicateSpec         { return &spec{typ: source} }
-func NewFromLast() routing.PredicateSpec { return &spec{typ: sourceFromLast} }
-func NewClientIP() routing.PredicateSpec { return &spec{typ: clientIP} }
+func New() predicates.PredicateSpec         { return &spec{typ: source} }
+func NewFromLast() predicates.PredicateSpec { return &spec{typ: sourceFromLast} }
+func NewClientIP() predicates.PredicateSpec { return &spec{typ: clientIP} }
 
 func (s *spec) Name() string {
 	switch s.typ {
 	case sourceFromLast:
-		return NameLast
+		return predicates.SourceFromLastName
 	case clientIP:
-		return NameClientIP
+		return predicates.ClientIPName
 	default:
-		return Name
+		return predicates.SourceName
 	}
 }
 
-func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
+func (s *spec) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) == 0 {
 		return nil, InvalidArgsError
 	}

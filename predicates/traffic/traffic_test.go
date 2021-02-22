@@ -1,6 +1,7 @@
 package traffic
 
 import (
+	"github.com/zalando/skipper/predicates"
 	"net/http"
 	"testing"
 
@@ -185,7 +186,7 @@ func TestTrafficPredicateInRoutes(t *testing.T) {
 			}
 
 			p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
-				Predicates: []routing.PredicateSpec{
+				Predicates: []predicates.PredicateSpec{
 					New(),
 					primitive.NewTrue(),
 				},

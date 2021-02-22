@@ -1,35 +1,35 @@
 package auth
 
 import (
+	"github.com/zalando/skipper/predicates"
 	"net/http"
 	"reflect"
 	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/zalando/skipper/routing"
 )
 
 func Test_spec(t *testing.T) {
 	for _, tc := range []struct {
-		spec routing.PredicateSpec
+		spec predicates.PredicateSpec
 		name string
 	}{
 		{
 			spec: NewJWTPayloadAllKV(),
-			name: matchJWTPayloadAllKVName,
+			name: predicates.MatchJWTPayloadAllKVName,
 		},
 		{
 			spec: NewJWTPayloadAnyKV(),
-			name: matchJWTPayloadAnyKVName,
+			name: predicates.MatchJWTPayloadAnyKVName,
 		},
 		{
 			spec: NewJWTPayloadAllKVRegexp(),
-			name: matchJWTPayloadAllKVRegexpName,
+			name: predicates.MatchJWTPayloadAllKVRegexpName,
 		},
 		{
 			spec: NewJWTPayloadAnyKVRegexp(),
-			name: matchJWTPayloadAnyKVRegexpName,
+			name: predicates.MatchJWTPayloadAnyKVRegexpName,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -50,9 +50,9 @@ func regex(pattern string) regexMatcher {
 func Test_spec_Create(t *testing.T) {
 	tests := []struct {
 		name    string
-		spec    routing.PredicateSpec
+		spec    predicates.PredicateSpec
 		args    []interface{}
-		want    routing.Predicate
+		want    predicates.Predicate
 		wantErr bool
 	}{{
 		name:    "invalid number of args",

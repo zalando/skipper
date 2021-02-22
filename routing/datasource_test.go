@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"github.com/zalando/skipper/predicates"
 	"testing"
 	"time"
 
@@ -50,7 +51,7 @@ func TestNoMultipleTreePredicates(t *testing.T) {
 			}
 
 			erred := false
-			pr := make(map[string]PredicateSpec)
+			pr := make(map[string]predicates.PredicateSpec)
 			fr := make(filters.Registry)
 			for _, d := range defs {
 				if _, err := processRouteDef(pr, fr, d); err != nil {
@@ -95,7 +96,7 @@ func TestErrorWhenUsingPrediateAsFilter(t *testing.T) {
 				return
 			}
 
-			pr := map[string]PredicateSpec{
+			pr := map[string]predicates.PredicateSpec{
 				"True": &truePredicate{},
 			}
 			fr := make(filters.Registry)

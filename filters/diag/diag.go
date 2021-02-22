@@ -22,7 +22,7 @@ import (
 const defaultChunkSize = 512
 
 const (
-	RandomName           = "randomContent"
+	RandomContentName    = "randomContent"
 	RepeatName           = "repeatContent"
 	LatencyName          = "latency"
 	ChunksName           = "chunks"
@@ -135,7 +135,7 @@ func NewBackendBandwidth() filters.Spec { return &throttle{typ: backendBandwidth
 //
 func NewBackendChunks() filters.Spec { return &throttle{typ: backendChunks} }
 
-func (r *random) Name() string { return RandomName }
+func (r *random) Name() string { return RandomContentName }
 
 func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {

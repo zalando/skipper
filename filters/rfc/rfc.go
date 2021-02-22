@@ -5,7 +5,7 @@ import (
 	"github.com/zalando/skipper/rfc"
 )
 
-const Name = "rfcPath"
+const RfcPathName = "rfcPath"
 
 type path struct{}
 
@@ -17,7 +17,7 @@ type path struct{}
 //
 func NewPath() filters.Spec { return path{} }
 
-func (p path) Name() string                                       { return Name }
+func (p path) Name() string                                       { return RfcPathName }
 func (p path) CreateFilter([]interface{}) (filters.Filter, error) { return path{}, nil }
 func (p path) Response(filters.FilterContext)                     {}
 

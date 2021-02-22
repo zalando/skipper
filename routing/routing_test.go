@@ -3,6 +3,7 @@ package routing_test
 import (
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/predicates"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -38,7 +39,7 @@ type testRouting struct {
 
 func (cp *predicate) Name() string { return "CustomPredicate" }
 
-func (cp *predicate) Create(args []interface{}) (routing.Predicate, error) {
+func (cp *predicate) Create(args []interface{}) (predicates.Predicate, error) {
 	if len(args) != 1 {
 		return nil, errors.New("invalid number of args")
 	}
@@ -55,7 +56,7 @@ func (cp *predicate) Match(r *http.Request) bool {
 	return r.Header.Get(predicateHeader) == cp.matchVal
 }
 
-func newTestRoutingWithFiltersPredicates(fr filters.Registry, cps []routing.PredicateSpec, dc ...routing.DataClient) (*testRouting, error) {
+func newTestRoutingWithFiltersPredicates(fr filters.Registry, cps []predicates.PredicateSpec, dc ...routing.DataClient) (*testRouting, error) {
 	tl := loggingtest.New()
 	rt := routing.New(routing.Options{
 		FilterRegistry: fr,
@@ -71,7 +72,7 @@ func newTestRoutingWithFilters(fr filters.Registry, dc ...routing.DataClient) (*
 	return newTestRoutingWithFiltersPredicates(fr, nil, dc...)
 }
 
-func newTestRoutingWithPredicates(cps []routing.PredicateSpec, dc ...routing.DataClient) (*testRouting, error) {
+func newTestRoutingWithPredicates(cps []predicates.PredicateSpec, dc ...routing.DataClient) (*testRouting, error) {
 	return newTestRoutingWithFiltersPredicates(builtin.MakeRegistry(), cps, dc...)
 }
 
@@ -393,7 +394,7 @@ func TestProcessesPredicates(t *testing.T) {
 		return
 	}
 
-	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	cps := []predicates.PredicateSpec{&predicate{}, &predicate{}}
 
 	tr, err := newTestRoutingWithPredicates(cps, dc)
 	if err != nil {
@@ -441,7 +442,7 @@ func TestNonMatchedStaticRoute(t *testing.T) {
 		return
 	}
 
-	cps := []routing.PredicateSpec{&predicate{}}
+	cps := []predicates.PredicateSpec{&predicate{}}
 
 	tr, err := newTestRoutingWithPredicates(cps, dc)
 	if err != nil {
@@ -523,7 +524,7 @@ func TestRoutingHandlerEskipResponse(t *testing.T) {
 		return
 	}
 
-	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	cps := []predicates.PredicateSpec{&predicate{}, &predicate{}}
 
 	tr, err := newTestRoutingWithPredicates(cps, dc)
 	if err != nil {
@@ -583,7 +584,7 @@ func TestRoutingHandlerJsonResponse(t *testing.T) {
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: CustomPredicate("custom2") -> "https://route2.example.org";
         catchAll: * -> "https://route.example.org"`)
-	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	cps := []predicates.PredicateSpec{&predicate{}, &predicate{}}
 	tr, _ := newTestRoutingWithPredicates(cps, dc)
 	defer tr.close()
 
@@ -623,7 +624,7 @@ func TestRoutingHandlerFilterInvalidRoutes(t *testing.T) {
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: FooBar("custom2") -> "https://route2.example.org";
         catchAll: * -> "https://route.example.org"`)
-	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	cps := []predicates.PredicateSpec{&predicate{}, &predicate{}}
 	tr, _ := newTestRoutingWithPredicates(cps, dc)
 	defer tr.close()
 
@@ -662,7 +663,7 @@ func TestRoutingHandlerPagination(t *testing.T) {
 		catchAll: * -> "https://route.example.org"
 	`)
 
-	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	cps := []predicates.PredicateSpec{&predicate{}, &predicate{}}
 	tr, _ := newTestRoutingWithPredicates(cps, dc)
 	defer tr.close()
 
@@ -712,7 +713,7 @@ func TestRoutingHandlerHEAD(t *testing.T) {
 		catchAll: * -> "https://route.example.org"
 	`)
 
-	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
+	cps := []predicates.PredicateSpec{&predicate{}, &predicate{}}
 	tr, err := newTestRoutingWithPredicates(cps, dc)
 	if err != nil {
 		t.Error(err)

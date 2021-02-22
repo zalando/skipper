@@ -97,17 +97,17 @@ func NewSetDynamicBackendUrl() filters.Spec {
 func (spec *dynamicBackendFilter) Name() string {
 	switch spec.typ {
 	case setDynamicBackendHostFromHeader:
-		return SetDynamicBackendHostFromHeader
+		return SetDynamicBackendHostFromHeaderName
 	case setDynamicBackendSchemeFromHeader:
-		return SetDynamicBackendSchemeFromHeader
+		return SetDynamicBackendSchemeFromHeaderName
 	case setDynamicBackendUrlFromHeader:
-		return SetDynamicBackendUrlFromHeader
+		return SetDynamicBackendUrlFromHeaderName
 	case setDynamicBackendHost:
-		return SetDynamicBackendHost
+		return SetDynamicBackendHostName
 	case setDynamicBackendScheme:
-		return SetDynamicBackendScheme
+		return SetDynamicBackendSchemeName
 	case setDynamicBackendUrl:
-		return SetDynamicBackendUrl
+		return SetDynamicBackendUrlName
 	default:
 		panic("invalid type")
 	}
