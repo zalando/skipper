@@ -1168,6 +1168,9 @@ cookie. Supports credential rotation for the OAuth2 client ID and secret.
 The filter consumes and drops the grant token request cookie to prevent it from leaking
 to untrusted downstream services.
 
+The filter will inject the OAuth2 bearer token into the request headers if the flag
+`oauth2-access-token-header-name` is set.
+
 The filter must be used in conjunction with the [grantCallback](#grantCallback) filter
 where the OAuth2 provider can redirect authenticated users with an authorization code.
 Skipper will make sure to add the `grantCallback` filter for you to your routes when
@@ -1202,7 +1205,7 @@ Skipper arguments:
 | `-oauth2-client-id` | conditional | OAuth2 client ID for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-id-file`. Example: `-oauth2-client-id=myclientid` |
 | `-oauth2-client-secret` | conditional | OAuth2 client secret for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-secret-file`. Example: `-oauth2-client-secret=myclientsecret` |
 | `-credentials-update-interval` | no | the time interval for updating client id and client secret from files. Example: `-credentials-update-interval=30s` |
-| `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Default: `Authorization`. Example: `-oauth2-access-token-header-name=X-Grant-Authorization` |
+| `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Example: `-oauth2-access-token-header-name=X-Grant-Authorization` |
 | `-oauth2-auth-url-parameters` | no | any additional URL query parameters to set for the OAuth2 provider's authorize and token endpoint calls. Example: `-oauth2-auth-url-parameters=key1=foo,key2=bar` |
 | `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
 | `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`.  Example: `-oauth2-token-cookie-name=SESSION` |
