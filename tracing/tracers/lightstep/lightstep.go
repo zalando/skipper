@@ -28,6 +28,9 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		logCmdLine       bool
 		logEvents        bool
 		maxBufferedSpans int
+		maxLogKeyLen     int
+		maxLogValueLen   int
+		maxLogsPerSpan   int
 
 		grpcMaxMsgSize     = defaultGRPMaxMsgSize
 		minReportingPeriod = lightstep.DefaultMinReportingPeriod
@@ -116,6 +119,21 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 			if maxBufferedSpans, err = strconv.Atoi(parts[1]); err != nil {
 				return lightstep.Options{}, fmt.Errorf("failed to parse max buffered spans: %v", err)
 			}
+		case "max-log-key-len":
+			var err error
+			if maxLogKeyLen, err = strconv.Atoi(parts[1]); err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse max log key length: %v", err)
+			}
+		case "max-log-value-len":
+			var err error
+			if maxLogValueLen, err = strconv.Atoi(parts[1]); err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse max log value length: %v", err)
+			}
+		case "max-logs-per-span":
+			var err error
+			if maxLogsPerSpan, err = strconv.Atoi(parts[1]); err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse max logs per span: %v", err)
+			}
 		case "propagators":
 			if len(parts) > 1 {
 				prStack := lightstep.PropagatorStack{}
@@ -175,6 +193,9 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		UseGRPC:                     useGRPC,
 		Tags:                        tags,
 		MaxBufferedSpans:            maxBufferedSpans,
+		MaxLogKeyLen:                maxLogKeyLen,
+		MaxLogValueLen:              maxLogValueLen,
+		MaxLogsPerSpan:              maxLogsPerSpan,
 		GRPCMaxCallSendMsgSizeBytes: grpcMaxMsgSize,
 		ReportingPeriod:             maxReportingPeriod,
 		MinReportingPeriod:          minReportingPeriod,
