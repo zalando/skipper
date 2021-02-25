@@ -172,6 +172,11 @@ func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val int64, score
 	return res.Val(), res.Err()
 }
 
+func (r *RedisRingClient) ZRem(ctx context.Context, key string, members ...interface{}) (int64, error) {
+	res := r.ring.ZRem(ctx, key, members...)
+	return res.Val(), res.Err()
+}
+
 func (r *RedisRingClient) Expire(ctx context.Context, key string, expiration time.Duration) (bool, error) {
 	res := r.ring.Expire(ctx, key, expiration)
 	return res.Val(), res.Err()
