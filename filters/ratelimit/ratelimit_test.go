@@ -154,6 +154,26 @@ func TestRateLimit(t *testing.T) {
 		"1s",
 	))
 
+	t.Run("ratelimit service with response status code", test(
+		NewRatelimit,
+		ratelimit.Settings{
+			Type:       ratelimit.ServiceRatelimit,
+			MaxHits:    3,
+			TimeWindow: 1 * time.Second,
+			Lookuper:   ratelimit.NewSameBucketLookuper(),
+		},
+		&http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Header: http.Header{
+				"X-Rate-Limit": []string{"10800"},
+				"Retry-After":  []string{"31415"},
+			},
+		},
+		3.3,
+		"1s",
+		503,
+	))
+
 	t.Run("ratelimit local", test(
 		NewLocalRatelimit,
 		ratelimit.Settings{
@@ -256,6 +276,28 @@ func TestRateLimit(t *testing.T) {
 		"mygroup",
 		3,
 		"1s",
+	))
+
+	t.Run("ratelimit cluster with response status code", test(
+		NewClusterRateLimit,
+		ratelimit.Settings{
+			Type:       ratelimit.ClusterServiceRatelimit,
+			MaxHits:    3,
+			TimeWindow: 1 * time.Second,
+			Lookuper:   ratelimit.NewSameBucketLookuper(),
+			Group:      "mygroup",
+		},
+		&http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Header: http.Header{
+				"X-Rate-Limit": []string{"10800"},
+				"Retry-After":  []string{"31415"},
+			},
+		},
+		"mygroup",
+		3,
+		"1s",
+		503,
 	))
 
 	t.Run("ratelimit clusterClient", test(
