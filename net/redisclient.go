@@ -167,6 +167,15 @@ func (r *RedisRingClient) Close() {
 	}
 }
 
+func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
+	res := r.ring.Get(ctx, key)
+	return res.Val(), res.Err()
+}
+func (r *RedisRingClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) (string, error) {
+	res := r.ring.Set(ctx, key, value, expiration)
+	return res.Result()
+}
+
 func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val int64, score float64) (int64, error) {
 	res := r.ring.ZAdd(ctx, key, &redis.Z{Member: val, Score: score})
 	return res.Val(), res.Err()
