@@ -94,10 +94,6 @@ func TestRedisClientGetSet(t *testing.T) {
 	cancel := startRedis(redisPort, "")
 	defer cancel()
 
-	type valScore struct {
-		val   int64
-		score float64
-	}
 	for _, tt := range []struct {
 		name    string
 		options *RedisOptions
