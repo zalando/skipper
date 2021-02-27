@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -283,7 +284,7 @@ func TestApply(t *testing.T) {
 	}
 }
 
-func TestConsistentHash(t *testing.T) {
+func TestConsistentHashSearch(t *testing.T) {
 	apply := func(key string, endpoints []string) string {
 		ch := newConsistentHash(endpoints).(consistentHash)
 		return endpoints[ch.search(key)]
@@ -308,5 +309,36 @@ func TestConsistentHash(t *testing.T) {
 	ep2 := apply(key, endpoints)
 	if ep != ep2 {
 		t.Errorf("expected to select %s, got %s", ep, ep2)
+	}
+}
+
+func TestConsistentHashKey(t *testing.T) {
+	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
+	ch := newConsistentHash(endpoints)
+
+	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+	r.RemoteAddr = "192.168.0.1:8765"
+
+	rt := NewAlgorithmProvider().Do([]*routing.Route{{
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: ConsistentHash.String(),
+			LBEndpoints: endpoints,
+		},
+	}})[0]
+
+	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: make(map[string]interface{})})
+	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: map[string]interface{}{ConsistentHashKey: net.RemoteHost(r).String()}})
+
+	if defaultEndpoint != remoteHostEndpoint {
+		t.Error("remote host should be used as a default key")
+	}
+
+	for i, ep := range endpoints {
+		key := ep // key equal to endpoint has the same hash and therefore selects it
+		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: map[string]interface{}{ConsistentHashKey: key}})
+		if selected != rt.LBEndpoints[i] {
+			t.Errorf("expected: %v, got %v", rt.LBEndpoints[i], selected)
+		}
 	}
 }

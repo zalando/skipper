@@ -38,6 +38,8 @@ const (
 
 const powerOfRandomNChoicesDefaultN = 2
 
+const ConsistentHashKey = "consistentHashKey"
+
 var (
 	algorithms = map[Algorithm]initializeAlgorithm{
 		RoundRobin:            newRoundRobin,
@@ -234,7 +236,10 @@ func (ch consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[0]
 	}
 
-	key := net.RemoteHost(ctx.Request).String()
+	key, ok := ctx.Params[ConsistentHashKey].(string)
+	if !ok {
+		key = net.RemoteHost(ctx.Request).String()
+	}
 	choice := ch.search(key)
 
 	return ctx.Route.LBEndpoints[choice]

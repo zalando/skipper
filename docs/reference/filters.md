@@ -2299,3 +2299,27 @@ Example:
 ```
 endpointCreated("http://10.0.0.1:8080", "2020-12-18T15:30:00Z01:00")
 ```
+
+## consistentHashKey
+
+This filter sets the request key used by the [`consistentHash`](backends.md#load-balancer-backend) algorithm to select the backend endpoint.
+
+Parameters:
+
+* key (string)
+
+The key should contain [template placeholders](#template-placeholders), without placeholders the key
+is constant and therefore all requests would be made to the same endpoint.
+The algorithm will use the default key if any of the template placeholders can't be resolved.
+
+Examples:
+
+```
+pr: Path("/products/:productId")
+    -> consistentHashKey("${productId}")
+    -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+```
+consistentHashKey("${request.header.Authorization}")
+consistentHashKey("${request.source}") // same as the default key
+```
