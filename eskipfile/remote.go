@@ -134,7 +134,7 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 
 func (client *remoteEskipFile) GetRemoteData() (io.ReadCloser, error) {
 
-	resp, err :=  http.Get(client.remotePath)
+	resp, err := http.Get(client.remotePath)
 	if err != nil {
 		return nil, err
 	}
