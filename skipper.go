@@ -37,6 +37,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	skpnet "github.com/zalando/skipper/net"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/cron"
@@ -1202,11 +1203,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	)
 
 	var swarmer ratelimit.Swarmer
-	var redisOptions *ratelimit.RedisOptions
+	var redisOptions *skpnet.RedisOptions
 	if o.EnableSwarm {
 		if len(o.SwarmRedisURLs) > 0 {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
-			redisOptions = &ratelimit.RedisOptions{
+			redisOptions = &skpnet.RedisOptions{
 				Addrs:               o.SwarmRedisURLs,
 				Password:            o.SwarmRedisPassword,
 				DialTimeout:         o.SwarmRedisDialTimeout,

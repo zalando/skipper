@@ -7,63 +7,23 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/net"
 )
-
-// RedisOptions is used to configure the redis.Ring
-type RedisOptions struct {
-	// Addrs are the list of redis shards
-	Addrs []string
-	// Password is the password needed to connect to Redis server
-	Password string
-	// DialTimeout is the max time.Duration to dial a new connection
-	DialTimeout time.Duration
-	// ReadTimeout for redis socket reads
-	ReadTimeout time.Duration
-	// WriteTimeout for redis socket writes
-	WriteTimeout time.Duration
-	// PoolTimeout is the max time.Duration to get a connection from pool
-	PoolTimeout time.Duration
-	// MinIdleConns is the minimum number of socket connections to redis
-	MinIdleConns int
-	// MaxIdleConns is the maximum number of socket connections to redis
-	MaxIdleConns int
-	// ConnMetricsInterval defines the frequency of updating the redis
-	// connection related metrics. Defaults to 60 seconds.
-	ConnMetricsInterval time.Duration
-	// Tracer provides OpenTracing for Redis queries.
-	Tracer opentracing.Tracer
-}
-
-type ring struct {
-	ring    *redis.Ring
-	metrics metrics.Metrics
-	tracer  opentracing.Tracer
-}
 
 // clusterLimitRedis stores all data required for the cluster ratelimit.
 type clusterLimitRedis struct {
-	group   string
-	maxHits int64
-	window  time.Duration
-	ring    *redis.Ring
-	metrics metrics.Metrics
-	tracer  opentracing.Tracer
+	group      string
+	maxHits    int64
+	window     time.Duration
+	ringClient *net.RedisRingClient
+	metrics    metrics.Metrics
 }
 
 const (
-	DefaultDialTimeout  = 25 * time.Millisecond
-	DefaultReadTimeout  = 25 * time.Millisecond
-	DefaultWriteTimeout = 25 * time.Millisecond
-	DefaultPoolTimeout  = 25 * time.Millisecond
-	DefaultMinConns     = 100
-	DefaultMaxConns     = 100
-
-	defaultConnMetricsInterval       = 60 * time.Second
 	redisMetricsPrefix               = "swarm.redis."
 	allowMetricsFormat               = redisMetricsPrefix + "query.allow.%s"
 	retryAfterMetricsFormat          = redisMetricsPrefix + "query.retryafter.%s"
@@ -77,74 +37,20 @@ const (
 	oldestScoreSpanName        = "redis_oldest_score"
 )
 
-func newRing(ro *RedisOptions, quit <-chan struct{}) *ring {
-	var r *ring
-
-	ringOptions := &redis.RingOptions{
-		Addrs: map[string]string{},
-	}
-
-	if ro != nil {
-		for idx, addr := range ro.Addrs {
-			ringOptions.Addrs[fmt.Sprintf("redis%d", idx)] = addr
-		}
-		ringOptions.DialTimeout = ro.DialTimeout
-		ringOptions.ReadTimeout = ro.ReadTimeout
-		ringOptions.WriteTimeout = ro.WriteTimeout
-		ringOptions.PoolTimeout = ro.PoolTimeout
-		ringOptions.MinIdleConns = ro.MinIdleConns
-		ringOptions.PoolSize = ro.MaxIdleConns
-		ringOptions.Password = ro.Password
-
-		if ro.ConnMetricsInterval <= 0 {
-			ro.ConnMetricsInterval = defaultConnMetricsInterval
-		}
-
-		r = new(ring)
-		r.ring = redis.NewRing(ringOptions)
-		r.metrics = metrics.Default
-		r.tracer = ro.Tracer
-
-		go func() {
-			for {
-				select {
-				case <-time.After(ro.ConnMetricsInterval):
-					stats := r.ring.PoolStats()
-					r.metrics.UpdateGauge(redisMetricsPrefix+"hits", float64(stats.Hits))
-					r.metrics.UpdateGauge(redisMetricsPrefix+"idleconns", float64(stats.IdleConns))
-					r.metrics.UpdateGauge(redisMetricsPrefix+"misses", float64(stats.Misses))
-					r.metrics.UpdateGauge(redisMetricsPrefix+"staleconns", float64(stats.StaleConns))
-					r.metrics.UpdateGauge(redisMetricsPrefix+"timeouts", float64(stats.Timeouts))
-					r.metrics.UpdateGauge(redisMetricsPrefix+"totalconns", float64(stats.TotalConns))
-				case <-quit:
-					r.ring.Close()
-					return
-				}
-			}
-		}()
-	}
-	return r
-}
-
 // newClusterRateLimiterRedis creates a new clusterLimitRedis for given
 // Settings. Group is used to identify the ratelimit instance, is used
 // in log messages and has to be the same in all skipper instances.
-func newClusterRateLimiterRedis(s Settings, r *ring, group string) *clusterLimitRedis {
+func newClusterRateLimiterRedis(s Settings, r *net.RedisRingClient, group string) *clusterLimitRedis {
 	if r == nil {
 		return nil
 	}
 
 	rl := &clusterLimitRedis{
-		group:   group,
-		maxHits: int64(s.MaxHits),
-		window:  s.TimeWindow,
-		ring:    r.ring,
-		metrics: r.metrics,
-		tracer:  r.tracer,
-	}
-
-	if rl.tracer == nil {
-		rl.tracer = &opentracing.NoopTracer{}
+		group:      group,
+		maxHits:    int64(s.MaxHits),
+		window:     s.TimeWindow,
+		ringClient: r,
+		metrics:    metrics.Default,
 	}
 
 	return rl
@@ -181,7 +87,7 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 		return nop
 	}
 
-	span := c.tracer.StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
+	span := c.ringClient.StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
 	ext.Component.Set(span, "skipper")
 	ext.SpanKind.Set(span, "client")
 	span.SetTag("group", c.group)
@@ -238,8 +144,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 	}
 
 	finishSpan := c.startSpan(ctx, allowAddSpanName)
-	zaddResult := c.ring.ZAdd(ctx, key, &redis.Z{Member: nowNanos, Score: float64(nowNanos)})
-	err = zaddResult.Err()
+	_, err = c.ringClient.ZAdd(ctx, key, nowNanos, float64(nowNanos))
 	finishSpan(err != nil)
 	if err != nil {
 		log.Errorf("Failed to redis ZAdd proceeding with Expire: %v", err)
@@ -247,8 +152,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 	}
 
 	finishSpan = c.startSpan(ctx, allowExpireSpanName)
-	expireResult := c.ring.Expire(ctx, key, c.window+time.Second)
-	err = expireResult.Err()
+	_, err = c.ringClient.Expire(ctx, key, c.window+time.Second)
 	finishSpan(err != nil)
 	if err != nil {
 		log.Errorf("Failed to redis Expire: %v", err)
@@ -268,8 +172,7 @@ func (c *clusterLimitRedis) Allow(clearText string) bool {
 func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clearBefore int64) (int64, error) {
 	// drop all elements of the set which occurred before one interval ago.
 	finishSpan := c.startSpan(ctx, allowCheckRemRangeSpanName)
-	zremRangeResult := c.ring.ZRemRangeByScore(ctx, key, "0.0", fmt.Sprint(float64(clearBefore)))
-	err := zremRangeResult.Err()
+	_, err := c.ringClient.ZRemRangeByScore(ctx, key, 0.0, float64(clearBefore))
 	finishSpan(err != nil)
 	if err != nil {
 		return 0, fmt.Errorf("zremrangebyscore: %w", err)
@@ -277,14 +180,13 @@ func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clea
 
 	// get cardinality
 	finishSpan = c.startSpan(ctx, allowCheckSpanName)
-	zcardResult := c.ring.ZCard(ctx, key)
-	err = zcardResult.Err()
+	n, err := c.ringClient.ZCard(ctx, key)
 	finishSpan(err != nil)
 	if err != nil {
 		return 0, fmt.Errorf("zcard: %w", err)
 	}
 
-	return zcardResult.Val(), nil
+	return n, nil
 }
 
 // Close can not decide to teardown redis ring, because it is not the
@@ -323,27 +225,19 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 	now := time.Now()
 
 	finishSpan := c.startSpan(ctx, oldestScoreSpanName)
-	res := c.ring.ZRangeByScoreWithScores(ctx, key, &redis.ZRangeBy{
-		Min:    "0.0",
-		Max:    fmt.Sprint(float64(now.UnixNano())),
-		Offset: 0,
-		Count:  1,
-	})
+	res, err := c.ringClient.ZRangeByScoreWithScoresFirst(ctx, key, 0.0, float64(now.UnixNano()), 0, 1)
 
-	zs, err := res.Result()
 	if err != nil {
 		finishSpan(true)
 		return time.Time{}, err
 	}
 
-	if len(zs) == 0 {
-		log.Debugf("redis Oldest() got no valid data: %v", res)
+	if res == nil {
 		finishSpan(false)
 		return time.Time{}, nil
 	}
 
-	z := zs[0]
-	s, ok := z.Member.(string)
+	s, ok := res.(string)
 	if !ok {
 		finishSpan(true)
 		return time.Time{}, errors.New("failed to evaluate redis data")

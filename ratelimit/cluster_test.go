@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/net"
 )
 
 func startRedis2(port string) func() {
@@ -26,12 +28,10 @@ func Test_newClusterRateLimiter(t *testing.T) {
 	cancel := startRedis2("16079")
 	defer cancel()
 
-	quit := make(chan struct{})
-	myring := newRing(
-		&RedisOptions{
+	myring := net.NewRedisRingClient(
+		&net.RedisOptions{
 			Addrs: []string{"127.0.0.1:16079"},
 		},
-		quit,
 	)
 	fake, err := newFakeSwarm("foo01", 3*time.Second)
 	if err != nil {
@@ -48,7 +48,7 @@ func Test_newClusterRateLimiter(t *testing.T) {
 		name     string
 		settings Settings
 		swarm    Swarmer
-		ring     *ring
+		ring     *net.RedisRingClient
 		group    string
 		want     limiter
 	}{
@@ -70,11 +70,10 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			ring:  myring,
 			group: "mygroup",
 			want: &clusterLimitRedis{
-				group:   "mygroup",
-				maxHits: 10,
-				window:  3 * time.Second,
-				ring:    myring.ring,
-				metrics: myring.metrics,
+				group:      "mygroup",
+				maxHits:    10,
+				window:     3 * time.Second,
+				ringClient: myring,
 			},
 		},
 		{
