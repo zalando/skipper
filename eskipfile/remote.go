@@ -118,7 +118,8 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 		return err
 	}
 	defer data.Close()
-	out, err := os.Create(client.localPath)
+
+	out, err := os.OpenFile(client.localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 
 func (client *remoteEskipFile) GetRemoteData() (io.ReadCloser, error) {
 
-	resp, err := http.Get(client.remotePath)
+	resp, err :=  http.Get(client.remotePath)
 	if err != nil {
 		return nil, err
 	}

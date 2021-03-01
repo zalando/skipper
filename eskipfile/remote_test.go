@@ -1,12 +1,18 @@
 package eskipfile
 
 import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
 	"github.com/sanity-io/litter"
 	"github.com/zalando/skipper/eskip"
 )
+
+const routeBody string = `Path("/") -> setPath("/homepage/") -> "https://example.com/"`
 
 func TestIsRemoteFile(t *testing.T) {
 	for _, test := range []struct {
@@ -47,38 +53,42 @@ func TestIsRemoteFile(t *testing.T) {
 }
 
 func TestLoadAll(t *testing.T) {
+
 	for _, test := range []struct {
-		title     string
-		remoteURL string
-		expected  []*eskip.Route
-		fail      bool
+		title           string
+		routeContent    string
+		routeStatusCode int
+		expected        []*eskip.Route
+		fail            bool
 	}{{
-		title:     "Download not existing remote file fails in NewRemoteEskipFile",
-		remoteURL: "https://s3-eu-west-1.amazonaws.com/vprouting/tests/routes-not-existing-file.eskip",
-		fail:      true,
+		title:           "Download not existing remote file fails in NewRemoteEskipFile",
+		routeContent:    "",
+		routeStatusCode: 404,
+		fail:            true,
 	}, {
-		title:     "Download valid remote file",
-		remoteURL: "https://s3-eu-west-1.amazonaws.com/vprouting/tests/routes.eskip",
+		title:           "Download valid remote file",
+		routeContent:    fmt.Sprintf("VALID: %v;", routeBody),
+		routeStatusCode: 200,
 		expected: []*eskip.Route{{
-			Id:   "VISTAPRINT_HOME_EN_IE",
+			Id:   "VALID",
 			Path: "/",
-			HostRegexps: []string{
-				"vistaprint",
-			},
 			Filters: []*eskip.Filter{{
 				Name: "setPath",
 				Args: []interface{}{
-					"/homepage/en-ie/",
+					"/homepage/",
 				},
 			}},
 			BackendType: eskip.NetworkBackend,
 			Shunt:       false,
-			Backend:     "https://sandbox.ssp.merch.vpsvc.com/",
+			Backend:     "https://example.com/",
 		}},
 	},
 	} {
+		s := createTestServer(test.routeContent, test.routeStatusCode)
+		defer s.Close()
+
 		t.Run(test.title, func(t *testing.T) {
-			client, err := RemoteWatch(test.remoteURL, 10, true)
+			client, err := RemoteWatch(s.URL, 10, true)
 			if err == nil && test.fail {
 				t.Error("failed to fail")
 				return
@@ -109,21 +119,26 @@ func TestLoadAll(t *testing.T) {
 }
 
 func TestLoadAllAndUpdate(t *testing.T) {
+
 	for _, test := range []struct {
-		title            string
-		remoteURL        string
-		remoteURLInvalid string
-		expectedToFail   bool
-		fail             bool
+		title               string
+		validRouteContent   string
+		invalidRouteContent string
+		expectedToFail      bool
+		fail                bool
 	}{{
-		title:            "Download invalid update and all routes returns routes nil",
-		remoteURL:        "https://s3-eu-west-1.amazonaws.com/vprouting/tests/routes.eskip",
-		remoteURLInvalid: "https://s3-eu-west-1.amazonaws.com/vprouting/tests/routes-invalid.eskip",
-		expectedToFail:   true,
+		title:               "Download invalid update and all routes returns routes nil",
+		validRouteContent:   fmt.Sprintf("VALID: %v;", routeBody),
+		invalidRouteContent: fmt.Sprintf("MISSING_SEMICOLON: %v\nVALID: %v;", routeBody, routeBody),
+		expectedToFail:      true,
 	},
 	} {
 		t.Run(test.title, func(t *testing.T) {
-			client, err := RemoteWatch(test.remoteURL, 10, true)
+
+			testValidServer := createTestServer(test.validRouteContent, 200)
+			defer testValidServer.Close()
+
+			client, err := RemoteWatch(testValidServer.URL, 10, true)
 			if err == nil && test.fail {
 				t.Error("failed to fail")
 				return
@@ -134,7 +149,10 @@ func TestLoadAllAndUpdate(t *testing.T) {
 				return
 			}
 
-			client.(*remoteEskipFile).remotePath = test.remoteURLInvalid
+			testInvalidServer := createTestServer(test.invalidRouteContent, 200)
+			defer testInvalidServer.Close()
+
+			client.(*remoteEskipFile).remotePath = testInvalidServer.URL
 			_, _, err = client.LoadUpdate()
 			if test.expectedToFail && err == nil {
 				t.Error(err)
@@ -148,4 +166,11 @@ func TestLoadAllAndUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func createTestServer(c string, sc int) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(sc)
+		io.WriteString(w, c)
+	}))
 }
