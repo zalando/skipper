@@ -88,7 +88,8 @@ func TestLoadAll(t *testing.T) {
 		defer s.Close()
 
 		t.Run(test.title, func(t *testing.T) {
-			client, err := RemoteWatch(s.URL, 10, true)
+			options := &RemoteWatchOptions{remoteFile: s.URL, threshold: 10, verbose: true, failOnStartup: true}
+			client, err := RemoteWatch(options)
 			if err == nil && test.fail {
 				t.Error("failed to fail")
 				return
@@ -138,7 +139,8 @@ func TestLoadAllAndUpdate(t *testing.T) {
 			testValidServer := createTestServer(test.validRouteContent, 200)
 			defer testValidServer.Close()
 
-			client, err := RemoteWatch(testValidServer.URL, 10, true)
+			options := &RemoteWatchOptions{remoteFile: testValidServer.URL, threshold: 10, verbose: true, failOnStartup: true}
+			client, err := RemoteWatch(options)
 			if err == nil && test.fail {
 				t.Error("failed to fail")
 				return

@@ -22,11 +22,18 @@ type remoteEskipFile struct {
 	verbose         bool
 }
 
+type RemoteWatchOptions struct {
+	remoteFile    string
+	threshold     int
+	verbose       bool
+	failOnStartup bool
+}
+
 // RemoteWatch creates a route configuration client with (remote) file watching. Watch doesn't follow file system nodes,
 // it always reads (or re-downloads) from the file identified by the initially provided file name.
-func RemoteWatch(rf string, th int, v bool) (routing.DataClient, error) {
-	if !isFileRemote(rf) {
-		return Watch(rf), nil
+func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
+	if !isFileRemote(o.remoteFile) {
+		return Watch(o.remoteFile), nil
 	}
 
 	tempFilename, err := ioutil.TempFile("", "routes")
@@ -36,21 +43,31 @@ func RemoteWatch(rf string, th int, v bool) (routing.DataClient, error) {
 	}
 
 	dataClient := &remoteEskipFile{
-		remotePath: rf,
+		remotePath: o.remoteFile,
 		localPath:  tempFilename.Name(),
-		threshold:  th,
-		verbose:    v,
+		threshold:  o.threshold,
+		verbose:    o.verbose,
 	}
 
-	err = dataClient.DownloadRemoteFile()
+	if o.failOnStartup {
+		err = dataClient.DownloadRemoteFile()
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		f, err := os.OpenFile(tempFilename.Name(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+		if err == nil {
+			err = f.Close()
+		}
+
+		if err != nil {
+			return nil, err
+		}
+		dataClient.preloaded = true
 	}
 
 	dataClient.eskipFileClient = Watch(tempFilename.Name())
-
-	dataClient.preloaded = true
 
 	return dataClient, nil
 }
@@ -113,7 +130,7 @@ func isFileRemote(remotePath string) bool {
 
 func (client *remoteEskipFile) DownloadRemoteFile() error {
 
-	data, err := client.GetRemoteData()
+	data, err := client.getRemoteData()
 	if err != nil {
 		return err
 	}
@@ -132,7 +149,7 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 	return out.Close()
 }
 
-func (client *remoteEskipFile) GetRemoteData() (io.ReadCloser, error) {
+func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 
 	resp, err := http.Get(client.remotePath)
 	if err != nil {
