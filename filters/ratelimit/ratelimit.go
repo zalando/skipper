@@ -16,6 +16,8 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
+const defaultStatusCode = http.StatusTooManyRequests
+
 type spec struct {
 	typ        ratelimit.RatelimitType
 	provider   RatelimitProvider
@@ -159,7 +161,7 @@ func (s *spec) Name() string {
 }
 
 func serviceRatelimitFilter(args []interface{}) (*filter, error) {
-	if len(args) < 2 {
+	if !(len(args) == 2 || len(args) == 3) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -190,7 +192,7 @@ func serviceRatelimitFilter(args []interface{}) (*filter, error) {
 }
 
 func clusterRatelimitFilter(args []interface{}) (*filter, error) {
-	if len(args) < 3 {
+	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -272,7 +274,7 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 		s.Lookuper = ratelimit.NewXForwardedForLookuper()
 	}
 
-	return &filter{settings: s}, nil
+	return &filter{settings: s, statusCode: defaultStatusCode}, nil
 }
 
 func getLookuper(s string) ratelimit.Lookuper {
@@ -326,6 +328,7 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 			CleanInterval: 10 * timeWindow,
 			Lookuper:      lookuper,
 		},
+		statusCode: defaultStatusCode,
 	}, nil
 }
 
@@ -334,6 +337,7 @@ func disableFilter([]interface{}) (*filter, error) {
 		settings: ratelimit.Settings{
 			Type: ratelimit.DisableRatelimit,
 		},
+		statusCode: defaultStatusCode,
 	}, nil
 }
 
@@ -393,9 +397,9 @@ func getDurationArg(a interface{}) (time.Duration, error) {
 }
 
 func getStatusCodeArg(args []interface{}, index int) (int, error) {
-	// status code arg is optional so we return 0 but no error
+	// status code arg is optional so we return default status code but no error
 	if len(args) <= index {
-		return 0, nil
+		return defaultStatusCode, nil
 	}
 
 	statusCode, err := getIntArg(args[index])
@@ -425,14 +429,9 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	statusCode := http.StatusTooManyRequests
-	if f.statusCode != 0 {
-		statusCode = f.statusCode
-	}
-
 	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
 		ctx.Serve(&http.Response{
-			StatusCode: statusCode,
+			StatusCode: f.statusCode,
 			Header:     ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s)),
 		})
 	}
