@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
@@ -59,6 +60,7 @@ func newGrantTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 		auth := func(w http.ResponseWriter, r *http.Request) {
 			rq := r.URL.Query()
 			redirect := rq.Get("redirect_uri")
+			log.Debugf("redirect_uri: %v", redirect)
 			rd, err := url.Parse(redirect)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
@@ -125,6 +127,60 @@ func newGrantTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 			auth(w, r)
 		case "/token":
 			token(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+}
+
+func newGrantTestClusterAuthServer(authURL string) *httptest.Server {
+	defaultRedirectURI := "/.well-known/oauth2-callback"
+	var clientRedirectURI string
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := func(w http.ResponseWriter, r *http.Request) {
+			rq := r.URL.Query()
+			// validated client redirect_uri ahead of time
+			// TODO: save client redirect_uri by client_id
+			clientRedirectURI = rq.Get("redirect_uri")
+			_, err := url.Parse(clientRedirectURI)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			rd, err := url.Parse(authURL + "/auth")
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			q := rd.Query()
+			rdURI := "http://" + r.Host + defaultRedirectURI
+			log.Debugf("setting redirect_uri: %v", rdURI)
+			q.Set("redirect_uri", rdURI)
+			rd.RawQuery = q.Encode()
+			http.Redirect(
+				w,
+				r,
+				rd.String(),
+				http.StatusTemporaryRedirect,
+			)
+		}
+
+		callback := func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(
+				w,
+				r,
+				clientRedirectURI,
+				http.StatusTemporaryRedirect,
+			)
+		}
+
+		switch r.URL.Path {
+		case "/auth":
+			auth(w, r)
+		case defaultRedirectURI:
+			callback(w, r)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -280,16 +336,23 @@ func grantQueryWithCookie(t *testing.T, client *http.Client, url string, cookies
 }
 
 func TestGrantFlow(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
 	provider := newGrantTestAuthServer(testToken, testAccessCode)
 	defer provider.Close()
+	log.Infof("provider URL: %s", provider.URL)
+
+	clusterAuth := newGrantTestClusterAuthServer(provider.URL)
+	defer clusterAuth.Close()
+	log.Infof("cluster URL: %s", clusterAuth.URL)
 
 	tokeninfo := newGrantTestTokeninfo(testToken, "")
 	defer tokeninfo.Close()
 
-	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config := newGrantTestConfig(tokeninfo.URL, clusterAuth.URL)
 
 	proxy := newSimpleGrantAuthProxy(t, config)
 	defer proxy.Close()
+	log.Infof("proxy URL: %s", proxy.URL)
 
 	client := newGrantHTTPClient()
 
@@ -301,6 +364,17 @@ func TestGrantFlow(t *testing.T) {
 
 		defer rsp.Body.Close()
 
+		log.Debugf("1")
+		checkRedirect(t, rsp, clusterAuth.URL+"/auth")
+
+		rsp, err = client.Get(rsp.Header.Get("Location"))
+		if err != nil {
+			t.Fatalf("Failed to make request to provider: %v.", err)
+		}
+
+		defer rsp.Body.Close()
+
+		log.Debugf("2")
 		checkRedirect(t, rsp, provider.URL+"/auth")
 
 		rsp, err = client.Get(rsp.Header.Get("Location"))
@@ -310,7 +384,8 @@ func TestGrantFlow(t *testing.T) {
 
 		defer rsp.Body.Close()
 
-		checkRedirect(t, rsp, proxy.URL+"/.well-known/oauth2-callback")
+		log.Debugf("3")
+		checkRedirect(t, rsp, clusterAuth.URL+"/.well-known/oauth2-callback")
 
 		rsp, err = client.Get(rsp.Header.Get("Location"))
 		if err != nil {
@@ -319,6 +394,7 @@ func TestGrantFlow(t *testing.T) {
 
 		defer rsp.Body.Close()
 
+		log.Debugf("4")
 		checkRedirect(t, rsp, proxy.URL)
 
 		checkCookie(t, rsp)

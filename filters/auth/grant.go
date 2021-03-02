@@ -149,7 +149,10 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 
 	c, err := extractCookie(req, f.config)
-	if err == http.ErrNoCookie {
+	if err != nil {
+		if err != http.ErrNoCookie {
+			log.Errorf("unexpected err: %v.", err)
+		}
 		loginRedirect(ctx, f.config)
 		return
 	}
