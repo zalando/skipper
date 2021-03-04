@@ -122,8 +122,8 @@ deps:
 	@tar -C /tmp -xzf /tmp/staticcheck_linux_amd64.tar.gz
 	@mv /tmp/staticcheck/staticcheck .bin
 	@chmod +x .bin/staticcheck
-	@curl -o /tmp/gosec.tgz -LO https://github.com/securego/gosec/releases/download/v2.5.0/gosec_2.5.0_linux_amd64.tar.gz
-	@sha256sum /tmp/gosec.tgz | grep -q c7d13ddf58d3937939f97c9c33675e9fb1a8eb66ea0a7691ba1f432bfc9c18a4
+	@curl -o /tmp/gosec.tgz -LO https://github.com/securego/gosec/releases/download/v2.7.0/gosec_2.7.0_linux_amd64.tar.gz
+	@sha256sum /tmp/gosec.tgz | grep -q 164dfcadd7bceee0e439649523d7d70dbe86b812a8db0b80e9f5b9f1464b3954
 	@tar -C /tmp -xzf /tmp/gosec.tgz
 	@mv /tmp/gosec .bin
 	@chmod +x .bin/gosec
