@@ -137,10 +137,11 @@ func newGrantTestClusterAuthServer(authURL string) *httptest.Server {
 	defaultRedirectURI := "/.well-known/oauth2-callback"
 	var clientRedirectURI string
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := func(w http.ResponseWriter, r *http.Request) {
+		authHandler := func(w http.ResponseWriter, r *http.Request) {
 			rq := r.URL.Query()
 			// validated client redirect_uri ahead of time
 			// TODO: save client redirect_uri by client_id
+			log.Debugf("(/auth) client_id: %v", rq.Get("client_id"))
 			clientRedirectURI = rq.Get("redirect_uri")
 			_, err := url.Parse(clientRedirectURI)
 			if err != nil {
@@ -168,6 +169,7 @@ func newGrantTestClusterAuthServer(authURL string) *httptest.Server {
 		}
 
 		callback := func(w http.ResponseWriter, r *http.Request) {
+			log.Debugf("(/callback) client_id: %v", r.URL.Query().Get("client_id"))
 			http.Redirect(
 				w,
 				r,
@@ -178,7 +180,7 @@ func newGrantTestClusterAuthServer(authURL string) *httptest.Server {
 
 		switch r.URL.Path {
 		case "/auth":
-			auth(w, r)
+			authHandler(w, r)
 		case defaultRedirectURI:
 			callback(w, r)
 		default:
@@ -282,6 +284,10 @@ func checkRedirect(t *testing.T, rsp *http.Response, expectedURL string) {
 }
 
 func findAuthCookie(rsp *http.Response) (*http.Cookie, bool) {
+	if rsp == nil {
+		return nil, false
+	}
+
 	for _, c := range rsp.Cookies() {
 		if c.Name == testCookieName {
 			return c, true
@@ -292,6 +298,10 @@ func findAuthCookie(rsp *http.Response) (*http.Cookie, bool) {
 }
 
 func checkCookie(t *testing.T, rsp *http.Response) {
+	if rsp == nil {
+		t.Fatalf("Response is nill")
+	}
+
 	c, ok := findAuthCookie(rsp)
 	if !ok {
 		t.Fatalf("Cookie not found.")
@@ -369,7 +379,7 @@ func TestGrantFlow(t *testing.T) {
 
 		rsp, err = client.Get(rsp.Header.Get("Location"))
 		if err != nil {
-			t.Fatalf("Failed to make request to provider: %v.", err)
+			t.Fatalf("Failed to make request to cluster auth: %v.", err)
 		}
 
 		defer rsp.Body.Close()
@@ -389,14 +399,21 @@ func TestGrantFlow(t *testing.T) {
 
 		rsp, err = client.Get(rsp.Header.Get("Location"))
 		if err != nil {
-			t.Fatalf("Failed to make request to proxy: %v.", err)
+			t.Fatalf("Failed to make request to cluster auth: %v.", err)
 		}
 
 		defer rsp.Body.Close()
 
 		log.Debugf("4")
-		checkRedirect(t, rsp, proxy.URL)
+		checkRedirect(t, rsp, proxy.URL+"/.well-known/oauth2-callback")
 
+		rsp, err = client.Get(rsp.Header.Get("Location"))
+		if err != nil {
+			t.Fatalf("Failed to make request to proxy: %v.", err)
+		}
+
+		log.Debugf("5")
+		checkRedirect(t, rsp, proxy.URL)
 		checkCookie(t, rsp)
 
 		req, err := http.NewRequest("GET", rsp.Header.Get("Location"), nil)
