@@ -127,7 +127,8 @@ func TestTracingIngressSpan(t *testing.T) {
 
 	verifyTag(t, span, SpanKindTag, SpanKindServer)
 	verifyTag(t, span, ComponentTag, "skipper")
-	verifyTag(t, span, HTTPUrlTag, "/hello?world") // For server requests there is no scheme://host:port, see https://golang.org/pkg/net/http/#Request
+	// to save memory we dropped the URL tag from ingress span
+	//verifyTag(t, span, HTTPUrlTag, "/hello?world") // For server requests there is no scheme://host:port, see https://golang.org/pkg/net/http/#Request
 	verifyTag(t, span, HTTPMethodTag, "GET")
 	verifyTag(t, span, HostnameTag, "ingress.tracing.test")
 	// verifyTag(t, span, HTTPRemoteAddrTag, "")
