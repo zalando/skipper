@@ -97,6 +97,15 @@ func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
 //    backendHealthcheck: Path("/healthcheck")
 //    -> ratelimit(20, "1s")
 //    -> "https://foo.backend.net";
+//
+//
+// Optionally a custom response status code can be provided as an argument (default is 429).
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> ratelimit(20, "1s", 503)
+//    -> "https://foo.backend.net";
 func NewRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: ratelimit.ServiceRatelimitName}
 }
@@ -112,6 +121,14 @@ func NewRatelimit(provider RatelimitProvider) filters.Spec {
 //    -> clusterRatelimit("groupA", 200, "1m")
 //    -> "https://foo.backend.net";
 //
+//
+// Optionally a custom response status code can be provided as an argument (default is 429).
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> clusterRatelimit("groupA", 200, "1m", 503)
+//    -> "https://foo.backend.net";
 func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: ratelimit.ClusterServiceRatelimitName}
 }
@@ -402,12 +419,7 @@ func getStatusCodeArg(args []interface{}, index int) (int, error) {
 		return defaultStatusCode, nil
 	}
 
-	statusCode, err := getIntArg(args[index])
-	if err != nil {
-		return 0, err
-	}
-
-	return statusCode, nil
+	return getIntArg(args[index])
 }
 
 // Request checks ratelimit using filter settings and serves `429 Too Many Requests` response if limit is reached

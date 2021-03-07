@@ -1529,10 +1529,12 @@ Parameters:
 
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
+* response status code to use for a rate limited request - optional, default: 429
 
 ```
 ratelimit(20, "1m")
 ratelimit(300, "1h")
+ratelimit(4000, "1m", 503)
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -1580,10 +1582,12 @@ Parameters:
 * rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
+* response status code to use for a rate limited request - optional, default: 429
 
 ```
 clusterRatelimit("groupB", 20, "1m")
 clusterRatelimit("groupB", 300, "1h")
+clusterRatelimit("groupB", 4000, "1m", 503)
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
