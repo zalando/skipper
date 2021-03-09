@@ -16,6 +16,8 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
+const defaultStatusCode = http.StatusTooManyRequests
+
 type spec struct {
 	typ        ratelimit.RatelimitType
 	provider   RatelimitProvider
@@ -23,8 +25,9 @@ type spec struct {
 }
 
 type filter struct {
-	settings ratelimit.Settings
-	provider RatelimitProvider
+	settings   ratelimit.Settings
+	provider   RatelimitProvider
+	statusCode int
 }
 
 // RatelimitProvider returns a limit instance for provided Settings
@@ -94,6 +97,15 @@ func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
 //    backendHealthcheck: Path("/healthcheck")
 //    -> ratelimit(20, "1s")
 //    -> "https://foo.backend.net";
+//
+//
+// Optionally a custom response status code can be provided as an argument (default is 429).
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> ratelimit(20, "1s", 503)
+//    -> "https://foo.backend.net";
 func NewRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: ratelimit.ServiceRatelimitName}
 }
@@ -109,6 +121,14 @@ func NewRatelimit(provider RatelimitProvider) filters.Spec {
 //    -> clusterRatelimit("groupA", 200, "1m")
 //    -> "https://foo.backend.net";
 //
+//
+// Optionally a custom response status code can be provided as an argument (default is 429).
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> clusterRatelimit("groupA", 200, "1m", 503)
+//    -> "https://foo.backend.net";
 func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: ratelimit.ClusterServiceRatelimitName}
 }
@@ -158,7 +178,7 @@ func (s *spec) Name() string {
 }
 
 func serviceRatelimitFilter(args []interface{}) (*filter, error) {
-	if len(args) != 2 {
+	if !(len(args) == 2 || len(args) == 3) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -172,6 +192,11 @@ func serviceRatelimitFilter(args []interface{}) (*filter, error) {
 		return nil, err
 	}
 
+	statusCode, err := getStatusCodeArg(args, 2)
+	if err != nil {
+		return nil, err
+	}
+
 	return &filter{
 		settings: ratelimit.Settings{
 			Type:       ratelimit.ServiceRatelimit,
@@ -179,11 +204,12 @@ func serviceRatelimitFilter(args []interface{}) (*filter, error) {
 			TimeWindow: timeWindow,
 			Lookuper:   ratelimit.NewSameBucketLookuper(),
 		},
+		statusCode: statusCode,
 	}, nil
 }
 
 func clusterRatelimitFilter(args []interface{}) (*filter, error) {
-	if len(args) != 3 {
+	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -202,15 +228,21 @@ func clusterRatelimitFilter(args []interface{}) (*filter, error) {
 		return nil, err
 	}
 
-	s := ratelimit.Settings{
-		Type:       ratelimit.ClusterServiceRatelimit,
-		Group:      group,
-		MaxHits:    maxHits,
-		TimeWindow: timeWindow,
-		Lookuper:   ratelimit.NewSameBucketLookuper(),
+	statusCode, err := getStatusCodeArg(args, 3)
+	if err != nil {
+		return nil, err
 	}
 
-	return &filter{settings: s}, nil
+	return &filter{
+		settings: ratelimit.Settings{
+			Type:       ratelimit.ClusterServiceRatelimit,
+			Group:      group,
+			MaxHits:    maxHits,
+			TimeWindow: timeWindow,
+			Lookuper:   ratelimit.NewSameBucketLookuper(),
+		},
+		statusCode: statusCode,
+	}, nil
 }
 
 func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
@@ -259,7 +291,7 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 		s.Lookuper = ratelimit.NewXForwardedForLookuper()
 	}
 
-	return &filter{settings: s}, nil
+	return &filter{settings: s, statusCode: defaultStatusCode}, nil
 }
 
 func getLookuper(s string) ratelimit.Lookuper {
@@ -313,6 +345,7 @@ func clientRatelimitFilter(args []interface{}) (*filter, error) {
 			CleanInterval: 10 * timeWindow,
 			Lookuper:      lookuper,
 		},
+		statusCode: defaultStatusCode,
 	}, nil
 }
 
@@ -321,6 +354,7 @@ func disableFilter([]interface{}) (*filter, error) {
 		settings: ratelimit.Settings{
 			Type: ratelimit.DisableRatelimit,
 		},
+		statusCode: defaultStatusCode,
 	}, nil
 }
 
@@ -379,6 +413,15 @@ func getDurationArg(a interface{}) (time.Duration, error) {
 	return time.Duration(i) * time.Second, err
 }
 
+func getStatusCodeArg(args []interface{}, index int) (int, error) {
+	// status code arg is optional so we return default status code but no error
+	if len(args) <= index {
+		return defaultStatusCode, nil
+	}
+
+	return getIntArg(args[index])
+}
+
 // Request checks ratelimit using filter settings and serves `429 Too Many Requests` response if limit is reached
 func (f *filter) Request(ctx filters.FilterContext) {
 	rateLimiter := f.provider.get(f.settings)
@@ -400,7 +443,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 
 	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
 		ctx.Serve(&http.Response{
-			StatusCode: http.StatusTooManyRequests,
+			StatusCode: f.statusCode,
 			Header:     ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s)),
 		})
 	}
