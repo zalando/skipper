@@ -902,13 +902,13 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	}
 	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.tracing.tracer)
 
+	u := cloneURL(req.URL)
+	u.RawQuery = ""
 	p.tracing.
 		setTag(ctx.proxySpan, SpanKindTag, SpanKindClient).
 		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id).
-		setTag(ctx.proxySpan, SkipperRouteTag, ctx.route.String())
-
-	u := cloneURL(req.URL)
-	u.RawQuery = ""
+		setTag(ctx.proxySpan, SkipperRouteTag, ctx.route.String()).
+		setTag(ctx.proxySpan, HTTPUrlTag, u.String())
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
@@ -1449,7 +1449,6 @@ func (p *Proxy) Close() error {
 func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 	p.tracing.
 		setTag(s, ComponentTag, "skipper").
-		setTag(s, HTTPUrlTag, u.String()).
 		setTag(s, HTTPMethodTag, r.Method).
 		setTag(s, HostnameTag, p.hostname).
 		setTag(s, HTTPRemoteAddrTag, r.RemoteAddr).
