@@ -45,6 +45,10 @@ end
 
 Lua `print` builtin function writes skipper info log messages.
 
+## sleep
+
+`sleep(number)` function pauses execution for at least `number` milliseconds. A negative or zero duration causes `sleep` to return immediately.
+
 ## Available lua modules
 
 Besides the [standard modules](https://www.lua.org/manual/5.1/manual.html#5) - except
