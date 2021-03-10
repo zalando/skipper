@@ -117,8 +117,8 @@ deps:
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	mkdir -p .bin
-	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2020.2.1/staticcheck_linux_amd64.tar.gz
-	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q 8b95af83a53105323fd8788a4f3436c485cb5db79d63afe7408411b12d1c5e94
+	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2020.2.3/staticcheck_linux_amd64.tar.gz
+	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q 03b100561e3bc14db0b3b4004b102a00cb0197938d23cc40193f269f7b246d2d
 	@tar -C /tmp -xzf /tmp/staticcheck_linux_amd64.tar.gz
 	@mv /tmp/staticcheck/staticcheck .bin
 	@chmod +x .bin/staticcheck
