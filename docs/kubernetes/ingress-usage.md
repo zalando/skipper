@@ -4,11 +4,11 @@ This documentation is meant for people deploying to Kubernetes
 Clusters and describes to use Ingress and low level and high level
 features Skipper provides.
 
-[RouteGroups](../routegroups/), a relatively new feature, also
+[RouteGroups](routegroups.md), a relatively new feature, also
 support each of these features, with an alternative format that
 supports them in a more native way. The documentation contains a
 section with
-[mapping](../routegroups/#mapping-from-ingress-to-routegroups)
+[mapping](routegroups.md#mapping-from-ingress-to-routegroups)
 Ingress to RouteGroups.
 
 ## Skipper Ingress Annotations
