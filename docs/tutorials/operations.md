@@ -53,13 +53,13 @@ The Kubernetes Ingress spec defines a
 as regular expression, which is not what most people would expect, nor
 want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../reference/predicates.md#pathregexp)
 for routing, because of the spec. We believe the better default is the
-path prefix mode, that uses [PathSubtree predicate](../reference/predicates#pathsubtree),
+path prefix mode, that uses [PathSubtree predicate](../reference/predicates.md#pathsubtree),
 instead. Path prefix search is much more scalable and can not lead to
 unexpected results by not so experienced regular expressions users.
 
 To find more information about Metrics, including formats and example
 Prometheus queries you find in the [metrics
-section](../../operation/operation#monitoring).
+section](../operation/operation.md#monitoring).
 The settings shown above support system and application metrics to
 carefully monitor Skipper and your backend applications. Backend
 application metrics get error rates and latency buckets based on host
@@ -84,14 +84,14 @@ Depending on the HTTP loadbalancer in front of your Skippers, you might
 want to set `-reverse-source-predicate`. This setting reverses the
 lookup of the client IP to find it in the `X-Forwarded-For` header
 values. If you do not care about
-[clientRatelimits](../../reference/filters#clientratelimit)
+[clientRatelimits](../reference/filters.md#clientratelimit)
 based on X-Forwarded-For headers, you can also ignore this.
 
 #### Cluster Ratelimit
 
 Ratelimits can be calculated for the whole cluster instead of having
 only the instance based ratelimits. The common term we use in skipper
-documentation is [cluster ratelimit](https://opensource.zalando.com/skipper/tutorials/ratelimit/#cluster-ratelimit).
+documentation is [cluster ratelimit](ratelimit.md#cluster-ratelimit).
 There are two option, but we highly recommend the use of Redis based
 cluster ratelimits. To support redis based cluster ratelimits you have to
 use `-enable-swarm` and add a list of URLs to redis
@@ -111,7 +111,7 @@ because storing the data in memory is good enough for this use case.
 
 Skipper supports cluster internal service-to-service communication as
 part of running as an [API Gateway with an East-West
-setup](../../kubernetes/ingress-controller/#run-as-api-gateway-with-east-west-setup).
+setup](../kubernetes/ingress-controller.md#run-as-api-gateway-with-east-west-setup).
 You have to add `-enable-kubernetes-east-west` and optionally choose a
 domain
 `-kubernetes-east-west-domain=.ingress.cluster.local`. Be warned: There is a
@@ -192,9 +192,8 @@ skippper \
 #### API monitoring and Auth
 
 As part of API Gateway features, skipper supports [API
-monitoring](https://opensource.zalando.com/skipper/reference/filters/#apiusagemonitoring)
-and common [authentication and
-authorization](https://opensource.zalando.com/skipper/tutorials/auth/)
+monitoring](../reference/filters.md#apiusagemonitoring)
+and common [authentication and authorization](auth.md)
 protocols in Microservices architectures.
 
 #### OpenTracing
@@ -211,7 +210,7 @@ the process.
 
 #### Global default filters
 
-Skipper can also add [global default filters](../../operation/operation/#global-default-filters),
+Skipper can also add [global default filters](../operation/operation.md#global-default-filters),
 which will be automatically added to all routes. For example you can
 use `-default-filters-prepend="enableAccessLog(4,5)"` to enable only
 access logs in case of HTTP codes 4xx or 5xx. In the specific case of

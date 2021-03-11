@@ -262,7 +262,7 @@ It works as follows:
    callback URL parameter which was part of the previous redirect. The callback route must
    have a `grantCallback()` filter defined. Skipper automatically adds this callback route for you
    when the OAuth2 authorization grant flow feature is enabled. Note that the automatically added
-	 callback route does not apply [default filters](../../operation/operation/#default-filters).
+	 callback route does not apply [default filters](../operation/operation.md#default-filters).
 	 If you need default filters to be applied to the callback route as well, please register
 	 the route manually in your routes files.
 1. Skipper calls the provider's token URL with the authorization code, and receives a response 

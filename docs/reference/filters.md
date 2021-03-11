@@ -509,7 +509,7 @@ header.
 
 ## xforwardFirst
 
-Same as [xforward](xforward), but instead of appending the last remote IP, it prepends it to comply with the
+Same as [xforward](#xforward), but instead of appending the last remote IP, it prepends it to comply with the
 approach of certain LB implementations.
 
 ## randomContent
@@ -1550,7 +1550,7 @@ with an optional fourth parameter. If the fourth parameter is set
 skipper will use the HTTP header defined by this to put the request in
 the same client bucket, else the X-Forwarded-For Header will be used.
 You need to run skipper with command line flags `-enable-swarm` and
-`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../../tutorials/ratelimit/#cluster-ratelimit)
+`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../tutorials/ratelimit.md#cluster-ratelimit)
 
 Parameters:
 
@@ -1574,7 +1574,7 @@ rate limit group. The first parameter is a string to select the same
 ratelimit group across one or more routes.  The rate limit group
 allows the given number of requests to a backend. You need to have run
 skipper with command line flags `-enable-swarm` and
-`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../../tutorials/ratelimit/#cluster-ratelimit)
+`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../tutorials/ratelimit.md#cluster-ratelimit)
 
 
 Parameters:
@@ -2152,7 +2152,7 @@ the api-backend service will receive a request with the path /api/foo%2Fbar/summ
 
 It is also possible to enable this behavior centrally for a Skipper instance with
 the -rfc-patch-path flag. See
-[URI standards interpretation](../../operation/operation/#uri-standards-interpretation).
+[URI standards interpretation](../operation/operation.md#uri-standards-interpretation).
 
 ## bearerinjector
 

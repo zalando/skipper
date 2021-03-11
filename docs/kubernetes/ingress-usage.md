@@ -22,8 +22,8 @@ zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | ext
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
 zalando.org/skipper-ingress-redirect | `"true"` | change the default HTTPS redirect behavior for specific ingresses (true/false)
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
-zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../../reference/backends/#load-balancer-backend)
-zalando.org/skipper-backend-protocol | `fastcgi` | (*experimental*) defaults to `http`, [see available choices](../../reference/backends/#backend-protocols)
+zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../reference/backends.md#load-balancer-backend)
+zalando.org/skipper-backend-protocol | `fastcgi` | (*experimental*) defaults to `http`, [see available choices](../reference/backends.md#backend-protocols)
 zalando.org/skipper-ingress-path-mode | `path-prefix` | defaults to `kubernetes-ingress`, [see available choices](#ingress-path-handling), to change the default use `-kubernetes-path-mode`
 
 ## Supported Service types
@@ -472,7 +472,7 @@ Set a Cookie in the response path of your clients.
 
 ### Authorization
 
-Our [authentication and authorization tutorial](../../tutorials/auth/)
+Our [authentication and authorization tutorial](../tutorials/auth.md)
 or [filter auth godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
 shows how to use filters for authorization.
 
@@ -1045,7 +1045,7 @@ available it would switch to another one.
 
 Annotations:
 
-- `zalando.org/skipper-loadbalancer` [see available choices](../../reference/backends/#load-balancer-backend)
+- `zalando.org/skipper-loadbalancer` [see available choices](../reference/backends.md#load-balancer-backend)
 
 Example:
 
