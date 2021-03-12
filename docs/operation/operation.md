@@ -776,8 +776,8 @@ capable of responding some requests fast enough.
 
 ### A solution
 
-Skipper has two filters [`lifo()`](../reference/filters/#lifo) and
-[`lifoGroup()`](../reference/filters/#lifogroup), that can limit
+Skipper has two filters [`lifo()`](../reference/filters.md#lifo) and
+[`lifoGroup()`](../reference/filters.md#lifogroup), that can limit
 the number of requests for a route.  A [documented load
 test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
 shows the behavior with an enabled `lifo(100,100,"10s")` filter for
@@ -794,9 +794,9 @@ blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-servic
 
 Skipper's scheduler implementation makes sure, that one route will not
 interfere with other routes, if these routes are not in the same
-scheduler group. [`LifoGroup`](../reference/filters/#lifogroup) has
+scheduler group. [`LifoGroup`](../reference/filters.md#lifogroup) has
 a user chosen scheduler group and
-[`lifo()`](../reference/filters/#lifo) will get a per route unique
+[`lifo()`](../reference/filters.md#lifo) will get a per route unique
 scheduler group.
 
 ## URI standards interpretation
@@ -810,7 +810,7 @@ This is possible to achieve centrally, when Skipper is started with
 the -rfc-patch-path flag. It is also possible to allow the default
 behavior and only force the alternative interpretation on a per-route
 basis with the rfcPath() filter. See
-[`rfcPath()`](../reference/filters/#rfcPath).
+[`rfcPath()`](../reference/filters.md#rfcPath).
 
 If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to

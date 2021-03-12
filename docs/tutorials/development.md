@@ -8,18 +8,7 @@ Developer documentation for skipper as library users
 
 ### User documentation
 
-#### local Preview
-
-To see rendered documentation locally you need to replace `/skipper`
-path with `/` to see them correctly. This you can easily do with
-skipper in front of `mkdocs serve`. The following skipper inline route
-will do this for you, assuming that you build skipper with `make skipper`:
-
-```
-./bin/skipper -inline-routes 'r: * -> modPath("/skipper", "") -> "http://127.0.0.1:8000"'
-```
-
-Now you should be able to see the documentation at [http://127.0.0.1:9090](http://127.0.0.1:9090).
+To see rendered documentation locally run `mkdocs serve` and navigate to [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ## Filters
 
@@ -110,7 +99,7 @@ func (f *myPredicate) Match(r *http.Request) bool {
 ```
 
 Predicates are quite similar to implement as Filters, so for a more
-complete example, find an example [how to develop a filter](../reference/development#how-to-develop-a-filter).
+complete example, find an example [how to develop a filter](../reference/development.md#how-to-develop-a-filter).
 
 ## Dataclients
 

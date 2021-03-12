@@ -65,7 +65,7 @@ document.)
 
 Links:
 
-- [RouteGroup semantics](../routegroup-crd/)
+- [RouteGroup semantics](routegroup-crd.md)
 - [CRD definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/apply/routegroups_crd.yaml)
 
 ## Requirements
@@ -152,7 +152,7 @@ kubectl apply -f my-route-group.yaml
 
 ## Hosts
 
-- *[Format](../routegroup-crd/#routegroup-top-level-object)*
+- *[Format](routegroup-crd.md#routegroup-top-level-object)*
 
 Hosts contain hostnames that are used to match the requests handled by a given route group. They are also used
 to update the required DNS entries and load balancer configuration if the cluster is set up that way.
@@ -162,8 +162,8 @@ predicate included, but the hostnames defined that way will not serve as input f
 
 ## Backends
 
-- *[Format](../routegroup-crd/#backend_1)*
-- *[General backend reference](../../reference/backends/)*
+- *[Format](routegroup-crd.md#backend_1)*
+- *[General backend reference](../reference/backends.md)*
 
 RouteGroups support different backends. The most typical backend type is the 'service', and it works the same
 way as in case of ingress definitions.
@@ -191,11 +191,11 @@ the Kubernetes semantics, and allows URLs that point somewhere else, potentially
 ### type=shunt, type=loopback, type=dynamic
 
 These backend types allow advanced routing setups. Please check the [reference
-manual](../../reference/backends/) for more details.
+manual](../reference/backends.md) for more details.
 
 ## Default Backends
 
-- *[Format](../routegroup-crd/#backend-reference)*
+- *[Format](routegroup-crd.md#backend-reference)*
 
 A default backend is a reference to one of the defined backends. When a route doesn't specify which backend(s)
 to use, the ones referenced in the default backends will be used.
@@ -209,7 +209,7 @@ more](#gradual-traffic-switching).
 
 ## Routes
 
-- *[Format](../routegroup-crd/#route_1)*
+- *[Format](routegroup-crd.md#route_1)*
 
 Routes define where to and how the incoming requests will be proxied. The predicates, including the path,
 pathSubtree, pathRegexp and methods fields, and any free-form predicate listed under the predicates field,
@@ -223,8 +223,8 @@ Important to bear in mind about the path fields, that the plain 'path' means exa
 
 See also:
 
-- [predicates](../../reference/predicates/)
-- [filters](../../reference/filters/)
+- [predicates](../reference/predicates.md)
+- [filters](../reference/filters.md)
 
 ## Gradual traffic switching
 
@@ -309,7 +309,7 @@ spec:
 
 See also:
 
-- [Traffic predicate](../../reference/predicates/#traffic)
+- [Traffic predicate](../reference/predicates.md#traffic)
 
 ## Mapping from Ingress to RouteGroups
 
@@ -608,12 +608,12 @@ attribute of the backend definition, and it can be set individually for each bac
 
 See also:
 
-- [Load Balancer backend](https://opensource.zalando.com/skipper/reference/backends/#load-balancer-backend)
+- [Load Balancer backend](../reference/backends.md#load-balancer-backend)
 
 ### zalando.org/skipper-ingress-path-mode
 
 The route objects support the different path lookup modes, by using the path, pathSubtree or the
-pathRegexp field. See also the [route matching](../../reference/architecture/#route-matching)
+pathRegexp field. See also the [route matching](../reference/architecture.md#route-matching)
 explained for the internals. The mapping is as follows:
 
 Ingress: | RouteGroup:

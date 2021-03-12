@@ -99,7 +99,7 @@ to run N number of [Redis](https://redis.io) instances, where N is >
 0.  Specify `-swarm-redis-urls`, multiple instances can be separated
 by `,`, for example: `-swarm-redis-urls=redis1:6379,redis2:6379`. For
 running skipper in Kubernetes with this, see also [Running with
-Redis based Cluster Ratelimits](../../kubernetes/ingress-controller/#redis-based)
+Redis based Cluster Ratelimits](../kubernetes/ingress-controller.md#redis-based)
 
 The implementation use [redis ring](https://godoc.org/github.com/go-redis/redis#Ring)
 to be able to shard via client hashing and spread the load across
@@ -123,7 +123,7 @@ Membership Protocol", which is very interesting to use for cluster
 ratelimits. The implementation has some weaknesses in the algorithm,
 that lead sometimes to too much ratelimits or too few and therefore is
 not considered to be stable. For running skipper in Kubernetes with
-this, see also [Running with SWIM based Cluster Ratelimits](../../kubernetes/ingress-controller/#swim-based)
+this, see also [Running with SWIM based Cluster Ratelimits](../kubernetes/ingress-controller.md#swim-based)
 
 In case of Kubernetes you might specify additionally
 `-swarm-label-selector-key`, which defaults to "application" and
