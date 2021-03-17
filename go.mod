@@ -19,6 +19,7 @@ require (
 	github.com/instana/go-sensor v1.4.16
 	github.com/lightstep/lightstep-tracer-go v0.24.0
 	github.com/looplab/fsm v0.1.0 // indirect
+	github.com/miekg/dns v1.0.14 // indirect
 	github.com/oklog/ulid v1.3.1
 	github.com/opentracing/basictracer-go v1.0.0
 	github.com/opentracing/opentracing-go v1.1.0
@@ -42,10 +43,9 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e
 	go.uber.org/atomic v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20201006153459-a7d1128ccaa0
+	golang.org/x/net v0.0.0-20201021035429-f5854403a974
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/tools v0.0.0-20200403190813-44a64ad78b9b // indirect
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	google.golang.org/grpc v1.22.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/square/go-jose.v2 v2.3.1
@@ -56,3 +56,5 @@ require (
 )
 
 go 1.13
+
+replace github.com/lightstep/lightstep-tracer-go v0.24.0 => github.com/szuecs/lightstep-tracer-go v0.24.1-0.20210315183337-dc84a68a20d5
