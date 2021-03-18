@@ -57,4 +57,4 @@ require (
 
 go 1.13
 
-replace github.com/lightstep/lightstep-tracer-go v0.24.0 => github.com/szuecs/lightstep-tracer-go v0.24.1-0.20210315183337-dc84a68a20d5
+replace github.com/lightstep/lightstep-tracer-go v0.24.0 => github.com/szuecs/lightstep-tracer-go v0.24.1-0.20210318105321-159000d54618

@@ -296,6 +296,8 @@ github.com/stretchr/testify v1.6.1 h1:hDPOHmpOpP40lSULcqw7IrRb/u7w6RpDC9399XyoNd
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/szuecs/lightstep-tracer-go v0.24.1-0.20210315183337-dc84a68a20d5 h1:m66qjuENGEw3q4VKfxqcX7r0t1OLj7fQjNxWY62Su+c=
 github.com/szuecs/lightstep-tracer-go v0.24.1-0.20210315183337-dc84a68a20d5/go.mod h1:dUti2qkbGISTJF6xN0Jj6/WxxNFYDmHJBPGkOaCYAi8=
+github.com/szuecs/lightstep-tracer-go v0.24.1-0.20210318105321-159000d54618 h1:2TqSorBtIJST2USOJ29xHYzqnHJpHFaY7nfLxcT4zIs=
+github.com/szuecs/lightstep-tracer-go v0.24.1-0.20210318105321-159000d54618/go.mod h1:dUti2qkbGISTJF6xN0Jj6/WxxNFYDmHJBPGkOaCYAi8=
 github.com/szuecs/rate-limit-buffer v0.7.1 h1:kpVLwDvpCTFQi8uhiXQrhAKWzNUaEKhArFdjb4GQ8F4=
 github.com/szuecs/rate-limit-buffer v0.7.1/go.mod h1:BxqrsmnHsCnWcvbtdcaDLEBmjNEvRFU5LQ8edoZ9B0M=
 github.com/szuecs/routegroup-client v0.17.7 h1:kwFU9/r4yiWnk+DKox367EO25JsKfdFdJMREduWWKgs=
