@@ -195,6 +195,8 @@ github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20210210170715-a
 github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20210210170715-a8dfcb80d3a7/go.mod h1:Spd59icnvRxSKuyijbbwe5AemzvcyXAUBgApa7VybMw=
 github.com/lightstep/lightstep-tracer-go v0.24.0 h1:qGUbkzHP64NA9r+uIbCvf303IzHPr0M4JlkaDMxXqqk=
 github.com/lightstep/lightstep-tracer-go v0.24.0/go.mod h1:RnONwHKg89zYPmF+Uig5PpHMUcYCFgml8+r4SS53y7A=
+github.com/lightstep/lightstep-tracer-go v0.24.1-0.20210318180546-a67254760a58 h1:qPPXc3iS7MH/+rrKjoWJvAxl0ju66uPTYiTupe7OIUM=
+github.com/lightstep/lightstep-tracer-go v0.24.1-0.20210318180546-a67254760a58/go.mod h1:dUti2qkbGISTJF6xN0Jj6/WxxNFYDmHJBPGkOaCYAi8=
 github.com/looplab/fsm v0.1.0 h1:Qte7Zdn/5hBNbXzP7yxVU4OIFHWXBovyTT2LaBTyC20=
 github.com/looplab/fsm v0.1.0/go.mod h1:m2VaOfDHxqXBBMgc26m6yUOwkFn8H2AlJDE+jd/uafI=
 github.com/mailru/easyjson v0.0.0-20160728113105-d5b7844b561a/go.mod h1:C1wdFJiN94OJF2b5HbByQZoLdCWB1Yqtg26g4irojpc=
@@ -440,6 +442,7 @@ golang.org/x/tools v0.0.0-20190312170243-e65039ee4138/go.mod h1:LCzVGOaR6xXOjkQ3
 golang.org/x/tools v0.0.0-20190524140312-2c0ae7006135 h1:5Beo0mZN8dRzgrMMkDp0jc8YXQKx9DiJ2k1dkvGsn5A=
 golang.org/x/tools v0.0.0-20190524140312-2c0ae7006135/go.mod h1:RgjU9mgBXZiqYHBnxXauZ1Gv1EHHAz9KjViQ78xBX0Q=
 golang.org/x/tools v0.0.0-20190614205625-5aca471b1d59/go.mod h1:/rFqwRUd4F7ZHNgwSSTFct+R/Kf4OFW1sUzUTQQTgfc=
+golang.org/x/tools v0.0.0-20190920225731-5eefd052ad72 h1:bw9doJza/SFBEweII/rHQh338oozWyiFsBRHtrflcws=
 golang.org/x/tools v0.0.0-20190920225731-5eefd052ad72/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20191119224855-298f0cb1881e/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20200403190813-44a64ad78b9b h1:AFZdJUT7jJYXQEC29hYH/WZkoV7+KhwxQGmdZ19yYoY=

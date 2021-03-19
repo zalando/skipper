@@ -17,7 +17,7 @@ require (
 	github.com/google/go-cmp v0.5.2
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16
-	github.com/lightstep/lightstep-tracer-go v0.24.0
+	github.com/lightstep/lightstep-tracer-go v0.24.1-0.20210318180546-a67254760a58
 	github.com/looplab/fsm v0.1.0 // indirect
 	github.com/miekg/dns v1.0.14 // indirect
 	github.com/oklog/ulid v1.3.1
@@ -56,5 +56,3 @@ require (
 )
 
 go 1.13
-
-replace github.com/lightstep/lightstep-tracer-go v0.24.0 => github.com/szuecs/lightstep-tracer-go v0.24.1-0.20210315183337-dc84a68a20d5
