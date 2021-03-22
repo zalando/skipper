@@ -1,4 +1,4 @@
-FROM registry.opensource.zalan.do/library/alpine-3.12:latest
+FROM registry.opensource.zalan.do/library/alpine-3.13:latest
 LABEL maintainer="Team Teapot @ Zalando SE <team-teapot@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates
 RUN mkdir -p /usr/bin
