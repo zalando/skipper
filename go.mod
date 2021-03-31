@@ -19,7 +19,6 @@ require (
 	github.com/instana/go-sensor v1.4.16
 	github.com/lightstep/lightstep-tracer-go v0.24.1-0.20210318180546-a67254760a58
 	github.com/looplab/fsm v0.1.0 // indirect
-	github.com/miekg/dns v1.0.14 // indirect
 	github.com/oklog/ulid v1.3.1
 	github.com/opentracing/basictracer-go v1.0.0
 	github.com/opentracing/opentracing-go v1.1.0
@@ -29,6 +28,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
 	github.com/sanity-io/litter v1.1.0
 	github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011
+	github.com/shirou/gopsutil v3.21.2+incompatible // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/sony/gobreaker v0.4.1
 	github.com/stretchr/testify v1.6.1
@@ -36,6 +36,7 @@ require (
 	github.com/szuecs/routegroup-client v0.17.7
 	github.com/tidwall/gjson v1.4.0
 	github.com/tidwall/pretty v1.0.1 // indirect
+	github.com/tklauser/go-sysconf v0.3.5 // indirect
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
 	github.com/uber/jaeger-lib v2.0.0+incompatible
