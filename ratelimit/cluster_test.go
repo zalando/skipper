@@ -3,34 +3,21 @@
 package ratelimit
 
 import (
-	"context"
 	"fmt"
-	"log"
-	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/net/redistest"
 )
 
-func startRedis2(port string) func() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	cmd := exec.CommandContext(ctx, "redis-server", "--port", port)
-	err := cmd.Start()
-	if err != nil {
-		log.Fatalf("Run '%q %q' failed, caused by: %s", cmd.Path, cmd.Args, err)
-	}
-	return func() { cancel(); _ = cmd.Wait() }
-}
-
 func Test_newClusterRateLimiter(t *testing.T) {
-	cancel := startRedis2("16079")
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	myring := net.NewRedisRingClient(
 		&net.RedisOptions{
-			Addrs: []string{"127.0.0.1:16079"},
+			Addrs: []string{redisAddr},
 		},
 	)
 	fake, err := newFakeSwarm("foo01", 3*time.Second)
@@ -94,5 +81,4 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			}
 		})
 	}
-
 }
