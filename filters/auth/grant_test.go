@@ -338,7 +338,7 @@ func TestGrantFlow(t *testing.T) {
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
 
-	t.Run("check login is triggered access token is invalid", func(t *testing.T) {
+	t.Run("check login is triggered when access token is invalid", func(t *testing.T) {
 		cookie, err := auth.NewGrantCookieWithInvalidAccessToken(*config)
 		if err != nil {
 			t.Fatal(err)
@@ -425,4 +425,54 @@ func TestGrantRefresh(t *testing.T) {
 
 		checkRedirect(t, rsp, provider.URL+"/auth")
 	})
+}
+
+func TestGrantTokeninfoSubjectPresent(t *testing.T) {
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, `{"uid": "whatever"}`)
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.TokeninfoSubjectKey = "uid"
+
+	proxy := newSimpleGrantAuthProxy(t, config)
+	defer proxy.Close()
+
+	client := newGrantHTTPClient()
+
+	cookie, err := newGrantCookie(*config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+	checkStatus(t, rsp, http.StatusNoContent)
+}
+
+func TestGrantTokeninfoSubjectMissing(t *testing.T) {
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, `{"sub": "whatever"}`)
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.TokeninfoSubjectKey = "uid"
+
+	proxy := newSimpleGrantAuthProxy(t, config)
+	defer proxy.Close()
+
+	client := newGrantHTTPClient()
+
+	cookie, err := newGrantCookie(*config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+	checkRedirect(t, rsp, provider.URL+"/auth")
 }

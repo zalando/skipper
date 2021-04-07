@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -130,10 +131,14 @@ func (f *grantFilter) setAccessTokenHeader(req *http.Request, token string) {
 	}
 }
 
-func (f *grantFilter) createTokenContainer(token *oauth2.Token, tokeninfo map[string]interface{}) tokenContainer {
+func (f *grantFilter) createTokenContainer(token *oauth2.Token, tokeninfo map[string]interface{}) (tokenContainer, error) {
 	subject := ""
 	if f.config.TokeninfoSubjectKey != "" {
-		subject = tokeninfo[f.config.TokeninfoSubjectKey].(string)
+		if s, ok := tokeninfo[f.config.TokeninfoSubjectKey].(string); ok {
+			subject = s
+		} else {
+			return tokenContainer{}, fmt.Errorf("tokeninfo subject key '%s' is missing", f.config.TokeninfoSubjectKey)
+		}
 	}
 
 	tokeninfo["sub"] = subject
@@ -142,7 +147,7 @@ func (f *grantFilter) createTokenContainer(token *oauth2.Token, tokeninfo map[st
 		OAuth2Token: token,
 		Subject:     subject,
 		Claims:      tokeninfo,
-	}
+	}, nil
 }
 
 func (f *grantFilter) Request(ctx filters.FilterContext) {
@@ -172,10 +177,17 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 
 	f.setAccessTokenHeader(req, token.AccessToken)
 
+	tokenContainer, err := f.createTokenContainer(token, tokeninfo)
+	if err != nil {
+		log.Errorf("Failed to create token container: %v.", err)
+		loginRedirect(ctx, f.config)
+		return
+	}
+
 	// Set token in state bag for response Set-Cookie. By piggy-backing
 	// on the OIDC token container, we gain downstream compatibility with
 	// the oidcClaimsQuery filter.
-	ctx.StateBag()[oidcClaimsCacheKey] = f.createTokenContainer(token, tokeninfo)
+	ctx.StateBag()[oidcClaimsCacheKey] = tokenContainer
 
 	// Set the tokeninfo also in the tokeninfoCacheKey state bag, so we
 	// can reuse e.g. the forwardToken() filter.
