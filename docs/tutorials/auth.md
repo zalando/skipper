@@ -220,8 +220,8 @@ In the case of a user info filter the payload is in the format:
 
 Skipper encrypts the cookies and also generates a nonce during the OAuth2.0 flow
 for which it needs a secret key. This key is in a file which can be rotated periodically
-because it is reread by Skipper. The path to this file can be passed with the flag
-`-oidc-secret-file` when Skipper is started.
+because it is reread by Skipper. The path to this file must be passed with the flag
+`-oidc-secrets-file` when Skipper is started.
 
 ### AuthZ and access control
 
