@@ -1592,6 +1592,48 @@ clusterRatelimit("groupB", 4000, "1m", 503)
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
+## clusterLeakyBucket
+
+Implements leaky bucket rate limit algorithm that uses Redis as a storage.
+Requires command line flags `-enable-ratelimits`, `-enable-swarm` and `-swarm-redis-urls` to be set.
+
+The leaky bucket is an algorithm based on an analogy of how a bucket with a constant leak will overflow if either
+the average rate at which water is poured in exceeds the rate at which the bucket leaks or if more water than
+the capacity of the bucket is poured in all at once, see https://en.wikipedia.org/wiki/Leaky_bucket
+
+Parameters:
+
+* group (string)
+* key (string)
+* leak rate in "number/duration" format (string, e.g. "10/m", "1/5s")
+* capacity (optional integer, default is 1)
+* increment (optional integer, default is 1)
+
+Group and key together define request _label_. Requests with the same label across routes all add up to the same bucket and
+increment sets how much each allowed request adds to the bucket.
+Leak rate sets the amount that leaks out of the bucket per time period and capacity defines bucket capacity.
+Filters with the same group must have the same arguments except increment (i.e. use the same label and the same bucket but may add different amount).
+
+Key supports [template placeholders](#template-placeholders).
+
+If a template placeholder can't be resolved then request is allowed and does not add to any bucket.
+
+Examples:
+```
+// allow each unique Authorization header once in five seconds
+clusterLeakyBucket("clients", "auth${request.header.Authorization}", "1/5s")
+
+// allow 100 requests per hour for all clients 
+clusterLeakyBucket("global", "hourly", "100/h")
+
+// allow 10 requests per minute for each unique PHPSESSID cookie with bursts of up to 5 requests
+clusterLeakyBucket("sessions", "session${request.cookie.PHPSESSID}", "10/m", 5)
+
+// Two routes that share rate limit but use different increment (i.e. one /expensive request counts as two /cheap)
+Path("/cheap")     -> clusterLeakyBucket("users", "${request.cookie.Authorization}", "1/s", 5, 1) -> ...
+Path("/expensive") -> clusterLeakyBucket("users", "${request.cookie.Authorization}", "1/s", 5, 2) -> ...
+```
+
 ## lua
 
 See [the scripts page](scripts.md)
