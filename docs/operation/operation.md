@@ -273,8 +273,12 @@ Application metrics for your proxied applications you can enable with the option
 
     -serve-host-metrics
         enables reporting total serve time metrics for each host
+    -serve-route-metrics
+        enables reporting total serve time metrics for each route
 
-This will make sure you will get stats for each "Host" header as "timers":
+This will make sure you will get stats for each "Host" header or the
+route name as "timers". The following is an example for
+`-serve-host-metrics`:
 
     "timers": {
       "skipper.servehost.app1_example_com.GET.200": {
@@ -327,6 +331,12 @@ This will make sure you will get stats for each "Host" header as "timers":
       }
     },
 
+Note you can reduce the dimension of the metrics by removing the HTTP
+status code and method from it. Use the `-serve-method-metric=false`
+and/or `-serve-status-code-metric=false`. Both flags are enabled by
+default. For prometheus metrics flavour, a counter with both the HTTP
+method and status code can be enabled with `-serve-host-counter` or
+`-serve-route-counter`, even if these flags are disabled.
 
 To change the sampling type of how metrics are handled from
 [uniform](https://godoc.org/github.com/rcrowley/go-metrics#UniformSample)
@@ -680,6 +690,13 @@ it can count up. Please check the support listener endpoint (default
 ```
 % curl localhost:9911/metrics
 ```
+
+By default, the route and host metrics include the labels for the request
+HTTP response status code and the HTTP method. You can customize it by
+setting `-serve-method-metric=false` and/or
+`-serve-status-code-metric=false`. These two flags will enable or
+disable the method and status code labels from your metrics reducing the
+number of metrics generated and memory consumption.
 
 ### Filters
 

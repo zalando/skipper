@@ -141,6 +141,8 @@ func Test_NewConfig(t *testing.T) {
 				TlsHandshakeTimeoutBackend:              1 * time.Minute,
 				ResponseHeaderTimeoutBackend:            1 * time.Minute,
 				ExpectContinueTimeoutBackend:            30 * time.Second,
+				ServeMethodMetric:                       true,
+				ServeStatusCodeMetric:                   true,
 				SwarmRedisURLs:                          commaListFlag(),
 				SwarmRedisPassword:                      "set_from_file",
 				SwarmRedisDialTimeout:                   25 * time.Millisecond,

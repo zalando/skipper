@@ -35,8 +35,10 @@ type Prometheus struct {
 	filterResponseM            *prometheus.HistogramVec
 	filterAllResponseM         *prometheus.HistogramVec
 	filterAllCombinedResponseM *prometheus.HistogramVec
-	serveHostM                 *prometheus.HistogramVec
 	serveRouteM                *prometheus.HistogramVec
+	serveRouteCounterM         *prometheus.CounterVec
+	serveHostM                 *prometheus.HistogramVec
+	serveHostCounterM          *prometheus.CounterVec
 	proxyBackend5xxM           *prometheus.HistogramVec
 	proxyBackendErrorsM        *prometheus.CounterVec
 	proxyStreamingErrorsM      *prometheus.CounterVec
@@ -145,12 +147,25 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{})
 
+	metrics := []string{}
+	if opts.EnableServeStatusCodeMetric {
+		metrics = append(metrics, "code")
+	}
+	if opts.EnableServeMethodMetric {
+		metrics = append(metrics, "method")
+	}
 	serveRoute := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promServeSubsystem,
 		Name:      "route_duration_seconds",
 		Help:      "Duration in seconds of serving a route.",
 		Buckets:   opts.HistogramBuckets,
+	}, append(metrics, "route"))
+	serveRouteCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: promServeSubsystem,
+		Name:      "route_count",
+		Help:      "Total number of requests of serving a route.",
 	}, []string{"code", "method", "route"})
 
 	serveHost := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -159,6 +174,12 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "host_duration_seconds",
 		Help:      "Duration in seconds of serving a host.",
 		Buckets:   opts.HistogramBuckets,
+	}, append(metrics, "host"))
+	serveHostCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: promServeSubsystem,
+		Name:      "host_count",
+		Help:      "Total number of requests of serving a host.",
 	}, []string{"code", "method", "host"})
 
 	proxyBackend5xx := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -214,7 +235,9 @@ func NewPrometheus(opts Options) *Prometheus {
 		filterAllResponseM:         filterAllResponse,
 		filterAllCombinedResponseM: filterAllCombinedResponse,
 		serveRouteM:                serveRoute,
+		serveRouteCounterM:         serveRouteCounter,
 		serveHostM:                 serveHost,
+		serveHostCounterM:          serveHostCounter,
 		proxyBackend5xxM:           proxyBackend5xx,
 		proxyBackendErrorsM:        proxyBackendErrors,
 		proxyStreamingErrorsM:      proxyStreamingErrors,
@@ -253,7 +276,9 @@ func (p *Prometheus) registerMetrics() {
 	p.registry.MustRegister(p.filterAllResponseM)
 	p.registry.MustRegister(p.filterAllCombinedResponseM)
 	p.registry.MustRegister(p.serveRouteM)
+	p.registry.MustRegister(p.serveRouteCounterM)
 	p.registry.MustRegister(p.serveHostM)
+	p.registry.MustRegister(p.serveHostCounterM)
 	p.registry.MustRegister(p.proxyBackend5xxM)
 	p.registry.MustRegister(p.proxyBackendErrorsM)
 	p.registry.MustRegister(p.proxyStreamingErrorsM)
@@ -372,10 +397,10 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	method = measuredMethod(method)
 	t := p.sinceS(start)
 	if p.opts.EnableCombinedResponseMetrics {
-		p.responseM.WithLabelValues(fmt.Sprintf("%d", code), method, "").Observe(t)
+		p.responseM.WithLabelValues(fmt.Sprint(code), method, "").Observe(t)
 	}
 	if p.opts.EnableRouteResponseMetrics {
-		p.responseM.WithLabelValues(fmt.Sprintf("%d", code), method, routeID).Observe(t)
+		p.responseM.WithLabelValues(fmt.Sprint(code), method, routeID).Observe(t)
 	}
 }
 
@@ -384,12 +409,28 @@ func (p *Prometheus) MeasureServe(routeID, host, method string, code int, start 
 	method = measuredMethod(method)
 	t := p.sinceS(start)
 
-	if p.opts.EnableServeRouteMetrics {
-		p.serveRouteM.WithLabelValues(fmt.Sprintf("%d", code), method, routeID).Observe(t)
+	if p.opts.EnableServeRouteMetrics || p.opts.EnableServeHostMetrics {
+		metrics := []string{}
+		if p.opts.EnableServeStatusCodeMetric {
+			metrics = append(metrics, fmt.Sprint(code))
+		}
+		if p.opts.EnableServeMethodMetric {
+			metrics = append(metrics, method)
+		}
+		if p.opts.EnableServeRouteMetrics {
+			p.serveRouteM.WithLabelValues(append(metrics, routeID)...).Observe(t)
+		}
+		if p.opts.EnableServeHostMetrics {
+			p.serveHostM.WithLabelValues(append(metrics, hostForKey(host))...).Observe(t)
+		}
 	}
 
-	if p.opts.EnableServeHostMetrics {
-		p.serveHostM.WithLabelValues(fmt.Sprintf("%d", code), method, hostForKey(host)).Observe(t)
+	if p.opts.EnableServeRouteCounter {
+		p.serveRouteCounterM.WithLabelValues(fmt.Sprint(code), method, routeID).Inc()
+	}
+
+	if p.opts.EnableServeHostCounter {
+		p.serveHostCounterM.WithLabelValues(fmt.Sprint(code), method, hostForKey(host)).Inc()
 	}
 }
 

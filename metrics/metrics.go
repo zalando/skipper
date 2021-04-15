@@ -99,9 +99,34 @@ type Options struct {
 	// for each route, additionally grouped by status and method.
 	EnableServeRouteMetrics bool
 
+	// If set, a counter for each route is generated, additionally
+	// grouped by status and method. It differs from the automatically
+	// generated counter from `EnableServeRouteMetrics` because it will
+	// always contain the status and method labels, independently of the
+	// `EnableServeMethodMetric` and `EnableServeStatusCodeMetric`
+	// flags.
+	EnableServeRouteCounter bool
+
 	// If set, detailed total response time metrics will be collected
 	// for each host, additionally grouped by status and method.
 	EnableServeHostMetrics bool
+
+	// If set, a counter for each host is generated, additionally
+	// grouped by status and method. It differs from the automatically
+	// generated counter from `EnableServeHostMetrics` because it will
+	// always contain the status and method labels, independently of the
+	// `EnableServeMethodMetric` and `EnableServeStatusCodeMetric` flags.
+	EnableServeHostCounter bool
+
+	// If set, the detailed total response time metrics will contain the
+	// HTTP method as a domain of the metric. It affects both route and
+	// host splitted metrics.
+	EnableServeMethodMetric bool
+
+	// If set, the detailed total response time metrics will contain the
+	// HTTP Response status code as a domain of the metric. It affects
+	// both route and host splitted metrics.
+	EnableServeStatusCodeMetric bool
 
 	// If set, detailed response time metrics will be collected
 	// for each backend host
