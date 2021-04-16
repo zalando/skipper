@@ -245,7 +245,11 @@ func TestCodaHaleServeMetrics(t *testing.T) {
 		}},
 	}, {
 		"route enabled, host disabled",
-		Options{EnableServeRouteMetrics: true},
+		Options{
+			EnableServeRouteMetrics:     true,
+			EnableServeMethodMetric:     true,
+			EnableServeStatusCodeMetric: true,
+		},
 		[]serveMetricsMeasure{{
 			"route1",
 			"www.example.org:4443",
@@ -264,7 +268,11 @@ func TestCodaHaleServeMetrics(t *testing.T) {
 		}},
 	}, {
 		"route disabled, host enabled",
-		Options{EnableServeHostMetrics: true},
+		Options{
+			EnableServeHostMetrics:      true,
+			EnableServeMethodMetric:     true,
+			EnableServeStatusCodeMetric: true,
+		},
 		[]serveMetricsMeasure{{
 			"route1",
 			"www.example.org:4443",
@@ -284,8 +292,10 @@ func TestCodaHaleServeMetrics(t *testing.T) {
 	}, {
 		"route and host enabled",
 		Options{
-			EnableServeRouteMetrics: true,
-			EnableServeHostMetrics:  true,
+			EnableServeRouteMetrics:     true,
+			EnableServeHostMetrics:      true,
+			EnableServeMethodMetric:     true,
+			EnableServeStatusCodeMetric: true,
 		},
 		[]serveMetricsMeasure{{
 			"route1",
@@ -306,10 +316,90 @@ func TestCodaHaleServeMetrics(t *testing.T) {
 			minDuration: 30 * time.Millisecond,
 		}},
 	}, {
+		"route and host enabled without method label",
+		Options{
+			EnableServeRouteMetrics:     true,
+			EnableServeHostMetrics:      true,
+			EnableServeMethodMetric:     false,
+			EnableServeStatusCodeMetric: true,
+		},
+		[]serveMetricsMeasure{{
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}},
+		[]serveMetricsCheck{{
+			key:         "serveroute.route1.200",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}, {
+			key:         "servehost.www_example_org__4443.200",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}},
+	}, {
+		"route and host enabled without status code label",
+		Options{
+			EnableServeRouteMetrics:     true,
+			EnableServeHostMetrics:      true,
+			EnableServeMethodMetric:     true,
+			EnableServeStatusCodeMetric: false,
+		},
+		[]serveMetricsMeasure{{
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}},
+		[]serveMetricsCheck{{
+			key:         "serveroute.route1.GET",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}, {
+			key:         "servehost.www_example_org__4443.GET",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}},
+	}, {
+		"route and host enabled without status code and method label",
+		Options{
+			EnableServeRouteMetrics:     true,
+			EnableServeHostMetrics:      true,
+			EnableServeMethodMetric:     false,
+			EnableServeStatusCodeMetric: false,
+		},
+		[]serveMetricsMeasure{{
+			"route1",
+			"www.example.org:4443",
+			"GET",
+			200,
+			30 * time.Millisecond,
+		}},
+		[]serveMetricsCheck{{
+			key:         "serveroute.route1",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}, {
+			key:         "servehost.www_example_org__4443",
+			enabled:     true,
+			count:       1,
+			minDuration: 30 * time.Millisecond,
+		}},
+	}, {
 		"collect different metrics",
 		Options{
-			EnableServeRouteMetrics: true,
-			EnableServeHostMetrics:  true,
+			EnableServeRouteMetrics:     true,
+			EnableServeHostMetrics:      true,
+			EnableServeMethodMetric:     true,
+			EnableServeStatusCodeMetric: true,
 		},
 		[]serveMetricsMeasure{{
 			"route1",
@@ -380,7 +470,7 @@ func TestCodaHaleServeMetrics(t *testing.T) {
 
 				switch {
 				case enabled && v == nil:
-					return false, "failed to return metrics"
+					return false, "metric not found in the registry"
 				case !enabled && v != nil:
 					return false, "unexpected metrics"
 				case !enabled && v == nil:
@@ -419,7 +509,7 @@ func TestCodaHaleServeMetrics(t *testing.T) {
 					ci.count,
 					ci.minDuration,
 				); !ok {
-					t.Error(reason)
+					t.Errorf("error processing metric '%s': %s", ci.key, reason)
 					return
 				}
 			}

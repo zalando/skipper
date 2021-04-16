@@ -77,7 +77,11 @@ type Config struct {
 	DebugGcMetrics                      bool      `yaml:"debug-gc-metrics"`
 	RuntimeMetrics                      bool      `yaml:"runtime-metrics"`
 	ServeRouteMetrics                   bool      `yaml:"serve-route-metrics"`
+	ServeRouteCounter                   bool      `yaml:"serve-route-counter"`
 	ServeHostMetrics                    bool      `yaml:"serve-host-metrics"`
+	ServeHostCounter                    bool      `yaml:"serve-host-counter"`
+	ServeMethodMetric                   bool      `yaml:"serve-method-metric"`
+	ServeStatusCodeMetric               bool      `yaml:"serve-status-code-metric"`
 	BackendHostMetrics                  bool      `yaml:"backend-host-metrics"`
 	AllFiltersMetrics                   bool      `yaml:"all-filters-metrics"`
 	CombinedResponseMetrics             bool      `yaml:"combined-response-metrics"`
@@ -315,7 +319,11 @@ const (
 	debugGcMetricsUsage                      = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
 	runtimeMetricsUsage                      = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
 	serveRouteMetricsUsage                   = "enables reporting total serve time metrics for each route"
+	serveRouteCounterUsage                   = "enables reporting counting metrics for each route. Has the route, HTTP method and status code as labels. Currently just implemented for the Prometheus metrics flavour"
 	serveHostMetricsUsage                    = "enables reporting total serve time metrics for each host"
+	serveHostCounterUsage                    = "enables reporting counting metrics for each host. Has the route, HTTP method and status code as labels. Currently just implemented for the Prometheus metrics flavour"
+	serveMethodMetricUsage                   = "enables the HTTP method as a domain of the total serve time metric. It affects both route and host splitted metrics"
+	serveStatusCodeMetricUsage               = "enables the HTTP response status code as a domain of the total serve time metric. It affects both route and host splitted metrics"
 	backendHostMetricsUsage                  = "enables reporting total serve time metrics for each backend"
 	allFiltersMetricsUsage                   = "enables reporting combined filter metrics for each route"
 	combinedResponseMetricsUsage             = "enables reporting combined response time metrics"
@@ -524,7 +532,11 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.DebugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
 	flag.BoolVar(&cfg.RuntimeMetrics, "runtime-metrics", true, runtimeMetricsUsage)
 	flag.BoolVar(&cfg.ServeRouteMetrics, "serve-route-metrics", false, serveRouteMetricsUsage)
+	flag.BoolVar(&cfg.ServeRouteCounter, "serve-route-counter", false, serveRouteCounterUsage)
 	flag.BoolVar(&cfg.ServeHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
+	flag.BoolVar(&cfg.ServeHostCounter, "serve-host-counter", false, serveHostCounterUsage)
+	flag.BoolVar(&cfg.ServeMethodMetric, "serve-method-metric", true, serveMethodMetricUsage)
+	flag.BoolVar(&cfg.ServeStatusCodeMetric, "serve-status-code-metric", true, serveStatusCodeMetricUsage)
 	flag.BoolVar(&cfg.BackendHostMetrics, "backend-host-metrics", false, backendHostMetricsUsage)
 	flag.BoolVar(&cfg.AllFiltersMetrics, "all-filters-metrics", false, allFiltersMetricsUsage)
 	flag.BoolVar(&cfg.CombinedResponseMetrics, "combined-response-metrics", false, combinedResponseMetricsUsage)
@@ -799,7 +811,11 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableDebugGcMetrics:                c.DebugGcMetrics,
 		EnableRuntimeMetrics:                c.RuntimeMetrics,
 		EnableServeRouteMetrics:             c.ServeRouteMetrics,
+		EnableServeRouteCounter:             c.ServeRouteCounter,
 		EnableServeHostMetrics:              c.ServeHostMetrics,
+		EnableServeHostCounter:              c.ServeHostCounter,
+		EnableServeMethodMetric:             c.ServeMethodMetric,
+		EnableServeStatusCodeMetric:         c.ServeStatusCodeMetric,
 		EnableBackendHostMetrics:            c.BackendHostMetrics,
 		EnableAllFiltersMetrics:             c.AllFiltersMetrics,
 		EnableCombinedResponseMetrics:       c.CombinedResponseMetrics,
