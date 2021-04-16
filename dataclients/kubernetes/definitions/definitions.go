@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/go-yaml/yaml"
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v2"
 )
 
 type RouteGroupList struct {

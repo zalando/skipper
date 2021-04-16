@@ -21,7 +21,7 @@ type RoundTripper struct {
 func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, error) {
 	connFactory := gofast.SimpleConnFactory("tcp", addr)
 
-	client, err := gofast.SimpleClientFactory(connFactory, 0)()
+	client, err := gofast.SimpleClientFactory(connFactory)()
 	if err != nil {
 		return nil, fmt.Errorf("gofast: failed creating client: %w", err)
 	}
