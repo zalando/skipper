@@ -593,14 +593,13 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 		}
 
 		// Internal hosts
-		for _, host := range internalHosts {
-			hosts := []string{host}
+		if len(internalHosts) > 0 {
 			internalCtx := &routeGroupContext{
 				clusterState:          s,
 				defaultFilters:        df,
 				routeGroup:            rg,
-				hosts:                 hosts,
-				hostRx:                createHostRx(host),
+				hosts:                 internalHosts,
+				hostRx:                createHostRx(internalHosts...),
 				hostRoutes:            make(map[string][]*eskip.Route),
 				provideHTTPSRedirect:  r.options.ProvideHTTPSRedirect,
 				httpsRedirectCode:     r.options.HTTPSRedirectCode,
