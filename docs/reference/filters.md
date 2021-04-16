@@ -1592,6 +1592,50 @@ clusterRatelimit("groupB", 4000, "1m", 503)
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
+## backendRatelimit
+
+The filter configures request rate limit for each backend endpoint within rate limit group across all Skipper peers.
+When limit is reached Skipper refuses to forward the request to the backend and
+responds with `503 Service Unavailable` status to the client.
+It is similar to [clusterClientRatelimit](#clusterclientratelimit) filter but counts request rate
+using backend endpoint address instead of incoming request IP address or a HTTP header.
+Requires command line flags `-enable-swarm` and `-enable-ratelimits`.
+
+Parameters:
+
+* rate limit group (string)
+* number of allowed requests per time period (int)
+* timeframe for requests being counted (time.Duration)
+
+Multiple filter definitions using the same group must use the same number of allowed requests and timeframe values.
+
+Examples:
+
+```
+foo: Path("/foo")
+  -> backendRatelimit("foobar", 100, "1s")
+  -> <"http://backend1", "http://backend2">;
+
+bar: Path("/bar")
+  -> backendRatelimit("foobar", 100, "1s")
+  -> <"http://backend1", "http://backend2">;
+```
+Configures rate limit of 100 requests per second for each `backend1` and `backend2`
+regardless of the request path by using the same group name, number of request and timeframe parameters.
+
+```
+foo: Path("/foo")
+  -> backendRatelimit("foo", 40, "1s")
+  -> <"http://backend1", "http://backend2">;
+
+bar: Path("/bar")
+  -> backendRatelimit("bar", 80, "1s")
+  -> <"http://backend1", "http://backend2">;
+```
+Configures rate limit of 40 requests per second for each `backend1` and `backend2`
+for the `/foo` requests and 80 requests per second for the `/bar` requests by using different group name per path.
+The total request rate each backend receives can not exceed `40+80=120` requests per second.
+
 ## lua
 
 See [the scripts page](scripts.md)

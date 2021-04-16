@@ -2,31 +2,13 @@ package net
 
 import (
 	"context"
-	"log"
-	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/zalando/skipper/net/redistest"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
-
-func startRedis(port, password string) func() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	cmdArgs := []string{"--port", port}
-	if password != "" {
-		cmdArgs = append(cmdArgs, "--requirepass")
-		cmdArgs = append(cmdArgs, password)
-	}
-	cmd := exec.CommandContext(ctx, "redis-server", cmdArgs...)
-	err := cmd.Start()
-	if err != nil {
-		log.Fatalf("Run '%q %q' failed, caused by: %s", cmd.Path, cmd.Args, err)
-	}
-
-	return func() { cancel(); _ = cmd.Wait() }
-}
 
 func TestRedisClient(t *testing.T) {
 	tracer, err := basic.InitTracer([]string{"recorder=in-memory"})
@@ -34,9 +16,8 @@ func TestRedisClient(t *testing.T) {
 		t.Fatalf("Failed to get a tracer: %v", err)
 	}
 
-	redisPort := "16383"
-	cancel := startRedis(redisPort, "")
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	for _, tt := range []struct {
 		name    string
@@ -46,14 +27,14 @@ func TestRedisClient(t *testing.T) {
 		{
 			name: "All defaults",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			wantErr: false,
 		},
 		{
 			name: "With tracer",
 			options: &RedisOptions{
-				Addrs:  []string{"127.0.0.1:" + redisPort},
+				Addrs:  []string{redisAddr},
 				Tracer: tracer,
 			},
 			wantErr: false,
@@ -61,7 +42,7 @@ func TestRedisClient(t *testing.T) {
 		{
 			name: "With metrics",
 			options: &RedisOptions{
-				Addrs:               []string{"127.0.0.1:" + redisPort},
+				Addrs:               []string{redisAddr},
 				ConnMetricsInterval: 10 * time.Millisecond,
 			},
 			wantErr: false,
@@ -90,9 +71,8 @@ func TestRedisClient(t *testing.T) {
 }
 
 func TestRedisClientGetSet(t *testing.T) {
-	redisPort := "16384"
-	cancel := startRedis(redisPort, "")
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	for _, tt := range []struct {
 		name    string
@@ -107,14 +87,14 @@ func TestRedisClientGetSet(t *testing.T) {
 		{
 			name: "add none",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			wantErr: true,
 		},
 		{
 			name: "add one, get one, no expiration",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key:     "k1",
 			value:   "foo",
@@ -124,7 +104,7 @@ func TestRedisClientGetSet(t *testing.T) {
 		{
 			name: "add one, get one, with expiration",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key:     "k1",
 			value:   "foo",
@@ -135,7 +115,7 @@ func TestRedisClientGetSet(t *testing.T) {
 		{
 			name: "add one, get none, with expiration, wait to expire",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key:     "k1",
 			value:   "foo",
@@ -171,9 +151,8 @@ func TestRedisClientGetSet(t *testing.T) {
 }
 
 func TestRedisClientZAddZCard(t *testing.T) {
-	redisPort := "16384"
-	cancel := startRedis(redisPort, "")
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	type valScore struct {
 		val   int64
@@ -190,14 +169,14 @@ func TestRedisClientZAddZCard(t *testing.T) {
 		{
 			name: "add none",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			wantErr: true,
 		},
 		{
 			name: "add one",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -214,7 +193,7 @@ func TestRedisClientZAddZCard(t *testing.T) {
 		{
 			name: "add one more values",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k2",
 			h: map[string][]valScore{
@@ -237,7 +216,7 @@ func TestRedisClientZAddZCard(t *testing.T) {
 		{
 			name: "add 2 keys and values",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -266,7 +245,7 @@ func TestRedisClientZAddZCard(t *testing.T) {
 		{
 			name: "add 2 keys and values",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k2",
 			h: map[string][]valScore{
@@ -333,9 +312,8 @@ func TestRedisClientZAddZCard(t *testing.T) {
 }
 
 func TestRedisClientExpire(t *testing.T) {
-	redisPort := "16385"
-	cancel := startRedis(redisPort, "")
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	type valScore struct {
 		val   int64
@@ -355,7 +333,7 @@ func TestRedisClientExpire(t *testing.T) {
 		{
 			name: "add none",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			zcard:            0,
 			zcardAfterExpire: 0,
@@ -364,7 +342,7 @@ func TestRedisClientExpire(t *testing.T) {
 		{
 			name: "add one which does not expire",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -383,7 +361,7 @@ func TestRedisClientExpire(t *testing.T) {
 		{
 			name: "add one which does expire",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -403,7 +381,7 @@ func TestRedisClientExpire(t *testing.T) {
 		{
 			name: "add one more values expire all",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k2",
 			h: map[string][]valScore{
@@ -469,9 +447,8 @@ func TestRedisClientExpire(t *testing.T) {
 }
 
 func TestRedisClientZRemRangeByScore(t *testing.T) {
-	redisPort := "16384"
-	cancel := startRedis(redisPort, "")
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	type valScore struct {
 		val   int64
@@ -491,14 +468,14 @@ func TestRedisClientZRemRangeByScore(t *testing.T) {
 		{
 			name: "none",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			wantErr: true,
 		},
 		{
 			name: "delete none",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -518,7 +495,7 @@ func TestRedisClientZRemRangeByScore(t *testing.T) {
 		{
 			name: "delete one",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -538,7 +515,7 @@ func TestRedisClientZRemRangeByScore(t *testing.T) {
 		{
 			name: "delete one have more values",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k2",
 			h: map[string][]valScore{
@@ -564,7 +541,7 @@ func TestRedisClientZRemRangeByScore(t *testing.T) {
 		{
 			name: "delete 2 have more values offset score",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k2",
 			h: map[string][]valScore{
@@ -641,9 +618,8 @@ func TestRedisClientZRemRangeByScore(t *testing.T) {
 }
 
 func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
-	redisPort := "16384"
-	cancel := startRedis(redisPort, "")
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	type valScore struct {
 		val   int64
@@ -664,14 +640,14 @@ func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
 		{
 			name: "none",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			wantErr: true,
 		},
 		{
 			name: "one key, have one value, get first by min max",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -690,7 +666,7 @@ func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
 		{
 			name: "one key, have one value, get none by min max",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -708,7 +684,7 @@ func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
 		{
 			name: "one key, have one value, get none by offset",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k1",
 			h: map[string][]valScore{
@@ -727,7 +703,7 @@ func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
 		{
 			name: "one key, have more values, get last by offset",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k2",
 			h: map[string][]valScore{
@@ -754,7 +730,7 @@ func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
 		{
 			name: "one key, have more values, get second by offset",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k2",
 			h: map[string][]valScore{
@@ -781,7 +757,7 @@ func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
 		{
 			name: "one key, have more values, select all get first",
 			options: &RedisOptions{
-				Addrs: []string{"127.0.0.1:" + redisPort},
+				Addrs: []string{redisAddr},
 			},
 			key: "k2",
 			h: map[string][]valScore{

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	stdlibcontext "context"
 	"crypto/tls"
 	"encoding/base64"
@@ -875,6 +876,14 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		return nil, &proxyError{err: err}
 	}
 
+	if !p.allowBackend(ctx, req) {
+		return &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Header:     http.Header{"Content-Length": []string{"0"}},
+			Body:       ioutil.NopCloser(&bytes.Buffer{}),
+		}, nil
+	}
+
 	if endpoint != nil {
 		endpoint.Metrics.IncInflightRequest()
 		defer endpoint.Metrics.DecInflightRequest()
@@ -993,6 +1002,16 @@ func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTrip
 	default:
 		return p.roundTripper, nil
 	}
+}
+
+func (p *Proxy) allowBackend(ctx *context, req *http.Request) bool {
+	settings, ok := ctx.StateBag()[filters.BackendRatelimit].(ratelimit.Settings)
+	if !ok {
+		return true
+	}
+	s := req.URL.Scheme + "://" + req.URL.Host
+
+	return p.limiters.Get(settings).AllowContext(req.Context(), s)
 }
 
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {

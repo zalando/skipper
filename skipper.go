@@ -1283,6 +1283,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			ratelimitfilters.NewClusterRateLimit(provider),
 			ratelimitfilters.NewClusterClientRateLimit(provider),
 			ratelimitfilters.NewDisableRatelimit(provider),
+			ratelimitfilters.NewBackendRatelimit(),
 		)
 	}
 
