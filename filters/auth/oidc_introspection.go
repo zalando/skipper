@@ -67,7 +67,7 @@ func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Fil
 				return nil, fmt.Errorf("%v: malformatted filter arg %s", filters.ErrInvalidFilterParameters, arg)
 			}
 			pq := pathQuery{path: slice[0]}
-			for _, query := range strings.Split(slice[1], " ") {
+			for _, query := range splitQueries(slice[1]) {
 				if query == "" {
 					return nil, fmt.Errorf("%v: %s", errUnsupportedClaimSpecified, arg)
 				}
@@ -171,6 +171,18 @@ func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotTo
 
 func (p pathQuery) String() string {
 	return fmt.Sprintf("path: '%s*', matching: %s", p.path, strings.Join(p.queries, " ,"))
+}
+
+// Splits space-delimited GJSON queries ignoring spaces within quoted strings
+func splitQueries(s string) (q []string) {
+	for _, p := range strings.Split(s, " ") {
+		if len(q) == 0 || strings.Count(q[len(q)-1], `"`)%2 == 0 {
+			q = append(q, p)
+		} else {
+			q[len(q)-1] = q[len(q)-1] + " " + p
+		}
+	}
+	return
 }
 
 func trimQuotes(s string) string {
