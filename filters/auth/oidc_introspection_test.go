@@ -55,6 +55,20 @@ func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
+			name: "one path query with whitespace",
+			args: []interface{}{`/:[@this].#(sub=="white space")`},
+			want: &oidcIntrospectionFilter{
+				typ: checkOIDCQueryClaims,
+				paths: []pathQuery{
+					{
+						path:    "/",
+						queries: []string{`[@this].#(sub=="white space")`},
+					},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+		{
 			name: "several path queries",
 			args: []interface{}{
 				"/some/path:[@this].#(sub==\"somesub\")",
@@ -85,6 +99,27 @@ func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 						path: "/",
 						queries: []string{
 							"groups.#(%\"Purchasing-Department\")",
+						},
+					},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "several path queries with whitespaces",
+			args: []interface{}{
+				`/asdf/:groups.#(%"white space") 'groups.#(%"two white spaces")' groups.#(%"consecutive   whitespaces") groups.#(%"nowhitespace")`,
+			},
+			want: &oidcIntrospectionFilter{
+				typ: checkOIDCQueryClaims,
+				paths: []pathQuery{
+					{
+						path: "/asdf/",
+						queries: []string{
+							`groups.#(%"white space")`,
+							`groups.#(%"two white spaces")`,
+							`groups.#(%"consecutive   whitespaces")`,
+							`groups.#(%"nowhitespace")`,
 						},
 					},
 				},
@@ -162,6 +197,15 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 			msg: "path / permitted for group Purchasing-Department",
 			args: []interface{}{
 				"/:groups.#(%\"Purchasing-Department\")",
+			},
+			path:      "/",
+			expected:  200,
+			expectErr: false,
+		},
+		{
+			msg: "path / permitted for group with whitespace",
+			args: []interface{}{
+				`/:groups.#(%"white space")`,
 			},
 			path:      "/",
 			expected:  200,

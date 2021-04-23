@@ -229,6 +229,7 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 						"CD-Administrators",
 						"Purchasing-Department",
 						"AppX-Test-Users",
+						"white space",
 					},
 					"email": "someone@example.org",
 				})
