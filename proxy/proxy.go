@@ -28,6 +28,7 @@ import (
 	al "github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
+	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
@@ -876,12 +877,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		return nil, &proxyError{err: err}
 	}
 
-	if !p.allowBackend(ctx, req) {
-		return &http.Response{
-			StatusCode: http.StatusServiceUnavailable,
-			Header:     http.Header{"Content-Length": []string{"0"}},
-			Body:       ioutil.NopCloser(&bytes.Buffer{}),
-		}, nil
+	if res, ok := p.rejectBackend(ctx, req); ok {
+		return res, nil
 	}
 
 	if endpoint != nil {
@@ -1004,14 +1001,20 @@ func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTrip
 	}
 }
 
-func (p *Proxy) allowBackend(ctx *context, req *http.Request) bool {
-	settings, ok := ctx.StateBag()[filters.BackendRatelimit].(ratelimit.Settings)
-	if !ok {
-		return true
-	}
-	s := req.URL.Scheme + "://" + req.URL.Host
+func (p *Proxy) rejectBackend(ctx *context, req *http.Request) (*http.Response, bool) {
+	limit, ok := ctx.StateBag()[filters.BackendRatelimit].(*ratelimitfilters.BackendRatelimit)
+	if ok {
+		s := req.URL.Scheme + "://" + req.URL.Host
 
-	return p.limiters.Get(settings).AllowContext(req.Context(), s)
+		if !p.limiters.Get(limit.Settings).AllowContext(req.Context(), s) {
+			return &http.Response{
+				StatusCode: limit.StatusCode,
+				Header:     http.Header{"Content-Length": []string{"0"}},
+				Body:       ioutil.NopCloser(&bytes.Buffer{}),
+			}, true
+		}
+	}
+	return nil, false
 }
 
 func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
