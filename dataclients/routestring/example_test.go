@@ -21,10 +21,12 @@ func Example() {
 		return
 	}
 
-	go skipper.Run(skipper.Options{
-		Address:           ":9999",
-		CustomDataClients: []routing.DataClient{rs},
-	})
+	go func() {
+		skipper.Run(skipper.Options{
+			Address:           ":9999",
+			CustomDataClients: []routing.DataClient{rs},
+		})
+	}()
 	time.Sleep(1 * time.Millisecond)
 
 	rsp, err := http.Get("http://localhost:9999")
