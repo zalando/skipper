@@ -1596,16 +1596,22 @@ See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratel
 
 The filter configures request rate limit for each backend endpoint within rate limit group across all Skipper peers.
 When limit is reached Skipper refuses to forward the request to the backend and
-responds with `503 Service Unavailable` status to the client.
+responds with `503 Service Unavailable` status to the client, i.e. implements _load shedding_.
+
 It is similar to [clusterClientRatelimit](#clusterclientratelimit) filter but counts request rate
 using backend endpoint address instead of incoming request IP address or a HTTP header.
 Requires command line flags `-enable-swarm` and `-enable-ratelimits`.
+
+Both _rate limiting_ and _load shedding_ can use the exact same mechanism to protect the backend but the key difference is the semantics:
+* _rate limiting_ should adopt 4XX and inform the client that they are exceeding some quota. It doesn't depend on the current capacity of the backend.
+* _load shedding_ should adopt 5XX and inform the client that the backend is not able to provide the service. It depends on the current capacity of the backend.
 
 Parameters:
 
 * rate limit group (string)
 * number of allowed requests per time period (int)
 * timeframe for requests being counted (time.Duration)
+* response status code to use for rejected requests - optional, default: 503
 
 Multiple filter definitions using the same group must use the same number of allowed requests and timeframe values.
 
@@ -1635,6 +1641,14 @@ bar: Path("/bar")
 Configures rate limit of 40 requests per second for each `backend1` and `backend2`
 for the `/foo` requests and 80 requests per second for the `/bar` requests by using different group name per path.
 The total request rate each backend receives can not exceed `40+80=120` requests per second.
+
+```
+foo: Path("/baz")
+  -> backendRatelimit("baz", 100, "1s", 429)
+  -> <"http://backend1", "http://backend2">;
+```
+Configures rate limit of 100 requests per second for each `backend1` and `backend2` and responds
+with `429 Too Many Requests` when limit is reached.
 
 ## lua
 

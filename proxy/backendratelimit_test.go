@@ -73,7 +73,7 @@ func (backends countingBackends) String() string {
 
 // Round robin distributes requests evenly between backends,
 // test each backend gets exactly max hits before limit kicks-in
-func TestBackendRateLimitRoundRobin(t *testing.T) {
+func TestBackendRatelimitRoundRobin(t *testing.T) {
 	const (
 		nBackends  = 3
 		maxHits    = 7
@@ -116,13 +116,14 @@ func TestBackendRateLimitRoundRobin(t *testing.T) {
 	}
 }
 
-func TestBackendRateLimitScenarios(t *testing.T) {
+func TestBackendRatelimitScenarios(t *testing.T) {
 	for _, ti := range []struct {
-		name     string
-		routes   string
-		backends int
-		requests map[string]int
-		maxHits  int
+		name             string
+		routes           string
+		backends         int
+		requests         map[string]int
+		maxHits          int
+		rejectStatusCode int
 	}{
 		{
 			"single route with one backend",
@@ -130,6 +131,15 @@ func TestBackendRateLimitScenarios(t *testing.T) {
 			1,
 			map[string]int{"/": 10},
 			7,
+			http.StatusServiceUnavailable,
+		},
+		{
+			"single route with one backend and status override",
+			`* -> backendRatelimit("testapi", 7, "10s", 429) -> $backends`,
+			1,
+			map[string]int{"/": 10},
+			7,
+			http.StatusTooManyRequests,
 		},
 		{
 			"single route with three backends, random",
@@ -137,6 +147,7 @@ func TestBackendRateLimitScenarios(t *testing.T) {
 			3,
 			map[string]int{"/": 30},
 			7,
+			http.StatusServiceUnavailable,
 		},
 		{
 			"single route with three backends, roundRobin",
@@ -144,6 +155,7 @@ func TestBackendRateLimitScenarios(t *testing.T) {
 			3,
 			map[string]int{"/": 30},
 			7,
+			http.StatusServiceUnavailable,
 		},
 		{
 			"single route with three backends, consistentHash",
@@ -151,6 +163,7 @@ func TestBackendRateLimitScenarios(t *testing.T) {
 			3,
 			map[string]int{"/": 30},
 			7,
+			http.StatusServiceUnavailable,
 		},
 		{
 			"two routes with three backends and common limit",
@@ -159,6 +172,7 @@ func TestBackendRateLimitScenarios(t *testing.T) {
 			3,
 			map[string]int{"/api1": 15, "/api2": 15},
 			7,
+			http.StatusServiceUnavailable,
 		},
 		{
 			"two routes with three backends and separate limits",
@@ -167,6 +181,7 @@ func TestBackendRateLimitScenarios(t *testing.T) {
 			3,
 			map[string]int{"/api1": 20, "/api2": 30},
 			4 + 8,
+			http.StatusServiceUnavailable,
 		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
@@ -208,7 +223,7 @@ func TestBackendRateLimitScenarios(t *testing.T) {
 				}
 				defer rsp.Body.Close()
 
-				if rsp.StatusCode != http.StatusOK && rsp.StatusCode != http.StatusServiceUnavailable {
+				if rsp.StatusCode != http.StatusOK && rsp.StatusCode != ti.rejectStatusCode {
 					t.Fatalf("%s: unexpected status %d", url, rsp.StatusCode)
 				}
 			}

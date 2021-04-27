@@ -1,22 +1,25 @@
 package ratelimit
 
 import (
+	"net/http"
+
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/ratelimit"
 )
 
-type backendRatelimit struct {
-	settings ratelimit.Settings
+type BackendRatelimit struct {
+	Settings   ratelimit.Settings
+	StatusCode int
 }
 
 // NewBackendRatelimit creates a filter Spec, whose instances
 // instruct proxy to limit request rate towards a particular backend endpoint
-func NewBackendRatelimit() filters.Spec { return &backendRatelimit{} }
+func NewBackendRatelimit() filters.Spec { return &BackendRatelimit{} }
 
-func (*backendRatelimit) Name() string { return "backendRatelimit" }
+func (*BackendRatelimit) Name() string { return "backendRatelimit" }
 
-func (*backendRatelimit) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 3 {
+func (*BackendRatelimit) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 3 && len(args) != 4 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -35,19 +38,29 @@ func (*backendRatelimit) CreateFilter(args []interface{}) (filters.Filter, error
 		return nil, err
 	}
 
-	s := ratelimit.Settings{
-		Type:       ratelimit.ClusterServiceRatelimit,
-		Group:      "backend." + group,
-		MaxHits:    maxHits,
-		TimeWindow: timeWindow,
+	f := &BackendRatelimit{
+		Settings: ratelimit.Settings{
+			Type:       ratelimit.ClusterServiceRatelimit,
+			Group:      "backend." + group,
+			MaxHits:    maxHits,
+			TimeWindow: timeWindow,
+		},
+		StatusCode: http.StatusServiceUnavailable,
 	}
 
-	return &backendRatelimit{settings: s}, nil
+	if len(args) == 4 {
+		code, err := getIntArg(args[3])
+		if err != nil {
+			return nil, err
+		}
+		f.StatusCode = code
+	}
+	return f, nil
 }
 
-func (f *backendRatelimit) Request(ctx filters.FilterContext) {
+func (limit *BackendRatelimit) Request(ctx filters.FilterContext) {
 	// allows overwrite
-	ctx.StateBag()[filters.BackendRatelimit] = f.settings
+	ctx.StateBag()[filters.BackendRatelimit] = limit
 }
 
-func (*backendRatelimit) Response(filters.FilterContext) {}
+func (*BackendRatelimit) Response(filters.FilterContext) {}

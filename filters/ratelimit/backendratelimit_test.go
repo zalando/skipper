@@ -24,9 +24,9 @@ func TestBackendRatelimit(t *testing.T) {
 	c := &filtertest.Context{FRequest: &http.Request{}, FStateBag: make(map[string]interface{})}
 	f.Request(c)
 
-	settings, ok := c.FStateBag[filters.BackendRatelimit].(ratelimit.Settings)
+	limit, ok := c.FStateBag[filters.BackendRatelimit].(*BackendRatelimit)
 	if !ok {
-		t.Fatal("settings expected")
+		t.Fatal("BackendRatelimit expected")
 	}
 	expected := ratelimit.Settings{
 		Type:       ratelimit.ClusterServiceRatelimit,
@@ -34,17 +34,20 @@ func TestBackendRatelimit(t *testing.T) {
 		MaxHits:    22,
 		TimeWindow: 7 * time.Second,
 	}
-	if settings != expected {
-		t.Fatalf("wrong settings, expected: %v, got %v", expected, settings)
+	if limit.Settings != expected {
+		t.Fatalf("wrong settings, expected: %v, got %v", expected, limit.Settings)
+	}
+	if limit.StatusCode != 503 {
+		t.Fatalf("wrong status code, expected: 503, got %v", limit.StatusCode)
 	}
 
 	// second filter overwrites
-	f, _ = spec.CreateFilter([]interface{}{"api2", 355, "113s"})
+	f, _ = spec.CreateFilter([]interface{}{"api2", 355, "113s", 429})
 	f.Request(c)
 
-	settings, ok = c.FStateBag[filters.BackendRatelimit].(ratelimit.Settings)
+	limit, ok = c.FStateBag[filters.BackendRatelimit].(*BackendRatelimit)
 	if !ok {
-		t.Fatal("settings overwrite expected")
+		t.Fatal("BackendRatelimit overwrite expected")
 	}
 	expected = ratelimit.Settings{
 		Type:       ratelimit.ClusterServiceRatelimit,
@@ -52,7 +55,10 @@ func TestBackendRatelimit(t *testing.T) {
 		MaxHits:    355,
 		TimeWindow: 113 * time.Second,
 	}
-	if settings != expected {
-		t.Fatalf("wrong settings overwrite, expected: %v, got %v", expected, settings)
+	if limit.Settings != expected {
+		t.Fatalf("wrong settings overwrite, expected: %v, got %v", expected, limit.Settings)
+	}
+	if limit.StatusCode != 429 {
+		t.Fatalf("wrong status code, expected: 429, got %v", limit.StatusCode)
 	}
 }
