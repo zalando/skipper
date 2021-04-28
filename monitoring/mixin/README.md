@@ -1,11 +1,11 @@
 # Skipper Mixin
 
 The Skipper Mixin is a set of configurable, reusable, and extensible alerts and
-dashboards based on the metrics exported by the MySQLd Exporter. The mixin creates
+dashboards based on the prometheus metrics exported by the Skipper i.e `-metrics-flavour=prometheus`. The mixin creates
 recording and alerting rules for Prometheus and suitable dashboard descriptions
 for Grafana.
 
-To use them, you need to have `mixtool` and `jsonnetfmt` installed. If you
+To build them, you need to have `mixtool` and `jsonnetfmt` installed. If you
 have a working Go development environment, it's easiest to run the following:
 ```bash
 $ go get github.com/monitoring-mixins/mixtool/cmd/mixtool
@@ -19,5 +19,5 @@ for Grafana:
 $ make build
 ```
 
-For more advanced uses of mixins, see
-https://github.com/monitoring-mixins/docs.
+The JSON files in `dashboard_out` can then be [imported into a Grafana instance](https://grafana.com/docs/grafana/latest/dashboards/export-import/#importing-a-dashboard).
+For more advanced uses of mixins, see https://github.com/monitoring-mixins/docs.
