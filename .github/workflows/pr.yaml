@@ -34,6 +34,8 @@ jobs:
         with:
           go-version: '^1.15'
       - run: go version
+      - run: cd skipper-mixin; go get github.com/monitoring-mixins/mixtool/cmd/mixtool
+      - run: cd skipper-mixin; go get github.com/google/go-jsonnet/cmd/jsonnetfmt
       - run: cd skipper-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool
       - run: cd skipper-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt
       - run: cd skipper-mixin; make lint build
