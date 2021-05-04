@@ -164,14 +164,14 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 	if c.AccessToken != "" {
 		accessTokenRevokeError = f.revokeTokenType(accessTokenType, c.AccessToken)
 		if accessTokenRevokeError != nil {
-			log.Error(err)
+			log.Error(accessTokenRevokeError)
 		}
 	}
 
 	if c.RefreshToken != "" {
 		refreshTokenRevokeError = f.revokeTokenType(refreshTokenType, c.RefreshToken)
 		if refreshTokenRevokeError != nil {
-			log.Error(err)
+			log.Error(refreshTokenRevokeError)
 		}
 	}
 
