@@ -23,17 +23,17 @@ type remoteEskipFile struct {
 }
 
 type RemoteWatchOptions struct {
-	remoteFile    string
-	threshold     int
-	verbose       bool
-	failOnStartup bool
+	RemoteFile    string
+	Threshold     int
+	Verbose       bool
+	FailOnStartup bool
 }
 
 // RemoteWatch creates a route configuration client with (remote) file watching. Watch doesn't follow file system nodes,
 // it always reads (or re-downloads) from the file identified by the initially provided file name.
 func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
-	if !isFileRemote(o.remoteFile) {
-		return Watch(o.remoteFile), nil
+	if !isFileRemote(o.RemoteFile) {
+		return Watch(o.RemoteFile), nil
 	}
 
 	tempFilename, err := ioutil.TempFile("", "routes")
@@ -43,13 +43,13 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 	}
 
 	dataClient := &remoteEskipFile{
-		remotePath: o.remoteFile,
+		remotePath: o.RemoteFile,
 		localPath:  tempFilename.Name(),
-		threshold:  o.threshold,
-		verbose:    o.verbose,
+		threshold:  o.Threshold,
+		verbose:    o.Verbose,
 	}
 
-	if o.failOnStartup {
+	if o.FailOnStartup {
 		err = dataClient.DownloadRemoteFile()
 
 		if err != nil {
