@@ -23,9 +23,16 @@ type remoteEskipFile struct {
 }
 
 type RemoteWatchOptions struct {
-	RemoteFile    string
-	Threshold     int
-	Verbose       bool
+	// URL of the route file
+	RemoteFile string
+
+	// Verbose mode for the dataClient
+	Verbose bool
+
+	// Amount of route changes that will trigger logs after route updates
+	Threshold int
+
+	// It does an initial download and parsing of remote routes, and makes RemoteWatch to return an error
 	FailOnStartup bool
 }
 
