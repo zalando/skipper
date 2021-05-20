@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	re = regexp.MustCompile("^[a-zA-z0-9_/:?=&%@.#-]*$")
+	re = regexp.MustCompile("^[a-zA-Z0-9_/:?=&%@.#-]*$")
 )
 
 type auditLog struct {

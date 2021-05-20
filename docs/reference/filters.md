@@ -1791,7 +1791,7 @@ token.
 
 *N.B.* It is important to note that, if the content of the `X-Unverified-Audit` header does not match the following regex, then
 a default value of `invalid-sub` will be populated in the header instead:
-    `^[a-zA-z0-9_/:?=&%@.#-]*$`
+    `^[a-zA-Z0-9_/:?=&%@.#-]*$`
 
 Examples:
 
