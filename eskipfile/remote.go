@@ -49,10 +49,15 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 		return nil, err
 	}
 
+	t := 0
+	if o.Threshold > 0 {
+		t = o.Threshold
+	}
+
 	dataClient := &remoteEskipFile{
 		remotePath: o.RemoteFile,
 		localPath:  tempFilename.Name(),
-		threshold:  o.Threshold,
+		threshold:  t,
 		verbose:    o.Verbose,
 	}
 
@@ -96,7 +101,7 @@ func (client *remoteEskipFile) LoadAll() ([]*eskip.Route, error) {
 	}
 
 	if client.verbose {
-		log.Debugf("New routes file %s was downloaded", client.remotePath)
+		log.Infof("New routes file %s was downloaded", client.remotePath)
 	}
 
 	return client.eskipFileClient.LoadAll()
@@ -117,7 +122,7 @@ func (client *remoteEskipFile) LoadUpdate() ([]*eskip.Route, []string, error) {
 		if client.verbose {
 			log.Infof("New routes were loaded. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
 
-			if client.threshold >= 0 {
+			if client.threshold > 0 {
 				if len(newRoutes) > client.threshold || len(deletedRoutes) > client.threshold {
 					log.Warnf("Significant amount of routes was updated. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
 				}
