@@ -32,7 +32,7 @@ func TestForwardedHost(t *testing.T) {
 		isError: false,
 	}, {
 		msg:  "Same forwarded Header should match",
-		host: "example.com",
+		host: "^example.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
@@ -43,7 +43,7 @@ func TestForwardedHost(t *testing.T) {
 		isError: false,
 	}, {
 		msg:  "Same forwarded Header should match",
-		host: "example.com",
+		host: "^example.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
@@ -54,18 +54,7 @@ func TestForwardedHost(t *testing.T) {
 		isError: false,
 	}, {
 		msg:  "Same forwarded Header should match",
-		host: "example.com",
-		r: request{
-			url: "https://myproxy.com/index.html",
-			headers: http.Header{
-				"Forwarded": []string{"for=192.0.2.60;host=example.com;proto=http;by=203.0.113.43"},
-			},
-		},
-		matches: true,
-		isError: false,
-	}, {
-		msg:  "Same forwarded Header should match",
-		host: "example.com",
+		host: "^example.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
@@ -73,6 +62,28 @@ func TestForwardedHost(t *testing.T) {
 			},
 		},
 		matches: true,
+		isError: false,
+	}, {
+		msg:  "Forwarded Header should match subdomains",
+		host: "example.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{"host=subdomain.example.com;for=192.0.2.60;proto=http;by=203.0.113.43"},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
+		msg:  "Different forwarded Header should not match",
+		host: "^example.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{"for=192.0.2.60;proto=http;by=203.0.113.43;host=example.comma.org"},
+			},
+		},
+		matches: false,
 		isError: false,
 	}, {
 		msg:  "Different forwarded Header should not match",
@@ -118,24 +129,26 @@ func TestForwardedHost(t *testing.T) {
 			hasError := err != nil
 			if hasError || tc.isError {
 				if !tc.isError {
-					t.Error("Predicate creation failed")
+					t.Fatal("Predicate creation failed")
 				}
 
 				if !hasError {
-					t.Error("Predicate should have failed")
+					t.Fatal("Predicate should have failed")
 				}
 
-				return
+				if hasError && tc.isError {
+					return
+				}
 			}
 
 			r, err := newRequest(tc.r)
-			if !tc.isError && err != nil {
-				t.Error("Request creation failed")
+			if err != nil {
+				t.Fatal("Request creation failed")
 			}
 
 			m := p.Match(r)
 			if m != tc.matches {
-				t.Errorf("Unexpected predicate match result: %t instead of %t", m, tc.matches)
+				t.Fatalf("Unexpected predicate match result: %t instead of %t", m, tc.matches)
 			}
 		})
 	}
@@ -271,24 +284,26 @@ func TestForwardedProto(t *testing.T) {
 			hasError := err != nil
 			if hasError || tc.isError {
 				if !tc.isError {
-					t.Error("Predicate creation failed")
+					t.Fatal("Predicate creation failed")
 				}
 
 				if !hasError {
-					t.Error("Predicate should have failed")
+					t.Fatal("Predicate should have failed")
 				}
 
-				return
+				if hasError && tc.isError {
+					return
+				}
 			}
 
 			r, err := newRequest(tc.r)
-			if !tc.isError && err != nil {
-				t.Error("Request creation failed")
+			if err != nil {
+				t.Fatal("Request creation failed")
 			}
 
 			m := p.Match(r)
 			if m != tc.matches {
-				t.Errorf("Unexpected predicate match result: %t instead of %t", m, tc.matches)
+				t.Fatalf("Unexpected predicate match result: %t instead of %t", m, tc.matches)
 			}
 		})
 	}

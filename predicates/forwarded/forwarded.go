@@ -31,11 +31,6 @@ const (
 	NameProto = "ForwardedProtocol"
 )
 
-const (
-	HTTP  string = "http"
-	HTTPS string = "https"
-)
-
 type hostPredicateSpec struct{}
 
 type protoPredicateSpec struct{}
@@ -45,7 +40,6 @@ type hostPredicate struct {
 }
 
 func (p *hostPredicateSpec) Create(args []interface{}) (routing.Predicate, error) {
-
 	if len(args) != 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
@@ -85,7 +79,7 @@ func (p *protoPredicateSpec) Create(args []interface{}) (routing.Predicate, erro
 	value = strings.ToLower(value)
 
 	switch value {
-	case HTTP, HTTPS:
+	case "http", "https":
 	default:
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

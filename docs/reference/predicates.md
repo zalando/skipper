@@ -151,7 +151,7 @@ ForwardedHost(/header\.example\.org$/)
 
 ### ForwardedProtocol
 
-Regular expressions that the forwarded host header in the request must match.
+Protocol the forwarded header in the request must match.
 
 Parameters:
 
