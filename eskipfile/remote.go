@@ -23,17 +23,24 @@ type remoteEskipFile struct {
 }
 
 type RemoteWatchOptions struct {
-	remoteFile    string
-	threshold     int
-	verbose       bool
-	failOnStartup bool
+	// URL of the route file
+	RemoteFile string
+
+	// Verbose mode for the dataClient
+	Verbose bool
+
+	// Amount of route changes that will trigger logs after route updates
+	Threshold int
+
+	// It does an initial download and parsing of remote routes, and makes RemoteWatch to return an error
+	FailOnStartup bool
 }
 
 // RemoteWatch creates a route configuration client with (remote) file watching. Watch doesn't follow file system nodes,
 // it always reads (or re-downloads) from the file identified by the initially provided file name.
 func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
-	if !isFileRemote(o.remoteFile) {
-		return Watch(o.remoteFile), nil
+	if !isFileRemote(o.RemoteFile) {
+		return Watch(o.RemoteFile), nil
 	}
 
 	tempFilename, err := ioutil.TempFile("", "routes")
@@ -43,13 +50,13 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 	}
 
 	dataClient := &remoteEskipFile{
-		remotePath: o.remoteFile,
+		remotePath: o.RemoteFile,
 		localPath:  tempFilename.Name(),
-		threshold:  o.threshold,
-		verbose:    o.verbose,
+		threshold:  o.Threshold,
+		verbose:    o.Verbose,
 	}
 
-	if o.failOnStartup {
+	if o.FailOnStartup {
 		err = dataClient.DownloadRemoteFile()
 
 		if err != nil {
@@ -89,7 +96,7 @@ func (client *remoteEskipFile) LoadAll() ([]*eskip.Route, error) {
 	}
 
 	if client.verbose {
-		log.Debugf("New routes file %s was downloaded", client.remotePath)
+		log.Infof("New routes file %s was downloaded", client.remotePath)
 	}
 
 	return client.eskipFileClient.LoadAll()
@@ -110,8 +117,8 @@ func (client *remoteEskipFile) LoadUpdate() ([]*eskip.Route, []string, error) {
 		if client.verbose {
 			log.Infof("New routes were loaded. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
 
-			if client.threshold >= 0 {
-				if len(newRoutes) > client.threshold || len(deletedRoutes) > client.threshold {
+			if client.threshold > 0 {
+				if len(newRoutes)+len(deletedRoutes) > client.threshold {
 					log.Warnf("Significant amount of routes was updated. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
 				}
 			}
