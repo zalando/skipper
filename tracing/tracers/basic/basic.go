@@ -12,11 +12,13 @@ import (
 
 func InitTracer(opts []string) (opentracing.Tracer, error) {
 	fmt.Printf("DO NOT USE IN PRODUCTION\n")
-	var dropAllLogs bool
-	var sampleModulo uint64 = 1
-	var maxLogsPerSpan int = 0
-	var recorder basic.SpanRecorder = basic.NewInMemoryRecorder()
-	var err error
+	var (
+		dropAllLogs    bool
+		sampleModulo   uint64             = 1
+		maxLogsPerSpan                    = 0
+		recorder       basic.SpanRecorder = basic.NewInMemoryRecorder()
+		err            error
+	)
 
 	for _, o := range opts {
 		parts := strings.SplitN(o, "=", 2)
