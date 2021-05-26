@@ -232,236 +232,8 @@ type Config struct {
 }
 
 const (
-	// generic:
-	defaultAddress                         = ":9090"
-	defaultExpectedBytesPerRequest         = 50 * 1024 // 50kB
-	defaultEtcdPrefix                      = "/skipper"
-	defaultEtcdTimeout                     = time.Second
-	defaultSourcePollTimeout               = int64(3000)
-	defaultSupportListener                 = ":9911"
-	defaultBackendFlushInterval            = 20 * time.Millisecond
-	defaultLoadBalancerHealthCheckInterval = 0 // disabled
-	defaultMaxAuditBody                    = 1024
-
-	// metrics, logging:
-	defaultMetricsListener      = ":9911" // deprecated
-	defaultMetricsPrefix        = "skipper."
-	defaultApplicationLogPrefix = "[APP]"
-	defaultApplicationLogLevel  = "INFO"
-
-	// connections, timeouts:
-	defaultWaitForHealthcheckInterval   = (10 + 5) * 3 * time.Second // kube-ingress-aws-controller default
-	defaultReadTimeoutServer            = 5 * time.Minute
-	defaultReadHeaderTimeoutServer      = 60 * time.Second
-	defaultWriteTimeoutServer           = 60 * time.Second
-	defaultIdleTimeoutServer            = 60 * time.Second
-	defaultTimeoutBackend               = 60 * time.Second
-	defaultKeepaliveBackend             = 30 * time.Second
-	defaultTLSHandshakeTimeoutBackend   = 60 * time.Second
-	defaultResponseHeaderTimeoutBackend = 60 * time.Second
-	defaultExpectContinueTimeoutBackend = 30 * time.Second
-	defaultMaxIdleConnsBackend          = 0
-
-	// Auth:
-	defaultOAuthTokeninfoTimeout          = 2 * time.Second
-	defaultOAuthTokenintrospectionTimeout = 2 * time.Second
-	defaultWebhookTimeout                 = 2 * time.Second
-	defaultCredentialsUpdateInterval      = 10 * time.Minute
-
-	// API Monitoring
-	defaultApiUsageMonitoringRealmKeys                    = ""
-	defaultApiUsageMonitoringClientKeys                   = "sub"
-	defaultApiUsageMonitoringDefaultClientTrackingPattern = ""
-	defaultApiUsageMonitoringRealmsTrackingPattern        = "services"
-
 	// TLS
 	defaultMinTLSVersion = "1.2"
-
-	configFileUsage = "if provided the flags will be loaded/overwritten by the values on the file (yaml)"
-
-	// generic:
-	addressUsage                         = "network address that skipper should listen on"
-	startupChecksUsage                   = "experimental URLs to check before reporting healthy on startup"
-	enableTCPQueueUsage                  = "enable the TCP listener queue"
-	expectedBytesPerRequestUsage         = "bytes per request, that is used to calculate concurrency limits to buffer connection spikes"
-	maxTCPListenerConcurrencyUsage       = "sets hardcoded max for TCP listener concurrency, normally calculated based on available memory cgroups with max TODO"
-	maxTCPListenerQueueUsage             = "sets hardcoded max queue size for TCP listener, normally calculated 10x concurrency with max TODO:50k"
-	ignoreTrailingSlashUsage             = "flag indicating to ignore trailing slashes in paths when routing"
-	insecureUsage                        = "flag indicating to ignore the verification of the TLS certificates of the backend services"
-	proxyPreserveHostUsage               = "flag indicating to preserve the incoming request 'Host' header in the outgoing requests"
-	devModeUsage                         = "enables developer time behavior, like ubuffered routing updates"
-	supportListenerUsage                 = "network address used for exposing the /metrics endpoint. An empty value disables support endpoint."
-	debugEndpointUsage                   = "when this address is set, skipper starts an additional listener returning the original and transformed requests"
-	certPathTLSUsage                     = "the path on the local filesystem to the certificate file(s) (including any intermediates), multiple may be given comma separated"
-	keyPathTLSUsage                      = "the path on the local filesystem to the certificate's private key file(s), multiple keys may be given comma separated - the order must match the certs"
-	versionUsage                         = "print Skipper version"
-	maxLoopbacksUsage                    = "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks"
-	defaultHTTPStatusUsage               = "default HTTP status used when no route is found for a request"
-	pluginDirUsage                       = "set the directory to load plugins from, default is ./"
-	loadBalancerHealthCheckIntervalUsage = "use to set the health checker interval to check healthiness of former dead or unhealthy routes"
-	reverseSourcePredicateUsage          = "reverse the order of finding the client IP from X-Forwarded-For header"
-	enableHopHeadersRemovalUsage         = "enables removal of Hop-Headers according to RFC-2616"
-	rfcPatchPathUsage                    = "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 3986"
-	maxAuditBodyUsage                    = "sets the max body to read to log in the audit log body"
-	enableRouteLIFOMetricsUsage          = "enable metrics for the individual route LIFO queues"
-
-	// logging, metrics, tracing:
-	enablePrometheusMetricsUsage             = "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour"
-	opentracingUsage                         = "list of arguments for opentracing (space separated), first argument is the tracer implementation"
-	opentracingIngressSpanNameUsage          = "set the name of the initial, pre-routing, tracing span"
-	openTracingExcludedProxyTagsUsage        = "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings."
-	opentracingLogFilterLifecycleEventsUsage = "enables the logs for request & response filters' lifecycle events that are marking start & end times."
-	opentracingLogStreamEventsUsage          = "enables the logs for events marking the times response headers & payload are streamed to the client"
-	opentracingBackendNameTag                = "enables an additional tracing tag that contains a backend name for a route when it's available  (e.g. for RouteGroups) (default false)"
-	metricsListenerUsage                     = "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty."
-	metricsPrefixUsage                       = "allows setting a custom path prefix for metrics export"
-	enableProfileUsage                       = "enable profile information on the metrics endpoint with path /pprof"
-	debugGcMetricsUsage                      = "enables reporting of the Go garbage collector statistics exported in debug.GCStats"
-	runtimeMetricsUsage                      = "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats"
-	serveRouteMetricsUsage                   = "enables reporting total serve time metrics for each route"
-	serveRouteCounterUsage                   = "enables reporting counting metrics for each route. Has the route, HTTP method and status code as labels. Currently just implemented for the Prometheus metrics flavour"
-	serveHostMetricsUsage                    = "enables reporting total serve time metrics for each host"
-	serveHostCounterUsage                    = "enables reporting counting metrics for each host. Has the route, HTTP method and status code as labels. Currently just implemented for the Prometheus metrics flavour"
-	serveMethodMetricUsage                   = "enables the HTTP method as a domain of the total serve time metric. It affects both route and host splitted metrics"
-	serveStatusCodeMetricUsage               = "enables the HTTP response status code as a domain of the total serve time metric. It affects both route and host splitted metrics"
-	backendHostMetricsUsage                  = "enables reporting total serve time metrics for each backend"
-	allFiltersMetricsUsage                   = "enables reporting combined filter metrics for each route"
-	combinedResponseMetricsUsage             = "enables reporting combined response time metrics"
-	routeResponseMetricsUsage                = "enables reporting response time metrics for each route"
-	routeBackendErrorCountersUsage           = "enables counting backend errors for each route"
-	routeStreamErrorCountersUsage            = "enables counting streaming errors for each route"
-	routeBackendMetricsUsage                 = "enables reporting backend response time metrics for each route"
-	routeCreationMetricsUsage                = "enables reporting for route creation times"
-	metricsFlavourUsage                      = "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them"
-	metricsUseExpDecaySampleUsage            = "use exponentially decaying sample in metrics"
-	histogramMetricBucketsUsage              = "use custom buckets for prometheus histograms, must be a comma-separated list of numbers"
-	disableMetricsCompatsUsage               = "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters"
-	applicationLogUsage                      = "output file for the application log. When not set, /dev/stderr is used"
-	applicationLogLevelUsage                 = "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG"
-	applicationLogPrefixUsage                = "prefix for each log entry"
-	applicationLogJSONEnabledUsage           = "when this flag is set, log in JSON format is used"
-	accessLogUsage                           = "output file for the access log, When not set, /dev/stderr is used"
-	accessLogDisabledUsage                   = "when this flag is set, no access log is printed"
-	accessLogJSONEnabledUsage                = "when this flag is set, log in JSON format is used"
-	accessLogStripQueryUsage                 = "when this flag is set, the access log strips the query strings from the access log"
-	suppressRouteUpdateLogsUsage             = "print only summaries on route updates/deletes"
-
-	// route sources:
-	etcdUrlsUsage                  = "urls of nodes in an etcd cluster, storing route definitions"
-	etcdPrefixUsage                = "path prefix for skipper related data in etcd"
-	etcdTimeoutUsage               = "http client timeout duration for etcd"
-	etcdInsecureUsage              = "ignore the verification of TLS certificates for etcd"
-	etcdOAuthTokenUsage            = "optional token for OAuth authentication with etcd"
-	etcdUsernameUsage              = "optional username for basic authentication with etcd"
-	etcdPasswordUsage              = "optional password for basic authentication with etcd"
-	innkeeperURLUsage              = "API endpoint of the Innkeeper service, storing route definitions"
-	innkeeperAuthTokenUsage        = "fixed token for innkeeper authentication"
-	innkeeperPreRouteFiltersUsage  = "filters to be prepended to each route loaded from Innkeeper"
-	innkeeperPostRouteFiltersUsage = "filters to be appended to each route loaded from Innkeeper"
-	routesFileUsage                = "file containing route definitions"
-	inlineRoutesUsage              = "inline routes in eskip format"
-	sourcePollTimeoutUsage         = "polling timeout of the routing data sources, in milliseconds"
-	waitFirstRouteLoadUsage        = "prevent starting the listener before the first batch of routes were loaded"
-
-	// Kubernetes:
-	kubernetesUsage                        = "enables skipper to generate routes for ingress resources in kubernetes cluster"
-	kubernetesInClusterUsage               = "specify if skipper is running inside kubernetes cluster"
-	kubernetesURLUsage                     = "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true"
-	kubernetesHealthcheckUsage             = "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes"
-	kubernetesHTTPSRedirectUsage           = "automatic HTTP->HTTPS redirect route; valid only with kubernetes"
-	kubernetesHTTPSRedirectCodeUsage       = "overrides the default redirect code (308) when used together with -kubernetes-https-redirect"
-	kubernetesIngressClassUsage            = "ingress class regular expression used to filter ingress resources for kubernetes"
-	kubernetesRouteGroupClassUsage         = "route group class regular expression used to filter route group resources for kubernetes"
-	whitelistedHealthCheckCIDRUsage        = "sets the iprange/CIDRS to be whitelisted during healthcheck"
-	kubernetesPathModeUsage                = "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>"
-	kubernetesNamespaceUsage               = "watch only this namespace for ingresses"
-	kubernetesEnableEastWestUsage          = "*Deprecated*: use -kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local"
-	kubernetesEastWestDomainUsage          = "set the east-west domain. *Deprecated*: use -kubernetes-east-west-range feature. Defaults to .skipper.cluster.local"
-	kubernetesEastWestRangeDomainsUsage    = "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates"
-	kubernetesEastWestRangePredicatesUsage = "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains"
-
-	// Auth:
-	oauth2GrantFlowEnableUsage           = "enables OAuth2 Grant Flow filter"
-	oauthURLUsage                        = "OAuth2 URL for Innkeeper authentication"
-	oauthCredentialsDirUsage             = "directory where oauth credentials are stored: client.json and user.json"
-	oauthScopeUsage                      = "the whitespace separated list of oauth scopes"
-	oauth2AuthURLUsage                   = "sets the OAuth2 Auth URL to redirect the requests to when login is required"
-	oauth2TokenURLUsage                  = "the url where the access code should be exchanged for the access token"
-	oauth2RevokeTokenURLUsage            = "the url where the access and refresh tokens can be revoked when logging out"
-	oauth2TokeninfoURLUsage              = "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters"
-	oauth2TokeninfoTimeoutUsage          = "sets the default tokeninfo request timeout duration to 2000ms"
-	oauth2SecretFileUsage                = "sets the filename with the encryption key for the authentication cookie and grant flow state stored in secrets registry"
-	oauth2ClientIDUsage                  = "sets the OAuth2 client id of the current service, used to exchange the access code"
-	oauth2ClientSecretUsage              = "sets the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code"
-	oauth2ClientIDFileUsage              = "sets the path of the file containing the OAuth2 client id of the current service, used to exchange the access code"
-	oauth2ClientSecretFileUsage          = "sets the path of the file containing the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code"
-	oauth2CallbackPathUsage              = "sets the path where the OAuth2 callback requests with the authorization code should be redirected to"
-	oauth2TokenintrospectionTimeoutUsage = "sets the default tokenintrospection request timeout duration to 2000ms"
-	oauth2AuthURLParametersUsage         = "sets additional parameters to send when calling the OAuth2 authorize or token endpoints as key-value pairs"
-	oauth2AccessTokenHeaderNameUsage     = "sets the access token to a header on the request with this name"
-	oauth2TokeninfoSubjectKeyUsage       = "the key containing the subject ID in the tokeninfo map"
-	oauth2TokenCookieNameUsage           = "sets the name of the cookie where the encrypted token is stored"
-	webhookTimeoutUsage                  = "sets the webhook request timeout duration, defaults to 2s"
-	oidcSecretsFileUsage                 = "file storing the encryption key of the OID Connect token"
-	credentialPathsUsage                 = "directories or files to watch for credentials to use by bearerinjector filter"
-	credentialsUpdateIntervalUsage       = "sets the interval to update secrets"
-
-	// TLS client certs
-	clientKeyFileUsage  = "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs"
-	clientCertFileUsage = "TLS certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys"
-
-	// TLS version
-	minTLSVersionUsage = "minimal TLS Version to be used in server, proxy and client connections"
-
-	// API Monitoring:
-	apiUsageMonitoringEnableUsage                       = "enables the apiUsageMonitoring filter"
-	apiUsageMonitoringRealmKeysUsage                    = "name of the property in the JWT payload that contains the authority realm"
-	apiUsageMonitoringClientKeysUsage                   = "comma separated list of names of the properties in the JWT body that contains the client ID"
-	apiUsageMonitoringDefaultClientTrackingPatternUsage = "*Deprecated*: set `client_tracking_pattern` directly on filter"
-	apiUsageMonitoringRealmsTrackingPatternUsage        = "regular expression used for matching monitored realms (defaults is 'services')"
-
-	// Default filters
-	defaultFiltersDirUsage = "path to directory which contains default filter configurations per service and namespace (disabled if not set)"
-
-	// connections, timeouts:
-	waitForHealthcheckIntervalUsage   = "period waiting to become unhealthy in the loadbalancer pool in front of this instance, before shutdown triggered by SIGINT or SIGTERM"
-	idleConnsPerHostUsage             = "maximum idle connections per backend host"
-	closeIdleConnsPeriodUsage         = "sets the time interval of closing all idle connections. Not closing when 0"
-	backendFlushIntervalUsage         = "flush interval for upgraded proxy connections"
-	experimentalUpgradeUsage          = "enable experimental feature to handle upgrade protocol requests"
-	experimentalUpgradeAuditUsage     = "enable audit logging of the request line and the messages during the experimental web socket upgrades"
-	readTimeoutServerUsage            = "set ReadTimeout for http server connections"
-	readHeaderTimeoutServerUsage      = "set ReadHeaderTimeout for http server connections"
-	writeTimeoutServerUsage           = "set WriteTimeout for http server connections"
-	idleTimeoutServerUsage            = "set IdleTimeout for http server connections"
-	maxHeaderBytesUsage               = "set MaxHeaderBytes for http server connections"
-	enableConnMetricsServerUsage      = "enables connection metrics for http server connections"
-	timeoutBackendUsage               = "sets the TCP client connection timeout for backend connections"
-	keepaliveBackendUsage             = "sets the keepalive for backend connections"
-	enableDualstackBackendUsage       = "enables DualStack for backend connections"
-	tlsHandshakeTimeoutBackendUsage   = "sets the TLS handshake timeout for backend connections"
-	responseHeaderTimeoutBackendUsage = "sets the HTTP response header timeout for backend connections"
-	expectContinueTimeoutBackendUsage = "sets the HTTP expect continue timeout for backend connections"
-	maxIdleConnsBackendUsage          = "sets the maximum idle connections for all backend connections"
-	disableHTTPKeepalivesUsage        = "forces backend to always create a new connection"
-
-	// swarm:
-	enableSwarmUsage                       = "enable swarm communication between nodes in a skipper fleet"
-	swarmKubernetesNamespaceUsage          = "Kubernetes namespace to find swarm peer instances"
-	swarmKubernetesLabelSelectorKeyUsage   = "Kubernetes labelselector key to find swarm peer instances"
-	swarmKubernetesLabelSelectorValueUsage = "Kubernetes labelselector value to find swarm peer instances"
-	swarmPortUsage                         = "swarm port to use to communicate with our peers"
-	swarmMaxMessageBufferUsage             = "swarm max message buffer size to use for member list messages"
-	swarmLeaveTimeoutUsage                 = "swarm leave timeout to use for leaving the memberlist on timeout"
-	swarmRedisURLsUsage                    = "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits.\nUse " + redisPasswordEnv + " environment variable or 'swarm-redis-password' key in config file to set redis password"
-	swarmStaticSelfUsage                   = "set static swarm self node, for example 127.0.0.1:9001"
-	swarmStaticOtherUsage                  = "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003"
-	swarmRedisDialTimeoutUsage             = "set redis client dial timeout"
-	swarmRedisReadTimeoutUsage             = "set redis socket read timeout"
-	swarmRedisWriteTimeoutUsage            = "set redis socket write timeout"
-	swarmRedisPoolTimeoutUsage             = "set redis get connection from pool timeout"
-	swarmRedisMaxConnsUsage                = "set max number of connections to redis"
-	swarmRedisMinConnsUsage                = "set min number of connections to redis"
 
 	// environment keys:
 	redisPasswordEnv = "SWARM_REDIS_PASSWORD"
@@ -481,201 +253,201 @@ func NewConfig() *Config {
 	cfg.PrependFilters = &defaultFiltersFlags{}
 	cfg.KubernetesEastWestRangeDomains = commaListFlag()
 
-	flag.StringVar(&cfg.ConfigFile, "config-file", "", configFileUsage)
+	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
 
 	// generic:
-	flag.StringVar(&cfg.Address, "address", defaultAddress, addressUsage)
-	flag.BoolVar(&cfg.EnableTCPQueue, "enable-tcp-queue", false, enableTCPQueueUsage)
-	flag.IntVar(&cfg.ExpectedBytesPerRequest, "expected-bytes-per-request", defaultExpectedBytesPerRequest, expectedBytesPerRequestUsage)
-	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", 0, maxTCPListenerConcurrencyUsage)
-	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", 0, maxTCPListenerQueueUsage)
-	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, ignoreTrailingSlashUsage)
-	flag.BoolVar(&cfg.Insecure, "insecure", false, insecureUsage)
-	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, proxyPreserveHostUsage)
-	flag.BoolVar(&cfg.DevMode, "dev-mode", false, devModeUsage)
-	flag.StringVar(&cfg.SupportListener, "support-listener", defaultSupportListener, supportListenerUsage)
-	flag.StringVar(&cfg.DebugListener, "debug-listener", "", debugEndpointUsage)
-	flag.StringVar(&cfg.CertPathTLS, "tls-cert", "", certPathTLSUsage)
-	flag.StringVar(&cfg.KeyPathTLS, "tls-key", "", keyPathTLSUsage)
-	flag.Var(cfg.StatusChecks, "status-checks", startupChecksUsage)
-	flag.BoolVar(&cfg.PrintVersion, "version", false, versionUsage)
-	flag.IntVar(&cfg.MaxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, maxLoopbacksUsage)
-	flag.IntVar(&cfg.DefaultHTTPStatus, "default-http-status", http.StatusNotFound, defaultHTTPStatusUsage)
-	flag.StringVar(&cfg.PluginDir, "plugindir", "", pluginDirUsage)
-	flag.DurationVar(&cfg.LoadBalancerHealthCheckInterval, "lb-healthcheck-interval", defaultLoadBalancerHealthCheckInterval, loadBalancerHealthCheckIntervalUsage)
-	flag.BoolVar(&cfg.ReverseSourcePredicate, "reverse-source-predicate", false, reverseSourcePredicateUsage)
-	flag.BoolVar(&cfg.RemoveHopHeaders, "remove-hop-headers", false, enableHopHeadersRemovalUsage)
-	flag.BoolVar(&cfg.RfcPatchPath, "rfc-patch-path", false, rfcPatchPathUsage)
-	flag.IntVar(&cfg.MaxAuditBody, "max-audit-body", defaultMaxAuditBody, maxAuditBodyUsage)
+	flag.StringVar(&cfg.Address, "address", ":9090", "network address that skipper should listen on")
+	flag.BoolVar(&cfg.EnableTCPQueue, "enable-tcp-queue", false, "enable the TCP listener queue")
+	flag.IntVar(&cfg.ExpectedBytesPerRequest, "expected-bytes-per-request", 50*1024, "bytes per request, that is used to calculate concurrency limits to buffer connection spikes")
+	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", 0, "sets hardcoded max for TCP listener concurrency, normally calculated based on available memory cgroups with max TODO")
+	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", 0, "sets hardcoded max queue size for TCP listener, normally calculated 10x concurrency with max TODO:50k")
+	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, "flag indicating to ignore trailing slashes in paths when routing")
+	flag.BoolVar(&cfg.Insecure, "insecure", false, "flag indicating to ignore the verification of the TLS certificates of the backend services")
+	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, "flag indicating to preserve the incoming request 'Host' header in the outgoing requests")
+	flag.BoolVar(&cfg.DevMode, "dev-mode", false, "enables developer time behavior, like ubuffered routing updates")
+	flag.StringVar(&cfg.SupportListener, "support-listener", ":9911", "network address used for exposing the /metrics endpoint. An empty value disables support endpoint.")
+	flag.StringVar(&cfg.DebugListener, "debug-listener", "", "when this address is set, skipper starts an additional listener returning the original and transformed requests")
+	flag.StringVar(&cfg.CertPathTLS, "tls-cert", "", "the path on the local filesystem to the certificate file(s) (including any intermediates), multiple may be given comma separated")
+	flag.StringVar(&cfg.KeyPathTLS, "tls-key", "", "the path on the local filesystem to the certificate's private key file(s), multiple keys may be given comma separated - the order must match the certs")
+	flag.Var(cfg.StatusChecks, "status-checks", "experimental URLs to check before reporting healthy on startup")
+	flag.BoolVar(&cfg.PrintVersion, "version", false, "print Skipper version")
+	flag.IntVar(&cfg.MaxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks")
+	flag.IntVar(&cfg.DefaultHTTPStatus, "default-http-status", http.StatusNotFound, "default HTTP status used when no route is found for a request")
+	flag.StringVar(&cfg.PluginDir, "plugindir", "", "set the directory to load plugins from, default is ./")
+	flag.DurationVar(&cfg.LoadBalancerHealthCheckInterval, "lb-healthcheck-interval", 0, "use to set the health checker interval to check healthiness of former dead or unhealthy routes")
+	flag.BoolVar(&cfg.ReverseSourcePredicate, "reverse-source-predicate", false, "reverse the order of finding the client IP from X-Forwarded-For header")
+	flag.BoolVar(&cfg.RemoveHopHeaders, "remove-hop-headers", false, "enables removal of Hop-Headers according to RFC-2616")
+	flag.BoolVar(&cfg.RfcPatchPath, "rfc-patch-path", false, "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 3986")
+	flag.IntVar(&cfg.MaxAuditBody, "max-audit-body", 1024, "sets the max body to read to log in the audit log body")
 	flag.BoolVar(&cfg.EnableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&cfg.Breakers, "breaker", breakerUsage)
 	flag.BoolVar(&cfg.EnableRatelimiters, "enable-ratelimits", false, enableRatelimitsUsage)
 	flag.Var(&cfg.Ratelimits, "ratelimits", ratelimitsUsage)
-	flag.BoolVar(&cfg.EnableRouteLIFOMetrics, "enable-route-lifo-metrics", false, enableRouteLIFOMetricsUsage)
-	flag.Var(cfg.MetricsFlavour, "metrics-flavour", metricsFlavourUsage)
-	flag.Var(cfg.FilterPlugins, "filter-plugin", filterPluginUsage)
-	flag.Var(cfg.PredicatePlugins, "predicate-plugin", predicatePluginUsage)
-	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", dataclientPluginUsage)
-	flag.Var(cfg.MultiPlugins, "multi-plugin", multiPluginUsage)
+	flag.BoolVar(&cfg.EnableRouteLIFOMetrics, "enable-route-lifo-metrics", false, "enable metrics for the individual route LIFO queues")
+	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them")
+	flag.Var(cfg.FilterPlugins, "filter-plugin", "set a custom filter plugins to load, a comma separated list of name and arguments")
+	flag.Var(cfg.PredicatePlugins, "predicate-plugin", "set a custom predicate plugins to load, a comma separated list of name and arguments")
+	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
+	flag.Var(cfg.MultiPlugins, "multi-plugin", "set a custom multitype plugins to load, a comma separated list of name and arguments")
 
 	// logging, metrics, tracing:
-	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, enablePrometheusMetricsUsage)
-	flag.StringVar(&cfg.OpenTracing, "opentracing", "noop", opentracingUsage)
-	flag.StringVar(&cfg.OpenTracingInitialSpan, "opentracing-initial-span", "ingress", opentracingIngressSpanNameUsage)
-	flag.StringVar(&cfg.OpenTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", openTracingExcludedProxyTagsUsage)
-	flag.BoolVar(&cfg.OpentracingLogFilterLifecycleEvents, "opentracing-log-filter-lifecycle-events", true, opentracingLogFilterLifecycleEventsUsage)
-	flag.BoolVar(&cfg.OpentracingLogStreamEvents, "opentracing-log-stream-events", true, opentracingLogStreamEventsUsage)
-	flag.BoolVar(&cfg.OpentracingBackendNameTag, "opentracing-backend-name-tag", false, opentracingBackendNameTag)
-	flag.StringVar(&cfg.MetricsListener, "metrics-listener", defaultMetricsListener, metricsListenerUsage)
-	flag.StringVar(&cfg.MetricsPrefix, "metrics-prefix", defaultMetricsPrefix, metricsPrefixUsage)
-	flag.BoolVar(&cfg.EnableProfile, "enable-profile", false, enableProfileUsage)
-	flag.BoolVar(&cfg.DebugGcMetrics, "debug-gc-metrics", false, debugGcMetricsUsage)
-	flag.BoolVar(&cfg.RuntimeMetrics, "runtime-metrics", true, runtimeMetricsUsage)
-	flag.BoolVar(&cfg.ServeRouteMetrics, "serve-route-metrics", false, serveRouteMetricsUsage)
-	flag.BoolVar(&cfg.ServeRouteCounter, "serve-route-counter", false, serveRouteCounterUsage)
-	flag.BoolVar(&cfg.ServeHostMetrics, "serve-host-metrics", false, serveHostMetricsUsage)
-	flag.BoolVar(&cfg.ServeHostCounter, "serve-host-counter", false, serveHostCounterUsage)
-	flag.BoolVar(&cfg.ServeMethodMetric, "serve-method-metric", true, serveMethodMetricUsage)
-	flag.BoolVar(&cfg.ServeStatusCodeMetric, "serve-status-code-metric", true, serveStatusCodeMetricUsage)
-	flag.BoolVar(&cfg.BackendHostMetrics, "backend-host-metrics", false, backendHostMetricsUsage)
-	flag.BoolVar(&cfg.AllFiltersMetrics, "all-filters-metrics", false, allFiltersMetricsUsage)
-	flag.BoolVar(&cfg.CombinedResponseMetrics, "combined-response-metrics", false, combinedResponseMetricsUsage)
-	flag.BoolVar(&cfg.RouteResponseMetrics, "route-response-metrics", false, routeResponseMetricsUsage)
-	flag.BoolVar(&cfg.RouteBackendErrorCounters, "route-backend-error-counters", false, routeBackendErrorCountersUsage)
-	flag.BoolVar(&cfg.RouteStreamErrorCounters, "route-stream-error-counters", false, routeStreamErrorCountersUsage)
-	flag.BoolVar(&cfg.RouteBackendMetrics, "route-backend-metrics", false, routeBackendMetricsUsage)
-	flag.BoolVar(&cfg.RouteCreationMetrics, "route-creation-metrics", false, routeCreationMetricsUsage)
-	flag.BoolVar(&cfg.MetricsUseExpDecaySample, "metrics-exp-decay-sample", false, metricsUseExpDecaySampleUsage)
-	flag.StringVar(&cfg.HistogramMetricBucketsString, "histogram-metric-buckets", "", histogramMetricBucketsUsage)
-	flag.BoolVar(&cfg.DisableMetricsCompat, "disable-metrics-compat", false, disableMetricsCompatsUsage)
-	flag.StringVar(&cfg.ApplicationLog, "application-log", "", applicationLogUsage)
-	flag.StringVar(&cfg.ApplicationLogLevelString, "application-log-level", defaultApplicationLogLevel, applicationLogLevelUsage)
-	flag.StringVar(&cfg.ApplicationLogPrefix, "application-log-prefix", defaultApplicationLogPrefix, applicationLogPrefixUsage)
-	flag.BoolVar(&cfg.ApplicationLogJSONEnabled, "application-log-json-enabled", false, applicationLogJSONEnabledUsage)
-	flag.StringVar(&cfg.AccessLog, "access-log", "", accessLogUsage)
-	flag.BoolVar(&cfg.AccessLogDisabled, "access-log-disabled", false, accessLogDisabledUsage)
-	flag.BoolVar(&cfg.AccessLogJSONEnabled, "access-log-json-enabled", false, accessLogJSONEnabledUsage)
-	flag.BoolVar(&cfg.AccessLogStripQuery, "access-log-strip-query", false, accessLogStripQueryUsage)
-	flag.BoolVar(&cfg.SuppressRouteUpdateLogs, "suppress-route-update-logs", false, suppressRouteUpdateLogsUsage)
+	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour")
+	flag.StringVar(&cfg.OpenTracing, "opentracing", "noop", "list of arguments for opentracing (space separated), first argument is the tracer implementation")
+	flag.StringVar(&cfg.OpenTracingInitialSpan, "opentracing-initial-span", "ingress", "set the name of the initial, pre-routing, tracing span")
+	flag.StringVar(&cfg.OpenTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings.")
+	flag.BoolVar(&cfg.OpentracingLogFilterLifecycleEvents, "opentracing-log-filter-lifecycle-events", true, "enables the logs for request & response filters' lifecycle events that are marking start & end times.")
+	flag.BoolVar(&cfg.OpentracingLogStreamEvents, "opentracing-log-stream-events", true, "enables the logs for events marking the times response headers & payload are streamed to the client")
+	flag.BoolVar(&cfg.OpentracingBackendNameTag, "opentracing-backend-name-tag", false, "enables an additional tracing tag that contains a backend name for a route when it's available  (e.g. for RouteGroups) (default false)")
+	flag.StringVar(&cfg.MetricsListener, "metrics-listener", ":9911", "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty.")
+	flag.StringVar(&cfg.MetricsPrefix, "metrics-prefix", "skipper.", "allows setting a custom path prefix for metrics export")
+	flag.BoolVar(&cfg.EnableProfile, "enable-profile", false, "enable profile information on the metrics endpoint with path /pprof")
+	flag.BoolVar(&cfg.DebugGcMetrics, "debug-gc-metrics", false, "enables reporting of the Go garbage collector statistics exported in debug.GCStats")
+	flag.BoolVar(&cfg.RuntimeMetrics, "runtime-metrics", true, "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats")
+	flag.BoolVar(&cfg.ServeRouteMetrics, "serve-route-metrics", false, "enables reporting total serve time metrics for each route")
+	flag.BoolVar(&cfg.ServeRouteCounter, "serve-route-counter", false, "enables reporting counting metrics for each route. Has the route, HTTP method and status code as labels. Currently just implemented for the Prometheus metrics flavour")
+	flag.BoolVar(&cfg.ServeHostMetrics, "serve-host-metrics", false, "enables reporting total serve time metrics for each host")
+	flag.BoolVar(&cfg.ServeHostCounter, "serve-host-counter", false, "enables reporting counting metrics for each host. Has the route, HTTP method and status code as labels. Currently just implemented for the Prometheus metrics flavour")
+	flag.BoolVar(&cfg.ServeMethodMetric, "serve-method-metric", true, "enables the HTTP method as a domain of the total serve time metric. It affects both route and host splitted metrics")
+	flag.BoolVar(&cfg.ServeStatusCodeMetric, "serve-status-code-metric", true, "enables the HTTP response status code as a domain of the total serve time metric. It affects both route and host splitted metrics")
+	flag.BoolVar(&cfg.BackendHostMetrics, "backend-host-metrics", false, "enables reporting total serve time metrics for each backend")
+	flag.BoolVar(&cfg.AllFiltersMetrics, "all-filters-metrics", false, "enables reporting combined filter metrics for each route")
+	flag.BoolVar(&cfg.CombinedResponseMetrics, "combined-response-metrics", false, "enables reporting combined response time metrics")
+	flag.BoolVar(&cfg.RouteResponseMetrics, "route-response-metrics", false, "enables reporting response time metrics for each route")
+	flag.BoolVar(&cfg.RouteBackendErrorCounters, "route-backend-error-counters", false, "enables counting backend errors for each route")
+	flag.BoolVar(&cfg.RouteStreamErrorCounters, "route-stream-error-counters", false, "enables counting streaming errors for each route")
+	flag.BoolVar(&cfg.RouteBackendMetrics, "route-backend-metrics", false, "enables reporting backend response time metrics for each route")
+	flag.BoolVar(&cfg.RouteCreationMetrics, "route-creation-metrics", false, "enables reporting for route creation times")
+	flag.BoolVar(&cfg.MetricsUseExpDecaySample, "metrics-exp-decay-sample", false, "use exponentially decaying sample in metrics")
+	flag.StringVar(&cfg.HistogramMetricBucketsString, "histogram-metric-buckets", "", "use custom buckets for prometheus histograms, must be a comma-separated list of numbers")
+	flag.BoolVar(&cfg.DisableMetricsCompat, "disable-metrics-compat", false, "disables the default true value for all-filters-metrics, route-response-metrics, route-backend-errorCounters and route-stream-error-counters")
+	flag.StringVar(&cfg.ApplicationLog, "application-log", "", "output file for the application log. When not set, /dev/stderr is used")
+	flag.StringVar(&cfg.ApplicationLogLevelString, "application-log-level", "INFO", "log level for application logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG")
+	flag.StringVar(&cfg.ApplicationLogPrefix, "application-log-prefix", "[APP]", "prefix for each log entry")
+	flag.BoolVar(&cfg.ApplicationLogJSONEnabled, "application-log-json-enabled", false, "when this flag is set, log in JSON format is used")
+	flag.StringVar(&cfg.AccessLog, "access-log", "", "output file for the access log, When not set, /dev/stderr is used")
+	flag.BoolVar(&cfg.AccessLogDisabled, "access-log-disabled", false, "when this flag is set, no access log is printed")
+	flag.BoolVar(&cfg.AccessLogJSONEnabled, "access-log-json-enabled", false, "when this flag is set, log in JSON format is used")
+	flag.BoolVar(&cfg.AccessLogStripQuery, "access-log-strip-query", false, "when this flag is set, the access log strips the query strings from the access log")
+	flag.BoolVar(&cfg.SuppressRouteUpdateLogs, "suppress-route-update-logs", false, "print only summaries on route updates/deletes")
 
 	// route sources:
-	flag.StringVar(&cfg.EtcdUrls, "etcd-urls", "", etcdUrlsUsage)
-	flag.StringVar(&cfg.EtcdPrefix, "etcd-prefix", defaultEtcdPrefix, etcdPrefixUsage)
-	flag.DurationVar(&cfg.EtcdTimeout, "etcd-timeout", defaultEtcdTimeout, etcdTimeoutUsage)
-	flag.BoolVar(&cfg.EtcdInsecure, "etcd-insecure", false, etcdInsecureUsage)
-	flag.StringVar(&cfg.EtcdOAuthToken, "etcd-oauth-token", "", etcdOAuthTokenUsage)
-	flag.StringVar(&cfg.EtcdUsername, "etcd-username", "", etcdUsernameUsage)
-	flag.StringVar(&cfg.EtcdPassword, "etcd-password", "", etcdPasswordUsage)
-	flag.StringVar(&cfg.InnkeeperURL, "innkeeper-url", "", innkeeperURLUsage)
-	flag.StringVar(&cfg.InnkeeperAuthToken, "innkeeper-auth-token", "", innkeeperAuthTokenUsage)
-	flag.StringVar(&cfg.InnkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", innkeeperPreRouteFiltersUsage)
-	flag.StringVar(&cfg.InnkeeperPostRouteFilters, "innkeeper-post-route-filters", "", innkeeperPostRouteFiltersUsage)
-	flag.StringVar(&cfg.RoutesFile, "routes-file", "", routesFileUsage)
-	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", inlineRoutesUsage)
-	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", defaultSourcePollTimeout, sourcePollTimeoutUsage)
-	flag.Var(cfg.AppendFilters, "default-filters-append", defaultAppendFiltersUsage)
-	flag.Var(cfg.PrependFilters, "default-filters-prepend", defaultPrependFiltersUsage)
-	flag.BoolVar(&cfg.WaitFirstRouteLoad, "wait-first-route-load", false, waitFirstRouteLoadUsage)
+	flag.StringVar(&cfg.EtcdUrls, "etcd-urls", "", "urls of nodes in an etcd cluster, storing route definitions")
+	flag.StringVar(&cfg.EtcdPrefix, "etcd-prefix", "/skipper", "path prefix for skipper related data in etcd")
+	flag.DurationVar(&cfg.EtcdTimeout, "etcd-timeout", time.Second, "http client timeout duration for etcd")
+	flag.BoolVar(&cfg.EtcdInsecure, "etcd-insecure", false, "ignore the verification of TLS certificates for etcd")
+	flag.StringVar(&cfg.EtcdOAuthToken, "etcd-oauth-token", "", "optional token for OAuth authentication with etcd")
+	flag.StringVar(&cfg.EtcdUsername, "etcd-username", "", "optional username for basic authentication with etcd")
+	flag.StringVar(&cfg.EtcdPassword, "etcd-password", "", "optional password for basic authentication with etcd")
+	flag.StringVar(&cfg.InnkeeperURL, "innkeeper-url", "", "API endpoint of the Innkeeper service, storing route definitions")
+	flag.StringVar(&cfg.InnkeeperAuthToken, "innkeeper-auth-token", "", "fixed token for innkeeper authentication")
+	flag.StringVar(&cfg.InnkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", "filters to be prepended to each route loaded from Innkeeper")
+	flag.StringVar(&cfg.InnkeeperPostRouteFilters, "innkeeper-post-route-filters", "", "filters to be appended to each route loaded from Innkeeper")
+	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
+	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
+	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
+	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
+	flag.Var(cfg.PrependFilters, "default-filters-prepend", "set of default filters to apply to prepend to all filters of all routes")
+	flag.BoolVar(&cfg.WaitFirstRouteLoad, "wait-first-route-load", false, "prevent starting the listener before the first batch of routes were loaded")
 
 	// Kubernetes:
-	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, kubernetesUsage)
-	flag.BoolVar(&cfg.KubernetesInCluster, "kubernetes-in-cluster", false, kubernetesInClusterUsage)
-	flag.StringVar(&cfg.KubernetesURL, "kubernetes-url", "", kubernetesURLUsage)
-	flag.BoolVar(&cfg.KubernetesHealthcheck, "kubernetes-healthcheck", true, kubernetesHealthcheckUsage)
-	flag.BoolVar(&cfg.KubernetesHTTPSRedirect, "kubernetes-https-redirect", true, kubernetesHTTPSRedirectUsage)
-	flag.IntVar(&cfg.KubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, kubernetesHTTPSRedirectCodeUsage)
-	flag.StringVar(&cfg.KubernetesIngressClass, "kubernetes-ingress-class", "", kubernetesIngressClassUsage)
-	flag.StringVar(&cfg.KubernetesRouteGroupClass, "kubernetes-routegroup-class", "", kubernetesRouteGroupClassUsage)
-	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", whitelistedHealthCheckCIDRUsage)
-	flag.StringVar(&cfg.KubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", kubernetesPathModeUsage)
-	flag.StringVar(&cfg.KubernetesNamespace, "kubernetes-namespace", "", kubernetesNamespaceUsage)
-	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, kubernetesEnableEastWestUsage)
-	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", kubernetesEastWestDomainUsage)
-	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", kubernetesEastWestRangeDomainsUsage)
-	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", kubernetesEastWestRangePredicatesUsage)
+	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, "enables skipper to generate routes for ingress resources in kubernetes cluster")
+	flag.BoolVar(&cfg.KubernetesInCluster, "kubernetes-in-cluster", false, "specify if skipper is running inside kubernetes cluster")
+	flag.StringVar(&cfg.KubernetesURL, "kubernetes-url", "", "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true")
+	flag.BoolVar(&cfg.KubernetesHealthcheck, "kubernetes-healthcheck", true, "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes")
+	flag.BoolVar(&cfg.KubernetesHTTPSRedirect, "kubernetes-https-redirect", true, "automatic HTTP->HTTPS redirect route; valid only with kubernetes")
+	flag.IntVar(&cfg.KubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, "overrides the default redirect code (308) when used together with -kubernetes-https-redirect")
+	flag.StringVar(&cfg.KubernetesIngressClass, "kubernetes-ingress-class", "", "ingress class regular expression used to filter ingress resources for kubernetes")
+	flag.StringVar(&cfg.KubernetesRouteGroupClass, "kubernetes-routegroup-class", "", "route group class regular expression used to filter route group resources for kubernetes")
+	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", "sets the iprange/CIDRS to be whitelisted during healthcheck")
+	flag.StringVar(&cfg.KubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>")
+	flag.StringVar(&cfg.KubernetesNamespace, "kubernetes-namespace", "", "watch only this namespace for ingresses")
+	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use -kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
+	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "set the east-west domain. *Deprecated*: use -kubernetes-east-west-range feature. Defaults to .skipper.cluster.local")
+	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
+	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
 
 	// Auth:
-	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, oauth2GrantFlowEnableUsage)
-	flag.StringVar(&cfg.OauthURL, "oauth-url", "", oauthURLUsage)
-	flag.StringVar(&cfg.OauthScope, "oauth-scope", "", oauthScopeUsage)
-	flag.StringVar(&cfg.OauthCredentialsDir, "oauth-credentials-dir", "", oauthCredentialsDirUsage)
-	flag.StringVar(&cfg.Oauth2AuthURL, "oauth2-auth-url", "", oauth2AuthURLUsage)
-	flag.StringVar(&cfg.Oauth2TokenURL, "oauth2-token-url", "", oauth2TokenURLUsage)
-	flag.StringVar(&cfg.Oauth2RevokeTokenURL, "oauth2-revoke-token-url", "", oauth2RevokeTokenURLUsage)
-	flag.StringVar(&cfg.Oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", oauth2TokeninfoURLUsage)
-	flag.StringVar(&cfg.Oauth2SecretFile, "oauth2-secret-file", "", oauth2SecretFileUsage)
-	flag.StringVar(&cfg.Oauth2ClientID, "oauth2-client-id", "", oauth2ClientIDUsage)
-	flag.StringVar(&cfg.Oauth2ClientSecret, "oauth2-client-secret", "", oauth2ClientSecretUsage)
-	flag.StringVar(&cfg.Oauth2ClientIDFile, "oauth2-client-id-file", "", oauth2ClientIDFileUsage)
-	flag.StringVar(&cfg.Oauth2ClientSecretFile, "oauth2-client-secret-file", "", oauth2ClientSecretFileUsage)
-	flag.StringVar(&cfg.Oauth2CallbackPath, "oauth2-callback-path", "", oauth2CallbackPathUsage)
-	flag.DurationVar(&cfg.Oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", defaultOAuthTokeninfoTimeout, oauth2TokeninfoTimeoutUsage)
-	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", defaultOAuthTokenintrospectionTimeout, oauth2TokenintrospectionTimeoutUsage)
-	flag.Var(&cfg.Oauth2AuthURLParameters, "oauth2-auth-url-parameters", oauth2AuthURLParametersUsage)
-	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", oauth2AccessTokenHeaderNameUsage)
-	flag.StringVar(&cfg.Oauth2TokeninfoSubjectKey, "oauth2-tokeninfo-subject-key", "uid", oauth2AccessTokenHeaderNameUsage)
-	flag.StringVar(&cfg.Oauth2TokenCookieName, "oauth2-token-cookie-name", "oauth2-grant", oauth2TokenCookieNameUsage)
-	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", defaultWebhookTimeout, webhookTimeoutUsage)
-	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", oidcSecretsFileUsage)
-	flag.Var(cfg.CredentialPaths, "credentials-paths", credentialPathsUsage)
-	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", defaultCredentialsUpdateInterval, credentialsUpdateIntervalUsage)
+	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
+	flag.StringVar(&cfg.OauthURL, "oauth-url", "", "OAuth2 URL for Innkeeper authentication")
+	flag.StringVar(&cfg.OauthScope, "oauth-scope", "", "the whitespace separated list of oauth scopes")
+	flag.StringVar(&cfg.OauthCredentialsDir, "oauth-credentials-dir", "", "directory where oauth credentials are stored: client.json and user.json")
+	flag.StringVar(&cfg.Oauth2AuthURL, "oauth2-auth-url", "", "sets the OAuth2 Auth URL to redirect the requests to when login is required")
+	flag.StringVar(&cfg.Oauth2TokenURL, "oauth2-token-url", "", "the url where the access code should be exchanged for the access token")
+	flag.StringVar(&cfg.Oauth2RevokeTokenURL, "oauth2-revoke-token-url", "", "the url where the access and refresh tokens can be revoked when logging out")
+	flag.StringVar(&cfg.Oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters")
+	flag.StringVar(&cfg.Oauth2SecretFile, "oauth2-secret-file", "", "sets the filename with the encryption key for the authentication cookie and grant flow state stored in secrets registry")
+	flag.StringVar(&cfg.Oauth2ClientID, "oauth2-client-id", "", "sets the OAuth2 client id of the current service, used to exchange the access code")
+	flag.StringVar(&cfg.Oauth2ClientSecret, "oauth2-client-secret", "", "sets the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code")
+	flag.StringVar(&cfg.Oauth2ClientIDFile, "oauth2-client-id-file", "", "sets the path of the file containing the OAuth2 client id of the current service, used to exchange the access code")
+	flag.StringVar(&cfg.Oauth2ClientSecretFile, "oauth2-client-secret-file", "", "sets the path of the file containing the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code")
+	flag.StringVar(&cfg.Oauth2CallbackPath, "oauth2-callback-path", "", "sets the path where the OAuth2 callback requests with the authorization code should be redirected to")
+	flag.DurationVar(&cfg.Oauth2TokeninfoTimeout, "oauth2-tokeninfo-timeout", 2*time.Second, "sets the default tokeninfo request timeout duration to 2000ms")
+	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", 2*time.Second, "sets the default tokenintrospection request timeout duration to 2000ms")
+	flag.Var(&cfg.Oauth2AuthURLParameters, "oauth2-auth-url-parameters", "sets additional parameters to send when calling the OAuth2 authorize or token endpoints as key-value pairs")
+	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", "sets the access token to a header on the request with this name")
+	flag.StringVar(&cfg.Oauth2TokeninfoSubjectKey, "oauth2-tokeninfo-subject-key", "uid", "sets the access token to a header on the request with this name")
+	flag.StringVar(&cfg.Oauth2TokenCookieName, "oauth2-token-cookie-name", "oauth2-grant", "sets the name of the cookie where the encrypted token is stored")
+	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
+	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", "file storing the encryption key of the OID Connect token")
+	flag.Var(cfg.CredentialPaths, "credentials-paths", "directories or files to watch for credentials to use by bearerinjector filter")
+	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", 10*time.Minute, "sets the interval to update secrets")
 
 	// TLS client certs
-	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", clientKeyFileUsage)
-	flag.StringVar(&cfg.ClientCertFile, "client-tls-cert", "", clientCertFileUsage)
+	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs")
+	flag.StringVar(&cfg.ClientCertFile, "client-tls-cert", "", "TLS certificate files for backend connections, multiple keys may be given comma separated - the order must match the keys")
 
 	// TLS version
-	flag.StringVar(&cfg.TLSMinVersion, "tls-min-version", defaultMinTLSVersion, minTLSVersionUsage)
+	flag.StringVar(&cfg.TLSMinVersion, "tls-min-version", defaultMinTLSVersion, "minimal TLS Version to be used in server, proxy and client connections")
 
 	// API Monitoring:
-	flag.BoolVar(&cfg.ApiUsageMonitoringEnable, "enable-api-usage-monitoring", false, apiUsageMonitoringEnableUsage)
-	flag.StringVar(&cfg.ApiUsageMonitoringRealmKeys, "api-usage-monitoring-realm-keys", defaultApiUsageMonitoringRealmKeys, apiUsageMonitoringRealmKeysUsage)
-	flag.StringVar(&cfg.ApiUsageMonitoringClientKeys, "api-usage-monitoring-client-keys", defaultApiUsageMonitoringClientKeys, apiUsageMonitoringClientKeysUsage)
-	flag.StringVar(&cfg.ApiUsageMonitoringDefaultClientTrackingPattern, "api-usage-monitoring-default-client-tracking-pattern", defaultApiUsageMonitoringDefaultClientTrackingPattern, apiUsageMonitoringDefaultClientTrackingPatternUsage)
-	flag.StringVar(&cfg.ApiUsageMonitoringRealmsTrackingPattern, "api-usage-monitoring-realms-tracking-pattern", defaultApiUsageMonitoringRealmsTrackingPattern, apiUsageMonitoringRealmsTrackingPatternUsage)
+	flag.BoolVar(&cfg.ApiUsageMonitoringEnable, "enable-api-usage-monitoring", false, "enables the apiUsageMonitoring filter")
+	flag.StringVar(&cfg.ApiUsageMonitoringRealmKeys, "api-usage-monitoring-realm-keys", "", "name of the property in the JWT payload that contains the authority realm")
+	flag.StringVar(&cfg.ApiUsageMonitoringClientKeys, "api-usage-monitoring-client-keys", "sub", "comma separated list of names of the properties in the JWT body that contains the client ID")
+	flag.StringVar(&cfg.ApiUsageMonitoringDefaultClientTrackingPattern, "api-usage-monitoring-default-client-tracking-pattern", "", "*Deprecated*: set `client_tracking_pattern` directly on filter")
+	flag.StringVar(&cfg.ApiUsageMonitoringRealmsTrackingPattern, "api-usage-monitoring-realms-tracking-pattern", "services", "regular expression used for matching monitored realms (defaults is 'services')")
 
 	// Default filters:
-	flag.StringVar(&cfg.DefaultFiltersDir, "default-filters-dir", "", defaultFiltersDirUsage)
+	flag.StringVar(&cfg.DefaultFiltersDir, "default-filters-dir", "", "path to directory which contains default filter configurations per service and namespace (disabled if not set)")
 
 	// Connections, timeouts:
-	flag.DurationVar(&cfg.WaitForHealthcheckInterval, "wait-for-healthcheck-interval", defaultWaitForHealthcheckInterval, waitForHealthcheckIntervalUsage)
-	flag.IntVar(&cfg.IdleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, idleConnsPerHostUsage)
-	flag.DurationVar(&cfg.CloseIdleConnsPeriod, "close-idle-conns-period", proxy.DefaultCloseIdleConnsPeriod, closeIdleConnsPeriodUsage)
-	flag.DurationVar(&cfg.BackendFlushInterval, "backend-flush-interval", defaultBackendFlushInterval, backendFlushIntervalUsage)
-	flag.BoolVar(&cfg.ExperimentalUpgrade, "experimental-upgrade", false, experimentalUpgradeUsage)
-	flag.BoolVar(&cfg.ExperimentalUpgradeAudit, "experimental-upgrade-audit", false, experimentalUpgradeAuditUsage)
-	flag.DurationVar(&cfg.ReadTimeoutServer, "read-timeout-server", defaultReadTimeoutServer, readTimeoutServerUsage)
-	flag.DurationVar(&cfg.ReadHeaderTimeoutServer, "read-header-timeout-server", defaultReadHeaderTimeoutServer, readHeaderTimeoutServerUsage)
-	flag.DurationVar(&cfg.WriteTimeoutServer, "write-timeout-server", defaultWriteTimeoutServer, writeTimeoutServerUsage)
-	flag.DurationVar(&cfg.IdleTimeoutServer, "idle-timeout-server", defaultIdleTimeoutServer, idleTimeoutServerUsage)
-	flag.IntVar(&cfg.MaxHeaderBytes, "max-header-bytes", http.DefaultMaxHeaderBytes, maxHeaderBytesUsage)
-	flag.BoolVar(&cfg.EnableConnMetricsServer, "enable-connection-metrics", false, enableConnMetricsServerUsage)
-	flag.DurationVar(&cfg.TimeoutBackend, "timeout-backend", defaultTimeoutBackend, timeoutBackendUsage)
-	flag.DurationVar(&cfg.KeepaliveBackend, "keepalive-backend", defaultKeepaliveBackend, keepaliveBackendUsage)
-	flag.BoolVar(&cfg.EnableDualstackBackend, "enable-dualstack-backend", true, enableDualstackBackendUsage)
-	flag.DurationVar(&cfg.TlsHandshakeTimeoutBackend, "tls-timeout-backend", defaultTLSHandshakeTimeoutBackend, tlsHandshakeTimeoutBackendUsage)
-	flag.DurationVar(&cfg.ResponseHeaderTimeoutBackend, "response-header-timeout-backend", defaultResponseHeaderTimeoutBackend, responseHeaderTimeoutBackendUsage)
-	flag.DurationVar(&cfg.ExpectContinueTimeoutBackend, "expect-continue-timeout-backend", defaultExpectContinueTimeoutBackend, expectContinueTimeoutBackendUsage)
-	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", defaultMaxIdleConnsBackend, maxIdleConnsBackendUsage)
-	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, disableHTTPKeepalivesUsage)
+	flag.DurationVar(&cfg.WaitForHealthcheckInterval, "wait-for-healthcheck-interval", (10+5)*3*time.Second, "period waiting to become unhealthy in the loadbalancer pool in front of this instance, before shutdown triggered by SIGINT or SIGTERM") // kube-ingress-aws-controller default
+	flag.IntVar(&cfg.IdleConnsPerHost, "idle-conns-num", proxy.DefaultIdleConnsPerHost, "maximum idle connections per backend host")
+	flag.DurationVar(&cfg.CloseIdleConnsPeriod, "close-idle-conns-period", proxy.DefaultCloseIdleConnsPeriod, "sets the time interval of closing all idle connections. Not closing when 0")
+	flag.DurationVar(&cfg.BackendFlushInterval, "backend-flush-interval", 20*time.Millisecond, "flush interval for upgraded proxy connections")
+	flag.BoolVar(&cfg.ExperimentalUpgrade, "experimental-upgrade", false, "enable experimental feature to handle upgrade protocol requests")
+	flag.BoolVar(&cfg.ExperimentalUpgradeAudit, "experimental-upgrade-audit", false, "enable audit logging of the request line and the messages during the experimental web socket upgrades")
+	flag.DurationVar(&cfg.ReadTimeoutServer, "read-timeout-server", 5*time.Minute, "set ReadTimeout for http server connections")
+	flag.DurationVar(&cfg.ReadHeaderTimeoutServer, "read-header-timeout-server", 60*time.Second, "set ReadHeaderTimeout for http server connections")
+	flag.DurationVar(&cfg.WriteTimeoutServer, "write-timeout-server", 60*time.Second, "set WriteTimeout for http server connections")
+	flag.DurationVar(&cfg.IdleTimeoutServer, "idle-timeout-server", 60*time.Second, "set IdleTimeout for http server connections")
+	flag.IntVar(&cfg.MaxHeaderBytes, "max-header-bytes", http.DefaultMaxHeaderBytes, "set MaxHeaderBytes for http server connections")
+	flag.BoolVar(&cfg.EnableConnMetricsServer, "enable-connection-metrics", false, "enables connection metrics for http server connections")
+	flag.DurationVar(&cfg.TimeoutBackend, "timeout-backend", 60*time.Second, "sets the TCP client connection timeout for backend connections")
+	flag.DurationVar(&cfg.KeepaliveBackend, "keepalive-backend", 30*time.Second, "sets the keepalive for backend connections")
+	flag.BoolVar(&cfg.EnableDualstackBackend, "enable-dualstack-backend", true, "enables DualStack for backend connections")
+	flag.DurationVar(&cfg.TlsHandshakeTimeoutBackend, "tls-timeout-backend", 60*time.Second, "sets the TLS handshake timeout for backend connections")
+	flag.DurationVar(&cfg.ResponseHeaderTimeoutBackend, "response-header-timeout-backend", 60*time.Second, "sets the HTTP response header timeout for backend connections")
+	flag.DurationVar(&cfg.ExpectContinueTimeoutBackend, "expect-continue-timeout-backend", 30*time.Second, "sets the HTTP expect continue timeout for backend connections")
+	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", 0, "sets the maximum idle connections for all backend connections")
+	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
 
 	// Swarm:
-	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, enableSwarmUsage)
-	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", swarmRedisURLsUsage)
-	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", net.DefaultDialTimeout, swarmRedisDialTimeoutUsage)
-	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", net.DefaultReadTimeout, swarmRedisReadTimeoutUsage)
-	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", net.DefaultWriteTimeout, swarmRedisWriteTimeoutUsage)
-	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", net.DefaultPoolTimeout, swarmRedisPoolTimeoutUsage)
-	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", net.DefaultMinConns, swarmRedisMinConnsUsage)
-	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", net.DefaultMaxConns, swarmRedisMaxConnsUsage)
-	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, swarmKubernetesNamespaceUsage)
-	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, swarmKubernetesLabelSelectorKeyUsage)
-	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, swarmKubernetesLabelSelectorValueUsage)
-	flag.IntVar(&cfg.SwarmPort, "swarm-port", swarm.DefaultPort, swarmPortUsage)
-	flag.IntVar(&cfg.SwarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, swarmMaxMessageBufferUsage)
-	flag.DurationVar(&cfg.SwarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, swarmLeaveTimeoutUsage)
-	flag.StringVar(&cfg.SwarmStaticSelf, "swarm-static-self", "", swarmStaticSelfUsage)
-	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", swarmStaticOtherUsage)
+	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
+	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits.\nUse "+redisPasswordEnv+" environment variable or 'swarm-redis-password' key in config file to set redis password")
+	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", net.DefaultDialTimeout, "set redis client dial timeout")
+	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", net.DefaultReadTimeout, "set redis socket read timeout")
+	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", net.DefaultWriteTimeout, "set redis socket write timeout")
+	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", net.DefaultPoolTimeout, "set redis get connection from pool timeout")
+	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", net.DefaultMinConns, "set min number of connections to redis")
+	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", net.DefaultMaxConns, "set max number of connections to redis")
+	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
+	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
+	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
+	flag.IntVar(&cfg.SwarmPort, "swarm-port", swarm.DefaultPort, "swarm port to use to communicate with our peers")
+	flag.IntVar(&cfg.SwarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, "swarm max message buffer size to use for member list messages")
+	flag.DurationVar(&cfg.SwarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, "swarm leave timeout to use for leaving the memberlist on timeout")
+	flag.StringVar(&cfg.SwarmStaticSelf, "swarm-static-self", "", "set static swarm self node, for example 127.0.0.1:9001")
+	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003")
 
 	return cfg
 }
@@ -702,7 +474,7 @@ func (c *Config) Parse() error {
 		flag.Parse()
 	}
 
-	if c.ApiUsageMonitoringDefaultClientTrackingPattern != defaultApiUsageMonitoringDefaultClientTrackingPattern {
+	if c.ApiUsageMonitoringDefaultClientTrackingPattern != "" {
 		log.Warn(`"api-usage-monitoring-default-client-tracking-pattern" parameter is deprecated`)
 	}
 
