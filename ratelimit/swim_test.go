@@ -330,6 +330,7 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 }
 
 func TestTwoSwarms(t *testing.T) {
+	t.Skip()
 	//log.SetLevel(log.DebugLevel)
 
 	l := sync.Mutex{}
