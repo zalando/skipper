@@ -128,6 +128,44 @@ Host(/^my-host-header\.example\.org$/)
 Host(/header\.example\.org$/)
 ```
 
+## Forwarded header predicates
+
+Uses standardized Forwarded header ([RFC 7239](https://tools.ietf.org/html/rfc7239))
+
+More info about the header: [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded)
+
+### ForwardedHost
+
+Regular expressions that the forwarded host header in the request must match.
+
+Parameters:
+
+* Host (regex)
+
+Examples:
+
+```
+ForwardedHost(/^my-host-header\.example\.org$/)
+ForwardedHost(/header\.example\.org$/)
+```
+
+### ForwardedProtocol
+
+Protocol the forwarded header in the request must match.
+
+Parameters:
+
+* Protocol (string)
+
+Only "http" and "https" values are allowed
+
+Examples:
+
+```
+ForwardedProtocol("http")
+ForwardedProtocol("https")
+```
+
 ## Weight (priority)
 
 By default, the weight (priority) of a route is determined by the number of defined predicates.
