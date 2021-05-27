@@ -26,79 +26,90 @@ func TestForwardedHost(t *testing.T) {
 		isError: true,
 	}, {
 		msg:     "Empty Forwarded Header should not match",
-		host:    "example.com",
+		host:    "^example\\.com$",
 		r:       request{},
 		matches: false,
 		isError: false,
 	}, {
-		msg:  "Same forwarded Header should match",
-		host: "^example.com$",
+		msg:  "Same forwarded non-quoted Header should match",
+		host: "^example\\.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
-				"Forwarded": []string{"for=192.0.2.60;proto=http;by=203.0.113.43;host=example.com"},
+				"Forwarded": []string{`for=192.0.2.60;proto=http;by=203.0.113.43;host=example.com`},
 			},
 		},
 		matches: true,
 		isError: false,
 	}, {
 		msg:  "Same forwarded Header should match",
-		host: "^example.com$",
+		host: "^example\\.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
-				"Forwarded": []string{"for=192.0.2.60;proto=http;host=example.com;by=203.0.113.43"},
+				"Forwarded": []string{`for=192.0.2.60;proto=http;by=203.0.113.43;host="example.com"`},
 			},
 		},
 		matches: true,
 		isError: false,
 	}, {
 		msg:  "Same forwarded Header should match",
-		host: "^example.com$",
+		host: "^example\\.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
-				"Forwarded": []string{"host=example.com;for=192.0.2.60;proto=http;by=203.0.113.43"},
+				"Forwarded": []string{`for=192.0.2.60;proto=http;host="example.com";by=203.0.113.43`},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
+		msg:  "Same forwarded Header should match",
+		host: "^example\\.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{`host="example.com";for=192.0.2.60;proto=http;by=203.0.113.43`},
 			},
 		},
 		matches: true,
 		isError: false,
 	}, {
 		msg:  "Forwarded Header should match subdomains",
-		host: "example.com$",
+		host: "example\\.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
-				"Forwarded": []string{"host=subdomain.example.com;for=192.0.2.60;proto=http;by=203.0.113.43"},
+				"Forwarded": []string{`host="subdomain.example.com";for=192.0.2.60;proto=http;by=203.0.113.43`},
 			},
 		},
 		matches: true,
 		isError: false,
 	}, {
 		msg:  "Different forwarded Header should not match",
-		host: "^example.com$",
+		host: "^example\\.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
-				"Forwarded": []string{"for=192.0.2.60;proto=http;by=203.0.113.43;host=example.comma.org"},
+				"Forwarded": []string{`for=192.0.2.60;proto=http;by=203.0.113.43;host="example.comma.org"`},
 			},
 		},
 		matches: false,
 		isError: false,
 	}, {
 		msg:  "Different forwarded Header should not match",
-		host: "example.com",
+		host: "^example\\.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
-				"Forwarded": []string{"for=192.0.2.60;proto=http;by=203.0.113.43;host=example.org"},
+				"Forwarded": []string{`for=192.0.2.60;proto=http;by=203.0.113.43;host="example.org"`},
 			},
 		},
 		matches: false,
 		isError: false,
 	}, {
 		msg:  "Forwarded Header with no host should not match",
-		host: "example.com",
+		host: "^example\\.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
@@ -109,11 +120,11 @@ func TestForwardedHost(t *testing.T) {
 		isError: false,
 	}, {
 		msg:  "Forwarded Header only host should match",
-		host: "example.com",
+		host: "^example\\.com$",
 		r: request{
 			url: "https://myproxy.com/index.html",
 			headers: http.Header{
-				"Forwarded": []string{"host=example.com"},
+				"Forwarded": []string{`host="example.com"`},
 			},
 		},
 		matches: true,
@@ -207,6 +218,17 @@ func TestForwardedProto(t *testing.T) {
 		},
 		matches: true,
 		isError: false,
+	}, {
+		msg:   "Incorrect protocol should not match forwarded header",
+		proto: "HTTP",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{"for=192.0.2.60;proto=http;by=203.0.113.43;host=example.org"},
+			},
+		},
+		matches: false,
+		isError: true,
 	}, {
 		msg:   "Different forwarded Header should not match",
 		proto: "https",

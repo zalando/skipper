@@ -76,15 +76,12 @@ func (p *protoPredicateSpec) Create(args []interface{}) (routing.Predicate, erro
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	value = strings.ToLower(value)
-
 	switch value {
 	case "http", "https":
+		return protoPredicate{proto: value}, nil
 	default:
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
-
-	return protoPredicate{proto: value}, nil
 }
 
 func NewForwardedHost() routing.PredicateSpec  { return &hostPredicateSpec{} }
@@ -136,9 +133,8 @@ func parseForwarded(fh string) *forwarded {
 	for _, forwardedPair := range strings.Split(fh, ";") {
 		if tv := strings.SplitN(forwardedPair, "=", 2); len(tv) == 2 {
 			token, value := tv[0], tv[1]
-			token = strings.TrimSpace(token)
-			value = strings.TrimSpace(strings.Trim(value, `"`))
-			switch strings.ToLower(token) {
+			value = strings.Trim(value, `"`)
+			switch token {
 			case "proto":
 				f.proto = value
 			case "host":
