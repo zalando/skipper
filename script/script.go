@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -24,18 +25,48 @@ import (
 	gjson "layeh.com/gopher-json"
 )
 
-// InitialPoolSize is the number of lua states created initially per route
-var InitialPoolSize int = 3
+const (
+	defaultPoolSize int = 10
+)
 
-// MaxPoolSize is the number of lua states stored per route - there may be more parallel
-// requests, but only this number is cached.
-var MaxPoolSize int = 10
+type luaScript struct {
+	// PoolSize is the number of lua states stored per route - there may be more parallel
+	// requests, but only this number is cached.
+	PoolSize int
 
-type luaScript struct{}
+	// number of filter instances
+	instances int
 
-// NewLuaScript creates a new filter spec for skipper
+	memoryAvailableBytes int
+}
+
+// NewLuaScript creates a new filter spec for skipper with default pool size
 func NewLuaScript() filters.Spec {
-	return &luaScript{}
+	return &luaScript{
+		PoolSize: defaultPoolSize,
+	}
+}
+
+// WithPoolSize creates a new filter spec for skipper with global pool size set
+func WithPoolSize(bytesAvailable int) filters.Spec {
+	memoryLimit := int(bytesAvailable / 10) // let's use only 1/10 for lua
+
+	// max 1GB
+	if memoryLimit > 1<<30 {
+		memoryLimit = 1 << 30
+	}
+
+	scriptSize := 1024 // assumption (I counted 248B for a request and response filter script, that generates 5B random data)
+	poolSize := memoryLimit / scriptSize
+	if poolSize > 1000 {
+		poolSize = 1000
+	}
+
+	log.Infof("Calculated poolsize: %d", poolSize)
+	return &luaScript{
+		PoolSize:             poolSize,
+		memoryAvailableBytes: memoryLimit,
+	}
 }
 
 // Name returns the name of the filter ("lua")
@@ -61,10 +92,15 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 		params = append(params, ps)
 	}
 
-	s := &script{source: src, routeParams: params}
-	if err := s.initScript(); err != nil {
+	s := &script{
+		source:      src,
+		routeParams: params,
+	}
+	if err := s.initScript(ls.PoolSize); err != nil {
 		return nil, err
 	}
+
+	ls.instances += 1
 	return s, nil
 }
 
@@ -74,6 +110,7 @@ func (s *script) getState() (*lua.LState, error) {
 		if L == nil {
 			return nil, errors.New("pool closed")
 		}
+		atomic.AddInt32(&s.idlePool, -1)
 		return L, nil
 	default:
 		return s.newState()
@@ -87,6 +124,7 @@ func (s *script) putState(L *lua.LState) {
 	}
 	select {
 	case s.pool <- L:
+		atomic.AddInt32(&s.idlePool, 1)
 	default: // pool full, close state
 		L.Close()
 	}
@@ -126,7 +164,7 @@ func sleep(L *lua.LState) int {
 	return 0
 }
 
-func (s *script) initScript() error {
+func (s *script) initScript(poolSize int) error {
 	// Compile
 	var reader io.Reader
 	var name string
@@ -175,18 +213,67 @@ func (s *script) initScript() error {
 	}
 
 	// Init state pool
-	s.pool = make(chan *lua.LState, MaxPoolSize) // FIXME make configurable
-	for i := 0; i < InitialPoolSize; i++ {
+	s.initPool(poolSize)
+	return nil
+}
+
+func (s *script) initPool(max int) error {
+	s.pool = make(chan *lua.LState, max)
+	for i := 0; i < max; i++ {
 		L, err := s.newState()
 		if err != nil {
 			return err
 		}
 		s.putState(L)
 	}
+	s.poolSize = max
+	return nil
+}
+
+// hopefully during the operation we do not run out of states at runtime
+func (s *script) resizePool(max int) error {
+	pool := make(chan *lua.LState, max)
+	idle := atomic.LoadInt32(&s.idlePool)
+	cnt := 0
+
+	// migrate half the idle pool
+	for i := int32(0); i < idle/2; i++ {
+		L, err := s.getState()
+		if err != nil {
+			break
+		}
+		s.putState(L)
+		cnt++
+	}
+	// switch pool
+	s.pool = pool
+
+	// migrate other half the idle pool
+	for i := idle / 2; i < idle; i++ {
+		L, err := s.getState()
+		if err != nil {
+			break
+		}
+		s.putState(L)
+		cnt++
+	}
+
+	// create rest
+	for i := cnt; i < max; i++ {
+		L, err := s.newState()
+		if err != nil {
+			return err
+		}
+		s.putState(L)
+	}
+
+	s.poolSize = max
 	return nil
 }
 
 type script struct {
+	idlePool                int32
+	poolSize                int
 	source                  string
 	routeParams             []string
 	pool                    chan *lua.LState

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -57,6 +58,7 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/script"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/swarm"
@@ -1040,6 +1042,22 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	return config, nil
 }
 
+func getCgroupV1MemoryBytes() (int, error) {
+	// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+	// cgroup v2: TODO(sszuecs) has to wait for docker/k8s check path /sys/fs/cgroup/<name>/memory.max
+	// Note that in containers this will be the container limit.
+	// Runtimes without the file will use defaults defined in `queuelistener` package.
+	const memoryLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+	memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
+	if err != nil {
+		return 0, err
+	} else {
+		memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
+		return strconv.Atoi(memoryLimitString)
+	}
+
+}
+
 func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 	if o.Address == "" {
 		o.Address = ":http"
@@ -1051,25 +1069,14 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 
 	var memoryLimit int
 	if o.MaxTCPListenerConcurrency <= 0 {
-		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
-		// cgroup v2: TODO(sszuecs) has to wait for docker/k8s check path /sys/fs/cgroup/<name>/memory.max
-		// Note that in containers this will be the container limit.
-		// Runtimes without the file will use defaults defined in `queuelistener` package.
-		const memoryLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-		memoryLimitBytes, err := os.ReadFile(memoryLimitFile)
+		memoryLimit, err := getCgroupV1MemoryBytes()
 		if err != nil {
-			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
-		} else {
-			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
-			memoryLimit, err = strconv.Atoi(memoryLimitString)
-			if err != nil {
-				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
-			}
+			log.Errorf("Failed to get memory limits from cgroupV1, fallback to defaults: %v", err)
+		}
 
-			// 1GB, temporarily, as a tested magic number until a better mechanism is in place:
-			if memoryLimit > 1<<30 {
-				memoryLimit = 1 << 30
-			}
+		// 1GB, temporarily, as a tested magic number until a better mechanism is in place:
+		if memoryLimit > 1<<30 {
+			memoryLimit = 1 << 30
 		}
 	}
 
@@ -1503,6 +1510,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			return err
 		}
 		o.CustomFilters = append(o.CustomFilters, compress)
+	}
+	if bytes, err := getCgroupV1MemoryBytes(); err != nil {
+		o.CustomFilters = append(o.CustomFilters, script.NewLuaScript())
+	} else {
+		o.CustomFilters = append(o.CustomFilters, script.WithPoolSize(int(bytes/100)))
 	}
 
 	// create a filter registry with the available filter specs registered,
