@@ -41,6 +41,7 @@ import (
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/cron"
+	"github.com/zalando/skipper/predicates/forwarded"
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/methods"
 	"github.com/zalando/skipper/predicates/primitive"
@@ -1402,6 +1403,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAnyKVRegexp(),
 		methods.New(),
 		tee.New(),
+		forwarded.NewForwardedHost(),
+		forwarded.NewForwardedProto(),
 	)
 
 	// provide default value for wrapper if not defined
