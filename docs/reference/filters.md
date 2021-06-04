@@ -121,7 +121,7 @@ Path("/resource/:id") -> setRequestHeader("X-Resource-Id", "${id}") -> clusterCl
 
 ## appendRequestHeader
 
-Same as [setRequestHeader](#setRequestHeader),
+Same as [setRequestHeader](#setrequestheader),
 but appends the provided value to the already existing ones.
 
 ## dropRequestHeader
@@ -182,16 +182,16 @@ foo: * -> oauthTokeninfoAllScope("address_service.all") -> setContextRequestHead
 
 ## appendContextRequestHeader
 
-Same as [setContextRequestHeader](#setContextRequestHeader),
+Same as [setContextRequestHeader](#setcontextrequestheader),
 but appends the provided value to the already existing ones.
 
 ## setContextResponseHeader
 
-Same as [setContextRequestHeader](#setContextRequestHeader), except for responses.
+Same as [setContextRequestHeader](#setcontextrequestheader), except for responses.
 
 ## appendContextResponseHeader
 
-Same as [appendContextRequestHeader](#appendContextRequestHeader), except for responses.
+Same as [appendContextRequestHeader](#appendcontextrequestheader), except for responses.
 
 ## copyRequestHeader
 
@@ -210,7 +210,7 @@ foo: * -> copyRequestHeader("X-Foo", "X-Bar") -> "https://backend.example.org";
 
 ## copyResponseHeader
 
-Same as [copyRequestHeader](#copyRequestHeader), except for responses.
+Same as [copyRequestHeader](#copyrequestheader), except for responses.
 
 ## modPath
 
@@ -266,7 +266,7 @@ see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
 ## redirectToLower
 
-Same as [redirectTo](#redirectTo), but replaces all strings to lower case.
+Same as [redirectTo](#redirectto), but replaces all strings to lower case.
 
 ## static
 
@@ -1171,12 +1171,12 @@ to untrusted downstream services.
 The filter will inject the OAuth2 bearer token into the request headers if the flag
 `oauth2-access-token-header-name` is set.
 
-The filter must be used in conjunction with the [grantCallback](#grantCallback) filter
+The filter must be used in conjunction with the [grantCallback](#grantcallback) filter
 where the OAuth2 provider can redirect authenticated users with an authorization code.
 Skipper will make sure to add the `grantCallback` filter for you to your routes when
 you pass the `-enable-oauth2-grant-flow` flag.
 
-The filter may be used with the [grantClaimsQuery](#grantClaimsQuery) filter to perform
+The filter may be used with the [grantClaimsQuery](#grantclaimsquery) filter to perform
 authz and access control.
 
 See the [tutorial](../tutorials/auth.md#oauth2-authorization-grant-flow) for step-by-step
@@ -1213,7 +1213,7 @@ Skipper arguments:
 ## grantCallback
 
 The filter accepts authorization codes as a result of an OAuth2 authorization code grant
-flow triggered by [oauthGrant](#oauthGrant). It uses the code to request access and
+flow triggered by [oauthGrant](#oauthgrant). It uses the code to request access and
 refresh tokens from the OAuth2 provider's token endpoint.
 
 Examples:
@@ -1237,7 +1237,7 @@ Skipper arguments:
 ## grantLogout
 
 The filter revokes the refresh and access tokens in the cookie set by
-[oauthGrant](#oauthGrant). It also deletes the cookie by setting the `Set-Cookie`
+[oauthGrant](#oauthgrant). It also deletes the cookie by setting the `Set-Cookie`
 response header to an empty value after a successful token revocation.
 
 Examples:
@@ -1258,7 +1258,7 @@ The filter allows defining access control rules based on claims in a tokeninfo J
 payload.
 
 This filter is an alias for `oidcClaimsQuery` and functions identically to it.
-See [oidcClaimsQuery](#oidcClaimsQuery) for more information.
+See [oidcClaimsQuery](#oidcclaimsquery) for more information.
 
 Examples:
 
