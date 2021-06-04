@@ -225,7 +225,7 @@ because it is reread by Skipper. The path to this file must be passed with the f
 
 ### AuthZ and access control
 
-Authorization validation and access control is available by means of a subsequent filter [oidcClaimsQuery](../reference/filters.md#oidcClaimsQuery). It inspects the ID token, which exists after a successful `oauthOidc*` filter step, and validates the defined query with the request path.
+Authorization validation and access control is available by means of a subsequent filter [oidcClaimsQuery](../reference/filters.md#oidcclaimsquery). It inspects the ID token, which exists after a successful `oauthOidc*` filter step, and validates the defined query with the request path.
 
 Given following example ID token:
 
@@ -348,10 +348,10 @@ skipper -enable-oauth2-grant-flow \
 ```
 
 The `-oauth2-revoke-token-url` is optional, and must only be supplied if you plan
-on using the [grantLogout](../reference/filters.md#grantLogout) filter.
+on using the [grantLogout](../reference/filters.md#grantlogout) filter.
 
 You can configure the `oauthGrant()` filter further for your needs. See the
-[oauthGrant](../reference/filters.md#oauthGrant) filter reference for more details.
+[oauthGrant](../reference/filters.md#oauthgrant) filter reference for more details.
 
 #### Add filters to your routes
 
@@ -378,10 +378,10 @@ logout:
 
 #### (Optional) AuthZ and access control
 
-You can add a [grantClaimsQuery](../reference/filters.md#grantClaimsQuery) filter
-after a [oauthGrant](../reference/filters.md#oauthGrant) to control access based
+You can add a [grantClaimsQuery](../reference/filters.md#grantclaimsquery) filter
+after a [oauthGrant](../reference/filters.md#oauthgrant) to control access based
 on any OAuth2 claim. A claim is any property returned by the tokeninfo endpoint.
-The filter works exactly like the [oidcClaimsQuery](../reference/filters.md#oidcClaimsQuery)
+The filter works exactly like the [oidcClaimsQuery](../reference/filters.md#oidcclaimsquery)
 filter (it is actually just an alias for it).
 
 For example, if your tokeninfo endpoint returns the following JSON:
