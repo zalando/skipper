@@ -167,7 +167,7 @@ end
 # Examples
 
 >The examples serve as examples. If there is a go based plugin available,
-use that instead. For overhead estimate see [benchmark](#Benchmark).
+use that instead. For overhead estimate see [benchmark](#benchmark).
 
 ## OAuth2 token as basic auth password
 ```lua

@@ -25,8 +25,8 @@ represent time duration values as strings, parseable by [time.Duration](https://
 
 ## The path tree
 
-There is an important difference between the evaluation of the [Path](#Path) or [PathSubtree](#PathSubtree) predicates, and the
-evaluation of all the other predicates ([PathRegexp](#PathRegexp) belonging to the second group). Find an explanation in the
+There is an important difference between the evaluation of the [Path](#path) or [PathSubtree](#pathsubtree) predicates, and the
+evaluation of all the other predicates ([PathRegexp](#pathregexp) belonging to the second group). Find an explanation in the
 [Route matching](../tutorials/basics.md#route-matching) section explanation section.
 
 ### Path
@@ -483,7 +483,7 @@ Source("1.2.3.4", "2.2.2.0/24")
 
 ### SourceFromLast
 
-The same as [Source](#Source), but use the last part of the
+The same as [Source](#source), but use the last part of the
 X-Forwarded-For header to match the network. This seems to be only
 used in the popular loadbalancers from AWS, ELB and ALB, because they
 put the client-IP as last part of the X-Forwarded-For headers.

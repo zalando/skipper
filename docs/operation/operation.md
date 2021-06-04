@@ -827,7 +827,7 @@ This is possible to achieve centrally, when Skipper is started with
 the -rfc-patch-path flag. It is also possible to allow the default
 behavior and only force the alternative interpretation on a per-route
 basis with the rfcPath() filter. See
-[`rfcPath()`](../reference/filters.md#rfcPath).
+[`rfcPath()`](../reference/filters.md#rfcpath).
 
 If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to
