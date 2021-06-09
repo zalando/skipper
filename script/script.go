@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -115,7 +116,7 @@ func (s *script) getState() (*lua.LState, error) {
 		if L == nil {
 			return nil, errors.New("pool closed")
 		}
-		//atomic.AddInt32(&s.idlePool, -1)
+		atomic.AddInt32(&s.idlePool, -1)
 		return L, nil
 	default:
 		return s.newState()
@@ -129,7 +130,7 @@ func (s *script) putState(L *lua.LState) {
 	}
 	select {
 	case s.pool <- L:
-		//atomic.AddInt32(&s.idlePool, 1)
+		atomic.AddInt32(&s.idlePool, 1)
 	default: // pool full, close state
 		L.Close()
 	}
@@ -278,6 +279,7 @@ func (s *script) resizePool(max int) error {
 }
 */
 
+// TODO(sszuecs): export metric idlePool
 type script struct {
 	idlePool                int32
 	poolSize                int
