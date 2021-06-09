@@ -1514,7 +1514,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if bytes, err := getCgroupV1MemoryBytes(); err != nil {
 		o.CustomFilters = append(o.CustomFilters, script.NewLuaScript())
 	} else {
-		o.CustomFilters = append(o.CustomFilters, script.WithPoolSize(int(bytes/100)))
+		o.CustomFilters = append(o.CustomFilters, script.WithPoolSize(int(bytes)))
 	}
 
 	// create a filter registry with the available filter specs registered,
