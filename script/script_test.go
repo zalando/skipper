@@ -102,7 +102,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "set host request header",
 			context: testContext{
-				script: `set_request_header.lua`,
+				script: `testdata/set_request_header.lua`,
 				params: []string{"Host", "new.example.com"},
 			},
 			expectedRequestHeader: map[string]string{"Host": "new.example.com"},
@@ -118,7 +118,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "set path without query",
 			context: testContext{
-				script: `set_path.lua`,
+				script: `testdata/set_path.lua`,
 				params: []string{"/new/path"},
 				url:    "http://www.example.com/foo/bar",
 			},
@@ -127,7 +127,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "set path with query",
 			context: testContext{
-				script: `set_path.lua`,
+				script: `testdata/set_path.lua`,
 				params: []string{"/new/path"},
 				url:    "http://www.example.com/foo/bar?baz=1",
 			},
@@ -136,7 +136,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "set path empty path",
 			context: testContext{
-				script: `set_path.lua`,
+				script: `testdata/set_path.lua`,
 				params: []string{"/new/path"},
 				url:    "http://www.example.com",
 			},
@@ -145,7 +145,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "set path empty path with query",
 			context: testContext{
-				script: `set_path.lua`,
+				script: `testdata/set_path.lua`,
 				params: []string{"/new/path"},
 				url:    "http://www.example.com?foo=bar",
 			},
@@ -161,7 +161,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "set query",
 			context: testContext{
-				script: `set_query.lua`,
+				script: `testdata/set_query.lua`,
 				params: []string{"baz", "2"},
 				url:    "http://www.example.com/foo/bar?baz=1&x=y",
 			},
@@ -170,7 +170,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "set query when empty",
 			context: testContext{
-				script: `set_query.lua`,
+				script: `testdata/set_query.lua`,
 				params: []string{"baz", "2"},
 				url:    "http://www.example.com/foo/bar",
 			},
@@ -179,7 +179,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "delete query",
 			context: testContext{
-				script: `set_query.lua`,
+				script: `testdata/set_query.lua`,
 				params: []string{"baz", ""},
 				url:    "http://www.example.com/foo/bar?baz=1",
 			},
@@ -188,7 +188,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "strip query",
 			context: testContext{
-				script:        `strip_query.lua`,
+				script:        `testdata/strip_query.lua`,
 				url:           "http://www.example.com/foo/bar?baz=1&x=y&z",
 				requestHeader: map[string]string{"X-Dummy": "dummy"},
 			},
@@ -198,7 +198,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "strip query and preserve to headers",
 			context: testContext{
-				script: `strip_query.lua`,
+				script: `testdata/strip_query.lua`,
 				params: []string{"true"},
 				url:    "http://www.example.com/foo/bar?baz=1&x=y&z",
 			},
@@ -228,7 +228,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "queryToHeader",
 			context: testContext{
-				script: `query_to_header.lua`,
+				script: `testdata/query_to_header.lua`,
 				params: []string{"foo-query-param", "X-Foo-Header"},
 				url:    "http://www.example.com/foo/bar?foo-query-param=test",
 			},
@@ -237,7 +237,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "queryToHeader when header is present",
 			context: testContext{
-				script:        `query_to_header.lua`,
+				script:        `testdata/query_to_header.lua`,
 				params:        []string{"foo-query-param", "X-Foo-Header"},
 				url:           "http://www.example.com/foo/bar?foo-query-param=test",
 				requestHeader: map[string]string{"X-Foo-Header": "foo"},
@@ -247,7 +247,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "queryToHeader when query is absent",
 			context: testContext{
-				script:        `query_to_header.lua`,
+				script:        `testdata/query_to_header.lua`,
 				params:        []string{"foo-query-param", "X-Foo-Header"},
 				url:           "http://www.example.com/foo/bar",
 				requestHeader: map[string]string{"X-Dummy": "dummy"},
@@ -257,7 +257,7 @@ func TestScript(t *testing.T) {
 		{
 			name: "queryToHeader when query is empty",
 			context: testContext{
-				script:        `query_to_header.lua`,
+				script:        `testdata/query_to_header.lua`,
 				params:        []string{"foo-query-param", "X-Foo-Header"},
 				url:           "http://www.example.com/foo/bar?foo-query-param=",
 				requestHeader: map[string]string{"X-Dummy": "dummy"},
@@ -371,7 +371,7 @@ func TestSleep(t *testing.T) {
 }
 
 // testable example have to refer known identifier
-const LoadFileOK = `load_ok.lua`
+const LoadFileOK = `testdata/load_ok.lua`
 
 func ExampleLoadFileOK() {
 	runExample(&testContext{
@@ -405,7 +405,7 @@ func ExampleMissingFunc() {
 	// at least one of `request` and `response` function must be present
 }
 
-const MalformedFile = `not_a_filter.lua`
+const MalformedFile = `testdata/not_a_filter.lua`
 
 func ExampleMalformedFile() {
 	runExample(&testContext{
@@ -522,7 +522,7 @@ func ExampleGetResponseInvalidField() {
 	// nil
 }
 
-const LogHeaders = `log_header.lua`
+const LogHeaders = `testdata/log_header.lua`
 
 func ExampleLogHeaders() {
 	runExample(&testContext{
@@ -544,7 +544,7 @@ func ExampleLogHeaders() {
 	// \r
 }
 
-const LogRequestAuthHeader = `log_header.lua`
+const LogRequestAuthHeader = `testdata/log_header.lua`
 
 func ExampleLogRequestAuthHeader() {
 	runExample(&testContext{
@@ -817,4 +817,42 @@ func ExampleSetRequestCookieIsNotSupported() {
 	// 	[G]: in function (anonymous)
 	// 	<script>:1: in main chunk
 	// 	[G]: ?
+}
+
+func BenchmarkScriptNewState(b *testing.B) {
+	spec := NewLuaScript()
+	f, _ := spec.CreateFilter([]interface{}{`function request(ctx, params) end`})
+	s := f.(*script)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.newState()
+	}
+}
+
+func BenchmarkScriptRandomPath(b *testing.B) {
+	spec := NewLuaScript()
+	f, _ := spec.CreateFilter([]interface{}{"testdata/random_path.lua", "/prefix/", "10"})
+
+	r, _ := http.NewRequest("GET", "http://example.com/test", nil)
+	fc := &luaContext{request: r}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.Request(fc)
+	}
+}
+
+func BenchmarkScriptCopyRequestHeader(b *testing.B) {
+	spec := NewLuaScript()
+	f, _ := spec.CreateFilter([]interface{}{"testdata/copy_request_header.lua", "X-Foo", "X-Bar"})
+
+	r, _ := http.NewRequest("GET", "http://example.com", nil)
+	r.Header.Add("X-Foo", "whatever")
+	fc := &luaContext{request: r}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.Request(fc)
+	}
 }

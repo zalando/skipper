@@ -3,6 +3,7 @@ package builtin
 import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"net/http"
 	"net/http/httptest"
@@ -538,5 +539,19 @@ func TestHeader(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func BenchmarkCopyRequestHeader(b *testing.B) {
+	spec := NewCopyRequestHeader()
+	f, _ := spec.CreateFilter([]interface{}{"X-Foo", "X-Bar"})
+
+	r, _ := http.NewRequest("GET", "http://example.com", nil)
+	r.Header.Add("X-Foo", "whatever")
+	fc := &filtertest.Context{FRequest: r}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.Request(fc)
 	}
 }
