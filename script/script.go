@@ -12,7 +12,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -28,8 +27,8 @@ import (
 )
 
 const (
-	defaultPoolSize       int = 500 //10000
-	defaultScriptPoolSize int = 10
+	defaultPoolSize       int = 2000 //10000
+	defaultScriptPoolSize int = 1000
 	maxNumberOfScripts        = 100
 	genericStateKey           = "generic"
 )
@@ -181,12 +180,12 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 	}
 	ls.initPool(s, defaultScriptPoolSize)
 
-	go func() {
-		t := time.Tick(time.Second)
-		for range t {
-			log.Infof("idle pool: %d", atomic.LoadInt32(&s.idlePool))
-		}
-	}()
+	// go func() {
+	// 	t := time.Tick(time.Second)
+	// 	for range t {
+	// 		log.Infof("idle pool: %d", atomic.LoadInt32(&s.idlePool))
+	// 	}
+	// }()
 	return s, nil
 }
 
@@ -287,7 +286,7 @@ func (s *script) getState() (*lua.LState, error) {
 		if L == nil {
 			return nil, errors.New("pool closed")
 		}
-		atomic.AddInt32(&s.idlePool, -1)
+		//atomic.AddInt32(&s.idlePool, -1)
 		return L, nil
 	default:
 		log.Info("create new state")
@@ -302,7 +301,7 @@ func (s *script) putState(L *lua.LState) {
 	}
 	select {
 	case s.pool <- L:
-		atomic.AddInt32(&s.idlePool, 1)
+		//atomic.AddInt32(&s.idlePool, 1)
 	default: // pool full, close state
 		L.Close()
 	}
