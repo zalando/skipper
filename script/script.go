@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,48 +28,117 @@ import (
 )
 
 const (
-	defaultPoolSize    int = 10
-	maxNumberOfScripts     = 100
+	defaultPoolSize       int = 5000 //10000
+	defaultScriptPoolSize int = 1000
+	maxNumberOfScripts        = 100
+	genericStateKey           = "generic"
 )
 
+type keyedPool struct {
+	maxStates int
+	// pre created states, which loads all the things we can in advance
+	states []*lua.LState
+	next   int
+	last   int
+	mu     sync.Mutex
+}
+
+func newKeyedPool(max int) (*keyedPool, error) {
+	p := &keyedPool{
+		states: make([]*lua.LState, max),
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for i := 0; i < max; i++ {
+		state, err := newState()
+		if err != nil {
+			return nil, err
+		}
+		p.states[i] = state
+	}
+
+	return p, nil
+}
+
+func (kp *keyedPool) GetState() (*lua.LState, bool) {
+	l, ok := kp.GetStates(1)
+	if ok {
+		return l[0], true
+	}
+	return nil, false
+}
+
+func (kp *keyedPool) GetStates(n int) ([]*lua.LState, bool) {
+	kp.mu.Lock()
+	defer kp.mu.Unlock()
+	if kp.next < kp.last {
+		if kp.last-kp.next < n {
+			// not enough states in our pool
+			return nil, false
+		}
+		last := kp.next + n
+		l := kp.states[kp.next:last]
+		kp.next = last
+		return l, true
+	} else {
+		// TODO(sszuecs): do not waste time if we don't need it
+		return nil, false
+	}
+}
+
+func (kp *keyedPool) PutState(state *lua.LState) {
+	kp.mu.Lock()
+	defer kp.mu.Unlock()
+	last := kp.last + 1
+	kp.states[last] = state
+	kp.last = last
+}
+
 type luaScript struct {
-	// PoolSize is the number of lua states stored per route - there may be more parallel
-	// requests, but only this number is cached.
-	PoolSize int
-
-	// number of filter instances
-	instances int
-
-	// memoryAvailableBytes int
+	pool *keyedPool
 }
 
 // NewLuaScript creates a new filter spec for skipper with default pool size
 func NewLuaScript() filters.Spec {
+	p, err := newKeyedPool(defaultPoolSize)
+	if err != nil {
+		log.Fatalf("Failed to create Lua pool: %v", err)
+		return nil
+	}
+
 	return &luaScript{
-		PoolSize: defaultPoolSize,
+		pool: p,
 	}
 }
 
 // WithPoolSize creates a new filter spec for skipper with global pool size set
 func WithPoolSize(bytesAvailable int) filters.Spec {
-	memoryLimit := int(bytesAvailable / 10) // let's use only 1/10 for lua
+	return NewLuaScript()
 
-	// max 1GB
-	if memoryLimit > 1<<30 {
-		memoryLimit = 1 << 30
-	}
+	// memoryLimit := int(bytesAvailable / 10) // let's use only 1/10 for lua
 
-	scriptSize := 1024 // assumption (I counted 248B for a request and response filter script, that generates 5B random data)
-	poolSize := memoryLimit / (scriptSize * maxNumberOfScripts)
-	if poolSize > 1000 {
-		poolSize = 1000
-	}
+	// // max 1GB
+	// if memoryLimit > 1<<30 {
+	// 	memoryLimit = 1 << 30
+	// }
 
-	log.Infof("Calculated poolsize: %d", poolSize)
-	return &luaScript{
-		PoolSize: poolSize,
-		// memoryAvailableBytes: memoryLimit,
-	}
+	// scriptSize := 1024 // assumption (I counted 248B for a request and response filter script, that generates 5B random data)
+	// poolSize := memoryLimit / (scriptSize * maxNumberOfScripts)
+	// if poolSize > 1000 {
+	// 	poolSize = 1000
+	// }
+
+	// Init state pool
+
+	// log.Infof("Calculated poolsize: %d", poolSize)
+	// ls := &luaScript{
+	// 	PoolSize: poolSize,
+	// 	// memoryAvailableBytes: memoryLimit,
+	// }
+	// ls.initPool()
+	// return ls
 }
 
 // Name returns the name of the filter ("lua")
@@ -94,20 +164,104 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 		params = append(params, ps)
 	}
 
-	if ls.instances > maxNumberOfScripts {
-		return nil, fmt.Errorf("too many scripts %d, limit is set to %d", ls.instances, maxNumberOfScripts)
-	}
-
+	// hash := fnv.New64()
+	// hash.Write([]byte(src))
+	// key := fmt.Sprintf("%x", hash.Sum(nil))
 	s := &script{
-		source:      src,
+		source: src,
+		//poolkey:     key,
 		routeParams: params,
 	}
-	if err := s.initScript(ls.PoolSize); err != nil {
+	if err := s.initScript(); err != nil {
 		return nil, err
 	}
+	ls.initPool(s, defaultScriptPoolSize)
 
-	ls.instances += 1
 	return s, nil
+}
+
+func (ls *luaScript) initPool(s *script, max int) error {
+	states, ok := ls.pool.GetStates(max)
+	if !ok {
+		return fmt.Errorf("failed to get %d states", max)
+	}
+	s.pool = make(chan *lua.LState)
+	for i := 0; i < max; i++ {
+		s.putState(states[i])
+	}
+	return nil
+}
+
+func createScript(L *lua.LState, proto *lua.FunctionProto) (*lua.LState, error) {
+	L.Push(L.NewFunctionFromProto(proto))
+
+	err := L.PCall(0, lua.MultRet, nil)
+	if err != nil {
+		L.Close()
+		return nil, err
+	}
+	return L, nil
+}
+
+func newState() (*lua.LState, error) {
+	L := lua.NewState()
+	L.PreloadModule("base64", base64.Loader)
+	L.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
+	L.PreloadModule("url", gluaurl.Loader)
+	L.PreloadModule("json", gjson.Loader)
+	L.SetGlobal("print", L.NewFunction(printToLog))
+	L.SetGlobal("sleep", L.NewFunction(sleep))
+	return L, nil
+}
+
+// TODO(sszuecs): export metric idlePool
+type script struct {
+	idlePool int32
+	//poolSize                int
+	source                  string
+	routeParams             []string
+	pool                    chan *lua.LState
+	proto                   *lua.FunctionProto
+	hasRequest, hasResponse bool
+}
+
+func (s *script) newState() (*lua.LState, error) {
+	L, err := newState() // TODO(sszuecs): get states from the ls.pool instead
+
+	// we should have s.proto by now
+	L.Push(L.NewFunctionFromProto(s.proto))
+
+	err = L.PCall(0, lua.MultRet, nil)
+	if err != nil {
+		L.Close()
+		return nil, err
+	}
+	return L, err
+}
+
+func (s *script) initScript() error {
+	if err := s.compileSource(); err != nil {
+		return err
+	}
+
+	// Detect request and response functions
+	L, err := s.newState()
+	if err != nil {
+		return err
+	}
+	defer L.Close()
+
+	if fn := L.GetGlobal("request"); fn.Type() == lua.LTFunction {
+		s.hasRequest = true
+	}
+	if fn := L.GetGlobal("response"); fn.Type() == lua.LTFunction {
+		s.hasResponse = true
+	}
+	if !s.hasRequest && !s.hasResponse {
+		return errors.New("at least one of `request` and `response` function must be present")
+	}
+
+	return nil
 }
 
 func (s *script) getState() (*lua.LState, error) {
@@ -123,6 +277,9 @@ func (s *script) getState() (*lua.LState, error) {
 	}
 }
 
+// global pool: [1,2,3,4,5,6] -> [nil, nil, nil, 4, 5, 6]
+// filter instance [1,2,3]
+
 func (s *script) putState(L *lua.LState) {
 	if s.pool == nil { // pool closed
 		L.Close()
@@ -136,41 +293,8 @@ func (s *script) putState(L *lua.LState) {
 	}
 }
 
-func (s *script) newState() (*lua.LState, error) {
-	L := lua.NewState()
-	L.PreloadModule("base64", base64.Loader)
-	L.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
-	L.PreloadModule("url", gluaurl.Loader)
-	L.PreloadModule("json", gjson.Loader)
-	L.SetGlobal("print", L.NewFunction(printToLog))
-	L.SetGlobal("sleep", L.NewFunction(sleep))
-
-	L.Push(L.NewFunctionFromProto(s.proto))
-
-	err := L.PCall(0, lua.MultRet, nil)
-	if err != nil {
-		L.Close()
-		return nil, err
-	}
-	return L, nil
-}
-
-func printToLog(L *lua.LState) int {
-	top := L.GetTop()
-	args := make([]interface{}, 0, top)
-	for i := 1; i <= top; i++ {
-		args = append(args, L.ToStringMeta(L.Get(i)).String())
-	}
-	log.Print(args...)
-	return 0
-}
-
-func sleep(L *lua.LState) int {
-	time.Sleep(time.Duration(L.CheckInt64(1)) * time.Millisecond)
-	return 0
-}
-
-func (s *script) initScript(poolSize int) error {
+func (s *script) compileSource() error {
+	log.Info("compile source")
 	// Compile
 	var reader io.Reader
 	var name string
@@ -201,93 +325,7 @@ func (s *script) initScript(poolSize int) error {
 	}
 	s.proto = proto
 
-	// Detect request and response functions
-	L, err := s.newState()
-	if err != nil {
-		return err
-	}
-	defer L.Close()
-
-	if fn := L.GetGlobal("request"); fn.Type() == lua.LTFunction {
-		s.hasRequest = true
-	}
-	if fn := L.GetGlobal("response"); fn.Type() == lua.LTFunction {
-		s.hasResponse = true
-	}
-	if !s.hasRequest && !s.hasResponse {
-		return errors.New("at least one of `request` and `response` function must be present")
-	}
-
-	// Init state pool
-	s.initPool(poolSize)
 	return nil
-}
-
-func (s *script) initPool(max int) error {
-	s.pool = make(chan *lua.LState, max)
-	for i := 0; i < max; i++ {
-		L, err := s.newState()
-		if err != nil {
-			return err
-		}
-		s.putState(L)
-	}
-	s.poolSize = max
-	return nil
-}
-
-/*
-// hopefully during the operation we do not run out of states at runtime
-func (s *script) resizePool(max int) error {
-	pool := make(chan *lua.LState, max)
-	idle := atomic.LoadInt32(&s.idlePool)
-	cnt := 0
-
-	// migrate half the idle pool
-	for i := int32(0); i < idle/2; i++ {
-		L, err := s.getState()
-		if err != nil {
-			break
-		}
-		s.putState(L)
-		cnt++
-	}
-	// switch pool
-	s.pool = pool
-
-	// migrate other half the idle pool
-	for i := idle / 2; i < idle; i++ {
-		L, err := s.getState()
-		if err != nil {
-			break
-		}
-		s.putState(L)
-		cnt++
-	}
-
-	// create rest
-	for i := cnt; i < max; i++ {
-		L, err := s.newState()
-		if err != nil {
-			return err
-		}
-		s.putState(L)
-	}
-
-	s.poolSize = max
-	return nil
-}
-*/
-
-// TODO(sszuecs): export metric idlePool
-type script struct {
-	idlePool                int32
-	poolSize                int
-	source                  string
-	routeParams             []string
-	pool                    chan *lua.LState
-	proto                   *lua.FunctionProto
-	hasRequest, hasResponse bool
 }
 
 func (s *script) Request(f filters.FilterContext) {
@@ -342,6 +380,21 @@ func (s *script) filterContextAsLuaTable(L *lua.LState, f filters.FilterContext)
 	mt.RawSetString("__index", L.NewFunction(getContextValue(f)))
 	L.SetMetatable(t, mt)
 	return t
+}
+
+func printToLog(L *lua.LState) int {
+	top := L.GetTop()
+	args := make([]interface{}, 0, top)
+	for i := 1; i <= top; i++ {
+		args = append(args, L.ToStringMeta(L.Get(i)).String())
+	}
+	log.Print(args...)
+	return 0
+}
+
+func sleep(L *lua.LState) int {
+	time.Sleep(time.Duration(L.CheckInt64(1)) * time.Millisecond)
+	return 0
 }
 
 func serveRequest(f filters.FilterContext) func(*lua.LState) int {
