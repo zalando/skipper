@@ -102,6 +102,8 @@ func (s *script) newState() (*lua.LState, error) {
 	L.SetGlobal("print", L.NewFunction(printToLog))
 	L.SetGlobal("sleep", L.NewFunction(sleep))
 
+	registerPropertyTypes(L)
+
 	L.Push(L.NewFunctionFromProto(s.proto))
 
 	err := L.PCall(0, lua.MultRet, nil)
@@ -231,7 +233,7 @@ func (s *script) runFunc(name string, f filters.FilterContext) {
 			NRet:    0,
 			Protect: true,
 		},
-		s.filterContextAsLuaTable(L, f),
+		newProperty(L, typeContext, f),
 		pt,
 	)
 	if err != nil {
@@ -239,14 +241,50 @@ func (s *script) runFunc(name string, f filters.FilterContext) {
 	}
 }
 
-func (s *script) filterContextAsLuaTable(L *lua.LState, f filters.FilterContext) *lua.LTable {
-	// this will be passed as parameter to the lua functions
-	// add metatable to dynamically access fields in the context
-	t := L.CreateTable(0, 0)
-	mt := L.CreateTable(0, 1)
-	mt.RawSetString("__index", L.NewFunction(getContextValue(f)))
-	L.SetMetatable(t, mt)
-	return t
+const (
+	typeContext                = "filter context"
+	typeContextPathParam       = typeContext + " path param"
+	typeContextStateBag        = typeContext + " state bag"
+	typeContextRequest         = typeContext + " request"
+	typeContextRequestHeader   = typeContextRequest + " header"
+	typeContextRequestCookie   = typeContextRequest + " cookie"
+	typeContextRequestUrlQuery = typeContextRequest + " url_query"
+	typeContextResponse        = typeContext + " response"
+	typeContextResponseHeader  = typeContextResponse + " header"
+)
+
+func registerPropertyTypes(L *lua.LState) {
+	registerPropertyType(L, typeContext, getContextValue, nil, nil)
+	registerPropertyType(L, typeContextPathParam, getPathParam, nil, nil)
+	registerPropertyType(L, typeContextStateBag, getStateBag, setStateBag, nil)
+
+	registerPropertyType(L, typeContextRequest, getRequestValue, setRequestValue, nil)
+	registerPropertyType(L, typeContextRequestHeader, getRequestHeader, setRequestHeader, iterateRequestHeader)
+	registerPropertyType(L, typeContextRequestCookie, getRequestCookie, nil, iterateRequestCookie)
+	registerPropertyType(L, typeContextRequestUrlQuery, getRequestURLQuery, setRequestURLQuery, iterateRequestURLQuery)
+
+	registerPropertyType(L, typeContextResponse, getResponseValue, setResponseValue, nil)
+	registerPropertyType(L, typeContextResponseHeader, getResponseHeader, setResponseHeader, iterateResponseHeader)
+}
+
+func registerPropertyType(L *lua.LState, typ string, get lua.LGFunction, set lua.LGFunction, call lua.LGFunction) {
+	mt := L.NewTypeMetatable(typ)
+	if get != nil {
+		mt.RawSetString("__index", L.NewFunction(get))
+	}
+	if set != nil {
+		mt.RawSetString("__newindex", L.NewFunction(set))
+	}
+	if call != nil {
+		mt.RawSetString("__call", L.NewFunction(call))
+	}
+}
+
+func newProperty(L *lua.LState, typ string, f filters.FilterContext) (u *lua.LUserData) {
+	u = L.NewUserData()
+	u.Value = f
+	L.SetMetatable(u, L.GetTypeMetatable(typ))
+	return
 }
 
 func serveRequest(f filters.FilterContext) func(*lua.LState) int {
@@ -322,303 +360,224 @@ func serveHeaderWalk(h http.Header) func(lua.LValue, lua.LValue) {
 	}
 }
 
-func getContextValue(f filters.FilterContext) func(*lua.LState) int {
-	var request, response, state_bag, path_param *lua.LTable
-	var serve *lua.LFunction
-	return func(s *lua.LState) int {
-		key := s.ToString(-1)
-		var ret lua.LValue
-		switch key {
-		case "request":
-			// initialize access to request on first use
-			if request == nil {
-				request = s.CreateTable(0, 0)
-				mt := s.CreateTable(0, 2)
-				mt.RawSetString("__index", s.NewFunction(getRequestValue(f)))
-				mt.RawSetString("__newindex", s.NewFunction(setRequestValue(f)))
-				s.SetMetatable(request, mt)
-			}
-			ret = request
-		case "response":
-			if response == nil {
-				response = s.CreateTable(0, 0)
-				mt := s.CreateTable(0, 2)
-				mt.RawSetString("__index", s.NewFunction(getResponseValue(f)))
-				mt.RawSetString("__newindex", s.NewFunction(setResponseValue(f)))
-				s.SetMetatable(response, mt)
-			}
-			ret = response
-		case "state_bag":
-			if state_bag == nil {
-				state_bag = s.CreateTable(0, 0)
-				mt := s.CreateTable(0, 2)
-				mt.RawSetString("__index", s.NewFunction(getStateBag(f)))
-				mt.RawSetString("__newindex", s.NewFunction(setStateBag(f)))
-				s.SetMetatable(state_bag, mt)
-			}
-			ret = state_bag
-		case "path_param":
-			if path_param == nil {
-				path_param = s.CreateTable(0, 0)
-				mt := s.CreateTable(0, 1)
-				mt.RawSetString("__index", s.NewFunction(getPathParam(f)))
-				s.SetMetatable(path_param, mt)
-			}
-			ret = path_param
-		case "serve":
-			if serve == nil {
-				serve = s.NewFunction(serveRequest(f))
-			}
-			ret = serve
-		default:
-			return 0
-		}
-		s.Push(ret)
-		return 1
+func getContextValue(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	key := s.ToString(2)
+	var ret lua.LValue
+	switch key {
+	case "request":
+		ret = newProperty(s, typeContextRequest, f)
+	case "response":
+		ret = newProperty(s, typeContextResponse, f)
+	case "state_bag":
+		ret = newProperty(s, typeContextStateBag, f)
+	case "path_param":
+		ret = newProperty(s, typeContextPathParam, f)
+	case "serve":
+		ret = s.NewFunction(serveRequest(f))
+	default:
+		return 0
 	}
+	s.Push(ret)
+	return 1
 }
 
-func getRequestValue(f filters.FilterContext) func(*lua.LState) int {
-	var header, cookie, url_query *lua.LTable
-	return func(s *lua.LState) int {
-		key := s.ToString(-1)
-		var ret lua.LValue
-		switch key {
-		case "header":
-			if header == nil {
-				header = s.CreateTable(0, 0)
-				mt := s.CreateTable(0, 3)
-				mt.RawSetString("__index", s.NewFunction(getRequestHeader(f)))
-				mt.RawSetString("__newindex", s.NewFunction(setRequestHeader(f)))
-				mt.RawSetString("__call", s.NewFunction(iterateRequestHeader(f)))
-				s.SetMetatable(header, mt)
-			}
-			ret = header
-		case "cookie":
-			if cookie == nil {
-				cookie = s.CreateTable(0, 0)
-				mt := s.CreateTable(0, 3)
-				mt.RawSetString("__index", s.NewFunction(getRequestCookie(f)))
-				mt.RawSetString("__newindex", s.NewFunction(unsupported("setting cookie is not supported")))
-				mt.RawSetString("__call", s.NewFunction(iterateRequestCookie(f)))
-				s.SetMetatable(cookie, mt)
-			}
-			ret = cookie
-		case "outgoing_host":
-			ret = lua.LString(f.OutgoingHost())
-		case "backend_url":
-			ret = lua.LString(f.BackendUrl())
-		case "host":
-			ret = lua.LString(f.Request().Host)
-		case "remote_addr":
-			ret = lua.LString(f.Request().RemoteAddr)
-		case "content_length":
-			ret = lua.LNumber(f.Request().ContentLength)
-		case "proto":
-			ret = lua.LString(f.Request().Proto)
-		case "method":
-			ret = lua.LString(f.Request().Method)
-		case "url":
-			ret = lua.LString(f.Request().URL.String())
-		case "url_path":
-			ret = lua.LString(f.Request().URL.Path)
-		case "url_query":
-			if url_query == nil {
-				url_query = s.CreateTable(0, 0)
-				mt := s.CreateTable(0, 3)
-				mt.RawSetString("__index", s.NewFunction(getRequestURLQuery(f)))
-				mt.RawSetString("__newindex", s.NewFunction(setRequestURLQuery(f)))
-				mt.RawSetString("__call", s.NewFunction(iterateRequestURLQuery(f)))
-				s.SetMetatable(url_query, mt)
-			}
-			ret = url_query
-		case "url_raw_query":
-			ret = lua.LString(f.Request().URL.RawQuery)
-		default:
-			return 0
-		}
-		s.Push(ret)
-		return 1
+func getRequestValue(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	key := s.ToString(2)
+	var ret lua.LValue
+	switch key {
+	case "header":
+		ret = newProperty(s, typeContextRequestHeader, f)
+	case "cookie":
+		ret = newProperty(s, typeContextRequestCookie, f)
+	case "outgoing_host":
+		ret = lua.LString(f.OutgoingHost())
+	case "backend_url":
+		ret = lua.LString(f.BackendUrl())
+	case "host":
+		ret = lua.LString(f.Request().Host)
+	case "remote_addr":
+		ret = lua.LString(f.Request().RemoteAddr)
+	case "content_length":
+		ret = lua.LNumber(f.Request().ContentLength)
+	case "proto":
+		ret = lua.LString(f.Request().Proto)
+	case "method":
+		ret = lua.LString(f.Request().Method)
+	case "url":
+		ret = lua.LString(f.Request().URL.String())
+	case "url_path":
+		ret = lua.LString(f.Request().URL.Path)
+	case "url_query":
+		ret = newProperty(s, typeContextRequestUrlQuery, f)
+	case "url_raw_query":
+		ret = lua.LString(f.Request().URL.RawQuery)
+	default:
+		return 0
 	}
+	s.Push(ret)
+	return 1
 }
 
-func setRequestValue(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		key := s.ToString(-2)
-		switch key {
-		case "outgoing_host":
-			f.SetOutgoingHost(s.ToString(-1))
-		case "url":
-			u, err := url.Parse(s.ToString(-1))
-			if err != nil {
-				// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
-				// s.RaiseError("%v", err)
-				return 0
-			}
-			f.Request().URL = u
-		case "url_path":
-			f.Request().URL.Path = s.ToString(-1)
-		case "url_raw_query":
-			f.Request().URL.RawQuery = s.ToString(-1)
-		default:
+func setRequestValue(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	key := s.ToString(2)
+	switch key {
+	case "outgoing_host":
+		f.SetOutgoingHost(s.ToString(3))
+	case "url":
+		u, err := url.Parse(s.ToString(3))
+		if err != nil {
 			// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
-			// s.RaiseError("unsupported request field %s", key)
-			// do nothing for now
-		}
-		return 0
-	}
-}
-
-func getResponseValue(f filters.FilterContext) func(*lua.LState) int {
-	var header *lua.LTable
-	return func(s *lua.LState) int {
-		key := s.ToString(-1)
-		var ret lua.LValue
-		switch key {
-		case "header":
-			if header == nil {
-				header = s.CreateTable(0, 0)
-				mt := s.CreateTable(0, 3)
-				mt.RawSetString("__index", s.NewFunction(getResponseHeader(f)))
-				mt.RawSetString("__newindex", s.NewFunction(setResponseHeader(f)))
-				mt.RawSetString("__call", s.NewFunction(iterateResponseHeader(f)))
-				s.SetMetatable(header, mt)
-			}
-			ret = header
-		case "status_code":
-			ret = lua.LNumber(f.Response().StatusCode)
-		default:
+			// s.RaiseError("%v", err)
 			return 0
 		}
-		s.Push(ret)
-		return 1
-	}
-}
-
-func setResponseValue(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		key := s.ToString(-2)
-		switch key {
-		case "status_code":
-			v := s.Get(-1)
-			n, ok := v.(lua.LNumber)
-			if !ok {
-				s.RaiseError("unsupported status_code type %v, need a number", v.Type())
-				return 0
-			}
-			f.Response().StatusCode = int(n)
-		default:
-			s.RaiseError("unsupported response field %s", key)
-		}
-		return 0
-	}
-}
-
-func getStateBag(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		fld := s.ToString(-1)
-		res, ok := f.StateBag()[fld]
-		if !ok {
-			return 0
-		}
-		switch res := res.(type) {
-		case string:
-			s.Push(lua.LString(res))
-		case int:
-			s.Push(lua.LNumber(res))
-		case int64:
-			s.Push(lua.LNumber(res))
-		case float64:
-			s.Push(lua.LNumber(res))
-		default:
-			return 0
-		}
-		return 1
-	}
-}
-
-func setStateBag(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		fld := s.ToString(-2)
-		val := s.Get(-1)
-		var res interface{}
-		switch val.Type() {
-		case lua.LTString:
-			res = string(val.(lua.LString))
-		case lua.LTNumber:
-			res = float64(val.(lua.LNumber))
-		default:
-			// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
-			// s.RaiseError("unsupported state bag value type %v, need a string or a number", val.Type())
-			return 0
-		}
-		f.StateBag()[fld] = res
-		return 0
-	}
-}
-
-func getRequestHeader(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		hdr := s.ToString(-1)
-		res := f.Request().Header.Get(hdr)
+		f.Request().URL = u
+	case "url_path":
+		f.Request().URL.Path = s.ToString(3)
+	case "url_raw_query":
+		f.Request().URL.RawQuery = s.ToString(3)
+	default:
 		// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
-		// if res != "" {
-		//	s.Push(lua.LString(res))
-		//	return 1
-		// }
-		// return 0
+		// s.RaiseError("unsupported request field %s", key)
+		// do nothing for now
+	}
+	return 0
+}
+
+func getResponseValue(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	key := s.ToString(2)
+	var ret lua.LValue
+	switch key {
+	case "header":
+		ret = newProperty(s, typeContextResponseHeader, f)
+	case "status_code":
+		ret = lua.LNumber(f.Response().StatusCode)
+	default:
+		return 0
+	}
+	s.Push(ret)
+	return 1
+}
+
+func setResponseValue(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	key := s.ToString(2)
+	switch key {
+	case "status_code":
+		v := s.Get(3)
+		n, ok := v.(lua.LNumber)
+		if !ok {
+			s.RaiseError("unsupported status_code type %v, need a number", v.Type())
+			return 0
+		}
+		f.Response().StatusCode = int(n)
+	default:
+		s.RaiseError("unsupported response field %s", key)
+	}
+	return 0
+}
+
+func getStateBag(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	key := s.ToString(2)
+	res, ok := f.StateBag()[key]
+	if !ok {
+		return 0
+	}
+	switch res := res.(type) {
+	case string:
 		s.Push(lua.LString(res))
-		return 1
+	case int:
+		s.Push(lua.LNumber(res))
+	case int64:
+		s.Push(lua.LNumber(res))
+	case float64:
+		s.Push(lua.LNumber(res))
+	default:
+		return 0
 	}
+	return 1
 }
 
-func setRequestHeader(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		lv := s.Get(-1)
-		hdr := s.ToString(-2)
-		switch lv.Type() {
-		case lua.LTNil:
+func setStateBag(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	key := s.ToString(2)
+	val := s.Get(3)
+	var res interface{}
+	switch val.Type() {
+	case lua.LTString:
+		res = string(val.(lua.LString))
+	case lua.LTNumber:
+		res = float64(val.(lua.LNumber))
+	default:
+		// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
+		// s.RaiseError("unsupported state bag value type %v, need a string or a number", val.Type())
+		return 0
+	}
+	f.StateBag()[key] = res
+	return 0
+}
+
+func getRequestHeader(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	hdr := s.ToString(2)
+	res := f.Request().Header.Get(hdr)
+	// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
+	// if res != "" {
+	//	s.Push(lua.LString(res))
+	//	return 1
+	// }
+	// return 0
+	s.Push(lua.LString(res))
+	return 1
+}
+
+func setRequestHeader(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	hdr := s.ToString(2)
+	lv := s.Get(3)
+	switch lv.Type() {
+	case lua.LTNil:
+		f.Request().Header.Del(hdr)
+	case lua.LTString:
+		str := string(lv.(lua.LString))
+		if str == "" {
 			f.Request().Header.Del(hdr)
-		case lua.LTString:
-			str := string(lv.(lua.LString))
-			if str == "" {
-				f.Request().Header.Del(hdr)
-			} else {
-				f.Request().Header.Set(hdr, str)
-			}
-		default:
-			val := s.ToString(-1)
-			f.Request().Header.Set(hdr, val)
+		} else {
+			f.Request().Header.Set(hdr, str)
 		}
-		return 0
+	default:
+		val := s.ToString(3)
+		f.Request().Header.Set(hdr, val)
 	}
+	return 0
 }
 
-func iterateRequestHeader(f filters.FilterContext) func(*lua.LState) int {
+func iterateRequestHeader(s *lua.LState) int {
 	// https://www.lua.org/pil/7.2.html
-	return func(s *lua.LState) int {
-		s.Push(s.NewFunction(nextHeader(f.Request().Header)))
-		return 1
-	}
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	s.Push(s.NewFunction(nextHeader(f.Request().Header)))
+	return 1
 }
 
-func getRequestCookie(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		k := s.ToString(-1)
-		c, err := f.Request().Cookie(k)
-		if err == nil {
-			s.Push(lua.LString(c.Value))
-			return 1
-		}
-		return 0
-	}
-}
-
-func iterateRequestCookie(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		s.Push(s.NewFunction(nextCookie(f.Request().Cookies())))
+func getRequestCookie(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	k := s.ToString(2)
+	c, err := f.Request().Cookie(k)
+	if err == nil {
+		s.Push(lua.LString(c.Value))
 		return 1
 	}
+	return 0
+}
+
+func iterateRequestCookie(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	s.Push(s.NewFunction(nextCookie(f.Request().Cookies())))
+	return 1
 }
 
 func nextCookie(cookies []*http.Cookie) func(*lua.LState) int {
@@ -635,48 +594,45 @@ func nextCookie(cookies []*http.Cookie) func(*lua.LState) int {
 	}
 }
 
-func getResponseHeader(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		hdr := s.ToString(-1)
-		res := f.Response().Header.Get(hdr)
-		// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
-		// if res != "" {
-		//	s.Push(lua.LString(res))
-		//	return 1
-		// }
-		// return 0
-		s.Push(lua.LString(res))
-		return 1
-	}
+func getResponseHeader(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	hdr := s.ToString(2)
+	res := f.Response().Header.Get(hdr)
+	// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
+	// if res != "" {
+	//	s.Push(lua.LString(res))
+	//	return 1
+	// }
+	// return 0
+	s.Push(lua.LString(res))
+	return 1
 }
 
-func setResponseHeader(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		lv := s.Get(-1)
-		hdr := s.ToString(-2)
-		switch lv.Type() {
-		case lua.LTNil:
+func setResponseHeader(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	hdr := s.ToString(2)
+	lv := s.Get(3)
+	switch lv.Type() {
+	case lua.LTNil:
+		f.Response().Header.Del(hdr)
+	case lua.LTString:
+		str := string(lv.(lua.LString))
+		if str == "" {
 			f.Response().Header.Del(hdr)
-		case lua.LTString:
-			str := string(lv.(lua.LString))
-			if str == "" {
-				f.Response().Header.Del(hdr)
-			} else {
-				f.Response().Header.Set(hdr, str)
-			}
-		default:
-			val := s.ToString(-1)
-			f.Response().Header.Set(hdr, val)
+		} else {
+			f.Response().Header.Set(hdr, str)
 		}
-		return 0
+	default:
+		val := s.ToString(3)
+		f.Response().Header.Set(hdr, val)
 	}
+	return 0
 }
 
-func iterateResponseHeader(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		s.Push(s.NewFunction(nextHeader(f.Response().Header)))
-		return 1
-	}
+func iterateResponseHeader(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	s.Push(s.NewFunction(nextHeader(f.Response().Header)))
+	return 1
 }
 
 func nextHeader(h http.Header) func(*lua.LState) int {
@@ -697,47 +653,44 @@ func nextHeader(h http.Header) func(*lua.LState) int {
 	}
 }
 
-func getRequestURLQuery(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		k := s.ToString(-1)
-		res := f.Request().URL.Query().Get(k)
-		if res != "" {
-			s.Push(lua.LString(res))
-			return 1
-		}
-		return 0
-	}
-}
-
-func setRequestURLQuery(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		lv := s.Get(-1)
-		k := s.ToString(-2)
-		q := f.Request().URL.Query()
-		switch lv.Type() {
-		case lua.LTNil:
-			q.Del(k)
-		case lua.LTString:
-			str := string(lv.(lua.LString))
-			if str == "" {
-				q.Del(k)
-			} else {
-				q.Set(k, str)
-			}
-		default:
-			val := s.ToString(-1)
-			q.Set(k, val)
-		}
-		f.Request().URL.RawQuery = q.Encode()
-		return 0
-	}
-}
-
-func iterateRequestURLQuery(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		s.Push(s.NewFunction(nextQuery(f.Request().URL.Query())))
+func getRequestURLQuery(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	k := s.ToString(2)
+	res := f.Request().URL.Query().Get(k)
+	if res != "" {
+		s.Push(lua.LString(res))
 		return 1
 	}
+	return 0
+}
+
+func setRequestURLQuery(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	k := s.ToString(2)
+	lv := s.Get(3)
+	q := f.Request().URL.Query()
+	switch lv.Type() {
+	case lua.LTNil:
+		q.Del(k)
+	case lua.LTString:
+		str := string(lv.(lua.LString))
+		if str == "" {
+			q.Del(k)
+		} else {
+			q.Set(k, str)
+		}
+	default:
+		val := s.ToString(3)
+		q.Set(k, val)
+	}
+	f.Request().URL.RawQuery = q.Encode()
+	return 0
+}
+
+func iterateRequestURLQuery(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	s.Push(s.NewFunction(nextQuery(f.Request().URL.Query())))
+	return 1
 }
 
 func nextQuery(v url.Values) func(*lua.LState) int {
@@ -758,21 +711,13 @@ func nextQuery(v url.Values) func(*lua.LState) int {
 	}
 }
 
-func getPathParam(f filters.FilterContext) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		n := s.ToString(-1)
-		p := f.PathParam(n)
-		if p != "" {
-			s.Push(lua.LString(p))
-			return 1
-		}
-		return 0
+func getPathParam(s *lua.LState) int {
+	f := s.CheckUserData(1).Value.(filters.FilterContext)
+	n := s.ToString(2)
+	p := f.PathParam(n)
+	if p != "" {
+		s.Push(lua.LString(p))
+		return 1
 	}
-}
-
-func unsupported(message string) func(*lua.LState) int {
-	return func(s *lua.LState) int {
-		s.RaiseError(message)
-		return 0
-	}
+	return 0
 }

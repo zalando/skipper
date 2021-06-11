@@ -812,9 +812,8 @@ func ExampleSetRequestCookieIsNotSupported() {
 		script: SetRequestCookieIsNotSupported,
 	})
 	// Output:
-	// Error calling request from function request(ctx, params); ctx.request.cookie["test"] = "test"; end: <script>:1: setting cookie is not supported
+	// Error calling request from function request(ctx, params); ctx.request.cookie["test"] = "test"; end: <script>:1: attempt to index a non-table object(userdata) with key 'test'
 	// stack traceback:
-	// 	[G]: in function (anonymous)
 	// 	<script>:1: in main chunk
 	// 	[G]: ?
 }
