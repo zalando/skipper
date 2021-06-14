@@ -25,14 +25,11 @@ import (
 )
 
 const (
-	defaultPoolSize       int = 10000
-	defaultScriptPoolSize int = 1000
-	maxNumberOfScripts        = 100
-	genericStateKey           = "generic"
+	defaultPoolSize int = 1000
+	genericStateKey     = "generic"
 )
 
 func newState() (*lua.LState, error) {
-	//log.Infof("prepare newState")
 	L := lua.NewState()
 	L.PreloadModule("base64", base64.Loader)
 	L.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
@@ -68,10 +65,9 @@ func (sp *statePool) GetState() (*lua.LState, error) {
 		if L == nil {
 			return nil, errors.New("pool closed")
 		}
-		//atomic.AddInt32(&s.idlePool, -1)
 		return L, nil
 	default:
-		log.Info("create new state")
+		//log.Info("create new state")
 		return newState()
 	}
 }
@@ -83,7 +79,6 @@ func (sp *statePool) PutState(L *lua.LState) {
 	}
 	select {
 	case sp.pool <- L:
-		//atomic.AddInt32(&s.idlePool, 1)
 	default: // pool full, close state
 		L.Close()
 	}
@@ -95,7 +90,12 @@ type luaScript struct {
 
 // NewLuaScript creates a new filter spec for skipper with default pool size
 func NewLuaScript() filters.Spec {
-	p, err := newStatePool(defaultPoolSize)
+	return WithPoolSize(defaultPoolSize)
+}
+
+// WithPoolSize creates a new filter spec for skipper with global pool size set
+func WithPoolSize(poolSize int) filters.Spec {
+	p, err := newStatePool(poolSize)
 	if err != nil {
 		log.Fatalf("Failed to create Lua pool: %v", err)
 		return nil
@@ -104,34 +104,6 @@ func NewLuaScript() filters.Spec {
 	return &luaScript{
 		pool: p,
 	}
-}
-
-// WithPoolSize creates a new filter spec for skipper with global pool size set
-func WithPoolSize(bytesAvailable int) filters.Spec {
-	return NewLuaScript()
-
-	// memoryLimit := int(bytesAvailable / 10) // let's use only 1/10 for lua
-
-	// // max 1GB
-	// if memoryLimit > 1<<30 {
-	// 	memoryLimit = 1 << 30
-	// }
-
-	// scriptSize := 1024 // assumption (I counted 248B for a request and response filter script, that generates 5B random data)
-	// poolSize := memoryLimit / (scriptSize * maxNumberOfScripts)
-	// if poolSize > 1000 {
-	// 	poolSize = 1000
-	// }
-
-	// Init state pool
-
-	// log.Infof("Calculated poolsize: %d", poolSize)
-	// ls := &luaScript{
-	// 	PoolSize: poolSize,
-	// 	// memoryAvailableBytes: memoryLimit,
-	// }
-	// ls.initPool()
-	// return ls
 }
 
 // Name returns the name of the filter ("lua")
@@ -157,9 +129,6 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 		params = append(params, ps)
 	}
 
-	// hash := fnv.New64()
-	// hash.Write([]byte(src))
-	// key := fmt.Sprintf("%x", hash.Sum(nil))
 	s := &script{
 		source:      src,
 		globalPool:  ls.pool,
@@ -168,29 +137,8 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 	if err := s.initScript(); err != nil {
 		return nil, err
 	}
-	//ls.initPool(s, defaultScriptPoolSize)
-
-	// go func() {
-	// 	t := time.Tick(time.Second)
-	// 	for range t {
-	// 		log.Infof("idle pool: %d", atomic.LoadInt32(&s.idlePool))
-	// 	}
-	// }()
 	return s, nil
 }
-
-// func (ls *luaScript) initPool(s *script, max int) error {
-// 	states, ok := ls.pool.GetStates(max)
-// 	if !ok {
-// 		return fmt.Errorf("failed to get %d states", max)
-// 	}
-// 	s.pool = make(chan *lua.LState, max)
-// 	for i := 0; i < max; i++ {
-// 		createScript(states[i], s.proto)
-// 		s.putState(states[i])
-// 	}
-// 	return nil
-// }
 
 func createScript(L *lua.LState, proto *lua.FunctionProto) (*lua.LState, error) {
 	L.Push(L.NewFunctionFromProto(proto))
@@ -203,20 +151,15 @@ func createScript(L *lua.LState, proto *lua.FunctionProto) (*lua.LState, error) 
 	return L, nil
 }
 
-// TODO(sszuecs): export metric idlePool
 type script struct {
-	//idlePool int32
-	//poolSize                int
-	source      string
-	routeParams []string
-	//pool                    chan *lua.LState
+	source                  string
+	routeParams             []string
 	globalPool              *statePool
 	proto                   *lua.FunctionProto
 	hasRequest, hasResponse bool
 }
 
 func (s *script) newState() (*lua.LState, error) {
-	//log.Info("script.newState")
 	L, err := s.globalPool.GetState()
 	if err != nil {
 		return nil, err
@@ -265,40 +208,13 @@ func (s *script) getState() (*lua.LState, error) {
 		return nil, err
 	}
 	return createScript(L, s.proto)
-
-	//select {
-	// case L := <-s.pool:
-	// 	if L == nil {
-	// 		return nil, errors.New("pool closed")
-	// 	}
-
-	// 	// put compiled script into the current LState
-	// 	L.Push(L.NewFunctionFromProto(s.proto))
-
-	// 	//atomic.AddInt32(&s.idlePool, -1)
-	// 	return L, nil
-	// default:
-	// 	log.Info("create new state")
-	// 	return s.newState()
-	// }
 }
 
 func (s *script) putState(L *lua.LState) {
 	s.globalPool.PutState(L)
-	// if s.pool == nil { // pool closed
-	// 	L.Close()
-	// 	return
-	// }
-	// select {
-	// case s.pool <- L:
-	// 	//atomic.AddInt32(&s.idlePool, 1)
-	// default: // pool full, close state
-	// 	L.Close()
-	// }
 }
 
 func (s *script) compileSource() error {
-	//log.Info("compile source")
 	// Compile
 	var reader io.Reader
 	var name string
