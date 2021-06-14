@@ -92,7 +92,7 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 
 		switch {
 		case err != nil && initial:
-			o.Log.Error("error while receiveing initial data;", err)
+			o.Log.Error("error while receiving initial data;", err)
 		case err != nil:
 			o.Log.Error("error while receiving update;", err)
 			initial = true
