@@ -1,3 +1,47 @@
+## Local Setup
+
+### Build Skipper Binary
+
+Clone repository and compile with [Go](https://golang.org/dl).
+
+```sh
+% git clone https://github.com/zalando/skipper.git
+% cd skipper
+% make skipper
+```
+
+binary will be ./bin/skipper
+
+### Run Skipper as Proxy with 2 backends
+
+As a small example, we show how you can run one proxy skipper and 2
+backend skippers.
+
+Start the proxy that listens on port 9999 and serves all requests with a single route, that
+proxies to two backends with the round robin algorithm:
+```
+./bin/skipper -inline-routes='r1: * -> <roundRobin, "http://127.0.0.1:9001", "http://127.0.0.1:9002">' --address :9999
+```
+
+Start two backends, with similar routes, one response with "1" and the
+other with "2" in the HTTP response body:
+```
+./bin/skipper -inline-routes='r1: * -> inlineContent("1") -> <shunt>' --address :9001 &
+./bin/skipper -inline-routes='r1: * -> inlineContent("2") -> <shunt>' --address :9002
+```
+
+Test the proxy with curl as a client:
+```
+% curl -s http://localhost:9999/foo
+1
+% curl -s http://localhost:9999/foo
+2
+% curl -s http://localhost:9999/foo
+1
+% curl -s http://localhost:9999/foo
+2
+```
+
 ## Docs
 
 We have user documentation and developer documentation separated.
