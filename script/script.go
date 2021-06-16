@@ -24,10 +24,7 @@ import (
 	gjson "layeh.com/gopher-json"
 )
 
-const (
-	defaultPoolSize int = 1000
-	genericStateKey     = "generic"
-)
+const defaultPoolSize int = 1000
 
 func newState() (*lua.LState, error) {
 	L := lua.NewState(lua.Options{
@@ -36,8 +33,10 @@ func newState() (*lua.LState, error) {
 		RegistryMaxSize:  0,         //1024 * 80, // this is the maximum size that the registry can grow to. If set to `0` (the default) then the registry will not auto grow
 		RegistryGrowStep: 32,        // this is how much to step up the registry by each time it runs out of space. The default is `32`.
 		// TODO: can be tuned: https://github.com/yuin/gopher-lua#callstack
-		CallStackSize:       120,   // this is the maximum callstack size of this LState
-		MinimizeStackMemory: false, // Defaults to `false` if not specified. If set, the callstack will auto grow and shrink as needed up to a max of `CallStackSize`. If not set, the callstack will be fixed at `CallStackSize`.
+		CallStackSize: 120, // this is the maximum callstack size of this LState
+
+		// set to false because of safety, defaults to false
+		MinimizeStackMemory: false,
 	})
 	L.PreloadModule("base64", base64.Loader)
 	L.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
