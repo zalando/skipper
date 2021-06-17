@@ -121,8 +121,8 @@ type Options struct {
 	// List of custom filter specifications.
 	CustomFilters []filters.Spec
 
-	// LuaPoolSize is the lua.LState pool size
-	LuaPoolSize int
+	// LuaStatePoolSize is the lua.LState pool size
+	LuaStatePoolSize int
 
 	// Urls of nodes in an etcd cluster, storing route definitions.
 	EtcdUrls []string
@@ -1515,8 +1515,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
-	if o.LuaPoolSize != 0 {
-		o.CustomFilters = append(o.CustomFilters, script.WithPoolSize(o.LuaPoolSize))
+	if o.LuaStatePoolSize != 0 {
+		o.CustomFilters = append(o.CustomFilters, script.WithPoolSize(o.LuaStatePoolSize))
 	} else if bytes, err := getCgroupV1MemoryBytes(); err != nil {
 		o.CustomFilters = append(o.CustomFilters, script.NewLuaScript())
 	} else {
