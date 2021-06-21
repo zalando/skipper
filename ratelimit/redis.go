@@ -16,6 +16,7 @@ import (
 
 // clusterLimitRedis stores all data required for the cluster ratelimit.
 type clusterLimitRedis struct {
+	typ        string
 	group      string
 	maxHits    int64
 	window     time.Duration
@@ -46,6 +47,7 @@ func newClusterRateLimiterRedis(s Settings, r *net.RedisRingClient, group string
 	}
 
 	rl := &clusterLimitRedis{
+		typ:        s.Type.String(),
 		group:      group,
 		maxHits:    int64(s.MaxHits),
 		window:     s.TimeWindow,
@@ -90,6 +92,7 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 	span := c.ringClient.StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
 	ext.Component.Set(span, "skipper")
 	ext.SpanKind.Set(span, "client")
+	span.SetTag("ratelimit_type", c.typ)
 	span.SetTag("group", c.group)
 	span.SetTag("max_hits", c.maxHits)
 	span.SetTag("window", c.window.String())
