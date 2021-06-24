@@ -1,7 +1,6 @@
 package eskipfile
 
 import (
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -45,18 +44,12 @@ func deleteFile(t *testing.T) {
 }
 
 func createFileWith(content string, t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "watch_test-*")
+	f, err := os.Create(testWatchFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpfile.Name())
-
-	_, err = tmpfile.WriteString(content)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = os.Rename(tmpfile.Name(), testWatchFile)
+	defer f.Close()
+	_, err = f.WriteString(content)
 	if err != nil {
 		t.Fatal(err)
 	}
