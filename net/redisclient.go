@@ -3,6 +3,9 @@ package net
 import (
 	"context"
 	"fmt"
+	"hash"
+	"hash/fnv"
+	"log"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -10,6 +13,14 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+
+	xxhash "github.com/cespare/xxhash/v2"
+	rendezvous "github.com/dgryski/go-rendezvous"
+
+	jump "github.com/dgryski/go-jump"
+
+	"github.com/dchest/siphash"
+	mpchash "github.com/dgryski/go-mpchash"
 )
 
 // RedisOptions is used to configure the redis.Ring
@@ -53,6 +64,9 @@ type RedisOptions struct {
 	Tracer opentracing.Tracer
 	// Log is the logger that is used
 	Log logging.Logger
+
+	// HashAlgorithm is one of rendezvousVnodes, jump, mpchash, defaults to rendezvous which is chosen by github.com/go-redis/redis
+	HashAlgorithm string
 }
 
 // RedisRingClient is a redis client that does access redis by
@@ -87,6 +101,84 @@ const (
 	defaultConnMetricsInterval = 60 * time.Second
 )
 
+// jump
+// https://arxiv.org/pdf/1406.2294.pdf
+type JumpHash struct {
+	hash   hash.Hash64
+	shards []string
+}
+
+func NewJumpHash(shards []string) redis.ConsistentHash {
+	return &JumpHash{
+		hash:   fnv.New64(),
+		shards: shards,
+	}
+}
+
+func (j *JumpHash) Get(k string) string {
+	_, err := j.hash.Write([]byte(k))
+	if err != nil {
+		log.Fatalf("Failed to write %s to hash: %v", k, err)
+	}
+
+	key := j.hash.Sum64()
+	h := jump.Hash(key, len(j.shards)) //func Hash(key uint64, numBuckets int) int32
+	//fmt.Printf("h: %d\n", h)
+	return j.shards[int(h)%len(j.shards)]
+}
+
+// Multi-probe consistent hashing - mpchash
+// https://arxiv.org/pdf/1505.00062.pdf
+type multiprobe struct {
+	hash   *mpchash.Multi
+	shards []string
+}
+
+func NewMultiprobe(shards []string) redis.ConsistentHash {
+	return &multiprobe{
+		// 2 seeds and k=21
+		hash: mpchash.New(shards, siphash64seed, [2]uint64{1, 2}, 21),
+		// 2 seeds and k=41
+		//hash:   mpchash.New(shards, siphash64seed, [2]uint64{1, 2}, 41),
+		shards: shards,
+	}
+}
+
+func (mc *multiprobe) Get(k string) string {
+	return mc.hash.Hash(k)
+}
+func siphash64seed(b []byte, s uint64) uint64 { return siphash.Hash(s, 0, b) }
+
+// rendezvous vnodes
+type rendezvousVnodes struct {
+	*rendezvous.Rendezvous
+	table map[string]string
+}
+
+func (w rendezvousVnodes) Get(key string) string {
+	k := w.Lookup(key)
+	v, ok := w.table[k]
+	if !ok {
+		log.Printf("not found: %s in table for input: %s, so return %s", k, key, v)
+	}
+	return v
+}
+
+func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
+	N := 100
+	vshards := make([]string, N*len(shards), N*len(shards))
+	table := make(map[string]string)
+	for i := 0; i < N; i++ {
+		for j, shard := range shards {
+			//vshard := fmt.Sprintf("%d%s", i, shard) // prefix
+			vshard := fmt.Sprintf("%s%d", shard, i) // suffix
+			table[vshard] = shard
+			vshards[i*len(shards)+j] = vshard
+		}
+	}
+	return rendezvousVnodes{rendezvous.New(vshards, xxhash.Sum64String), table}
+}
+
 func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 	r := new(RedisRingClient)
 	r.quit = make(chan struct{})
@@ -95,6 +187,14 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
+	}
+	switch ro.HashAlgorithm {
+	case "rendezvousVnodes":
+		ringOptions.NewConsistentHash = NewRendezvousVnodes
+	case "jump":
+		ringOptions.NewConsistentHash = NewJumpHash
+	case "mpchash":
+		ringOptions.NewConsistentHash = NewMultiprobe
 	}
 
 	if ro != nil {
@@ -144,11 +244,15 @@ func (r *RedisRingClient) StartMetricsCollection() {
 			select {
 			case <-time.After(r.options.ConnMetricsInterval):
 				stats := r.ring.PoolStats()
+				// counter values
 				r.metrics.UpdateGauge(r.metricsPrefix+"hits", float64(stats.Hits))
-				r.metrics.UpdateGauge(r.metricsPrefix+"idleconns", float64(stats.IdleConns))
 				r.metrics.UpdateGauge(r.metricsPrefix+"misses", float64(stats.Misses))
-				r.metrics.UpdateGauge(r.metricsPrefix+"staleconns", float64(stats.StaleConns))
 				r.metrics.UpdateGauge(r.metricsPrefix+"timeouts", float64(stats.Timeouts))
+				// counter of reaped staleconns which were closed
+				r.metrics.UpdateGauge(r.metricsPrefix+"staleconns", float64(stats.StaleConns))
+
+				// gauges
+				r.metrics.UpdateGauge(r.metricsPrefix+"idleconns", float64(stats.IdleConns))
 				r.metrics.UpdateGauge(r.metricsPrefix+"totalconns", float64(stats.TotalConns))
 			case <-r.quit:
 				return
