@@ -44,12 +44,18 @@ func deleteFile(t *testing.T) {
 }
 
 func createFileWith(content string, t *testing.T) {
-	f, err := os.Create(testWatchFile)
+	tmpfile, err := os.Create(testWatchFile + ".tmp")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	_, err = f.WriteString(content)
+	defer os.Remove(tmpfile.Name())
+
+	_, err = tmpfile.WriteString(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.Rename(tmpfile.Name(), testWatchFile)
 	if err != nil {
 		t.Fatal(err)
 	}
