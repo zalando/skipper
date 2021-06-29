@@ -32,6 +32,7 @@ const (
 type FilterContext interface {
 	// The response writer object belonging to the incoming request. Used by
 	// filters that handle the requests themselves.
+	// Deprecated: use Response() or Serve()
 	ResponseWriter() http.ResponseWriter
 
 	// The incoming request object. It is forwarded to the route endpoint
