@@ -65,7 +65,7 @@ type RedisOptions struct {
 	// Log is the logger that is used
 	Log logging.Logger
 
-	// HashAlgorithm is one of rendezvousVnodes, jump, mpchash, defaults to rendezvous which is chosen by github.com/go-redis/redis
+	// HashAlgorithm is one of rendezvous, rendezvousVnodes, jump, mpchash, defaults to github.com/go-redis/redis default
 	HashAlgorithm string
 }
 
@@ -149,6 +149,19 @@ func (mc *multiprobe) Get(k string) string {
 }
 func siphash64seed(b []byte, s uint64) uint64 { return siphash.Hash(s, 0, b) }
 
+// rendezvous copied from github.com/go-redis/redis/v8@v8.3.3/ring.go
+type rendezvousWrapper struct {
+	*rendezvous.Rendezvous
+}
+
+func (w rendezvousWrapper) Get(key string) string {
+	return w.Lookup(key)
+}
+
+func NewRendezvous(shards []string) ConsistentHash {
+	return rendezvousWrapper{rendezvous.New(shards, xxhash.Sum64String)}
+}
+
 // rendezvous vnodes
 type rendezvousVnodes struct {
 	*rendezvous.Rendezvous
@@ -190,6 +203,8 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 	}
 	if ro != nil {
 		switch ro.HashAlgorithm {
+		case "rendezvous":
+			ringOptions.NewConsistentHash = NewRendezvous
 		case "rendezvousVnodes":
 			ringOptions.NewConsistentHash = NewRendezvousVnodes
 		case "jump":
