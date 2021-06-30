@@ -166,7 +166,7 @@ func (w rendezvousVnodes) Get(key string) string {
 
 func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
 	N := 100
-	vshards := make([]string, N*len(shards), N*len(shards))
+	vshards := make([]string, N*len(shards))
 	table := make(map[string]string)
 	for i := 0; i < N; i++ {
 		for j, shard := range shards {
@@ -188,16 +188,16 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
 	}
-	switch ro.HashAlgorithm {
-	case "rendezvousVnodes":
-		ringOptions.NewConsistentHash = NewRendezvousVnodes
-	case "jump":
-		ringOptions.NewConsistentHash = NewJumpHash
-	case "mpchash":
-		ringOptions.NewConsistentHash = NewMultiprobe
-	}
-
 	if ro != nil {
+		switch ro.HashAlgorithm {
+		case "rendezvousVnodes":
+			ringOptions.NewConsistentHash = NewRendezvousVnodes
+		case "jump":
+			ringOptions.NewConsistentHash = NewJumpHash
+		case "mpchash":
+			ringOptions.NewConsistentHash = NewMultiprobe
+		}
+
 		for idx, addr := range ro.Addrs {
 			ringOptions.Addrs[fmt.Sprintf("redis%d", idx)] = addr
 		}
