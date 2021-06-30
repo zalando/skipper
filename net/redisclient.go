@@ -158,7 +158,7 @@ func (w rendezvousWrapper) Get(key string) string {
 	return w.Lookup(key)
 }
 
-func NewRendezvous(shards []string) ConsistentHash {
+func NewRendezvous(shards []string) redis.ConsistentHash {
 	return rendezvousWrapper{rendezvous.New(shards, xxhash.Sum64String)}
 }
 
