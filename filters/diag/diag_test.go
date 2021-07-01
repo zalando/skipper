@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -782,5 +783,222 @@ func TestThrottle(t *testing.T) {
 			}
 
 		}()
+	}
+}
+
+func TestLatencyArgs(t *testing.T) {
+	for _, ti := range []struct {
+		msg  string
+		spec func() filters.Spec
+		args []interface{}
+		err  bool
+	}{
+		{
+			"no uniform request latency args",
+			NewUniformRequestLatency,
+			nil,
+			true,
+		}, {
+			"uniform request latency, false number of args 3",
+			NewUniformRequestLatency,
+			[]interface{}{"1s", "1s", 0.4},
+			true,
+		}, {
+			"uniform request latency, false number of args 4",
+			NewUniformRequestLatency,
+			[]interface{}{"1s", "1s", 0.5, 0.1},
+			true,
+		}, {
+			"uniform request latency, ok duration string",
+			NewUniformRequestLatency,
+			[]interface{}{"1s", "120ms"},
+			false,
+		}, {
+			"normal request latency ok",
+			NewNormalRequestLatency,
+			[]interface{}{"1s", "1s"},
+			false,
+		}, {
+			"response uniform latency, ok duration string",
+			NewUniformResponseLatency,
+			[]interface{}{"1s", "120ms"},
+			false,
+		}, {
+			"response normal latency ok",
+			NewNormalResponseLatency,
+			[]interface{}{"1s", "1s"},
+			false,
+		}} {
+
+		t.Run(ti.msg, func(t *testing.T) {
+			s := ti.spec()
+			_, err := s.CreateFilter(ti.args)
+			switch {
+			case err == nil && ti.err:
+				t.Errorf("failed to fail: %v", err)
+			case err != filters.ErrInvalidFilterParameters && ti.err:
+				t.Errorf("failed to fail with the right error: %v", err)
+			case err != nil && !ti.err:
+				t.Error(ti.msg, err)
+			}
+		})
+	}
+}
+
+// test distribution with:
+// % bin/skipper -inline-routes='* -> uniformRequestLatency("100ms", "20ms") -> status(204) -> <shunt>' -access-log-disabled
+// % echo "GET http://localhost:9090/test" | vegeta attack -rate 500/s -duration 1m | vegeta report -type hist[0,80ms,90ms,100ms,110ms,120ms]
+func TestRequestLatency(t *testing.T) {
+	for _, ti := range []struct {
+		msg                     string
+		spec                    func() filters.Spec
+		args                    []interface{}
+		p10, p25, p50, p75, p90 time.Duration
+		epsilon                 time.Duration
+	}{
+		{
+			msg:     "test uniform latency",
+			spec:    NewUniformRequestLatency,
+			args:    []interface{}{"10ms", "5ms"},
+			p10:     6 * time.Millisecond,
+			p25:     9 * time.Millisecond,
+			p50:     11 * time.Millisecond,
+			p75:     13 * time.Millisecond,
+			p90:     14 * time.Millisecond,
+			epsilon: time.Millisecond,
+		},
+		{
+			msg:     "test normal latency",
+			spec:    NewNormalRequestLatency,
+			args:    []interface{}{"10ms", "5ms"},
+			p10:     4 * time.Millisecond,
+			p25:     7 * time.Millisecond,
+			p50:     11 * time.Millisecond,
+			p75:     14 * time.Millisecond,
+			p90:     17 * time.Millisecond,
+			epsilon: time.Millisecond,
+		}} {
+
+		t.Run(ti.msg, func(t *testing.T) {
+			s := ti.spec()
+			f, err := s.CreateFilter(ti.args)
+			if err != nil {
+				t.Errorf("Failed to create filter for args '%v': %v", ti.args, err)
+			}
+
+			N := 1000
+			res := make([]time.Duration, N)
+			for i := 0; i < N; i++ {
+				start := time.Now()
+				f.Request(nil)
+				d := time.Since(start)
+				res[i] = d
+			}
+
+			sort.Slice(res, func(i, j int) bool {
+				return res[i] < res[j]
+			})
+			normalN := N / 100
+			p10 := res[10*normalN]
+			if ti.p10 < p10-ti.epsilon || ti.p10 > p10+ti.epsilon {
+				t.Errorf("p10 not in range want p10=%s with epsilon=%s, got: %s", ti.p10, ti.epsilon, p10)
+			}
+			p25 := res[25*normalN]
+			if ti.p25 < p25-ti.epsilon || ti.p25 > p25+ti.epsilon {
+				t.Errorf("p25 not in range want p25=%s with epsilon=%s, got: %s", ti.p25, ti.epsilon, p25)
+			}
+			p50 := res[50*normalN]
+			if ti.p50 < p50-ti.epsilon || ti.p50 > p50+ti.epsilon {
+				t.Errorf("p50 not in range want p50=%s with epsilon=%s, got: %s", ti.p50, ti.epsilon, p50)
+			}
+			p75 := res[75*normalN]
+			if ti.p75 < p75-ti.epsilon || ti.p75 > p75+ti.epsilon {
+				t.Errorf("p75 not in range want p75=%s with epsilon=%s, got: %s", ti.p75, ti.epsilon, p75)
+			}
+			p90 := res[90*normalN]
+			if ti.p90 < p90-ti.epsilon || ti.p90 > p90+ti.epsilon {
+				t.Errorf("p90 not in range want p90=%s with epsilon=%s, got: %s", ti.p90, ti.epsilon, p90)
+			}
+
+		})
+	}
+}
+
+// test distribution with:
+// % bin/skipper -inline-routes='* -> uniformRequestLatency("100ms", "20ms") -> status(204) -> <shunt>' -access-log-disabled
+// % echo "GET http://localhost:9090/test" | vegeta attack -rate 500/s -duration 1m | vegeta report -type hist[0,80ms,90ms,100ms,110ms,120ms]
+func TestResponseLatency(t *testing.T) {
+	for _, ti := range []struct {
+		msg                     string
+		spec                    func() filters.Spec
+		args                    []interface{}
+		p10, p25, p50, p75, p90 time.Duration
+		epsilon                 time.Duration
+	}{
+		{
+			msg:     "test response uniform latency",
+			spec:    NewUniformResponseLatency,
+			args:    []interface{}{"10ms", "5ms"},
+			p10:     7 * time.Millisecond,
+			p25:     9 * time.Millisecond,
+			p50:     11 * time.Millisecond,
+			p75:     13 * time.Millisecond,
+			p90:     14 * time.Millisecond,
+			epsilon: time.Millisecond,
+		},
+		{
+			msg:     "test response normal latency",
+			spec:    NewNormalResponseLatency,
+			args:    []interface{}{"10ms", "5ms"},
+			p10:     4 * time.Millisecond,
+			p25:     7 * time.Millisecond,
+			p50:     11 * time.Millisecond,
+			p75:     14 * time.Millisecond,
+			p90:     17 * time.Millisecond,
+			epsilon: time.Millisecond,
+		}} {
+
+		t.Run(ti.msg, func(t *testing.T) {
+			s := ti.spec()
+			f, err := s.CreateFilter(ti.args)
+			if err != nil {
+				t.Errorf("Failed to create filter for args '%v': %v", ti.args, err)
+			}
+
+			N := 1000
+			res := make([]time.Duration, N)
+			for i := 0; i < N; i++ {
+				start := time.Now()
+				f.Response(nil)
+				d := time.Since(start)
+				res[i] = d
+			}
+
+			sort.Slice(res, func(i, j int) bool {
+				return res[i] < res[j]
+			})
+			normalN := N / 100
+			p10 := res[10*normalN]
+			if ti.p10 < p10-ti.epsilon || ti.p10 > p10+ti.epsilon {
+				t.Errorf("p10 not in range want p10=%s with epsilon=%s, got: %s", ti.p10, ti.epsilon, p10)
+			}
+			p25 := res[25*normalN]
+			if ti.p25 < p25-ti.epsilon || ti.p25 > p25+ti.epsilon {
+				t.Errorf("p25 not in range want p25=%s with epsilon=%s, got: %s", ti.p25, ti.epsilon, p25)
+			}
+			p50 := res[50*normalN]
+			if ti.p50 < p50-ti.epsilon || ti.p50 > p50+ti.epsilon {
+				t.Errorf("p50 not in range want p50=%s with epsilon=%s, got: %s", ti.p50, ti.epsilon, p50)
+			}
+			p75 := res[75*normalN]
+			if ti.p75 < p75-ti.epsilon || ti.p75 > p75+ti.epsilon {
+				t.Errorf("p75 not in range want p75=%s with epsilon=%s, got: %s", ti.p75, ti.epsilon, p75)
+			}
+			p90 := res[90*normalN]
+			if ti.p90 < p90-ti.epsilon || ti.p90 > p90+ti.epsilon {
+				t.Errorf("p90 not in range want p90=%s with epsilon=%s, got: %s", ti.p90, ti.epsilon, p90)
+			}
+
+		})
 	}
 }

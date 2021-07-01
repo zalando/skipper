@@ -634,6 +634,30 @@ It logs with INFO level and a unique ID per request:
 The absorbSilent filter reads and discards the payload of the incoming requests. It only
 logs read errors other than EOF.
 
+## uniformRequestLatency
+
+The uniformRequestLatency filter creates a jitter latency in a uniform
+distribution for requests. The first parameter is the mean and the
+second is delta. In the example we would sleep for 100ms+/-10ms.
+
+Example:
+
+```
+* -> uniformRequestLatency("100ms, "10ms") -> "https://www.example.org";
+```
+
+## normalRequestLatency
+
+The normalRequestLatency filter creates a jitter latency in a normal
+distribution for requests. The first parameter is \mu (mean) and the
+second is \sigma as in https://en.wikipedia.org/wiki/Normal_distribution.
+
+Example:
+
+```
+* -> normalRequestLatency("10ms, "5ms") -> "https://www.example.org";
+```
+
 ## logHeader
 
 The logHeader filter prints the request line and the header, but not the body, to
