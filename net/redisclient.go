@@ -101,7 +101,7 @@ const (
 	defaultConnMetricsInterval = 60 * time.Second
 )
 
-// jump
+// JumpHash
 // https://arxiv.org/pdf/1406.2294.pdf
 type JumpHash struct {
 	hash   hash.Hash64
@@ -122,8 +122,7 @@ func (j *JumpHash) Get(k string) string {
 	}
 
 	key := j.hash.Sum64()
-	h := jump.Hash(key, len(j.shards)) //func Hash(key uint64, numBuckets int) int32
-	//fmt.Printf("h: %d\n", h)
+	h := jump.Hash(key, len(j.shards))
 	return j.shards[int(h)%len(j.shards)]
 }
 
