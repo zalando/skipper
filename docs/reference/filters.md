@@ -636,9 +636,10 @@ logs read errors other than EOF.
 
 ## uniformRequestLatency
 
-The uniformRequestLatency filter creates a jitter latency in a uniform
-distribution for requests. The first parameter is the mean and the
-second is delta. In the example we would sleep for 100ms+/-10ms.
+The uniformRequestLatency filter introduces uniformly distributed
+jitter latency within `[mean-delta, mean+delta]` interval for
+requests. The first parameter is the mean and the second is delta. In
+the example we would sleep for `100ms+/-10ms`.
 
 Example:
 
@@ -648,9 +649,36 @@ Example:
 
 ## normalRequestLatency
 
-The normalRequestLatency filter creates a jitter latency in a normal
-distribution for requests. The first parameter is \mu (mean) and the
-second is \sigma as in https://en.wikipedia.org/wiki/Normal_distribution.
+The normalRequestLatency filter introduces normally distributed jitter
+latency with configured mean value for requests. The first parameter
+is µ (mean) and the second is σ as in
+https://en.wikipedia.org/wiki/Normal_distribution.
+
+Example:
+
+```
+* -> normalRequestLatency("10ms, "5ms") -> "https://www.example.org";
+```
+
+## uniformResponseLatency
+
+The uniformResponseLatency filter introduces uniformly distributed
+jitter latency within `[mean-delta, mean+delta]` interval for
+responses. The first parameter is the mean and the second is delta. In
+the example we would sleep for `100ms+/-10ms`.
+
+Example:
+
+```
+* -> uniformRequestLatency("100ms, "10ms") -> "https://www.example.org";
+```
+
+## normalResponseLatency
+
+The normalResponseLatency filter introduces normally distributed
+jitter latency with configured mean value for responses. The first
+parameter is µ (mean) and the second is σ as in
+https://en.wikipedia.org/wiki/Normal_distribution.
 
 Example:
 
