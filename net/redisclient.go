@@ -101,21 +101,20 @@ const (
 	defaultConnMetricsInterval = 60 * time.Second
 )
 
-// JumpHash
 // https://arxiv.org/pdf/1406.2294.pdf
-type JumpHash struct {
+type jumpHash struct {
 	hash   hash.Hash64
 	shards []string
 }
 
 func NewJumpHash(shards []string) redis.ConsistentHash {
-	return &JumpHash{
+	return &jumpHash{
 		hash:   fnv.New64(),
 		shards: shards,
 	}
 }
 
-func (j *JumpHash) Get(k string) string {
+func (j *jumpHash) Get(k string) string {
 	_, err := j.hash.Write([]byte(k))
 	if err != nil {
 		log.Fatalf("Failed to write %s to hash: %v", k, err)
@@ -123,7 +122,7 @@ func (j *JumpHash) Get(k string) string {
 
 	key := j.hash.Sum64()
 	h := jump.Hash(key, len(j.shards))
-	return j.shards[int(h)%len(j.shards)]
+	return j.shards[int(h)]
 }
 
 // Multi-probe consistent hashing - mpchash
@@ -135,10 +134,8 @@ type multiprobe struct {
 
 func NewMultiprobe(shards []string) redis.ConsistentHash {
 	return &multiprobe{
-		// 2 seeds and k=21
-		hash: mpchash.New(shards, siphash64seed, [2]uint64{1, 2}, 21),
-		// 2 seeds and k=41
-		//hash:   mpchash.New(shards, siphash64seed, [2]uint64{1, 2}, 41),
+		// 2 seeds and k=21 got from library
+		hash:   mpchash.New(shards, siphash64seed, [2]uint64{1, 2}, 21),
 		shards: shards,
 	}
 }
