@@ -162,6 +162,8 @@ type rendezvousVnodes struct {
 	table map[string]string
 }
 
+const vnodePerShard = 100
+
 func (w rendezvousVnodes) Get(key string) string {
 	k := w.Lookup(key)
 	v, ok := w.table[k]
@@ -172,10 +174,9 @@ func (w rendezvousVnodes) Get(key string) string {
 }
 
 func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
-	N := 100
-	vshards := make([]string, N*len(shards))
+	vshards := make([]string, vnodePerShard*len(shards))
 	table := make(map[string]string)
-	for i := 0; i < N; i++ {
+	for i := 0; i < vnodePerShard; i++ {
 		for j, shard := range shards {
 			vshard := fmt.Sprintf("%s%d", shard, i) // suffix
 			table[vshard] = shard
