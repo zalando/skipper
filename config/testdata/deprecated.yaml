@@ -1,0 +1,2 @@
+enable-kubernetes-east-west: true
+kubernetes-east-west-domain: whatever.local

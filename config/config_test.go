@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,12 +37,12 @@ func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
 		},
 		{
 			name: "set redis password from config file and ignore environment",
-			args: []string{"skipper", "-config-file=test.yaml"},
+			args: []string{"skipper", "-config-file=testdata/test.yaml"},
 			env:  "set_from_env",
 			want: "set_from_file",
 		},
 	} {
-		// Run test in non-concurrent way to avoid colisions of other test cases that parse config file
+		// Run test in non-concurrent way to avoid collisions of other test cases that parse config file
 		oldArgs := os.Args
 		defer func() {
 			os.Args = oldArgs
@@ -81,9 +82,9 @@ func Test_NewConfig(t *testing.T) {
 		},
 		{
 			name: "test only valid flag overwrite yaml file",
-			args: []string{"skipper", "-config-file=test.yaml", "-address=localhost:8080"},
+			args: []string{"skipper", "-config-file=testdata/test.yaml", "-address=localhost:8080"},
 			want: &Config{
-				ConfigFile:                              "test.yaml",
+				ConfigFile:                              "testdata/test.yaml",
 				Address:                                 "localhost:8080",
 				StatusChecks:                            nil,
 				ExpectedBytesPerRequest:                 50 * 1024,
@@ -231,4 +232,52 @@ func TestMinTLSVersion(t *testing.T) {
 			t.Error(`Failed to get correct TLS version for "11"`)
 		}
 	})
+}
+
+type testFormatter struct {
+	messages map[string]log.Level
+}
+
+func (tf *testFormatter) Format(entry *log.Entry) ([]byte, error) {
+	tf.messages[entry.Message] = entry.Level
+	return nil, nil
+}
+
+func TestDeprecatedFlags(t *testing.T) {
+	a := os.Args
+	o := log.StandardLogger().Out
+	f := log.StandardLogger().Formatter
+	defer func() {
+		os.Args = a
+		log.SetOutput(o)
+		log.SetFormatter(f)
+	}()
+
+	formatter := &testFormatter{messages: make(map[string]log.Level)}
+
+	os.Args = []string{
+		"skipper",
+		"-config-file=testdata/deprecated.yaml",
+		"-enable-prometheus-metrics=false", // set to default value and does not produce deprecation warning
+		"-api-usage-monitoring-default-client-tracking-pattern=whatever",
+	}
+	log.SetOutput(os.Stdout)
+	log.SetFormatter(formatter)
+
+	err := cfg.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(formatter.messages) != 3 {
+		t.Error("expected 3 deprecation warnings")
+	}
+	for message, level := range formatter.messages {
+		if level != log.WarnLevel {
+			t.Errorf("warn level expected, got %v for %q", level, message)
+		}
+		if !strings.Contains(message, "*Deprecated*") {
+			t.Errorf("Deprecated marker expected for %q", message)
+		}
+	}
 }

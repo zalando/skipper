@@ -291,7 +291,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.MultiPlugins, "multi-plugin", "set a custom multitype plugins to load, a comma separated list of name and arguments")
 
 	// logging, metrics, tracing:
-	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, "switch to Prometheus metrics format to expose metrics. *Deprecated*: use metrics-flavour")
+	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, "*Deprecated*: use metrics-flavour. Switch to Prometheus metrics format to expose metrics")
 	flag.StringVar(&cfg.OpenTracing, "opentracing", "noop", "list of arguments for opentracing (space separated), first argument is the tracer implementation")
 	flag.StringVar(&cfg.OpenTracingInitialSpan, "opentracing-initial-span", "ingress", "set the name of the initial, pre-routing, tracing span")
 	flag.StringVar(&cfg.OpenTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings.")
@@ -361,8 +361,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", "sets the iprange/CIDRS to be whitelisted during healthcheck")
 	flag.StringVar(&cfg.KubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>")
 	flag.StringVar(&cfg.KubernetesNamespace, "kubernetes-namespace", "", "watch only this namespace for ingresses")
-	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use -kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
-	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "set the east-west domain. *Deprecated*: use -kubernetes-east-west-range feature. Defaults to .skipper.cluster.local")
+	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
+	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "*Deprecated*: use kubernetes-east-west-range feature. Sets the east-west domain, defaults to .skipper.cluster.local")
 	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
 	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
 
@@ -474,9 +474,10 @@ func (c *Config) Parse() error {
 		flag.Parse()
 	}
 
-	if c.ApiUsageMonitoringDefaultClientTrackingPattern != "" {
-		log.Warn(`"api-usage-monitoring-default-client-tracking-pattern" parameter is deprecated`)
-	}
+	c.deprecated("enable-prometheus-metrics", false)
+	c.deprecated("api-usage-monitoring-default-client-tracking-pattern", "")
+	c.deprecated("enable-kubernetes-east-west", false)
+	c.deprecated("kubernetes-east-west-domain", "")
 
 	logLevel, err := log.ParseLevel(c.ApplicationLogLevelString)
 	if err != nil {
@@ -486,10 +487,6 @@ func (c *Config) Parse() error {
 	kubernetesPathMode, err := kubernetes.ParsePathMode(c.KubernetesPathModeString)
 	if err != nil {
 		return err
-	}
-
-	if c.KubernetesEnableEastWest {
-		log.Warn(`"kubernetes-enable-east-west" parameter is deprecated. Check the "kubernetes-east-west-range" feature`)
 	}
 
 	kubernetesEastWestRangePredicates, err := eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
@@ -796,5 +793,13 @@ func (c *Config) parseEnv() {
 	// Set Redis password from environment variable if not set earlier (configuration file)
 	if c.SwarmRedisPassword == "" {
 		c.SwarmRedisPassword = os.Getenv(redisPasswordEnv)
+	}
+}
+
+func (c *Config) deprecated(name string, expected interface{}) {
+	f := flag.Lookup(name)
+	getter, ok := f.Value.(flag.Getter)
+	if ok && getter.Get() != expected {
+		log.Warnf("%s: %s", f.Name, f.Usage)
 	}
 }
