@@ -8,6 +8,7 @@ additional filter, randomContent, can be used to generate response with random t
 package diag
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -63,6 +64,21 @@ type throttle struct {
 	typ       throttleType
 	chunkSize int
 	delay     time.Duration
+}
+
+type distribution int
+
+const (
+	uniformRequestDistribution distribution = iota
+	normalRequestDistribution
+	uniformResponseDistribution
+	normalResponseDistribution
+)
+
+type jitter struct {
+	mean  time.Duration
+	delta time.Duration
+	typ   distribution
 }
 
 var randomChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
@@ -134,6 +150,34 @@ func NewBackendBandwidth() filters.Spec { return &throttle{typ: backendBandwidth
 // 	* -> backendChunks(1024, 120) -> "https://www.example.org";
 //
 func NewBackendChunks() filters.Spec { return &throttle{typ: backendChunks} }
+
+// NewUniformRequestLatency creates a latency for requests with uniform
+// distribution. Example delay around 1s with +/-120ms.
+//
+// 	* -> uniformRequestLatency("1s", "120ms") -> "https://www.example.org";
+//
+func NewUniformRequestLatency() filters.Spec { return &jitter{typ: uniformRequestDistribution} }
+
+// NewNormalRequestLatency creates a latency for requests with normal
+// distribution. Example delay around 1s with +/-120ms.
+//
+// 	* -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
+//
+func NewNormalRequestLatency() filters.Spec { return &jitter{typ: normalRequestDistribution} }
+
+// NewUniformResponseLatency creates a latency for responses with uniform
+// distribution. Example delay around 1s with +/-120ms.
+//
+// 	* -> uniformRequestLatency("1s", "120ms") -> "https://www.example.org";
+//
+func NewUniformResponseLatency() filters.Spec { return &jitter{typ: uniformResponseDistribution} }
+
+// NewNormalResponseLatency creates a latency for responses with normal
+// distribution. Example delay around 1s with +/-120ms.
+//
+// 	* -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
+//
+func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalResponseDistribution} }
 
 func (r *random) Name() string { return RandomName }
 
@@ -416,4 +460,75 @@ func (t *throttle) Response(ctx filters.FilterContext) {
 
 	rsp := ctx.Response()
 	rsp.Body = t.goThrottle(rsp.Body, true)
+}
+
+func (j *jitter) Name() string {
+	switch j.typ {
+	case normalRequestDistribution:
+		return "normalRequestLatency"
+	case uniformRequestDistribution:
+		return "uniformRequestLatency"
+	case normalResponseDistribution:
+		return "normalResponseLatency"
+	case uniformResponseDistribution:
+		return "uniformResponseLatency"
+	}
+	return "unknown"
+}
+
+func (j *jitter) CreateFilter(args []interface{}) (filters.Filter, error) {
+	var (
+		mean  time.Duration
+		delta time.Duration
+		err   error
+	)
+
+	if len(args) != 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+	if mean, err = parseDuration(args[0]); err != nil {
+		return nil, fmt.Errorf("failed to parse duration mean %v: %w", args[0], err)
+	}
+
+	if delta, err = parseDuration(args[1]); err != nil {
+		return nil, fmt.Errorf("failed to parse duration delta %v: %w", args[1], err)
+	}
+
+	return &jitter{
+		typ:   j.typ,
+		mean:  mean,
+		delta: delta,
+	}, nil
+}
+
+func (j *jitter) Request(filters.FilterContext) {
+	var r float64
+
+	switch j.typ {
+	case uniformRequestDistribution:
+		/* #nosec */
+		r = 2*rand.Float64() - 1 // +/- sizing
+	case normalRequestDistribution:
+		r = rand.NormFloat64()
+	default:
+		return
+	}
+	f := r * float64(j.delta)
+	time.Sleep(j.mean + time.Duration(int64(f)))
+}
+
+func (j *jitter) Response(filters.FilterContext) {
+	var r float64
+
+	switch j.typ {
+	case uniformResponseDistribution:
+		/* #nosec */
+		r = 2*rand.Float64() - 1 // +/- sizing
+	case normalResponseDistribution:
+		r = rand.NormFloat64()
+	default:
+		return
+	}
+	f := r * float64(j.delta)
+	time.Sleep(j.mean + time.Duration(int64(f)))
 }

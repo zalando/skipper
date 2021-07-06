@@ -634,6 +634,58 @@ It logs with INFO level and a unique ID per request:
 The absorbSilent filter reads and discards the payload of the incoming requests. It only
 logs read errors other than EOF.
 
+## uniformRequestLatency
+
+The uniformRequestLatency filter introduces uniformly distributed
+jitter latency within `[mean-delta, mean+delta]` interval for
+requests. The first parameter is the mean and the second is delta. In
+the example we would sleep for `100ms+/-10ms`.
+
+Example:
+
+```
+* -> uniformRequestLatency("100ms, "10ms") -> "https://www.example.org";
+```
+
+## normalRequestLatency
+
+The normalRequestLatency filter introduces normally distributed jitter
+latency with configured mean value for requests. The first parameter
+is µ (mean) and the second is σ as in
+https://en.wikipedia.org/wiki/Normal_distribution.
+
+Example:
+
+```
+* -> normalRequestLatency("10ms, "5ms") -> "https://www.example.org";
+```
+
+## uniformResponseLatency
+
+The uniformResponseLatency filter introduces uniformly distributed
+jitter latency within `[mean-delta, mean+delta]` interval for
+responses. The first parameter is the mean and the second is delta. In
+the example we would sleep for `100ms+/-10ms`.
+
+Example:
+
+```
+* -> uniformRequestLatency("100ms, "10ms") -> "https://www.example.org";
+```
+
+## normalResponseLatency
+
+The normalResponseLatency filter introduces normally distributed
+jitter latency with configured mean value for responses. The first
+parameter is µ (mean) and the second is σ as in
+https://en.wikipedia.org/wiki/Normal_distribution.
+
+Example:
+
+```
+* -> normalRequestLatency("10ms, "5ms") -> "https://www.example.org";
+```
+
 ## logHeader
 
 The logHeader filter prints the request line and the header, but not the body, to
