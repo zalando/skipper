@@ -1,0 +1,2 @@
+enable-kubernetes-east-west: false # default value should produce deprecation warning as well
+kubernetes-east-west-domain: whatever.local
