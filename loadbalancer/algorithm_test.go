@@ -2,6 +2,7 @@ package loadbalancer
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"testing"
 
@@ -375,7 +376,7 @@ func TestConsistentHashKey(t *testing.T) {
 	}
 
 	for i, ep := range endpoints {
-		key := ep // key equal to endpoint has the same hash and therefore selects it
+		key := fmt.Sprintf("%s-%d", ep, 1) // key equal to endpoint has the same hash and therefore selects it
 		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: map[string]interface{}{ConsistentHashKey: key}})
 		if selected != rt.LBEndpoints[i] {
 			t.Errorf("expected: %v, got %v", rt.LBEndpoints[i], selected)
@@ -411,8 +412,57 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 	}
 }
 
+func TestConsistentHashKeyDistribution(t *testing.T) {
+	endpoints := []string{"http://127.0.0.1:9001", "http://127.0.0.1:9002", "http://127.0.0.1:9003", "http://127.0.0.1:9004", "http://127.0.0.1:9005", "http://127.0.0.1:9006", "http://127.0.0.1:9007", "http://127.0.0.1:9008", "http://127.0.0.1:9009", "http://127.0.0.1:9010"}
+	counters := map[string]int{}
+
+	route := NewAlgorithmProvider().Do([]*routing.Route{{
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: ConsistentHash.String(),
+			LBEndpoints: endpoints,
+		},
+	}})[0]
+	ch := route.LBAlgorithm.(consistentHash)
+	for i := 0; i < 100_000; i++ {
+		ctx := makeCtx(route, i)
+		selected := ch.Apply(ctx)
+		counters[selected.Host] += 1
+	}
+	counts := make([]int, 0, len(counters))
+	sum := 0
+	for _, v := range counters {
+		sum += v
+		counts = append(counts, v)
+	}
+	if sum != 100_000 {
+		t.Errorf("Sent 100,000 requests so should have selected 100,000 endpoints, got %d", sum)
+	}
+	stdDev := stdDeviation(counts, sum)
+	if stdDev >= 56 {
+		t.Errorf("Std deviation should be less than 56%%, but got %f%%", stdDev)
+	}
+}
+
 func addInflightRequests(endpoint routing.LBEndpoint, count int) {
 	for i := 0; i < count; i++ {
 		endpoint.Metrics.IncInflightRequest()
 	}
+}
+
+func makeCtx(route *routing.Route, reqId int) *routing.LBContext {
+	sku := fmt.Sprintf("sku-%d", reqId)
+	r, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:9999/products/%s", sku), nil)
+	return &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashKey: sku}}
+}
+
+func stdDeviation(nums []int, sum int) float64 {
+	mean := float64(sum) / float64(len(nums))
+	summedDiffs := 0.0
+	for _, v := range nums {
+		diff := float64(v) - mean
+		summedDiffs += diff * diff
+	}
+	stdDev := math.Sqrt(summedDiffs / float64(len(nums)))
+	return (stdDev * 100) / mean
 }

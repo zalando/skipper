@@ -2,6 +2,7 @@ package loadbalancer
 
 import (
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"math"
 	"math/rand"
@@ -208,9 +209,12 @@ func (ch consistentHash) Less(i, j int) bool { return ch[i].hash < ch[j].hash }
 func (ch consistentHash) Swap(i, j int)      { ch[i], ch[j] = ch[j], ch[i] }
 
 func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	ch := consistentHash(make([]endpointHash, len(endpoints)))
+	hashesPerEndpoint := 100
+	ch := consistentHash(make([]endpointHash, hashesPerEndpoint*len(endpoints)))
 	for i, ep := range endpoints {
-		ch[i] = endpointHash{i, hash(ep)}
+		for j := 0; j < hashesPerEndpoint; j++ {
+			ch[(hashesPerEndpoint*i)+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
+		}
 	}
 	sort.Sort(ch)
 	return ch
