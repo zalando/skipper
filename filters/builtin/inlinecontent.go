@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 )
 
 type inlineContent struct {
-	text string
-	mime string
+	template *eskip.Template
+	mime     string
 }
 
 // Creates a filter spec for the inlineContent() filter.
@@ -24,7 +25,7 @@ type inlineContent struct {
 //
 //     * -> inlineContent("{\"foo\": 42}", "application/json") -> <shunt>
 //
-// It accepts two arguments: the content and the optional content type.
+// It accepts two arguments: the content template (see eskip.Template.ApplyContext) and the optional content type.
 // When the content type is not set, it tries to detect it using
 // http.DetectContentType.
 //
@@ -36,51 +37,40 @@ func NewInlineContent() filters.Spec {
 
 func (c *inlineContent) Name() string { return InlineContentName }
 
-func stringArg(a interface{}) (s string, err error) {
-	var ok bool
-	s, ok = a.(string)
-	if !ok {
-		err = filters.ErrInvalidFilterParameters
-	}
-
-	return
-}
-
 func (c *inlineContent) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) == 0 || len(args) > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	var (
-		f   inlineContent
-		err error
-	)
+	var f inlineContent
 
-	f.text, err = stringArg(args[0])
-	if err != nil {
-		return nil, err
+	text, ok := args[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
 	}
+	f.template = eskip.NewTemplate(text)
 
 	if len(args) == 2 {
-		f.mime, err = stringArg(args[1])
-		if err != nil {
-			return nil, err
+		f.mime, ok = args[1].(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
 		}
 	} else {
-		f.mime = http.DetectContentType([]byte(f.text))
+		f.mime = http.DetectContentType([]byte(text))
 	}
 
 	return &f, nil
 }
 
 func (c *inlineContent) Request(ctx filters.FilterContext) {
+	text, _ := c.template.ApplyContext(ctx)
 	ctx.Serve(&http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
 			"Content-Type":   []string{c.mime},
-			"Content-Length": []string{strconv.Itoa(len(c.text))},
+			"Content-Length": []string{strconv.Itoa(len(text))},
 		},
-		Body: ioutil.NopCloser(bytes.NewBufferString(c.text)),
+		Body: ioutil.NopCloser(bytes.NewBufferString(text)),
 	})
 }
 
