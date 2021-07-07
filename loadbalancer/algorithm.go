@@ -39,6 +39,7 @@ const (
 const powerOfRandomNChoicesDefaultN = 2
 
 const ConsistentHashKey = "consistentHashKey"
+const ConsistentHashBalanceFactor = "consistentHashBalanceFactor"
 
 var (
 	algorithms = map[Algorithm]initializeAlgorithm{
@@ -220,14 +221,50 @@ func hash(s string) uint32 {
 	return h.Sum32()
 }
 
-// Returns index of endpoint with closest hash to key's hash
-func (ch consistentHash) search(key string) int {
+// Returns index in hash ring with the closest hash to key's hash
+func (ch consistentHash) searchRing(key string) int {
 	h := hash(key)
 	i := sort.Search(ch.Len(), func(i int) bool { return ch[i].hash >= h })
 	if i == ch.Len() { // rollover
 		i = 0
 	}
-	return ch[i].index
+	return i
+}
+
+// Returns index of endpoint with closest hash to key's hash
+func (ch consistentHash) search(key string) int {
+	ringIndex := ch.searchRing(key)
+	return ch[ringIndex].index
+}
+
+func computeLoadAverage(ctx *routing.LBContext) float64 {
+	sum := 1.0 // add 1 to include the request that just arrived
+	endpoints := ctx.Route.LBEndpoints
+	numEndpoints := len(ctx.Route.LBEndpoints)
+	for _, v := range endpoints {
+		sum += float64(v.Metrics.GetInflightRequests())
+	}
+	return sum / float64(numEndpoints)
+}
+
+// Returns index of endpoint with closest hash to key's hash, which is also below the target load
+func (ch consistentHash) boundedLoadSearch(key string, balanceFactor float64, ctx *routing.LBContext) int {
+	ringIndex := ch.searchRing(key)
+	averageLoad := computeLoadAverage(ctx)
+	targetLoad := averageLoad * balanceFactor
+	// Loop round ring, starting at endpoint with closest hash. Stop when we find one whose load is less than targetLoad.
+	for i := 0; i < ch.Len(); i++ {
+		endpointIndex := ch[ringIndex].index
+		load := ctx.Route.LBEndpoints[endpointIndex].Metrics.GetInflightRequests()
+		// We know there must be an endpoint whose load <= average load.
+		// Since targetLoad >= average load (balancerFactor >= 1), there must also be an endpoint with load <= targetLoad.
+		if load <= int(targetLoad) {
+			break
+		}
+		ringIndex = (ringIndex + 1) % ch.Len()
+	}
+
+	return ch[ringIndex].index
 }
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
@@ -240,7 +277,13 @@ func (ch consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	if !ok {
 		key = net.RemoteHost(ctx.Request).String()
 	}
-	choice := ch.search(key)
+	balanceFactor, ok := ctx.Params[ConsistentHashBalanceFactor].(float64)
+	var choice int
+	if !ok {
+		choice = ch.search(key)
+	} else {
+		choice = ch.boundedLoadSearch(key, balanceFactor, ctx)
+	}
 
 	return ctx.Route.LBEndpoints[choice]
 }

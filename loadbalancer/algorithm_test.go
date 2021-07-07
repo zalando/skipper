@@ -312,6 +312,46 @@ func TestConsistentHashSearch(t *testing.T) {
 	}
 }
 
+func TestConsistentHashBoundedLoadSearch(t *testing.T) {
+	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
+	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+	route := NewAlgorithmProvider().Do([]*routing.Route{{
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: ConsistentHash.String(),
+			LBEndpoints: endpoints,
+		},
+	}})[0]
+	ch := route.LBAlgorithm.(consistentHash)
+	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: 1.25}}
+	noLoad := ch.Apply(ctx)
+	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{}})
+
+	if noLoad != nonBounded {
+		t.Error("When no endpoints are overloaded, the chosen endpoint should be the same as standard consistentHash")
+	}
+	// now we know that noLoad is the endpoint which should be requested for somekey if load is not an issue.
+	addInflightRequests(noLoad, 20)
+	failover1 := ch.Apply(ctx)
+	if failover1 == nonBounded {
+		t.Error("When the selected endpoint is overloaded, the chosen endpoint should be different to standard consistentHash")
+	}
+
+	// now if 2 endpoints are overloaded, the request should go to the final endpoint
+	addInflightRequests(failover1, 20)
+	failover2 := ch.Apply(ctx)
+	if failover2 == nonBounded || failover2 == failover1 {
+		t.Error("Only the final endpoint had load below the average * balanceFactor, so it should have been selected.")
+	}
+
+	// now all will have same load, should select the original endpoint again
+	addInflightRequests(failover2, 20)
+	allLoaded := ch.Apply(ctx)
+	if allLoaded != nonBounded {
+		t.Error("When all endpoints have the same load, the consistentHash endpoint should be chosen again.")
+	}
+}
+
 func TestConsistentHashKey(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
 	ch := newConsistentHash(endpoints)
@@ -340,5 +380,39 @@ func TestConsistentHashKey(t *testing.T) {
 		if selected != rt.LBEndpoints[i] {
 			t.Errorf("expected: %v, got %v", rt.LBEndpoints[i], selected)
 		}
+	}
+}
+
+func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
+	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
+	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+	route := NewAlgorithmProvider().Do([]*routing.Route{{
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: ConsistentHash.String(),
+			LBEndpoints: endpoints,
+		},
+	}})[0]
+	ch := route.LBAlgorithm.(consistentHash)
+	balanceFactor := 1.25
+	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor}}
+
+	for i := 0; i < 100; i++ {
+		ep := ch.Apply(ctx)
+		ifr0 := route.LBEndpoints[ch[0].index].Metrics.GetInflightRequests()
+		ifr1 := route.LBEndpoints[ch[1].index].Metrics.GetInflightRequests()
+		ifr2 := route.LBEndpoints[ch[2].index].Metrics.GetInflightRequests()
+		avg := float64(ifr0+ifr1+ifr2) / 3.0
+		limit := int(avg*balanceFactor) + 1
+		if ifr0 > limit || ifr1 > limit || ifr2 > limit {
+			t.Errorf("Expected in-flight requests for each endpoint to be less than %d. In-flight request counts: %d, %d, %d", limit, ifr0, ifr1, ifr2)
+		}
+		ep.Metrics.IncInflightRequest()
+	}
+}
+
+func addInflightRequests(endpoint routing.LBEndpoint, count int) {
+	for i := 0; i < count; i++ {
+		endpoint.Metrics.IncInflightRequest()
 	}
 }

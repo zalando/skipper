@@ -257,7 +257,7 @@ Current implemented algorithms:
 
 - `roundRobin`: backend is chosen by the round robin algorithm, starting with a random selected backend to spread across all backends from the beginning
 - `random`: backend is chosen at random
-- `consistentHash`: backend is chosen by [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing) algorithm based on the request key. The request key is derived from `X-Forwarded-For` header or request remote IP address as the fallback. Use [`consistentHashKey`](filters.md#consistenthashkey) filter to set the request key.
+- `consistentHash`: backend is chosen by [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing) algorithm based on the request key. The request key is derived from `X-Forwarded-For` header or request remote IP address as the fallback. Use [`consistentHashKey`](filters.md#consistenthashkey) filter to set the request key. Use [`consistentHashBalanceFactor`](filters.md#consistenthashbalancefactor) to prevent popular keys from overloading a single backend endpoint.
 - `powerOfRandomNChoices`: backend is chosen by powerOfRandomNChoices algorithm with selecting N random endpoints and picking the one with least outstanding requests from them. (http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf)
 - __TODO__: https://github.com/zalando/skipper/issues/557
 
