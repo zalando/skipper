@@ -212,14 +212,15 @@ type Config struct {
 	// swarm:
 	EnableSwarm bool `yaml:"enable-swarm"`
 	// redis based
-	SwarmRedisURLs         *listFlag     `yaml:"swarm-redis-urls"`
-	SwarmRedisPassword     string        `yaml:"swarm-redis-password"`
-	SwarmRedisDialTimeout  time.Duration `yaml:"swarm-redis-dial-timeout"`
-	SwarmRedisReadTimeout  time.Duration `yaml:"swarm-redis-read-timeout"`
-	SwarmRedisWriteTimeout time.Duration `yaml:"swarm-redis-write-timeout"`
-	SwarmRedisPoolTimeout  time.Duration `yaml:"swarm-redis-pool-timeout"`
-	SwarmRedisMinConns     int           `yaml:"swarm-redis-min-conns"`
-	SwarmRedisMaxConns     int           `yaml:"swarm-redis-max-conns"`
+	SwarmRedisURLs          *listFlag     `yaml:"swarm-redis-urls"`
+	SwarmRedisPassword      string        `yaml:"swarm-redis-password"`
+	SwarmRedisHashAlgorithm string        `yaml:"swarm-redis-hash-algorithm"`
+	SwarmRedisDialTimeout   time.Duration `yaml:"swarm-redis-dial-timeout"`
+	SwarmRedisReadTimeout   time.Duration `yaml:"swarm-redis-read-timeout"`
+	SwarmRedisWriteTimeout  time.Duration `yaml:"swarm-redis-write-timeout"`
+	SwarmRedisPoolTimeout   time.Duration `yaml:"swarm-redis-pool-timeout"`
+	SwarmRedisMinConns      int           `yaml:"swarm-redis-min-conns"`
+	SwarmRedisMaxConns      int           `yaml:"swarm-redis-max-conns"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -434,6 +435,7 @@ func NewConfig() *Config {
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
 	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits.\nUse "+redisPasswordEnv+" environment variable or 'swarm-redis-password' key in config file to set redis password")
+	flag.StringVar(&cfg.SwarmRedisHashAlgorithm, "swarm-redis-hash-algorithm", "", "sets hash algorithm to be used in redis ring client to find the shard <jump|mpchash|rendezvous|rendezvousVnodes>, defaults to github.com/go-redis/redis default")
 	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", net.DefaultDialTimeout, "set redis client dial timeout")
 	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", net.DefaultReadTimeout, "set redis socket read timeout")
 	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", net.DefaultWriteTimeout, "set redis socket write timeout")
@@ -706,14 +708,15 @@ func (c *Config) ToOptions() skipper.Options {
 		// swarm:
 		EnableSwarm: c.EnableSwarm,
 		// redis based
-		SwarmRedisURLs:         c.SwarmRedisURLs.values,
-		SwarmRedisPassword:     c.SwarmRedisPassword,
-		SwarmRedisDialTimeout:  c.SwarmRedisDialTimeout,
-		SwarmRedisReadTimeout:  c.SwarmRedisReadTimeout,
-		SwarmRedisWriteTimeout: c.SwarmRedisWriteTimeout,
-		SwarmRedisPoolTimeout:  c.SwarmRedisPoolTimeout,
-		SwarmRedisMinIdleConns: c.SwarmRedisMinConns,
-		SwarmRedisMaxIdleConns: c.SwarmRedisMaxConns,
+		SwarmRedisURLs:          c.SwarmRedisURLs.values,
+		SwarmRedisPassword:      c.SwarmRedisPassword,
+		SwarmRedisHashAlgorithm: c.SwarmRedisHashAlgorithm,
+		SwarmRedisDialTimeout:   c.SwarmRedisDialTimeout,
+		SwarmRedisReadTimeout:   c.SwarmRedisReadTimeout,
+		SwarmRedisWriteTimeout:  c.SwarmRedisWriteTimeout,
+		SwarmRedisPoolTimeout:   c.SwarmRedisPoolTimeout,
+		SwarmRedisMinIdleConns:  c.SwarmRedisMinConns,
+		SwarmRedisMaxIdleConns:  c.SwarmRedisMaxConns,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,

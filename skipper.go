@@ -735,14 +735,15 @@ type Options struct {
 	// the cluster ratelimiter
 	EnableSwarm bool
 	// redis based swarm
-	SwarmRedisURLs         []string
-	SwarmRedisPassword     string
-	SwarmRedisDialTimeout  time.Duration
-	SwarmRedisReadTimeout  time.Duration
-	SwarmRedisWriteTimeout time.Duration
-	SwarmRedisPoolTimeout  time.Duration
-	SwarmRedisMinIdleConns int
-	SwarmRedisMaxIdleConns int
+	SwarmRedisURLs          []string
+	SwarmRedisPassword      string
+	SwarmRedisHashAlgorithm string
+	SwarmRedisDialTimeout   time.Duration
+	SwarmRedisReadTimeout   time.Duration
+	SwarmRedisWriteTimeout  time.Duration
+	SwarmRedisPoolTimeout   time.Duration
+	SwarmRedisMinIdleConns  int
+	SwarmRedisMaxIdleConns  int
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -1239,6 +1240,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			redisOptions = &skpnet.RedisOptions{
 				Addrs:               o.SwarmRedisURLs,
 				Password:            o.SwarmRedisPassword,
+				HashAlgorithm:       o.SwarmRedisHashAlgorithm,
 				DialTimeout:         o.SwarmRedisDialTimeout,
 				ReadTimeout:         o.SwarmRedisReadTimeout,
 				WriteTimeout:        o.SwarmRedisWriteTimeout,
