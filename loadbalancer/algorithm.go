@@ -212,8 +212,9 @@ func newConsistentHash(endpoints []string) routing.LBAlgorithm {
 	const hashesPerEndpoint = 100
 	ch := consistentHash(make([]endpointHash, hashesPerEndpoint*len(endpoints)))
 	for i, ep := range endpoints {
+		endpointStartIndex := hashesPerEndpoint * i
 		for j := 0; j < hashesPerEndpoint; j++ {
-			ch[(hashesPerEndpoint*i)+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
+			ch[endpointStartIndex+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
 		}
 	}
 	sort.Sort(ch)
