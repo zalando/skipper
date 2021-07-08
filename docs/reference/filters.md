@@ -2447,7 +2447,7 @@ This is helpful in the case where certain keys are very popular and threaten to 
 
 Parameters:
 
-* balanceFactor (float)
+* balanceFactor: A float or int, must be >= 1
 
 Examples:
 
@@ -2458,6 +2458,5 @@ pr: Path("/products/:productId")
     -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 ```
 ```
-consistentHashBalanceFactor(1.55)
-consistentHashBalanceFactor(1)
+consistentHashBalanceFactor(3)
 ```

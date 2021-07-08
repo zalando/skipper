@@ -24,9 +24,9 @@ func TestConsistentHashBalanceFactor(t *testing.T) {
 		t.Error("Failed to set balance factor via filter")
 	}
 
-	_, e := spec.CreateFilter([]interface{}{0.5})
+	_, err := spec.CreateFilter([]interface{}{0.5})
 
-	if e == nil {
+	if err == nil {
 		t.Error("Expected an error since the balancer factor should be >= 1")
 	}
 }

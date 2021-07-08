@@ -37,9 +37,10 @@ const (
 )
 
 const powerOfRandomNChoicesDefaultN = 2
-
-const ConsistentHashKey = "consistentHashKey"
-const ConsistentHashBalanceFactor = "consistentHashBalanceFactor"
+const (
+	ConsistentHashKey           = "consistentHashKey"
+	ConsistentHashBalanceFactor = "consistentHashBalanceFactor"
+)
 
 var (
 	algorithms = map[Algorithm]initializeAlgorithm{
@@ -240,11 +241,10 @@ func (ch consistentHash) search(key string) int {
 func computeLoadAverage(ctx *routing.LBContext) float64 {
 	sum := 1.0 // add 1 to include the request that just arrived
 	endpoints := ctx.Route.LBEndpoints
-	numEndpoints := len(ctx.Route.LBEndpoints)
 	for _, v := range endpoints {
 		sum += float64(v.Metrics.GetInflightRequests())
 	}
-	return sum / float64(numEndpoints)
+	return sum / float64(len(endpoints))
 }
 
 // Returns index of endpoint with closest hash to key's hash, which is also below the target load
