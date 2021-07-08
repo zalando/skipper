@@ -176,6 +176,7 @@ func MakeRegistry() filters.Registry {
 		fadein.NewFadeIn(),
 		fadein.NewEndpointCreated(),
 		consistenthash.NewConsistentHashKey(),
+		consistenthash.NewConsistentHashBalanceFactor(),
 	} {
 		r.Register(s)
 	}

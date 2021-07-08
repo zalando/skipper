@@ -2437,3 +2437,26 @@ pr: Path("/products/:productId")
 consistentHashKey("${request.header.Authorization}")
 consistentHashKey("${request.source}") // same as the default key
 ```
+
+## consistentHashBalanceFactor
+
+This filter sets the balance factor used by the [`consistentHash`](backends.md#load-balancer-backend) algorithm to prevent a single backend endpoint from being overloaded.
+The number of in-flight requests for an endpoint can be no higher than `(average-in-flight-requests * balanceFactor) + 1`.
+This is helpful in the case where certain keys are very popular and threaten to overload the endpoint they are mapped to.
+[Further Details](https://ai.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html).
+
+Parameters:
+
+* balanceFactor: A float or int, must be >= 1
+
+Examples:
+
+```
+pr: Path("/products/:productId")
+    -> consistentHashKey("${productId}")
+    -> consistentHashBalanceFactor(1.25)
+    -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+```
+consistentHashBalanceFactor(3)
+```
