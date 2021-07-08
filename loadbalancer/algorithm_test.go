@@ -376,7 +376,7 @@ func TestConsistentHashKey(t *testing.T) {
 	}
 
 	for i, ep := range endpoints {
-		key := fmt.Sprintf("%s-%d", ep, 1) // key equal to endpoint has the same hash and therefore selects it
+		key := fmt.Sprintf("%s-%d", ep, 1) // "ep-0" to "ep-99" is the range of keys for this endpoint. If we use this as the hash key it should select endpoint ep.
 		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: map[string]interface{}{ConsistentHashKey: key}})
 		if selected != rt.LBEndpoints[i] {
 			t.Errorf("expected: %v, got %v", rt.LBEndpoints[i], selected)
