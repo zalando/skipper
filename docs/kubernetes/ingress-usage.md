@@ -112,13 +112,13 @@ kind: Ingress
 metadata:
   name: service-x
 spec:
-rules:
-- host: service-x.example.org
-    http:
-    paths:
-    - backend:
-        serviceName: service-x # this service has 0 endpoints
-        servicePort: 80
+  rules:
+  - host: service-x.example.org
+      http:
+        paths:
+        - backend:
+            serviceName: service-x # this service has 0 endpoints
+            servicePort: 80
 ```
 
 &#x200B;
@@ -129,13 +129,13 @@ kind: Ingress
 metadata:
   name: service-x-live
 spec:
-rules:
-- host: service-x.example.org
-    http:
-    paths:
-    - backend:
-        serviceName: service-x-live
-        servicePort: 80
+  rules:
+  - host: service-x.example.org
+      http:
+        paths:
+        - backend:
+            serviceName: service-x-live
+            servicePort: 80
 ```
 
 ## Ingress path handling
