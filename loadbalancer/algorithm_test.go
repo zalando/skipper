@@ -434,7 +434,7 @@ func addInflightRequests(endpoint routing.LBEndpoint, count int) {
 }
 
 // Measures how fair the hash ring is to each endpoint.
-// i.e. Of the possible hashes, how many will go to each endpoint. Lower the standard deviation the better.
+// i.e. Of the possible hashes, how many will go to each endpoint. The lower the standard deviation the better.
 func measureStdDev(t *testing.T, endpoints []string, hashesPerEndpoint int) float64 {
 	ch := newConsistentHashInternal(endpoints, hashesPerEndpoint).(consistentHash)
 	ringOwnership := map[int]uint64{}
@@ -445,7 +445,7 @@ func measureStdDev(t *testing.T, endpoints []string, hashesPerEndpoint int) floa
 		ringOwnership[endpointIndex] += partitionEndHash - prevPartitionEndHash
 		prevPartitionEndHash = partitionEndHash
 	}
-	ringOwnership[0] += math.MaxUint64 - prevPartitionEndHash
+	ringOwnership[ch[0].index] += math.MaxUint64 - prevPartitionEndHash
 	return stdDeviation(ringOwnership)
 }
 
