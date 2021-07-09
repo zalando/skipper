@@ -209,7 +209,8 @@ func TestSelectAlgorithm(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
-	N := 10
+	const R = 1000
+	const N = 10
 	eps := make([]string, 0, N)
 	for i := 0; i < N; i++ {
 		ep := fmt.Sprintf("http://127.0.0.1:123%d/foo", i)
@@ -218,37 +219,27 @@ func TestApply(t *testing.T) {
 
 	for _, tt := range []struct {
 		name          string
-		iterations    int
-		jitter        int
 		expected      int
 		algorithm     routing.LBAlgorithm
 		algorithmName string
 	}{
 		{
 			name:          "random algorithm",
-			iterations:    100,
-			jitter:        1,
 			expected:      N,
 			algorithm:     newRandom(eps),
 			algorithmName: "random",
 		}, {
 			name:          "roundrobin algorithm",
-			iterations:    100,
-			jitter:        1,
 			expected:      N,
 			algorithm:     newRoundRobin(eps),
 			algorithmName: "roundRobin",
 		}, {
 			name:          "consistentHash algorithm",
-			iterations:    100,
-			jitter:        0,
 			expected:      1,
 			algorithm:     newConsistentHash(eps),
 			algorithmName: "consistentHash",
 		}, {
 			name:          "powerOfRandomNChoices algorithm",
-			iterations:    100,
-			jitter:        0,
 			expected:      N,
 			algorithm:     newPowerOfRandomNChoices(eps),
 			algorithmName: "powerOfRandomNChoices",
@@ -270,9 +261,8 @@ func TestApply(t *testing.T) {
 				Route:   rt[0],
 			}
 
-			// test
 			h := make(map[string]int)
-			for i := 0; i < tt.iterations; i++ {
+			for i := 0; i < R; i++ {
 				lbe := tt.algorithm.Apply(lbctx)
 				h[lbe.Host] += 1
 			}
