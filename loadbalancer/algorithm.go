@@ -208,8 +208,7 @@ func (ch consistentHash) Len() int           { return len(ch) }
 func (ch consistentHash) Less(i, j int) bool { return ch[i].hash < ch[j].hash }
 func (ch consistentHash) Swap(i, j int)      { ch[i], ch[j] = ch[j], ch[i] }
 
-func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	const hashesPerEndpoint = 100
+func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
 	ch := consistentHash(make([]endpointHash, hashesPerEndpoint*len(endpoints)))
 	for i, ep := range endpoints {
 		endpointStartIndex := hashesPerEndpoint * i
@@ -219,6 +218,10 @@ func newConsistentHash(endpoints []string) routing.LBAlgorithm {
 	}
 	sort.Sort(ch)
 	return ch
+}
+
+func newConsistentHash(endpoints []string) routing.LBAlgorithm {
+	return newConsistentHashInternal(endpoints, 100)
 }
 
 func hash(s string) uint32 {

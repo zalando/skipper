@@ -413,34 +413,18 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 }
 
 func TestConsistentHashKeyDistribution(t *testing.T) {
-	endpoints := []string{"http://127.0.0.1:9001", "http://127.0.0.1:9002", "http://127.0.0.1:9003", "http://127.0.0.1:9004", "http://127.0.0.1:9005", "http://127.0.0.1:9006", "http://127.0.0.1:9007", "http://127.0.0.1:9008", "http://127.0.0.1:9009", "http://127.0.0.1:9010"}
-	counters := map[string]int{}
+	endpoints := []string{"http://abc.com:9001", "http://def.com9002", "http://ghi.com:9003", "http://jkl.com:9004", "http://mno.com:9005", "http://pqr.com:9006", "http://stu.com:9007", "http://vwx.com:9008", "http://yza.com:9009", "http://sjsjsjsj.com:9010"}
 
-	route := NewAlgorithmProvider().Do([]*routing.Route{{
-		Route: eskip.Route{
-			BackendType: eskip.LBBackend,
-			LBAlgorithm: ConsistentHash.String(),
-			LBEndpoints: endpoints,
-		},
-	}})[0]
-	ch := route.LBAlgorithm.(consistentHash)
-	for i := 0; i < 100_000; i++ {
-		ctx := makeCtx(route, i)
-		selected := ch.Apply(ctx)
-		counters[selected.Host] += 1
+	const requestCount = 100_000
+	stdDev1VNode := measureStdDev(t, endpoints, requestCount, 1)
+	stdDev100VNode := measureStdDev(t, endpoints, requestCount, 100)
+
+	if stdDev100VNode >= stdDev1VNode {
+		t.Errorf("The standard deviation percentage for request count per endpoint should have been less with more vnodes. 1 vnode std dev was %f, 100vnodes was %f", stdDev1VNode, stdDev100VNode)
 	}
-	counts := make([]int, 0, len(counters))
-	sum := 0
-	for _, v := range counters {
-		sum += v
-		counts = append(counts, v)
-	}
-	if sum != 100_000 {
-		t.Errorf("Sent 100,000 requests so should have selected 100,000 endpoints, got %d", sum)
-	}
-	stdDev := stdDeviation(counts, sum)
-	if stdDev >= 56 {
-		t.Errorf("Std deviation should be less than 56%%, but got %f%%", stdDev)
+
+	if stdDev100VNode >= 45 { // Chosen as arbitrary target. 1 vnode is about 86% and 100 vnodes is about 40%
+		t.Errorf("Standard deviation was too high for 100 vnodes, got %f", stdDev100VNode)
 	}
 }
 
@@ -450,19 +434,45 @@ func addInflightRequests(endpoint routing.LBEndpoint, count int) {
 	}
 }
 
+func measureStdDev(t *testing.T, endpoints []string, requestCount int, vnodes int) float64 {
+	route := NewAlgorithmProvider().Do([]*routing.Route{{
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: ConsistentHash.String(),
+			LBEndpoints: endpoints,
+		},
+	}})[0]
+	ch := newConsistentHashInternal(endpoints, vnodes)
+	counters := map[string]int{}
+	for i := 0; i < requestCount; i++ {
+		ctx := makeCtx(route, i)
+		selected := ch.Apply(ctx)
+		counters[selected.Host] += 1
+	}
+
+	sum := 0
+	for _, v := range counters {
+		sum += v
+	}
+	if sum != requestCount {
+		t.Errorf("Sent 100,000 requests so should have selected 100,000 endpoints, got %d", sum)
+	}
+	return stdDeviation(counters, sum)
+}
+
 func makeCtx(route *routing.Route, reqId int) *routing.LBContext {
 	sku := fmt.Sprintf("sku-%d", reqId)
 	r, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:9999/products/%s", sku), nil)
 	return &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashKey: sku}}
 }
 
-func stdDeviation(nums []int, sum int) float64 {
-	mean := float64(sum) / float64(len(nums))
+func stdDeviation(counters map[string]int, sum int) float64 {
+	mean := float64(sum) / float64(len(counters))
 	summedDiffs := 0.0
-	for _, v := range nums {
+	for _, v := range counters {
 		diff := float64(v) - mean
 		summedDiffs += diff * diff
 	}
-	stdDev := math.Sqrt(summedDiffs / float64(len(nums)))
+	stdDev := math.Sqrt(summedDiffs / float64(len(counters)))
 	return (stdDev * 100) / mean
 }
