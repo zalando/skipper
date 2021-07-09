@@ -3,7 +3,6 @@ package loadbalancer
 import (
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"math"
 	"math/rand"
 	"net/url"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	xxhash "github.com/cespare/xxhash/v2"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/net"
@@ -199,7 +199,7 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 type (
 	endpointHash struct {
 		index int    // index of endpoint in endpoint list
-		hash  uint32 // hash of endpoint
+		hash  uint64 // hash of endpoint
 	}
 	consistentHash []endpointHash // list of endpoints sorted by hash value
 )
@@ -224,10 +224,8 @@ func newConsistentHash(endpoints []string) routing.LBAlgorithm {
 	return newConsistentHashInternal(endpoints, 100)
 }
 
-func hash(s string) uint32 {
-	h := fnv.New32a()
-	h.Write([]byte(s))
-	return h.Sum32()
+func hash(s string) uint64 {
+	return xxhash.Sum64String(s)
 }
 
 // Returns index in hash ring with the closest hash to key's hash

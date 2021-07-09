@@ -400,9 +400,9 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		ep := ch.Apply(ctx)
-		ifr0 := route.LBEndpoints[ch[0].index].Metrics.GetInflightRequests()
-		ifr1 := route.LBEndpoints[ch[1].index].Metrics.GetInflightRequests()
-		ifr2 := route.LBEndpoints[ch[2].index].Metrics.GetInflightRequests()
+		ifr0 := route.LBEndpoints[0].Metrics.GetInflightRequests()
+		ifr1 := route.LBEndpoints[1].Metrics.GetInflightRequests()
+		ifr2 := route.LBEndpoints[2].Metrics.GetInflightRequests()
 		avg := float64(ifr0+ifr1+ifr2) / 3.0
 		limit := int(avg*balanceFactor) + 1
 		if ifr0 > limit || ifr1 > limit || ifr2 > limit {
@@ -415,9 +415,6 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 func TestConsistentHashKeyDistribution(t *testing.T) {
 	endpoints := []string{"http://10.2.0.1:8080", "http://10.2.0.2:8080", "http://10.2.0.3:8080", "http://10.2.0.4:8080", "http://10.2.0.5:8080", "http://10.2.0.6:8080", "http://10.2.0.7:8080", "http://10.2.0.8:8080", "http://10.2.0.9:8080", "http://10.2.0.10:8080"}
 
-	for i := 1; i < 101; i++ {
-		t.Logf("For %d vnode, standard deviation is %f", i, measureStdDev(t, endpoints, i))
-	}
 	stdDev1hashPerEndpoint := measureStdDev(t, endpoints, 1)
 	stdDev100HashesPerEndpoint := measureStdDev(t, endpoints, 100)
 
@@ -425,7 +422,7 @@ func TestConsistentHashKeyDistribution(t *testing.T) {
 		t.Errorf("Standard deviation with 100 hashes per endpoint should be lower than with 1 hash per endpoint. 100 hashes: %f, 1 hash: %f", stdDev100HashesPerEndpoint, stdDev1hashPerEndpoint)
 	}
 
-	if stdDev100HashesPerEndpoint >= 30 { // arbitrary target to flag accidental breaking changes. Currently is 24.44
+	if stdDev100HashesPerEndpoint >= 10 { // arbitrary target to flag accidental breaking changes. Currently is 5.93
 		t.Errorf("Standard deviation was too high for 100 vnodes, got %f", stdDev100HashesPerEndpoint)
 	}
 }
@@ -440,20 +437,20 @@ func addInflightRequests(endpoint routing.LBEndpoint, count int) {
 // i.e. Of the possible hashes, how many will go to each endpoint. Lower the standard deviation the better.
 func measureStdDev(t *testing.T, endpoints []string, hashesPerEndpoint int) float64 {
 	ch := newConsistentHashInternal(endpoints, hashesPerEndpoint).(consistentHash)
-	ringOwnership := map[int]uint{}
-	prevPartitionEndHash := uint(0)
+	ringOwnership := map[int]uint64{}
+	prevPartitionEndHash := uint64(0)
 	for i := 0; i < len(ch); i++ {
 		endpointIndex := ch[i].index
-		partitionEndHash := uint(ch[i].hash)
+		partitionEndHash := uint64(ch[i].hash)
 		ringOwnership[endpointIndex] += partitionEndHash - prevPartitionEndHash
 		prevPartitionEndHash = partitionEndHash
 	}
-	ringOwnership[0] += math.MaxUint32 - prevPartitionEndHash
+	ringOwnership[0] += math.MaxUint64 - prevPartitionEndHash
 	return stdDeviation(ringOwnership)
 }
 
-func stdDeviation(counters map[int]uint) float64 {
-	sum := uint(0)
+func stdDeviation(counters map[int]uint64) float64 {
+	sum := uint64(0)
 	for _, v := range counters {
 		sum += v
 	}
