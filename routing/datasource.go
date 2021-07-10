@@ -231,7 +231,11 @@ func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]Predica
 		return nil, fmt.Errorf("filter not found: '%s'", def.Name)
 	}
 
-	return spec.CreateFilter(def.Args)
+	f, err := spec.CreateFilter(def.Args)
+	if err != nil {
+		err = fmt.Errorf("failed to create '%s' filter: %w", def.Name, err)
+	}
+	return f, err
 }
 
 // creates filter instances based on their definition

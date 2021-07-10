@@ -128,6 +128,10 @@ func TestRandomArgs(t *testing.T) {
 		[]interface{}{"foo"},
 		true,
 	}, {
+		"negative length",
+		[]interface{}{-1.},
+		true,
+	}, {
 		"ok",
 		[]interface{}{float64(42)},
 		false,
@@ -136,8 +140,6 @@ func TestRandomArgs(t *testing.T) {
 		switch {
 		case err == nil && ti.err:
 			t.Error(ti.msg, "failed to fail")
-		case err != filters.ErrInvalidFilterParameters && ti.err:
-			t.Error(ti.msg, "failed to fail with the right error")
 		case err != nil && !ti.err:
 			t.Error(ti.msg, err)
 		}
@@ -582,8 +584,6 @@ func TestThrottleArgs(t *testing.T) {
 		switch {
 		case err == nil && ti.err:
 			t.Error(ti.msg, "failed to fail")
-		case err != filters.ErrInvalidFilterParameters && ti.err:
-			t.Error(ti.msg, "failed to fail with the right error")
 		case err != nil && !ti.err:
 			t.Error(ti.msg, err)
 		}
@@ -836,8 +836,6 @@ func TestLatencyArgs(t *testing.T) {
 			switch {
 			case err == nil && ti.err:
 				t.Errorf("failed to fail: %v", err)
-			case err != filters.ErrInvalidFilterParameters && ti.err:
-				t.Errorf("failed to fail with the right error: %v", err)
 			case err != nil && !ti.err:
 				t.Error(ti.msg, err)
 			}
