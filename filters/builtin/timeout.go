@@ -17,24 +17,8 @@ func NewBackendTimeout() filters.Spec {
 func (*timeout) Name() string { return filters.BackendTimeoutName }
 
 func (*timeout) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 1 {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-
-	var tf timeout
-	switch v := args[0].(type) {
-	case string:
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			return nil, err
-		}
-		tf.timeout = d
-	case time.Duration:
-		tf.timeout = v
-	default:
-		return nil, filters.ErrInvalidFilterParameters
-	}
-	return &tf, nil
+	a := filters.Args(args)
+	return &timeout{a.Duration()}, a.Err()
 }
 
 func (t *timeout) Request(ctx filters.FilterContext) {

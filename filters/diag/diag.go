@@ -8,7 +8,6 @@ additional filter, randomContent, can be used to generate response with random t
 package diag
 
 import (
-	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
@@ -189,15 +188,15 @@ func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalRespons
 func (r *random) Name() string { return filters.RandomContentName }
 
 func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 1 {
+	a := filters.Args(args)
+	len, err := a.Int64(), a.Err()
+	if err != nil {
+		return nil, err
+	}
+	if len < 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-
-	if l, ok := args[0].(float64); ok {
-		return &random{rand: rand.New(rand.NewSource(time.Now().UnixNano())), len: int64(l)}, nil // #nosec
-	} else {
-		return nil, filters.ErrInvalidFilterParameters
-	}
+	return &random{rand: rand.New(rand.NewSource(time.Now().UnixNano())), len: len}, nil // #nosec
 }
 
 func (r *random) Read(p []byte) (int, error) {
@@ -221,30 +220,14 @@ func (r *random) Response(ctx filters.FilterContext) {}
 func (r *repeat) Name() string { return filters.RepeatContentName }
 
 func (r *repeat) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 2 {
+	a := filters.Args(args)
+	text, len, err := a.String(), a.Int64(), a.Err()
+	if err != nil {
+		return nil, err
+	}
+	if text == "" || len < 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-
-	text, ok := args[0].(string)
-	if !ok || text == "" {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-
-	var len int64
-	switch v := args[1].(type) {
-	case float64:
-		len = int64(v)
-	case int:
-		len = int64(v)
-	case int64:
-		len = v
-	default:
-		return nil, filters.ErrInvalidFilterParameters
-	}
-	if len < 0 {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-
 	return &repeat{[]byte(text), len}, nil
 }
 
@@ -290,43 +273,19 @@ func (t *throttle) Name() string {
 	}
 }
 
-func parseDuration(v interface{}) (time.Duration, error) {
-	var d time.Duration
-
-	switch vt := v.(type) {
-	case float64:
-		d = time.Duration(vt) * time.Millisecond
-	case string:
-		var err error
-		d, err = time.ParseDuration(vt)
-		if err != nil {
-			return 0, filters.ErrInvalidFilterParameters
-		}
-	}
-
-	if d < 0 {
-		return 0, filters.ErrInvalidFilterParameters
-	}
-
-	return d, nil
-}
-
 func parseLatencyArgs(args []interface{}) (int, time.Duration, error) {
-	if len(args) != 1 {
-		return 0, 0, filters.ErrInvalidFilterParameters
-	}
-
-	d, err := parseDuration(args[0])
-	return 0, d, err
+	a := filters.Args(args)
+	return 0, a.DurationOrMilliseconds(), a.Err()
 }
 
 func parseBandwidthArgs(args []interface{}) (int, time.Duration, error) {
-	if len(args) != 1 {
-		return 0, 0, filters.ErrInvalidFilterParameters
-	}
+	a := filters.Args(args)
+	kbps, err := a.Float64(), a.Err()
 
-	kbps, ok := args[0].(float64)
-	if !ok || kbps <= 0 {
+	if err != nil {
+		return 0, 0, err
+	}
+	if kbps <= 0 {
 		return 0, 0, filters.ErrInvalidFilterParameters
 	}
 
@@ -335,17 +294,15 @@ func parseBandwidthArgs(args []interface{}) (int, time.Duration, error) {
 }
 
 func parseChunksArgs(args []interface{}) (int, time.Duration, error) {
-	if len(args) != 2 {
+	a := filters.Args(args)
+	size, d, err := a.Int(), a.DurationOrMilliseconds(), a.Err()
+	if err != nil {
+		return 0, 0, err
+	}
+	if size <= 0 {
 		return 0, 0, filters.ErrInvalidFilterParameters
 	}
-
-	size, ok := args[0].(float64)
-	if !ok || size <= 0 {
-		return 0, 0, filters.ErrInvalidFilterParameters
-	}
-
-	d, err := parseDuration(args[1])
-	return int(size), d, err
+	return size, d, nil
 }
 
 func (t *throttle) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -484,28 +441,12 @@ func (j *jitter) Name() string {
 }
 
 func (j *jitter) CreateFilter(args []interface{}) (filters.Filter, error) {
-	var (
-		mean  time.Duration
-		delta time.Duration
-		err   error
-	)
-
-	if len(args) != 2 {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-	if mean, err = parseDuration(args[0]); err != nil {
-		return nil, fmt.Errorf("failed to parse duration mean %v: %w", args[0], err)
-	}
-
-	if delta, err = parseDuration(args[1]); err != nil {
-		return nil, fmt.Errorf("failed to parse duration delta %v: %w", args[1], err)
-	}
-
+	a := filters.Args(args)
 	return &jitter{
 		typ:   j.typ,
-		mean:  mean,
-		delta: delta,
-	}, nil
+		mean:  a.DurationOrMilliseconds(),
+		delta: a.DurationOrMilliseconds(),
+	}, a.Err()
 }
 
 func (j *jitter) Request(filters.FilterContext) {
