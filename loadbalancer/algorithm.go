@@ -2,7 +2,7 @@ package loadbalancer
 
 import (
 	"errors"
-	"hash/fnv"
+	"fmt"
 	"math"
 	"math/rand"
 	"net/url"
@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	xxhash "github.com/cespare/xxhash/v2"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/net"
@@ -198,7 +199,7 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 type (
 	endpointHash struct {
 		index int    // index of endpoint in endpoint list
-		hash  uint32 // hash of endpoint
+		hash  uint64 // hash of endpoint
 	}
 	consistentHash []endpointHash // list of endpoints sorted by hash value
 )
@@ -207,19 +208,24 @@ func (ch consistentHash) Len() int           { return len(ch) }
 func (ch consistentHash) Less(i, j int) bool { return ch[i].hash < ch[j].hash }
 func (ch consistentHash) Swap(i, j int)      { ch[i], ch[j] = ch[j], ch[i] }
 
-func newConsistentHash(endpoints []string) routing.LBAlgorithm {
-	ch := consistentHash(make([]endpointHash, len(endpoints)))
+func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
+	ch := consistentHash(make([]endpointHash, hashesPerEndpoint*len(endpoints)))
 	for i, ep := range endpoints {
-		ch[i] = endpointHash{i, hash(ep)}
+		endpointStartIndex := hashesPerEndpoint * i
+		for j := 0; j < hashesPerEndpoint; j++ {
+			ch[endpointStartIndex+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
+		}
 	}
 	sort.Sort(ch)
 	return ch
 }
 
-func hash(s string) uint32 {
-	h := fnv.New32a()
-	h.Write([]byte(s))
-	return h.Sum32()
+func newConsistentHash(endpoints []string) routing.LBAlgorithm {
+	return newConsistentHashInternal(endpoints, 100)
+}
+
+func hash(s string) uint64 {
+	return xxhash.Sum64String(s)
 }
 
 // Returns index in hash ring with the closest hash to key's hash
