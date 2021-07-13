@@ -49,6 +49,7 @@ type ingress struct {
 	eastWestDomainRegexpPostfix string
 	eastWestRangeDomains        []string
 	eastWestRangePredicates     []*eskip.Predicate
+	allowedExternalNames        []*regexp.Regexp
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -71,6 +72,7 @@ func newIngress(o Options) *ingress {
 		eastWestDomainRegexpPostfix: ewPostfix,
 		eastWestRangeDomains:        o.KubernetesEastWestRangeDomains,
 		eastWestRangePredicates:     o.KubernetesEastWestRangePredicates,
+		allowedExternalNames:        o.AllowedExternalNames,
 	}
 }
 
@@ -122,12 +124,55 @@ func setPath(m PathMode, r *eskip.Route, p string) {
 	}
 }
 
+func externalNameRoute(
+	ns, name, idHost string,
+	hostRegexps []string,
+	svc *service,
+	servicePort *servicePort,
+	allowedNames []*regexp.Regexp,
+) (*eskip.Route, error) {
+	var allowed bool
+	for _, a := range allowedNames {
+		if a.MatchString(svc.Spec.ExternalName) {
+			allowed = true
+			break
+		}
+	}
+
+	if !allowed {
+		return nil, fmt.Errorf(
+			"ingress with not allowed external name service: %s",
+			svc.Spec.ExternalName,
+		)
+	}
+
+	scheme := "https"
+	if n, _ := servicePort.TargetPort.Number(); n != 443 {
+		scheme = "http"
+	}
+
+	u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, servicePort.TargetPort)
+	f, err := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
+	if err != nil {
+		return nil, err
+	}
+
+	return &eskip.Route{
+		Id:          routeID(ns, name, idHost, "", svc.Spec.ExternalName),
+		BackendType: eskip.NetworkBackend,
+		Backend:     u,
+		Filters:     f,
+		HostRegexps: hostRegexps,
+	}, nil
+}
+
 func convertPathRule(
 	state *clusterState,
 	metadata *definitions.Metadata,
 	host string,
 	prule *definitions.PathRule,
 	pathMode PathMode,
+	allowedExternalNames []*regexp.Regexp,
 ) (*eskip.Route, error) {
 
 	ns := metadata.Namespace
@@ -165,22 +210,7 @@ func convertPathRule(
 			log.Errorf("convertPathRule: Failed to find target port for service %s, but %d endpoints exist. Kubernetes has inconsistent data", svcName, len(eps))
 		}
 	} else if svc.Spec.Type == "ExternalName" {
-		scheme := "https"
-		if n, _ := servicePort.TargetPort.Number(); n != 443 {
-			scheme = "http"
-		}
-		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, servicePort.TargetPort)
-		f, e := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
-		if e != nil {
-			return nil, e
-		}
-		return &eskip.Route{
-			Id:          routeID(ns, name, host, "", svc.Spec.ExternalName),
-			BackendType: eskip.NetworkBackend,
-			Backend:     u,
-			Filters:     f,
-			HostRegexps: hostRegexp,
-		}, nil
+		return externalNameRoute(ns, name, host, hostRegexp, svc, servicePort, allowedExternalNames)
 	} else {
 		protocol := "http"
 		if p, ok := metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
@@ -283,7 +313,14 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 
 func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *definitions.PathRule) error {
 	meta := ic.ingress.Metadata
-	endpointsRoute, err := convertPathRule(ic.state, meta, host, prule, ic.pathMode)
+	endpointsRoute, err := convertPathRule(
+		ic.state,
+		meta,
+		host,
+		prule,
+		ic.pathMode,
+		ing.allowedExternalNames,
+	)
 	if err != nil {
 		// if the service is not found the route should be removed
 		if err == errServiceNotFound || err == errResourceNotFound {
@@ -468,7 +505,10 @@ func (ing *ingress) addSpecRule(ic ingressContext, ru *definitions.Rule) error {
 }
 
 // converts the default backend if any
-func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.IngressItem) (*eskip.Route, bool, error) {
+func (ing *ingress) convertDefaultBackend(
+	state *clusterState,
+	i *definitions.IngressItem,
+) (*eskip.Route, bool, error) {
 	// the usage of the default backend depends on what we want
 	// we can generate a hostname out of it based on shared rules
 	// and instructions in annotations, if there are no rules defined
@@ -500,21 +540,8 @@ func (ing *ingress) convertDefaultBackend(state *clusterState, i *definitions.In
 		log.Errorf("convertDefaultBackend: Failed to find target port %v, %s, for ingress %s/%s and service %s add shuntroute: %v", svc.Spec.Ports, svcPort, ns, name, svcName, err)
 		err = nil
 	} else if svc.Spec.Type == "ExternalName" {
-		scheme := "https"
-		if n, _ := servicePort.TargetPort.Number(); n != 443 {
-			scheme = "http"
-		}
-		u := fmt.Sprintf("%s://%s:%s", scheme, svc.Spec.ExternalName, servicePort.TargetPort)
-		f, err := eskip.ParseFilters(fmt.Sprintf(`setRequestHeader("Host", "%s")`, svc.Spec.ExternalName))
-		if err != nil {
-			return nil, false, err
-		}
-		return &eskip.Route{
-			Id:          routeID(ns, name, "default", "", svc.Spec.ExternalName),
-			BackendType: eskip.NetworkBackend,
-			Backend:     u,
-			Filters:     f,
-		}, true, nil
+		r, err := externalNameRoute(ns, name, "default", nil, svc, servicePort, ing.allowedExternalNames)
+		return r, err == nil, err
 	} else {
 		log.Debugf("convertDefaultBackend: Found target port %v, for service %s", servicePort.TargetPort, svcName)
 		protocol := "http"
@@ -647,9 +674,9 @@ func (ing *ingress) ingressRoute(
 	hostRoutes map[string][]*eskip.Route,
 	df defaultFilters,
 ) (*eskip.Route, error) {
-	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" ||
-		i.Spec == nil {
-		log.Error("invalid ingress item: missing Metadata")
+	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
+		log.Info(i.Metadata.Name, i.Metadata == nil, i.Metadata.Namespace == "", i.Metadata.Name == "", i.Spec == nil)
+		log.Error("invalid ingress item: missing Metadata or Spec")
 		return nil, nil
 	}
 	logger := log.WithFields(log.Fields{

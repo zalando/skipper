@@ -39,6 +39,7 @@ type kubeOptionsParser struct {
 	HTTPSRedirect           bool               `yaml:"httpsRedirect"`
 	HTTPSRedirectCode       int                `yaml:"httpsRedirectCode"`
 	BackendNameTracingTag   bool               `yaml:"backendNameTracingTag"`
+	AllowedExternalNames    []string           `yaml:"allowedExternalNames"`
 }
 
 func baseNoExt(n string) string {
@@ -127,6 +128,20 @@ func safeFileClose(t *testing.T, fd *os.File) {
 	}
 }
 
+func compileRegexps(s []string) ([]*regexp.Regexp, error) {
+	var r []*regexp.Regexp
+	for _, si := range s {
+		ri, err := regexp.Compile(si)
+		if err != nil {
+			return nil, err
+		}
+
+		r = append(r, ri)
+	}
+
+	return r, nil
+}
+
 func testFixture(t *testing.T, f fixtureSet) {
 	var resources []io.Reader
 	if f.resources != "" {
@@ -198,6 +213,13 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
 		o.BackendNameTracingTag = kop.BackendNameTracingTag
+
+		aen, err := compileRegexps(kop.AllowedExternalNames)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		o.AllowedExternalNames = aen
 	}
 
 	o.KubernetesURL = s.URL
@@ -265,30 +287,32 @@ func testFixture(t *testing.T, f fixtureSet) {
 	}
 }
 
-func FixturesToTest(t *testing.T, dir string) {
-	if !filepath.IsAbs(dir) {
-		wd, err := os.Getwd()
+func FixturesToTest(t *testing.T, dirs ...string) {
+	for _, dir := range dirs {
+		if !filepath.IsAbs(dir) {
+			wd, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			dir = filepath.Join(wd, dir)
+		}
+
+		d, err := os.Open(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer safeFileClose(t, d)
+
+		fs, err := d.Readdir(0)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		dir = filepath.Join(wd, dir)
-	}
-
-	d, err := os.Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer safeFileClose(t, d)
-
-	fs, err := d.Readdir(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rangeOverFixtures(t, dir, fs, func(f fixtureSet) {
-		t.Run(f.name, func(t *testing.T) {
-			testFixture(t, f)
+		rangeOverFixtures(t, dir, fs, func(f fixtureSet) {
+			t.Run(f.name, func(t *testing.T) {
+				testFixture(t, f)
+			})
 		})
-	})
+	}
 }
