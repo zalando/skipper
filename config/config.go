@@ -142,6 +142,7 @@ type Config struct {
 	KubernetesEastWestRangeDomains          *listFlag           `yaml:"kubernetes-east-west-range-domains"`
 	KubernetesEastWestRangePredicatesString string              `yaml:"kubernetes-east-west-range-predicates"`
 	KubernetesEastWestRangePredicates       []*eskip.Predicate  `yaml:"-"`
+	KubernetesAllowedExternalNames          regexpListFlag      `yaml:"kubernetes-allowed-external-names"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -366,6 +367,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "*Deprecated*: use kubernetes-east-west-range feature. Sets the east-west domain, defaults to .skipper.cluster.local")
 	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
 	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
+	flag.Var(&cfg.KubernetesAllowedExternalNames, "kubernetes-allowed-external-name", "set zero or more regular expressions from which at least one should be matched by the external name services, route group network addresses and explicit endpoints domain names")
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
@@ -649,6 +651,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesEastWestDomain:          c.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:    c.KubernetesEastWestRangeDomains.values,
 		KubernetesEastWestRangePredicates: c.KubernetesEastWestRangePredicates,
+		KubernetesAllowedExternalNames:    c.KubernetesAllowedExternalNames,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,

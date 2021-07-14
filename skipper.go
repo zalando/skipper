@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -205,6 +206,10 @@ type Options struct {
 	// KubernetesEastWestRangePredicates set the Predicates that will be
 	// appended to routes identified as to KubernetesEastWestRangeDomains.
 	KubernetesEastWestRangePredicates []*eskip.Predicate
+
+	// KubernetesAllowedExternalNames contains regexp patterns of those domain names that are allowed to be
+	// used with external name services (type=ExternalName).
+	KubernetesAllowedExternalNames []*regexp.Regexp
 
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -848,6 +853,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			DefaultFiltersDir:                 o.DefaultFiltersDir,
 			OriginMarker:                      o.EnableRouteCreationMetrics,
 			BackendNameTracingTag:             o.OpenTracingBackendNameTag,
+			AllowedExternalNames:              o.KubernetesAllowedExternalNames,
 		})
 		if err != nil {
 			return nil, err

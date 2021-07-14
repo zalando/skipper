@@ -173,7 +173,7 @@ type Options struct {
 	// (using tracingTag filter) should be added to all routes
 	BackendNameTracingTag bool
 
-	// KubernetesAllowedExternalNames contains regexp patterns of those domain names that are allowed to be
+	// AllowedExternalNames contains regexp patterns of those domain names that are allowed to be
 	// used with external name services (type=ExternalName).
 	AllowedExternalNames []*regexp.Regexp
 }
