@@ -37,9 +37,9 @@ docker-build: docker.build.amd64 docker.build.arm64 docker.build.armv7
 docker.build.amd64: clean skipper eskip webhook
 	docker build -t $(IMAGE) .
 docker.build.arm64: clean build.linux.arm64 docker.build.enable
-	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 .
+	docker buildx build -t $(ARM64_IMAGE) --load --platform "linux/arm64" -f Dockerfile.arm64 .
 docker.build.armv7: clean build.linux.armv7 docker.build.enable
-	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.arm .
+	docker buildx build -t $(ARM_IMAGE) --load --platform "linux/arm/v7" -f Dockerfile.arm .
 
 docker-push: docker.push.amd64 docker.push.arm64 docker.push.armv7
 docker.push.amd64:
@@ -52,10 +52,23 @@ docker.push.armv7: docker.build.armv7
 # https://docs.docker.com/build/working-with-build/
 # ~/.docker/config.json add: "experimental": "enabled",
 docker.build.enable:
+	[ $$(which qemu-aarch64-static) ] || echo "please install qemu-user-static"
 	[ $$(which jq) ] || echo "please install jq"
 	[ -d $$HOME/.docker ] || mkdir $$HOME/.docker
 	[ -f $$HOME/.docker/config.json ] || touch $$HOME/.docker/config.json
 	if [ -s $$HOME/.docker/config.json ]; then jq -r '. += {experimental: "enabled"}' $$HOME/.docker/config.json > $$HOME/.docker/config.json.new; mv $$HOME/.docker/config.json.new $$HOME/.docker/config.json; else echo '{"experimental": "enabled"}' >$$HOME/.docker/config.json; fi
+	@echo "##### show infos #####"
+	lsb_release -a
+	uname -a
+	ls /proc/sys/fs/binfmt_misc/
+	cat /proc/sys/fs/binfmt_misc/qemu-aarch64
+	docker buildx ls
+	#docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+	#ls /proc/sys/fs/binfmt_misc/
+	docker buildx create --name skipper --use
+	docker buildx inspect --bootstrap
+	docker buildx ls
+	@echo "##### END infos #####"
 
 build.linux: $(SOURCES) build.linux.amd64 build.linux.arm64 build.linux.armv7
 
