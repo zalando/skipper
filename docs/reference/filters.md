@@ -4,8 +4,9 @@ The parameters can be strings, regex or float64 / int
 
 * `string` is a string surrounded by double quotes (`"`)
 * `regex` is a regular expression, surrounded by `/`, e.g. `/^www\.example\.org(:\d+)?$/`
-* `int` / `float64` are usual (decimal) numbers like `401` or `1.23456`
-* `time` is a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
+* `int` an integer decimal number like `401` or `1.0`
+* `float64` a decimal number like `401` or `1.23456`
+* `duration` is a string in double quotes, parsable by [time.Duration](https://godoc.org/time#ParseDuration) or a decimal number of milliseconds
 
 Filters are a generic tool and can change HTTP header and body in the request and response path.
 Filter can be chained using the arrow operator `->`.
@@ -550,7 +551,7 @@ status and truncated response body.
 
 Parameters:
 
-* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+* timeout (duration)
 
 Example:
 
@@ -595,7 +596,7 @@ the second parameter to "0".
 Parameters:
 
 * byte length (int)
-* time duration (time.Duration)
+* time duration (duration)
 
 Example:
 
@@ -1483,9 +1484,9 @@ open state. If all succeed, it goes to closed state again.
 Parameters:
 
 * number of consecutive failures to open (int)
-* timeout (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* timeout (duration) - optional
 * half-open requests (int) - optional
-* idle-ttl (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* idle-ttl (duration) - optional
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
@@ -1502,9 +1503,9 @@ and allows the same breaker characteristics for low and high rate traffic.
 Parameters:
 
 * number of consecutive failures to open (int)
-* sliding window (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
+* sliding window (duration)
 * half-open requests (int) - optional
-* idle-ttl (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* idle-ttl (duration) - optional
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
@@ -1560,7 +1561,7 @@ Memory usage examples:
 Parameters:
 
 * number of allowed requests per time period (int)
-* time period for requests being counted (time.Duration)
+* time period for requests being counted (duration)
 * optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
 
 ```
@@ -1580,7 +1581,7 @@ command line flag `-enable-ratelimits`.
 Parameters:
 
 * number of allowed requests per time period (int)
-* time period for requests being counted (time.Duration)
+* time period for requests being counted (duration)
 * response status code to use for a rate limited request - optional, default: 429
 
 ```
@@ -1608,7 +1609,7 @@ Parameters:
 
 * rate limit group (string)
 * number of allowed requests per time period (int)
-* time period for requests being counted (time.Duration)
+* time period for requests being counted (duration)
 * optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
 
 ```
@@ -1633,7 +1634,7 @@ Parameters:
 
 * rate limit group (string)
 * number of allowed requests per time period (int)
-* time period for requests being counted (time.Duration)
+* time period for requests being counted (duration)
 * response status code to use for a rate limited request - optional, default: 429
 
 ```
@@ -1662,7 +1663,7 @@ Parameters:
 
 * rate limit group (string)
 * number of allowed requests per time period (int)
-* timeframe for requests being counted (time.Duration)
+* timeframe for requests being counted (duration)
 * response status code to use for rejected requests - optional, default: 503
 
 Multiple filter definitions using the same group must use the same number of allowed requests and timeframe values.
@@ -2187,7 +2188,7 @@ Parameters:
 
 * MaxConcurrency specifies how many goroutines are allowed to work on this queue(int)
 * MaxQueueSize sets the queue size (int)
-* Timeout sets the timeout to get request scheduled (time)
+* Timeout sets the timeout to get request scheduled (duration)
 
 Example:
 
@@ -2210,7 +2211,7 @@ Parameters:
 * GroupName to group multiple one or many routes to the same queue, which have to have the same settings (string)
 * MaxConcurrency specifies how many goroutines are allowed to work on this queue(int)
 * MaxQueueSize sets the queue size (int)
-* Timeout sets the timeout to get request scheduled (time)
+* Timeout sets the timeout to get request scheduled (duration)
 
 Example:
 
