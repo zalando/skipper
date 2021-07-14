@@ -16,15 +16,21 @@ list happens only in the Kubernetes Ingress mode of Skipper.
 
 ### Specifying allowed external names via command line flags
 
+For compatibility reasons, the validation needs to be enabled with an explitic toggle:
+
 ```
 skipper -kubernetes \
+-kubernetes-only-allowed-external-names \
 -kubernetes-allowed-external-name "^one[.]example[.]org$" \
 -kubernetes-allowed-external-name "^two[.]example[.]org$"
 ```
 
 ### Specifying allowed external names via a config file
 
+For compatibility reasons, the validation needs to be enabled with an explitic toggle:
+
 ```
+kubernetes-only-allowed-external-names: true
 kubernetes-allowed-external-names:
 - ^one[.]example[.]org$
 - ^two[.]example[.]org$
