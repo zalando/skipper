@@ -35,18 +35,18 @@ var (
 )
 
 type Metadata struct {
-	Namespace   string            `json:"namespace"`
+	Namespace   string            `json:"namespace,omitempty" yaml:",omitempty"`
 	Name        string            `json:"name"`
-	Created     time.Time         `json:"creationTimestamp"`
-	Uid         string            `json:"uid"`
-	Annotations map[string]string `json:"annotations"`
+	Created     time.Time         `json:"creationTimestamp,omitempty" yaml:",omitempty"`
+	Uid         string            `json:"uid,omitempty" yaml:",omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty" yaml:",omitempty"`
 }
 
 type RouteGroupSpec struct {
 	// Hosts specifies the host headers, that will be matched for
 	// all routes created by this route group. No hosts mean
 	// catchall.
-	Hosts []string `json:"hosts,omitempty"`
+	Hosts []string `json:"hosts,omitempty" yaml:",omitempty"`
 
 	// Backends specify the list of backends that can be
 	// referenced from routes or DefaultBackends.
@@ -56,7 +56,7 @@ type RouteGroupSpec struct {
 	// backend which is applied to all routes, if no override was
 	// added to a route. A special case is Traffic Switching which
 	// will have more than one default backend definition.
-	DefaultBackends []*BackendReference `json:"defaultBackends,omitempty"`
+	DefaultBackends []*BackendReference `json:"defaultBackends,omitempty" yaml:"defaultBackends,omitempty"`
 
 	// Routes specifies the list of route based on path, method
 	// and predicates. It defaults to catchall, if there are no
@@ -112,43 +112,43 @@ type skipperBackendParser struct {
 	Endpoints []string `json:"endpoints"`
 
 	// ServiceName is required for Type service
-	ServiceName string `json:"serviceName"`
+	ServiceName string `json:"serviceName" yaml:"serviceName"`
 
 	// ServicePort is required for Type service
-	ServicePort int `json:"servicePort"`
+	ServicePort int `json:"servicePort" yaml:"servicePort"`
 }
 
 type BackendReference struct {
 	// BackendName references the skipperBackend by name
-	BackendName string `json:"backendName"`
+	BackendName string `json:"backendName" yaml:"backendName"`
 
 	// Weight defines the traffic weight, if there are 2 or more
 	// default backends
-	Weight int `json:"weight"`
+	Weight int `json:"weight" yaml:",omitempty"`
 }
 
 type RouteSpec struct {
 	// Path specifies Path predicate, only one of Path or PathSubtree is allowed
-	Path string `json:"path,omitempty"`
+	Path string `json:"path,omitempty" yaml:",omitempty"`
 
 	// PathSubtree specifies PathSubtree predicate, only one of Path or PathSubtree is allowed
-	PathSubtree string `json:"pathSubtree,omitempty"`
+	PathSubtree string `json:"pathSubtree,omitempty" yaml:"pathSubtree,omitempty"`
 
 	// PathRegexp can be added additionally
-	PathRegexp string `json:"pathRegexp,omitempty"`
+	PathRegexp string `json:"pathRegexp,omitempty" yaml:"pathRegexp,omitempty"`
 
 	// Backends specifies the list of backendReference that should
 	// be applied to override the defaultBackends
-	Backends []*BackendReference `json:"backends,omitempty"`
+	Backends []*BackendReference `json:"backends,omitempty" yaml:",omitempty"`
 
 	// Filters specifies the list of filters applied to the RouteSpec
-	Filters []string `json:"filters,omitempty"`
+	Filters []string `json:"filters,omitempty" yaml:",omitempty"`
 
 	// Predicates specifies the list of predicates applied to the RouteSpec
-	Predicates []string `json:"predicates,omitempty"`
+	Predicates []string `json:"predicates,omitempty" yaml:",omitempty"`
 
 	// Methods defines valid HTTP methods for the specified RouteSpec
-	Methods []string `json:"methods,omitempty"`
+	Methods []string `json:"methods,omitempty" yaml:",omitempty"`
 }
 
 func (meta *Metadata) ToResourceID() ResourceID {
@@ -254,17 +254,44 @@ func (sb *SkipperBackend) validate() error {
 	return nil
 }
 
-// UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
-func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
-	if sb == nil {
-		return nil
+func (sb *SkipperBackend) marshalObject() interface{} {
+	m := make(map[string]interface{})
+	m["name"] = sb.Name
+	if sb.Type == ServiceBackend {
+		m["type"] = "service"
+	} else {
+		m["type"] = sb.Type.String()
 	}
 
-	var p skipperBackendParser
-	if err := json.Unmarshal(value, &p); err != nil {
-		return err
+	if sb.Address != "" {
+		m["address"] = sb.Address
 	}
 
+	if sb.ServiceName != "" {
+		m["serviceName"] = sb.ServiceName
+	}
+
+	if sb.Type == ServiceBackend {
+		m["servicePort"] = sb.ServicePort
+	}
+
+	if sb.Type == eskip.LBBackend {
+		m["algorithm"] = sb.Algorithm.String()
+	}
+
+	if len(sb.Endpoints) > 0 {
+		m["endpoints"] = sb.Endpoints
+	}
+
+	return m
+}
+
+func (sb *SkipperBackend) MarshalJSON() ([]byte, error) {
+	o := sb.marshalObject()
+	return json.Marshal(o)
+}
+
+func backendFromParser(p skipperBackendParser) SkipperBackend {
 	var perr error
 	bt, err := backendTypeFromString(p.Type)
 	if err != nil {
@@ -282,7 +309,7 @@ func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
 		perr = err
 	}
 
-	if a == loadbalancer.None {
+	if a == loadbalancer.None && (bt == eskip.LBBackend || bt == ServiceBackend) {
 		a = loadbalancer.RoundRobin
 	}
 
@@ -295,8 +322,59 @@ func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
 	b.Algorithm = a
 	b.Endpoints = p.Endpoints
 	b.parseError = perr
+	return b
+}
 
-	*sb = b
+// UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
+func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
+	var p skipperBackendParser
+	if err := json.Unmarshal(value, &p); err != nil {
+		return err
+	}
+
+	*sb = backendFromParser(p)
+	return nil
+}
+
+func (sb *SkipperBackend) MarshalYAML() (interface{}, error) {
+	m := make(map[string]interface{})
+	m["name"] = sb.Name
+	if sb.Type == ServiceBackend {
+		m["type"] = "service"
+	} else {
+		m["type"] = sb.Type.String()
+	}
+
+	if sb.Address != "" {
+		m["address"] = sb.Address
+	}
+
+	if sb.ServiceName != "" {
+		m["serviceName"] = sb.ServiceName
+	}
+
+	if sb.Type == ServiceBackend {
+		m["servicePort"] = sb.ServicePort
+	}
+
+	if sb.Type == eskip.LBBackend || sb.Type == ServiceBackend {
+		m["algorithm"] = sb.Algorithm.String()
+	}
+
+	if len(sb.Endpoints) > 0 {
+		m["endpoints"] = sb.Endpoints
+	}
+
+	return m, nil
+}
+
+func (sb *SkipperBackend) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var p skipperBackendParser
+	if err := unmarshal(&p); err != nil {
+		return err
+	}
+
+	*sb = backendFromParser(p)
 	return nil
 }
 

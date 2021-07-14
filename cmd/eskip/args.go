@@ -1,17 +1,3 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package main
 
 import (
@@ -26,21 +12,24 @@ import (
 )
 
 const (
-	etcdUrlsFlag       = "etcd-urls"
-	etcdPrefixFlag     = "etcd-prefix"
-	etcdOAuthTokenFlag = "etcd-oauth-token"
-	innkeeperUrlFlag   = "innkeeper-url"
-	oauthTokenFlag     = "oauth-token"
-	inlineRoutesFlag   = "routes"
-	inlineIdsFlag      = "ids"
-	insecureFlag       = "insecure"
-	prependFiltersFlag = "prepend"
-	prependFileFlag    = "prepend-file"
-	appendFiltersFlag  = "append"
-	appendFileFlag     = "append-file"
-	prettyFlag         = "pretty"
-	indentStrFlag      = "indent"
-	jsonFlag           = "json"
+	etcdUrlsFlag            = "etcd-urls"
+	etcdPrefixFlag          = "etcd-prefix"
+	etcdOAuthTokenFlag      = "etcd-oauth-token"
+	innkeeperUrlFlag        = "innkeeper-url"
+	oauthTokenFlag          = "oauth-token"
+	inlineRoutesFlag        = "routes"
+	inlineIdsFlag           = "ids"
+	insecureFlag            = "insecure"
+	prependFiltersFlag      = "prepend"
+	prependFileFlag         = "prepend-file"
+	appendFiltersFlag       = "append"
+	appendFileFlag          = "append-file"
+	prettyFlag              = "pretty"
+	indentStrFlag           = "indent"
+	jsonFlag                = "json"
+	kubernetesNameFlag      = "name"
+	kubernetesNamespaceFlag = "namespace"
+	hostnameFlag            = "hostname"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -62,21 +51,24 @@ var (
 
 // parsing vars for flags:
 var (
-	etcdUrls          string
-	etcdPrefix        string
-	innkeeperUrl      string
-	oauthToken        string
-	etcdOAuthToken    string
-	inlineRoutes      string
-	inlineRouteIds    string
-	insecure          bool
-	prependFiltersArg string
-	prependFileArg    string
-	appendFiltersArg  string
-	appendFileArg     string
-	pretty            bool
-	indentStr         string
-	printJson         bool
+	etcdUrls               string
+	etcdPrefix             string
+	innkeeperUrl           string
+	oauthToken             string
+	etcdOAuthToken         string
+	inlineRoutes           string
+	inlineRouteIds         string
+	insecure               bool
+	prependFiltersArg      string
+	prependFileArg         string
+	appendFiltersArg       string
+	appendFileArg          string
+	pretty                 bool
+	indentStr              string
+	printJson              bool
+	kubernetesNameArg      string
+	kubernetesNamespaceArg string
+	hostname               string
 )
 
 var (
@@ -112,6 +104,10 @@ func initFlags() {
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
 	flags.StringVar(&indentStr, indentStrFlag, "  ", indentStrUsage)
 	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
+
+	flags.StringVar(&kubernetesNameArg, kubernetesNameFlag, "", kubernetesNameUsage)
+	flags.StringVar(&kubernetesNamespaceArg, kubernetesNamespaceFlag, "", kubernetesNamespaceUsage)
+	flags.StringVar(&hostname, hostnameFlag, "", hostnameUsage)
 }
 
 func init() {
@@ -253,6 +249,24 @@ func processPatchArgs(pfilters, pfile, afilters, afile string) []*medium {
 	return media
 }
 
+func processKubernetesArgs(name, namespace, hostname string) []*medium {
+	var media []*medium
+	if name != "" {
+		media = append(media, &medium{typ: kubernetesName, kubernetesName: name})
+	}
+
+	if namespace != "" {
+		media = append(media, &medium{typ: kubernetesNamespace, kubernetesNamespace: namespace})
+	}
+
+	hns := strings.Split(hostname, ",")
+	if len(hns) > 1 || hns[0] != "" {
+		media = append(media, &medium{typ: hostnames, hostnames: hns})
+	}
+
+	return media
+}
+
 // returns media detected from the executing command.
 func processArgs() ([]*medium, error) {
 	err := flags.Parse(os.Args[2:])
@@ -261,9 +275,7 @@ func processArgs() ([]*medium, error) {
 	}
 
 	var media []*medium
-
 	innkeeperArg, err := processInnkeeperArgs(innkeeperUrl, oauthToken)
-
 	if err != nil {
 		return nil, err
 	}
@@ -284,13 +296,15 @@ func processArgs() ([]*medium, error) {
 	if inlineRoutes != "" {
 		media = append(media, &medium{
 			typ:   inline,
-			eskip: inlineRoutes})
+			eskip: inlineRoutes,
+		})
 	}
 
 	if inlineRouteIds != "" {
 		media = append(media, &medium{
 			typ: inlineIds,
-			ids: strings.Split(inlineRouteIds, ",")})
+			ids: strings.Split(inlineRouteIds, ","),
+		})
 	}
 
 	fileArg, err := processFileArg()
@@ -307,15 +321,26 @@ func processArgs() ([]*medium, error) {
 		media = append(media, fileArg)
 	} else {
 		stdinArg := processStdin()
-
 		if stdinArg != nil {
 			media = append(media, stdinArg)
 		}
 	}
 
 	patchMedia := processPatchArgs(
-		prependFiltersArg, prependFileArg, appendFiltersArg, appendFileArg)
+		prependFiltersArg,
+		prependFileArg,
+		appendFiltersArg,
+		appendFileArg,
+	)
+
 	media = append(media, patchMedia...)
 
+	kube := processKubernetesArgs(
+		kubernetesNameArg,
+		kubernetesNamespaceArg,
+		hostname,
+	)
+
+	media = append(media, kube...)
 	return media, nil
 }

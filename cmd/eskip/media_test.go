@@ -69,7 +69,7 @@ func TestValidateSelectMedia(t *testing.T) {
 		"check",
 		[]*medium{{}, {}},
 		true,
-		tooManyInputs,
+		errTooManyInputs,
 		nil,
 		nil,
 	}, {
@@ -78,7 +78,7 @@ func TestValidateSelectMedia(t *testing.T) {
 		"check",
 		[]*medium{{typ: inlineIds}},
 		true,
-		invalidInputType,
+		errInvalidInputType,
 		nil,
 		nil,
 	}, {
@@ -119,7 +119,7 @@ func TestValidateSelectMedia(t *testing.T) {
 		"upsert",
 		nil,
 		true,
-		missingInput,
+		errMissingInput,
 		nil,
 		nil,
 	}, {
@@ -128,7 +128,7 @@ func TestValidateSelectMedia(t *testing.T) {
 		"upsert",
 		[]*medium{{typ: stdin}, {typ: file}, {typ: etcd}},
 		true,
-		tooManyInputs,
+		errTooManyInputs,
 		nil,
 		nil,
 	}, {
@@ -137,7 +137,7 @@ func TestValidateSelectMedia(t *testing.T) {
 		"upsert",
 		[]*medium{{typ: inlineIds}},
 		true,
-		invalidInputType,
+		errInvalidInputType,
 		nil,
 		nil,
 	}, {
@@ -155,7 +155,7 @@ func TestValidateSelectMedia(t *testing.T) {
 		"delete",
 		[]*medium{{typ: innkeeper}},
 		true,
-		missingInput,
+		errMissingInput,
 		nil,
 		nil,
 	}, {
@@ -173,7 +173,7 @@ func TestValidateSelectMedia(t *testing.T) {
 		"upsert",
 		[]*medium{{typ: inlineIds}},
 		true,
-		invalidInputType,
+		errInvalidInputType,
 		nil,
 		nil,
 	}, {

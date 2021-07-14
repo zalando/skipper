@@ -54,6 +54,10 @@ Copy all routes in etcd under a different prefix:
 
     eskip print | eskip upsert -etcd-prefix /skipper-backup
 
+Convert an eskip routes file into a routegroup:
+
+    eskip routegroup -name my-routegroup -namespace sunshine -hostname www.example.org,www.example.com routes.eskip
+
 (Where -etcd-urls is not set for write operations like upsert, reset and
 delete, the default etcd cluster urls are used:
 http://127.0.0.1:2379,http://127.0.0.1:4001)
@@ -70,21 +74,24 @@ const (
 	helpHint = "To print eskip usage, enter: eskip -help"
 
 	// flag usage strings:
-	etcdUrlsUsage       = "urls of nodes in an etcd cluster"
-	etcdPrefixUsage     = "path prefix for routes in etcd"
-	innkeeperUrlUsage   = "url for the innkeeper service"
-	oauthTokenUsage     = "oauth token used to authenticate to innkeeper"
-	etcdOAuthTokenUsage = "oauth token used to authenticate to etcd"
-	inlineRoutesUsage   = "inline: routes in eskip format"
-	inlineIdsUsage      = "inline ids: comma separated route ids"
-	insecureUsage       = "skip TLS certificate verification"
-	prependFiltersUsage = "prepend filters to each patched route"
-	prependFileUsage    = "prepend filters from a file to each patched route"
-	appendFiltersUsage  = "append filters to each patched route"
-	appendFileUsage     = "append filters from a file to each patched route"
-	prettyUsage         = "prints routes in a more readable format"
-	indentStrUsage      = "indent string used in pretty printing. Must match regexp \\s"
-	jsonUsage           = "prints routes as JSON"
+	etcdUrlsUsage            = "urls of nodes in an etcd cluster"
+	etcdPrefixUsage          = "path prefix for routes in etcd"
+	innkeeperUrlUsage        = "url for the innkeeper service"
+	oauthTokenUsage          = "oauth token used to authenticate to innkeeper"
+	etcdOAuthTokenUsage      = "oauth token used to authenticate to etcd"
+	inlineRoutesUsage        = "inline: routes in eskip format"
+	inlineIdsUsage           = "inline ids: comma separated route ids"
+	insecureUsage            = "skip TLS certificate verification"
+	prependFiltersUsage      = "prepend filters to each patched route"
+	prependFileUsage         = "prepend filters from a file to each patched route"
+	appendFiltersUsage       = "append filters to each patched route"
+	appendFileUsage          = "append filters from a file to each patched route"
+	prettyUsage              = "prints routes in a more readable format"
+	indentStrUsage           = "indent string used in pretty printing. Must match regexp \\s"
+	jsonUsage                = "prints routes as JSON"
+	kubernetesNameUsage      = "Kubernetes resource name of the generated routegroup"
+	kubernetesNamespaceUsage = "Kubernetes namespace of the generated routegroup"
+	hostnameUsage            = "hostname used with routegroups, optionally multiple, comma separated"
 
 	// command line help (1):
 	help1 = `Usage: eskip <command> [media flags] [--] [file]
@@ -120,33 +127,36 @@ Media flags:
 	help2 = `
 Commands:
 
-check    verifies the syntax of routes. Accepts one input medium
-         of the following types: etcd (default), stdin, file, inline.
-         Example:
-         eskip check -etcd-urls http://etcd.example.org
+check      verifies the syntax of routes. Accepts one input medium
+           of the following types: etcd (default), stdin, file, inline.
+           Example:
+           eskip check -etcd-urls http://etcd.example.org
 
-print    same as check, but also prints the routes.
+print      same as check, but also prints the routes.
 
-upsert   insert/update routes from input to output. Expects one input
-         medium of the following types: stdin, file, inline.
-         Automatically selects etcd as output. Example:
-         eskip upsert routes.eskip
+upsert     insert/update routes from input to output. Expects one input
+           medium of the following types: stdin, file, inline.
+           Automatically selects etcd as output. Example:
+           eskip upsert routes.eskip
 
-reset    same as upsert, but also deletes the routes from the output
-         that are not found in the input.
+reset      same as upsert, but also deletes the routes from the output
+           that are not found in the input.
 
-delete   deletes routes from the output that are specified in the input.
-         Expects one input medium of the following types: stdin, file,
-         inline, inline ids. Automatically selects etcd as output.
-         Example:
-         eskip delete -ids route1,route2,route3
+delete     deletes routes from the output that are specified in the input.
+           Expects one input medium of the following types: stdin, file,
+           inline, inline ids. Automatically selects etcd as output.
+           Example:
+           eskip delete -ids route1,route2,route3
 
-patch    takes a list of routes as input from any media except of inline
-         ids, and prepends or appends a common filter chain to each
-		 route. Example:
-		 eskip patch -append 'filter1() -> filter2()'
+patch      takes a list of routes as input from any media except of inline
+           ids, and prepends or appends a common filter chain to each
+           route. Example:
+                   eskip patch -append 'filter1() -> filter2()'
 
-version  print eskip version`
+routegroup takes route file or the standard input, converts it into a
+           routegroup and prints on the standard output
+
+version    print eskip version`
 )
 
 // simplified check for help request:

@@ -4,18 +4,21 @@ type defaultFunc func(cmdArgs) (cmdArgs, error)
 
 // map command string to defaults
 var commandToDefaultMediums = map[command]defaultFunc{
-	check:  defaultRead,
-	print:  defaultRead,
-	upsert: defaultWrite,
-	reset:  defaultWrite,
-	delete: defaultWrite,
-	patch:  defaultRead}
+	check:      defaultRead,
+	print:      defaultRead,
+	upsert:     defaultWrite,
+	reset:      defaultWrite,
+	delete:     defaultWrite,
+	patch:      defaultRead,
+	routeGroup: defaultRead,
+}
 
 func defaultRead(a cmdArgs) (aa cmdArgs, err error) {
 	aa = a
 	if aa.in == nil {
 		aa.in, err = processEtcdArgs(defaultEtcdUrls, defaultEtcdPrefix, "")
 	}
+
 	return
 }
 
