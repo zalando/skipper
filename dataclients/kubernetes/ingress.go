@@ -55,8 +55,6 @@ type ingress struct {
 
 var nonWord = regexp.MustCompile(`\W`)
 
-// TODO: this error should not really be used, and the error handling of the ingress problems should be
-// refactored such that a single ingress's error doesn't block the processing of the independent ingresses.
 var errNotAllowedExternalName = errors.New("ingress with not allowed external name service")
 
 func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
@@ -321,6 +319,9 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 			return nil
 		}
 
+		// TODO: this error checking should not really be used, and the error handling of the ingress
+		// problems should be refactored such that a single ingress's error doesn't block the
+		// processing of the independent ingresses.
 		if errors.Is(err, errNotAllowedExternalName) {
 			log.Infof("Not allowed external name: %v", err)
 			return nil
