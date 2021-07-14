@@ -446,11 +446,15 @@ Parameters:
 * content (string)
 * content type (string) - optional
 
-Example:
+content may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
+
+Examples:
 
 ```
 * -> inlineContent("<h1>Hello</h1>") -> <shunt>
 * -> inlineContent("[1,2,3]", "application/json") -> <shunt>
+* -> inlineContent("Your IP is ${request.clientIP}\n") -> <shunt>
 * -> status(418) -> inlineContent("Would you like a cup of tea?") -> <shunt>
 ```
 
