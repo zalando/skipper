@@ -32,14 +32,15 @@ type fixtureSet struct {
 }
 
 type kubeOptionsParser struct {
-	EastWest                bool               `yaml:"eastWest"`
-	EastWestDomain          string             `yaml:"eastWestDomain"`
-	EastWestRangeDomains    []string           `yaml:"eastWestRangeDomains"`
-	EastWestRangePredicates []*eskip.Predicate `yaml:"eastWestRangePredicatesAppend"`
-	HTTPSRedirect           bool               `yaml:"httpsRedirect"`
-	HTTPSRedirectCode       int                `yaml:"httpsRedirectCode"`
-	BackendNameTracingTag   bool               `yaml:"backendNameTracingTag"`
-	AllowedExternalNames    []string           `yaml:"allowedExternalNames"`
+	EastWest                 bool               `yaml:"eastWest"`
+	EastWestDomain           string             `yaml:"eastWestDomain"`
+	EastWestRangeDomains     []string           `yaml:"eastWestRangeDomains"`
+	EastWestRangePredicates  []*eskip.Predicate `yaml:"eastWestRangePredicatesAppend"`
+	HTTPSRedirect            bool               `yaml:"httpsRedirect"`
+	HTTPSRedirectCode        int                `yaml:"httpsRedirectCode"`
+	BackendNameTracingTag    bool               `yaml:"backendNameTracingTag"`
+	OnlyAllowedExternalNames bool               `yaml:"onlyAllowedExternalNames"`
+	AllowedExternalNames     []string           `yaml:"allowedExternalNames"`
 }
 
 func baseNoExt(n string) string {
@@ -219,6 +220,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
+		o.OnlyAllowedExternalNames = kop.OnlyAllowedExternalNames
 		o.AllowedExternalNames = aen
 	}
 

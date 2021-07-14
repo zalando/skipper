@@ -173,6 +173,11 @@ type Options struct {
 	// (using tracingTag filter) should be added to all routes
 	BackendNameTracingTag bool
 
+	// OnlyAllowedExternalNames will enable validation of ingress external names and route groups network
+	// backend addresses, explicit LB endpoints validation agains the list of patterns in
+	// AllowedExternalNames.
+	OnlyAllowedExternalNames bool
+
 	// AllowedExternalNames contains regexp patterns of those domain names that are allowed to be
 	// used with external name services (type=ExternalName).
 	AllowedExternalNames []*regexp.Regexp
@@ -253,6 +258,10 @@ func New(o Options) (*Client, error) {
 	clusterClient, err := newClusterClient(o, apiURL, ingCls, rgCls, quit)
 	if err != nil {
 		return nil, err
+	}
+
+	if !o.OnlyAllowedExternalNames {
+		o.AllowedExternalNames = []*regexp.Regexp{regexp.MustCompile(".*")}
 	}
 
 	ing := newIngress(o)

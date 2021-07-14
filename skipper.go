@@ -207,6 +207,11 @@ type Options struct {
 	// appended to routes identified as to KubernetesEastWestRangeDomains.
 	KubernetesEastWestRangePredicates []*eskip.Predicate
 
+	// KubernetesOnlyAllowedExternalNames will enable validation of ingress external names and route groups network
+	// backend addresses, explicit LB endpoints validation agains the list of patterns in
+	// AllowedExternalNames.
+	KubernetesOnlyAllowedExternalNames bool
+
 	// KubernetesAllowedExternalNames contains regexp patterns of those domain names that are allowed to be
 	// used with external name services (type=ExternalName).
 	KubernetesAllowedExternalNames []*regexp.Regexp
@@ -853,6 +858,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			DefaultFiltersDir:                 o.DefaultFiltersDir,
 			OriginMarker:                      o.EnableRouteCreationMetrics,
 			BackendNameTracingTag:             o.OpenTracingBackendNameTag,
+			OnlyAllowedExternalNames:          o.KubernetesOnlyAllowedExternalNames,
 			AllowedExternalNames:              o.KubernetesAllowedExternalNames,
 		})
 		if err != nil {
