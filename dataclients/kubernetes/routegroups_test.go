@@ -45,3 +45,7 @@ func TestRouteGroupWithIngress(t *testing.T) {
 func TestRouteGroupTracingTag(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/tracing-tag")
 }
+
+func TestRouteGroupExternalName(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/external-name")
+}

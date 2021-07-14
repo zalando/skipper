@@ -1,0 +1,31 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: myapp
+spec:
+  hosts:
+  - example.org
+  backends:
+  - name: external
+    type: service
+    serviceName: external
+    servicePort: 443
+  routes:
+  - pathSubtree: /
+    backends:
+    - backendName: external
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: myapp
+  name: external
+spec:
+  type: ExternalName
+  externalName: external.example.org
+  ports:
+  - name: ext
+    port: 443
+    protocol: TCP
+    targetPort: 443

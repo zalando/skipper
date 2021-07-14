@@ -281,8 +281,13 @@ func testFixture(t *testing.T, f fixtureSet) {
 
 	if f.log != "" {
 		if err := matchOutput(f.log, logBuf.String()); err != nil {
+			b, err := ioutil.ReadFile(f.log)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			t.Errorf("Failed to match log: %v.", err)
-			t.Logf("Got: %s", f.log)
+			t.Logf("Expected: %s", string(b))
 		}
 	}
 }

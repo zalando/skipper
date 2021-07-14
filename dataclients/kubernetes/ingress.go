@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -53,6 +54,10 @@ type ingress struct {
 }
 
 var nonWord = regexp.MustCompile(`\W`)
+
+// TODO: this error should not really be used, and the error handling of the ingress problems should be
+// refactored such that a single ingress's error doesn't block the processing of the independent ingresses.
+var errNotAllowedExternalName = errors.New("ingress with not allowed external name service")
 
 func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 	ic.hostRoutes[host] = append(ic.hostRoutes[host], route)
@@ -131,19 +136,8 @@ func externalNameRoute(
 	servicePort *servicePort,
 	allowedNames []*regexp.Regexp,
 ) (*eskip.Route, error) {
-	var allowed bool
-	for _, a := range allowedNames {
-		if a.MatchString(svc.Spec.ExternalName) {
-			allowed = true
-			break
-		}
-	}
-
-	if !allowed {
-		return nil, fmt.Errorf(
-			"ingress with not allowed external name service: %s",
-			svc.Spec.ExternalName,
-		)
+	if !isExternalDomainAllowed(allowedNames, svc.Spec.ExternalName) {
+		return nil, fmt.Errorf("%w: %s", errNotAllowedExternalName, svc.Spec.ExternalName)
 	}
 
 	scheme := "https"
@@ -326,6 +320,12 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 		if err == errServiceNotFound || err == errResourceNotFound {
 			return nil
 		}
+
+		if errors.Is(err, errNotAllowedExternalName) {
+			log.Infof("Not allowed external name: %v", err)
+			return nil
+		}
+
 		// Ingress status field does not support errors
 		return fmt.Errorf("error while getting service: %v", err)
 	}
