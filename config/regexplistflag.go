@@ -27,16 +27,21 @@ func (r *regexpListFlag) Set(value string) error {
 }
 
 func (r *regexpListFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var s string
-	if err := unmarshal(&s); err != nil {
+	var m map[string][]string
+	if err := unmarshal(&m); err != nil {
 		return err
 	}
 
-	rx, err := regexp.Compile(s)
-	if err != nil {
-		return err
+	for _, value := range m {
+		for _, item := range value {
+			rx, err := regexp.Compile(item)
+			if err != nil {
+				return err
+			}
+
+			*r = append(*r, rx)
+		}
 	}
 
-	*r = append(*r, rx)
 	return nil
 }
