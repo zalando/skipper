@@ -68,7 +68,7 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 		d := yaml.NewDecoder(spec)
 		for {
 			var o map[string]interface{}
-			if err := d.Decode(&o); err == io.EOF || len(o) == 0 {
+			if err := d.Decode(&o); err == io.EOF || err == nil && len(o) == 0 {
 				break
 			} else if err != nil {
 				return nil, err

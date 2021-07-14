@@ -142,6 +142,8 @@ type Config struct {
 	KubernetesEastWestRangeDomains          *listFlag           `yaml:"kubernetes-east-west-range-domains"`
 	KubernetesEastWestRangePredicatesString string              `yaml:"kubernetes-east-west-range-predicates"`
 	KubernetesEastWestRangePredicates       []*eskip.Predicate  `yaml:"-"`
+	KubernetesOnlyAllowedExternalNames      bool                `yaml:"kubernetes-only-allowed-external-names"`
+	KubernetesAllowedExternalNames          regexpListFlag      `yaml:"kubernetes-allowed-external-names"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -366,6 +368,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "*Deprecated*: use kubernetes-east-west-range feature. Sets the east-west domain, defaults to .skipper.cluster.local")
 	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
 	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
+	flag.BoolVar(&cfg.KubernetesOnlyAllowedExternalNames, "kubernetes-only-allowed-external-names", false, "only accept external name services, route group network backends and route group explicit LB endpoints from an allow list defined by zero or more -kubernetes-allowed-external-name flags")
+	flag.Var(&cfg.KubernetesAllowedExternalNames, "kubernetes-allowed-external-name", "set zero or more regular expressions from which at least one should be matched by the external name services, route group network addresses and explicit endpoints domain names")
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
@@ -634,21 +638,23 @@ func (c *Config) ToOptions() skipper.Options {
 		WaitFirstRouteLoad: c.WaitFirstRouteLoad,
 
 		// Kubernetes:
-		Kubernetes:                        c.KubernetesIngress,
-		KubernetesInCluster:               c.KubernetesInCluster,
-		KubernetesURL:                     c.KubernetesURL,
-		KubernetesHealthcheck:             c.KubernetesHealthcheck,
-		KubernetesHTTPSRedirect:           c.KubernetesHTTPSRedirect,
-		KubernetesHTTPSRedirectCode:       c.KubernetesHTTPSRedirectCode,
-		KubernetesIngressClass:            c.KubernetesIngressClass,
-		KubernetesRouteGroupClass:         c.KubernetesRouteGroupClass,
-		WhitelistedHealthCheckCIDR:        whitelistCIDRS,
-		KubernetesPathMode:                c.KubernetesPathMode,
-		KubernetesNamespace:               c.KubernetesNamespace,
-		KubernetesEnableEastWest:          c.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:          c.KubernetesEastWestDomain,
-		KubernetesEastWestRangeDomains:    c.KubernetesEastWestRangeDomains.values,
-		KubernetesEastWestRangePredicates: c.KubernetesEastWestRangePredicates,
+		Kubernetes:                         c.KubernetesIngress,
+		KubernetesInCluster:                c.KubernetesInCluster,
+		KubernetesURL:                      c.KubernetesURL,
+		KubernetesHealthcheck:              c.KubernetesHealthcheck,
+		KubernetesHTTPSRedirect:            c.KubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
+		KubernetesIngressClass:             c.KubernetesIngressClass,
+		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
+		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
+		KubernetesPathMode:                 c.KubernetesPathMode,
+		KubernetesNamespace:                c.KubernetesNamespace,
+		KubernetesEnableEastWest:           c.KubernetesEnableEastWest,
+		KubernetesEastWestDomain:           c.KubernetesEastWestDomain,
+		KubernetesEastWestRangeDomains:     c.KubernetesEastWestRangeDomains.values,
+		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
+		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
+		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,

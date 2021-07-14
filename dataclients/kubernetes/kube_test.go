@@ -300,10 +300,8 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 	}
 
 	for id, backend := range expected {
-		t.Logf("id: %s", id)
 		var found bool
 		for _, ri := range r {
-			t.Logf("%s", ri.Id)
 			if ri.Id == id {
 				if ri.Backend != backend {
 					t.Errorf("invalid backend for route %s, %v", ri.Id, cmp.Diff(ri.Backend, backend))
@@ -1447,7 +1445,14 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 			state, err := dc.ClusterClient.fetchClusterState()
 			require.NoError(t, err)
 
-			route, err := convertPathRule(state, &definitions.Metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
+			route, err := convertPathRule(
+				state,
+				&definitions.Metadata{Namespace: "namespace1"},
+				"",
+				tc.rule,
+				KubernetesIngressMode,
+				nil,
+			)
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}

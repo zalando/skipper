@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/builtin"
@@ -172,6 +172,15 @@ type Options struct {
 	// If the OpenTracing tag containing RouteGroup backend name
 	// (using tracingTag filter) should be added to all routes
 	BackendNameTracingTag bool
+
+	// OnlyAllowedExternalNames will enable validation of ingress external names and route groups network
+	// backend addresses, explicit LB endpoints validation agains the list of patterns in
+	// AllowedExternalNames.
+	OnlyAllowedExternalNames bool
+
+	// AllowedExternalNames contains regexp patterns of those domain names that are allowed to be
+	// used with external name services (type=ExternalName).
+	AllowedExternalNames []*regexp.Regexp
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -249,6 +258,10 @@ func New(o Options) (*Client, error) {
 	clusterClient, err := newClusterClient(o, apiURL, ingCls, rgCls, quit)
 	if err != nil {
 		return nil, err
+	}
+
+	if !o.OnlyAllowedExternalNames {
+		o.AllowedExternalNames = []*regexp.Regexp{regexp.MustCompile(".*")}
 	}
 
 	ing := newIngress(o)

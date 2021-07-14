@@ -2,6 +2,8 @@ package kubernetes
 
 import (
 	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/zalando/skipper/eskip"
@@ -61,4 +63,23 @@ func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route, createID func(stri
 	}
 
 	return catchAll
+}
+
+func isExternalDomainAllowed(allowedDomains []*regexp.Regexp, domain string) bool {
+	for _, a := range allowedDomains {
+		if a.MatchString(domain) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isExternalAddressAllowed(allowedDomains []*regexp.Regexp, address string) bool {
+	u, err := url.Parse(address)
+	if err != nil {
+		return false
+	}
+
+	return isExternalDomainAllowed(allowedDomains, u.Hostname())
 }

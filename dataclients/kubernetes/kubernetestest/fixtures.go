@@ -32,13 +32,15 @@ type fixtureSet struct {
 }
 
 type kubeOptionsParser struct {
-	EastWest                bool               `yaml:"eastWest"`
-	EastWestDomain          string             `yaml:"eastWestDomain"`
-	EastWestRangeDomains    []string           `yaml:"eastWestRangeDomains"`
-	EastWestRangePredicates []*eskip.Predicate `yaml:"eastWestRangePredicatesAppend"`
-	HTTPSRedirect           bool               `yaml:"httpsRedirect"`
-	HTTPSRedirectCode       int                `yaml:"httpsRedirectCode"`
-	BackendNameTracingTag   bool               `yaml:"backendNameTracingTag"`
+	EastWest                 bool               `yaml:"eastWest"`
+	EastWestDomain           string             `yaml:"eastWestDomain"`
+	EastWestRangeDomains     []string           `yaml:"eastWestRangeDomains"`
+	EastWestRangePredicates  []*eskip.Predicate `yaml:"eastWestRangePredicatesAppend"`
+	HTTPSRedirect            bool               `yaml:"httpsRedirect"`
+	HTTPSRedirectCode        int                `yaml:"httpsRedirectCode"`
+	BackendNameTracingTag    bool               `yaml:"backendNameTracingTag"`
+	OnlyAllowedExternalNames bool               `yaml:"onlyAllowedExternalNames"`
+	AllowedExternalNames     []string           `yaml:"allowedExternalNames"`
 }
 
 func baseNoExt(n string) string {
@@ -127,6 +129,20 @@ func safeFileClose(t *testing.T, fd *os.File) {
 	}
 }
 
+func compileRegexps(s []string) ([]*regexp.Regexp, error) {
+	var r []*regexp.Regexp
+	for _, si := range s {
+		ri, err := regexp.Compile(si)
+		if err != nil {
+			return nil, err
+		}
+
+		r = append(r, ri)
+	}
+
+	return r, nil
+}
+
 func testFixture(t *testing.T, f fixtureSet) {
 	var resources []io.Reader
 	if f.resources != "" {
@@ -198,6 +214,14 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
 		o.BackendNameTracingTag = kop.BackendNameTracingTag
+
+		aen, err := compileRegexps(kop.AllowedExternalNames)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		o.OnlyAllowedExternalNames = kop.OnlyAllowedExternalNames
+		o.AllowedExternalNames = aen
 	}
 
 	o.KubernetesURL = s.URL
@@ -259,36 +283,43 @@ func testFixture(t *testing.T, f fixtureSet) {
 
 	if f.log != "" {
 		if err := matchOutput(f.log, logBuf.String()); err != nil {
+			b, err := ioutil.ReadFile(f.log)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			t.Errorf("Failed to match log: %v.", err)
-			t.Logf("Got: %s", f.log)
+			t.Logf("Expected: %s", string(b))
 		}
 	}
 }
 
-func FixturesToTest(t *testing.T, dir string) {
-	if !filepath.IsAbs(dir) {
-		wd, err := os.Getwd()
+func FixturesToTest(t *testing.T, dirs ...string) {
+	for _, dir := range dirs {
+		if !filepath.IsAbs(dir) {
+			wd, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			dir = filepath.Join(wd, dir)
+		}
+
+		d, err := os.Open(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer safeFileClose(t, d)
+
+		fs, err := d.Readdir(0)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		dir = filepath.Join(wd, dir)
-	}
-
-	d, err := os.Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer safeFileClose(t, d)
-
-	fs, err := d.Readdir(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rangeOverFixtures(t, dir, fs, func(f fixtureSet) {
-		t.Run(f.name, func(t *testing.T) {
-			testFixture(t, f)
+		rangeOverFixtures(t, dir, fs, func(f fixtureSet) {
+			t.Run(f.name, func(t *testing.T) {
+				testFixture(t, f)
+			})
 		})
-	})
+	}
 }

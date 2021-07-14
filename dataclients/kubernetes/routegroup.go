@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -36,6 +37,7 @@ type routeGroupContext struct {
 	defaultBackendTraffic map[string]*calculatedTraffic
 	backendNameTracingTag bool
 	internal              bool
+	allowedExternalNames  []*regexp.Regexp
 }
 
 type routeContext struct {
@@ -314,8 +316,24 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 			return err
 		}
 	case eskip.NetworkBackend:
+		if !isExternalAddressAllowed(ctx.allowedExternalNames, backend.Address) {
+			return fmt.Errorf(
+				"routegroup with not allowed network backend: %s",
+				backend.Address,
+			)
+		}
+
 		r.Backend = backend.Address
 	case eskip.LBBackend:
+		for _, ep := range backend.Endpoints {
+			if !isExternalAddressAllowed(ctx.allowedExternalNames, ep) {
+				return fmt.Errorf(
+					"routegroup with not allowed explicit LB endpoint: %s",
+					ep,
+				)
+			}
+		}
+
 		r.LBEndpoints = backend.Endpoints
 		r.LBAlgorithm = defaultLoadBalancerAlgorithm
 		if backend.Algorithm != loadbalancer.None {
@@ -569,6 +587,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				backendsByName:        backends,
 				backendNameTracingTag: r.options.BackendNameTracingTag,
 				internal:              false,
+				allowedExternalNames:  r.options.AllowedExternalNames,
 			}
 
 			ri, err := transformRouteGroup(ctx)
@@ -607,6 +626,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				backendsByName:        backends,
 				backendNameTracingTag: r.options.BackendNameTracingTag,
 				internal:              true,
+				allowedExternalNames:  r.options.AllowedExternalNames,
 			}
 
 			internalRi, err := transformRouteGroup(internalCtx)
