@@ -65,34 +65,21 @@ func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route, createID func(stri
 	return catchAll
 }
 
-func isExternalDomainAllowed(allowedDomains []*regexp.Regexp, domains ...string) bool {
-	for _, d := range domains {
-		var allowed bool
-		for _, a := range allowedDomains {
-			if a.MatchString(d) {
-				allowed = true
-				break
-			}
-		}
-
-		if !allowed {
-			return false
+func isExternalDomainAllowed(allowedDomains []*regexp.Regexp, domain string) bool {
+	for _, a := range allowedDomains {
+		if a.MatchString(domain) {
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
-func isExternalAddressAllowed(allowedDomains []*regexp.Regexp, addresses ...string) bool {
-	var domains []string
-	for _, a := range addresses {
-		u, err := url.Parse(a)
-		if err != nil {
-			return false
-		}
-
-		domains = append(domains, u.Hostname())
+func isExternalAddressAllowed(allowedDomains []*regexp.Regexp, address string) bool {
+	u, err := url.Parse(address)
+	if err != nil {
+		return false
 	}
 
-	return isExternalDomainAllowed(allowedDomains, domains...)
+	return isExternalDomainAllowed(allowedDomains, u.Hostname())
 }

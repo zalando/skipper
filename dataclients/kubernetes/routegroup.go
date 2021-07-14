@@ -325,11 +325,13 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 
 		r.Backend = backend.Address
 	case eskip.LBBackend:
-		if !isExternalAddressAllowed(ctx.allowedExternalNames, backend.Endpoints...) {
-			return fmt.Errorf(
-				"routegroup with not allowed explicit LB endpoints: %v",
-				backend.Endpoints,
-			)
+		for _, ep := range backend.Endpoints {
+			if !isExternalAddressAllowed(ctx.allowedExternalNames, ep) {
+				return fmt.Errorf(
+					"routegroup with not allowed explicit LB endpoint: %s",
+					ep,
+				)
+			}
 		}
 
 		r.LBEndpoints = backend.Endpoints
