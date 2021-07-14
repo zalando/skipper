@@ -675,7 +675,6 @@ func (ing *ingress) ingressRoute(
 	df defaultFilters,
 ) (*eskip.Route, error) {
 	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
-		log.Info(i.Metadata.Name, i.Metadata == nil, i.Metadata.Namespace == "", i.Metadata.Name == "", i.Spec == nil)
 		log.Error("invalid ingress item: missing Metadata or Spec")
 		return nil, nil
 	}
