@@ -3,7 +3,6 @@ package net
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"log"
 	"time"
 
@@ -112,13 +111,7 @@ func NewJumpHash(shards []string) redis.ConsistentHash {
 }
 
 func (j *jumpHash) Get(k string) string {
-	hash := fnv.New64()
-	_, err := hash.Write([]byte(k))
-	if err != nil {
-		log.Fatalf("Failed to write %s to hash: %v", k, err)
-	}
-
-	key := hash.Sum64()
+	key := xxhash.Sum64String(k)
 	h := jump.Hash(key, len(j.shards))
 	return j.shards[int(h)]
 }
