@@ -104,6 +104,9 @@ bench: build $(TEST_PLUGINS)
 	#
 	for p in $(PACKAGES); do GO111MODULE=$(GO111) go test -bench . $$p; done
 
+bench-compare:
+	for p in net pathmux proxy routing script; do echo "#### bench compare github.com/zalando/skipper/$$p ###"; cob --bench-args "test -bench . -benchmem github.com/zalando/skipper/$$p" 2>/dev/null; done
+
 lint: build staticcheck
 
 clean:
@@ -127,6 +130,7 @@ deps:
 	@tar -C /tmp -xzf /tmp/gosec.tgz
 	@mv /tmp/gosec .bin
 	@chmod +x .bin/gosec
+	@go install github.com/szuecs/cob@latest
 
 vet: $(SOURCES)
 	GO111MODULE=$(GO111) go vet $(PACKAGES)

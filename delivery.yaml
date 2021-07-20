@@ -1,6 +1,22 @@
 version: "2017-09-20"
+allow_concurrent_steps: true
 pipeline:
+- id: bench
+  vm: large
+  depends_on: []
+  overlay: ci/golang
+  type: script
+  commands:
+  - desc: bench compare
+    cmd: |
+      ulimit -Hn
+      ulimit -n 30000
+      ulimit -n
+      apt-get update  -o Acquire::http::AllowRedirect=false
+      apt-get install -o Acquire::http::AllowRedirect=false -y bzr redis-server jq
+      make deps bench-compare
 - id: build
+  depends_on: []
   overlay: ci/golang
   type: script
   commands:
@@ -60,6 +76,7 @@ pipeline:
         echo "Not creating a release. No release version defined."
       fi
 - id: docs
+  depends_on: [build]
   type: script
   overlay: ci/python
   commands:
