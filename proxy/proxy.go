@@ -1031,6 +1031,10 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	}
 
 	done, ok := b.Allow()
+	if !ok && c.request.Body != nil {
+		// consume the body to prevent goroutine leaks
+		io.Copy(ioutil.Discard, c.request.Body)
+	}
 	return done, ok
 }
 
