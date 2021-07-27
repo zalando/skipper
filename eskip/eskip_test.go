@@ -517,6 +517,10 @@ func TestDefaultFiltersDo(t *testing.T) {
 		t.Errorf("Failed to parse route: %v", err)
 	}
 
+	inputOmitRoute, err := Parse(`r1: Host("example.org") -> teeLoopback("test") -> "http://127.0.0.1:9001"; r2: Tee("test") && True() -> "https://test-backend.example.org";`)
+	outputOmitRoutePrepend, err := Parse(`r1: Host("example.org") -> status(418) -> teeLoopback("test") -> "http://127.0.0.1:9001"; r2: Tee("test") && True() -> "https://test-backend.example.org";`)
+	outputOmitRouteAppend, err := Parse(`r1: Host("example.org") -> teeLoopback("test") -> status(418) -> "http://127.0.0.1:9001"; r2: Tee("test") && True() -> "https://test-backend.example.org";`)
+
 	for _, tt := range []struct {
 		name   string
 		df     *DefaultFilters
@@ -568,6 +572,28 @@ func TestDefaultFiltersDo(t *testing.T) {
 			},
 			routes: input,
 			want:   outputPrependAppend2,
+		}, {
+			name: "test default filters, that prepend should and filter routes with specific predicates should apply default filters only to routes that are not matching",
+			df: &DefaultFilters{
+				Append:  nil,
+				Prepend: append(filter),
+				Omit: map[string]struct{}{
+					"Tee": struct{}{},
+				},
+			},
+			routes: inputOmitRoute,
+			want:   outputOmitRoutePrepend,
+		}, {
+			name: "test default filters, that append should and filter routes with specific predicates should apply default filters only to routes that are not matching",
+			df: &DefaultFilters{
+				Append:  append(filter),
+				Prepend: nil,
+				Omit: map[string]struct{}{
+					"Tee": struct{}{},
+				},
+			},
+			routes: inputOmitRoute,
+			want:   outputOmitRouteAppend,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.df.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {

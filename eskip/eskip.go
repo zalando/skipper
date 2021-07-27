@@ -26,6 +26,7 @@ var (
 type DefaultFilters struct {
 	Prepend []*Filter
 	Append  []*Filter
+	Omit    map[string]struct{}
 }
 
 // Do implements the interface routing.PreProcessor. It appends and
@@ -40,6 +41,17 @@ func (df *DefaultFilters) Do(routes []*Route) []*Route {
 
 	nextRoutes := make([]*Route, len(routes))
 	for i, r := range routes {
+		omit := false
+		for _, p := range r.Predicates {
+			if _, ok := df.Omit[p.Name]; ok {
+				omit = true
+				break
+			}
+		}
+		if omit {
+			nextRoutes[i] = r
+			continue
+		}
 		nextRoutes[i] = new(Route)
 		*nextRoutes[i] = *r
 
