@@ -24,7 +24,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"gopkg.in/square/go-jose.v2"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
