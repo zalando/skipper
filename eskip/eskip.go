@@ -21,6 +21,46 @@ var (
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
 )
 
+// PredicateConverter is meant to use for cases when you want to
+// migrate from one predicate to another and you need a duplication of
+// routes with the original predicate and the new one the converted
+// predicate. An example is to be able to switch proxy implementations
+// in front of skipper, that change the behavior of XFF headers, so
+// converting Source() to SourceFromLast() or to ClientIP().
+type PredicateConverter struct {
+	From string
+	To   string
+}
+
+// Do implements the interface routing.PreProcessor. It returns the
+// modified version of routes.
+func (pc *PredicateConverter) Do(routes []*Route) []*Route {
+	nextRoutes := make([]*Route, len(routes))
+	for i, r := range routes {
+		nextRoutes[i] = new(Route)
+		*nextRoutes[i] = *r
+
+		for j, p := range r.Predicates {
+			if p.Name == pc.From {
+				route := new(Route)
+				*route = *r
+
+				predicates := make([]*Predicate, len(r.Predicates))
+				for k, p := range r.Predicates {
+					q := *p
+					predicates[k] = &q
+				}
+
+				route.Predicates = predicates
+				route.Predicates[j].Name = pc.To
+				nextRoutes = append(nextRoutes, route)
+			}
+		}
+	}
+
+	return nextRoutes
+}
+
 // DefaultFilters implements the routing.PreProcessor interface and
 // should be used with the routing package.
 type DefaultFilters struct {
