@@ -2,6 +2,7 @@ package eskip
 
 import (
 	"reflect"
+	"regexp"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -600,6 +601,218 @@ r2: Method("POST") -> inlineContent("r2") -> <shunt>;
 		if route.Id != route.Filters[len(route.Filters)-1].Args[0].(string) {
 			t.Errorf("Route %v has incorrect filters: %v", route.Id, route.Filters[3])
 		}
+	}
+}
+
+func TestReplacer(t *testing.T) {
+	r0, err := Parse(`Host("www[.]example[.]org") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1, err := Parse(`Source("1.2.3.4/26") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1Changed, err := Parse(`ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	rn, err := Parse(`Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	rnChanged, err := Parse(`ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name   string
+		rep    *replacer
+		routes []*Route
+		want   []*Route
+	}{
+		{
+			name:   "test empty replacer should not change the routes",
+			rep:    &replacer{},
+			routes: r0,
+			want:   r0,
+		},
+		{
+			name: "test no match should not change the routes",
+			rep: &replacer{
+				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: r0,
+			want:   r0,
+		},
+		{
+			name: "test match should change the routes",
+			rep: &replacer{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: r1,
+			want:   r1Changed,
+		},
+		{
+			name: "test multiple routes match should change the routes",
+			rep: &replacer{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: append(r0, r1...),
+			want:   append(r0, r1Changed...),
+		},
+		{
+			name: "test match should change the routes with multiple params",
+			rep: &replacer{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: rn,
+			want:   rnChanged,
+		},
+		{
+			name: "test multiple routes match should change the routes with multiple params",
+			rep: &replacer{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: append(r0, rn...),
+			want:   append(r0, rnChanged...),
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.rep.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(tt.want), len(got), tt.want, got, cmp.Diff(tt.want, got))
+			}
+		})
+	}
+
+}
+func TestDuplicator(t *testing.T) {
+	r0, err := Parse(`Host("www[.]example[.]org") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1, err := Parse(`Source("1.2.3.4/26") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1Changed, err := Parse(`ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	rn, err := Parse(`Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	rnChanged, err := Parse(`ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name   string
+		rep    *duplicator
+		routes []*Route
+		want   []*Route
+	}{
+		{
+			name:   "test empty duplicator should not change the routes",
+			rep:    &duplicator{},
+			routes: r0,
+			want:   r0,
+		},
+		{
+			name: "test no match should not change the routes",
+			rep: &duplicator{
+				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: r0,
+			want:   r0,
+		},
+		{
+			name: "test match should change the routes",
+			rep: &duplicator{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: r1,
+			want:   append(r1, r1Changed...),
+		},
+		{
+			name: "test multiple routes match should change the routes",
+			rep: &duplicator{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: append(r0, r1...),
+			want:   append(r0, append(r1, r1Changed...)...),
+		},
+		{
+			name: "test match should change the routes with multiple params",
+			rep: &duplicator{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: rn,
+			want:   append(rn, rnChanged...),
+		},
+		{
+			name: "test multiple routes match should change the routes with multiple params",
+			rep: &duplicator{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: []byte("ClientIP($1)"),
+			},
+			routes: append(r0, rn...),
+			want:   append(r0, append(rn, rnChanged...)...),
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.rep.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(tt.want), len(got), tt.want, got, cmp.Diff(tt.want, got))
+			}
+		})
+	}
+
+}
+
+func TestPredicateString(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		predicate *Predicate
+		want      string
+	}{
+		{
+			name: "test one parameter",
+			predicate: &Predicate{
+				Name: "ClientIP",
+				Args: []interface{}{
+					"1.2.3.4/26",
+				},
+			},
+			want: `ClientIP("1.2.3.4/26")`,
+		},
+		{
+			name: "test two parameters",
+			predicate: &Predicate{
+				Name: "ClientIP",
+				Args: []interface{}{
+					"1.2.3.4/26",
+					"10.2.3.4/22",
+				},
+			},
+			want: `ClientIP("1.2.3.4/26","10.2.3.4/22")`,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.predicate.String()
+			if got != tt.want {
+				t.Errorf("Failed to String(): Want %v, got %v", tt.want, got)
+			}
+		})
 	}
 }
 

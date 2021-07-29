@@ -21,6 +21,80 @@ var (
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
 )
 
+// like --patch-route="/Source[(](.*)[)]/ClientIP($1)/"
+// -> reg:  Source[(](.*)[)]
+// -> repl: "ClientIP($1)"
+type replacer struct {
+	reg  *regexp.Regexp
+	repl []byte
+}
+
+type duplicator struct {
+	reg  *regexp.Regexp
+	repl []byte
+}
+
+func (re *replacer) Do(routes []*Route) []*Route {
+	for i, r := range routes {
+		rr := new(Route)
+		*rr = *r
+		if doOneRoute(re.reg, re.repl, rr) {
+			routes[i] = rr
+		}
+	}
+
+	return routes
+}
+
+func (du *duplicator) Do(routes []*Route) []*Route {
+	result := make([]*Route, len(routes), 2*len(routes))
+	copy(result, routes)
+	for _, r := range routes {
+		rr := new(Route)
+		*rr = *r
+
+		predicates := make([]*Predicate, len(r.Predicates))
+		for k, p := range r.Predicates {
+			q := *p
+			predicates[k] = &q
+		}
+		rr.Predicates = predicates
+
+		// same to do to copy filters required
+
+		if doOneRoute(du.reg, du.repl, rr) {
+			result = append(result, rr)
+		}
+	}
+
+	return result
+}
+
+func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
+	var changed bool
+	for i, p := range r.Predicates {
+		ps := p.String()
+		pss := rx.ReplaceAll([]byte(ps), repl)
+		sps := string(pss)
+		if ps == sps {
+			continue
+		}
+
+		pp, err := ParsePredicates(sps)
+		if err != nil {
+			//log.Errorf("Failed to parse predicate '%s': %v", sps, err)
+			return false
+		}
+
+		r.Predicates[i] = pp[0]
+		changed = true
+	}
+
+	// same for filters
+
+	return changed
+}
+
 // PredicateConverter is meant to use for cases when you want to
 // migrate from one predicate to another and you need a duplication of
 // routes with the original predicate and the new one the converted
@@ -145,6 +219,15 @@ type Predicate struct {
 	// float64 or string (string for both strings and
 	// regular expressions).
 	Args []interface{} `json:"args"`
+}
+
+func (p *Predicate) String() string {
+	args, err := getStringArgs(len(p.Args), p.Args)
+	if err != nil {
+		return ""
+	}
+
+	return p.Name + `("` + strings.Join(args, `","`) + `")`
 }
 
 // A Filter object represents a parsed, in-memory filter expression.
