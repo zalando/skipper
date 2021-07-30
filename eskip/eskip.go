@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters/flowid"
 )
 
@@ -132,7 +133,8 @@ func doOneRoute(rx *regexp.Regexp, repl string, r *Route) bool {
 
 		pp, err := ParsePredicates(sps)
 		if err != nil {
-			return false
+			log.Errorf("Failed to parse predicate: %v", err)
+			continue
 		}
 
 		r.Predicates[i] = pp[0]
@@ -149,7 +151,8 @@ func doOneRoute(rx *regexp.Regexp, repl string, r *Route) bool {
 
 		ff, err := ParseFilters(sfs)
 		if err != nil {
-			return false
+			log.Errorf("Failed to parse filter: %v", err)
+			continue
 		}
 
 		r.Filters[i] = ff[0]
