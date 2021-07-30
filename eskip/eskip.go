@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters/flowid"
 )
 
@@ -35,6 +36,10 @@ type duplicator struct {
 }
 
 func (re *replacer) Do(routes []*Route) []*Route {
+	if re.reg == nil {
+		return routes
+	}
+
 	for i, r := range routes {
 		rr := new(Route)
 		*rr = *r
@@ -47,6 +52,10 @@ func (re *replacer) Do(routes []*Route) []*Route {
 }
 
 func (du *duplicator) Do(routes []*Route) []*Route {
+	if du.reg == nil {
+		return routes
+	}
+
 	result := make([]*Route, len(routes), 2*len(routes))
 	copy(result, routes)
 	for _, r := range routes {
@@ -60,7 +69,12 @@ func (du *duplicator) Do(routes []*Route) []*Route {
 		}
 		rr.Predicates = predicates
 
-		// same to do to copy filters required
+		filters := make([]*Filter, len(r.Filters))
+		for k, f := range r.Filters {
+			ff := *f
+			filters[k] = &ff
+		}
+		rr.Filters = filters
 
 		if doOneRoute(du.reg, du.repl, rr) {
 			result = append(result, rr)
@@ -71,6 +85,9 @@ func (du *duplicator) Do(routes []*Route) []*Route {
 }
 
 func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
+	if rx == nil {
+		return false
+	}
 	var changed bool
 	for i, p := range r.Predicates {
 		ps := p.String()
@@ -82,7 +99,6 @@ func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
 
 		pp, err := ParsePredicates(sps)
 		if err != nil {
-			//log.Errorf("Failed to parse predicate '%s': %v", sps, err)
 			return false
 		}
 
@@ -91,6 +107,23 @@ func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
 	}
 
 	// same for filters
+	for i, f := range r.Filters {
+		fs := f.String()
+		fss := rx.ReplaceAll([]byte(fs), repl)
+		sfs := string(fss)
+		if fs == sfs {
+			continue
+		}
+
+		ff, err := ParseFilters(sfs)
+		if err != nil {
+			logrus.Errorf("Failed to parse filter '%s': %v", sfs, err)
+			return false
+		}
+
+		r.Filters[i] = ff[0]
+		changed = true
+	}
 
 	return changed
 }
@@ -227,7 +260,7 @@ func (p *Predicate) String() string {
 		return ""
 	}
 
-	return p.Name + `("` + strings.Join(args, `","`) + `")`
+	return p.Name + `("` + strings.Join(args, `", "`) + `")`
 }
 
 // A Filter object represents a parsed, in-memory filter expression.
@@ -237,6 +270,15 @@ type Filter struct {
 
 	// filter args applied within a particular route
 	Args []interface{} `json:"args"`
+}
+
+func (f *Filter) String() string {
+	args, err := getStringArgs(len(f.Args), f.Args)
+	if err != nil {
+		return ""
+	}
+
+	return f.Name + `("` + strings.Join(args, `", "`) + `")`
 }
 
 // A Route object represents a parsed, in-memory route definition.

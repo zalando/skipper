@@ -625,6 +625,14 @@ func TestReplacer(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
+	r1Filter, err := Parse(`Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1FilterChanged, err := Parse(`Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
 
 	for _, tt := range []struct {
 		name   string
@@ -682,6 +690,15 @@ func TestReplacer(t *testing.T) {
 			},
 			routes: append(r0, rn...),
 			want:   append(r0, rnChanged...),
+		},
+		{
+			name: "test match should change the filter of a route",
+			rep: &replacer{
+				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
+				repl: []byte("normalRequestLatency($1)"),
+			},
+			routes: r1Filter,
+			want:   r1FilterChanged,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.rep.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {
@@ -710,6 +727,14 @@ func TestDuplicator(t *testing.T) {
 		t.Errorf("Failed to parse route: %v", err)
 	}
 	rnChanged, err := Parse(`ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1Filter, err := Parse(`Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1FilterChanged, err := Parse(`Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
@@ -770,6 +795,15 @@ func TestDuplicator(t *testing.T) {
 			},
 			routes: append(r0, rn...),
 			want:   append(r0, append(rn, rnChanged...)...),
+		},
+		{
+			name: "test match should change the filter of a route",
+			rep: &duplicator{
+				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
+				repl: []byte("normalRequestLatency($1)"),
+			},
+			routes: r1Filter,
+			want:   append(r1Filter, r1FilterChanged...),
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.rep.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {
@@ -805,10 +839,46 @@ func TestPredicateString(t *testing.T) {
 					"10.2.3.4/22",
 				},
 			},
-			want: `ClientIP("1.2.3.4/26","10.2.3.4/22")`,
+			want: `ClientIP("1.2.3.4/26", "10.2.3.4/22")`,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.predicate.String()
+			if got != tt.want {
+				t.Errorf("Failed to String(): Want %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestFilterString(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		filter *Filter
+		want   string
+	}{
+		{
+			name: "test one parameter",
+			filter: &Filter{
+				Name: "setPath",
+				Args: []interface{}{
+					"/foo",
+				},
+			},
+			want: `setPath("/foo")`,
+		},
+		{
+			name: "test two parameters",
+			filter: &Filter{
+				Name: "uniformRequestLatency",
+				Args: []interface{}{
+					"100ms",
+					"10ms",
+				},
+			},
+			want: `uniformRequestLatency("100ms", "10ms")`,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.filter.String()
 			if got != tt.want {
 				t.Errorf("Failed to String(): Want %v, got %v", tt.want, got)
 			}
