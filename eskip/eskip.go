@@ -25,17 +25,31 @@ var (
 // like --patch-route="/Source[(](.*)[)]/ClientIP($1)/"
 // -> reg:  Source[(](.*)[)]
 // -> repl: "ClientIP($1)"
-type replacer struct {
+func NewReplacer(reg *regexp.Regexp, repl []byte) *Replacer {
+	return &Replacer{
+		reg:  reg,
+		repl: repl,
+	}
+}
+
+type Replacer struct {
 	reg  *regexp.Regexp
 	repl []byte
 }
 
-type duplicator struct {
+func NewDuplicator(reg *regexp.Regexp, repl []byte) *Duplicator {
+	return &Duplicator{
+		reg:  reg,
+		repl: repl,
+	}
+}
+
+type Duplicator struct {
 	reg  *regexp.Regexp
 	repl []byte
 }
 
-func (re *replacer) Do(routes []*Route) []*Route {
+func (re *Replacer) Do(routes []*Route) []*Route {
 	if re.reg == nil {
 		return routes
 	}
@@ -51,7 +65,7 @@ func (re *replacer) Do(routes []*Route) []*Route {
 	return routes
 }
 
-func (du *duplicator) Do(routes []*Route) []*Route {
+func (du *Duplicator) Do(routes []*Route) []*Route {
 	if du.reg == nil {
 		return routes
 	}

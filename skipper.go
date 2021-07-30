@@ -259,6 +259,15 @@ type Options struct {
 	// DefaultFilters will be applied to all routes automatically.
 	DefaultFilters *eskip.DefaultFilters
 
+	// Duplicator will be applied to all routes automatically and
+	// will duplicate all matching routes and apply changes to the
+	// duplicated routes.
+	Duplicator *eskip.Duplicator
+
+	// Replacer will be applied to all routes automatically and
+	// will apply changes to all matching routes.
+	Replacer *eskip.Replacer
+
 	// Deprecated. See ProxyFlags. When used together with ProxyFlags,
 	// the values will be combined with |.
 	ProxyOptions proxy.Options
