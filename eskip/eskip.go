@@ -75,7 +75,6 @@ func (e *Editor) Do(routes []*Route) []*Route {
 		rr := new(Route)
 		*rr = *r
 		if doOneRoute(e.reg, e.repl, rr) {
-			rr.Id = "edit_" + rr.Id
 			routes[i] = rr
 		}
 	}

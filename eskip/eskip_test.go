@@ -604,32 +604,32 @@ r2: Method("POST") -> inlineContent("r2") -> <shunt>;
 	}
 }
 
-func TestEditor(t *testing.T) {
-	r0, err := Parse(`Host("www[.]example[.]org") -> status(201) -> <shunt>`)
+func TestEditorPreProcessor(t *testing.T) {
+	r0, err := Parse(`r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	r1, err := Parse(`Source("1.2.3.4/26") -> status(201) -> <shunt>`)
+	r1, err := Parse(`r1_filter: Source("1.2.3.4/26") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	r1Changed, err := Parse(`ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
+	r1Changed, err := Parse(`r1_filter: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	rn, err := Parse(`Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	rn, err := Parse(`rn_filter: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	rnChanged, err := Parse(`ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	rnChanged, err := Parse(`rn_filter: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	r1Filter, err := Parse(`Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	r1Filter, err := Parse(`r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	r1FilterChanged, err := Parse(`Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	r1FilterChanged, err := Parse(`r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
@@ -708,33 +708,33 @@ func TestEditor(t *testing.T) {
 	}
 
 }
-func TestClone(t *testing.T) {
-	r0, err := Parse(`Host("www[.]example[.]org") -> status(201) -> <shunt>`)
+func TestClonePreProcessor(t *testing.T) {
+	r0, err := Parse(`r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	r1, err := Parse(`Source("1.2.3.4/26") -> status(201) -> <shunt>`)
+	r1, err := Parse(`r1: Source("1.2.3.4/26") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	r1Changed, err := Parse(`ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
+	r1Changed, err := Parse(`clone_r1: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
 
-	rn, err := Parse(`Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	rn, err := Parse(`rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	rnChanged, err := Parse(`ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	rnChanged, err := Parse(`clone_rn: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	r1Filter, err := Parse(`Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	r1Filter, err := Parse(`r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
-	r1FilterChanged, err := Parse(`Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	r1FilterChanged, err := Parse(`clone_r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
