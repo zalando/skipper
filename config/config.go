@@ -640,8 +640,8 @@ func (c *Config) ToOptions() skipper.Options {
 			Prepend: c.PrependFilters.filters,
 			Append:  c.AppendFilters.filters,
 		},
-		EditRoute:          eskip.NewClone(c.CloneRoute.Reg, c.CloneRoute.Repl),
-		Editor:             eskip.NewEditor(c.EditRoute.Reg, c.EditorRoute.Repl),
+		CloneRoute:         eskip.NewClone(c.CloneRoute.Reg, c.CloneRoute.Repl),
+		EditRoute:          eskip.NewEditor(c.EditRoute.Reg, c.EditRoute.Repl),
 		SourcePollTimeout:  time.Duration(c.SourcePollTimeout) * time.Millisecond,
 		WaitFirstRouteLoad: c.WaitFirstRouteLoad,
 

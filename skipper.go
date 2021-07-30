@@ -259,14 +259,14 @@ type Options struct {
 	// DefaultFilters will be applied to all routes automatically.
 	DefaultFilters *eskip.DefaultFilters
 
-	// Clone is a PreProcessor, that will be applied to all routes automatically. It
+	// CloneRoute is a PreProcessor, that will be applied to all routes automatically. It
 	// will clone all matching routes and apply changes to the
 	// cloned routes.
-	Clone *eskip.Clone
+	CloneRoute *eskip.Clone
 
-	// Editor will be applied to all routes automatically and
+	// EditRoute will be applied to all routes automatically and
 	// will apply changes to all matching routes.
-	Editor *eskip.Editor
+	EditRoute *eskip.Editor
 
 	// Deprecated. See ProxyFlags. When used together with ProxyFlags,
 	// the values will be combined with |.
@@ -1466,12 +1466,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
 	}
 
-	if o.Clone != nil {
-		ro.PreProcessors = append(ro.PreProcessors, o.Clone)
+	if o.CloneRoute != nil {
+		ro.PreProcessors = append(ro.PreProcessors, o.CloneRoute)
 	}
 
-	if o.Editor != nil {
-		ro.PreProcessors = append(ro.PreProcessors, o.Editor)
+	if o.EditRoute != nil {
+		ro.PreProcessors = append(ro.PreProcessors, o.EditRoute)
 	}
 
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
