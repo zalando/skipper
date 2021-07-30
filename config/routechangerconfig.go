@@ -12,12 +12,15 @@ type routeChangerConfig struct {
 }
 
 func (rcc routeChangerConfig) String() string {
+	if rcc.Reg == nil {
+		return ""
+	}
 	return fmt.Sprintf("/%s/%s/", rcc.Reg, rcc.Repl)
 }
 
 func (rcc *routeChangerConfig) Set(value string) error {
 	a := strings.Split(value, "/")
-	if len(a) != 3 {
+	if len(a) != 4 {
 		return fmt.Errorf("unexpected size of string split: %d", len(a))
 	}
 	reg, repl := a[1], a[2]
