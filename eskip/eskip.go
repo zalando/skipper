@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters/flowid"
 )
 
@@ -22,42 +21,61 @@ var (
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
 )
 
-// like --patch-route="/Source[(](.*)[)]/ClientIP($1)/"
-// -> reg:  Source[(](.*)[)]
-// -> repl: "ClientIP($1)"
-func NewReplacer(reg *regexp.Regexp, repl []byte) *Replacer {
-	return &Replacer{
+// NewEditor creates an Editor PreProcessor, that matches routes and
+// replaces the content. For example to replace Source predicates with
+// ClientIP predicates you can use
+// --edit-route='/Source[(](.*)[)]/ClientIP($1)/', which will change
+// routes as you can see:
+//
+//        # input
+//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+//        # actual route
+//        edit_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+func NewEditor(reg *regexp.Regexp, repl []byte) *Editor {
+	return &Editor{
 		reg:  reg,
 		repl: repl,
 	}
 }
 
-type Replacer struct {
+type Editor struct {
 	reg  *regexp.Regexp
 	repl []byte
 }
 
-func NewDuplicator(reg *regexp.Regexp, repl []byte) *Duplicator {
-	return &Duplicator{
+// NewClone creates a Clone PreProcessor, that matches routes and
+// replaces the content of the cloned routes. For example to migrate from Source to
+// ClientIP predicates you can use
+// --clone-route='/Source[(](.*)[)]/ClientIP($1)/', which will change
+// routes as you can see:
+//
+//        # input
+//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+//        # actual route
+//        clone_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+func NewClone(reg *regexp.Regexp, repl []byte) *Clone {
+	return &Clone{
 		reg:  reg,
 		repl: repl,
 	}
 }
 
-type Duplicator struct {
+type Clone struct {
 	reg  *regexp.Regexp
 	repl []byte
 }
 
-func (re *Replacer) Do(routes []*Route) []*Route {
-	if re.reg == nil {
+func (e *Editor) Do(routes []*Route) []*Route {
+	if e.reg == nil {
 		return routes
 	}
 
 	for i, r := range routes {
 		rr := new(Route)
 		*rr = *r
-		if doOneRoute(re.reg, re.repl, rr) {
+		if doOneRoute(e.reg, e.repl, rr) {
+			rr.Id = "edit_" + rr.Id
 			routes[i] = rr
 		}
 	}
@@ -65,8 +83,8 @@ func (re *Replacer) Do(routes []*Route) []*Route {
 	return routes
 }
 
-func (du *Duplicator) Do(routes []*Route) []*Route {
-	if du.reg == nil {
+func (c *Clone) Do(routes []*Route) []*Route {
+	if c.reg == nil {
 		return routes
 	}
 
@@ -76,6 +94,7 @@ func (du *Duplicator) Do(routes []*Route) []*Route {
 		rr := new(Route)
 		*rr = *r
 
+		rr.Id = "clone_" + rr.Id
 		predicates := make([]*Predicate, len(r.Predicates))
 		for k, p := range r.Predicates {
 			q := *p
@@ -90,7 +109,7 @@ func (du *Duplicator) Do(routes []*Route) []*Route {
 		}
 		rr.Filters = filters
 
-		if doOneRoute(du.reg, du.repl, rr) {
+		if doOneRoute(c.reg, c.repl, rr) {
 			result = append(result, rr)
 		}
 	}
@@ -103,6 +122,7 @@ func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
 		return false
 	}
 	var changed bool
+
 	for i, p := range r.Predicates {
 		ps := p.String()
 		pss := rx.ReplaceAll([]byte(ps), repl)
@@ -120,7 +140,6 @@ func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
 		changed = true
 	}
 
-	// same for filters
 	for i, f := range r.Filters {
 		fs := f.String()
 		fss := rx.ReplaceAll([]byte(fs), repl)
@@ -131,7 +150,6 @@ func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
 
 		ff, err := ParseFilters(sfs)
 		if err != nil {
-			logrus.Errorf("Failed to parse filter '%s': %v", sfs, err)
 			return false
 		}
 

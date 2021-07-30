@@ -604,7 +604,7 @@ r2: Method("POST") -> inlineContent("r2") -> <shunt>;
 	}
 }
 
-func TestReplacer(t *testing.T) {
+func TestEditor(t *testing.T) {
 	r0, err := Parse(`Host("www[.]example[.]org") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
@@ -636,19 +636,19 @@ func TestReplacer(t *testing.T) {
 
 	for _, tt := range []struct {
 		name   string
-		rep    *Replacer
+		rep    *Editor
 		routes []*Route
 		want   []*Route
 	}{
 		{
-			name:   "test empty Replacer should not change the routes",
-			rep:    &Replacer{},
+			name:   "test empty Editor should not change the routes",
+			rep:    &Editor{},
 			routes: r0,
 			want:   r0,
 		},
 		{
 			name: "test no match should not change the routes",
-			rep: &Replacer{
+			rep: &Editor{
 				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -657,7 +657,7 @@ func TestReplacer(t *testing.T) {
 		},
 		{
 			name: "test match should change the routes",
-			rep: &Replacer{
+			rep: &Editor{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -666,7 +666,7 @@ func TestReplacer(t *testing.T) {
 		},
 		{
 			name: "test multiple routes match should change the routes",
-			rep: &Replacer{
+			rep: &Editor{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -675,7 +675,7 @@ func TestReplacer(t *testing.T) {
 		},
 		{
 			name: "test match should change the routes with multiple params",
-			rep: &Replacer{
+			rep: &Editor{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -684,7 +684,7 @@ func TestReplacer(t *testing.T) {
 		},
 		{
 			name: "test multiple routes match should change the routes with multiple params",
-			rep: &Replacer{
+			rep: &Editor{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -693,7 +693,7 @@ func TestReplacer(t *testing.T) {
 		},
 		{
 			name: "test match should change the filter of a route",
-			rep: &Replacer{
+			rep: &Editor{
 				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
 				repl: []byte("normalRequestLatency($1)"),
 			},
@@ -708,7 +708,7 @@ func TestReplacer(t *testing.T) {
 	}
 
 }
-func TestDuplicator(t *testing.T) {
+func TestClone(t *testing.T) {
 	r0, err := Parse(`Host("www[.]example[.]org") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
@@ -741,19 +741,19 @@ func TestDuplicator(t *testing.T) {
 
 	for _, tt := range []struct {
 		name   string
-		rep    *Duplicator
+		rep    *Clone
 		routes []*Route
 		want   []*Route
 	}{
 		{
-			name:   "test empty Duplicator should not change the routes",
-			rep:    &Duplicator{},
+			name:   "test empty Clone should not change the routes",
+			rep:    &Clone{},
 			routes: r0,
 			want:   r0,
 		},
 		{
 			name: "test no match should not change the routes",
-			rep: &Duplicator{
+			rep: &Clone{
 				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -762,7 +762,7 @@ func TestDuplicator(t *testing.T) {
 		},
 		{
 			name: "test match should change the routes",
-			rep: &Duplicator{
+			rep: &Clone{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -771,7 +771,7 @@ func TestDuplicator(t *testing.T) {
 		},
 		{
 			name: "test multiple routes match should change the routes",
-			rep: &Duplicator{
+			rep: &Clone{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -780,7 +780,7 @@ func TestDuplicator(t *testing.T) {
 		},
 		{
 			name: "test match should change the routes with multiple params",
-			rep: &Duplicator{
+			rep: &Clone{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -789,7 +789,7 @@ func TestDuplicator(t *testing.T) {
 		},
 		{
 			name: "test multiple routes match should change the routes with multiple params",
-			rep: &Duplicator{
+			rep: &Clone{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: []byte("ClientIP($1)"),
 			},
@@ -798,7 +798,7 @@ func TestDuplicator(t *testing.T) {
 		},
 		{
 			name: "test match should change the filter of a route",
-			rep: &Duplicator{
+			rep: &Clone{
 				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
 				repl: []byte("normalRequestLatency($1)"),
 			},
