@@ -8,7 +8,7 @@ import (
 
 type routeChangerConfig struct {
 	Reg  *regexp.Regexp
-	Repl []byte
+	Repl string
 }
 
 func (rcc routeChangerConfig) String() string {
@@ -26,7 +26,7 @@ func (rcc *routeChangerConfig) Set(value string) error {
 	var err error
 	reg, repl := a[1], a[2]
 	rcc.Reg, err = regexp.Compile(reg)
-	rcc.Repl = []byte(repl)
+	rcc.Repl = repl
 	return err
 }
 

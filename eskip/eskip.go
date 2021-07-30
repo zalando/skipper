@@ -31,7 +31,7 @@ var (
 //        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
 //        # actual route
 //        edit_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
-func NewEditor(reg *regexp.Regexp, repl []byte) *Editor {
+func NewEditor(reg *regexp.Regexp, repl string) *Editor {
 	return &Editor{
 		reg:  reg,
 		repl: repl,
@@ -40,7 +40,7 @@ func NewEditor(reg *regexp.Regexp, repl []byte) *Editor {
 
 type Editor struct {
 	reg  *regexp.Regexp
-	repl []byte
+	repl string
 }
 
 // NewClone creates a Clone PreProcessor, that matches routes and
@@ -54,7 +54,7 @@ type Editor struct {
 //        # actual route
 //        clone_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
 //        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
-func NewClone(reg *regexp.Regexp, repl []byte) *Clone {
+func NewClone(reg *regexp.Regexp, repl string) *Clone {
 	return &Clone{
 		reg:  reg,
 		repl: repl,
@@ -63,7 +63,7 @@ func NewClone(reg *regexp.Regexp, repl []byte) *Clone {
 
 type Clone struct {
 	reg  *regexp.Regexp
-	repl []byte
+	repl string
 }
 
 func (e *Editor) Do(routes []*Route) []*Route {
@@ -116,7 +116,7 @@ func (c *Clone) Do(routes []*Route) []*Route {
 	return result
 }
 
-func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
+func doOneRoute(rx *regexp.Regexp, repl string, r *Route) bool {
 	if rx == nil {
 		return false
 	}
@@ -124,7 +124,7 @@ func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
 
 	for i, p := range r.Predicates {
 		ps := p.String()
-		pss := rx.ReplaceAll([]byte(ps), repl)
+		pss := rx.ReplaceAllString(ps, repl)
 		sps := string(pss)
 		if ps == sps {
 			continue
@@ -141,7 +141,7 @@ func doOneRoute(rx *regexp.Regexp, repl []byte, r *Route) bool {
 
 	for i, f := range r.Filters {
 		fs := f.String()
-		fss := rx.ReplaceAll([]byte(fs), repl)
+		fss := rx.ReplaceAllString(fs, repl)
 		sfs := string(fss)
 		if fs == sfs {
 			continue

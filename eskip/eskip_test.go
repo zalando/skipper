@@ -650,7 +650,7 @@ func TestEditorPreProcessor(t *testing.T) {
 			name: "test no match should not change the routes",
 			rep: &Editor{
 				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: r0,
 			want:   r0,
@@ -659,7 +659,7 @@ func TestEditorPreProcessor(t *testing.T) {
 			name: "test match should change the routes",
 			rep: &Editor{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: r1,
 			want:   r1Changed,
@@ -668,7 +668,7 @@ func TestEditorPreProcessor(t *testing.T) {
 			name: "test multiple routes match should change the routes",
 			rep: &Editor{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: append(r0, r1...),
 			want:   append(r0, r1Changed...),
@@ -677,7 +677,7 @@ func TestEditorPreProcessor(t *testing.T) {
 			name: "test match should change the routes with multiple params",
 			rep: &Editor{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: rn,
 			want:   rnChanged,
@@ -686,7 +686,7 @@ func TestEditorPreProcessor(t *testing.T) {
 			name: "test multiple routes match should change the routes with multiple params",
 			rep: &Editor{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: append(r0, rn...),
 			want:   append(r0, rnChanged...),
@@ -695,7 +695,7 @@ func TestEditorPreProcessor(t *testing.T) {
 			name: "test match should change the filter of a route",
 			rep: &Editor{
 				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
-				repl: []byte("normalRequestLatency($1)"),
+				repl: "normalRequestLatency($1)",
 			},
 			routes: r1Filter,
 			want:   r1FilterChanged,
@@ -755,7 +755,7 @@ func TestClonePreProcessor(t *testing.T) {
 			name: "test no match should not change the routes",
 			rep: &Clone{
 				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: r0,
 			want:   r0,
@@ -764,7 +764,7 @@ func TestClonePreProcessor(t *testing.T) {
 			name: "test match should change the routes",
 			rep: &Clone{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: r1,
 			want:   append(r1, r1Changed...),
@@ -773,7 +773,7 @@ func TestClonePreProcessor(t *testing.T) {
 			name: "test multiple routes match should change the routes",
 			rep: &Clone{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: append(r0, r1...),
 			want:   append(r0, append(r1, r1Changed...)...),
@@ -782,7 +782,7 @@ func TestClonePreProcessor(t *testing.T) {
 			name: "test match should change the routes with multiple params",
 			rep: &Clone{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: rn,
 			want:   append(rn, rnChanged...),
@@ -791,7 +791,7 @@ func TestClonePreProcessor(t *testing.T) {
 			name: "test multiple routes match should change the routes with multiple params",
 			rep: &Clone{
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
-				repl: []byte("ClientIP($1)"),
+				repl: "ClientIP($1)",
 			},
 			routes: append(r0, rn...),
 			want:   append(r0, append(rn, rnChanged...)...),
@@ -800,7 +800,7 @@ func TestClonePreProcessor(t *testing.T) {
 			name: "test match should change the filter of a route",
 			rep: &Clone{
 				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
-				repl: []byte("normalRequestLatency($1)"),
+				repl: "normalRequestLatency($1)",
 			},
 			routes: r1Filter,
 			want:   append(r1Filter, r1FilterChanged...),
