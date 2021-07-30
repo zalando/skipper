@@ -75,6 +75,8 @@ func (e *Editor) Do(routes []*Route) []*Route {
 	for i, r := range routes {
 		rr := new(Route)
 		*rr = *r
+		rr = Canonical(rr)
+
 		if doOneRoute(e.reg, e.repl, rr) {
 			routes[i] = rr
 		}
@@ -93,6 +95,7 @@ func (c *Clone) Do(routes []*Route) []*Route {
 	for _, r := range routes {
 		rr := new(Route)
 		*rr = *r
+		rr = Canonical(rr)
 
 		rr.Id = "clone_" + rr.Id
 		predicates := make([]*Predicate, len(r.Predicates))
