@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters/flowid"
 )
 
@@ -20,6 +21,149 @@ var (
 	duplicatePathTreePredicateError = errors.New("duplicate path tree predicate")
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
 )
+
+// NewEditor creates an Editor PreProcessor, that matches routes and
+// replaces the content. For example to replace Source predicates with
+// ClientIP predicates you can use
+// --edit-route='/Source[(](.*)[)]/ClientIP($1)/', which will change
+// routes as you can see:
+//
+//        # input
+//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+//        # actual route
+//        edit_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+func NewEditor(reg *regexp.Regexp, repl string) *Editor {
+	return &Editor{
+		reg:  reg,
+		repl: repl,
+	}
+}
+
+type Editor struct {
+	reg  *regexp.Regexp
+	repl string
+}
+
+// NewClone creates a Clone PreProcessor, that matches routes and
+// replaces the content of the cloned routes. For example to migrate from Source to
+// ClientIP predicates you can use
+// --clone-route='/Source[(](.*)[)]/ClientIP($1)/', which will change
+// routes as you can see:
+//
+//        # input
+//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+//        # actual route
+//        clone_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+func NewClone(reg *regexp.Regexp, repl string) *Clone {
+	return &Clone{
+		reg:  reg,
+		repl: repl,
+	}
+}
+
+type Clone struct {
+	reg  *regexp.Regexp
+	repl string
+}
+
+func (e *Editor) Do(routes []*Route) []*Route {
+	if e.reg == nil {
+		return routes
+	}
+
+	for i, r := range routes {
+		rr := new(Route)
+		*rr = *r
+		rr = Canonical(rr)
+
+		if doOneRoute(e.reg, e.repl, rr) {
+			routes[i] = rr
+		}
+	}
+
+	return routes
+}
+
+func (c *Clone) Do(routes []*Route) []*Route {
+	if c.reg == nil {
+		return routes
+	}
+
+	result := make([]*Route, len(routes), 2*len(routes))
+	copy(result, routes)
+	for _, r := range routes {
+		rr := new(Route)
+		*rr = *r
+		rr = Canonical(rr)
+
+		rr.Id = "clone_" + rr.Id
+		predicates := make([]*Predicate, len(r.Predicates))
+		for k, p := range r.Predicates {
+			q := *p
+			predicates[k] = &q
+		}
+		rr.Predicates = predicates
+
+		filters := make([]*Filter, len(r.Filters))
+		for k, f := range r.Filters {
+			ff := *f
+			filters[k] = &ff
+		}
+		rr.Filters = filters
+
+		if doOneRoute(c.reg, c.repl, rr) {
+			result = append(result, rr)
+		}
+	}
+
+	return result
+}
+
+func doOneRoute(rx *regexp.Regexp, repl string, r *Route) bool {
+	if rx == nil {
+		return false
+	}
+	var changed bool
+
+	for i, p := range r.Predicates {
+		ps := p.String()
+		pss := rx.ReplaceAllString(ps, repl)
+		sps := string(pss)
+		if ps == sps {
+			continue
+		}
+
+		pp, err := ParsePredicates(sps)
+		if err != nil {
+			log.Errorf("Failed to parse predicate: %v", err)
+			continue
+		}
+
+		r.Predicates[i] = pp[0]
+		changed = true
+	}
+
+	for i, f := range r.Filters {
+		fs := f.String()
+		fss := rx.ReplaceAllString(fs, repl)
+		sfs := string(fss)
+		if fs == sfs {
+			continue
+		}
+
+		ff, err := ParseFilters(sfs)
+		if err != nil {
+			log.Errorf("Failed to parse filter: %v", err)
+			continue
+		}
+
+		r.Filters[i] = ff[0]
+		changed = true
+	}
+
+	return changed
+}
 
 // DefaultFilters implements the routing.PreProcessor interface and
 // should be used with the routing package.
@@ -107,6 +251,10 @@ type Predicate struct {
 	Args []interface{} `json:"args"`
 }
 
+func (p *Predicate) String() string {
+	return fmt.Sprintf("%s(%s)", p.Name, argsString(p.Args))
+}
+
 // A Filter object represents a parsed, in-memory filter expression.
 type Filter struct {
 	// name of the filter specification
@@ -114,6 +262,10 @@ type Filter struct {
 
 	// filter args applied within a particular route
 	Args []interface{} `json:"args"`
+}
+
+func (f *Filter) String() string {
+	return fmt.Sprintf("%s(%s)", f.Name, argsString(f.Args))
 }
 
 // A Route object represents a parsed, in-memory route definition.

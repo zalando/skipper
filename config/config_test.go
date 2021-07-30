@@ -112,6 +112,8 @@ func Test_NewConfig(t *testing.T) {
 				EtcdTimeout:                             2 * time.Second,
 				AppendFilters:                           &defaultFiltersFlags{},
 				PrependFilters:                          &defaultFiltersFlags{},
+				CloneRoute:                              &routeChangerConfig{},
+				EditRoute:                               &routeChangerConfig{},
 				SourcePollTimeout:                       3000,
 				KubernetesEastWestRangeDomains:          commaListFlag(),
 				KubernetesHealthcheck:                   true,
