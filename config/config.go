@@ -355,7 +355,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
 	flag.Var(cfg.PrependFilters, "default-filters-prepend", "set of default filters to apply to prepend to all filters of all routes")
 	flag.Var(cfg.ReplacerRoute, "replace-route", "match and replace filters and predicates of all routes")
-	flag.Var(cfg.DuplicatorRoute, "duplicate-route", "match and replace filters and predicates of all routes")
+	flag.Var(cfg.DuplicatorRoute, "duplicate-route", "duplicate all matching routes and replace filters and predicates of all matched routes")
 	flag.BoolVar(&cfg.WaitFirstRouteLoad, "wait-first-route-load", false, "prevent starting the listener before the first batch of routes were loaded")
 
 	// Kubernetes:

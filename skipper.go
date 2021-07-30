@@ -1466,6 +1466,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
 	}
 
+	if o.Duplicator != nil {
+		ro.PreProcessors = append(ro.PreProcessors, o.Duplicator)
+	}
+
+	if o.Replacer != nil {
+		ro.PreProcessors = append(ro.PreProcessors, o.Replacer)
+	}
+
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
 		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
 	}
