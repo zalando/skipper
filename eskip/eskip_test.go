@@ -701,8 +701,10 @@ func TestEditorPreProcessor(t *testing.T) {
 			want:   r1FilterChanged,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.rep.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(tt.want), len(got), tt.want, got, cmp.Diff(tt.want, got))
+			r := CanonicalList(tt.routes)
+			want := CanonicalList(tt.want)
+			if got := tt.rep.Do(r); !reflect.DeepEqual(got, want) {
+				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(want), len(got), want, got, cmp.Diff(want, got))
 			}
 		})
 	}
@@ -806,8 +808,10 @@ func TestClonePreProcessor(t *testing.T) {
 			want:   append(r1Filter, r1FilterChanged...),
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.rep.Do(tt.routes); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(tt.want), len(got), tt.want, got, cmp.Diff(tt.want, got))
+			r := CanonicalList(tt.routes)
+			want := CanonicalList(tt.want)
+			if got := tt.rep.Do(r); !reflect.DeepEqual(got, want) {
+				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(want), len(got), want, got, cmp.Diff(want, got))
 			}
 		})
 	}
