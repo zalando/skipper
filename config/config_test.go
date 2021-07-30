@@ -113,7 +113,7 @@ func Test_NewConfig(t *testing.T) {
 				AppendFilters:                           &defaultFiltersFlags{},
 				PrependFilters:                          &defaultFiltersFlags{},
 				CloneRoute:                              &routeChangerConfig{},
-				EditorRoute:                             &routeChangerConfig{},
+				EditRoute:                               &routeChangerConfig{},
 				SourcePollTimeout:                       3000,
 				KubernetesEastWestRangeDomains:          commaListFlag(),
 				KubernetesHealthcheck:                   true,

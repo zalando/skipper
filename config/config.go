@@ -121,7 +121,7 @@ type Config struct {
 	InlineRoutes              string               `yaml:"inline-routes"`
 	AppendFilters             *defaultFiltersFlags `yaml:"default-filters-append"`
 	PrependFilters            *defaultFiltersFlags `yaml:"default-filters-prepend"`
-	EditorRoute               *routeChangerConfig  `yaml:"edit-route"`
+	EditRoute                 *routeChangerConfig  `yaml:"edit-route"`
 	CloneRoute                *routeChangerConfig  `yaml:"clone-route"`
 	SourcePollTimeout         int64                `yaml:"source-poll-timeout"`
 	WaitFirstRouteLoad        bool                 `yaml:"wait-first-route-load"`
@@ -257,7 +257,7 @@ func NewConfig() *Config {
 	cfg.AppendFilters = &defaultFiltersFlags{}
 	cfg.PrependFilters = &defaultFiltersFlags{}
 	cfg.CloneRoute = &routeChangerConfig{}
-	cfg.EditorRoute = &routeChangerConfig{}
+	cfg.EditRoute = &routeChangerConfig{}
 	cfg.KubernetesEastWestRangeDomains = commaListFlag()
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
@@ -354,7 +354,7 @@ func NewConfig() *Config {
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
 	flag.Var(cfg.PrependFilters, "default-filters-prepend", "set of default filters to apply to prepend to all filters of all routes")
-	flag.Var(cfg.EditorRoute, "edit-route", "match and edit filters and predicates of all routes")
+	flag.Var(cfg.EditRoute, "edit-route", "match and edit filters and predicates of all routes")
 	flag.Var(cfg.CloneRoute, "clone-route", "clone all matching routes and replace filters and predicates of all matched routes")
 	flag.BoolVar(&cfg.WaitFirstRouteLoad, "wait-first-route-load", false, "prevent starting the listener before the first batch of routes were loaded")
 
@@ -640,8 +640,8 @@ func (c *Config) ToOptions() skipper.Options {
 			Prepend: c.PrependFilters.filters,
 			Append:  c.AppendFilters.filters,
 		},
-		Clone:              eskip.NewClone(c.CloneRoute.Reg, c.CloneRoute.Repl),
-		Editor:             eskip.NewEditor(c.EditorRoute.Reg, c.EditorRoute.Repl),
+		EditRoute:          eskip.NewClone(c.CloneRoute.Reg, c.CloneRoute.Repl),
+		Editor:             eskip.NewEditor(c.EditRoute.Reg, c.EditorRoute.Repl),
 		SourcePollTimeout:  time.Duration(c.SourcePollTimeout) * time.Millisecond,
 		WaitFirstRouteLoad: c.WaitFirstRouteLoad,
 
