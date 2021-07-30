@@ -252,12 +252,7 @@ type Predicate struct {
 }
 
 func (p *Predicate) String() string {
-	args, err := getStringArgs(len(p.Args), p.Args)
-	if err != nil {
-		return ""
-	}
-
-	return p.Name + `("` + strings.Join(args, `", "`) + `")`
+	return fmt.Sprintf("%s(%s)", p.Name, argsString(p.Args))
 }
 
 // A Filter object represents a parsed, in-memory filter expression.
@@ -270,12 +265,7 @@ type Filter struct {
 }
 
 func (f *Filter) String() string {
-	args, err := getStringArgs(len(f.Args), f.Args)
-	if err != nil {
-		return ""
-	}
-
-	return f.Name + `("` + strings.Join(args, `", "`) + `")`
+	return fmt.Sprintf("%s(%s)", f.Name, argsString(f.Args))
 }
 
 // A Route object represents a parsed, in-memory route definition.
