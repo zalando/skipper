@@ -644,7 +644,7 @@ the example we would sleep for `100ms+/-10ms`.
 Example:
 
 ```
-* -> uniformRequestLatency("100ms, "10ms") -> "https://www.example.org";
+* -> uniformRequestLatency("100ms", "10ms") -> "https://www.example.org";
 ```
 
 ## normalRequestLatency
@@ -657,7 +657,7 @@ https://en.wikipedia.org/wiki/Normal_distribution.
 Example:
 
 ```
-* -> normalRequestLatency("10ms, "5ms") -> "https://www.example.org";
+* -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
 ```
 
 ## uniformResponseLatency
@@ -670,7 +670,7 @@ the example we would sleep for `100ms+/-10ms`.
 Example:
 
 ```
-* -> uniformRequestLatency("100ms, "10ms") -> "https://www.example.org";
+* -> uniformRequestLatency("100ms", "10ms") -> "https://www.example.org";
 ```
 
 ## normalResponseLatency
@@ -683,7 +683,7 @@ https://en.wikipedia.org/wiki/Normal_distribution.
 Example:
 
 ```
-* -> normalRequestLatency("10ms, "5ms") -> "https://www.example.org";
+* -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
 ```
 
 ## logHeader
