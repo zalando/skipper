@@ -99,9 +99,6 @@ func TestTracingIngressSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
@@ -250,9 +247,6 @@ func TestTracingProxySpan(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()

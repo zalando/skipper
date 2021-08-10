@@ -99,9 +99,6 @@ func TestBackendRatelimitRoundRobin(t *testing.T) {
 	}
 
 	p := proxytest.WithParams(filterRegistry, proxy.Params{RateLimiters: ratelimitRegistry}, r...)
-	if testing.Verbose() {
-		p.Log.Unmute()
-	}
 	defer p.Close()
 
 	const totalMaxHits = nBackends * maxHits
@@ -203,9 +200,6 @@ func TestBackendRatelimitScenarios(t *testing.T) {
 			}
 
 			p := proxytest.WithParams(filterRegistry, proxy.Params{RateLimiters: ratelimitRegistry}, r...)
-			if testing.Verbose() {
-				p.Log.Unmute()
-			}
 			defer p.Close()
 
 			var urls []string

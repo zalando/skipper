@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -96,8 +97,7 @@ func New() *Logger {
 	mute := make(chan bool)
 	quit := make(chan struct{})
 
-	// start muted to reduce spam during failing tests
-	muted := true
+	muted := !testing.Verbose()
 
 	tl := &Logger{
 		logc:   logc,
