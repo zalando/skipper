@@ -30,6 +30,8 @@ import (
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
+
+	teePredicate "github.com/zalando/skipper/predicates/tee"
 )
 
 const (
@@ -145,6 +147,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		DataClients:    []routing.DataClient{dc},
 		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()},
 		Log:            tl,
+		Predicates:     []routing.PredicateSpec{teePredicate.New()},
 	}
 	if len(preprocs) > 0 {
 		opts.PreProcessors = preprocs
