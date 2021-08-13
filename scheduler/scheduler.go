@@ -57,10 +57,13 @@ type QueueStatus struct {
 // concurrency and queue size. Currently, they can be used from the lifo and lifoGroup
 // filters in the filters/scheduler package only.
 type Queue struct {
-	queue                    *jobqueue.Stack
-	config                   Config
-	activeRequestsMetricsKey string
-	queuedRequestsMetricsKey string
+	queue                      *jobqueue.Stack
+	config                     Config
+	metrics                    metrics.Metrics
+	activeRequestsMetricsKey   string
+	queuedRequestsMetricsKey   string
+	rejectedRequestsMetricsKey string
+	timedOutRequestsMetricsKey string
 }
 
 // Options provides options for the registry.
@@ -128,7 +131,17 @@ type GroupedLIFOFilter interface {
 // It is mandatory to call done() the request was processed. When the
 // request needs to be rejected, an error will be returned.
 func (q *Queue) Wait() (done func(), err error) {
-	return q.queue.Wait()
+	done, err = q.queue.Wait()
+	if q.metrics != nil && err != nil {
+		switch err {
+		case jobqueue.ErrStackFull:
+			q.metrics.IncCounter(q.rejectedRequestsMetricsKey)
+		case jobqueue.ErrTimeout:
+			q.metrics.IncCounter(q.timedOutRequestsMetricsKey)
+		}
+	}
+
+	return done, err
 }
 
 // Status returns the current status of a queue.
@@ -194,6 +207,9 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 
 		q.activeRequestsMetricsKey = fmt.Sprintf("lifo.%s.active", name)
 		q.queuedRequestsMetricsKey = fmt.Sprintf("lifo.%s.queued", name)
+		q.rejectedRequestsMetricsKey = fmt.Sprintf("lifo.%s.rejected", name)
+		q.timedOutRequestsMetricsKey = fmt.Sprintf("lifo.%s.timed-out", name)
+		q.metrics = r.options.Metrics
 		r.measure()
 	}
 
