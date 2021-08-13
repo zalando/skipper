@@ -208,7 +208,7 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 		q.activeRequestsMetricsKey = fmt.Sprintf("lifo.%s.active", name)
 		q.queuedRequestsMetricsKey = fmt.Sprintf("lifo.%s.queued", name)
 		q.rejectedRequestsMetricsKey = fmt.Sprintf("lifo.%s.rejected", name)
-		q.timedOutRequestsMetricsKey = fmt.Sprintf("lifo.%s.timed-out", name)
+		q.timedOutRequestsMetricsKey = fmt.Sprintf("lifo.%s.timedout", name)
 		q.metrics = r.options.Metrics
 		r.measure()
 	}
