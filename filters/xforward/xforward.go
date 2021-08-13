@@ -5,14 +5,6 @@ import (
 	snet "github.com/zalando/skipper/net"
 )
 
-const (
-	// Name of the "xforward" filter.
-	Name = "xforward"
-
-	// NameFirst is the name of the "xforwardFirst" filter.
-	NameFirst = "xforwardFirst"
-)
-
 type filter struct {
 	headers *snet.ForwardedHeaders
 }
@@ -35,9 +27,9 @@ func NewFirst() filters.Spec {
 
 func (f filter) Name() string {
 	if f.headers.PrependFor {
-		return NameFirst
+		return filters.XforwardFirstName
 	}
-	return Name
+	return filters.XforwardName
 }
 
 func (f filter) CreateFilter([]interface{}) (filters.Filter, error) {

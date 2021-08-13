@@ -11,7 +11,7 @@ import (
 
 func TestBackendTimeout(t *testing.T) {
 	bt := NewBackendTimeout()
-	if bt.Name() != BackendTimeoutName {
+	if bt.Name() != filters.BackendTimeoutName {
 		t.Error("wrong name")
 	}
 

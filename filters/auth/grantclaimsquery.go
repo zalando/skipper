@@ -9,14 +9,12 @@ package auth
 
 import "github.com/zalando/skipper/filters"
 
-const GrantClaimsQueryName = "grantClaimsQuery"
-
 type grantClaimsQuerySpec struct {
 	oidcSpec oidcIntrospectionSpec
 }
 
 func (s *grantClaimsQuerySpec) Name() string {
-	return GrantClaimsQueryName
+	return filters.GrantClaimsQueryName
 }
 
 func (s *grantClaimsQuerySpec) CreateFilter(args []interface{}) (filters.Filter, error) {

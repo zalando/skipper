@@ -15,8 +15,8 @@ import (
 
 func Test_bearerInjectorSpec_Name(t *testing.T) {
 	b := &bearerInjectorSpec{}
-	if got := b.Name(); got != BearerInjectorName {
-		t.Errorf("bearerInjectorSpec.Name() = %v, want %v", got, BearerInjectorName)
+	if got := b.Name(); got != filters.BearerInjectorName {
+		t.Errorf("bearerInjectorSpec.Name() = %v, want %v", got, filters.BearerInjectorName)
 	}
 }
 

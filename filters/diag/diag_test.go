@@ -158,8 +158,8 @@ func TestRandom(t *testing.T) {
 		defaultChunkSize*2 + defaultChunkSize/2,
 	}} {
 		func() {
-			p := proxytest.New(filters.Registry{RandomName: &random{}}, &eskip.Route{
-				Filters: []*eskip.Filter{{Name: RandomName, Args: []interface{}{float64(ti.len)}}},
+			p := proxytest.New(filters.Registry{filters.RandomContentName: &random{}}, &eskip.Route{
+				Filters: []*eskip.Filter{{Name: filters.RandomContentName, Args: []interface{}{float64(ti.len)}}},
 				Shunt:   true})
 			defer p.Close()
 
@@ -269,8 +269,8 @@ func TestRepeat(t *testing.T) {
 			}
 		}
 
-		p := proxytest.New(filters.Registry{RepeatName: repeat}, &eskip.Route{
-			Filters: []*eskip.Filter{{Name: RepeatName, Args: ti.args}},
+		p := proxytest.New(filters.Registry{filters.RepeatContentName: repeat}, &eskip.Route{
+			Filters: []*eskip.Filter{{Name: filters.RepeatContentName, Args: ti.args}},
 			Shunt:   true})
 		defer p.Close()
 
@@ -596,23 +596,23 @@ func TestThrottle(t *testing.T) {
 
 	rc := &requestCheck{}
 	r := filters.Registry{
-		requestCheckName: rc,
-		RandomName:       &random{}}
+		requestCheckName:          rc,
+		filters.RandomContentName: &random{}}
 
 	testServer := proxytest.New(r, &eskip.Route{
 		Filters: []*eskip.Filter{
 			{Name: requestCheckName, Args: nil},
-			{Name: RandomName, Args: []interface{}{float64(testDataLen)}}},
+			{Name: filters.RandomContentName, Args: []interface{}{float64(testDataLen)}}},
 		Shunt: true})
 	defer testServer.Close()
 
 	proxyFilters := filters.Registry{
-		LatencyName:          NewLatency(),
-		BandwidthName:        NewBandwidth(),
-		ChunksName:           NewChunks(),
-		BackendLatencyName:   NewBackendLatency(),
-		BackendBandwidthName: NewBackendBandwidth(),
-		BackendChunksName:    NewBackendChunks()}
+		filters.LatencyName:          NewLatency(),
+		filters.BandwidthName:        NewBandwidth(),
+		filters.ChunksName:           NewChunks(),
+		filters.BackendLatencyName:   NewBackendLatency(),
+		filters.BackendBandwidthName: NewBackendBandwidth(),
+		filters.BackendChunksName:    NewBackendChunks()}
 
 	for _, ti := range []struct {
 		msg           string
@@ -621,73 +621,73 @@ func TestThrottle(t *testing.T) {
 		backendExpect messageExp
 	}{{
 		msg:          "zero latency",
-		filters:      []*eskip.Filter{{Name: LatencyName, Args: []interface{}{float64(0)}}},
+		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []interface{}{float64(0)}}},
 		clientExpect: messageExp{header: time.Millisecond},
 	}, {
 		msg:          "latency",
-		filters:      []*eskip.Filter{{Name: LatencyName, Args: []interface{}{float64(smallDelay)}}},
+		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []interface{}{float64(smallDelay)}}},
 		clientExpect: messageExp{header: smallDelay * time.Millisecond},
 	}, {
 		msg:          "high latency",
-		filters:      []*eskip.Filter{{Name: LatencyName, Args: []interface{}{float64(highDelay)}}},
+		filters:      []*eskip.Filter{{Name: filters.LatencyName, Args: []interface{}{float64(highDelay)}}},
 		clientExpect: messageExp{header: highDelay * time.Millisecond},
 	}, {
 		msg:           "zero backend latency",
-		filters:       []*eskip.Filter{{Name: BackendLatencyName, Args: []interface{}{float64(0)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []interface{}{float64(0)}}},
 		backendExpect: messageExp{header: time.Millisecond},
 	}, {
 		msg:           "backend latency",
-		filters:       []*eskip.Filter{{Name: BackendLatencyName, Args: []interface{}{float64(smallDelay)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []interface{}{float64(smallDelay)}}},
 		backendExpect: messageExp{header: smallDelay * time.Millisecond},
 	}, {
 		msg:           "high backend latency",
-		filters:       []*eskip.Filter{{Name: BackendLatencyName, Args: []interface{}{float64(highDelay)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendLatencyName, Args: []interface{}{float64(highDelay)}}},
 		backendExpect: messageExp{header: highDelay * time.Millisecond},
 	}, {
 		msg:          "bandwidth",
-		filters:      []*eskip.Filter{{Name: BandwidthName, Args: []interface{}{float64(12)}}},
+		filters:      []*eskip.Filter{{Name: filters.BandwidthName, Args: []interface{}{float64(12)}}},
 		clientExpect: messageExp{kbps: 12},
 	}, {
 		msg:     "very high bandwidth",
-		filters: []*eskip.Filter{{Name: BandwidthName, Args: []interface{}{float64(12000000000)}}},
+		filters: []*eskip.Filter{{Name: filters.BandwidthName, Args: []interface{}{float64(12000000000)}}},
 	}, {
 		msg: "bandwidth, adjust",
 		filters: []*eskip.Filter{{
-			Name: BandwidthName,
+			Name: filters.BandwidthName,
 			Args: []interface{}{float64(12)},
 		}, {
-			Name: BandwidthName,
+			Name: filters.BandwidthName,
 			Args: []interface{}{float64(36)},
 		}},
 		clientExpect: messageExp{kbps: 12},
 	}, {
 		msg:           "backend bandwidth",
-		filters:       []*eskip.Filter{{Name: BackendBandwidthName, Args: []interface{}{float64(12)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendBandwidthName, Args: []interface{}{float64(12)}}},
 		backendExpect: messageExp{kbps: 12},
 	}, {
 		msg:     "backend, very high bandwidth",
-		filters: []*eskip.Filter{{Name: BackendBandwidthName, Args: []interface{}{float64(12000000000)}}},
+		filters: []*eskip.Filter{{Name: filters.BackendBandwidthName, Args: []interface{}{float64(12000000000)}}},
 	}, {
 		msg: "backend bandwidth, adjust",
 		filters: []*eskip.Filter{{
-			Name: BackendBandwidthName,
+			Name: filters.BackendBandwidthName,
 			Args: []interface{}{float64(36)},
 		}, {
-			Name: BackendBandwidthName,
+			Name: filters.BackendBandwidthName,
 			Args: []interface{}{float64(12)},
 		}},
 		backendExpect: messageExp{kbps: 12},
 	}, {
 		msg:          "single chunk",
-		filters:      []*eskip.Filter{{Name: ChunksName, Args: []interface{}{float64(2 * testDataLen), float64(smallDelay)}}},
+		filters:      []*eskip.Filter{{Name: filters.ChunksName, Args: []interface{}{float64(2 * testDataLen), float64(smallDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(smallDelay) * time.Millisecond}}},
 	}, {
 		msg:          "single chunk, long delay",
-		filters:      []*eskip.Filter{{Name: ChunksName, Args: []interface{}{float64(2 * testDataLen), float64(highDelay)}}},
+		filters:      []*eskip.Filter{{Name: filters.ChunksName, Args: []interface{}{float64(2 * testDataLen), float64(highDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(highDelay) * time.Millisecond}}},
 	}, {
 		msg:     "multiple chunks",
-		filters: []*eskip.Filter{{Name: ChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
+		filters: []*eskip.Filter{{Name: filters.ChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{
 			testDataLen/4 + testDataLen/8, time.Duration(smallDelay) * time.Millisecond,
 		}, {
@@ -697,7 +697,7 @@ func TestThrottle(t *testing.T) {
 		}}},
 	}, {
 		msg:     "multiple chunks, long delay",
-		filters: []*eskip.Filter{{Name: ChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
+		filters: []*eskip.Filter{{Name: filters.ChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
 		clientExpect: messageExp{chunks: []testChunk{{
 			testDataLen/4 + testDataLen/8, time.Duration(highDelay) * time.Millisecond,
 		}, {
@@ -707,15 +707,15 @@ func TestThrottle(t *testing.T) {
 		}}},
 	}, {
 		msg:           "single chunk, backend",
-		filters:       []*eskip.Filter{{Name: BackendChunksName, Args: []interface{}{float64(2 * testDataLen), float64(smallDelay)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendChunksName, Args: []interface{}{float64(2 * testDataLen), float64(smallDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(smallDelay) * time.Millisecond}}},
 	}, {
 		msg:           "single chunk, long delay, backend",
-		filters:       []*eskip.Filter{{Name: BackendChunksName, Args: []interface{}{float64(2 * testDataLen), float64(highDelay)}}},
+		filters:       []*eskip.Filter{{Name: filters.BackendChunksName, Args: []interface{}{float64(2 * testDataLen), float64(highDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{2 * testDataLen, time.Duration(highDelay) * time.Millisecond}}},
 	}, {
 		msg:     "multiple chunks, backend",
-		filters: []*eskip.Filter{{Name: BackendChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
+		filters: []*eskip.Filter{{Name: filters.BackendChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(smallDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{
 			testDataLen/4 + testDataLen/8, time.Duration(smallDelay) * time.Millisecond,
 		}, {
@@ -725,7 +725,7 @@ func TestThrottle(t *testing.T) {
 		}}},
 	}, {
 		msg:     "multiple chunks, long delay, backend",
-		filters: []*eskip.Filter{{Name: BackendChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
+		filters: []*eskip.Filter{{Name: filters.BackendChunksName, Args: []interface{}{float64(testDataLen/4 + testDataLen/8), float64(highDelay)}}},
 		backendExpect: messageExp{chunks: []testChunk{{
 			testDataLen/4 + testDataLen/8, time.Duration(highDelay) * time.Millisecond,
 		}, {

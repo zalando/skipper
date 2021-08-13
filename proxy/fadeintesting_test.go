@@ -138,7 +138,7 @@ func (b *fadeInBackend) route() *eskip.Route {
 
 	if b.withFadeIn {
 		r.Filters = append(r.Filters, &eskip.Filter{
-			Name: fadein.FadeInName,
+			Name: filters.FadeInName,
 			Args: []interface{}{testFadeInDuration},
 		})
 	}
@@ -147,7 +147,7 @@ func (b *fadeInBackend) route() *eskip.Route {
 		r.LBEndpoints = append(r.LBEndpoints, i.server.URL)
 		if !i.created.IsZero() {
 			r.Filters = append(r.Filters, &eskip.Filter{
-				Name: fadein.EndpointCreatedName,
+				Name: filters.EndpointCreatedName,
 				Args: []interface{}{
 					i.server.URL,
 					i.created,

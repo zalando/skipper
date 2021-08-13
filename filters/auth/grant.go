@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	OAuthGrantName = "oauthGrant"
-
 	secretsRefreshInternal = time.Minute
 	tokenWasRefreshed      = "oauth-did-refresh"
 )
@@ -31,7 +29,7 @@ type grantFilter struct {
 	config OAuthConfig
 }
 
-func (s *grantSpec) Name() string { return OAuthGrantName }
+func (s *grantSpec) Name() string { return filters.OAuthGrantName }
 
 func (s *grantSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	return &grantFilter{

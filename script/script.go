@@ -40,7 +40,7 @@ func NewLuaScript() filters.Spec {
 
 // Name returns the name of the filter ("lua")
 func (ls *luaScript) Name() string {
-	return "lua"
+	return filters.LuaName
 }
 
 // CreateFilter creates the filter

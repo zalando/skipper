@@ -5,10 +5,6 @@ import (
 	"github.com/zalando/skipper/secrets"
 )
 
-const (
-	BearerInjectorName = "bearerinjector"
-)
-
 type (
 	bearerInjectorSpec struct {
 		secretsReader secrets.SecretsReader
@@ -26,7 +22,7 @@ func NewBearerInjector(sr secrets.SecretsReader) filters.Spec {
 }
 
 func (*bearerInjectorSpec) Name() string {
-	return BearerInjectorName
+	return filters.BearerInjectorName
 }
 
 func (b *bearerInjectorSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

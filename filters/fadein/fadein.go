@@ -13,11 +13,6 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-const (
-	FadeInName          = "fadeIn"
-	EndpointCreatedName = "endpointCreated"
-)
-
 type (
 	fadeIn struct {
 		duration time.Duration
@@ -46,7 +41,7 @@ func NewFadeIn() filters.Spec {
 	return fadeIn{}
 }
 
-func (fadeIn) Name() string { return FadeInName }
+func (fadeIn) Name() string { return filters.FadeInName }
 
 func (fadeIn) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) == 0 || len(args) > 2 {
@@ -96,7 +91,7 @@ func NewEndpointCreated() filters.Spec {
 	return ec
 }
 
-func (endpointCreated) Name() string { return EndpointCreatedName }
+func (endpointCreated) Name() string { return filters.EndpointCreatedName }
 
 func normalizeSchemeHost(s, h string) (string, string, error) {
 	// endpoint address cannot contain path, the rest is not case sensitive

@@ -32,7 +32,7 @@ import (
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/predicates"
 )
 
@@ -398,7 +398,7 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, rever
 		}
 
 		for _, f := range r.Filters {
-			if f.Name != builtin.StatusName {
+			if f.Name != filters.StatusName {
 				continue
 			}
 

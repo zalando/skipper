@@ -21,7 +21,7 @@ type modRequestHeader struct {
 func NewModRequestHeader() filters.Spec { return &modRequestHeader{} }
 
 func (spec *modRequestHeader) Name() string {
-	return ModRequestHeaderName
+	return filters.ModRequestHeaderName
 }
 
 //lint:ignore ST1016 "spec" makes sense here and we reuse the type for the filter

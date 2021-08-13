@@ -5,10 +5,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	BaggageToTagFilterName = "tracingBaggageToTag"
-)
-
 type baggageToTagSpec struct{}
 
 type baggageToTagFilter struct {
@@ -17,7 +13,7 @@ type baggageToTagFilter struct {
 }
 
 func (baggageToTagSpec) Name() string {
-	return BaggageToTagFilterName
+	return filters.TracingBaggageToTagName
 }
 
 func (baggageToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

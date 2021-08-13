@@ -8,10 +8,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	StateBagToTagFilterName = "stateBagToTag"
-)
-
 type stateBagToTagSpec struct{}
 
 type stateBagToTagFilter struct {
@@ -20,7 +16,7 @@ type stateBagToTagFilter struct {
 }
 
 func (stateBagToTagSpec) Name() string {
-	return StateBagToTagFilterName
+	return filters.StateBagToTagName
 }
 
 func (stateBagToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

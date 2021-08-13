@@ -192,8 +192,8 @@ func TestPostProcessor(t *testing.T) {
 		rt := routing.New(routing.Options{
 			DataClients: []routing.DataClient{dc},
 			FilterRegistry: filters.Registry{
-				FadeInName:          NewFadeIn(),
-				EndpointCreatedName: NewEndpointCreated(),
+				filters.FadeInName:          NewFadeIn(),
+				filters.EndpointCreatedName: NewEndpointCreated(),
 			},
 			PostProcessors: []routing.PostProcessor{
 				loadbalancer.NewAlgorithmProvider(),

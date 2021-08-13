@@ -39,9 +39,9 @@ func NewSetQuery() filters.Spec { return &modQuery{behavior: set} }
 func (spec *modQuery) Name() string {
 	switch spec.behavior {
 	case drop:
-		return DropQueryName
+		return filters.DropQueryName
 	case set:
-		return SetQueryName
+		return filters.SetQueryName
 	default:
 		panic("unspecified behavior")
 	}

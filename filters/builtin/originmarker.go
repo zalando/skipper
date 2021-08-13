@@ -7,10 +7,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	OriginMarkerName = "originMarker"
-)
-
 type originMarkerSpec struct{}
 
 // OriginMarker carries information about the origin of a route
@@ -31,12 +27,12 @@ func NewOriginMarkerSpec() filters.Spec {
 
 func NewOriginMarker(origin string, id string, created time.Time) *eskip.Filter {
 	return &eskip.Filter{
-		Name: OriginMarkerName,
+		Name: filters.OriginMarkerName,
 		Args: []interface{}{origin, id, created},
 	}
 }
 
-func (s *originMarkerSpec) Name() string { return OriginMarkerName }
+func (s *originMarkerSpec) Name() string { return filters.OriginMarkerName }
 
 func (s *originMarkerSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 3 {

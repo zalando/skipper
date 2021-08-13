@@ -31,7 +31,7 @@ func TestTracingTagNil(t *testing.T) {
 }
 
 func TestTagName(t *testing.T) {
-	if (tagSpec{}).Name() != name {
+	if (tagSpec{}).Name() != filters.TracingTagName {
 		t.Error("Wrong tag spec name")
 	}
 }

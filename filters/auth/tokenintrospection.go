@@ -15,15 +15,6 @@ import (
 )
 
 const (
-	OAuthTokenintrospectionAnyClaimsName       = "oauthTokenintrospectionAnyClaims"
-	OAuthTokenintrospectionAllClaimsName       = "oauthTokenintrospectionAllClaims"
-	OAuthTokenintrospectionAnyKVName           = "oauthTokenintrospectionAnyKV"
-	OAuthTokenintrospectionAllKVName           = "oauthTokenintrospectionAllKV"
-	SecureOAuthTokenintrospectionAnyClaimsName = "secureOauthTokenintrospectionAnyClaims"
-	SecureOAuthTokenintrospectionAllClaimsName = "secureOauthTokenintrospectionAllClaims"
-	SecureOAuthTokenintrospectionAnyKVName     = "secureOauthTokenintrospectionAnyKV"
-	SecureOAuthTokenintrospectionAllKVName     = "secureOauthTokenintrospectionAllKV"
-
 	tokenintrospectionCacheKey   = "tokenintrospection"
 	TokenIntrospectionConfigPath = "/.well-known/openid-configuration"
 )
@@ -227,21 +218,21 @@ func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 func (s *tokenIntrospectionSpec) Name() string {
 	switch s.typ {
 	case checkOAuthTokenintrospectionAnyClaims:
-		return OAuthTokenintrospectionAnyClaimsName
+		return filters.OAuthTokenintrospectionAnyClaimsName
 	case checkOAuthTokenintrospectionAllClaims:
-		return OAuthTokenintrospectionAllClaimsName
+		return filters.OAuthTokenintrospectionAllClaimsName
 	case checkOAuthTokenintrospectionAnyKV:
-		return OAuthTokenintrospectionAnyKVName
+		return filters.OAuthTokenintrospectionAnyKVName
 	case checkOAuthTokenintrospectionAllKV:
-		return OAuthTokenintrospectionAllKVName
+		return filters.OAuthTokenintrospectionAllKVName
 	case checkSecureOAuthTokenintrospectionAnyClaims:
-		return SecureOAuthTokenintrospectionAnyClaimsName
+		return filters.SecureOAuthTokenintrospectionAnyClaimsName
 	case checkSecureOAuthTokenintrospectionAllClaims:
-		return SecureOAuthTokenintrospectionAllClaimsName
+		return filters.SecureOAuthTokenintrospectionAllClaimsName
 	case checkSecureOAuthTokenintrospectionAnyKV:
-		return SecureOAuthTokenintrospectionAnyKVName
+		return filters.SecureOAuthTokenintrospectionAnyKVName
 	case checkSecureOAuthTokenintrospectionAllKV:
-		return SecureOAuthTokenintrospectionAllKVName
+		return filters.SecureOAuthTokenintrospectionAllKVName
 	}
 	return AuthUnknown
 }
@@ -339,21 +330,21 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 func (f *tokenintrospectFilter) String() string {
 	switch f.typ {
 	case checkOAuthTokenintrospectionAnyClaims:
-		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAnyClaimsName, strings.Join(f.claims, ","))
+		return fmt.Sprintf("%s(%s)", filters.OAuthTokenintrospectionAnyClaimsName, strings.Join(f.claims, ","))
 	case checkOAuthTokenintrospectionAllClaims:
-		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAllClaimsName, strings.Join(f.claims, ","))
+		return fmt.Sprintf("%s(%s)", filters.OAuthTokenintrospectionAllClaimsName, strings.Join(f.claims, ","))
 	case checkOAuthTokenintrospectionAnyKV:
-		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAnyKVName, f.kv)
+		return fmt.Sprintf("%s(%s)", filters.OAuthTokenintrospectionAnyKVName, f.kv)
 	case checkOAuthTokenintrospectionAllKV:
-		return fmt.Sprintf("%s(%s)", OAuthTokenintrospectionAllKVName, f.kv)
+		return fmt.Sprintf("%s(%s)", filters.OAuthTokenintrospectionAllKVName, f.kv)
 	case checkSecureOAuthTokenintrospectionAnyClaims:
-		return fmt.Sprintf("%s(%s)", SecureOAuthTokenintrospectionAnyClaimsName, strings.Join(f.claims, ","))
+		return fmt.Sprintf("%s(%s)", filters.SecureOAuthTokenintrospectionAnyClaimsName, strings.Join(f.claims, ","))
 	case checkSecureOAuthTokenintrospectionAllClaims:
-		return fmt.Sprintf("%s(%s)", SecureOAuthTokenintrospectionAllClaimsName, strings.Join(f.claims, ","))
+		return fmt.Sprintf("%s(%s)", filters.SecureOAuthTokenintrospectionAllClaimsName, strings.Join(f.claims, ","))
 	case checkSecureOAuthTokenintrospectionAnyKV:
-		return fmt.Sprintf("%s(%s)", SecureOAuthTokenintrospectionAnyKVName, f.kv)
+		return fmt.Sprintf("%s(%s)", filters.SecureOAuthTokenintrospectionAnyKVName, f.kv)
 	case checkSecureOAuthTokenintrospectionAllKV:
-		return fmt.Sprintf("%s(%s)", SecureOAuthTokenintrospectionAllKVName, f.kv)
+		return fmt.Sprintf("%s(%s)", filters.SecureOAuthTokenintrospectionAllKVName, f.kv)
 	}
 	return AuthUnknown
 }

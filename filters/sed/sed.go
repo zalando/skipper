@@ -6,13 +6,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	Name               = "sed"
-	NameDelimit        = "sedDelim"
-	NameRequest        = "sedRequest"
-	NameRequestDelimit = "sedRequestDelim"
-)
-
 type typ int
 
 const (
@@ -62,13 +55,13 @@ func NewDelimitedRequest() filters.Spec {
 func (s spec) Name() string {
 	switch s.typ {
 	case delimited:
-		return NameDelimit
+		return filters.SedDelimName
 	case simpleRequest:
-		return NameRequest
+		return filters.SedRequestName
 	case delimitedRequest:
-		return NameRequestDelimit
+		return filters.SedRequestDelimName
 	default:
-		return Name
+		return filters.SedName
 	}
 }
 

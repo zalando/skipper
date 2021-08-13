@@ -13,10 +13,7 @@ import (
 )
 
 const (
-	ConsecutiveBreakerName = "consecutiveBreaker"
-	RateBreakerName        = "rateBreaker"
-	DisableBreakerName     = "disableBreaker"
-	RouteSettingsKey       = "#circuitbreakersettings"
+	RouteSettingsKey = "#circuitbreakersettings"
 )
 
 type spec struct {
@@ -82,11 +79,11 @@ func NewDisableBreaker() filters.Spec {
 func (s *spec) Name() string {
 	switch s.typ {
 	case circuit.ConsecutiveFailures:
-		return ConsecutiveBreakerName
+		return filters.ConsecutiveBreakerName
 	case circuit.FailureRate:
-		return RateBreakerName
+		return filters.RateBreakerName
 	default:
-		return DisableBreakerName
+		return filters.DisableBreakerName
 	}
 }
 

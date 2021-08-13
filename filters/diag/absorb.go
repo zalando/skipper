@@ -10,12 +10,6 @@ import (
 	"github.com/zalando/skipper/logging"
 )
 
-// AbsorbName contains the name of the absorb filter.
-const AbsorbName = "absorb"
-
-// AbsorbSilentName contains the name of the absorbSilent filter.
-const AbsorbSilentName = "absorbSilent"
-
 const loggingInterval = time.Second
 
 type absorb struct {
@@ -65,9 +59,9 @@ func NewAbsorbSilent() filters.Spec {
 
 func (a *absorb) Name() string {
 	if a.silent {
-		return AbsorbSilentName
+		return filters.AbsorbSilentName
 	} else {
-		return AbsorbName
+		return filters.AbsorbName
 	}
 }
 

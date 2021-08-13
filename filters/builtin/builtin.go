@@ -24,57 +24,6 @@ import (
 	"github.com/zalando/skipper/script"
 )
 
-const (
-	// Deprecated: use setRequestHeader or appendRequestHeader
-	RequestHeaderName = "requestHeader"
-
-	// Deprecated: use setResponseHeader or appendResponseHeader
-	ResponseHeaderName = "responseHeader"
-
-	// Deprecated: use redirectTo
-	RedirectName = "redirect"
-
-	SetRequestHeaderName            = "setRequestHeader"
-	SetResponseHeaderName           = "setResponseHeader"
-	AppendRequestHeaderName         = "appendRequestHeader"
-	AppendResponseHeaderName        = "appendResponseHeader"
-	DropRequestHeaderName           = "dropRequestHeader"
-	DropResponseHeaderName          = "dropResponseHeader"
-	SetContextRequestHeaderName     = "setContextRequestHeader"
-	AppendContextRequestHeaderName  = "appendContextRequestHeader"
-	SetContextResponseHeaderName    = "setContextResponseHeader"
-	AppendContextResponseHeaderName = "appendContextResponseHeader"
-	CopyRequestHeaderName           = "copyRequestHeader"
-	CopyResponseHeaderName          = "copyResponseHeader"
-
-	SetDynamicBackendHostFromHeader   = "setDynamicBackendHostFromHeader"
-	SetDynamicBackendSchemeFromHeader = "setDynamicBackendSchemeFromHeader"
-	SetDynamicBackendUrlFromHeader    = "setDynamicBackendUrlFromHeader"
-	SetDynamicBackendHost             = "setDynamicBackendHost"
-	SetDynamicBackendScheme           = "setDynamicBackendScheme"
-	SetDynamicBackendUrl              = "setDynamicBackendUrl"
-
-	HealthCheckName           = "healthcheck"
-	ModPathName               = "modPath"
-	SetPathName               = "setPath"
-	ModRequestHeaderName      = "modRequestHeader"
-	RedirectToName            = "redirectTo"
-	RedirectToLowerName       = "redirectToLower"
-	StaticName                = "static"
-	StripQueryName            = "stripQuery"
-	PreserveHostName          = "preserveHost"
-	SetFastCgiFilenameName    = "setFastCgiFilename"
-	StatusName                = "status"
-	CompressName              = "compress"
-	SetQueryName              = "setQuery"
-	DropQueryName             = "dropQuery"
-	InlineContentName         = "inlineContent"
-	InlineContentIfStatusName = "inlineContentIfStatus"
-	HeaderToQueryName         = "headerToQuery"
-	QueryToHeaderName         = "queryToHeader"
-	BackendTimeoutName        = "backendTimeout"
-)
-
 // Returns a Registry object initialized with the default set of filter
 // specifications found in the filters package. (including the builtin
 // and the flowid subdirectories.)

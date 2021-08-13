@@ -12,12 +12,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	Name           = "tee"
-	DeprecatedName = "Tee"
-	NoFollowName   = "teenf"
-)
-
 const defaultTeeTimeout = time.Second
 
 type teeSpec struct {
@@ -250,12 +244,12 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 	if len(config) == 3 {
 		expr, ok := config[1].(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", Name, config)
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
 		}
 
 		replacement, ok := config[2].(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", Name, config)
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
 		}
 
 		rx, err := regexp.Compile(expr)
@@ -275,10 +269,10 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 
 func (spec *teeSpec) Name() string {
 	if spec.deprecated {
-		return DeprecatedName
+		return filters.DeprecatedTeeName
 	}
 	if spec.options.NoFollow {
-		return NoFollowName
+		return filters.TeenfName
 	}
-	return Name
+	return filters.TeeName
 }

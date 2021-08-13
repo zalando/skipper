@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	Name                = "flowId"
 	ReuseParameterValue = "reuse"
 	HeaderName          = "X-Flow-Id"
 )
@@ -105,4 +104,4 @@ func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
 }
 
 // Name returns the canonical filter name
-func (*flowIdSpec) Name() string { return Name }
+func (*flowIdSpec) Name() string { return filters.FlowIdName }

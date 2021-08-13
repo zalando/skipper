@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
@@ -29,9 +30,9 @@ func TestGrantClaimsQuery(t *testing.T) {
 	createProxyForQuery := func(config *auth.OAuthConfig, query string) *proxytest.TestProxy {
 		proxy, err := newAuthProxy(config, &eskip.Route{
 			Filters: []*eskip.Filter{
-				{Name: auth.OAuthGrantName},
-				{Name: auth.GrantClaimsQueryName, Args: []interface{}{query}},
-				{Name: "status", Args: []interface{}{http.StatusNoContent}},
+				{Name: filters.OAuthGrantName},
+				{Name: filters.GrantClaimsQueryName, Args: []interface{}{query}},
+				{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
 			},
 			BackendType: eskip.ShuntBackend,
 		})

@@ -15,7 +15,11 @@ type logHeader struct {
 
 // NewLogHeader creates a filter specification for the 'logHeader()' filter.
 func NewLogHeader() filters.Spec { return logHeader{} }
-func (logHeader) Name() string   { return "logHeader" }
+
+// Name returns the logHeader filtern name.
+func (logHeader) Name() string {
+	return filters.LogHeaderName
+}
 
 func (logHeader) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var (

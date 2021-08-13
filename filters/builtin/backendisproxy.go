@@ -12,7 +12,7 @@ func NewBackendIsProxy() filters.Spec {
 }
 
 func (s *backendIsProxySpec) Name() string {
-	return "backendIsProxy"
+	return filters.BackendIsProxyName
 }
 
 func (s *backendIsProxySpec) CreateFilter(args []interface{}) (filters.Filter, error) {

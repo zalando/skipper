@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -178,8 +179,8 @@ func newAuthProxy(config *auth.OAuthConfig, routes ...*eskip.Route) (*proxytest.
 func newSimpleGrantAuthProxy(t *testing.T, config *auth.OAuthConfig) *proxytest.TestProxy {
 	proxy, err := newAuthProxy(config, &eskip.Route{
 		Filters: []*eskip.Filter{
-			{Name: auth.OAuthGrantName},
-			{Name: "status", Args: []interface{}{http.StatusNoContent}},
+			{Name: filters.OAuthGrantName},
+			{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
 		},
 		BackendType: eskip.ShuntBackend,
 	})

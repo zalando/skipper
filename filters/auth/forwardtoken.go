@@ -9,10 +9,6 @@ import (
 	"golang.org/x/net/http/httpguts"
 )
 
-const (
-	ForwardTokenName = "forwardToken"
-)
-
 type (
 	forwardTokenSpec   struct{}
 	forwardTokenFilter struct {
@@ -28,7 +24,7 @@ func NewForwardToken() filters.Spec {
 }
 
 func (s *forwardTokenSpec) Name() string {
-	return ForwardTokenName
+	return filters.ForwardTokenName
 }
 
 func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

@@ -12,6 +12,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/net"
 )
 
@@ -22,27 +23,6 @@ const (
 	// RetryHeader is name of the header which will be used to indicate how
 	// long a client should wait before making a new request
 	RetryAfterHeader = "Retry-After"
-
-	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
-	ServiceRatelimitName = "ratelimit"
-
-	// LocalRatelimitName *DEPRECATED*, use ClientRatelimitName instead
-	LocalRatelimitName = "localRatelimit"
-
-	// ClientRatelimitName is the name of the ClientRatelimit filter, which will be shown in log
-	ClientRatelimitName = "clientRatelimit"
-
-	// ClusterServiceRatelimitName is the name of the ClusterServiceRatelimit filter, which will be shown in log
-	ClusterServiceRatelimitName = "clusterRatelimit"
-
-	// ClusterClientRatelimitName is the name of the ClusterClientRatelimit filter, which will be shown in log
-	ClusterClientRatelimitName = "clusterClientRatelimit"
-
-	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
-	DisableRatelimitName = "disableRatelimit"
-
-	// UknownRatelimitName is to print unknown ratelimit settings in error messages
-	UknownRatelimitName = "unknownRatelimit"
 )
 
 // RatelimitType defines the type of  the used ratelimit
@@ -129,19 +109,19 @@ const (
 func (rt RatelimitType) String() string {
 	switch rt {
 	case DisableRatelimit:
-		return DisableRatelimitName
+		return filters.DisableRatelimitName
 	case ClientRatelimit:
-		return ClientRatelimitName
+		return filters.ClientRatelimitName
 	case ClusterClientRatelimit:
-		return ClusterClientRatelimitName
+		return filters.ClusterClientRatelimitName
 	case ClusterServiceRatelimit:
-		return ClusterServiceRatelimitName
+		return filters.ClusterRatelimitName
 	case LocalRatelimit:
-		return LocalRatelimitName
+		return filters.LocalRatelimitName
 	case ServiceRatelimit:
-		return ServiceRatelimitName
+		return filters.RatelimitName
 	default:
-		return UknownRatelimitName
+		return filters.UnknownRatelimitName
 
 	}
 

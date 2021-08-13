@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	GrantLogoutName         = "grantLogout"
 	revokeTokenKey          = "token"
 	revokeTokenTypeKey      = "token_type_hint"
 	refreshTokenType        = "refresh_token"
@@ -35,7 +34,7 @@ type revokeErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-func (*grantLogoutSpec) Name() string { return GrantLogoutName }
+func (*grantLogoutSpec) Name() string { return filters.GrantLogoutName }
 
 func (s *grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	return &grantLogoutFilter{

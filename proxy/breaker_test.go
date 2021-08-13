@@ -12,8 +12,8 @@ import (
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
-	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
@@ -569,10 +569,10 @@ func TestBreakerMultipleHostsAndRouteBasedSettings(t *testing.T) {
 		}},
 		filters: map[string][]*eskip.Filter{
 			"foo": {{
-				Name: circuitfilters.DisableBreakerName,
+				Name: filters.DisableBreakerName,
 			}},
 			"bar": {{
-				Name: circuitfilters.RateBreakerName,
+				Name: filters.RateBreakerName,
 				Args: []interface{}{
 					testRateFailures,
 					testRateWindow,

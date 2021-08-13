@@ -8,8 +8,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const GrantCallbackName = "grantCallback"
-
 type grantCallbackSpec struct {
 	config OAuthConfig
 }
@@ -18,7 +16,7 @@ type grantCallbackFilter struct {
 	config OAuthConfig
 }
 
-func (*grantCallbackSpec) Name() string { return GrantCallbackName }
+func (*grantCallbackSpec) Name() string { return filters.GrantCallbackName }
 
 func (s *grantCallbackSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	return &grantCallbackFilter{

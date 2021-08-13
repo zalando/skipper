@@ -40,9 +40,9 @@ func NewSetPath() filters.Spec { return &modPath{behavior: fullReplace} }
 func (spec *modPath) Name() string {
 	switch spec.behavior {
 	case regexpReplace:
-		return ModPathName
+		return filters.ModPathName
 	case fullReplace:
-		return SetPathName
+		return filters.SetPathName
 	default:
 		panic("unspecified behavior")
 	}

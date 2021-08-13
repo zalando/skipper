@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
 	"net/http"
 	"net/http/httptest"
@@ -104,8 +105,8 @@ func TestGrantLogout(t *testing.T) {
 
 	proxy, err := newAuthProxy(config, &eskip.Route{
 		Filters: []*eskip.Filter{
-			{Name: auth.GrantLogoutName},
-			{Name: "status", Args: []interface{}{http.StatusNoContent}},
+			{Name: filters.GrantLogoutName},
+			{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
 		},
 		BackendType: eskip.ShuntBackend,
 	})

@@ -26,10 +26,6 @@ import (
 )
 
 const (
-	OidcUserInfoName  = "oauthOidcUserInfo"
-	OidcAnyClaimsName = "oauthOidcAnyClaims"
-	OidcAllClaimsName = "oauthOidcAllClaims"
-
 	oauthOidcCookieName = "skipperOauthOidc"
 	stateValidity       = 1 * time.Minute
 	oidcInfoHeader      = "Skipper-Oidc-Info"
@@ -234,11 +230,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 func (s *tokenOidcSpec) Name() string {
 	switch s.typ {
 	case checkOIDCUserInfo:
-		return OidcUserInfoName
+		return filters.OAuthOidcUserInfoName
 	case checkOIDCAnyClaims:
-		return OidcAnyClaimsName
+		return filters.OAuthOidcAnyClaimsName
 	case checkOIDCAllClaims:
-		return OidcAllClaimsName
+		return filters.OAuthOidcAllClaimsName
 	}
 	return AuthUnknown
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
@@ -117,10 +118,10 @@ func TestRedirect(t *testing.T) {
 			name string
 		}{{
 			"deprecated",
-			RedirectName,
+			filters.RedirectName,
 		}, {
 			"not deprecated",
-			RedirectToName,
+			filters.RedirectToName,
 		}} {
 			var args []interface{}
 			if ti.skipLocationArg {
@@ -206,7 +207,7 @@ func TestRedirectLower(t *testing.T) {
 			name string
 		}{{
 			"lowercase",
-			RedirectToLowerName,
+			filters.RedirectToLowerName,
 		}} {
 			dc := testdataclient.New([]*eskip.Route{{
 				Shunt: true,

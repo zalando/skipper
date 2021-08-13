@@ -13,7 +13,9 @@ type consistentHashKey struct {
 // NewConsistentHashKey creates a filter Spec, whose instances
 // set the request key used by the `consistentHash` algorithm to select backend endpoint
 func NewConsistentHashKey() filters.Spec { return &consistentHashKey{} }
-func (*consistentHashKey) Name() string  { return "consistentHashKey" }
+func (*consistentHashKey) Name() string {
+	return filters.ConsistentHashKeyName
+}
 
 func (*consistentHashKey) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {
