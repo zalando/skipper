@@ -517,11 +517,11 @@ func TestFilterCreation(t *testing.T) {
 
 	t.Run("Lua(with path)", testWithSpecFn(
 		script.NewLuaScript(),
-		Lua("../../script/set_path.lua")))
+		Lua("../../script/testdata/set_path.lua")))
 
 	t.Run("Lua(with path and params)", testWithSpecFn(
 		script.NewLuaScript(),
-		Lua("../../script/set_path.lua", "myparam=foo", "other=bar")))
+		Lua("../../script/testdata/set_path.lua", "myparam=foo", "other=bar")))
 
 	t.Run("Lua(with script)", testWithSpecFn(
 		script.NewLuaScript(),
