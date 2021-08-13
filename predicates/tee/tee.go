@@ -1,15 +1,14 @@
 package tee
 
 import (
+	"net/http"
+
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
-	"net/http"
 )
 
 const (
-	// The eskip name of the predicate.
-	PredicateName = "Tee"
-	HeaderKey     = "x-tee-loopback-key"
+	HeaderKey = "x-tee-loopback-key"
 )
 
 type spec struct{}
@@ -20,7 +19,7 @@ type predicate struct {
 
 func New() routing.PredicateSpec { return &spec{} }
 
-func (s *spec) Name() string { return PredicateName }
+func (s *spec) Name() string { return predicates.TeeName }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 1 {

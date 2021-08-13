@@ -15,7 +15,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/predicates/source"
+	"github.com/zalando/skipper/predicates"
 )
 
 const (
@@ -390,12 +390,12 @@ func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
 	var p []*eskip.Predicate
 	if reverseSourcePredicate {
 		p = []*eskip.Predicate{{
-			Name: source.NameLast,
+			Name: predicates.SourceFromLastName,
 			Args: internalIPs,
 		}}
 	} else {
 		p = []*eskip.Predicate{{
-			Name: source.Name,
+			Name: predicates.SourceName,
 			Args: internalIPs,
 		}}
 	}

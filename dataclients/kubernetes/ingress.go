@@ -11,8 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/predicates/primitive"
-	"github.com/zalando/skipper/predicates/traffic"
+	"github.com/zalando/skipper/predicates"
 )
 
 const (
@@ -249,14 +248,14 @@ func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) {
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
 	if 0.0 < weight && weight < 1.0 {
 		r.Predicates = append([]*eskip.Predicate{{
-			Name: traffic.PredicateName,
+			Name: predicates.TrafficName,
 			Args: []interface{}{weight},
 		}}, r.Predicates...)
 		log.Debugf("Traffic weight %.2f for backend '%s'", weight, svcName)
 	}
 	for i := 0; i < noopCount; i++ {
 		r.Predicates = append([]*eskip.Predicate{{
-			Name: primitive.NameTrue,
+			Name: predicates.TrueName,
 			Args: []interface{}{},
 		}}, r.Predicates...)
 	}

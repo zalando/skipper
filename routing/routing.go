@@ -15,18 +15,6 @@ import (
 )
 
 const (
-	// PathName represents the name of builtin path predicate.
-	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
-	PathName = "Path"
-
-	// PathSubtreeName represents the name of the builtin path subtree predicate.
-	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
-	PathSubtreeName = "PathSubtree"
-
-	WeightPredicateName = "Weight"
-
 	routesTimestampName      = "X-Timestamp"
 	routesCountName          = "X-Count"
 	defaultRouteListingLimit = 1024

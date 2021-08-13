@@ -26,11 +26,6 @@ import (
 	"strings"
 )
 
-const (
-	NameHost  = "ForwardedHost"
-	NameProto = "ForwardedProtocol"
-)
-
 type hostPredicateSpec struct{}
 
 type protoPredicateSpec struct{}
@@ -88,11 +83,11 @@ func NewForwardedHost() routing.PredicateSpec  { return &hostPredicateSpec{} }
 func NewForwardedProto() routing.PredicateSpec { return &protoPredicateSpec{} }
 
 func (p *hostPredicateSpec) Name() string {
-	return NameHost
+	return predicates.ForwardedHostName
 }
 
 func (p *protoPredicateSpec) Name() string {
-	return NameProto
+	return predicates.ForwardedProtocolName
 }
 
 func (p hostPredicate) Match(r *http.Request) bool {

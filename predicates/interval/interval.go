@@ -75,11 +75,11 @@ func NewAfter() routing.PredicateSpec { return after }
 func (s spec) Name() string {
 	switch s {
 	case between:
-		return "Between"
+		return predicates.BetweenName
 	case before:
-		return "Before"
+		return predicates.BeforeName
 	case after:
-		return "After"
+		return predicates.AfterName
 	default:
 		panic("invalid interval predicate type")
 	}

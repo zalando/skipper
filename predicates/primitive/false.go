@@ -3,11 +3,8 @@ package primitive
 import (
 	"net/http"
 
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
-)
-
-const (
-	NameFalse = "False"
 )
 
 type falseSpec struct{}
@@ -18,7 +15,7 @@ type falsePredicate struct{}
 func NewFalse() routing.PredicateSpec { return &falseSpec{} }
 
 func (*falseSpec) Name() string {
-	return NameFalse
+	return predicates.FalseName
 }
 
 // Create a predicate instance that always evaluates to false
