@@ -118,7 +118,7 @@ func TestRedirect(t *testing.T) {
 			name string
 		}{{
 			"deprecated",
-			filters.RedirectName,
+			RedirectName,
 		}, {
 			"not deprecated",
 			filters.RedirectToName,

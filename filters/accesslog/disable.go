@@ -4,6 +4,11 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	// Deprecated: use DisableAccessLogName or EnableAccessLogName
+	AccessLogDisabledName = "accessLogDisabled"
+)
+
 type accessLogDisabled struct {
 	disabled bool
 }
@@ -16,7 +21,7 @@ func NewAccessLogDisabled() filters.Spec {
 	return &accessLogDisabled{}
 }
 
-func (*accessLogDisabled) Name() string { return filters.AccessLogDisabledName }
+func (*accessLogDisabled) Name() string { return AccessLogDisabledName }
 
 func (*accessLogDisabled) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {

@@ -63,7 +63,7 @@ func NewRatelimitProvider(registry *ratelimit.Registry) RatelimitProvider {
 
 // NewLocalRatelimit is *DEPRECATED*, use NewClientRatelimit, instead
 func NewLocalRatelimit(provider RatelimitProvider) filters.Spec {
-	return &spec{typ: ratelimit.LocalRatelimit, provider: provider, filterName: filters.LocalRatelimitName}
+	return &spec{typ: ratelimit.LocalRatelimit, provider: provider, filterName: ratelimit.LocalRatelimitName}
 }
 
 // NewClientRatelimit creates a instance based client rate limit.  If

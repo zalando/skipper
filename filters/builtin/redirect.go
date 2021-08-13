@@ -64,7 +64,7 @@ func NewRedirectLower() filters.Spec { return &redirect{typ: redToLower} }
 func (spec *redirect) Name() string {
 	switch spec.typ {
 	case redDeprecated:
-		return filters.RedirectName
+		return RedirectName
 	case redToLower:
 		return filters.RedirectToLowerName
 	default:

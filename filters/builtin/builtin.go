@@ -24,6 +24,17 @@ import (
 	"github.com/zalando/skipper/script"
 )
 
+const (
+	// Deprecated: use setRequestHeader or appendRequestHeader
+	RequestHeaderName = "requestHeader"
+
+	// Deprecated: use setResponseHeader or appendResponseHeader
+	ResponseHeaderName = "responseHeader"
+
+	// Deprecated: use redirectTo
+	RedirectName = "redirect"
+)
+
 // Returns a Registry object initialized with the default set of filter
 // specifications found in the filters package. (including the builtin
 // and the flowid subdirectories.)

@@ -12,6 +12,11 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	// Deprecated: use TeeName
+	DeprecatedTeeName = "Tee"
+)
+
 const defaultTeeTimeout = time.Second
 
 type teeSpec struct {
@@ -269,7 +274,7 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 
 func (spec *teeSpec) Name() string {
 	if spec.deprecated {
-		return filters.DeprecatedTeeName
+		return DeprecatedTeeName
 	}
 	if spec.options.NoFollow {
 		return filters.TeenfName

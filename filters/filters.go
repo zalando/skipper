@@ -292,19 +292,6 @@ const (
 	ConsistentHashKeyName                      = "consistentHashKey"
 	ConsistentHashBalanceFactorName            = "consistentHashBalanceFactor"
 
-	// Deprecated: use setRequestHeader or appendRequestHeader
-	RequestHeaderName = "requestHeader"
-	// Deprecated: use setResponseHeader or appendResponseHeader
-	ResponseHeaderName = "responseHeader"
-	// Deprecated: use redirectTo
-	RedirectName = "redirect"
-	// Deprecated: use ClientRatelimitName instead
-	LocalRatelimitName = "localRatelimit"
-	// Deprecated: use DisableAccessLogName or EnableAccessLogName
-	AccessLogDisabledName = "accessLogDisabled"
-	// Deprecated: use TeeName
-	DeprecatedTeeName = "Tee"
-
 	// Undocumented filters
 	HealthCheckName        = "healthcheck"
 	SetFastCgiFilenameName = "setFastCgiFilename"

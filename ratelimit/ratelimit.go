@@ -23,6 +23,9 @@ const (
 	// RetryHeader is name of the header which will be used to indicate how
 	// long a client should wait before making a new request
 	RetryAfterHeader = "Retry-After"
+
+	// LocalRatelimitName *DEPRECATED*, use ClientRatelimitName instead
+	LocalRatelimitName = "localRatelimit"
 )
 
 // RatelimitType defines the type of  the used ratelimit
@@ -117,7 +120,7 @@ func (rt RatelimitType) String() string {
 	case ClusterServiceRatelimit:
 		return filters.ClusterRatelimitName
 	case LocalRatelimit:
-		return filters.LocalRatelimitName
+		return LocalRatelimitName
 	case ServiceRatelimit:
 		return filters.RatelimitName
 	default:

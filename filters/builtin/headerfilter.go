@@ -207,9 +207,9 @@ func (spec *headerFilter) Name() string {
 	case dropResponseHeader:
 		return filters.DropResponseHeaderName
 	case depRequestHeader:
-		return filters.RequestHeaderName
+		return RequestHeaderName
 	case depResponseHeader:
-		return filters.ResponseHeaderName
+		return ResponseHeaderName
 	case setContextRequestHeader:
 		return filters.SetContextRequestHeaderName
 	case appendContextRequestHeader:
