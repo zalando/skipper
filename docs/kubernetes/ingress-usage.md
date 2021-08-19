@@ -736,6 +736,42 @@ spec:
           servicePort: 80
 ```
 
+#### Path ratelimit
+
+To ratelimit a specific path use a second ingress definition like
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app-default
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app-login
+  annotations:
+    zalando.org/skipper-predicate: Path("/login")
+    zalando.org/skipper-filter: clusterClientRatelimit("login-ratelimit", 10, "1h")
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
+or use [RouteGroups](routegroups.md).
+
 ## Shadow Traffic
 
 If you want to test a new replacement of a production service with
