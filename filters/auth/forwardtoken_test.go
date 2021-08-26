@@ -1,11 +1,9 @@
 package auth
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"testing"
 	"time"
@@ -15,286 +13,114 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-const (
-	contentTypeHeader          = "content-type"
-	applicationJsonHeaderValue = "application/json"
-	oauthTimeout               = 10 * time.Second
-	authorizationHeader        = "Authorization"
-	authorizationHeaderValue   = "Bearer %s"
-	authorizationToken         = "testtoken"
-	uidScope                   = "uid"
-	emailClaim                 = "email"
-)
-
-type testTokeninfo struct {
-	Uid   string   `json:"uid"`
-	Scope []string `json:"scope"`
+func staticServer(content string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(content))
+	}))
 }
 
-type testTokenIntrospection struct {
-	Uid    string            `json:"uid"`
-	Claims map[string]string `json:"claims"`
-	Active bool              `json:"active"`
-	Sub    string            `json:"sub"`
-}
+func TestForwardToken(t *testing.T) {
+	tokeninfoServer := staticServer(`{"uid": "test", "scope": ["uid"]}`)
+	defer tokeninfoServer.Close()
 
-func TestForwardTokenInfo(t *testing.T) {
+	introspectionServer := staticServer(`{"uid": "test-uid", "sub": "test-sub", "claims": {"email": "test@test.com"}, "active": true}`)
+	defer introspectionServer.Close()
+
+	issuerServer := staticServer(`{"claims_supported": ["email"], "introspection_endpoint": "` + introspectionServer.URL + `"}`)
+	defer issuerServer.Close()
+
 	for _, ti := range []struct {
-		msg                string
-		headerName         string
-		maskedJSONKeys     []interface{}
-		tokenInfo          testTokeninfo
-		oauthFilterPresent bool
-		matchHeaderExactly bool
+		filters        string
+		header         http.Header
+		expectedHeader http.Header
 	}{
 		{
-			msg:                "Basic Test",
-			headerName:         "X-Skipper-Tokeninfo",
-			maskedJSONKeys:     []interface{}{},
-			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
-			oauthFilterPresent: true,
-			matchHeaderExactly: true,
+			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo")`,
+			header:  http.Header{},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"scope":["uid"],"uid":"test"}`},
+			},
 		},
 		{
-			msg:                "No OAuth Filter Test Test",
-			headerName:         "X-Skipper-Tokeninfo",
-			maskedJSONKeys:     []interface{}{},
-			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
-			oauthFilterPresent: false,
-			matchHeaderExactly: true,
+			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo", "uid")`,
+			header:  http.Header{},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"uid":"test"}`},
+			},
 		},
 		{
-			msg:                "Test JSON Key filtering",
-			headerName:         "X-Skipper-Tokeninfo",
-			maskedJSONKeys:     []interface{}{"uid"},
-			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
-			oauthFilterPresent: true,
-			matchHeaderExactly: false,
+			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo", "uid", "scope")`,
+			header:  http.Header{},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"scope":["uid"],"uid":"test"}`},
+			},
 		},
 		{
-			msg:                "Test JSON Key filtering, Match All Keys",
-			headerName:         "X-Skipper-Tokeninfo",
-			maskedJSONKeys:     []interface{}{"uid", "scope"},
-			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
-			oauthFilterPresent: true,
-			matchHeaderExactly: true,
+			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo", "blah_blah")`,
+			header:  http.Header{},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{}`},
+			},
 		},
 		{
-			msg:                "Test JSON Key filtering Non Existant Key",
-			headerName:         "X-Skipper-Tokeninfo",
-			maskedJSONKeys:     []interface{}{"blah_blah"},
-			tokenInfo:          testTokeninfo{Uid: "test", Scope: []string{"uid"}},
-			oauthFilterPresent: true,
-			matchHeaderExactly: false,
+			filters: `oauthTokenintrospectionAllClaims("` + issuerServer.URL + `", "email") -> forwardToken("X-Skipper-Tokeninfo")`,
+			header:  http.Header{},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"active":true,"claims":{"email":"test@test.com"},"sub":"test-sub","uid":"test-uid"}`},
+			},
+		},
+		{
+			filters: `oauthTokenintrospectionAllClaims("` + issuerServer.URL + `", "email") -> forwardToken("X-Skipper-Tokeninfo", "uid", "sub")`,
+			header:  http.Header{},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"sub":"test-sub","uid":"test-uid"}`},
+			},
+		},
+		{
+			filters:        `forwardToken("X-Skipper-Tokeninfo")`, // not tokeninfo or tokenintrospection
+			header:         http.Header{},
+			expectedHeader: http.Header{},
 		},
 	} {
-		t.Run(ti.msg, func(t *testing.T) {
-			t.Logf("Running test for %v", ti)
-			clientServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-				if ti.oauthFilterPresent {
-					tokenInfo := r.Header.Get(ti.headerName)
-					var info testTokeninfo
-					err := json.Unmarshal([]byte(tokenInfo), &info)
-					if err != nil {
-						t.Fatalf("Failed to unmarshall header value %s", tokenInfo)
-					}
-					if ti.matchHeaderExactly {
-						if !reflect.DeepEqual(info, ti.tokenInfo) {
-							t.Fatalf("Did not receive token info in header %s", ti.headerName)
-						}
-					} else {
-						if reflect.DeepEqual(info, ti.tokenInfo) {
-							t.Fatalf("Token Info header was not properly masked %s", ti.headerName)
-						}
-					}
-					t.Logf("tokeninfo present in header %s", ti.headerName)
-				} else {
-					if _, ok := r.Header[ti.headerName]; ok {
-						t.Fatalf("header %s is present even when oauthfilter is disabled", ti.headerName)
-					}
+		t.Run(ti.filters, func(t *testing.T) {
+			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				// ignore irrelevant headers
+				r.Header.Del("Authorization")
+				r.Header.Del("Accept-Encoding")
+				r.Header.Del("User-Agent")
+
+				if !reflect.DeepEqual(ti.expectedHeader, r.Header) {
+					t.Errorf("header mismatch, expected: %v, got: %v", ti.expectedHeader, r.Header)
 				}
 			}))
+			defer backend.Close()
 
-			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				info, err := json.Marshal(ti.tokenInfo)
-				if err != nil {
-					t.Errorf("failed to marshall %v", ti.tokenInfo)
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				w.Header().Set(contentTypeHeader, applicationJsonHeaderValue)
-				w.Write(info)
-			}))
-
-			var routeFilters []*eskip.Filter
 			fr := make(filters.Registry)
 
-			if ti.oauthFilterPresent {
-				oauthTokenSpec := NewOAuthTokeninfoAnyScope(authServer.URL, oauthTimeout)
-				oauthFilterArgs := []interface{}{uidScope}
-				oauthFilter, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
-				if err != nil {
-					t.Errorf("error creating oauth filter.")
-					return
-				}
-				f1 := oauthFilter.(*tokeninfoFilter)
-				defer f1.Close()
-				routeFilters = append(routeFilters, &eskip.Filter{Name: oauthTokenSpec.Name(), Args: oauthFilterArgs})
-				fr.Register(oauthTokenSpec)
-			}
+			fr.Register(NewOAuthTokeninfoAnyScope(tokeninfoServer.URL, 10*time.Second))
+			fr.Register(NewOAuthTokenintrospectionAllClaims(10 * time.Second))
+			fr.Register(NewForwardToken())
 
-			ftSpec := NewForwardToken()
-			filterArgs := append([]interface{}{ti.headerName}, ti.maskedJSONKeys...)
-			_, err := ftSpec.CreateFilter(filterArgs)
+			routes, err := eskip.Parse(fmt.Sprintf(`* -> %s -> "%s"`, ti.filters, backend.URL))
 			if err != nil {
-				t.Fatalf("error in creating filter")
-			}
-			fr.Register(ftSpec)
-			routeFilters = append(routeFilters, &eskip.Filter{Name: ftSpec.Name(), Args: filterArgs})
-
-			r := &eskip.Route{Filters: routeFilters, Backend: clientServer.URL}
-
-			proxy := proxytest.New(fr, r)
-			reqURL, err := url.Parse(proxy.URL)
-			if err != nil {
-				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-			}
-			req, err := http.NewRequest("GET", reqURL.String(), nil)
-			if err != nil {
-				t.Error(err)
-				return
+				t.Fatal(err)
 			}
 
-			if ti.oauthFilterPresent {
-				req.Header.Add(authorizationHeader, fmt.Sprintf(authorizationHeaderValue, authorizationToken))
-			}
+			proxy := proxytest.New(fr, routes[0])
+			defer proxy.Close()
+
+			req, _ := http.NewRequest("GET", proxy.URL, nil)
+			req.Header = ti.header
+			req.Header.Set("Authorization", "Bearer testtoken")
 
 			rsp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				t.Error(err)
 			}
-			if rsp.StatusCode != http.StatusOK {
-				t.Fatalf("failed to query backend server.")
-			}
 			defer rsp.Body.Close()
-		})
-	}
-}
-
-func TestForwardTokenIntrospection(t *testing.T) {
-	for _, ti := range []struct {
-		msg                string
-		headerName         string
-		tokenIntrospection testTokenIntrospection
-		oauthFilterPresent bool
-	}{
-		{
-			msg:                "Basic Test",
-			headerName:         "X-Skipper-Tokeninfo",
-			tokenIntrospection: testTokenIntrospection{Uid: "test-uid", Claims: map[string]string{"email": "test@test.com"}, Active: true},
-			oauthFilterPresent: true,
-		},
-		{
-			msg:                "No OAuth Filter Test Test",
-			headerName:         "X-Skipper-Tokeninfo",
-			tokenIntrospection: testTokenIntrospection{},
-			oauthFilterPresent: false,
-		},
-	} {
-		t.Run(ti.msg, func(t *testing.T) {
-			t.Logf("Running test for %v", ti)
-			clientServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-				if ti.oauthFilterPresent {
-					tokenInfo := r.Header.Get(ti.headerName)
-					var info testTokenIntrospection
-					err := json.Unmarshal([]byte(tokenInfo), &info)
-					if err != nil {
-						t.Fatalf("Failed to unmarshall header value %s", tokenInfo)
-					}
-					if !reflect.DeepEqual(info, ti.tokenIntrospection) {
-						t.Fatalf("Did not receive token introspection in header %s", ti.headerName)
-					}
-					t.Logf("tokenintrospection present in header %s", ti.headerName)
-				} else {
-					if _, ok := r.Header[ti.headerName]; ok {
-						t.Fatalf("header %s is present even when oauthfilter is disabled", ti.headerName)
-					}
-				}
-			}))
-
-			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				tokenIntro, err := json.Marshal(ti.tokenIntrospection)
-				if err != nil {
-					t.Errorf("Failed to json encode: %v", err)
-				}
-				w.Write(tokenIntro)
-			}))
-
-			testOidcConfig := &openIDConfig{
-				ClaimsSupported: []string{"email"},
-			}
-			issuerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				e := json.NewEncoder(w)
-				err := e.Encode(testOidcConfig)
-				if err != nil {
-					t.Fatalf("Could not encode testOidcConfig: %v", err)
-				}
-			}))
-			defer issuerServer.Close()
-			// patch openIDConfig to the current testservers
-			testOidcConfig.Issuer = "http://" + issuerServer.Listener.Addr().String()
-			testOidcConfig.IntrospectionEndpoint = "http://" + authServer.Listener.Addr().String() + testAuthPath
-
-			var routeFilters []*eskip.Filter
-			fr := make(filters.Registry)
-
-			if ti.oauthFilterPresent {
-				oauthTokenSpec := NewOAuthTokenintrospectionAllClaims(oauthTimeout)
-				oauthFilterArgs := []interface{}{"http://" + issuerServer.Listener.Addr().String(), emailClaim}
-				oauthFilter, err := oauthTokenSpec.CreateFilter(oauthFilterArgs)
-				if err != nil {
-					t.Errorf("error creating oauth filter. %v", err)
-					return
-				}
-				f1 := oauthFilter.(*tokenintrospectFilter)
-				defer f1.Close()
-				routeFilters = append(routeFilters, &eskip.Filter{Name: oauthTokenSpec.Name(), Args: oauthFilterArgs})
-				fr.Register(oauthTokenSpec)
-			}
-
-			ftSpec := NewForwardToken()
-			_, err := ftSpec.CreateFilter([]interface{}{ti.headerName})
-			if err != nil {
-				t.Fatalf("error in creating filter")
-			}
-			fr.Register(ftSpec)
-			routeFilters = append(routeFilters, &eskip.Filter{Name: ftSpec.Name(), Args: []interface{}{ti.headerName}})
-
-			r := &eskip.Route{Filters: routeFilters, Backend: clientServer.URL}
-
-			proxy := proxytest.New(fr, r)
-			reqURL, err := url.Parse(proxy.URL)
-			if err != nil {
-				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-			}
-			req, err := http.NewRequest("GET", reqURL.String(), nil)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			if ti.oauthFilterPresent {
-				req.Header.Add(authorizationHeader, fmt.Sprintf(authorizationHeaderValue, authorizationToken))
-			}
-
-			rsp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Error(err)
-			}
 			if rsp.StatusCode != http.StatusOK {
-				t.Fatalf("failed to query backend server.")
+				t.Errorf("failed to query backend server: %d", rsp.StatusCode)
 			}
-			defer rsp.Body.Close()
 		})
 	}
 }
