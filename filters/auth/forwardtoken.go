@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -92,8 +91,7 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 	request := ctx.Request()
-	jsonHeader := strings.TrimSpace(string(payload))
-	request.Header.Add(f.HeaderName, jsonHeader)
+	request.Header.Set(f.HeaderName, string(payload))
 }
 
 func (*forwardTokenFilter) Response(filters.FilterContext) {}

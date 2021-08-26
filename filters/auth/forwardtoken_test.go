@@ -81,6 +81,24 @@ func TestForwardToken(t *testing.T) {
 			header:         http.Header{},
 			expectedHeader: http.Header{},
 		},
+		{
+			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo")`, // overwrites existing
+			header: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"already": "exists"}`},
+			},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"scope":["uid"],"uid":"test"}`},
+			},
+		},
+		{
+			filters: `forwardToken("X-Skipper-Tokeninfo")`, // not tokeninfo or tokenintrospection, passes existing
+			header: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"already": "exists"}`},
+			},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"already": "exists"}`},
+			},
+		},
 	} {
 		t.Run(ti.filters, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
