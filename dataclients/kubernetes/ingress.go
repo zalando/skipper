@@ -182,7 +182,7 @@ func convertPathRule(
 
 	var hostRegexp []string
 	if host != "" {
-		hostRegexp = []string{"^" + strings.Replace(host, ".", "[.]", -1) + "$"}
+		hostRegexp = []string{"^" + strings.Replace(host, ".", "[.]", -1) + "(:[0-9]+)?$"}
 	}
 	svcPort := prule.Backend.ServicePort
 	svcName := prule.Backend.ServiceName
@@ -490,7 +490,7 @@ func (ing *ingress) addSpecRule(ic ingressContext, ru *definitions.Rule) error {
 	// it is a regexp, would be better to have exact host, needs to be added in skipper
 	// this wrapping is temporary and escaping is not the right thing to do
 	// currently handled as mandatory
-	host := []string{"^" + strings.Replace(ru.Host, ".", "[.]", -1) + "$"}
+	host := []string{"^" + strings.Replace(ru.Host, ".", "[.]", -1) + "(:[0-9]+)?$"}
 	// update Traffic field for each backend
 	computeBackendWeights(ic.backendWeights, ru)
 	for _, prule := range ru.Http.Paths {

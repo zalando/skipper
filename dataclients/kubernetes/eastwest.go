@@ -16,7 +16,7 @@ func createEastWestRouteIng(eastWestDomainRegexpPostfix, name, ns string, r *esk
 		return nil
 	}
 	ewR := *r
-	ewR.HostRegexps = []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "$"}
+	ewR.HostRegexps = []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "(:[0-9]+)?$"}
 	ewR.Id = eastWestRouteID(r.Id)
 	return &ewR
 }
