@@ -13,6 +13,10 @@ func rxDots(h string) string {
 	return strings.Replace(h, ".", "[.]", -1)
 }
 
+func appendOptionalPortRegex(host string) string {
+	return fmt.Sprintf("%s(:[0-9]+)?", host)
+}
+
 func createHostRx(h ...string) string {
 	if len(h) == 0 {
 		return ""
@@ -20,7 +24,7 @@ func createHostRx(h ...string) string {
 
 	hrx := make([]string, len(h))
 	for i := range h {
-		hrx[i] = rxDots(h[i])
+		hrx[i] = appendOptionalPortRegex(rxDots(h[i]))
 	}
 
 	return fmt.Sprintf("^(%s)$", strings.Join(hrx, "|"))
