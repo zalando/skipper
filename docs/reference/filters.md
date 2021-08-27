@@ -1194,10 +1194,9 @@ secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 
 ## forwardToken
 
-The filter takes the (string) header name as its first argument. The result of token info or token introspection is added to
-this header when the request is passed to the backend. If there are additional arguments, these
-values are treated as a whitelisted set of JSON keys to be included in the
-header payload when forwarding to the backend service.
+The filter takes the header name as its first argument and sets header value to the
+token info or token introspection result serialized as a JSON object.
+To include only particular fields provide their names as additional arguments.
 
 If this filter is used when there is no token introspection or token info data
 then it does not have any effect.
@@ -1206,7 +1205,7 @@ Examples:
 
 ```
 forwardToken("X-Tokeninfo-Forward")
-forwardToken("X-Tokeninfo-Forward", "access_token")
+forwardToken("X-Tokeninfo-Forward", "access_token", "token_type")
 ```
 
 ## oauthGrant
