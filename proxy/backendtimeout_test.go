@@ -26,9 +26,6 @@ func TestSlowService(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
@@ -55,9 +52,6 @@ func TestFastService(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
@@ -92,9 +86,6 @@ func TestBackendTimeoutInTheMiddleOfServiceResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
@@ -167,9 +158,6 @@ func TestRetryAndSlowService(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
@@ -200,9 +188,6 @@ func TestRetryAndFastService(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()

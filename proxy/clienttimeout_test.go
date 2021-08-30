@@ -25,9 +25,6 @@ func TestClientTimeout(t *testing.T) {
 		t.Error()
 		return
 	}
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer func() {
@@ -73,9 +70,6 @@ func TestClientCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
@@ -126,9 +120,6 @@ func TestClientTimeoutBeforeStreaming(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tp.close()
-	if testing.Verbose() {
-		tp.log.Unmute()
-	}
 
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
