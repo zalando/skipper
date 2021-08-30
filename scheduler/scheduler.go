@@ -59,7 +59,11 @@ type QueueStatus struct {
 type Queue struct {
 	queue                    *jobqueue.Stack
 	config                   Config
+	metrics                  metrics.Metrics
 	activeRequestsMetricsKey string
+	errorFullMetricsKey      string
+	errorOtherMetricsKey     string
+	errorTimeoutMetricsKey   string
 	queuedRequestsMetricsKey string
 }
 
@@ -128,7 +132,19 @@ type GroupedLIFOFilter interface {
 // It is mandatory to call done() the request was processed. When the
 // request needs to be rejected, an error will be returned.
 func (q *Queue) Wait() (done func(), err error) {
-	return q.queue.Wait()
+	done, err = q.queue.Wait()
+	if q.metrics != nil && err != nil {
+		switch err {
+		case jobqueue.ErrStackFull:
+			q.metrics.IncCounter(q.errorFullMetricsKey)
+		case jobqueue.ErrTimeout:
+			q.metrics.IncCounter(q.errorTimeoutMetricsKey)
+		default:
+			q.metrics.IncCounter(q.errorOtherMetricsKey)
+		}
+	}
+
+	return done, err
 }
 
 // Status returns the current status of a queue.
@@ -194,6 +210,10 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 
 		q.activeRequestsMetricsKey = fmt.Sprintf("lifo.%s.active", name)
 		q.queuedRequestsMetricsKey = fmt.Sprintf("lifo.%s.queued", name)
+		q.errorFullMetricsKey = fmt.Sprintf("lifo.%s.error.full", name)
+		q.errorOtherMetricsKey = fmt.Sprintf("lifo.%s.error.other", name)
+		q.errorTimeoutMetricsKey = fmt.Sprintf("lifo.%s.error.timeout", name)
+		q.metrics = r.options.Metrics
 		r.measure()
 	}
 

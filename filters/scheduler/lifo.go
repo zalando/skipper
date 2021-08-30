@@ -294,7 +294,6 @@ func request(q *scheduler.Queue, key string, ctx filters.FilterContext) {
 
 	done, err := q.Wait()
 	if err != nil {
-		// TODO: replace the log with metrics
 		switch err {
 		case jobqueue.ErrStackFull:
 			log.Debugf("Failed to get an entry on to the queue to process QueueFull: %v for host %s", err, ctx.Request().Host)
