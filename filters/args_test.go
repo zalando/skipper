@@ -536,6 +536,14 @@ func TestArgsDurationOrSeconds(t *testing.T) {
 	assert.Equal(t, time.Duration(0), d4)
 }
 
+func TestArgsErrDoesNotChange(t *testing.T) {
+	a := Args([]interface{}{"x"})
+	_ = a.Int()
+
+	assert.EqualError(t, a.Err(), `x is not an integer`)
+	assert.Equal(t, a.Err(), a.Err())
+}
+
 func ExampleArgs() {
 	a := Args([]interface{}{"s", 1, time.Millisecond})
 	s, i, d, opt, err := a.String(), a.Int(), a.Duration(), a.OptionalString("default"), a.Err()

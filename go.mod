@@ -19,6 +19,7 @@ require (
 	github.com/go-redis/redis/v8 v8.3.3
 	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/google/go-cmp v0.5.4
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16
 	github.com/lightstep/lightstep-tracer-go v0.24.1-0.20210318180546-a67254760a58

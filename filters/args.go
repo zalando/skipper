@@ -1,10 +1,10 @@
 package filters
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 func StringArg(x interface{}) (string, error) {
@@ -99,7 +99,7 @@ func DurationOrNumberArg(x interface{}, scale time.Duration) (time.Duration, err
 type FilterArgs struct {
 	args []interface{}
 	pos  int
-	errs []error
+	err  *multierror.Error
 }
 
 // Creates filter arguments wrapper that provides methods
@@ -261,23 +261,18 @@ func (a *FilterArgs) DurationOrSeconds() (_ time.Duration) {
 }
 
 func (a *FilterArgs) Err() error {
-	var errs []string
+	err := a.err
 	if a.pos != len(a.args) {
 		if a.pos == 1 {
-			errs = append(errs, "expects 1 argument")
+			err = multierror.Append(fmt.Errorf("expects 1 argument"), err)
 		} else {
-			errs = append(errs, fmt.Sprintf("expects %d arguments", a.pos))
+			err = multierror.Append(fmt.Errorf("expects %d arguments", a.pos), err)
 		}
 	}
-	for _, err := range a.errs {
-		errs = append(errs, err.Error())
+	if err != nil {
+		err.ErrorFormat = errorFormat
 	}
-
-	if len(errs) == 0 {
-		return nil
-	} else {
-		return errors.New(strings.Join(errs, ", "))
-	}
+	return err
 }
 
 func (a *FilterArgs) next() (x interface{}, ok bool) {
@@ -291,5 +286,13 @@ func (a *FilterArgs) next() (x interface{}, ok bool) {
 }
 
 func (a *FilterArgs) error(err error) {
-	a.errs = append(a.errs, err)
+	a.err = multierror.Append(a.err, err)
+}
+
+func errorFormat(errs []error) string {
+	m := errs[0].Error()
+	for _, err := range errs[1:] {
+		m += ", " + err.Error()
+	}
+	return m
 }
