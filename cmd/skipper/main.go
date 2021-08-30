@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
@@ -35,8 +36,8 @@ func main() {
 
 	if cfg.PrintVersion {
 		fmt.Printf(
-			"Skipper version %s (commit: %s)\n",
-			version, commit,
+			"Skipper version %s (commit: %s, runtime: %s)\n",
+			version, commit, runtime.Version(),
 		)
 
 		return
