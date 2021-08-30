@@ -1,13 +1,13 @@
 module github.com/zalando/skipper
 
 require (
+	github.com/HdrHistogram/hdrhistogram-go v1.1.0 // indirect
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/aryszka/jobqueue v0.0.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/cjoudrey/gluahttp v0.0.0-20190104103309-101c19a37344
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
-	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/coreos/go-oidc v2.0.0+incompatible
 	github.com/dchest/siphash v1.2.2
 	github.com/dgryski/go-jump v0.0.0-20170409065014-e1f439676b57
@@ -18,7 +18,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-redis/redis/v8 v8.3.3
 	github.com/golang-jwt/jwt v3.2.1+incompatible
-	github.com/google/go-cmp v0.5.2
+	github.com/google/go-cmp v0.5.4
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16
 	github.com/lightstep/lightstep-tracer-go v0.24.1-0.20210318180546-a67254760a58
@@ -36,14 +36,13 @@ require (
 	github.com/shirou/gopsutil v3.21.2+incompatible // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/sony/gobreaker v0.4.1
-	github.com/stretchr/testify v1.6.1
+	github.com/stretchr/testify v1.7.0
 	github.com/szuecs/rate-limit-buffer v0.7.1
 	github.com/szuecs/routegroup-client v0.17.7
 	github.com/tidwall/gjson v1.7.4
 	github.com/tklauser/go-sysconf v0.3.5 // indirect
-	github.com/uber-go/atomic v1.4.0 // indirect
-	github.com/uber/jaeger-client-go v2.16.0+incompatible
-	github.com/uber/jaeger-lib v2.0.0+incompatible
+	github.com/uber/jaeger-client-go v2.29.1+incompatible
+	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/yookoala/gofast v0.6.0
 	github.com/yuin/gopher-lua v0.0.0-20200603152657-dc2b0ca8b37e
 	go.uber.org/atomic v1.4.0 // indirect
