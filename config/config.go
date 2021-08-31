@@ -353,7 +353,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.InnkeeperPostRouteFilters, "innkeeper-post-route-filters", "", "filters to be appended to each route loaded from Innkeeper")
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
 	flag.StringVar(&cfg.RemoteRoutesFile, "remote-routes-file", "", "remote file/url containing route definitions")
-	flag.BoolVar(&cfg.RemoteRoutesFailOnStartup, "remote-routes-fail-on-startup", false, "fail fast when an initial attempt of fetching routes is unsuccessful")
+	flag.BoolVar(&cfg.RemoteRoutesFailOnStartup, "remote-routes-fail-on-startup", false, "fail fast when an initial attempt of fetching remote routes is unsuccessful")
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
