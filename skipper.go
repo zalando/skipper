@@ -251,8 +251,6 @@ type Options struct {
 	WatchRoutesFile string
 
 	// RouteURLs are URLs pointing to route definitions, in eskip format, with change watching enabled.
-	// Multiple may be given comma separated. (For the skipper
-	// command this option is used when starting it with the -remote-routes-url flag.)
 	RoutesURLs []string
 
 	// InlineRoutes can define routes as eskip text.
