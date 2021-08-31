@@ -119,6 +119,7 @@ type Config struct {
 	InnkeeperPostRouteFilters string               `yaml:"innkeeper-post-route-filters"`
 	RoutesFile                string               `yaml:"routes-file"`
 	RemoteRoutesFile          string               `yaml:"remote-routes-file"`
+	RemoteRoutesFailOnStartup bool                 `yaml:"remote-routes-fail-on-startup"`
 	InlineRoutes              string               `yaml:"inline-routes"`
 	AppendFilters             *defaultFiltersFlags `yaml:"default-filters-append"`
 	PrependFilters            *defaultFiltersFlags `yaml:"default-filters-prepend"`
@@ -352,6 +353,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.InnkeeperPostRouteFilters, "innkeeper-post-route-filters", "", "filters to be appended to each route loaded from Innkeeper")
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
 	flag.StringVar(&cfg.RemoteRoutesFile, "remote-routes-file", "", "remote file/url containing route definitions")
+	flag.BoolVar(&cfg.RemoteRoutesFailOnStartup, "remote-routes-fail-on-startup", false, "fail fast when an initial attempt of fetching routes is unsuccessful")
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
@@ -637,7 +639,8 @@ func (c *Config) ToOptions() skipper.Options {
 		InnkeeperPreRouteFilters:  c.InnkeeperPreRouteFilters,
 		InnkeeperPostRouteFilters: c.InnkeeperPostRouteFilters,
 		WatchRoutesFile:           c.RoutesFile,
-		WatchRemoteRoutesFile:     c.RemoteRoutesFile,
+		RemoteRoutesFile:          c.RemoteRoutesFile,
+		RemoteRoutesFailOnStartup: c.RemoteRoutesFailOnStartup,
 		InlineRoutes:              c.InlineRoutes,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: c.PrependFilters.filters,
