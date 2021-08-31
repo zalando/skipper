@@ -161,6 +161,7 @@ func Test_NewConfig(t *testing.T) {
 				SwarmMaxMessageBuffer:                   4194304,
 				SwarmLeaveTimeout:                       5 * time.Second,
 				TLSMinVersion:                           defaultMinTLSVersion,
+				RoutesURLs:                              commaListFlag(),
 			},
 			wantErr: false,
 		},
