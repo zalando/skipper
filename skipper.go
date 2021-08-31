@@ -250,6 +250,11 @@ type Options struct {
 	// command this option is used when starting it with the -routes-file flag.)
 	WatchRoutesFile string
 
+	// Remote file containing route definitions with file watch enabled.
+	// Multiple may be given comma separated. (For the skipper
+	// command this option is used when starting it with the -remote-routes-file flag.)
+	WatchRemoteRoutesFile string
+
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
 
@@ -799,6 +804,19 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	if o.WatchRoutesFile != "" {
 		for _, rf := range strings.Split(o.WatchRoutesFile, ",") {
 			clients = append(clients, eskipfile.Watch(rf))
+		}
+	}
+
+	if o.WatchRemoteRoutesFile != "" {
+		for _, rf := range strings.Split(o.WatchRemoteRoutesFile, ",") {
+			client, err := eskipfile.RemoteWatch(&eskipfile.RemoteWatchOptions{
+				RemoteFile: rf,
+			})
+			if err != nil {
+				log.Error("error while loading remote eskip file", err)
+				return nil, err
+			}
+			clients = append(clients, client)
 		}
 	}
 
