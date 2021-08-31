@@ -250,10 +250,10 @@ type Options struct {
 	// command this option is used when starting it with the -routes-file flag.)
 	WatchRoutesFile string
 
-	// RemoteRoutesFile are remote files (urls) containing route definitions with file watch enabled.
+	// RemoteRoutesURLs are URLs pointing to route definitions, in eskip format, with file watch enabled.
 	// Multiple may be given comma separated. (For the skipper
-	// command this option is used when starting it with the -remote-routes-file flag.)
-	RemoteRoutesFile string
+	// command this option is used when starting it with the -remote-routes-url flag.)
+	RemoteRoutesURLs []string
 
 	// RemoteRoutesFailOnStartup ensures an early exit with an error
 	// when an initial attempt of fetching remote route files fails.
@@ -811,14 +811,14 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 		}
 	}
 
-	if o.RemoteRoutesFile != "" {
-		for _, rf := range strings.Split(o.RemoteRoutesFile, ",") {
+	if len(o.RemoteRoutesURLs) > 0 {
+		for _, url := range o.RemoteRoutesURLs {
 			client, err := eskipfile.RemoteWatch(&eskipfile.RemoteWatchOptions{
-				RemoteFile:    rf,
+				RemoteFile:    url,
 				FailOnStartup: o.RemoteRoutesFailOnStartup,
 			})
 			if err != nil {
-				log.Error("error while loading remote eskip file", err)
+				log.Errorf("error while loading remote eskip file from url %s: %s", url, err)
 				return nil, err
 			}
 			clients = append(clients, client)
