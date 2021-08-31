@@ -250,6 +250,9 @@ type Options struct {
 	// command this option is used when starting it with the -routes-file flag.)
 	WatchRoutesFile string
 
+	// RouteURLs are URLs pointing to route definitions, in eskip format, with change watching enabled.
+	RoutesURLs []string
+
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
 
@@ -799,6 +802,20 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 	if o.WatchRoutesFile != "" {
 		for _, rf := range strings.Split(o.WatchRoutesFile, ",") {
 			clients = append(clients, eskipfile.Watch(rf))
+		}
+	}
+
+	if len(o.RoutesURLs) > 0 {
+		for _, url := range o.RoutesURLs {
+			client, err := eskipfile.RemoteWatch(&eskipfile.RemoteWatchOptions{
+				RemoteFile:    url,
+				FailOnStartup: true,
+			})
+			if err != nil {
+				log.Errorf("error while loading routes from url %s: %s", url, err)
+				return nil, err
+			}
+			clients = append(clients, client)
 		}
 	}
 

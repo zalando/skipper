@@ -118,6 +118,7 @@ type Config struct {
 	InnkeeperPreRouteFilters  string               `yaml:"innkeeper-pre-route-filters"`
 	InnkeeperPostRouteFilters string               `yaml:"innkeeper-post-route-filters"`
 	RoutesFile                string               `yaml:"routes-file"`
+	RoutesURLs                *listFlag            `yaml:"routes-urls"`
 	InlineRoutes              string               `yaml:"inline-routes"`
 	AppendFilters             *defaultFiltersFlags `yaml:"default-filters-append"`
 	PrependFilters            *defaultFiltersFlags `yaml:"default-filters-prepend"`
@@ -259,6 +260,7 @@ func NewConfig() *Config {
 	cfg.CloneRoute = &routeChangerConfig{}
 	cfg.EditRoute = &routeChangerConfig{}
 	cfg.KubernetesEastWestRangeDomains = commaListFlag()
+	cfg.RoutesURLs = commaListFlag()
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
 
@@ -350,6 +352,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.InnkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", "filters to be prepended to each route loaded from Innkeeper")
 	flag.StringVar(&cfg.InnkeeperPostRouteFilters, "innkeeper-post-route-filters", "", "filters to be appended to each route loaded from Innkeeper")
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
+	flag.Var(cfg.RoutesURLs, "routes-urls", "comma separated URLs to route definitions in eskip format")
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
@@ -635,6 +638,7 @@ func (c *Config) ToOptions() skipper.Options {
 		InnkeeperPreRouteFilters:  c.InnkeeperPreRouteFilters,
 		InnkeeperPostRouteFilters: c.InnkeeperPostRouteFilters,
 		WatchRoutesFile:           c.RoutesFile,
+		RoutesURLs:                c.RoutesURLs.values,
 		InlineRoutes:              c.InlineRoutes,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: c.PrependFilters.filters,
