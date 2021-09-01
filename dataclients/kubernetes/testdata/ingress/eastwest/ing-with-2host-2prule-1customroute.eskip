@@ -9,7 +9,7 @@ kube___catchall__www1_example_org____:
 kubeew_foo__qux__0__www1_example_org_a_path____:
 	Host("^qux[.]foo[.]skipper[.]cluster[.]local(:[0-9]+)?$") && Method("OPTIONS") && PathRegexp("^(/a/path)")
 	-> <shunt>;
-kube___catchall__qux_foo____skipper___cluster___local____:
+kube___catchall__qux_foo_skipper_cluster_local____:
 	Host("^qux[.]foo[.]skipper[.]cluster[.]local(:[0-9]+)?$")
 	-> <shunt>;
 kubeew_foo__qux__www1_example_org___a_path__qux:

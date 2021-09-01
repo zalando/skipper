@@ -8,10 +8,10 @@ import (
 
 func TestCreateEastWestRouteIng(t *testing.T) {
 	type args struct {
-		eastWestDomainRegexpPostfix string
-		hostname                    string
-		namespace                   string
-		route                       *eskip.Route
+		eastWestDomain string
+		hostname       string
+		namespace      string
+		route          *eskip.Route
 	}
 	tests := []struct {
 		name string
@@ -21,9 +21,9 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 		{
 			name: "return nil if the route Id is prefixed with 'kubeew'",
 			args: args{
-				eastWestDomainRegexpPostfix: "yyy",
-				hostname:                    "serviceA",
-				namespace:                   "A",
+				eastWestDomain: "yyy",
+				hostname:       "serviceA",
+				namespace:      "A",
 				route: &eskip.Route{
 					Id: "kubeew_foo__qux_a_0__www2_example_org_____",
 				},
@@ -33,9 +33,9 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 		{
 			name: "return nil if the namespace is empty",
 			args: args{
-				eastWestDomainRegexpPostfix: "yyy",
-				hostname:                    "serviceA",
-				namespace:                   "",
+				eastWestDomain: "yyy",
+				hostname:       "serviceA",
+				namespace:      "",
 				route: &eskip.Route{
 					Id: "kube_foo__qux__www3_example_org___a_path__bar",
 				},
@@ -45,9 +45,9 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 		{
 			name: "return nil if the hostname is empty",
 			args: args{
-				eastWestDomainRegexpPostfix: "yyy",
-				hostname:                    "",
-				namespace:                   "A",
+				eastWestDomain: "yyy",
+				hostname:       "",
+				namespace:      "A",
 				route: &eskip.Route{
 					Id: "kube_foo__qux__www3_example_org___a_path__bar",
 				},
@@ -57,9 +57,9 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 		{
 			name: "return the route with modified route Id and HostRegexp",
 			args: args{
-				eastWestDomainRegexpPostfix: "[.]cluster[.]local",
-				hostname:                    "serviceA",
-				namespace:                   "default",
+				eastWestDomain: "cluster.local",
+				hostname:       "serviceA",
+				namespace:      "default",
 				route: &eskip.Route{
 					Id:          "kube_foo__qux__www3_example_org___a_path__bar",
 					HostRegexps: []string{"www2[.]example[.]org"},
@@ -73,7 +73,7 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			eastWestRouteIng := createEastWestRouteIng(tt.args.eastWestDomainRegexpPostfix, tt.args.hostname, tt.args.namespace, tt.args.route)
+			eastWestRouteIng := createEastWestRouteIng(tt.args.eastWestDomain, tt.args.hostname, tt.args.namespace, tt.args.route)
 			if !reflect.DeepEqual(eastWestRouteIng, tt.want) {
 				t.Errorf("createEastWestRouteIng() = %v, want %v", eastWestRouteIng, tt.want)
 			}

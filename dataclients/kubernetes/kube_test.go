@@ -1289,7 +1289,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 			"kube___catchall__new1_example_org____":                             "",
 			"kube_namespace1__new1__new1_example_org___test1__service1":         "http://1.1.1.0:8080",
 			"kubeew_namespace1__new1__new1_example_org___test1__service1":       "http://1.1.1.0:8080",
-			"kube___catchall__new1_namespace1____skipper___cluster___local____": "",
+			"kube___catchall__new1_namespace1_skipper_cluster_local____": "",
 		})
 	})
 
@@ -1363,7 +1363,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 			"kube_namespace1__new1__new1_example_org___test2__service1":         "http://1.1.1.0:8080",
 			"kubeew_namespace1__new1__new1_example_org___test1__service1":       "http://1.1.1.0:8080",
 			"kubeew_namespace1__new1__new1_example_org___test2__service1":       "http://1.1.1.0:8080",
-			"kube___catchall__new1_namespace1____skipper___cluster___local____": "",
+			"kube___catchall__new1_namespace1_skipper_cluster_local____": "",
 		})
 	})
 }
@@ -3018,7 +3018,7 @@ func TestCreateEastWestRoute(t *testing.T) {
 		expectedID: "kubeew_foo__qux__www3_example_org___a_path__bar",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			ewr := createEastWestRouteIng(rxDots("."+defaultEastWestDomain), "foo", "qux", ti.route)
+			ewr := createEastWestRouteIng(defaultEastWestDomain, "foo", "qux", ti.route)
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
 			}
@@ -3092,7 +3092,7 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 			}
 
 			ing := kube.ingress
-			ewr := createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, ti.name, ti.namespace, ti.route)
+			ewr := createEastWestRouteIng(ing.kubernetesEastWestDomain, ti.name, ti.namespace, ti.route)
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
 			}
