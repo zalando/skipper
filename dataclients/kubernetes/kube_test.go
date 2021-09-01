@@ -1286,10 +1286,10 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube___catchall__new1_example_org____":                             "",
-			"kube_namespace1__new1__new1_example_org___test1__service1":         "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test1__service1":       "http://1.1.1.0:8080",
-			"kube___catchall__new1_namespace1_skipper_cluster_local____": "",
+			"kube___catchall__new1_example_org____":                       "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
+			"kube___catchall__new1_namespace1_skipper_cluster_local____":  "",
 		})
 	})
 
@@ -1358,12 +1358,12 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___test1__service1":         "http://1.1.1.0:8080",
-			"kube___catchall__new1_example_org____":                             "",
-			"kube_namespace1__new1__new1_example_org___test2__service1":         "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test1__service1":       "http://1.1.1.0:8080",
-			"kubeew_namespace1__new1__new1_example_org___test2__service1":       "http://1.1.1.0:8080",
-			"kube___catchall__new1_namespace1_skipper_cluster_local____": "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.1.1.0:8080",
+			"kube___catchall__new1_example_org____":                       "",
+			"kube_namespace1__new1__new1_example_org___test2__service1":   "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
+			"kube___catchall__new1_namespace1_skipper_cluster_local____":  "",
 		})
 	})
 }
