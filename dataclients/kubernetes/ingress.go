@@ -47,6 +47,7 @@ type ingress struct {
 	httpsRedirectCode           int
 	pathMode                    PathMode
 	kubernetesEnableEastWest    bool
+	eastWestDomain              string
 	eastWestDomainRegexpPostfix string
 	eastWestRangeDomains        []string
 	eastWestRangePredicates     []*eskip.Predicate
@@ -72,6 +73,7 @@ func newIngress(o Options) *ingress {
 		httpsRedirectCode:           o.HTTPSRedirectCode,
 		pathMode:                    o.PathMode,
 		kubernetesEnableEastWest:    o.KubernetesEnableEastWest,
+		eastWestDomain:              o.KubernetesEastWestDomain,
 		eastWestDomainRegexpPostfix: ewPostfix,
 		eastWestRangeDomains:        o.KubernetesEastWestRangeDomains,
 		eastWestRangePredicates:     o.KubernetesEastWestRangePredicates,
@@ -364,13 +366,13 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	log.Infof("ing: %v", ing.kubernetesEnableEastWest)
 	if ing.kubernetesEnableEastWest {
 		ewRoute := createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, meta.Name, meta.Namespace, endpointsRoute)
-		ewHost := fmt.Sprintf("%s.%s.%s", meta.Name, meta.Namespace, ing.eastWestDomainRegexpPostfix)
+		ewHost := fmt.Sprintf("%s.%s.%s", meta.Name, meta.Namespace, ing.eastWestDomain)
 		ic.addHostRoute(ewHost, ewRoute)
 	}
 	return nil
 }
 
-func addExtraRoutes(ic ingressContext, hosts []string, host, path, eastWestDomainRegexpPostfix string, enableEastWest bool) {
+func addExtraRoutes(ic ingressContext, hosts []string, host, path, eastWestDomain, eastWestDomainRegexpPostfix string, enableEastWest bool) {
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
 		name := ic.ingress.Metadata.Name
@@ -392,7 +394,7 @@ func addExtraRoutes(ic ingressContext, hosts []string, host, path, eastWestDomai
 		}
 		if enableEastWest {
 			ewRoute := createEastWestRouteIng(eastWestDomainRegexpPostfix, name, ns, &route)
-			ewHost := fmt.Sprintf("%s.%s.%s", name, ns, eastWestDomainRegexpPostfix)
+			ewHost := fmt.Sprintf("%s.%s.%s", name, ns, eastWestDomain)
 			ic.addHostRoute(ewHost, ewRoute)
 		}
 	}
@@ -495,7 +497,7 @@ func (ing *ingress) addSpecRule(ic ingressContext, ru *definitions.Rule) error {
 	// update Traffic field for each backend
 	computeBackendWeights(ic.backendWeights, ru)
 	for _, prule := range ru.Http.Paths {
-		addExtraRoutes(ic, host, ru.Host, prule.Path, ing.eastWestDomainRegexpPostfix, ing.kubernetesEnableEastWest)
+		addExtraRoutes(ic, host, ru.Host, prule.Path, ing.eastWestDomain, ing.eastWestDomainRegexpPostfix, ing.kubernetesEnableEastWest)
 		if prule.Backend.Traffic > 0 {
 			err := ing.addEndpointsRule(ic, ru.Host, prule)
 			if err != nil {

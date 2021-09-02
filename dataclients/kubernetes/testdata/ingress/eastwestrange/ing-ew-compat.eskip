@@ -3,5 +3,5 @@ kube_foo__qux__qux_foo_ingress_cluster_local_____bar:
 	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
 
 kubeew_foo__qux__qux_foo_ingress_cluster_local_____bar:
-	Host("^qux[.]foo[.]ingress[.]cluster[.]local$") && PathRegexp("^/")
+	Host("^qux[.]foo[.]ingress[.]cluster[.]local$") && PathRegexp("^/") && ClientIP("10.2.0.0/16")
 	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
