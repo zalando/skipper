@@ -361,6 +361,7 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 		redirect.setHostDisabled(host)
 	}
 
+	log.Infof("ing: %v", ing.kubernetesEnableEastWest)
 	if ing.kubernetesEnableEastWest {
 		ewRoute := createEastWestRouteIng(ing.eastWestDomainRegexpPostfix, meta.Name, meta.Namespace, endpointsRoute)
 		ewHost := fmt.Sprintf("%s.%s.%s", meta.Name, meta.Namespace, ing.eastWestDomainRegexpPostfix)
@@ -779,6 +780,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 		}
 	}
 
+	log.Infof("hostRoutes: %v", hostRoutes)
 	for host, rs := range hostRoutes {
 		if len(rs) == 0 {
 			continue

@@ -1,0 +1,11 @@
+#
+# Both deprecated east-west and east-west-range are enabled
+#
+eastWest: true
+eastWestDomain: "ingress.cluster.local"
+
+eastWestRangeDomains:
+    - "ingress.cluster.local"
+eastWestRangePredicatesAppend:
+    - name: "ClientIP"
+      args: ["10.2.0.0/16"]
