@@ -84,3 +84,65 @@ func BenchmarkRemoteHostFromLast(b *testing.B) {
 		RemoteHostFromLast(r)
 	}
 }
+
+func TestIPNetsParse(t *testing.T) {
+	for _, tt := range []struct {
+		input []string
+	}{
+		{[]string{"1.2.3.4/"}},
+		{[]string{"1.2.3.4/245"}},
+		{[]string{"whatever"}},
+		{[]string{"1.2.3.4/24", "whatever"}},
+	} {
+		t.Run(strings.Join(tt.input, ","), func(t *testing.T) {
+			_, err := ParseCIDRs(tt.input)
+			t.Logf("ParseCIDRs: %v", err)
+			if err == nil {
+				t.Errorf("parse error expected")
+			}
+		})
+	}
+}
+
+func TestIPNetsContain(t *testing.T) {
+	for _, tt := range []struct {
+		input []string
+		ip    net.IP
+	}{
+		{[]string{"1.2.3.4/24"}, net.IPv4(1, 2, 3, 4)},
+		{[]string{"1.2.3.4/24", "5.6.7.8"}, net.IPv4(5, 6, 7, 8)},
+		{[]string{"1.2.3.4/24", "5.6.7.8", "2001:db8::/32"}, net.ParseIP("2001:db8::aa")},
+	} {
+		t.Run(strings.Join(tt.input, ","), func(t *testing.T) {
+			nets, err := ParseCIDRs(tt.input)
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if !nets.Contain(tt.ip) {
+				t.Errorf("nets %v expected to contain %v", nets, tt.ip)
+			}
+		})
+	}
+}
+
+func TestIPNetsDoNotContain(t *testing.T) {
+	for _, tt := range []struct {
+		input []string
+		ip    net.IP
+	}{
+		{[]string{}, net.IPv4(4, 3, 2, 1)},
+		{[]string{"1.2.3.4/24"}, net.IPv4(4, 3, 2, 1)},
+		{[]string{"1.2.3.4/24", "5.6.7.8"}, net.IPv4(4, 3, 2, 1)},
+		{[]string{"1.2.3.4/24", "5.6.7.8", "2001:db8::/32"}, net.IPv4(4, 3, 2, 1)},
+	} {
+		t.Run(strings.Join(tt.input, ","), func(t *testing.T) {
+			nets, err := ParseCIDRs(tt.input)
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if nets.Contain(tt.ip) {
+				t.Errorf("nets %v expected to contain %v", nets, tt.ip)
+			}
+		})
+	}
+}

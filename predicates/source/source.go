@@ -43,7 +43,6 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"strings"
 
 	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
@@ -70,8 +69,8 @@ type spec struct {
 }
 
 type predicate struct {
-	typ                sourcePred
-	acceptedSourceNets []net.IPNet
+	typ  sourcePred
+	nets snet.IPNets
 }
 
 func New() routing.PredicateSpec         { return &spec{typ: source} }
@@ -94,27 +93,21 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, InvalidArgsError
 	}
 
-	p := &predicate{typ: s.typ}
-
+	var cidrs []string
 	for i := range args {
 		if s, ok := args[i].(string); ok {
-			var netmask = s
-			if !strings.Contains(s, "/") {
-				netmask = s + "/32"
-			}
-			_, net, err := net.ParseCIDR(netmask)
-
-			if err != nil {
-				return nil, InvalidArgsError
-			}
-
-			p.acceptedSourceNets = append(p.acceptedSourceNets, *net)
+			cidrs = append(cidrs, s)
 		} else {
 			return nil, InvalidArgsError
 		}
 	}
 
-	return p, nil
+	nets, err := snet.ParseCIDRs(cidrs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &predicate{s.typ, nets}, nil
 }
 
 func (p *predicate) Match(r *http.Request) bool {
@@ -128,11 +121,5 @@ func (p *predicate) Match(r *http.Request) bool {
 	default:
 		src = snet.RemoteHost(r)
 	}
-
-	for _, acceptedNet := range p.acceptedSourceNets {
-		if acceptedNet.Contains(src) {
-			return true
-		}
-	}
-	return false
+	return p.nets.Contain(src)
 }
