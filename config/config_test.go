@@ -162,6 +162,8 @@ func Test_NewConfig(t *testing.T) {
 				SwarmLeaveTimeout:                       5 * time.Second,
 				TLSMinVersion:                           defaultMinTLSVersion,
 				RoutesURLs:                              commaListFlag(),
+				ForwardedHeadersList:                    commaListFlag(),
+				ForwardedHeadersExcludeCIDRList:         commaListFlag(),
 			},
 			wantErr: false,
 		},

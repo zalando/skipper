@@ -115,3 +115,59 @@ func TestForwardedHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestForwardedHeadersHandler(t *testing.T) {
+	for _, ti := range []struct {
+		name       string
+		remoteAddr string
+		exclude    []string
+		expected   bool
+	}{
+		{
+			name:       "no exclude",
+			remoteAddr: "1.2.3.4:56",
+			expected:   true,
+		},
+		{
+			name:       "exclude does not match",
+			remoteAddr: "1.2.3.4:56",
+			exclude:    []string{"4.5.6.0/24"},
+			expected:   true,
+		},
+		{
+			name:       "exclude matches",
+			remoteAddr: "1.2.3.4:56",
+			exclude:    []string{"1.2.3.4/24"},
+			expected:   false,
+		},
+		{
+			name:       "invalid remote address",
+			remoteAddr: "invalid",
+			expected:   false,
+		},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			nets, err := ParseCIDRs(ti.exclude)
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+
+			delegated := false
+			h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, got := r.Header["X-Forwarded-For"]
+				if ti.expected != got {
+					t.Errorf("X-Forwarded-For expected: %t, got: %t", ti.expected, got)
+				}
+				delegated = true
+			})
+
+			fh := ForwardedHeadersHandler{ForwardedHeaders{For: true}, nets, h}
+
+			fh.ServeHTTP(nil, &http.Request{Host: "example.com", RemoteAddr: ti.remoteAddr, Header: http.Header{}})
+
+			if !delegated {
+				t.Fatalf("delegate handler was not called")
+			}
+		})
+	}
+}

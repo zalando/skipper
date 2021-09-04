@@ -44,3 +44,17 @@ func (h *ForwardedHeaders) Set(req *http.Request) {
 		req.Header.Set("X-Forwarded-Proto", h.Proto)
 	}
 }
+
+type ForwardedHeadersHandler struct {
+	Headers ForwardedHeaders
+	Exclude IPNets
+	Handler http.Handler
+}
+
+func (h *ForwardedHeadersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil && !h.Exclude.Contain(net.ParseIP(host)) {
+		h.Headers.Set(r)
+	}
+	h.Handler.ServeHTTP(w, r)
+}
