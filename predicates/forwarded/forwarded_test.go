@@ -129,6 +129,28 @@ func TestForwardedHost(t *testing.T) {
 		},
 		matches: true,
 		isError: false,
+	}, {
+		msg:  "In multiple forwarded header only host should match",
+		host: "^example\\.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{`host="example.com",host="example.com"`},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
+		msg:  "In multiple forwarded header complete should match",
+		host: "^example\\.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{`for=2b12:c7f:565d:b000:d4a5:ed98:1eea:d290;by=2b12:26f0:4000:2ae::3751,by=10.0.0.60;host=example.com;proto=https, for=10.0.0.60;by=10.0.0.61,by=10.0.0.62;host=example.com;proto=https`},
+			},
+		},
+		matches: true,
+		isError: false,
 	}}
 
 	for _, tc := range testCases {
