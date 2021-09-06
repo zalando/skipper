@@ -969,3 +969,11 @@ Showing top 10 nodes out of 303
 ```
 
 ![pprof svg in web browser](../img/skipper_pprof.svg)
+
+## Response serving
+
+When serving a response from a backend, Skipper serves first the HTTP
+response headers. After that Skipper streams the response payload and
+uses one 8kB buffer to stream the data through this 8kB buffer. It
+uses Flush() to make sure the 8kB chunk is written to the client.
+Details can be observed by opentracing in the logs of the [Proxy Span](#proxy-span).
