@@ -154,12 +154,12 @@ func run(o options.Options) error {
 		log.Info("shutting down")
 		close(quit)
 		if err := server.Shutdown(context.Background()); err != nil {
-			log.Errorf("unable to shut down the server: ", err)
+			log.Error("unable to shut down the server: ", err)
 		}
 	}()
 
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Errorf("unable to start the server: ", err)
+		log.Error("unable to start the server: ", err)
 	}
 
 	return nil
