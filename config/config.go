@@ -574,6 +574,7 @@ func (c *Config) ToRouteSrvOptions() routesrvopts.Options {
 
 	return routesrvopts.Options{
 		Address:                            c.Address,
+		SourcePollTimeout:                  time.Duration(c.SourcePollTimeout) * time.Millisecond,
 		KubernetesInCluster:                c.KubernetesInCluster,
 		KubernetesURL:                      c.KubernetesURL,
 		KubernetesHealthcheck:              c.KubernetesHealthcheck,

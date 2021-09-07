@@ -2,6 +2,7 @@ package options
 
 import (
 	"regexp"
+	"time"
 
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
@@ -9,6 +10,9 @@ import (
 
 type Options struct {
 	Address string
+
+	SourcePollTimeout time.Duration
+
 	// If set makes skipper authenticate with the kubernetes API server with service account assigned to the
 	// skipper POD.
 	// If omitted skipper will rely on kubectl proxy to authenticate with API server
