@@ -17,11 +17,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zalando/skipper"
+	routesrvopts "github.com/zalando/skipper/cmd/routesrv/options"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
-	"github.com/zalando/skipper/routesrv"
 	"github.com/zalando/skipper/swarm"
 )
 
@@ -566,13 +566,13 @@ func (c *Config) Parse() error {
 	return nil
 }
 
-func (c *Config) ToRouteSrvOptions() routesrv.Options {
+func (c *Config) ToRouteSrvOptions() routesrvopts.Options {
 	var whitelistCIDRS []string
 	if len(c.WhitelistedHealthCheckCIDR) > 0 {
 		whitelistCIDRS = strings.Split(c.WhitelistedHealthCheckCIDR, ",")
 	}
 
-	return routesrv.Options{
+	return routesrvopts.Options{
 		Address:                            c.Address,
 		KubernetesInCluster:                c.KubernetesInCluster,
 		KubernetesURL:                      c.KubernetesURL,

@@ -1,9 +1,8 @@
-package routesrv
+package options
 
 import (
 	"regexp"
 
-	"github.com/google/martian/log"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 )
@@ -103,47 +102,4 @@ type Options struct {
 	// OpenTracingBackendNameTag enables an additional tracing tag containing a backend name
 	// for a route when it's available (e.g. for RouteGroups)
 	OpenTracingBackendNameTag bool
-}
-
-func receiveRoutes(client *kubernetes.Client) {
-	for {
-		routes, err := client.LoadAll()
-		if err != nil {
-			log.Error("failed to fetch routes: %s", err)
-		} else {
-
-		}
-
-		select {}
-	}
-}
-
-func Run(o Options) error {
-	dataclient, err := kubernetes.New(kubernetes.Options{
-		KubernetesInCluster:               o.KubernetesInCluster,
-		KubernetesURL:                     o.KubernetesURL,
-		ProvideHealthcheck:                o.KubernetesHealthcheck,
-		ProvideHTTPSRedirect:              o.KubernetesHTTPSRedirect,
-		HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
-		IngressClass:                      o.KubernetesIngressClass,
-		RouteGroupClass:                   o.KubernetesRouteGroupClass,
-		ReverseSourcePredicate:            o.ReverseSourcePredicate,
-		WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
-		PathMode:                          o.KubernetesPathMode,
-		KubernetesNamespace:               o.KubernetesNamespace,
-		KubernetesEnableEastWest:          o.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:          o.KubernetesEastWestDomain,
-		KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
-		KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
-		DefaultFiltersDir:                 o.DefaultFiltersDir,
-		OriginMarker:                      o.EnableRouteCreationMetrics,
-		BackendNameTracingTag:             o.OpenTracingBackendNameTag,
-		OnlyAllowedExternalNames:          o.KubernetesOnlyAllowedExternalNames,
-		AllowedExternalNames:              o.KubernetesAllowedExternalNames,
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
