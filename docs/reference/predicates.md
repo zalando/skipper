@@ -134,6 +134,13 @@ Uses standardized Forwarded header ([RFC 7239](https://tools.ietf.org/html/rfc72
 
 More info about the header: [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded)
 
+If multiple proxies chain values in the header, as a comma separated list, the predicates below will only match 
+the last values in the chain.
+
+For example, proxy1 could set host+proto and proxy2 could only set host. In that case, the header will end up 
+with value `host=example.com;proto=https, host=example.org` and predicate config would have 
+`f.proto = "https"` but `f.host == "example.org"`
+
 ### ForwardedHost
 
 Regular expressions that the forwarded host header in the request must match.

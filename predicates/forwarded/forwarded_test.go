@@ -141,6 +141,17 @@ func TestForwardedHost(t *testing.T) {
 		matches: true,
 		isError: false,
 	}, {
+		msg:  "In multiple forwarded header only host with spaces should match",
+		host: "^example\\.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{` host="example.com", host="example.com"`},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
 		msg:  "In multiple forwarded header complete should match",
 		host: "^example\\.com$",
 		r: request{
