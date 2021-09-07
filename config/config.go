@@ -798,7 +798,11 @@ func (c *Config) ToOptions() skipper.Options {
 
 	if c.ForwardedHeaders != (net.ForwardedHeaders{}) {
 		options.CustomHttpHandlerWrap = func(handler http.Handler) http.Handler {
-			return &net.ForwardedHeadersHandler{c.ForwardedHeaders, c.ForwardedHeadersExcludeCIDRs, handler}
+			return &net.ForwardedHeadersHandler{
+				Headers: c.ForwardedHeaders,
+				Exclude: c.ForwardedHeadersExcludeCIDRs,
+				Handler: handler,
+			}
 		}
 	}
 
