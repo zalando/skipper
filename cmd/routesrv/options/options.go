@@ -13,6 +13,8 @@ type Options struct {
 
 	SourcePollTimeout time.Duration
 
+	OpenTracing []string
+
 	// If set makes skipper authenticate with the kubernetes API server with service account assigned to the
 	// skipper POD.
 	// If omitted skipper will rely on kubectl proxy to authenticate with API server

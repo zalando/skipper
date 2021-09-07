@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/cmd/routesrv/options"
@@ -17,14 +19,16 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing"
 )
 
 // eskipBytes keeps eskip-formatted routes as a byte slice and
 // provides synchronized r/w access to them. Additionally it can
 // serve as an HTTP handler exposing its content.
 type eskipBytes struct {
-	data []byte
-	mu   sync.RWMutex
+	data        []byte
+	mu          sync.RWMutex
+	lastUpdated time.Time
 }
 
 func (e *eskipBytes) bytes() []byte {
@@ -34,7 +38,7 @@ func (e *eskipBytes) bytes() []byte {
 	return e.data
 }
 
-func (e *eskipBytes) formatAndSet(routes []*eskip.Route) bool {
+func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (bool, int) {
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{}, routes...)
 
@@ -42,8 +46,9 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) bool {
 	defer e.mu.Unlock()
 	oldData := e.data
 	e.data = buf.Bytes()
+	e.lastUpdated = time.Now()
 
-	return oldData == nil
+	return oldData == nil, len(e.data)
 }
 
 func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -77,24 +82,55 @@ func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes, quit chan struct{}) {
+func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes, quit chan struct{}, tracer ot.Tracer) {
+	var (
+		routesLen   int
+		msg         string
+		initialized bool
+		size        int
+	)
+
 	log.Infof("starting polling with timeout %s", timeout)
 	for {
+		span := tracing.CreateSpan("poll_routes", context.TODO(), tracer)
+
 		routes, err := client.LoadAll()
+		routesLen = len(routes)
 
 		switch {
 		case err != nil:
-			log.Errorf("failed to fetch routes: %s", err)
-		case len(routes) == 0:
-			log.Error("received empty routes; ignoring")
-		case len(routes) > 0:
-			initialized := b.formatAndSet(routes)
+			msg = fmt.Sprintf("failed to fetch routes: %s", err)
+
+			log.Errorf(msg)
+
+			span.SetTag("error", true)
+			span.LogKV(
+				"event", "error",
+				"message", msg,
+			)
+		case routesLen == 0:
+			msg = "received empty routes; ignoring"
+
+			log.Warn(msg)
+
+			span.SetTag("error", true)
+			span.LogKV(
+				"event", "error",
+				"message", msg,
+			)
+		case routesLen > 0:
+			initialized, size = b.formatAndSet(routes)
 			if initialized {
 				log.Info("routes initialized")
+				span.SetTag("initialized", true)
 			} else {
 				log.Info("routes updated")
 			}
+			span.SetTag("routes.received_len", routesLen)
+			span.SetTag("routes.stored_bytes", size)
 		}
+
+		span.Finish()
 
 		select {
 		case <-quit:
@@ -114,6 +150,11 @@ func newServer(address string, b *eskipBytes, s *eskipBytesStatus) *http.Server 
 }
 
 func run(o options.Options) error {
+	tracer, err := tracing.InitTracer(o.OpenTracing)
+	if err != nil {
+		return err
+	}
+
 	b := &eskipBytes{}
 	s := &eskipBytesStatus{b: b}
 
@@ -143,7 +184,7 @@ func run(o options.Options) error {
 		return err
 	}
 	quit := make(chan struct{}, 1)
-	go pollRoutes(dataclient, o.SourcePollTimeout, b, quit)
+	go pollRoutes(dataclient, o.SourcePollTimeout, b, quit, tracer)
 
 	server := newServer(o.Address, b, s)
 
