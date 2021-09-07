@@ -374,7 +374,7 @@ func NewConfig() *Config {
 		"X-Forwarded-For sets or appends with comma the remote IP of the request to the X-Forwarded-For header value\n"+
 		"X-Forwarded-Host sets X-Forwarded-Host value to the request host\n"+
 		"X-Forwarded-Proto=http or X-Forwarded-Proto=https sets X-Forwarded-Proto value")
-	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the configured CIDRs")
+	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs")
 
 	// Kubernetes:
 	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, "enables skipper to generate routes for ingress resources in kubernetes cluster")

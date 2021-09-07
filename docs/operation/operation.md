@@ -990,5 +990,5 @@ Skipper can be configured to add [`X-Forwarded-*` headers](https://en.wikipedia.
         X-Forwarded-Proto=http or X-Forwarded-Proto=https sets X-Forwarded-Proto value
 
   -forwarded-headers-exclude-cidrs value
-        disables addition of forwarded headers for the remote host IPs from the configured CIDRs
+        disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs
 ```
