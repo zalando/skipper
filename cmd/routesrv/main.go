@@ -29,6 +29,7 @@ type eskipBytes struct {
 	data        []byte
 	mu          sync.RWMutex
 	lastUpdated time.Time
+	tracer      ot.Tracer
 }
 
 func (e *eskipBytes) bytes() []byte {
@@ -52,6 +53,9 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (bool, int) {
 }
 
 func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	span := tracing.CreateSpan("serve_routes", context.TODO(), e.tracer)
+	defer span.Finish()
+
 	data := e.bytes()
 	if data == nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -111,7 +115,7 @@ func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes,
 		case routesLen == 0:
 			msg = "received empty routes; ignoring"
 
-			log.Warn(msg)
+			log.Error(msg)
 
 			span.SetTag("error", true)
 			span.LogKV(
@@ -124,7 +128,7 @@ func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes,
 				log.Info("routes initialized")
 				span.SetTag("initialized", true)
 			} else {
-				log.Info("routes updated")
+				log.Debug("routes updated")
 			}
 			span.SetTag("routes.received_len", routesLen)
 			span.SetTag("routes.stored_bytes", size)
@@ -142,9 +146,10 @@ func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes,
 
 func newServer(address string, b *eskipBytes, s *eskipBytesStatus) *http.Server {
 	handler := http.NewServeMux()
-	http.Handle("/health", s)
-	http.Handle("/routes", b)
-	http.Handle("/metrics", promhttp.Handler())
+
+	handler.Handle("/health", s)
+	handler.Handle("/routes", b)
+	handler.Handle("/metrics", promhttp.Handler())
 
 	return &http.Server{Addr: address, Handler: handler}
 }
@@ -209,5 +214,6 @@ func run(o options.Options) error {
 func main() {
 	cfg := config.NewConfig()
 	cfg.Parse()
-	run(cfg.ToRouteSrvOptions())
+	log.SetLevel(cfg.ApplicationLogLevel)
+	log.Fatal(run(cfg.ToRouteSrvOptions()))
 }

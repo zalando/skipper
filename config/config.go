@@ -593,7 +593,7 @@ func (c *Config) ToRouteSrvOptions() routesrvopts.Options {
 		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
 		EnableRouteCreationMetrics:         c.RouteCreationMetrics,
 		OpenTracingBackendNameTag:          c.OpentracingBackendNameTag,
-		OpenTracing:                        c.OpenTracing,
+		OpenTracing:                        strings.Split(c.OpenTracing, " "),
 	}
 }
 
