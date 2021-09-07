@@ -127,6 +127,12 @@ type Config struct {
 	SourcePollTimeout         int64                `yaml:"source-poll-timeout"`
 	WaitFirstRouteLoad        bool                 `yaml:"wait-first-route-load"`
 
+	// Forwarded headers
+	ForwardedHeadersList            *listFlag            `yaml:"forwarded-headers"`
+	ForwardedHeaders                net.ForwardedHeaders `yaml:"-"`
+	ForwardedHeadersExcludeCIDRList *listFlag            `yaml:"forwarded-headers-exclude-cidrs"`
+	ForwardedHeadersExcludeCIDRs    net.IPNets           `yaml:"-"`
+
 	// Kubernetes:
 	KubernetesIngress                       bool                `yaml:"kubernetes"`
 	KubernetesInCluster                     bool                `yaml:"kubernetes-in-cluster"`
@@ -261,6 +267,8 @@ func NewConfig() *Config {
 	cfg.EditRoute = &routeChangerConfig{}
 	cfg.KubernetesEastWestRangeDomains = commaListFlag()
 	cfg.RoutesURLs = commaListFlag()
+	cfg.ForwardedHeadersList = commaListFlag()
+	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
 
@@ -360,6 +368,13 @@ func NewConfig() *Config {
 	flag.Var(cfg.EditRoute, "edit-route", "match and edit filters and predicates of all routes")
 	flag.Var(cfg.CloneRoute, "clone-route", "clone all matching routes and replace filters and predicates of all matched routes")
 	flag.BoolVar(&cfg.WaitFirstRouteLoad, "wait-first-route-load", false, "prevent starting the listener before the first batch of routes were loaded")
+
+	// Forwarded headers
+	flag.Var(cfg.ForwardedHeadersList, "forwarded-headers", "comma separated list of headers to add to the incoming request before routing\n"+
+		"X-Forwarded-For sets or appends with comma the remote IP of the request to the X-Forwarded-For header value\n"+
+		"X-Forwarded-Host sets X-Forwarded-Host value to the request host\n"+
+		"X-Forwarded-Proto=http or X-Forwarded-Proto=https sets X-Forwarded-Proto value")
+	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs")
 
 	// Kubernetes:
 	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, "enables skipper to generate routes for ingress resources in kubernetes cluster")
@@ -539,6 +554,11 @@ func (c *Config) Parse() error {
 		}
 
 		c.Certificates = certificates
+	}
+
+	err = c.parseForwardedHeaders()
+	if err != nil {
+		return err
 	}
 
 	c.parseEnv()
@@ -776,6 +796,16 @@ func (c *Config) ToOptions() skipper.Options {
 		}
 	}
 
+	if c.ForwardedHeaders != (net.ForwardedHeaders{}) {
+		options.CustomHttpHandlerWrap = func(handler http.Handler) http.Handler {
+			return &net.ForwardedHeadersHandler{
+				Headers: c.ForwardedHeaders,
+				Exclude: c.ForwardedHeadersExcludeCIDRs,
+				Handler: handler,
+			}
+		}
+	}
+
 	return options
 }
 
@@ -813,6 +843,31 @@ func (c *Config) parseHistogramBuckets() ([]float64, error) {
 	}
 	sort.Float64s(result)
 	return result, nil
+}
+
+func (c *Config) parseForwardedHeaders() error {
+	for _, header := range c.ForwardedHeadersList.values {
+		switch header {
+		case "X-Forwarded-For":
+			c.ForwardedHeaders.For = true
+		case "X-Forwarded-Host":
+			c.ForwardedHeaders.Host = true
+		case "X-Forwarded-Proto=http":
+			c.ForwardedHeaders.Proto = "http"
+		case "X-Forwarded-Proto=https":
+			c.ForwardedHeaders.Proto = "https"
+		default:
+			return fmt.Errorf("invalid forwarded header: %s", header)
+		}
+	}
+
+	cidrs, err := net.ParseCIDRs(c.ForwardedHeadersExcludeCIDRList.values)
+	if err != nil {
+		return fmt.Errorf("invalid forwarded headers exclude CIDRs: %v", err)
+	}
+	c.ForwardedHeadersExcludeCIDRs = cidrs
+
+	return nil
 }
 
 func (c *Config) parseEnv() {

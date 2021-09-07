@@ -1,10 +1,8 @@
 package xforward
 
 import (
-	"fmt"
-	"net"
-
 	"github.com/zalando/skipper/filters"
+	snet "github.com/zalando/skipper/net"
 )
 
 const (
@@ -16,7 +14,7 @@ const (
 )
 
 type filter struct {
-	prepend bool
+	headers *snet.ForwardedHeaders
 }
 
 // New creates a specification for the xforward filter
@@ -24,7 +22,7 @@ type filter struct {
 // X-Forwarded-For header, and sets the X-Forwarded-Host header
 // to the value of the incoming request's Host header.
 func New() filters.Spec {
-	return filter{}
+	return filter{headers: &snet.ForwardedHeaders{For: true, Host: true}}
 }
 
 // NewFirst creates a specification for the xforwardFirst filter
@@ -32,14 +30,13 @@ func New() filters.Spec {
 // X-Forwarded-For header, and sets the X-Forwarded-Host header
 // to the value of the incoming request's Host header.
 func NewFirst() filters.Spec {
-	return filter{prepend: true}
+	return filter{headers: &snet.ForwardedHeaders{PrependFor: true, Host: true}}
 }
 
 func (f filter) Name() string {
-	if f.prepend {
+	if f.headers.PrependFor {
 		return NameFirst
 	}
-
 	return Name
 }
 
@@ -52,27 +49,7 @@ func (f filter) Request(ctx filters.FilterContext) {
 	if req == nil {
 		req = ctx.Request()
 	}
-
-	req.Header.Set("X-Forwarded-Host", req.Host)
-	if req.RemoteAddr == "" {
-		return
-	}
-
-	addr := req.RemoteAddr
-	if h, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		addr = h
-	}
-
-	h := req.Header.Get("X-Forwarded-For")
-	if h == "" {
-		h = addr
-	} else if f.prepend {
-		h = fmt.Sprintf("%s, %s", addr, h)
-	} else {
-		h = fmt.Sprintf("%s, %s", h, addr)
-	}
-
-	req.Header.Set("X-Forwarded-For", h)
+	f.headers.Set(req)
 }
 
 func (filter) Response(filters.FilterContext) {}
