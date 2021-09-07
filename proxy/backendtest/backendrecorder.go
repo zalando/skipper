@@ -22,6 +22,15 @@ type BackendRecorderHandler struct {
 	Done     <-chan time.Time
 }
 
+func NewBackendRecorder(closeAfter time.Duration) *BackendRecorderHandler {
+	handler := &BackendRecorderHandler{
+		Done: time.After(closeAfter),
+	}
+	server := httptest.NewServer(handler)
+	handler.server = server
+	return handler
+}
+
 func (rec *BackendRecorderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -51,11 +60,6 @@ func (rec *BackendRecorderHandler) GetURL() string {
 	return rec.server.URL
 }
 
-func NewBackendRecorder(closeAfter time.Duration) *BackendRecorderHandler {
-	handler := &BackendRecorderHandler{
-		Done: time.After(closeAfter),
-	}
-	server := httptest.NewServer(handler)
-	handler.server = server
-	return handler
+func (rec *BackendRecorderHandler) Close() {
+	rec.server.Close()
 }

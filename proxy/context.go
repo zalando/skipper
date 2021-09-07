@@ -263,7 +263,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 	u := new(url.URL)
 	*u = *originalRequest.URL
 	u.Host = originalRequest.Host
-	cr, body, err := cloneRequest(u, originalRequest)
+	cr, body, err := cloneRequestForSplit(u, originalRequest)
 	if err != nil {
 		c.proxy.log.Errorf("context: failed to clone request: %v", err)
 		return nil, err
