@@ -585,13 +585,10 @@ func (c *Config) ToRouteSrvOptions() routesrvopts.Options {
 		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
 		KubernetesPathMode:                 c.KubernetesPathMode,
 		KubernetesNamespace:                c.KubernetesNamespace,
-		KubernetesEnableEastWest:           c.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:           c.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:     c.KubernetesEastWestRangeDomains.values,
 		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
 		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
 		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
-		EnableRouteCreationMetrics:         c.RouteCreationMetrics,
 		OpenTracingBackendNameTag:          c.OpentracingBackendNameTag,
 		OpenTracing:                        strings.Split(c.OpenTracing, " "),
 	}
