@@ -94,16 +94,19 @@ func newPollerMetrics() *pollerMetrics {
 			Namespace: "routesrv",
 			Subsystem: "poller",
 			Name:      "started_timestamp",
+			Help:      "UNIX time when the routes polling has started",
 		}),
 		initializedTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
 			Namespace: "routesrv",
 			Subsystem: "poller",
 			Name:      "initialized_timestamp",
+			Help:      "UNIX time when the first routes were received and stored",
 		}),
 		updatedTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
 			Namespace: "routesrv",
 			Subsystem: "poller",
 			Name:      "updated_timestamp",
+			Help:      "UNIX time of the last routes update (initial load counts as well)",
 		}),
 	}
 }
