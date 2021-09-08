@@ -28,38 +28,39 @@ import (
 // provides synchronized r/w access to them. Additionally it can
 // serve as an HTTP handler exposing its content.
 type eskipBytes struct {
-	data        []byte
-	mu          sync.RWMutex
-	initialized bool
+	data []byte
+	mu   sync.RWMutex
 
 	tracer ot.Tracer
 }
 
-func (e *eskipBytes) bytes() ([]byte, bool) {
+func (e *eskipBytes) bytes() []byte {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	return e.data, e.initialized
+	return e.data
 }
 
-func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
+// formatAndSet takes a slice of routes and stores them eskip-formatted
+// in a synchronized way. References to both new and old data are returned
+// for inspection (reading). Returned slices content must not be modified.
+func (e *eskipBytes) formatAndSet(routes []*eskip.Route) ([]byte, []byte) {
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{}, routes...)
 
 	e.mu.Lock()
 	oldData := e.data
 	e.data = buf.Bytes()
-	e.initialized = true
 	e.mu.Unlock()
 
-	return len(oldData), oldData == nil
+	return e.data, oldData
 }
 
 func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span := tracing.CreateSpan("serve_routes", r.Context(), e.tracer)
 	defer span.Finish()
 
-	if data, initialized := e.bytes(); initialized {
+	if data := e.bytes(); data != nil {
 		w.Write(data)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
@@ -75,7 +76,7 @@ type eskipBytesStatus struct {
 const msgRoutesNotInitialized = "routes were not initialized yet"
 
 func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if _, initialized := s.b.bytes(); initialized {
+	if data := s.b.bytes(); data != nil {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
 		http.Error(w, msgRoutesNotInitialized, http.StatusServiceUnavailable)
@@ -123,10 +124,9 @@ type poller struct {
 
 func (p *poller) poll() {
 	var (
-		routesLen   int
-		msg         string
-		initialized bool
-		size        int
+		routesLen     int
+		msg           string
+		data, oldData []byte
 	)
 
 	log.Infof("starting polling with timeout %s", p.timeout)
@@ -159,8 +159,8 @@ func (p *poller) poll() {
 				"message", msg,
 			)
 		case routesLen > 0:
-			size, initialized = p.b.formatAndSet(routes)
-			if initialized {
+			data, oldData = p.b.formatAndSet(routes)
+			if oldData == nil {
 				log.Info("routes initialized")
 				span.SetTag("initialized", true)
 				p.metrics.initializedTimestamp.SetToCurrentTime()
@@ -169,7 +169,7 @@ func (p *poller) poll() {
 			}
 			p.metrics.updatedTimestamp.SetToCurrentTime()
 			span.SetTag("routes.count", routesLen)
-			span.SetTag("routes.bytes", size)
+			span.SetTag("routes.bytes", len(data))
 		}
 
 		span.Finish()
