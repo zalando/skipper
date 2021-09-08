@@ -165,8 +165,8 @@ func (p *poller) poll() {
 				log.Debug("routes updated")
 			}
 			p.metrics.updatedTimestamp.SetToCurrentTime()
-			span.SetTag("routes.received_len", routesLen)
-			span.SetTag("routes.stored_bytes", size)
+			span.SetTag("routes.count", routesLen)
+			span.SetTag("routes.bytes", size)
 		}
 
 		span.Finish()
