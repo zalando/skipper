@@ -119,7 +119,9 @@ type poller struct {
 	metrics *pollerMetrics
 }
 
-func (p *poller) poll() {
+func (p *poller) poll(wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	var (
 		routesLen     int
 		msg           string
@@ -173,6 +175,7 @@ func (p *poller) poll() {
 
 		select {
 		case <-p.quit:
+			log.Info("stopping polling")
 			return
 		case <-time.After(p.timeout):
 		}
@@ -194,6 +197,8 @@ func run(o options.Options) error {
 	if err != nil {
 		return err
 	}
+
+	wg := &sync.WaitGroup{}
 
 	b := &eskipBytes{tracer: tracer}
 	s := &eskipBytesStatus{b: b}
@@ -228,13 +233,16 @@ func run(o options.Options) error {
 		tracer:  tracer,
 		metrics: newPollerMetrics(),
 	}
-	go poller.poll()
+	wg.Add(1)
+	go poller.poll(wg)
 
 	server := newServer(o.Address, b, s)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		<-sigs
 		log.Info("shutting down")
 		close(poller.quit)
@@ -243,11 +251,12 @@ func run(o options.Options) error {
 		}
 	}()
 
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Error("unable to start the server: ", err)
+	err = server.ListenAndServe()
+	if err == http.ErrServerClosed {
+		wg.Wait()
 	}
 
-	return nil
+	return err
 }
 
 func main() {
