@@ -72,14 +72,13 @@ type eskipBytesStatus struct {
 	b *eskipBytes
 }
 
-var msgRoutesNotInitialized = []byte("routes were not initialized yet")
+const msgRoutesNotInitialized = "routes were not initialized yet"
 
 func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if _, initialized := s.b.bytes(); initialized {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 	} else {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write(msgRoutesNotInitialized)
+		http.Error(w, msgRoutesNotInitialized, http.StatusServiceUnavailable)
 	}
 }
 
