@@ -60,7 +60,7 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if data == nil {
 		w.WriteHeader(http.StatusNotFound)
 	} else {
-		w.Write(e.bytes())
+		w.Write(data)
 	}
 }
 
