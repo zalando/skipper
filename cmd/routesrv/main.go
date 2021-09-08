@@ -56,7 +56,7 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
 }
 
 func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	span := tracing.CreateSpan("serve_routes", context.TODO(), e.tracer)
+	span := tracing.CreateSpan("serve_routes", r.Context(), e.tracer)
 	defer span.Finish()
 
 	if data, initialized := e.bytes(); initialized {
