@@ -12,6 +12,8 @@ import (
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/cmd/routesrv/options"
@@ -28,57 +30,52 @@ import (
 type eskipBytes struct {
 	data        []byte
 	mu          sync.RWMutex
-	lastUpdated time.Time
-	tracer      ot.Tracer
+	initialized bool
+
+	tracer ot.Tracer
 }
 
-func (e *eskipBytes) bytes() []byte {
+func (e *eskipBytes) bytes() ([]byte, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	return e.data
+	return e.data, e.initialized
 }
 
-func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (bool, int) {
+func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{}, routes...)
 
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	oldData := e.data
 	e.data = buf.Bytes()
-	e.lastUpdated = time.Now()
+	e.initialized = true
+	e.mu.Unlock()
 
-	return oldData == nil, len(e.data)
+	return len(oldData), oldData == nil
 }
 
 func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span := tracing.CreateSpan("serve_routes", context.TODO(), e.tracer)
 	defer span.Finish()
 
-	data := e.bytes()
-	if data == nil {
-		w.WriteHeader(http.StatusNotFound)
-	} else {
+	if data, initialized := e.bytes(); initialized {
 		w.Write(data)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
-// eskipBytesStatus provide metadata about the state of the referenced eskipBytes.
-// It can also serve as an HTTP health check for it (only reports healthy when the bytes
-// were initialized).
+// eskipBytesStatus serves as an HTTP health check for the referenced eskipBytes.
+// Reports healthy only when the bytes were initialized (set at least once).
 type eskipBytesStatus struct {
 	b *eskipBytes
 }
 
 var msgRoutesNotInitialized = []byte("routes were not initialized yet")
 
-func (s *eskipBytesStatus) initialized() bool {
-	return s.b.bytes() != nil
-}
-
 func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.initialized() {
+	if _, initialized := s.b.bytes(); initialized {
 		w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -86,7 +83,37 @@ func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes, quit chan struct{}, tracer ot.Tracer) {
+type pollerMetrics struct {
+	routesInitializedTimestamp prometheus.Gauge
+	routesUpdatedTimestamp     prometheus.Gauge
+}
+
+func newPollerMetrics() *pollerMetrics {
+	return &pollerMetrics{
+		routesInitializedTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
+			Namespace: "routesrv",
+			Subsystem: "poller",
+			Name:      "routes_initialized_timestamp",
+		}),
+		routesUpdatedTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
+			Namespace: "routesrv",
+			Subsystem: "poller",
+			Name:      "routes_updated_timestamp",
+		}),
+	}
+}
+
+type poller struct {
+	client  routing.DataClient
+	b       *eskipBytes
+	timeout time.Duration
+	quit    chan struct{}
+
+	tracer  ot.Tracer
+	metrics *pollerMetrics
+}
+
+func (p *poller) poll() {
 	var (
 		routesLen   int
 		msg         string
@@ -94,11 +121,11 @@ func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes,
 		size        int
 	)
 
-	log.Infof("starting polling with timeout %s", timeout)
+	log.Infof("starting polling with timeout %s", p.timeout)
 	for {
-		span := tracing.CreateSpan("poll_routes", context.TODO(), tracer)
+		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
-		routes, err := client.LoadAll()
+		routes, err := p.client.LoadAll()
 		routesLen = len(routes)
 
 		switch {
@@ -123,12 +150,14 @@ func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes,
 				"message", msg,
 			)
 		case routesLen > 0:
-			initialized, size = b.formatAndSet(routes)
+			size, initialized = p.b.formatAndSet(routes)
 			if initialized {
 				log.Info("routes initialized")
 				span.SetTag("initialized", true)
+				p.metrics.routesInitializedTimestamp.SetToCurrentTime()
 			} else {
 				log.Debug("routes updated")
+				p.metrics.routesUpdatedTimestamp.SetToCurrentTime()
 			}
 			span.SetTag("routes.received_len", routesLen)
 			span.SetTag("routes.stored_bytes", size)
@@ -137,9 +166,9 @@ func pollRoutes(client routing.DataClient, timeout time.Duration, b *eskipBytes,
 		span.Finish()
 
 		select {
-		case <-quit:
+		case <-p.quit:
 			return
-		case <-time.After(timeout):
+		case <-time.After(p.timeout):
 		}
 	}
 }
@@ -160,7 +189,7 @@ func run(o options.Options) error {
 		return err
 	}
 
-	b := &eskipBytes{}
+	b := &eskipBytes{tracer: tracer}
 	s := &eskipBytesStatus{b: b}
 
 	dataclient, err := kubernetes.New(kubernetes.Options{
@@ -188,8 +217,15 @@ func run(o options.Options) error {
 	if err != nil {
 		return err
 	}
-	quit := make(chan struct{}, 1)
-	go pollRoutes(dataclient, o.SourcePollTimeout, b, quit, tracer)
+	poller := &poller{
+		client:  dataclient,
+		timeout: o.SourcePollTimeout,
+		b:       b,
+		quit:    make(chan struct{}, 1),
+		tracer:  tracer,
+		metrics: newPollerMetrics(),
+	}
+	go poller.poll()
 
 	server := newServer(o.Address, b, s)
 
@@ -198,7 +234,7 @@ func run(o options.Options) error {
 	go func() {
 		<-sigs
 		log.Info("shutting down")
-		close(quit)
+		close(poller.quit)
 		if err := server.Shutdown(context.Background()); err != nil {
 			log.Error("unable to shut down the server: ", err)
 		}
