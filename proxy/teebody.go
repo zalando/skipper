@@ -36,7 +36,7 @@ func (tt *teeTie) Read(b []byte) (int, error) {
 func (tt *teeTie) Close() error { return nil }
 
 // Returns the cloned request and the tee body to be used on the main request.
-func cloneRequest(u *url.URL, req *http.Request) (*http.Request, io.ReadCloser, error) {
+func cloneRequestForSplit(u *url.URL, req *http.Request) (*http.Request, io.ReadCloser, error) {
 	h := make(http.Header)
 	for k, v := range req.Header {
 		h[k] = v
@@ -59,6 +59,7 @@ func cloneRequest(u *url.URL, req *http.Request) (*http.Request, io.ReadCloser, 
 	clone.RequestURI = req.RequestURI
 	clone.Header = h
 	clone.ContentLength = req.ContentLength
+	clone.RemoteAddr = req.RemoteAddr
 
 	return clone, mainBody, nil
 }

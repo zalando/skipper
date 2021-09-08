@@ -1050,6 +1050,7 @@ func (p *Proxy) do(ctx *context) error {
 	if ctx.executionCounter > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
+
 	defer func() {
 		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
 		for _, done := range pendingLIFO {

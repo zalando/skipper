@@ -2,17 +2,19 @@ package tee
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/predicates/source"
 	teePredicate "github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy/backendtest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
 )
 
 const listenFor = 10 * time.Millisecond
@@ -148,5 +150,49 @@ func TestInfiniteLoopback(t *testing.T) {
 	waitForAll(split, shadow)
 	if !matchRequestsCount(shadow, 9) || !matchRequestsCount(split, 1) {
 		t.Errorf("teeloopback: expected to receive 1 requests in the split backend and 9 in shadow backend but got Split: %d, Shadow: %d", len(split.GetRequests()), len(shadow.GetRequests()))
+	}
+}
+
+func TestLoopbackWithClientIP(t *testing.T) {
+	const routeFmt = `
+		split: Path("/foo") && ClientIP("0.0.0.0/0", "::/0") -> teeLoopback("A") -> "%v";
+		shadow: Path("/foo") && ClientIP("0.0.0.0/0", "::/0") && Tee("A") -> "%v";
+	`
+
+	const listenFor = 30 * time.Millisecond
+	split := backendtest.NewBackendRecorder(listenFor)
+	shadow := backendtest.NewBackendRecorder(listenFor)
+	defer split.Close()
+	defer shadow.Close()
+
+	routeDoc := fmt.Sprintf(routeFmt, split.GetURL(), shadow.GetURL())
+	routes, err := eskip.Parse(routeDoc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	filterRegistry := make(filters.Registry)
+	filterRegistry.Register(NewTeeLoopback())
+	p := proxytest.WithRoutingOptions(filterRegistry, routing.Options{
+		Predicates: []routing.PredicateSpec{
+			teePredicate.New(),
+			source.NewClientIP(),
+		},
+	}, routes...)
+
+	rsp, err := http.Get(p.URL + "/foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer rsp.Body.Close()
+
+	waitForAll(split, shadow)
+	if !matchRequestsCount(split, 1) || !matchRequestsCount(shadow, 1) {
+		t.Errorf(
+			"failed to receive the right number of requests on the backend; split: %d; shadow: %d",
+			len(split.GetRequests()),
+			len(shadow.GetRequests()),
+		)
 	}
 }
