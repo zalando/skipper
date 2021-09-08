@@ -84,24 +84,24 @@ func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type pollerMetrics struct {
-	startedTimestamp     prometheus.Gauge
-	initializedTimestamp prometheus.Gauge
-	updatedTimestamp     prometheus.Gauge
+	pollingStarted    prometheus.Gauge
+	routesInitialized prometheus.Gauge
+	routesUpdated     prometheus.Gauge
 }
 
 func newPollerMetrics() *pollerMetrics {
 	return &pollerMetrics{
-		startedTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
+		pollingStarted: promauto.NewGauge(prometheus.GaugeOpts{
 			Namespace: "routesrv",
 			Name:      "polling_started_timestamp",
 			Help:      "UNIX time when the routes polling has started",
 		}),
-		initializedTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
+		routesInitialized: promauto.NewGauge(prometheus.GaugeOpts{
 			Namespace: "routesrv",
 			Name:      "routes_initialized_timestamp",
 			Help:      "UNIX time when the first routes were received and stored",
 		}),
-		updatedTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
+		routesUpdated: promauto.NewGauge(prometheus.GaugeOpts{
 			Namespace: "routesrv",
 			Name:      "routes_updated_timestamp",
 			Help:      "UNIX time of the last routes update (initial load counts as well)",
@@ -127,7 +127,7 @@ func (p *poller) poll() {
 	)
 
 	log.Infof("starting polling with timeout %s", p.timeout)
-	p.metrics.startedTimestamp.SetToCurrentTime()
+	p.metrics.pollingStarted.SetToCurrentTime()
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
@@ -160,11 +160,11 @@ func (p *poller) poll() {
 			if oldData == nil {
 				log.Info("routes initialized")
 				span.SetTag("routes.initialized", true)
-				p.metrics.initializedTimestamp.SetToCurrentTime()
+				p.metrics.routesInitialized.SetToCurrentTime()
 			} else {
 				log.Debug("routes updated")
 			}
-			p.metrics.updatedTimestamp.SetToCurrentTime()
+			p.metrics.routesUpdated.SetToCurrentTime()
 			span.SetTag("routes.count", routesLen)
 			span.SetTag("routes.bytes", len(data))
 		}
