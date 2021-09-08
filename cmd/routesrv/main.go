@@ -162,7 +162,7 @@ func (p *poller) poll() {
 			data, oldData = p.b.formatAndSet(routes)
 			if oldData == nil {
 				log.Info("routes initialized")
-				span.SetTag("initialized", true)
+				span.SetTag("routes.initialized", true)
 				p.metrics.initializedTimestamp.SetToCurrentTime()
 			} else {
 				log.Debug("routes updated")
