@@ -15,6 +15,11 @@ type Options struct {
 	// Polling timeout of the routing data source
 	SourcePollTimeout time.Duration
 
+	// WaitForHealthcheckInterval sets the time that skipper waits
+	// for the loadbalancer in front to become unhealthy. Defaults
+	// to 0.
+	WaitForHealthcheckInterval time.Duration
+
 	// OpenTracing enables tracing
 	OpenTracing []string
 

@@ -175,7 +175,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 
 		select {
 		case <-p.quit:
-			log.Info("stopping polling")
+			log.Info("polling stopped")
 			return
 		case <-time.After(p.timeout):
 		}
@@ -192,16 +192,27 @@ func newServer(address string, b *eskipBytes, s *eskipBytesStatus) *http.Server 
 	return &http.Server{Addr: address, Handler: handler}
 }
 
+func shutdown(wg *sync.WaitGroup, poller *poller, server *http.Server, delay time.Duration) {
+	defer wg.Done()
+	log.Infof("shutting down the server in %s...", delay)
+	time.Sleep(delay)
+	if err := server.Shutdown(context.Background()); err != nil {
+		log.Error("unable to shut down the server: ", err)
+	}
+	log.Info("server shut down")
+	close(poller.quit)
+}
+
 func run(o options.Options) error {
 	tracer, err := tracing.InitTracer(o.OpenTracing)
 	if err != nil {
 		return err
 	}
 
-	wg := &sync.WaitGroup{}
-
 	b := &eskipBytes{tracer: tracer}
 	s := &eskipBytesStatus{b: b}
+
+	wg := &sync.WaitGroup{}
 
 	dataclient, err := kubernetes.New(kubernetes.Options{
 		KubernetesInCluster:               o.KubernetesInCluster,
@@ -239,22 +250,20 @@ func run(o options.Options) error {
 	server := newServer(o.Address, b, s)
 
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGTERM)
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		<-sigs
-		log.Info("shutting down")
-		close(poller.quit)
-		if err := server.Shutdown(context.Background()); err != nil {
-			log.Error("unable to shut down the server: ", err)
-		}
+		shutdown(wg, poller, server, o.WaitForHealthcheckInterval)
 	}()
 
-	err = server.ListenAndServe()
-	if err == http.ErrServerClosed {
-		wg.Wait()
+	if err = server.ListenAndServe(); err != http.ErrServerClosed {
+		go shutdown(wg, poller, server, 0)
+	} else {
+		err = nil
 	}
+
+	wg.Wait()
 
 	return err
 }
@@ -263,5 +272,8 @@ func main() {
 	cfg := config.NewConfig()
 	cfg.Parse()
 	log.SetLevel(cfg.ApplicationLogLevel)
-	log.Fatal(run(cfg.ToRouteSrvOptions()))
+	err := run(cfg.ToRouteSrvOptions())
+	if err != nil {
+		log.Fatal(err)
+	}
 }
