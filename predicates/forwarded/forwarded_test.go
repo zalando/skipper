@@ -421,7 +421,7 @@ func TestForwardedDocumentationExamples(t *testing.T) {
 			if tc.proto != "" {
 				protoSpec := NewForwardedProto()
 
-				p, err := protoSpec.Create([]interface{}{tc.proto})
+				p, _ := protoSpec.Create([]interface{}{tc.proto})
 
 				r, err := newRequest(tc.r)
 				if err != nil {
@@ -434,7 +434,7 @@ func TestForwardedDocumentationExamples(t *testing.T) {
 			if tc.host != "" {
 				hostSpec := NewForwardedHost()
 
-				p, err := hostSpec.Create([]interface{}{tc.host})
+				p, _ := hostSpec.Create([]interface{}{tc.host})
 
 				r, err := newRequest(tc.r)
 				if err != nil {
