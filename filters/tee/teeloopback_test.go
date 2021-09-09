@@ -21,7 +21,7 @@ const listenFor = 10 * time.Millisecond
 
 func waitForAll(handlers ...*backendtest.BackendRecorderHandler) {
 	for _, h := range handlers {
-		<-h.Done
+		h.Done()
 	}
 }
 
@@ -89,8 +89,8 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	if err != nil {
 		t.Error("teeloopback: failed to execute the request.", err)
 	}
-	<-split.Done
-	<-original.Done
+	waitForAll(original, split)
+
 	if !matchRequestsCount(split, 1) {
 		t.Errorf("teeloopback: expected to receive 1 requests in split but got %d", len(split.GetRequests()))
 	}
@@ -120,7 +120,7 @@ func TestOriginalBackendServeEvenWhenShadowIsDown(t *testing.T) {
 	if err != nil {
 		t.Error("teeloopback: failed to execute the request.", err)
 	}
-	<-split.Done
+	split.Done()
 	if !matchRequestsCount(split, 1) {
 		t.Errorf("teeloopback: backend of split route should receive 1 request but got %d", len(split.GetRequests()))
 	}
@@ -162,8 +162,6 @@ func TestLoopbackWithClientIP(t *testing.T) {
 	const listenFor = 30 * time.Millisecond
 	split := backendtest.NewBackendRecorder(listenFor)
 	shadow := backendtest.NewBackendRecorder(listenFor)
-	defer split.Close()
-	defer shadow.Close()
 
 	routeDoc := fmt.Sprintf(routeFmt, split.GetURL(), shadow.GetURL())
 	routes, err := eskip.Parse(routeDoc)
