@@ -3,7 +3,7 @@ package swarm
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"time"
 
@@ -203,7 +203,7 @@ func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm
 	log.Infof("SWARM: %s is going to join swarm of %d nodes (%v)", self, len(nodes), nodes)
 	cfg := memberlist.DefaultLocalConfig()
 	if !o.Debug {
-		cfg.LogOutput = ioutil.Discard
+		cfg.LogOutput = io.Discard
 	}
 
 	if self.Name == "" {

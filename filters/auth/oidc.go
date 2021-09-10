@@ -835,7 +835,7 @@ func newDeflatePoolCompressor(level int) *deflatePoolCompressor {
 	return &deflatePoolCompressor{
 		poolWriter: &sync.Pool{
 			New: func() interface{} {
-				w, err := flate.NewWriter(ioutil.Discard, level)
+				w, err := flate.NewWriter(io.Discard, level)
 				if err != nil {
 					log.Errorf("failed to generate new deflate writer: %v", err)
 				}

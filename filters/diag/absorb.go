@@ -2,7 +2,6 @@ package diag
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -89,7 +88,7 @@ func (a *absorb) Request(ctx filters.FilterContext) {
 		}
 	}
 
-	sink := ioutil.Discard
+	sink := io.Discard
 	if !a.silent {
 		a.logger.Infof("received request to be absorbed: %s", id)
 		sink = &loggingSink{id: id, logger: a.logger, next: time.Now().Add(loggingInterval)}

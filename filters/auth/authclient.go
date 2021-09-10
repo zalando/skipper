@@ -87,7 +87,7 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != 200 {
-		io.Copy(ioutil.Discard, rsp.Body)
+		io.Copy(io.Discard, rsp.Body)
 		return nil, errInvalidToken
 	}
 
@@ -121,7 +121,7 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != 200 {
-		io.Copy(ioutil.Discard, rsp.Body)
+		io.Copy(io.Discard, rsp.Body)
 		return doc, errInvalidToken
 	}
 

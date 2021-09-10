@@ -3,7 +3,6 @@ package loadbalancer
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -228,7 +227,7 @@ func doActiveHealthCheck(rt http.RoundTripper, backend string) state {
 
 	// we only check StatusCode
 	// TODO: check StatusCode ;)
-	io.Copy(ioutil.Discard, resp.Body)
+	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 
 	log.Infof("Backend %v is healthy again", backend)

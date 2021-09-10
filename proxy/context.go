@@ -278,7 +278,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 func (c *context) Loopback() {
 	err := c.proxy.do(c)
 	if c.response != nil && c.response.Body != nil {
-		if _, err := io.Copy(ioutil.Discard, c.response.Body); err != nil {
+		if _, err := io.Copy(io.Discard, c.response.Body); err != nil {
 			c.proxy.log.Errorf("context: error while discarding remainder response body: %v.", err)
 		}
 		err := c.response.Body.Close()
