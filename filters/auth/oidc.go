@@ -704,7 +704,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	ctx.StateBag()[oidcClaimsCacheKey] = container
 
 	// adding upstream headers
-	err = f.setHeaders(ctx, container)
+	err = setHeaders(f.upstreamHeaders, ctx, container)
 	if err != nil {
 		log.Error(err)
 		f.internalServerError(ctx)
@@ -712,21 +712,21 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	}
 }
 
-func (f *tokenOidcFilter) setHeaders(ctx filters.FilterContext, container tokenContainer) (err error) {
+func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, container interface{}) (err error) {
 	oidcInfoJson, err := json.Marshal(container)
 	if err != nil || !gjson.ValidBytes(oidcInfoJson) {
 		return fmt.Errorf("failed to serialize OIDC token info: %w", err)
 	}
 
 	// backwards compatible
-	if len(f.upstreamHeaders) == 0 {
+	if len(upstreamHeaders) == 0 {
 		ctx.Request().Header.Set(oidcInfoHeader, string(oidcInfoJson))
 		return
 	}
 
 	parsed := gjson.ParseBytes(oidcInfoJson)
 
-	for key, query := range f.upstreamHeaders {
+	for key, query := range upstreamHeaders {
 		match := parsed.Get(query)
 		log.Debugf("header: %s results: %s", query, match.String())
 		if !match.Exists() {

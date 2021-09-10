@@ -1249,6 +1249,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
 		auth.NewBearerInjector(sp),
+		auth.NewJwtValidationWithOptions(tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyClaims, tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAllClaims, tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyKV, tio),
