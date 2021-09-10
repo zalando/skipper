@@ -2,7 +2,6 @@ package secrets
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -132,7 +131,7 @@ func (sp *SecretPaths) registerSecretFile(p string) error {
 	if _, ok := sp.GetSecret(p); ok {
 		return ErrAlreadyExists
 	}
-	dat, err := ioutil.ReadFile(p)
+	dat, err := os.ReadFile(p)
 	if err != nil {
 		log.Errorf("Failed to read file %s: %v", p, err)
 		return err
@@ -154,7 +153,7 @@ func (sp *SecretPaths) runRefresher() {
 					log.Errorf("Failed to convert k '%v' to string", k)
 					return true
 				}
-				sec, err := ioutil.ReadFile(f)
+				sec, err := os.ReadFile(f)
 				if err != nil {
 					log.Errorf("Failed to read file (%s): %v", f, err)
 					return true

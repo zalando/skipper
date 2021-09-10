@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"sort"
@@ -492,7 +491,7 @@ func (c *Config) Parse() error {
 
 	configKeys := make(map[string]interface{})
 	if c.ConfigFile != "" {
-		yamlFile, err := ioutil.ReadFile(c.ConfigFile)
+		yamlFile, err := os.ReadFile(c.ConfigFile)
 		if err != nil {
 			return fmt.Errorf("invalid config file: %v", err)
 		}

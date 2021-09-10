@@ -1,7 +1,6 @@
 package eskipfile
 
 import (
-	"io/ioutil"
 	"os"
 	"reflect"
 
@@ -93,7 +92,7 @@ func cloneRoutes(r []*eskip.Route) []*eskip.Route {
 }
 
 func (c *WatchClient) loadAll() watchResponse {
-	content, err := ioutil.ReadFile(c.fileName)
+	content, err := os.ReadFile(c.fileName)
 	if err != nil {
 		return watchResponse{err: err}
 	}
@@ -108,7 +107,7 @@ func (c *WatchClient) loadAll() watchResponse {
 }
 
 func (c *WatchClient) loadUpdates() watchResponse {
-	content, err := ioutil.ReadFile(c.fileName)
+	content, err := os.ReadFile(c.fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			deletedIDs := c.deleteAllListIDs()

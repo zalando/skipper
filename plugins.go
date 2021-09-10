@@ -2,7 +2,6 @@ package skipper
 
 import (
 	"fmt"
-	"io/ioutil"
 
 	"os"
 	"path/filepath"
@@ -351,7 +350,7 @@ func initDataClientPlugin(sym plugin.Symbol, path string, args []string) (routin
 }
 
 func readPluginConfig(plugin string) (conf []string, err error) {
-	data, err := ioutil.ReadFile(plugin[:len(plugin)-3] + ".conf")
+	data, err := os.ReadFile(plugin[:len(plugin)-3] + ".conf")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
