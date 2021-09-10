@@ -134,6 +134,17 @@ Uses standardized Forwarded header ([RFC 7239](https://tools.ietf.org/html/rfc72
 
 More info about the header: [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded)
 
+If multiple proxies chain values in the header, as a comma separated list, the predicates below will only match 
+the last value in the chain for each part of the header.
+
+Example: Forwarded: host=example.com;proto=https, host=example.org
+
+- `ForwardedHost(/^example\.com$/)` - does not match
+- `ForwardedHost(/^example\.org$/)` - matches
+- `ForwardedHost(/^example\.org$/) && ForwardedProto("https")` - matches
+- `ForwardedHost(/^example\.com$/) && ForwardedProto("https")` - does not match
+
+
 ### ForwardedHost
 
 Regular expressions that the forwarded host header in the request must match.

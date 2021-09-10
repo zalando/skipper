@@ -129,6 +129,39 @@ func TestForwardedHost(t *testing.T) {
 		},
 		matches: true,
 		isError: false,
+	}, {
+		msg:  "In multiple forwarded header only host should match",
+		host: "^example\\.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{`host="example.com",host="example.com"`},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
+		msg:  "In multiple forwarded header only host with spaces should match",
+		host: "^example\\.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{` host="example.com", host="example.com"`},
+			},
+		},
+		matches: true,
+		isError: false,
+	}, {
+		msg:  "In multiple forwarded header complete should match",
+		host: "^example\\.com$",
+		r: request{
+			url: "https://myproxy.com/index.html",
+			headers: http.Header{
+				"Forwarded": []string{`for=2b12:c7f:565d:b000:d4a5:ed98:1eea:d290;by=2b12:26f0:4000:2ae::3751,by=10.0.0.60;host=example.com;proto=https, for=10.0.0.60;by=10.0.0.61,by=10.0.0.62;host=example.com;proto=https`},
+			},
+		},
+		matches: true,
+		isError: false,
 	}}
 
 	for _, tc := range testCases {
@@ -324,6 +357,93 @@ func TestForwardedProto(t *testing.T) {
 			}
 
 			m := p.Match(r)
+			if m != tc.matches {
+				t.Fatalf("Unexpected predicate match result: %t instead of %t", m, tc.matches)
+			}
+		})
+	}
+}
+
+func TestForwardedDocumentationExamples(t *testing.T) {
+
+	header := http.Header{
+		"Forwarded": []string{"host=example.com;proto=https, host=example.org"},
+	}
+
+	testCases := []struct {
+		msg     string
+		host    string
+		proto   string
+		r       request
+		matches bool
+	}{{
+		msg:  "First host does not match",
+		host: "^example\\.com$",
+		r: request{
+			url:     "https://myproxy.com/index.html",
+			headers: header,
+		},
+		matches: false,
+	}, {
+		msg:  "Last host matches",
+		host: "^example\\.org$",
+		r: request{
+			url:     "https://myproxy.com/index.html",
+			headers: header,
+		},
+		matches: true,
+	}, {
+		msg:   "Last host and last proto match",
+		host:  "^example\\.org$",
+		proto: "https",
+		r: request{
+			url:     "https://myproxy.com/index.html",
+			headers: header,
+		},
+		matches: true,
+	}, {
+		msg:   "First forwarded host and proto do not match",
+		host:  "^example\\.com$",
+		proto: "https",
+		r: request{
+			url:     "https://myproxy.com/index.html",
+			headers: header,
+		},
+		matches: false,
+	}}
+
+	for _, tc := range testCases {
+
+		t.Run(tc.msg, func(t *testing.T) {
+
+			m := true
+
+			if tc.proto != "" {
+				protoSpec := NewForwardedProto()
+
+				p, _ := protoSpec.Create([]interface{}{tc.proto})
+
+				r, err := newRequest(tc.r)
+				if err != nil {
+					t.Fatal("Request creation failed")
+				}
+
+				m = m && p.Match(r)
+			}
+
+			if tc.host != "" {
+				hostSpec := NewForwardedHost()
+
+				p, _ := hostSpec.Create([]interface{}{tc.host})
+
+				r, err := newRequest(tc.r)
+				if err != nil {
+					t.Fatal("Request creation failed")
+				}
+
+				m = m && p.Match(r)
+			}
+
 			if m != tc.matches {
 				t.Fatalf("Unexpected predicate match result: %t instead of %t", m, tc.matches)
 			}

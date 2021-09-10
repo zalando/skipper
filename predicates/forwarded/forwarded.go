@@ -130,17 +130,20 @@ func parseForwarded(fh string) *forwarded {
 
 	f := &forwarded{}
 
-	for _, forwardedPair := range strings.Split(fh, ";") {
-		if tv := strings.SplitN(forwardedPair, "=", 2); len(tv) == 2 {
-			token, value := tv[0], tv[1]
-			value = strings.Trim(value, `"`)
-			switch token {
-			case "proto":
-				f.proto = value
-			case "host":
-				f.host = value
+	for _, forwardedFull := range strings.Split(fh, ",") {
+		for _, forwardedPair := range strings.Split(strings.TrimSpace(forwardedFull), ";") {
+			if tv := strings.SplitN(forwardedPair, "=", 2); len(tv) == 2 {
+				token, value := tv[0], tv[1]
+				value = strings.Trim(value, `"`)
+				switch token {
+				case "proto":
+					f.proto = value
+				case "host":
+					f.host = value
+				}
 			}
 		}
 	}
+
 	return f
 }
