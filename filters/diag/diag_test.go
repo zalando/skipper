@@ -3,7 +3,6 @@ package diag
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"sort"
@@ -95,7 +94,7 @@ func checkMessage(expect messageExp, start time.Time, body io.Reader) error {
 		cstart = time.Now()
 	}
 
-	b, err := ioutil.ReadAll(body)
+	b, err := io.ReadAll(body)
 	if err != nil {
 		return err
 	}
@@ -185,7 +184,7 @@ func TestRandom(t *testing.T) {
 				return
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(ti.msg, err)
 				return
@@ -285,7 +284,7 @@ func TestRepeat(t *testing.T) {
 			t.Fatalf("request failed: %d", rsp.StatusCode)
 		}
 
-		b, err := ioutil.ReadAll(rsp.Body)
+		b, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			t.Fatal(err)
 		}

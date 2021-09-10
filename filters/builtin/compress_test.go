@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -94,7 +93,7 @@ func compareBody(r *http.Response, contentLength int) (bool, error) {
 		}
 	}
 
-	b, err := ioutil.ReadAll(c)
+	b, err := io.ReadAll(c)
 	if err != nil {
 		return false, err
 	}
@@ -116,7 +115,7 @@ func benchmarkCompress(b *testing.B, n int64) {
 				FRequest:  req,
 				FResponse: rsp}
 			f.Response(ctx)
-			_, err := ioutil.ReadAll(rsp.Body)
+			_, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -493,7 +492,7 @@ func TestForwardError(t *testing.T) {
 	f.Response(ctx)
 	enc := rsp.Header.Get("Content-Encoding")
 	dec := decoder(enc, rsp.Body)
-	b, err := ioutil.ReadAll(dec)
+	b, err := io.ReadAll(dec)
 	if string(b) != "test-content" || err != testError {
 		t.Error("failed to forward error", string(b), err)
 	}
@@ -590,7 +589,7 @@ func TestStreaming(t *testing.T) {
 	defer body.Close()
 
 	if err := timeoutCall(chunkDelay*3/2, func(c chan<- error) {
-		_, err := ioutil.ReadAll(body)
+		_, err := io.ReadAll(body)
 		c <- err
 	}); err != nil {
 		t.Error(err)
@@ -637,7 +636,7 @@ func TestPoolRelease(t *testing.T) {
 				}
 
 				f.Response(ctx)
-				ioutil.ReadAll(ctx.Response().Body)
+				io.ReadAll(ctx.Response().Body)
 				ctx.Response().Body.Close()
 			}
 

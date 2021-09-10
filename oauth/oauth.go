@@ -36,6 +36,7 @@ package oauth
 
 import (
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -107,7 +108,7 @@ func (oc *OAuthClient) GetToken() (string, error) {
 
 	defer response.Body.Close()
 
-	authResponseBody, err := ioutil.ReadAll(response.Body)
+	authResponseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", err
 	}

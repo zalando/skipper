@@ -3,7 +3,7 @@ package routing_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -544,7 +544,7 @@ func TestRoutingHandlerEskipResponse(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Error(err)
 		return
@@ -740,7 +740,7 @@ func TestRoutingHandlerHEAD(t *testing.T) {
 
 	defer rsp.Body.Close()
 
-	b, err := ioutil.ReadAll(rsp.Body)
+	b, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Error(err)
 		return

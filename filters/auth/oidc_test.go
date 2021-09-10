@@ -818,7 +818,7 @@ func TestOIDCSetup(t *testing.T) {
 			if resp.StatusCode != tc.expected {
 				t.Logf("response: %+v", resp)
 				t.Errorf("auth filter failed got=%d, expected=%d, route=%s", resp.StatusCode, tc.expected, r)
-				b, err = ioutil.ReadAll(resp.Body)
+				b, err = io.ReadAll(resp.Body)
 				if err != nil {
 					t.Fatalf("Failed to read response body: %v", err)
 				}

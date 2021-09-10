@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -217,7 +216,7 @@ func (c *Client) tryEndpoints(mreq func(string) (*http.Request, error)) (*http.R
 
 // Converts an http response to a parsed etcd response object.
 func parseResponse(rsp *http.Response) (*response, error) {
-	d, err := ioutil.ReadAll(rsp.Body)
+	d, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		return nil, err
 	}

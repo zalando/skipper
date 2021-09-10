@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -870,5 +869,5 @@ func (dc *deflatePoolCompressor) decompress(compData []byte) ([]byte, error) {
 	if err := zr.Close(); err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(zr)
+	return io.ReadAll(zr)
 }

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -126,7 +126,7 @@ func getJSON(u string, o interface{}) error {
 		return fmt.Errorf("unexpected status code: %d", rsp.StatusCode)
 	}
 
-	b, err := ioutil.ReadAll(rsp.Body)
+	b, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		return err
 	}

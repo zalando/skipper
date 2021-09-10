@@ -15,9 +15,6 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/proxy/proxytest"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -25,6 +22,10 @@ import (
 	"net/http"
 	"os"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 func TestStatic(t *testing.T) {
@@ -120,7 +121,7 @@ func TestStatic(t *testing.T) {
 			continue
 		}
 
-		content, err := ioutil.ReadAll(rsp.Body)
+		content, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			t.Error(ti.msg, err)
 			continue
@@ -155,7 +156,7 @@ func TestSameFileMultipleTimes(t *testing.T) {
 		}
 
 		defer rsp.Body.Close()
-		_, err = ioutil.ReadAll(rsp.Body)
+		_, err = io.ReadAll(rsp.Body)
 		if err != nil {
 			t.Error(err)
 			return
@@ -211,7 +212,7 @@ func TestMultipleRanges(t *testing.T) {
 			break
 		}
 
-		partContent, err := ioutil.ReadAll(p)
+		partContent, err := io.ReadAll(p)
 		if err != nil {
 			t.Error(err)
 			break

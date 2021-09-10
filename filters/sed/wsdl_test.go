@@ -46,7 +46,7 @@ func TestWSDLExample(t *testing.T) {
 	ctx := &filtertest.Context{FResponse: resp}
 	f.Response(ctx)
 
-	body, err := ioutil.ReadAll(ctx.Response().Body)
+	body, err := io.ReadAll(ctx.Response().Body)
 	if err != nil {
 		t.Error(err)
 	}

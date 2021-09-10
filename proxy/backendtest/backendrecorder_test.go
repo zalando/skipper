@@ -1,7 +1,7 @@
 package backendtest
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"testing"
@@ -17,7 +17,7 @@ func TestServerShouldCloseWhenAllRequestsAreFulfilled(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			_, _ = ioutil.ReadAll(resp.Body)
+			_, _ = io.ReadAll(resp.Body)
 		}(i)
 	}
 	<-recorder.Done

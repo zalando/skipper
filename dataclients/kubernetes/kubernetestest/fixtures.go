@@ -197,7 +197,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		}
 
 		defer safeFileClose(t, ko)
-		b, err := ioutil.ReadAll(ko)
+		b, err := io.ReadAll(ko)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -240,7 +240,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		}
 
 		defer safeFileClose(t, eskp)
-		b, err := ioutil.ReadAll(eskp)
+		b, err := io.ReadAll(eskp)
 		if err != nil {
 			t.Fatal(err)
 		}

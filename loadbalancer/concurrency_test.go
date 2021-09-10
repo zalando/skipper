@@ -2,7 +2,7 @@ package loadbalancer_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -106,7 +106,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 				break
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(err)
 				break
@@ -217,7 +217,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 				break
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(err)
 				break
@@ -330,7 +330,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 				break
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(err)
 				break

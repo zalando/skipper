@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -1119,7 +1118,7 @@ func TestFlusherImplementation(t *testing.T) {
 		return
 	}
 	defer rsp.Body.Close()
-	b, err := ioutil.ReadAll(rsp.Body)
+	b, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Error(err)
 		return
@@ -1622,7 +1621,7 @@ func TestRequestContentHeaders(t *testing.T) {
 	const contentLength = 1 << 15
 
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Error(err)
 			return

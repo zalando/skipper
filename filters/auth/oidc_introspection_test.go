@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -361,7 +361,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 			if resp.StatusCode != tc.expected {
 				t.Logf("response: %+v", resp)
 				t.Errorf("auth filter failed got=%d, expected=%d, route=%s", resp.StatusCode, tc.expected, r)
-				b, _ := ioutil.ReadAll(resp.Body)
+				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("Response body: %s", string(b))
 			}
 		})

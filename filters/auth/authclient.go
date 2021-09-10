@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -91,7 +90,7 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 		return nil, errInvalidToken
 	}
 
-	buf, err := ioutil.ReadAll(rsp.Body)
+	buf, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		return nil, err
 	}
