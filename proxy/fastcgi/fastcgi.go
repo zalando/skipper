@@ -3,7 +3,7 @@ package fastcgi
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -77,7 +77,7 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				Status:        body,
 				StatusCode:    http.StatusNotFound,
-				Body:          ioutil.NopCloser(bytes.NewBufferString(body)),
+				Body:          io.NopCloser(bytes.NewBufferString(body)),
 				ContentLength: int64(len(body)),
 				Request:       req,
 				Header:        make(http.Header),

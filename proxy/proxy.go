@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -1010,7 +1009,7 @@ func (p *Proxy) rejectBackend(ctx *context, req *http.Request) (*http.Response, 
 			return &http.Response{
 				StatusCode: limit.StatusCode,
 				Header:     http.Header{"Content-Length": []string{"0"}},
-				Body:       ioutil.NopCloser(&bytes.Buffer{}),
+				Body:       io.NopCloser(&bytes.Buffer{}),
 			}, true
 		}
 	}

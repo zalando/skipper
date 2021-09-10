@@ -863,7 +863,7 @@ func TestBreakFilterChain(t *testing.T) {
 	fr.Register(builtin.NewAppendRequestHeader())
 	resp1 := &http.Response{
 		Header:     make(http.Header),
-		Body:       ioutil.NopCloser(new(bytes.Buffer)),
+		Body:       io.NopCloser(new(bytes.Buffer)),
 		StatusCode: http.StatusUnauthorized,
 		Status:     "Impossible body",
 	}
@@ -976,7 +976,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	r := &http.Request{
 		URL:    u,
 		Method: "POST",
-		Body:   ioutil.NopCloser(reqBody),
+		Body:   io.NopCloser(reqBody),
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 

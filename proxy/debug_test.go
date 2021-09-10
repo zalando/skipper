@@ -3,10 +3,11 @@ package proxy
 import (
 	"bytes"
 	"errors"
-	"github.com/zalando/skipper/eskip"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
 )
 
 func takePt(n int) *int { return &n }
@@ -38,18 +39,18 @@ func TestDebug(t *testing.T) {
 				Header:     http.Header{"X-Test-Header": []string{"test-header-value"}},
 				Host:       "test.example.org",
 				RemoteAddr: "::1",
-				Body:       ioutil.NopCloser(bytes.NewBufferString("incoming body content"))},
+				Body:       io.NopCloser(bytes.NewBufferString("incoming body content"))},
 			outgoing: &http.Request{
 				Method:     "HEAD",
 				RequestURI: "/testuri2",
 				Proto:      "HTTP/1.1",
 				Header:     http.Header{"X-Test-Header-2": []string{"test-header-value-2"}},
 				Host:       "www.example.org",
-				Body:       ioutil.NopCloser(bytes.NewBufferString("outgoing body content"))},
+				Body:       io.NopCloser(bytes.NewBufferString("outgoing body content"))},
 			response: &http.Response{
 				StatusCode: http.StatusTeapot,
 				Header:     http.Header{"X-Test-Response-Header": []string{"test-response-header-value"}},
-				Body:       ioutil.NopCloser(bytes.NewBufferString("response body"))}},
+				Body:       io.NopCloser(bytes.NewBufferString("response body"))}},
 		debugDocument{
 			RouteId: "testRoute",
 			Route: (&eskip.Route{
@@ -90,7 +91,7 @@ func TestDebug(t *testing.T) {
 				Header:     http.Header{"X-Test-Header": []string{"test-header-value"}},
 				Host:       "test.example.org",
 				RemoteAddr: "::1",
-				Body:       ioutil.NopCloser(bytes.NewBufferString("incoming body content"))},
+				Body:       io.NopCloser(bytes.NewBufferString("incoming body content"))},
 			response: &http.Response{StatusCode: http.StatusNotFound}},
 		debugDocument{
 			Incoming: &debugRequest{
@@ -113,7 +114,7 @@ func TestDebug(t *testing.T) {
 				Header:     http.Header{"X-Test-Header": []string{"test-header-value"}},
 				Host:       "test.example.org",
 				RemoteAddr: "::1",
-				Body:       ioutil.NopCloser(bytes.NewBufferString("incoming body content"))}},
+				Body:       io.NopCloser(bytes.NewBufferString("incoming body content"))}},
 		debugDocument{
 			Incoming: &debugRequest{
 				Method:        "OPTIONS",

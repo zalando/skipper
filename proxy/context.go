@@ -5,7 +5,6 @@ import (
 	stdlibcontext "context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -60,7 +59,7 @@ type noopFlushedResponseWriter struct {
 }
 
 func defaultBody() io.ReadCloser {
-	return ioutil.NopCloser(&bytes.Buffer{})
+	return io.NopCloser(&bytes.Buffer{})
 }
 
 func defaultResponse(r *http.Request) *http.Response {

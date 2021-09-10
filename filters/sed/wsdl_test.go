@@ -2,6 +2,7 @@ package sed
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -27,7 +28,7 @@ func TestWSDLExample(t *testing.T) {
 	}
 
 	resp := &http.Response{
-		Body:          ioutil.NopCloser(bytes.NewBuffer(response)),
+		Body:          io.NopCloser(bytes.NewBuffer(response)),
 		ContentLength: int64(len(response)),
 	}
 

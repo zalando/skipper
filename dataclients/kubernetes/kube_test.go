@@ -1766,7 +1766,7 @@ func TestCreateRequest(t *testing.T) {
 		err error
 		url string
 	)
-	rc := ioutil.NopCloser(&buf)
+	rc := io.NopCloser(&buf)
 
 	client := &clusterClient{}
 

@@ -10,7 +10,6 @@ package diag
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -205,7 +204,7 @@ func (r *random) Read(p []byte) (int, error) {
 func (r *random) Request(ctx filters.FilterContext) {
 	ctx.Serve(&http.Response{
 		StatusCode: http.StatusOK,
-		Body:       ioutil.NopCloser(io.LimitReader(r, r.len)),
+		Body:       io.NopCloser(io.LimitReader(r, r.len)),
 	})
 }
 
@@ -245,7 +244,7 @@ func (r *repeat) Request(ctx filters.FilterContext) {
 	ctx.Serve(&http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Length": []string{strconv.FormatInt(r.len, 10)}},
-		Body:       ioutil.NopCloser(io.LimitReader(&repeatReader{r.bytes, 0}, r.len)),
+		Body:       io.NopCloser(io.LimitReader(&repeatReader{r.bytes, 0}, r.len)),
 	})
 }
 

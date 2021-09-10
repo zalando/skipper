@@ -2,7 +2,7 @@ package diag
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -40,7 +40,7 @@ func TestLogHeader(t *testing.T) {
 	loggerTest := bytes.NewBuffer(nil)
 	log.SetOutput(loggerTest)
 
-	req.Body = ioutil.NopCloser(bytes.NewBufferString("foo bar baz"))
+	req.Body = io.NopCloser(bytes.NewBufferString("foo bar baz"))
 
 	lh, err := (logHeader{}).CreateFilter(nil)
 	if err != nil {
@@ -99,7 +99,7 @@ func TestLogHeaderRequestResponse(t *testing.T) {
 	loggerTest := bytes.NewBuffer(nil)
 	log.SetOutput(loggerTest)
 
-	req.Body = ioutil.NopCloser(bytes.NewBufferString("foo bar baz"))
+	req.Body = io.NopCloser(bytes.NewBufferString("foo bar baz"))
 
 	lh := logHeader{
 		request:  true,
