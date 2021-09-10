@@ -1,0 +1,171 @@
+package auth
+
+import (
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/MicahParks/keyfunc"
+	"github.com/golang-jwt/jwt"
+	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/filters"
+)
+
+const (
+	JwtValidationName = "jwtValidation"
+)
+
+type (
+	jwtValidationSpec struct {
+		options TokenintrospectionOptions
+	}
+
+	jwtValidationFilter struct {
+		jwksUri string
+	}
+)
+
+var m sync.RWMutex
+
+var refreshInterval = time.Hour
+var refreshRateLimit = time.Minute * 5
+var refreshTimeout = time.Second * 10
+var refreshUnknownKID = true
+
+//the map of jwks keyfunctions stored per jwksUri
+var jwksMap map[string]*keyfunc.JWKs = make(map[string]*keyfunc.JWKs)
+
+func NewJwtValidationWithOptions(o TokenintrospectionOptions) filters.Spec {
+	return &jwtValidationSpec{
+		options: o,
+	}
+}
+
+func (s *jwtValidationSpec) Name() string {
+	return JwtValidationName
+}
+
+func (s *jwtValidationSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 1 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+	sargs, err := getStrings(args)
+	if err != nil {
+		return nil, err
+	}
+
+	issuerURL := sargs[0]
+
+	cfg, err := getOpenIDConfig(issuerURL)
+	if err != nil {
+		return nil, err
+	}
+
+	err = registerKeyFunction(cfg.JwksURI)
+	if err != nil {
+		return nil, err
+	}
+
+	f := &jwtValidationFilter{
+		jwksUri: cfg.JwksURI,
+	}
+
+	return f, nil
+}
+
+func hasKeyFunction(url string) bool {
+	m.RLock()
+	defer m.RUnlock()
+
+	_, ok := jwksMap[url]
+	return ok
+}
+
+func putKeyFunction(url string, jwks *keyfunc.JWKs) {
+	m.Lock()
+	defer m.Unlock()
+
+	jwksMap[url] = jwks
+}
+
+func registerKeyFunction(url string) (err error) {
+	if hasKeyFunction(url) {
+		return nil
+	}
+
+	options := keyfunc.Options{
+		RefreshErrorHandler: func(err error) {
+			log.Errorf("There was an error on key refresh for the given URL %s\nError:%s\n", url, err.Error())
+		},
+		RefreshInterval:   &refreshInterval,
+		RefreshRateLimit:  &refreshRateLimit,
+		RefreshTimeout:    &refreshTimeout,
+		RefreshUnknownKID: &refreshUnknownKID,
+	}
+
+	jwks, err := keyfunc.Get(url, options)
+	if err != nil {
+		return fmt.Errorf("failed to get the JWKs from the given URL %s Error:%w", url, err)
+	}
+
+	putKeyFunction(url, jwks)
+	return nil
+}
+
+func getKeyFunction(url string) (jwks *keyfunc.JWKs) {
+	m.RLock()
+	defer m.RUnlock()
+
+	return jwksMap[url]
+}
+
+func (f *jwtValidationFilter) Request(ctx filters.FilterContext) {
+	r := ctx.Request()
+
+	var info tokenContainer
+	infoTemp, ok := ctx.StateBag()[oidcClaimsCacheKey]
+	if !ok {
+		token, ok := getToken(r)
+		if !ok || token == "" {
+			unauthorized(ctx, "", missingToken, "", "")
+			return
+		}
+
+		claims, err := parseToken(token, f.jwksUri)
+		if err != nil {
+			log.Errorf("Error while parsing jwt token : %v.", err)
+			unauthorized(ctx, "", invalidToken, "", "")
+			return
+		}
+
+		info.Claims = claims
+	} else {
+		info = infoTemp.(tokenContainer)
+	}
+
+	sub, ok := info.Claims["sub"].(string)
+	if !ok {
+		unauthorized(ctx, sub, invalidSub, "", "")
+		return
+	}
+
+	authorized(ctx, sub)
+
+	ctx.StateBag()[oidcClaimsCacheKey] = info
+}
+
+func (f *jwtValidationFilter) Response(filters.FilterContext) {}
+
+func parseToken(token string, jwksUri string) (map[string]interface{}, error) {
+	jwks := getKeyFunction(jwksUri)
+
+	var claims jwt.MapClaims
+	parsedToken, err := jwt.ParseWithClaims(token, &claims, jwks.KeyFunc)
+	if err != nil {
+		return nil, fmt.Errorf("error while parsing jwt token : %w", err)
+	} else if !parsedToken.Valid {
+		return nil, fmt.Errorf("invalid token")
+	} else {
+		return claims, nil
+	}
+}

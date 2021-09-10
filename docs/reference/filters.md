@@ -1192,6 +1192,21 @@ Read client-id and client-secret from environment variables
 secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 ```
 
+## jwtValidation
+
+The filter parses bearer jwt token from Authorization header and validates the signature using public keys
+discovered via /.well-known/openid-configuration endpoint. Takes issuer url as single parameter. 
+The filter stores token claims into the state bag where they can be used by oidcClaimsQuery() or forwardTokenPart()
+ 
+
+Examples:
+
+```
+jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0") 
+```
+
+
+
 ## forwardToken
 
 The filter takes the header name as its first argument and sets header value to the
@@ -1206,6 +1221,22 @@ Examples:
 ```
 forwardToken("X-Tokeninfo-Forward")
 forwardToken("X-Tokeninfo-Forward", "access_token", "token_type")
+```
+
+## forwardTokenField
+
+The filter takes a header name and a field as its first and second arguments. The corresponding field from the result of token info, token introspection or oidc user info is added as 
+corresponding header when the request is passed to the backend. 
+
+If this filter is used when there is no token introspection, token info or oidc user info data
+then it does not have any effect.
+
+To forward multiple fields filters can be sequenced
+
+Examples:
+
+```
+forwardTokenField("X-Tokeninfo-Forward-Oid", "oid") -> forwardTokenField("X-Tokeninfo-Forward-Sub", "sub")
 ```
 
 ## oauthGrant
