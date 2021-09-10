@@ -16,7 +16,6 @@ package builtin
 
 import (
 	"io"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -91,7 +90,7 @@ func TestStatic(t *testing.T) {
 				continue
 			}
 		} else {
-			if err := ioutil.WriteFile("/tmp/static-test", []byte(ti.content), os.ModePerm); err != nil {
+			if err := os.WriteFile("/tmp/static-test", []byte(ti.content), os.ModePerm); err != nil {
 				t.Error(ti.msg, err)
 				continue
 			}
@@ -136,7 +135,7 @@ func TestStatic(t *testing.T) {
 func TestSameFileMultipleTimes(t *testing.T) {
 	const n = 6
 
-	if err := ioutil.WriteFile("/tmp/static-test", []byte("test content"), os.ModePerm); err != nil {
+	if err := os.WriteFile("/tmp/static-test", []byte("test content"), os.ModePerm); err != nil {
 		t.Error(err)
 		return
 	}
@@ -166,7 +165,7 @@ func TestSameFileMultipleTimes(t *testing.T) {
 
 func TestMultipleRanges(t *testing.T) {
 	const fcontent = "test content"
-	if err := ioutil.WriteFile("/tmp/static-test", []byte(fcontent), os.ModePerm); err != nil {
+	if err := os.WriteFile("/tmp/static-test", []byte(fcontent), os.ModePerm); err != nil {
 		t.Error(err)
 		return
 	}
