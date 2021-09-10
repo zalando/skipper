@@ -2,13 +2,13 @@ package eskipfile
 
 import (
 	"errors"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/routing"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/routing"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -43,7 +43,7 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 		return Watch(o.RemoteFile), nil
 	}
 
-	tempFilename, err := ioutil.TempFile("", "routes")
+	tempFilename, err := os.CreateTemp("", "routes")
 
 	if err != nil {
 		return nil, err

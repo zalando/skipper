@@ -128,7 +128,7 @@ func TestClient(t *testing.T) {
 			defer s.Close()
 
 			if tt.tokenFile != "" {
-				dir, err := ioutil.TempDir("/tmp", "skipper-httpclient-test")
+				dir, err := os.MkdirTemp("/tmp", "skipper-httpclient-test")
 				if err != nil {
 					t.Fatalf("Failed to create temp dir: %v", err)
 				}

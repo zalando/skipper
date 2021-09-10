@@ -63,7 +63,7 @@ func Test_SecretPaths_GetSecret(t *testing.T) {
 }
 
 func Test_SecretPaths_Add(t *testing.T) {
-	temproot, err := ioutil.TempDir(os.TempDir(), "skipper-secrets")
+	temproot, err := os.MkdirTemp(os.TempDir(), "skipper-secrets")
 	if err != nil {
 		t.Errorf("Failed to create temp dir: %v", err)
 		return
@@ -164,7 +164,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 }
 
 func Test_SecretPaths_Close(t *testing.T) {
-	temproot, err := ioutil.TempDir(os.TempDir(), "skipper-secrets-close")
+	temproot, err := os.MkdirTemp(os.TempDir(), "skipper-secrets-close")
 	if err != nil {
 		t.Errorf("Failed to create temp dir: %v", err)
 		return

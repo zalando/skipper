@@ -3141,7 +3141,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			"service1", "", "", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0,
 			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPort{Value: 8080})))}}
 
-		defaultFiltersDir, err := ioutil.TempDir("", "filters")
+		defaultFiltersDir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
@@ -3181,7 +3181,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPort{Value: "port1"})))}}
 
 		// store default configuration in the file
-		dir, err := ioutil.TempDir("", "filters")
+		dir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
@@ -3213,7 +3213,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 	})
 
 	t.Run("check getDefaultFilterConfigurations ignores files names not following the pattern, directories and huge files", func(t *testing.T) {
-		defaultFiltersDir, err := ioutil.TempDir("", "filters")
+		defaultFiltersDir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
