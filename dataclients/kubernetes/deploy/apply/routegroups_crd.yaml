@@ -107,7 +107,7 @@ spec:
               hosts:
                 description: List of hostnames for the RouteGroup.
                 items:
-                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
                   type: string
                 type: array
               routes:
