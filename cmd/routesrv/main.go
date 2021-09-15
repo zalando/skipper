@@ -192,15 +192,25 @@ func newServer(address string, b *eskipBytes, s *eskipBytesStatus) *http.Server 
 	return &http.Server{Addr: address, Handler: handler}
 }
 
-func shutdown(wg *sync.WaitGroup, poller *poller, server *http.Server, delay time.Duration) {
-	defer wg.Done()
-	log.Infof("shutting down the server in %s...", delay)
-	time.Sleep(delay)
-	if err := server.Shutdown(context.Background()); err != nil {
-		log.Error("unable to shut down the server: ", err)
+type shutdownFunc func(delay time.Duration)
+
+func newShutdownFunc(wg *sync.WaitGroup, poller *poller, server *http.Server) shutdownFunc {
+	once := &sync.Once{}
+	wg.Add(1)
+
+	return func(delay time.Duration) {
+		once.Do(func() {
+			defer wg.Done()
+			defer close(poller.quit)
+
+			log.Infof("shutting down the server in %s...", delay)
+			time.Sleep(delay)
+			if err := server.Shutdown(context.Background()); err != nil {
+				log.Error("unable to shut down the server: ", err)
+			}
+			log.Info("server shut down")
+		})
 	}
-	log.Info("server shut down")
-	close(poller.quit)
 }
 
 func run(o options.Options) error {
@@ -249,16 +259,17 @@ func run(o options.Options) error {
 
 	server := newServer(o.Address, b, s)
 
+	shutdown := newShutdownFunc(wg, poller, server)
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
-	wg.Add(1)
 	go func() {
 		<-sigs
-		shutdown(wg, poller, server, o.WaitForHealthcheckInterval)
+		shutdown(o.WaitForHealthcheckInterval)
 	}()
 
 	if err = server.ListenAndServe(); err != http.ErrServerClosed {
-		go shutdown(wg, poller, server, 0)
+		go shutdown(0)
 	} else {
 		err = nil
 	}
