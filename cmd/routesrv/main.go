@@ -240,7 +240,7 @@ func run(o options.Options) error {
 		client:  dataclient,
 		timeout: o.SourcePollTimeout,
 		b:       b,
-		quit:    make(chan struct{}, 1),
+		quit:    make(chan struct{}),
 		tracer:  tracer,
 		metrics: newPollerMetrics(),
 	}
