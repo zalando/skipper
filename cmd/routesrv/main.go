@@ -35,7 +35,8 @@ type eskipBytes struct {
 	tracer ot.Tracer
 }
 
-// bytes returns a slice to stored bytes, which are safe for reading.
+// bytes returns a slice to stored bytes, which are safe for reading,
+// and if there were already initialized.
 func (e *eskipBytes) bytes() ([]byte, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -45,7 +46,7 @@ func (e *eskipBytes) bytes() ([]byte, bool) {
 
 // formatAndSet takes a slice of routes and stores them eskip-formatted
 // in a synchronized way. It returns a number of stored bytes and a boolean,
-// being true, when the function is called for the first time.
+// being true, when the stored bytes were set for the first time.
 func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{}, routes...)
