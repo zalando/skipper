@@ -28,39 +28,42 @@ import (
 // provides synchronized r/w access to them. Additionally it can
 // serve as an HTTP handler exposing its content.
 type eskipBytes struct {
-	data []byte
-	mu   sync.RWMutex
+	data        []byte
+	initialized bool
+	mu          sync.RWMutex
 
 	tracer ot.Tracer
 }
 
-func (e *eskipBytes) bytes() []byte {
+// bytes returns a slice to stored bytes, which are safe for reading.
+func (e *eskipBytes) bytes() ([]byte, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	return e.data
+	return e.data, e.initialized
 }
 
 // formatAndSet takes a slice of routes and stores them eskip-formatted
-// in a synchronized way. References to both new and old data are returned
-// for inspection (reading). Returned slices content must not be modified.
-func (e *eskipBytes) formatAndSet(routes []*eskip.Route) ([]byte, []byte) {
+// in a synchronized way. It returns a number of stored bytes and a boolean,
+// being true, when the function is called for the first time.
+func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{}, routes...)
 
 	e.mu.Lock()
-	oldData := e.data
+	defer e.mu.Unlock()
 	e.data = buf.Bytes()
-	e.mu.Unlock()
+	oldInitialized := e.initialized
+	e.initialized = true
 
-	return e.data, oldData
+	return len(e.data), !oldInitialized
 }
 
 func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span := tracing.CreateSpan("serve_routes", r.Context(), e.tracer)
 	defer span.Finish()
 
-	if data := e.bytes(); data != nil {
+	if data, initialized := e.bytes(); initialized {
 		w.Write(data)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
@@ -76,7 +79,7 @@ type eskipBytesStatus struct {
 const msgRoutesNotInitialized = "routes were not initialized yet"
 
 func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if data := s.b.bytes(); data != nil {
+	if _, initialized := s.b.bytes(); initialized {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
 		http.Error(w, msgRoutesNotInitialized, http.StatusServiceUnavailable)
@@ -123,9 +126,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	var (
-		routesLen     int
-		msg           string
-		data, oldData []byte
+		routesCount, routesBytes int
+		initialized              bool
+		msg                      string
 	)
 
 	log.Infof("starting polling with timeout %s", p.timeout)
@@ -134,7 +137,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
 		routes, err := p.client.LoadAll()
-		routesLen = len(routes)
+		routesCount = len(routes)
 
 		switch {
 		case err != nil:
@@ -147,7 +150,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				"event", "error",
 				"message", msg,
 			)
-		case routesLen == 0:
+		case routesCount == 0:
 			msg = "received empty routes; ignoring"
 
 			log.Error(msg)
@@ -157,18 +160,18 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				"event", "error",
 				"message", msg,
 			)
-		case routesLen > 0:
-			data, oldData = p.b.formatAndSet(routes)
-			if oldData == nil {
+		case routesCount > 0:
+			routesBytes, initialized = p.b.formatAndSet(routes)
+			if initialized {
 				log.Info("routes initialized")
 				span.SetTag("routes.initialized", true)
 				p.metrics.routesInitialized.SetToCurrentTime()
 			} else {
-				log.Debug("routes updated")
+				log.Info("routes updated")
 			}
 			p.metrics.routesUpdated.SetToCurrentTime()
-			span.SetTag("routes.count", routesLen)
-			span.SetTag("routes.bytes", len(data))
+			span.SetTag("routes.count", routesCount)
+			span.SetTag("routes.bytes", routesBytes)
 		}
 
 		span.Finish()
