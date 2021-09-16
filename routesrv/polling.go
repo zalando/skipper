@@ -15,12 +15,12 @@ import (
 )
 
 const (
-	logPollingStarted       = "starting polling"
-	logPollingStopped       = "polling stopped"
-	logRoutesFetchingFailed = "failed to fetch routes"
-	logRoutesEmpty          = "received empty routes; ignoring"
-	logRoutesInitialized    = "routes initialized"
-	logRoutesUpdated        = "routes updated"
+	LogPollingStarted       = "starting polling"
+	LogPollingStopped       = "polling stopped"
+	LogRoutesFetchingFailed = "failed to fetch routes"
+	LogRoutesEmpty          = "received empty routes; ignoring"
+	LogRoutesInitialized    = "routes initialized"
+	LogRoutesUpdated        = "routes updated"
 )
 
 type pollerMetrics struct {
@@ -68,7 +68,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		msg                      string
 	)
 
-	log.WithFields(log.Fields{"timeout": p.timeout}).Info(logPollingStarted)
+	log.WithFields(log.Fields{"timeout": p.timeout}).Info(LogPollingStarted)
 	p.metrics.pollingStarted.SetToCurrentTime()
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
@@ -78,15 +78,15 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 
 		switch {
 		case err != nil:
-			log.WithError(err).Error(logRoutesFetchingFailed)
+			log.WithError(err).Error(LogRoutesFetchingFailed)
 
 			span.SetTag("error", true)
 			span.LogKV(
 				"event", "error",
-				"message", fmt.Sprintf("%s: %s", logRoutesFetchingFailed, err),
+				"message", fmt.Sprintf("%s: %s", LogRoutesFetchingFailed, err),
 			)
 		case routesCount == 0:
-			log.Error(logRoutesEmpty)
+			log.Error(LogRoutesEmpty)
 
 			span.SetTag("error", true)
 			span.LogKV(
@@ -97,11 +97,11 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			routesBytes, initialized = p.b.formatAndSet(routes)
 			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes})
 			if initialized {
-				logger.Info(logRoutesInitialized)
+				logger.Info(LogRoutesInitialized)
 				span.SetTag("routes.initialized", true)
 				p.metrics.routesInitialized.SetToCurrentTime()
 			} else {
-				logger.Info(logRoutesUpdated)
+				logger.Info(LogRoutesUpdated)
 			}
 			p.metrics.routesUpdated.SetToCurrentTime()
 			span.SetTag("routes.count", routesCount)
@@ -112,7 +112,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 
 		select {
 		case <-p.quit:
-			log.Info(logPollingStopped)
+			log.Info(LogPollingStopped)
 			return
 		case <-time.After(p.timeout):
 		}
