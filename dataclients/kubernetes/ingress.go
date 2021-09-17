@@ -365,9 +365,6 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 }
 
 func addExtraRoutes(ic ingressContext, ruleHost, path, eastWestDomain string, enableEastWest bool) {
-	// it is a regexp, would be better to have exact host, needs to be added in skipper
-	// this wrapping is temporary and escaping is not the right thing to do
-	// currently handled as mandatory
 	hosts := []string{createHostRx(ruleHost)}
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
