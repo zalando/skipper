@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -9,25 +8,17 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-func rxDots(h string) string {
-	return strings.Replace(h, ".", "[.]", -1)
-}
-
-func appendOptionalPortRegex(host string) string {
-	return fmt.Sprintf("%s(:[0-9]+)?", host)
-}
-
-func createHostRx(h ...string) string {
-	if len(h) == 0 {
+func createHostRx(hosts ...string) string {
+	if len(hosts) == 0 {
 		return ""
 	}
 
-	hrx := make([]string, len(h))
-	for i := range h {
-		hrx[i] = appendOptionalPortRegex(rxDots(h[i]))
+	hrx := make([]string, len(hosts))
+	for i, host := range hosts {
+		hrx[i] = strings.Replace(host, ".", "[.]", -1) + "(:[0-9]+)?"
 	}
 
-	return fmt.Sprintf("^(%s)$", strings.Join(hrx, "|"))
+	return "^(" + strings.Join(hrx, "|") + ")$"
 }
 
 // hostCatchAllRoutes creates catch-all routes for those hosts that only have routes with
