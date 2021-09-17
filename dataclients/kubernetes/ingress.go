@@ -364,7 +364,11 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	return nil
 }
 
-func addExtraRoutes(ic ingressContext, hosts []string, host, path, eastWestDomain string, enableEastWest bool) {
+func addExtraRoutes(ic ingressContext, ruleHost, path, eastWestDomain string, enableEastWest bool) {
+	// it is a regexp, would be better to have exact host, needs to be added in skipper
+	// this wrapping is temporary and escaping is not the right thing to do
+	// currently handled as mandatory
+	hosts := []string{createHostRx(ruleHost)}
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
 		name := ic.ingress.Metadata.Name
@@ -375,12 +379,12 @@ func addExtraRoutes(ic ingressContext, hosts []string, host, path, eastWestDomai
 			ns,
 			name,
 			route.Id,
-			host+strings.Replace(path, "/", "_", -1),
+			ruleHost+strings.Replace(path, "/", "_", -1),
 			extraIndex)
 		setPath(ic.pathMode, &route, path)
 		if n := countPathRoutes(&route); n <= 1 {
-			ic.addHostRoute(host, &route)
-			ic.redirect.updateHost(host)
+			ic.addHostRoute(ruleHost, &route)
+			ic.redirect.updateHost(ruleHost)
 		} else {
 			log.Errorf("Failed to add route having %d path routes: %v", n, r)
 		}
@@ -482,14 +486,10 @@ func (ing *ingress) addSpecRule(ic ingressContext, ru *definitions.Rule) error {
 		ic.logger.Warn("invalid ingress item: rule missing http definitions")
 		return nil
 	}
-	// it is a regexp, would be better to have exact host, needs to be added in skipper
-	// this wrapping is temporary and escaping is not the right thing to do
-	// currently handled as mandatory
-	host := []string{createHostRx(ru.Host)}
 	// update Traffic field for each backend
 	computeBackendWeights(ic.backendWeights, ru)
 	for _, prule := range ru.Http.Paths {
-		addExtraRoutes(ic, host, ru.Host, prule.Path, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
+		addExtraRoutes(ic, ru.Host, prule.Path, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
 		if prule.Backend.Traffic > 0 {
 			err := ing.addEndpointsRule(ic, ru.Host, prule)
 			if err != nil {
@@ -713,7 +713,6 @@ func (ing *ingress) addCatchAllRoutes(host string, r *eskip.Route, redirect *red
 		HostRegexps: r.HostRegexps,
 		BackendType: eskip.ShuntBackend,
 	}
-	log.Infof("host: %s", host)
 	routes := []*eskip.Route{catchAll}
 	if ing.kubernetesEnableEastWest {
 		if ew := createEastWestRouteIng(ing.kubernetesEastWestDomain, r.Name, r.Namespace, catchAll); ew != nil {
