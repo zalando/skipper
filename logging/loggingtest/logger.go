@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type logSubscription struct {
@@ -209,3 +211,27 @@ func (tl *Logger) Info(a ...interface{})             { tl.log(a...) }
 func (tl *Logger) Infof(f string, a ...interface{})  { tl.logf(f, a...) }
 func (tl *Logger) Debug(a ...interface{})            { tl.log(a...) }
 func (tl *Logger) Debugf(f string, a ...interface{}) { tl.logf(f, a...) }
+
+func (tl *Logger) Fire(entry *logrus.Entry) error {
+	line, err := entry.String()
+	if err != nil {
+		return err
+	}
+
+	switch entry.Level {
+	case logrus.PanicLevel, logrus.FatalLevel, logrus.ErrorLevel:
+		tl.Error(line)
+	case logrus.WarnLevel:
+		tl.Warn(line)
+	case logrus.InfoLevel:
+		tl.Info(line)
+	case logrus.DebugLevel, logrus.TraceLevel:
+		tl.Debug(line)
+	}
+
+	return nil
+}
+
+func (tl *Logger) Levels() []logrus.Level {
+	return logrus.AllLevels
+}

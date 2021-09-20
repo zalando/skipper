@@ -68,7 +68,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		msg                      string
 	)
 
-	log.WithFields(log.Fields{"timeout": p.timeout}).Info(LogPollingStarted)
+	log.WithField("timeout", p.timeout).Info(LogPollingStarted)
 	p.metrics.pollingStarted.SetToCurrentTime()
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)

@@ -47,7 +47,11 @@ func newShutdownFunc(wg *sync.WaitGroup, poller *poller, server *http.Server) sh
 }
 
 func Run(o Options) error {
-	tracer, err := tracing.InitTracer(o.OpenTracing)
+	opentracingOpts := o.OpenTracing
+	if len(opentracingOpts) == 0 {
+		opentracingOpts = []string{"noop"}
+	}
+	tracer, err := tracing.InitTracer(opentracingOpts)
 	if err != nil {
 		return err
 	}
