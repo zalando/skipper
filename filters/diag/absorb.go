@@ -10,9 +10,11 @@ import (
 	"github.com/zalando/skipper/logging"
 )
 
+// AbsorbName contains the name of the absorb filter.
 // Deprecated, use filters.AbsorbName instead
 const AbsorbName = filters.AbsorbName
 
+// AbsorbSilentName contains the name of the absorbSilent filter.
 // Deprecated, use filters.AbsorbSilentName instead
 const AbsorbSilentName = filters.AbsorbSilentName
 

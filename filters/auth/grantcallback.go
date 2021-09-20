@@ -8,6 +8,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// GrantCallbackName is the filter name
 // Deprecated, use filters.GrantCallbackName instead
 const GrantCallbackName = filters.GrantCallbackName
 

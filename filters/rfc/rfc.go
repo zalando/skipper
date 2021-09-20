@@ -5,6 +5,7 @@ import (
 	"github.com/zalando/skipper/rfc"
 )
 
+// Name is the filter name
 // Deprecated, use filters.RfcPathName instead
 const Name = filters.RfcPathName
 

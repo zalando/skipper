@@ -6,6 +6,7 @@ import (
 	teepredicate "github.com/zalando/skipper/predicates/tee"
 )
 
+// FilterName is the filter name
 // Deprecated, use filters.TeeLoopbackName instead
 const FilterName = filters.TeeLoopbackName
 

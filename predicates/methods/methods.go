@@ -26,6 +26,7 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+// Name is the predicate name
 // Deprecated, use predicates.MethodsName instead
 const Name = predicates.MethodsName
 

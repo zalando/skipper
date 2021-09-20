@@ -9,6 +9,7 @@ package auth
 
 import "github.com/zalando/skipper/filters"
 
+// GrantClaimsQueryName is the filter name
 // Deprecated, use filters.GrantClaimsQueryName instead
 const GrantClaimsQueryName = filters.GrantClaimsQueryName
 
