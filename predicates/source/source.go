@@ -49,6 +49,15 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+const (
+	// Deprecated, use predicates.SourceName instead
+	Name = predicates.SourceName
+	// Deprecated, use predicates.SourceFromLastName instead
+	NameLast = predicates.SourceFromLastName
+	// Deprecated, use predicates.ClientIPName instead
+	NameClientIP = predicates.ClientIPName
+)
+
 var InvalidArgsError = errors.New("invalid arguments")
 
 type sourcePred int

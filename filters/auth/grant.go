@@ -13,6 +13,9 @@ import (
 )
 
 const (
+	// Deprecated, use filters.OAuthGrantName instead
+	OAuthGrantName = filters.OAuthGrantName
+
 	secretsRefreshInternal = time.Minute
 	tokenWasRefreshed      = "oauth-did-refresh"
 )

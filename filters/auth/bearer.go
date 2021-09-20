@@ -5,6 +5,11 @@ import (
 	"github.com/zalando/skipper/secrets"
 )
 
+const (
+	// Deprecated, use filters.BearerInjectorName instead
+	BearerInjectorName = filters.BearerInjectorName
+)
+
 type (
 	bearerInjectorSpec struct {
 		secretsReader secrets.SecretsReader

@@ -77,6 +77,11 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+const (
+	// Deprecated, use predicates.TrafficName instead
+	PredicateName = predicates.TrafficName
+)
+
 type spec struct{}
 
 type predicate struct {

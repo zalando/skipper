@@ -13,6 +13,13 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+const (
+	// Deprecated, use filters.FadeInName instead
+	FadeInName = filters.FadeInName
+	// Deprecated, use filters.EndpointCreatedName instead
+	EndpointCreatedName = filters.EndpointCreatedName
+)
+
 type (
 	fadeIn struct {
 		duration time.Duration

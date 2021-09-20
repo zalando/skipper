@@ -6,6 +6,17 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	// Deprecated, use filters.SedName instead
+	Name = filters.SedName
+	// Deprecated, use filters.SedDelimName instead
+	NameDelimit = filters.SedDelimName
+	// Deprecated, use filters.SedRequestName instead
+	NameRequest = filters.SedRequestName
+	// Deprecated, use filters.SedRequestDelimName instead
+	NameRequestDelimit = filters.SedRequestDelimName
+)
+
 type typ int
 
 const (

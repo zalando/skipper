@@ -8,6 +8,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// Deprecated, use filters.GrantCallbackName instead
+const GrantCallbackName = filters.GrantCallbackName
+
 type grantCallbackSpec struct {
 	config OAuthConfig
 }

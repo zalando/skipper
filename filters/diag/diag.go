@@ -21,6 +21,25 @@ import (
 
 const defaultChunkSize = 512
 
+const (
+	// Deprecated, use filters.RandomContentName instead
+	RandomName = filters.RandomContentName
+	// Deprecated, use filters.RepeatContentName instead
+	RepeatName = filters.RepeatContentName
+	// Deprecated, use filters.LatencyName instead
+	LatencyName = filters.LatencyName
+	// Deprecated, use filters.ChunksName instead
+	ChunksName = filters.ChunksName
+	// Deprecated, use filters.BandwidthName instead
+	BandwidthName = filters.BandwidthName
+	// Deprecated, use filters.BackendLatencyName instead
+	BackendLatencyName = filters.BackendLatencyName
+	// Deprecated, use filters.BackendBandwidthName instead
+	BackendBandwidthName = filters.BackendBandwidthName
+	// Deprecated, use filters.BackendChunksName instead
+	BackendChunksName = filters.BackendChunksName
+)
+
 type throttleType int
 
 const (

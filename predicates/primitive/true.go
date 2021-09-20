@@ -7,6 +7,11 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+const (
+	// Deprecated, use predicates.TrueName instead
+	NameTrue = predicates.TrueName
+)
+
 type trueSpec struct{}
 
 type truePredicate struct{}

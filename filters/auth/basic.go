@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// Deprecated, use filters.BasicAuthName instead
+	Name = filters.BasicAuthName
+
 	ForceBasicAuthHeaderName  = "WWW-Authenticate"
 	ForceBasicAuthHeaderValue = "Basic realm="
 	DefaultRealmName          = "Basic Realm"

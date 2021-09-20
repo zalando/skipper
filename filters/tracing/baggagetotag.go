@@ -5,6 +5,11 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	// Deprecated, use filters.TracingBaggageToTagName instead
+	BaggageToTagFilterName = filters.TracingBaggageToTagName
+)
+
 type baggageToTagSpec struct{}
 
 type baggageToTagFilter struct {

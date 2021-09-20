@@ -26,6 +26,13 @@ import (
 )
 
 const (
+	// Deprecated, use filters.OAuthOidcUserInfoName instead
+	OidcUserInfoName = filters.OAuthOidcUserInfoName
+	// Deprecated, use filters.OAuthOidcAnyClaimsName instead
+	OidcAnyClaimsName = filters.OAuthOidcAnyClaimsName
+	// Deprecated, use filters.OAuthOidcAllClaimsName instead
+	OidcAllClaimsName = filters.OAuthOidcAllClaimsName
+
 	oauthOidcCookieName = "skipperOauthOidc"
 	stateValidity       = 1 * time.Minute
 	oidcInfoHeader      = "Skipper-Oidc-Info"

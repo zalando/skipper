@@ -13,8 +13,12 @@ import (
 )
 
 const (
-	// Deprecated: use TeeName
-	DeprecatedTeeName = "Tee"
+	// Deprecated, use filters.TeeName instead
+	Name = filters.TeeName
+	// Deprecated, use filters.TeeName instead
+	DeprecatedName = "Tee"
+	// Deprecated, use filters.TeenfName instead
+	NoFollowName = filters.TeenfName
 )
 
 const defaultTeeTimeout = time.Second
@@ -274,7 +278,7 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 
 func (spec *teeSpec) Name() string {
 	if spec.deprecated {
-		return DeprecatedTeeName
+		return DeprecatedName
 	}
 	if spec.options.NoFollow {
 		return filters.TeenfName

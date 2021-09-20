@@ -13,6 +13,9 @@ import (
 )
 
 const (
+	// Deprecated, use filters.ApiUsageMonitoringName instead
+	Name = filters.ApiUsageMonitoringName
+
 	unknownPlaceholder = "{unknown}"
 	noMatchPlaceholder = "{no-match}"
 	noTagPlaceholder   = "{no-tag}"

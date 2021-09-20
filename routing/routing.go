@@ -12,9 +12,19 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/predicates"
 )
 
 const (
+	// Deprecated, use predicates.PathName instead
+	PathName = predicates.PathName
+
+	// Deprecated, use predicates.PathSubtreeName instead
+	PathSubtreeName = predicates.PathSubtreeName
+
+	// Deprecated, use predicates.WeightName instead
+	WeightPredicateName = predicates.WeightName
+
 	routesTimestampName      = "X-Timestamp"
 	routesCountName          = "X-Count"
 	defaultRouteListingLimit = 1024

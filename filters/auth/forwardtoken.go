@@ -9,6 +9,11 @@ import (
 	"golang.org/x/net/http/httpguts"
 )
 
+const (
+	// Deprecated, use filters.ForwardTokenName instead
+	ForwardTokenName = filters.ForwardTokenName
+)
+
 type (
 	forwardTokenSpec   struct{}
 	forwardTokenFilter struct {

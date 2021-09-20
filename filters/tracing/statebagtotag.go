@@ -8,6 +8,11 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	// Deprecated, use filters.StateBagToTagName instead
+	StateBagToTagFilterName = filters.StateBagToTagName
+)
+
 type stateBagToTagSpec struct{}
 
 type stateBagToTagFilter struct {

@@ -7,6 +7,11 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	// Deprecated, use filters.OriginMarkerName instead
+	OriginMarkerName = filters.OriginMarkerName
+)
+
 type originMarkerSpec struct{}
 
 // OriginMarker carries information about the origin of a route

@@ -10,6 +10,12 @@ import (
 	"github.com/zalando/skipper/logging"
 )
 
+// Deprecated, use filters.AbsorbName instead
+const AbsorbName = filters.AbsorbName
+
+// Deprecated, use filters.AbsorbSilentName instead
+const AbsorbSilentName = filters.AbsorbSilentName
+
 const loggingInterval = time.Second
 
 type absorb struct {

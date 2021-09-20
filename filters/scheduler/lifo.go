@@ -28,6 +28,11 @@ type (
 )
 
 const (
+	// Deprecated, use filters.LifoName instead
+	LIFOName = filters.LifoName
+	// Deprecated, use filters.LifoGroupName instead
+	LIFOGroupName = filters.LifoGroupName
+
 	defaultMaxConcurreny = 100
 	defaultMaxQueueSize  = 100
 	defaultTimeout       = 10 * time.Second

@@ -26,6 +26,9 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+// Deprecated, use predicates.MethodsName instead
+const Name = predicates.MethodsName
+
 var ErrInvalidArgumentsCount = errors.New("at least one method should be specified")
 var ErrInvalidArgumentType = errors.New("only string values are allowed")
 

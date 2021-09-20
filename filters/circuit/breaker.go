@@ -13,6 +13,13 @@ import (
 )
 
 const (
+	// Deprecated, use filters.ConsecutiveBreakerName instead
+	ConsecutiveBreakerName = filters.ConsecutiveBreakerName
+	// Deprecated, use filters.RateBreakerName instead
+	RateBreakerName = filters.RateBreakerName
+	// Deprecated, use filters.DisableBreakerName instead
+	DisableBreakerName = filters.DisableBreakerName
+
 	RouteSettingsKey = "#circuitbreakersettings"
 )
 

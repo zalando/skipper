@@ -6,6 +6,9 @@ import (
 	teepredicate "github.com/zalando/skipper/predicates/tee"
 )
 
+// Deprecated, use filters.TeeLoopbackName instead
+const FilterName = filters.TeeLoopbackName
+
 type teeLoopbackSpec struct{}
 type teeLoopbackFilter struct {
 	teeKey string

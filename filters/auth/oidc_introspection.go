@@ -13,6 +13,9 @@ import (
 )
 
 const (
+	// Deprecated, use filters.OidcClaimsQueryName instead
+	OidcClaimsQueryName = filters.OidcClaimsQueryName
+
 	oidcClaimsCacheKey = "oidcclaimscachekey"
 )
 

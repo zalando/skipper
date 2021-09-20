@@ -13,6 +13,11 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+const (
+	// Deprecated, use filters.WebhookName instead
+	WebhookName = filters.WebhookName
+)
+
 type WebhookOptions struct {
 	Timeout      time.Duration
 	MaxIdleConns int

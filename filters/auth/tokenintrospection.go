@@ -15,6 +15,23 @@ import (
 )
 
 const (
+	// Deprecated, use filters.OAuthTokenintrospectionAnyClaimsName instead
+	OAuthTokenintrospectionAnyClaimsName = filters.OAuthTokenintrospectionAnyClaimsName
+	// Deprecated, use filters.OAuthTokenintrospectionAllClaimsName instead
+	OAuthTokenintrospectionAllClaimsName = filters.OAuthTokenintrospectionAllClaimsName
+	// Deprecated, use filters.OAuthTokenintrospectionAnyKVName instead
+	OAuthTokenintrospectionAnyKVName = filters.OAuthTokenintrospectionAnyKVName
+	// Deprecated, use filters.OAuthTokenintrospectionAllKVName instead
+	OAuthTokenintrospectionAllKVName = filters.OAuthTokenintrospectionAllKVName
+	// Deprecated, use filters.SecureOAuthTokenintrospectionAnyClaimsName instead
+	SecureOAuthTokenintrospectionAnyClaimsName = filters.SecureOAuthTokenintrospectionAnyClaimsName
+	// Deprecated, use filters.SecureOAuthTokenintrospectionAllClaimsName instead
+	SecureOAuthTokenintrospectionAllClaimsName = filters.SecureOAuthTokenintrospectionAllClaimsName
+	// Deprecated, use filters.SecureOAuthTokenintrospectionAnyKVName instead
+	SecureOAuthTokenintrospectionAnyKVName = filters.SecureOAuthTokenintrospectionAnyKVName
+	// Deprecated, use filters.SecureOAuthTokenintrospectionAllKVName instead
+	SecureOAuthTokenintrospectionAllKVName = filters.SecureOAuthTokenintrospectionAllKVName
+
 	tokenintrospectionCacheKey   = "tokenintrospection"
 	TokenIntrospectionConfigPath = "/.well-known/openid-configuration"
 )

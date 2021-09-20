@@ -11,6 +11,9 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
+// Deprecated, use predicates.CookieName instead
+const Name = predicates.CookieName
+
 type (
 	spec struct{}
 

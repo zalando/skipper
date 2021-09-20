@@ -8,6 +8,9 @@ import (
 )
 
 const (
+	// Deprecated, use predicates.TeeName instead
+	PredicateName = predicates.TeeName
+
 	HeaderKey = "x-tee-loopback-key"
 )
 

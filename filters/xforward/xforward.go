@@ -5,6 +5,14 @@ import (
 	snet "github.com/zalando/skipper/net"
 )
 
+const (
+	// Deprecated, use filters.XforwardName instead
+	Name = filters.XforwardName
+
+	// Deprecated, use filters.XforwardFirstName instead
+	NameFirst = filters.XforwardFirstName
+)
+
 type filter struct {
 	headers *snet.ForwardedHeaders
 }

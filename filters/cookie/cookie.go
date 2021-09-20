@@ -44,6 +44,13 @@ import (
 )
 
 const (
+	// Deprecated, use filters.RequestCookieName instead
+	RequestCookieFilterName = filters.RequestCookieName
+	// Deprecated, use filters.ResponseCookieName instead
+	ResponseCookieFilterName = filters.ResponseCookieName
+	// Deprecated, use filters.JsCookieName instead
+	ResponseJSCookieFilterName = filters.JsCookieName
+
 	ChangeOnlyArg       = "change-only"
 	SetCookieHttpHeader = "Set-Cookie"
 )

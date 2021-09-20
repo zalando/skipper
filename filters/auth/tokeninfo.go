@@ -11,6 +11,15 @@ import (
 )
 
 const (
+	// Deprecated, use filters.OAuthTokeninfoAnyScopeName instead
+	OAuthTokeninfoAnyScopeName = filters.OAuthTokeninfoAnyScopeName
+	// Deprecated, use filters.OAuthTokeninfoAllScopeName instead
+	OAuthTokeninfoAllScopeName = filters.OAuthTokeninfoAllScopeName
+	// Deprecated, use filters.OAuthTokeninfoAnyKVName instead
+	OAuthTokeninfoAnyKVName = filters.OAuthTokeninfoAnyKVName
+	// Deprecated, use filters.OAuthTokeninfoAllKVName instead
+	OAuthTokeninfoAllKVName = filters.OAuthTokeninfoAllKVName
+
 	tokeninfoCacheKey = "tokeninfo"
 )
 

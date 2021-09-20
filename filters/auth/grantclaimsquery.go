@@ -9,6 +9,9 @@ package auth
 
 import "github.com/zalando/skipper/filters"
 
+// Deprecated, use filters.GrantClaimsQueryName instead
+const GrantClaimsQueryName = filters.GrantClaimsQueryName
+
 type grantClaimsQuerySpec struct {
 	oidcSpec oidcIntrospectionSpec
 }

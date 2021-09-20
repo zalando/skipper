@@ -9,6 +9,9 @@ import (
 )
 
 const (
+	// Deprecated, use filters.FlowIdName instead
+	Name = filters.FlowIdName
+
 	ReuseParameterValue = "reuse"
 	HeaderName          = "X-Flow-Id"
 )

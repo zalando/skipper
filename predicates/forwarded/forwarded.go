@@ -26,6 +26,13 @@ import (
 	"strings"
 )
 
+const (
+	// Deprecated, use predicates.ForwardedHostName instead
+	NameHost = predicates.ForwardedHostName
+	// Deprecated, use predicates.ForwardedProtocolName instead
+	NameProto = predicates.ForwardedProtocolName
+)
+
 type hostPredicateSpec struct{}
 
 type protoPredicateSpec struct{}

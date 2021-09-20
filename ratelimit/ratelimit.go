@@ -24,8 +24,26 @@ const (
 	// long a client should wait before making a new request
 	RetryAfterHeader = "Retry-After"
 
+	// Deprecated, use filters.RatelimitName instead
+	ServiceRatelimitName = filters.RatelimitName
+
 	// LocalRatelimitName *DEPRECATED*, use ClientRatelimitName instead
 	LocalRatelimitName = "localRatelimit"
+
+	// Deprecated, use filters.ClientRatelimitName instead
+	ClientRatelimitName = filters.ClientRatelimitName
+
+	// Deprecated, use filters.ClusterRatelimitName instead
+	ClusterServiceRatelimitName = filters.ClusterRatelimitName
+
+	// Deprecated, use filters.ClusterClientRatelimitName instead
+	ClusterClientRatelimitName = filters.ClusterClientRatelimitName
+
+	// Deprecated, use filters.DisableRatelimitName instead
+	DisableRatelimitName = filters.DisableRatelimitName
+
+	// Deprecated, use filters.UnknownRatelimitName instead
+	UknownRatelimitName = filters.UnknownRatelimitName
 )
 
 // RatelimitType defines the type of  the used ratelimit

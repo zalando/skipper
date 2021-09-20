@@ -8,6 +8,9 @@ import (
 )
 
 const (
+	// Deprecated, use filters.TracingSpanNameName instead
+	SpanNameFilterName = filters.TracingSpanNameName
+
 	// OpenTracingProxySpanKey is the key used in the state bag to pass the span name to the proxy.
 	OpenTracingProxySpanKey = "statebag:opentracing:proxy:span"
 )

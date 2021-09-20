@@ -14,6 +14,9 @@ import (
 )
 
 const (
+	// Deprecated, use filters.GrantLogoutName instead
+	GrantLogoutName = filters.GrantLogoutName
+
 	revokeTokenKey          = "token"
 	revokeTokenTypeKey      = "token_type_hint"
 	refreshTokenType        = "refresh_token"
