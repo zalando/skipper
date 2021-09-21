@@ -15,30 +15,93 @@ import (
 	"github.com/zalando/skipper/tracing"
 )
 
-func newServer(address string, b *eskipBytes, s *eskipBytesStatus) *http.Server {
-	handler := http.NewServeMux()
-
-	handler.Handle("/health", s)
-	handler.Handle("/routes", b)
-	handler.Handle("/metrics", promhttp.Handler())
-
-	return &http.Server{Addr: address, Handler: handler}
+type RouteServer struct {
+	server *http.Server
+	poller *poller
+	wg     *sync.WaitGroup
 }
 
-type shutdownFunc func(delay time.Duration)
+func New(opts Options) (*RouteServer, error) {
+	rs := &RouteServer{}
 
-func newShutdownFunc(wg *sync.WaitGroup, poller *poller, server *http.Server) shutdownFunc {
+	opentracingOpts := opts.OpenTracing
+	if len(opentracingOpts) == 0 {
+		opentracingOpts = []string{"noop"}
+	}
+	tracer, err := tracing.InitTracer(opentracingOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	b := &eskipBytes{tracer: tracer}
+	bs := &eskipBytesStatus{b: b}
+	handler := http.NewServeMux()
+	handler.Handle("/health", bs)
+	handler.Handle("/routes", b)
+	handler.Handle("/metrics", promhttp.Handler())
+	rs.server = &http.Server{Addr: opts.Address, Handler: handler}
+
+	dataclient, err := kubernetes.New(kubernetes.Options{
+		KubernetesInCluster:               opts.KubernetesInCluster,
+		KubernetesURL:                     opts.KubernetesURL,
+		ProvideHealthcheck:                opts.KubernetesHealthcheck,
+		ProvideHTTPSRedirect:              opts.KubernetesHTTPSRedirect,
+		HTTPSRedirectCode:                 opts.KubernetesHTTPSRedirectCode,
+		IngressClass:                      opts.KubernetesIngressClass,
+		RouteGroupClass:                   opts.KubernetesRouteGroupClass,
+		ReverseSourcePredicate:            opts.ReverseSourcePredicate,
+		WhitelistedHealthCheckCIDR:        opts.WhitelistedHealthCheckCIDR,
+		PathMode:                          opts.KubernetesPathMode,
+		KubernetesNamespace:               opts.KubernetesNamespace,
+		KubernetesEastWestRangeDomains:    opts.KubernetesEastWestRangeDomains,
+		KubernetesEastWestRangePredicates: opts.KubernetesEastWestRangePredicates,
+		DefaultFiltersDir:                 opts.DefaultFiltersDir,
+		BackendNameTracingTag:             opts.OpenTracingBackendNameTag,
+		OnlyAllowedExternalNames:          opts.KubernetesOnlyAllowedExternalNames,
+		AllowedExternalNames:              opts.KubernetesAllowedExternalNames,
+	})
+	if err != nil {
+		return nil, err
+	}
+	rs.poller = &poller{
+		client:  dataclient,
+		timeout: opts.SourcePollTimeout,
+		b:       b,
+		quit:    make(chan struct{}),
+		tracer:  tracer,
+		metrics: newPollerMetrics(),
+	}
+
+	rs.wg = &sync.WaitGroup{}
+
+	return rs, nil
+}
+
+func (rs *RouteServer) StartUpdates() {
+	rs.wg.Add(1)
+	go rs.poller.poll(rs.wg)
+}
+
+func (rs *RouteServer) StopUpdates() {
+	close(rs.poller.quit)
+}
+
+func (rs *RouteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	rs.server.Handler.ServeHTTP(w, r)
+}
+
+func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 	once := &sync.Once{}
-	wg.Add(1)
+	rs.wg.Add(1)
 
 	return func(delay time.Duration) {
 		once.Do(func() {
-			defer wg.Done()
-			defer close(poller.quit)
+			defer rs.wg.Done()
+			defer rs.StopUpdates()
 
 			log.Infof("shutting down the server in %s...", delay)
 			time.Sleep(delay)
-			if err := server.Shutdown(context.Background()); err != nil {
+			if err := rs.server.Shutdown(context.Background()); err != nil {
 				log.Error("unable to shut down the server: ", err)
 			}
 			log.Info("server shut down")
@@ -46,72 +109,30 @@ func newShutdownFunc(wg *sync.WaitGroup, poller *poller, server *http.Server) sh
 	}
 }
 
-func Run(o Options) error {
-	opentracingOpts := o.OpenTracing
-	if len(opentracingOpts) == 0 {
-		opentracingOpts = []string{"noop"}
-	}
-	tracer, err := tracing.InitTracer(opentracingOpts)
+func Run(opts Options) error {
+	rs, err := New(opts)
 	if err != nil {
 		return err
 	}
 
-	b := &eskipBytes{tracer: tracer}
-	s := &eskipBytesStatus{b: b}
-
-	wg := &sync.WaitGroup{}
-
-	dataclient, err := kubernetes.New(kubernetes.Options{
-		KubernetesInCluster:               o.KubernetesInCluster,
-		KubernetesURL:                     o.KubernetesURL,
-		ProvideHealthcheck:                o.KubernetesHealthcheck,
-		ProvideHTTPSRedirect:              o.KubernetesHTTPSRedirect,
-		HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
-		IngressClass:                      o.KubernetesIngressClass,
-		RouteGroupClass:                   o.KubernetesRouteGroupClass,
-		ReverseSourcePredicate:            o.ReverseSourcePredicate,
-		WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
-		PathMode:                          o.KubernetesPathMode,
-		KubernetesNamespace:               o.KubernetesNamespace,
-		KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
-		KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
-		DefaultFiltersDir:                 o.DefaultFiltersDir,
-		BackendNameTracingTag:             o.OpenTracingBackendNameTag,
-		OnlyAllowedExternalNames:          o.KubernetesOnlyAllowedExternalNames,
-		AllowedExternalNames:              o.KubernetesAllowedExternalNames,
-	})
-	if err != nil {
-		return err
-	}
-	poller := &poller{
-		client:  dataclient,
-		timeout: o.SourcePollTimeout,
-		b:       b,
-		quit:    make(chan struct{}),
-		tracer:  tracer,
-		metrics: newPollerMetrics(),
-	}
-	wg.Add(1)
-	go poller.poll(wg)
-
-	server := newServer(o.Address, b, s)
-
-	shutdown := newShutdownFunc(wg, poller, server)
+	shutdown := newShutdownFunc(rs)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
 	go func() {
 		<-sigs
-		shutdown(o.WaitForHealthcheckInterval)
+		shutdown(opts.WaitForHealthcheckInterval)
 	}()
 
-	if err = server.ListenAndServe(); err != http.ErrServerClosed {
+	rs.StartUpdates()
+
+	if err = rs.server.ListenAndServe(); err != http.ErrServerClosed {
 		go shutdown(0)
 	} else {
 		err = nil
 	}
 
-	wg.Wait()
+	rs.wg.Wait()
 
 	return err
 }
