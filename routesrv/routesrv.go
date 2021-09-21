@@ -69,7 +69,6 @@ func New(opts Options) (*RouteServer, error) {
 		b:       b,
 		quit:    make(chan struct{}),
 		tracer:  tracer,
-		metrics: newPollerMetrics(),
 	}
 
 	rs.wg = &sync.WaitGroup{}

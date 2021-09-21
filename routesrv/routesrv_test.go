@@ -72,3 +72,7 @@ func TestEmptyRoutesAreNotServed(t *testing.T) {
 		t.Error("wrong http status")
 	}
 }
+
+func TestRoutesAreServedInEskipFormat(t *testing.T) {
+
+}

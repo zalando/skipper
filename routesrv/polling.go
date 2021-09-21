@@ -23,31 +23,23 @@ const (
 	LogRoutesUpdated        = "routes updated"
 )
 
-type pollerMetrics struct {
-	pollingStarted    prometheus.Gauge
-	routesInitialized prometheus.Gauge
-	routesUpdated     prometheus.Gauge
-}
-
-func newPollerMetrics() *pollerMetrics {
-	return &pollerMetrics{
-		pollingStarted: promauto.NewGauge(prometheus.GaugeOpts{
-			Namespace: "routesrv",
-			Name:      "polling_started_timestamp",
-			Help:      "UNIX time when the routes polling has started",
-		}),
-		routesInitialized: promauto.NewGauge(prometheus.GaugeOpts{
-			Namespace: "routesrv",
-			Name:      "routes_initialized_timestamp",
-			Help:      "UNIX time when the first routes were received and stored",
-		}),
-		routesUpdated: promauto.NewGauge(prometheus.GaugeOpts{
-			Namespace: "routesrv",
-			Name:      "routes_updated_timestamp",
-			Help:      "UNIX time of the last routes update (initial load counts as well)",
-		}),
-	}
-}
+var (
+	pollingStarted = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "routesrv",
+		Name:      "polling_started_timestamp",
+		Help:      "UNIX time when the routes polling has started",
+	})
+	routesInitialized = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "routesrv",
+		Name:      "routes_initialized_timestamp",
+		Help:      "UNIX time when the first routes were received and stored",
+	})
+	routesUpdated = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "routesrv",
+		Name:      "routes_updated_timestamp",
+		Help:      "UNIX time of the last routes update (initial load counts as well)",
+	})
+)
 
 type poller struct {
 	client  routing.DataClient
@@ -55,8 +47,7 @@ type poller struct {
 	timeout time.Duration
 	quit    chan struct{}
 
-	tracer  ot.Tracer
-	metrics *pollerMetrics
+	tracer ot.Tracer
 }
 
 func (p *poller) poll(wg *sync.WaitGroup) {
@@ -69,7 +60,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	)
 
 	log.WithField("timeout", p.timeout).Info(LogPollingStarted)
-	p.metrics.pollingStarted.SetToCurrentTime()
+	pollingStarted.SetToCurrentTime()
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
@@ -99,11 +90,11 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			if initialized {
 				logger.Info(LogRoutesInitialized)
 				span.SetTag("routes.initialized", true)
-				p.metrics.routesInitialized.SetToCurrentTime()
+				routesInitialized.SetToCurrentTime()
 			} else {
 				logger.Info(LogRoutesUpdated)
 			}
-			p.metrics.routesUpdated.SetToCurrentTime()
+			routesUpdated.SetToCurrentTime()
 			span.SetTag("routes.count", routesCount)
 			span.SetTag("routes.bytes", routesBytes)
 		}
