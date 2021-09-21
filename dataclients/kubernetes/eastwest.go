@@ -11,12 +11,12 @@ func eastWestRouteID(rid string) string {
 	return "kubeew" + rid[len(ingressRouteIDPrefix):]
 }
 
-func createEastWestRouteIng(eastWestDomainRegexpPostfix, name, ns string, r *eskip.Route) *eskip.Route {
+func createEastWestRouteIng(eastWestDomain, name, ns string, r *eskip.Route) *eskip.Route {
 	if strings.HasPrefix(r.Id, "kubeew") || ns == "" || name == "" {
 		return nil
 	}
 	ewR := *r
-	ewR.HostRegexps = []string{"^" + name + "[.]" + ns + eastWestDomainRegexpPostfix + "$"}
+	ewR.HostRegexps = []string{createHostRx(name + "." + ns + "." + eastWestDomain)}
 	ewR.Id = eastWestRouteID(r.Id)
 	return &ewR
 }
