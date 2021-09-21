@@ -2,7 +2,7 @@ package skipper
 
 import (
 	"crypto/tls"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -173,7 +173,7 @@ func TestHTTPSServer(t *testing.T) {
 	if r.StatusCode != 404 {
 		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
 	}
-	_, err = ioutil.ReadAll(r.Body)
+	_, err = io.ReadAll(r.Body)
 	if err != nil {
 		t.Fatalf("Failed to stream response body: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestHTTPServer(t *testing.T) {
 	if r.StatusCode != 404 {
 		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
 	}
-	_, err = ioutil.ReadAll(r.Body)
+	_, err = io.ReadAll(r.Body)
 	if err != nil {
 		t.Fatalf("Failed to stream response body: %v", err)
 	}
@@ -277,7 +277,7 @@ func TestHTTPServerShutdown(t *testing.T) {
 		if r.StatusCode != 200 {
 			t.Errorf("Status code should be 200, instead got: %d\n", r.StatusCode)
 		}
-		body, err2 := ioutil.ReadAll(r.Body)
+		body, err2 := io.ReadAll(r.Body)
 		if err2 != nil {
 			t.Errorf("Failed to stream response body: %v", err2)
 		}

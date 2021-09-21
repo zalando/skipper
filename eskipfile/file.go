@@ -1,7 +1,7 @@
 package eskipfile
 
 import (
-	"io/ioutil"
+	"os"
 
 	"github.com/zalando/skipper/eskip"
 )
@@ -13,7 +13,7 @@ type Client struct{ routes []*eskip.Route }
 // Opens an eskip file and parses it, returning a DataClient implementation. If reading or parsing the file
 // fails, returns an error. This implementation doesn't provide file watch.
 func Open(path string) (*Client, error) {
-	content, err := ioutil.ReadFile(path)
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

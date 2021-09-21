@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"regexp"
 
@@ -205,7 +204,7 @@ func itemsJSON(b *[]byte, o []interface{}) error {
 
 func readAPIOptions(r io.Reader) (o TestAPIOptions, err error) {
 	var b []byte
-	b, err = ioutil.ReadAll(r)
+	b, err = io.ReadAll(r)
 	if err != nil {
 		return
 	}

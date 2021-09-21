@@ -3,11 +3,11 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
-	"io"
-	"io/ioutil"
-	"net/http"
 )
 
 type (
@@ -62,7 +62,7 @@ func convertRequest(r *http.Request) *debugRequest {
 }
 
 func convertBody(body io.Reader) (string, string) {
-	b, err := ioutil.ReadAll(body)
+	b, err := io.ReadAll(body)
 	out := string(b)
 
 	var errstr string

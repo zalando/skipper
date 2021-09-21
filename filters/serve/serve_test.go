@@ -2,7 +2,6 @@ package serve
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"
@@ -118,7 +117,7 @@ func TestServe(t *testing.T) {
 		t.Error("failed to serve header")
 	}
 
-	b, err := ioutil.ReadAll(ctx.Response().Body)
+	b, err := io.ReadAll(ctx.Response().Body)
 	if err != nil || string(b) != strings.Join(parts, "") {
 		t.Error("failed to serve body")
 	}

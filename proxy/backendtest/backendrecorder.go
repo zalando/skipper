@@ -1,13 +1,14 @@
 package backendtest
 
 import (
-	log "github.com/sirupsen/logrus"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type RecordedRequest struct {
@@ -32,7 +33,7 @@ func NewBackendRecorder(closeAfter time.Duration) *BackendRecorderHandler {
 }
 
 func (rec *BackendRecorderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Errorf("backendrecorder: error while reading request body: %v", err)
 	}

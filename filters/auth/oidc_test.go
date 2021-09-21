@@ -8,13 +8,13 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -234,7 +234,7 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 					"email": "someone@example.org",
 				})
 
-				privKey, err := ioutil.ReadFile(keyPath)
+				privKey, err := os.ReadFile(keyPath)
 				if err != nil {
 					log.Fatalf("Failed to read priv key: %v", err)
 				}
@@ -269,7 +269,7 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 		case "/revoke":
 			log.Fatalln("oidcServer /revoke - not implemented")
 		case "/oauth2/v3/certs":
-			certPEM, err := ioutil.ReadFile(certPath)
+			certPEM, err := os.ReadFile(certPath)
 			if err != nil {
 				log.Fatalf("Failed to readfile cert: %v", err)
 			}
@@ -279,7 +279,7 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 				log.Fatalf("Failed to parse cert: %v", err)
 			}
 
-			privPEM, err := ioutil.ReadFile(keyPath)
+			privPEM, err := os.ReadFile(keyPath)
 			if err != nil {
 				log.Fatalf("Failed to readfile key: %v", err)
 			}
@@ -818,7 +818,7 @@ func TestOIDCSetup(t *testing.T) {
 			if resp.StatusCode != tc.expected {
 				t.Logf("response: %+v", resp)
 				t.Errorf("auth filter failed got=%d, expected=%d, route=%s", resp.StatusCode, tc.expected, r)
-				b, err = ioutil.ReadAll(resp.Body)
+				b, err = io.ReadAll(resp.Body)
 				if err != nil {
 					t.Fatalf("Failed to read response body: %v", err)
 				}

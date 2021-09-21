@@ -1,13 +1,14 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/proxy/proxytest"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 func TestInlineContentIfStatusArgs(t *testing.T) {
@@ -173,7 +174,7 @@ func TestInlineContentIfStatus(t *testing.T) {
 				t.Log("expected:", len(test.expectedContent))
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(err)
 				return

@@ -2,10 +2,11 @@ package builtin
 
 import (
 	"bytes"
-	log "github.com/sirupsen/logrus"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -88,5 +89,5 @@ func (c *inlineContentIfStatus) Response(ctx filters.FilterContext) {
 	rsp.ContentLength = int64(contentLength)
 	rsp.Header.Set("Content-Type", c.mime)
 	rsp.Header.Set("Content-Length", strconv.Itoa(contentLength))
-	rsp.Body = ioutil.NopCloser(bytes.NewBufferString(c.text))
+	rsp.Body = io.NopCloser(bytes.NewBufferString(c.text))
 }

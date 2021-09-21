@@ -2,7 +2,7 @@ package proxy_test
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -142,7 +142,7 @@ func TestIdleConns(t *testing.T) {
 			}
 
 			defer rsp.Body.Close()
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Fatal(ti.msg, "failed to read response", err)
 			}

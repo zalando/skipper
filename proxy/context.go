@@ -5,7 +5,6 @@ import (
 	stdlibcontext "context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -60,7 +59,7 @@ type noopFlushedResponseWriter struct {
 }
 
 func defaultBody() io.ReadCloser {
-	return ioutil.NopCloser(&bytes.Buffer{})
+	return io.NopCloser(&bytes.Buffer{})
 }
 
 func defaultResponse(r *http.Request) *http.Response {
@@ -278,7 +277,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 func (c *context) Loopback() {
 	err := c.proxy.do(c)
 	if c.response != nil && c.response.Body != nil {
-		if _, err := io.Copy(ioutil.Discard, c.response.Body); err != nil {
+		if _, err := io.Copy(io.Discard, c.response.Body); err != nil {
 			c.proxy.log.Errorf("context: error while discarding remainder response body: %v.", err)
 		}
 		err := c.response.Body.Close()

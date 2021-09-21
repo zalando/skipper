@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -1010,7 +1009,7 @@ func (p *Proxy) rejectBackend(ctx *context, req *http.Request) (*http.Response, 
 			return &http.Response{
 				StatusCode: limit.StatusCode,
 				Header:     http.Header{"Content-Length": []string{"0"}},
-				Body:       ioutil.NopCloser(&bytes.Buffer{}),
+				Body:       io.NopCloser(&bytes.Buffer{}),
 			}, true
 		}
 	}
@@ -1033,7 +1032,7 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	done, ok := b.Allow()
 	if !ok && c.request.Body != nil {
 		// consume the body to prevent goroutine leaks
-		io.Copy(ioutil.Discard, c.request.Body)
+		io.Copy(io.Discard, c.request.Body)
 	}
 	return done, ok
 }
@@ -1090,7 +1089,7 @@ func (p *Proxy) do(ctx *context) error {
 	} else if ctx.shunted() || ctx.route.Shunt || ctx.route.BackendType == eskip.ShuntBackend {
 		// consume the body to prevent goroutine leaks
 		if ctx.request.Body != nil {
-			if _, err := io.Copy(ioutil.Discard, ctx.request.Body); err != nil {
+			if _, err := io.Copy(io.Discard, ctx.request.Body); err != nil {
 				p.log.Errorf("error while discarding remainder request body: %v.", err)
 			}
 		}

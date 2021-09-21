@@ -436,7 +436,7 @@ index 837b6cf..aa69f09 100644
 +/*
  import (
  	"fmt"
- 	"io/ioutil"
+ 	"os"
 @@ -13,8 +14,13 @@ import (
  	"github.com/zalando/skipper/filters"
  	"github.com/zalando/skipper/routing"

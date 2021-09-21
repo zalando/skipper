@@ -3,7 +3,7 @@ package admission
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -152,7 +152,7 @@ func TestResponseEncoding(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	reviewResp := admissionsv1.AdmissionReview{}
-	rb, err := ioutil.ReadAll(resp.Body)
+	rb, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err, "could not read response")
 
 	err = json.Unmarshal(rb, &reviewResp)
@@ -199,7 +199,7 @@ func TestAdmitRouteGroups(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	respReview := &admissionsv1.AdmissionReview{}
-	rb, err := ioutil.ReadAll(resp.Body)
+	rb, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err, "could not read response")
 	err = json.Unmarshal(rb, &respReview)
 	assert.NoError(t, err)

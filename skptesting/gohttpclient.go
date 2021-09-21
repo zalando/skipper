@@ -4,7 +4,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,7 +45,7 @@ func main() {
 				}
 				defer resp.Body.Close()
 
-				body, err2 := ioutil.ReadAll(resp.Body)
+				body, err2 := io.ReadAll(resp.Body)
 				if err2 != nil {
 					logrus.Errorf("Failed to read body: %v", err2)
 				}
@@ -68,7 +68,7 @@ func main() {
 	} else {
 
 		defer uresp.Body.Close()
-		b, err := ioutil.ReadAll(uresp.Body)
+		b, err := io.ReadAll(uresp.Body)
 		if err != nil {
 			logrus.Errorf("Failed to read upgrade body: %v", err)
 		}

@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -99,7 +99,7 @@ func TestBackendTimeoutInTheMiddleOfServiceResponse(t *testing.T) {
 		t.Errorf("expected 200, got: %v", rsp)
 	}
 
-	body, err := ioutil.ReadAll(rsp.Body)
+	body, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Error(err)
 	}

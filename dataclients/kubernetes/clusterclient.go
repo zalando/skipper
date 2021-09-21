@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"time"
@@ -69,7 +69,7 @@ func buildHTTPClient(certFilePath string, inCluster bool, quit <-chan struct{}) 
 		return http.DefaultClient, nil
 	}
 
-	rootCA, err := ioutil.ReadFile(certFilePath)
+	rootCA, err := os.ReadFile(certFilePath)
 	if err != nil {
 		return nil, err
 	}

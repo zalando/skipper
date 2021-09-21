@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -118,7 +118,7 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 	}
 	defer revokeResponse.Body.Close()
 
-	buf, err := ioutil.ReadAll(revokeResponse.Body)
+	buf, err := io.ReadAll(revokeResponse.Body)
 	if err != nil {
 		return err
 	}

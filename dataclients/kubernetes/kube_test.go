@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	mrand "math/rand"
 	"net"
@@ -1766,7 +1765,7 @@ func TestCreateRequest(t *testing.T) {
 		err error
 		url string
 	)
-	rc := ioutil.NopCloser(&buf)
+	rc := io.NopCloser(&buf)
 
 	client := &clusterClient{}
 
@@ -1874,7 +1873,7 @@ func TestBuildHTTPClient(t *testing.T) {
 		t.Errorf("should return invalid certificate")
 	}
 
-	err = ioutil.WriteFile("ca.empty.crt", []byte(""), 0644)
+	err = os.WriteFile("ca.empty.crt", []byte(""), 0644)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1886,7 +1885,7 @@ func TestBuildHTTPClient(t *testing.T) {
 	}
 
 	//create CA file
-	err = ioutil.WriteFile("ca.temp.crt", generateSSCert(), 0644)
+	err = os.WriteFile("ca.temp.crt", generateSSCert(), 0644)
 	if err != nil {
 		t.Error(err)
 	}
@@ -3141,12 +3140,12 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			"service1", "", "", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0,
 			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPort{Value: 8080})))}}
 
-		defaultFiltersDir, err := ioutil.TempDir("", "filters")
+		defaultFiltersDir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
 		file := filepath.Join(defaultFiltersDir, "service1.namespace1")
-		if err := ioutil.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
 			t.Error(err)
 		}
 
@@ -3181,12 +3180,12 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPort{Value: "port1"})))}}
 
 		// store default configuration in the file
-		dir, err := ioutil.TempDir("", "filters")
+		dir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
 		file := filepath.Join(dir, "service1.namespace1")
-		if err := ioutil.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
 			t.Error(err)
 		}
 
@@ -3213,12 +3212,12 @@ func TestSkipperDefaultFilters(t *testing.T) {
 	})
 
 	t.Run("check getDefaultFilterConfigurations ignores files names not following the pattern, directories and huge files", func(t *testing.T) {
-		defaultFiltersDir, err := ioutil.TempDir("", "filters")
+		defaultFiltersDir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
 		invalidFileName := filepath.Join(defaultFiltersDir, "file.name.doesnt.match.our.pattern")
-		if err := ioutil.WriteFile(invalidFileName, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(invalidFileName, []byte("consecutiveBreaker(15)"), 0666); err != nil {
 			t.Error(err)
 		}
 		err = os.Mkdir(filepath.Join(defaultFiltersDir, "some.directory"), os.ModePerm)
@@ -3226,7 +3225,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error(err)
 		}
 		bigFile := filepath.Join(defaultFiltersDir, "huge.file")
-		if err := ioutil.WriteFile(bigFile, make([]byte, 1024*1024+1), 0666); err != nil {
+		if err := os.WriteFile(bigFile, make([]byte, 1024*1024+1), 0666); err != nil {
 			t.Error(err)
 		}
 

@@ -2,7 +2,6 @@ package proxy_test
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
@@ -50,7 +49,7 @@ func TestRequestURIClonedOnSplit(t *testing.T) {
 	}
 
 	defer rsp.Body.Close()
-	io.Copy(ioutil.Discard, rsp.Body)
+	io.Copy(io.Discard, rsp.Body)
 
 	select {
 	case uri := <-df:

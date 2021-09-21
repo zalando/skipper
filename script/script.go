@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -311,7 +310,7 @@ func serveTableWalk(s *lua.LState, res *http.Response) func(lua.LValue, lua.LVal
 					return
 				}
 			}
-			res.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+			res.Body = io.NopCloser(bytes.NewBuffer(body))
 		}
 	}
 }

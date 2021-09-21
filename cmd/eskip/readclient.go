@@ -1,13 +1,13 @@
 package main
 
 import (
+	"io"
+	"os"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/eskipfile"
 	etcdclient "github.com/zalando/skipper/etcd"
 	innkeeperclient "github.com/zalando/skipper/innkeeper"
-	"io"
-	"io/ioutil"
-	"os"
 )
 
 type readClient interface {
@@ -80,7 +80,7 @@ func (r *stdinReader) LoadAndParseAll() ([]*eskip.RouteInfo, error) {
 	// and deletes the diff only after, it may not
 	// even be consistent to do continuous piping.
 	// May change in the future.
-	doc, err := ioutil.ReadAll(r.reader)
+	doc, err := io.ReadAll(r.reader)
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,7 @@
 package metrics_test
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1042,7 +1042,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			if test.expCode != resp.StatusCode {
 				t.Errorf("metrics service returned an incorrect status code, should be: %d, got: %d", test.expCode, resp.StatusCode)
 			} else {
-				body, _ := ioutil.ReadAll(resp.Body)
+				body, _ := io.ReadAll(resp.Body)
 				// Check all the metrics are present.
 				for _, expMetric := range test.expMetrics {
 					if ok := strings.Contains(string(body), expMetric); !ok {

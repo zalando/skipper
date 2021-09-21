@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -87,11 +86,11 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != 200 {
-		io.Copy(ioutil.Discard, rsp.Body)
+		io.Copy(io.Discard, rsp.Body)
 		return nil, errInvalidToken
 	}
 
-	buf, err := ioutil.ReadAll(rsp.Body)
+	buf, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +120,7 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != 200 {
-		io.Copy(ioutil.Discard, rsp.Body)
+		io.Copy(io.Discard, rsp.Body)
 		return doc, errInvalidToken
 	}
 

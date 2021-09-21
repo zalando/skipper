@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -863,7 +862,7 @@ func TestBreakFilterChain(t *testing.T) {
 	fr.Register(builtin.NewAppendRequestHeader())
 	resp1 := &http.Response{
 		Header:     make(http.Header),
-		Body:       ioutil.NopCloser(new(bytes.Buffer)),
+		Body:       io.NopCloser(new(bytes.Buffer)),
 		StatusCode: http.StatusUnauthorized,
 		Status:     "Impossible body",
 	}
@@ -976,7 +975,7 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	r := &http.Request{
 		URL:    u,
 		Method: "POST",
-		Body:   ioutil.NopCloser(reqBody),
+		Body:   io.NopCloser(reqBody),
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 
@@ -1119,7 +1118,7 @@ func TestFlusherImplementation(t *testing.T) {
 		return
 	}
 	defer rsp.Body.Close()
-	b, err := ioutil.ReadAll(rsp.Body)
+	b, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Error(err)
 		return
@@ -1622,7 +1621,7 @@ func TestRequestContentHeaders(t *testing.T) {
 	const contentLength = 1 << 15
 
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Error(err)
 			return

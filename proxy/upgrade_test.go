@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -254,7 +253,7 @@ func TestServeHTTP(t *testing.T) {
 			if resp.StatusCode != http.StatusSwitchingProtocols {
 				if resp.StatusCode == ti.backendStatusCode {
 					// check Body
-					data, err := ioutil.ReadAll(resp.Body)
+					data, err := io.ReadAll(resp.Body)
 					if err != nil {
 						t.Error(err)
 						return

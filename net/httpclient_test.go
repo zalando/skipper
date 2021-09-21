@@ -1,7 +1,6 @@
 package net
 
 import (
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -128,13 +127,13 @@ func TestClient(t *testing.T) {
 			defer s.Close()
 
 			if tt.tokenFile != "" {
-				dir, err := ioutil.TempDir("/tmp", "skipper-httpclient-test")
+				dir, err := os.MkdirTemp("/tmp", "skipper-httpclient-test")
 				if err != nil {
 					t.Fatalf("Failed to create temp dir: %v", err)
 				}
 				defer os.RemoveAll(dir) // clean up
 				tokenFile := filepath.Join(dir, tt.tokenFile)
-				if err := ioutil.WriteFile(tokenFile, []byte(testToken), 0600); err != nil {
+				if err := os.WriteFile(tokenFile, []byte(testToken), 0600); err != nil {
 					t.Fatalf("Failed to create token file: %v", err)
 				}
 				tt.options.BearerTokenFile = tokenFile

@@ -2,7 +2,7 @@ package tee
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -122,7 +122,7 @@ func newTestHandler(t *testing.T, name string) *myHandler {
 }
 
 func (h *myHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.t.Error(err)
 	}

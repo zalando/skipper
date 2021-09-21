@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -965,7 +964,7 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 		// Note that in containers this will be the container limit.
 		// Runtimes without the file will use defaults defined in `queuelistener` package.
 		const memoryLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
+		memoryLimitBytes, err := os.ReadFile(memoryLimitFile)
 		if err != nil {
 			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
 		} else {

@@ -2,7 +2,6 @@ package kubernetes
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,7 +22,7 @@ type filterSet struct {
 type defaultFilters map[definitions.ResourceID]*filterSet
 
 func readDefaultFilters(dir string) (defaultFilters, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -31,13 +30,14 @@ func readDefaultFilters(dir string) (defaultFilters, error) {
 	filters := make(defaultFilters)
 	for _, f := range files {
 		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
-		if len(r) != 2 || !(f.Mode().IsRegular() || f.Mode()&os.ModeSymlink != 0) || f.Size() > maxFileSize {
+		info, err := f.Info()
+		if len(r) != 2 || !(f.Type().IsRegular() || f.Type()&os.ModeSymlink != 0) || info.Size() > maxFileSize {
 			log.WithError(err).WithField("file", f.Name()).Debug("incompatible file")
 			continue
 		}
 
 		file := filepath.Join(dir, f.Name())
-		config, err := ioutil.ReadFile(file)
+		config, err := os.ReadFile(file)
 		if err != nil {
 			log.WithError(err).WithField("file", file).Debug("could not read file")
 			continue

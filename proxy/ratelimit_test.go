@@ -1,7 +1,7 @@
 package proxy_test
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -187,7 +187,7 @@ func doRequest(url string) (int, http.Header, error) {
 	}
 	defer rsp.Body.Close()
 
-	_, err = ioutil.ReadAll(rsp.Body)
+	_, err = io.ReadAll(rsp.Body)
 	if err != nil {
 		return -1, nil, err
 	}

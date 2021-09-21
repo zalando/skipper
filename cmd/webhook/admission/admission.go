@@ -3,7 +3,7 @@ package admission
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -117,7 +117,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			return
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Errorf("Failed to read request: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)

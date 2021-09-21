@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -835,7 +834,7 @@ func newDeflatePoolCompressor(level int) *deflatePoolCompressor {
 	return &deflatePoolCompressor{
 		poolWriter: &sync.Pool{
 			New: func() interface{} {
-				w, err := flate.NewWriter(ioutil.Discard, level)
+				w, err := flate.NewWriter(io.Discard, level)
 				if err != nil {
 					log.Errorf("failed to generate new deflate writer: %v", err)
 				}
@@ -870,5 +869,5 @@ func (dc *deflatePoolCompressor) decompress(compData []byte) ([]byte, error) {
 	if err := zr.Close(); err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(zr)
+	return io.ReadAll(zr)
 }

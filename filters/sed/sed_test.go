@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -52,7 +51,7 @@ func testResponse(name string, test testItem) func(*testing.T) {
 		}
 
 		defer rsp.Body.Close()
-		d, err := ioutil.ReadAll(rsp.Body)
+		d, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +68,7 @@ func testRequest(name string, test testItem) func(*testing.T) {
 	return func(t *testing.T) {
 		b := httptest.NewServer(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				b, err := ioutil.ReadAll(r.Body)
+				b, err := io.ReadAll(r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusBadRequest)
 					fmt.Fprintln(w, err)
@@ -107,7 +106,7 @@ func testRequest(name string, test testItem) func(*testing.T) {
 		defer rsp.Body.Close()
 		if rsp.StatusCode != http.StatusOK {
 			t.Error("Failed to edit stream.")
-			d, err := ioutil.ReadAll(rsp.Body)
+			d, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Fatal(err)
 			}

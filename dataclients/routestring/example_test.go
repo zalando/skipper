@@ -5,7 +5,7 @@ package routestring_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -37,7 +37,7 @@ func Example() {
 	}
 
 	defer rsp.Body.Close()
-	content, err := ioutil.ReadAll(rsp.Body)
+	content, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		log.Println(err)
 		return

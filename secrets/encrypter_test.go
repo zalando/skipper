@@ -2,7 +2,6 @@ package secrets
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"sync"
@@ -105,7 +104,7 @@ func TestGetEncrypter(t *testing.T) {
 	var wg sync.WaitGroup
 	reg := NewRegistry()
 	defer reg.Close()
-	fd, err := ioutil.TempFile(".", "")
+	fd, err := os.CreateTemp(".", "")
 	if err != nil {
 		t.Fatalf("Failed to create temp file for test: %v", err)
 	}
