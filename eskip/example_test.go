@@ -48,9 +48,6 @@ func Example() {
 
 		// route definition with a loopback to route2 (no backend address)
 		route4: Path("/some/alternative/path") -> setPath("/some/other/path") -> <loopback>;
-
-        // route definition which forwards rest of requests (no backend address)
-		route5: * -> requestHeader("X-Type", "page") -> <forward>;
 		`
 
 	routes, err := eskip.Parse(code)
@@ -72,9 +69,6 @@ func Example() {
 	// route2: [match] -> [1 filter(s) ->] <shunt> ""
 	// route3: [match] -> [1 filter(s) ->] <network> "https://api.example.org"
 	// route4: [match] -> [1 filter(s) ->] <loopback> ""
-
-	// TODO: try to represent this compressed output in a nicer way. This is is now somewhat confusing
-	// considering that it looks almost like eskip but it isn't.
 }
 
 func ExampleFilter() {
