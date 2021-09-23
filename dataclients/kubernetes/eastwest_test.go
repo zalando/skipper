@@ -68,7 +68,7 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 			},
 			want: &eskip.Route{
 				Id:          "kubeew_foo__qux__www3_example_org___a_path__bar",
-				HostRegexps: []string{"^(serviceA[.]default[.]cluster[.]local([.])?(:[0-9]+)?)$"},
+				HostRegexps: []string{"^(serviceA[.]default[.]cluster[.]local[.]?(:[0-9]+)?)$"},
 			},
 		},
 	}
