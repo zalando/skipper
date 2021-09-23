@@ -43,6 +43,6 @@ func (host) CreateFilter([]interface{}) (filters.Filter, error) { return host{},
 func (host) Response(filters.FilterContext)                     {}
 
 func (host) Request(ctx filters.FilterContext) {
-	req := ctx.Request()
-	req.Host = rfc.PatchHost(req.Host)
+	ctx.Request().Host = rfc.PatchHost(ctx.Request().Host)
+	ctx.SetOutgoingHost(rfc.PatchHost(ctx.OutgoingHost()))
 }

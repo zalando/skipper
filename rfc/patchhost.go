@@ -6,5 +6,6 @@ import "strings"
 // see also the discussion in
 // https://lists.w3.org/Archives/Public/ietf-http-wg/2016JanMar/0430.html.
 func PatchHost(host string) string {
+	host = strings.Replace(host, ".:", ":", -1)
 	return strings.TrimSuffix(host, ".")
 }
