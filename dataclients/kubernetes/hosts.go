@@ -15,7 +15,10 @@ func createHostRx(hosts ...string) string {
 
 	hrx := make([]string, len(hosts))
 	for i, host := range hosts {
-		hrx[i] = strings.Replace(host, ".", "[.]", -1) + "(:[0-9]+)?"
+		// trailing dots and port are not allowed in kube
+		// ingress spec, so we can append optional setting
+		// without check
+		hrx[i] = strings.Replace(host, ".", "[.]", -1) + "([.])?(:[0-9]+)?"
 	}
 
 	return "^(" + strings.Join(hrx, "|") + ")$"
