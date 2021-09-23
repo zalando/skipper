@@ -1195,14 +1195,14 @@ secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 ## jwtValidation
 
 The filter parses bearer jwt token from Authorization header and validates the signature using public keys
-discovered via /.well-known/openid-configuration endpoint. Takes issuer url as single parameter. 
+discovered via /.well-known/openid-configuration endpoint. Takes issuer url as single parameter.
 The filter stores token claims into the state bag where they can be used by oidcClaimsQuery() or forwardTokenPart()
- 
+
 
 Examples:
 
 ```
-jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0") 
+jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 ```
 
 
@@ -1225,8 +1225,8 @@ forwardToken("X-Tokeninfo-Forward", "access_token", "token_type")
 
 ## forwardTokenField
 
-The filter takes a header name and a field as its first and second arguments. The corresponding field from the result of token info, token introspection or oidc user info is added as 
-corresponding header when the request is passed to the backend. 
+The filter takes a header name and a field as its first and second arguments. The corresponding field from the result of token info, token introspection or oidc user info is added as
+corresponding header when the request is passed to the backend.
 
 If this filter is used when there is no token introspection, token info or oidc user info data
 then it does not have any effect.
@@ -2261,6 +2261,19 @@ group, a warning will be logged.
 It is possible to use the lifoGroup filter together with the single lifo filter, e.g. if
 a route belongs to a group, but needs to have additional stricter settings then the whole
 group.
+
+## rfcHost
+
+This filter removes the optional trailing dot in the outgoing host
+header.
+
+
+Example:
+
+```
+rfcHost()
+```
+
 
 ## rfcPath
 
