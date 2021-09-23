@@ -1,29 +1,29 @@
-kube_rg__default__myapp__push__0_0: Host(/^(www[.]complex[.]example[.]org(:[0-9]+)?|complex[.]example[.]org(:[0-9]+)?)$/) && Method("PUSH") && PathSubtree("/")
+kube_rg__default__myapp__push__0_0: Host(/^(www[.]complex[.]example[.]org([.])?(:[0-9]+)?|complex[.]example[.]org([.])?(:[0-9]+)?)$/) && Method("PUSH") && PathSubtree("/")
   -> oauthTokeninfoAllScope("myapp.write")
   -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
 
-kube_rg__default__myapp__put__0_0: Host(/^(www[.]complex[.]example[.]org(:[0-9]+)?|complex[.]example[.]org(:[0-9]+)?)$/) && Method("PUT") && PathSubtree("/")
+kube_rg__default__myapp__put__0_0: Host(/^(www[.]complex[.]example[.]org([.])?(:[0-9]+)?|complex[.]example[.]org([.])?(:[0-9]+)?)$/) && Method("PUT") && PathSubtree("/")
   -> oauthTokeninfoAllScope("myapp.write")
   -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
 
-kube_rg__default__myapp__patch__0_0: Host(/^(www[.]complex[.]example[.]org(:[0-9]+)?|complex[.]example[.]org(:[0-9]+)?)$/) && Method("PATCH") && PathSubtree("/")
+kube_rg__default__myapp__patch__0_0: Host(/^(www[.]complex[.]example[.]org([.])?(:[0-9]+)?|complex[.]example[.]org([.])?(:[0-9]+)?)$/) && Method("PATCH") && PathSubtree("/")
   -> oauthTokeninfoAllScope("myapp.write")
   -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
 
-kube_rg__default__myapp__delete__0_0: Host(/^(www[.]complex[.]example[.]org(:[0-9]+)?|complex[.]example[.]org(:[0-9]+)?)$/) && Method("DELETE") && PathSubtree("/")
+kube_rg__default__myapp__delete__0_0: Host(/^(www[.]complex[.]example[.]org([.])?(:[0-9]+)?|complex[.]example[.]org([.])?(:[0-9]+)?)$/) && Method("DELETE") && PathSubtree("/")
   -> oauthTokeninfoAllScope("myapp.write")
   -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
 
-kube_rg__default__myapp__get__1_0: Host(/^(www[.]complex[.]example[.]org(:[0-9]+)?|complex[.]example[.]org(:[0-9]+)?)$/) && Method("GET") && PathSubtree("/")
+kube_rg__default__myapp__get__1_0: Host(/^(www[.]complex[.]example[.]org([.])?(:[0-9]+)?|complex[.]example[.]org([.])?(:[0-9]+)?)$/) && Method("GET") && PathSubtree("/")
   -> oauthTokeninfoAllScope("myapp.read")
   -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
 
-kube_rg__default__myapp__head__1_0: Host(/^(www[.]complex[.]example[.]org(:[0-9]+)?|complex[.]example[.]org(:[0-9]+)?)$/) && Method("HEAD") && PathSubtree("/")
+kube_rg__default__myapp__head__1_0: Host(/^(www[.]complex[.]example[.]org([.])?(:[0-9]+)?|complex[.]example[.]org([.])?(:[0-9]+)?)$/) && Method("HEAD") && PathSubtree("/")
   -> oauthTokeninfoAllScope("myapp.read")
   -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
 
-kube_rg____www_complex_example_org__catchall__0_0: Host(/^(www[.]complex[.]example[.]org(:[0-9]+)?)$/)
+kube_rg____www_complex_example_org__catchall__0_0: Host(/^(www[.]complex[.]example[.]org([.])?(:[0-9]+)?)$/)
   -> <shunt>;
 
-kube_rg____complex_example_org__catchall__0_0: Host(/^(complex[.]example[.]org(:[0-9]+)?)$/)
+kube_rg____complex_example_org__catchall__0_0: Host(/^(complex[.]example[.]org([.])?(:[0-9]+)?)$/)
   -> <shunt>;
