@@ -20,12 +20,12 @@ type BackendRecorderHandler struct {
 	server   *httptest.Server
 	requests []RecordedRequest
 	mutex    sync.RWMutex
-	Done     <-chan time.Time
+	done     <-chan time.Time
 }
 
 func NewBackendRecorder(closeAfter time.Duration) *BackendRecorderHandler {
 	handler := &BackendRecorderHandler{
-		Done: time.After(closeAfter),
+		done: time.After(closeAfter),
 	}
 	server := httptest.NewServer(handler)
 	handler.server = server
@@ -61,6 +61,7 @@ func (rec *BackendRecorderHandler) GetURL() string {
 	return rec.server.URL
 }
 
-func (rec *BackendRecorderHandler) Close() {
+func (rec *BackendRecorderHandler) Done() {
+	<-rec.done
 	rec.server.Close()
 }

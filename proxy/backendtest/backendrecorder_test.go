@@ -20,7 +20,7 @@ func TestServerShouldCloseWhenAllRequestsAreFulfilled(t *testing.T) {
 			_, _ = io.ReadAll(resp.Body)
 		}(i)
 	}
-	<-recorder.Done
+	recorder.Done()
 	servedRequests := len(recorder.GetRequests())
 	if servedRequests != expectedRequests {
 		t.Errorf("number of requests served does not match with the expected. Expected %d but got %d", expectedRequests, servedRequests)
