@@ -372,7 +372,8 @@ func NewConfig() *Config {
 	flag.Var(cfg.ForwardedHeadersList, "forwarded-headers", "comma separated list of headers to add to the incoming request before routing\n"+
 		"X-Forwarded-For sets or appends with comma the remote IP of the request to the X-Forwarded-For header value\n"+
 		"X-Forwarded-Host sets X-Forwarded-Host value to the request host\n"+
-		"X-Forwarded-Proto=http or X-Forwarded-Proto=https sets X-Forwarded-Proto value")
+		"X-Forwarded-Port=<port> sets X-Forwarded-Port value\n"+
+		"X-Forwarded-Proto=<http|https> sets X-Forwarded-Proto value")
 	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs")
 
 	// Kubernetes:
@@ -846,14 +847,16 @@ func (c *Config) parseHistogramBuckets() ([]float64, error) {
 
 func (c *Config) parseForwardedHeaders() error {
 	for _, header := range c.ForwardedHeadersList.values {
-		switch header {
-		case "X-Forwarded-For":
+		switch {
+		case header == "X-Forwarded-For":
 			c.ForwardedHeaders.For = true
-		case "X-Forwarded-Host":
+		case header == "X-Forwarded-Host":
 			c.ForwardedHeaders.Host = true
-		case "X-Forwarded-Proto=http":
+		case strings.HasPrefix(header, "X-Forwarded-Port="):
+			c.ForwardedHeaders.Port = strings.TrimPrefix(header, "X-Forwarded-Port=")
+		case header == "X-Forwarded-Proto=http":
 			c.ForwardedHeaders.Proto = "http"
-		case "X-Forwarded-Proto=https":
+		case header == "X-Forwarded-Proto=https":
 			c.ForwardedHeaders.Proto = "https"
 		default:
 			return fmt.Errorf("invalid forwarded header: %s", header)

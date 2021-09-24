@@ -14,6 +14,8 @@ type ForwardedHeaders struct {
 	PrependFor bool
 	// Sets X-Forwarded-Host to the request host
 	Host bool
+	// Sets X-Forwarded-Port value
+	Port string
 	// Sets X-Forwarded-Proto value
 	Proto string
 }
@@ -38,6 +40,10 @@ func (h *ForwardedHeaders) Set(req *http.Request) {
 
 	if h.Host {
 		req.Header.Set("X-Forwarded-Host", req.Host)
+	}
+
+	if h.Port != "" {
+		req.Header.Set("X-Forwarded-Port", h.Port)
 	}
 
 	if h.Proto != "" {
