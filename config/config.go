@@ -226,6 +226,7 @@ type Config struct {
 	ExpectContinueTimeoutBackend time.Duration `yaml:"expect-continue-timeout-backend"`
 	MaxIdleConnsBackend          int           `yaml:"max-idle-connection-backend"`
 	DisableHTTPKeepalives        bool          `yaml:"disable-http-keepalives"`
+	EnableH2CPriorKnowledge      bool          `yaml:"enable-h2c-prior-knowledge"`
 
 	// swarm:
 	EnableSwarm bool `yaml:"enable-swarm"`
@@ -474,6 +475,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.ExpectContinueTimeoutBackend, "expect-continue-timeout-backend", 30*time.Second, "sets the HTTP expect continue timeout for backend connections")
 	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", 0, "sets the maximum idle connections for all backend connections")
 	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
+	flag.BoolVar(&cfg.EnableH2CPriorKnowledge, "enable-h2c-prior-knowledge", false, "enables HTTP/2 connections over cleartext TCP with Prior Knowledge")
 
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
@@ -805,6 +807,7 @@ func (c *Config) ToOptions() skipper.Options {
 		ExpectContinueTimeoutBackend: c.ExpectContinueTimeoutBackend,
 		MaxIdleConnsBackend:          c.MaxIdleConnsBackend,
 		DisableHTTPKeepalives:        c.DisableHTTPKeepalives,
+		EnableH2CPriorKnowledge:      c.EnableH2CPriorKnowledge,
 
 		// swarm:
 		EnableSwarm: c.EnableSwarm,

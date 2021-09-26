@@ -35,6 +35,7 @@ import (
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
+	"github.com/zalando/skipper/h2c"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
@@ -342,6 +343,9 @@ type Options struct {
 	// DisableHTTPKeepalives sets DisableKeepAlives, which forces
 	// a backend to always create a new connection.
 	DisableHTTPKeepalives bool
+
+	// Enables HTTP/2 connections over cleartext TCP with Prior Knowledge
+	EnableH2CPriorKnowledge bool
 
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
@@ -981,6 +985,10 @@ func (o *Options) tlsConfig() (*tls.Config, error) {
 		return nil, nil
 	}
 
+	if o.EnableH2CPriorKnowledge {
+		return nil, fmt.Errorf("TLS implies no HTTP/2 connections over cleartext TCP")
+	}
+
 	crts := strings.Split(o.CertPathTLS, ",")
 	keys := strings.Split(o.KeyPathTLS, ",")
 
@@ -1064,6 +1072,7 @@ func listenAndServeQuit(
 	if err != nil {
 		return err
 	}
+	serveTLS := tlsConfig != nil
 
 	srv := &http.Server{
 		Addr:              o.Address,
@@ -1094,6 +1103,12 @@ func listenAndServeQuit(
 		sigs = make(chan os.Signal, 1)
 	}
 
+	shutdown := srv.Shutdown
+	if o.EnableH2CPriorKnowledge {
+		log.Infof("Enabling HTTP/2 connections over cleartext TCP")
+		shutdown = h2c.Enable(srv, nil).Shutdown
+	}
+
 	go func() {
 		signal.Notify(sigs, syscall.SIGTERM)
 
@@ -1103,7 +1118,7 @@ func listenAndServeQuit(
 		time.Sleep(o.WaitForHealthcheckInterval)
 
 		log.Info("Start shutdown")
-		if err := srv.Shutdown(context.Background()); err != nil {
+		if err := shutdown(context.Background()); err != nil {
 			log.Errorf("Failed to graceful shutdown: %v", err)
 		}
 		close(idleConnsCH)
@@ -1111,7 +1126,7 @@ func listenAndServeQuit(
 
 	log.Infof("proxy listener on %v", o.Address)
 
-	if srv.TLSConfig != nil {
+	if serveTLS {
 		if err := srv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
 			log.Errorf("ListenAndServeTLS failed: %v", err)
 			return err

@@ -5,12 +5,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"syscall"
 	"testing"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
 
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters"
@@ -26,6 +28,45 @@ const (
 	listenDelay   = 15 * time.Millisecond
 	listenTimeout = 9 * listenDelay
 )
+
+type protocol int
+
+const (
+	HTTP protocol = iota
+	HTTPS
+	H2C
+)
+
+func (p protocol) scheme() string {
+	return [...]string{"http", "https", "http"}[p]
+}
+
+func (p protocol) newClient() *http.Client {
+	switch p {
+	case HTTP:
+		return http.DefaultClient
+	case HTTPS:
+		return &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+	case H2C:
+		return &http.Client{
+			Transport: &http2.Transport{
+				// allow http scheme
+				AllowHTTP: true,
+				// ignore tls.Config and dial unencrypted TCP
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return net.Dial(network, addr)
+				},
+			},
+		}
+	}
+	return nil
+}
 
 func testListener() bool {
 	for _, a := range os.Args {
@@ -54,12 +95,16 @@ func waitConn(req func() (*http.Response, error)) (*http.Response, error) {
 	}
 }
 
-func waitConnGet(url string) (*http.Response, error) {
+func waitConnGet(proto protocol, address string) (*http.Response, error) {
+	u, err := neturl.Parse("scheme://" + address)
+	if err != nil {
+		return nil, err
+	}
+	u.Scheme = proto.scheme()
+	client := proto.newClient()
+
 	return waitConn(func() (*http.Response, error) {
-		return (&http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true}}}).Get(url)
+		return client.Get(u.String())
 	})
 }
 
@@ -113,7 +158,7 @@ func TestOptionsTLSConfig(t *testing.T) {
 	require.Equal(t, []tls.Certificate{cert, cert2}, c.Certificates)
 }
 
-func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
+func TestOptionsTLSConfigInvalid(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		options *Options
@@ -125,6 +170,7 @@ func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
 		{"cert key mismatch", &Options{CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test2.key"}},
 		{"multiple cert key count mismatch", &Options{CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test.key"}},
 		{"multiple cert key mismatch", &Options{CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test2.key,fixtures/test.key"}},
+		{"h2c conflicts with tls", &Options{EnableH2CPriorKnowledge: true, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := tt.options.tlsConfig()
@@ -161,7 +207,7 @@ func TestHTTPSServer(t *testing.T) {
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 
-	r, err := waitConnGet("https://" + o.Address)
+	r, err := waitConnGet(HTTPS, o.Address)
 	if r != nil {
 		defer r.Body.Close()
 	}
@@ -199,7 +245,7 @@ func TestHTTPServer(t *testing.T) {
 	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
-	r, err := waitConnGet("http://" + o.Address)
+	r, err := waitConnGet(HTTP, o.Address)
 	if r != nil {
 		defer r.Body.Close()
 	}
@@ -215,27 +261,33 @@ func TestHTTPServer(t *testing.T) {
 	}
 }
 
-func TestHTTPServerShutdown(t *testing.T) {
+func TestServerShutdownHTTP(t *testing.T) {
 	o := &Options{}
-	testServerShutdown(t, o, "http")
+	testServerShutdown(t, o, HTTP)
 }
 
-func TestHTTPSServerShutdown(t *testing.T) {
+func TestServerShutdownHTTPS(t *testing.T) {
 	o := &Options{
 		CertPathTLS: "fixtures/test.crt",
 		KeyPathTLS:  "fixtures/test.key",
 	}
-	testServerShutdown(t, o, "https")
+	testServerShutdown(t, o, HTTPS)
 }
 
-func testServerShutdown(t *testing.T, o *Options, scheme string) {
+func TestServerShutdownH2C(t *testing.T) {
+	o := &Options{
+		EnableH2CPriorKnowledge: true,
+	}
+	testServerShutdown(t, o, H2C)
+}
+
+func testServerShutdown(t *testing.T, o *Options, proto protocol) {
 	const shutdownDelay = 1 * time.Second
 
 	address, err := findAddress()
 	require.NoError(t, err)
 
 	o.Address, o.WaitForHealthcheckInterval = address, shutdownDelay
-	testUrl := scheme + "://" + address
 
 	// simulate a backend that got a request and should be handled correctly
 	dc, err := routestring.New(`r0: * -> latency("3s") -> inlineContent("OK") -> status(200) -> <shunt>`)
@@ -262,7 +314,7 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	time.Sleep(shutdownDelay / 2)
 
 	t.Logf("ongoing request passing in before shutdown")
-	r, err := waitConnGet(testUrl)
+	r, err := waitConnGet(proto, address)
 	require.NoError(t, err)
 	require.Equal(t, 200, r.StatusCode)
 
@@ -275,7 +327,7 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	time.Sleep(shutdownDelay / 2)
 
 	t.Logf("request after shutdown should fail")
-	_, err = waitConnGet(testUrl)
+	_, err = waitConnGet(proto, address)
 	require.Error(t, err)
 }
 
