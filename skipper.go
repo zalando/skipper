@@ -944,8 +944,35 @@ func initLog(o Options) error {
 	return nil
 }
 
-func (o *Options) isHTTPS() bool {
-	return (o.ProxyTLS != nil) || (o.CertPathTLS != "" && o.KeyPathTLS != "")
+func (o *Options) tlsConfig() (*tls.Config, error) {
+	if o.ProxyTLS != nil {
+		return o.ProxyTLS, nil
+	}
+
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
+		return nil, nil
+	}
+
+	crts := strings.Split(o.CertPathTLS, ",")
+	keys := strings.Split(o.KeyPathTLS, ",")
+
+	if len(crts) != len(keys) {
+		return nil, fmt.Errorf("number of certificates does not match number of keys")
+	}
+
+	config := &tls.Config{
+		MinVersion: o.TLSMinVersion,
+	}
+
+	for i := 0; i < len(crts); i++ {
+		crt, key := crts[i], keys[i]
+		keypair, err := tls.LoadX509KeyPair(crt, key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load X509 keypair from %s and %s: %w", crt, key, err)
+		}
+		config.Certificates = append(config.Certificates, keypair)
+	}
+	return config, nil
 }
 
 func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
@@ -1005,11 +1032,14 @@ func listenAndServeQuit(
 	idleConnsCH chan struct{},
 	mtr metrics.Metrics,
 ) error {
-	// create the access log handler
-	log.Infof("proxy listener on %v", o.Address)
+	tlsConfig, err := o.tlsConfig()
+	if err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              o.Address,
+		TLSConfig:         tlsConfig,
 		Handler:           proxy,
 		ReadTimeout:       o.ReadTimeoutServer,
 		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
@@ -1024,35 +1054,6 @@ func listenAndServeQuit(
 			m.IncCounter(fmt.Sprintf("lb-conn-%s", state))
 		}
 	}
-
-	if o.isHTTPS() {
-		if o.ProxyTLS != nil {
-			srv.TLSConfig = o.ProxyTLS
-			o.CertPathTLS = ""
-			o.KeyPathTLS = ""
-		} else if strings.Index(o.CertPathTLS, ",") > 0 && strings.Index(o.KeyPathTLS, ",") > 0 {
-			tlsCfg := &tls.Config{
-				MinVersion: o.TLSMinVersion,
-			}
-			crts := strings.Split(o.CertPathTLS, ",")
-			keys := strings.Split(o.KeyPathTLS, ",")
-			if len(crts) != len(keys) {
-				log.Fatalf("number of certs does not match number of keys")
-			}
-			for i, crt := range crts {
-				kp, err := tls.LoadX509KeyPair(crt, keys[i])
-				if err != nil {
-					log.Fatalf("Failed to load X509 keypair from %s/%s: %v", crt, keys[i], err)
-				}
-				tlsCfg.Certificates = append(tlsCfg.Certificates, kp)
-			}
-			o.CertPathTLS = ""
-			o.KeyPathTLS = ""
-			srv.TLSConfig = tlsCfg
-		}
-		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
-	}
-	log.Infof("TLS settings not found, defaulting to HTTP")
 
 	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
 	// from the tests
@@ -1079,14 +1080,25 @@ func listenAndServeQuit(
 		close(idleConnsCH)
 	}()
 
-	l, err := listen(o, mtr)
-	if err != nil {
-		return err
-	}
+	log.Infof("proxy listener on %v", o.Address)
 
-	if err := srv.Serve(l); err != nil && err != http.ErrServerClosed {
-		log.Errorf("Failed to start to ListenAndServe: %v", err)
-		return err
+	if srv.TLSConfig != nil {
+		if err := srv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
+			log.Errorf("ListenAndServeTLS failed: %v", err)
+			return err
+		}
+	} else {
+		log.Infof("TLS settings not found, defaulting to HTTP")
+
+		l, err := listen(o, mtr)
+		if err != nil {
+			return err
+		}
+
+		if err := srv.Serve(l); err != http.ErrServerClosed {
+			log.Errorf("Serve failed: %v", err)
+			return err
+		}
 	}
 
 	<-idleConnsCH
