@@ -35,7 +35,7 @@ func (e *eskipBytes) bytes() ([]byte, bool) {
 // being true, when the stored bytes were set for the first time.
 func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
 	buf := &bytes.Buffer{}
-	eskip.Fprint(buf, eskip.PrettyPrintInfo{}, routes...)
+	eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
