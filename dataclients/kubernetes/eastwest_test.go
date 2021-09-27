@@ -1,9 +1,10 @@
 package kubernetes
 
 import (
-	"github.com/zalando/skipper/eskip"
 	"reflect"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
 )
 
 func TestCreateEastWestRouteIng(t *testing.T) {
@@ -67,7 +68,7 @@ func TestCreateEastWestRouteIng(t *testing.T) {
 			},
 			want: &eskip.Route{
 				Id:          "kubeew_foo__qux__www3_example_org___a_path__bar",
-				HostRegexps: []string{"^(serviceA[.]default[.]cluster[.]local(:[0-9]+)?)$"},
+				HostRegexps: []string{"^(serviceA[.]default[.]cluster[.]local[.]?(:[0-9]+)?)$"},
 			},
 		},
 	}

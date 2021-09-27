@@ -311,12 +311,12 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 		kube_namespace1__ingress1______: * -> "http://1.1.1.0:8080";
 		kube_namespace1__ingress2______: *-> "http://1.1.2.0:8181";
 		kube_namespace1__ingress1__www_example_org___foo__service1:
-			Host("^(www[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/foo)")
 			-> "http://1.1.1.0:8080";
 		kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect:
 			Header("X-Forwarded-Proto", "http") &&
-			Host("^(www[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/foo)") &&
 
 			// increase priority of the redirect routes.
@@ -325,7 +325,7 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 			-> redirectTo(308, "https:")
 			-> <shunt>;
 		kube___catchall__www_example_org____:
-			Host("^(www[.]example[.]org(:[0-9]+)?)$")
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> <shunt>;
 		kube___catchall__www_example_org_____https_redirect:
 
@@ -333,15 +333,15 @@ func TestEnableHTTPSRedirectFromIngress(t *testing.T) {
 			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http") &&
-			Host("^(www[.]example[.]org(:[0-9]+)?)$")
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> redirectTo(308, "https:")
 			-> <shunt>;
 		kube_namespace1__ingress2__api_example_org___bar__service2:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/bar)")
 			-> "http://1.1.2.0:8181";
 		kube___catchall__api_example_org____:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$")
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> <shunt>;
 	`
 
@@ -418,18 +418,18 @@ func TestDisableHTTPSRedirectFromIngress(t *testing.T) {
 		kube_namespace1__ingress1______: * -> "http://1.1.1.0:8080";
 		kube_namespace1__ingress2______: * -> "http://1.1.2.0:8181";
 		kube_namespace1__ingress1__www_example_org___foo__service1:
-			Host("^(www[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/foo)")
 			-> "http://1.1.1.0:8080";
 		kube___catchall__www_example_org____:
-			Host("^(www[.]example[.]org(:[0-9]+)?)$")
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> <shunt>;
 		kube_namespace1__ingress2__api_example_org___bar__service2:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/bar)")
 			-> "http://1.1.2.0:8181";
 		kube_namespace1__ingress2__api_example_org___bar__service2_disable_https_redirect:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/bar)") &&
 
 			// increase priority of the redirect routes.
@@ -438,10 +438,10 @@ func TestDisableHTTPSRedirectFromIngress(t *testing.T) {
 			Header("X-Forwarded-Proto", "http")
 			-> "http://1.1.2.0:8181";
 		kube___catchall__api_example_org____:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$")
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> <shunt>;
 		kube___catchall__api_example_org_____disable_https_redirect:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$") &&
 
 			// increase priority of the redirect routes.
 			Weight(1000) &&
@@ -521,12 +521,12 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 		kube_namespace1__ingress1______: * -> "http://1.1.1.0:8080";
 		kube_namespace1__ingress2______: *-> "http://1.1.2.0:8181";
 		kube_namespace1__ingress1__www_example_org___foo__service1:
-			Host("^(www[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/foo)")
 			-> "http://1.1.1.0:8080";
 		kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect:
 			Header("X-Forwarded-Proto", "http") &&
-			Host("^(www[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/foo)") &&
 
 			// increase priority of the redirect routes.
@@ -535,7 +535,7 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 			-> redirectTo(301, "https:")
 			-> <shunt>;
 		kube___catchall__www_example_org____:
-			Host("^(www[.]example[.]org(:[0-9]+)?)$")
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> <shunt>;
 		kube___catchall__www_example_org_____https_redirect:
 
@@ -543,15 +543,15 @@ func TestChangeRedirectCodeFromIngress(t *testing.T) {
 			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http") &&
-			Host("^(www[.]example[.]org(:[0-9]+)?)$")
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> redirectTo(301, "https:")
 			-> <shunt>;
 		kube_namespace1__ingress2__api_example_org___bar__service2:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/bar)")
 			-> "http://1.1.2.0:8181";
 		kube___catchall__api_example_org____:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$")
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> <shunt>;
 		kube__redirect:
 
@@ -626,12 +626,12 @@ func TestEnableRedirectWithCustomCode(t *testing.T) {
 		kube_namespace1__ingress1______: * -> "http://1.1.1.0:8080";
 		kube_namespace1__ingress2______: *-> "http://1.1.2.0:8181";
 		kube_namespace1__ingress1__www_example_org___foo__service1:
-			Host("^(www[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/foo)")
 			-> "http://1.1.1.0:8080";
 		kube_namespace1__ingress1__www_example_org___foo__service1_https_redirect:
 			Header("X-Forwarded-Proto", "http") &&
-			Host("^(www[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/foo)") &&
 
 			// increase priority of the redirect routes.
@@ -640,7 +640,7 @@ func TestEnableRedirectWithCustomCode(t *testing.T) {
 			-> redirectTo(301, "https:")
 			-> <shunt>;
 		kube___catchall__www_example_org____:
-			Host("^(www[.]example[.]org(:[0-9]+)?)$")
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> <shunt>;
 		kube___catchall__www_example_org_____https_redirect:
 
@@ -648,15 +648,15 @@ func TestEnableRedirectWithCustomCode(t *testing.T) {
 			Weight(1000) &&
 
 			Header("X-Forwarded-Proto", "http") &&
-			Host("^(www[.]example[.]org(:[0-9]+)?)$")
+			Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> redirectTo(301, "https:")
 			-> <shunt>;
 		kube_namespace1__ingress2__api_example_org___bar__service2:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$") &&
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$") &&
 			PathRegexp("^(/bar)")
 			-> "http://1.1.2.0:8181";
 		kube___catchall__api_example_org____:
-			Host("^(api[.]example[.]org(:[0-9]+)?)$")
+			Host("^(api[.]example[.]org[.]?(:[0-9]+)?)$")
 			-> <shunt>;
 	`
 
