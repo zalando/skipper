@@ -24,3 +24,24 @@ func TestPatch(t *testing.T) {
 		t.Error("failed to patch the path", req.URL.Path)
 	}
 }
+
+func TestPatchHost(t *testing.T) {
+	req, err := http.NewRequest("GET", "http://www.example.org.", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := &filtertest.Context{
+		FRequest: req,
+	}
+
+	f, err := NewHost().CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f.Request(ctx)
+	if req.Host != "www.example.org" {
+		t.Error("failed to patch the host", req.Host)
+	}
+}

@@ -5,7 +5,10 @@ import (
 	"github.com/zalando/skipper/rfc"
 )
 
-const Name = "rfcPath"
+const (
+	Name     = "rfcPath"
+	NameHost = "rfcHost"
+)
 
 type path struct{}
 
@@ -24,4 +27,22 @@ func (p path) Response(filters.FilterContext)                     {}
 func (p path) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	req.URL.Path = rfc.PatchPath(req.URL.Path, req.URL.RawPath)
+}
+
+type host struct{}
+
+// NewHost creates a filter specification for the rfcHost() filter, that
+// removes a trailing dot in the host header.
+//
+// See also the PatchHost documentation in the rfc package.
+//
+func NewHost() filters.Spec { return host{} }
+
+func (host) Name() string                                       { return NameHost }
+func (host) CreateFilter([]interface{}) (filters.Filter, error) { return host{}, nil }
+func (host) Response(filters.FilterContext)                     {}
+
+func (host) Request(ctx filters.FilterContext) {
+	ctx.Request().Host = rfc.PatchHost(ctx.Request().Host)
+	ctx.SetOutgoingHost(rfc.PatchHost(ctx.OutgoingHost()))
 }

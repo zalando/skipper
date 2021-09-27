@@ -174,6 +174,7 @@ func MakeRegistry() filters.Registry {
 		scheduler.NewLIFO(),
 		scheduler.NewLIFOGroup(),
 		rfc.NewPath(),
+		rfc.NewHost(),
 		fadein.NewFadeIn(),
 		fadein.NewEndpointCreated(),
 		consistenthash.NewConsistentHashKey(),
