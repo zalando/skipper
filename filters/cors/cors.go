@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	name              = "corsOrigin"
+	Name              = "corsOrigin"
 	allowOriginHeader = "Access-Control-Allow-Origin"
 )
 
@@ -59,4 +59,4 @@ func (spec basicSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return f, nil
 }
 
-func (spec basicSpec) Name() string { return name }
+func (spec basicSpec) Name() string { return Name }

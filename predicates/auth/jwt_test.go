@@ -17,19 +17,19 @@ func Test_spec(t *testing.T) {
 	}{
 		{
 			spec: NewJWTPayloadAllKV(),
-			name: matchJWTPayloadAllKVName,
+			name: MatchJWTPayloadAllKVName,
 		},
 		{
 			spec: NewJWTPayloadAnyKV(),
-			name: matchJWTPayloadAnyKVName,
+			name: MatchJWTPayloadAnyKVName,
 		},
 		{
 			spec: NewJWTPayloadAllKVRegexp(),
-			name: matchJWTPayloadAllKVRegexpName,
+			name: MatchJWTPayloadAllKVRegexpName,
 		},
 		{
 			spec: NewJWTPayloadAnyKVRegexp(),
-			name: matchJWTPayloadAnyKVRegexpName,
+			name: MatchJWTPayloadAnyKVRegexpName,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
