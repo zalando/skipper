@@ -1193,7 +1193,6 @@ func (p *Proxy) serveResponse(ctx *context) {
 	start := time.Now()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
-	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
 
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
@@ -1207,6 +1206,8 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
+	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
+
 	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
