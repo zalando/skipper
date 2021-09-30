@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,13 +19,29 @@ import (
 	"github.com/zalando/skipper/routesrv"
 )
 
+const (
+	pollInterval = 3 * time.Second
+	waitTimeout  = 5 * time.Second
+)
+
 var tl *loggingtest.Logger
 
-func TestMain(m *testing.M) {
-	flag.Parse()
-	tl = loggingtest.New()
-	logrus.AddHook(tl)
-	os.Exit(m.Run())
+type muxHandler struct {
+	handler http.Handler
+	mu      sync.RWMutex
+}
+
+func (m *muxHandler) set(handler http.Handler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.handler = handler
+}
+
+func (m *muxHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	m.handler.ServeHTTP(w, r)
 }
 
 func newKubeAPI(t *testing.T, specs ...io.Reader) http.Handler {
@@ -36,12 +53,13 @@ func newKubeAPI(t *testing.T, specs ...io.Reader) http.Handler {
 	return api
 }
 
-func newKubeServer(t *testing.T, specs ...io.Reader) *httptest.Server {
-	return httptest.NewUnstartedServer(newKubeAPI(t, specs...))
+func newKubeServer(t *testing.T, specs ...io.Reader) (*httptest.Server, *muxHandler) {
+	handler := &muxHandler{handler: newKubeAPI(t, specs...)}
+	return httptest.NewUnstartedServer(handler), handler
 }
 
 func loadKubeYAML(t *testing.T, path string) io.Reader {
-	y, err := os.ReadFile("testdata/lb-target-multi.yaml")
+	y, err := os.ReadFile(path)
 	if err != nil {
 		t.Error("failed to open kubernetes resources fixture")
 	}
@@ -50,7 +68,7 @@ func loadKubeYAML(t *testing.T, path string) io.Reader {
 }
 
 func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteServer {
-	rs, err := routesrv.New(routesrv.Options{SourcePollTimeout: 3 * time.Second, KubernetesURL: kubeServer.URL})
+	rs, err := routesrv.New(routesrv.Options{SourcePollTimeout: pollInterval, KubernetesURL: kubeServer.URL})
 	if err != nil {
 		t.Errorf("cannot initialize server: %s", err)
 	}
@@ -71,106 +89,130 @@ func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
 	return routes
 }
 
-func TestNotInitializedRoutesAreNotServed(t *testing.T) {
-	defer tl.Reset()
-	ks := newKubeServer(t)
-	rs := newRouteServer(t, ks)
-
+func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/routes", nil)
 	rs.ServeHTTP(w, r)
 
+	return w
+}
+
+func assertHTTPStatus(t *testing.T, w *httptest.ResponseRecorder, expected int) {
+	got := w.Code
+	if got != expected {
+		t.Errorf("http status code should be %d, but was %d", expected, got)
+	}
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+	tl = loggingtest.New()
+	logrus.AddHook(tl)
+	os.Exit(m.Run())
+}
+
+func TestNotInitializedRoutesAreNotServed(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t)
+	rs := newRouteServer(t, ks)
+
+	w := getRoutes(rs)
+
 	if len(w.Body.Bytes()) > 0 {
 		t.Error("uninitialized routes were served")
 	}
-	if w.Code != http.StatusNotFound {
-		t.Error("wrong http status")
-	}
+	assertHTTPStatus(t, w, http.StatusNotFound)
 }
 
 func TestEmptyRoutesAreNotServed(t *testing.T) {
 	defer tl.Reset()
-	ks := newKubeServer(t)
+	ks, _ := newKubeServer(t)
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
-	if err := tl.WaitFor(routesrv.LogRoutesEmpty, 5*time.Second); err != nil {
+	if err := tl.WaitFor(routesrv.LogRoutesEmpty, waitTimeout); err != nil {
 		t.Error("empty routes not received")
 	}
+	w := getRoutes(rs)
 
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/routes", nil)
-	rs.ServeHTTP(w, r)
 	if len(w.Body.Bytes()) > 0 {
-		t.Error("uninitialized routes were served")
+		t.Error("empty routes were served")
 	}
-	if w.Code != http.StatusNotFound {
-		t.Error("wrong http status")
-	}
+	assertHTTPStatus(t, w, http.StatusNotFound)
 }
 
 func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	defer tl.Reset()
-	ks := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
-	if err := tl.WaitFor(routesrv.LogRoutesInitialized, 5*time.Second); err != nil {
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
 		t.Error("routes not initialized")
 	}
+	w := getRoutes(rs)
 
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/routes", nil)
-	rs.ServeHTTP(w, r)
 	expected := parseEskipFixture(t, "testdata/lb-target-multi.eskip")
 	got, err := eskip.Parse(w.Body.String())
 	if err != nil {
-		t.Error("served routes are not valid eskip")
+		t.Errorf("served routes are not valid eskip: %s", w.Body)
 	}
 	if !eskip.EqLists(expected, got) {
-		t.Errorf("output different than expected: %s", cmp.Diff(expected, got))
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(expected, got))
 	}
-	if w.Code != http.StatusOK {
-		t.Error("wrong http status")
-	}
+	assertHTTPStatus(t, w, http.StatusOK)
 }
 
 func TestLastRoutesAreServedDespiteSourceFailure(t *testing.T) {
 	defer tl.Reset()
-	ks := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
-	if err := tl.WaitFor(routesrv.LogRoutesInitialized, 5*time.Second); err != nil {
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
 		t.Error("routes not initialized")
 	}
-
-	r1 := httptest.NewRequest("GET", "/routes", nil)
-	w1 := httptest.NewRecorder()
-	rs.ServeHTTP(w1, r1)
-	if w1.Code != http.StatusOK {
-		t.Errorf("wrong http status: %d", w1.Code)
-	}
+	w1 := getRoutes(rs)
+	assertHTTPStatus(t, w1, http.StatusOK)
 
 	ks.Close()
-	if err := tl.WaitFor(routesrv.LogRoutesFetchingFailed, 5*time.Second); err != nil {
+	if err := tl.WaitFor(routesrv.LogRoutesFetchingFailed, waitTimeout); err != nil {
 		t.Error("source failure not recognized")
 	}
-
-	r2 := httptest.NewRequest("GET", "/routes", nil)
-	w2 := httptest.NewRecorder()
-	rs.ServeHTTP(w2, r2)
+	w2 := getRoutes(rs)
 
 	if !bytes.Equal(w1.Body.Bytes(), w2.Body.Bytes()) {
 		t.Error("served routes changed after source failure")
 	}
-	if w2.Code != http.StatusOK {
-		t.Errorf("wrong http status: %d", w2.Code)
+	assertHTTPStatus(t, w2, http.StatusOK)
+}
+
+func TestRoutesAreUpdated(t *testing.T) {
+	defer tl.Reset()
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServer(t, ks)
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Error("routes not initialized")
+	}
+	w1 := getRoutes(rs)
+
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
+	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout*2); err != nil {
+		t.Error("routes not updated")
+	}
+	w2 := getRoutes(rs)
+
+	if bytes.Equal(w1.Body.Bytes(), w2.Body.Bytes()) {
+		t.Error("route contents were not updated")
 	}
 }
