@@ -97,10 +97,10 @@ func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	return w
 }
 
-func assertHTTPStatus(t *testing.T, w *httptest.ResponseRecorder, expected int) {
+func wantHTTPCode(t *testing.T, w *httptest.ResponseRecorder, want int) {
 	got := w.Code
-	if got != expected {
-		t.Errorf("http status code should be %d, but was %d", expected, got)
+	if got != want {
+		t.Errorf("wrong http status; %d != %d", got, want)
 	}
 }
 
@@ -121,7 +121,7 @@ func TestNotInitializedRoutesAreNotServed(t *testing.T) {
 	if len(w.Body.Bytes()) > 0 {
 		t.Error("uninitialized routes were served")
 	}
-	assertHTTPStatus(t, w, http.StatusNotFound)
+	wantHTTPCode(t, w, http.StatusNotFound)
 }
 
 func TestEmptyRoutesAreNotServed(t *testing.T) {
@@ -140,7 +140,7 @@ func TestEmptyRoutesAreNotServed(t *testing.T) {
 	if len(w.Body.Bytes()) > 0 {
 		t.Error("empty routes were served")
 	}
-	assertHTTPStatus(t, w, http.StatusNotFound)
+	wantHTTPCode(t, w, http.StatusNotFound)
 }
 
 func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
@@ -156,15 +156,15 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	}
 	w := getRoutes(rs)
 
-	expected := parseEskipFixture(t, "testdata/lb-target-multi.eskip")
+	want := parseEskipFixture(t, "testdata/lb-target-multi.eskip")
 	got, err := eskip.Parse(w.Body.String())
 	if err != nil {
 		t.Errorf("served routes are not valid eskip: %s", w.Body)
 	}
-	if !eskip.EqLists(expected, got) {
-		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(expected, got))
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
 	}
-	assertHTTPStatus(t, w, http.StatusOK)
+	wantHTTPCode(t, w, http.StatusOK)
 }
 
 func TestLastRoutesAreServedDespiteSourceFailure(t *testing.T) {
@@ -179,7 +179,7 @@ func TestLastRoutesAreServedDespiteSourceFailure(t *testing.T) {
 		t.Error("routes not initialized")
 	}
 	w1 := getRoutes(rs)
-	assertHTTPStatus(t, w1, http.StatusOK)
+	wantHTTPCode(t, w1, http.StatusOK)
 
 	ks.Close()
 	if err := tl.WaitFor(routesrv.LogRoutesFetchingFailed, waitTimeout); err != nil {
@@ -190,7 +190,7 @@ func TestLastRoutesAreServedDespiteSourceFailure(t *testing.T) {
 	if !bytes.Equal(w1.Body.Bytes(), w2.Body.Bytes()) {
 		t.Error("served routes changed after source failure")
 	}
-	assertHTTPStatus(t, w2, http.StatusOK)
+	wantHTTPCode(t, w2, http.StatusOK)
 }
 
 func TestRoutesAreUpdated(t *testing.T) {
