@@ -38,6 +38,7 @@ func (m *muxHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func newKubeAPI(t *testing.T, specs ...io.Reader) http.Handler {
+	t.Helper()
 	api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, specs...)
 	if err != nil {
 		t.Errorf("cannot initialize kubernetes api: %s", err)
@@ -47,11 +48,13 @@ func newKubeAPI(t *testing.T, specs ...io.Reader) http.Handler {
 }
 
 func newKubeServer(t *testing.T, specs ...io.Reader) (*httptest.Server, *muxHandler) {
+	t.Helper()
 	handler := &muxHandler{handler: newKubeAPI(t, specs...)}
 	return httptest.NewUnstartedServer(handler), handler
 }
 
 func loadKubeYAML(t *testing.T, path string) io.Reader {
+	t.Helper()
 	y, err := os.ReadFile(path)
 	if err != nil {
 		t.Error("failed to open kubernetes resources fixture")
@@ -61,6 +64,7 @@ func loadKubeYAML(t *testing.T, path string) io.Reader {
 }
 
 func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteServer {
+	t.Helper()
 	rs, err := routesrv.New(routesrv.Options{SourcePollTimeout: pollInterval, KubernetesURL: kubeServer.URL})
 	if err != nil {
 		t.Errorf("cannot initialize server: %s", err)
@@ -70,6 +74,7 @@ func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteSe
 }
 
 func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
+	t.Helper()
 	eskipBytes, err := os.ReadFile("testdata/lb-target-multi.eskip")
 	if err != nil {
 		t.Error("failed to open eskip fixture")
