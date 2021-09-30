@@ -19,13 +19,6 @@ import (
 	"github.com/zalando/skipper/routesrv"
 )
 
-const (
-	pollInterval = 3 * time.Second
-	waitTimeout  = 5 * time.Second
-)
-
-var tl *loggingtest.Logger
-
 type muxHandler struct {
 	handler http.Handler
 	mu      sync.RWMutex
@@ -103,6 +96,13 @@ func wantHTTPCode(t *testing.T, w *httptest.ResponseRecorder, want int) {
 		t.Errorf("wrong http status; %d != %d", got, want)
 	}
 }
+
+const (
+	pollInterval = 3 * time.Second
+	waitTimeout  = 5 * time.Second
+)
+
+var tl *loggingtest.Logger
 
 func TestMain(m *testing.M) {
 	flag.Parse()
