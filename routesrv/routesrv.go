@@ -15,6 +15,8 @@ import (
 	"github.com/zalando/skipper/tracing"
 )
 
+// RouteServer is used to serve eskip-formatted routes,
+// that originate from the polled data source.
 type RouteServer struct {
 	server *http.Server
 	poller *poller
@@ -91,6 +93,9 @@ func (rs *RouteServer) StopUpdates() {
 	rs.poller.quit <- struct{}{}
 }
 
+// ServeHTTP serves kept eskip-formatted routes under /routes
+// endpoint. Additionally it provides a simple health check under
+// /health and Prometheus-compatible metrics under /metrics.
 func (rs *RouteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rs.server.Handler.ServeHTTP(w, r)
 }
