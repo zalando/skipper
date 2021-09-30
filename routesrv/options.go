@@ -8,6 +8,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
+// Options for initializing/running RouteServer
 type Options struct {
 	// Network address that routesrv should listen on.
 	Address string

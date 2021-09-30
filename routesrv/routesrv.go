@@ -21,6 +21,10 @@ type RouteServer struct {
 	wg     *sync.WaitGroup
 }
 
+// New returns an initialized route server according to the passed options.
+// This call does not start data source updates automatically. Kept routes
+// will stay in an uninitialized state, till StartUpdates is called and
+// in effect data source is queried and routes initialized/updated.
 func New(opts Options) (*RouteServer, error) {
 	rs := &RouteServer{}
 
@@ -76,13 +80,15 @@ func New(opts Options) (*RouteServer, error) {
 	return rs, nil
 }
 
+// StartUpdates starts the data source polling process.
 func (rs *RouteServer) StartUpdates() {
 	rs.wg.Add(1)
 	go rs.poller.poll(rs.wg)
 }
 
+// StopUpdates stop the data source polling process.
 func (rs *RouteServer) StopUpdates() {
-	close(rs.poller.quit)
+	rs.poller.quit <- struct{}{}
 }
 
 func (rs *RouteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +114,12 @@ func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 	}
 }
 
+// Run starts a route server set up according to the passed options.
+// It is a blocking call designed to be used as a single call/entry point,
+// when running the route server as a standalone binary. It returns, when
+// the server is closed, which can happen due to server startup errors or
+// gracefully handled SIGTERM signal. In case of a server startup error,
+// the error is returned as is.
 func Run(opts Options) error {
 	rs, err := New(opts)
 	if err != nil {
