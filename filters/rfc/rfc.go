@@ -5,9 +5,14 @@ import (
 	"github.com/zalando/skipper/rfc"
 )
 
-// Name is the filter name
-// Deprecated, use filters.RfcPathName instead
-const Name = filters.RfcPathName
+const (
+	// Name is the filter name
+	// Deprecated, use filters.RfcPathName instead
+	Name = filters.RfcPathName
+	// NameHost is the filter name
+	// Deprecated, use filters.RfcHostName instead
+	NameHost = filters.RfcHostName
+)
 
 type path struct{}
 
