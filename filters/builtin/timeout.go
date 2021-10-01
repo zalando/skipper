@@ -14,7 +14,7 @@ func NewBackendTimeout() filters.Spec {
 	return &timeout{}
 }
 
-func (*timeout) Name() string { return BackendTimeoutName }
+func (*timeout) Name() string { return filters.BackendTimeoutName }
 
 func (*timeout) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {

@@ -6,8 +6,12 @@ import (
 )
 
 const (
-	Name     = "rfcPath"
-	NameHost = "rfcHost"
+	// Name is the filter name
+	// Deprecated, use filters.RfcPathName instead
+	Name = filters.RfcPathName
+	// NameHost is the filter name
+	// Deprecated, use filters.RfcHostName instead
+	NameHost = filters.RfcHostName
 )
 
 type path struct{}
@@ -20,7 +24,7 @@ type path struct{}
 //
 func NewPath() filters.Spec { return path{} }
 
-func (p path) Name() string                                       { return Name }
+func (p path) Name() string                                       { return filters.RfcPathName }
 func (p path) CreateFilter([]interface{}) (filters.Filter, error) { return path{}, nil }
 func (p path) Response(filters.FilterContext)                     {}
 
@@ -38,7 +42,7 @@ type host struct{}
 //
 func NewHost() filters.Spec { return host{} }
 
-func (host) Name() string                                       { return NameHost }
+func (host) Name() string                                       { return filters.RfcHostName }
 func (host) CreateFilter([]interface{}) (filters.Filter, error) { return host{}, nil }
 func (host) Response(filters.FilterContext)                     {}
 

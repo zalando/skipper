@@ -33,7 +33,7 @@ func TestNewLIFO(t *testing.T) {
 				"5s",
 			},
 			schedFunc: NewLIFO,
-			wantName:  LIFOName,
+			wantName:  filters.LifoName,
 			wantKey:   "mykey",
 			wantErr:   false,
 			wantConfig: scheduler.Config{
@@ -52,7 +52,7 @@ func TestNewLIFO(t *testing.T) {
 				"5s",
 			},
 			schedFunc: NewLIFOGroup,
-			wantName:  LIFOGroupName,
+			wantName:  filters.LifoGroupName,
 			wantKey:   "mygroup",
 			wantErr:   false,
 			wantConfig: scheduler.Config{
@@ -71,7 +71,7 @@ func TestNewLIFO(t *testing.T) {
 				"5s",
 			},
 			schedFunc: NewLIFOGroup,
-			wantName:  LIFOGroupName,
+			wantName:  filters.LifoGroupName,
 			wantKey:   "mygroup",
 			wantErr:   false,
 			wantConfig: scheduler.Config{
@@ -88,7 +88,7 @@ func TestNewLIFO(t *testing.T) {
 				-15,
 			},
 			schedFunc: NewLIFO,
-			wantName:  LIFOName,
+			wantName:  filters.LifoName,
 			wantKey:   "mykey",
 			wantErr:   false,
 			wantConfig: scheduler.Config{
@@ -106,7 +106,7 @@ func TestNewLIFO(t *testing.T) {
 				-15,
 			},
 			schedFunc: NewLIFOGroup,
-			wantName:  LIFOGroupName,
+			wantName:  filters.LifoGroupName,
 			wantKey:   "mygroup",
 			wantErr:   false,
 			wantConfig: scheduler.Config{
@@ -124,7 +124,7 @@ func TestNewLIFO(t *testing.T) {
 				"4a",
 			},
 			schedFunc: NewLIFO,
-			wantName:  LIFOName,
+			wantName:  filters.LifoName,
 			wantKey:   "mykey",
 			wantErr:   true,
 			wantConfig: scheduler.Config{
@@ -143,7 +143,7 @@ func TestNewLIFO(t *testing.T) {
 				"4a",
 			},
 			schedFunc: NewLIFOGroup,
-			wantName:  LIFOGroupName,
+			wantName:  filters.LifoGroupName,
 			wantKey:   "mygroup",
 			wantErr:   true,
 			wantConfig: scheduler.Config{
@@ -162,7 +162,7 @@ func TestNewLIFO(t *testing.T) {
 				4.5,
 			},
 			schedFunc: NewLIFOGroup,
-			wantName:  LIFOGroupName,
+			wantName:  filters.LifoGroupName,
 			wantKey:   "mygroup",
 			wantErr:   true,
 			wantConfig: scheduler.Config{
@@ -181,7 +181,7 @@ func TestNewLIFO(t *testing.T) {
 				"4s",
 			},
 			schedFunc: NewLIFOGroup,
-			wantName:  LIFOGroupName,
+			wantName:  filters.LifoGroupName,
 			wantKey:   "mygroup",
 			wantErr:   true,
 			wantConfig: scheduler.Config{

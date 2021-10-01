@@ -34,7 +34,7 @@ func NewInlineContent() filters.Spec {
 	return &inlineContent{}
 }
 
-func (c *inlineContent) Name() string { return InlineContentName }
+func (c *inlineContent) Name() string { return filters.InlineContentName }
 
 func stringArg(a interface{}) (s string, err error) {
 	var ok bool

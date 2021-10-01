@@ -6,11 +6,11 @@ import (
 )
 
 const (
-	// Name of the "xforward" filter.
-	Name = "xforward"
+	// Deprecated, use filters.XforwardName instead
+	Name = filters.XforwardName
 
-	// NameFirst is the name of the "xforwardFirst" filter.
-	NameFirst = "xforwardFirst"
+	// Deprecated, use filters.XforwardFirstName instead
+	NameFirst = filters.XforwardFirstName
 )
 
 type filter struct {
@@ -35,9 +35,9 @@ func NewFirst() filters.Spec {
 
 func (f filter) Name() string {
 	if f.headers.PrependFor {
-		return NameFirst
+		return filters.XforwardFirstName
 	}
-	return Name
+	return filters.XforwardName
 }
 
 func (f filter) CreateFilter([]interface{}) (filters.Filter, error) {

@@ -3,6 +3,7 @@ package tracing
 import (
 	"testing"
 
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 )
 
@@ -41,7 +42,7 @@ func TestInvalid(t *testing.T) {
 }
 func TestBoring(t *testing.T) {
 	s := NewSpanName().Name()
-	if s != SpanNameFilterName {
+	if s != filters.TracingSpanNameName {
 		t.Fatalf("Wrong name")
 	}
 }

@@ -99,7 +99,7 @@ func TestStatic(t *testing.T) {
 		fr := make(filters.Registry)
 		fr.Register(NewStatic())
 		pr := proxytest.New(fr, &eskip.Route{
-			Filters: []*eskip.Filter{{Name: StaticName, Args: ti.args}},
+			Filters: []*eskip.Filter{{Name: filters.StaticName, Args: ti.args}},
 			Shunt:   true})
 		defer pr.Close()
 
@@ -143,7 +143,7 @@ func TestSameFileMultipleTimes(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewStatic())
 	pr := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
+		Filters: []*eskip.Filter{{Name: filters.StaticName, Args: []interface{}{"/static", "/tmp"}}},
 		Shunt:   true})
 	defer pr.Close()
 
@@ -173,7 +173,7 @@ func TestMultipleRanges(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewStatic())
 	pr := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
+		Filters: []*eskip.Filter{{Name: filters.StaticName, Args: []interface{}{"/static", "/tmp"}}},
 		Shunt:   true})
 	defer pr.Close()
 

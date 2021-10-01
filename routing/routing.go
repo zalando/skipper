@@ -12,20 +12,18 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/predicates"
 )
 
 const (
-	// PathName represents the name of builtin path predicate.
-	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
-	PathName = "Path"
+	// Deprecated, use predicates.PathName instead
+	PathName = predicates.PathName
 
-	// PathSubtreeName represents the name of the builtin path subtree predicate.
-	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
-	PathSubtreeName = "PathSubtree"
+	// Deprecated, use predicates.PathSubtreeName instead
+	PathSubtreeName = predicates.PathSubtreeName
 
-	WeightPredicateName = "Weight"
+	// Deprecated, use predicates.WeightName instead
+	WeightPredicateName = predicates.WeightName
 
 	routesTimestampName      = "X-Timestamp"
 	routesCountName          = "X-Count"

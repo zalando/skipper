@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	OidcClaimsQueryName = "oidcClaimsQuery"
-	oidcClaimsCacheKey  = "oidcclaimscachekey"
+	// Deprecated, use filters.OidcClaimsQueryName instead
+	OidcClaimsQueryName = filters.OidcClaimsQueryName
+
+	oidcClaimsCacheKey = "oidcclaimscachekey"
 )
 
 var gjsonModifierMutex = sync.RWMutex{}
@@ -43,7 +45,7 @@ func NewOIDCQueryClaimsFilter() filters.Spec {
 func (spec *oidcIntrospectionSpec) Name() string {
 	switch spec.typ {
 	case checkOIDCQueryClaims:
-		return OidcClaimsQueryName
+		return filters.OidcClaimsQueryName
 	}
 	return AuthUnknown
 }
@@ -105,7 +107,7 @@ func (filter *oidcIntrospectionFilter) String() string {
 	for _, query := range filter.paths {
 		str = append(str, query.String())
 	}
-	return fmt.Sprintf("%s(%s)", OidcClaimsQueryName, strings.Join(str, "; "))
+	return fmt.Sprintf("%s(%s)", filters.OidcClaimsQueryName, strings.Join(str, "; "))
 }
 
 func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {

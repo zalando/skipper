@@ -15,7 +15,9 @@ type consistentHashBalanceFactor struct {
 // set the balancer factor used by the `consistentHash` algorithm to avoid
 // popular hashes overloading a single endpoint
 func NewConsistentHashBalanceFactor() filters.Spec { return &consistentHashBalanceFactor{} }
-func (*consistentHashBalanceFactor) Name() string  { return "consistentHashBalanceFactor" }
+func (*consistentHashBalanceFactor) Name() string {
+	return filters.ConsistentHashBalanceFactorName
+}
 
 func (*consistentHashBalanceFactor) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {

@@ -27,7 +27,7 @@ type static struct {
 func NewStatic() filters.Spec { return &static{} }
 
 // "static"
-func (spec *static) Name() string { return StaticName }
+func (spec *static) Name() string { return filters.StaticName }
 
 // Creates instances of the static filter. Expects two parameters: request path
 // prefix and file system root.

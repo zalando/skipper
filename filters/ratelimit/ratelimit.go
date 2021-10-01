@@ -85,7 +85,7 @@ func NewLocalRatelimit(provider RatelimitProvider) filters.Spec {
 //    -> clientRatelimit(3, "1m", "Authorization")
 //    -> "https://login.backend.net";
 func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
-	return &spec{typ: ratelimit.ClientRatelimit, provider: provider, filterName: ratelimit.ClientRatelimitName}
+	return &spec{typ: ratelimit.ClientRatelimit, provider: provider, filterName: filters.ClientRatelimitName}
 }
 
 // NewRatelimit creates a service rate limiting, that is
@@ -107,7 +107,7 @@ func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
 //    -> ratelimit(20, "1s", 503)
 //    -> "https://foo.backend.net";
 func NewRatelimit(provider RatelimitProvider) filters.Spec {
-	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: ratelimit.ServiceRatelimitName}
+	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: filters.RatelimitName}
 }
 
 // NewClusterRatelimit creates a rate limiting that is aware of the
@@ -130,7 +130,7 @@ func NewRatelimit(provider RatelimitProvider) filters.Spec {
 //    -> clusterRatelimit("groupA", 200, "1m", 503)
 //    -> "https://foo.backend.net";
 func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
-	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: ratelimit.ClusterServiceRatelimitName}
+	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: filters.ClusterRatelimitName}
 }
 
 // NewClusterClientRatelimit creates a rate limiting that is aware of
@@ -159,7 +159,7 @@ func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
 //    -> "https://foo.backend.net";
 //
 func NewClusterClientRateLimit(provider RatelimitProvider) filters.Spec {
-	return &spec{typ: ratelimit.ClusterClientRatelimit, provider: provider, filterName: ratelimit.ClusterClientRatelimitName}
+	return &spec{typ: ratelimit.ClusterClientRatelimit, provider: provider, filterName: filters.ClusterClientRatelimitName}
 }
 
 // NewDisableRatelimit disables rate limiting
@@ -170,7 +170,7 @@ func NewClusterClientRateLimit(provider RatelimitProvider) filters.Spec {
 //    -> disableRatelimit()
 //    -> "https://foo.backend.net";
 func NewDisableRatelimit(provider RatelimitProvider) filters.Spec {
-	return &spec{typ: ratelimit.DisableRatelimit, provider: provider, filterName: ratelimit.DisableRatelimitName}
+	return &spec{typ: ratelimit.DisableRatelimit, provider: provider, filterName: filters.DisableRatelimitName}
 }
 
 func (s *spec) Name() string {

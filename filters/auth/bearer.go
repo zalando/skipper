@@ -6,7 +6,8 @@ import (
 )
 
 const (
-	BearerInjectorName = "bearerinjector"
+	// Deprecated, use filters.BearerInjectorName instead
+	BearerInjectorName = filters.BearerInjectorName
 )
 
 type (
@@ -26,7 +27,7 @@ func NewBearerInjector(sr secrets.SecretsReader) filters.Spec {
 }
 
 func (*bearerInjectorSpec) Name() string {
-	return BearerInjectorName
+	return filters.BearerInjectorName
 }
 
 func (b *bearerInjectorSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

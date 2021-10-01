@@ -22,14 +22,22 @@ import (
 const defaultChunkSize = 512
 
 const (
-	RandomName           = "randomContent"
-	RepeatName           = "repeatContent"
-	LatencyName          = "latency"
-	ChunksName           = "chunks"
-	BandwidthName        = "bandwidth"
-	BackendLatencyName   = "backendLatency"
-	BackendBandwidthName = "backendBandwidth"
-	BackendChunksName    = "backendChunks"
+	// Deprecated, use filters.RandomContentName instead
+	RandomName = filters.RandomContentName
+	// Deprecated, use filters.RepeatContentName instead
+	RepeatName = filters.RepeatContentName
+	// Deprecated, use filters.LatencyName instead
+	LatencyName = filters.LatencyName
+	// Deprecated, use filters.ChunksName instead
+	ChunksName = filters.ChunksName
+	// Deprecated, use filters.BandwidthName instead
+	BandwidthName = filters.BandwidthName
+	// Deprecated, use filters.BackendLatencyName instead
+	BackendLatencyName = filters.BackendLatencyName
+	// Deprecated, use filters.BackendBandwidthName instead
+	BackendBandwidthName = filters.BackendBandwidthName
+	// Deprecated, use filters.BackendChunksName instead
+	BackendChunksName = filters.BackendChunksName
 )
 
 type throttleType int
@@ -178,7 +186,7 @@ func NewUniformResponseLatency() filters.Spec { return &jitter{typ: uniformRespo
 //
 func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalResponseDistribution} }
 
-func (r *random) Name() string { return RandomName }
+func (r *random) Name() string { return filters.RandomContentName }
 
 func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {
@@ -210,7 +218,7 @@ func (r *random) Request(ctx filters.FilterContext) {
 
 func (r *random) Response(ctx filters.FilterContext) {}
 
-func (r *repeat) Name() string { return RepeatName }
+func (r *repeat) Name() string { return filters.RepeatContentName }
 
 func (r *repeat) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {
@@ -266,17 +274,17 @@ func (r *repeat) Response(ctx filters.FilterContext) {}
 func (t *throttle) Name() string {
 	switch t.typ {
 	case latency:
-		return LatencyName
+		return filters.LatencyName
 	case bandwidth:
-		return BandwidthName
+		return filters.BandwidthName
 	case chunks:
-		return ChunksName
+		return filters.ChunksName
 	case backendLatency:
-		return BackendLatencyName
+		return filters.BackendLatencyName
 	case backendBandwidth:
-		return BackendBandwidthName
+		return filters.BackendBandwidthName
 	case backendChunks:
-		return BackendChunksName
+		return filters.BackendChunksName
 	default:
 		panic("invalid throttle type")
 	}
@@ -464,13 +472,13 @@ func (t *throttle) Response(ctx filters.FilterContext) {
 func (j *jitter) Name() string {
 	switch j.typ {
 	case normalRequestDistribution:
-		return "normalRequestLatency"
+		return filters.NormalRequestLatencyName
 	case uniformRequestDistribution:
-		return "uniformRequestLatency"
+		return filters.UniformRequestLatencyName
 	case normalResponseDistribution:
-		return "normalResponseLatency"
+		return filters.NormalResponseLatencyName
 	case uniformResponseDistribution:
-		return "uniformResponseLatency"
+		return filters.UniformResponseLatencyName
 	}
 	return "unknown"
 }

@@ -45,13 +45,17 @@ import (
 	"net/http"
 
 	snet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
 const (
-	Name         = "Source"
-	NameLast     = "SourceFromLast"
-	NameClientIP = "ClientIP"
+	// Deprecated, use predicates.SourceName instead
+	Name = predicates.SourceName
+	// Deprecated, use predicates.SourceFromLastName instead
+	NameLast = predicates.SourceFromLastName
+	// Deprecated, use predicates.ClientIPName instead
+	NameClientIP = predicates.ClientIPName
 )
 
 var InvalidArgsError = errors.New("invalid arguments")
@@ -80,11 +84,11 @@ func NewClientIP() routing.PredicateSpec { return &spec{typ: clientIP} }
 func (s *spec) Name() string {
 	switch s.typ {
 	case sourceFromLast:
-		return NameLast
+		return predicates.SourceFromLastName
 	case clientIP:
-		return NameClientIP
+		return predicates.ClientIPName
 	default:
-		return Name
+		return predicates.SourceName
 	}
 }
 

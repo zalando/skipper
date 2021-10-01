@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	StateBagToTagFilterName = "stateBagToTag"
+	// Deprecated, use filters.StateBagToTagName instead
+	StateBagToTagFilterName = filters.StateBagToTagName
 )
 
 type stateBagToTagSpec struct{}
@@ -20,7 +21,7 @@ type stateBagToTagFilter struct {
 }
 
 func (stateBagToTagSpec) Name() string {
-	return StateBagToTagFilterName
+	return filters.StateBagToTagName
 }
 
 func (stateBagToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

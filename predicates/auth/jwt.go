@@ -41,11 +41,6 @@ type valueMatcher interface {
 }
 
 const (
-	matchJWTPayloadAllKVName       = "JWTPayloadAllKV"
-	matchJWTPayloadAnyKVName       = "JWTPayloadAnyKV"
-	matchJWTPayloadAllKVRegexpName = "JWTPayloadAllKVRegexp"
-	matchJWTPayloadAnyKVRegexpName = "JWTPayloadAnyKVRegexp"
-
 	matchBehaviorAll matchBehavior = iota
 	matchBehaviorAny
 
@@ -73,7 +68,7 @@ type (
 
 func NewJWTPayloadAnyKV() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAnyKVName,
+		name:          predicates.JWTPayloadAnyKVName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeExact,
 	}
@@ -81,7 +76,7 @@ func NewJWTPayloadAnyKV() routing.PredicateSpec {
 
 func NewJWTPayloadAllKV() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAllKVName,
+		name:          predicates.JWTPayloadAllKVName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeExact,
 	}
@@ -89,7 +84,7 @@ func NewJWTPayloadAllKV() routing.PredicateSpec {
 
 func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAnyKVRegexpName,
+		name:          predicates.JWTPayloadAnyKVRegexpName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeRegexp,
 	}
@@ -97,7 +92,7 @@ func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 
 func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAllKVRegexpName,
+		name:          predicates.JWTPayloadAllKVRegexpName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeRegexp,
 	}

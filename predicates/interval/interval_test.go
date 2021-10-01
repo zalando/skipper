@@ -233,7 +233,7 @@ func TestCreateAfter(t *testing.T) {
 }
 
 func TestMatchBetween(t *testing.T) {
-	reqeust := &http.Request{}
+	request := &http.Request{}
 
 	cases := []struct {
 		msg     string
@@ -329,7 +329,7 @@ func TestMatchBetween(t *testing.T) {
 				betweenPredicate.getTime = c.getTime
 			}
 
-			matches := betweenPredicate.Match(reqeust)
+			matches := betweenPredicate.Match(request)
 
 			if matches != c.matches {
 				t.Errorf("%q: Expected result - %t; Actual result - %t", c.msg, c.matches, matches)
@@ -339,7 +339,7 @@ func TestMatchBetween(t *testing.T) {
 }
 
 func TestMatchBefore(t *testing.T) {
-	reqeust := &http.Request{}
+	request := &http.Request{}
 
 	cases := []struct {
 		msg     string
@@ -403,7 +403,7 @@ func TestMatchBefore(t *testing.T) {
 				beforePredicate.getTime = c.getTime
 			}
 
-			matches := beforePredicate.Match(reqeust)
+			matches := beforePredicate.Match(request)
 
 			if matches != c.matches {
 				t.Errorf("%q: Expected result - %t; Actual result - %t", c.msg, c.matches, matches)
@@ -413,7 +413,7 @@ func TestMatchBefore(t *testing.T) {
 }
 
 func TestMatchAfter(t *testing.T) {
-	reqeust := &http.Request{}
+	request := &http.Request{}
 
 	cases := []struct {
 		msg     string
@@ -477,7 +477,7 @@ func TestMatchAfter(t *testing.T) {
 				afterPredicate.getTime = c.getTime
 			}
 
-			matches := afterPredicate.Match(reqeust)
+			matches := afterPredicate.Match(request)
 
 			if matches != c.matches {
 				t.Errorf("%q: Expected result - %t; Actual result - %t", c.msg, c.matches, matches)

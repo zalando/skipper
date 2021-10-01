@@ -28,8 +28,10 @@ type (
 )
 
 const (
-	LIFOName      = "lifo"
-	LIFOGroupName = "lifoGroup"
+	// Deprecated, use filters.LifoName instead
+	LIFOName = filters.LifoName
+	// Deprecated, use filters.LifoGroupName instead
+	LIFOGroupName = filters.LifoGroupName
 
 	defaultMaxConcurreny = 100
 	defaultMaxQueueSize  = 100
@@ -64,7 +66,7 @@ func durationArg(a interface{}) (time.Duration, error) {
 	}
 }
 
-func (s *lifoSpec) Name() string { return LIFOName }
+func (s *lifoSpec) Name() string { return filters.LifoName }
 
 // CreateFilter creates a lifoFilter, that will use a queue based
 // queue for handling requests instead of the fifo queue. The first
@@ -129,7 +131,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return &l, nil
 }
 
-func (*lifoGroupSpec) Name() string { return LIFOGroupName }
+func (*lifoGroupSpec) Name() string { return filters.LifoGroupName }
 
 // CreateFilter creates a lifoGroupFilter, that will use a queue based
 // queue for handling requests instead of the fifo queue. The first

@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	ForwardTokenName = "forwardToken"
+	// Deprecated, use filters.ForwardTokenName instead
+	ForwardTokenName = filters.ForwardTokenName
 )
 
 type (
@@ -28,7 +29,7 @@ func NewForwardToken() filters.Spec {
 }
 
 func (s *forwardTokenSpec) Name() string {
-	return ForwardTokenName
+	return filters.ForwardTokenName
 }
 
 func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

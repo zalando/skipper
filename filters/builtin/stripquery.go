@@ -40,7 +40,7 @@ type stripQuery struct {
 func NewStripQuery() filters.Spec { return &stripQuery{} }
 
 // "stripQuery"
-func (stripQuery) Name() string { return StripQueryName }
+func (stripQuery) Name() string { return filters.StripQueryName }
 
 // copied from textproto/reader
 func validHeaderFieldByte(b byte) bool {

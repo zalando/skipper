@@ -16,7 +16,9 @@ type BackendRatelimit struct {
 // instruct proxy to limit request rate towards a particular backend endpoint
 func NewBackendRatelimit() filters.Spec { return &BackendRatelimit{} }
 
-func (*BackendRatelimit) Name() string { return "backendRatelimit" }
+func (*BackendRatelimit) Name() string {
+	return filters.BackendRateLimitName
+}
 
 func (*BackendRatelimit) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 3 && len(args) != 4 {

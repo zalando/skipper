@@ -9,14 +9,16 @@ package auth
 
 import "github.com/zalando/skipper/filters"
 
-const GrantClaimsQueryName = "grantClaimsQuery"
+// GrantClaimsQueryName is the filter name
+// Deprecated, use filters.GrantClaimsQueryName instead
+const GrantClaimsQueryName = filters.GrantClaimsQueryName
 
 type grantClaimsQuerySpec struct {
 	oidcSpec oidcIntrospectionSpec
 }
 
 func (s *grantClaimsQuerySpec) Name() string {
-	return GrantClaimsQueryName
+	return filters.GrantClaimsQueryName
 }
 
 func (s *grantClaimsQuerySpec) CreateFilter(args []interface{}) (filters.Filter, error) {

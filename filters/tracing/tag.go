@@ -6,10 +6,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	name = "tracingTag"
-)
-
 type tagSpec struct {
 }
 
@@ -24,7 +20,7 @@ func NewTag() filters.Spec {
 }
 
 func (s tagSpec) Name() string {
-	return name
+	return filters.TracingTagName
 }
 
 func (s tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

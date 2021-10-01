@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/filters/sed"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -172,8 +172,8 @@ func TestSed(t *testing.T) {
 		body:   "foobarbazfoobarbazfoobarbaz",
 		expect: "foobarbazbarbazfoobarbazbarbazfoobarbazbarbaz",
 	}} {
-		t.Run(fmt.Sprintf("%s/%s", sed.NameRequest, test.title), testRequest(sed.NameRequest, test))
-		t.Run(fmt.Sprintf("%s/%s", sed.Name, test.title), testResponse(sed.Name, test))
+		t.Run(fmt.Sprintf("%s/%s", filters.SedRequestName, test.title), testRequest(filters.SedRequestName, test))
+		t.Run(fmt.Sprintf("%s/%s", filters.SedName, test.title), testResponse(filters.SedName, test))
 	}
 }
 
@@ -196,18 +196,18 @@ func TestSedLongStream(t *testing.T) {
 
 	baseArgs := []interface{}{pattern, outputString}
 
-	t.Run("below max buffer size", testResponse(sed.Name, testItem{
+	t.Run("below max buffer size", testResponse(filters.SedName, testItem{
 		args:       append(baseArgs, bodySize*2),
 		bodyReader: createBody(),
 		expect:     "qux",
 	}))
 
-	t.Run("above max buffer size, abort", testResponse(sed.Name, testItem{
+	t.Run("above max buffer size, abort", testResponse(filters.SedName, testItem{
 		args:       append(baseArgs, bodySize/2, "abort"),
 		bodyReader: createBody(),
 	}))
 
-	t.Run("above max buffer size, best effort", testResponse(sed.Name, testItem{
+	t.Run("above max buffer size, best effort", testResponse(filters.SedName, testItem{
 		args:       append(baseArgs, bodySize/2),
 		bodyReader: createBody(),
 		expect:     "quxqux",

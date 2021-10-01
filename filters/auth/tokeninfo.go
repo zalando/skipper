@@ -11,11 +11,16 @@ import (
 )
 
 const (
-	OAuthTokeninfoAnyScopeName = "oauthTokeninfoAnyScope"
-	OAuthTokeninfoAllScopeName = "oauthTokeninfoAllScope"
-	OAuthTokeninfoAnyKVName    = "oauthTokeninfoAnyKV"
-	OAuthTokeninfoAllKVName    = "oauthTokeninfoAllKV"
-	tokeninfoCacheKey          = "tokeninfo"
+	// Deprecated, use filters.OAuthTokeninfoAnyScopeName instead
+	OAuthTokeninfoAnyScopeName = filters.OAuthTokeninfoAnyScopeName
+	// Deprecated, use filters.OAuthTokeninfoAllScopeName instead
+	OAuthTokeninfoAllScopeName = filters.OAuthTokeninfoAllScopeName
+	// Deprecated, use filters.OAuthTokeninfoAnyKVName instead
+	OAuthTokeninfoAnyKVName = filters.OAuthTokeninfoAnyKVName
+	// Deprecated, use filters.OAuthTokeninfoAllKVName instead
+	OAuthTokeninfoAllKVName = filters.OAuthTokeninfoAllKVName
+
+	tokeninfoCacheKey = "tokeninfo"
 )
 
 type TokeninfoOptions struct {
@@ -144,13 +149,13 @@ func TokeninfoWithOptions(create func(string, time.Duration) filters.Spec, o Tok
 func (s *tokeninfoSpec) Name() string {
 	switch s.typ {
 	case checkOAuthTokeninfoAnyScopes:
-		return OAuthTokeninfoAnyScopeName
+		return filters.OAuthTokeninfoAnyScopeName
 	case checkOAuthTokeninfoAllScopes:
-		return OAuthTokeninfoAllScopeName
+		return filters.OAuthTokeninfoAllScopeName
 	case checkOAuthTokeninfoAnyKV:
-		return OAuthTokeninfoAnyKVName
+		return filters.OAuthTokeninfoAnyKVName
 	case checkOAuthTokeninfoAllKV:
-		return OAuthTokeninfoAllKVName
+		return filters.OAuthTokeninfoAllKVName
 	}
 	return AuthUnknown
 }
@@ -212,13 +217,13 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 func (f *tokeninfoFilter) String() string {
 	switch f.typ {
 	case checkOAuthTokeninfoAnyScopes:
-		return fmt.Sprintf("%s(%s)", OAuthTokeninfoAnyScopeName, strings.Join(f.scopes, ","))
+		return fmt.Sprintf("%s(%s)", filters.OAuthTokeninfoAnyScopeName, strings.Join(f.scopes, ","))
 	case checkOAuthTokeninfoAllScopes:
-		return fmt.Sprintf("%s(%s)", OAuthTokeninfoAllScopeName, strings.Join(f.scopes, ","))
+		return fmt.Sprintf("%s(%s)", filters.OAuthTokeninfoAllScopeName, strings.Join(f.scopes, ","))
 	case checkOAuthTokeninfoAnyKV:
-		return fmt.Sprintf("%s(%s)", OAuthTokeninfoAnyKVName, f.kv)
+		return fmt.Sprintf("%s(%s)", filters.OAuthTokeninfoAnyKVName, f.kv)
 	case checkOAuthTokeninfoAllKV:
-		return fmt.Sprintf("%s(%s)", OAuthTokeninfoAllKVName, f.kv)
+		return fmt.Sprintf("%s(%s)", filters.OAuthTokeninfoAllKVName, f.kv)
 	}
 	return AuthUnknown
 }

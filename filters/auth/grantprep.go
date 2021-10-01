@@ -1,6 +1,9 @@
 package auth
 
-import "github.com/zalando/skipper/eskip"
+import (
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+)
 
 const (
 	defaultCallbackRouteID = "__oauth2_grant_callback"
@@ -26,7 +29,7 @@ func (p *grantPrep) Do(r []*eskip.Route) []*eskip.Route {
 			},
 		}},
 		Filters: []*eskip.Filter{{
-			Name: GrantCallbackName,
+			Name: filters.GrantCallbackName,
 		}},
 		BackendType: eskip.ShuntBackend,
 	})

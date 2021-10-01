@@ -195,33 +195,33 @@ func NewCopyResponseHeaderDeprecated() filters.Spec {
 func (spec *headerFilter) Name() string {
 	switch spec.typ {
 	case setRequestHeader:
-		return SetRequestHeaderName
+		return filters.SetRequestHeaderName
 	case appendRequestHeader:
-		return AppendRequestHeaderName
+		return filters.AppendRequestHeaderName
 	case dropRequestHeader:
-		return DropRequestHeaderName
+		return filters.DropRequestHeaderName
 	case setResponseHeader:
-		return SetResponseHeaderName
+		return filters.SetResponseHeaderName
 	case appendResponseHeader:
-		return AppendResponseHeaderName
+		return filters.AppendResponseHeaderName
 	case dropResponseHeader:
-		return DropResponseHeaderName
+		return filters.DropResponseHeaderName
 	case depRequestHeader:
 		return RequestHeaderName
 	case depResponseHeader:
 		return ResponseHeaderName
 	case setContextRequestHeader:
-		return SetContextRequestHeaderName
+		return filters.SetContextRequestHeaderName
 	case appendContextRequestHeader:
-		return AppendContextRequestHeaderName
+		return filters.AppendContextRequestHeaderName
 	case setContextResponseHeader:
-		return SetContextResponseHeaderName
+		return filters.SetContextResponseHeaderName
 	case appendContextResponseHeader:
-		return AppendContextResponseHeaderName
+		return filters.AppendContextResponseHeaderName
 	case copyRequestHeader:
-		return CopyRequestHeaderName
+		return filters.CopyRequestHeaderName
 	case copyResponseHeader:
-		return CopyResponseHeaderName
+		return filters.CopyResponseHeaderName
 	case copyRequestHeaderDeprecated:
 		return copyRequestHeaderDeprecatedName
 	case copyResponseHeaderDeprecated:

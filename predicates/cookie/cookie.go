@@ -12,7 +12,8 @@ import (
 )
 
 // Name the predicate can be referenced in eskip by the name "Cookie".
-const Name = "Cookie"
+// Deprecated, use predicates.CookieName instead
+const Name = predicates.CookieName
 
 type (
 	spec struct{}
@@ -34,7 +35,7 @@ type (
 //
 func New() routing.PredicateSpec { return &spec{} }
 
-func (s *spec) Name() string { return Name }
+func (s *spec) Name() string { return predicates.CookieName }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) != 2 {

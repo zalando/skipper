@@ -11,10 +11,12 @@ import (
 )
 
 // AbsorbName contains the name of the absorb filter.
-const AbsorbName = "absorb"
+// Deprecated, use filters.AbsorbName instead
+const AbsorbName = filters.AbsorbName
 
 // AbsorbSilentName contains the name of the absorbSilent filter.
-const AbsorbSilentName = "absorbSilent"
+// Deprecated, use filters.AbsorbSilentName instead
+const AbsorbSilentName = filters.AbsorbSilentName
 
 const loggingInterval = time.Second
 
@@ -65,9 +67,9 @@ func NewAbsorbSilent() filters.Spec {
 
 func (a *absorb) Name() string {
 	if a.silent {
-		return AbsorbSilentName
+		return filters.AbsorbSilentName
 	} else {
-		return AbsorbName
+		return filters.AbsorbName
 	}
 }
 

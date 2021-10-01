@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	WebhookName = "webhook"
+	// Deprecated, use filters.WebhookName instead
+	WebhookName = filters.WebhookName
 )
 
 type WebhookOptions struct {
@@ -48,7 +49,7 @@ func WebhookWithOptions(o WebhookOptions) filters.Spec {
 }
 
 func (*webhookSpec) Name() string {
-	return WebhookName
+	return filters.WebhookName
 }
 
 // CreateFilter creates an auth filter. The first argument is an URL
@@ -110,7 +111,7 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 
 	// errors, redirects, auth errors, webhook errors
 	if err != nil || resp.StatusCode >= 300 {
-		unauthorized(ctx, "", invalidAccess, f.authClient.url.Hostname(), WebhookName)
+		unauthorized(ctx, "", invalidAccess, f.authClient.url.Hostname(), filters.WebhookName)
 		return
 	}
 
@@ -121,7 +122,7 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 		}
 	}
 
-	authorized(ctx, WebhookName)
+	authorized(ctx, filters.WebhookName)
 }
 
 func (*webhookFilter) Response(filters.FilterContext) {}

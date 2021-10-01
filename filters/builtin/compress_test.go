@@ -432,7 +432,7 @@ func TestCompress(t *testing.T) {
 			defer s.Close()
 
 			p := proxytest.New(MakeRegistry(), &eskip.Route{
-				Filters: []*eskip.Filter{{Name: CompressName, Args: ti.compressArgs}},
+				Filters: []*eskip.Filter{{Name: filters.CompressName, Args: ti.compressArgs}},
 				Backend: s.URL})
 			defer p.Close()
 
@@ -548,7 +548,7 @@ func TestStreaming(t *testing.T) {
 	defer s.Close()
 
 	p := proxytest.New(MakeRegistry(), &eskip.Route{
-		Filters: []*eskip.Filter{{Name: CompressName}},
+		Filters: []*eskip.Filter{{Name: filters.CompressName}},
 		Backend: s.URL})
 	defer p.Close()
 

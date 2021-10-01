@@ -12,6 +12,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/net"
 )
 
@@ -23,26 +24,26 @@ const (
 	// long a client should wait before making a new request
 	RetryAfterHeader = "Retry-After"
 
-	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
-	ServiceRatelimitName = "ratelimit"
+	// Deprecated, use filters.RatelimitName instead
+	ServiceRatelimitName = filters.RatelimitName
 
 	// LocalRatelimitName *DEPRECATED*, use ClientRatelimitName instead
 	LocalRatelimitName = "localRatelimit"
 
-	// ClientRatelimitName is the name of the ClientRatelimit filter, which will be shown in log
-	ClientRatelimitName = "clientRatelimit"
+	// Deprecated, use filters.ClientRatelimitName instead
+	ClientRatelimitName = filters.ClientRatelimitName
 
-	// ClusterServiceRatelimitName is the name of the ClusterServiceRatelimit filter, which will be shown in log
-	ClusterServiceRatelimitName = "clusterRatelimit"
+	// Deprecated, use filters.ClusterRatelimitName instead
+	ClusterServiceRatelimitName = filters.ClusterRatelimitName
 
-	// ClusterClientRatelimitName is the name of the ClusterClientRatelimit filter, which will be shown in log
-	ClusterClientRatelimitName = "clusterClientRatelimit"
+	// Deprecated, use filters.ClusterClientRatelimitName instead
+	ClusterClientRatelimitName = filters.ClusterClientRatelimitName
 
-	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
-	DisableRatelimitName = "disableRatelimit"
+	// Deprecated, use filters.DisableRatelimitName instead
+	DisableRatelimitName = filters.DisableRatelimitName
 
-	// UknownRatelimitName is to print unknown ratelimit settings in error messages
-	UknownRatelimitName = "unknownRatelimit"
+	// Deprecated, use filters.UnknownRatelimitName instead
+	UknownRatelimitName = filters.UnknownRatelimitName
 )
 
 // RatelimitType defines the type of  the used ratelimit
@@ -129,19 +130,19 @@ const (
 func (rt RatelimitType) String() string {
 	switch rt {
 	case DisableRatelimit:
-		return DisableRatelimitName
+		return filters.DisableRatelimitName
 	case ClientRatelimit:
-		return ClientRatelimitName
+		return filters.ClientRatelimitName
 	case ClusterClientRatelimit:
-		return ClusterClientRatelimitName
+		return filters.ClusterClientRatelimitName
 	case ClusterServiceRatelimit:
-		return ClusterServiceRatelimitName
+		return filters.ClusterRatelimitName
 	case LocalRatelimit:
 		return LocalRatelimitName
 	case ServiceRatelimit:
-		return ServiceRatelimitName
+		return filters.RatelimitName
 	default:
-		return UknownRatelimitName
+		return filters.UnknownRatelimitName
 
 	}
 

@@ -7,7 +7,9 @@ import (
 )
 
 const (
-	Name                      = "basicAuth"
+	// Deprecated, use filters.BasicAuthName instead
+	Name = filters.BasicAuthName
+
 	ForceBasicAuthHeaderName  = "WWW-Authenticate"
 	ForceBasicAuthHeaderValue = "Basic realm="
 	DefaultRealmName          = "Basic Realm"
@@ -72,4 +74,4 @@ func (spec *basicSpec) CreateFilter(config []interface{}) (filters.Filter, error
 	}, nil
 }
 
-func (spec *basicSpec) Name() string { return Name }
+func (spec *basicSpec) Name() string { return filters.BasicAuthName }

@@ -126,7 +126,7 @@ func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 func NewCompress() filters.Spec { return &compress{} }
 
 func (c *compress) Name() string {
-	return CompressName
+	return filters.CompressName
 }
 
 func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {

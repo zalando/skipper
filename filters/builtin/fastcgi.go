@@ -26,7 +26,7 @@ type setFastCgiFilenameSpec struct {
 // the FastCGI filename.
 func NewSetFastCgiFilename() filters.Spec { return &setFastCgiFilenameSpec{} }
 
-func (s *setFastCgiFilenameSpec) Name() string { return SetFastCgiFilenameName }
+func (s *setFastCgiFilenameSpec) Name() string { return filters.SetFastCgiFilenameName }
 
 func (s *setFastCgiFilenameSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {

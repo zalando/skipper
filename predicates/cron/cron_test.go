@@ -3,6 +3,8 @@ package cron
 import (
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/predicates"
 )
 
 func TestCreate(t *testing.T) {
@@ -50,7 +52,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestPredicateName(t *testing.T) {
-	if name := New().Name(); name != "Cron" {
+	if name := New().Name(); name != predicates.CronName {
 		t.Errorf("predicate name does not match expecetation: %s", name)
 	}
 }

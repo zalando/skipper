@@ -34,45 +34,82 @@ const (
 	// Deprecated: use redirectTo
 	RedirectName = "redirect"
 
-	SetRequestHeaderName            = "setRequestHeader"
-	SetResponseHeaderName           = "setResponseHeader"
-	AppendRequestHeaderName         = "appendRequestHeader"
-	AppendResponseHeaderName        = "appendResponseHeader"
-	DropRequestHeaderName           = "dropRequestHeader"
-	DropResponseHeaderName          = "dropResponseHeader"
-	SetContextRequestHeaderName     = "setContextRequestHeader"
-	AppendContextRequestHeaderName  = "appendContextRequestHeader"
-	SetContextResponseHeaderName    = "setContextResponseHeader"
-	AppendContextResponseHeaderName = "appendContextResponseHeader"
-	CopyRequestHeaderName           = "copyRequestHeader"
-	CopyResponseHeaderName          = "copyResponseHeader"
+	// Deprecated, use filters.SetRequestHeaderName instead
+	SetRequestHeaderName = filters.SetRequestHeaderName
+	// Deprecated, use filters.SetResponseHeaderName instead
+	SetResponseHeaderName = filters.SetResponseHeaderName
+	// Deprecated, use filters.AppendRequestHeaderName instead
+	AppendRequestHeaderName = filters.AppendRequestHeaderName
+	// Deprecated, use filters.AppendResponseHeaderName instead
+	AppendResponseHeaderName = filters.AppendResponseHeaderName
+	// Deprecated, use filters.DropRequestHeaderName instead
+	DropRequestHeaderName = filters.DropRequestHeaderName
+	// Deprecated, use filters.DropResponseHeaderName instead
+	DropResponseHeaderName = filters.DropResponseHeaderName
+	// Deprecated, use filters.SetContextRequestHeaderName instead
+	SetContextRequestHeaderName = filters.SetContextRequestHeaderName
+	// Deprecated, use filters.AppendContextRequestHeaderName instead
+	AppendContextRequestHeaderName = filters.AppendContextRequestHeaderName
+	// Deprecated, use filters.SetContextResponseHeaderName instead
+	SetContextResponseHeaderName = filters.SetContextResponseHeaderName
+	// Deprecated, use filters.AppendContextResponseHeaderName instead
+	AppendContextResponseHeaderName = filters.AppendContextResponseHeaderName
+	// Deprecated, use filters.CopyRequestHeaderName instead
+	CopyRequestHeaderName = filters.CopyRequestHeaderName
+	// Deprecated, use filters.CopyResponseHeaderName instead
+	CopyResponseHeaderName = filters.CopyResponseHeaderName
 
-	SetDynamicBackendHostFromHeader   = "setDynamicBackendHostFromHeader"
-	SetDynamicBackendSchemeFromHeader = "setDynamicBackendSchemeFromHeader"
-	SetDynamicBackendUrlFromHeader    = "setDynamicBackendUrlFromHeader"
-	SetDynamicBackendHost             = "setDynamicBackendHost"
-	SetDynamicBackendScheme           = "setDynamicBackendScheme"
-	SetDynamicBackendUrl              = "setDynamicBackendUrl"
+	// Deprecated, use filters.SetDynamicBackendHostFromHeader instead
+	SetDynamicBackendHostFromHeader = filters.SetDynamicBackendHostFromHeader
+	// Deprecated, use filters.SetDynamicBackendSchemeFromHeader instead
+	SetDynamicBackendSchemeFromHeader = filters.SetDynamicBackendSchemeFromHeader
+	// Deprecated, use filters.SetDynamicBackendUrlFromHeader instead
+	SetDynamicBackendUrlFromHeader = filters.SetDynamicBackendUrlFromHeader
+	// Deprecated, use filters.SetDynamicBackendHost instead
+	SetDynamicBackendHost = filters.SetDynamicBackendHost
+	// Deprecated, use filters.SetDynamicBackendScheme instead
+	SetDynamicBackendScheme = filters.SetDynamicBackendScheme
+	// Deprecated, use filters.SetDynamicBackendUrl instead
+	SetDynamicBackendUrl = filters.SetDynamicBackendUrl
 
-	HealthCheckName           = "healthcheck"
-	ModPathName               = "modPath"
-	SetPathName               = "setPath"
-	ModRequestHeaderName      = "modRequestHeader"
-	RedirectToName            = "redirectTo"
-	RedirectToLowerName       = "redirectToLower"
-	StaticName                = "static"
-	StripQueryName            = "stripQuery"
-	PreserveHostName          = "preserveHost"
-	SetFastCgiFilenameName    = "setFastCgiFilename"
-	StatusName                = "status"
-	CompressName              = "compress"
-	SetQueryName              = "setQuery"
-	DropQueryName             = "dropQuery"
-	InlineContentName         = "inlineContent"
-	InlineContentIfStatusName = "inlineContentIfStatus"
-	HeaderToQueryName         = "headerToQuery"
-	QueryToHeaderName         = "queryToHeader"
-	BackendTimeoutName        = "backendTimeout"
+	// Deprecated, use filters.HealthCheckName instead
+	HealthCheckName = filters.HealthCheckName
+	// Deprecated, use filters.ModPathName instead
+	ModPathName = filters.ModPathName
+	// Deprecated, use filters.SetPathName instead
+	SetPathName = filters.SetPathName
+	// Deprecated, use filters.ModRequestHeaderName instead
+	ModRequestHeaderName = filters.ModRequestHeaderName
+	// Deprecated, use filters.RedirectToName instead
+	RedirectToName = filters.RedirectToName
+	// Deprecated, use filters.RedirectToLowerName instead
+	RedirectToLowerName = filters.RedirectToLowerName
+	// Deprecated, use filters.StaticName instead
+	StaticName = filters.StaticName
+	// Deprecated, use filters.StripQueryName instead
+	StripQueryName = filters.StripQueryName
+	// Deprecated, use filters.PreserveHostName instead
+	PreserveHostName = filters.PreserveHostName
+	// Deprecated, use filters.SetFastCgiFilenameName instead
+	SetFastCgiFilenameName = filters.SetFastCgiFilenameName
+	// Deprecated, use filters.StatusName instead
+	StatusName = filters.StatusName
+	// Deprecated, use filters.CompressName instead
+	CompressName = filters.CompressName
+	// Deprecated, use filters.SetQueryName instead
+	SetQueryName = filters.SetQueryName
+	// Deprecated, use filters.DropQueryName instead
+	DropQueryName = filters.DropQueryName
+	// Deprecated, use filters.InlineContentName instead
+	InlineContentName = filters.InlineContentName
+	// Deprecated, use filters.InlineContentIfStatusName instead
+	InlineContentIfStatusName = filters.InlineContentIfStatusName
+	// Deprecated, use filters.HeaderToQueryName instead
+	HeaderToQueryName = filters.HeaderToQueryName
+	// Deprecated, use filters.QueryToHeaderName instead
+	QueryToHeaderName = filters.QueryToHeaderName
+	// Deprecated, use filters.BackendTimeoutName instead
+	BackendTimeoutName = filters.BackendTimeoutName
 )
 
 // Returns a Registry object initialized with the default set of filter

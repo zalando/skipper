@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	// AuditLogName is the filter name seen by the user
-	AuditLogName = "auditLog"
+	// Deprecated, use filters.AuditLogName instead
+	AuditLogName = filters.AuditLogName
+
 	// AuthUserKey is used by the auth package to set the user
 	// information into the state bag to pass the information to
 	// the auditLog filter.
@@ -30,8 +31,9 @@ const (
 	// reject reason information into the state bag to pass the
 	// information to the auditLog filter.
 	AuthRejectReasonKey = "auth-reject-reason"
-	// UnverifiedAuditLogName is the filtername seen by the user
-	UnverifiedAuditLogName = "unverifiedAuditLog"
+
+	// Deprecated, use filters.UnverifiedAuditLogName instead
+	UnverifiedAuditLogName = filters.UnverifiedAuditLogName
 
 	// UnverifiedAuditHeader is the name of the header added to the request which contains the unverified audit details
 	UnverifiedAuditHeader        = "X-Unverified-Audit"
@@ -117,7 +119,7 @@ func NewAuditLog(maxAuditBody int) filters.Spec {
 	}
 }
 
-func (al *auditLog) Name() string { return AuditLogName }
+func (al *auditLog) Name() string { return filters.AuditLogName }
 
 // CreateFilter has no arguments. It creates the filter if the user
 // specifies auditLog() in their route.
@@ -184,7 +186,7 @@ type (
 // NewUnverifiedAuditLog logs "Sub" of the middle part of a JWT Token. Or else, logs the requested JSON key if present
 func NewUnverifiedAuditLog() filters.Spec { return &unverifiedAuditLogSpec{} }
 
-func (ual *unverifiedAuditLogSpec) Name() string { return UnverifiedAuditLogName }
+func (ual *unverifiedAuditLogSpec) Name() string { return filters.UnverifiedAuditLogName }
 
 // CreateFilter has no arguments. It creates the filter if the user
 // specifies unverifiedAuditLog() in their route.

@@ -20,15 +20,6 @@ const (
 	incomingUpdate
 )
 
-// legacy, non-tree predicate names:
-const (
-	hostRegexpName   = "Host"
-	pathRegexpName   = "PathRegexp"
-	methodName       = "Method"
-	headerName       = "Header"
-	headerRegexpName = "HeaderRegexp"
-)
-
 var errInvalidWeightParams = errors.New("invalid argument for the Weight predicate")
 
 func (it incomingType) String() string {
@@ -220,7 +211,7 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]PredicateSpec) (filters.Filter, error) {
 	spec, ok := fr[def.Name]
 	if !ok {
-		if isTreePredicate(def.Name) || def.Name == hostRegexpName || def.Name == pathRegexpName || def.Name == methodName || def.Name == headerName || def.Name == headerRegexpName {
+		if isTreePredicate(def.Name) || def.Name == predicates.HostName || def.Name == predicates.PathRegexpName || def.Name == predicates.MethodName || def.Name == predicates.HeaderName || def.Name == predicates.HeaderRegexpName {
 			return nil, fmt.Errorf("trying to use '%s' as filter, but it is only available as predicate", def.Name)
 		}
 
@@ -252,9 +243,9 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]Pre
 // check if a predicate is a distinguished, path tree predicate
 func isTreePredicate(name string) bool {
 	switch name {
-	case PathSubtreeName:
+	case predicates.PathSubtreeName:
 		return true
-	case PathName:
+	case predicates.PathName:
 		return true
 	default:
 		return false
@@ -295,28 +286,28 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 		}
 
 		switch p.Name {
-		case hostRegexpName:
+		case predicates.HostName:
 			a, err := getFreeStringArgs(1, p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.HostRegexps = append(c.HostRegexps, a[0])
-		case pathRegexpName:
+		case predicates.PathRegexpName:
 			a, err := getFreeStringArgs(1, p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.PathRegexps = append(c.PathRegexps, a[0])
-		case methodName:
+		case predicates.MethodName:
 			a, err := getFreeStringArgs(1, p)
 			if err != nil {
 				return nil, err
 			}
 
 			c.Method = a[0]
-		case headerName:
+		case predicates.HeaderName:
 			a, err := getFreeStringArgs(2, p)
 			if err != nil {
 				return nil, err
@@ -327,7 +318,7 @@ func mergeLegacyNonTreePredicates(r *eskip.Route) (*eskip.Route, error) {
 			}
 
 			c.Headers[a[0]] = a[1]
-		case headerRegexpName:
+		case predicates.HeaderRegexpName:
 			a, err := getFreeStringArgs(2, p)
 			if err != nil {
 				return nil, err
@@ -410,11 +401,11 @@ func processPathOrSubTree(p *eskip.Predicate) (string, error) {
 	return "", predicates.ErrInvalidPredicateParameters
 }
 
-func validTreePredicates(predicates []*eskip.Predicate) bool {
+func validTreePredicates(predicateList []*eskip.Predicate) bool {
 	var has bool
-	for _, p := range predicates {
+	for _, p := range predicateList {
 		switch p.Name {
-		case PathName, PathSubtreeName:
+		case predicates.PathName, predicates.PathSubtreeName:
 			if has {
 				return false
 			}
@@ -425,25 +416,25 @@ func validTreePredicates(predicates []*eskip.Predicate) bool {
 }
 
 // processes path tree relevant predicates
-func processTreePredicates(r *Route, predicates []*eskip.Predicate) error {
+func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 	// backwards compatibility
 	if r.Path != "" {
-		predicates = append(predicates, &eskip.Predicate{Name: PathName, Args: []interface{}{r.Path}})
+		predicateList = append(predicateList, &eskip.Predicate{Name: predicates.PathName, Args: []interface{}{r.Path}})
 	}
 
-	if !validTreePredicates(predicates) {
+	if !validTreePredicates(predicateList) {
 		return fmt.Errorf("multiple tree predicates (Path, PathSubtree) in the route: %s", r.Id)
 	}
 
-	for _, p := range predicates {
+	for _, p := range predicateList {
 		switch p.Name {
-		case PathName:
+		case predicates.PathName:
 			path, err := processPathOrSubTree(p)
 			if err != nil {
 				return err
 			}
 			r.path = path
-		case PathSubtreeName:
+		case predicates.PathSubtreeName:
 			pst, err := processPathOrSubTree(p)
 			if err != nil {
 				return err

@@ -24,7 +24,7 @@ const (
 )
 
 const (
-	stateBagKey = "filter." + Name
+	stateBagKey = "filter." + filters.ApiUsageMonitoringName
 )
 
 const (

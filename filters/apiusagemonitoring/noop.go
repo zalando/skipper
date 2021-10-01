@@ -7,7 +7,7 @@ type noopSpec struct {
 }
 
 func (*noopSpec) Name() string {
-	return Name
+	return filters.ApiUsageMonitoringName
 }
 
 func (s *noopSpec) CreateFilter(config []interface{}) (filters.Filter, error) {

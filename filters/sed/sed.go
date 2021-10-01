@@ -7,10 +7,14 @@ import (
 )
 
 const (
-	Name               = "sed"
-	NameDelimit        = "sedDelim"
-	NameRequest        = "sedRequest"
-	NameRequestDelimit = "sedRequestDelim"
+	// Deprecated, use filters.SedName instead
+	Name = filters.SedName
+	// Deprecated, use filters.SedDelimName instead
+	NameDelimit = filters.SedDelimName
+	// Deprecated, use filters.SedRequestName instead
+	NameRequest = filters.SedRequestName
+	// Deprecated, use filters.SedRequestDelimName instead
+	NameRequestDelimit = filters.SedRequestDelimName
 )
 
 type typ int
@@ -62,13 +66,13 @@ func NewDelimitedRequest() filters.Spec {
 func (s spec) Name() string {
 	switch s.typ {
 	case delimited:
-		return NameDelimit
+		return filters.SedDelimName
 	case simpleRequest:
-		return NameRequest
+		return filters.SedRequestName
 	case delimitedRequest:
-		return NameRequestDelimit
+		return filters.SedRequestDelimName
 	default:
-		return Name
+		return filters.SedName
 	}
 }
 

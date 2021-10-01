@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	// AccessLogDisabledName is the filter name seen by the user
+	// Deprecated: use DisableAccessLogName or EnableAccessLogName
 	AccessLogDisabledName = "accessLogDisabled"
 )
 

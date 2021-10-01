@@ -6,7 +6,8 @@ import (
 )
 
 const (
-	BaggageToTagFilterName = "tracingBaggageToTag"
+	// Deprecated, use filters.TracingBaggageToTagName instead
+	BaggageToTagFilterName = filters.TracingBaggageToTagName
 )
 
 type baggageToTagSpec struct{}
@@ -17,7 +18,7 @@ type baggageToTagFilter struct {
 }
 
 func (baggageToTagSpec) Name() string {
-	return BaggageToTagFilterName
+	return filters.TracingBaggageToTagName
 }
 
 func (baggageToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {

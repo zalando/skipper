@@ -87,14 +87,14 @@ func testAbsorb(t *testing.T, silent bool) {
 }
 
 func TestAbsorb(t *testing.T) {
-	if NewAbsorb().Name() != AbsorbName {
+	if NewAbsorb().Name() != filters.AbsorbName {
 		t.Error("wrong filter name")
 	}
 	testAbsorb(t, false)
 }
 
 func TestAbsorbSilent(t *testing.T) {
-	if NewAbsorbSilent().Name() != AbsorbSilentName {
+	if NewAbsorbSilent().Name() != filters.AbsorbSilentName {
 		t.Error("wrong filter name")
 	}
 	testAbsorb(t, true)

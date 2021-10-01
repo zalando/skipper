@@ -66,9 +66,9 @@ func (spec *redirect) Name() string {
 	case redDeprecated:
 		return RedirectName
 	case redToLower:
-		return RedirectToLowerName
+		return filters.RedirectToLowerName
 	default:
-		return RedirectToName
+		return filters.RedirectToName
 	}
 }
 

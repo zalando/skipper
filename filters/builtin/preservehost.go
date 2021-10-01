@@ -36,7 +36,7 @@ type filter bool
 // or in the backend address.
 func PreserveHost() filters.Spec { return &spec{} }
 
-func (s *spec) Name() string { return PreserveHostName }
+func (s *spec) Name() string { return filters.PreserveHostName }
 
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {

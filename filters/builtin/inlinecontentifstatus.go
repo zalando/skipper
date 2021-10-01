@@ -30,7 +30,7 @@ func NewInlineContentIfStatus() filters.Spec {
 	return &inlineContentIfStatus{}
 }
 
-func (c *inlineContentIfStatus) Name() string { return InlineContentIfStatusName }
+func (c *inlineContentIfStatus) Name() string { return filters.InlineContentIfStatusName }
 
 func (c *inlineContentIfStatus) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) < 2 || len(args) > 3 {
