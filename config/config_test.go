@@ -17,6 +17,9 @@ import (
 var cfg = NewConfig()
 
 func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
+	oldArgs := os.Args
+	t.Cleanup(func() { os.Args = oldArgs })
+
 	for _, tt := range []struct {
 		name string
 		args []string
@@ -42,24 +45,21 @@ func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
 			want: "set_from_file",
 		},
 	} {
-		// Run test in non-concurrent way to avoid collisions of other test cases that parse config file
-		oldArgs := os.Args
-		defer func() {
-			os.Args = oldArgs
-			os.Unsetenv(redisPasswordEnv)
-		}()
-		os.Args = tt.args
-		if tt.env != "" {
-			os.Setenv(redisPasswordEnv, tt.env)
-		}
-		err := cfg.Parse()
-		if err != nil {
-			t.Errorf("config.NewConfig() error = %v", err)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			// Run test in non-concurrent way to avoid collisions of other test cases that parse config file
+			os.Args = tt.args
+			if tt.env != "" {
+				t.Setenv(redisPasswordEnv, tt.env)
+			}
+			err := cfg.Parse()
+			if err != nil {
+				t.Errorf("config.NewConfig() error = %v", err)
+			}
 
-		if cfg.SwarmRedisPassword != tt.want {
-			t.Errorf("cfg.SwarmRedisPassword didn't set correctly: Want '%s', got '%s'", tt.want, cfg.SwarmRedisPassword)
-		}
+			if cfg.SwarmRedisPassword != tt.want {
+				t.Errorf("cfg.SwarmRedisPassword didn't set correctly: Want '%s', got '%s'", tt.want, cfg.SwarmRedisPassword)
+			}
+		})
 	}
 }
 
