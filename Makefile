@@ -29,6 +29,9 @@ eskip: $(SOURCES) bindir
 webhook: $(SOURCES) bindir
 	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook/*.go
 
+routesrv: $(SOURCES) bindir
+	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/routesrv ./cmd/routesrv/*.go
+
 fixlimits:
 ifeq (LIMIT_FDS, 256)
 	ulimit -n 1024

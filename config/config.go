@@ -21,6 +21,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
+	routesrv "github.com/zalando/skipper/routesrv"
 	"github.com/zalando/skipper/swarm"
 )
 
@@ -563,6 +564,35 @@ func (c *Config) Parse() error {
 
 	c.parseEnv()
 	return nil
+}
+
+func (c *Config) ToRouteSrvOptions() routesrv.Options {
+	var whitelistCIDRS []string
+	if len(c.WhitelistedHealthCheckCIDR) > 0 {
+		whitelistCIDRS = strings.Split(c.WhitelistedHealthCheckCIDR, ",")
+	}
+
+	return routesrv.Options{
+		Address:                            c.Address,
+		SourcePollTimeout:                  time.Duration(c.SourcePollTimeout) * time.Millisecond,
+		WaitForHealthcheckInterval:         c.WaitForHealthcheckInterval,
+		KubernetesInCluster:                c.KubernetesInCluster,
+		KubernetesURL:                      c.KubernetesURL,
+		KubernetesHealthcheck:              c.KubernetesHealthcheck,
+		KubernetesHTTPSRedirect:            c.KubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
+		KubernetesIngressClass:             c.KubernetesIngressClass,
+		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
+		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
+		KubernetesPathMode:                 c.KubernetesPathMode,
+		KubernetesNamespace:                c.KubernetesNamespace,
+		KubernetesEastWestRangeDomains:     c.KubernetesEastWestRangeDomains.values,
+		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
+		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
+		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
+		OpenTracingBackendNameTag:          c.OpentracingBackendNameTag,
+		OpenTracing:                        strings.Split(c.OpenTracing, " "),
+	}
 }
 
 func (c *Config) ToOptions() skipper.Options {
