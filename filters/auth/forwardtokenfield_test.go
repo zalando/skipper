@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 )
 
@@ -27,7 +28,7 @@ func TestForwardTokenFieldInvalidNumber(t *testing.T) {
 
 func TestForwardFieldField(t *testing.T) {
 	spec := NewForwardTokenField()
-	if spec.Name() != ForwardTokenFieldName {
+	if spec.Name() != filters.ForwardTokenFieldName {
 		t.Error("wrong name")
 	}
 
@@ -83,7 +84,7 @@ func TestForwardFieldField(t *testing.T) {
 
 func TestForwardFieldFieldEmpty(t *testing.T) {
 	spec := NewForwardTokenField()
-	if spec.Name() != ForwardTokenFieldName {
+	if spec.Name() != filters.ForwardTokenFieldName {
 		t.Error("wrong name")
 	}
 

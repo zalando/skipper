@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	ForwardTokenFieldName = "forwardTokenField"
+	// Deprecated, use filters.ForwardTokenFieldName instead
+	ForwardTokenFieldName = filters.ForwardTokenFieldName
 )
 
 type (
@@ -27,7 +28,7 @@ func NewForwardTokenField() filters.Spec {
 }
 
 func (s *forwardTokenFieldSpec) Name() string {
-	return ForwardTokenFieldName
+	return filters.ForwardTokenFieldName
 }
 
 func (*forwardTokenFieldSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
