@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	JwtValidationName = "jwtValidation"
+	// Deprecated, use filters.JwtValidationName instead
+	JwtValidationName = filters.JwtValidationName
 )
 
 type (
@@ -42,7 +43,7 @@ func NewJwtValidationWithOptions(o TokenintrospectionOptions) filters.Spec {
 }
 
 func (s *jwtValidationSpec) Name() string {
-	return JwtValidationName
+	return filters.JwtValidationName
 }
 
 func (s *jwtValidationSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
