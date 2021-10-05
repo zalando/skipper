@@ -37,7 +37,7 @@ ifeq (LIMIT_FDS, 256)
 	ulimit -n 1024
 endif
 
-build: $(SOURCES) lib skipper eskip webhook
+build: $(SOURCES) lib skipper eskip webhook routesrv
 
 build.linux.armv8:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
