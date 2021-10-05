@@ -48,23 +48,26 @@ func New(opts Options) (*RouteServer, error) {
 	rs.server = &http.Server{Addr: opts.Address, Handler: handler}
 
 	dataclient, err := kubernetes.New(kubernetes.Options{
+		AllowedExternalNames:              opts.KubernetesAllowedExternalNames,
+		BackendNameTracingTag:             opts.OpenTracingBackendNameTag,
+		DefaultFiltersDir:                 opts.DefaultFiltersDir,
 		KubernetesInCluster:               opts.KubernetesInCluster,
 		KubernetesURL:                     opts.KubernetesURL,
-		ProvideHealthcheck:                opts.KubernetesHealthcheck,
-		ProvideHTTPSRedirect:              opts.KubernetesHTTPSRedirect,
-		HTTPSRedirectCode:                 opts.KubernetesHTTPSRedirectCode,
-		IngressClass:                      opts.KubernetesIngressClass,
-		RouteGroupClass:                   opts.KubernetesRouteGroupClass,
-		ReverseSourcePredicate:            opts.ReverseSourcePredicate,
-		WhitelistedHealthCheckCIDR:        opts.WhitelistedHealthCheckCIDR,
-		PathMode:                          opts.KubernetesPathMode,
 		KubernetesNamespace:               opts.KubernetesNamespace,
+		KubernetesEnableEastWest:          opts.KubernetesEnableEastWest,
+		KubernetesEastWestDomain:          opts.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:    opts.KubernetesEastWestRangeDomains,
 		KubernetesEastWestRangePredicates: opts.KubernetesEastWestRangePredicates,
-		DefaultFiltersDir:                 opts.DefaultFiltersDir,
-		BackendNameTracingTag:             opts.OpenTracingBackendNameTag,
+		HTTPSRedirectCode:                 opts.KubernetesHTTPSRedirectCode,
+		IngressClass:                      opts.KubernetesIngressClass,
 		OnlyAllowedExternalNames:          opts.KubernetesOnlyAllowedExternalNames,
-		AllowedExternalNames:              opts.KubernetesAllowedExternalNames,
+		OriginMarker:                      opts.OriginMarker,
+		PathMode:                          opts.KubernetesPathMode,
+		ProvideHealthcheck:                opts.KubernetesHealthcheck,
+		ProvideHTTPSRedirect:              opts.KubernetesHTTPSRedirect,
+		ReverseSourcePredicate:            opts.ReverseSourcePredicate,
+		RouteGroupClass:                   opts.KubernetesRouteGroupClass,
+		WhitelistedHealthCheckCIDR:        opts.WhitelistedHealthCheckCIDR,
 	})
 	if err != nil {
 		return nil, err
