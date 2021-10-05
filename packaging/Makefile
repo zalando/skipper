@@ -30,11 +30,14 @@ eskip:
 webhook:
 	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o webhook ../cmd/webhook/*.go
 
+routesrv:
+	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o routesrv ../cmd/routesrv/*.go
+
 clean:
-	rm -rf skipper eskip webhook build/
+	rm -rf skipper eskip webhook routesrv build/
 
 docker-build: docker.build.amd64 docker.build.arm64 docker.build.armv7
-docker.build.amd64: clean skipper eskip webhook
+docker.build.amd64: clean skipper eskip webhook routesrv
 	docker build -t $(IMAGE) .
 docker.build.arm64: clean build.linux.arm64 docker.build.enable
 	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 .
