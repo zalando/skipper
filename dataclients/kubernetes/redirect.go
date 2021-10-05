@@ -84,6 +84,8 @@ func routeIDForRedirectRoute(baseID string, enable bool) string {
 }
 
 func initRedirectRoute(r *eskip.Route, code int) {
+	println("initRedirectRoute", r.Id, len(r.Predicates))
+
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
@@ -95,16 +97,21 @@ func initRedirectRoute(r *eskip.Route, code int) {
 		Args: []interface{}{float64(1000)},
 	}}, r.Predicates...)
 
-	r.Filters = append(r.Filters, &eskip.Filter{
-		Name: "redirectTo",
-		Args: []interface{}{float64(code), "https:"},
-	})
+	// remove all filters and just set redirect filter
+	r.Filters = []*eskip.Filter{
+		{
+			Name: "redirectTo",
+			Args: []interface{}{float64(code), "https:"},
+		},
+	}
 
 	r.BackendType = eskip.ShuntBackend
 	r.Backend = ""
 }
 
 func initDisableRedirectRoute(r *eskip.Route) {
+	println("initDisableRedirectRoute", r.Id, len(r.Predicates))
+
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
@@ -173,15 +180,19 @@ func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
 	rr.Id = routeIDForRedirectRoute(rr.Id, true)
 	rr.BackendType = eskip.ShuntBackend
 
+	println("createHTTPSRedirect", rr.Id, len(rr.Predicates))
 	rr.Predicates = append(rr.Predicates, &eskip.Predicate{
 		Name: "Header",
 		Args: []interface{}{forwardedProtoHeader, "http"},
 	})
 
-	rr.Filters = append(rr.Filters, &eskip.Filter{
-		Name: "redirectTo",
-		Args: []interface{}{float64(code), "https:"},
-	})
+	// remove all filters and just set redirect filter
+	rr.Filters = []*eskip.Filter{
+		{
+			Name: "redirectTo",
+			Args: []interface{}{float64(code), "https:"},
+		},
+	}
 
 	return rr
 }
