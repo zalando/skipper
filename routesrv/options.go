@@ -73,6 +73,12 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
+	// *DEPRECATED* KubernetesEnableEastWest enables cluster internal service to service communication, aka east-west traffic
+	KubernetesEnableEastWest bool
+
+	// *DEPRECATED* KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
+	KubernetesEastWestDomain string
+
 	// KubernetesEastWestRangeDomains set the the cluster internal domains for
 	// east west traffic. Identified routes to such domains will include
 	// the KubernetesEastWestRangePredicates.
@@ -104,6 +110,9 @@ type Options struct {
 
 	// Default filters directory enables default filters mechanism and sets the directory where the filters are located
 	DefaultFiltersDir string
+
+	// OriginMarker is *deprecated* and not used anymore. It will be deleted in v1.
+	OriginMarker bool
 
 	// OpenTracingBackendNameTag enables an additional tracing tag containing a backend name
 	// for a route when it's available (e.g. for RouteGroups)

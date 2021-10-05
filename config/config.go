@@ -574,8 +574,8 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 
 	return routesrv.Options{
 		Address:                            c.Address,
-		SourcePollTimeout:                  time.Duration(c.SourcePollTimeout) * time.Millisecond,
-		WaitForHealthcheckInterval:         c.WaitForHealthcheckInterval,
+		DefaultFiltersDir:                  c.DefaultFiltersDir,
+		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
 		KubernetesInCluster:                c.KubernetesInCluster,
 		KubernetesURL:                      c.KubernetesURL,
 		KubernetesHealthcheck:              c.KubernetesHealthcheck,
@@ -583,15 +583,20 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
 		KubernetesIngressClass:             c.KubernetesIngressClass,
 		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
-		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
 		KubernetesPathMode:                 c.KubernetesPathMode,
 		KubernetesNamespace:                c.KubernetesNamespace,
+		KubernetesEnableEastWest:           c.KubernetesEnableEastWest,
+		KubernetesEastWestDomain:           c.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:     c.KubernetesEastWestRangeDomains.values,
 		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
 		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
-		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
 		OpenTracingBackendNameTag:          c.OpentracingBackendNameTag,
 		OpenTracing:                        strings.Split(c.OpenTracing, " "),
+		OriginMarker:                       c.RouteCreationMetrics,
+		ReverseSourcePredicate:             c.ReverseSourcePredicate,
+		SourcePollTimeout:                  time.Duration(c.SourcePollTimeout) * time.Millisecond,
+		WaitForHealthcheckInterval:         c.WaitForHealthcheckInterval,
+		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
 	}
 }
 
