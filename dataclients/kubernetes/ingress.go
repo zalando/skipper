@@ -346,13 +346,17 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	}
 	ic.addHostRoute(host, endpointsRoute)
 	redirect := ic.redirect
-	if redirect.enable || redirect.override {
+	println("redirect:", redirect.defaultEnabled, redirect.enable, redirect.override, redirect.disable)
+	switch {
+	case redirect.enable:
 		ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
 		redirect.setHost(host)
-	}
-	if redirect.disable {
+	case redirect.disable:
 		ic.addHostRoute(host, createIngressDisableHTTPSRedirect(endpointsRoute))
 		redirect.setHostDisabled(host)
+	case redirect.defaultEnabled:
+		ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
+		redirect.setHost(host)
 	}
 
 	if ing.kubernetesEnableEastWest {
@@ -365,10 +369,11 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 
 func addExtraRoutes(ic ingressContext, ruleHost, path, eastWestDomain string, enableEastWest bool) {
 	hosts := []string{createHostRx(ruleHost)}
+	name := ic.ingress.Metadata.Name
+	ns := ic.ingress.Metadata.Namespace
+
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
-		name := ic.ingress.Metadata.Name
-		ns := ic.ingress.Metadata.Namespace
 		route := *r
 		route.HostRegexps = hosts
 		route.Id = routeIDForCustom(

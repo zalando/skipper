@@ -34,8 +34,8 @@ func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
 }
 
 func (r *redirectInfo) initCurrent(m *definitions.Metadata) {
-	r.enable = !r.defaultEnabled && m.Annotations[redirectAnnotationKey] == "true"
-	r.disable = r.defaultEnabled && m.Annotations[redirectAnnotationKey] == "false"
+	r.enable = m.Annotations[redirectAnnotationKey] == "true"
+	r.disable = m.Annotations[redirectAnnotationKey] == "false"
 
 	r.code = r.defaultCode
 	if annotationCode, ok := m.Annotations[redirectCodeAnnotationKey]; ok {
@@ -53,7 +53,7 @@ func (r *redirectInfo) initCurrent(m *definitions.Metadata) {
 		}
 	}
 
-	r.override = r.defaultEnabled && !r.disable && r.code != r.defaultCode
+	//r.override = r.defaultEnabled && !r.disable && r.code != r.defaultCode
 }
 
 func (r *redirectInfo) setHost(host string) {
@@ -65,12 +65,13 @@ func (r *redirectInfo) setHostDisabled(host string) {
 }
 
 func (r *redirectInfo) updateHost(host string) {
-	if r.enable || r.override {
+	switch {
+	case r.enable:
 		r.setHost(host)
-	}
-
-	if r.disable {
+	case r.disable:
 		r.setHostDisabled(host)
+	case r.defaultEnabled:
+		r.setHost(host)
 	}
 }
 
@@ -84,8 +85,6 @@ func routeIDForRedirectRoute(baseID string, enable bool) string {
 }
 
 func initRedirectRoute(r *eskip.Route, code int) {
-	println("initRedirectRoute", r.Id, len(r.Predicates))
-
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
@@ -180,7 +179,6 @@ func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
 	rr.Id = routeIDForRedirectRoute(rr.Id, true)
 	rr.BackendType = eskip.ShuntBackend
 
-	println("createHTTPSRedirect", rr.Id, len(rr.Predicates))
 	rr.Predicates = append(rr.Predicates, &eskip.Predicate{
 		Name: "Header",
 		Args: []interface{}{forwardedProtoHeader, "http"},
