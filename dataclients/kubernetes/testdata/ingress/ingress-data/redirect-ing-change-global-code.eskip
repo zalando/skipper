@@ -1,5 +1,5 @@
 kube__redirect: Header("X-Forwarded-Proto", "http") && Weight(1000)
-	-> redirectTo(308, "https:")
+	-> redirectTo(302, "https:")
 	-> <shunt>;
 
 kube_foo__qux__www_example_org____bar:
@@ -9,5 +9,5 @@ kube_foo__qux__www_example_org____bar:
 kube_foo__qux__www_example_org____bar_https_redirect:
 	Header("X-Forwarded-Proto", "http") && Weight(1000) &&
 	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
-	-> redirectTo(308, "https:")
+	-> redirectTo(302, "https:")
 	-> <shunt>;
