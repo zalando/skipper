@@ -345,18 +345,27 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 		ic.logger.Errorf("failed to apply annotation predicates: %v", err)
 	}
 	ic.addHostRoute(host, endpointsRoute)
+
 	redirect := ic.redirect
-	println("redirect:", redirect.defaultEnabled, redirect.enable, redirect.override, redirect.disable)
-	switch {
-	case redirect.enable:
-		ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
-		redirect.setHost(host)
-	case redirect.disable:
-		ic.addHostRoute(host, createIngressDisableHTTPSRedirect(endpointsRoute))
-		redirect.setHostDisabled(host)
-	case redirect.defaultEnabled:
-		ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
-		redirect.setHost(host)
+	ewRangeMatch := false
+	for _, s := range ing.eastWestRangeDomains {
+		if strings.HasSuffix(host, s) {
+			ewRangeMatch = true
+			break
+		}
+	}
+	if !(ewRangeMatch || strings.HasSuffix(host, ing.kubernetesEastWestDomain) && ing.kubernetesEastWestDomain != "") {
+		switch {
+		case redirect.enable:
+			ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
+			redirect.setHost(host)
+		case redirect.disable:
+			ic.addHostRoute(host, createIngressDisableHTTPSRedirect(endpointsRoute))
+			redirect.setHostDisabled(host)
+		case redirect.defaultEnabled:
+			ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
+			redirect.setHost(host)
+		}
 	}
 
 	if ing.kubernetesEnableEastWest {

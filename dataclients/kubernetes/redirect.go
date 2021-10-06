@@ -52,8 +52,6 @@ func (r *redirectInfo) initCurrent(m *definitions.Metadata) {
 			r.code = r.defaultCode
 		}
 	}
-
-	//r.override = r.defaultEnabled && !r.disable && r.code != r.defaultCode
 }
 
 func (r *redirectInfo) setHost(host string) {
