@@ -31,7 +31,7 @@ func readDefaultFilters(dir string) (defaultFilters, error) {
 	for _, f := range files {
 		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
 		info, err := f.Info()
-		if len(r) != 2 || !(f.Type().IsRegular() || f.Type()&os.ModeSymlink != 0) || info.Size() > maxFileSize {
+		if err != nil || len(r) != 2 || !(f.Type().IsRegular() || f.Type()&os.ModeSymlink != 0) || info.Size() > maxFileSize {
 			log.WithError(err).WithField("file", f.Name()).Debug("incompatible file")
 			continue
 		}
