@@ -3229,17 +3229,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error(err)
 		}
 
-		dc, err := New(Options{
-			KubernetesURL:     api.server.URL,
-			DefaultFiltersDir: defaultFiltersDir,
-		})
-		if err != nil {
-			t.Error(err)
-		}
-
-		defer dc.Close()
-
-		df, err := readDefaultFilters(dc.defaultFiltersDir)
+		df, err := readDefaultFilters(defaultFiltersDir)
 
 		if err != nil || len(df) != 0 {
 			t.Error("should return empty slice", err, df)
