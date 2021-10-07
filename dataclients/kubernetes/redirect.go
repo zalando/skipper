@@ -18,10 +18,10 @@ const (
 )
 
 type redirectInfo struct {
-	defaultEnabled, enable, disable, override bool
-	defaultCode, code                         int
-	setHostCode                               map[string]int
-	disableHost                               map[string]bool
+	defaultEnabled, enable, disable bool
+	defaultCode, code               int
+	setHostCode                     map[string]int
+	disableHost                     map[string]bool
 }
 
 func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
