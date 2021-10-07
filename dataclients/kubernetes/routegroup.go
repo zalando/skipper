@@ -380,7 +380,7 @@ func appendHTTPSRedirect(ctx *routeGroupContext, routes []*eskip.Route, current 
 	// in case a route explicitly handles the forwarded proto header, we
 	// don't shadow it
 
-	if ctx.provideHTTPSRedirect && !hasProtoPredicate(current) {
+	if !ctx.internal && ctx.provideHTTPSRedirect && !hasProtoPredicate(current) {
 		hsr := createHTTPSRedirect(ctx.httpsRedirectCode, current)
 		routes = append(routes, hsr)
 	}
