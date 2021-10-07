@@ -1821,15 +1821,12 @@ func TestBuildAPIURL(t *testing.T) {
 
 	o.KubernetesInCluster = true
 
-	curEnvHostVar, curEnvPortVar := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
-	defer func(host, port string) {
-		os.Setenv(serviceHostEnvVar, host)
-		os.Setenv(servicePortEnvVar, port)
-	}(curEnvHostVar, curEnvPortVar)
-
 	dummyHost := "10.0.0.2"
 	dummyPort := "8080"
 
+	// There is t.Unsetenv so set to properly restore/unset
+	t.Setenv(serviceHostEnvVar, "")
+	t.Setenv(servicePortEnvVar, "")
 	os.Unsetenv(serviceHostEnvVar)
 	os.Unsetenv(servicePortEnvVar)
 
@@ -1838,13 +1835,13 @@ func TestBuildAPIURL(t *testing.T) {
 		t.Error("build API url should fail if env var is missing")
 	}
 
-	os.Setenv(serviceHostEnvVar, dummyHost)
+	t.Setenv(serviceHostEnvVar, dummyHost)
 	apiURL, err = buildAPIURL(o)
 	if apiURL != "" || err != errAPIServerURLNotFound {
 		t.Error("build API url should fail if env var is missing")
 	}
 
-	os.Setenv(servicePortEnvVar, dummyPort)
+	t.Setenv(servicePortEnvVar, dummyPort)
 	apiURL, err = buildAPIURL(o)
 	if apiURL != "https://10.0.0.2:8080" || err != nil {
 		t.Error("incorrect result of build api url")

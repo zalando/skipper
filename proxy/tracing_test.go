@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -92,7 +91,7 @@ func TestTracingIngressSpan(t *testing.T) {
 		Flags: FlagsNone,
 	}
 
-	os.Setenv("HOSTNAME", "ingress.tracing.test")
+	t.Setenv("HOSTNAME", "ingress.tracing.test")
 
 	tp, err := newTestProxyWithParams(doc, params)
 	if err != nil {
@@ -240,7 +239,7 @@ func TestTracingProxySpan(t *testing.T) {
 	doc := fmt.Sprintf(`hello: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, s.URL)
 	tracer := mocktracer.New()
 
-	os.Setenv("HOSTNAME", "proxy.tracing.test")
+	t.Setenv("HOSTNAME", "proxy.tracing.test")
 
 	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{Tracer: tracer}})
 	if err != nil {
