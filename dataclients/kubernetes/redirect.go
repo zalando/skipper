@@ -107,8 +107,6 @@ func initRedirectRoute(r *eskip.Route, code int) {
 }
 
 func initDisableRedirectRoute(r *eskip.Route) {
-	println("initDisableRedirectRoute", r.Id, len(r.Predicates))
-
 	if r.Headers == nil {
 		r.Headers = make(map[string]string)
 	}
