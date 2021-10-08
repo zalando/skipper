@@ -2,7 +2,7 @@ module github.com/zalando/skipper
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.0 // indirect
-	github.com/MicahParks/keyfunc v0.6.1
+	github.com/MicahParks/keyfunc v0.9.0
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/aryszka/jobqueue v0.0.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -18,7 +18,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.0 // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-redis/redis/v8 v8.3.3
-	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/golang-jwt/jwt/v4 v4.1.0
 	github.com/google/go-cmp v0.5.4
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16
@@ -71,8 +71,6 @@ require (
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect
 	github.com/beorn7/perks v1.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
-	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
