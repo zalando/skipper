@@ -29,8 +29,8 @@ var (
 
 func createToken(t *testing.T, method jwt.SigningMethod) string {
 	// Create the Claims
-	claims := &jwt.StandardClaims{
-		ExpiresAt: time.Now().Unix() + 1000,
+	claims := &jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(1000 * time.Second)),
 		Issuer:    "test",
 		Subject:   "aaa",
 	}
