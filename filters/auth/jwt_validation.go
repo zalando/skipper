@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/MicahParks/keyfunc"
-	"github.com/golang-jwt/jwt"
+	jwt "github.com/golang-jwt/jwt/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
@@ -161,7 +161,7 @@ func parseToken(token string, jwksUri string) (map[string]interface{}, error) {
 	jwks := getKeyFunction(jwksUri)
 
 	var claims jwt.MapClaims
-	parsedToken, err := jwt.ParseWithClaims(token, &claims, jwks.KeyFunc)
+	parsedToken, err := jwt.ParseWithClaims(token, &claims, jwks.Keyfunc)
 	if err != nil {
 		return nil, fmt.Errorf("error while parsing jwt token : %w", err)
 	} else if !parsedToken.Valid {
