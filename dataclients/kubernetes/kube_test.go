@@ -203,23 +203,6 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 	return i
 }
 
-func testIngressSimple(ns, name, defaultService string, defaultPort definitions.BackendPort, rules ...*definitions.Rule) *definitions.IngressItem {
-	return testIngress(
-		ns,
-		name,
-		defaultService,
-		"",
-		"",
-		"",
-		"",
-		"",
-		"",
-		defaultPort,
-		0,
-		rules...,
-	)
-}
-
 func testServices() *serviceList {
 	return &serviceList{
 		Items: []*service{

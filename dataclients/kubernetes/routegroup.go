@@ -380,7 +380,7 @@ func appendHTTPSRedirect(ctx *routeGroupContext, routes []*eskip.Route, current 
 	// in case a route explicitly handles the forwarded proto header, we
 	// don't shadow it
 
-	if ctx.provideHTTPSRedirect && !hasProtoPredicate(current) {
+	if !ctx.internal && ctx.provideHTTPSRedirect && !hasProtoPredicate(current) {
 		hsr := createHTTPSRedirect(ctx.httpsRedirectCode, current)
 		routes = append(routes, hsr)
 	}
@@ -555,8 +555,11 @@ func splitHosts(hosts []string, domains []string) ([]string, []string) {
 
 func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Route, error) {
 	var rs []*eskip.Route
+	redirect := createRedirectInfo(r.options.ProvideHTTPSRedirect, r.options.HTTPSRedirectCode)
 
 	for _, rg := range s.routeGroups {
+		redirect.initCurrent(rg.Metadata)
+
 		var internalHosts []string
 		var externalHosts []string
 
@@ -572,6 +575,15 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 		// If there's no host at all, or if there's any external hosts
 		// create it.
 		if len(externalHosts) != 0 || len(hosts) == 0 {
+			var provideRedirect bool
+			switch {
+			case redirect.enable:
+				provideRedirect = true
+			case redirect.disable:
+				provideRedirect = false
+			case redirect.defaultEnabled:
+				provideRedirect = true
+			}
 			ctx := &routeGroupContext{
 				clusterState:          s,
 				defaultFilters:        df,
@@ -582,7 +594,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				hasEastWestHost:       hasEastWestHost(r.options.KubernetesEastWestDomain, externalHosts),
 				eastWestEnabled:       r.options.KubernetesEnableEastWest,
 				eastWestDomain:        r.options.KubernetesEastWestDomain,
-				provideHTTPSRedirect:  r.options.ProvideHTTPSRedirect,
+				provideHTTPSRedirect:  provideRedirect,
 				httpsRedirectCode:     r.options.HTTPSRedirectCode,
 				backendsByName:        backends,
 				backendNameTracingTag: r.options.BackendNameTracingTag,
@@ -620,8 +632,6 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				hosts:                 internalHosts,
 				hostRx:                createHostRx(internalHosts...),
 				hostRoutes:            make(map[string][]*eskip.Route),
-				provideHTTPSRedirect:  r.options.ProvideHTTPSRedirect,
-				httpsRedirectCode:     r.options.HTTPSRedirectCode,
 				backendsByName:        backends,
 				backendNameTracingTag: r.options.BackendNameTracingTag,
 				internal:              true,
