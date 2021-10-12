@@ -356,6 +356,8 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	}
 	if !(ewRangeMatch || strings.HasSuffix(host, ing.kubernetesEastWestDomain) && ing.kubernetesEastWestDomain != "") {
 		switch {
+		case redirect.ignore:
+			// no redirect
 		case redirect.enable:
 			ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
 			redirect.setHost(host)

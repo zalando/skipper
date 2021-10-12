@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
@@ -18,10 +19,10 @@ const (
 )
 
 type redirectInfo struct {
-	defaultEnabled, enable, disable bool
-	defaultCode, code               int
-	setHostCode                     map[string]int
-	disableHost                     map[string]bool
+	defaultEnabled, enable, disable, ignore bool
+	defaultCode, code                       int
+	setHostCode                             map[string]int
+	disableHost                             map[string]bool
 }
 
 func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
@@ -36,6 +37,7 @@ func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
 func (r *redirectInfo) initCurrent(m *definitions.Metadata) {
 	r.enable = m.Annotations[redirectAnnotationKey] == "true"
 	r.disable = m.Annotations[redirectAnnotationKey] == "false"
+	r.ignore = strings.Index(m.Annotations[skipperpredicateAnnotationKey], `Header("X-Forwarded-Proto"`) != -1 || strings.Index(m.Annotations[skipperRoutesAnnotationKey], `Header("X-Forwarded-Proto"`) != -1
 
 	r.code = r.defaultCode
 	if annotationCode, ok := m.Annotations[redirectCodeAnnotationKey]; ok {
