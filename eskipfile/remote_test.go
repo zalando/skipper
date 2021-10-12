@@ -3,10 +3,12 @@ package eskipfile
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/sanity-io/litter"
 	"github.com/zalando/skipper/eskip"
@@ -53,7 +55,6 @@ func TestIsRemoteFile(t *testing.T) {
 }
 
 func TestLoadAll(t *testing.T) {
-
 	for _, test := range []struct {
 		title           string
 		routeContent    string
@@ -120,7 +121,6 @@ func TestLoadAll(t *testing.T) {
 }
 
 func TestLoadAllAndUpdate(t *testing.T) {
-
 	for _, test := range []struct {
 		title               string
 		validRouteContent   string
@@ -135,7 +135,6 @@ func TestLoadAllAndUpdate(t *testing.T) {
 	},
 	} {
 		t.Run(test.title, func(t *testing.T) {
-
 			testValidServer := createTestServer(test.validRouteContent, 200)
 			defer testValidServer.Close()
 
@@ -167,6 +166,17 @@ func TestLoadAllAndUpdate(t *testing.T) {
 				return
 			}
 		})
+	}
+}
+
+func TestHTTPTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second)
+	}))
+	defer server.Close()
+	_, err := RemoteWatch(&RemoteWatchOptions{RemoteFile: server.URL, HTTPTimeout: 1 * time.Second, FailOnStartup: true})
+	if err, ok := err.(net.Error); !ok || !err.Timeout() {
+		t.Errorf("got %v, expected net.Error with timeout", err)
 	}
 }
 
