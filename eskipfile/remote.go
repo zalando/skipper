@@ -3,11 +3,12 @@ package eskipfile
 import (
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 
 	log "github.com/sirupsen/logrus"
@@ -20,6 +21,7 @@ type remoteEskipFile struct {
 	eskipFileClient *WatchClient
 	threshold       int
 	verbose         bool
+	http            *net.Client
 }
 
 type RemoteWatchOptions struct {
@@ -34,6 +36,9 @@ type RemoteWatchOptions struct {
 
 	// It does an initial download and parsing of remote routes, and makes RemoteWatch to return an error
 	FailOnStartup bool
+
+	// HTTPTimeout is the generic timeout for any phase of a single HTTP request to RemoteFile.
+	HTTPTimeout time.Duration
 }
 
 // RemoteWatch creates a route configuration client with (remote) file watching. Watch doesn't follow file system nodes,
@@ -54,6 +59,7 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 		localPath:  tempFilename.Name(),
 		threshold:  o.Threshold,
 		verbose:    o.Verbose,
+		http:       net.NewClient(net.Options{Timeout: o.HTTPTimeout}),
 	}
 
 	if o.FailOnStartup {
@@ -81,7 +87,6 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 
 // LoadAll returns the parsed route definitions found in the file.
 func (client *remoteEskipFile) LoadAll() ([]*eskip.Route, error) {
-
 	var err error = nil
 
 	if client.preloaded {
@@ -104,7 +109,6 @@ func (client *remoteEskipFile) LoadAll() ([]*eskip.Route, error) {
 
 // LoadUpdate returns differential updates when a remote file has changed.
 func (client *remoteEskipFile) LoadUpdate() ([]*eskip.Route, []string, error) {
-
 	err := client.DownloadRemoteFile()
 
 	if err != nil {
@@ -136,7 +140,6 @@ func isFileRemote(remotePath string) bool {
 }
 
 func (client *remoteEskipFile) DownloadRemoteFile() error {
-
 	data, err := client.getRemoteData()
 	if err != nil {
 		return err
@@ -157,8 +160,7 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 }
 
 func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
-
-	resp, err := http.Get(client.remotePath)
+	resp, err := client.http.Get(client.remotePath)
 	if err != nil {
 		return nil, err
 	}

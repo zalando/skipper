@@ -809,6 +809,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			client, err := eskipfile.RemoteWatch(&eskipfile.RemoteWatchOptions{
 				RemoteFile:    url,
 				FailOnStartup: true,
+				HTTPTimeout:   o.SourcePollTimeout,
 			})
 			if err != nil {
 				log.Errorf("error while loading routes from url %s: %s", url, err)
