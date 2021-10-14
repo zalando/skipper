@@ -992,3 +992,74 @@ Skipper can be configured to add [`X-Forwarded-*` headers](https://en.wikipedia.
   -forwarded-headers-exclude-cidrs value
         disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs
 ```
+
+## Converting Routes
+
+For migrations you need often to convert X to Y. This is also true in
+case you want to switch one predicate to another one or one filter to
+another one. In skipper we have `-edit-route` and `-clone-route` that
+either modifies matching routes or copy matching routes and change the
+copy.
+
+Example:
+
+A route with `edit-route`
+```
+% skipper -inline-routes='Path("/foo") -> setResponseHeader("X-Foo","bar") -> inlineContent("hi") -> <shunt>' \
+-edit-route='/inlineContent[(]["](.*)["][)]/inlineContent("modified \"$1\" response")/'
+[APP]INFO[0000] Expose metrics in codahale format
+[APP]INFO[0000] support listener on :9911
+[APP]INFO[0000] route settings, reset, route: : Path("/foo") -> setResponseHeader("X-Foo", "bar") -> inlineContent("hi") -> <shunt>
+[APP]INFO[0000] proxy listener on :9090
+[APP]INFO[0000] TLS settings not found, defaulting to HTTP
+[APP]INFO[0000] route settings received
+[APP]INFO[0000] route settings applied
+```
+
+Modified route:
+```
+curl localhost:9911/routes
+Path("/foo")
+  -> setResponseHeader("X-Foo", "bar")
+  -> inlineContent("modified \"hi\" response")
+  -> <shunt>[sszuecs@sandor-lab:~/go/src/github.com/zalando/skipper]%
+  doc/rout
+```
+
+Modified response body:
+```
+% curl -v http://localhost:9090/foo
+*   Trying ::1...
+* Connected to localhost (::1) port 9090 (#0)
+> GET /foo HTTP/1.1
+> Host: localhost:9090
+> User-Agent: curl/7.49.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Content-Length: 22
+< Content-Type: text/plain; charset=utf-8
+< Server: Skipper
+< X-Foo: bar
+< Date: Thu, 14 Oct 2021 08:41:53 GMT
+<
+* Connection #0 to host localhost left intact
+modified "hi" response
+```
+
+With `edit-route` and `-clone-route` you can modify Predicates and Filters to convert from
+`SourceFromLast()` to `ClientIP`, for example if you want to migrate
+AWS cloud load balancer from Application Load Balancer to Network
+Load Balancer, you can use
+-clone-route='/SourceFromLast[(](.*)[)]/ClientIP($1)/' to create
+additional routes for
+
+```
+r: SourceFromLast("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
+```
+to change to
+```
+r: SourceFromLast("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
+clone_r: ClientIP("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
+```
+for migration time.
