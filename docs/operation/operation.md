@@ -1022,8 +1022,7 @@ curl localhost:9911/routes
 Path("/foo")
   -> setResponseHeader("X-Foo", "bar")
   -> inlineContent("modified \"hi\" response")
-  -> <shunt>[sszuecs@sandor-lab:~/go/src/github.com/zalando/skipper]%
-  doc/rout
+  -> <shunt
 ```
 
 Modified response body:
