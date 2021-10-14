@@ -1050,7 +1050,7 @@ With `edit-route` and `-clone-route` you can modify Predicates and Filters to co
 `SourceFromLast()` to `ClientIP`, for example if you want to migrate
 AWS cloud load balancer from Application Load Balancer to Network
 Load Balancer, you can use
--clone-route='/SourceFromLast[(](.*)[)]/ClientIP($1)/' to create
+`-clone-route='/SourceFromLast[(](.*)[)]/ClientIP($1)/'` to create
 additional routes for
 
 ```
