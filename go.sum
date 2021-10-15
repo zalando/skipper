@@ -32,6 +32,8 @@ github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf h1:qet1QNfXsQxTZq
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da h1:8GUt8eRujhVEGZFFEjBj46YV4rDjvGrNxb0KMWYkL2I=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
+github.com/aryszka/forget v1.0.0-beta1 h1:FMClMoaWMlaRKyK1P0LSzAMkYgkzXepy3AgsYhZYEm4=
+github.com/aryszka/forget v1.0.0-beta1/go.mod h1:+zyAb3QNk5EsBJlgR79FPMEwhc4RrjzHdYDFuD/OKmM=
 github.com/aryszka/jobqueue v0.0.2 h1:LYPhzklo0XFpVF+QtzfP9XRQPEsbJ2EW5Pur6pxxaS4=
 github.com/aryszka/jobqueue v0.0.2/go.mod h1:SdxqI6HZ4E1Lss94tey5OfjcAu3bdCDWS1AQzzIN4m4=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=

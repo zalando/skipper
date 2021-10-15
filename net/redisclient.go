@@ -282,7 +282,7 @@ func (r *RedisRingClient) Set(ctx context.Context, key string, value interface{}
 	return res.Result()
 }
 
-func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val int64, score float64) (int64, error) {
+func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val interface{}, score float64) (int64, error) {
 	res := r.ring.ZAdd(ctx, key, &redis.Z{Member: val, Score: score})
 	return res.Val(), res.Err()
 }
@@ -324,4 +324,19 @@ func (r *RedisRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key 
 	}
 
 	return zs[0].Member, nil
+}
+
+func (r *RedisRingClient) ZRangeByScoreAll(
+	ctx context.Context,
+	key string,
+	min, max float64,
+) ([]string, error) {
+	opt := &redis.ZRangeBy{
+		Min:   fmt.Sprint(min),
+		Max:   fmt.Sprint(max),
+		Count: -1,
+	}
+
+	res := r.ring.ZRangeByScore(ctx, key, opt)
+	return res.Result()
 }

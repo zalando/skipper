@@ -58,8 +58,8 @@ func newClusterRateLimiterRedis(s Settings, r *net.RedisRingClient, group string
 	return rl
 }
 
-func (c *clusterLimitRedis) prefixKey(clearText string) string {
-	return fmt.Sprintf(swarmKeyFormat, c.group, clearText)
+func prefixKey(group string, clearText string) string {
+	return fmt.Sprintf(swarmKeyFormat, group, clearText)
 }
 
 func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool, start time.Time) {
@@ -122,7 +122,7 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
 	s := getHashedKey(clearText)
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
-	key := c.prefixKey(s)
+	key := prefixKey(c.group, s)
 
 	now := time.Now()
 	var queryFailure bool
@@ -224,7 +224,7 @@ func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 
 func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.Time, error) {
 	s := getHashedKey(clearText)
-	key := c.prefixKey(s)
+	key := prefixKey(c.group, s)
 	now := time.Now()
 
 	finishSpan := c.startSpan(ctx, oldestScoreSpanName)
