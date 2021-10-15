@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	swarmPrefix    = `ratelimit.`
-	swarmKeyFormat = swarmPrefix + "%s.%s"
+	swarmPrefix          = `ratelimit.`
+	swarmKeyFormat       = swarmPrefix + "%s.%s"
+	swarmKeyFormatCached = swarmPrefix + "cached.%s.%s"
 )
 
 // newClusterRateLimiter will return a limiter instance, that has a

@@ -4,9 +4,107 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aryszka/forget"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/net/redistest"
 )
+
+type redisTest struct {
+	name           string
+	settings       Settings
+	iterations     int
+	args           string
+	addrs          []string
+	password       string
+	want           bool
+	wantDuration   time.Duration
+	wantOldest     time.Duration
+	wantRetryAfter int
+}
+
+type createRateLimiter func(s Settings, group, redisAddr, password string) (l limiter, close func())
+
+func createFullSync(s Settings, group, redisAddr, password string) (limiter, func()) {
+	ringClient := net.NewRedisRingClient(&net.RedisOptions{
+		Addrs:    []string{redisAddr},
+		Password: password,
+	})
+
+	l := newClusterRateLimiterRedis(s, ringClient, group)
+	return l, func() {
+		l.Close()
+	}
+}
+
+func createCached(s Settings, group, redisAddr, password string) (limiter, func()) {
+	ringClient := net.NewRedisRingClient(&net.RedisOptions{
+		Addrs:    []string{redisAddr},
+		Password: password,
+	})
+
+	cache := forget.NewCacheSpaces(forget.Options{CacheSize: 100 * 1024, ChunkSize: 256})
+
+	l := newClusterLimitRedisCached(s, ringClient, cache, group, 0)
+	return l, func() {
+		l.Close()
+		cache.Close()
+	}
+}
+
+func runRedisTests(t *testing.T, tests []redisTest, redisAddr string, cl createRateLimiter) {
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			c, close := cl(tt.settings, tt.settings.Group, redisAddr, tt.password)
+			defer close()
+
+			start := time.Now()
+			var got bool
+			for i := 0; i < tt.iterations; i++ {
+				got = c.Allow(tt.args)
+			}
+
+			if got != tt.want {
+				t.Errorf("clusterLimitRedis.Allow() = %v, want %v", got, tt.want)
+			}
+
+			if tt.wantDuration > 0 {
+				gotDuration := c.Delta(tt.args)
+				if tt.wantDuration-100*time.Millisecond < gotDuration &&
+					gotDuration < tt.wantDuration+100*time.Millisecond {
+					t.Errorf(
+						"clusterLimitRedis.Delta() = %v, want %v",
+						gotDuration,
+						tt.wantDuration,
+					)
+				}
+			}
+
+			if tt.wantOldest > 0 {
+				gotOldest := c.Oldest(tt.args)
+				if gotOldest.Before(start.Add(-tt.wantOldest)) &&
+					start.Add(tt.wantOldest).Before(gotOldest) {
+					t.Errorf(
+						"clusterLimitRedis.Oldest() = %v, not within +/- %v from start %v",
+						gotOldest,
+						tt.wantOldest,
+						start,
+					)
+				}
+			}
+
+			if tt.wantRetryAfter > 0 {
+				if gotRA := c.RetryAfter(tt.args); gotRA != tt.wantRetryAfter {
+					t.Errorf(
+						"clusterLimitRedis.RetryAfter() = %v, want %v",
+						gotRA,
+						tt.wantRetryAfter,
+					)
+				}
+			}
+		})
+	}
+}
 
 func Test_clusterLimitRedis_WithPass(t *testing.T) {
 	const redisPassword = "pass"
@@ -22,15 +120,7 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 		Group:      "Auth",
 	}
 
-	tests := []struct {
-		name       string
-		settings   Settings
-		iterations int
-		args       string
-		addrs      []string
-		password   string
-		want       bool
-	}{
+	tests := []redisTest{
 		{
 			name:       "correct password",
 			settings:   clusterClientlimit,
@@ -59,29 +149,14 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 			want:       true,
 		},
 	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{
-				Addrs:    []string{redisAddr},
-				Password: tt.password,
-			})
-			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
-				tt.settings,
-				ringClient,
-				tt.settings.Group,
-			)
 
-			var got bool
-			for i := 0; i < tt.iterations; i++ {
-				got = c.Allow(tt.args)
-			}
-			if got != tt.want {
-				t.Errorf("clusterLimitRedis.Allow() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	t.Run("redis with full sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createFullSync)
+	})
+
+	t.Run("redis with cached sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createCached)
+	})
 }
 
 func Test_clusterLimitRedis_Allow(t *testing.T) {
@@ -103,13 +178,7 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 		Group:      "B",
 	}
 
-	tests := []struct {
-		name       string
-		settings   Settings
-		args       string
-		iterations int
-		want       bool
-	}{
+	tests := []redisTest{
 		{
 			name:       "simple test clusterRatelimit",
 			settings:   clusterlimit,
@@ -139,26 +208,14 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 			want:       false,
 		},
 	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
-				tt.settings,
-				ringClient,
-				tt.settings.Group,
-			)
 
-			var got bool
-			for i := 0; i < tt.iterations; i++ {
-				got = c.Allow(tt.args)
-			}
-			if got != tt.want {
-				t.Errorf("clusterLimitRedis.Allow() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	t.Run("redis with full sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createFullSync)
+	})
+
+	t.Run("redis with cached sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createCached)
+	})
 }
 
 func Test_clusterLimitRedis_Delta(t *testing.T) {
@@ -180,49 +237,32 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 		Group:      "B",
 	}
 
-	tests := []struct {
-		name       string
-		settings   Settings
-		args       string
-		iterations int
-		want       time.Duration
-	}{
+	tests := []redisTest{
 		{
-			name:       "simple test clusterRatelimit",
-			settings:   clusterlimit,
-			args:       "clientA",
-			iterations: 1,
-			want:       200 * time.Millisecond,
+			name:         "simple test clusterRatelimit",
+			settings:     clusterlimit,
+			args:         "clientA",
+			iterations:   1,
+			want:         true,
+			wantDuration: 200 * time.Millisecond,
 		},
 		{
-			name:       "simple test clusterClientRatelimit",
-			settings:   clusterClientlimit,
-			args:       "clientB",
-			iterations: 1,
-			want:       200 * time.Millisecond,
+			name:         "simple test clusterClientRatelimit",
+			settings:     clusterClientlimit,
+			args:         "clientB",
+			iterations:   1,
+			want:         true,
+			wantDuration: 200 * time.Millisecond,
 		},
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
-				tt.settings,
-				ringClient,
-				tt.settings.Group,
-			)
+	t.Run("redis with full sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createFullSync)
+	})
 
-			for i := 0; i < tt.iterations; i++ {
-				_ = c.Allow(tt.args)
-			}
-			got := c.Delta(tt.args)
-			if tt.want-100*time.Millisecond < got && got < tt.want+100*time.Millisecond {
-				t.Errorf("clusterLimitRedis.Delta() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	t.Run("redis with cached sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createCached)
+	})
 }
 
 func Test_clusterLimitRedis_Oldest(t *testing.T) {
@@ -244,50 +284,31 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 		Group:      "B",
 	}
 
-	tests := []struct {
-		name       string
-		settings   Settings
-		args       string
-		iterations int
-		want       time.Duration
-	}{
+	tests := []redisTest{
 		{
 			name:       "simple test clusterRatelimit",
 			settings:   clusterlimit,
 			args:       "clientA",
 			iterations: clusterlimit.MaxHits + 1,
-			want:       100 * time.Millisecond,
+			wantOldest: 100 * time.Millisecond,
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
 			settings:   clusterClientlimit,
 			args:       "clientB",
 			iterations: clusterClientlimit.MaxHits,
-			want:       100 * time.Millisecond,
+			want:       true,
+			wantOldest: 100 * time.Millisecond,
 		},
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
-				tt.settings,
-				ringClient,
-				tt.settings.Group,
-			)
+	t.Run("redis with full sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createFullSync)
+	})
 
-			now := time.Now()
-			for i := 0; i < tt.iterations; i++ {
-				_ = c.Allow(tt.args)
-			}
-			got := c.Oldest(tt.args)
-			if got.Before(now.Add(-tt.want)) && now.Add(tt.want).Before(got) {
-				t.Errorf("clusterLimitRedis.Oldest() = %v, not within +/- %v from now %v", got, tt.want, now)
-			}
-		})
-	}
+	t.Run("redis with cached sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createCached)
+	})
 }
 
 func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
@@ -309,46 +330,29 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 		Group:      "B",
 	}
 
-	tests := []struct {
-		name       string
-		settings   Settings
-		args       string
-		iterations int
-		want       int
-	}{
+	tests := []redisTest{
 		{
-			name:       "simple test clusterRatelimit",
-			settings:   clusterlimit,
-			args:       "clientA",
-			iterations: clusterlimit.MaxHits + 1,
-			want:       10,
+			name:           "simple test clusterRatelimit",
+			settings:       clusterlimit,
+			args:           "clientA",
+			iterations:     clusterlimit.MaxHits + 1,
+			wantRetryAfter: 10,
 		},
 		{
-			name:       "simple test clusterClientRatelimit",
-			settings:   clusterClientlimit,
-			args:       "clientB",
-			iterations: clusterClientlimit.MaxHits,
-			want:       5,
+			name:           "simple test clusterClientRatelimit",
+			settings:       clusterClientlimit,
+			args:           "clientB",
+			iterations:     clusterClientlimit.MaxHits,
+			want:           true,
+			wantRetryAfter: 5,
 		},
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
-			c := newClusterRateLimiterRedis(
-				tt.settings,
-				ringClient,
-				tt.settings.Group,
-			)
+	t.Run("redis with full sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createFullSync)
+	})
 
-			for i := 0; i < tt.iterations; i++ {
-				_ = c.Allow(tt.args)
-			}
-			if got := c.RetryAfter(tt.args); got != tt.want {
-				t.Errorf("clusterLimitRedis.RetryAfter() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	t.Run("redis with cached sync", func(t *testing.T) {
+		runRedisTests(t, tests, redisAddr, createCached)
+	})
 }

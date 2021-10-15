@@ -162,7 +162,7 @@ func fromRedisValue(v string) (sum int, timestamp time.Time, err error) {
 }
 
 func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time.Time) {
-	oldest := now.Add(-c.window)
+	oldestRedis := now.Add(-c.window)
 	cached, _ := c.cache.get(key)
 	cached.FailOpen = false
 	defer func(pcached *cacheItem) {
@@ -176,7 +176,7 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 	// we don't need to abort on the below error, but we only want to add new items to Redis if the delete
 	// hadn't failed to avoid overloading its storage
 	//
-	_, errRem := c.redis.ZRemRangeByScore(ctx, key, 0.0, float64(oldest.UnixNano()))
+	_, errRem := c.redis.ZRemRangeByScore(ctx, key, 0.0, float64(oldestRedis.UnixNano()))
 	if errRem != nil {
 		log.Errorf("Error while cleaning up old rate entries: %v.", errRem)
 	}
@@ -199,15 +199,13 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 	// if getting the entries fails, we need to fail open, because we don't know enough information about
 	// the request rate in the other Skipper instances
 	//
-	values, err := c.redis.ZRangeByScoreAll(ctx, key, float64(oldest.UnixNano()), float64(now.UnixNano()))
+	values, err := c.redis.ZRangeByScoreAll(ctx, key, float64(oldestRedis.UnixNano()), float64(now.UnixNano()))
 	if err != nil {
 		cached.FailOpen = true
 		return
 	}
 
-	if len(values) == 0 {
-		cached.Oldest = now
-	} else {
+	if len(values) > 0 {
 		_, oldest, err := fromRedisValue(values[0])
 		if err != nil {
 			log.Errorf("Invalid entry in redis: %v.", err)
@@ -239,9 +237,13 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 	}
 }
 
+func prefixKeyCached(group string, clearText string) string {
+	return fmt.Sprintf(swarmKeyFormatCached, group, clearText)
+}
+
 func (c *clusterLimitRedisCached) AllowContext(ctx context.Context, key string) bool {
 	key = getHashedKey(key)
-	key = prefixKey(c.group, key)
+	key = prefixKeyCached(c.group, key)
 	now := time.Now()
 	cached, ok := c.cache.get(key)
 	if !ok || cached.LastSync.Before(now.Add(-c.cachePeriod)) {
@@ -265,6 +267,10 @@ func (c *clusterLimitRedisCached) AllowContext(ctx context.Context, key string) 
 	}
 
 	cached.LocalSum++
+	if cached.Oldest.IsZero() {
+		cached.Oldest = now
+	}
+
 	c.cache.set(key, cached)
 	return true
 }
@@ -275,7 +281,7 @@ func (c *clusterLimitRedisCached) Allow(key string) bool {
 
 func (c *clusterLimitRedisCached) oldest(ctx context.Context, key string) time.Time {
 	key = getHashedKey(key)
-	key = prefixKey(c.group, key)
+	key = prefixKeyCached(c.group, key)
 	now := time.Now()
 	cached, ok := c.cache.get(key)
 	if !ok || cached.LastSync.Before(now.Add(-c.cachePeriod)) {
@@ -287,7 +293,7 @@ func (c *clusterLimitRedisCached) oldest(ctx context.Context, key string) time.T
 }
 
 func (c *clusterLimitRedisCached) deltaFrom(ctx context.Context, key string, from time.Time) time.Duration {
-	return from.Sub(c.oldest(ctx, key))
+	return c.window - from.Sub(c.oldest(ctx, key))
 }
 
 func (c *clusterLimitRedisCached) Delta(key string) time.Duration {
@@ -299,13 +305,15 @@ func (c *clusterLimitRedisCached) Oldest(key string) time.Time {
 }
 
 func (c *clusterLimitRedisCached) RetryAfterContext(ctx context.Context, key string) int {
-	const minWait = time.Second
+	// If less than 1s to wait -> so set to 1
+	const minWait = 1
 	retr := c.deltaFrom(ctx, key, time.Now())
-	if retr <= 0 {
-		retr += minWait
+	res := int(retr / time.Second)
+	if res > 0 {
+		return res + 1
 	}
 
-	return int(retr / time.Second)
+	return minWait
 }
 
 func (c *clusterLimitRedisCached) RetryAfter(key string) int {
