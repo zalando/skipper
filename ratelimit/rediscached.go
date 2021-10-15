@@ -14,12 +14,24 @@ import (
 	"github.com/zalando/skipper/net"
 )
 
+const (
+	redisCacheNamespace      = "redis-ratelimit-cache"
+	defaultCachePeriodFactor = 256
+)
+
+// appr. 65B + the key size + cache overhead ~120B
+// the keys can have very varying size, e.g. with auth tokens close to 1kB
+// => recommended cache chunk size: 256B
+// (https://pkg.go.dev/github.com/aryszka/forget?utm_source=godoc#hdr-Memory)
+//
 type cacheItem struct {
-	lastSync  time.Time
-	oldest    time.Time
-	syncedSum int
-	localSum  int
-	failOpen  bool
+	// time.Time implements gob.GobEncoder and gob.GobDecoder
+	LastSync time.Time
+	Oldest   time.Time
+
+	SyncedSum int
+	LocalSum  int
+	FailOpen  bool
 }
 
 type redisCache interface {
@@ -27,22 +39,63 @@ type redisCache interface {
 	set(string, cacheItem)
 }
 
-type forgetCache struct {
-	namespace string
+type cache struct {
 	cache     *forget.CacheSpaces
-	ttl time.Duration
+	namespace string
+	ttl       time.Duration
 }
 
 type clusterLimitRedisCached struct {
-	window      time.Duration
-	cache       redisCache
 	redis       *net.RedisRingClient
+	cache       redisCache
+	window      time.Duration
 	group       string
-	cachePeriod time.Duration
 	maxHits     int
+	cachePeriod time.Duration
 }
 
-func (f forgetCache) get(key string) (item cacheItem, ok bool) {
+func newCache(c *forget.CacheSpaces, namespace string, ttl time.Duration) *cache {
+	return &cache{
+		cache:     c,
+		namespace: namespace,
+		ttl:       ttl,
+	}
+}
+
+func newClusterLimitRedisCached(
+	s Settings,
+	r *net.RedisRingClient,
+	c *forget.CacheSpaces,
+	group string,
+	cachePeriodFactor int,
+) *clusterLimitRedisCached {
+	// we rely here primarily on the LRU mechanism and not on the TTL of the cached items, but for cleanup,
+	// it is safe to set the TTL to the double of the rate limiting time window
+	cacheItemTTL := 2 * s.TimeWindow
+	cache := newCache(c, redisCacheNamespace, cacheItemTTL)
+
+	// together with the time window, this controls the frequency of the Redis calls and the precision of
+	// the rate limiting. The higher value results in the higher Redis calls and higher precision.
+	// Example:
+	// timeWindow=1m, cachePeriodFactor=256
+	// => 1m/256=234ms (redis sync every 234ms), (256 - 1)/256=99.6% rate limiting precision
+	if cachePeriodFactor <= 0 {
+		cachePeriodFactor = defaultCachePeriodFactor
+	}
+
+	cachePeriod := time.Duration(int(s.TimeWindow) / cachePeriodFactor)
+
+	return &clusterLimitRedisCached{
+		redis:       r,
+		cache:       cache,
+		window:      s.TimeWindow,
+		group:       group,
+		maxHits:     s.MaxHits,
+		cachePeriod: cachePeriod,
+	}
+}
+
+func (f *cache) get(key string) (item cacheItem, ok bool) {
 	var r io.ReadCloser
 	r, ok = f.cache.Get(f.namespace, key)
 	if !ok {
@@ -57,11 +110,10 @@ func (f forgetCache) get(key string) (item cacheItem, ok bool) {
 		return
 	}
 
-	ok = true
 	return
 }
 
-func (f forgetCache) set(key string, item cacheItem) {
+func (f *cache) set(key string, item cacheItem) {
 	// forget.CacheSpaces.Set returns false only in case of a closed cache
 	w, ok := f.cache.Set(f.namespace, key, f.ttl)
 	if !ok {
@@ -76,7 +128,7 @@ func (f forgetCache) set(key string, item cacheItem) {
 	}
 }
 
-func (f forgetCache) Close() {
+func (f *cache) Close() {
 	f.cache.Close()
 }
 
@@ -94,8 +146,7 @@ func fromRedisValue(v string) (sum int, timestamp time.Time, err error) {
 		return
 	}
 
-	var sum64 int64
-	if sum64, err = strconv.ParseInt(p[0], 10, 64); err != nil {
+	if sum, err = strconv.Atoi(p[0]); err != nil {
 		err = fmt.Errorf("invalid redis value: %s; %w", v, err)
 		return
 	}
@@ -106,7 +157,6 @@ func fromRedisValue(v string) (sum int, timestamp time.Time, err error) {
 		return
 	}
 
-	sum = int(sum64)
 	timestamp = time.Unix(0, nano64)
 	return
 }
@@ -114,12 +164,12 @@ func fromRedisValue(v string) (sum int, timestamp time.Time, err error) {
 func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time.Time) {
 	oldest := now.Add(-c.window)
 	cached, _ := c.cache.get(key)
-	cached.failOpen = false
+	cached.FailOpen = false
 	defer func(pcached *cacheItem) {
 		cached := *pcached
 
 		// using a fresh timestamp after several network calls:
-		cached.lastSync = time.Now()
+		cached.LastSync = time.Now()
 		c.cache.set(key, cached)
 	}(&cached)
 
@@ -131,18 +181,18 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 		log.Errorf("Error while cleaning up old rate entries: %v.", errRem)
 	}
 
-	if errRem == nil && cached.localSum > 0 {
+	if errRem == nil && cached.LocalSum > 0 {
 		_, err := c.redis.ZAdd(
 			ctx,
 			key,
-			redisValue(cached.localSum, now),
+			redisValue(cached.LocalSum, now),
 			float64(now.UnixNano()),
 		)
 
 		if err != nil {
 			log.Errorf("Error while storing local rate in redis: %v.", err)
 		} else {
-			cached.localSum = 0
+			cached.LocalSum = 0
 		}
 	}
 
@@ -151,18 +201,18 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 	//
 	values, err := c.redis.ZRangeByScoreAll(ctx, key, float64(oldest.UnixNano()), float64(now.UnixNano()))
 	if err != nil {
-		cached.failOpen = true
+		cached.FailOpen = true
 		return
 	}
 
 	if len(values) == 0 {
-		cached.oldest = now
+		cached.Oldest = now
 	} else {
 		_, oldest, err := fromRedisValue(values[0])
 		if err != nil {
 			log.Errorf("Invalid entry in redis: %v.", err)
 		} else {
-			cached.oldest = oldest
+			cached.Oldest = oldest
 		}
 	}
 
@@ -171,7 +221,7 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 	// the precision of the rate limiting as (N-1)/N, e.g: (128-1)/128 > 99%. A sane default ratio should
 	// be defined
 	//
-	cached.syncedSum = 0
+	cached.SyncedSum = 0
 	for _, v := range values {
 		sum, _, err := fromRedisValue(v)
 		if err != nil {
@@ -179,7 +229,7 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 			continue
 		}
 
-		cached.syncedSum += sum
+		cached.SyncedSum += sum
 	}
 
 	// ensuring cleanup in cases of requests with a given key stop coming in:
@@ -193,12 +243,12 @@ func (c *clusterLimitRedisCached) AllowContext(ctx context.Context, key string) 
 	key = prefixKey(c.group, key)
 	now := time.Now()
 	cached, ok := c.cache.get(key)
-	if !ok || cached.lastSync.Before(now.Add(-c.cachePeriod)) {
+	if !ok || cached.LastSync.Before(now.Add(-c.cachePeriod)) {
 		c.sync(ctx, key, now)
 		cached, _ = c.cache.get(key)
 	}
 
-	if cached.failOpen {
+	if cached.FailOpen {
 		return true
 	}
 
@@ -209,11 +259,11 @@ func (c *clusterLimitRedisCached) AllowContext(ctx context.Context, key string) 
 	// and not the service provider. Note that full precision is not possible anyway because of timing
 	// concerns will be always involved
 	//
-	if cached.syncedSum+cached.localSum >= c.maxHits {
+	if cached.SyncedSum+cached.LocalSum >= c.maxHits {
 		return false
 	}
 
-	cached.localSum++
+	cached.LocalSum++
 	c.cache.set(key, cached)
 	return true
 }
@@ -227,12 +277,12 @@ func (c *clusterLimitRedisCached) oldest(ctx context.Context, key string) time.T
 	key = prefixKey(c.group, key)
 	now := time.Now()
 	cached, ok := c.cache.get(key)
-	if !ok || cached.lastSync.Before(now.Add(-c.cachePeriod)) {
+	if !ok || cached.LastSync.Before(now.Add(-c.cachePeriod)) {
 		c.sync(ctx, key, now)
 		cached, _ = c.cache.get(key)
 	}
 
-	return cached.oldest
+	return cached.Oldest
 }
 
 func (c *clusterLimitRedisCached) deltaFrom(ctx context.Context, key string, from time.Time) time.Duration {
