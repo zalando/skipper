@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aryszka/forget"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -69,6 +70,13 @@ const DefaultPluginDir = "./plugins"
 type testOptions struct {
 	redisConnMetricsInterval time.Duration
 }
+
+type SwarmRedisRatelimitMode int
+
+const (
+	SwarmRedisRatelimitModeFullSync SwarmRedisRatelimitMode = iota
+	SwarmRedisRatelimitModeCached
+)
 
 // Options to start skipper.
 type Options struct {
@@ -765,6 +773,7 @@ type Options struct {
 	SwarmRedisPoolTimeout   time.Duration
 	SwarmRedisMinIdleConns  int
 	SwarmRedisMaxIdleConns  int
+	SwarmRedisRatelimitMode SwarmRedisRatelimitMode
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -779,6 +788,8 @@ type Options struct {
 	// SwarmRegistry specifies an optional callback function that is
 	// called after ratelimit registry is initialized
 	SwarmRegistry func(*ratelimit.Registry)
+
+	SmallItemCacheMiB int
 
 	testOptions
 }
@@ -1347,10 +1358,41 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
+	var cache *forget.CacheSpaces
+	if o.SmallItemCacheMiB > 0 {
+		// currently hard coded based on the recommended chunk size of the cached redis rate limiting
+		const chunkSize = 256
+
+		cache = forget.NewCacheSpaces(forget.Options{
+			CacheSize: o.SmallItemCacheMiB * 1024 * 1024,
+			ChunkSize: chunkSize,
+		})
+		defer cache.Close()
+	}
+
 	var ratelimitRegistry *ratelimit.Registry
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
+
+		// hard coding it for now until more operational experience is collected
+		const cachePeriodFactor = 256
+
+		var scache *forget.CacheSpaces
+		if o.SwarmRedisRatelimitMode == SwarmRedisRatelimitModeCached {
+			if cache == nil {
+				log.Fatalf("Cached rate limit can be only used when a small item cache space is provided.")
+			} else {
+				scache = cache
+			}
+		}
+
+		ratelimitRegistry = ratelimit.NewSwarmRegistryWithCache(
+			swarmer,
+			redisOptions,
+			scache,
+			cachePeriodFactor,
+			o.RatelimitSettings...,
+		)
 		defer ratelimitRegistry.Close()
 
 		if hook := o.SwarmRegistry; hook != nil {

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aryszka/forget"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/net"
 )
@@ -20,22 +21,41 @@ const (
 // ratelimiters.
 type Registry struct {
 	sync.Mutex
-	defaults  Settings
-	global    Settings
-	lookup    map[Settings]*Ratelimit
-	swarm     Swarmer
-	redisRing *net.RedisRingClient
+	defaults          Settings
+	global            Settings
+	lookup            map[Settings]*Ratelimit
+	swarm             Swarmer
+	redisRing         *net.RedisRingClient
+	cache             *forget.CacheSpaces
+	cachePeriodFactor int
 }
 
 // NewRegistry initializes a registry with the provided default settings.
 func NewRegistry(settings ...Settings) *Registry {
-	return NewSwarmRegistry(nil, nil, settings...)
+	return NewSwarmRegistryWithCache(nil, nil, nil, 0, settings...)
 }
 
 // NewSwarmRegistry initializes a registry with an optional swarm and
 // the provided default settings. If swarm is nil, clusterRatelimits
 // will be replaced by voidRatelimit, which is a noop limiter implementation.
 func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings) *Registry {
+	return NewSwarmRegistryWithCache(swarm, ro, nil, 0, settings...)
+}
+
+// NewSwarmRegistryWithCache initializes a registry with an optional swarm and
+// the provided default settings. If swarm is nil, clusterRatelimits
+// will be replaced by voidRatelimit, which is a noop limiter implementation.
+// It also accepts an optional cache and a cachePeriod factor, which used together
+// with the swarm implementation (currently only in the Redis case), limits the
+// frequency of network communication at the cost of a small loss in rate limiting
+// precision.
+func NewSwarmRegistryWithCache(
+	swarm Swarmer,
+	ro *net.RedisOptions,
+	c *forget.CacheSpaces,
+	cachePeriodFactor int,
+	settings ...Settings,
+) *Registry {
 	defaults := Settings{
 		Type:          DisableRatelimit,
 		MaxHits:       DefaultMaxhits,
@@ -48,11 +68,13 @@ func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings)
 	}
 
 	r := &Registry{
-		defaults:  defaults,
-		global:    defaults,
-		lookup:    make(map[Settings]*Ratelimit),
-		swarm:     swarm,
-		redisRing: net.NewRedisRingClient(ro),
+		defaults:          defaults,
+		global:            defaults,
+		lookup:            make(map[Settings]*Ratelimit),
+		swarm:             swarm,
+		redisRing:         net.NewRedisRingClient(ro),
+		cache:             c,
+		cachePeriodFactor: cachePeriodFactor,
 	}
 	if ro != nil {
 		r.redisRing.StartMetricsCollection()
@@ -76,7 +98,7 @@ func (r *Registry) get(s Settings) *Ratelimit {
 
 	rl, ok := r.lookup[s]
 	if !ok {
-		rl = newRatelimit(s, r.swarm, r.redisRing)
+		rl = newRatelimit(s, r.swarm, r.redisRing, r.cache, r.cachePeriodFactor)
 		r.lookup[s] = rl
 	}
 

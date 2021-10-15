@@ -35,7 +35,7 @@ type resizeLimit struct {
 	n int
 }
 
-// newClusterRateLimiter creates a new clusterLimitSwim for given Settings
+// newClusterRateLimiterSwim creates a new clusterLimitSwim for given Settings
 // and use the given Swarmer. Group is used in log messages to identify
 // the ratelimit instance and has to be the same in all skipper instances.
 func newClusterRateLimiterSwim(s Settings, sw Swarmer, group string) *clusterLimitSwim {

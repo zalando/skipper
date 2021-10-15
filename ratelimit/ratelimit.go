@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aryszka/forget"
 	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/filters"
@@ -420,7 +421,13 @@ func (zeroRatelimit) RetryAfter(string) int      { return zeroRetry }
 func (zeroRatelimit) Delta(string) time.Duration { return zeroDelta }
 func (zeroRatelimit) Resize(string, int)         {}
 
-func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratelimit {
+func newRatelimit(
+	s Settings,
+	sw Swarmer,
+	redisRing *net.RedisRingClient,
+	c *forget.CacheSpaces,
+	cachePeriodFactor int,
+) *Ratelimit {
 	var impl limiter
 	if s.MaxHits == 0 {
 		impl = zeroRatelimit{}
@@ -437,7 +444,7 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratel
 			s.CleanInterval = 0
 			fallthrough
 		case ClusterClientRatelimit:
-			impl = newClusterRateLimiter(s, sw, redisRing, s.Group)
+			impl = newClusterRateLimiter(s, sw, redisRing, c, s.Group, cachePeriodFactor)
 		default:
 			impl = voidRatelimit{}
 		}

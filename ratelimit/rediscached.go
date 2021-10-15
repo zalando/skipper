@@ -71,14 +71,17 @@ func newClusterLimitRedisCached(
 ) *clusterLimitRedisCached {
 	// we rely here primarily on the LRU mechanism and not on the TTL of the cached items, but for cleanup,
 	// it is safe to set the TTL to the double of the rate limiting time window
+	//
 	cacheItemTTL := 2 * s.TimeWindow
 	cache := newCache(c, redisCacheNamespace, cacheItemTTL)
 
 	// together with the time window, this controls the frequency of the Redis calls and the precision of
-	// the rate limiting. The higher value results in the higher Redis calls and higher precision.
-	// Example:
+	// the rate limiting. The higher value results in the higher number of Redis calls and higher
+	// precision. Example:
+	//
 	// timeWindow=1m, cachePeriodFactor=256
-	// => 1m/256=234ms (redis sync every 234ms), (256 - 1)/256=99.6% rate limiting precision
+	// => 1m/256=234ms (redis sync every 234ms), (256 - 1)/256=99.6% rate limiting precision over 1m
+	//
 	if cachePeriodFactor <= 0 {
 		cachePeriodFactor = defaultCachePeriodFactor
 	}
@@ -128,13 +131,10 @@ func (f *cache) set(key string, item cacheItem) {
 	}
 }
 
-func (f *cache) Close() {
-	f.cache.Close()
-}
-
 // TODO: z cards in Redis represent a set by the value, which means that there is a small chance that the same
 // sum and the same timestamp from different Skipper instances will conflict. Consider adding a salt. Note that
 // this affects the other Redis rate limiting implementation, too
+//
 func redisValue(sum int, timestamp time.Time) string {
 	return fmt.Sprintf("%d|%d", sum, timestamp.UnixNano())
 }
@@ -197,7 +197,7 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 	}
 
 	// if getting the entries fails, we need to fail open, because we don't know enough information about
-	// the other Skipper instances
+	// the request rate in the other Skipper instances
 	//
 	values, err := c.redis.ZRangeByScoreAll(ctx, key, float64(oldest.UnixNano()), float64(now.UnixNano()))
 	if err != nil {
@@ -219,7 +219,8 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time
 	// the following iteration is limited by c.window / c.cachePeriod, therefore c.cachePeriod should be
 	// chosen to keep the number of values in a small range, e.g. 128 or 256 or so. This value also defines
 	// the precision of the rate limiting as (N-1)/N, e.g: (128-1)/128 > 99%. A sane default ratio should
-	// be defined
+	// be defined. This means, it's an O(N) in-process operation, where N is cache period factor, but it is
+	// a negligibly small N
 	//
 	cached.SyncedSum = 0
 	for _, v := range values {
@@ -311,9 +312,9 @@ func (c *clusterLimitRedisCached) RetryAfter(key string) int {
 	return c.RetryAfterContext(context.Background(), key)
 }
 
+// Resize is noop to implement the limiter interface
+func (*clusterLimitRedisCached) Resize(string, int) {}
+
 func (c *clusterLimitRedisCached) Close() {
-	c.redis.Close()
-	if closer, ok := c.cache.(interface{ Close() }); ok {
-		closer.Close()
-	}
+	// we don't need to close neither the redis ring or the cache here, as it is a shared resource
 }

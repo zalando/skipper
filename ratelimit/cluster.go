@@ -1,6 +1,9 @@
 package ratelimit
 
-import "github.com/zalando/skipper/net"
+import (
+	"github.com/aryszka/forget"
+	"github.com/zalando/skipper/net"
+)
 
 const (
 	swarmPrefix    = `ratelimit.`
@@ -14,16 +17,34 @@ const (
 // swarm.Options to configure a swarm.Swarm, RedisOptions to configure
 // redis.Ring and group is the ratelimit group that can span one or
 // multiple routes.
-func newClusterRateLimiter(s Settings, sw Swarmer, ring *net.RedisRingClient, group string) limiter {
+//
+// If a non-nil cache is provided, the redis based cluster rate limiter
+// will use the cache to limit the calls to the Redis instances based
+// the time window the cache period factor.
+//
+func newClusterRateLimiter(
+	s Settings,
+	sw Swarmer,
+	ring *net.RedisRingClient,
+	c *forget.CacheSpaces,
+	group string,
+	cachePeriodFactor int,
+) limiter {
 	if sw != nil {
 		if l := newClusterRateLimiterSwim(s, sw, group); l != nil {
 			return l
 		}
 	}
+
+	if ring != nil && c != nil {
+		return newClusterLimitRedisCached(s, ring, c, group, cachePeriodFactor)
+	}
+
 	if ring != nil {
 		if l := newClusterRateLimiterRedis(s, ring, group); l != nil {
 			return l
 		}
 	}
+
 	return voidRatelimit{}
 }
