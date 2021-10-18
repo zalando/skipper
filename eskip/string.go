@@ -88,9 +88,12 @@ func (r *Route) predicateString() string {
 		predicates = appendFmtEscape(predicates, "Host(/%s/)", "/", h)
 	}
 
+	fmt.Print(r.PathRegexps)
 	for _, p := range r.PathRegexps {
+		// D - any escape sequence in `p` is escaped once more here (including the ones already escaped)
 		predicates = appendFmtEscape(predicates, "PathRegexp(/%s/)", "/", p)
 	}
+	fmt.Println(predicates)
 
 	if r.Method != "" {
 		predicates = appendFmtEscape(predicates, `Method("%s")`, `"`, r.Method)
@@ -174,7 +177,9 @@ func (r *Route) String() string {
 }
 
 func (r *Route) Print(prettyPrintInfo PrettyPrintInfo) string {
+	// fmt.Println(r.PathRegexps)
 	s := []string{r.predicateString()}
+	// fmt.Println(s)
 
 	fs := r.filterString(prettyPrintInfo)
 	if fs != "" {
