@@ -106,6 +106,7 @@ routedef:
 routeid:
 	symbol {
 		$$.token = $1.token
+		eskiplex.(*eskipLex).lastRouteID = $1.token
 	}
 
 route:
