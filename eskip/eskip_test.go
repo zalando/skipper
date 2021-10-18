@@ -1,6 +1,7 @@
 package eskip
 
 import (
+	"bytes"
 	"reflect"
 	"regexp"
 	"testing"
@@ -887,5 +888,24 @@ func TestFilterString(t *testing.T) {
 				t.Errorf("Failed to String(): Want %v, got %v", tt.want, got)
 			}
 		})
+	}
+}
+
+func TestHeaderRegexpArgParsingRoundtrip(t *testing.T) {
+	input := `hello: PathRegexp("^\/stylist(#.*)?$") -> <shunt>`
+	r, err := Parse(input)
+	if err != nil {
+		t.Errorf("given input does not parse: %v", input)
+	}
+	want := r[0].PathRegexps[0]
+	buff := &bytes.Buffer{}
+	Fprint(buff, PrettyPrintInfo{}, r...)
+	r, err = Parse(buff.String())
+	if err != nil {
+		t.Fatalf("formatted eskip is invalid: %v", buff)
+	}
+	got := r[0].PathRegexps[0]
+	if got != want {
+		t.Errorf("parsing roundtrip modifies argument, %v != %v", got, want)
 	}
 }
