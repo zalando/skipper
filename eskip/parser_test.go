@@ -102,22 +102,41 @@ func TestParseSingleRoute(t *testing.T) {
 	checkSingleRouteExample(r[0], t)
 }
 
-func TestParsingSpecialChars(t *testing.T) {
-	r, err := parse(`Path("newlines") -> inlineContent("Line \ \1\nLine 2\r\nLine 3\a\b\f\n\r\t\v") -> <shunt>`)
-
-	if err != nil {
-		t.Error("failed to parse", err)
-	}
-
-	if len(r) != 1 {
-		t.Error("failed to parse, no route returned")
-	}
-
-	expected := "Line \\ \\1\nLine 2\r\nLine 3\a\b\f\n\r\t\v"
-	actual := r[0].filters[0].Args[0]
-
-	if actual != expected {
-		t.Error("wrong arguments")
+func TestStringEscapeCharacters(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		// TODO: Establish what is the expected output, wherever it is marked as "?" here as `want`
+		// (those are the tricky cases we need answers for).
+		// C - Current behavior is to leave any unknown escape sequence be as it is.
+		// See commented lexer.go for the responsible code paths.
+		//
+		// I believe we should let users correct their syntax to \\ if they really want \
+		// in the resulting string and error out on all other unknown escaping cases as suggested by Biter.
+		{"backslash", `* -> PathSubtree("\\hello") -> <shunt>`, `\hello`},
+		{"quote", `* -> PathSubtree("\"") -> <shunt>`, `"`},
+		{"escape sequences", `* -> PathSubtree("\a\b\r\n\f\t\v") -> <shunt>`, "\a\b\r\n\f\t\v"},
+		{"hanging backslash", `* -> PathSubtree("\ ") -> <shunt>`, `\ `},                   // want: ?
+		{"unknown escape sequence", `* -> PathSubtree("\zalando") -> <shunt>`, `\zalando`}, // want: ?
+		{"escaped forward slash", `* -> PathSubtree("\/path") -> <shunt>`, `\/path`},       // want: ?
+		{"escaped forward slash that will remain working", `* -> PathSubtree("\\/path") -> <shunt>`, `\/path`},
+		// ...
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, err := parse(tc.input)
+			if err != nil {
+				t.Errorf("given input did not parse, got error: %v", err)
+			}
+			if len(r) < 1 {
+				t.Errorf("given input produced no routes, one route expected: %v", tc.input)
+			}
+			got := r[0].filters[0].Args[0]
+			if got != tc.want {
+				t.Errorf("predicate arg parsed incorrectly, %v != %v", got, tc.want)
+			}
+		})
 	}
 }
 
