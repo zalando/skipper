@@ -151,12 +151,17 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 				c = '\v'
 			case delimiter:
 			case escapeChar:
+				// C - case responsible for the current behavior
+				// 1. \ is put back.
 			default:
 				b = append(b, escapeChar)
 			}
 
+			// 2. Character is put as well.
 			b = append(b, c)
 			escaped = false
+
+			// Result is any unknown escaped sequence (such as \z) is left as-is.
 		} else {
 			if isDelimiter {
 				return b, code
