@@ -148,9 +148,6 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 				c = '\t'
 			case 'v':
 				c = '\v'
-			case delimiter:
-			case escapeChar:
-				b = append(b, escapeChar)
 			}
 
 			b = append(b, c)
