@@ -103,6 +103,7 @@ func TestParseSingleRoute(t *testing.T) {
 }
 
 func TestStringEscapeCharacters(t *testing.T) {
+	t.Skip("For now to check races")
 	for _, tc := range []struct {
 		name  string
 		input string
