@@ -13,6 +13,7 @@ type redisTest struct {
 	name           string
 	settings       Settings
 	iterations     int
+	delay          time.Duration
 	args           string
 	addrs          []string
 	password       string
@@ -61,6 +62,7 @@ func runRedisTests(t *testing.T, tests []redisTest, redisAddr string, cl createR
 			start := time.Now()
 			var got bool
 			for i := 0; i < tt.iterations; i++ {
+				time.Sleep(tt.delay)
 				got = c.Allow(tt.args)
 			}
 
