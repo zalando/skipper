@@ -89,7 +89,6 @@ func (r *Route) predicateString() string {
 	}
 
 	for _, p := range r.PathRegexps {
-		// D - any escape sequence in `p` is escaped once more here (including the ones already escaped)
 		predicates = appendFmtEscape(predicates, "PathRegexp(/%s/)", "/", p)
 	}
 
