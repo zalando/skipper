@@ -126,14 +126,12 @@ func scanVoid(code string, p charPredicate) string {
 }
 
 func scanEscaped(delimiter byte, code string) ([]byte, string) {
-	println("scanEscaped enter:", code, ", delimiter:", delimiter, string(delimiter))
 	var b []byte
 	escaped := false
 	for len(code) > 0 {
 		c := code[0]
 		isDelimiter := c == delimiter
 		isEscapeChar := c == escapeChar
-		println("scanEscaped() c:", c, string(c))
 		if escaped {
 			switch c {
 			case 'a':
@@ -152,21 +150,13 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 				c = '\v'
 			case delimiter:
 			case escapeChar:
-				// C - case responsible for the current behavior
-				// 1. \ is put back.
-				println("scanEscaped() case escapeChar", "c:", c, string(c), "b:", b, string(b))
-			default:
 				b = append(b, escapeChar)
 			}
 
-			// 2. Character is put as well.
 			b = append(b, c)
 			escaped = false
-
-			// Result is any unknown escaped sequence (such as \z) is left as-is.
 		} else {
 			if isDelimiter {
-				println("scanEscaped leave early (found delimiter):", string(b), code)
 				return b, code
 			}
 
@@ -180,12 +170,10 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 		code = code[1:]
 	}
 
-	println("scanEscaped leave:", string(b), code)
 	return b, code
 }
 
 func scanRegexp(code string) ([]byte, string) {
-	println("scanRegexp enter:", code) // here it's already broken
 	var b []byte
 	escaped := false
 	var insideGroup = false
@@ -202,14 +190,12 @@ func scanRegexp(code string) ([]byte, string) {
 		}
 
 		if escaped {
-			println("scanRegexp() case escaped start", "c:", c, string(c), "b:", string(b))
 			//delimeter / is escaped in PathRegexp so that it means no end PathRegexp(/\//)
 			if !isDelimiter && !isEscapeChar {
 				b = append(b, escapeChar)
 			}
 			b = append(b, c)
 			escaped = false
-			println("scanRegexp() case escaped end", "c:", c, string(c), "b:", string(b))
 		} else {
 			if isDelimiter && !insideGroup {
 				return b, code

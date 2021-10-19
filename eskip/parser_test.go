@@ -108,26 +108,13 @@ func TestStringEscapeCharacters(t *testing.T) {
 		input string
 		want  string
 	}{
-		// TODO: Establish what is the expected output, wherever it is marked as "?" here as `want`
-		// (those are the tricky cases we need answers for).
-		// C - Current behavior is to leave any unknown escape sequence be as it is. This results in
-		//	   those sequences being double escaped when formatted with eskip.Fprint (D).
-		// See commented lexer.go for the responsible code paths.
-		//
-		// I see three options (ordered by increasing riskiness/breaking level):
-		// 1. We let the current behavior fly and adjust eskip Fprint not to escape the already-escaped sequences
-		//    one more time resulting in invalid eskip (D). See string.go
-		// 2. We unescape the unknown escape sequences silently. (for easy working with string literal regexps)
-		// 3. We error out on the unknown escape sequences and we ask users to modify any \z to \\z,
-		//    if they really want that literally.
 		{"backslash", `* -> PathRegexp("\\hello") -> <shunt>`, `\hello`},
 		{"quote", `* -> PathRegexp("\"") -> <shunt>`, `"`},
 		{"escape sequences", `* -> PathRegexp("\a\b\r\n\f\t\v") -> <shunt>`, "\a\b\r\n\f\t\v"},
-		{"hanging backslash", `* -> PathRegexp("\ ") -> <shunt>`, `\ `},                   // want: ?
-		{"unknown escape sequence", `* -> PathRegexp("\zalando") -> <shunt>`, `\zalando`}, // want: ?
-		{"escaped forward slash", `* -> PathRegexp("\/path") -> <shunt>`, `\/path`},       // want: ?
+		{"hanging backslash", `* -> PathRegexp("\ ") -> <shunt>`, ` `},
+		{"unknown escape sequence", `* -> PathRegexp("\zalando") -> <shunt>`, `zalando`},
+		{"escaped forward slash", `* -> PathRegexp("\/path") -> <shunt>`, `/path`},
 		{"escaped forward slash that will remain working", `* -> PathRegexp("\\/path") -> <shunt>`, `\/path`},
-		// ...
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r, err := parse(tc.input)
