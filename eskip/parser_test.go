@@ -112,7 +112,7 @@ func TestStringEscapeCharacters(t *testing.T) {
 		{"quote", `* -> PathRegexp("\"") -> <shunt>`, `"`},
 		{"escape sequences", `* -> PathRegexp("\a\b\r\n\f\t\v") -> <shunt>`, "\a\b\r\n\f\t\v"},
 		{"hanging backslash", `* -> PathRegexp("\ ") -> <shunt>`, ` `},
-		{"unknown escape sequence", `* -> PathRegexp("\zalando") -> <shunt>`, `zalando`},
+		{"unknown escape sequence", `* -> PathRegexp("\1oneone") -> <shunt>`, `1oneone`},
 		{"escaped forward slash", `* -> PathRegexp("\/path") -> <shunt>`, `/path`},
 		{"escaped forward slash that will remain working", `* -> PathRegexp("\\/path") -> <shunt>`, `\/path`},
 	} {
