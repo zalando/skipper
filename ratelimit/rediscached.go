@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aryszka/forget"
@@ -48,6 +49,7 @@ type cache struct {
 type clusterLimitRedisCached struct {
 	redis       *net.RedisRingClient
 	cache       redisCache
+	syncMX      *sync.Mutex
 	window      time.Duration
 	group       string
 	maxHits     int
@@ -91,6 +93,7 @@ func newClusterLimitRedisCached(
 	return &clusterLimitRedisCached{
 		redis:       r,
 		cache:       cache,
+		syncMX:      &sync.Mutex{},
 		window:      s.TimeWindow,
 		group:       group,
 		maxHits:     s.MaxHits,
@@ -161,9 +164,20 @@ func fromRedisValue(v string) (sum int, timestamp time.Time, err error) {
 	return
 }
 
-func (c *clusterLimitRedisCached) sync(ctx context.Context, key string, now time.Time) {
+func (c *clusterLimitRedisCached) sync(ctx context.Context, key string) {
+	c.syncMX.Lock()
+	defer c.syncMX.Unlock()
+
+	// checking last sync time again after the lock was acquired to make sure that only one of the possible
+	// concurrent sync attempts is executed
+	//
+	now := time.Now()
+	cached, ok := c.cache.get(key)
+	if ok && !cached.LastSync.Before(now.Add(-c.cachePeriod)) {
+		return
+	}
+
 	oldestRedis := now.Add(-c.window)
-	cached, _ := c.cache.get(key)
 	cached.FailOpen = false
 	defer func(pcached *cacheItem) {
 		cached := *pcached
@@ -247,7 +261,8 @@ func (c *clusterLimitRedisCached) AllowContext(ctx context.Context, key string) 
 	now := time.Now()
 	cached, ok := c.cache.get(key)
 	if !ok || cached.LastSync.Before(now.Add(-c.cachePeriod)) {
-		c.sync(ctx, key, now)
+		c.sync(ctx, key)
+		now = time.Now()
 		cached, _ = c.cache.get(key)
 	}
 
@@ -285,7 +300,8 @@ func (c *clusterLimitRedisCached) oldest(ctx context.Context, key string) time.T
 	now := time.Now()
 	cached, ok := c.cache.get(key)
 	if !ok || cached.LastSync.Before(now.Add(-c.cachePeriod)) {
-		c.sync(ctx, key, now)
+		c.sync(ctx, key)
+		now = time.Now()
 		cached, _ = c.cache.get(key)
 	}
 
