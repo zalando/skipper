@@ -13,6 +13,7 @@ const (
 	HTTPHostTag           = "http.host"
 	HTTPMethodTag         = "http.method"
 	HTTPRemoteAddrTag     = "http.remote_addr"
+	HTTPRemoteIPTag       = "http.remote_ip"
 	HTTPPathTag           = "http.path"
 	HTTPUrlTag            = "http.url"
 	HTTPStatusCodeTag     = "http.status_code"
