@@ -14,10 +14,13 @@ type redisTest struct {
 	settings       Settings
 	iterations     int
 	delay          time.Duration
+	concurrency    int
 	args           string
 	addrs          []string
 	password       string
 	want           bool
+	wantAllowed    int
+	wantDenied     int
 	wantDuration   time.Duration
 	wantOldest     time.Duration
 	wantRetryAfter int
@@ -43,7 +46,7 @@ func createCached(s Settings, group, redisAddr, password string) (limiter, func(
 		Password: password,
 	})
 
-	cache := forget.NewCacheSpaces(forget.Options{CacheSize: 100 * 1024, ChunkSize: 256})
+	cache := forget.NewCacheSpaces(forget.Options{CacheSize: 10 * 1024 * 1024, ChunkSize: 256})
 
 	l := newClusterLimitRedisCached(s, ringClient, cache, group, 0)
 	return l, func() {
@@ -60,14 +63,57 @@ func runRedisTests(t *testing.T, tests []redisTest, redisAddr string, cl createR
 			defer close()
 
 			start := time.Now()
-			var got bool
-			for i := 0; i < tt.iterations; i++ {
-				time.Sleep(tt.delay)
-				got = c.Allow(tt.args)
+			var (
+				got     bool
+				allowed int
+				denied  int
+			)
+
+			if tt.concurrency == 0 {
+				for i := 0; i < tt.iterations; i++ {
+					got = c.Allow(tt.args)
+					time.Sleep(tt.delay)
+				}
+			} else {
+				gotc := make(chan bool, tt.iterations*tt.concurrency)
+				for i := 0; i < tt.concurrency; i++ {
+					go func() {
+						for i := 0; i < tt.iterations; i++ {
+							gotc <- c.Allow(tt.args)
+							time.Sleep(tt.delay)
+						}
+					}()
+				}
+
+				for i := 0; i < cap(gotc); i++ {
+					if <-gotc {
+						allowed++
+					} else {
+						denied++
+					}
+				}
 			}
 
-			if got != tt.want {
+			if tt.concurrency == 0 && got != tt.want {
 				t.Errorf("clusterLimitRedis.Allow() = %v, want %v", got, tt.want)
+			}
+
+			if tt.concurrency > 0 {
+				if allowed != tt.wantAllowed {
+					t.Errorf(
+						"clusterLimitRedis.Allow() = %d, want %d",
+						allowed,
+						tt.wantAllowed,
+					)
+				}
+
+				if denied != tt.wantDenied {
+					t.Errorf(
+						"!clusterLimitRedis.Allow() = %d, want %d",
+						denied,
+						tt.wantDenied,
+					)
+				}
 			}
 
 			if tt.wantDuration > 0 {

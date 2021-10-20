@@ -99,3 +99,46 @@ func TestClusterLimitRedisRetryAfterThrottled(t *testing.T) {
 
 	runRedisTests(t, tests, redisAddr, createCached)
 }
+
+func TestClusterLimitRedisAllowConcurrent(t *testing.T) {
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
+
+	clusterlimit := Settings{
+		Type:       ClusterServiceRatelimit,
+		Lookuper:   NewHeaderLookuper("X-Test"),
+		MaxHits:    600,
+		TimeWindow: 5 * time.Second,
+		Group:      "A",
+	}
+
+	clusterClientlimit := Settings{
+		Type:       ClusterClientRatelimit,
+		Lookuper:   NewHeaderLookuper("X-Test"),
+		MaxHits:    600,
+		TimeWindow: 5 * time.Second,
+		Group:      "B",
+	}
+
+	tests := []redisTest{{
+		name:        "simple test clusterRatelimit",
+		settings:    clusterlimit,
+		args:        "clientA",
+		iterations:  10,
+		delay:       30 * time.Millisecond,
+		concurrency: 100,
+		wantAllowed: 600,
+		wantDenied:  400,
+	}, {
+		name:        "simple test clusterClientRatelimit",
+		settings:    clusterClientlimit,
+		args:        "clientB",
+		iterations:  10,
+		delay:       30 * time.Millisecond,
+		concurrency: 100,
+		wantAllowed: 600,
+		wantDenied:  400,
+	}}
+
+	runRedisTests(t, tests, redisAddr, createCached)
+}

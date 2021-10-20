@@ -42,6 +42,7 @@ type redisCache interface {
 
 type cache struct {
 	cache     *forget.CacheSpaces
+	mx        *sync.Mutex
 	namespace string
 	ttl       time.Duration
 }
@@ -59,6 +60,7 @@ type clusterLimitRedisCached struct {
 func newCache(c *forget.CacheSpaces, namespace string, ttl time.Duration) *cache {
 	return &cache{
 		cache:     c,
+		mx:        &sync.Mutex{},
 		namespace: namespace,
 		ttl:       ttl,
 	}
@@ -74,7 +76,7 @@ func newClusterLimitRedisCached(
 	// we rely here primarily on the LRU mechanism and not on the TTL of the cached items, but for cleanup,
 	// it is safe to set the TTL to the double of the rate limiting time window
 	//
-	cacheItemTTL := 2 * s.TimeWindow
+	cacheItemTTL := time.Hour // 2 * s.TimeWindow
 	cache := newCache(c, redisCacheNamespace, cacheItemTTL)
 
 	// together with the time window, this controls the frequency of the Redis calls and the precision of
@@ -165,19 +167,12 @@ func fromRedisValue(v string) (sum int, timestamp time.Time, err error) {
 }
 
 func (c *clusterLimitRedisCached) sync(ctx context.Context, key string) {
-	c.syncMX.Lock()
-	defer c.syncMX.Unlock()
-
 	// checking last sync time again after the lock was acquired to make sure that only one of the possible
 	// concurrent sync attempts is executed
 	//
 	now := time.Now()
-	cached, ok := c.cache.get(key)
-	if ok && !cached.LastSync.Before(now.Add(-c.cachePeriod)) {
-		return
-	}
-
 	oldestRedis := now.Add(-c.window)
+	cached, _ := c.cache.get(key)
 	cached.FailOpen = false
 	defer func(pcached *cacheItem) {
 		cached := *pcached
@@ -256,6 +251,9 @@ func prefixKeyCached(group string, clearText string) string {
 }
 
 func (c *clusterLimitRedisCached) AllowContext(ctx context.Context, key string) bool {
+	c.syncMX.Lock()
+	defer c.syncMX.Unlock()
+
 	key = getHashedKey(key)
 	key = prefixKeyCached(c.group, key)
 	now := time.Now()
@@ -295,6 +293,9 @@ func (c *clusterLimitRedisCached) Allow(key string) bool {
 }
 
 func (c *clusterLimitRedisCached) oldest(ctx context.Context, key string) time.Time {
+	c.syncMX.Lock()
+	defer c.syncMX.Unlock()
+
 	key = getHashedKey(key)
 	key = prefixKeyCached(c.group, key)
 	now := time.Now()
