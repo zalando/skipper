@@ -18,7 +18,7 @@ const (
 	defaultCachePeriodFactor = 256
 )
 
-// appr. 65B + the key size
+// appr. 72B + the key size
 // the keys can have very varying size, e.g. with auth tokens close to 1kB
 //
 type cacheItem struct {
@@ -28,7 +28,7 @@ type cacheItem struct {
 
 	syncedSum int  // 8
 	localSum  int  // 8
-	failOpen  bool // 1
+	failOpen  bool // 1 => 8
 }
 
 type redisCache interface {
@@ -38,7 +38,6 @@ type redisCache interface {
 
 type cache struct {
 	cache     *lru.Cache
-	mx        *sync.Mutex
 	namespace string
 	ttl       time.Duration
 }
@@ -56,7 +55,6 @@ type clusterLimitRedisCached struct {
 func newCache(c *lru.Cache, namespace string, ttl time.Duration) *cache {
 	return &cache{
 		cache:     c,
-		mx:        &sync.Mutex{},
 		namespace: namespace,
 		ttl:       ttl,
 	}

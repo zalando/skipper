@@ -1364,7 +1364,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		const ratelimitItemSize = 1024
 		cache, err = lru.New(o.SmallItemCacheMiB * 1024 * 1024 / ratelimitItemSize)
 		if err != nil {
-			log.Fatalln("Failed to initialize cache: %v.", err)
+			log.Fatalf("Failed to initialize cache: %v.", err)
 		}
 	}
 
