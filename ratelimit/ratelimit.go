@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aryszka/forget"
+	"github.com/hashicorp/golang-lru"
 	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
 	"github.com/zalando/skipper/filters"
@@ -425,7 +425,7 @@ func newRatelimit(
 	s Settings,
 	sw Swarmer,
 	redisRing *net.RedisRingClient,
-	c *forget.CacheSpaces,
+	c *lru.Cache,
 	cachePeriodFactor int,
 ) *Ratelimit {
 	var impl limiter

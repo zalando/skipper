@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aryszka/forget"
+	"github.com/hashicorp/golang-lru"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/net"
 )
@@ -26,7 +26,7 @@ type Registry struct {
 	lookup            map[Settings]*Ratelimit
 	swarm             Swarmer
 	redisRing         *net.RedisRingClient
-	cache             *forget.CacheSpaces
+	cache             *lru.Cache
 	cachePeriodFactor int
 }
 
@@ -52,7 +52,7 @@ func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings)
 func NewSwarmRegistryWithCache(
 	swarm Swarmer,
 	ro *net.RedisOptions,
-	c *forget.CacheSpaces,
+	c *lru.Cache,
 	cachePeriodFactor int,
 	settings ...Settings,
 ) *Registry {

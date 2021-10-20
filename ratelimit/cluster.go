@@ -1,7 +1,7 @@
 package ratelimit
 
 import (
-	"github.com/aryszka/forget"
+	"github.com/hashicorp/golang-lru"
 	"github.com/zalando/skipper/net"
 )
 
@@ -27,7 +27,7 @@ func newClusterRateLimiter(
 	s Settings,
 	sw Swarmer,
 	ring *net.RedisRingClient,
-	c *forget.CacheSpaces,
+	c *lru.Cache,
 	group string,
 	cachePeriodFactor int,
 ) limiter {

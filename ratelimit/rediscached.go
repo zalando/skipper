@@ -2,15 +2,13 @@ package ratelimit
 
 import (
 	"context"
-	"encoding/gob"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/aryszka/forget"
+	"github.com/hashicorp/golang-lru"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/net"
 )
@@ -20,19 +18,17 @@ const (
 	defaultCachePeriodFactor = 256
 )
 
-// appr. 65B + the key size + cache overhead ~120B
+// appr. 65B + the key size
 // the keys can have very varying size, e.g. with auth tokens close to 1kB
-// => recommended cache chunk size: 256B
-// (https://pkg.go.dev/github.com/aryszka/forget?utm_source=godoc#hdr-Memory)
 //
 type cacheItem struct {
 	// time.Time implements gob.GobEncoder and gob.GobDecoder
-	LastSync time.Time
-	Oldest   time.Time
+	lastSync time.Time // 24
+	oldest   time.Time // 24
 
-	SyncedSum int
-	LocalSum  int
-	FailOpen  bool
+	syncedSum int  // 8
+	localSum  int  // 8
+	failOpen  bool // 1
 }
 
 type redisCache interface {
@@ -41,7 +37,7 @@ type redisCache interface {
 }
 
 type cache struct {
-	cache     *forget.CacheSpaces
+	cache     *lru.Cache
 	mx        *sync.Mutex
 	namespace string
 	ttl       time.Duration
@@ -57,7 +53,7 @@ type clusterLimitRedisCached struct {
 	cachePeriod time.Duration
 }
 
-func newCache(c *forget.CacheSpaces, namespace string, ttl time.Duration) *cache {
+func newCache(c *lru.Cache, namespace string, ttl time.Duration) *cache {
 	return &cache{
 		cache:     c,
 		mx:        &sync.Mutex{},
@@ -69,7 +65,7 @@ func newCache(c *forget.CacheSpaces, namespace string, ttl time.Duration) *cache
 func newClusterLimitRedisCached(
 	s Settings,
 	r *net.RedisRingClient,
-	c *forget.CacheSpaces,
+	c *lru.Cache,
 	group string,
 	cachePeriodFactor int,
 ) *clusterLimitRedisCached {
@@ -104,36 +100,17 @@ func newClusterLimitRedisCached(
 }
 
 func (f *cache) get(key string) (item cacheItem, ok bool) {
-	var r io.ReadCloser
-	r, ok = f.cache.Get(f.namespace, key)
-	if !ok {
+	var iface interface{}
+	if iface, ok = f.cache.Get(key); !ok {
 		return
 	}
 
-	defer r.Close()
-	dec := gob.NewDecoder(r)
-	if err := dec.Decode(&item); err != nil {
-		log.Errorf("Error while decoding a cached item: %v.", err)
-		ok = false
-		return
-	}
-
+	item, ok = iface.(cacheItem)
 	return
 }
 
 func (f *cache) set(key string, item cacheItem) {
-	// forget.CacheSpaces.Set returns false only in case of a closed cache
-	w, ok := f.cache.Set(f.namespace, key, f.ttl)
-	if !ok {
-		log.Error("Cached redis rate limit: trying to write to a closed cache.")
-	}
-
-	defer w.Close()
-	enc := gob.NewEncoder(w)
-	if err := enc.Encode(item); err != nil {
-		// we can ignore this error for the control flow:
-		log.Errorf("Error while encoding cache item to memory: %v.", err)
-	}
+	f.cache.Add(key, item)
 }
 
 // TODO: z cards in Redis represent a set by the value, which means that there is a small chance that the same
@@ -167,18 +144,15 @@ func fromRedisValue(v string) (sum int, timestamp time.Time, err error) {
 }
 
 func (c *clusterLimitRedisCached) sync(ctx context.Context, key string) {
-	// checking last sync time again after the lock was acquired to make sure that only one of the possible
-	// concurrent sync attempts is executed
-	//
 	now := time.Now()
 	oldestRedis := now.Add(-c.window)
 	cached, _ := c.cache.get(key)
-	cached.FailOpen = false
+	cached.failOpen = false
 	defer func(pcached *cacheItem) {
 		cached := *pcached
 
 		// using a fresh timestamp after several network calls:
-		cached.LastSync = time.Now()
+		cached.lastSync = time.Now()
 		c.cache.set(key, cached)
 	}(&cached)
 
@@ -190,18 +164,18 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string) {
 		log.Errorf("Error while cleaning up old rate entries: %v.", errRem)
 	}
 
-	if errRem == nil && cached.LocalSum > 0 {
+	if errRem == nil && cached.localSum > 0 {
 		_, err := c.redis.ZAdd(
 			ctx,
 			key,
-			redisValue(cached.LocalSum, now),
+			redisValue(cached.localSum, now),
 			float64(now.UnixNano()),
 		)
 
 		if err != nil {
 			log.Errorf("Error while storing local rate in redis: %v.", err)
 		} else {
-			cached.LocalSum = 0
+			cached.localSum = 0
 		}
 	}
 
@@ -210,7 +184,7 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string) {
 	//
 	values, err := c.redis.ZRangeByScoreAll(ctx, key, float64(oldestRedis.UnixNano()), float64(now.UnixNano()))
 	if err != nil {
-		cached.FailOpen = true
+		cached.failOpen = true
 		return
 	}
 
@@ -219,7 +193,7 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string) {
 		if err != nil {
 			log.Errorf("Invalid entry in redis: %v.", err)
 		} else {
-			cached.Oldest = oldest
+			cached.oldest = oldest
 		}
 	}
 
@@ -229,7 +203,7 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string) {
 	// be defined. This means, it's an O(N) in-process operation, where N is cache period factor, but it is
 	// a negligibly small N
 	//
-	cached.SyncedSum = 0
+	cached.syncedSum = 0
 	for _, v := range values {
 		sum, _, err := fromRedisValue(v)
 		if err != nil {
@@ -237,7 +211,7 @@ func (c *clusterLimitRedisCached) sync(ctx context.Context, key string) {
 			continue
 		}
 
-		cached.SyncedSum += sum
+		cached.syncedSum += sum
 	}
 
 	// ensuring cleanup in cases of requests with a given key stop coming in:
@@ -258,13 +232,13 @@ func (c *clusterLimitRedisCached) AllowContext(ctx context.Context, key string) 
 	key = prefixKeyCached(c.group, key)
 	now := time.Now()
 	cached, ok := c.cache.get(key)
-	if !ok || cached.LastSync.Before(now.Add(-c.cachePeriod)) {
+	if !ok || cached.lastSync.Before(now.Add(-c.cachePeriod)) {
 		c.sync(ctx, key)
 		now = time.Now()
 		cached, _ = c.cache.get(key)
 	}
 
-	if cached.FailOpen {
+	if cached.failOpen {
 		return true
 	}
 
@@ -275,13 +249,13 @@ func (c *clusterLimitRedisCached) AllowContext(ctx context.Context, key string) 
 	// and not the service provider. Note that full precision is not possible anyway because of timing
 	// concerns will be always involved
 	//
-	if cached.SyncedSum+cached.LocalSum >= c.maxHits {
+	if cached.syncedSum+cached.localSum >= c.maxHits {
 		return false
 	}
 
-	cached.LocalSum++
-	if cached.Oldest.IsZero() {
-		cached.Oldest = now
+	cached.localSum++
+	if cached.oldest.IsZero() {
+		cached.oldest = now
 	}
 
 	c.cache.set(key, cached)
@@ -300,13 +274,13 @@ func (c *clusterLimitRedisCached) oldest(ctx context.Context, key string) time.T
 	key = prefixKeyCached(c.group, key)
 	now := time.Now()
 	cached, ok := c.cache.get(key)
-	if !ok || cached.LastSync.Before(now.Add(-c.cachePeriod)) {
+	if !ok || cached.lastSync.Before(now.Add(-c.cachePeriod)) {
 		c.sync(ctx, key)
 		now = time.Now()
 		cached, _ = c.cache.get(key)
 	}
 
-	return cached.Oldest
+	return cached.oldest
 }
 
 func (c *clusterLimitRedisCached) deltaFrom(ctx context.Context, key string, from time.Time) time.Duration {

@@ -16,11 +16,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aryszka/forget"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/hashicorp/golang-lru"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -1358,16 +1358,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
-	var cache *forget.CacheSpaces
+	var cache *lru.Cache
 	if o.SmallItemCacheMiB > 0 {
-		// currently hard coded based on the recommended chunk size of the cached redis rate limiting
-		const chunkSize = 256
-
-		cache = forget.NewCacheSpaces(forget.Options{
-			CacheSize: o.SmallItemCacheMiB * 1024 * 1024,
-			ChunkSize: chunkSize,
-		})
-		defer cache.Close()
+		// currently hard coded based on the recommended item size of the cached redis rate limiting
+		const ratelimitItemSize = 1024
+		cache, err = lru.New(o.SmallItemCacheMiB * 1024 * 1024 / ratelimitItemSize)
+		if err != nil {
+			log.Fatalln("Failed to initialize cache: %v.", err)
+		}
 	}
 
 	var ratelimitRegistry *ratelimit.Registry
@@ -1377,7 +1375,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		// hard coding it for now until more operational experience is collected
 		const cachePeriodFactor = 256
 
-		var scache *forget.CacheSpaces
+		var scache *lru.Cache
 		if o.SwarmRedisRatelimitMode == SwarmRedisRatelimitModeCached {
 			if cache == nil {
 				log.Fatalf("Cached rate limit can be only used when a small item cache space is provided.")

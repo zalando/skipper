@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aryszka/forget"
+	"github.com/hashicorp/golang-lru"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/net/redistest"
 )
@@ -46,12 +46,14 @@ func createCached(s Settings, group, redisAddr, password string) (limiter, func(
 		Password: password,
 	})
 
-	cache := forget.NewCacheSpaces(forget.Options{CacheSize: 10 * 1024 * 1024, ChunkSize: 256})
+	cache, err := lru.New(10 * 1024)
+	if err != nil {
+		panic(err)
+	}
 
 	l := newClusterLimitRedisCached(s, ringClient, cache, group, 0)
 	return l, func() {
 		l.Close()
-		cache.Close()
 	}
 }
 
