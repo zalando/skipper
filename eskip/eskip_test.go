@@ -902,7 +902,7 @@ func TestPathRegexpArgParsingRoundtrip(t *testing.T) {
 	Fprint(buff, PrettyPrintInfo{}, r...)
 	r, err = Parse(buff.String())
 	if err != nil {
-		t.Fatalf("formatted eskip is invalid: %v", buff)
+		t.Fatalf("formatted eskip is invalid: %v, err: %v", buff, err)
 	}
 	got := r[0].PathRegexps[0]
 	if got != want {
