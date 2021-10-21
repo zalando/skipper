@@ -891,7 +891,7 @@ func TestFilterString(t *testing.T) {
 	}
 }
 
-func TestHeaderRegexpArgParsingRoundtrip(t *testing.T) {
+func TestPathRegexpArgParsingRoundtrip(t *testing.T) {
 	input := `hello: PathRegexp("^\/stylist(#.*)?$") -> <shunt>`
 	r, err := Parse(input)
 	if err != nil {
