@@ -123,6 +123,54 @@ func TestRedisClientGetSet(t *testing.T) {
 			wait:    1100 * time.Millisecond,
 			wantErr: true,
 		},
+		{
+			name: "add one, get one, no expiration, with Rendezvous hash",
+			options: &RedisOptions{
+				Addrs:         []string{redisAddr},
+				HashAlgorithm: "rendezvous",
+			},
+			key:     "k1",
+			value:   "foo",
+			expire:  time.Second,
+			expect:  "foo",
+			wantErr: false,
+		},
+		{
+			name: "add one, get one, no expiration, with Rendezvous Vnodes hash",
+			options: &RedisOptions{
+				Addrs:         []string{redisAddr},
+				HashAlgorithm: "rendezvousVnodes",
+			},
+			key:     "k1",
+			value:   "foo",
+			expire:  time.Second,
+			expect:  "foo",
+			wantErr: false,
+		},
+		{
+			name: "add one, get one, no expiration, with Jump hash",
+			options: &RedisOptions{
+				Addrs:         []string{redisAddr},
+				HashAlgorithm: "jump",
+			},
+			key:     "k1",
+			value:   "foo",
+			expire:  time.Second,
+			expect:  "foo",
+			wantErr: false,
+		},
+		{
+			name: "add one, get one, no expiration, with Multiprobe hash",
+			options: &RedisOptions{
+				Addrs:         []string{redisAddr},
+				HashAlgorithm: "mpchash",
+			},
+			key:     "k1",
+			value:   "foo",
+			expire:  time.Second,
+			expect:  "foo",
+			wantErr: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cli := NewRedisRingClient(tt.options)

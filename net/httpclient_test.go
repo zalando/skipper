@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing/tracers/basic"
@@ -44,6 +45,13 @@ func TestClient(t *testing.T) {
 	}{
 		{
 			name:    "All defaults, with request should have a response",
+			wantErr: false,
+		},
+		{
+			name: "Idle conn timeout",
+			options: Options{
+				Timeout: 3 * time.Second,
+			},
 			wantErr: false,
 		},
 		{
@@ -259,6 +267,7 @@ func TestTransport(t *testing.T) {
 				t.Errorf("Transport.RoundTrip() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			rt.CloseIdleConnections()
 
 		})
 	}
