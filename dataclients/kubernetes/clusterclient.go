@@ -24,6 +24,7 @@ import (
 const (
 	ingressClassKey            = "kubernetes.io/ingress.class"
 	IngressesClusterURI        = "/apis/extensions/v1beta1/ingresses"
+	IngressesV1ClusterURI      = "/apis/networking.k8s.io/v1/ingresses"
 	ZalandoResourcesClusterURI = "/apis/zalando.org/v1"
 	RouteGroupsName            = "routegroups"
 	routeGroupsClusterURI      = "/apis/zalando.org/v1/routegroups"
@@ -32,6 +33,7 @@ const (
 	EndpointsClusterURI        = "/api/v1/endpoints"
 	defaultKubernetesURL       = "http://localhost:8001"
 	IngressesNamespaceFmt      = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
+	IngressesV1NamespaceFmt    = "/apis/networking.k8s.io/v1/namespaces/%s/ingresses"
 	routeGroupsNamespaceFmt    = "/apis/zalando.org/v1/namespaces/%s/routegroups"
 	ServicesNamespaceFmt       = "/api/v1/namespaces/%s/services"
 	EndpointsNamespaceFmt      = "/api/v1/namespaces/%s/endpoints"
@@ -44,6 +46,7 @@ const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the 
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
 
 type clusterClient struct {
+	ingressV1       bool
 	ingressesURI    string
 	routeGroupsURI  string
 	servicesURI     string
@@ -128,8 +131,13 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		return nil, err
 	}
 
+	ingressURI := IngressesClusterURI
+	if o.KubernetesIngressV1 {
+		ingressURI = IngressesV1ClusterURI
+	}
 	c := &clusterClient{
-		ingressesURI:    IngressesClusterURI,
+		ingressV1:       o.KubernetesIngressV1,
+		ingressesURI:    ingressURI,
 		routeGroupsURI:  routeGroupsClusterURI,
 		servicesURI:     ServicesClusterURI,
 		endpointsURI:    EndpointsClusterURI,
@@ -162,7 +170,11 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 }
 
 func (c *clusterClient) setNamespace(namespace string) {
-	c.ingressesURI = fmt.Sprintf(IngressesNamespaceFmt, namespace)
+	if c.ingressV1 {
+		c.ingressesURI = fmt.Sprintf(IngressesV1NamespaceFmt, namespace)
+	} else {
+		c.ingressesURI = fmt.Sprintf(IngressesNamespaceFmt, namespace)
+	}
 	c.routeGroupsURI = fmt.Sprintf(routeGroupsNamespaceFmt, namespace)
 	c.servicesURI = fmt.Sprintf(ServicesNamespaceFmt, namespace)
 	c.endpointsURI = fmt.Sprintf(EndpointsNamespaceFmt, namespace)
@@ -243,6 +255,10 @@ func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
 func (c *clusterClient) filterIngressesByClass(items []*definitions.IngressItem) []*definitions.IngressItem {
+	if c.ingressV1 {
+		panic("wrong ingress version V1, but v1beta1 required")
+	}
+
 	validIngs := []*definitions.IngressItem{}
 
 	for _, ing := range items {
@@ -253,6 +269,21 @@ func (c *clusterClient) filterIngressesByClass(items []*definitions.IngressItem)
 			if ok && cls != "" && !c.ingressClass.MatchString(cls) {
 				continue
 			}
+		}
+		validIngs = append(validIngs, ing)
+	}
+
+	return validIngs
+}
+
+// filterIngressesV1ByClass will filter only the ingresses that have the valid class, these are
+// the defined one, empty string class or not class at all
+func (c *clusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1Item) []*definitions.IngressV1Item {
+	validIngs := []*definitions.IngressV1Item{}
+
+	for _, ing := range items {
+		if ing.Spec != nil && ing.Spec.IngressClassName != "" && !c.ingressClass.MatchString(ing.Spec.IngressClassName) {
+			continue
 		}
 		validIngs = append(validIngs, ing)
 	}
@@ -279,6 +310,10 @@ func sortByMetadata(slice interface{}, getMetadata func(int) *definitions.Metada
 }
 
 func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
+	if c.ingressV1 {
+		panic("wrong ingress version V1, but v1beta1 required")
+	}
+
 	var il definitions.IngressList
 	if err := c.getJSON(c.ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
@@ -287,6 +322,24 @@ func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
 
 	log.Debugf("all ingresses received: %d", len(il.Items))
 	fItems := c.filterIngressesByClass(il.Items)
+	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
+	sortByMetadata(fItems, func(i int) *definitions.Metadata { return fItems[i].Metadata })
+	return fItems, nil
+}
+
+func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) {
+	if !c.ingressV1 {
+		panic("wrong ingress version V1, but v1beta1 required")
+	}
+
+	var il definitions.IngressV1List
+	if err := c.getJSON(c.ingressesURI, &il); err != nil {
+		log.Debugf("requesting all ingresses failed: %v", err)
+		return nil, err
+	}
+
+	log.Debugf("all ingresses received: %d", len(il.Items))
+	fItems := c.filterIngressesV1ByClass(il.Items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
 	sortByMetadata(fItems, func(i int) *definitions.Metadata { return fItems[i].Metadata })
 	return fItems, nil
@@ -374,7 +427,16 @@ func (c *clusterClient) logMissingRouteGroupsOnce() {
 }
 
 func (c *clusterClient) fetchClusterState() (*clusterState, error) {
-	ingresses, err := c.loadIngresses()
+	var (
+		err         error
+		ingressesV1 []*definitions.IngressV1Item
+		ingresses   []*definitions.IngressItem
+	)
+	if c.ingressV1 {
+		ingressesV1, err = c.loadIngressesV1()
+	} else {
+		ingresses, err = c.loadIngresses()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -403,6 +465,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 
 	return &clusterState{
 		ingresses:       ingresses,
+		ingressesV1:     ingressesV1,
 		routeGroups:     routeGroups,
 		services:        services,
 		endpoints:       endpoints,

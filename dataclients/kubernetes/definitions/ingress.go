@@ -9,6 +9,60 @@ import (
 
 var errInvalidPortType = errors.New("invalid port type")
 
+// IngressSpecV1 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressspec-v1-networking-k8s-io
+type IngressV1Spec struct {
+	DefaultBackend   *BackendV1 `json:"defaultBackend,omitempty"`
+	IngressClassName string     `json:"ingressClassName,omitempty"`
+	Rules            []*RuleV1  `json:"rules"`
+	// Ingress TLS not supported: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressspec-v1-networking-k8s-io
+}
+
+// BackendV1 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressbackend-v1-networking-k8s-io
+type BackendV1 struct {
+	Service Service `json:"service,omitempty"` // can be nil, because of TypedLocalObjectReference
+	// Resource TypedLocalObjectReference is not supported https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#typedlocalobjectreference-v1-core
+
+	// Traffic field used for custom traffic weights, but not part of the ingress spec.
+	Traffic float64
+	// number of True predicates to add to support multi color traffic switching
+	NoopCount int
+}
+
+// Service https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressservicebackend-v1-networking-k8s-io
+type Service struct {
+	Name string        `json:"name"`
+	Port BackendPortV1 `json:"port"`
+}
+
+type BackendPortV1 struct {
+	Name   string `json:"name"`
+	Number int    `json:"number"`
+}
+
+func (p BackendPortV1) String() string {
+	if p.Number != 0 {
+		return strconv.Itoa(p.Number)
+	}
+	return p.Name
+}
+
+type RuleV1 struct {
+	Host string      `json:"host"`
+	Http *HTTPRuleV1 `json:"http"`
+}
+
+type HTTPRuleV1 struct {
+	Paths []*PathRuleV1 `json:"paths"`
+}
+
+// PathRuleV1 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#httpingresspath-v1-networking-k8s-io
+type PathRuleV1 struct {
+	Path     string     `json:"path"`
+	PathType string     `json:"pathType"`
+	Backend  *BackendV1 `json:"backend"`
+}
+
+// IngressSpec is the v1beta1
 type IngressSpec struct {
 	DefaultBackend *Backend `json:"backend"`
 	Rules          []*Rule  `json:"rules"`
