@@ -1,0 +1,7 @@
+kube_foo__qux__www_example_org_____qux:
+	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/") && QueryParam("version", "^alpha$")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+kube_foo__qux__example_ingress_cluster_local_____qux:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") &&  PathRegexp("^/") && QueryParam("version", "^alpha$")
+	&& ClientIP("10.2.0.0/16") -> <roundRobin,
+	"http://10.2.9.103:8080", "http://10.2.9.104:8080">;
