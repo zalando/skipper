@@ -1,0 +1,4 @@
+kube_foo__qux__www_example_org____www_zalando_de:
+  Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
+  -> setRequestHeader("Host", "www.zalando.de")
+  -> "https://www.zalando.de:443"

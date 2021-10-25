@@ -1,0 +1,8 @@
+kube_foo__qux__0__example_ingress_cluster_local_____:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && PathSubtree("/")
+	&& Method("OPTIONS") && ClientIP("10.2.0.0/16") -> <shunt>;
+
+kube_foo__qux__example_ingress_cluster_local_____qux:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && PathSubtree("/")
+	&& ClientIP("10.2.0.0/16") -> <roundRobin,
+	"http://10.2.9.103:8080", "http://10.2.9.104:8080">;
