@@ -501,7 +501,7 @@ func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *de
 		panic("wrong ingress version v1beta1, but v1 required")
 	}
 
-	meta := ic.ingress.Metadata
+	meta := ic.ingressV1.Metadata
 	endpointsRoute, err := convertPathRuleV1(
 		ic.state,
 		meta,
