@@ -1,3 +1,4 @@
+ingressv1: true
 httpsRedirect: true
 eastWestRangeDomains:
 - "skipper.cluster.local"
