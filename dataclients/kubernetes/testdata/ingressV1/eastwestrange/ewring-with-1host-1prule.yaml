@@ -4,9 +4,11 @@ metadata:
   namespace: foo
   name: qux
 spec:
-  backend:
-    serviceName: bar
-    servicePort: 1234
+  defaultBackend:
+    service:
+      name: bar
+      port:
+        number: 1234
   rules:
   - host: example.ingress.cluster.local
     http:

@@ -207,7 +207,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
-		o.KubernetesIngressV1 = kop.IngressV1 //.kube override
+		o.KubernetesIngressV1 = kop.IngressV1
 		o.KubernetesEnableEastWest = kop.EastWest
 		o.KubernetesEastWestDomain = kop.EastWestDomain
 		o.KubernetesEastWestRangeDomains = kop.EastWestRangeDomains
