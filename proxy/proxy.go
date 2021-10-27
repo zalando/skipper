@@ -1041,7 +1041,7 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 	return &proxyError{
 		err:              errRatelimit,
 		code:             http.StatusTooManyRequests,
-		additionalHeader: ratelimit.Headers(&settings, retryAfter),
+		additionalHeader: ratelimit.Headers(settings.MaxHits, settings.TimeWindow, retryAfter),
 	}
 }
 

@@ -164,6 +164,7 @@ func Test_NewConfig(t *testing.T) {
 				RoutesURLs:                              commaListFlag(),
 				ForwardedHeadersList:                    commaListFlag(),
 				ForwardedHeadersExcludeCIDRList:         commaListFlag(),
+				ClusterRatelimitMaxGroupShards:          1,
 			},
 			wantErr: false,
 		},

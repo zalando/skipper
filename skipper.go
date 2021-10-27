@@ -780,6 +780,9 @@ type Options struct {
 	// called after ratelimit registry is initialized
 	SwarmRegistry func(*ratelimit.Registry)
 
+	// ClusterRatelimitMaxGroupShards specifies the maximum number of group shards for the clusterRatelimit filter
+	ClusterRatelimitMaxGroupShards int
+
 	testOptions
 }
 
@@ -1357,12 +1360,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			hook(ratelimitRegistry)
 		}
 
+		if o.ClusterRatelimitMaxGroupShards < 1 {
+			log.Warn("ClusterRatelimitMaxGroupShards must be positive, reset to 1")
+			o.ClusterRatelimitMaxGroupShards = 1
+		}
+
 		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
 		o.CustomFilters = append(o.CustomFilters,
 			ratelimitfilters.NewClientRatelimit(provider),
 			ratelimitfilters.NewLocalRatelimit(provider),
 			ratelimitfilters.NewRatelimit(provider),
-			ratelimitfilters.NewClusterRateLimit(provider),
+			ratelimitfilters.NewShardedClusterRateLimit(provider, o.ClusterRatelimitMaxGroupShards),
 			ratelimitfilters.NewClusterClientRateLimit(provider),
 			ratelimitfilters.NewDisableRatelimit(provider),
 			ratelimitfilters.NewBackendRatelimit(),
