@@ -309,10 +309,6 @@ func sortByMetadata(slice interface{}, getMetadata func(int) *definitions.Metada
 }
 
 func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
-	if c.ingressV1 {
-		panic("wrong ingress version V1, but v1beta1 required")
-	}
-
 	var il definitions.IngressList
 	if err := c.getJSON(c.ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
@@ -327,10 +323,6 @@ func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
 }
 
 func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) {
-	if !c.ingressV1 {
-		panic("wrong ingress version V1, but v1beta1 required")
-	}
-
 	var il definitions.IngressV1List
 	if err := c.getJSON(c.ingressesURI, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
