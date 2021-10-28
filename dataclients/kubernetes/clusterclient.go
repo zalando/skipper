@@ -282,10 +282,9 @@ func (c *clusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1I
 	validIngs := []*definitions.IngressV1Item{}
 
 	for _, ing := range items {
-		if ing.Spec != nil && ing.Spec.IngressClassName != "" && !c.ingressClass.MatchString(ing.Spec.IngressClassName) {
-			continue
+		if ing.Spec == nil || ing.Spec.IngressClassName == "" || c.ingressClass.MatchString(ing.Spec.IngressClassName) {
+			validIngs = append(validIngs, ing)
 		}
-		validIngs = append(validIngs, ing)
 	}
 
 	return validIngs
