@@ -255,10 +255,6 @@ func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
 func (c *clusterClient) filterIngressesByClass(items []*definitions.IngressItem) []*definitions.IngressItem {
-	if c.ingressV1 {
-		panic("wrong ingress version V1, but v1beta1 required")
-	}
-
 	validIngs := []*definitions.IngressItem{}
 
 	for _, ing := range items {
