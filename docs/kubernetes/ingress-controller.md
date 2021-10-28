@@ -480,7 +480,7 @@ Check the repository if you need more configuration possibilities.
 East-West means cluster internal service-to-service communication.
 For this you need to resolve DNS to skipper for one or more additional
 domains of your choice. When Ingress or
-[RouteGroup](../routegroups.md) objects specify such domains Skipper
+[RouteGroup](routegroups.md) objects specify such domains Skipper
 will add the configured predicates.
 
 ### Skipper
