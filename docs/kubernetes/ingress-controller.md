@@ -30,11 +30,11 @@ and [Security Groups](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Secur
 the HTTP routing capabilities are very limited. Skipper's main advantage
 compared to other HTTP routers is matching and changing HTTP. Another advantage
 for us and for skipper users in general is that defaults with
-[kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller),
-just work as you would expect and you can choose to use AWS
-Network Load Balancer (NLB) instead of an ALB.
-For lower latency, safety, and cost reasons you can also use an NLB. We tested two cases
-(Skipper backends were pre-scaled and not changed):
+[kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller)
+just work as you would expect.
+For lower latency, safety, and cost reasons you can also use Network
+Load Balancer (NLB) instead of Application Load Balancer (ALB).
+We tested two cases (Skipper backends were pre-scaled and not changed):
 
 1. A hard switch to a cold NLB with 1 million requests per second
 (RPS). A similar test with 100k RPS with ALB results in client visible
