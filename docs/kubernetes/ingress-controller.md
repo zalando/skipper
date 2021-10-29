@@ -30,8 +30,18 @@ and [Security Groups](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Secur
 the HTTP routing capabilities are very limited. Skipper's main advantage
 compared to other HTTP routers is matching and changing HTTP. Another advantage
 for us and for skipper users in general is that defaults with
-[kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller),
+[kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller)
 just work as you would expect.
+For lower latency, safety, and cost reasons you can also use Network
+Load Balancer (NLB) instead of Application Load Balancer (ALB).
+We tested two cases (Skipper backends were pre-scaled and not changed):
+
+1. A hard switch to a cold NLB with 1 million requests per second
+(RPS). A similar test with 100k RPS with ALB results in client visible
+error rates and high latency percentiles.
+2. A 6h test with 2k RPS showed regular spikes in p999 latency to more
+than 100ms in for ALB. NLB showed a flat p999 latency of 25-35ms for
+the same workload.
 
 There are a number of other ingress controllers including
 [traefik](https://traefik.io/),
@@ -469,8 +479,9 @@ Check the repository if you need more configuration possibilities.
 
 East-West means cluster internal service-to-service communication.
 For this you need to resolve DNS to skipper for one or more additional
-domains of your choice. When Ingress or RouteGroup objects specify such
-domains Skipper will add the configured predicates.
+domains of your choice. When Ingress or
+[RouteGroup](routegroups.md) objects specify such domains Skipper
+will add the configured predicates.
 
 ### Skipper
 
@@ -596,7 +607,7 @@ kind: StatefulSet
 metadata:
   labels:
     application: skipper-redis
-    version: v4.0.9
+    version: v6.2.4
   name: skipper-redis
   namespace: kube-system
 spec:
@@ -609,10 +620,10 @@ spec:
     metadata:
       labels:
         application: skipper-redis
-        version: v4.0.9
+        version: v6.2.4
     spec:
       containers:
-      - image: registry.opensource.zalan.do/zmon/redis:4.0.9-master-6
+      - image: registry.opensource.zalan.do/library/redis-6-alpine:6-alpine-20210712
         name: skipper-redis
         ports:
         - containerPort: 6379
