@@ -22,12 +22,14 @@ type spec struct {
 	typ        ratelimit.RatelimitType
 	provider   RatelimitProvider
 	filterName string
+	maxShards  int
 }
 
 type filter struct {
 	settings   ratelimit.Settings
 	provider   RatelimitProvider
 	statusCode int
+	maxHits    int // overrides settings.MaxHits
 }
 
 // RatelimitProvider returns a limit instance for provided Settings
@@ -130,7 +132,17 @@ func NewRatelimit(provider RatelimitProvider) filters.Spec {
 //    -> clusterRatelimit("groupA", 200, "1m", 503)
 //    -> "https://foo.backend.net";
 func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
-	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: filters.ClusterRatelimitName}
+	return NewShardedClusterRateLimit(provider, 1)
+}
+
+// NewShardedClusterRateLimit creates a cluster rate limiter that uses multiple group shards to count hits.
+// Based on the configured group and maxHits each filter instance selects N distinct group shards from [1, maxGroupShards].
+// For every subsequent request it uniformly picks one of N group shards and limits number of allowed requests per group shard to maxHits/N.
+//
+// For example if maxGroupShards = 10, clusterRatelimit("groupA", 200, "1m") will use 10 distinct groups to count hits and
+// will allow up to 20 hits per each group and thus up to configured 200 hits in total.
+func NewShardedClusterRateLimit(provider RatelimitProvider, maxGroupShards int) filters.Spec {
+	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: filters.ClusterRatelimitName, maxShards: maxGroupShards}
 }
 
 // NewClusterClientRatelimit creates a rate limiting that is aware of
@@ -208,7 +220,7 @@ func serviceRatelimitFilter(args []interface{}) (*filter, error) {
 	}, nil
 }
 
-func clusterRatelimitFilter(args []interface{}) (*filter, error) {
+func clusterRatelimitFilter(maxShards int, args []interface{}) (*filter, error) {
 	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -233,16 +245,40 @@ func clusterRatelimitFilter(args []interface{}) (*filter, error) {
 		return nil, err
 	}
 
-	return &filter{
-		settings: ratelimit.Settings{
+	f := &filter{statusCode: statusCode, maxHits: maxHits}
+
+	keyShards := getKeyShards(maxHits, maxShards)
+	if keyShards > 1 {
+		f.settings = ratelimit.Settings{
+			Type:       ratelimit.ClusterServiceRatelimit,
+			Group:      group,
+			MaxHits:    maxHits / keyShards,
+			TimeWindow: timeWindow,
+			Lookuper:   ratelimit.NewRoundRobinLookuper(uint64(keyShards)),
+		}
+	} else {
+		f.settings = ratelimit.Settings{
 			Type:       ratelimit.ClusterServiceRatelimit,
 			Group:      group,
 			MaxHits:    maxHits,
 			TimeWindow: timeWindow,
 			Lookuper:   ratelimit.NewSameBucketLookuper(),
-		},
-		statusCode: statusCode,
-	}, nil
+		}
+	}
+	log.Debugf("maxHits: %d, keyShards: %d", maxHits, keyShards)
+
+	return f, nil
+}
+
+// getKeyShards returns number of key shards based on max hits and max allowed shards.
+// Number of key shards k is the largest number from `[1, maxShards]` interval such that `maxHits % k == 0`
+func getKeyShards(maxHits, maxShards int) int {
+	for k := maxShards; k > 1; k-- {
+		if maxHits%k == 0 {
+			return k
+		}
+	}
+	return 1
 }
 
 func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
@@ -376,7 +412,7 @@ func (s *spec) createFilter(args []interface{}) (*filter, error) {
 	case ratelimit.ClientRatelimit:
 		return clientRatelimitFilter(args)
 	case ratelimit.ClusterServiceRatelimit:
-		return clusterRatelimitFilter(args)
+		return clusterRatelimitFilter(s.maxShards, args)
 	case ratelimit.ClusterClientRatelimit:
 		return clusterClientRatelimitFilter(args)
 	default:
@@ -442,9 +478,13 @@ func (f *filter) Request(ctx filters.FilterContext) {
 	}
 
 	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
+		maxHits := f.settings.MaxHits
+		if f.maxHits != 0 {
+			maxHits = f.maxHits
+		}
 		ctx.Serve(&http.Response{
 			StatusCode: f.statusCode,
-			Header:     ratelimit.Headers(&f.settings, rateLimiter.RetryAfter(s)),
+			Header:     ratelimit.Headers(maxHits, f.settings.TimeWindow, rateLimiter.RetryAfter(s)),
 		})
 	}
 }

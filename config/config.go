@@ -241,6 +241,8 @@ type Config struct {
 	SwarmLeaveTimeout                 time.Duration `yaml:"swarm-leave-timeout"`
 	SwarmStaticSelf                   string        `yaml:"swarm-static-self"`
 	SwarmStaticOther                  string        `yaml:"swarm-static-other"`
+
+	ClusterRatelimitMaxGroupShards int `yaml:"cluster-ratelimit-max-group-shards"`
 }
 
 const (
@@ -479,6 +481,8 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, "swarm leave timeout to use for leaving the memberlist on timeout")
 	flag.StringVar(&cfg.SwarmStaticSelf, "swarm-static-self", "", "set static swarm self node, for example 127.0.0.1:9001")
 	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003")
+
+	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
 
 	return cfg
 }
@@ -802,6 +806,8 @@ func (c *Config) ToOptions() skipper.Options {
 		// swim on localhost for testing
 		SwarmStaticSelf:  c.SwarmStaticSelf,
 		SwarmStaticOther: c.SwarmStaticOther,
+
+		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
 	}
 
 	if c.PluginDir != "" {

@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"reflect"
 	"testing"
@@ -300,6 +301,29 @@ func TestRateLimit(t *testing.T) {
 		503,
 	))
 
+	t.Run("sharded cluster ratelimit", test(
+		func(p RatelimitProvider) filters.Spec {
+			return NewShardedClusterRateLimit(p, 3)
+		},
+		ratelimit.Settings{
+			Type:       ratelimit.ClusterServiceRatelimit,
+			MaxHits:    1,
+			TimeWindow: 1 * time.Second,
+			Lookuper:   ratelimit.NewRoundRobinLookuper(3),
+			Group:      "mygroup",
+		},
+		&http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header: http.Header{
+				"X-Rate-Limit": []string{"10800"},
+				"Retry-After":  []string{"31415"},
+			},
+		},
+		"mygroup",
+		3,
+		"1s",
+	))
+
 	t.Run("ratelimit clusterClient", test(
 		NewClusterClientRateLimit,
 		ratelimit.Settings{
@@ -437,5 +461,33 @@ func TestAllowsContext(t *testing.T) {
 
 	if ctx.FResponse != nil {
 		t.Errorf("unexpected response: %v", ctx.FResponse)
+	}
+}
+
+func TestGetKeyShards(t *testing.T) {
+	for _, tc := range []struct {
+		maxHits      int
+		maxKeyShards int
+		want         int
+	}{
+		{1, 0, 1},
+		{1, 1, 1},
+		{100, 1, 1},
+		{4, 5, 4},
+		{5, 5, 5},
+		{6, 5, 3},
+		{11, 10, 1}, // maxHits is prime
+		{12, 10, 6},
+		{101, 10, 1},
+		{20, 100, 20},
+		{99, 100, 99},
+		{1000, 100, 100},
+		{1009, 100, 1}, // maxHits is prime
+	} {
+		t.Run(fmt.Sprintf("maxHits=%d, maxKeyShards=%d", tc.maxHits, tc.maxKeyShards), func(t *testing.T) {
+			if got := getKeyShards(tc.maxHits, tc.maxKeyShards); got != tc.want {
+				t.Errorf("expected %v, got %v", tc.want, got)
+			}
+		})
 	}
 }

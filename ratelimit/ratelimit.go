@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -252,6 +253,29 @@ func (t TupleLookuper) String() string {
 	return "TupleLookuper"
 }
 
+// RoundRobinLookuper matches one of n buckets selected by round robin algorithm
+type RoundRobinLookuper struct {
+	// pointer is required to be hashable from Registry lookup table
+	c *uint64
+	// number of buckets, unchanged after creation
+	n uint64
+}
+
+// NewRoundRobinLookuper returns a RoundRobinLookuper.
+func NewRoundRobinLookuper(n uint64) Lookuper {
+	return &RoundRobinLookuper{c: new(uint64), n: n}
+}
+
+// Lookup will return one of n distinct keys in round robin fashion
+func (rrl *RoundRobinLookuper) Lookup(*http.Request) string {
+	next := atomic.AddUint64(rrl.c, 1) % rrl.n
+	return fmt.Sprintf("RoundRobin%d", next)
+}
+
+func (rrl *RoundRobinLookuper) String() string {
+	return "RoundRobinLookuper"
+}
+
 // Settings configures the chosen rate limiter
 type Settings struct {
 	// Type of the chosen rate limiter
@@ -449,8 +473,8 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratel
 	}
 }
 
-func Headers(s *Settings, retryAfter int) http.Header {
-	limitPerHour := int64(s.MaxHits) * int64(time.Hour) / int64(s.TimeWindow)
+func Headers(maxHits int, timeWindow time.Duration, retryAfter int) http.Header {
+	limitPerHour := int64(maxHits) * int64(time.Hour) / int64(timeWindow)
 	return http.Header{
 		Header:           []string{strconv.FormatInt(limitPerHour, 10)},
 		RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
