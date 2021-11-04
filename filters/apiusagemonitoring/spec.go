@@ -196,18 +196,18 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 		applicationId := api.ApplicationId
 		if applicationId == "" {
-			log.Errorf("args[%d] ignored: does not specify an application_id", apiIndex)
+			log.Warnf("args[%d] ignored: does not specify an application_id", apiIndex)
 			continue
 		}
 
 		apiId := api.ApiId
 		if apiId == "" {
-			log.Errorf("args[%d] ignored: does not specify an api_id", apiIndex)
+			log.Warnf("args[%d] ignored: does not specify an api_id", apiIndex)
 			continue
 		}
 
 		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
-			log.Errorf("args[%d] ignored: does not specify any path template", apiIndex)
+			log.Warnf("args[%d] ignored: does not specify any path template", apiIndex)
 			continue
 		}
 
@@ -217,7 +217,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Path Template validation
 			if template == "" {
-				log.Errorf(
+				log.Warnf(
 					"args[%d].path_templates[%d] ignored: empty",
 					apiIndex, templateIndex)
 				continue
@@ -232,7 +232,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
-				log.Errorf(
+				log.Warnf(
 					"args[%d].path_templates[%d] ignored: duplicate path template %q",
 					apiIndex, templateIndex, info.PathTemplate)
 				continue
@@ -241,7 +241,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Detect regular expression duplicates
 			if existingMatcher, ok := existingPathPattern[pathPattern]; ok {
-				log.Errorf(
+				log.Warnf(
 					"args[%d].path_templates[%d] ignored: two path templates yielded the same regular expression %q (%q and %q)",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, existingMatcher.PathTemplate)
 				continue
@@ -250,7 +250,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			pathPatternMatcher, err := loadOrCompileRegex(pathPattern)
 			if err != nil {
-				log.Errorf(
+				log.Warnf(
 					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, err)
 				continue
