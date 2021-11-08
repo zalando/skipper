@@ -197,6 +197,23 @@ func ExampleParse() {
 	// output: Parsed route with backend: https://render.example.org
 }
 
+func ExampleParse_escaping() {
+	routes, err := eskip.Parse(`
+		test: pred0("\"") && pred1("\\") ->
+			filter0("hello\nnew line") ->
+			filter1("\exa\mple") ->
+			<shunt>;
+	`)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	fmt.Printf("pred0 argument (escaped quote): %s\n", routes[0].Predicates[0].Args[0].(string))
+	fmt.Printf("pred1 argument (escaped escape char): %s\n", routes[0].Predicates[1].Args[0].(string))
+	fmt.Printf("filter0 argument (control chars): %s\n", routes[0].Filters[0].Args[0].(string))
+	fmt.Printf("filter1 argument (unknown escape chars): %s\n", routes[0].Filters[1].Args[0].(string))
+}
+
 func ExampleParseFilters() {
 	code := `filter0() -> filter1(3.14, "Hello, world!")`
 	filters, err := eskip.ParseFilters(code)

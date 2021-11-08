@@ -245,6 +245,31 @@ expressions, use the go stdlib regexp, which uses re2:
 https://github.com/google/re2/wiki/Syntax
 
 
+String escaping
+
+Any predicates/filters string arguments (delimited by quotes) are
+subject to certain escaping rules to enable expressing characters
+that would have normally got another meaning within string context
+(like delimiting quotes themselves) or well-known control characters,
+such as LF/Line Feed (\n), CR/Carriage Return (\r), etc.
+Backslash (\) is used to indicate escaping.
+
+Following escaping operations are possible:
+
+	// quotes escaping (to express the quote itself within a string)
+	"Hello \" world"
+
+	// the escape character escaping (to express the escape character
+	// itself within a string)
+	"\\ hello"
+
+	// a subset of the well-known control characters
+	"\a\b\r\n\f\t\v"
+
+If an unknown escape sequence is met (such as "\z"), it is simply
+treated as if it wasn't escaped at all ("z").
+
+
 Parsing Filters
 
 The eskip.ParseFilters method can be used to parse a chain of filters,
