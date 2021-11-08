@@ -412,10 +412,6 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 }
 
 func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *definitions.PathRule) error {
-	if ing.ingressV1 {
-		panic("wrong ingress version V1, but v1beta1 required")
-	}
-
 	meta := ic.ingress.Metadata
 	endpointsRoute, err := convertPathRule(
 		ic.state,
@@ -497,10 +493,6 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 }
 
 func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *definitions.PathRuleV1) error {
-	if !ing.ingressV1 {
-		panic("wrong ingress version v1beta1, but v1 required")
-	}
-
 	meta := ic.ingressV1.Metadata
 	endpointsRoute, err := convertPathRuleV1(
 		ic.state,
