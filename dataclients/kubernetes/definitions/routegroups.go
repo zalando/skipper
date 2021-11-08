@@ -2,12 +2,12 @@ package definitions
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"time"
 
+	"github.com/pkg/errors"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
+	"gopkg.in/yaml.v2"
 )
 
 // adding Kubernetes specific backend types here. To be discussed.
@@ -34,12 +34,13 @@ var (
 	errUnnamedBackendReference  = errors.New("unnamed backend reference")
 )
 
-type Metadata struct {
-	Namespace   string            `json:"namespace"`
-	Name        string            `json:"name"`
-	Created     time.Time         `json:"creationTimestamp"`
-	Uid         string            `json:"uid"`
-	Annotations map[string]string `json:"annotations"`
+type RouteGroupList struct {
+	Items []*RouteGroupItem `json:"items"`
+}
+
+type RouteGroupItem struct {
+	Metadata *Metadata       `json:"metadata"`
+	Spec     *RouteGroupSpec `json:"spec"`
 }
 
 type RouteGroupSpec struct {
@@ -64,7 +65,7 @@ type RouteGroupSpec struct {
 	Routes []*RouteSpec `json:"routes,omitempty"`
 }
 
-// skipperBackend is the type safe version of skipperBackendParser
+// SkipperBackend is the type safe version of skipperBackendParser
 type SkipperBackend struct {
 	// Name is the backendName that can be referenced as backendReference
 	Name string
@@ -151,13 +152,6 @@ type RouteSpec struct {
 	Methods []string `json:"methods,omitempty"`
 }
 
-func (meta *Metadata) ToResourceID() ResourceID {
-	return ResourceID{
-		Namespace: namespaceString(meta.Namespace),
-		Name:      meta.Name,
-	}
-}
-
 func backendsWithDuplicateName(name string) error {
 	return fmt.Errorf("backends with duplicate name: %s", name)
 }
@@ -192,14 +186,6 @@ func invalidServicePort(backendName string, p int) error {
 
 func missingEndpoints(backendName string) error {
 	return fmt.Errorf("missing LB endpoints in backend: %s", backendName)
-}
-
-func namespaceString(ns string) string {
-	if ns == "" {
-		return "default"
-	}
-
-	return ns
 }
 
 func routeGroupError(m *Metadata, err error) error {
@@ -412,7 +398,7 @@ func (r *RouteSpec) validate(hasDefault bool, backends map[string]bool) error {
 // TODO: we need to pass namespace/name in all errors
 func (r *RouteGroupItem) validate() error {
 	// has metadata and name:
-	if r == nil || r.Metadata == nil || r.Metadata.Name == "" {
+	if r == nil || validate(r.Metadata) != nil {
 		return errRouteGroupWithoutName
 	}
 
@@ -423,6 +409,43 @@ func (r *RouteGroupItem) validate() error {
 
 	if err := r.Spec.validate(); err != nil {
 		return routeGroupError(r.Metadata, err)
+	}
+
+	return nil
+}
+
+// ParseRouteGroupsJSON parses a json list of RouteGroups into RouteGroupList
+func ParseRouteGroupsJSON(d []byte) (RouteGroupList, error) {
+	var rl RouteGroupList
+	err := json.Unmarshal(d, &rl)
+	return rl, err
+}
+
+// ParseRouteGroupsYAML parses a YAML list of RouteGroups into RouteGroupList
+func ParseRouteGroupsYAML(d []byte) (RouteGroupList, error) {
+	var rl RouteGroupList
+	err := yaml.Unmarshal(d, &rl)
+	return rl, err
+}
+
+// ValidateRouteGroup validates a RouteGroupItem
+func ValidateRouteGroup(rg *RouteGroupItem) error {
+	return rg.validate()
+}
+
+// ValidateRouteGroups validates a RouteGroupList
+func ValidateRouteGroups(rl *RouteGroupList) error {
+	var err error
+	// avoid the user having to repeatedly validate to discover all errors
+	for _, i := range rl.Items {
+		nerr := ValidateRouteGroup(i)
+		if nerr != nil {
+			err = errors.Wrap(err, nerr.Error())
+		}
+	}
+
+	if err != nil {
+		return err
 	}
 
 	return nil
