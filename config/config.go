@@ -140,7 +140,7 @@ type Config struct {
 	KubernetesHealthcheck                   bool                `yaml:"kubernetes-healthcheck"`
 	KubernetesHTTPSRedirect                 bool                `yaml:"kubernetes-https-redirect"`
 	KubernetesHTTPSRedirectCode             int                 `yaml:"kubernetes-https-redirect-code"`
-	KubernetesIngressV1                     bool                `yaml:"kubernetes-v1"`
+	KubernetesIngressV1                     bool                `yaml:"kubernetes-ingress-v1"`
 	KubernetesIngressClass                  string              `yaml:"kubernetes-ingress-class"`
 	KubernetesRouteGroupClass               string              `yaml:"kubernetes-routegroup-class"`
 	WhitelistedHealthCheckCIDR              string              `yaml:"whitelisted-healthcheck-cidr"`
