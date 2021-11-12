@@ -55,7 +55,7 @@ func convertPathRuleV1(
 	if host != "" {
 		hostRegexp = []string{createHostRx(host)}
 	}
-	svcPort := prule.Backend.Service.Port
+	svcPort := prule.Backend.Service.Port.String()
 	svcName := prule.Backend.Service.Name
 
 	svc, err = state.getService(ns, svcName)
@@ -64,7 +64,7 @@ func convertPathRuleV1(
 		return nil, err
 	}
 
-	servicePort, err := svc.getServicePortV1(svcPort)
+	servicePort, err := svc.getServicePort(svcPort)
 	if err != nil {
 		// service definition is wrong or no pods
 		err = nil
@@ -329,7 +329,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		ns      = i.Metadata.Namespace
 		name    = i.Metadata.Name
 		svcName = i.Spec.DefaultBackend.Service.Name
-		svcPort = i.Spec.DefaultBackend.Service.Port
+		svcPort = i.Spec.DefaultBackend.Service.Port.String()
 	)
 
 	svc, err := state.getService(ns, svcName)
@@ -338,7 +338,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		return nil, false, err
 	}
 
-	servicePort, err := svc.getServicePortV1(svcPort)
+	servicePort, err := svc.getServicePort(svcPort)
 	if err != nil {
 		log.Errorf("convertDefaultBackendV1: Failed to find target port %v, %s, for ingress %s/%s and service %s add shuntroute: %v", svc.Spec.Ports, svcPort, ns, name, svcName, err)
 		err = nil

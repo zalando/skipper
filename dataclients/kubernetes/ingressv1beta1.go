@@ -59,7 +59,7 @@ func convertPathRule(
 	if host != "" {
 		hostRegexp = []string{createHostRx(host)}
 	}
-	svcPort := prule.Backend.ServicePort
+	svcPort := prule.Backend.ServicePort.String()
 	svcName := prule.Backend.ServiceName
 
 	svc, err = state.getService(ns, svcName)
@@ -332,7 +332,7 @@ func (ing *ingress) convertDefaultBackend(
 		ns      = i.Metadata.Namespace
 		name    = i.Metadata.Name
 		svcName = i.Spec.DefaultBackend.ServiceName
-		svcPort = i.Spec.DefaultBackend.ServicePort
+		svcPort = i.Spec.DefaultBackend.ServicePort.String()
 	)
 
 	svc, err := state.getService(ns, svcName)

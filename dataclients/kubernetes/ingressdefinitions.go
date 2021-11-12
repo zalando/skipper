@@ -13,14 +13,7 @@ type servicePort struct {
 	TargetPort *definitions.BackendPort `json:"targetPort"` // string or int
 }
 
-func (sp servicePort) matchingPort(svcPort definitions.BackendPort) bool {
-	s := svcPort.String()
-	spt := strconv.Itoa(sp.Port)
-	return s != "" && (spt == s || sp.Name == s)
-}
-
-func (sp servicePort) matchingPortV1(svcPort definitions.BackendPortV1) bool {
-	s := svcPort.String()
+func (sp servicePort) matchingPort(s string) bool {
 	spt := strconv.Itoa(sp.Port)
 	return s != "" && (spt == s || sp.Name == s)
 }
@@ -45,22 +38,13 @@ type serviceList struct {
 	Items []*service `json:"items"`
 }
 
-func (s service) getServicePort(port definitions.BackendPort) (*servicePort, error) {
+func (s service) getServicePort(port string) (*servicePort, error) {
 	for _, sp := range s.Spec.Ports {
 		if sp.matchingPort(port) && sp.TargetPort != nil {
 			return sp, nil
 		}
 	}
 	return nil, fmt.Errorf("getServicePort: service port not found %v given %v", s.Spec.Ports, port)
-}
-
-func (s service) getServicePortV1(port definitions.BackendPortV1) (*servicePort, error) {
-	for _, sp := range s.Spec.Ports {
-		if sp.matchingPortV1(port) && sp.TargetPort != nil {
-			return sp, nil
-		}
-	}
-	return nil, fmt.Errorf("getServicePortV1: service port not found %v given %v", s.Spec.Ports, port)
 }
 
 func (s service) getTargetPortByValue(p int) (*definitions.BackendPort, bool) {
