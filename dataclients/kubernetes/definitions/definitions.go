@@ -16,6 +16,11 @@ type Metadata struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
+type IngressBackend interface {
+	GetServiceName() string
+	GetServicePort() string
+}
+
 func (meta *Metadata) ToResourceID() ResourceID {
 	return ResourceID{
 		Namespace: namespaceString(meta.Namespace),

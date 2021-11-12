@@ -37,6 +37,14 @@ type BackendV1 struct {
 	NoopCount int
 }
 
+func (b *BackendV1) GetServiceName() string {
+	return b.Service.Name
+}
+
+func (b *BackendV1) GetServicePort() string {
+	return b.Service.Port.String()
+}
+
 // Service https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressservicebackend-v1-networking-k8s-io
 type Service struct {
 	Name string        `json:"name"`

@@ -35,6 +35,14 @@ type Backend struct {
 	NoopCount int
 }
 
+func (b *Backend) GetServiceName() string {
+	return b.ServiceName
+}
+
+func (b *Backend) GetServicePort() string {
+	return b.ServicePort.String()
+}
+
 type Rule struct {
 	Host string    `json:"host"`
 	Http *HTTPRule `json:"http"`

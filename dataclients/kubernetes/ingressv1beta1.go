@@ -59,8 +59,8 @@ func convertPathRule(
 	if host != "" {
 		hostRegexp = []string{createHostRx(host)}
 	}
-	svcPort := prule.Backend.ServicePort.String()
-	svcName := prule.Backend.ServiceName
+	svcPort := prule.Backend.GetServicePort()
+	svcName := prule.Backend.GetServiceName()
 
 	svc, err = state.getService(ns, svcName)
 	if err != nil {
@@ -160,7 +160,7 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	endpointsRoute.Filters = filters
 
 	// add pre-configured default filters
-	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.ServiceName)
+	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.GetServiceName())
 	if err != nil {
 		ic.logger.Errorf("Failed to retrieve default filters: %v.", err)
 	} else {
@@ -246,7 +246,7 @@ func computeBackendWeights(backendWeights map[string]float64, rule *definitions.
 			pathInfos[path.Path] = sc
 		}
 
-		if weight, ok := backendWeights[path.Backend.ServiceName]; ok {
+		if weight, ok := backendWeights[path.Backend.GetServiceName()]; ok {
 			sc.sum += weight
 			if weight > 0 {
 				sc.lastActive = path.Backend
@@ -260,7 +260,7 @@ func computeBackendWeights(backendWeights map[string]float64, rule *definitions.
 	// calculate traffic weight for each backend
 	for _, path := range rule.Http.Paths {
 		if sc, ok := pathInfos[path.Path]; ok {
-			if weight, ok := backendWeights[path.Backend.ServiceName]; ok {
+			if weight, ok := backendWeights[path.Backend.GetServiceName()]; ok {
 				// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
 				if sc.lastActive == path.Backend {
 					path.Backend.Traffic = 1.0
@@ -331,8 +331,8 @@ func (ing *ingress) convertDefaultBackend(
 		err     error
 		ns      = i.Metadata.Namespace
 		name    = i.Metadata.Name
-		svcName = i.Spec.DefaultBackend.ServiceName
-		svcPort = i.Spec.DefaultBackend.ServicePort.String()
+		svcName = i.Spec.DefaultBackend.GetServiceName()
+		svcPort = i.Spec.DefaultBackend.GetServicePort()
 	)
 
 	svc, err := state.getService(ns, svcName)

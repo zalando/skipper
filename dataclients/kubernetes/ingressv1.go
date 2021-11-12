@@ -55,8 +55,8 @@ func convertPathRuleV1(
 	if host != "" {
 		hostRegexp = []string{createHostRx(host)}
 	}
-	svcPort := prule.Backend.Service.Port.String()
-	svcName := prule.Backend.Service.Name
+	svcPort := prule.Backend.GetServicePort()
+	svcName := prule.Backend.GetServiceName()
 
 	svc, err = state.getService(ns, svcName)
 	if err != nil {
@@ -157,7 +157,7 @@ func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *de
 	endpointsRoute.Filters = filters
 
 	// add pre-configured default filters
-	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.Service.Name)
+	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.GetServiceName())
 	if err != nil {
 		ic.logger.Errorf("Failed to retrieve default filters: %v.", err)
 	} else {
@@ -243,7 +243,7 @@ func computeBackendWeightsV1(backendWeights map[string]float64, rule *definition
 			pathInfos[path.Path] = sc
 		}
 
-		if weight, ok := backendWeights[path.Backend.Service.Name]; ok {
+		if weight, ok := backendWeights[path.Backend.GetServiceName()]; ok {
 			sc.sum += weight
 			if weight > 0 {
 				sc.lastActive = path.Backend
@@ -257,7 +257,7 @@ func computeBackendWeightsV1(backendWeights map[string]float64, rule *definition
 	// calculate traffic weight for each backend
 	for _, path := range rule.Http.Paths {
 		if sc, ok := pathInfos[path.Path]; ok {
-			if weight, ok := backendWeights[path.Backend.Service.Name]; ok {
+			if weight, ok := backendWeights[path.Backend.GetServiceName()]; ok {
 				// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
 				if sc.lastActive == path.Backend {
 					path.Backend.Traffic = 1.0
