@@ -9,12 +9,14 @@ spec:
     http:
       paths:
       - path: /one
+        pathType: ImplementationSpecific
         backend:
           service:
             name: external1
             port:
               name: ext
       - path: /two
+        pathType: ImplementationSpecific
         backend:
           service:
             name: external2
