@@ -1,95 +1,12 @@
 package kubernetes
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 )
-
-func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *definitions.PathRuleV1) error {
-	meta := ic.metadata
-	endpointsRoute, err := convertPathRule(
-		ic.state,
-		meta,
-		host,
-		prule,
-		ic.pathMode,
-		ing.allowedExternalNames,
-	)
-	if err != nil {
-		// if the service is not found the route should be removed
-		if err == errServiceNotFound || err == errResourceNotFound {
-			return nil
-		}
-
-		// TODO: this error checking should not really be used, and the error handling of the ingress
-		// problems should be refactored such that a single ingress's error doesn't block the
-		// processing of the independent ingresses.
-		if errors.Is(err, errNotAllowedExternalName) {
-			log.Infof("Not allowed external name: %v", err)
-			return nil
-		}
-
-		// Ingress status field does not support errors
-		return fmt.Errorf("error while getting service: %v", err)
-	}
-
-	// safe prepend, see: https://play.golang.org/p/zg5aGKJpRyK
-	filters := make([]*eskip.Filter, len(endpointsRoute.Filters)+len(ic.annotationFilters))
-	copy(filters, ic.annotationFilters)
-	copy(filters[len(ic.annotationFilters):], endpointsRoute.Filters)
-	endpointsRoute.Filters = filters
-
-	// add pre-configured default filters
-	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.GetServiceName())
-	if err != nil {
-		ic.logger.Errorf("Failed to retrieve default filters: %v.", err)
-	} else {
-		// it's safe to prepend, because type defaultFilters copies the slice during get()
-		endpointsRoute.Filters = append(df, endpointsRoute.Filters...)
-	}
-
-	err = applyAnnotationPredicates(ic.pathMode, endpointsRoute, ic.annotationPredicate)
-	if err != nil {
-		ic.logger.Errorf("failed to apply annotation predicates: %v", err)
-	}
-	ic.addHostRoute(host, endpointsRoute)
-
-	redirect := ic.redirect
-	ewRangeMatch := false
-	for _, s := range ing.eastWestRangeDomains {
-		if strings.HasSuffix(host, s) {
-			ewRangeMatch = true
-			break
-		}
-	}
-	if !(ewRangeMatch || strings.HasSuffix(host, ing.kubernetesEastWestDomain) && ing.kubernetesEastWestDomain != "") {
-		switch {
-		case redirect.ignore:
-			// no redirect
-		case redirect.enable:
-			ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
-			redirect.setHost(host)
-		case redirect.disable:
-			ic.addHostRoute(host, createIngressDisableHTTPSRedirect(endpointsRoute))
-			redirect.setHostDisabled(host)
-		case redirect.defaultEnabled:
-			ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
-			redirect.setHost(host)
-		}
-	}
-
-	if ing.kubernetesEnableEastWest {
-		ewRoute := createEastWestRouteIng(ing.kubernetesEastWestDomain, meta.Name, meta.Namespace, endpointsRoute)
-		ewHost := fmt.Sprintf("%s.%s.%s", meta.Name, meta.Namespace, ing.kubernetesEastWestDomain)
-		ic.addHostRoute(ewHost, ewRoute)
-	}
-	return nil
-}
 
 // computeBackendWeightsV1 computes and sets the backend traffic weights on the
 // rule backends.
@@ -186,7 +103,7 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 	for _, prule := range ru.Http.Paths {
 		addExtraRoutes(ic, ru.Host, prule, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
 		if prule.Backend.GetTraffic().Weight > 0 {
-			err := ing.addEndpointsRuleV1(ic, ru.Host, prule)
+			err := ing.addEndpointsRule(ic, ru.Host, prule)
 			if err != nil {
 				return err
 			}

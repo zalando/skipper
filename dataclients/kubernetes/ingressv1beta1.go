@@ -140,7 +140,7 @@ func convertPathRule(
 	return r, nil
 }
 
-func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *definitions.PathRule) error {
+func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule definitions.IngressPathRule) error {
 	meta := ic.metadata
 	endpointsRoute, err := convertPathRule(
 		ic.state,
@@ -175,7 +175,7 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 	endpointsRoute.Filters = filters
 
 	// add pre-configured default filters
-	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.GetServiceName())
+	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.GetBackend().GetServiceName())
 	if err != nil {
 		ic.logger.Errorf("Failed to retrieve default filters: %v.", err)
 	} else {
