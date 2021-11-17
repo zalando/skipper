@@ -26,6 +26,21 @@ type IngressSpec struct {
 	Rules          []*Rule  `json:"rules"`
 }
 
+func (s *IngressSpec) GetDefaultBackend() IngressBackend {
+	if s.DefaultBackend == nil {
+		return nil
+	}
+	return s.DefaultBackend
+}
+
+func (s *IngressSpec) GetRules() []IngressHTTPHostRule {
+	ret := make([]IngressHTTPHostRule, len(s.Rules))
+	for i, r := range s.Rules {
+		ret[i] = r
+	}
+	return ret
+}
+
 type Backend struct {
 	ServiceName string      `json:"serviceName"`
 	ServicePort BackendPort `json:"servicePort"`

@@ -357,7 +357,11 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
 	if ing.ingressV1 {
 		for _, i := range state.ingressesV1 {
-			r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df)
+			if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
+				log.Error("invalid ingress item: missing Metadata or Spec")
+				continue
+			}
+			r, err := ing.ingressRoute(i.Metadata, i.Spec, redirect, state, hostRoutes, df)
 			if err != nil {
 				return nil, err
 			}
@@ -368,10 +372,13 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 				}
 			}
 		}
-
 	} else {
 		for _, i := range state.ingresses {
-			r, err := ing.ingressRoute(i, redirect, state, hostRoutes, df)
+			if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
+				log.Error("invalid ingress item: missing Metadata or Spec")
+				continue
+			}
+			r, err := ing.ingressRoute(i.Metadata, i.Spec, redirect, state, hostRoutes, df)
 			if err != nil {
 				return nil, err
 			}

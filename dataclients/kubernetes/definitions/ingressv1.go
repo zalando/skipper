@@ -26,6 +26,21 @@ type IngressV1Spec struct {
 	// Ingress TLS not supported: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressspec-v1-networking-k8s-io
 }
 
+func (s *IngressV1Spec) GetDefaultBackend() IngressBackend {
+	if s.DefaultBackend == nil {
+		return nil
+	}
+	return s.DefaultBackend
+}
+
+func (s *IngressV1Spec) GetRules() []IngressHTTPHostRule {
+	ret := make([]IngressHTTPHostRule, len(s.Rules))
+	for i, r := range s.Rules {
+		ret[i] = r
+	}
+	return ret
+}
+
 // BackendV1 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressbackend-v1-networking-k8s-io
 type BackendV1 struct {
 	Service Service `json:"service,omitempty"` // can be nil, because of TypedLocalObjectReference

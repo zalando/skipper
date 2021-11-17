@@ -394,29 +394,26 @@ func (ing *ingress) convertDefaultBackend(
 }
 
 func (ing *ingress) ingressRoute(
-	i *definitions.IngressItem,
+	metadata *definitions.Metadata,
+	spec definitions.Spec,
 	redirect *redirectInfo,
 	state *clusterState,
 	hostRoutes map[string][]*eskip.Route,
 	df defaultFilters,
 ) (*eskip.Route, error) {
-	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
-		log.Error("invalid ingress item: missing Metadata or Spec")
-		return nil, nil
-	}
 	logger := log.WithFields(log.Fields{
-		"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
+		"ingress": fmt.Sprintf("%s/%s", metadata.Namespace, metadata.Name),
 	})
-	redirect.initCurrent(i.Metadata)
+	redirect.initCurrent(metadata)
 	ic := ingressContext{
 		state:               state,
-		metadata:            i.Metadata,
+		metadata:            metadata,
 		logger:              logger,
-		annotationFilters:   annotationFilter(i.Metadata, logger),
-		annotationPredicate: annotationPredicate(i.Metadata),
-		extraRoutes:         extraRoutes(i.Metadata, logger),
-		backendWeights:      backendWeights(i.Metadata, logger),
-		pathMode:            pathMode(i.Metadata, ing.pathMode),
+		annotationFilters:   annotationFilter(metadata, logger),
+		annotationPredicate: annotationPredicate(metadata),
+		extraRoutes:         extraRoutes(metadata, logger),
+		backendWeights:      backendWeights(metadata, logger),
+		pathMode:            pathMode(metadata, ing.pathMode),
 		redirect:            redirect,
 		hostRoutes:          hostRoutes,
 		defaultFilters:      df,
@@ -430,14 +427,14 @@ func (ing *ingress) ingressRoute(
 	// this is a flaw in the ingress API design, because it is not on the hosts' level, but the spec
 	// tells to match if no rule matches. This means that there is no matching rule on this ingress
 	// and if there are multiple ingress items, then there is a race between them.
-	if i.Spec.DefaultBackend != nil {
-		if r, ok, err := ing.convertDefaultBackend(state, i.Spec.DefaultBackend, i.Metadata); ok {
+	if spec.GetDefaultBackend() != nil {
+		if r, ok, err := ing.convertDefaultBackend(state, spec.GetDefaultBackend(), metadata); ok {
 			route = r
 		} else if err != nil {
 			ic.logger.Errorf("error while converting default backend: %v", err)
 		}
 	}
-	for _, rule := range i.Spec.Rules {
+	for _, rule := range spec.GetRules() {
 		err := ing.addSpecRule(ic, rule)
 		if err != nil {
 			return nil, err
