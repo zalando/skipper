@@ -187,7 +187,7 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 	return nil
 }
 
-func addExtraRoutes(ic ingressContext, ruleHost, path, pathType, eastWestDomain string, enableEastWest bool) {
+func addExtraRoutes(ic ingressContext, ruleHost string, prule definitions.IngressPathRule, eastWestDomain string, enableEastWest bool) {
 	hosts := []string{createHostRx(ruleHost)}
 	var ns, name string
 	if ic.ingressV1 != nil {
@@ -207,9 +207,9 @@ func addExtraRoutes(ic ingressContext, ruleHost, path, pathType, eastWestDomain 
 			ns,
 			name,
 			route.Id,
-			ruleHost+strings.Replace(path, "/", "_", -1),
+			ruleHost+strings.Replace(prule.GetPath(), "/", "_", -1),
 			extraIndex)
-		setPathV1(ic.pathMode, &route, pathType, path)
+		setPath(ic.pathMode, &route, prule)
 		if n := countPathRoutes(&route); n <= 1 {
 			ic.addHostRoute(ruleHost, &route)
 			ic.redirect.updateHost(ruleHost)

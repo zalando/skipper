@@ -11,24 +11,38 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-func setPath(m PathMode, r *eskip.Route, p string) {
-	if p == "" {
-		return
-	}
-
-	switch m {
-	case PathPrefix:
+func setPath(m PathMode, r *eskip.Route, prule definitions.IngressPathRule) {
+	path := prule.GetPath()
+	// see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#httpingresspath-v1-networking-k8s-io
+	switch prule.GetPathType() {
+	case "Exact":
+		r.Predicates = append(r.Predicates, &eskip.Predicate{
+			Name: "Path",
+			Args: []interface{}{path},
+		})
+	case "Prefix":
 		r.Predicates = append(r.Predicates, &eskip.Predicate{
 			Name: "PathSubtree",
-			Args: []interface{}{p},
+			Args: []interface{}{path},
 		})
-	case PathRegexp:
-		r.PathRegexps = []string{p}
-	default:
-		if p == "/" {
-			r.PathRegexps = []string{"^/"}
-		} else {
-			r.PathRegexps = []string{"^(" + p + ")"}
+	case "ImplementationSpecific":
+		if path == "" {
+			return
+		}
+		switch m {
+		case PathPrefix:
+			r.Predicates = append(r.Predicates, &eskip.Predicate{
+				Name: "PathSubtree",
+				Args: []interface{}{path},
+			})
+		case PathRegexp:
+			r.PathRegexps = []string{path}
+		default:
+			if path == "/" {
+				r.PathRegexps = []string{"^/"}
+			} else {
+				r.PathRegexps = []string{"^(" + path + ")"}
+			}
 		}
 	}
 }
@@ -94,7 +108,7 @@ func convertPathRule(
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			HostRegexps: hostRegexp,
 		}
-		setPath(pathMode, r, prule.Path)
+		setPath(pathMode, r, prule)
 		setTraffic(r, svcName, prule.Backend.GetTraffic())
 		shuntRoute(r)
 		return r, nil
@@ -108,7 +122,7 @@ func convertPathRule(
 			HostRegexps: hostRegexp,
 		}
 
-		setPath(pathMode, r, prule.Path)
+		setPath(pathMode, r, prule)
 		setTraffic(r, svcName, prule.Backend.GetTraffic())
 		return r, nil
 	}
@@ -120,7 +134,7 @@ func convertPathRule(
 		LBAlgorithm: getLoadBalancerAlgorithm(metadata),
 		HostRegexps: hostRegexp,
 	}
-	setPath(pathMode, r, prule.Path)
+	setPath(pathMode, r, prule)
 	setTraffic(r, svcName, prule.Backend.GetTraffic())
 	return r, nil
 }
@@ -299,7 +313,7 @@ func (ing *ingress) addSpecRule(ic ingressContext, ru *definitions.Rule) error {
 	// update Traffic field for each backend
 	computeBackendWeights(ic.backendWeights, ru)
 	for _, prule := range ru.Http.Paths {
-		addExtraRoutes(ic, ru.Host, prule.Path, "ImplementationSpecific", ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
+		addExtraRoutes(ic, ru.Host, prule, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
 		if prule.Backend.GetTraffic().Weight > 0 {
 			err := ing.addEndpointsRule(ic, ru.Host, prule)
 			if err != nil {
