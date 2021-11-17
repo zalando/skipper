@@ -81,6 +81,18 @@ type PathRuleV1 struct {
 	Backend  *BackendV1 `json:"backend"`
 }
 
+func (r *PathRuleV1) GetPath() string {
+	return r.Path
+}
+
+func (r *PathRuleV1) GetPathType() string {
+	return r.PathType
+}
+
+func (r *PathRuleV1) GetBackend() IngressBackend {
+	return r.Backend
+}
+
 // ParseIngressV1JSON parse JSON into an IngressV1List
 func ParseIngressV1JSON(d []byte) (IngressV1List, error) {
 	var il IngressV1List

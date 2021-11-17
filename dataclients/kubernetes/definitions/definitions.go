@@ -16,6 +16,12 @@ type Metadata struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
+type IngressPathRule interface {
+	GetPath() string
+	GetPathType() string
+	GetBackend() IngressBackend
+}
+
 type IngressBackend interface {
 	GetServiceName() string
 	GetServicePort() string

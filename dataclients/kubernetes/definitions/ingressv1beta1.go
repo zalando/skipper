@@ -64,6 +64,19 @@ type PathRule struct {
 	Backend *Backend `json:"backend"`
 }
 
+func (r *PathRule) GetPath() string {
+	return r.Path
+}
+
+func (r *PathRule) GetPathType() string {
+	// https://kubernetes.io/docs/reference/using-api/deprecation-guide/#ingress-v122
+	return "ImplementationSpecific"
+}
+
+func (r *PathRule) GetBackend() IngressBackend {
+	return r.Backend
+}
+
 type ResourceID struct {
 	Namespace string
 	Name      string
