@@ -19,6 +19,13 @@ type Metadata struct {
 type IngressBackend interface {
 	GetServiceName() string
 	GetServicePort() string
+	GetTraffic() *IngressBackendTraffic
+}
+
+type IngressBackendTraffic struct {
+	Weight float64
+	// number of True predicates to add to support multi color traffic switching
+	NoopCount int
 }
 
 func (meta *Metadata) ToResourceID() ResourceID {

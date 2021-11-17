@@ -92,7 +92,7 @@ func convertPathRuleV1(
 		}
 
 		setPathV1(pathMode, r, prule.PathType, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
+		setTraffic(r, svcName, prule.Backend.GetTraffic())
 		shuntRoute(r)
 		return r, nil
 	}
@@ -106,7 +106,7 @@ func convertPathRuleV1(
 		}
 
 		setPathV1(pathMode, r, prule.PathType, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
+		setTraffic(r, svcName, prule.Backend.GetTraffic())
 		return r, nil
 	}
 
@@ -118,7 +118,7 @@ func convertPathRuleV1(
 		HostRegexps: hostRegexp,
 	}
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
-	setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
+	setTraffic(r, svcName, prule.Backend.GetTraffic())
 	return r, nil
 }
 
@@ -260,11 +260,11 @@ func computeBackendWeightsV1(backendWeights map[string]float64, rule *definition
 			if weight, ok := backendWeights[path.Backend.GetServiceName()]; ok {
 				// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
 				if sc.lastActive == path.Backend {
-					path.Backend.Traffic = 1.0
+					path.Backend.GetTraffic().Weight = 1.0
 					continue
 				}
 
-				path.Backend.Traffic = weight / sc.sum
+				path.Backend.GetTraffic().Weight = weight / sc.sum
 				// subtract weight from the sum in order to
 				// give subsequent backends a higher relative
 				// weight.
@@ -273,11 +273,11 @@ func computeBackendWeightsV1(backendWeights map[string]float64, rule *definition
 				// noops are required to make sure that routes are in order selected by
 				// routing tree
 				if sc.weightsCount > 2 {
-					path.Backend.NoopCount = sc.weightsCount - 2
+					path.Backend.GetTraffic().NoopCount = sc.weightsCount - 2
 				}
 				sc.weightsCount--
 			} else if sc.sum == 0 && sc.count > 0 {
-				path.Backend.Traffic = 1.0 / float64(sc.count)
+				path.Backend.GetTraffic().Weight = 1.0 / float64(sc.count)
 			}
 			// reduce count by one in order to give subsequent
 			// backends for the path a higher relative weight.
@@ -297,7 +297,7 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 	computeBackendWeightsV1(ic.backendWeights, ru)
 	for _, prule := range ru.Http.Paths {
 		addExtraRoutes(ic, ru.Host, prule.Path, prule.PathType, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
-		if prule.Backend.Traffic > 0 {
+		if prule.Backend.GetTraffic().Weight > 0 {
 			err := ing.addEndpointsRuleV1(ic, ru.Host, prule)
 			if err != nil {
 				return err

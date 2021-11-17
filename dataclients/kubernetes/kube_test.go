@@ -165,7 +165,7 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 		defaultBackend = &definitions.Backend{
 			ServiceName: defaultService,
 			ServicePort: defaultPort,
-			Traffic:     traffic,
+			Traffic:     definitions.IngressBackendTraffic{Weight: traffic},
 		}
 	}
 
@@ -1363,7 +1363,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				Backend: &definitions.Backend{
 					ServiceName: "service1",
 					ServicePort: definitions.BackendPort{Value: "port1"},
-					Traffic:     0.3,
+					Traffic:     definitions.IngressBackendTraffic{Weight: 0.3},
 				},
 			},
 			route: &eskip.Route{
@@ -1384,7 +1384,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				Backend: &definitions.Backend{
 					ServiceName: "service1",
 					ServicePort: definitions.BackendPort{Value: "port1"},
-					Traffic:     0.0,
+					Traffic:     definitions.IngressBackendTraffic{Weight: 0.0},
 				},
 			},
 			route: &eskip.Route{
@@ -1399,7 +1399,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				Backend: &definitions.Backend{
 					ServiceName: "service1",
 					ServicePort: definitions.BackendPort{Value: "port1"},
-					Traffic:     1.0,
+					Traffic:     definitions.IngressBackendTraffic{Weight: 1.0},
 				},
 			},
 			route: &eskip.Route{
@@ -2134,14 +2134,14 @@ func TestComputeBackendWeights(t *testing.T) {
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "foo",
-								Traffic:     1.0,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 1.0},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "bar",
-								Traffic:     0.0,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.0},
 							},
 						},
 					},
@@ -2176,14 +2176,14 @@ func TestComputeBackendWeights(t *testing.T) {
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "foo",
-								Traffic:     0.5,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.5},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "bar",
-								Traffic:     1.0,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 1.0},
 							},
 						},
 					},
@@ -2228,22 +2228,21 @@ func TestComputeBackendWeights(t *testing.T) {
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "foo",
-								Traffic:     0.2,
-								NoopCount:   1,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.2, NoopCount: 1},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "bar",
-								Traffic:     0.75,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.75},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "baz",
-								Traffic:     1.0,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 1.0},
 							},
 						},
 					},
@@ -2294,30 +2293,28 @@ func TestComputeBackendWeights(t *testing.T) {
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "foo",
-								Traffic:     0.25,
-								NoopCount:   2,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.25, NoopCount: 2},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "bar",
-								Traffic:     0.6,
-								NoopCount:   1,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.6, NoopCount: 1},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "baz",
-								Traffic:     0.1,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.1},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "qux",
-								Traffic:     1.0,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 1.0},
 							},
 						},
 					},
@@ -2355,14 +2352,14 @@ func TestComputeBackendWeights(t *testing.T) {
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "foo",
-								Traffic:     0.3,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.3},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "bar",
-								Traffic:     1.0,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 1.0},
 							},
 						},
 					},
@@ -2406,14 +2403,14 @@ func TestComputeBackendWeights(t *testing.T) {
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "foo",
-								Traffic:     0.3,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 0.3},
 							},
 						},
 						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "bar",
-								Traffic:     1.0,
+								Traffic:     definitions.IngressBackendTraffic{Weight: 1.0},
 							},
 						},
 						{
@@ -2490,7 +2487,7 @@ func TestComputeBackendWeightMustHaveFallback(t *testing.T) {
 
 		// check that there's one backend with weight of 1.0
 		for _, backend := range allBackends {
-			if backend.Traffic == 1.0 {
+			if backend.Traffic.Weight == 1.0 {
 				return true
 			}
 		}

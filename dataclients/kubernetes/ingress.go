@@ -133,7 +133,8 @@ func externalNameRoute(
 	}, nil
 }
 
-func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) {
+func setTraffic(r *eskip.Route, svcName string, traffic *definitions.IngressBackendTraffic) {
+	weight, noopCount := traffic.Weight, traffic.NoopCount
 	// add traffic predicate if traffic weight is between 0.0 and 1.0
 	if 0.0 < weight && weight < 1.0 {
 		r.Predicates = append([]*eskip.Predicate{{

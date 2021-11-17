@@ -32,9 +32,7 @@ type BackendV1 struct {
 	// Resource TypedLocalObjectReference is not supported https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#typedlocalobjectreference-v1-core
 
 	// Traffic field used for custom traffic weights, but not part of the ingress spec.
-	Traffic float64
-	// number of True predicates to add to support multi color traffic switching
-	NoopCount int
+	Traffic IngressBackendTraffic
 }
 
 func (b *BackendV1) GetServiceName() string {
@@ -43,6 +41,10 @@ func (b *BackendV1) GetServiceName() string {
 
 func (b *BackendV1) GetServicePort() string {
 	return b.Service.Port.String()
+}
+
+func (b *BackendV1) GetTraffic() *IngressBackendTraffic {
+	return &b.Traffic
 }
 
 // Service https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressservicebackend-v1-networking-k8s-io

@@ -29,10 +29,9 @@ type IngressSpec struct {
 type Backend struct {
 	ServiceName string      `json:"serviceName"`
 	ServicePort BackendPort `json:"servicePort"`
+
 	// Traffic field used for custom traffic weights, but not part of the ingress spec.
-	Traffic float64
-	// number of True predicates to add to support multi color traffic switching
-	NoopCount int
+	Traffic IngressBackendTraffic
 }
 
 func (b *Backend) GetServiceName() string {
@@ -41,6 +40,10 @@ func (b *Backend) GetServiceName() string {
 
 func (b *Backend) GetServicePort() string {
 	return b.ServicePort.String()
+}
+
+func (b *Backend) GetTraffic() *IngressBackendTraffic {
+	return &b.Traffic
 }
 
 type Rule struct {
@@ -67,7 +70,7 @@ type ResourceID struct {
 }
 
 func (b Backend) String() string {
-	return fmt.Sprintf("svc(%s, %s) %0.2f", b.ServiceName, b.ServicePort, b.Traffic)
+	return fmt.Sprintf("svc(%s, %s) %0.2f", b.ServiceName, b.ServicePort, b.Traffic.Weight)
 }
 
 func (p BackendPort) Name() (string, bool) {

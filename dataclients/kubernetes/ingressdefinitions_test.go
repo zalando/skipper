@@ -35,7 +35,7 @@ func TestMatchingPort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.sp.matchingPort(tt.targetPort); got != tt.expected {
+			if got := tt.sp.matchingPort(tt.targetPort.String()); got != tt.expected {
 				t.Errorf("matchingPort: %v, expected: %v", got, tt.expected)
 			}
 		})
