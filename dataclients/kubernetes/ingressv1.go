@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -11,102 +10,9 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-func convertPathRuleV1(
-	state *clusterState,
-	metadata *definitions.Metadata,
-	host string,
-	prule *definitions.PathRuleV1,
-	pathMode PathMode,
-	allowedExternalNames []*regexp.Regexp,
-) (*eskip.Route, error) {
-
-	ns := metadata.Namespace
-	name := metadata.Name
-
-	if prule.Backend == nil {
-		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
-	}
-
-	var (
-		eps []string
-		err error
-		svc *service
-	)
-
-	var hostRegexp []string
-	if host != "" {
-		hostRegexp = []string{createHostRx(host)}
-	}
-	svcPort := prule.Backend.GetServicePort()
-	svcName := prule.Backend.GetServiceName()
-
-	svc, err = state.getService(ns, svcName)
-	if err != nil {
-		log.Errorf("convertPathRuleV1: Failed to get service %s, %s, %s", ns, svcName, svcPort)
-		return nil, err
-	}
-
-	servicePort, err := svc.getServicePort(svcPort)
-	if err != nil {
-		// service definition is wrong or no pods
-		err = nil
-		if len(eps) > 0 {
-			// should never happen
-			log.Errorf("convertPathRuleV1: Failed to find target port for service %s, but %d endpoints exist. Kubernetes has inconsistent data", svcName, len(eps))
-		}
-	} else if svc.Spec.Type == "ExternalName" {
-		return externalNameRoute(ns, name, host, hostRegexp, svc, servicePort, allowedExternalNames)
-	} else {
-		protocol := "http"
-		if p, ok := metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
-			protocol = p
-		}
-
-		eps = state.getEndpointsByService(ns, svcName, protocol, servicePort)
-		log.Debugf("convertPathRuleV1: Found %d endpoints %s for %s", len(eps), servicePort, svcName)
-	}
-	if len(eps) == 0 {
-		// add shunt route https://github.com/zalando/skipper/issues/1525
-		log.Debugf("convertPathRuleV1: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints", ns, name, svcName, len(eps))
-		r := &eskip.Route{
-			Id:          routeID(ns, name, host, prule.Path, svcName),
-			HostRegexps: hostRegexp,
-		}
-
-		setPath(pathMode, r, prule)
-		setTraffic(r, svcName, prule.Backend.GetTraffic())
-		shuntRoute(r)
-		return r, nil
-	}
-
-	log.Debugf("convertPathRuleV1: %d routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
-	if len(eps) == 1 {
-		r := &eskip.Route{
-			Id:          routeID(ns, name, host, prule.Path, svcName),
-			Backend:     eps[0],
-			HostRegexps: hostRegexp,
-		}
-
-		setPath(pathMode, r, prule)
-		setTraffic(r, svcName, prule.Backend.GetTraffic())
-		return r, nil
-	}
-
-	r := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path, svcName),
-		BackendType: eskip.LBBackend,
-		LBEndpoints: eps,
-		LBAlgorithm: getLoadBalancerAlgorithm(metadata),
-		HostRegexps: hostRegexp,
-	}
-	setPath(pathMode, r, prule)
-	setTraffic(r, svcName, prule.Backend.GetTraffic())
-	return r, nil
-}
-
 func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *definitions.PathRuleV1) error {
 	meta := ic.ingressV1.Metadata
-	endpointsRoute, err := convertPathRuleV1(
+	endpointsRoute, err := convertPathRule(
 		ic.state,
 		meta,
 		host,

@@ -51,7 +51,7 @@ func convertPathRule(
 	state *clusterState,
 	metadata *definitions.Metadata,
 	host string,
-	prule *definitions.PathRule,
+	prule definitions.IngressPathRule,
 	pathMode PathMode,
 	allowedExternalNames []*regexp.Regexp,
 ) (*eskip.Route, error) {
@@ -59,7 +59,7 @@ func convertPathRule(
 	ns := metadata.Namespace
 	name := metadata.Name
 
-	if prule.Backend == nil {
+	if prule.GetBackend() == nil {
 		return nil, fmt.Errorf("invalid path rule, missing backend in: %s/%s/%s", ns, name, host)
 	}
 
@@ -73,8 +73,8 @@ func convertPathRule(
 	if host != "" {
 		hostRegexp = []string{createHostRx(host)}
 	}
-	svcPort := prule.Backend.GetServicePort()
-	svcName := prule.Backend.GetServiceName()
+	svcPort := prule.GetBackend().GetServicePort()
+	svcName := prule.GetBackend().GetServiceName()
 
 	svc, err = state.getService(ns, svcName)
 	if err != nil {
@@ -105,11 +105,12 @@ func convertPathRule(
 		// add shunt route https://github.com/zalando/skipper/issues/1525
 		log.Debugf("convertPathRule: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints", ns, name, svcName, len(eps))
 		r := &eskip.Route{
-			Id:          routeID(ns, name, host, prule.Path, svcName),
+			Id:          routeID(ns, name, host, prule.GetPath(), svcName),
 			HostRegexps: hostRegexp,
 		}
+
 		setPath(pathMode, r, prule)
-		setTraffic(r, svcName, prule.Backend.GetTraffic())
+		setTraffic(r, svcName, prule.GetBackend().GetTraffic())
 		shuntRoute(r)
 		return r, nil
 	}
@@ -117,25 +118,25 @@ func convertPathRule(
 	log.Debugf("convertPathRule: %d routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
 	if len(eps) == 1 {
 		r := &eskip.Route{
-			Id:          routeID(ns, name, host, prule.Path, svcName),
+			Id:          routeID(ns, name, host, prule.GetPath(), svcName),
 			Backend:     eps[0],
 			HostRegexps: hostRegexp,
 		}
 
 		setPath(pathMode, r, prule)
-		setTraffic(r, svcName, prule.Backend.GetTraffic())
+		setTraffic(r, svcName, prule.GetBackend().GetTraffic())
 		return r, nil
 	}
 
 	r := &eskip.Route{
-		Id:          routeID(ns, name, host, prule.Path, svcName),
+		Id:          routeID(ns, name, host, prule.GetPath(), svcName),
 		BackendType: eskip.LBBackend,
 		LBEndpoints: eps,
 		LBAlgorithm: getLoadBalancerAlgorithm(metadata),
 		HostRegexps: hostRegexp,
 	}
 	setPath(pathMode, r, prule)
-	setTraffic(r, svcName, prule.Backend.GetTraffic())
+	setTraffic(r, svcName, prule.GetBackend().GetTraffic())
 	return r, nil
 }
 
