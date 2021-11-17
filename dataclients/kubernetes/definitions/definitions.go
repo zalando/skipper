@@ -16,6 +16,11 @@ type Metadata struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
+type IngressHTTPHostRule interface {
+	GetHost() string
+	GetPathRules() []IngressPathRule
+}
+
 type IngressPathRule interface {
 	GetPath() string
 	GetPathType() string

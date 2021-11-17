@@ -51,6 +51,21 @@ type Rule struct {
 	Http *HTTPRule `json:"http"`
 }
 
+func (r *Rule) GetHost() string {
+	return r.Host
+}
+
+func (r *Rule) GetPathRules() []IngressPathRule {
+	if r.Http == nil {
+		return nil
+	}
+	ret := make([]IngressPathRule, len(r.Http.Paths))
+	for i, pr := range r.Http.Paths {
+		ret[i] = pr
+	}
+	return ret
+}
+
 type BackendPort struct {
 	Value interface{}
 }

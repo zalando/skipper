@@ -244,27 +244,27 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule defin
 //      backend-3: 1.0
 //
 // where for a weight of 1.0 no Traffic predicate will be generated.
-func computeBackendWeights(backendWeights map[string]float64, rule *definitions.Rule) {
+func computeBackendWeights(backendWeights map[string]float64, paths []definitions.IngressPathRule) {
 	type pathInfo struct {
 		sum          float64
-		lastActive   *definitions.Backend
+		lastActive   definitions.IngressBackend
 		count        int
 		weightsCount int
 	}
 
 	// get backend weight sum and count of backends for all paths
 	pathInfos := make(map[string]*pathInfo)
-	for _, path := range rule.Http.Paths {
-		sc, ok := pathInfos[path.Path]
+	for _, path := range paths {
+		sc, ok := pathInfos[path.GetPath()]
 		if !ok {
 			sc = &pathInfo{}
-			pathInfos[path.Path] = sc
+			pathInfos[path.GetPath()] = sc
 		}
 
-		if weight, ok := backendWeights[path.Backend.GetServiceName()]; ok {
+		if weight, ok := backendWeights[path.GetBackend().GetServiceName()]; ok {
 			sc.sum += weight
 			if weight > 0 {
-				sc.lastActive = path.Backend
+				sc.lastActive = path.GetBackend()
 				sc.weightsCount++
 			}
 		} else {
@@ -273,16 +273,16 @@ func computeBackendWeights(backendWeights map[string]float64, rule *definitions.
 	}
 
 	// calculate traffic weight for each backend
-	for _, path := range rule.Http.Paths {
-		if sc, ok := pathInfos[path.Path]; ok {
-			if weight, ok := backendWeights[path.Backend.GetServiceName()]; ok {
+	for _, path := range paths {
+		if sc, ok := pathInfos[path.GetPath()]; ok {
+			if weight, ok := backendWeights[path.GetBackend().GetServiceName()]; ok {
 				// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
-				if sc.lastActive == path.Backend {
-					path.Backend.GetTraffic().Weight = 1.0
+				if sc.lastActive == path.GetBackend() {
+					path.GetBackend().GetTraffic().Weight = 1.0
 					continue
 				}
 
-				path.Backend.GetTraffic().Weight = weight / sc.sum
+				path.GetBackend().GetTraffic().Weight = weight / sc.sum
 				// subtract weight from the sum in order to
 				// give subsequent backends a higher relative
 				// weight.
@@ -291,11 +291,11 @@ func computeBackendWeights(backendWeights map[string]float64, rule *definitions.
 				// noops are required to make sure that routes are in order selected by
 				// routing tree
 				if sc.weightsCount > 2 {
-					path.Backend.GetTraffic().NoopCount = sc.weightsCount - 2
+					path.GetBackend().GetTraffic().NoopCount = sc.weightsCount - 2
 				}
 				sc.weightsCount--
 			} else if sc.sum == 0 && sc.count > 0 {
-				path.Backend.GetTraffic().Weight = 1.0 / float64(sc.count)
+				path.GetBackend().GetTraffic().Weight = 1.0 / float64(sc.count)
 			}
 			// reduce count by one in order to give subsequent
 			// backends for the path a higher relative weight.
@@ -306,17 +306,18 @@ func computeBackendWeights(backendWeights map[string]float64, rule *definitions.
 
 // TODO: default filters not applied to 'extra' routes from the custom route annotations. Is it on purpose?
 // https://github.com/zalando/skipper/issues/1287
-func (ing *ingress) addSpecRule(ic ingressContext, ru *definitions.Rule) error {
-	if ru.Http == nil {
+func (ing *ingress) addSpecRule(ic ingressContext, ru definitions.IngressHTTPHostRule) error {
+	host, pathRules := ru.GetHost(), ru.GetPathRules()
+	if pathRules == nil {
 		ic.logger.Warn("invalid ingress item: rule missing http definitions")
 		return nil
 	}
 	// update Traffic field for each backend
-	computeBackendWeights(ic.backendWeights, ru)
-	for _, prule := range ru.Http.Paths {
-		addExtraRoutes(ic, ru.Host, prule, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
-		if prule.Backend.GetTraffic().Weight > 0 {
-			err := ing.addEndpointsRule(ic, ru.Host, prule)
+	computeBackendWeights(ic.backendWeights, pathRules)
+	for _, prule := range pathRules {
+		addExtraRoutes(ic, host, prule, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
+		if prule.GetBackend().GetTraffic().Weight > 0 {
+			err := ing.addEndpointsRule(ic, host, prule)
 			if err != nil {
 				return err
 			}

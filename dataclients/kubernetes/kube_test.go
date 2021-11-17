@@ -2425,7 +2425,7 @@ func TestComputeBackendWeights(t *testing.T) {
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
-			computeBackendWeights(tc.weights, tc.input)
+			computeBackendWeights(tc.weights, tc.input.GetPathRules())
 			if !reflect.DeepEqual(tc.input, tc.output) {
 				t.Errorf("modified input and output should match")
 			}
@@ -2483,7 +2483,7 @@ func TestComputeBackendWeightMustHaveFallback(t *testing.T) {
 				},
 			},
 		}
-		computeBackendWeights(weights, input)
+		computeBackendWeights(weights, input.GetPathRules())
 
 		// check that there's one backend with weight of 1.0
 		for _, backend := range allBackends {

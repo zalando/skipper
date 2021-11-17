@@ -70,6 +70,21 @@ type RuleV1 struct {
 	Http *HTTPRuleV1 `json:"http"`
 }
 
+func (r *RuleV1) GetHost() string {
+	return r.Host
+}
+
+func (r *RuleV1) GetPathRules() []IngressPathRule {
+	if r.Http == nil {
+		return nil
+	}
+	ret := make([]IngressPathRule, len(r.Http.Paths))
+	for i, pr := range r.Http.Paths {
+		ret[i] = pr
+	}
+	return ret
+}
+
 type HTTPRuleV1 struct {
 	Paths []*PathRuleV1 `json:"paths"`
 }
