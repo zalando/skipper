@@ -29,8 +29,7 @@ const (
 
 type ingressContext struct {
 	state               *clusterState
-	ingress             *definitions.IngressItem
-	ingressV1           *definitions.IngressV1Item
+	metadata            *definitions.Metadata
 	logger              *log.Entry
 	annotationFilters   []*eskip.Filter
 	annotationPredicate string
@@ -189,15 +188,7 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 
 func addExtraRoutes(ic ingressContext, ruleHost string, prule definitions.IngressPathRule, eastWestDomain string, enableEastWest bool) {
 	hosts := []string{createHostRx(ruleHost)}
-	var ns, name string
-	if ic.ingressV1 != nil {
-		name = ic.ingressV1.Metadata.Name
-		ns = ic.ingressV1.Metadata.Namespace
-
-	} else {
-		name = ic.ingress.Metadata.Name
-		ns = ic.ingress.Metadata.Namespace
-	}
+	ns, name := ic.metadata.Namespace, ic.metadata.Name
 
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {

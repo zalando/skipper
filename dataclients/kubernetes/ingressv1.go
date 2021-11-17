@@ -11,7 +11,7 @@ import (
 )
 
 func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *definitions.PathRuleV1) error {
-	meta := ic.ingressV1.Metadata
+	meta := ic.metadata
 	endpointsRoute, err := convertPathRule(
 		ic.state,
 		meta,
@@ -289,7 +289,7 @@ func (ing *ingress) ingressV1Route(
 	redirect.initCurrent(i.Metadata)
 	ic := ingressContext{
 		state:               state,
-		ingressV1:           i,
+		metadata:            i.Metadata,
 		logger:              logger,
 		annotationFilters:   annotationFilter(i.Metadata, logger),
 		annotationPredicate: annotationPredicate(i.Metadata),
