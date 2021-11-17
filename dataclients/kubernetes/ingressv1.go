@@ -112,83 +112,6 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 	return nil
 }
 
-// converts the default backend if any
-func (ing *ingress) convertDefaultBackendV1(
-	state *clusterState,
-	i *definitions.IngressV1Item,
-) (*eskip.Route, bool, error) {
-	// the usage of the default backend depends on what we want
-	// we can generate a hostname out of it based on shared rules
-	// and instructions in annotations, if there are no rules defined
-
-	// this is a flaw in the ingress API design, because it is not on the hosts' level, but the spec
-	// tells to match if no rule matches. This means that there is no matching rule on this ingress
-	// and if there are multiple ingress items, then there is a race between them.
-	if i.Spec.DefaultBackend == nil {
-		return nil, false, nil
-	}
-
-	var (
-		eps     []string
-		err     error
-		ns      = i.Metadata.Namespace
-		name    = i.Metadata.Name
-		svcName = i.Spec.DefaultBackend.Service.Name
-		svcPort = i.Spec.DefaultBackend.Service.Port.String()
-	)
-
-	svc, err := state.getService(ns, svcName)
-	if err != nil {
-		log.Errorf("convertDefaultBackendV1: Failed to get service %s, %s, %s", ns, svcName, svcPort)
-		return nil, false, err
-	}
-
-	servicePort, err := svc.getServicePort(svcPort)
-	if err != nil {
-		log.Errorf("convertDefaultBackendV1: Failed to find target port %v, %s, for ingress %s/%s and service %s add shuntroute: %v", svc.Spec.Ports, svcPort, ns, name, svcName, err)
-		err = nil
-	} else if svc.Spec.Type == "ExternalName" {
-		r, err := externalNameRoute(ns, name, "default", nil, svc, servicePort, ing.allowedExternalNames)
-		return r, err == nil, err
-	} else {
-		log.Debugf("convertDefaultBackendV1: Found target port %v, for service %s", servicePort.TargetPort, svcName)
-		protocol := "http"
-		if p, ok := i.Metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
-			protocol = p
-		}
-
-		eps = state.getEndpointsByService(
-			ns,
-			svcName,
-			protocol,
-			servicePort,
-		)
-		log.Debugf("convertDefaultBackendV1: Found %d endpoints for %s: %v", len(eps), svcName, err)
-	}
-
-	if len(eps) == 0 {
-		// add shunt route https://github.com/zalando/skipper/issues/1525
-		log.Debugf("convertDefaultBackendV1: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints", ns, name, svcName, len(eps))
-		r := &eskip.Route{
-			Id: routeID(ns, name, "", "", ""),
-		}
-		shuntRoute(r)
-		return r, true, nil
-	} else if len(eps) == 1 {
-		return &eskip.Route{
-			Id:      routeID(ns, name, "", "", ""),
-			Backend: eps[0],
-		}, true, nil
-	}
-
-	return &eskip.Route{
-		Id:          routeID(ns, name, "", "", ""),
-		BackendType: eskip.LBBackend,
-		LBEndpoints: eps,
-		LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata),
-	}, true, nil
-}
-
 func (ing *ingress) ingressV1Route(
 	i *definitions.IngressV1Item,
 	redirect *redirectInfo,
@@ -219,10 +142,19 @@ func (ing *ingress) ingressV1Route(
 	}
 
 	var route *eskip.Route
-	if r, ok, err := ing.convertDefaultBackendV1(state, i); ok {
-		route = r
-	} else if err != nil {
-		ic.logger.Errorf("error while converting default backend: %v", err)
+
+	// the usage of the default backend depends on what we want
+	// we can generate a hostname out of it based on shared rules
+	// and instructions in annotations, if there are no rules defined
+	// this is a flaw in the ingress API design, because it is not on the hosts' level, but the spec
+	// tells to match if no rule matches. This means that there is no matching rule on this ingress
+	// and if there are multiple ingress items, then there is a race between them.
+	if i.Spec.DefaultBackend != nil {
+		if r, ok, err := ing.convertDefaultBackend(state, i.Spec.DefaultBackend, i.Metadata); ok {
+			route = r
+		} else if err != nil {
+			ic.logger.Errorf("error while converting default backend: %v", err)
+		}
 	}
 	for _, rule := range i.Spec.Rules {
 		err := ing.addSpecRuleV1(ic, rule)
