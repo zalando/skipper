@@ -22,6 +22,7 @@ const (
 	WeightName                = "Weight"
 	TrueName                  = "True"
 	FalseName                 = "False"
+	ShutdownName              = "Shutdown"
 	MethodName                = "Method"
 	MethodsName               = "Methods"
 	HeaderName                = "Header"

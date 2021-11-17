@@ -223,6 +223,15 @@ route1: Path("/test") -> "http://www.zalando.de";
 route2: Path("/test") && False() -> "http://www.github.com";
 ```
 
+## Shutdown
+
+Evaluates to true if Skipper is shutting down. Can be used to create customized healthcheck.
+
+```
+health_up: Path("/health") -> inlineContent("OK") -> <shunt>;
+health_down: Path("/health") && Shutdown() -> status(503) -> inlineContent("shutdown") -> <shunt>;
+```
+
 ## Method
 
 The HTTP method that the request must match. HTTP methods are one of

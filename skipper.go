@@ -1458,6 +1458,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		traffic.New(),
 		primitive.NewTrue(),
 		primitive.NewFalse(),
+		primitive.NewShutdown(),
 		pauth.NewJWTPayloadAllKV(),
 		pauth.NewJWTPayloadAnyKV(),
 		pauth.NewJWTPayloadAllKVRegexp(),
