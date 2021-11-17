@@ -787,38 +787,21 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 	routes := make([]*eskip.Route, 0, len(state.ingresses))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
-	if ing.ingressV1 {
-		for _, i := range state.ingressesV1 {
-			if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
-				log.Error("invalid ingress item: missing Metadata or Spec")
-				continue
-			}
-			r, err := ing.ingressRoute(i.Metadata, i.Spec, redirect, state, hostRoutes, df)
-			if err != nil {
-				return nil, err
-			}
-			if r != nil {
-				routes = append(routes, r)
-				if ing.kubernetesEnableEastWest {
-					ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
-				}
-			}
+
+	for _, i := range state.ingresses {
+		metadata, spec := i.GetMetadata(), i.GetSpec()
+		if metadata == nil || metadata.Namespace == "" || metadata.Name == "" || spec == nil {
+			log.Error("invalid ingress item: missing Metadata or Spec")
+			continue
 		}
-	} else {
-		for _, i := range state.ingresses {
-			if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
-				log.Error("invalid ingress item: missing Metadata or Spec")
-				continue
-			}
-			r, err := ing.ingressRoute(i.Metadata, i.Spec, redirect, state, hostRoutes, df)
-			if err != nil {
-				return nil, err
-			}
-			if r != nil {
-				routes = append(routes, r)
-				if ing.kubernetesEnableEastWest {
-					ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
-				}
+		r, err := ing.ingressRoute(metadata, spec, redirect, state, hostRoutes, df)
+		if err != nil {
+			return nil, err
+		}
+		if r != nil {
+			routes = append(routes, r)
+			if ing.kubernetesEnableEastWest {
+				ewIngInfo[r.Id] = []string{metadata.Namespace, metadata.Name}
 			}
 		}
 	}

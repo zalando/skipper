@@ -18,6 +18,17 @@ type IngressV1Item struct {
 	Spec     *IngressV1Spec `json:"spec"`
 }
 
+func (i *IngressV1Item) GetMetadata() *Metadata {
+	return i.Metadata
+}
+
+func (i *IngressV1Item) GetSpec() Spec {
+	if i.Spec == nil {
+		return nil
+	}
+	return i.Spec
+}
+
 // IngressSpecV1 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressspec-v1-networking-k8s-io
 type IngressV1Spec struct {
 	DefaultBackend   *BackendV1 `json:"defaultBackend,omitempty"`

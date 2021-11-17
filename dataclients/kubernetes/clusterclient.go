@@ -415,17 +415,27 @@ func (c *clusterClient) logMissingRouteGroupsOnce() {
 
 func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	var (
-		err         error
-		ingressesV1 []*definitions.IngressV1Item
-		ingresses   []*definitions.IngressItem
+		err       error
+		ingresses []definitions.Ingress
 	)
 	if c.ingressV1 {
-		ingressesV1, err = c.loadIngressesV1()
+		if v1, err := c.loadIngressesV1(); err == nil {
+			ingresses = make([]definitions.Ingress, len(v1))
+			for i, ingress := range v1 {
+				ingresses[i] = ingress
+			}
+		} else {
+			return nil, err
+		}
 	} else {
-		ingresses, err = c.loadIngresses()
-	}
-	if err != nil {
-		return nil, err
+		if v1beta1, err := c.loadIngresses(); err == nil {
+			ingresses = make([]definitions.Ingress, len(v1beta1))
+			for i, ingress := range v1beta1 {
+				ingresses[i] = ingress
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	var routeGroups []*definitions.RouteGroupItem
@@ -452,7 +462,6 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 
 	return &clusterState{
 		ingresses:       ingresses,
-		ingressesV1:     ingressesV1,
 		routeGroups:     routeGroups,
 		services:        services,
 		endpoints:       endpoints,

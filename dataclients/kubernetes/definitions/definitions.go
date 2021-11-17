@@ -16,6 +16,11 @@ type Metadata struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
+type Ingress interface {
+	GetMetadata() *Metadata
+	GetSpec() Spec
+}
+
 // Unfortunate: v1beta1 uses IngressSpec name
 type Spec interface {
 	GetDefaultBackend() IngressBackend

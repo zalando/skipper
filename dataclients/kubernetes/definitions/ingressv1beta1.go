@@ -20,6 +20,17 @@ type IngressItem struct {
 	Spec     *IngressSpec `json:"spec"`
 }
 
+func (i *IngressItem) GetMetadata() *Metadata {
+	return i.Metadata
+}
+
+func (i *IngressItem) GetSpec() Spec {
+	if i.Spec == nil {
+		return nil
+	}
+	return i.Spec
+}
+
 // IngressSpec is the v1beta1
 type IngressSpec struct {
 	DefaultBackend *Backend `json:"backend"`

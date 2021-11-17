@@ -10,8 +10,7 @@ import (
 )
 
 type clusterState struct {
-	ingresses       []*definitions.IngressItem
-	ingressesV1     []*definitions.IngressV1Item
+	ingresses       []definitions.Ingress
 	routeGroups     []*definitions.RouteGroupItem
 	services        map[definitions.ResourceID]*service
 	endpoints       map[definitions.ResourceID]*endpoint
