@@ -12,6 +12,9 @@ import (
 )
 
 func setPathV1(m PathMode, r *eskip.Route, pathType, path string) {
+	if path == "" {
+		return
+	}
 	// see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#httpingresspath-v1-networking-k8s-io
 	switch pathType {
 	case "Exact":
