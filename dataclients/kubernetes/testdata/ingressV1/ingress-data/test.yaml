@@ -1,49 +1,25 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  namespace: foo
   name: qux
-  annotations:
-    zalando.org/skipper-routes: |
-      Method("OPTIONS") -> <shunt>
+  namespace: foo
 spec:
   rules:
-  - host: www1.example.org
+  - host: www.example.org
     http:
       paths:
-      - path: "/"
+      - backend:
         pathType: ImplementationSpecific
-        backend:
           service:
-            name: bar
-            port:
-              name: baz
-  - host: www2.example.org
-    http:
-      paths:
-      - path: "/"
-        pathType: ImplementationSpecific
-        backend:
-          service:
-            name: bar
-            port:
-              name: baz
-  - host: www3.example.org
-    http:
-      paths:
-      - path: "/foo"
-        pathType: ImplementationSpecific
-        backend:
-          service:
-            name: bar
+            name: qux
             port:
               name: baz
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  name: qux
   namespace: foo
-  name: bar
 spec:
   clusterIP: 10.3.190.97
   ports:
@@ -60,8 +36,8 @@ kind: Endpoints
 metadata:
   labels:
     application: myapp
+  name: qux
   namespace: foo
-  name: bar
 subsets:
 - addresses:
   - ip: 10.2.9.103

@@ -11,6 +11,7 @@ spec:
       http:
         paths:
           - backend:
+            pathType: ImplementationSpecific
               service:
                 name: bar
                 port:

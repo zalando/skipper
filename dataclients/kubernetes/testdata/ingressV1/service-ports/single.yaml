@@ -52,6 +52,7 @@ spec:
       http:
         paths:
           - backend:
+            pathType: ImplementationSpecific
               service:
                 name: myapp-service
                 port:
