@@ -54,7 +54,7 @@ spec:
               service:
                 name: myapp-service
                 port:
-                  number: 80
+                  name: web
             pathType: ImplementationSpecific
 ---
 apiVersion: v1
