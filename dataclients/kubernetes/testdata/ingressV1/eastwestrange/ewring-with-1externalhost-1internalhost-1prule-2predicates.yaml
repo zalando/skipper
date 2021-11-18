@@ -11,6 +11,7 @@ spec:
     http:
       paths:
       - path: "/"
+        pathType: ImplementationSpecific
         backend:
           service:
             name: qux
@@ -20,6 +21,7 @@ spec:
     http:
       paths:
       - path: "/"
+        pathType: ImplementationSpecific
         backend:
           service:
             name: qux

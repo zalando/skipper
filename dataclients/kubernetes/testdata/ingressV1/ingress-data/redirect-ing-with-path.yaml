@@ -9,6 +9,7 @@ spec:
       http:
         paths:
           - path: /foo
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: bar

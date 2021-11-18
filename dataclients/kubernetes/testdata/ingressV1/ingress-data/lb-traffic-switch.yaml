@@ -16,12 +16,14 @@ spec:
     http:
       paths:
       - path: "/test1"
+        pathType: ImplementationSpecific
         backend:
           service:
             name: service1v1
             port:
               name: port1
       - path: "/test1"
+        pathType: ImplementationSpecific
         backend:
           service:
             name: service1v2
