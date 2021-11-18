@@ -18,7 +18,7 @@ spec:
         - name: myapp
           image: myapp:v1
           ports:
-            - containerPort: web
+            - containerPort: 8080
               protocol: TCP
 ---
 apiVersion: v1
