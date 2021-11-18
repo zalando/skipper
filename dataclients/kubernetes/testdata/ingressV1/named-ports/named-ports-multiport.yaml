@@ -9,11 +9,11 @@ spec:
     http:
       paths:
       - backend:
-        pathType: ImplementationSpecific
           service:
             name: myapp
             port:
               number: 8080
+        pathType: ImplementationSpecific
 ---
 apiVersion: v1
 kind: Service

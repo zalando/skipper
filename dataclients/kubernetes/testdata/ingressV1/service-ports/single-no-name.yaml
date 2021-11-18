@@ -50,11 +50,11 @@ spec:
       http:
         paths:
           - backend:
-            pathType: ImplementationSpecific
               service:
                 name: myapp-service
                 port:
                   number: 8080
+            pathType: ImplementationSpecific
 ---
 apiVersion: v1
 kind: Endpoints
