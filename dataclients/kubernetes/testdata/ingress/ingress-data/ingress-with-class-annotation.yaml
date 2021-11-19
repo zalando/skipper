@@ -1,7 +1,9 @@
-apiVersion: networking.k8s.io/v1
+apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: qux
+  annotations:
+    kubernetes.io/ingress.class: class-test
+  name: class-test
   namespace: foo
 spec:
   rules:
@@ -9,17 +11,16 @@ spec:
     http:
       paths:
       - backend:
-          service:
-            name: qux
-            port:
-              name: baz
+          serviceName: bar
+          servicePort: baz
+        path: /
         pathType: ImplementationSpecific
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: qux
   namespace: foo
+  name: bar
 spec:
   clusterIP: 10.3.190.97
   ports:
@@ -27,6 +28,10 @@ spec:
     port: 8181
     protocol: TCP
     targetPort: 8080
+  - name: qux
+    port: 1234
+    protocol: TCP
+    targetPort: 2134
   selector:
     application: myapp
   type: ClusterIP
@@ -36,8 +41,8 @@ kind: Endpoints
 metadata:
   labels:
     application: myapp
-  name: qux
   namespace: foo
+  name: bar
 subsets:
 - addresses:
   - ip: 10.2.9.103
@@ -45,4 +50,7 @@ subsets:
   ports:
   - name: baz
     port: 8080
+    protocol: TCP
+  - name: qux
+    port: 2134
     protocol: TCP

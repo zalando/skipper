@@ -252,19 +252,24 @@ func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 	return false, nil
 }
 
+func (c *clusterClient) ingressClassMissmatch(m *definitions.Metadata) bool {
+	// No Metadata is the same as no annotations for us
+	if m != nil {
+		cls, ok := m.Annotations[ingressClassKey]
+		// Skip loop iteration if not valid ingress (non defined, empty or non defined one)
+		return ok && cls != "" && !c.ingressClass.MatchString(cls)
+	}
+	return false
+}
+
 // filterIngressesByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
 func (c *clusterClient) filterIngressesByClass(items []*definitions.IngressItem) []*definitions.IngressItem {
 	validIngs := []*definitions.IngressItem{}
 
 	for _, ing := range items {
-		// No Metadata is the same as no annotations for us
-		if ing.Metadata != nil {
-			cls, ok := ing.Metadata.Annotations[ingressClassKey]
-			// Skip loop iteration if not valid ingress (non defined, empty or non defined one)
-			if ok && cls != "" && !c.ingressClass.MatchString(cls) {
-				continue
-			}
+		if c.ingressClassMissmatch(ing.Metadata) {
+			continue
 		}
 		validIngs = append(validIngs, ing)
 	}
@@ -278,6 +283,12 @@ func (c *clusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1I
 	validIngs := []*definitions.IngressV1Item{}
 
 	for _, ing := range items {
+		// v1beta1 style
+		if c.ingressClassMissmatch(ing.Metadata) {
+			continue
+		}
+
+		// v1 style, TODO(sszuecs) we need also to fetch ingressclass object and check what should be done
 		if ing.Spec == nil || ing.Spec.IngressClassName == "" || c.ingressClass.MatchString(ing.Spec.IngressClassName) {
 			validIngs = append(validIngs, ing)
 		}
