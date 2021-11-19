@@ -19,6 +19,7 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	stdlog "log"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -786,6 +787,23 @@ type Options struct {
 	testOptions
 }
 
+type serverErrorLogWriter struct{}
+
+func (*serverErrorLogWriter) Write(p []byte) (int, error) {
+	m := string(p)
+	// https://github.com/golang/go/issues/26918
+	if strings.HasPrefix(m, "http: TLS handshake error") && strings.HasSuffix(m, ": EOF\n") {
+		log.Debug(m)
+	} else {
+		log.Error(m)
+	}
+	return len(p), nil
+}
+
+func newServerErrorLog() *stdlog.Logger {
+	return stdlog.New(&serverErrorLogWriter{}, "", 0)
+}
+
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
@@ -1050,6 +1068,7 @@ func listenAndServeQuit(
 		WriteTimeout:      o.WriteTimeoutServer,
 		IdleTimeout:       o.IdleTimeoutServer,
 		MaxHeaderBytes:    o.MaxHeaderBytes,
+		ErrorLog:          newServerErrorLog(),
 	}
 
 	if o.EnableConnMetricsServer {
