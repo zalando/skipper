@@ -41,6 +41,7 @@ type kubeOptionsParser struct {
 	BackendNameTracingTag    bool               `yaml:"backendNameTracingTag"`
 	OnlyAllowedExternalNames bool               `yaml:"onlyAllowedExternalNames"`
 	AllowedExternalNames     []string           `yaml:"allowedExternalNames"`
+	IngressClass             string             `yaml:"kubernetes-ingress-class"`
 }
 
 func baseNoExt(n string) string {
@@ -215,6 +216,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
 		o.BackendNameTracingTag = kop.BackendNameTracingTag
+		o.IngressClass = kop.IngressClass
 
 		aen, err := compileRegexps(kop.AllowedExternalNames)
 		if err != nil {
