@@ -17,7 +17,7 @@ const (
 	HTTPPathTag           = "http.path"
 	HTTPUrlTag            = "http.url"
 	HTTPStatusCodeTag     = "http.status_code"
-	SkipperRouteTag       = "skipper.route"
+	SkipperRouteTag       = "skipper.route" // unused
 	SkipperRouteIDTag     = "skipper.route_id"
 	SpanKindTag           = "span.kind"
 
