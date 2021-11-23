@@ -128,6 +128,21 @@ Host(/^my-host-header\.example\.org$/)
 Host(/header\.example\.org$/)
 ```
 
+## HostAny
+
+Evaluates to true if request host exactly equals to any of the configured hostnames.
+
+Parameters:
+
+* hostnames (string)
+
+Examples:
+
+```
+HostAny("www.example.org", "www.example.com")
+HostAny("localhost:9090")
+```
+
 ## Forwarded header predicates
 
 Uses standardized Forwarded header ([RFC 7239](https://tools.ietf.org/html/rfc7239))

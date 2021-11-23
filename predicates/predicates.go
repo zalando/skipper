@@ -17,6 +17,7 @@ const (
 	PathSubtreeName           = "PathSubtree"
 	PathRegexpName            = "PathRegexp"
 	HostName                  = "Host"
+	HostAnyName               = "HostAny"
 	ForwardedHostName         = "ForwardedHost"
 	ForwardedProtocolName     = "ForwardedProtocol"
 	WeightName                = "Weight"

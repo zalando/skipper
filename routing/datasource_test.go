@@ -57,7 +57,7 @@ func TestNoMultipleTreePredicates(t *testing.T) {
 			pr := make(map[string]routing.PredicateSpec)
 			fr := make(filters.Registry)
 			for _, d := range defs {
-				if _, err := routing.ProcessRouteDef(pr, fr, d); err != nil {
+				if _, err := routing.ExportProcessRouteDef(pr, fr, d); err != nil {
 					erred = true
 					break
 				}
@@ -117,7 +117,7 @@ func TestProcessRouteDefErrors(t *testing.T) {
 			fr := make(filters.Registry)
 			fr.Register(builtin.NewSetPath())
 			for _, d := range defs {
-				_, err := routing.ProcessRouteDef(pr, fr, d)
+				_, err := routing.ExportProcessRouteDef(pr, fr, d)
 				if err == nil || err.Error() != ti.err {
 					t.Errorf("expected error '%s'. Got: '%s'", ti.err, err)
 				}
