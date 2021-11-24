@@ -1,12 +1,16 @@
-package routing
+package routing_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/predicates/primitive"
+	"github.com/zalando/skipper/predicates/query"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 )
 
@@ -50,10 +54,10 @@ func TestNoMultipleTreePredicates(t *testing.T) {
 			}
 
 			erred := false
-			pr := make(map[string]PredicateSpec)
+			pr := make(map[string]routing.PredicateSpec)
 			fr := make(filters.Registry)
 			for _, d := range defs {
-				if _, err := processRouteDef(pr, fr, d); err != nil {
+				if _, err := routing.ProcessRouteDef(pr, fr, d); err != nil {
 					erred = true
 					break
 				}
@@ -66,20 +70,31 @@ func TestNoMultipleTreePredicates(t *testing.T) {
 	}
 }
 
-func TestErrorWhenUsingPrediateAsFilter(t *testing.T) {
+func TestProcessRouteDefErrors(t *testing.T) {
 	for _, ti := range []struct {
 		routes string
 		err    string
-	}{{
-		`* -> True() -> <shunt>`,
-		"trying to use 'True' as filter, but it is only available as predicate",
-	}, {
-		`* -> PathRegexp("/test") -> <shunt>`,
-		"trying to use 'PathRegexp' as filter, but it is only available as predicate",
-	}, {
-		`* -> Unknown("/test") -> <shunt>`,
-		"filter not found: 'Unknown'",
-	}} {
+	}{
+		{
+			`* -> True() -> <shunt>`,
+			`trying to use "True" as filter, but it is only available as predicate`,
+		}, {
+			`* -> PathRegexp("/test") -> <shunt>`,
+			`trying to use "PathRegexp" as filter, but it is only available as predicate`,
+		}, {
+			`* -> Unknown("/test") -> <shunt>`,
+			`filter "Unknown" not found`,
+		}, {
+			`Unknown()  ->  <shunt>`,
+			`predicate "Unknown" not found`,
+		}, {
+			`QueryParam() -> <shunt>`,
+			`failed to create predicate "QueryParam": invalid predicate parameters`,
+		}, {
+			`* -> setPath() -> <shunt>`,
+			`failed to create filter "setPath": invalid filter parameters`,
+		},
+	} {
 		func() {
 			dc, err := testdataclient.NewDoc(ti.routes)
 			if err != nil {
@@ -95,12 +110,14 @@ func TestErrorWhenUsingPrediateAsFilter(t *testing.T) {
 				return
 			}
 
-			pr := map[string]PredicateSpec{
-				"True": &truePredicate{},
+			pr := map[string]routing.PredicateSpec{}
+			for _, s := range []routing.PredicateSpec{primitive.NewTrue(), query.New()} {
+				pr[s.Name()] = s
 			}
 			fr := make(filters.Registry)
+			fr.Register(builtin.NewSetPath())
 			for _, d := range defs {
-				_, err := processRouteDef(pr, fr, d)
+				_, err := routing.ProcessRouteDef(pr, fr, d)
 				if err == nil || err.Error() != ti.err {
 					t.Errorf("expected error '%s'. Got: '%s'", ti.err, err)
 				}
@@ -122,9 +139,9 @@ func TestLogging(t *testing.T) {
 		r1_5: Path("/quux") -> "https://quux.example.org";
 	`
 
-	init := func(l logging.Logger, client DataClient, suppress bool) *Routing {
-		return New(Options{
-			DataClients:  []DataClient{client},
+	init := func(l logging.Logger, client routing.DataClient, suppress bool) *routing.Routing {
+		return routing.New(routing.Options{
+			DataClients:  []routing.DataClient{client},
 			Log:          l,
 			SuppressLogs: suppress,
 		})
