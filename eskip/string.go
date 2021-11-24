@@ -144,16 +144,22 @@ func (r *Route) backendString() string {
 }
 
 func lbBackendString(r *Route) string {
-	var endpointStrings []string
-	for _, ep := range r.LBEndpoints {
-		endpointStrings = append(endpointStrings, fmt.Sprintf(`"%s"`, ep))
+	var b strings.Builder
+	b.WriteByte('<')
+	if r.LBAlgorithm != "" {
+		b.WriteString(r.LBAlgorithm)
+		b.WriteString(", ")
 	}
-
-	if r.LBAlgorithm == "" {
-		return fmt.Sprintf("<%s>", strings.Join(endpointStrings, ", "))
+	for i, ep := range r.LBEndpoints {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteByte('"')
+		b.WriteString(ep)
+		b.WriteByte('"')
 	}
-
-	return fmt.Sprintf("<%s, %s>", r.LBAlgorithm, strings.Join(endpointStrings, ", "))
+	b.WriteByte('>')
+	return b.String()
 }
 
 func (r *Route) backendStringQuoted() string {

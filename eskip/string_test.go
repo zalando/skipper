@@ -3,6 +3,7 @@ package eskip
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -110,7 +111,17 @@ func TestRouteString(t *testing.T) {
 			Filters:     []*Filter{{"filter0", []interface{}{"Line 1\r\nLine 2"}}},
 			BackendType: DynamicBackend},
 		`* -> filter0("Line 1\r\nLine 2") -> <dynamic>`,
-	}} {
+	}, {
+		&Route{Method: "GET", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997"}},
+		`Method("GET") -> <"http://127.0.0.1:9997">`,
+	}, {
+		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997"}},
+		`Method("GET") -> <random, "http://127.0.0.1:9997">`,
+	}, {
+		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997", "http://127.0.0.1:9998"}},
+		`Method("GET") -> <random, "http://127.0.0.1:9997", "http://127.0.0.1:9998">`,
+	},
+	} {
 		rstring := item.route.String()
 		if rstring != item.string {
 			pos, rstringOut, itemOut := findDiffPos(rstring, item.string)
@@ -480,4 +491,18 @@ testRoute3: Path("/baz")
 			})
 		})
 	})
+}
+
+func BenchmarkLBBackendString(b *testing.B) {
+	doc := fmt.Sprintf("* -> <random %s>", strings.Repeat(`, "http://127.0.0.1:9997"`, 50))
+	routes, err := Parse(doc)
+	if err != nil {
+		b.Fatal(err)
+	}
+	route := routes[0]
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = route.String()
+	}
 }
