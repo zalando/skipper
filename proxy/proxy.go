@@ -912,7 +912,6 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	p.tracing.
 		setTag(ctx.proxySpan, SpanKindTag, SpanKindClient).
 		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id).
-		setTag(ctx.proxySpan, SkipperRouteTag, ctx.route.String()).
 		setTag(ctx.proxySpan, HTTPUrlTag, u.String())
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 

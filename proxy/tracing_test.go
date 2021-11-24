@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -273,7 +272,6 @@ func TestTracingProxySpan(t *testing.T) {
 
 	verifyTag(t, span, SpanKindTag, SpanKindClient)
 	verifyTag(t, span, SkipperRouteIDTag, "hello")
-	verifyTag(t, span, SkipperRouteTag, strings.TrimPrefix(doc, "hello: "))
 	verifyTag(t, span, ComponentTag, "skipper")
 	verifyTag(t, span, HTTPUrlTag, "http://"+backendAddr+"/bye") // proxy removes query
 	verifyTag(t, span, HTTPMethodTag, "GET")
