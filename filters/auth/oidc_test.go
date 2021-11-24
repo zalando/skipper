@@ -224,7 +224,7 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 					"sub":   testSub,
 					"aud":   validClient,
 					"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
-					"exp":   time.Now().Add(time.Hour).UTC().Unix(),
+					"exp":   time.Now().Add(2 * time.Hour).UTC().Unix(),
 					"groups": []string{
 						"CD-Administrators",
 						"Purchasing-Department",
@@ -825,6 +825,13 @@ func TestOIDCSetup(t *testing.T) {
 			}
 			bs := string(b)
 			t.Logf("Got body: %s", bs)
+
+			// make sure cookies have correct maxAge according to exp
+			for _, c := range client.Jar.Cookies(reqURL) {
+				maxAge := time.Duration(c.MaxAge) * time.Second
+				assert.True(t, maxAge >= 2*time.Hour-time.Minute && maxAge <= 2*time.Hour,
+					"maxAge has to be within [2h - 1m, 2h]")
+			}
 		})
 	}
 }
@@ -927,5 +934,60 @@ func Benchmark_deflatePoolCompressor(b *testing.B) {
 				})
 			})
 		}
+	}
+}
+
+func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
+	type args struct {
+		claimsMap map[string]interface{}
+	}
+	tests := []struct {
+		name string
+		args args
+		want time.Duration
+	}{
+		{
+			name: "Success",
+			args: args{
+				claimsMap: map[string]interface{}{
+					"exp": float64(time.Now().Add(2 * time.Hour).Unix()),
+				},
+			},
+			want: time.Hour * 2,
+		},
+		{
+			name: "No exp set",
+			args: args{},
+			want: time.Hour,
+		},
+		{
+			name: "Wrong exp type",
+			args: args{
+				claimsMap: map[string]interface{}{
+					"exp": int64(time.Now().Add(2 * time.Hour).Unix()),
+				},
+			},
+			want: time.Hour,
+		},
+		{
+			name: "Exp too early",
+			args: args{
+				claimsMap: map[string]interface{}{
+					"exp": float64(time.Now().Add(10 * time.Second).Unix()),
+				},
+			},
+			want: time.Hour,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &tokenOidcFilter{
+				validity: time.Hour,
+			}
+
+			got := f.getMaxAge(tt.args.claimsMap)
+			assert.True(t, got >= tt.want-time.Minute && got <= 2*tt.want,
+				fmt.Sprintf("maxAge has to be within [%s - 1m, %s]", tt.want, tt.want))
+		})
 	}
 }

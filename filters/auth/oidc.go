@@ -418,7 +418,7 @@ func mergerCookies(cookies []http.Cookie) (cookie http.Cookie) {
 	return
 }
 
-func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
+func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, maxAge time.Duration, redirectUrl string) {
 	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
@@ -433,7 +433,7 @@ func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcSt
 		Path:     "/",
 		Secure:   true,
 		HttpOnly: true,
-		MaxAge:   int(f.validity.Seconds()),
+		MaxAge:   int(maxAge.Seconds()),
 		Domain:   extractDomainFromHost(getHost(ctx.Request())),
 	})
 	for _, cookie := range oidcCookies {
@@ -638,7 +638,20 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		return
 	}
 
-	f.doDownstreamRedirect(ctx, encryptedData, oauthState.RedirectUrl)
+	f.doDownstreamRedirect(ctx, encryptedData, f.getMaxAge(claimsMap), oauthState.RedirectUrl)
+}
+
+func (f *tokenOidcFilter) getMaxAge(claimsMap map[string]interface{}) time.Duration {
+	maxAge := f.validity
+	if exp, ok := claimsMap["exp"].(float64); ok {
+		val := time.Until(time.Unix(int64(exp), 0))
+		if val > time.Minute {
+			maxAge = val
+			log.Debugf("Setting maxAge of OIDC cookie to %s", maxAge)
+		}
+	}
+
+	return maxAge
 }
 
 func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
