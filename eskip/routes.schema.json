@@ -1,0 +1,104 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://raw.githubusercontent.com/zalando/skipper/master/eskip/routes.schema.json",
+    "title": "Skipper routes",
+    "description": "JSON representation of Skipper routes",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "required": [
+            "predicates",
+            "backend"
+        ],
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "filters": {
+                "$ref": "#/$defs/nameArgsArray"
+            },
+            "predicates": {
+                "$ref": "#/$defs/nameArgsArray"
+            },
+            "backend": {
+                "type": "object",
+                "required": [
+                    "type"
+                ],
+                "properties": {
+                    "type": {
+                        "enum": [
+                            "shunt",
+                            "loopback",
+                            "dynamic",
+                            "lb",
+                            "network"
+                        ]
+                    },
+                    "address": {
+                        "type": "string"
+                    },
+                    "algorithm": {
+                        "type": "string"
+                    },
+                    "endpoints": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "allOf": [
+                    {
+                        "if": {
+                            "properties": {
+                                "type": {
+                                    "const": "network"
+                                }
+                            }
+                        },
+                        "then": {
+                            "required": [
+                                "address"
+                            ]
+                        }
+                    },
+                    {
+                        "if": {
+                            "properties": {
+                                "type": {
+                                    "const": "lb"
+                                }
+                            }
+                        },
+                        "then": {
+                            "required": [
+                                "algorithm",
+                                "endpoints"
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "$defs": {
+        "nameArgsArray": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "args": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

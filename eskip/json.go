@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 )
 
-func marshalJsonPredicates(r *Route) []*Predicate {
+func marshalJSONPredicates(r *Route) []*Predicate {
 	rjf := make([]*Predicate, 0, len(r.Predicates))
 
 	if r.Method != "" {
@@ -99,7 +99,7 @@ func (r *Route) MarshalJSON() ([]byte, error) {
 	}{
 		Id:         r.Id,
 		Backend:    backend,
-		Predicates: marshalJsonPredicates(r),
+		Predicates: marshalJSONPredicates(r),
 		Filters:    filters,
 	}); err != nil {
 		return nil, err
