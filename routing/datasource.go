@@ -212,17 +212,21 @@ func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]Predica
 	spec, ok := fr[def.Name]
 	if !ok {
 		if isTreePredicate(def.Name) || def.Name == predicates.HostName || def.Name == predicates.PathRegexpName || def.Name == predicates.MethodName || def.Name == predicates.HeaderName || def.Name == predicates.HeaderRegexpName {
-			return nil, fmt.Errorf("trying to use '%s' as filter, but it is only available as predicate", def.Name)
+			return nil, fmt.Errorf("trying to use %q as filter, but it is only available as predicate", def.Name)
 		}
 
 		if _, ok := cpm[def.Name]; ok {
-			return nil, fmt.Errorf("trying to use '%s' as filter, but it is only available as predicate", def.Name)
+			return nil, fmt.Errorf("trying to use %q as filter, but it is only available as predicate", def.Name)
 		}
 
-		return nil, fmt.Errorf("filter not found: '%s'", def.Name)
+		return nil, fmt.Errorf("filter %q not found", def.Name)
 	}
 
-	return spec.CreateFilter(def.Args)
+	f, err := spec.CreateFilter(def.Args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create filter %q: %w", spec.Name(), err)
+	}
+	return f, nil
 }
 
 // creates filter instances based on their definition
@@ -374,12 +378,12 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 
 		spec, ok := cpm[def.Name]
 		if !ok {
-			return nil, 0, fmt.Errorf("predicate not found: '%s'", def.Name)
+			return nil, 0, fmt.Errorf("predicate %q not found", def.Name)
 		}
 
 		cp, err := spec.Create(def.Args)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, fmt.Errorf("failed to create predicate %q: %w", spec.Name(), err)
 		}
 
 		cps = append(cps, cp)
@@ -495,7 +499,7 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (rout
 			routes = append(routes, route)
 		} else {
 			invalidDefs = append(invalidDefs, def)
-			o.Log.Errorf("failed to process route (%v): %v", def.Id, err)
+			o.Log.Errorf("failed to process route %s: %v", def.Id, err)
 		}
 	}
 	return
