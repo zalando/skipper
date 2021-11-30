@@ -22,7 +22,7 @@ require (
 	github.com/google/go-cmp v0.5.4
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/instana/go-sensor v1.4.16
-	github.com/lightstep/lightstep-tracer-go v0.24.1-0.20210318180546-a67254760a58
+	github.com/lightstep/lightstep-tracer-go v0.25.0
 	github.com/looplab/fsm v0.1.0 // indirect
 	github.com/miekg/dns v1.1.41 // indirect
 	github.com/oklog/ulid v1.3.1
@@ -34,7 +34,6 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
 	github.com/sanity-io/litter v1.1.0
 	github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011
-	github.com/shirou/gopsutil v3.21.2+incompatible // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/sony/gobreaker v0.4.1
 	github.com/stretchr/testify v1.7.0
@@ -93,6 +92,7 @@ require (
 	github.com/prometheus/common v0.4.1 // indirect
 	github.com/prometheus/procfs v0.0.2 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
+	github.com/shirou/gopsutil/v3 v3.21.2 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tklauser/numcpus v0.2.2 // indirect
