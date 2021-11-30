@@ -1,5 +1,7 @@
 package routing
 
 var (
-	ProcessRouteDef = processRouteDef
+	ExportProcessRouteDef = processRouteDef
+	ExportNewMatcher      = newMatcher
+	ExportMatch           = (*matcher).match
 )
