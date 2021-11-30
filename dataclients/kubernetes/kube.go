@@ -5,16 +5,14 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"regexp"
 	"strings"
-	"syscall"
+	"text/template"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/predicates"
 )
 
 const (
@@ -22,9 +20,7 @@ const (
 	defaultRouteGroupClass       = "skipper"
 	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
-	healthcheckRouteID           = "kube__healthz"
 	httpRedirectRouteID          = "kube__redirect"
-	healthcheckPath              = "/kube-system/healthz"
 	defaultLoadBalancerAlgorithm = "roundRobin"
 	defaultEastWestDomain        = "skipper.cluster.local"
 )
@@ -192,13 +188,10 @@ type Client struct {
 	ingress                *ingress
 	routeGroups            *routeGroups
 	provideHealthcheck     bool
-	healthy                bool
 	provideHTTPSRedirect   bool
-	termReceived           bool
 	reverseSourcePredicate bool
 	httpsRedirectCode      int
 	current                map[string]*eskip.Route
-	sigs                   chan os.Signal
 	quit                   chan struct{}
 	defaultFiltersDir      string
 }
@@ -229,13 +222,6 @@ func New(o Options) (*Client, error) {
 		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. routegroup.class filter: %s. namespace: %s",
 		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, rgCls, o.KubernetesNamespace,
 	)
-
-	var sigs chan os.Signal
-	if o.ProvideHealthcheck {
-		log.Info("register sigterm handler")
-		sigs = make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGTERM)
-	}
 
 	if len(o.WhitelistedHealthCheckCIDR) > 0 {
 		whitelistCIDRS := make([]interface{}, len(o.WhitelistedHealthCheckCIDR))
@@ -278,7 +264,6 @@ func New(o Options) (*Client, error) {
 		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
 		httpsRedirectCode:      o.HTTPSRedirectCode,
 		current:                make(map[string]*eskip.Route),
-		sigs:                   sigs,
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
@@ -356,7 +341,17 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
-	return append(ri, rg...), nil
+	r := append(ri, rg...)
+
+	if c.provideHealthcheck {
+		r = append(r, healthcheckRoutes(c.reverseSourcePredicate)...)
+	}
+
+	if c.provideHTTPSRedirect {
+		r = append(r, globalRedirectRoute(c.httpsRedirectCode))
+	}
+
+	return r, nil
 }
 
 func shuntRoute(r *eskip.Route) {
@@ -374,53 +369,42 @@ func shuntRoute(r *eskip.Route) {
 	r.Backend = ""
 }
 
-func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
-	logFilters := []*eskip.Filter{{
-		Name: filters.StatusName,
-		Args: []interface{}{http.StatusOK}},
-	}
-	if !healthy {
-		logFilters[0].Args = []interface{}{http.StatusServiceUnavailable}
-	}
-	// log if unhealthy or a debug loglevel
-	if healthy && !log.IsLevelEnabled(log.DebugLevel) {
-		logFilters = append(logFilters, &eskip.Filter{
-			Name: filters.DisableAccessLogName,
-			Args: []interface{}{200},
-		})
-	}
+func healthcheckRoutes(reverseSourcePredicate bool) []*eskip.Route {
+	template := template.Must(template.New("healthcheck").Parse(`
+		kube__healthz_up:   Path("/kube-system/healthz") && {{.Source}}({{.SourceCIDRs}}) -> {{.DisableAccessLog}} status(200) -> <shunt>;
+		kube__healthz_down: Path("/kube-system/healthz") && {{.Source}}({{.SourceCIDRs}}) && Shutdown() -> status(503) -> <shunt>;
+	`))
 
-	var p []*eskip.Predicate
+	params := struct {
+		Source           string
+		SourceCIDRs      string
+		DisableAccessLog string
+	}{}
+
 	if reverseSourcePredicate {
-		p = []*eskip.Predicate{{
-			Name: predicates.SourceFromLastName,
-			Args: internalIPs,
-		}}
+		params.Source = "SourceFromLast"
 	} else {
-		p = []*eskip.Predicate{{
-			Name: predicates.SourceName,
-			Args: internalIPs,
-		}}
+		params.Source = "Source"
 	}
 
-	return &eskip.Route{
-		Id:         healthcheckRouteID,
-		Predicates: p,
-		Path:       healthcheckPath,
-		Filters:    logFilters,
-		Shunt:      true,
-	}
-}
-
-func (c *Client) hasReceivedTerm() bool {
-	select {
-	case s := <-c.sigs:
-		log.Infof("shutdown, caused by %s, set health check to be unhealthy", s)
-		c.termReceived = true
-	default:
+	if !log.IsLevelEnabled(log.DebugLevel) {
+		params.DisableAccessLog = "disableAccessLog(200) ->"
 	}
 
-	return c.termReceived
+	cidrs := new(strings.Builder)
+	for i, ip := range internalIPs {
+		if i > 0 {
+			cidrs.WriteString(", ")
+		}
+		cidrs.WriteString(fmt.Sprintf("%q", ip))
+	}
+	params.SourceCIDRs = cidrs.String()
+
+	out := new(strings.Builder)
+	_ = template.Execute(out, params)
+	routes, _ := eskip.Parse(out.String())
+
+	return routes
 }
 
 func (c *Client) LoadAll() ([]*eskip.Route, error) {
@@ -428,16 +412,6 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 	r, err := c.loadAndConvert()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load cluster state: %w", err)
-	}
-
-	// teardown handling: always healthy unless SIGTERM received
-	if c.provideHealthcheck {
-		c.healthy = !c.hasReceivedTerm()
-		r = append(r, healthcheckRoute(c.healthy, c.reverseSourcePredicate))
-	}
-
-	if c.provideHTTPSRedirect {
-		r = append(r, globalRedirectRoute(c.httpsRedirectCode))
 	}
 
 	c.current = mapRoutes(r)
@@ -470,7 +444,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		// TODO: use eskip.Eq()
 		if r, ok := next[id]; ok && r.String() != c.current[id].String() {
 			updatedRoutes = append(updatedRoutes, r)
-		} else if !ok && id != healthcheckRouteID && id != httpRedirectRouteID {
+		} else if !ok {
 			deletedIDs = append(deletedIDs, id)
 		}
 	}
@@ -483,17 +457,6 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 	if len(updatedRoutes) > 0 || len(deletedIDs) > 0 {
 		log.Infof("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
-	}
-
-	// teardown handling: always healthy unless SIGTERM received
-	if c.provideHealthcheck {
-		healthy := !c.hasReceivedTerm()
-		if healthy != c.healthy {
-			c.healthy = healthy
-			hc := healthcheckRoute(c.healthy, c.reverseSourcePredicate)
-			next[healthcheckRouteID] = hc
-			updatedRoutes = append(updatedRoutes, hc)
-		}
 	}
 
 	c.current = next
