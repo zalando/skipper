@@ -11,12 +11,14 @@ import (
 )
 
 type RouteGroupList struct {
-	Items []*RouteGroupItem `json:"items"`
+	Items []*RouteGroupItem `json:"items" yaml:"items"`
 }
 
 type RouteGroupItem struct {
-	Metadata *Metadata       `json:"metadata"`
-	Spec     *RouteGroupSpec `json:"spec"`
+	APIVersion string          `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+	Kind       string          `json:"kind,omitempty" yaml:",omitempty"`
+	Metadata   *Metadata       `json:"metadata"`
+	Spec       *RouteGroupSpec `json:"spec"`
 }
 
 type IngressList struct {

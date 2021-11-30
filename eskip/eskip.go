@@ -349,6 +349,10 @@ type RouteInfo struct {
 	ParseError error
 }
 
+func memberString(name string, args []interface{}) string {
+	return fmt.Sprintf("%s(%s)", name, argsString(args))
+}
+
 // Copy copies a filter to a new filter instance. The argument values are copied in a shallow way.
 func (f *Filter) Copy() *Filter {
 	c := *f
@@ -357,12 +361,20 @@ func (f *Filter) Copy() *Filter {
 	return &c
 }
 
+func (f Filter) String() string {
+	return memberString(f.Name, f.Args)
+}
+
 // Copy copies a predicate to a new filter instance. The argument values are copied in a shallow way.
 func (p *Predicate) Copy() *Predicate {
 	c := *p
 	c.Args = make([]interface{}, len(p.Args))
 	copy(c.Args, p.Args)
 	return &c
+}
+
+func (p Predicate) String() string {
+	return memberString(p.Name, p.Args)
 }
 
 // Copy copies a route to a new route instance with all the slice and map fields copied deep.
