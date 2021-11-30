@@ -1,0 +1,11 @@
+kube__redirect: Header("X-Forwarded-Proto", "http") && Weight(1000)
+	-> redirectTo(308, "https:")
+	-> <shunt>;
+
+kube_foo__qux__www_example_org____bar:
+	Header("X-Forwarded-Proto", "https") &&
+	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") &&
+	Method("POST") &&
+	Path("/api/registered-applications")
+	&& Weight(3)
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;

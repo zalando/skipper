@@ -2,13 +2,25 @@ package definitions
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/pkg/errors"
+	"gopkg.in/yaml.v2"
 )
 
 var errInvalidPortType = errors.New("invalid port type")
 
+type IngressList struct {
+	Items []*IngressItem `json:"items"`
+}
+
+type IngressItem struct {
+	Metadata *Metadata    `json:"metadata"`
+	Spec     *IngressSpec `json:"spec"`
+}
+
+// IngressSpec is the v1beta1
 type IngressSpec struct {
 	DefaultBackend *Backend `json:"backend"`
 	Rules          []*Rule  `json:"rules"`
@@ -98,4 +110,45 @@ func (p BackendPort) String() string {
 	default:
 		return ""
 	}
+}
+
+// ParseIngressJSON parse JSON into an IngressList
+func ParseIngressJSON(d []byte) (IngressList, error) {
+	var il IngressList
+	err := json.Unmarshal(d, &il)
+	return il, err
+}
+
+// ParseIngressYAML parse YAML into an IngressList
+func ParseIngressYAML(d []byte) (IngressList, error) {
+	var il IngressList
+	err := yaml.Unmarshal(d, &il)
+	return il, err
+}
+
+// TODO: implement once IngressItem has a validate method
+// ValidateIngress is a no-op
+func ValidateIngress(_ *IngressItem) error {
+	return nil
+}
+
+// ValidateIngresses is a no-op
+func ValidateIngresses(ingressList IngressList) error {
+	var err error
+	// discover all errors to avoid the user having to repeatedly validate
+	for _, i := range ingressList.Items {
+		nerr := ValidateIngress(i)
+		if nerr != nil {
+			name := i.Metadata.Name
+			namespace := i.Metadata.Namespace
+			nerr = fmt.Errorf("%s/%s: %w", name, namespace, nerr)
+			err = errors.Wrap(err, nerr.Error())
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

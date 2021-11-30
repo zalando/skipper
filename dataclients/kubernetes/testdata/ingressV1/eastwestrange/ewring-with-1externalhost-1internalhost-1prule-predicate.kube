@@ -1,0 +1,6 @@
+ingressv1: true
+eastWestRangeDomains:
+    - "ingress.cluster.local"
+eastWestRangePredicatesAppend:
+    - name: "ClientIP"
+      args: ["10.2.0.0/16"]

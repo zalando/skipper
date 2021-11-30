@@ -1,0 +1,2 @@
+ingressv1: true
+onlyAllowedExternalNames: true

@@ -31,6 +31,7 @@ type fixtureSet struct {
 }
 
 type kubeOptionsParser struct {
+	IngressV1                bool               `yaml:"ingressv1"`
 	EastWest                 bool               `yaml:"eastWest"`
 	EastWestDomain           string             `yaml:"eastWestDomain"`
 	EastWestRangeDomains     []string           `yaml:"eastWestRangeDomains"`
@@ -40,6 +41,7 @@ type kubeOptionsParser struct {
 	BackendNameTracingTag    bool               `yaml:"backendNameTracingTag"`
 	OnlyAllowedExternalNames bool               `yaml:"onlyAllowedExternalNames"`
 	AllowedExternalNames     []string           `yaml:"allowedExternalNames"`
+	IngressClass             string             `yaml:"kubernetes-ingress-class"`
 }
 
 func baseNoExt(n string) string {
@@ -206,6 +208,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
+		o.KubernetesIngressV1 = kop.IngressV1
 		o.KubernetesEnableEastWest = kop.EastWest
 		o.KubernetesEastWestDomain = kop.EastWestDomain
 		o.KubernetesEastWestRangeDomains = kop.EastWestRangeDomains
@@ -213,6 +216,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
 		o.BackendNameTracingTag = kop.BackendNameTracingTag
+		o.IngressClass = kop.IngressClass
 
 		aen, err := compileRegexps(kop.AllowedExternalNames)
 		if err != nil {

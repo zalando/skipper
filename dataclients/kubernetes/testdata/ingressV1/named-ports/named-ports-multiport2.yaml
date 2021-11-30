@@ -1,0 +1,52 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp
+  namespace: default
+spec:
+  rules:
+  - host: example.org
+    http:
+      paths:
+      - backend:
+          service:
+            name: myapp
+            port:
+              name: web
+        pathType: ImplementationSpecific
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: myapp
+  name: myapp
+spec:
+  clusterIP: 10.3.190.97
+  ports:
+  - name: foo
+    port: 8080
+    protocol: TCP
+    targetPort: web
+  - name: web
+    port: 80
+    protocol: TCP
+    targetPort: foo
+  selector:
+    application: myapp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    application: myapp
+  name: myapp
+subsets:
+- addresses:
+  - ip: 10.2.9.103
+  - ip: 10.2.9.104
+  ports:
+  - name: web
+    port: 8080
+    protocol: TCP

@@ -19,6 +19,12 @@ func (sp servicePort) matchingPort(svcPort definitions.BackendPort) bool {
 	return s != "" && (spt == s || sp.Name == s)
 }
 
+func (sp servicePort) matchingPortV1(svcPort definitions.BackendPortV1) bool {
+	s := svcPort.String()
+	spt := strconv.Itoa(sp.Port)
+	return s != "" && (spt == s || sp.Name == s)
+}
+
 func (sp servicePort) String() string {
 	return fmt.Sprintf("%s %d %s", sp.Name, sp.Port, sp.TargetPort)
 }
@@ -46,6 +52,15 @@ func (s service) getServicePort(port definitions.BackendPort) (*servicePort, err
 		}
 	}
 	return nil, fmt.Errorf("getServicePort: service port not found %v given %v", s.Spec.Ports, port)
+}
+
+func (s service) getServicePortV1(port definitions.BackendPortV1) (*servicePort, error) {
+	for _, sp := range s.Spec.Ports {
+		if sp.matchingPortV1(port) && sp.TargetPort != nil {
+			return sp, nil
+		}
+	}
+	return nil, fmt.Errorf("getServicePortV1: service port not found %v given %v", s.Spec.Ports, port)
 }
 
 func (s service) getTargetPortByValue(p int) (*definitions.BackendPort, bool) {
