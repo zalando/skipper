@@ -133,6 +133,10 @@ type Config struct {
 	ForwardedHeadersExcludeCIDRList *listFlag            `yaml:"forwarded-headers-exclude-cidrs"`
 	ForwardedHeadersExcludeCIDRs    net.IPNets           `yaml:"-"`
 
+	// host patch:
+	NormalizeHost bool          `yaml:"normalize-host"`
+	HostPatch     net.HostPatch `yaml:"-"`
+
 	// Kubernetes:
 	KubernetesIngress                       bool                `yaml:"kubernetes"`
 	KubernetesInCluster                     bool                `yaml:"kubernetes-in-cluster"`
@@ -379,8 +383,10 @@ func NewConfig() *Config {
 		"X-Forwarded-Proto=<http|https> sets X-Forwarded-Proto value")
 	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs")
 
+	flag.BoolVar(&cfg.NormalizeHost, "normalize-host", false, "converts request host to lowercase and removes port and trailing dot if any")
+
 	// Kubernetes:
-	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, "enables skipper to generate routes for ingress resources in kubernetes cluster")
+	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, "enables skipper to generate routes for ingress resources in kubernetes cluster. Enables -normalize-host")
 	flag.BoolVar(&cfg.KubernetesInCluster, "kubernetes-in-cluster", false, "specify if skipper is running inside kubernetes cluster")
 	flag.StringVar(&cfg.KubernetesURL, "kubernetes-url", "", "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true")
 	flag.BoolVar(&cfg.KubernetesHealthcheck, "kubernetes-healthcheck", true, "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes")
@@ -564,6 +570,14 @@ func (c *Config) Parse() error {
 	err = c.parseForwardedHeaders()
 	if err != nil {
 		return err
+	}
+
+	if c.NormalizeHost || c.KubernetesIngress {
+		c.HostPatch = net.HostPatch{
+			ToLower:           true,
+			RemovePort:        true,
+			RemoteTrailingDot: true,
+		}
 	}
 
 	c.parseEnv()
@@ -837,14 +851,31 @@ func (c *Config) ToOptions() skipper.Options {
 		}
 	}
 
+	var wrappers []func(handler http.Handler) http.Handler
+	options.CustomHttpHandlerWrap = func(handler http.Handler) http.Handler {
+		for _, wrapper := range wrappers {
+			handler = wrapper(handler)
+		}
+		return handler
+	}
+
 	if c.ForwardedHeaders != (net.ForwardedHeaders{}) {
-		options.CustomHttpHandlerWrap = func(handler http.Handler) http.Handler {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
 			return &net.ForwardedHeadersHandler{
 				Headers: c.ForwardedHeaders,
 				Exclude: c.ForwardedHeadersExcludeCIDRs,
 				Handler: handler,
 			}
-		}
+		})
+	}
+
+	if c.HostPatch != (net.HostPatch{}) {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return &net.HostPatchHandler{
+				Patch:   c.HostPatch,
+				Handler: handler,
+			}
+		})
 	}
 
 	return options
