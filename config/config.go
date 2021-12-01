@@ -601,6 +601,7 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 		KubernetesHealthcheck:              c.KubernetesHealthcheck,
 		KubernetesHTTPSRedirect:            c.KubernetesHTTPSRedirect,
 		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
+		KubernetesIngressV1:                c.KubernetesIngressV1,
 		KubernetesIngressClass:             c.KubernetesIngressClass,
 		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
 		KubernetesPathMode:                 c.KubernetesPathMode,

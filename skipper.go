@@ -16,10 +16,11 @@ import (
 	"syscall"
 	"time"
 
+	stdlog "log"
+
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	stdlog "log"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"

@@ -57,15 +57,22 @@ func loadKubeYAML(t *testing.T, path string) io.Reader {
 	t.Helper()
 	y, err := os.ReadFile(path)
 	if err != nil {
-		t.Error("failed to open kubernetes resources fixture")
+		t.Fatalf("failed to open kubernetes resources fixture %s: %v", path, err)
 	}
 
 	return bytes.NewBuffer(y)
 }
 
 func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteServer {
+	return newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     kubeServer.URL,
+	})
+}
+
+func newRouteServerWithOptions(t *testing.T, o routesrv.Options) *routesrv.RouteServer {
 	t.Helper()
-	rs, err := routesrv.New(routesrv.Options{SourcePollTimeout: pollInterval, KubernetesURL: kubeServer.URL})
+	rs, err := routesrv.New(o)
 	if err != nil {
 		t.Errorf("cannot initialize server: %s", err)
 	}
@@ -75,13 +82,13 @@ func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteSe
 
 func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
 	t.Helper()
-	eskipBytes, err := os.ReadFile("testdata/lb-target-multi.eskip")
+	eskipBytes, err := os.ReadFile(fileName)
 	if err != nil {
-		t.Error("failed to open eskip fixture")
+		t.Fatalf("failed to open eskip fixture %s: %v", fileName, err)
 	}
 	routes, err := eskip.Parse(string(eskipBytes))
 	if err != nil {
-		t.Error("eskip fixture is not valid eskip")
+		t.Fatalf("eskip fixture is not valid eskip %s: %v", fileName, err)
 	}
 
 	return routes
@@ -165,6 +172,34 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	got, err := eskip.Parse(w.Body.String())
 	if err != nil {
 		t.Errorf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
+}
+
+func TestFetchedV1IngressRoutesAreServedInEskipFormat(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/ing-v1-lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout:   pollInterval,
+		KubernetesURL:       ks.URL,
+		KubernetesIngressV1: true,
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatal("routes not initialized")
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/ing-v1-lb-target-multi.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
 	}
 	if !eskip.EqLists(got, want) {
 		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
