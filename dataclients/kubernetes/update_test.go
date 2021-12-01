@@ -3,6 +3,8 @@ package kubernetes
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
@@ -25,9 +27,7 @@ func TestUpdateOnlyChangedRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(r) != 1 || r[0].Id != healthcheckRouteID {
-		t.Fatal("no healthcheck route received")
-	}
+	assert.EqualValues(t, healthcheckRoutes(false), r, "no healthcheck routes received")
 
 	for i := 0; i < 3; i++ {
 		update, del, err := k.LoadUpdate()
@@ -36,7 +36,7 @@ func TestUpdateOnlyChangedRoutes(t *testing.T) {
 		}
 
 		if len(update) != 0 || len(del) != 0 {
-			t.Fatal("unexpected udpate received")
+			t.Fatal("unexpected update received")
 		}
 	}
 }

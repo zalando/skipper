@@ -20,7 +20,6 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
-	"syscall"
 	"testing"
 	"testing/quick"
 	"time"
@@ -32,8 +31,6 @@ import (
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/predicates"
 )
 
 type testAPI struct {
@@ -324,84 +321,15 @@ func checkIDs(t *testing.T, got []string, expected ...string) {
 	}
 }
 
-func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, reversed bool) {
-	for _, r := range got {
-		if r.Id != healthcheckRouteID {
-			continue
-		}
-
-		if !expected {
-			t.Error("unexpected healthcheck route")
-			return
-		}
-
-		if !r.Shunt {
-			t.Error("healthcheck route must be a shunt")
-			return
-		}
-
-		if r.Path != healthcheckPath {
-			t.Error("invalid healthcheck path")
-			return
-		}
-
-		var found bool
-		for _, p := range r.Predicates {
-			if reversed && p.Name != predicates.SourceFromLastName {
-				continue
-			}
-			if !reversed && p.Name != predicates.SourceName {
-				continue
-			}
-
-			found = true
-
-			if len(p.Args) != len(internalIPs) {
-				t.Error("invalid source predicate")
-				return
-			}
-
-			for _, s := range internalIPs {
-				var found2 bool
-				for _, sp := range p.Args {
-					if sp == s {
-						found2 = true
-						break
-					}
-				}
-
-				if !found2 {
-					t.Error("invalid source ip")
-				}
-			}
-		}
-
-		if !found {
-			t.Error("source predicate not found")
-		}
-
-		for _, f := range r.Filters {
-			if f.Name != filters.StatusName {
-				continue
-			}
-
-			if len(f.Args) != 1 {
-				t.Error("invalid healthcheck args")
-				return
-			}
-
-			if healthy && f.Args[0] != http.StatusOK {
-				t.Error("invalid healthcheck status", f.Args[0], http.StatusOK)
-			} else if !healthy && f.Args[0] != http.StatusServiceUnavailable {
-				t.Error("invalid healthcheck status", f.Args[0], http.StatusServiceUnavailable)
-			}
-
-			return
-		}
-	}
-
+func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, reversed bool) {
 	if expected {
-		t.Error("healthcheck route not found")
+		for _, r := range healthcheckRoutes(reversed) {
+			assert.Contains(t, got, r)
+		}
+	} else {
+		for _, r := range healthcheckRoutes(reversed) {
+			assert.NotContains(t, got, r)
+		}
 	}
 }
 
@@ -1447,6 +1375,58 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 	}
 }
 
+func TestHealthcheckRoutes(t *testing.T) {
+	for _, tc := range []struct {
+		logLevel               log.Level
+		reverseSourcePredicate bool
+		expected               string
+	}{
+		{
+			logLevel:               log.InfoLevel,
+			reverseSourcePredicate: false,
+			expected: `
+				kube__healthz_up:   Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> disableAccessLog(200) -> status(200) -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+			`,
+		},
+		{
+			logLevel:               log.InfoLevel,
+			reverseSourcePredicate: true,
+			expected: `
+				kube__healthz_up:   Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> disableAccessLog(200) -> status(200) -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+			`,
+		},
+		{
+			logLevel:               log.DebugLevel,
+			reverseSourcePredicate: false,
+			expected: `
+				kube__healthz_up:   Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> status(200) -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+			`,
+		},
+		{
+			logLevel:               log.DebugLevel,
+			reverseSourcePredicate: true,
+			expected: `
+				kube__healthz_up:   Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> status(200) -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+			`,
+		},
+	} {
+		t.Run(fmt.Sprintf("log: %s, reverse: %v", tc.logLevel.String(), tc.reverseSourcePredicate), func(t *testing.T) {
+			level := log.GetLevel()
+			defer func() { log.SetLevel(level) }()
+			log.SetLevel(tc.logLevel)
+
+			expected, err := eskip.Parse(tc.expected)
+			require.NoError(t, err)
+
+			assert.EqualValues(t, expected, healthcheckRoutes(tc.reverseSourcePredicate))
+		})
+	}
+}
+
 func TestHealthcheckInitial(t *testing.T) {
 	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
@@ -1464,7 +1444,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 	})
 
 	t.Run("no healthcheck", func(t *testing.T) {
@@ -1482,7 +1462,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 	})
 
 	t.Run("no healthcheck, fail", func(t *testing.T) {
@@ -1517,7 +1497,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true, false)
+		checkHealthcheck(t, r, true, false)
 	})
 
 	t.Run("use healthcheck", func(t *testing.T) {
@@ -1538,7 +1518,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true, false)
+		checkHealthcheck(t, r, true, false)
 	})
 
 	t.Run("use reverse healthcheck", func(t *testing.T) {
@@ -1560,7 +1540,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true, true)
+		checkHealthcheck(t, r, true, true)
 	})
 }
 
@@ -1587,7 +1567,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1636,7 +1616,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1666,7 +1646,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -1697,7 +1677,7 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 	})
 
 	t.Run("use healthcheck, reload succeeds", func(t *testing.T) {
@@ -1722,10 +1702,11 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true, false)
+		checkHealthcheck(t, r, true, false)
 		checkRoutes(t, r, map[string]string{
-			healthcheckRouteID:                                              "",
-			"kube_namespace1__default_only______":                           "http://1.1.1.0:8080",
+			"kube__healthz_up":                    "",
+			"kube__healthz_down":                  "",
+			"kube_namespace1__default_only______": "http://1.1.1.0:8080",
 			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://2.1.3.0:7272",
 			"kube_namespace1__mega______":                                   "http://1.1.1.0:8080",
 			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.1.1.0:8080",
@@ -1927,131 +1908,6 @@ func createCert(template, parent *x509.Certificate, pub interface{}, parentPriv 
 	b := pem.Block{Type: "CERTIFICATE", Bytes: certDER}
 	certPEM = pem.EncodeToMemory(&b)
 	return
-}
-
-func TestHealthcheckOnTerm(t *testing.T) {
-	api := newTestAPI(t, testServices(), &definitions.IngressList{})
-	defer api.Close()
-
-	t.Run("no difference after term when healthcheck disabled", func(t *testing.T) {
-		c, err := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: false,
-		})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		defer c.Close()
-
-		// send term only when the client is handling it:
-		select {
-		case c.sigs <- syscall.SIGTERM:
-		default:
-		}
-
-		r, err := c.LoadAll()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		checkHealthcheck(t, r, false, false, false)
-	})
-
-	t.Run("healthcheck false after term", func(t *testing.T) {
-		c, err := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: true,
-		})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		defer c.Close()
-
-		// send term only when the client is handling it:
-		select {
-		case c.sigs <- syscall.SIGTERM:
-		default:
-		}
-
-		r, err := c.LoadAll()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		checkHealthcheck(t, r, true, false, false)
-	})
-
-	t.Run("no difference after term when disabled, update", func(t *testing.T) {
-		c, err := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: false,
-		})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		defer c.Close()
-
-		_, err = c.LoadAll()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		// send term only when the client is handling it:
-		select {
-		case c.sigs <- syscall.SIGTERM:
-		default:
-		}
-
-		r, _, err := c.LoadUpdate()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		checkHealthcheck(t, r, false, false, false)
-	})
-
-	t.Run("healthcheck false after term, update", func(t *testing.T) {
-		c, err := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: true,
-		})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		defer c.Close()
-
-		_, err = c.LoadAll()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		// send term only when the client is handling it:
-		select {
-		case c.sigs <- syscall.SIGTERM:
-		default:
-		}
-
-		r, _, err := c.LoadUpdate()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		checkHealthcheck(t, r, true, false, false)
-	})
 }
 
 func TestCatchAllRoutes(t *testing.T) {
