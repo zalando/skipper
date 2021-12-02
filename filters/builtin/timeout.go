@@ -3,6 +3,7 @@ package builtin
 import (
 	"time"
 
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -17,7 +18,7 @@ func NewBackendTimeout() filters.Spec {
 func (*timeout) Name() string { return filters.BackendTimeoutName }
 
 func (*timeout) CreateFilter(args []interface{}) (filters.Filter, error) {
-	a := filters.Args(args)
+	a := eskip.Args(args)
 	return &timeout{a.Duration()}, a.Err()
 }
 

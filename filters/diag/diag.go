@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -188,7 +189,7 @@ func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalRespons
 func (r *random) Name() string { return filters.RandomContentName }
 
 func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
-	a := filters.Args(args)
+	a := eskip.Args(args)
 	len, err := a.Int64(), a.Err()
 	if err != nil {
 		return nil, err
@@ -220,7 +221,7 @@ func (r *random) Response(ctx filters.FilterContext) {}
 func (r *repeat) Name() string { return filters.RepeatContentName }
 
 func (r *repeat) CreateFilter(args []interface{}) (filters.Filter, error) {
-	a := filters.Args(args)
+	a := eskip.Args(args)
 	text, len, err := a.String(), a.Int64(), a.Err()
 	if err != nil {
 		return nil, err
@@ -274,12 +275,12 @@ func (t *throttle) Name() string {
 }
 
 func parseLatencyArgs(args []interface{}) (int, time.Duration, error) {
-	a := filters.Args(args)
+	a := eskip.Args(args)
 	return 0, a.DurationOrMilliseconds(), a.Err()
 }
 
 func parseBandwidthArgs(args []interface{}) (int, time.Duration, error) {
-	a := filters.Args(args)
+	a := eskip.Args(args)
 	kbps, err := a.Float64(), a.Err()
 
 	if err != nil {
@@ -294,7 +295,7 @@ func parseBandwidthArgs(args []interface{}) (int, time.Duration, error) {
 }
 
 func parseChunksArgs(args []interface{}) (int, time.Duration, error) {
-	a := filters.Args(args)
+	a := eskip.Args(args)
 	size, d, err := a.Int(), a.DurationOrMilliseconds(), a.Err()
 	if err != nil {
 		return 0, 0, err
@@ -441,7 +442,7 @@ func (j *jitter) Name() string {
 }
 
 func (j *jitter) CreateFilter(args []interface{}) (filters.Filter, error) {
-	a := filters.Args(args)
+	a := eskip.Args(args)
 	return &jitter{
 		typ:   j.typ,
 		mean:  a.DurationOrMilliseconds(),

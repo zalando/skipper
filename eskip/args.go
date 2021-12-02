@@ -1,4 +1,4 @@
-package filters
+package eskip
 
 import (
 	"errors"
@@ -96,13 +96,13 @@ func durationOrNumberArg(x interface{}, scale time.Duration) (time.Duration, err
 	return d, nil
 }
 
-type FilterArgs struct {
+type EskipArgs struct {
 	args []interface{}
 	pos  int
 	errs []error
 }
 
-// Creates filter arguments wrapper that provides methods
+// Creates arguments wrapper that provides methods
 // to sequentially access and convert arguments.
 // Every call of non-optional accessor method increases expected argument counter.
 // The Err() method returns non nil error if expected argument counter
@@ -114,11 +114,11 @@ type FilterArgs struct {
 //  if err != nil {
 //      return err
 //  }
-func Args(args []interface{}) *FilterArgs {
-	return &FilterArgs{args: args}
+func Args(args []interface{}) *EskipArgs {
+	return &EskipArgs{args: args}
 }
 
-func (a *FilterArgs) String() (_ string) {
+func (a *EskipArgs) String() (_ string) {
 	if x, ok := a.next(); ok {
 		if s, err := stringArg(x); err == nil {
 			return s
@@ -129,14 +129,14 @@ func (a *FilterArgs) String() (_ string) {
 	return
 }
 
-func (a *FilterArgs) OptionalString(defaultValue string) string {
+func (a *EskipArgs) OptionalString(defaultValue string) string {
 	if a.pos >= len(a.args) {
 		return defaultValue
 	}
 	return a.String()
 }
 
-func (a *FilterArgs) Strings() (result []string) {
+func (a *EskipArgs) Strings() (result []string) {
 	if a.pos > len(a.args) {
 		return nil
 	}
@@ -156,7 +156,7 @@ func (a *FilterArgs) Strings() (result []string) {
 	return
 }
 
-func (a *FilterArgs) Float64() (_ float64) {
+func (a *EskipArgs) Float64() (_ float64) {
 	if x, ok := a.next(); ok {
 		if f, err := float64Arg(x); err == nil {
 			return f
@@ -167,14 +167,14 @@ func (a *FilterArgs) Float64() (_ float64) {
 	return
 }
 
-func (a *FilterArgs) OptionalFloat64(defaultValue float64) float64 {
+func (a *EskipArgs) OptionalFloat64(defaultValue float64) float64 {
 	if a.pos >= len(a.args) {
 		return defaultValue
 	}
 	return a.Float64()
 }
 
-func (a *FilterArgs) Int64() (_ int64) {
+func (a *EskipArgs) Int64() (_ int64) {
 	if x, ok := a.next(); ok {
 		if i, err := int64Arg(x); err == nil {
 			return i
@@ -185,14 +185,14 @@ func (a *FilterArgs) Int64() (_ int64) {
 	return
 }
 
-func (a *FilterArgs) OptionalInt64(defaultValue int64) int64 {
+func (a *EskipArgs) OptionalInt64(defaultValue int64) int64 {
 	if a.pos >= len(a.args) {
 		return defaultValue
 	}
 	return a.Int64()
 }
 
-func (a *FilterArgs) Int() (_ int) {
+func (a *EskipArgs) Int() (_ int) {
 	if x, ok := a.next(); ok {
 		if i, err := intArg(x); err == nil {
 			return i
@@ -203,14 +203,14 @@ func (a *FilterArgs) Int() (_ int) {
 	return
 }
 
-func (a *FilterArgs) OptionalInt(defaultValue int) int {
+func (a *EskipArgs) OptionalInt(defaultValue int) int {
 	if a.pos >= len(a.args) {
 		return defaultValue
 	}
 	return a.Int()
 }
 
-func (a *FilterArgs) Duration() (_ time.Duration) {
+func (a *EskipArgs) Duration() (_ time.Duration) {
 	if x, ok := a.next(); ok {
 		if d, err := durationArg(x); err == nil {
 			return d
@@ -221,7 +221,7 @@ func (a *FilterArgs) Duration() (_ time.Duration) {
 	return
 }
 
-func (a *FilterArgs) OptionalDuration(defaultValue time.Duration) time.Duration {
+func (a *EskipArgs) OptionalDuration(defaultValue time.Duration) time.Duration {
 	if a.pos >= len(a.args) {
 		return defaultValue
 	}
@@ -229,7 +229,7 @@ func (a *FilterArgs) OptionalDuration(defaultValue time.Duration) time.Duration 
 }
 
 // introduced for backwards compatibility, use Duration
-func (a *FilterArgs) DurationOrMilliseconds() (_ time.Duration) {
+func (a *EskipArgs) DurationOrMilliseconds() (_ time.Duration) {
 	if x, ok := a.next(); ok {
 		if d, err := durationOrNumberArg(x, time.Millisecond); err == nil {
 			return d
@@ -241,7 +241,7 @@ func (a *FilterArgs) DurationOrMilliseconds() (_ time.Duration) {
 }
 
 // introduced for backwards compatibility, use OptionalDuration
-func (a *FilterArgs) OptionalDurationOrMilliseconds(defaultValue time.Duration) time.Duration {
+func (a *EskipArgs) OptionalDurationOrMilliseconds(defaultValue time.Duration) time.Duration {
 	if a.pos >= len(a.args) {
 		return defaultValue
 	}
@@ -249,7 +249,7 @@ func (a *FilterArgs) OptionalDurationOrMilliseconds(defaultValue time.Duration) 
 }
 
 // introduced for backwards compatibility, use Duration
-func (a *FilterArgs) DurationOrSeconds() (_ time.Duration) {
+func (a *EskipArgs) DurationOrSeconds() (_ time.Duration) {
 	if x, ok := a.next(); ok {
 		if d, err := durationOrNumberArg(x, time.Second); err == nil {
 			return d
@@ -260,7 +260,7 @@ func (a *FilterArgs) DurationOrSeconds() (_ time.Duration) {
 	return
 }
 
-func (a *FilterArgs) Err() error {
+func (a *EskipArgs) Err() error {
 	var errs []string
 	if a.pos != len(a.args) {
 		if a.pos == 1 {
@@ -280,7 +280,7 @@ func (a *FilterArgs) Err() error {
 	}
 }
 
-func (a *FilterArgs) next() (x interface{}, ok bool) {
+func (a *EskipArgs) next() (x interface{}, ok bool) {
 	if a.pos >= len(a.args) {
 		x, ok = nil, false
 	} else {
@@ -290,6 +290,6 @@ func (a *FilterArgs) next() (x interface{}, ok bool) {
 	return
 }
 
-func (a *FilterArgs) error(err error) {
+func (a *EskipArgs) error(err error) {
 	a.errs = append(a.errs, err)
 }
