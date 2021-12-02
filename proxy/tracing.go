@@ -12,12 +12,10 @@ const (
 	HostnameTag           = "hostname"
 	HTTPHostTag           = "http.host"
 	HTTPMethodTag         = "http.method"
-	HTTPRemoteAddrTag     = "http.remote_addr"
 	HTTPRemoteIPTag       = "http.remote_ip"
 	HTTPPathTag           = "http.path"
 	HTTPUrlTag            = "http.url"
 	HTTPStatusCodeTag     = "http.status_code"
-	SkipperRouteTag       = "skipper.route" // unused
 	SkipperRouteIDTag     = "skipper.route_id"
 	SpanKindTag           = "span.kind"
 
