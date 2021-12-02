@@ -9,153 +9,153 @@ import (
 )
 
 func TestArgsStringArg(t *testing.T) {
-	s, err := StringArg("s")
+	s, err := stringArg("s")
 	assert.Nil(t, err)
 	assert.Equal(t, "s", s)
 
-	s, err = StringArg("")
+	s, err = stringArg("")
 	assert.Nil(t, err)
 	assert.Equal(t, "", s)
 
-	s, err = StringArg(1)
+	s, err = stringArg(1)
 	assert.EqualError(t, err, "1 is not a string")
 	assert.Equal(t, "", s)
 
-	s, err = StringArg(1.1)
+	s, err = stringArg(1.1)
 	assert.EqualError(t, err, "1.1 is not a string")
 	assert.Equal(t, "", s)
 
-	s, err = StringArg(nil)
+	s, err = stringArg(nil)
 	assert.EqualError(t, err, "<nil> is not a string")
 	assert.Equal(t, "", s)
 }
 
 func TestArgsFloat64Arg(t *testing.T) {
-	f, err := Float64Arg(1.)
+	f, err := float64Arg(1.)
 	assert.Nil(t, err)
 	assert.Equal(t, 1., f)
 
-	f, err = Float64Arg(1)
+	f, err = float64Arg(1)
 	assert.Nil(t, err)
 	assert.Equal(t, 1., f)
 
-	f, err = Float64Arg(1.5)
+	f, err = float64Arg(1.5)
 	assert.Nil(t, err)
 	assert.Equal(t, 1.5, f)
 
-	f, err = Float64Arg("1")
+	f, err = float64Arg("1")
 	assert.EqualError(t, err, "1 is not a float64")
 	assert.Equal(t, 0., f)
 
-	f, err = Float64Arg(nil)
+	f, err = float64Arg(nil)
 	assert.EqualError(t, err, "<nil> is not a float64")
 	assert.Equal(t, 0., f)
 }
 
 func TestArgsIntArg(t *testing.T) {
-	i, err := IntArg(1)
+	i, err := intArg(1)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, i)
 
-	i, err = IntArg(1.0)
+	i, err = intArg(1.0)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, i)
 
-	i, err = IntArg(1.5)
+	i, err = intArg(1.5)
 	assert.EqualError(t, err, "1.5 is not an integer")
 	assert.Equal(t, 0, i)
 
-	i, err = IntArg("1")
+	i, err = intArg("1")
 	assert.EqualError(t, err, "1 is not an integer")
 	assert.Equal(t, 0, i)
 
-	i, err = IntArg(nil)
+	i, err = intArg(nil)
 	assert.EqualError(t, err, "<nil> is not an integer")
 	assert.Equal(t, 0, i)
 }
 
 func TestArgsInt64Arg(t *testing.T) {
-	i, err := Int64Arg(1)
+	i, err := int64Arg(1)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(1), i)
 
-	i, err = Int64Arg(1.0)
+	i, err = int64Arg(1.0)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(1), i)
 
-	i, err = Int64Arg(1.5)
+	i, err = int64Arg(1.5)
 	assert.EqualError(t, err, "1.5 is not an int64")
 	assert.Equal(t, int64(0), i)
 
-	i, err = Int64Arg("1")
+	i, err = int64Arg("1")
 	assert.EqualError(t, err, "1 is not an int64")
 	assert.Equal(t, int64(0), i)
 
-	i, err = Int64Arg(nil)
+	i, err = int64Arg(nil)
 	assert.EqualError(t, err, "<nil> is not an int64")
 	assert.Equal(t, int64(0), i)
 }
 
 func TestArgsDurationArg(t *testing.T) {
-	d, err := DurationArg("11ms")
+	d, err := durationArg("11ms")
 	assert.Nil(t, err)
 	assert.Equal(t, 11*time.Millisecond, d)
 
-	d, err = DurationArg(12 * time.Millisecond)
+	d, err = durationArg(12 * time.Millisecond)
 	assert.Nil(t, err)
 	assert.Equal(t, 12*time.Millisecond, d)
 
-	d, err = DurationArg("-1ms")
+	d, err = durationArg("-1ms")
 	assert.EqualError(t, err, "duration -1ms is negative")
 	assert.Equal(t, time.Duration(0), d)
 
-	d, err = DurationArg("ms")
+	d, err = durationArg("ms")
 	assert.EqualError(t, err, `time: invalid duration "ms"`)
 	assert.Equal(t, time.Duration(0), d)
 
-	d, err = DurationArg(11)
+	d, err = durationArg(11)
 	assert.EqualError(t, err, "11 is not a duration")
 	assert.Equal(t, time.Duration(0), d)
 
-	d, err = DurationArg(1.1)
+	d, err = durationArg(1.1)
 	assert.EqualError(t, err, "1.1 is not a duration")
 	assert.Equal(t, time.Duration(0), d)
 
-	d, err = DurationArg(nil)
+	d, err = durationArg(nil)
 	assert.EqualError(t, err, "<nil> is not a duration")
 	assert.Equal(t, time.Duration(0), d)
 }
 
 func TestArgsDurationOrNumberArg(t *testing.T) {
-	d, err := DurationOrNumberArg(11, time.Second)
+	d, err := durationOrNumberArg(11, time.Second)
 	assert.Nil(t, err)
 	assert.Equal(t, 11*time.Second, d)
 
-	d, err = DurationOrNumberArg(1.1, time.Millisecond)
+	d, err = durationOrNumberArg(1.1, time.Millisecond)
 	assert.Nil(t, err)
 	assert.Equal(t, 1100*time.Microsecond, d)
 
-	d, err = DurationOrNumberArg(0.5, time.Millisecond)
+	d, err = durationOrNumberArg(0.5, time.Millisecond)
 	assert.Nil(t, err)
 	assert.Equal(t, 500*time.Microsecond, d)
 
-	d, err = DurationOrNumberArg("1ms", time.Second)
+	d, err = durationOrNumberArg("1ms", time.Second)
 	assert.Nil(t, err)
 	assert.Equal(t, 1*time.Millisecond, d)
 
-	d, err = DurationOrNumberArg(1*time.Millisecond, time.Second)
+	d, err = durationOrNumberArg(1*time.Millisecond, time.Second)
 	assert.Nil(t, err)
 	assert.Equal(t, 1*time.Millisecond, d)
 
-	d, err = DurationOrNumberArg("-1ms", time.Second)
+	d, err = durationOrNumberArg("-1ms", time.Second)
 	assert.EqualError(t, err, "duration -1ms is negative")
 	assert.Equal(t, time.Duration(0), d)
 
-	d, err = DurationOrNumberArg("ms", time.Second)
+	d, err = durationOrNumberArg("ms", time.Second)
 	assert.EqualError(t, err, `time: invalid duration "ms"`)
 	assert.Equal(t, time.Duration(0), d)
 
-	d, err = DurationOrNumberArg(nil, time.Second)
+	d, err = durationOrNumberArg(nil, time.Second)
 	assert.EqualError(t, err, "<nil> is not a duration")
 	assert.Equal(t, time.Duration(0), d)
 }

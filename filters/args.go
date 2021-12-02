@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-func StringArg(x interface{}) (string, error) {
+func stringArg(x interface{}) (string, error) {
 	if s, ok := x.(string); ok {
 		return s, nil
 	}
 	return "", fmt.Errorf("%v is not a string", x)
 }
 
-func Float64Arg(x interface{}) (float64, error) {
+func float64Arg(x interface{}) (float64, error) {
 	switch f := x.(type) {
 	case float64:
 		return f, nil
@@ -24,7 +24,7 @@ func Float64Arg(x interface{}) (float64, error) {
 	return 0, fmt.Errorf("%v is not a float64", x)
 }
 
-func IntArg(x interface{}) (int, error) {
+func intArg(x interface{}) (int, error) {
 	switch i := x.(type) {
 	case int:
 		return i, nil
@@ -38,7 +38,7 @@ func IntArg(x interface{}) (int, error) {
 	return 0, fmt.Errorf("%v is not an integer", x)
 }
 
-func Int64Arg(x interface{}) (int64, error) {
+func int64Arg(x interface{}) (int64, error) {
 	switch i := x.(type) {
 	case int64:
 		return i, nil
@@ -57,7 +57,7 @@ func Int64Arg(x interface{}) (int64, error) {
 // Converts string argument into time.Duration using time.ParseDuration.
 // Uses time.Duration argument as is.
 // Returns error if duration is negative.
-func DurationArg(x interface{}) (time.Duration, error) {
+func durationArg(x interface{}) (time.Duration, error) {
 	var d time.Duration
 	switch t := x.(type) {
 	case time.Duration:
@@ -77,9 +77,9 @@ func DurationArg(x interface{}) (time.Duration, error) {
 	return d, nil
 }
 
-// Converts int or float64 argument into time.Duration multiplying by scale argument otherwise delegates to DurationArg.
+// Converts int or float64 argument into time.Duration multiplying by scale argument otherwise delegates to durationArg.
 // Returns error if duration is negative.
-func DurationOrNumberArg(x interface{}, scale time.Duration) (time.Duration, error) {
+func durationOrNumberArg(x interface{}, scale time.Duration) (time.Duration, error) {
 	var d time.Duration
 	switch t := x.(type) {
 	case int:
@@ -88,7 +88,7 @@ func DurationOrNumberArg(x interface{}, scale time.Duration) (time.Duration, err
 		// convert scale to float64 to support t < 1.0
 		d = time.Duration(t * float64(scale))
 	default:
-		return DurationArg(x)
+		return durationArg(x)
 	}
 	if d < 0 {
 		return 0, fmt.Errorf("duration %v is negative", x)
@@ -120,7 +120,7 @@ func Args(args []interface{}) *FilterArgs {
 
 func (a *FilterArgs) String() (_ string) {
 	if x, ok := a.next(); ok {
-		if s, err := StringArg(x); err == nil {
+		if s, err := stringArg(x); err == nil {
 			return s
 		} else {
 			a.error(err)
@@ -143,7 +143,7 @@ func (a *FilterArgs) Strings() (result []string) {
 	hasErr := false
 	for _, x := range a.args[a.pos:] {
 		a.pos++
-		if s, err := StringArg(x); err == nil {
+		if s, err := stringArg(x); err == nil {
 			result = append(result, s)
 		} else {
 			a.error(err)
@@ -158,7 +158,7 @@ func (a *FilterArgs) Strings() (result []string) {
 
 func (a *FilterArgs) Float64() (_ float64) {
 	if x, ok := a.next(); ok {
-		if f, err := Float64Arg(x); err == nil {
+		if f, err := float64Arg(x); err == nil {
 			return f
 		} else {
 			a.error(err)
@@ -176,7 +176,7 @@ func (a *FilterArgs) OptionalFloat64(defaultValue float64) float64 {
 
 func (a *FilterArgs) Int64() (_ int64) {
 	if x, ok := a.next(); ok {
-		if i, err := Int64Arg(x); err == nil {
+		if i, err := int64Arg(x); err == nil {
 			return i
 		} else {
 			a.error(err)
@@ -194,7 +194,7 @@ func (a *FilterArgs) OptionalInt64(defaultValue int64) int64 {
 
 func (a *FilterArgs) Int() (_ int) {
 	if x, ok := a.next(); ok {
-		if i, err := IntArg(x); err == nil {
+		if i, err := intArg(x); err == nil {
 			return i
 		} else {
 			a.error(err)
@@ -212,7 +212,7 @@ func (a *FilterArgs) OptionalInt(defaultValue int) int {
 
 func (a *FilterArgs) Duration() (_ time.Duration) {
 	if x, ok := a.next(); ok {
-		if d, err := DurationArg(x); err == nil {
+		if d, err := durationArg(x); err == nil {
 			return d
 		} else {
 			a.error(err)
@@ -231,7 +231,7 @@ func (a *FilterArgs) OptionalDuration(defaultValue time.Duration) time.Duration 
 // introduced for backwards compatibility, use Duration
 func (a *FilterArgs) DurationOrMilliseconds() (_ time.Duration) {
 	if x, ok := a.next(); ok {
-		if d, err := DurationOrNumberArg(x, time.Millisecond); err == nil {
+		if d, err := durationOrNumberArg(x, time.Millisecond); err == nil {
 			return d
 		} else {
 			a.error(err)
@@ -251,7 +251,7 @@ func (a *FilterArgs) OptionalDurationOrMilliseconds(defaultValue time.Duration) 
 // introduced for backwards compatibility, use Duration
 func (a *FilterArgs) DurationOrSeconds() (_ time.Duration) {
 	if x, ok := a.next(); ok {
-		if d, err := DurationOrNumberArg(x, time.Second); err == nil {
+		if d, err := durationOrNumberArg(x, time.Second); err == nil {
 			return d
 		} else {
 			a.error(err)
