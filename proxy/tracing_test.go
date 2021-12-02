@@ -126,11 +126,12 @@ func TestTracingIngressSpan(t *testing.T) {
 	//verifyTag(t, span, HTTPUrlTag, "/hello?world") // For server requests there is no scheme://host:port, see https://golang.org/pkg/net/http/#Request
 	verifyTag(t, span, HTTPMethodTag, "GET")
 	verifyTag(t, span, HostnameTag, "ingress.tracing.test")
-	// verifyTag(t, span, HTTPRemoteAddrTag, "")
 	verifyTag(t, span, HTTPPathTag, "/hello")
 	verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
 	verifyTag(t, span, HTTPStatusCodeTag, uint16(200))
+	verifyHasTag(t, span, HTTPRemoteAddrTag)
+	verifyHasTag(t, span, HTTPRemoteIPTag)
 }
 
 func TestTracingSpanName(t *testing.T) {
@@ -276,11 +277,12 @@ func TestTracingProxySpan(t *testing.T) {
 	verifyTag(t, span, HTTPUrlTag, "http://"+backendAddr+"/bye") // proxy removes query
 	verifyTag(t, span, HTTPMethodTag, "GET")
 	verifyTag(t, span, HostnameTag, "proxy.tracing.test")
-	verifyTag(t, span, HTTPRemoteAddrTag, "")
 	verifyTag(t, span, HTTPPathTag, "/bye")
 	verifyTag(t, span, HTTPHostTag, backendAddr)
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
 	verifyTag(t, span, HTTPStatusCodeTag, uint16(204))
+	verifyNoTag(t, span, HTTPRemoteAddrTag)
+	verifyNoTag(t, span, HTTPRemoteIPTag)
 }
 
 func TestTracingProxySpanWithRetry(t *testing.T) {
@@ -525,7 +527,22 @@ func findSpan(tracer *mocktracer.MockTracer, name string) (*mocktracer.MockSpan,
 }
 
 func verifyTag(t *testing.T, span *mocktracer.MockSpan, name string, expected interface{}) {
+	t.Helper()
 	if got := span.Tag(name); got != expected {
-		t.Errorf("unexpected '%s' tag: '%v' != '%v', span : %v", name, got, expected, span)
+		t.Errorf("unexpected '%s' tag value: '%v' != '%v'", name, got, expected)
+	}
+}
+
+func verifyNoTag(t *testing.T, span *mocktracer.MockSpan, name string) {
+	t.Helper()
+	if got, ok := span.Tags()[name]; ok {
+		t.Errorf("unexpected '%s' tag: '%v'", name, got)
+	}
+}
+
+func verifyHasTag(t *testing.T, span *mocktracer.MockSpan, name string) {
+	t.Helper()
+	if got, ok := span.Tags()[name]; !ok || got == "" {
+		t.Errorf("expected '%s' tag", name)
 	}
 }
