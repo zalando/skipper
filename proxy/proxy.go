@@ -1433,7 +1433,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
 	}
 
-	p.tracing.setTag(span, SpanKindTag, SpanKindServer)
+	p.tracing.
+		setTag(span, SpanKindTag, SpanKindServer).
+		setTag(span, HTTPRemoteAddrTag, r.RemoteAddr).
+		setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 
@@ -1477,8 +1480,6 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 		setTag(s, ComponentTag, "skipper").
 		setTag(s, HTTPMethodTag, r.Method).
 		setTag(s, HostnameTag, p.hostname).
-		setTag(s, HTTPRemoteAddrTag, r.RemoteAddr).
-		setTag(s, HTTPRemoteIPTag, stripPort(r.RemoteAddr)).
 		setTag(s, HTTPPathTag, u.Path).
 		setTag(s, HTTPHostTag, r.Host)
 	if val := r.Header.Get("X-Flow-Id"); val != "" {
