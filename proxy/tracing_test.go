@@ -130,7 +130,6 @@ func TestTracingIngressSpan(t *testing.T) {
 	verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
 	verifyTag(t, span, HTTPStatusCodeTag, uint16(200))
-	verifyHasTag(t, span, HTTPRemoteAddrTag)
 	verifyHasTag(t, span, HTTPRemoteIPTag)
 }
 
@@ -281,7 +280,6 @@ func TestTracingProxySpan(t *testing.T) {
 	verifyTag(t, span, HTTPHostTag, backendAddr)
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
 	verifyTag(t, span, HTTPStatusCodeTag, uint16(204))
-	verifyNoTag(t, span, HTTPRemoteAddrTag)
 	verifyNoTag(t, span, HTTPRemoteIPTag)
 }
 
@@ -469,7 +467,7 @@ func TestSetDisabledTags(t *testing.T) {
 	tracing := newProxyTracing(&OpenTracingParams{
 		Tracer: tracer,
 		ExcludeTags: []string{
-			SkipperRouteTag,
+			SkipperRouteIDTag,
 		},
 	})
 	span := tracer.StartSpan("test")
@@ -477,7 +475,7 @@ func TestSetDisabledTags(t *testing.T) {
 
 	tracing.setTag(span, HTTPStatusCodeTag, 200)
 	tracing.setTag(span, ComponentTag, "skipper")
-	tracing.setTag(span, SkipperRouteTag, "long route definition")
+	tracing.setTag(span, SkipperRouteIDTag, "long_route_id")
 
 	mockSpan := span.(*mocktracer.MockSpan)
 
@@ -485,7 +483,7 @@ func TestSetDisabledTags(t *testing.T) {
 
 	_, ok := tags[HTTPStatusCodeTag]
 	_, ok2 := tags[ComponentTag]
-	_, ok3 := tags[SkipperRouteTag]
+	_, ok3 := tags[SkipperRouteIDTag]
 
 	if !ok || !ok2 {
 		t.Errorf("could not set tags although they were not configured to be excluded")

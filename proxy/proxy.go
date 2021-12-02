@@ -1435,7 +1435,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	p.tracing.
 		setTag(span, SpanKindTag, SpanKindServer).
-		setTag(span, HTTPRemoteAddrTag, r.RemoteAddr).
 		setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
