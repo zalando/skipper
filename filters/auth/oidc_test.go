@@ -1039,3 +1039,11 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 		})
 	}
 }
+func Test_extractDomainFromHost(t *testing.T) {
+	assert.New(t)
+
+	var host = "dev.applications.example.org"
+	result := extractDomainFromHost(host)
+
+	assert.Equal(t, host, result, "not equal")
+}
