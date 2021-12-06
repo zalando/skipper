@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"github.com/MicahParks/keyfunc"
-	"github.com/golang-jwt/jwt/v4"
+	jwt "github.com/golang-jwt/jwt/v4"
 	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper/filters"
 )
 
