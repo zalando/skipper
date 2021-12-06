@@ -1367,7 +1367,7 @@ Skipper arguments:
 ```
 oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
     "http://target.example.com/subpath/callback", "email profile", "name email picture",
-    "parameter=value", "X-Auth-Authorization:claims.email")
+    "parameter=value", "X-Auth-Authorization:claims.email", "0")
 ```
 
 The filter needs the following parameters:
@@ -1381,6 +1381,7 @@ The filter needs the following parameters:
 * **Claims** The claims which should be present in the token returned by the provider.
 * **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
 * **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
+* **SubdomainsToRemove** (optional) The setting configures hostname used to store oidc cookie. If skipper is being used in front of multiple domenvironments configured on subdomains one can store cookie to a parent domain in order to keep authentication info for all the environments. The non-negative integer configures a number of subdomain levels which must be removed from initial hostname. If no value set one subdomain will be removed from hostnames containing more then 2 domain levels (www.example.com -> example.com). Set 0 to skip this behaviour and not remove anything.
 
 ## oauthOidcAnyClaims
 

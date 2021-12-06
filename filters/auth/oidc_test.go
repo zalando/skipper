@@ -431,19 +431,24 @@ func TestOidcValidateAnyClaims(t *testing.T) {
 func TestExtractDomainFromHost(t *testing.T) {
 
 	for _, ht := range []struct {
-		given    string
-		expected string
+		given               string
+		expected            string
+		domainLevelToRemove int
 	}{
-		{"localhost", "localhost"},
-		{"localhost.localdomain", "localhost.localdomain"},
-		{"www.example.local", "example.local"},
-		{"one.two.three.www.example.local", "two.three.www.example.local"},
-		{"localhost:9990", "localhost"},
-		{"www.example.local:9990", "example.local"},
-		{"127.0.0.1:9090", "127.0.0.1"},
+		{"localhost", "localhost", 1},
+		{"localhost.localdomain", "localhost.localdomain", 1},
+		{"www.example.local", "example.local", 1},
+		{"one.two.three.www.example.local", "two.three.www.example.local", 1},
+		{"localhost:9990", "localhost", 1},
+		{"www.example.local:9990", "example.local", 1},
+		{"127.0.0.1:9090", "127.0.0.1", 1},
+		{"www.example.com", "www.example.com", 0},
+		{"example.com", "example.com", 1},
+		{"test.app.example.com", "example.com", 2},
+		{"test.example.com", "test.example.com", 2},
 	} {
 		t.Run(fmt.Sprintf("test:%s", ht.given), func(t *testing.T) {
-			got := extractDomainFromHost(ht.given)
+			got := extractDomainFromHost(ht.given, ht.domainLevelToRemove)
 			assert.Equal(t, ht.expected, got)
 		})
 	}
@@ -549,6 +554,87 @@ func TestCreateFilterOIDC(t *testing.T) {
 
 			if got == nil && !tt.wantErr {
 				t.Errorf("Failed to create filter: got %v", got)
+			}
+		})
+	}
+}
+
+func TestCreateFilterOIDC_subdomainsToRemove(t *testing.T) {
+	oidcServer := createOIDCServer("", "", "")
+	defer oidcServer.Close()
+
+	for _, tt := range []struct {
+		name          string
+		args          []interface{}
+		wantErr       bool
+		expectedValue int
+	}{
+		{
+			name: "test default value",
+			args: []interface{}{
+				oidcServer.URL,               // provider/issuer
+				"",                           // client ID
+				"",                           // client secret
+				oidcServer.URL + "/redirect", // redirect URL
+				"",                           // scopes
+				"",                           // claims
+			},
+			wantErr:       false,
+			expectedValue: 1,
+		},
+		{
+			name: "test proper value",
+			args: []interface{}{
+				oidcServer.URL,               // provider/issuer
+				"",                           // client ID
+				"",                           // client secret
+				oidcServer.URL + "/redirect", // redirect URL
+				"",                           // scopes
+				"",                           // claims
+				"",
+				"",
+				"10",
+			},
+			wantErr:       false,
+			expectedValue: 10,
+		},
+		{
+			name: "test negative value",
+			args: []interface{}{
+				oidcServer.URL,               // provider/issuer
+				"",                           // client ID
+				"",                           // client secret
+				oidcServer.URL + "/redirect", // redirect URL
+				"",                           // scopes
+				"",                           // claims
+				"",
+				"",
+				"-1",
+			},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := &tokenOidcSpec{
+				typ:             checkOIDCAllClaims,
+				SecretsFile:     "/foo",
+				secretsRegistry: secrettest.NewTestRegistry(),
+			}
+
+			got, err := spec.CreateFilter(tt.args)
+			if tt.wantErr && err == nil {
+				t.Errorf("Failed to get error but wanted, got: %v", got)
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("Failed to get no error: %v", err)
+			}
+
+			if got == nil && !tt.wantErr {
+				t.Errorf("Failed to create filter: got %v", got)
+			}
+
+			if !tt.wantErr && tt.expectedValue != got.(*tokenOidcFilter).subdomainsToRemove {
+				t.Errorf("Expected value %d but got %d", tt.expectedValue, got.(*tokenOidcFilter).subdomainsToRemove)
 			}
 		})
 	}
@@ -1038,12 +1124,4 @@ func Test_tokenOidcFilter_getMaxAge(t *testing.T) {
 				fmt.Sprintf("maxAge has to be within [%s - 1m, %s]", tt.want, tt.want))
 		})
 	}
-}
-func Test_extractDomainFromHost(t *testing.T) {
-	assert.New(t)
-
-	var host = "dev.applications.example.org"
-	result := extractDomainFromHost(host)
-
-	assert.Equal(t, host, result, "not equal")
 }
