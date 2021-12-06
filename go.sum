@@ -14,10 +14,6 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/HdrHistogram/hdrhistogram-go v1.1.0 h1:6dpdDPTRoo78HxAJ6T1HfMiKSnqhgRRqzCuPshRkQ7I=
 github.com/HdrHistogram/hdrhistogram-go v1.1.0/go.mod h1:yDgFjdqOqDEKOvasDdhWNXYg9BVp4O+o5f6V/ehm6Oo=
-github.com/MicahParks/keyfunc v0.9.0 h1:ada84OuqzwCQLZ/mssYpzzpaAilaIWP45bXzxXmnRuo=
-github.com/MicahParks/keyfunc v0.9.0/go.mod h1:R8RZa27qn+5cHTfYLJ9/+7aSb5JIdz7cl0XFo0o4muo=
-github.com/MicahParks/keyfunc v0.10.1-0.20211203185044-1ed9d36ab59c h1:gj6H15VTjg+xISYdRSprR2MA6b/djCoLm1/W/cl1Ly8=
-github.com/MicahParks/keyfunc v0.10.1-0.20211203185044-1ed9d36ab59c/go.mod h1:R8RZa27qn+5cHTfYLJ9/+7aSb5JIdz7cl0XFo0o4muo=
 github.com/MicahParks/keyfunc v1.0.0 h1:O9VAkG6q/LqX4eS+HuIsW9KfC/Luh2NBQr9v4NiwHU0=
 github.com/MicahParks/keyfunc v1.0.0/go.mod h1:R8RZa27qn+5cHTfYLJ9/+7aSb5JIdz7cl0XFo0o4muo=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
