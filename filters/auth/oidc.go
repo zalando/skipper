@@ -177,10 +177,6 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		if subdomainsToRemove < 0 {
 			return nil, fmt.Errorf("domain level cannot be negative '%s'", sargs[paramSubdomainsToRemove])
 		}
-
-		if err != nil || sargs[paramCallbackURL] == "" {
-			return nil, fmt.Errorf("invalid redirect url '%s': %v", sargs[paramCallbackURL], err)
-		}
 	}
 
 	f := &tokenOidcFilter{
