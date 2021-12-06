@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/MicahParks/keyfunc"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/filters"
 )
 
@@ -33,7 +34,7 @@ var refreshRateLimit = time.Minute * 5
 var refreshTimeout = time.Second * 10
 var refreshUnknownKID = true
 
-// the map of jwks keyfunctions stored per jwksUri
+//the map of jwks keyfunctions stored per jwksUri
 var jwksMap map[string]*keyfunc.JWKS = make(map[string]*keyfunc.JWKS)
 
 func NewJwtValidationWithOptions(o TokenintrospectionOptions) filters.Spec {
