@@ -33,8 +33,8 @@ var refreshRateLimit = time.Minute * 5
 var refreshTimeout = time.Second * 10
 var refreshUnknownKID = true
 
-//the map of jwks keyfunctions stored per jwksUri
-var jwksMap map[string]*keyfunc.JWKs = make(map[string]*keyfunc.JWKs)
+// the map of jwks keyfunctions stored per jwksUri
+var jwksMap map[string]*keyfunc.JWKS = make(map[string]*keyfunc.JWKS)
 
 func NewJwtValidationWithOptions(o TokenintrospectionOptions) filters.Spec {
 	return &jwtValidationSpec{
@@ -82,7 +82,7 @@ func hasKeyFunction(url string) bool {
 	return ok
 }
 
-func putKeyFunction(url string, jwks *keyfunc.JWKs) {
+func putKeyFunction(url string, jwks *keyfunc.JWKS) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -98,22 +98,22 @@ func registerKeyFunction(url string) (err error) {
 		RefreshErrorHandler: func(err error) {
 			log.Errorf("There was an error on key refresh for the given URL %s\nError:%s\n", url, err.Error())
 		},
-		RefreshInterval:   &refreshInterval,
-		RefreshRateLimit:  &refreshRateLimit,
-		RefreshTimeout:    &refreshTimeout,
-		RefreshUnknownKID: &refreshUnknownKID,
+		RefreshInterval:   refreshInterval,
+		RefreshRateLimit:  refreshRateLimit,
+		RefreshTimeout:    refreshTimeout,
+		RefreshUnknownKID: refreshUnknownKID,
 	}
 
 	jwks, err := keyfunc.Get(url, options)
 	if err != nil {
-		return fmt.Errorf("failed to get the JWKs from the given URL %s Error:%w", url, err)
+		return fmt.Errorf("failed to get the JWKS from the given URL %s Error:%w", url, err)
 	}
 
 	putKeyFunction(url, jwks)
 	return nil
 }
 
-func getKeyFunction(url string) (jwks *keyfunc.JWKs) {
+func getKeyFunction(url string) (jwks *keyfunc.JWKS) {
 	m.RLock()
 	defer m.RUnlock()
 

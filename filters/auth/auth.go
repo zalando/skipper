@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/filters"
 	logfilter "github.com/zalando/skipper/filters/log"
 )
@@ -37,7 +38,7 @@ type rejectReason string
 const (
 	missingBearerToken rejectReason = "missing-bearer-token"
 	missingToken       rejectReason = "missing-token"
-	missingJWKs        rejectReason = "missing-jwks"
+	missingJWKS        rejectReason = "missing-jwks"
 	authServiceAccess  rejectReason = "auth-service-access"
 	invalidSub         rejectReason = "invalid-sub-in-token"
 	inactiveToken      rejectReason = "inactive-token"
