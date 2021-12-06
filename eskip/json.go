@@ -10,14 +10,6 @@ type jsonNameArgs struct {
 	Args []interface{} `json:"args"`
 }
 
-func newJSONNameArgs(name string, args []interface{}) *jsonNameArgs {
-	if args == nil {
-		args = []interface{}{}
-	}
-
-	return &jsonNameArgs{Name: name, Args: args}
-}
-
 type jsonBackend struct {
 	Type      string   `json:"type"`
 	Address   string   `json:"address,omitempty"`
@@ -26,10 +18,10 @@ type jsonBackend struct {
 }
 
 type jsonRoute struct {
-	ID         string       `json:"id"`
+	ID         string       `json:"id,omitempty"`
 	Backend    *jsonBackend `json:"backend"`
-	Predicates []*Predicate `json:"predicates"`
-	Filters    []*Filter    `json:"filters"`
+	Predicates []*Predicate `json:"predicates,omitempty"`
+	Filters    []*Filter    `json:"filters,omitempty"`
 }
 
 func newJSONRoute(r *Route) *jsonRoute {
@@ -61,11 +53,11 @@ func marshalJSONNoEscape(v interface{}) ([]byte, error) {
 }
 
 func (f *Filter) MarshalJSON() ([]byte, error) {
-	return marshalJSONNoEscape(newJSONNameArgs(f.Name, f.Args))
+	return marshalJSONNoEscape(&jsonNameArgs{Name: f.Name, Args: f.Args})
 }
 
 func (p *Predicate) MarshalJSON() ([]byte, error) {
-	return marshalJSONNoEscape(newJSONNameArgs(p.Name, p.Args))
+	return marshalJSONNoEscape(&jsonNameArgs{Name: p.Name, Args: p.Args})
 }
 
 func (r *Route) MarshalJSON() ([]byte, error) {
@@ -91,10 +83,19 @@ func (r *Route) UnmarshalJSON(b []byte) error {
 	case LBBackend:
 		r.LBAlgorithm = jr.Backend.Algorithm
 		r.LBEndpoints = jr.Backend.Endpoints
+		if len(r.LBEndpoints) == 0 {
+			r.LBEndpoints = nil
+		}
 	}
 
 	r.Filters = jr.Filters
+	if len(r.Filters) == 0 {
+		r.Filters = nil
+	}
 	r.Predicates = jr.Predicates
+	if len(r.Predicates) == 0 {
+		r.Predicates = nil
+	}
 
 	return nil
 }

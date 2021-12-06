@@ -7,7 +7,6 @@
     "items": {
         "type": "object",
         "required": [
-            "predicates",
             "backend"
         ],
         "properties": {
