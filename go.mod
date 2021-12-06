@@ -2,7 +2,7 @@ module github.com/zalando/skipper
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.0 // indirect
-	github.com/MicahParks/keyfunc v0.9.0
+	github.com/MicahParks/keyfunc v1.0.0
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/aryszka/jobqueue v0.0.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
