@@ -1381,7 +1381,7 @@ The filter needs the following parameters:
 * **Claims** The claims which should be present in the token returned by the provider.
 * **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
 * **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
-* **SubdomainsToRemove** (optional) The setting configures hostname used to store oidc cookie. If skipper is being used in front of multiple domenvironments configured on subdomains one can store cookie to a parent domain in order to keep authentication info for all the environments. The non-negative integer configures a number of subdomain levels which must be removed from initial hostname. If no value set one subdomain will be removed from hostnames containing more then 2 domain levels (www.example.com -> example.com). Set 0 to skip this behaviour and not remove anything.
+* **SubdomainsToRemove** (optional, default "1") Configures number of subdomains to remove from the request hostname to derive OIDC cookie domain. By default one subdomain is removed, e.g. for the www.example.com request hostname the OIDC cookie domain will be example.com. Configure "0" to use the same hostname. Note that value is a string.
 
 ## oauthOidcAnyClaims
 
