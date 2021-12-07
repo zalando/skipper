@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -29,6 +30,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/net/dnstest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -42,6 +44,7 @@ const (
 	validCode         = "valid-code"
 	validRefreshToken = "valid-refresh-token"
 	validAccessToken  = "valid-access-token"
+	tokenExp          = 2 * time.Hour
 
 	certPath = "../../skptesting/cert.pem"
 	keyPath  = "../../skptesting/key.pem"
@@ -224,7 +227,7 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 					"sub":   testSub,
 					"aud":   validClient,
 					"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
-					"exp":   time.Now().Add(2 * time.Hour).UTC().Unix(),
+					"exp":   time.Now().Add(tokenExp).UTC().Unix(),
 					"groups": []string{
 						"CD-Administrators",
 						"Purchasing-Department",
@@ -553,20 +556,31 @@ func TestCreateFilterOIDC(t *testing.T) {
 }
 
 func TestOIDCSetup(t *testing.T) {
+	dnstest.LoopbackNames(t, "skipper.test", "foo.skipper.test", "bar.foo.skipper.test")
+
+	setHostname := func(u *url.URL, name string) {
+		if name != "" {
+			u.Host = net.JoinHostPort(name, u.Port())
+		}
+	}
+
 	for _, tc := range []struct {
-		msg             string
-		provider        string
-		client          string
-		clientsecret    string
-		scopes          []string
-		claims          []string
-		authCodeOpts    []string
-		queries         []string
-		authType        roleCheckType
-		upstreamheaders string
-		expected        int
-		expectErr       bool
-		expectRequest   string
+		msg                string
+		hostname           string
+		provider           string
+		client             string
+		clientsecret       string
+		scopes             []string
+		claims             []string
+		authCodeOpts       []string
+		queries            []string
+		authType           roleCheckType
+		upstreamheaders    string
+		expected           int
+		expectErr          bool
+		expectRequest      string
+		expectNoCookies    bool
+		expectCookieDomain string
 	}{{
 		msg:       "wrong provider",
 		provider:  "no url",
@@ -649,14 +663,15 @@ func TestOIDCSetup(t *testing.T) {
 		scopes:       []string{"uid"},
 		claims:       []string{"sub", "uid"},
 	}, {
-		msg:          "has authType, all claims valid and scopes",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAllClaims,
-		expected:     401,
-		expectErr:    false,
-		scopes:       []string{"invalid"},
-		claims:       []string{testKey},
+		msg:             "has authType, all claims: valid claims and invalid scope",
+		client:          validClient,
+		clientsecret:    "mysec",
+		authType:        checkOIDCAllClaims,
+		expected:        401,
+		expectErr:       false,
+		scopes:          []string{"invalid"},
+		claims:          []string{testKey},
+		expectNoCookies: true, // 401 returned by OIDC server due to invalid scope before redirect
 	}, {
 		msg:          "has authType, all claims valid and invalid",
 		client:       validClient,
@@ -702,10 +717,33 @@ func TestOIDCSetup(t *testing.T) {
 		queries:      []string{"foo=bar"},
 		expected:     200,
 		expectErr:    false,
+	}, {
+		msg:                "cookie domain for skipper.test",
+		hostname:           "skipper.test",
+		client:             validClient,
+		clientsecret:       "mysec",
+		authType:           checkOIDCUserInfo,
+		expected:           200,
+		expectCookieDomain: "skipper.test",
+	}, {
+		msg:                "cookie domain for foo.skipper.test",
+		hostname:           "foo.skipper.test",
+		client:             validClient,
+		clientsecret:       "mysec",
+		authType:           checkOIDCUserInfo,
+		expected:           200,
+		expectCookieDomain: "skipper.test",
+	}, {
+		msg:                "cookie domain for bar.foo.skipper.test",
+		hostname:           "bar.foo.skipper.test",
+		client:             validClient,
+		clientsecret:       "mysec",
+		authType:           checkOIDCUserInfo,
+		expected:           200,
+		expectCookieDomain: "foo.skipper.test",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				t.Logf("backend got request: %+v", r)
 				requestDump, _ := httputil.DumpRequest(r, false)
 				assert.Contains(t, string(requestDump), tc.expectRequest, "expected request not fulfilled")
 				w.Write([]byte("OK"))
@@ -726,12 +764,15 @@ func TestOIDCSetup(t *testing.T) {
 				Log:         loggingtest.New(),
 			})
 			defer proxy.Close()
-			reqURL, err := url.Parse(proxy.URL)
-			if err != nil {
-				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-			}
 
-			oidcServer := createOIDCServer(proxy.URL+"/redirect", tc.client, tc.clientsecret)
+			reqURL, _ := url.Parse(proxy.URL)
+			setHostname(reqURL, tc.hostname)
+
+			redirectURL, _ := url.Parse(proxy.URL)
+			setHostname(redirectURL, tc.hostname)
+			redirectURL.Path = "/redirect"
+
+			oidcServer := createOIDCServer(redirectURL.String(), tc.client, tc.clientsecret)
 			defer oidcServer.Close()
 			t.Logf("oidc/auth server URL: %s", oidcServer.URL)
 
@@ -739,7 +780,7 @@ func TestOIDCSetup(t *testing.T) {
 			sargs := []interface{}{
 				tc.client,
 				tc.clientsecret,
-				proxy.URL + "/redirect",
+				redirectURL.String(),
 			}
 
 			// test that, we get an error if provider is no url
@@ -814,23 +855,30 @@ func TestOIDCSetup(t *testing.T) {
 			}
 			defer resp.Body.Close()
 
-			var b []byte
 			if resp.StatusCode != tc.expected {
 				t.Logf("response: %+v", resp)
 				t.Errorf("auth filter failed got=%d, expected=%d, route=%s", resp.StatusCode, tc.expected, r)
-				b, err = io.ReadAll(resp.Body)
+				b, err := io.ReadAll(resp.Body)
 				if err != nil {
 					t.Fatalf("Failed to read response body: %v", err)
 				}
+				t.Logf("Got body: %s", string(b))
 			}
-			bs := string(b)
-			t.Logf("Got body: %s", bs)
 
-			// make sure cookies have correct maxAge according to exp
-			for _, c := range client.Jar.Cookies(reqURL) {
-				maxAge := time.Duration(c.MaxAge) * time.Second
-				assert.True(t, maxAge >= 2*time.Hour-time.Minute && maxAge <= 2*time.Hour,
-					"maxAge has to be within [2h - 1m, 2h]")
+			cookies := client.Jar.Cookies(reqURL)
+			if tc.expectNoCookies {
+				assert.Empty(t, cookies)
+			} else {
+				assert.NotEmpty(t, cookies)
+				for _, c := range cookies {
+					if tc.expectCookieDomain != "" {
+						assert.Equal(t, tc.expectCookieDomain, c.Domain)
+					}
+					// make sure cookies have correct maxAge according to exp claim
+					left, right := tokenExp-time.Minute, tokenExp
+					maxAge := time.Duration(c.MaxAge) * time.Second
+					assert.True(t, left <= maxAge && maxAge <= right, "maxAge has to be within [%v, %v]", left, right)
+				}
 			}
 		})
 	}
