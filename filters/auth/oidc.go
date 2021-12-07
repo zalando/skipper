@@ -383,10 +383,14 @@ func extractDomainFromHost(host string, subdomainsToRemove int) string {
 	if ip != nil {
 		return ip.String()
 	}
-	if 1+strings.Count(h, ".")-subdomainsToRemove < 2 {
+	if subdomainsToRemove == 0 {
 		return h
 	}
-	return strings.Join(strings.Split(h, ".")[subdomainsToRemove:], ".")
+	subDomains := strings.Split(h, ".")
+	if len(subDomains)-subdomainsToRemove < 2 {
+		return h
+	}
+	return strings.Join(subDomains[subdomainsToRemove:], ".")
 }
 
 func getHost(request *http.Request) string {
