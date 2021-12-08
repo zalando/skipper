@@ -24,7 +24,7 @@ require (
 	github.com/instana/go-sensor v1.4.16
 	github.com/lightstep/lightstep-tracer-go v0.25.0
 	github.com/looplab/fsm v0.1.0 // indirect
-	github.com/miekg/dns v1.1.41 // indirect
+	github.com/miekg/dns v1.1.43
 	github.com/oklog/ulid v1.3.1
 	github.com/opentracing/basictracer-go v1.0.0
 	github.com/opentracing/opentracing-go v1.1.0
