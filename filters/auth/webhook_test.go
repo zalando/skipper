@@ -18,13 +18,12 @@ const headerToCopy = "X-Copy-Header"
 
 func TestWebhook(t *testing.T) {
 	for _, ti := range []struct {
-		msg          string
-		token        string
-		expected     int
-		authorized   bool
-		timeout      bool
-		copyHeaders  bool
-		invalidScope bool
+		msg         string
+		token       string
+		expected    int
+		authorized  bool
+		timeout     bool
+		copyHeaders bool
 	}{{
 		msg:         "invalid-token-should-be-unauthorized",
 		token:       "invalid-token",
@@ -44,11 +43,10 @@ func TestWebhook(t *testing.T) {
 		authorized: false,
 		timeout:    true,
 	}, {
-		msg:          "invalid-scope-should-be-forbidden",
-		token:        testToken,
-		expected:     http.StatusForbidden,
-		authorized:   false,
-		invalidScope: true,
+		msg:        "invalid-scope-should-be-forbidden",
+		token:      testWebhookInvalidScopeToken,
+		expected:   http.StatusForbidden,
+		authorized: false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -80,13 +78,12 @@ func TestWebhook(t *testing.T) {
 				tok = tok[len(authHeaderPrefix):]
 				switch tok {
 				case testToken:
-					if ti.invalidScope {
-						w.WriteHeader(http.StatusForbidden)
-						fmt.Fprintln(w, "Forbidden - Got token: "+tok)
-						return
-					}
 					w.WriteHeader(http.StatusOK)
 					fmt.Fprintln(w, "OK - Got token: "+tok)
+					return
+				case testWebhookInvalidScopeToken:
+					w.WriteHeader(http.StatusForbidden)
+					fmt.Fprintln(w, "Forbidden - Got token: "+tok)
 					return
 				}
 				w.WriteHeader(http.StatusUnauthorized)
