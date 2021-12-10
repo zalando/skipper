@@ -6,20 +6,20 @@ import (
 
 type multiFlag []string
 
-func (i *multiFlag) String() string {
-	return strings.Join(*i, " ")
+func (f *multiFlag) String() string {
+	return strings.Join(*f, " ")
 }
 
-func (i *multiFlag) Set(value string) error {
-	*i = append(*i, value)
+func (f *multiFlag) Set(value string) error {
+	*f = append(*f, value)
 	return nil
 }
 
-func (r *multiFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (f *multiFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var values []string
 	if err := unmarshal(values); err != nil {
 		return err
 	}
-	*r = values
+	*f = values
 	return nil
 }
