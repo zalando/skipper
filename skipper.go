@@ -1060,6 +1060,7 @@ func listenAndServeQuit(
 	idleConnsCH chan struct{},
 	mtr metrics.Metrics,
 ) error {
+	proxy = WrapPatch(proxy)
 	tlsConfig, err := o.tlsConfig()
 	if err != nil {
 		return err
