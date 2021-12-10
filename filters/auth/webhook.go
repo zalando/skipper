@@ -109,6 +109,12 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 		log.Errorf("Failed to make authentication webhook request: %v.", err)
 	}
 
+	// forbidden
+	if err == nil && resp.StatusCode == http.StatusForbidden {
+		forbidden(ctx, "", invalidScope, filters.WebhookName)
+		return
+	}
+
 	// errors, redirects, auth errors, webhook errors
 	if err != nil || resp.StatusCode >= 300 {
 		unauthorized(ctx, "", invalidAccess, f.authClient.url.Hostname(), filters.WebhookName)

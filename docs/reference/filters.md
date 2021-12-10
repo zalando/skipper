@@ -903,8 +903,11 @@ is being done to the webhook endpoint. It is possible to copy headers
 from the webhook response into the continuing request by specifying the
 headers to copy as an optional second argument to the filter.
 
-Responses from the webhook with status code less than 300 will be
-authorized, the rest will be unauthorized.
+Responses from the webhook will be treated as follows:
+
+* Authorized if the status code is less than 300
+* Forbidden if the status code is 403
+* Unauthorized for remaining status codes
 
 Examples:
 

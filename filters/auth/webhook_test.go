@@ -42,6 +42,11 @@ func TestWebhook(t *testing.T) {
 		expected:   http.StatusUnauthorized,
 		authorized: false,
 		timeout:    true,
+	}, {
+		msg:        "invalid-scope-should-be-forbidden",
+		token:      testWebhookInvalidScopeToken,
+		expected:   http.StatusForbidden,
+		authorized: false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,8 +78,12 @@ func TestWebhook(t *testing.T) {
 				tok = tok[len(authHeaderPrefix):]
 				switch tok {
 				case testToken:
-					w.WriteHeader(200)
+					w.WriteHeader(http.StatusOK)
 					fmt.Fprintln(w, "OK - Got token: "+tok)
+					return
+				case testWebhookInvalidScopeToken:
+					w.WriteHeader(http.StatusForbidden)
+					fmt.Fprintln(w, "Forbidden - Got token: "+tok)
 					return
 				}
 				w.WriteHeader(http.StatusUnauthorized)
