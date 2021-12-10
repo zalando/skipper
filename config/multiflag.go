@@ -17,7 +17,7 @@ func (f *multiFlag) Set(value string) error {
 
 func (f *multiFlag) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var values []string
-	if err := unmarshal(values); err != nil {
+	if err := unmarshal(&values); err != nil {
 		return err
 	}
 	*f = values
