@@ -3,3 +3,6 @@ max-loopbacks: 12
 etcd-timeout: 2s
 status-checks:
 swarm-redis-password: set_from_file
+refuse-payload:
+  - foo
+  - bar

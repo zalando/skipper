@@ -82,7 +82,7 @@ func Test_NewConfig(t *testing.T) {
 		},
 		{
 			name: "test only valid flag overwrite yaml file",
-			args: []string{"skipper", "-config-file=testdata/test.yaml", "-address=localhost:8080"},
+			args: []string{"skipper", "-config-file=testdata/test.yaml", "-address=localhost:8080", "-refuse-payload=baz"},
 			want: &Config{
 				ConfigFile:                              "testdata/test.yaml",
 				Address:                                 "localhost:8080",
@@ -165,6 +165,7 @@ func Test_NewConfig(t *testing.T) {
 				ForwardedHeadersList:                    commaListFlag(),
 				ForwardedHeadersExcludeCIDRList:         commaListFlag(),
 				ClusterRatelimitMaxGroupShards:          1,
+				RefusePayload:                           multiFlag{"foo", "bar", "baz"},
 			},
 			wantErr: false,
 		},
