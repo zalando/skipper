@@ -137,6 +137,8 @@ type Config struct {
 	NormalizeHost bool          `yaml:"normalize-host"`
 	HostPatch     net.HostPatch `yaml:"-"`
 
+	RefusePayload multiFlag `yaml:"refuse-payload"`
+
 	// Kubernetes:
 	KubernetesIngress                       bool                `yaml:"kubernetes"`
 	KubernetesInCluster                     bool                `yaml:"kubernetes-in-cluster"`
@@ -385,6 +387,8 @@ func NewConfig() *Config {
 	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs")
 
 	flag.BoolVar(&cfg.NormalizeHost, "normalize-host", false, "converts request host to lowercase and removes port and trailing dot if any")
+
+	flag.Var(&cfg.RefusePayload, "refuse-payload", "refuse requests that match configured value. Can be set multiple times")
 
 	// Kubernetes:
 	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, "enables skipper to generate routes for ingress resources in kubernetes cluster. Enables -normalize-host")
@@ -877,6 +881,15 @@ func (c *Config) ToOptions() skipper.Options {
 		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
 			return &net.HostPatchHandler{
 				Patch:   c.HostPatch,
+				Handler: handler,
+			}
+		})
+	}
+
+	if len(c.RefusePayload) > 0 {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return &net.RequestMatchHandler{
+				Match:   c.RefusePayload,
 				Handler: handler,
 			}
 		})
