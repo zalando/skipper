@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +54,7 @@ const (
 	paramClaims
 	paramAuthCodeOpts
 	paramUpstrHeaders
+	paramSubdomainsToRemove
 )
 
 type (
@@ -63,19 +65,20 @@ type (
 	}
 
 	tokenOidcFilter struct {
-		typ             roleCheckType
-		config          *oauth2.Config
-		provider        *oidc.Provider
-		verifier        *oidc.IDTokenVerifier
-		claims          []string
-		validity        time.Duration
-		cookiename      string
-		redirectPath    string
-		encrypter       secrets.Encryption
-		authCodeOptions []oauth2.AuthCodeOption
-		queryParams     []string
-		compressor      cookieCompression
-		upstreamHeaders map[string]string
+		typ                roleCheckType
+		config             *oauth2.Config
+		provider           *oidc.Provider
+		verifier           *oidc.IDTokenVerifier
+		claims             []string
+		validity           time.Duration
+		cookiename         string
+		redirectPath       string
+		encrypter          secrets.Encryption
+		authCodeOptions    []oauth2.AuthCodeOption
+		queryParams        []string
+		compressor         cookieCompression
+		upstreamHeaders    map[string]string
+		subdomainsToRemove int
 	}
 
 	tokenContainer struct {
@@ -120,7 +123,7 @@ func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry *secrets.Registry
 // Example:
 //
 //     oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
-//     "http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>") -> "https://internal.example.org";
+//     "http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>", "<optional>") -> "https://internal.example.org";
 func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
@@ -165,6 +168,17 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, err
 	}
 
+	subdomainsToRemove := 1
+	if len(sargs) > paramSubdomainsToRemove && sargs[paramSubdomainsToRemove] != "" {
+		subdomainsToRemove, err = strconv.Atoi(sargs[paramSubdomainsToRemove])
+		if err != nil {
+			return nil, err
+		}
+		if subdomainsToRemove < 0 {
+			return nil, fmt.Errorf("domain level cannot be negative '%s'", sargs[paramSubdomainsToRemove])
+		}
+	}
+
 	f := &tokenOidcFilter{
 		typ:          s.typ,
 		redirectPath: redirectURL.Path,
@@ -179,10 +193,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		verifier: provider.Verifier(&oidc.Config{
 			ClientID: sargs[paramClientID],
 		}),
-		validity:   1 * time.Hour,
-		cookiename: generatedCookieName,
-		encrypter:  encrypter,
-		compressor: newDeflatePoolCompressor(flate.BestCompression),
+		validity:           1 * time.Hour,
+		cookiename:         generatedCookieName,
+		encrypter:          encrypter,
+		compressor:         newDeflatePoolCompressor(flate.BestCompression),
+		subdomainsToRemove: subdomainsToRemove,
 	}
 
 	// user defined scopes
@@ -359,7 +374,7 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 
 func (f *tokenOidcFilter) Response(filters.FilterContext) {}
 
-func extractDomainFromHost(host string) string {
+func extractDomainFromHost(host string, subdomainsToRemove int) string {
 	h, _, err := net.SplitHostPort(host)
 	if err != nil {
 		h = host
@@ -368,10 +383,14 @@ func extractDomainFromHost(host string) string {
 	if ip != nil {
 		return ip.String()
 	}
-	if strings.Count(h, ".") < 2 {
+	if subdomainsToRemove == 0 {
 		return h
 	}
-	return strings.Join(strings.Split(h, ".")[1:], ".")
+	subDomains := strings.Split(h, ".")
+	if len(subDomains)-subdomainsToRemove < 2 {
+		return h
+	}
+	return strings.Join(subDomains[subdomainsToRemove:], ".")
 }
 
 func getHost(request *http.Request) string {
@@ -434,7 +453,7 @@ func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcSt
 		Secure:   true,
 		HttpOnly: true,
 		MaxAge:   int(maxAge.Seconds()),
-		Domain:   extractDomainFromHost(getHost(ctx.Request())),
+		Domain:   extractDomainFromHost(getHost(ctx.Request()), f.subdomainsToRemove),
 	})
 	for _, cookie := range oidcCookies {
 		r.Header.Add("Set-Cookie", cookie.String())
