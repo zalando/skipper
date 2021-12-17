@@ -559,88 +559,6 @@ func TestCreateFilterOIDC(t *testing.T) {
 	}
 }
 
-func TestCreateFilterOIDC_subdomainsToRemove(t *testing.T) {
-	oidcServer := createOIDCServer("", "", "")
-	defer oidcServer.Close()
-
-	for _, tt := range []struct {
-		name          string
-		args          []interface{}
-		wantErr       bool
-		expectedValue int
-	}{
-		{
-			name: "test default value",
-			args: []interface{}{
-				oidcServer.URL,               // provider/issuer
-				"",                           // client ID
-				"",                           // client secret
-				oidcServer.URL + "/redirect", // redirect URL
-				"",                           // scopes
-				"",                           // claims
-			},
-			wantErr:       false,
-			expectedValue: 1,
-		},
-		{
-			name: "test proper value",
-			args: []interface{}{
-				oidcServer.URL,               // provider/issuer
-				"",                           // client ID
-				"",                           // client secret
-				oidcServer.URL + "/redirect", // redirect URL
-				"",                           // scopes
-				"",                           // claims
-				"",
-				"",
-				"10",
-			},
-			wantErr:       false,
-			expectedValue: 10,
-		},
-		{
-			name: "test negative value",
-			args: []interface{}{
-				oidcServer.URL,               // provider/issuer
-				"",                           // client ID
-				"",                           // client secret
-				oidcServer.URL + "/redirect", // redirect URL
-				"",                           // scopes
-				"",                           // claims
-				"",
-				"",
-				"-1",
-			},
-			wantErr: true,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			spec := &tokenOidcSpec{
-				typ:             checkOIDCAllClaims,
-				SecretsFile:     "/foo",
-				secretsRegistry: secrettest.NewTestRegistry(),
-			}
-
-			got, err := spec.CreateFilter(tt.args)
-			if tt.wantErr && err == nil {
-				t.Errorf("Failed to get error but wanted, got: %v", got)
-			}
-			if !tt.wantErr && err != nil {
-				t.Errorf("Failed to get no error: %v", err)
-			}
-
-			if got == nil && !tt.wantErr {
-				t.Errorf("Failed to create filter: got %v", got)
-			}
-
-			if !tt.wantErr && tt.expectedValue != got.(*tokenOidcFilter).subdomainsToRemove {
-				t.Errorf("Expected value %d but got %d", tt.expectedValue, got.(*tokenOidcFilter).subdomainsToRemove)
-			}
-		})
-	}
-
-}
-
 func TestOIDCSetup(t *testing.T) {
 	dnstest.LoopbackNames(t, "skipper.test", "foo.skipper.test", "bar.foo.skipper.test")
 
@@ -662,6 +580,7 @@ func TestOIDCSetup(t *testing.T) {
 		queries            []string
 		authType           roleCheckType
 		upstreamheaders    string
+		subdomainsToRemove string
 		expected           int
 		expectErr          bool
 		expectRequest      string
@@ -827,6 +746,42 @@ func TestOIDCSetup(t *testing.T) {
 		authType:           checkOIDCUserInfo,
 		expected:           200,
 		expectCookieDomain: "foo.skipper.test",
+	}, {
+		msg:                "unparseable value of subdomainsToRemove",
+		client:             validClient,
+		clientsecret:       "mysec",
+		authType:           checkOIDCAnyClaims,
+		scopes:             []string{testKey, "email"},
+		subdomainsToRemove: "sdsd",
+		expectErr:          true,
+	}, {
+		msg:                "negative value of subdomainsToRemove",
+		client:             validClient,
+		clientsecret:       "mysec",
+		authType:           checkOIDCAnyClaims,
+		scopes:             []string{testKey, "email"},
+		subdomainsToRemove: "-1",
+		expectErr:          true,
+	}, {
+		msg:                "do not remove any subsomain",
+		client:             validClient,
+		clientsecret:       "mysec",
+		authType:           checkOIDCAnyClaims,
+		scopes:             []string{testKey, "email"},
+		subdomainsToRemove: "0",
+		hostname:           "foo.skipper.test",
+		expected:           200,
+		expectCookieDomain: "foo.skipper.test",
+	}, {
+		msg:                "do not remove subdomains if less then 2 levels reimains",
+		client:             validClient,
+		clientsecret:       "mysec",
+		authType:           checkOIDCAnyClaims,
+		scopes:             []string{testKey, "email"},
+		subdomainsToRemove: "3",
+		hostname:           "bar.foo.skipper.test",
+		expected:           200,
+		expectCookieDomain: "bar.foo.skipper.test",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -889,8 +844,10 @@ func TestOIDCSetup(t *testing.T) {
 				reqURL.RawQuery = q.Encode()
 			}
 
-			if tc.upstreamheaders != "" {
-				sargs = append(sargs, tc.upstreamheaders)
+			sargs = append(sargs, tc.upstreamheaders)
+
+			if tc.subdomainsToRemove != "" {
+				sargs = append(sargs, tc.subdomainsToRemove)
 			}
 
 			f, err := spec.CreateFilter(sargs)
