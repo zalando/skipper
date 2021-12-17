@@ -133,6 +133,9 @@ func (c *Client) CloseIdleConnections() {
 // which can be nil to get the
 // https://godoc.org/github.com/opentracing/opentracing-go#NoopTracer.
 type Options struct {
+	// Transport see https://golang.org/pkg/net/http/#Transport
+	// In case Transport is not nil, the Transport arguments are used below.
+	Transport *http.Transport
 	// Proxy see https://golang.org/pkg/net/http/#Transport.Proxy
 	Proxy func(req *http.Request) (*url.URL, error)
 	// DisableKeepAlives see https://golang.org/pkg/net/http/#Transport.DisableKeepAlives
@@ -173,8 +176,13 @@ type Options struct {
 	// https://golang.org/pkg/net/http/#Transport.ExpectContinueTimeout,
 	// if not set or set to 0, its using Options.Timeout.
 	ExpectContinueTimeout time.Duration
+
 	// Tracer instance, can be nil to not enable tracing
 	Tracer opentracing.Tracer
+	// OpentracingComponentTag sets component tag for all requests
+	OpentracingComponentTag string
+	// OpentracingSpanName sets span name for all requests
+	OpentracingSpanName string
 
 	// BearerTokenFile injects bearer token read from file, which
 	// file path is the given string. In case SecretsReader is
@@ -189,11 +197,6 @@ type Options struct {
 
 	// Log is used for error logging
 	Log logging.Logger
-
-	// OpentracingComponentTag sets component tag for all requests
-	OpentracingComponentTag string
-	// OpentracingSpanName sets span name for all requests
-	OpentracingSpanName string
 }
 
 // Transport wraps an http.Transport and adds support for tracing and
@@ -239,21 +242,26 @@ func NewTransport(options Options) *Transport {
 		options.Proxy = http.ProxyFromEnvironment
 	}
 
-	htransport := &http.Transport{
-		Proxy:                  options.Proxy,
-		DisableKeepAlives:      options.DisableKeepAlives,
-		DisableCompression:     options.DisableCompression,
-		ForceAttemptHTTP2:      options.ForceAttemptHTTP2,
-		MaxIdleConns:           options.MaxIdleConns,
-		MaxIdleConnsPerHost:    options.MaxIdleConnsPerHost,
-		MaxConnsPerHost:        options.MaxConnsPerHost,
-		WriteBufferSize:        options.WriteBufferSize,
-		ReadBufferSize:         options.ReadBufferSize,
-		MaxResponseHeaderBytes: options.MaxResponseHeaderBytes,
-		ResponseHeaderTimeout:  options.ResponseHeaderTimeout,
-		TLSHandshakeTimeout:    options.TLSHandshakeTimeout,
-		IdleConnTimeout:        options.IdleConnTimeout,
-		ExpectContinueTimeout:  options.ExpectContinueTimeout,
+	var htransport *http.Transport
+	if options.Transport != nil {
+		htransport = options.Transport
+	} else {
+		htransport = &http.Transport{
+			Proxy:                  options.Proxy,
+			DisableKeepAlives:      options.DisableKeepAlives,
+			DisableCompression:     options.DisableCompression,
+			ForceAttemptHTTP2:      options.ForceAttemptHTTP2,
+			MaxIdleConns:           options.MaxIdleConns,
+			MaxIdleConnsPerHost:    options.MaxIdleConnsPerHost,
+			MaxConnsPerHost:        options.MaxConnsPerHost,
+			WriteBufferSize:        options.WriteBufferSize,
+			ReadBufferSize:         options.ReadBufferSize,
+			MaxResponseHeaderBytes: options.MaxResponseHeaderBytes,
+			ResponseHeaderTimeout:  options.ResponseHeaderTimeout,
+			TLSHandshakeTimeout:    options.TLSHandshakeTimeout,
+			IdleConnTimeout:        options.IdleConnTimeout,
+			ExpectContinueTimeout:  options.ExpectContinueTimeout,
+		}
 	}
 
 	t := &Transport{
