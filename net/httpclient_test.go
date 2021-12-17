@@ -106,6 +106,15 @@ func TestClient(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "With Transport",
+			options: Options{
+				Transport: &http.Transport{
+					ResponseHeaderTimeout: 5 * time.Second,
+				},
+			},
+			wantErr: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := startTestServer(func(r *http.Request) {
@@ -203,6 +212,16 @@ func TestTransport(t *testing.T) {
 	}{
 		{
 			name:    "All defaults, with request should have a response",
+			req:     httptest.NewRequest("GET", "http://example.com/", nil),
+			wantErr: false,
+		},
+		{
+			name: "Transport, with request should have a response",
+			options: Options{
+				Transport: &http.Transport{
+					ResponseHeaderTimeout: 5 * time.Second,
+				},
+			},
 			req:     httptest.NewRequest("GET", "http://example.com/", nil),
 			wantErr: false,
 		},
