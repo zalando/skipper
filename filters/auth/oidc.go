@@ -99,19 +99,19 @@ type (
 )
 
 // NewOAuthOidcUserInfos creates filter spec which tests user info.
-func NewOAuthOidcUserInfos(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+func NewOAuthOidcUserInfos(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
 // NewOAuthOidcAnyClaims creates a filter spec which verifies that the token
 // has one of the claims specified
-func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
 // NewOAuthOidcAllClaims creates a filter spec which verifies that the token
 // has all the claims specified
-func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
