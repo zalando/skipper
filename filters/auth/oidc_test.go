@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -459,7 +460,7 @@ func TestNewOidc(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		args string
-		f    func(string, *secrets.Registry) filters.Spec
+		f    func(string, secrets.EncrypterCreator) filters.Spec
 		want *tokenOidcSpec
 	}{
 		{
@@ -536,6 +537,61 @@ func TestCreateFilterOIDC(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "wrong provider",
+			args: []interface{}{
+				"invalid url",                  // provider/issuer
+				"",                             // client ID
+				"",                             // client secret
+				"http://skipper.test/redirect", // redirect URL
+				"",                             // scopes
+				"",                             // claims
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid auth code option",
+			args: []interface{}{
+				oidcServer.URL,               // provider/issuer
+				"",                           // client ID
+				"",                           // client secret
+				oidcServer.URL + "/redirect", // redirect URL
+				"",                           // scopes
+				"",                           // claims
+				"foo",                        // auth code options
+			},
+			wantErr: true,
+		},
+		{
+			name: "unparsable value of subdomainsToRemove",
+			args: []interface{}{
+				oidcServer.URL,               // provider/issuer
+				"",                           // client ID
+				"",                           // client secret
+				oidcServer.URL + "/redirect", // redirect URL
+				"",                           // scopes
+				"",                           // claims
+				"",                           // auth code options
+				"",                           // upstream headers
+				"sdsd",                       // subdomains to remove
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative value of subdomainsToRemove",
+			args: []interface{}{
+				oidcServer.URL,               // provider/issuer
+				"",                           // client ID
+				"",                           // client secret
+				oidcServer.URL + "/redirect", // redirect URL
+				"",                           // scopes
+				"",                           // claims
+				"",                           // auth code options
+				"",                           // upstream headers
+				"-1",                         // subdomains to remove
+			},
+			wantErr: true,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := &tokenOidcSpec{
@@ -571,215 +627,106 @@ func TestOIDCSetup(t *testing.T) {
 	for _, tc := range []struct {
 		msg                string
 		hostname           string
-		provider           string
-		client             string
-		clientsecret       string
-		scopes             []string
-		claims             []string
-		authCodeOpts       []string
+		filter             string
 		queries            []string
-		authType           roleCheckType
-		upstreamheaders    string
-		subdomainsToRemove string
 		expected           int
-		expectErr          bool
 		expectRequest      string
 		expectNoCookies    bool
 		expectCookieDomain string
 	}{{
-		msg:       "wrong provider",
-		provider:  "no url",
-		expectErr: true,
+		msg:             "wrong provider",
+		filter:          `oauthOidcAnyClaims("no url", "", "", "{{ .RedirectURL }}", "", "")`,
+		expected:        404, // fails to create filter and route due to invalid provider
+		expectNoCookies: true,
 	}, {
-		msg:          "has authType, checkOIDCAnyClaims without claims",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAnyClaims,
-		scopes:       []string{testKey, "email"},
-		expected:     200,
+		msg:      "has authType, checkOIDCAnyClaims without claims",
+		filter:   `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "")`,
+		expected: 200,
 	}, {
-		msg:          "has authType, userinfo valid without claims requested",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCUserInfo,
-		expected:     200,
-		expectErr:    false,
+		msg:      "has authType, userinfo valid without claims requested",
+		filter:   `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
+		expected: 200,
 	}, {
-		msg:          "has authType, userinfo valid with claims requested",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCUserInfo,
-		expected:     200,
-		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims:       []string{testKey},
+		msg:      "has authType, userinfo valid with claims requested",
+		filter:   `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "uid")`,
+		expected: 200,
 	}, {
-		msg:          "has authType, userinfo with invalid claims requested",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCUserInfo,
-		expected:     401,
-		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims:       []string{testKey, "invalid"},
+		msg:      "has authType, userinfo with invalid claims requested",
+		filter:   `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "uid invalid")`,
+		expected: 401,
 	}, {
-		msg:          "has authType, userinfo with not existed claims requested",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCUserInfo,
-		expected:     401,
-		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims:       []string{"does-not-exist"},
+		msg:      "has authType, userinfo with not existed claims requested",
+		filter:   `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "does-not-exist")`,
+		expected: 401,
 	}, {
-		msg:          "has authType, any claims 1 valid",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAnyClaims,
-		expected:     200,
-		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims:       []string{testKey},
+		msg:      "has authType, any claims 1 valid",
+		filter:   `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "uid")`,
+		expected: 200,
 	}, {
-		msg:          "has authType, any claims valid and invalid",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAnyClaims,
-		expected:     200,
-		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims:       []string{testKey, "testKey"},
+		msg:      "has authType, any claims valid and invalid",
+		filter:   `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "uid invalid")`,
+		expected: 200,
 	}, {
-		msg:          "has authType, any claims invalid",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAnyClaims,
-		expected:     401,
-		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims:       []string{"testKey"},
+		msg:      "has authType, any claims invalid",
+		filter:   `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "invalid")`,
+		expected: 401,
 	}, {
-		msg:          "has authType, all claims valid",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAllClaims,
-		expected:     200,
-		expectErr:    false,
-		scopes:       []string{"uid"},
-		claims:       []string{"sub", "uid"},
+		msg:      "has authType, all claims valid",
+		filter:   `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid")`,
+		expected: 200,
 	}, {
 		msg:             "has authType, all claims: valid claims and invalid scope",
-		client:          validClient,
-		clientsecret:    "mysec",
-		authType:        checkOIDCAllClaims,
+		filter:          `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "invalid", "uid")`,
 		expected:        401,
-		expectErr:       false,
-		scopes:          []string{"invalid"},
-		claims:          []string{testKey},
 		expectNoCookies: true, // 401 returned by OIDC server due to invalid scope before redirect
 	}, {
-		msg:          "has authType, all claims valid and invalid",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAllClaims,
-		expected:     401,
-		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims:       []string{testKey, "testKey"},
+		msg:      "has authType, all claims valid and invalid",
+		filter:   `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "uid invalid")`,
+		expected: 401,
 	}, {
-		msg:          "has authType, all claims invalid",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAllClaims,
-		expected:     401,
-		expectErr:    false,
-		scopes:       []string{testKey, "email"},
-		claims:       []string{"testKey"},
+		msg:      "has authType, all claims invalid",
+		filter:   `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "invalid")`,
+		expected: 401,
 	}, {
-		msg:             "custom upstream headers",
-		client:          validClient,
-		clientsecret:    "mysec",
-		authType:        checkOIDCAllClaims,
-		expected:        200,
-		expectErr:       false,
-		scopes:          []string{"uid"},
-		claims:          []string{"sub", "uid"},
-		upstreamheaders: "x-auth-email:claims.email x-auth-something:claims.sub x-auth-groups:claims.groups.#[%\"*-Users\"]",
-		expectRequest:   "X-Auth-Email: someone@example.org\r\nX-Auth-Groups: AppX-Test-Users\r\nX-Auth-Something: somesub",
+		msg: "custom upstream headers",
+		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
+			"x-auth-email:claims.email x-auth-something:claims.sub x-auth-groups:claims.groups.#[%\"*-Users\"]"
+		)`,
+		expected:      200,
+		expectRequest: "X-Auth-Email: someone@example.org\r\nX-Auth-Groups: AppX-Test-Users\r\nX-Auth-Something: somesub",
 	}, {
-		msg:          "invalid auth code option",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAnyClaims,
-		authCodeOpts: []string{"foo"},
-		expectErr:    true,
-	}, {
-		msg:          "auth code with a placeholder and a regular option",
-		client:       validClient,
-		clientsecret: "mysec",
-		authType:     checkOIDCAnyClaims,
-		authCodeOpts: []string{"foo=skipper-request-query", "bar=baz"},
-		queries:      []string{"foo=bar"},
-		expected:     200,
-		expectErr:    false,
+		msg:      "auth code with a placeholder and a regular option",
+		filter:   `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "", "foo=skipper-request-query bar=baz")`,
+		queries:  []string{"foo=bar"},
+		expected: 200,
 	}, {
 		msg:                "cookie domain for skipper.test",
 		hostname:           "skipper.test",
-		client:             validClient,
-		clientsecret:       "mysec",
-		authType:           checkOIDCUserInfo,
+		filter:             `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
 		expected:           200,
 		expectCookieDomain: "skipper.test",
 	}, {
 		msg:                "cookie domain for foo.skipper.test",
 		hostname:           "foo.skipper.test",
-		client:             validClient,
-		clientsecret:       "mysec",
-		authType:           checkOIDCUserInfo,
+		filter:             `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
 		expected:           200,
 		expectCookieDomain: "skipper.test",
 	}, {
 		msg:                "cookie domain for bar.foo.skipper.test",
 		hostname:           "bar.foo.skipper.test",
-		client:             validClient,
-		clientsecret:       "mysec",
-		authType:           checkOIDCUserInfo,
+		filter:             `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
 		expected:           200,
 		expectCookieDomain: "foo.skipper.test",
 	}, {
-		msg:                "unparseable value of subdomainsToRemove",
-		client:             validClient,
-		clientsecret:       "mysec",
-		authType:           checkOIDCAnyClaims,
-		scopes:             []string{testKey, "email"},
-		subdomainsToRemove: "sdsd",
-		expectErr:          true,
-	}, {
-		msg:                "negative value of subdomainsToRemove",
-		client:             validClient,
-		clientsecret:       "mysec",
-		authType:           checkOIDCAnyClaims,
-		scopes:             []string{testKey, "email"},
-		subdomainsToRemove: "-1",
-		expectErr:          true,
-	}, {
-		msg:                "do not remove any subsomain",
-		client:             validClient,
-		clientsecret:       "mysec",
-		authType:           checkOIDCAnyClaims,
-		scopes:             []string{testKey, "email"},
-		subdomainsToRemove: "0",
+		msg:                "do not remove any subdomain",
 		hostname:           "foo.skipper.test",
+		filter:             `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "", "", "", "0")`,
 		expected:           200,
 		expectCookieDomain: "foo.skipper.test",
 	}, {
 		msg:                "do not remove subdomains if less then 2 levels reimains",
-		client:             validClient,
-		clientsecret:       "mysec",
-		authType:           checkOIDCAnyClaims,
-		scopes:             []string{testKey, "email"},
-		subdomainsToRemove: "3",
 		hostname:           "bar.foo.skipper.test",
+		filter:             `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "", "", "", "3")`,
 		expected:           200,
 		expectCookieDomain: "bar.foo.skipper.test",
 	}} {
@@ -792,13 +739,20 @@ func TestOIDCSetup(t *testing.T) {
 			defer backend.Close()
 			t.Logf("backend URL: %s", backend.URL)
 
-			spec := &tokenOidcSpec{
-				typ:             tc.authType,
-				SecretsFile:     "/tmp/foo", // TODO(sszuecs): random
-				secretsRegistry: secrettest.NewTestRegistry(),
+			fd, err := os.CreateTemp("", "testSecrets")
+			if err != nil {
+				t.Fatal(err)
 			}
+			secretsFile := fd.Name()
+			defer func() { os.Remove(secretsFile) }()
+
+			secretsRegistry := secrettest.NewTestRegistry()
+
 			fr := make(filters.Registry)
-			fr.Register(spec)
+			fr.Register(NewOAuthOidcUserInfos(secretsFile, secretsRegistry))
+			fr.Register(NewOAuthOidcAnyClaims(secretsFile, secretsRegistry))
+			fr.Register(NewOAuthOidcAllClaims(secretsFile, secretsRegistry))
+
 			dc := testdataclient.New(nil)
 			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
 				DataClients: []routing.DataClient{dc},
@@ -813,27 +767,11 @@ func TestOIDCSetup(t *testing.T) {
 			setHostname(redirectURL, tc.hostname)
 			redirectURL.Path = "/redirect"
 
-			oidcServer := createOIDCServer(redirectURL.String(), tc.client, tc.clientsecret)
+			t.Logf("redirect URL: %s", redirectURL.String())
+
+			oidcServer := createOIDCServer(redirectURL.String(), "valid-client", "mysec")
 			defer oidcServer.Close()
-			t.Logf("oidc/auth server URL: %s", oidcServer.URL)
-
-			// create filter
-			sargs := []interface{}{
-				tc.client,
-				tc.clientsecret,
-				redirectURL.String(),
-			}
-
-			// test that, we get an error if provider is no url
-			if tc.provider != "" {
-				sargs = append([]interface{}{tc.provider}, sargs...)
-			} else {
-				sargs = append([]interface{}{oidcServer.URL}, sargs...)
-			}
-
-			sargs = append(sargs, strings.Join(tc.scopes, " "))
-			sargs = append(sargs, strings.Join(tc.claims, " "))
-			sargs = append(sargs, strings.Join(tc.authCodeOpts, " "))
+			t.Logf("oidc server URL: %s", oidcServer.URL)
 
 			if tc.queries != nil {
 				q := reqURL.Query()
@@ -844,35 +782,18 @@ func TestOIDCSetup(t *testing.T) {
 				reqURL.RawQuery = q.Encode()
 			}
 
-			sargs = append(sargs, tc.upstreamheaders)
-
-			if tc.subdomainsToRemove != "" {
-				sargs = append(sargs, tc.subdomainsToRemove)
+			filters, err := parseFilter(tc.filter, oidcServer.URL, redirectURL.String())
+			if err != nil {
+				t.Fatal(err)
 			}
-
-			f, err := spec.CreateFilter(sargs)
-			if tc.expectErr {
-				if err == nil {
-					t.Fatalf("Want error but got filter: %v", f)
-				}
-				return //OK
-			} else if err != nil {
-				t.Fatalf("Unexpected error while creating filter: %v", err)
-			}
-			fOIDC := f.(*tokenOidcFilter)
-			defer fOIDC.Close()
-
 			r := &eskip.Route{
-				Filters: []*eskip.Filter{{
-					Name: spec.Name(),
-					Args: sargs,
-				}},
+				Filters: filters,
 				Backend: backend.URL,
 			}
 
 			proxy.Log.Reset()
 			dc.Update([]*eskip.Route{r}, nil)
-			if err = proxy.Log.WaitFor("route settings applied", 1*time.Second); err != nil {
+			if err = proxy.Log.WaitFor("route settings applied", 10*time.Second); err != nil {
 				t.Fatalf("Failed to get update: %v", err)
 			}
 
@@ -925,6 +846,26 @@ func TestOIDCSetup(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Substitutes {{ .OIDCServerURL }} and {{ .RedirectURL }} template variables and parses filter definition string
+func parseFilter(def, oidcServerURL, redirectURL string) ([]*eskip.Filter, error) {
+	template, err := template.New("test filter def").Parse(def)
+	if err != nil {
+		return nil, err
+	}
+	params := struct {
+		OIDCServerURL string
+		RedirectURL   string
+	}{
+		OIDCServerURL: oidcServerURL,
+		RedirectURL:   redirectURL,
+	}
+	out := new(strings.Builder)
+	if err := template.Execute(out, params); err != nil {
+		return nil, err
+	}
+	return eskip.ParseFilters(out.String())
 }
 
 func TestChunkAndMergerCookie(t *testing.T) {
