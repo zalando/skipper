@@ -14,6 +14,7 @@ type PrettyPrintInfo struct {
 }
 
 func escape(s string, chars string) string {
+	s = strings.Replace(s, `\`, `\\`, -1) // escape backslash before others
 	s = strings.Replace(s, "\a", `\a`, -1)
 	s = strings.Replace(s, "\b", `\b`, -1)
 	s = strings.Replace(s, "\f", `\f`, -1)
