@@ -865,7 +865,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
 	req, endpoint, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval())
 	if err != nil {
-		return nil, &proxyError{err: fmt.Errorf("could not map backend request, caused by: %w", err)}
+		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
 	}
 
 	if res, ok := p.rejectBackend(ctx, req); ok {
