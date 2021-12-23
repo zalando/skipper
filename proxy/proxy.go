@@ -370,14 +370,6 @@ func (e *proxyError) DialError() bool {
 	return e.dialingFailed
 }
 
-func (e *proxyError) NetError() net.Error {
-	var perr net.Error
-	if ok := errors.As(e, &perr); ok {
-		return perr
-	}
-	return nil
-}
-
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
 		to[http.CanonicalHeaderKey(k)] = v
