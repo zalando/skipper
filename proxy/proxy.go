@@ -371,7 +371,8 @@ func (e *proxyError) DialError() bool {
 }
 
 func (e *proxyError) NetError() net.Error {
-	if perr, ok := e.err.(net.Error); ok {
+	var perr net.Error
+	if ok := errors.As(e, &perr); ok {
 		return perr
 	}
 	return nil
@@ -571,7 +572,7 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 	} else if cerr := ctx.Err(); cerr != nil {
 		// unclear when this is being triggered
 		return nil, &proxyError{
-			err:  fmt.Errorf("err from dial context: %v", cerr),
+			err:  fmt.Errorf("err from dial context: %w", cerr),
 			code: http.StatusGatewayTimeout,
 		}
 	}
@@ -895,7 +896,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	roundTripper, err := p.getRoundTripper(ctx, req)
 	if err != nil {
-		return nil, &proxyError{err: fmt.Errorf("Failed to get roundtripper: %w", err), code: http.StatusBadGateway}
+		return nil, &proxyError{err: fmt.Errorf("failed to get roundtripper: %w", err), code: http.StatusBadGateway}
 	}
 
 	bag := ctx.StateBag()
@@ -945,7 +946,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 		if perr, ok := err.(*proxyError); ok {
 			//p.lb.AddHealthcheck(ctx.route.Backend)
-			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", ctx.route.Backend, perr.err)
+			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
 			return nil, perr
 
 		} else if nerr, ok := err.(net.Error); ok {
@@ -960,7 +961,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 			return nil, &proxyError{err: fmt.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %w", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err), code: status}
 		}
 
-		return nil, &proxyError{err: fmt.Errorf("Unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
+		return nil, &proxyError{err: fmt.Errorf("unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
 	}
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
 	return response, nil
