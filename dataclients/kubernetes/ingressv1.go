@@ -105,6 +105,7 @@ func convertPathRuleV1(
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			Backend:     eps[0],
+			BackendType: eskip.NetworkBackend,
 			HostRegexps: hostRegexp,
 		}
 
@@ -374,8 +375,9 @@ func (ing *ingress) convertDefaultBackendV1(
 		return r, true, nil
 	} else if len(eps) == 1 {
 		return &eskip.Route{
-			Id:      routeID(ns, name, "", "", ""),
-			Backend: eps[0],
+			Id:          routeID(ns, name, "", "", ""),
+			Backend:     eps[0],
+			BackendType: eskip.NetworkBackend,
 		}, true, nil
 	}
 
