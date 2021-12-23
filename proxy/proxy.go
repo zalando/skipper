@@ -872,8 +872,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
 	req, endpoint, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval())
 	if err != nil {
-		p.log.Errorf("could not map backend request, caused by: %v", err)
-		return nil, &proxyError{err: err}
+		return nil, &proxyError{err: fmt.Errorf("could not map backend request, caused by: %w", err)}
 	}
 
 	if res, ok := p.rejectBackend(ctx, req); ok {
@@ -896,8 +895,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	roundTripper, err := p.getRoundTripper(ctx, req)
 	if err != nil {
-		p.log.Errorf("Failed to get roundtripper: %v", err)
-		return nil, &proxyError{err: err, code: http.StatusBadGateway}
+		return nil, &proxyError{err: fmt.Errorf("Failed to get roundtripper: %w", err), code: http.StatusBadGateway}
 	}
 
 	bag := ctx.StateBag()
@@ -946,12 +944,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		ctx.proxySpan.LogKV("event", "error", "message", err.Error())
 
 		if perr, ok := err.(*proxyError); ok {
-			p.log.Errorf("Failed to do backend roundtrip to %s: %v", ctx.route.Backend, perr)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
+			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", ctx.route.Backend, perr.err)
 			return nil, perr
 
 		} else if nerr, ok := err.(net.Error); ok {
-			p.log.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
 			var status int
 			if nerr.Timeout() {
@@ -960,11 +957,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 				status = http.StatusServiceUnavailable
 			}
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
-			return nil, &proxyError{err: err, code: status}
+			return nil, &proxyError{err: fmt.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %w", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err), code: status}
 		}
 
-		p.log.Errorf("Unexpected error from Go stdlib net/http package during roundtrip: %v", err)
-		return nil, &proxyError{err: err}
+		return nil, &proxyError{err: fmt.Errorf("Unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
 	}
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
 	return response, nil
@@ -1125,6 +1121,7 @@ func (p *Proxy) do(ctx *context) error {
 		backendStart := time.Now()
 		rsp, perr := p.makeBackendRequest(ctx, backendContext)
 		if perr != nil {
+			p.log.Errorf("Failed to do backend request: %v", perr)
 			if done != nil {
 				done(false)
 			}
