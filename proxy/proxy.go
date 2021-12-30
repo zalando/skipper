@@ -1114,7 +1114,9 @@ func (p *Proxy) do(ctx *context) error {
 		backendStart := time.Now()
 		rsp, perr := p.makeBackendRequest(ctx, backendContext)
 		if perr != nil {
-			p.log.Errorf("Failed to do backend request: %v", perr)
+			if perr.code != 499 { // 499 is logged later with more context
+				p.log.Errorf("Failed to do backend request: %v", perr)
+			}
 			if done != nil {
 				done(false)
 			}
