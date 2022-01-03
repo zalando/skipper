@@ -950,7 +950,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 				status = http.StatusServiceUnavailable
 			}
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
-			return nil, &proxyError{err: fmt.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %w", req.URL.Host, nerr.Timeout(), nerr.Temporary(), err), code: status}
+			return nil, &proxyError{err: fmt.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary='%v': %w", req.URL.Host, nerr.Timeout(), nerr.Temporary(), err), code: status}
 		}
 
 		return nil, &proxyError{err: fmt.Errorf("unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
@@ -1120,11 +1120,7 @@ func (p *Proxy) do(ctx *context) error {
 
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
-			if perr.code != 499 &&
-				retryable(ctx.Request()) &&
-				perr.DialError() &&
-				ctx.route.BackendType == eskip.LBBackend {
-
+			if retryable(ctx, perr) {
 				if ctx.proxySpan != nil {
 					ctx.proxySpan.Finish()
 					ctx.proxySpan = nil
@@ -1165,8 +1161,11 @@ func (p *Proxy) do(ctx *context) error {
 	return nil
 }
 
-func retryable(req *http.Request) bool {
-	return req != nil && (req.Body == nil || req.Body == http.NoBody)
+func retryable(ctx *context, perr *proxyError) bool {
+	req := ctx.Request()
+	return perr.code != 499 && perr.DialError() &&
+		ctx.route.BackendType == eskip.LBBackend &&
+		req != nil && (req.Body == nil || req.Body == http.NoBody)
 }
 
 func (p *Proxy) serveResponse(ctx *context) {
@@ -1270,10 +1269,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		copyHeader(ctx.responseWriter.Header(), perr.additionalHeader)
 	}
 
-	msgPrefix := "error while proxying "
+	msgPrefix := "error while proxying"
 	logFunc := p.log.Errorf
 	if code == 499 {
-		msgPrefix = "client canceled "
+		msgPrefix = "client canceled"
 		logFunc = p.log.Infof
 	}
 	req := ctx.Request()
@@ -1282,9 +1281,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	if i := strings.IndexRune(uri, '?'); i >= 0 {
 		uri = uri[:i]
 	}
-
 	logFunc(
-		msgPrefix+`after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
+		`%s after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
+		msgPrefix,
 		time.Since(ctx.startServe),
 		id,
 		backendType,
