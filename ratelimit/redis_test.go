@@ -1,11 +1,16 @@
 package ratelimit
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/net/redistest"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_clusterLimitRedis_WithPass(t *testing.T) {
@@ -29,7 +34,7 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 		args       string
 		addrs      []string
 		password   string
-		want       bool
+		want       []bool
 	}{
 		{
 			name:       "correct password",
@@ -38,25 +43,25 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 			addrs:      []string{redisAddr},
 			password:   redisPassword,
 			iterations: 6,
-			want:       false,
+			want:       append(repeat(true, 5), false),
 		},
 		{
-			name:       "wrong password",
+			name:       "wrong password, fail open",
 			settings:   clusterClientlimit,
 			args:       "clientAuth",
 			addrs:      []string{redisAddr},
 			password:   "wrong",
 			iterations: 6,
-			want:       true,
+			want:       repeat(true, 6),
 		},
 		{
-			name:       "no password",
+			name:       "no password, fail open",
 			settings:   clusterClientlimit,
 			args:       "clientAuth",
 			addrs:      []string{redisAddr},
 			password:   "",
 			iterations: 6,
-			want:       true,
+			want:       repeat(true, 6),
 		},
 	}
 	for _, tt := range tests {
@@ -73,13 +78,11 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 				tt.settings.Group,
 			)
 
-			var got bool
+			var got []bool
 			for i := 0; i < tt.iterations; i++ {
-				got = c.Allow(tt.args)
+				got = append(got, c.Allow(tt.args))
 			}
-			if got != tt.want {
-				t.Errorf("clusterLimitRedis.Allow() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -108,35 +111,35 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 		settings   Settings
 		args       string
 		iterations int
-		want       bool
+		want       []bool
 	}{
 		{
 			name:       "simple test clusterRatelimit",
 			settings:   clusterlimit,
 			args:       "clientA",
 			iterations: 1,
-			want:       true,
+			want:       []bool{true},
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
 			settings:   clusterClientlimit,
 			args:       "clientB",
 			iterations: 1,
-			want:       true,
+			want:       []bool{true},
 		},
 		{
 			name:       "simple test clusterRatelimit",
 			settings:   clusterlimit,
 			args:       "clientA",
 			iterations: 20,
-			want:       false,
+			want:       append(repeat(true, 9), repeat(false, 11)...),
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
 			settings:   clusterClientlimit,
 			args:       "clientB",
 			iterations: 12,
-			want:       false,
+			want:       append(repeat(true, 9), repeat(false, 3)...),
 		},
 	}
 	for _, tt := range tests {
@@ -150,13 +153,11 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 				tt.settings.Group,
 			)
 
-			var got bool
+			var got []bool
 			for i := 0; i < tt.iterations; i++ {
-				got = c.Allow(tt.args)
+				got = append(got, c.Allow(tt.args))
 			}
-			if got != tt.want {
-				t.Errorf("clusterLimitRedis.Allow() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -351,4 +352,56 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFailOpenOnRedisError(t *testing.T) {
+	dm := metrics.Default
+	defer func() { metrics.Default = dm }()
+
+	m := &metricstest.MockMetrics{}
+	metrics.Default = m
+
+	settings := Settings{
+		Type:       ClusterServiceRatelimit,
+		MaxHits:    10,
+		TimeWindow: 10 * time.Second,
+		Group:      "agroup",
+	}
+	// redis unavailable
+	ringClient := net.NewRedisRingClient(&net.RedisOptions{})
+	defer ringClient.Close()
+
+	c := newClusterRateLimiterRedis(
+		settings,
+		ringClient,
+		settings.Group,
+	)
+
+	allow := c.AllowContext(context.Background(), "akey")
+	if !allow {
+		t.Error("expected allow on error")
+	}
+	m.WithCounters(func(counters map[string]int64) {
+		if counters["swarm.redis.total"] != 1 {
+			t.Error("expected 1 total")
+		}
+		if counters["swarm.redis.allows"] != 1 {
+			t.Error("expected 1 allow on error")
+		}
+		if counters["swarm.redis.forbids"] != 0 {
+			t.Error("expected no forbids on error")
+		}
+	})
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		if _, ok := measures["swarm.redis.query.allow.failure.agroup"]; !ok {
+			t.Error("expected query allow failure on error")
+		}
+	})
+}
+
+func repeat(b bool, n int) (result []bool) {
+	for i := 0; i < n; i++ {
+		result = append(result, b)
+	}
+	return
 }

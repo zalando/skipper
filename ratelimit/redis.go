@@ -31,11 +31,8 @@ const (
 	allowMetricsFormatWithGroup      = redisMetricsPrefix + "query.allow.%s.%s"
 	retryAfterMetricsFormatWithGroup = redisMetricsPrefix + "query.retryafter.%s.%s"
 
-	allowAddSpanName           = "redis_allow_add_card"
-	allowExpireSpanName        = "redis_allow_expire"
-	allowCheckSpanName         = "redis_allow_check_card"
-	allowCheckRemRangeSpanName = "redis_allow_check_rem_range"
-	oldestScoreSpanName        = "redis_oldest_score"
+	allowSpanName       = "redis_allow"
+	oldestScoreSpanName = "redis_oldest_score"
 )
 
 // newClusterRateLimiterRedis creates a new clusterLimitRedis for given
@@ -120,76 +117,68 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 //
 // If a context is provided, it uses it for creating an OpenTracing span.
 func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
-	s := getHashedKey(clearText)
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
+	now := time.Now()
+	finishSpan := c.startSpan(ctx, allowSpanName)
+
+	allow, err := c.allow(ctx, clearText)
+	failed := err != nil
+
+	finishSpan(failed)
+	c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &failed, now)
+
+	if failed {
+		allow = true // fail open
+	}
+	if allow {
+		c.metrics.IncCounter(redisMetricsPrefix + "allows")
+	} else {
+		c.metrics.IncCounter(redisMetricsPrefix + "forbids")
+	}
+	return allow
+}
+
+func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, error) {
+	s := getHashedKey(clearText)
 	key := c.prefixKey(s)
 
 	now := time.Now()
-	var queryFailure bool
-	defer c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &queryFailure, now)
-
 	nowNanos := now.UnixNano()
 	clearBefore := now.Add(-c.window).UnixNano()
 
-	count, err := c.allowCheckCard(ctx, key, clearBefore)
+	// drop all elements of the set which occurred before one interval ago.
+	_, err := c.ringClient.ZRemRangeByScore(ctx, key, 0.0, float64(clearBefore))
 	if err != nil {
-		log.Errorf("Failed to get from redis cardinality: %v", err)
-		queryFailure = true
-		// we don't return here, as we still want to record the request with ZAdd, but we mark it as a
-		// failure for the metrics
+		return false, err
+	}
+
+	// get cardinality
+	count, err := c.ringClient.ZCard(ctx, key)
+	if err != nil {
+		return false, err
 	}
 
 	// we increase later with ZAdd, so max-1
-	if err == nil && count >= c.maxHits {
-		c.metrics.IncCounter(redisMetricsPrefix + "forbids")
-		log.Debugf("redis disallow request: %d >= %d = %v", count, c.maxHits, count > c.maxHits)
-		return false
+	if count >= c.maxHits {
+		return false, nil
 	}
 
-	finishSpan := c.startSpan(ctx, allowAddSpanName)
 	_, err = c.ringClient.ZAdd(ctx, key, nowNanos, float64(nowNanos))
-	finishSpan(err != nil)
 	if err != nil {
-		log.Errorf("Failed to redis ZAdd proceeding with Expire: %v", err)
-		queryFailure = true
+		return false, err
 	}
 
-	finishSpan = c.startSpan(ctx, allowExpireSpanName)
 	_, err = c.ringClient.Expire(ctx, key, c.window+time.Second)
-	finishSpan(err != nil)
 	if err != nil {
-		log.Errorf("Failed to redis Expire: %v", err)
-		queryFailure = true
-		return true
+		return false, err
 	}
 
-	c.metrics.IncCounter(redisMetricsPrefix + "allows")
-	return true
+	return true, nil
 }
 
 // Allow is like AllowContext, but not using a context.
 func (c *clusterLimitRedis) Allow(clearText string) bool {
 	return c.AllowContext(context.Background(), clearText)
-}
-
-func (c *clusterLimitRedis) allowCheckCard(ctx context.Context, key string, clearBefore int64) (int64, error) {
-	// drop all elements of the set which occurred before one interval ago.
-	finishSpan := c.startSpan(ctx, allowCheckRemRangeSpanName)
-	_, err := c.ringClient.ZRemRangeByScore(ctx, key, 0.0, float64(clearBefore))
-	finishSpan(err != nil)
-	if err != nil {
-		return 0, fmt.Errorf("zremrangebyscore: %w", err)
-	}
-
-	// get cardinality
-	finishSpan = c.startSpan(ctx, allowCheckSpanName)
-	n, err := c.ringClient.ZCard(ctx, key)
-	finishSpan(err != nil)
-	if err != nil {
-		return 0, fmt.Errorf("zcard: %w", err)
-	}
-
-	return n, nil
 }
 
 // Close can not decide to teardown redis ring, because it is not the
