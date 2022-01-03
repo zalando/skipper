@@ -386,7 +386,7 @@ func TestRetryable(t *testing.T) {
 
 			// find the call such that next should be failing
 			for {
-				rsp, _ := http.DefaultClient.Get(tt.req.URL.String())
+				rsp, _ := http.DefaultClient.Post(tt.req.URL.String(), "text/plain charset=utf-8", bytes.NewBufferString("foo"))
 				if rsp.StatusCode == http.StatusOK {
 					break
 				}
