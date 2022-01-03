@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"runtime"
 	"strings"
 	"time"
 
@@ -180,6 +181,15 @@ type Options struct {
 	// metrics listener.
 	EnableProfile bool
 
+	// BlockProfileRate calls runtime.SetBlockProfileRate(BlockProfileRate) if != 0 (<0 will disable) and profiling is enabled
+	BlockProfileRate int
+
+	// MutexProfileFraction calls runtime.SetMutexProfileFraction(MutexProfileFraction) if != 0 (<0 will disable) and profiling is enabled
+	MutexProfileFraction int
+
+	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if != 0 (<0 will disable) and profiling is enabled
+	MemProfileRate int
+
 	// An instance of a Prometheus registry. It allows registering and serving custom metrics when skipper is used as a
 	// library.
 	// A new registry is created if this option is nil.
@@ -227,6 +237,33 @@ func NewHandler(o Options, m Metrics) http.Handler {
 		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
 		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
 		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+
+		switch n := o.BlockProfileRate; {
+		case n > 0:
+			runtime.SetBlockProfileRate(o.BlockProfileRate)
+		case n < 0:
+			runtime.SetBlockProfileRate(0)
+		default:
+			// 0 keeps default
+		}
+
+		switch n := o.MutexProfileFraction; {
+		case n > 0:
+			runtime.SetMutexProfileFraction(o.MutexProfileFraction)
+		case n < 0:
+			runtime.SetMutexProfileFraction(0)
+		default:
+			// 0 keeps default
+		}
+
+		switch n := o.MemProfileRate; {
+		case n > 0:
+			runtime.MemProfileRate = o.MemProfileRate
+		case n < 0:
+			runtime.MemProfileRate = 0
+		default:
+			// 0 keeps default
+		}
 	}
 
 	// Root path should return 404.
