@@ -323,38 +323,87 @@ func TestRetryable(t *testing.T) {
 	}
 	reqWithBody, err := http.NewRequest("GET", "http://www.zalando.de", bytes.NewBufferString("hello"))
 	if err != nil {
-		t.Fatalf("Failed to create request with body: %v", err)
+		t.Fatalf("Failed to create GET request with body: %v", err)
+	}
+	reqWithPost, err := http.NewRequest("POST", "http://www.zalando.de", bytes.NewBufferString("hello"))
+	if err != nil {
+		t.Fatalf("Failed to create POST request with body: %v", err)
 	}
 
 	for _, tt := range []struct {
-		name string
-		req  *http.Request
-		want bool
+		name    string
+		req     *http.Request
+		wantErr bool
 	}{
 		{
-			name: "test nil request",
-			req:  nil,
-			want: false,
+			name:    "test request without body",
+			req:     reqWithoutBody,
+			wantErr: false,
 		},
 		{
-			name: "test request without body",
-			req:  reqWithoutBody,
-			want: true,
+			name:    "test request with no body",
+			req:     reqWithNoBody,
+			wantErr: false,
 		},
 		{
-			name: "test request with no body",
-			req:  reqWithNoBody,
-			want: true,
+			name:    "test request with body",
+			req:     reqWithBody,
+			wantErr: true,
 		},
 		{
-			name: "test request with body",
-			req:  reqWithBody,
-			want: false,
+			name:    "test POST request with body",
+			req:     reqWithPost,
+			wantErr: true,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := retryable(tt.req)
-			if got != tt.want {
-				t.Errorf("Failed to find retryable, want %v, got %v", tt.want, got)
+			payload := []byte("backend reply")
+
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write(payload)
+			}))
+			defer backend.Close()
+
+			doc := fmt.Sprintf(`hello: * -> <roundRobin, "%s", "http://127.0.0.5:9">`, backend.URL)
+			tp, err := newTestProxy(doc, FlagsNone)
+			if err != nil {
+				t.Error()
+				return
+			}
+
+			ps := httptest.NewServer(tp.proxy)
+			defer func() {
+				ps.Close()
+				tp.close()
+			}()
+
+			u, err := url.Parse(ps.URL)
+			if err != nil {
+				t.Fatalf("Failed to parse url '%s': %v", ps.URL, err)
+			}
+
+			tt.req.URL.Host = u.Host
+
+			// find the call such that next should be failing
+			for {
+				rsp, _ := http.DefaultClient.Post(tt.req.URL.String(), "text/plain charset=utf-8", bytes.NewBufferString("foo"))
+				if rsp.StatusCode == http.StatusOK {
+					break
+				}
+			}
+
+			// proxy will do internally the retry if applicable
+			rsp, err := http.DefaultClient.Do(tt.req)
+			switch tt.wantErr {
+			case true:
+				if rsp.StatusCode != http.StatusBadGateway {
+					t.Errorf("Failed to have a failed request: %v && %d != %d)", tt.wantErr, rsp.StatusCode, http.StatusBadGateway)
+
+				}
+			case false:
+				if err != nil || rsp.StatusCode != http.StatusOK {
+					t.Errorf("Failed to have a successful retried request: %v != nil || %d != %d", err, rsp.StatusCode, http.StatusOK)
+				}
 			}
 		})
 	}

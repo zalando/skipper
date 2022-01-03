@@ -370,13 +370,6 @@ func (e *proxyError) DialError() bool {
 	return e.dialingFailed
 }
 
-func (e *proxyError) NetError() net.Error {
-	if perr, ok := e.err.(net.Error); ok {
-		return perr
-	}
-	return nil
-}
-
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
 		to[http.CanonicalHeaderKey(k)] = v
@@ -571,7 +564,7 @@ func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr st
 	} else if cerr := ctx.Err(); cerr != nil {
 		// unclear when this is being triggered
 		return nil, &proxyError{
-			err:  fmt.Errorf("err from dial context: %v", cerr),
+			err:  fmt.Errorf("err from dial context: %w", cerr),
 			code: http.StatusGatewayTimeout,
 		}
 	}
@@ -872,8 +865,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
 	req, endpoint, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval())
 	if err != nil {
-		p.log.Errorf("could not map backend request, caused by: %v", err)
-		return nil, &proxyError{err: err}
+		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
 	}
 
 	if res, ok := p.rejectBackend(ctx, req); ok {
@@ -896,8 +888,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	roundTripper, err := p.getRoundTripper(ctx, req)
 	if err != nil {
-		p.log.Errorf("Failed to get roundtripper: %v", err)
-		return nil, &proxyError{err: err, code: http.StatusBadGateway}
+		return nil, &proxyError{err: fmt.Errorf("failed to get roundtripper: %w", err), code: http.StatusBadGateway}
 	}
 
 	bag := ctx.StateBag()
@@ -946,12 +937,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		ctx.proxySpan.LogKV("event", "error", "message", err.Error())
 
 		if perr, ok := err.(*proxyError); ok {
-			p.log.Errorf("Failed to do backend roundtrip to %s: %v", ctx.route.Backend, perr)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
+			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
 			return nil, perr
 
 		} else if nerr, ok := err.(net.Error); ok {
-			p.log.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary=%v: %v", ctx.route.Backend, nerr.Timeout(), nerr.Temporary(), err)
 			//p.lb.AddHealthcheck(ctx.route.Backend)
 			var status int
 			if nerr.Timeout() {
@@ -960,11 +950,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 				status = http.StatusServiceUnavailable
 			}
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
-			return nil, &proxyError{err: err, code: status}
+			return nil, &proxyError{err: fmt.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary='%v': %w", req.URL.Host, nerr.Timeout(), nerr.Temporary(), err), code: status}
 		}
 
-		p.log.Errorf("Unexpected error from Go stdlib net/http package during roundtrip: %v", err)
-		return nil, &proxyError{err: err}
+		return nil, &proxyError{err: fmt.Errorf("unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
 	}
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
 	return response, nil
@@ -1131,7 +1120,7 @@ func (p *Proxy) do(ctx *context) error {
 
 			p.metrics.IncErrorsBackend(ctx.route.Id)
 
-			if retryable(ctx.Request()) && perr.DialError() && ctx.route.BackendType == eskip.LBBackend {
+			if retryable(ctx, perr) {
 				if ctx.proxySpan != nil {
 					ctx.proxySpan.Finish()
 					ctx.proxySpan = nil
@@ -1143,7 +1132,7 @@ func (p *Proxy) do(ctx *context) error {
 				var perr2 *proxyError
 				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
 				if perr2 != nil {
-					p.log.Errorf("Failed to do retry backend request: %v", perr2)
+					p.log.Errorf("Failed to retry backend request: %v", perr2)
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
@@ -1172,8 +1161,11 @@ func (p *Proxy) do(ctx *context) error {
 	return nil
 }
 
-func retryable(req *http.Request) bool {
-	return req != nil && (req.Body == nil || req.Body == http.NoBody)
+func retryable(ctx *context, perr *proxyError) bool {
+	req := ctx.Request()
+	return perr.code != 499 && perr.DialError() &&
+		ctx.route.BackendType == eskip.LBBackend &&
+		req != nil && (req.Body == nil || req.Body == http.NoBody)
 }
 
 func (p *Proxy) serveResponse(ctx *context) {
@@ -1245,6 +1237,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	switch {
 	case err == errRouteLookupFailed:
 		code = p.defaultHTTPStatus
+		ctx.initialSpan.LogKV("event", "error", "message", errRouteLookup.Error())
 	case ok && perr.code == -1:
 		// -1 == dial connection refused
 		code = http.StatusBadGateway
@@ -1254,9 +1247,6 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 	p.tracing.setTag(ctx.initialSpan, ErrorTag, true)
 	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, uint16(code))
-	if err == errRouteLookupFailed {
-		ctx.initialSpan.LogKV("event", "error", "message", errRouteLookup.Error())
-	}
 
 	if p.flags.Debug() {
 		di := &debugInfo{
@@ -1279,54 +1269,34 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		copyHeader(ctx.responseWriter.Header(), perr.additionalHeader)
 	}
 
-	switch {
-	case code == 499:
-		req := ctx.Request()
-		remoteAddr := remoteHost(req)
-		uri := req.RequestURI
-		if i := strings.IndexRune(uri, '?'); i >= 0 {
-			uri = uri[:i]
-		}
-
-		p.log.Infof(
-			`client canceled after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
-			time.Since(ctx.startServe),
-			id,
-			backendType,
-			backend,
-			flowIdLog,
-			code,
-			err,
-			remoteAddr,
-			req.Method,
-			uri,
-			req.Proto,
-			req.UserAgent(),
-		)
-	default:
-		req := ctx.Request()
-		remoteAddr := remoteHost(req)
-		uri := req.RequestURI
-		if i := strings.IndexRune(uri, '?'); i >= 0 {
-			uri = uri[:i]
-		}
-
-		p.log.Errorf(
-			`error while proxying after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
-			time.Since(ctx.startServe),
-			id,
-			backendType,
-			backend,
-			flowIdLog,
-			code,
-			err,
-			remoteAddr,
-			req.Method,
-			uri,
-			req.Proto,
-			req.UserAgent(),
-		)
+	msgPrefix := "error while proxying"
+	logFunc := p.log.Errorf
+	if code == 499 {
+		msgPrefix = "client canceled"
+		logFunc = p.log.Infof
 	}
+	req := ctx.Request()
+	remoteAddr := remoteHost(req)
+	uri := req.RequestURI
+	if i := strings.IndexRune(uri, '?'); i >= 0 {
+		uri = uri[:i]
+	}
+	logFunc(
+		`%s after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
+		msgPrefix,
+		time.Since(ctx.startServe),
+		id,
+		backendType,
+		backend,
+		flowIdLog,
+		code,
+		err,
+		remoteAddr,
+		req.Method,
+		uri,
+		req.Proto,
+		req.UserAgent(),
+	)
 
 	p.sendError(ctx, id, code)
 }
