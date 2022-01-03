@@ -356,11 +356,9 @@ func TestRetryable(t *testing.T) {
 			wantErr: true,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			var err error
 			payload := []byte("backend reply")
 
-			var backend *httptest.Server
-			backend = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				w.Write(payload)
 			}))
