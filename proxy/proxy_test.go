@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -312,64 +313,50 @@ func TestGetRoundtrip(t *testing.T) {
 	}
 }
 
-func TestRetryable(t *testing.T) {
-	reqWithoutBody, err := http.NewRequest("GET", "http://www.zalando.de", nil)
-	if err != nil {
-		t.Fatalf("Failed to create request without body: %v", err)
-	}
-	reqWithNoBody, err := http.NewRequest("GET", "http://www.zalando.de", http.NoBody)
-	if err != nil {
-		t.Fatalf("Failed to create request with NoBody: %v", err)
-	}
-	reqWithBody, err := http.NewRequest("GET", "http://www.zalando.de", bytes.NewBufferString("hello"))
-	if err != nil {
-		t.Fatalf("Failed to create GET request with body: %v", err)
-	}
-	reqWithPost, err := http.NewRequest("POST", "http://www.zalando.de", bytes.NewBufferString("hello"))
-	if err != nil {
-		t.Fatalf("Failed to create POST request with body: %v", err)
-	}
-
+func TestRetries(t *testing.T) {
 	for _, tt := range []struct {
-		name    string
-		req     *http.Request
-		wantErr bool
+		name   string
+		method string
+		body   func() io.Reader
+		want   []int
 	}{
 		{
-			name:    "test request without body",
-			req:     reqWithoutBody,
-			wantErr: false,
+			name:   "GET request with nil body",
+			method: "GET",
+			body:   func() io.Reader { return nil },
+			want:   []int{200, 200},
 		},
 		{
-			name:    "test request with no body",
-			req:     reqWithNoBody,
-			wantErr: false,
+			name:   "GET request with http.NoBody",
+			method: "GET",
+			body:   func() io.Reader { return http.NoBody },
+			want:   []int{200, 200},
 		},
 		{
-			name:    "test request with body",
-			req:     reqWithBody,
-			wantErr: true,
+			name:   "POST request without body",
+			method: "POST",
+			body:   func() io.Reader { return nil },
+			want:   []int{200, 200},
 		},
 		{
-			name:    "test POST request with body",
-			req:     reqWithPost,
-			wantErr: true,
-		}} {
+			name:   "POST request with body",
+			method: "POST",
+			body:   func() io.Reader { return strings.NewReader("hello") },
+			want:   []int{200, 502},
+		},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			payload := []byte("backend reply")
-
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write(payload)
+				fmt.Fprintln(w, "backend reply")
 			}))
 			defer backend.Close()
 
-			doc := fmt.Sprintf(`hello: * -> <roundRobin, "%s", "http://127.0.0.5:9">`, backend.URL)
+			unavailableBackend := "http://127.0.0.5:9" // refuses connections
+
+			doc := fmt.Sprintf(`hello: * -> <roundRobin, "%s", "%s">`, unavailableBackend, backend.URL)
 			tp, err := newTestProxy(doc, FlagsNone)
-			if err != nil {
-				t.Error()
-				return
-			}
+			require.NoError(t, err)
 
 			ps := httptest.NewServer(tp.proxy)
 			defer func() {
@@ -377,34 +364,20 @@ func TestRetryable(t *testing.T) {
 				tp.close()
 			}()
 
-			u, err := url.Parse(ps.URL)
-			if err != nil {
-				t.Fatalf("Failed to parse url '%s': %v", ps.URL, err)
+			// To avoid guessing which endpoint round robin picks first,
+			// make two requests and compare response codes ignoring request order
+			var codes []int
+			for i := 0; i < 2; i++ {
+				req, err := http.NewRequest(tt.method, ps.URL, tt.body())
+				require.NoError(t, err)
+
+				rsp, err := http.DefaultClient.Do(req)
+				require.NoError(t, err)
+
+				rsp.Body.Close()
+				codes = append(codes, rsp.StatusCode)
 			}
-
-			tt.req.URL.Host = u.Host
-
-			// find the call such that next should be failing
-			for {
-				rsp, _ := http.DefaultClient.Post(tt.req.URL.String(), "text/plain charset=utf-8", bytes.NewBufferString("foo"))
-				if rsp.StatusCode == http.StatusOK {
-					break
-				}
-			}
-
-			// proxy will do internally the retry if applicable
-			rsp, err := http.DefaultClient.Do(tt.req)
-			switch tt.wantErr {
-			case true:
-				if rsp.StatusCode != http.StatusBadGateway {
-					t.Errorf("Failed to have a failed request: %v && %d != %d)", tt.wantErr, rsp.StatusCode, http.StatusBadGateway)
-
-				}
-			case false:
-				if err != nil || rsp.StatusCode != http.StatusOK {
-					t.Errorf("Failed to have a successful retried request: %v != nil || %d != %d", err, rsp.StatusCode, http.StatusOK)
-				}
-			}
+			assert.ElementsMatch(t, tt.want, codes)
 		})
 	}
 }
