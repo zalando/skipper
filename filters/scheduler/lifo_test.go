@@ -1,16 +1,26 @@
 package scheduler
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/aryszka/jobqueue"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics/metricstest"
+	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
 )
 
@@ -289,4 +299,89 @@ func TestNewLIFO(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLifoErrors(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		time.Sleep(time.Second)
+	}))
+	defer backend.Close()
+
+	doc := fmt.Sprintf(`aroute: * -> lifo(5, 7, "100ms") -> "%s"`, backend.URL)
+
+	dc, err := testdataclient.NewDoc(doc)
+	require.NoError(t, err)
+
+	metrics := &metricstest.MockMetrics{}
+	reg := scheduler.RegistryWith(scheduler.Options{
+		Metrics:                metrics,
+		EnableRouteLIFOMetrics: true,
+	})
+	defer reg.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(NewLIFO())
+
+	ro := routing.Options{
+		SignalFirstLoad: true,
+		FilterRegistry:  fr,
+		DataClients:     []routing.DataClient{dc},
+		PostProcessors:  []routing.PostProcessor{reg},
+	}
+
+	rt := routing.New(ro)
+	defer rt.Close()
+
+	<-rt.FirstLoad()
+
+	tracer := mocktracer.New()
+	pr := proxy.WithParams(proxy.Params{
+		Routing:     rt,
+		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+	})
+	defer pr.Close()
+
+	ts := httptest.NewServer(pr)
+	defer ts.Close()
+
+	requestSpike(t, 20, ts.URL)
+
+	codes := make(map[uint16]int)
+	for _, span := range tracer.FinishedSpans() {
+		if span.OperationName == "ingress" {
+			code := span.Tag("http.status_code").(uint16)
+			codes[code]++
+			if code >= 500 {
+				assert.Equal(t, true, span.Tag("error"))
+			} else {
+				assert.Nil(t, span.Tag("error"))
+			}
+		}
+	}
+
+	assert.Equal(t, map[uint16]int{
+		// 20 request in total, of which:
+		200: 5, // went straight to the backend
+		502: 7, // were queued and timed out as backend latency is greater than scheduling timeout
+		503: 8, // were refused due to full queue
+	}, codes)
+
+	metrics.WithCounters(func(counters map[string]int64) {
+		assert.Equal(t, int64(7), counters["lifo.aroute.error.timeout"])
+		assert.Equal(t, int64(8), counters["lifo.aroute.error.full"])
+	})
+}
+
+func requestSpike(t *testing.T, n int, url string) {
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			rsp, err := http.Get(url)
+			require.NoError(t, err)
+			defer rsp.Body.Close()
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
