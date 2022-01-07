@@ -30,7 +30,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/client_golang v1.11.0
-	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
+	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
 	github.com/sanity-io/litter v1.5.2
 	github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011
 	github.com/sirupsen/logrus v1.8.1
@@ -50,6 +50,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211019181941-9d821ace8654 // indirect
+	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.org/x/tools v0.1.8 // indirect
 	google.golang.org/grpc v1.43.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
@@ -96,7 +97,6 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tklauser/numcpus v0.3.0 // indirect
 	golang.org/x/mod v0.5.1 // indirect
-	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
