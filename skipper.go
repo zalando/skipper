@@ -1539,6 +1539,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ro.PreProcessors = append(ro.PreProcessors, o.EditRoute)
 	}
 
+	ro.PreProcessors = append(ro.PreProcessors, schedulerRegistry.PreProcessor())
+
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
 		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
 	}

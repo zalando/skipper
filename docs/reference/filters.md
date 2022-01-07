@@ -2237,8 +2237,7 @@ lifo(100, 150, "10s")
 The above configuration will set MaxConcurrency to 100, MaxQueueSize
 to 150 and Timeout to 10 seconds.
 
-When multiple lifo filters are set in a route, only one of them will be
-applied. It is undefined which one.
+When there are multiple lifo filters on the route, only the last one will be applied.
 
 ## lifoGroup
 
