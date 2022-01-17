@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -288,8 +289,8 @@ func (p *Prometheus) registerMetrics() {
 
 	// Register prometheus runtime collectors if required.
 	if p.opts.EnableRuntimeMetrics {
-		p.registry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-		p.registry.MustRegister(prometheus.NewGoCollector())
+		p.registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+		p.registry.MustRegister(collectors.NewGoCollector())
 	}
 }
 

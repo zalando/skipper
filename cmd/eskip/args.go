@@ -22,7 +22,7 @@ import (
 	"regexp"
 	"strings"
 
-	"golang.org/x/crypto/ssh/terminal"
+	terminal "golang.org/x/term"
 )
 
 const (
