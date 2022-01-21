@@ -21,9 +21,6 @@
             },
             "backend": {
                 "type": "object",
-                "required": [
-                    "type"
-                ],
                 "properties": {
                     "type": {
                         "enum": [
@@ -93,7 +90,14 @@
                     "args": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "number"
+                                }
+                            ]
                         }
                     }
                 }

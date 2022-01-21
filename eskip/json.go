@@ -7,7 +7,7 @@ import (
 
 type jsonNameArgs struct {
 	Name string        `json:"name"`
-	Args []interface{} `json:"args"`
+	Args []interface{} `json:"args,omitempty"`
 }
 
 type jsonBackend struct {
@@ -19,25 +19,29 @@ type jsonBackend struct {
 
 type jsonRoute struct {
 	ID         string       `json:"id,omitempty"`
-	Backend    *jsonBackend `json:"backend"`
+	Backend    *jsonBackend `json:"backend,omitempty"`
 	Predicates []*Predicate `json:"predicates,omitempty"`
 	Filters    []*Filter    `json:"filters,omitempty"`
 }
 
 func newJSONRoute(r *Route) *jsonRoute {
 	cr := Canonical(r)
+	jr := &jsonRoute{
+		ID:         cr.Id,
+		Predicates: cr.Predicates,
+		Filters:    cr.Filters,
+	}
 
-	return &jsonRoute{
-		ID: cr.Id,
-		Backend: &jsonBackend{
+	if cr.BackendType != NetworkBackend || cr.Backend != "" {
+		jr.Backend = &jsonBackend{
 			Type:      cr.BackendType.String(),
 			Address:   cr.Backend,
 			Algorithm: cr.LBAlgorithm,
 			Endpoints: cr.LBEndpoints,
-		},
-		Predicates: cr.Predicates,
-		Filters:    cr.Filters,
+		}
 	}
+
+	return jr
 }
 
 func marshalJSONNoEscape(v interface{}) ([]byte, error) {
@@ -72,14 +76,22 @@ func (r *Route) UnmarshalJSON(b []byte) error {
 
 	r.Id = jr.ID
 
-	bt, err := BackendTypeFromString(jr.Backend.Type)
+	var bts string
+	if jr.Backend != nil {
+		bts = jr.Backend.Type
+	}
+
+	bt, err := BackendTypeFromString(bts)
 	if err != nil {
 		return err
 	}
+
 	r.BackendType = bt
 	switch bt {
 	case NetworkBackend:
-		r.Backend = jr.Backend.Address
+		if jr.Backend != nil {
+			r.Backend = jr.Backend.Address
+		}
 	case LBBackend:
 		r.LBAlgorithm = jr.Backend.Algorithm
 		r.LBEndpoints = jr.Backend.Endpoints
@@ -92,6 +104,7 @@ func (r *Route) UnmarshalJSON(b []byte) error {
 	if len(r.Filters) == 0 {
 		r.Filters = nil
 	}
+
 	r.Predicates = jr.Predicates
 	if len(r.Predicates) == 0 {
 		r.Predicates = nil
