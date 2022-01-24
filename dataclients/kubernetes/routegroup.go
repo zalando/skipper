@@ -22,22 +22,22 @@ type routeGroups struct {
 }
 
 type routeGroupContext struct {
-	clusterState          *clusterState
-	defaultFilters        defaultFilters
-	routeGroup            *definitions.RouteGroupItem
 	hosts                 []string
+	allowedExternalNames  []*regexp.Regexp
 	hostRx                string
-	hostRoutes            map[string][]*eskip.Route
-	hasEastWestHost       bool
-	eastWestEnabled       bool
 	eastWestDomain        string
-	provideHTTPSRedirect  bool
+	routeGroup            *definitions.RouteGroupItem
+	hostRoutes            map[string][]*eskip.Route
+	defaultBackendTraffic map[string]*calculatedTraffic
+	defaultFilters        defaultFilters
+	clusterState          *clusterState
 	httpsRedirectCode     int
 	backendsByName        map[string]*definitions.SkipperBackend
-	defaultBackendTraffic map[string]*calculatedTraffic
+	eastWestEnabled       bool
+	hasEastWestHost       bool
 	backendNameTracingTag bool
 	internal              bool
-	allowedExternalNames  []*regexp.Regexp
+	provideHTTPSRedirect  bool
 }
 
 type routeContext struct {

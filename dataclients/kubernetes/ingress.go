@@ -43,15 +43,15 @@ type ingressContext struct {
 }
 
 type ingress struct {
-	ingressV1                bool
-	provideHTTPSRedirect     bool
-	httpsRedirectCode        int
-	pathMode                 PathMode
-	kubernetesEnableEastWest bool
-	kubernetesEastWestDomain string
 	eastWestRangeDomains     []string
 	eastWestRangePredicates  []*eskip.Predicate
 	allowedExternalNames     []*regexp.Regexp
+	kubernetesEastWestDomain string
+	pathMode                 PathMode
+	httpsRedirectCode        int
+	kubernetesEnableEastWest bool
+	ingressV1                bool
+	provideHTTPSRedirect     bool
 }
 
 var nonWord = regexp.MustCompile(`\W`)
