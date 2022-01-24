@@ -390,10 +390,11 @@ automatically.
 
 If you want to split for example `internal` and `public` traffic, it
 might be a good choice to split your ingress deployments. Skipper has
-the flag `--kubernetes-ingress-class=<string>` to only select ingress
+the flag `--kubernetes-ingress-class=<regexp>` to only select ingress
 objects that have the annotation `kubernetes.io/ingress.class` set to
-`<string>`. Skipper will only create routes for ingress objects with
-it's annotation or ingress objects that do not have this annotation.
+something that is matched by `<regexp>`. Skipper will only create
+routes for ingress objects with it's annotation or ingress objects
+that do not have this annotation.
 
 The default ingress class is `skipper`, if not set. You have to create
 your ingress objects with the annotation
