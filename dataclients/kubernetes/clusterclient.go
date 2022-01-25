@@ -46,16 +46,17 @@ const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the 
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
 
 type clusterClient struct {
-	ingressV1       bool
-	ingressesURI    string
-	routeGroupsURI  string
-	servicesURI     string
-	endpointsURI    string
-	ingressClass    *regexp.Regexp
+	ingressesURI   string
+	routeGroupsURI string
+	servicesURI    string
+	endpointsURI   string
+	tokenProvider  secrets.SecretsProvider
+	apiURL         string
+
 	routeGroupClass *regexp.Regexp
-	tokenProvider   secrets.SecretsProvider
+	ingressClass    *regexp.Regexp
 	httpClient      *http.Client
-	apiURL          string
+	ingressV1       bool
 
 	loggedMissingRouteGroups bool
 }
