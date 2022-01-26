@@ -268,5 +268,11 @@ Serializing
 Serializing a single route happens by calling its String method.
 Serializing a complete routing table happens by calling the
 eskip.String method.
+
+
+JSON
+
+Both serializing and parsing is possible via the standard json.Marshal and
+json.Unmarshal functions.
 */
 package eskip

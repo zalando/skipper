@@ -5,105 +5,110 @@ import (
 	"encoding/json"
 )
 
-func marshalJsonPredicates(r *Route) []*Predicate {
-	rjf := make([]*Predicate, 0, len(r.Predicates))
+type jsonNameArgs struct {
+	Name string        `json:"name"`
+	Args []interface{} `json:"args,omitempty"`
+}
 
-	if r.Method != "" {
-		rjf = append(rjf, &Predicate{
-			Name: "Method",
-			Args: []interface{}{r.Method},
-		})
+type jsonBackend struct {
+	Type      string   `json:"type"`
+	Address   string   `json:"address,omitempty"`
+	Algorithm string   `json:"algorithm,omitempty"`
+	Endpoints []string `json:"endpoints,omitempty"`
+}
+
+type jsonRoute struct {
+	ID         string       `json:"id,omitempty"`
+	Backend    *jsonBackend `json:"backend,omitempty"`
+	Predicates []*Predicate `json:"predicates,omitempty"`
+	Filters    []*Filter    `json:"filters,omitempty"`
+}
+
+func newJSONRoute(r *Route) *jsonRoute {
+	cr := Canonical(r)
+	jr := &jsonRoute{
+		ID:         cr.Id,
+		Predicates: cr.Predicates,
+		Filters:    cr.Filters,
 	}
 
-	if r.Path != "" {
-		rjf = append(rjf, &Predicate{
-			Name: "Path",
-			Args: []interface{}{r.Path},
-		})
-	}
-
-	for _, h := range r.HostRegexps {
-		rjf = append(rjf, &Predicate{
-			Name: "HostRegexp",
-			Args: []interface{}{h},
-		})
-	}
-
-	for _, p := range r.PathRegexps {
-		rjf = append(rjf, &Predicate{
-			Name: "PathRegexp",
-			Args: []interface{}{p},
-		})
-	}
-
-	for k, v := range r.Headers {
-		rjf = append(rjf, &Predicate{
-			Name: "Header",
-			Args: []interface{}{k, v},
-		})
-	}
-
-	for k, list := range r.HeaderRegexps {
-		for _, v := range list {
-			rjf = append(rjf, &Predicate{
-				Name: "HeaderRegexp",
-				Args: []interface{}{k, v},
-			})
+	if cr.BackendType != NetworkBackend || cr.Backend != "" {
+		jr.Backend = &jsonBackend{
+			Type:      cr.BackendType.String(),
+			Address:   cr.Backend,
+			Algorithm: cr.LBAlgorithm,
+			Endpoints: cr.LBEndpoints,
 		}
 	}
 
-	rjf = append(rjf, r.Predicates...)
-
-	return rjf
+	return jr
 }
 
-func marshalNameArgs(name string, args []interface{}) ([]byte, error) {
-	if args == nil {
-		args = []interface{}{}
-	}
-
-	return json.Marshal(&struct {
-		Name string        `json:"name"`
-		Args []interface{} `json:"args"`
-	}{
-		Name: name,
-		Args: args,
-	})
-}
-
-func (f *Filter) MarshalJSON() ([]byte, error) {
-	return marshalNameArgs(f.Name, f.Args)
-}
-
-func (p *Predicate) MarshalJSON() ([]byte, error) {
-	return marshalNameArgs(p.Name, p.Args)
-}
-
-func (r *Route) MarshalJSON() ([]byte, error) {
-	backend := r.backendString()
-
-	filters := r.Filters
-	if filters == nil {
-		filters = []*Filter{}
-	}
-
+func marshalJSONNoEscape(v interface{}) ([]byte, error) {
 	var buf bytes.Buffer
 	e := json.NewEncoder(&buf)
 	e.SetEscapeHTML(false)
 
-	if err := e.Encode(&struct {
-		Id         string       `json:"id"`
-		Backend    string       `json:"backend"`
-		Predicates []*Predicate `json:"predicates"`
-		Filters    []*Filter    `json:"filters"`
-	}{
-		Id:         r.Id,
-		Backend:    backend,
-		Predicates: marshalJsonPredicates(r),
-		Filters:    filters,
-	}); err != nil {
+	if err := e.Encode(v); err != nil {
 		return nil, err
 	}
 
 	return buf.Bytes(), nil
+}
+
+func (f *Filter) MarshalJSON() ([]byte, error) {
+	return marshalJSONNoEscape(&jsonNameArgs{Name: f.Name, Args: f.Args})
+}
+
+func (p *Predicate) MarshalJSON() ([]byte, error) {
+	return marshalJSONNoEscape(&jsonNameArgs{Name: p.Name, Args: p.Args})
+}
+
+func (r *Route) MarshalJSON() ([]byte, error) {
+	return marshalJSONNoEscape(newJSONRoute(r))
+}
+
+func (r *Route) UnmarshalJSON(b []byte) error {
+	jr := &jsonRoute{}
+	if err := json.Unmarshal(b, jr); err != nil {
+		return err
+	}
+
+	r.Id = jr.ID
+
+	var bts string
+	if jr.Backend != nil {
+		bts = jr.Backend.Type
+	}
+
+	bt, err := BackendTypeFromString(bts)
+	if err != nil {
+		return err
+	}
+
+	r.BackendType = bt
+	switch bt {
+	case NetworkBackend:
+		if jr.Backend != nil {
+			r.Backend = jr.Backend.Address
+		}
+	case LBBackend:
+		r.LBAlgorithm = jr.Backend.Algorithm
+		r.LBEndpoints = jr.Backend.Endpoints
+		if len(r.LBEndpoints) == 0 {
+			r.LBEndpoints = nil
+		}
+	}
+
+	r.Filters = jr.Filters
+	if len(r.Filters) == 0 {
+		r.Filters = nil
+	}
+
+	r.Predicates = jr.Predicates
+	if len(r.Predicates) == 0 {
+		r.Predicates = nil
+	}
+
+	return nil
 }
