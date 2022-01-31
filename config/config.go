@@ -63,7 +63,7 @@ type Config struct {
 	DataclientPlugins               *pluginFlag    `yaml:"dataclient-plugin"`
 	MultiPlugins                    *pluginFlag    `yaml:"multi-plugin"`
 
-	// logging, metrics, tracing:
+	// logging, metrics, profiling, tracing:
 	EnablePrometheusMetrics             bool      `yaml:"enable-prometheus-metrics"`
 	OpenTracing                         string    `yaml:"opentracing"`
 	OpenTracingInitialSpan              string    `yaml:"opentracing-initial-span"`
@@ -74,6 +74,9 @@ type Config struct {
 	MetricsListener                     string    `yaml:"metrics-listener"`
 	MetricsPrefix                       string    `yaml:"metrics-prefix"`
 	EnableProfile                       bool      `yaml:"enable-profile"`
+	BlockProfileRate                    int       `yaml:"block-profile-rate"`
+	MutexProfileFraction                int       `yaml:"mutex-profile-fraction"`
+	MemProfileRate                      int       `yaml:"memory-profile-rate"`
 	DebugGcMetrics                      bool      `yaml:"debug-gc-metrics"`
 	RuntimeMetrics                      bool      `yaml:"runtime-metrics"`
 	ServeRouteMetrics                   bool      `yaml:"serve-route-metrics"`
@@ -327,6 +330,9 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.MetricsListener, "metrics-listener", ":9911", "network address used for exposing the /metrics endpoint. An empty value disables metrics iff support listener is also empty.")
 	flag.StringVar(&cfg.MetricsPrefix, "metrics-prefix", "skipper.", "allows setting a custom path prefix for metrics export")
 	flag.BoolVar(&cfg.EnableProfile, "enable-profile", false, "enable profile information on the metrics endpoint with path /pprof")
+	flag.IntVar(&cfg.BlockProfileRate, "block-profile-rate", 0, "block profile sample rate, see runtime.SetBlockProfileRate")
+	flag.IntVar(&cfg.MutexProfileFraction, "mutex-profile-fraction", 0, "mutex profile fraction rate, see runtime.SetMutexProfileFraction")
+	flag.IntVar(&cfg.MemProfileRate, "memory-profile-rate", 0, "memory profile rate, see runtime.SetMemProfileRate, keeps default 512 kB")
 	flag.BoolVar(&cfg.DebugGcMetrics, "debug-gc-metrics", false, "enables reporting of the Go garbage collector statistics exported in debug.GCStats")
 	flag.BoolVar(&cfg.RuntimeMetrics, "runtime-metrics", true, "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats")
 	flag.BoolVar(&cfg.ServeRouteMetrics, "serve-route-metrics", false, "enables reporting total serve time metrics for each route")
@@ -667,7 +673,7 @@ func (c *Config) ToOptions() skipper.Options {
 		Plugins:                         c.MultiPlugins.values,
 		PluginDirs:                      []string{skipper.DefaultPluginDir},
 
-		// logging, metrics, tracing:
+		// logging, metrics, profiling, tracing:
 		EnablePrometheusMetrics:             c.EnablePrometheusMetrics,
 		OpenTracing:                         strings.Split(c.OpenTracing, " "),
 		OpenTracingInitialSpan:              c.OpenTracingInitialSpan,
@@ -677,6 +683,8 @@ func (c *Config) ToOptions() skipper.Options {
 		MetricsListener:                     c.MetricsListener,
 		MetricsPrefix:                       c.MetricsPrefix,
 		EnableProfile:                       c.EnableProfile,
+		BlockProfileRate:                    c.BlockProfileRate,
+		MutexProfileFraction:                c.MutexProfileFraction,
 		EnableDebugGcMetrics:                c.DebugGcMetrics,
 		EnableRuntimeMetrics:                c.RuntimeMetrics,
 		EnableServeRouteMetrics:             c.ServeRouteMetrics,

@@ -396,6 +396,15 @@ type Options struct {
 	// metrics listener.
 	EnableProfile bool
 
+	// BlockProfileRate calls runtime.SetBlockProfileRate(BlockProfileRate) if non zero value, deactivate with <0
+	BlockProfileRate int
+
+	// MutexProfileFraction calls runtime.SetMutexProfileFraction(MutexProfileFraction) if non zero value, deactivate with <0
+	MutexProfileFraction int
+
+	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if non zero value, deactivate with <0
+	MemProfileRate int
+
 	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
 	EnableDebugGcMetrics bool
 
@@ -1179,6 +1188,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		EnableServeStatusCodeMetric:        o.EnableServeStatusCodeMetric,
 		EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
 		EnableProfile:                      o.EnableProfile,
+		BlockProfileRate:                   o.BlockProfileRate,
+		MutexProfileFraction:               o.MutexProfileFraction,
+		MemProfileRate:                     o.MemProfileRate,
 		EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
 		EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
 		EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
