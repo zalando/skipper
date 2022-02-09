@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/routing"
@@ -338,4 +341,64 @@ func TestConfig(t *testing.T) {
 
 		waitForStatus(t, q, scheduler.QueueStatus{Closed: true})
 	})
+}
+
+func TestRegistryPreProcessor(t *testing.T) {
+	fr := builtin.MakeRegistry()
+
+	for _, tc := range []struct {
+		name, input, expect string
+	}{
+		{
+			name:   "no lifo",
+			input:  `* -> setPath("/foo") -> <shunt>`,
+			expect: `* -> setPath("/foo") -> <shunt>`,
+		},
+		{
+			name:   "one lifo",
+			input:  `* -> lifo() -> setPath("/foo") -> <shunt>`,
+			expect: `* -> lifo() -> setPath("/foo") -> <shunt>`,
+		},
+		{
+			name:   "two lifos",
+			input:  `* -> lifo(777) -> lifo() -> setPath("/foo") -> <shunt>`,
+			expect: `* -> lifo() -> setPath("/foo") -> <shunt>`,
+		},
+		{
+			name:   "three lifos",
+			input:  `* -> lifo(777) -> setPath("/foo") -> lifo(999) -> lifo() -> setPath("/bar") -> <shunt>`,
+			expect: `* -> setPath("/foo") -> lifo() -> setPath("/bar") -> <shunt>`,
+		},
+		{
+			name:   "ignores lifoGroup",
+			input:  `* -> lifo(777) -> lifoGroup("g") -> lifo(999) -> lifo() -> setPath("/bar") -> <shunt>`,
+			expect: `* -> lifoGroup("g") -> lifo() -> setPath("/bar") -> <shunt>`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dc, err := testdataclient.NewDoc(tc.input)
+			require.NoError(t, err)
+
+			reg := scheduler.RegistryWith(scheduler.Options{})
+			defer reg.Close()
+
+			ro := routing.Options{
+				SignalFirstLoad: true,
+				FilterRegistry:  fr,
+				DataClients:     []routing.DataClient{dc},
+				PreProcessors:   []routing.PreProcessor{reg.PreProcessor()},
+				PostProcessors:  []routing.PostProcessor{reg},
+			}
+
+			rt := routing.New(ro)
+			defer rt.Close()
+
+			<-rt.FirstLoad()
+
+			req, _ := http.NewRequest("GET", "http://skipper.test", nil)
+			route, _ := rt.Route(req)
+
+			assert.Equal(t, tc.expect, route.String())
+		})
+	}
 }

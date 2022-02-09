@@ -9,6 +9,8 @@ import (
 
 	"github.com/aryszka/jobqueue"
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
@@ -220,6 +222,40 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 	return q
 }
 
+// Returns routing.PreProcessor that ensures single lifo filter instance per route
+//
+// Registry can not implement routing.PreProcessor directly due to unfortunate method name clash with routing.PostProcessor
+func (r *Registry) PreProcessor() routing.PreProcessor {
+	return registryPreProcessor{}
+}
+
+type registryPreProcessor struct{}
+
+func (registryPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
+	for _, r := range routes {
+		lifoCount := 0
+		for _, f := range r.Filters {
+			if f.Name == filters.LifoName {
+				lifoCount++
+			}
+		}
+		// remove all but last lifo instances
+		if lifoCount > 1 {
+			old := r.Filters
+			r.Filters = make([]*eskip.Filter, 0, len(old)-lifoCount+1)
+			for _, f := range old {
+				if lifoCount > 1 && f.Name == filters.LifoName {
+					log.Debugf("Removing non-last %v from %s", f, r.Id)
+					lifoCount--
+				} else {
+					r.Filters = append(r.Filters, f)
+				}
+			}
+		}
+	}
+	return routes
+}
+
 // Do implements routing.PostProcessor and sets the queue for the scheduler filters.
 //
 // It preserves the existing queue when available.
@@ -250,6 +286,9 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 			c := lf.Config()
 			qi, ok := r.queues.Load(key)
 			if ok {
+				// Will not reach here if routes were pre-processed
+				// because key is derived from the unique route id and
+				// pre-processor ensures single lifo filter instance per route
 				q = qi.(*Queue)
 				if q.config != c {
 					q.config = c
@@ -264,7 +303,7 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 		}
 
 		if lifoCount > 1 {
-			log.Warnf("Found multiple lifo filters in route: %s", ri.Id)
+			log.Warnf("Found multiple lifo filters on route: %q", ri.Id)
 		}
 	}
 
