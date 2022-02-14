@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -34,7 +34,7 @@ func makeLocalUrls(ports ...int) []string {
 }
 
 func randPort() int {
-	return (1 << 15) + rand.Intn(1<<15)
+	return (1 << 15) + rand.Intn(1<<15) // #nosec
 }
 
 // Starts an etcd server.
@@ -104,8 +104,8 @@ func StartProjectRoot(projectRoot string) error {
 		etcd = e
 		return nil
 	case <-time.After(6 * time.Second):
-		bout, _ := ioutil.ReadAll(stdout)
-		berr, _ := ioutil.ReadAll(stderr)
+		bout, _ := io.ReadAll(stdout)
+		berr, _ := io.ReadAll(stderr)
 		log.Panicf("ETCD timedout: Failed to start etcd\netcd log output\nSTDOUT: %s\nSTDERR: %s", string(bout), string(berr))
 		return fmt.Errorf("etcd timeout")
 	}
@@ -228,6 +228,6 @@ func GetNodeFrom(prefix, key string) (string, error) {
 		return "", errors.New("unexpected response status")
 	}
 
-	b, err := ioutil.ReadAll(rsp.Body)
+	b, err := io.ReadAll(rsp.Body)
 	return string(b), err
 }

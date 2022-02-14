@@ -2,7 +2,7 @@ package builtin
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -34,7 +34,7 @@ func NewInlineContent() filters.Spec {
 	return &inlineContent{}
 }
 
-func (c *inlineContent) Name() string { return InlineContentName }
+func (c *inlineContent) Name() string { return filters.InlineContentName }
 
 func stringArg(a interface{}) (s string, err error) {
 	var ok bool
@@ -80,7 +80,7 @@ func (c *inlineContent) Request(ctx filters.FilterContext) {
 			"Content-Type":   []string{c.mime},
 			"Content-Length": []string{strconv.Itoa(len(c.text))},
 		},
-		Body: ioutil.NopCloser(bytes.NewBufferString(c.text)),
+		Body: io.NopCloser(bytes.NewBufferString(c.text)),
 	})
 }
 

@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -11,7 +10,8 @@ import (
 )
 
 const (
-	ForwardTokenName = "forwardToken"
+	// Deprecated, use filters.ForwardTokenName instead
+	ForwardTokenName = filters.ForwardTokenName
 )
 
 type (
@@ -29,7 +29,7 @@ func NewForwardToken() filters.Spec {
 }
 
 func (s *forwardTokenSpec) Name() string {
-	return ForwardTokenName
+	return filters.ForwardTokenName
 }
 
 func (*forwardTokenSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -92,8 +92,7 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 	request := ctx.Request()
-	jsonHeader := strings.TrimSpace(string(payload))
-	request.Header.Add(f.HeaderName, jsonHeader)
+	request.Header.Set(f.HeaderName, string(payload))
 }
 
 func (*forwardTokenFilter) Response(filters.FilterContext) {}

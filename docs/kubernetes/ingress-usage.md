@@ -4,11 +4,11 @@ This documentation is meant for people deploying to Kubernetes
 Clusters and describes to use Ingress and low level and high level
 features Skipper provides.
 
-[RouteGroups](../routegroups/), a relatively new feature, also
+[RouteGroups](routegroups.md), a relatively new feature, also
 support each of these features, with an alternative format that
 supports them in a more native way. The documentation contains a
 section with
-[mapping](../routegroups/#mapping-from-ingress-to-routegroups)
+[mapping](routegroups.md#mapping-from-ingress-to-routegroups)
 Ingress to RouteGroups.
 
 ## Skipper Ingress Annotations
@@ -22,8 +22,8 @@ zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | ext
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
 zalando.org/skipper-ingress-redirect | `"true"` | change the default HTTPS redirect behavior for specific ingresses (true/false)
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
-zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../../reference/backends/#load-balancer-backend)
-zalando.org/skipper-backend-protocol | `fastcgi` | (*experimental*) defaults to `http`, [see available choices](../../reference/backends/#backend-protocols)
+zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../reference/backends.md#load-balancer-backend)
+zalando.org/skipper-backend-protocol | `fastcgi` | (*experimental*) defaults to `http`, [see available choices](../reference/backends.md#backend-protocols)
 zalando.org/skipper-ingress-path-mode | `path-prefix` | defaults to `kubernetes-ingress`, [see available choices](#ingress-path-handling), to change the default use `-kubernetes-path-mode`
 
 ## Supported Service types
@@ -112,13 +112,13 @@ kind: Ingress
 metadata:
   name: service-x
 spec:
-rules:
-- host: service-x.example.org
-    http:
-    paths:
-    - backend:
-        serviceName: service-x # this service has 0 endpoints
-        servicePort: 80
+  rules:
+  - host: service-x.example.org
+      http:
+        paths:
+        - backend:
+            serviceName: service-x # this service has 0 endpoints
+            servicePort: 80
 ```
 
 &#x200B;
@@ -129,13 +129,13 @@ kind: Ingress
 metadata:
   name: service-x-live
 spec:
-rules:
-- host: service-x.example.org
-    http:
-    paths:
-    - backend:
-        serviceName: service-x-live
-        servicePort: 80
+  rules:
+  - host: service-x.example.org
+      http:
+        paths:
+        - backend:
+            serviceName: service-x-live
+            servicePort: 80
 ```
 
 ## Ingress path handling
@@ -472,7 +472,7 @@ Set a Cookie in the response path of your clients.
 
 ### Authorization
 
-Our [authentication and authorization tutorial](../../tutorials/auth/)
+Our [authentication and authorization tutorial](../tutorials/auth.md)
 or [filter auth godoc](https://godoc.org/github.com/zalando/skipper/filters/auth)
 shows how to use filters for authorization.
 
@@ -518,7 +518,7 @@ Filter documentation:
 - [bandwidth](../reference/filters.md#bandwidth)
 - [chunks](../reference/filters.md#chunks)
 - [backendlatency](../reference/filters.md#backendlatency)
-- [backendChunks](../reference/filters.md#backendChunks)
+- [backendChunks](../reference/filters.md#backendchunks)
 - [randomcontent](../reference/filters.md#randomcontent)
 
 ### Flow Id to trace request flows
@@ -735,6 +735,42 @@ spec:
           serviceName: app-svc
           servicePort: 80
 ```
+
+#### Path ratelimit
+
+To ratelimit a specific path use a second ingress definition like
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app-default
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app-login
+  annotations:
+    zalando.org/skipper-predicate: Path("/login")
+    zalando.org/skipper-filter: clusterClientRatelimit("login-ratelimit", 10, "1h")
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: app-svc
+          servicePort: 80
+```
+or use [RouteGroups](routegroups.md).
 
 ## Shadow Traffic
 
@@ -1045,7 +1081,7 @@ available it would switch to another one.
 
 Annotations:
 
-- `zalando.org/skipper-loadbalancer` [see available choices](../../reference/backends/#load-balancer-backend)
+- `zalando.org/skipper-loadbalancer` [see available choices](../reference/backends.md#load-balancer-backend)
 
 Example:
 

@@ -5,26 +5,22 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
+	"regexp"
 	"strings"
-	"syscall"
+	"text/template"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/predicates/primitive"
-	"github.com/zalando/skipper/predicates/source"
+	"github.com/zalando/skipper/filters"
 )
 
 const (
 	defaultIngressClass          = "skipper"
+	defaultRouteGroupClass       = "skipper"
 	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
-	healthcheckRouteID           = "kube__healthz"
 	httpRedirectRouteID          = "kube__redirect"
-	healthcheckPath              = "/kube-system/healthz"
 	defaultLoadBalancerAlgorithm = "roundRobin"
 	defaultEastWestDomain        = "skipper.cluster.local"
 )
@@ -91,7 +87,11 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
-	// KubernetesEnableEastWest if set adds automatically routes
+	// KubernetesIngressV1 is used to switch between v1beta1 and v1. Kubernetes version 1.22 stopped support
+	// for v1beta1, so we have to provide a migration path and this will someday become the default.
+	KubernetesIngressV1 bool
+
+	// *DEPRECATED* KubernetesEnableEastWest if set adds automatically routes
 	// with "%s.%s.skipper.cluster.local" domain pattern
 	KubernetesEnableEastWest bool
 
@@ -126,6 +126,11 @@ type Options struct {
 	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
 	IngressClass string
 
+	// RouteGroupClass is a regular expression to filter only those RouteGroups that match. If a RouteGroup
+	// does not have the required annotation (zalando.org/routegroup.class) or the annotation is an empty string,
+	// skipper will load it. The default value for the RouteGroup class is 'skipper'.
+	RouteGroupClass string
+
 	// ReverseSourcePredicate set to true will do the Source IP
 	// whitelisting for the heartbeat endpoint correctly in AWS.
 	// Amazon's ALB writes the client IP to the last item of the
@@ -143,37 +148,59 @@ type Options struct {
 	// specify it with an annotation.
 	PathMode PathMode
 
-	// KubernetesEastWestDomain sets the DNS domain to be used for east west traffic, defaults to "skipper.cluster.local"
+	// *DEPRECATED *KubernetesEastWestDomain sets the DNS domain to be
+	// used for east west traffic, defaults to "skipper.cluster.local"
 	KubernetesEastWestDomain string
+
+	// KubernetesEastWestRangeDomains set the the cluster internal domains for
+	// east west traffic. Identified routes to such domains will include
+	// the KubernetesEastWestRangePredicates.
+	KubernetesEastWestRangeDomains []string
+
+	// KubernetesEastWestRangePredicates set the Predicates that will be
+	// appended to routes identified as to KubernetesEastWestRangeDomains.
+	KubernetesEastWestRangePredicates []*eskip.Predicate
 
 	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters.
 	// The provided filters are then applied to all routes.
 	DefaultFiltersDir string
 
-	// If the OriginMarker should be added as a filter
+	// OriginMarker is *deprecated* and not used anymore. It will be deleted in v1.
 	OriginMarker bool
+
+	// If the OpenTracing tag containing RouteGroup backend name
+	// (using tracingTag filter) should be added to all routes
+	BackendNameTracingTag bool
+
+	// OnlyAllowedExternalNames will enable validation of ingress external names and route groups network
+	// backend addresses, explicit LB endpoints validation agains the list of patterns in
+	// AllowedExternalNames.
+	OnlyAllowedExternalNames bool
+
+	// AllowedExternalNames contains regexp patterns of those domain names that are allowed to be
+	// used with external name services (type=ExternalName).
+	AllowedExternalNames []*regexp.Regexp
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
-	clusterClient          *clusterClient
+	ClusterClient          *clusterClient
 	ingress                *ingress
 	routeGroups            *routeGroups
 	provideHealthcheck     bool
-	healthy                bool
 	provideHTTPSRedirect   bool
-	termReceived           bool
 	reverseSourcePredicate bool
 	httpsRedirectCode      int
 	current                map[string]*eskip.Route
-	sigs                   chan os.Signal
 	quit                   chan struct{}
 	defaultFiltersDir      string
-	originMarker           bool
 }
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
+	if o.OriginMarker {
+		log.Warning("OriginMarker is deprecated")
+	}
 	quit := make(chan struct{})
 
 	apiURL, err := buildAPIURL(o)
@@ -186,17 +213,15 @@ func New(o Options) (*Client, error) {
 		ingCls = o.IngressClass
 	}
 
-	log.Debugf(
-		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. namespace: %s",
-		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, o.KubernetesNamespace,
-	)
-
-	var sigs chan os.Signal
-	if o.ProvideHealthcheck {
-		log.Info("register sigterm handler")
-		sigs = make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGTERM)
+	rgCls := defaultRouteGroupClass
+	if o.RouteGroupClass != "" {
+		rgCls = o.RouteGroupClass
 	}
+
+	log.Debugf(
+		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. routegroup.class filter: %s. namespace: %s",
+		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, rgCls, o.KubernetesNamespace,
+	)
 
 	if len(o.WhitelistedHealthCheckCIDR) > 0 {
 		whitelistCIDRS := make([]interface{}, len(o.WhitelistedHealthCheckCIDR))
@@ -219,27 +244,29 @@ func New(o Options) (*Client, error) {
 		}
 	}
 
-	clusterClient, err := newClusterClient(o, apiURL, ingCls, quit)
+	clusterClient, err := newClusterClient(o, apiURL, ingCls, rgCls, quit)
 	if err != nil {
 		return nil, err
+	}
+
+	if !o.OnlyAllowedExternalNames {
+		o.AllowedExternalNames = []*regexp.Regexp{regexp.MustCompile(".*")}
 	}
 
 	ing := newIngress(o)
 	rg := newRouteGroups(o)
 
 	return &Client{
-		clusterClient:          clusterClient,
+		ClusterClient:          clusterClient,
 		ingress:                ing,
 		routeGroups:            rg,
 		provideHealthcheck:     o.ProvideHealthcheck,
 		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
 		httpsRedirectCode:      o.HTTPSRedirectCode,
 		current:                make(map[string]*eskip.Route),
-		sigs:                   sigs,
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
-		originMarker:           o.OriginMarker,
 	}, nil
 }
 
@@ -296,115 +323,99 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 	return m
 }
 
-func (c *Client) loadAndConvert() (*clusterState, []*eskip.Route, error) {
-	state, err := c.clusterClient.fetchClusterState()
+func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
+	state, err := c.ClusterClient.fetchClusterState()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
 	ri, err := c.ingress.convert(state, defaultFilters)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	rg, err := c.routeGroups.convert(state, defaultFilters)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return state, append(ri, rg...), nil
-}
+	r := append(ri, rg...)
 
-func healthcheckRoute(healthy, reverseSourcePredicate bool) *eskip.Route {
-	status := http.StatusOK
-	if !healthy {
-		status = http.StatusServiceUnavailable
-	}
-
-	var p []*eskip.Predicate
-	if reverseSourcePredicate {
-		p = []*eskip.Predicate{{
-			Name: source.NameLast,
-			Args: internalIPs,
-		}}
-	} else {
-		p = []*eskip.Predicate{{
-			Name: source.Name,
-			Args: internalIPs,
-		}}
-	}
-
-	return &eskip.Route{
-		Id:         healthcheckRouteID,
-		Predicates: p,
-		Path:       healthcheckPath,
-		Filters: []*eskip.Filter{{
-			Name: builtin.StatusName,
-			Args: []interface{}{status}},
-		},
-		Shunt: true,
-	}
-}
-
-func (c *Client) hasReceivedTerm() bool {
-	select {
-	case s := <-c.sigs:
-		log.Infof("shutdown, caused by %s, set health check to be unhealthy", s)
-		c.termReceived = true
-	default:
-	}
-
-	return c.termReceived
-}
-
-func setOriginMarker(s *clusterState, r []*eskip.Route) []*eskip.Route {
-	or := &eskip.Route{
-		Id: "kube__originMarkers",
-		Predicates: []*eskip.Predicate{{
-			Name: primitive.NameFalse,
-		}},
-		BackendType: eskip.ShuntBackend,
-	}
-
-	for _, i := range s.ingresses {
-		or.Filters = append(
-			or.Filters,
-			builtin.NewOriginMarker(
-				ingressOriginName,
-				i.Metadata.Uid,
-				i.Metadata.Created,
-			),
-		)
-	}
-
-	return append(r, or)
-}
-
-func (c *Client) LoadAll() ([]*eskip.Route, error) {
-	log.Debug("loading all")
-	clusterState, r, err := c.loadAndConvert()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load cluster state: %w", err)
-	}
-
-	// teardown handling: always healthy unless SIGTERM received
 	if c.provideHealthcheck {
-		c.healthy = !c.hasReceivedTerm()
-		r = append(r, healthcheckRoute(c.healthy, c.reverseSourcePredicate))
+		r = append(r, healthcheckRoutes(c.reverseSourcePredicate)...)
 	}
 
 	if c.provideHTTPSRedirect {
 		r = append(r, globalRedirectRoute(c.httpsRedirectCode))
 	}
 
+	return r, nil
+}
+
+func shuntRoute(r *eskip.Route) {
+	r.Filters = []*eskip.Filter{
+		{
+			Name: filters.StatusName,
+			Args: []interface{}{502.0},
+		},
+		{
+			Name: filters.InlineContentName,
+			Args: []interface{}{"no endpoints"},
+		},
+	}
+	r.BackendType = eskip.ShuntBackend
+	r.Backend = ""
+}
+
+func healthcheckRoutes(reverseSourcePredicate bool) []*eskip.Route {
+	template := template.Must(template.New("healthcheck").Parse(`
+		kube__healthz_up:   Path("/kube-system/healthz") && {{.Source}}({{.SourceCIDRs}}) -> {{.DisableAccessLog}} status(200) -> <shunt>;
+		kube__healthz_down: Path("/kube-system/healthz") && {{.Source}}({{.SourceCIDRs}}) && Shutdown() -> status(503) -> <shunt>;
+	`))
+
+	params := struct {
+		Source           string
+		SourceCIDRs      string
+		DisableAccessLog string
+	}{}
+
+	if reverseSourcePredicate {
+		params.Source = "SourceFromLast"
+	} else {
+		params.Source = "Source"
+	}
+
+	if !log.IsLevelEnabled(log.DebugLevel) {
+		params.DisableAccessLog = "disableAccessLog(200) ->"
+	}
+
+	cidrs := new(strings.Builder)
+	for i, ip := range internalIPs {
+		if i > 0 {
+			cidrs.WriteString(", ")
+		}
+		cidrs.WriteString(fmt.Sprintf("%q", ip))
+	}
+	params.SourceCIDRs = cidrs.String()
+
+	out := new(strings.Builder)
+	_ = template.Execute(out, params)
+	routes, _ := eskip.Parse(out.String())
+
+	return routes
+}
+
+func (c *Client) LoadAll() ([]*eskip.Route, error) {
+	log.Debug("loading all")
+	r, err := c.loadAndConvert()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load cluster state: %w", err)
+	}
+
 	c.current = mapRoutes(r)
 	log.Debugf("all routes loaded and mapped")
-
-	if c.originMarker {
-		r = setOriginMarker(clusterState, r)
-	}
 
 	return r, nil
 }
@@ -415,7 +426,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 // TODO: implement a force reset after some time.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 	log.Debugf("polling for updates")
-	clusterState, r, err := c.loadAndConvert()
+	r, err := c.loadAndConvert()
 	if err != nil {
 		log.Errorf("polling for updates failed: %v", err)
 		return nil, nil, err
@@ -433,7 +444,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		// TODO: use eskip.Eq()
 		if r, ok := next[id]; ok && r.String() != c.current[id].String() {
 			updatedRoutes = append(updatedRoutes, r)
-		} else if !ok && id != healthcheckRouteID && id != httpRedirectRouteID {
+		} else if !ok {
 			deletedIDs = append(deletedIDs, id)
 		}
 	}
@@ -446,21 +457,6 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 	if len(updatedRoutes) > 0 || len(deletedIDs) > 0 {
 		log.Infof("diff taken, inserts/updates: %d, deletes: %d", len(updatedRoutes), len(deletedIDs))
-	}
-
-	// teardown handling: always healthy unless SIGTERM received
-	if c.provideHealthcheck {
-		healthy := !c.hasReceivedTerm()
-		if healthy != c.healthy {
-			c.healthy = healthy
-			hc := healthcheckRoute(c.healthy, c.reverseSourcePredicate)
-			next[healthcheckRouteID] = hc
-			updatedRoutes = append(updatedRoutes, hc)
-		}
-	}
-
-	if c.originMarker && (len(updatedRoutes) > 0 || len(deletedIDs) > 0) {
-		updatedRoutes = setOriginMarker(clusterState, updatedRoutes)
 	}
 
 	c.current = next

@@ -20,12 +20,19 @@ const (
 
 	// BackendIsProxyKey is the key used in the state bag to notify proxy that the backend is also a proxy.
 	BackendIsProxyKey = "backend:isproxy"
+
+	// BackendTimeout is the key used in the state bag to configure backend timeout in proxy
+	BackendTimeout = "backend:timeout"
+
+	// BackendRatelimit is the key used in the state bag to configure backend ratelimit in proxy
+	BackendRatelimit = "backend:ratelimit"
 )
 
 // Context object providing state and information that is unique to a request.
 type FilterContext interface {
 	// The response writer object belonging to the incoming request. Used by
 	// filters that handle the requests themselves.
+	// Deprecated: use Response() or Serve()
 	ResponseWriter() http.ResponseWriter
 
 	// The incoming request object. It is forwarded to the route endpoint
@@ -96,6 +103,17 @@ type FilterContext interface {
 
 	// Allow filters to create their own spans
 	ParentSpan() opentracing.Span
+
+	// Returns a clone of the FilterContext including a brand new request object.
+	// The stream body of the new request is shared with the original.
+	// Whenever the request body of the original request is read, the body of the
+	// new request body is written.
+	// The StateBag and filterMetrics object are not preserved in the new context.
+	// Therefore, you can't access state bag values set in the previous context.
+	Split() (FilterContext, error)
+
+	// Performs a new route lookup and executes the matched route if any
+	Loopback()
 }
 
 // Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will
@@ -146,10 +164,139 @@ type Spec interface {
 // Registry used to lookup Spec objects while initializing routes.
 type Registry map[string]Spec
 
-// Error used in case of invalid filter parameters.
+// ErrInvalidFilterParameters is used in case of invalid filter parameters.
 var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
 
 // Registers a filter specification.
 func (r Registry) Register(s Spec) {
 	r[s.Name()] = s
 }
+
+// All Skipper filter names
+const (
+	BackendIsProxyName                         = "backendIsProxy"
+	ModRequestHeaderName                       = "modRequestHeader"
+	SetRequestHeaderName                       = "setRequestHeader"
+	AppendRequestHeaderName                    = "appendRequestHeader"
+	DropRequestHeaderName                      = "dropRequestHeader"
+	SetResponseHeaderName                      = "setResponseHeader"
+	AppendResponseHeaderName                   = "appendResponseHeader"
+	DropResponseHeaderName                     = "dropResponseHeader"
+	SetContextRequestHeaderName                = "setContextRequestHeader"
+	AppendContextRequestHeaderName             = "appendContextRequestHeader"
+	SetContextResponseHeaderName               = "setContextResponseHeader"
+	AppendContextResponseHeaderName            = "appendContextResponseHeader"
+	CopyRequestHeaderName                      = "copyRequestHeader"
+	CopyResponseHeaderName                     = "copyResponseHeader"
+	ModPathName                                = "modPath"
+	SetPathName                                = "setPath"
+	RedirectToName                             = "redirectTo"
+	RedirectToLowerName                        = "redirectToLower"
+	StaticName                                 = "static"
+	StripQueryName                             = "stripQuery"
+	PreserveHostName                           = "preserveHost"
+	StatusName                                 = "status"
+	CompressName                               = "compress"
+	DecompressName                             = "decompress"
+	SetQueryName                               = "setQuery"
+	DropQueryName                              = "dropQuery"
+	InlineContentName                          = "inlineContent"
+	InlineContentIfStatusName                  = "inlineContentIfStatus"
+	FlowIdName                                 = "flowId"
+	XforwardName                               = "xforward"
+	XforwardFirstName                          = "xforwardFirst"
+	RandomContentName                          = "randomContent"
+	RepeatContentName                          = "repeatContent"
+	BackendTimeoutName                         = "backendTimeout"
+	LatencyName                                = "latency"
+	BandwidthName                              = "bandwidth"
+	ChunksName                                 = "chunks"
+	BackendLatencyName                         = "backendLatency"
+	BackendBandwidthName                       = "backendBandwidth"
+	BackendChunksName                          = "backendChunks"
+	AbsorbName                                 = "absorb"
+	AbsorbSilentName                           = "absorbSilent"
+	UniformRequestLatencyName                  = "uniformRequestLatency"
+	NormalRequestLatencyName                   = "normalRequestLatency"
+	UniformResponseLatencyName                 = "uniformResponseLatency"
+	NormalResponseLatencyName                  = "normalResponseLatency"
+	LogHeaderName                              = "logHeader"
+	TeeName                                    = "tee"
+	TeenfName                                  = "teenf"
+	TeeLoopbackName                            = "teeLoopback"
+	SedName                                    = "sed"
+	SedDelimName                               = "sedDelim"
+	SedRequestName                             = "sedRequest"
+	SedRequestDelimName                        = "sedRequestDelim"
+	BasicAuthName                              = "basicAuth"
+	WebhookName                                = "webhook"
+	OAuthTokeninfoAnyScopeName                 = "oauthTokeninfoAnyScope"
+	OAuthTokeninfoAllScopeName                 = "oauthTokeninfoAllScope"
+	OAuthTokeninfoAnyKVName                    = "oauthTokeninfoAnyKV"
+	OAuthTokeninfoAllKVName                    = "oauthTokeninfoAllKV"
+	OAuthTokenintrospectionAnyClaimsName       = "oauthTokenintrospectionAnyClaims"
+	OAuthTokenintrospectionAllClaimsName       = "oauthTokenintrospectionAllClaims"
+	OAuthTokenintrospectionAnyKVName           = "oauthTokenintrospectionAnyKV"
+	OAuthTokenintrospectionAllKVName           = "oauthTokenintrospectionAllKV"
+	SecureOAuthTokenintrospectionAnyClaimsName = "secureOauthTokenintrospectionAnyClaims"
+	SecureOAuthTokenintrospectionAllClaimsName = "secureOauthTokenintrospectionAllClaims"
+	SecureOAuthTokenintrospectionAnyKVName     = "secureOauthTokenintrospectionAnyKV"
+	SecureOAuthTokenintrospectionAllKVName     = "secureOauthTokenintrospectionAllKV"
+	ForwardTokenName                           = "forwardToken"
+	ForwardTokenFieldName                      = "forwardTokenField"
+	OAuthGrantName                             = "oauthGrant"
+	GrantCallbackName                          = "grantCallback"
+	GrantLogoutName                            = "grantLogout"
+	GrantClaimsQueryName                       = "grantClaimsQuery"
+	JwtValidationName                          = "jwtValidation"
+	OAuthOidcUserInfoName                      = "oauthOidcUserInfo"
+	OAuthOidcAnyClaimsName                     = "oauthOidcAnyClaims"
+	OAuthOidcAllClaimsName                     = "oauthOidcAllClaims"
+	RequestCookieName                          = "requestCookie"
+	OidcClaimsQueryName                        = "oidcClaimsQuery"
+	ResponseCookieName                         = "responseCookie"
+	JsCookieName                               = "jsCookie"
+	ConsecutiveBreakerName                     = "consecutiveBreaker"
+	RateBreakerName                            = "rateBreaker"
+	DisableBreakerName                         = "disableBreaker"
+	ClientRatelimitName                        = "clientRatelimit"
+	RatelimitName                              = "ratelimit"
+	ClusterClientRatelimitName                 = "clusterClientRatelimit"
+	ClusterRatelimitName                       = "clusterRatelimit"
+	BackendRateLimitName                       = "backendRatelimit"
+	LuaName                                    = "lua"
+	CorsOriginName                             = "corsOrigin"
+	HeaderToQueryName                          = "headerToQuery"
+	QueryToHeaderName                          = "queryToHeader"
+	DisableAccessLogName                       = "disableAccessLog"
+	EnableAccessLogName                        = "enableAccessLog"
+	AuditLogName                               = "auditLog"
+	UnverifiedAuditLogName                     = "unverifiedAuditLog"
+	SetDynamicBackendHostFromHeader            = "setDynamicBackendHostFromHeader"
+	SetDynamicBackendSchemeFromHeader          = "setDynamicBackendSchemeFromHeader"
+	SetDynamicBackendUrlFromHeader             = "setDynamicBackendUrlFromHeader"
+	SetDynamicBackendHost                      = "setDynamicBackendHost"
+	SetDynamicBackendScheme                    = "setDynamicBackendScheme"
+	SetDynamicBackendUrl                       = "setDynamicBackendUrl"
+	ApiUsageMonitoringName                     = "apiUsageMonitoring"
+	LifoName                                   = "lifo"
+	LifoGroupName                              = "lifoGroup"
+	RfcPathName                                = "rfcPath"
+	RfcHostName                                = "rfcHost"
+	BearerInjectorName                         = "bearerinjector"
+	TracingBaggageToTagName                    = "tracingBaggageToTag"
+	StateBagToTagName                          = "stateBagToTag"
+	TracingTagName                             = "tracingTag"
+	TracingSpanNameName                        = "tracingSpanName"
+	OriginMarkerName                           = "originMarker"
+	FadeInName                                 = "fadeIn"
+	EndpointCreatedName                        = "endpointCreated"
+	ConsistentHashKeyName                      = "consistentHashKey"
+	ConsistentHashBalanceFactorName            = "consistentHashBalanceFactor"
+
+	// Undocumented filters
+	HealthCheckName        = "healthcheck"
+	SetFastCgiFilenameName = "setFastCgiFilename"
+	DisableRatelimitName   = "disableRatelimit"
+	UnknownRatelimitName   = "unknownRatelimit"
+)

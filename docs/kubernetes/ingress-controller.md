@@ -30,8 +30,18 @@ and [Security Groups](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Secur
 the HTTP routing capabilities are very limited. Skipper's main advantage
 compared to other HTTP routers is matching and changing HTTP. Another advantage
 for us and for skipper users in general is that defaults with
-[kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller),
+[kube-ingress-aws-controller](https://github.com/zalando-incubator/kube-ingress-aws-controller)
 just work as you would expect.
+For lower latency, safety, and cost reasons you can also use Network
+Load Balancer (NLB) instead of Application Load Balancer (ALB).
+We tested two cases (Skipper backends were pre-scaled and not changed):
+
+1. A hard switch to a cold NLB with 1 million requests per second
+(RPS). A similar test with 100k RPS with ALB results in client visible
+error rates and high latency percentiles.
+2. A 6h test with 2k RPS showed regular spikes in p999 latency to more
+than 100ms in for ALB. NLB showed a flat p999 latency of 25-35ms for
+the same workload.
 
 There are a number of other ingress controllers including
 [traefik](https://traefik.io/),
@@ -251,8 +261,11 @@ kubectl create -f docs/kubernetes/deploy/daemonset
 ```
 
 Please check, that you are using the [latest
-release](https://github.com/zalando/skipper/releases/latest), we do
-not maintain the **latest** tag.
+release](https://github.com/zalando/skipper/releases/latest), and do
+not use **latest** tag in production. While skipper is quite stable as
+library and proxy, there is ongoing development to make skipper more
+safe, increase visibility, fix issues that lead to incidents and add
+features.
 
 #### Deployment
 
@@ -377,10 +390,11 @@ automatically.
 
 If you want to split for example `internal` and `public` traffic, it
 might be a good choice to split your ingress deployments. Skipper has
-the flag `--kubernetes-ingress-class=<string>` to only select ingress
+the flag `--kubernetes-ingress-class=<regexp>` to only select ingress
 objects that have the annotation `kubernetes.io/ingress.class` set to
-`<string>`. Skipper will only create routes for ingress objects with
-it's annotation or ingress objects that do not have this annotation.
+something that is matched by `<regexp>`. Skipper will only create
+routes for ingress objects with it's annotation or ingress objects
+that do not have this annotation.
 
 The default ingress class is `skipper`, if not set. You have to create
 your ingress objects with the annotation
@@ -465,16 +479,32 @@ Check the repository if you need more configuration possibilities.
 ## Run as API Gateway with East-West setup
 
 East-West means cluster internal service-to-service communication.
-For this you need to resolve DNS to skipper for an additional domain
-`.skipper.cluster.local` we introduce and add HTTP routes to route to
-the specified backend from your normal ingress object.
+For this you need to resolve DNS to skipper for one or more additional
+domains of your choice. When Ingress or
+[RouteGroup](routegroups.md) objects specify such domains Skipper
+will add the configured predicates.
 
 ### Skipper
 
 To enable the East-West in skipper, you need to run skipper with
-`-enable-kubernetes-east-west` enabled. Skipper will duplicate all
-routes with a `Host()` predicate and change it to match the host
-header scheme: `<name>.<namespace>.skipper.cluster.local`.
+`-kubernetes-east-west-range-domains` and
+`-kubernetes-east-west-range-predicates` configuration flags. Check the
+[East West Range](../tutorials/operations.md#east-west-range) feature.
+Skipper will analyze all routes from Kubernetes objects and, the
+identified East-West routes will have the predicates specified appended.
+
+For example, for running skipper with the `skipper.cluster.local`
+domain, and setting East-West routes to accept just internal traffic,
+use the following config:
+
+```
+skipper \
+  -kubernetes-east-west-range-domains="skipper.cluster.local" \
+  -kubernetes-east-west-range-predicates='ClientIP("10.2.0.0/16")'
+```
+
+It assumes 10.2.0.0/16 is your PODs' CIDR, you have to change it
+accordingly to your environment.
 
 You need also to have a kubernetes service type ClusterIP and write
 down the IP (p.e. `10.3.11.28`), which you will need in CoreDNS setup.
@@ -508,9 +538,8 @@ Corefile example:
 
 ### Usage
 
-If the setup was done correctly, the following ingress example will
-create an internal route with
-`Host(/^demo[.]default[.]skipper[.]cluster[.]local)` predicate:
+If the setup is correct, skipper will protect the following ingress
+example with the `ClientIP` predicate:
 
 ```
 apiVersion: extensions/v1beta1
@@ -520,7 +549,7 @@ metadata:
   namespace: default
 spec:
   rules:
-  - host: demo.example.org
+  - host: demo.skipper.cluster.local
     http:
       paths:
       - backend:
@@ -529,12 +558,23 @@ spec:
 ```
 
 Your clients inside the cluster should call this example with
-`demo.default.skipper.cluster.local` in their host header. Example
+`demo.skipper.cluster.local` in their host header. Example
 from inside a container:
 
 ```
-curl demo.default.skipper.cluster.local
+curl demo.skipper.cluster.local
 ```
+
+Skipper won't accept traffic from any IP outside of the configured
+network CIDR.
+
+!!! note
+    Depending on your environment, you might want to allow traffic not
+    just from the PODs' CIDR, but, also, from your nodes' CIDR. When doing
+    so, pay attention to do not allow traffic from your LoadBalancer
+    and, by consequence, external traffic. You can use different
+    combinations of predicates like `ClientIP` and `SourceFromLast` to
+    achieve the desired protection.
 
 ## Running with Cluster Ratelimits
 
@@ -568,7 +608,7 @@ kind: StatefulSet
 metadata:
   labels:
     application: skipper-redis
-    version: v4.0.9
+    version: v6.2.4
   name: skipper-redis
   namespace: kube-system
 spec:
@@ -581,10 +621,10 @@ spec:
     metadata:
       labels:
         application: skipper-redis
-        version: v4.0.9
+        version: v6.2.4
     spec:
       containers:
-      - image: registry.opensource.zalan.do/zmon/redis:4.0.9-master-6
+      - image: registry.opensource.zalan.do/library/redis-6-alpine:6-alpine-20210712
         name: skipper-redis
         ports:
         - containerPort: 6379

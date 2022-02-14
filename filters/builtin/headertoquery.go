@@ -27,7 +27,7 @@ func NewHeaderToQuery() filters.Spec {
 }
 
 func (*headerToQuerySpec) Name() string {
-	return HeaderToQueryName
+	return filters.HeaderToQueryName
 }
 
 // CreateFilter creates a `headerToQuery` filter instance with below signature

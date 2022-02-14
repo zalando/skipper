@@ -1,37 +1,25 @@
+//go:build !race || redis
 // +build !race redis
 
 package ratelimit
 
 import (
-	"context"
 	"fmt"
-	"log"
-	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/net/redistest"
 )
 
-func startRedis2(port string) func() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	cmd := exec.CommandContext(ctx, "redis-server", "--port", port)
-	err := cmd.Start()
-	if err != nil {
-		log.Fatalf("Run '%q %q' failed, caused by: %s", cmd.Path, cmd.Args, err)
-	}
-	return func() { cancel(); _ = cmd.Wait() }
-}
-
 func Test_newClusterRateLimiter(t *testing.T) {
-	cancel := startRedis2("16079")
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
-	quit := make(chan struct{})
-	myring := newRing(
-		&RedisOptions{
-			Addrs: []string{"127.0.0.1:16079"},
+	myring := net.NewRedisRingClient(
+		&net.RedisOptions{
+			Addrs: []string{redisAddr},
 		},
-		quit,
 	)
 	fake, err := newFakeSwarm("foo01", 3*time.Second)
 	if err != nil {
@@ -48,7 +36,7 @@ func Test_newClusterRateLimiter(t *testing.T) {
 		name     string
 		settings Settings
 		swarm    Swarmer
-		ring     *ring
+		ring     *net.RedisRingClient
 		group    string
 		want     limiter
 	}{
@@ -70,11 +58,10 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			ring:  myring,
 			group: "mygroup",
 			want: &clusterLimitRedis{
-				group:   "mygroup",
-				maxHits: 10,
-				window:  3 * time.Second,
-				ring:    myring.ring,
-				metrics: myring.metrics,
+				group:      "mygroup",
+				maxHits:    10,
+				window:     3 * time.Second,
+				ringClient: myring,
 			},
 		},
 		{
@@ -95,5 +82,4 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			}
 		})
 	}
-
 }

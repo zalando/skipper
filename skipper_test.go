@@ -2,20 +2,24 @@ package skipper
 
 import (
 	"crypto/tls"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/dataclients/routestring"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -69,66 +73,64 @@ func findAddress() (string, error) {
 	return l.Addr().String(), nil
 }
 
-func TestOptionsDefaultsToHTTP(t *testing.T) {
-	o := Options{}
-	if o.isHTTPS() {
-		t.FailNow()
-	}
+func TestOptionsTLSConfig(t *testing.T) {
+	cert, err := tls.LoadX509KeyPair("fixtures/test.crt", "fixtures/test.key")
+	require.NoError(t, err)
+
+	cert2, err := tls.LoadX509KeyPair("fixtures/test2.crt", "fixtures/test2.key")
+	require.NoError(t, err)
+
+	// empty
+	o := &Options{}
+	c, err := o.tlsConfig()
+	require.NoError(t, err)
+	require.Nil(t, c)
+
+	// proxy tls config
+	o = &Options{ProxyTLS: &tls.Config{}}
+	c, err = o.tlsConfig()
+	require.NoError(t, err)
+	require.Equal(t, &tls.Config{}, c)
+
+	// proxy tls config priority
+	o = &Options{ProxyTLS: &tls.Config{}, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
+	c, err = o.tlsConfig()
+	require.NoError(t, err)
+	require.Equal(t, &tls.Config{}, c)
+
+	// cert key path
+	o = &Options{TLSMinVersion: tls.VersionTLS12, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
+	c, err = o.tlsConfig()
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS12), c.MinVersion)
+	require.Equal(t, []tls.Certificate{cert}, c.Certificates)
+
+	// multiple cert key paths
+	o = &Options{TLSMinVersion: tls.VersionTLS13, CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test.key,fixtures/test2.key"}
+	c, err = o.tlsConfig()
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS13), c.MinVersion)
+	require.Equal(t, []tls.Certificate{cert, cert2}, c.Certificates)
 }
 
-func TestOptionsWithCertUsesHTTPS(t *testing.T) {
-	o := Options{CertPathTLS: "foo", KeyPathTLS: "bar"}
-	if !o.isHTTPS() {
-		t.FailNow()
-	}
-}
-
-func TestWithWrongCertPathFails(t *testing.T) {
-	a, err := findAddress()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	o := Options{Address: a,
-		CertPathTLS: "fixtures/notFound.crt",
-		KeyPathTLS:  "fixtures/test.key",
-	}
-
-	rt := routing.New(routing.Options{
-		FilterRegistry: builtin.MakeRegistry(),
-		DataClients:    []routing.DataClient{}})
-	defer rt.Close()
-
-	proxy := proxy.New(rt, proxy.OptionsNone)
-	defer proxy.Close()
-
-	err = listenAndServe(proxy, &o)
-	if err == nil {
-		t.Fatal(err)
-	}
-}
-
-func TestWithWrongKeyPathFails(t *testing.T) {
-	a, err := findAddress()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	o := Options{Address: a,
-		CertPathTLS: "fixtures/test.crt",
-		KeyPathTLS:  "fixtures/notFound.key",
-	}
-
-	rt := routing.New(routing.Options{
-		FilterRegistry: builtin.MakeRegistry(),
-		DataClients:    []routing.DataClient{}})
-	defer rt.Close()
-
-	proxy := proxy.New(rt, proxy.OptionsNone)
-	defer proxy.Close()
-	err = listenAndServe(proxy, &o)
-	if err == nil {
-		t.Fatal(err)
+func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		options *Options
+	}{
+		{"missing cert path", &Options{KeyPathTLS: "fixtures/test.key"}},
+		{"missing key path", &Options{CertPathTLS: "fixtures/test.crt"}},
+		{"wrong cert path", &Options{CertPathTLS: "fixtures/notFound.crt", KeyPathTLS: "fixtures/test.key"}},
+		{"wrong key path", &Options{CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/notFound.key"}},
+		{"cert key mismatch", &Options{CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test2.key"}},
+		{"multiple cert key count mismatch", &Options{CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test.key"}},
+		{"multiple cert key mismatch", &Options{CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test2.key,fixtures/test.key"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.options.tlsConfig()
+			t.Logf("tlsConfig error: %v", err)
+			require.Error(t, err)
+		})
 	}
 }
 
@@ -169,7 +171,7 @@ func TestHTTPSServer(t *testing.T) {
 	if r.StatusCode != 404 {
 		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
 	}
-	_, err = ioutil.ReadAll(r.Body)
+	_, err = io.ReadAll(r.Body)
 	if err != nil {
 		t.Fatalf("Failed to stream response body: %v", err)
 	}
@@ -207,97 +209,104 @@ func TestHTTPServer(t *testing.T) {
 	if r.StatusCode != 404 {
 		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
 	}
-	_, err = ioutil.ReadAll(r.Body)
+	_, err = io.ReadAll(r.Body)
 	if err != nil {
 		t.Fatalf("Failed to stream response body: %v", err)
 	}
 }
 
 func TestHTTPServerShutdown(t *testing.T) {
-	d := 1 * time.Second
+	o := &Options{}
+	testServerShutdown(t, o, "http")
+}
 
-	o := Options{
-		Address:                    ":19999",
-		WaitForHealthcheckInterval: d,
+func TestHTTPSServerShutdown(t *testing.T) {
+	o := &Options{
+		CertPathTLS: "fixtures/test.crt",
+		KeyPathTLS:  "fixtures/test.key",
 	}
+	testServerShutdown(t, o, "https")
+}
+
+func testServerShutdown(t *testing.T, o *Options, scheme string) {
+	const shutdownDelay = 1 * time.Second
+
+	address, err := findAddress()
+	require.NoError(t, err)
+
+	o.Address, o.WaitForHealthcheckInterval = address, shutdownDelay
+	testUrl := scheme + "://" + address
 
 	// simulate a backend that got a request and should be handled correctly
 	dc, err := routestring.New(`r0: * -> latency("3s") -> inlineContent("OK") -> status(200) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to create dataclient: %v", err)
-	}
+	require.NoError(t, err)
 
 	rt := routing.New(routing.Options{
 		FilterRegistry: builtin.MakeRegistry(),
-		DataClients: []routing.DataClient{
-			dc,
-		},
+		DataClients:    []routing.DataClient{dc},
 	})
 	defer rt.Close()
 
 	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
+
+	sigs := make(chan os.Signal, 1)
 	go func() {
-		if errLas := listenAndServe(proxy, &o); errLas != nil {
-			t.Logf("Failed to liste and serve: %v", errLas)
-		}
+		err := listenAndServeQuit(proxy, o, sigs, nil, nil)
+		require.NoError(t, err)
 	}()
 
-	pid := syscall.Getpid()
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		t.Errorf("Failed to find current process: %v", err)
+	// initiate shutdown
+	sigs <- syscall.SIGTERM
+
+	time.Sleep(shutdownDelay / 2)
+
+	t.Logf("ongoing request passing in before shutdown")
+	r, err := waitConnGet(testUrl)
+	require.NoError(t, err)
+	require.Equal(t, 200, r.StatusCode)
+
+	defer r.Body.Close()
+
+	body, err := io.ReadAll(r.Body)
+	require.NoError(t, err)
+	require.Equal(t, "OK", string(body))
+
+	time.Sleep(shutdownDelay / 2)
+
+	t.Logf("request after shutdown should fail")
+	_, err = waitConnGet(testUrl)
+	require.Error(t, err)
+}
+
+type (
+	customRatelimitSpec   struct{ registry *ratelimit.Registry }
+	customRatelimitFilter struct{}
+)
+
+func (s *customRatelimitSpec) Name() string { return "customRatelimit" }
+func (s *customRatelimitSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+	log.Infof("Registry: %v", s.registry)
+	return &customRatelimitFilter{}, nil
+}
+func (f *customRatelimitFilter) Request(ctx filters.FilterContext)  {}
+func (f *customRatelimitFilter) Response(ctx filters.FilterContext) {}
+
+func Example_ratelimitRegistryBinding() {
+	s := &customRatelimitSpec{}
+
+	o := Options{
+		Address:            ":9090",
+		InlineRoutes:       `* -> customRatelimit() -> <shunt>`,
+		EnableRatelimiters: true,
+		EnableSwarm:        true,
+		SwarmRedisURLs:     []string{":6379"},
+		CustomFilters:      []filters.Spec{s},
+		SwarmRegistry: func(registry *ratelimit.Registry) {
+			s.registry = registry
+		},
 	}
 
-	var wg sync.WaitGroup
-	installSigHandler := make(chan struct{}, 1)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGTERM)
-
-		installSigHandler <- struct{}{}
-
-		<-sigs
-
-		// ongoing requests passing in before shutdown
-		time.Sleep(d / 2)
-		r, err2 := waitConnGet("http://" + o.Address)
-		if r != nil {
-			defer r.Body.Close()
-		}
-		if err2 != nil {
-			t.Errorf("Cannot connect to the local server for testing: %v ", err2)
-		}
-		if r.StatusCode != 200 {
-			t.Errorf("Status code should be 200, instead got: %d\n", r.StatusCode)
-		}
-		body, err2 := ioutil.ReadAll(r.Body)
-		if err2 != nil {
-			t.Errorf("Failed to stream response body: %v", err2)
-		}
-		if s := string(body); s != "OK" {
-			t.Errorf("Failed to get the right content: %s", s)
-		}
-
-		// requests on closed listener should fail
-		time.Sleep(d / 2)
-		r2, err2 := waitConnGet("http://" + o.Address)
-		if r2 != nil {
-			defer r2.Body.Close()
-		}
-		if err2 == nil {
-			t.Error("Can connect to a closed server for testing")
-		}
-	}()
-
-	<-installSigHandler
-	time.Sleep(d / 2)
-
-	if err = p.Signal(syscall.SIGTERM); err != nil {
-		t.Errorf("Failed to signal process: %v", err)
-	}
-	wg.Wait()
-	time.Sleep(d)
+	log.Fatal(Run(o))
+	// Example functions without output comments are compiled but not executed
 }

@@ -26,12 +26,18 @@ skipper: $(SOURCES) bindir
 eskip: $(SOURCES) bindir
 	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip/*.go
 
+webhook: $(SOURCES) bindir
+	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook/*.go
+
+routesrv: $(SOURCES) bindir
+	GO111MODULE=$(GO111) go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/routesrv ./cmd/routesrv/*.go
+
 fixlimits:
 ifeq (LIMIT_FDS, 256)
 	ulimit -n 1024
 endif
 
-build: $(SOURCES) lib skipper eskip
+build: $(SOURCES) lib skipper eskip webhook routesrv
 
 build.linux.armv8:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GO111MODULE=$(GO111) go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
@@ -114,13 +120,13 @@ deps:
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	mkdir -p .bin
-	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2020.1.3/staticcheck_linux_amd64.tar.gz
-	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q 0f6fab088826fb6d52a5aa4986b39790b795ff37d5319dc605a98be919fdd070
+	@curl -o /tmp/staticcheck_linux_amd64.tar.gz -LO https://github.com/dominikh/go-tools/releases/download/2021.1.2/staticcheck_linux_amd64.tar.gz
+	@sha256sum /tmp/staticcheck_linux_amd64.tar.gz | grep -q edf3b59dea0eb0e55ebe4cb3c47fdd05e25f9365771eb073a78cf66b8f093d9e
 	@tar -C /tmp -xzf /tmp/staticcheck_linux_amd64.tar.gz
 	@mv /tmp/staticcheck/staticcheck .bin
 	@chmod +x .bin/staticcheck
-	@curl -o /tmp/gosec.tgz -LO https://github.com/securego/gosec/releases/download/2.0.0/gosec_2.0.0_linux_amd64.tar.gz
-	@sha256sum /tmp/gosec.tgz | grep -q 490c2a0434b2b9cbb2f4c5031eafe228023f1ac41b36dddd757bff9e1de76a2b
+	@curl -o /tmp/gosec.tgz -LO https://github.com/securego/gosec/releases/download/v2.9.5/gosec_2.9.5_linux_amd64.tar.gz
+	@sha256sum /tmp/gosec.tgz | grep -q 524330ccda004a9af0ef1b78b712df02144a307a15b57a6528f12762f73c8d8e
 	@tar -C /tmp -xzf /tmp/gosec.tgz
 	@mv /tmp/gosec .bin
 	@chmod +x .bin/gosec
@@ -136,14 +142,15 @@ vet: $(SOURCES)
 # -ST1021 too many wrong comments on exported functions to fix right away
 # -ST1022 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES)
-	GO111MODULE=$(GO111) .bin/staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021,-ST1022" $(PACKAGES)
+	GO111MODULE=$(GO111) .bin/staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021" $(PACKAGES)
 
 # TODO(sszuecs) review disabling these checks, f.e.:
 # G101 find by variable name match "oauth" are not hardcoded credentials
 # G104 ignoring errors are in few cases fine
 # G304 reading kubernetes secret filepaths are not a file inclusions
+# G402 See https://github.com/securego/gosec/issues/551 and https://github.com/securego/gosec/issues/528
 gosec: $(SOURCES)
-	GO111MODULE=$(GO111) .bin/gosec -quiet -exclude="G101,G104,G304" ./...
+	GO111MODULE=$(GO111) .bin/gosec -quiet -exclude="G101,G104,G304,G402" ./...
 
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)

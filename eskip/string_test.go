@@ -3,6 +3,7 @@ package eskip
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -104,17 +105,45 @@ func TestRouteString(t *testing.T) {
 		&Route{
 			Filters:     []*Filter{{"filter0", []interface{}{`Line 1\r\nLine 2`}}},
 			BackendType: DynamicBackend},
-		`* -> filter0("Line 1\r\nLine 2") -> <dynamic>`,
+		`* -> filter0("Line 1\\r\\nLine 2") -> <dynamic>`,
 	}, {
 		&Route{
 			Filters:     []*Filter{{"filter0", []interface{}{"Line 1\r\nLine 2"}}},
 			BackendType: DynamicBackend},
 		`* -> filter0("Line 1\r\nLine 2") -> <dynamic>`,
+	}, {
+		&Route{Method: "GET", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997"}},
+		`Method("GET") -> <"http://127.0.0.1:9997">`,
+	}, {
+		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997"}},
+		`Method("GET") -> <random, "http://127.0.0.1:9997">`,
+	}, {
+		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997", "http://127.0.0.1:9998"}},
+		`Method("GET") -> <random, "http://127.0.0.1:9997", "http://127.0.0.1:9998">`,
+	}, {
+		// test slash escaping
+		&Route{Path: `/`, PathRegexps: []string{`/`}, Filters: []*Filter{{"afilter", []interface{}{`/`}}}, BackendType: ShuntBackend},
+		`Path("/") && PathRegexp(/\//) -> afilter("/") -> <shunt>`,
+	}, {
+		// test backslash escaping
+		&Route{Path: `\`, PathRegexps: []string{`\`}, Filters: []*Filter{{"afilter", []interface{}{`\`}}}, BackendType: ShuntBackend},
+		`Path("\\") && PathRegexp(/\\/) -> afilter("\\") -> <shunt>`,
+	}, {
+		// test double quote escaping
+		&Route{Path: `"`, PathRegexps: []string{`"`}, Filters: []*Filter{{"afilter", []interface{}{`"`}}}, BackendType: ShuntBackend},
+		`Path("\"") && PathRegexp(/"/) -> afilter("\"") -> <shunt>`,
+	}, {
+		// test backslash is escaped before other escape sequences
+		&Route{Path: "\\\n\"/", PathRegexps: []string{"\\\n\"/"}, Filters: []*Filter{{"afilter", []interface{}{"\\\n\"/"}}}, BackendType: ShuntBackend},
+		`Path("\\\n\"/") && PathRegexp(/\\\n"\//) -> afilter("\\\n\"/") -> <shunt>`,
 	}} {
 		rstring := item.route.String()
 		if rstring != item.string {
+			t.Log(rstring)
+			t.Log(item.string)
+
 			pos, rstringOut, itemOut := findDiffPos(rstring, item.string)
-			t.Error(rstring, item.string, i, pos, rstringOut, itemOut)
+			t.Error("diff pos:", i, pos, rstringOut, itemOut)
 		}
 	}
 }
@@ -480,4 +509,18 @@ testRoute3: Path("/baz")
 			})
 		})
 	})
+}
+
+func BenchmarkLBBackendString(b *testing.B) {
+	doc := fmt.Sprintf("* -> <random %s>", strings.Repeat(`, "http://127.0.0.1:9997"`, 50))
+	routes, err := Parse(doc)
+	if err != nil {
+		b.Fatal(err)
+	}
+	route := routes[0]
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = route.String()
+	}
 }

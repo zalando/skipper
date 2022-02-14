@@ -2,8 +2,10 @@ package eskip
 
 import (
 	"reflect"
+	"regexp"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sanity-io/litter"
 )
 
@@ -331,85 +333,6 @@ func TestParseFilters(t *testing.T) {
 	}
 }
 
-func TestRouteJSON(t *testing.T) {
-	for _, item := range []struct {
-		route  *Route
-		string string
-	}{{
-		&Route{},
-		`{"id":"","backend":"","predicates":[],"filters":[]}` + "\n",
-	}, {
-		&Route{
-			Filters:    []*Filter{{"xsrf", nil}},
-			Predicates: []*Predicate{{"Test", nil}},
-		},
-		`{"id":"","backend":"","predicates":[{"name":"Test","args":[]}],"filters":[{"name":"xsrf","args":[]}]}` + "\n",
-	}, {
-		&Route{Method: "GET", Backend: "https://www.example.org"},
-		`{"id":"","backend":"https://www.example.org","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
-	}, {
-		&Route{Method: "GET", Shunt: true},
-		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
-	}, {
-		&Route{Method: "GET", Shunt: true, BackendType: ShuntBackend},
-		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
-	}, {
-		&Route{Method: "GET", BackendType: ShuntBackend},
-		`{"id":"","backend":"<shunt>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
-	}, {
-		&Route{Method: "GET", BackendType: LoopBackend},
-		`{"id":"","backend":"<loopback>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
-	}, {
-		&Route{Method: "GET", BackendType: DynamicBackend},
-		`{"id":"","backend":"<dynamic>","predicates":[{"name":"Method","args":["GET"]}],"filters":[]}` + "\n",
-	}, {
-		&Route{
-			Method:      "PUT",
-			Path:        `/some/"/path`,
-			HostRegexps: []string{"h-expression", "slash/h-expression"},
-			PathRegexps: []string{"p-expression", "slash/p-expression"},
-			Headers: map[string]string{
-				`ap"key`: `ap"value`},
-			HeaderRegexps: map[string][]string{
-				`ap"key`: {"slash/value0", "slash/value1"}},
-			Predicates: []*Predicate{{"Test", []interface{}{3.14, "hello"}}},
-			Filters: []*Filter{
-				{"filter0", []interface{}{float64(3.1415), "argvalue"}},
-				{"filter1", []interface{}{float64(-42), `ap"argvalue`}}},
-			Shunt:   false,
-			Backend: "https://www.example.org"},
-		`{` +
-			`"id":"",` +
-			`"backend":"https://www.example.org",` +
-			`"predicates":[` +
-			`{"name":"Method","args":["PUT"]}` +
-			`,{"name":"Path","args":["/some/\"/path"]}` +
-			`,{"name":"HostRegexp","args":["h-expression"]}` +
-			`,{"name":"HostRegexp","args":["slash/h-expression"]}` +
-			`,{"name":"PathRegexp","args":["p-expression"]}` +
-			`,{"name":"PathRegexp","args":["slash/p-expression"]}` +
-			`,{"name":"Header","args":["ap\"key","ap\"value"]}` +
-			`,{"name":"HeaderRegexp","args":["ap\"key","slash/value0"]}` +
-			`,{"name":"HeaderRegexp","args":["ap\"key","slash/value1"]}` +
-			`,{"name":"Test","args":[3.14,"hello"]}` +
-			`],` +
-			`"filters":[` +
-			`{"name":"filter0","args":[3.1415,"argvalue"]}` +
-			`,{"name":"filter1","args":[-42,"ap\"argvalue"]}` +
-			`]` +
-			`}` + "\n",
-	}} {
-		bytes, err := item.route.MarshalJSON()
-		if err != nil {
-			t.Error(err)
-		}
-		rstring := string(bytes[:])
-		if rstring != item.string {
-			t.Errorf("Wrong output:\n  %s\nexpected:\n  %s", rstring, item.string)
-		}
-	}
-}
-
 func TestPredicateParsing(t *testing.T) {
 	for _, test := range []struct {
 		title    string
@@ -599,5 +522,291 @@ r2: Method("POST") -> inlineContent("r2") -> <shunt>;
 		if route.Id != route.Filters[len(route.Filters)-1].Args[0].(string) {
 			t.Errorf("Route %v has incorrect filters: %v", route.Id, route.Filters[3])
 		}
+	}
+}
+
+func TestEditorPreProcessor(t *testing.T) {
+	r0, err := Parse(`r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1, err := Parse(`r1_filter: Source("1.2.3.4/26") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1Changed, err := Parse(`r1_filter: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	rn, err := Parse(`rn_filter: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	rnChanged, err := Parse(`rn_filter: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1Filter, err := Parse(`r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1FilterChanged, err := Parse(`r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name   string
+		rep    *Editor
+		routes []*Route
+		want   []*Route
+	}{
+		{
+			name:   "test empty Editor should not change the routes",
+			rep:    &Editor{},
+			routes: r0,
+			want:   r0,
+		},
+		{
+			name: "test no match should not change the routes",
+			rep: &Editor{
+				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: r0,
+			want:   r0,
+		},
+		{
+			name: "test match should change the routes",
+			rep: &Editor{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: r1,
+			want:   r1Changed,
+		},
+		{
+			name: "test multiple routes match should change the routes",
+			rep: &Editor{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: append(r0, r1...),
+			want:   append(r0, r1Changed...),
+		},
+		{
+			name: "test match should change the routes with multiple params",
+			rep: &Editor{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: rn,
+			want:   rnChanged,
+		},
+		{
+			name: "test multiple routes match should change the routes with multiple params",
+			rep: &Editor{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: append(r0, rn...),
+			want:   append(r0, rnChanged...),
+		},
+		{
+			name: "test match should change the filter of a route",
+			rep: &Editor{
+				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
+				repl: "normalRequestLatency($1)",
+			},
+			routes: r1Filter,
+			want:   r1FilterChanged,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := CanonicalList(tt.routes)
+			want := CanonicalList(tt.want)
+			if got := tt.rep.Do(r); !reflect.DeepEqual(got, want) {
+				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(want), len(got), want, got, cmp.Diff(want, got))
+			}
+		})
+	}
+
+}
+func TestClonePreProcessor(t *testing.T) {
+	r0, err := Parse(`r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1, err := Parse(`r1: Source("1.2.3.4/26") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1Changed, err := Parse(`clone_r1: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	rn, err := Parse(`rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	rnChanged, err := Parse(`clone_rn: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1Filter, err := Parse(`r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+	r1FilterChanged, err := Parse(`clone_r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
+
+	for _, tt := range []struct {
+		name   string
+		rep    *Clone
+		routes []*Route
+		want   []*Route
+	}{
+		{
+			name:   "test empty Clone should not change the routes",
+			rep:    &Clone{},
+			routes: r0,
+			want:   r0,
+		},
+		{
+			name: "test no match should not change the routes",
+			rep: &Clone{
+				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: r0,
+			want:   r0,
+		},
+		{
+			name: "test match should change the routes",
+			rep: &Clone{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: r1,
+			want:   append(r1, r1Changed...),
+		},
+		{
+			name: "test multiple routes match should change the routes",
+			rep: &Clone{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: append(r0, r1...),
+			want:   append(r0, append(r1, r1Changed...)...),
+		},
+		{
+			name: "test match should change the routes with multiple params",
+			rep: &Clone{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: rn,
+			want:   append(rn, rnChanged...),
+		},
+		{
+			name: "test multiple routes match should change the routes with multiple params",
+			rep: &Clone{
+				reg:  regexp.MustCompile("Source[(](.*)[)]"),
+				repl: "ClientIP($1)",
+			},
+			routes: append(r0, rn...),
+			want:   append(r0, append(rn, rnChanged...)...),
+		},
+		{
+			name: "test match should change the filter of a route",
+			rep: &Clone{
+				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
+				repl: "normalRequestLatency($1)",
+			},
+			routes: r1Filter,
+			want:   append(r1Filter, r1FilterChanged...),
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := CanonicalList(tt.routes)
+			want := CanonicalList(tt.want)
+			if got := tt.rep.Do(r); !reflect.DeepEqual(got, want) {
+				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(want), len(got), want, got, cmp.Diff(want, got))
+			}
+		})
+	}
+
+}
+
+func TestPredicateString(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		predicate *Predicate
+		want      string
+	}{
+		{
+			name: "test one parameter",
+			predicate: &Predicate{
+				Name: "ClientIP",
+				Args: []interface{}{
+					"1.2.3.4/26",
+				},
+			},
+			want: `ClientIP("1.2.3.4/26")`,
+		},
+		{
+			name: "test two parameters",
+			predicate: &Predicate{
+				Name: "ClientIP",
+				Args: []interface{}{
+					"1.2.3.4/26",
+					"10.2.3.4/22",
+				},
+			},
+			want: `ClientIP("1.2.3.4/26", "10.2.3.4/22")`,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.predicate.String()
+			if got != tt.want {
+				t.Errorf("Failed to String(): Want %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestFilterString(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		filter *Filter
+		want   string
+	}{
+		{
+			name: "test one parameter",
+			filter: &Filter{
+				Name: "setPath",
+				Args: []interface{}{
+					"/foo",
+				},
+			},
+			want: `setPath("/foo")`,
+		},
+		{
+			name: "test two parameters",
+			filter: &Filter{
+				Name: "uniformRequestLatency",
+				Args: []interface{}{
+					"100ms",
+					"10ms",
+				},
+			},
+			want: `uniformRequestLatency("100ms", "10ms")`,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.filter.String()
+			if got != tt.want {
+				t.Errorf("Failed to String(): Want %v, got %v", tt.want, got)
+			}
+		})
 	}
 }

@@ -43,36 +43,53 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"strings"
 
 	snet "github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
 const (
-	Name     = "Source"
-	NameLast = "SourceFromLast"
+	// Deprecated, use predicates.SourceName instead
+	Name = predicates.SourceName
+	// Deprecated, use predicates.SourceFromLastName instead
+	NameLast = predicates.SourceFromLastName
+	// Deprecated, use predicates.ClientIPName instead
+	NameClientIP = predicates.ClientIPName
 )
 
 var InvalidArgsError = errors.New("invalid arguments")
 
+type sourcePred int
+
+const (
+	source sourcePred = iota
+	sourceFromLast
+	clientIP
+)
+
 type spec struct {
-	fromLast bool
+	typ sourcePred
 }
 
 type predicate struct {
-	fromLast           bool
-	acceptedSourceNets []net.IPNet
+	typ  sourcePred
+	nets snet.IPNets
 }
 
-func New() routing.PredicateSpec         { return &spec{} }
-func NewFromLast() routing.PredicateSpec { return &spec{fromLast: true} }
+func New() routing.PredicateSpec         { return &spec{typ: source} }
+func NewFromLast() routing.PredicateSpec { return &spec{typ: sourceFromLast} }
+func NewClientIP() routing.PredicateSpec { return &spec{typ: clientIP} }
 
 func (s *spec) Name() string {
-	if s.fromLast {
-		return NameLast
+	switch s.typ {
+	case sourceFromLast:
+		return predicates.SourceFromLastName
+	case clientIP:
+		return predicates.ClientIPName
+	default:
+		return predicates.SourceName
 	}
-	return Name
 }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
@@ -80,41 +97,33 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, InvalidArgsError
 	}
 
-	p := &predicate{fromLast: s.fromLast}
-
+	var cidrs []string
 	for i := range args {
 		if s, ok := args[i].(string); ok {
-			var netmask = s
-			if !strings.Contains(s, "/") {
-				netmask = s + "/32"
-			}
-			_, net, err := net.ParseCIDR(netmask)
-
-			if err != nil {
-				return nil, InvalidArgsError
-			}
-
-			p.acceptedSourceNets = append(p.acceptedSourceNets, *net)
+			cidrs = append(cidrs, s)
 		} else {
 			return nil, InvalidArgsError
 		}
 	}
 
-	return p, nil
+	nets, err := snet.ParseCIDRs(cidrs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &predicate{s.typ, nets}, nil
 }
 
 func (p *predicate) Match(r *http.Request) bool {
 	var src net.IP
-	if p.fromLast {
+	switch p.typ {
+	case sourceFromLast:
 		src = snet.RemoteHostFromLast(r)
-	} else {
+	case clientIP:
+		h, _, _ := net.SplitHostPort(r.RemoteAddr)
+		src = net.ParseIP(h)
+	default:
 		src = snet.RemoteHost(r)
 	}
-
-	for _, acceptedNet := range p.acceptedSourceNets {
-		if acceptedNet.Contains(src) {
-			return true
-		}
-	}
-	return false
+	return p.nets.Contain(src)
 }

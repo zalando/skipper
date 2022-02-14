@@ -3,11 +3,11 @@ package accesslog
 import "github.com/zalando/skipper/filters"
 
 const (
-	// DisableAccessLogName is the filter name seen by the user
-	DisableAccessLogName = "disableAccessLog"
+	// Deprecated, use filters.DisableAccessLogName instead
+	DisableAccessLogName = filters.DisableAccessLogName
 
-	// EnableAccessLogName is the filter name seen by the user
-	EnableAccessLogName = "enableAccessLog"
+	// Deprecated, use filters.EnableAccessLogName instead
+	EnableAccessLogName = filters.EnableAccessLogName
 
 	// AccessLogEnabledKey is the key used in the state bag to pass the access log state to the proxy.
 	AccessLogEnabledKey = "statebag:access_log:proxy:enabled"
@@ -64,7 +64,7 @@ func NewDisableAccessLog() filters.Spec {
 	return &disableAccessLog{}
 }
 
-func (*disableAccessLog) Name() string { return DisableAccessLogName }
+func (*disableAccessLog) Name() string { return filters.DisableAccessLogName }
 
 func (al *disableAccessLog) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return extractFilterValues(args, false)
@@ -82,7 +82,7 @@ func NewEnableAccessLog() filters.Spec {
 	return &enableAccessLog{}
 }
 
-func (*enableAccessLog) Name() string { return EnableAccessLogName }
+func (*enableAccessLog) Name() string { return filters.EnableAccessLogName }
 
 func (al *enableAccessLog) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return extractFilterValues(args, true)

@@ -1,7 +1,6 @@
 package secrets
 
 import (
-	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -63,7 +62,7 @@ func Test_SecretPaths_GetSecret(t *testing.T) {
 }
 
 func Test_SecretPaths_Add(t *testing.T) {
-	temproot, err := ioutil.TempDir(os.TempDir(), "skipper-secrets")
+	temproot, err := os.MkdirTemp(os.TempDir(), "skipper-secrets")
 	if err != nil {
 		t.Errorf("Failed to create temp dir: %v", err)
 		return
@@ -136,7 +135,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sp := NewSecretPaths(60 * time.Millisecond)
 			defer sp.Close()
-			err := ioutil.WriteFile(tt.writeFile, []byte(""), 0644)
+			err := os.WriteFile(tt.writeFile, []byte(""), 0644)
 			if err != nil {
 				t.Errorf("Failed to create file: %v", err)
 			}
@@ -146,7 +145,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 				t.Errorf("SecretPaths.Add() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			err = ioutil.WriteFile(tt.writeFile, dat, 0644)
+			err = os.WriteFile(tt.writeFile, dat, 0644)
 			if err != nil {
 				t.Errorf("Failed to write file: %v", err)
 			}
@@ -164,7 +163,7 @@ func Test_SecretPaths_Add(t *testing.T) {
 }
 
 func Test_SecretPaths_Close(t *testing.T) {
-	temproot, err := ioutil.TempDir(os.TempDir(), "skipper-secrets-close")
+	temproot, err := os.MkdirTemp(os.TempDir(), "skipper-secrets-close")
 	if err != nil {
 		t.Errorf("Failed to create temp dir: %v", err)
 		return
@@ -179,7 +178,7 @@ func Test_SecretPaths_Close(t *testing.T) {
 	afile := watchit + "/afile"
 
 	sp := NewSecretPaths(60 * time.Millisecond)
-	err = ioutil.WriteFile(afile, []byte(""), 0644)
+	err = os.WriteFile(afile, []byte(""), 0644)
 	if err != nil {
 		t.Errorf("Failed to create file: %v", err)
 	}
@@ -187,7 +186,7 @@ func Test_SecretPaths_Close(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to Add file to watch list: %v", err)
 	}
-	err = ioutil.WriteFile(afile, dat, 0644)
+	err = os.WriteFile(afile, dat, 0644)
 	if err != nil {
 		t.Errorf("Failed to write to file: %v", err)
 	}
@@ -203,7 +202,7 @@ func Test_SecretPaths_Close(t *testing.T) {
 
 	sp.Close()
 
-	err = ioutil.WriteFile(afile, []byte("hello"), 0644)
+	err = os.WriteFile(afile, []byte("hello"), 0644)
 	if err != nil {
 		t.Errorf("Failed to write to file: %v", err)
 	}

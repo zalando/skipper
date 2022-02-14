@@ -5,13 +5,16 @@ import (
 	"sort"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 type clusterState struct {
-	ingresses       []*ingressItem
-	routeGroups     []*routeGroupItem
-	services        map[resourceID]*service
-	endpoints       map[resourceID]*endpoint
+	ingresses       []*definitions.IngressItem
+	ingressesV1     []*definitions.IngressV1Item
+	routeGroups     []*definitions.RouteGroupItem
+	services        map[definitions.ResourceID]*service
+	endpoints       map[definitions.ResourceID]*endpoint
 	cachedEndpoints map[endpointID][]string
 }
 
@@ -38,39 +41,32 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 	return s, nil
 }
 
-func (state *clusterState) getEndpoints(namespace, name, servicePort, targetPort, protocol string) ([]string, error) {
+func (state *clusterState) getEndpointsByService(namespace, name, protocol string, servicePort *servicePort) []string {
 	epID := endpointID{
-		resourceID:  newResourceID(namespace, name),
-		servicePort: servicePort,
-		targetPort:  targetPort,
+		ResourceID: newResourceID(namespace, name),
+		protocol:   protocol,
+		targetPort: servicePort.TargetPort.String(),
 	}
 
 	if cached, ok := state.cachedEndpoints[epID]; ok {
-		return cached, nil
+		return cached
 	}
 
-	ep, ok := state.endpoints[epID.resourceID]
+	ep, ok := state.endpoints[epID.ResourceID]
 	if !ok {
-		return nil, errEndpointNotFound
+		return nil
 	}
 
-	if ep.Subsets == nil {
-		return nil, errEndpointNotFound
-	}
-
-	targets := ep.targets(servicePort, targetPort, protocol)
-	if len(targets) == 0 {
-		return nil, errEndpointNotFound
-	}
-
+	targets := ep.targetsByServicePort(protocol, servicePort)
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
-	return targets, nil
+	return targets
 }
 
-func (state *clusterState) getEndpointsByTarget(namespace, name string, target *backendPort) []string {
+func (state *clusterState) getEndpointsByTarget(namespace, name, protocol string, target *definitions.BackendPort) []string {
 	epID := endpointID{
-		resourceID: newResourceID(namespace, name),
+		ResourceID: newResourceID(namespace, name),
+		protocol:   protocol,
 		targetPort: target.String(),
 	}
 
@@ -78,12 +74,12 @@ func (state *clusterState) getEndpointsByTarget(namespace, name string, target *
 		return cached
 	}
 
-	ep, ok := state.endpoints[epID.resourceID]
+	ep, ok := state.endpoints[epID.ResourceID]
 	if !ok {
 		return nil
 	}
 
-	targets := ep.targetsByServiceTarget(target)
+	targets := ep.targetsByServiceTarget(protocol, target)
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets

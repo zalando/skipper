@@ -9,32 +9,52 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc"
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/secrets"
 	"golang.org/x/oauth2"
 )
 
 const (
-	OidcUserInfoName  = "oauthOidcUserInfo"
-	OidcAnyClaimsName = "oauthOidcAnyClaims"
-	OidcAllClaimsName = "oauthOidcAllClaims"
+	// Deprecated, use filters.OAuthOidcUserInfoName instead
+	OidcUserInfoName = filters.OAuthOidcUserInfoName
+	// Deprecated, use filters.OAuthOidcAnyClaimsName instead
+	OidcAnyClaimsName = filters.OAuthOidcAnyClaimsName
+	// Deprecated, use filters.OAuthOidcAllClaimsName instead
+	OidcAllClaimsName = filters.OAuthOidcAllClaimsName
 
 	oauthOidcCookieName = "skipperOauthOidc"
 	stateValidity       = 1 * time.Minute
 	oidcInfoHeader      = "Skipper-Oidc-Info"
 	cookieMaxSize       = 4093 // common cookie size limit http://browsercookielimits.squawky.net/
+)
+
+// Filter parameter:
+//
+//  oauthOidc...("https://oidc-provider.example.com", "client_id", "client_secret",
+//               "http://target.example.com/subpath/callback", "email profile", "name email picture",
+//               "parameter=value", "X-Auth-Authorization:claims.email")
+const (
+	paramIdpURL int = iota
+	paramClientID
+	paramClientSecret
+	paramCallbackURL
+	paramScopes
+	paramClaims
+	paramAuthCodeOpts
+	paramUpstrHeaders
+	paramSubdomainsToRemove
 )
 
 type (
@@ -45,21 +65,25 @@ type (
 	}
 
 	tokenOidcFilter struct {
-		typ             roleCheckType
-		config          *oauth2.Config
-		provider        *oidc.Provider
-		verifier        *oidc.IDTokenVerifier
-		claims          []string
-		validity        time.Duration
-		cookiename      string
-		redirectPath    string
-		encrypter       secrets.Encryption
-		authCodeOptions []oauth2.AuthCodeOption
-		compressor      cookieCompression
+		typ                roleCheckType
+		config             *oauth2.Config
+		provider           *oidc.Provider
+		verifier           *oidc.IDTokenVerifier
+		claims             []string
+		validity           time.Duration
+		cookiename         string
+		redirectPath       string
+		encrypter          secrets.Encryption
+		authCodeOptions    []oauth2.AuthCodeOption
+		queryParams        []string
+		compressor         cookieCompression
+		upstreamHeaders    map[string]string
+		subdomainsToRemove int
 	}
 
 	tokenContainer struct {
 		OAuth2Token *oauth2.Token          `json:"oauth2token"`
+		OIDCIDToken string                 `json:"oidctoken"`
 		UserInfo    *oidc.UserInfo         `json:"userInfo,omitempty"`
 		Subject     string                 `json:"subject"`
 		Claims      map[string]interface{} `json:"claims"`
@@ -75,19 +99,19 @@ type (
 )
 
 // NewOAuthOidcUserInfos creates filter spec which tests user info.
-func NewOAuthOidcUserInfos(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+func NewOAuthOidcUserInfos(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
 // NewOAuthOidcAnyClaims creates a filter spec which verifies that the token
 // has one of the claims specified
-func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
 // NewOAuthOidcAllClaims creates a filter spec which verifies that the token
 // has all the claims specified
-func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry *secrets.Registry) filters.Spec {
+func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
 	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
 }
 
@@ -99,19 +123,19 @@ func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry *secrets.Registry
 // Example:
 //
 //     oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
-//     "http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2") -> "https://internal.example.org";
+//     "http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>", "<optional>") -> "https://internal.example.org";
 func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
 		return nil, err
 	}
-	if len(sargs) <= 4 {
+	if len(sargs) < paramClaims {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	issuerURL, err := url.Parse(sargs[0])
+	issuerURL, err := url.Parse(sargs[paramIdpURL])
 	if err != nil {
-		log.Errorf("Failed to parse url %s: %v.", sargs[0], err)
+		log.Errorf("Failed to parse url %s: %v.", sargs[paramIdpURL], err)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -122,7 +146,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	h := sha256.New()
-	for _, s := range sargs {
+	for i, s := range sargs {
+		// CallbackURL not taken into account for cookie hashing for additional sub path ingresses
+		if i == paramCallbackURL {
+			continue
+		}
 		h.Write([]byte(s))
 	}
 	byteSlice := h.Sum(nil)
@@ -130,9 +158,9 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	generatedCookieName := oauthOidcCookieName + sargsHash + "-"
 	log.Debugf("Generated Cookie Name: %s", generatedCookieName)
 
-	redirectURL, err := url.Parse(sargs[3])
-	if err != nil || sargs[3] == "" {
-		return nil, fmt.Errorf("invalid redirect url '%s': %v", sargs[3], err)
+	redirectURL, err := url.Parse(sargs[paramCallbackURL])
+	if err != nil || sargs[paramCallbackURL] == "" {
+		return nil, fmt.Errorf("invalid redirect url '%s': %v", sargs[paramCallbackURL], err)
 	}
 
 	encrypter, err := s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)
@@ -140,42 +168,54 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, err
 	}
 
+	subdomainsToRemove := 1
+	if len(sargs) > paramSubdomainsToRemove && sargs[paramSubdomainsToRemove] != "" {
+		subdomainsToRemove, err = strconv.Atoi(sargs[paramSubdomainsToRemove])
+		if err != nil {
+			return nil, err
+		}
+		if subdomainsToRemove < 0 {
+			return nil, fmt.Errorf("domain level cannot be negative '%s'", sargs[paramSubdomainsToRemove])
+		}
+	}
+
 	f := &tokenOidcFilter{
 		typ:          s.typ,
 		redirectPath: redirectURL.Path,
 		config: &oauth2.Config{
-			ClientID:     sargs[1],
-			ClientSecret: sargs[2],
-			RedirectURL:  sargs[3], // self endpoint
+			ClientID:     sargs[paramClientID],
+			ClientSecret: sargs[paramClientSecret],
+			RedirectURL:  sargs[paramCallbackURL], // self endpoint
 			Endpoint:     provider.Endpoint(),
 			Scopes:       []string{oidc.ScopeOpenID}, // mandatory scope by spec
 		},
 		provider: provider,
 		verifier: provider.Verifier(&oidc.Config{
-			ClientID: sargs[1],
+			ClientID: sargs[paramClientID],
 		}),
-		validity:   1 * time.Hour,
-		cookiename: generatedCookieName,
-		encrypter:  encrypter,
-		compressor: newDeflatePoolCompressor(flate.BestCompression),
+		validity:           1 * time.Hour,
+		cookiename:         generatedCookieName,
+		encrypter:          encrypter,
+		compressor:         newDeflatePoolCompressor(flate.BestCompression),
+		subdomainsToRemove: subdomainsToRemove,
 	}
 
 	// user defined scopes
-	scopes := strings.Split(sargs[4], " ")
-	if len(sargs[4]) == 0 {
+	scopes := strings.Split(sargs[paramScopes], " ")
+	if len(sargs[paramScopes]) == 0 {
 		scopes = []string{}
 	}
 	// scopes are only used to request claims to be in the IDtoken requested from auth server
 	// https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims
 	f.config.Scopes = append(f.config.Scopes, scopes...)
 	// user defined claims to check for authnz
-	if len(sargs[5]) > 0 {
-		f.claims = strings.Split(sargs[5], " ")
+	if len(sargs[paramClaims]) > 0 {
+		f.claims = strings.Split(sargs[paramClaims], " ")
 	}
 
 	f.authCodeOptions = make([]oauth2.AuthCodeOption, 0)
-	if len(sargs) > 6 {
-		extraParameters := strings.Split(sargs[6], " ")
+	if len(sargs) > paramAuthCodeOpts && sargs[paramAuthCodeOpts] != "" {
+		extraParameters := strings.Split(sargs[paramAuthCodeOpts], " ")
 
 		for _, p := range extraParameters {
 			splitP := strings.Split(p, "=")
@@ -183,21 +223,40 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 			if len(splitP) != 2 {
 				return nil, filters.ErrInvalidFilterParameters
 			}
-			f.authCodeOptions = append(f.authCodeOptions, oauth2.SetAuthURLParam(splitP[0], splitP[1]))
+			if splitP[1] == "skipper-request-query" {
+				f.queryParams = append(f.queryParams, splitP[0])
+			} else {
+				f.authCodeOptions = append(f.authCodeOptions, oauth2.SetAuthURLParam(splitP[0], splitP[1]))
+			}
 		}
 	}
 	log.Debugf("Auth Code Options: %v", f.authCodeOptions)
+
+	// inject additional headers from the access token for upstream applications
+	if len(sargs) > paramUpstrHeaders && sargs[paramUpstrHeaders] != "" {
+		f.upstreamHeaders = make(map[string]string)
+
+		for _, header := range strings.Split(sargs[paramUpstrHeaders], " ") {
+			sl := strings.SplitN(header, ":", 2)
+			if len(sl) != 2 || sl[0] == "" || sl[1] == "" {
+				return nil, fmt.Errorf("%w: malformatted filter for upstream headers %s", filters.ErrInvalidFilterParameters, sl)
+			}
+			f.upstreamHeaders[sl[0]] = sl[1]
+		}
+		log.Debugf("Upstream Headers: %v", f.upstreamHeaders)
+	}
+
 	return f, nil
 }
 
 func (s *tokenOidcSpec) Name() string {
 	switch s.typ {
 	case checkOIDCUserInfo:
-		return OidcUserInfoName
+		return filters.OAuthOidcUserInfoName
 	case checkOIDCAnyClaims:
-		return OidcAnyClaimsName
+		return filters.OAuthOidcAnyClaimsName
 	case checkOIDCAllClaims:
-		return OidcAllClaimsName
+		return filters.OAuthOidcAllClaimsName
 	}
 	return AuthUnknown
 }
@@ -234,47 +293,14 @@ func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
 	return all(f.claims, keys)
 }
 
-const (
-	secretSize    = 20
-	letterBytes   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	letterIdxBits = 6                    // 6 bits to represent a letter index
-	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
-	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
-)
-
-var (
-	src = rand.NewSource(time.Now().UnixNano())
-)
-
-// https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-golang
-func randString(n int) string {
-	b := make([]byte, n)
-	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
-	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
-		if remain == 0 {
-			cache, remain = src.Int63(), letterIdxMax
-		}
-		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
-			b[i] = letterBytes[idx]
-			i--
-		}
-		cache >>= letterIdxBits
-		remain--
-	}
-
-	return string(b)
-}
-
 type OauthState struct {
-	Rand        string `json:"rand"`
 	Validity    int64  `json:"validity"`
-	Nonce       string `json:"none"`
+	Nonce       string `json:"nonce"`
 	RedirectUrl string `json:"redirectUrl"`
 }
 
 func createState(nonce []byte, redirectUrl string) ([]byte, error) {
 	state := &OauthState{
-		Rand:        randString(secretSize),
 		Validity:    time.Now().Add(stateValidity).Unix(),
 		Nonce:       fmt.Sprintf("%x", nonce),
 		RedirectUrl: redirectUrl,
@@ -323,7 +349,18 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 		return
 	}
 
-	oauth2URL := f.config.AuthCodeURL(fmt.Sprintf("%x", stateEnc), f.authCodeOptions...)
+	opts := f.authCodeOptions
+	if f.queryParams != nil {
+		opts = make([]oauth2.AuthCodeOption, len(f.authCodeOptions), len(f.authCodeOptions)+len(f.queryParams))
+		copy(opts, f.authCodeOptions)
+		for _, p := range f.queryParams {
+			if v := ctx.Request().URL.Query().Get(p); v != "" {
+				opts = append(opts, oauth2.SetAuthURLParam(p, v))
+			}
+		}
+	}
+
+	oauth2URL := f.config.AuthCodeURL(fmt.Sprintf("%x", stateEnc), opts...)
 	rsp := &http.Response{
 		Header: http.Header{
 			"Location": []string{oauth2URL},
@@ -337,7 +374,7 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext) {
 
 func (f *tokenOidcFilter) Response(filters.FilterContext) {}
 
-func extractDomainFromHost(host string) string {
+func extractDomainFromHost(host string, subdomainsToRemove int) string {
 	h, _, err := net.SplitHostPort(host)
 	if err != nil {
 		h = host
@@ -346,10 +383,14 @@ func extractDomainFromHost(host string) string {
 	if ip != nil {
 		return ip.String()
 	}
-	if strings.Count(h, ".") < 2 {
+	if subdomainsToRemove == 0 {
 		return h
 	}
-	return strings.Join(strings.Split(h, ".")[1:], ".")
+	subDomains := strings.Split(h, ".")
+	if len(subDomains)-subdomainsToRemove < 2 {
+		return h
+	}
+	return strings.Join(subDomains[subdomainsToRemove:], ".")
 }
 
 func getHost(request *http.Request) string {
@@ -396,7 +437,7 @@ func mergerCookies(cookies []http.Cookie) (cookie http.Cookie) {
 	return
 }
 
-func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, redirectUrl string) {
+func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, maxAge time.Duration, redirectUrl string) {
 	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
@@ -411,8 +452,8 @@ func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcSt
 		Path:     "/",
 		Secure:   true,
 		HttpOnly: true,
-		MaxAge:   int(f.validity.Seconds()),
-		Domain:   extractDomainFromHost(getHost(ctx.Request())),
+		MaxAge:   int(maxAge.Seconds()),
+		Domain:   extractDomainFromHost(getHost(ctx.Request()), f.subdomainsToRemove),
 	})
 	for _, cookie := range oidcCookies {
 		r.Header.Add("Set-Cookie", cookie.String())
@@ -454,6 +495,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		resp        tokenContainer
 		sub         string
 		userInfo    *oidc.UserInfo
+		oidcIDToken string
 	)
 
 	r := ctx.Request()
@@ -509,7 +551,22 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 
 			return
 		}
+		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
+		if err != nil {
+			if _, ok := err.(*requestError); !ok {
+				log.Errorf("Error while getting id token: %v", err)
+			}
 
+			unauthorized(
+				ctx,
+				"",
+				invalidClaim,
+				r.Host,
+				fmt.Sprintf("Failed to get id token: %v", err),
+			)
+
+			return
+		}
 		sub = userInfo.Subject
 		claimsMap, _, err = f.tokenClaims(ctx, oauth2Token)
 		if err != nil {
@@ -523,6 +580,22 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			return
 		}
 	case checkOIDCAnyClaims, checkOIDCAllClaims:
+		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
+		if err != nil {
+			if _, ok := err.(*requestError); !ok {
+				log.Errorf("Error while getting id token: %v", err)
+			}
+
+			unauthorized(
+				ctx,
+				"",
+				invalidClaim,
+				r.Host,
+				fmt.Sprintf("Failed to get id token: %v", err),
+			)
+
+			return
+		}
 		claimsMap, sub, err = f.tokenClaims(ctx, oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
@@ -547,6 +620,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 
 	resp = tokenContainer{
 		OAuth2Token: oauth2Token,
+		OIDCIDToken: oidcIDToken,
 		UserInfo:    userInfo,
 		Subject:     sub,
 		Claims:      claimsMap,
@@ -583,7 +657,20 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		return
 	}
 
-	f.doDownstreamRedirect(ctx, encryptedData, oauthState.RedirectUrl)
+	f.doDownstreamRedirect(ctx, encryptedData, f.getMaxAge(claimsMap), oauthState.RedirectUrl)
+}
+
+func (f *tokenOidcFilter) getMaxAge(claimsMap map[string]interface{}) time.Duration {
+	maxAge := f.validity
+	if exp, ok := claimsMap["exp"].(float64); ok {
+		val := time.Until(time.Unix(int64(exp), 0))
+		if val > time.Minute {
+			maxAge = val
+			log.Debugf("Setting maxAge of OIDC cookie to %s", maxAge)
+		}
+	}
+
+	return maxAge
 }
 
 func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
@@ -647,15 +734,42 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	oidcInfoJson, err := json.Marshal(container)
+	// saving token info for chained filter
+	ctx.StateBag()[oidcClaimsCacheKey] = container
+
+	// adding upstream headers
+	err = setHeaders(f.upstreamHeaders, ctx, container)
 	if err != nil {
-		log.Errorf("Failed to serialize OIDC info: %v.", err)
+		log.Error(err)
 		f.internalServerError(ctx)
 		return
 	}
-	// saving token info for chained filter
-	ctx.StateBag()[oidcClaimsCacheKey] = container
-	ctx.Request().Header.Add(oidcInfoHeader, string(oidcInfoJson))
+}
+
+func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, container interface{}) (err error) {
+	oidcInfoJson, err := json.Marshal(container)
+	if err != nil || !gjson.ValidBytes(oidcInfoJson) {
+		return fmt.Errorf("failed to serialize OIDC token info: %w", err)
+	}
+
+	// backwards compatible
+	if len(upstreamHeaders) == 0 {
+		ctx.Request().Header.Set(oidcInfoHeader, string(oidcInfoJson))
+		return
+	}
+
+	parsed := gjson.ParseBytes(oidcInfoJson)
+
+	for key, query := range upstreamHeaders {
+		match := parsed.Get(query)
+		log.Debugf("header: %s results: %s", query, match.String())
+		if !match.Exists() {
+			log.Errorf("Lookup failed for upstream header '%s'", query)
+			continue
+		}
+		ctx.Request().Header.Set(key, match.String())
+	}
+	return
 }
 
 func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oauth2.Token) (map[string]interface{}, string, error) {
@@ -682,6 +796,14 @@ func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oa
 	}
 
 	return tokenMap, sub, nil
+}
+
+func (f *tokenOidcFilter) getidtoken(ctx filters.FilterContext, oauth2Token *oauth2.Token) (string, error) {
+	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+	if !ok {
+		return "", requestErrorf("invalid token, no id_token field in oauth2 token")
+	}
+	return rawIDToken, nil
 }
 
 func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthState, error) {
@@ -747,7 +869,7 @@ func newDeflatePoolCompressor(level int) *deflatePoolCompressor {
 	return &deflatePoolCompressor{
 		poolWriter: &sync.Pool{
 			New: func() interface{} {
-				w, err := flate.NewWriter(ioutil.Discard, level)
+				w, err := flate.NewWriter(io.Discard, level)
 				if err != nil {
 					log.Errorf("failed to generate new deflate writer: %v", err)
 				}
@@ -782,5 +904,5 @@ func (dc *deflatePoolCompressor) decompress(compData []byte) ([]byte, error) {
 	if err := zr.Close(); err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(zr)
+	return io.ReadAll(zr)
 }

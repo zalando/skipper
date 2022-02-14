@@ -3,7 +3,7 @@ package routing_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -544,7 +544,7 @@ func TestRoutingHandlerEskipResponse(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Error(err)
 		return
@@ -740,7 +740,7 @@ func TestRoutingHandlerHEAD(t *testing.T) {
 
 	defer rsp.Body.Close()
 
-	b, err := ioutil.ReadAll(rsp.Body)
+	b, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Error(err)
 		return
@@ -899,6 +899,38 @@ func TestSignalFirstLoad(t *testing.T) {
 		}
 
 		if err := l.WaitFor("route settings applied", 12*time.Millisecond); err != nil {
+			t.Error("failed to receive route settings", err)
+		}
+
+		select {
+		case <-rt.FirstLoad():
+		default:
+			t.Error("the first load signal was blocking")
+		}
+	})
+
+	t.Run("multiple data clients", func(t *testing.T) {
+		dc1 := testdataclient.New([]*eskip.Route{{}})
+		dc2 := testdataclient.New([]*eskip.Route{{}})
+
+		l := loggingtest.New()
+		defer l.Close()
+
+		rt := routing.New(routing.Options{
+			SignalFirstLoad: true,
+			FilterRegistry:  builtin.MakeRegistry(),
+			DataClients:     []routing.DataClient{dc1, dc2},
+			PollTimeout:     12 * time.Millisecond,
+			Log:             l,
+		})
+
+		select {
+		case <-rt.FirstLoad():
+			t.Error("the first load signal was not blocking")
+		default:
+		}
+
+		if err := l.WaitForN("route settings applied", 2, 12*time.Millisecond); err != nil {
 			t.Error("failed to receive route settings", err)
 		}
 

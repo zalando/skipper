@@ -65,7 +65,7 @@ document.)
 
 Links:
 
-- [RouteGroup semantics](../routegroup-crd/)
+- [RouteGroup semantics](routegroup-crd.md)
 - [CRD definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/apply/routegroups_crd.yaml)
 
 ## Requirements
@@ -118,8 +118,10 @@ spec:
     type: service
     serviceName: my-service
     servicePort: 80
-  defaultBackends:
-  - backendName: my-service
+  routes:
+    - pathSubtree: /
+      backends:
+        - backendName: my-backend
 ```
 
 This is equivalent to the ingress:
@@ -150,7 +152,7 @@ kubectl apply -f my-route-group.yaml
 
 ## Hosts
 
-- *[Format](../routegroup-crd/#routegroup-top-level-object)*
+- *[Format](routegroup-crd.md#routegroup-top-level-object)*
 
 Hosts contain hostnames that are used to match the requests handled by a given route group. They are also used
 to update the required DNS entries and load balancer configuration if the cluster is set up that way.
@@ -160,8 +162,8 @@ predicate included, but the hostnames defined that way will not serve as input f
 
 ## Backends
 
-- *[Format](../routegroup-crd/#backend_1)*
-- *[General backend reference](../../reference/backends/)*
+- *[Format](routegroup-crd.md#backend_1)*
+- *[General backend reference](../reference/backends.md)*
 
 RouteGroups support different backends. The most typical backend type is the 'service', and it works the same
 way as in case of ingress definitions.
@@ -189,11 +191,11 @@ the Kubernetes semantics, and allows URLs that point somewhere else, potentially
 ### type=shunt, type=loopback, type=dynamic
 
 These backend types allow advanced routing setups. Please check the [reference
-manual](../../reference/backends/) for more details.
+manual](../reference/backends.md) for more details.
 
 ## Default Backends
 
-- *[Format](../routegroup-crd/#backend-reference)*
+- *[Format](routegroup-crd.md#backend-reference)*
 
 A default backend is a reference to one of the defined backends. When a route doesn't specify which backend(s)
 to use, the ones referenced in the default backends will be used.
@@ -207,7 +209,7 @@ more](#gradual-traffic-switching).
 
 ## Routes
 
-- *[Format](../routegroup-crd/#route_1)*
+- *[Format](routegroup-crd.md#route_1)*
 
 Routes define where to and how the incoming requests will be proxied. The predicates, including the path,
 pathSubtree, pathRegexp and methods fields, and any free-form predicate listed under the predicates field,
@@ -221,8 +223,8 @@ Important to bear in mind about the path fields, that the plain 'path' means exa
 
 See also:
 
-- [predicates](../../reference/predicates/)
-- [filters](../../reference/filters/)
+- [predicates](../reference/predicates.md)
+- [filters](../reference/filters.md)
 
 ## Gradual traffic switching
 
@@ -249,7 +251,7 @@ spec:
   routes:
   - pathSubtree: /api
     backends:
-    - backendName: api-svc
+    - backendName: api-svc-v1
       weight: 80
     - backendName: api-svc-v2
       weight: 20
@@ -307,7 +309,7 @@ spec:
 
 See also:
 
-- [Traffic predicate](../../reference/predicates/#traffic)
+- [Traffic predicate](../reference/predicates.md#traffic)
 
 ## Mapping from Ingress to RouteGroups
 
@@ -344,7 +346,7 @@ spec:
     serviceName: my-service
     servicePort: 80
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
 ```
 
 ### Ingress with path rule
@@ -540,7 +542,7 @@ spec:
   - name: options200
     type: shunt
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
   routes:
   - pathSubtree: /
   - pathSubtree: /
@@ -548,7 +550,7 @@ spec:
     filters:
     - status(200)
     backends:
-    - options200
+    - backendName: options200
 ```
 
 ### zalando.org/ratelimit
@@ -559,7 +561,7 @@ The ratelimiting can be defined on the route level among the filters, in the sam
 
 Skipper ingress provides global HTTPS redirect, but it allows individual ingresses to override the global
 settings: enabling/disabling it and changing the default redirect code. With route groups, this override can be
-achieved by simply defining an addtional route, with the same matching rules, and therefore the override can be
+achieved by simply defining an additional route, with the same matching rules, and therefore the override can be
 controlled eventually on a route basis. E.g:
 
 ```yaml
@@ -576,7 +578,7 @@ spec:
   - name: redirectShunt
     type: shunt
   defaultBackends:
-  - backendName: my-service
+  - backendName: my-backend
   routes:
   - pathSubtree: /
   - pathSubtree: /
@@ -585,7 +587,7 @@ spec:
     filters:
     - redirectTo(302, "https:")
     backends:
-    - redirectShunt
+    - backendName: redirectShunt
 ```
 
 ### zalando.org/skipper-loadbalancer
@@ -606,12 +608,12 @@ attribute of the backend definition, and it can be set individually for each bac
 
 See also:
 
-- [Load Balancer backend](https://opensource.zalando.com/skipper/reference/backends/#load-balancer-backend)
+- [Load Balancer backend](../reference/backends.md#load-balancer-backend)
 
 ### zalando.org/skipper-ingress-path-mode
 
 The route objects support the different path lookup modes, by using the path, pathSubtree or the
-pathRegexp field. See also the [route matching](../../reference/architecture/#route-matching)
+pathRegexp field. See also the [route matching](../reference/architecture.md#route-matching)
 explained for the internals. The mapping is as follows:
 
 Ingress: | RouteGroup:
@@ -620,3 +622,32 @@ Ingress: | RouteGroup:
 `path-regexp` and `/foo` | pathRegexp: `/foo`
 `path-prefix` and `/foo` | pathSubtree: `/foo`
 `kubernetes-ingress` and /foo$ | path: `/foo`
+
+## Multiple skipper deployments
+
+If you want to split for example `internal` and `public` traffic, it
+might be a good choice to split your RouteGroups. Skipper has
+the flag `--kubernetes-routegroup-class=<string>` to only select RouteGroup
+objects that have the annotation `zalando.org/routegroup.class` set to
+`<string>`. Skipper will only create routes for RouteGroup objects with
+it's annotation or RouteGroup objects that do not have this annotation. The
+default class is `skipper`, if not set. 
+
+Example RouteGroup:
+
+```yaml
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+  annotations:
+    zalando.org/routegroup.class: internal
+spec:
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  defaultBackends:
+  - backendName: my-service
+```

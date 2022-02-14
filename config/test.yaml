@@ -1,4 +1,0 @@
-address: localhost:9090
-max-loopbacks: 12
-etcd-timeout: 2s
-status-checks:

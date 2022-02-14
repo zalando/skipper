@@ -33,7 +33,7 @@ func TestStatus(t *testing.T) {
 		fr := make(filters.Registry)
 		fr.Register(NewStatus())
 		pr := proxytest.New(fr, &eskip.Route{
-			Filters: []*eskip.Filter{{Name: StatusName, Args: ti.args}},
+			Filters: []*eskip.Filter{{Name: filters.StatusName, Args: ti.args}},
 			Shunt:   true})
 		defer pr.Close()
 

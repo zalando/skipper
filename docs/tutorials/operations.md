@@ -51,15 +51,15 @@ supports.
 The Kubernetes Ingress spec defines a
 [path](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.14/#httpingresspath-v1beta1-networking-k8s-io)
 as regular expression, which is not what most people would expect, nor
-want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../../reference/predicates#pathregexp)
+want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../reference/predicates.md#pathregexp)
 for routing, because of the spec. We believe the better default is the
-path prefix mode, that uses [PathSubtree predicate](../../reference/predicates#pathsubtree),
+path prefix mode, that uses [PathSubtree predicate](../reference/predicates.md#pathsubtree),
 instead. Path prefix search is much more scalable and can not lead to
 unexpected results by not so experienced regular expressions users.
 
 To find more information about Metrics, including formats and example
 Prometheus queries you find in the [metrics
-section](../../operation/operation#monitoring).
+section](../operation/operation.md#monitoring).
 The settings shown above support system and application metrics to
 carefully monitor Skipper and your backend applications. Backend
 application metrics get error rates and latency buckets based on host
@@ -78,16 +78,20 @@ than the ALB in front.
 
 ### Opt-In more features
 
+#### Reverse Source Predicate
+
 Depending on the HTTP loadbalancer in front of your Skippers, you might
 want to set `-reverse-source-predicate`. This setting reverses the
 lookup of the client IP to find it in the `X-Forwarded-For` header
 values. If you do not care about
-[clientRatelimits](../../reference/filters#clientratelimit)
+[clientRatelimits](../reference/filters.md#clientratelimit)
 based on X-Forwarded-For headers, you can also ignore this.
+
+#### Cluster Ratelimit
 
 Ratelimits can be calculated for the whole cluster instead of having
 only the instance based ratelimits. The common term we use in skipper
-documentation is [cluster ratelimit](https://opensource.zalando.com/skipper/tutorials/ratelimit/#cluster-ratelimit).
+documentation is [cluster ratelimit](ratelimit.md#cluster-ratelimit).
 There are two option, but we highly recommend the use of Redis based
 cluster ratelimits. To support redis based cluster ratelimits you have to
 use `-enable-swarm` and add a list of URLs to redis
@@ -99,20 +103,100 @@ service](https://github.com/zalando-incubator/kubernetes-on-aws/blob/beta/cluste
 to have predictable names. We chose to not use a persistent volume,
 because storing the data in memory is good enough for this use case.
 
+#### East West
+
+!!! attention
+    This feature is deprecated. Consider using [EastWest
+    Range](#east-west-range).
+
 Skipper supports cluster internal service-to-service communication as
 part of running as an [API Gateway with an East-West
-setup](../../kubernetes/ingress-controller/#run-as-api-gateway-with-east-west-setup).
+setup](../kubernetes/ingress-controller.md#run-as-api-gateway-with-east-west-setup).
 You have to add `-enable-kubernetes-east-west` and optionally choose a
 domain
 `-kubernetes-east-west-domain=.ingress.cluster.local`. Be warned: There is a
 [known bug](https://github.com/zalando/skipper/issues/1024), if you
-combine it with custom routes.
+combine it with custom routes. You might want to consider [EastWest
+Range](#east-west-range).
+
+#### East West Range
+
+Alternatively, you can use Kubernetes East West Range feature. Use the
+flag `-kubernetes-east-west-range-domains` to define the cluster
+internal domains `-kubernetes-east-west-range-predicates` to define the
+[predicates](../reference/predicates.md) that will be appended to every
+route identified as an internal domain. Differently from the
+`-enable-kubernetes-east-west` and the
+`-kubernetes-east-west-domain=.ingress.cluster.local` flags (check
+[East West](#east-west)) this feature
+will not automatically create routes for you and both features shouldn't
+be used in combination. The ingress and/or route groups resources must
+opt-in for east west range routes, explicitly defining them. For example,
+given that Skipper was initialized with the following east-west range flags:
+
+```
+skipper \
+  -kubernetes-east-west-range-domains="ingress.cluster.local" \
+  -kubernetes-east-west-range-predicates='ClientIP("10.2.0.0/16")'
+```
+
+and the following ingress is defined:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: qux
+  namespace: foo
+spec:
+  rules:
+  - host: example.ingress.cluster.local
+    http:
+      paths:
+      - path: "/"
+        backend:
+          serviceName: qux
+          servicePort: baz
+```
+
+Skipper will secure this route adding the predicate `ClientIP("10.2.0.0/16")`.
+
+The same ingress might be used for internal and external hostnames. For
+example, given a slightly modified version of the ingress:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+...
+spec:
+  rules:
+  - host: example.ingress.cluster.local
+    http: ...
+  - host: example.mydomain.org
+    http: ...
+```
+
+will make the service accessible through `example.ingress.cluster.local`
+and `example.mydomain.org`, but the first hostname will only accept
+connections from the network `10.2.0.0/16`, on this specific scenario.
+
+You can specify multiple east-west range domains and predicates:
+
+```
+skippper \
+  -kubernetes-east-west-range-domains="ingress.cluster.local,another.cluster.local"
+  -kubernetes-east-west-range-predicates='ClientIP("10.2.0.0/16") && SourceLastFrom("10.2.0.0/16")'
+```
+
+#### API monitoring and Auth
 
 As part of API Gateway features, skipper supports [API
-monitoring](https://opensource.zalando.com/skipper/reference/filters/#apiusagemonitoring)
-and common [authentication and
-authorization](https://opensource.zalando.com/skipper/tutorials/auth/)
+monitoring](../reference/filters.md#apiusagemonitoring)
+and common [authentication and authorization](auth.md)
 protocols in Microservices architectures.
+
+#### OpenTracing
 
 Skipper has support for different [OpenTracing API](http://opentracing.io/) vendors, including
 [jaeger](https://www.jaegertracing.io/),
@@ -124,7 +208,9 @@ searchable `component` and `cluster` `tag` you can use:
 The `LIGHTSTEP_TOKEN` is passed as environment variable to
 the process.
 
-Skipper can also add [global default filters](../../operation/operation/#global-default-filters),
+#### Global default filters
+
+Skipper can also add [global default filters](../operation/operation.md#global-default-filters),
 which will be automatically added to all routes. For example you can
 use `-default-filters-prepend="enableAccessLog(4,5)"` to enable only
 access logs in case of HTTP codes 4xx or 5xx. In the specific case of

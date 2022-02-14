@@ -3,8 +3,10 @@ package fastcgi
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"github.com/yookoala/gofast"
 	"github.com/zalando/skipper/logging"
@@ -19,7 +21,7 @@ type RoundTripper struct {
 func NewRoundTripper(log logging.Logger, addr, filename string) (*RoundTripper, error) {
 	connFactory := gofast.SimpleConnFactory("tcp", addr)
 
-	client, err := gofast.SimpleClientFactory(connFactory, 0)()
+	client, err := gofast.SimpleClientFactory(connFactory)()
 	if err != nil {
 		return nil, fmt.Errorf("gofast: failed creating client: %w", err)
 	}
@@ -70,7 +72,19 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp.WriteTo(rr, errBuffer)
 
 	if errBuffer.Len() > 0 {
-		return nil, fmt.Errorf("gofast: error stream from application process %s", errBuffer.String())
+		if strings.Contains(errBuffer.String(), "Primary script unknown") {
+			body := http.StatusText(http.StatusNotFound)
+			return &http.Response{
+				Status:        body,
+				StatusCode:    http.StatusNotFound,
+				Body:          io.NopCloser(bytes.NewBufferString(body)),
+				ContentLength: int64(len(body)),
+				Request:       req,
+				Header:        make(http.Header),
+			}, nil
+		} else {
+			return nil, fmt.Errorf("gofast: error stream from application process %s", errBuffer.String())
+		}
 	}
 
 	return rr.Result(), nil

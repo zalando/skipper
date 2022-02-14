@@ -24,7 +24,7 @@ type spec struct {
 }
 
 func (*spec) Name() string {
-	return "Cron"
+	return predicates.CronName
 }
 
 func (*spec) Create(args []interface{}) (routing.Predicate, error) {

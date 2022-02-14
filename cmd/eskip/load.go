@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/zalando/skipper/eskip"
 )
@@ -144,7 +144,7 @@ func takePatchFilters(media []*medium) (prep, app []*eskip.Filter, err error) {
 			fstr = m.patchFilters
 		case patchPrependFile, patchAppendFile:
 			var b []byte
-			b, err = ioutil.ReadFile(m.patchFile)
+			b, err = os.ReadFile(m.patchFile)
 			if err != nil {
 				return
 			}

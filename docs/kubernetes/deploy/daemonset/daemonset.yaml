@@ -22,6 +22,7 @@ spec:
         component: ingress
     spec:
       priorityClassName: system-node-critical
+      serviceAccountName: skipper-ingress
       tolerations:
       - key: dedicated
         operator: Exists
@@ -30,7 +31,7 @@ spec:
       hostNetwork: true
       containers:
       - name: skipper-ingress
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.11.1
+        image: registry.opensource.zalan.do/teapot/skipper:v0.12.0
         ports:
         - name: ingress-port
           containerPort: 9999

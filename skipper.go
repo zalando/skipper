@@ -5,21 +5,21 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/zalando/skipper/predicates/cron"
-	"github.com/zalando/skipper/predicates/primitive"
+	stdlog "log"
 
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/circuit"
@@ -32,17 +32,25 @@ import (
 	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
+	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	skpnet "github.com/zalando/skipper/net"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/cookie"
+	"github.com/zalando/skipper/predicates/cron"
+	"github.com/zalando/skipper/predicates/forwarded"
+	"github.com/zalando/skipper/predicates/host"
 	"github.com/zalando/skipper/predicates/interval"
 	"github.com/zalando/skipper/predicates/methods"
+	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/predicates/source"
+	"github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/predicates/traffic"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/queuelistener"
@@ -83,11 +91,11 @@ type Options struct {
 	// Network address that skipper should listen on.
 	Address string
 
-	// EnableTCPQueue is an experimental feature. It enables controlling the
+	// EnableTCPQueue enables controlling the
 	// concurrently processed requests at the TCP listener.
 	EnableTCPQueue bool
 
-	// ExpectedBytesPerRequest is used by the experimental TCP LIFO listener.
+	// ExpectedBytesPerRequest is used by the TCP LIFO listener.
 	// It defines the expected average memory required to process an incoming
 	// request. It is used only when MaxTCPListenerConcurrency is not defined.
 	// It is used together with the memory limit defined in:
@@ -96,14 +104,14 @@ type Options struct {
 	// See also: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
 	ExpectedBytesPerRequest int
 
-	// MaxTCPListenerConcurrency is used by the experimental TCP LIFO listener.
+	// MaxTCPListenerConcurrency is used by the TCP LIFO listener.
 	// It defines the max number of concurrently accepted connections, excluding
 	// the pending ones in the queue.
 	//
 	// When undefined and the EnableTCPQueue is true,
 	MaxTCPListenerConcurrency int
 
-	// MaxTCPListenerQueue is used by the experimental TCP LIFO listener.
+	// MaxTCPListenerQueue is used by the TCP LIFO listener.
 	// If defines the maximum number of pending connection waiting in the queue.
 	MaxTCPListenerQueue int
 
@@ -164,12 +172,21 @@ type Options struct {
 	// when used together with -kubernetes-https-redirect.
 	KubernetesHTTPSRedirectCode int
 
+	// KubernetesIngressV1 will switch the dataclient to read ingress v1 resources, instead of v1beta1
+	KubernetesIngressV1 bool
+
 	// KubernetesIngressClass is a regular expression, that will make
-	// skipper load only the ingress resources that that have a matching
+	// skipper load only the ingress resources that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,
 	// the ingresses without an annotation, or an empty annotation, will
 	// be loaded, too.
 	KubernetesIngressClass string
+
+	// KubernetesRouteGroupClass is a regular expression, that will make skipper
+	// load only the RouteGroup resources that have a matching
+	// zalando.org/routegroup.class annotation. Any RouteGroups without the
+	// annotation, or which an empty annotation, will be loaded too.
+	KubernetesRouteGroupClass string
 
 	// PathMode controls the default interpretation of ingress paths in cases
 	// when the ingress doesn't specify it with an annotation.
@@ -180,11 +197,29 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
-	// KubernetesEnableEastWest enables cluster internal service to service communication, aka east-west traffic
+	// *DEPRECATED* KubernetesEnableEastWest enables cluster internal service to service communication, aka east-west traffic
 	KubernetesEnableEastWest bool
 
-	// KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
+	// *DEPRECATED* KubernetesEastWestDomain sets the cluster internal domain used to create additional routes in skipper, defaults to skipper.cluster.local
 	KubernetesEastWestDomain string
+
+	// KubernetesEastWestRangeDomains set the the cluster internal domains for
+	// east west traffic. Identified routes to such domains will include
+	// the KubernetesEastWestRangePredicates.
+	KubernetesEastWestRangeDomains []string
+
+	// KubernetesEastWestRangePredicates set the Predicates that will be
+	// appended to routes identified as to KubernetesEastWestRangeDomains.
+	KubernetesEastWestRangePredicates []*eskip.Predicate
+
+	// KubernetesOnlyAllowedExternalNames will enable validation of ingress external names and route groups network
+	// backend addresses, explicit LB endpoints validation agains the list of patterns in
+	// AllowedExternalNames.
+	KubernetesOnlyAllowedExternalNames bool
+
+	// KubernetesAllowedExternalNames contains regexp patterns of those domain names that are allowed to be
+	// used with external name services (type=ExternalName).
+	KubernetesAllowedExternalNames []*regexp.Regexp
 
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -212,12 +247,16 @@ type Options struct {
 	// *DEPRECATED* The whitespace separated list of OAuth2 scopes.
 	OAuthScope string
 
-	// File containing static route definitions.
+	// File containing static route definitions. Multiple may be given comma separated.
 	RoutesFile string
 
-	// File containing route definitions with file watch enabled. (For the skipper
+	// File containing route definitions with file watch enabled.
+	// Multiple may be given comma separated. (For the skipper
 	// command this option is used when starting it with the -routes-file flag.)
 	WatchRoutesFile string
+
+	// RouteURLs are URLs pointing to route definitions, in eskip format, with change watching enabled.
+	RoutesURLs []string
 
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
@@ -227,6 +266,15 @@ type Options struct {
 
 	// DefaultFilters will be applied to all routes automatically.
 	DefaultFilters *eskip.DefaultFilters
+
+	// CloneRoute is a PreProcessor, that will be applied to all routes automatically. It
+	// will clone all matching routes and apply changes to the
+	// cloned routes.
+	CloneRoute *eskip.Clone
+
+	// EditRoute will be applied to all routes automatically and
+	// will apply changes to all matching routes.
+	EditRoute *eskip.Editor
 
 	// Deprecated. See ProxyFlags. When used together with ProxyFlags,
 	// the values will be combined with |.
@@ -309,6 +357,18 @@ type Options struct {
 	// Custom data clients to be used together with the default etcd and Innkeeper.
 	CustomDataClients []routing.DataClient
 
+	// CustomHttpHandlerWrap provides ability to wrap http.Handler created by skipper.
+	// http.Handler is used for accepting incoming http requests.
+	// It allows to add additional logic (for example tracing) by providing a wrapper function
+	// which accepts original skipper handler as an argument and returns a wrapped handler
+	CustomHttpHandlerWrap func(http.Handler) http.Handler
+
+	// CustomHttpRoundTripperWrap provides ability to wrap http.RoundTripper created by skipper.
+	// http.RoundTripper is used for making outgoing requests (backends)
+	// It allows to add additional logic (for example tracing) by providing a wrapper function
+	// which accepts original skipper http.RoundTripper as an argument and returns a wrapped roundtripper
+	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
+
 	// WaitFirstRouteLoad prevents starting the listener before the first batch
 	// of routes were applied.
 	WaitFirstRouteLoad bool
@@ -336,6 +396,15 @@ type Options struct {
 	// metrics listener.
 	EnableProfile bool
 
+	// BlockProfileRate calls runtime.SetBlockProfileRate(BlockProfileRate) if non zero value, deactivate with <0
+	BlockProfileRate int
+
+	// MutexProfileFraction calls runtime.SetMutexProfileFraction(MutexProfileFraction) if non zero value, deactivate with <0
+	MutexProfileFraction int
+
+	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if non zero value, deactivate with <0
+	MemProfileRate int
+
 	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
 	EnableDebugGcMetrics bool
 
@@ -346,9 +415,33 @@ type Options struct {
 	// for each route, additionally grouped by status and method.
 	EnableServeRouteMetrics bool
 
+	// If set, a counter for each route is generated, additionally
+	// grouped by status and method. It differs from the automatically
+	// generated counter from `EnableServeRouteMetrics` because it will
+	// always contain the status and method labels, independently of the
+	// `EnableServeMethodMetric` and `EnableServeStatusCodeMetric` flags.
+	EnableServeRouteCounter bool
+
 	// If set, detailed response time metrics will be collected
 	// for each host, additionally grouped by status and method.
 	EnableServeHostMetrics bool
+
+	// If set, a counter for each host is generated, additionally
+	// grouped by status and method. It differs from the automatically
+	// generated counter from `EnableServeHostMetrics` because it will
+	// always contain the status and method labels, independently of the
+	// `EnableServeMethodMetric` and `EnableServeStatusCodeMetric` flags.
+	EnableServeHostCounter bool
+
+	// If set, the detailed total response time metrics will contain the
+	// HTTP method as a domain of the metric. It affects both route and
+	// host splitted metrics.
+	EnableServeMethodMetric bool
+
+	// If set, the detailed total response time metrics will contain the
+	// HTTP Response status code as a domain of the metric. It affects
+	// both route and host splitted metrics.
+	EnableServeStatusCodeMetric bool
 
 	// If set, detailed response time metrics will be collected
 	// for each backend host
@@ -419,6 +512,13 @@ type Options struct {
 	// Application log prefix. Default value: "[APP]".
 	ApplicationLogPrefix string
 
+	// Enables logs in JSON format
+	ApplicationLogJSONEnabled bool
+
+	// ApplicationLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// Logrus logger for application logs. To enable structured logging, use ApplicationLogJSONEnabled.
+	ApplicationLogJsonFormatter *log.JSONFormatter
+
 	// Output file for the access log. Default value: /dev/stderr.
 	//
 	// When /dev/stderr or /dev/stdout is passed in, it will be resolved
@@ -440,6 +540,10 @@ type Options struct {
 	// from the request URI in the access logs.
 	AccessLogStripQuery bool
 
+	// AccessLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// Logrus logger for access logs. To enable structured logging, use AccessLogJSONEnabled.
+	AccessLogJsonFormatter *log.JSONFormatter
+
 	DebugListener string
 
 	// Path of certificate(s) when using TLS, mutiple may be given comma separated
@@ -453,6 +557,9 @@ type Options struct {
 
 	// Client TLS to connect to Backends
 	ClientTLS *tls.Config
+
+	// TLSMinVersion to set the minimal TLS version for all TLS configurations
+	TLSMinVersion uint16
 
 	// Flush interval for upgraded Proxy connections
 	BackendFlushInterval time.Duration
@@ -509,6 +616,10 @@ type Options struct {
 	// times when response headers & payload are streamed to the client
 	OpenTracingLogStreamEvents bool
 
+	// OpenTracingBackendNameTag enables an additional tracing tag containing a backend name
+	// for a route when it's available (e.g. for RouteGroups)
+	OpenTracingBackendNameTag bool
+
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
 	// PluginDirs defines the directories to load plugins from
@@ -542,6 +653,11 @@ type Options struct {
 	// use the MetricsFlavours option.
 	EnablePrometheusMetrics bool
 
+	// An instance of a Prometheus registry. It allows registering and serving custom metrics when skipper is used as a
+	// library.
+	// A new registry is created if this option is nil.
+	PrometheusRegistry *prometheus.Registry
+
 	// MetricsFlavours sets the metrics storage and exposed format
 	// of metrics endpoints.
 	MetricsFlavours []string
@@ -559,6 +675,20 @@ type Options struct {
 	// header, in this case you want to set this to true.
 	ReverseSourcePredicate bool
 
+	// EnableOAuth2GrantFlow, enables OAuth2 Grant Flow filter
+	EnableOAuth2GrantFlow bool
+
+	// OAuth2AuthURL, the url to redirect the requests to when login is required.
+	OAuth2AuthURL string
+
+	// OAuth2TokenURL, the url where the access code should be exchanged for the
+	// access token.
+	OAuth2TokenURL string
+
+	// OAuth2RevokeTokenURL, the url where the access and refresh tokens can be
+	// revoked during a logout.
+	OAuth2RevokeTokenURL string
+
 	// OAuthTokeninfoURL sets the the URL to be queried for
 	// information for all auth.NewOAuthTokeninfo*() filters.
 	OAuthTokeninfoURL string
@@ -566,8 +696,47 @@ type Options struct {
 	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
 
+	// OAuth2SecretFile contains the filename with the encryption key for the
+	// authentication cookie and grant flow state stored in Secrets.
+	OAuth2SecretFile string
+
+	// OAuth2ClientID, the OAuth2 client id of the current service, used to exchange
+	// the access code.
+	OAuth2ClientID string
+
+	// OAuth2ClientSecret, the secret associated with the ClientID, used to exchange
+	// the access code.
+	OAuth2ClientSecret string
+
+	// OAuth2ClientIDFile, the path of the file containing the OAuth2 client id of
+	// the current service, used to exchange the access code.
+	OAuth2ClientIDFile string
+
+	// OAuth2ClientSecretFile, the path of the file containing the secret associated
+	// with the ClientID, used to exchange the access code.
+	OAuth2ClientSecretFile string
+
+	// OAuth2CallbackPath contains the path where the OAuth2 callback requests with the
+	// authorization code should be redirected to. Defaults to /.well-known/oauth2-callback
+	OAuth2CallbackPath string
+
 	// OAuthTokenintrospectionTimeout sets timeout duration while calling oauth tokenintrospection service
 	OAuthTokenintrospectionTimeout time.Duration
+
+	// OAuth2AuthURLParameters the additional parameters to send to OAuth2 authorize and token endpoints.
+	OAuth2AuthURLParameters map[string]string
+
+	// OAuth2AccessTokenHeaderName the name of the header to which the access token
+	// should be assigned after the oauthGrant filter.
+	OAuth2AccessTokenHeaderName string
+
+	// OAuth2TokeninfoSubjectKey the key of the subject ID attribute in the
+	// tokeninfo map. Used for downstream oidcClaimsQuery compatibility.
+	OAuth2TokeninfoSubjectKey string
+
+	// OAuth2TokenCookieName the name of the cookie that Skipper sets after a
+	// successful OAuth2 token exchange. Stores the encrypted access token.
+	OAuth2TokenCookieName string
 
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
@@ -602,12 +771,15 @@ type Options struct {
 	// the cluster ratelimiter
 	EnableSwarm bool
 	// redis based swarm
-	SwarmRedisURLs         []string
-	SwarmRedisReadTimeout  time.Duration
-	SwarmRedisWriteTimeout time.Duration
-	SwarmRedisPoolTimeout  time.Duration
-	SwarmRedisMinIdleConns int
-	SwarmRedisMaxIdleConns int
+	SwarmRedisURLs          []string
+	SwarmRedisPassword      string
+	SwarmRedisHashAlgorithm string
+	SwarmRedisDialTimeout   time.Duration
+	SwarmRedisReadTimeout   time.Duration
+	SwarmRedisWriteTimeout  time.Duration
+	SwarmRedisPoolTimeout   time.Duration
+	SwarmRedisMinIdleConns  int
+	SwarmRedisMaxIdleConns  int
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -619,25 +791,67 @@ type Options struct {
 	SwarmStaticSelf  string // 127.0.0.1:9001
 	SwarmStaticOther string // 127.0.0.1:9002,127.0.0.1:9003
 
+	// SwarmRegistry specifies an optional callback function that is
+	// called after ratelimit registry is initialized
+	SwarmRegistry func(*ratelimit.Registry)
+
+	// ClusterRatelimitMaxGroupShards specifies the maximum number of group shards for the clusterRatelimit filter
+	ClusterRatelimitMaxGroupShards int
+
 	testOptions
+}
+
+type serverErrorLogWriter struct{}
+
+func (*serverErrorLogWriter) Write(p []byte) (int, error) {
+	m := string(p)
+	// https://github.com/golang/go/issues/26918
+	if strings.HasPrefix(m, "http: TLS handshake error") && strings.HasSuffix(m, ": EOF\n") {
+		log.Debug(m)
+	} else {
+		log.Error(m)
+	}
+	return len(p), nil
+}
+
+func newServerErrorLog() *stdlog.Logger {
+	return stdlog.New(&serverErrorLogWriter{}, "", 0)
 }
 
 func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
-		f, err := eskipfile.Open(o.RoutesFile)
-		if err != nil {
-			log.Error("error while opening eskip file", err)
-			return nil, err
-		}
+		for _, rf := range strings.Split(o.RoutesFile, ",") {
+			f, err := eskipfile.Open(rf)
+			if err != nil {
+				log.Error("error while opening eskip file", err)
+				return nil, err
+			}
 
-		clients = append(clients, f)
+			clients = append(clients, f)
+		}
 	}
 
 	if o.WatchRoutesFile != "" {
-		f := eskipfile.Watch(o.WatchRoutesFile)
-		clients = append(clients, f)
+		for _, rf := range strings.Split(o.WatchRoutesFile, ",") {
+			clients = append(clients, eskipfile.Watch(rf))
+		}
+	}
+
+	if len(o.RoutesURLs) > 0 {
+		for _, url := range o.RoutesURLs {
+			client, err := eskipfile.RemoteWatch(&eskipfile.RemoteWatchOptions{
+				RemoteFile:    url,
+				FailOnStartup: true,
+				HTTPTimeout:   o.SourcePollTimeout,
+			})
+			if err != nil {
+				log.Errorf("error while loading routes from url %s: %s", url, err)
+				return nil, err
+			}
+			clients = append(clients, client)
+		}
 	}
 
 	if o.InlineRoutes != "" {
@@ -687,20 +901,27 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 
 	if o.Kubernetes {
 		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			KubernetesInCluster:        o.KubernetesInCluster,
-			KubernetesURL:              o.KubernetesURL,
-			ProvideHealthcheck:         o.KubernetesHealthcheck,
-			ProvideHTTPSRedirect:       o.KubernetesHTTPSRedirect,
-			HTTPSRedirectCode:          o.KubernetesHTTPSRedirectCode,
-			IngressClass:               o.KubernetesIngressClass,
-			ReverseSourcePredicate:     o.ReverseSourcePredicate,
-			WhitelistedHealthCheckCIDR: o.WhitelistedHealthCheckCIDR,
-			PathMode:                   o.KubernetesPathMode,
-			KubernetesNamespace:        o.KubernetesNamespace,
-			KubernetesEnableEastWest:   o.KubernetesEnableEastWest,
-			KubernetesEastWestDomain:   o.KubernetesEastWestDomain,
-			DefaultFiltersDir:          o.DefaultFiltersDir,
-			OriginMarker:               o.EnableRouteCreationMetrics,
+			KubernetesIngressV1:               o.KubernetesIngressV1,
+			AllowedExternalNames:              o.KubernetesAllowedExternalNames,
+			BackendNameTracingTag:             o.OpenTracingBackendNameTag,
+			DefaultFiltersDir:                 o.DefaultFiltersDir,
+			KubernetesInCluster:               o.KubernetesInCluster,
+			KubernetesURL:                     o.KubernetesURL,
+			KubernetesNamespace:               o.KubernetesNamespace,
+			KubernetesEnableEastWest:          o.KubernetesEnableEastWest,
+			KubernetesEastWestDomain:          o.KubernetesEastWestDomain,
+			KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
+			KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
+			HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
+			IngressClass:                      o.KubernetesIngressClass,
+			OnlyAllowedExternalNames:          o.KubernetesOnlyAllowedExternalNames,
+			OriginMarker:                      o.EnableRouteCreationMetrics,
+			PathMode:                          o.KubernetesPathMode,
+			ProvideHealthcheck:                o.KubernetesHealthcheck,
+			ProvideHTTPSRedirect:              o.KubernetesHTTPSRedirect,
+			ReverseSourcePredicate:            o.ReverseSourcePredicate,
+			RouteGroupClass:                   o.KubernetesRouteGroupClass,
+			WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
 		})
 		if err != nil {
 			return nil, err
@@ -747,18 +968,48 @@ func initLog(o Options) error {
 	}
 
 	logging.Init(logging.Options{
-		ApplicationLogPrefix: o.ApplicationLogPrefix,
-		ApplicationLogOutput: logOutput,
-		AccessLogOutput:      accessLogOutput,
-		AccessLogJSONEnabled: o.AccessLogJSONEnabled,
-		AccessLogStripQuery:  o.AccessLogStripQuery,
+		ApplicationLogPrefix:        o.ApplicationLogPrefix,
+		ApplicationLogOutput:        logOutput,
+		ApplicationLogJSONEnabled:   o.ApplicationLogJSONEnabled,
+		ApplicationLogJsonFormatter: o.ApplicationLogJsonFormatter,
+		AccessLogOutput:             accessLogOutput,
+		AccessLogJSONEnabled:        o.AccessLogJSONEnabled,
+		AccessLogStripQuery:         o.AccessLogStripQuery,
+		AccessLogJsonFormatter:      o.AccessLogJsonFormatter,
 	})
 
 	return nil
 }
 
-func (o *Options) isHTTPS() bool {
-	return (o.ProxyTLS != nil) || (o.CertPathTLS != "" && o.KeyPathTLS != "")
+func (o *Options) tlsConfig() (*tls.Config, error) {
+	if o.ProxyTLS != nil {
+		return o.ProxyTLS, nil
+	}
+
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
+		return nil, nil
+	}
+
+	crts := strings.Split(o.CertPathTLS, ",")
+	keys := strings.Split(o.KeyPathTLS, ",")
+
+	if len(crts) != len(keys) {
+		return nil, fmt.Errorf("number of certificates does not match number of keys")
+	}
+
+	config := &tls.Config{
+		MinVersion: o.TLSMinVersion,
+	}
+
+	for i := 0; i < len(crts); i++ {
+		crt, key := crts[i], keys[i]
+		keypair, err := tls.LoadX509KeyPair(crt, key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load X509 keypair from %s and %s: %w", crt, key, err)
+		}
+		config.Certificates = append(config.Certificates, keypair)
+	}
+	return config, nil
 }
 
 func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
@@ -777,7 +1028,7 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 		// Note that in containers this will be the container limit.
 		// Runtimes without the file will use defaults defined in `queuelistener` package.
 		const memoryLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-		memoryLimitBytes, err := ioutil.ReadFile(memoryLimitFile)
+		memoryLimitBytes, err := os.ReadFile(memoryLimitFile)
 		if err != nil {
 			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
 		} else {
@@ -787,7 +1038,7 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
 			}
 
-			// 1GB, temporarily, as part of the experimental phase:
+			// 1GB, temporarily, as a tested magic number until a better mechanism is in place:
 			if memoryLimit > 1<<30 {
 				memoryLimit = 1 << 30
 			}
@@ -818,17 +1069,21 @@ func listenAndServeQuit(
 	idleConnsCH chan struct{},
 	mtr metrics.Metrics,
 ) error {
-	// create the access log handler
-	log.Infof("proxy listener on %v", o.Address)
+	tlsConfig, err := o.tlsConfig()
+	if err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              o.Address,
+		TLSConfig:         tlsConfig,
 		Handler:           proxy,
 		ReadTimeout:       o.ReadTimeoutServer,
 		ReadHeaderTimeout: o.ReadHeaderTimeoutServer,
 		WriteTimeout:      o.WriteTimeoutServer,
 		IdleTimeout:       o.IdleTimeoutServer,
 		MaxHeaderBytes:    o.MaxHeaderBytes,
+		ErrorLog:          newServerErrorLog(),
 	}
 
 	if o.EnableConnMetricsServer {
@@ -837,33 +1092,6 @@ func listenAndServeQuit(
 			m.IncCounter(fmt.Sprintf("lb-conn-%s", state))
 		}
 	}
-
-	if o.isHTTPS() {
-		if o.ProxyTLS != nil {
-			srv.TLSConfig = o.ProxyTLS
-			o.CertPathTLS = ""
-			o.KeyPathTLS = ""
-		} else if strings.Index(o.CertPathTLS, ",") > 0 && strings.Index(o.KeyPathTLS, ",") > 0 {
-			tlsCfg := &tls.Config{}
-			crts := strings.Split(o.CertPathTLS, ",")
-			keys := strings.Split(o.KeyPathTLS, ",")
-			if len(crts) != len(keys) {
-				log.Fatalf("number of certs does not match number of keys")
-			}
-			for i, crt := range crts {
-				kp, err := tls.LoadX509KeyPair(crt, keys[i])
-				if err != nil {
-					log.Fatalf("Failed to load X509 keypair from %s/%s: %v", crt, keys[i], err)
-				}
-				tlsCfg.Certificates = append(tlsCfg.Certificates, kp)
-			}
-			o.CertPathTLS = ""
-			o.KeyPathTLS = ""
-			srv.TLSConfig = tlsCfg
-		}
-		return srv.ListenAndServeTLS(o.CertPathTLS, o.KeyPathTLS)
-	}
-	log.Infof("TLS settings not found, defaulting to HTTP")
 
 	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
 	// from the tests
@@ -890,14 +1118,25 @@ func listenAndServeQuit(
 		close(idleConnsCH)
 	}()
 
-	l, err := listen(o, mtr)
-	if err != nil {
-		return err
-	}
+	log.Infof("proxy listener on %v", o.Address)
 
-	if err := srv.Serve(l); err != nil && err != http.ErrServerClosed {
-		log.Errorf("Failed to start to ListenAndServe: %v", err)
-		return err
+	if srv.TLSConfig != nil {
+		if err := srv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
+			log.Errorf("ListenAndServeTLS failed: %v", err)
+			return err
+		}
+	} else {
+		log.Infof("TLS settings not found, defaulting to HTTP")
+
+		l, err := listen(o, mtr)
+		if err != nil {
+			return err
+		}
+
+		if err := srv.Serve(l); err != http.ErrServerClosed {
+			log.Errorf("Serve failed: %v", err)
+			return err
+		}
 	}
 
 	<-idleConnsCH
@@ -942,9 +1181,16 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
 		EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
 		EnableServeRouteMetrics:            o.EnableServeRouteMetrics,
+		EnableServeRouteCounter:            o.EnableServeRouteCounter,
 		EnableServeHostMetrics:             o.EnableServeHostMetrics,
+		EnableServeHostCounter:             o.EnableServeHostCounter,
+		EnableServeMethodMetric:            o.EnableServeMethodMetric,
+		EnableServeStatusCodeMetric:        o.EnableServeStatusCodeMetric,
 		EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
 		EnableProfile:                      o.EnableProfile,
+		BlockProfileRate:                   o.BlockProfileRate,
+		MutexProfileFraction:               o.MutexProfileFraction,
+		MemProfileRate:                     o.MemProfileRate,
 		EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
 		EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
 		EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
@@ -954,6 +1200,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		UseExpDecaySample:                  o.MetricsUseExpDecaySample,
 		HistogramBuckets:                   o.HistogramMetricBuckets,
 		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
+		PrometheusRegistry:                 o.PrometheusRegistry,
 	}
 
 	mtr := o.MetricsBackend
@@ -1054,6 +1301,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
 		auth.NewBearerInjector(sp),
+		auth.NewJwtValidationWithOptions(tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyClaims, tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAllClaims, tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyKV, tio),
@@ -1075,123 +1323,27 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		),
 	)
 
-	// create a filter registry with the available filter specs registered,
-	// and register the custom filters
-	registry := builtin.MakeRegistry()
-	for _, f := range o.CustomFilters {
-		registry.Register(f)
-	}
-
-	// create routing
-	// create the proxy instance
-	var mo routing.MatchingOptions
-	if o.IgnoreTrailingSlash {
-		mo = routing.IgnoreTrailingSlash
-	}
-
-	// ensure a non-zero poll timeout
-	if o.SourcePollTimeout <= 0 {
-		o.SourcePollTimeout = defaultSourcePollTimeout
-	}
-
-	// check for dev mode, and set update buffer of the routes
-	updateBuffer := defaultRoutingUpdateBuffer
-	if o.DevMode {
-		updateBuffer = 0
-	}
-
-	// include bundled custom predicates
-	o.CustomPredicates = append(o.CustomPredicates,
-		source.New(),
-		source.NewFromLast(),
-		interval.NewBetween(),
-		interval.NewBefore(),
-		interval.NewAfter(),
-		cron.New(),
-		cookie.New(),
-		query.New(),
-		traffic.New(),
-		primitive.NewTrue(),
-		primitive.NewFalse(),
-		pauth.NewJWTPayloadAllKV(),
-		pauth.NewJWTPayloadAnyKV(),
-		pauth.NewJWTPayloadAllKVRegexp(),
-		pauth.NewJWTPayloadAnyKVRegexp(),
-		methods.New(),
-	)
-
-	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
-		Metrics:                mtr,
-		EnableRouteLIFOMetrics: o.EnableRouteLIFOMetrics,
-	})
-	defer schedulerRegistry.Close()
-
-	// create a routing engine
-	ro := routing.Options{
-		FilterRegistry:  registry,
-		MatchingOptions: mo,
-		PollTimeout:     o.SourcePollTimeout,
-		DataClients:     dataClients,
-		Predicates:      o.CustomPredicates,
-		UpdateBuffer:    updateBuffer,
-		SuppressLogs:    o.SuppressRouteUpdateLogs,
-		PostProcessors: []routing.PostProcessor{
-			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
-			loadbalancer.NewAlgorithmProvider(),
-			schedulerRegistry,
-			builtin.NewRouteCreationMetrics(mtr),
-		},
-		SignalFirstLoad: o.WaitFirstRouteLoad,
-	}
-	if o.DefaultFilters != nil {
-		ro.PreProcessors = []routing.PreProcessor{o.DefaultFilters}
-	}
-	routing := routing.New(ro)
-	defer routing.Close()
-
-	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
-	proxyParams := proxy.Params{
-		Routing:                  routing,
-		Flags:                    proxyFlags,
-		PriorityRoutes:           o.PriorityRoutes,
-		IdleConnectionsPerHost:   o.IdleConnectionsPerHost,
-		CloseIdleConnsPeriod:     o.CloseIdleConnsPeriod,
-		FlushInterval:            o.BackendFlushInterval,
-		ExperimentalUpgrade:      o.ExperimentalUpgrade,
-		ExperimentalUpgradeAudit: o.ExperimentalUpgradeAudit,
-		MaxLoopbacks:             o.MaxLoopbacks,
-		DefaultHTTPStatus:        o.DefaultHTTPStatus,
-		LoadBalancer:             lbInstance,
-		Timeout:                  o.TimeoutBackend,
-		ResponseHeaderTimeout:    o.ResponseHeaderTimeoutBackend,
-		ExpectContinueTimeout:    o.ExpectContinueTimeoutBackend,
-		KeepAlive:                o.KeepAliveBackend,
-		DualStack:                o.DualStackBackend,
-		TLSHandshakeTimeout:      o.TLSHandshakeTimeoutBackend,
-		MaxIdleConns:             o.MaxIdleConnsBackend,
-		DisableHTTPKeepalives:    o.DisableHTTPKeepalives,
-		AccessLogDisabled:        o.AccessLogDisabled,
-		ClientTLS:                o.ClientTLS,
-	}
-
 	var swarmer ratelimit.Swarmer
-	var swops *swarm.Options
-	var redisOptions *ratelimit.RedisOptions
+	var redisOptions *skpnet.RedisOptions
 	if o.EnableSwarm {
 		if len(o.SwarmRedisURLs) > 0 {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
-			redisOptions = &ratelimit.RedisOptions{
+			redisOptions = &skpnet.RedisOptions{
 				Addrs:               o.SwarmRedisURLs,
+				Password:            o.SwarmRedisPassword,
+				HashAlgorithm:       o.SwarmRedisHashAlgorithm,
+				DialTimeout:         o.SwarmRedisDialTimeout,
 				ReadTimeout:         o.SwarmRedisReadTimeout,
 				WriteTimeout:        o.SwarmRedisWriteTimeout,
 				PoolTimeout:         o.SwarmRedisPoolTimeout,
 				MinIdleConns:        o.SwarmRedisMinIdleConns,
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
 				ConnMetricsInterval: o.redisConnMetricsInterval,
+				Tracer:              tracer,
 			}
 		} else {
 			log.Infof("Start swim based swarm")
-			swops = &swarm.Options{
+			swops := &swarm.Options{
 				SwarmPort:        uint16(o.SwarmPort),
 				MaxMessageBuffer: o.SwarmMaxMessageBuffer,
 				LeaveTimeout:     o.SwarmLeaveTimeout,
@@ -1235,11 +1387,204 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 	}
 
+	var ratelimitRegistry *ratelimit.Registry
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
-		reg := ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
-		defer reg.Close()
-		proxyParams.RateLimiters = reg
+		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
+		defer ratelimitRegistry.Close()
+
+		if hook := o.SwarmRegistry; hook != nil {
+			hook(ratelimitRegistry)
+		}
+
+		if o.ClusterRatelimitMaxGroupShards < 1 {
+			log.Warn("ClusterRatelimitMaxGroupShards must be positive, reset to 1")
+			o.ClusterRatelimitMaxGroupShards = 1
+		}
+
+		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
+		o.CustomFilters = append(o.CustomFilters,
+			ratelimitfilters.NewClientRatelimit(provider),
+			ratelimitfilters.NewLocalRatelimit(provider),
+			ratelimitfilters.NewRatelimit(provider),
+			ratelimitfilters.NewShardedClusterRateLimit(provider, o.ClusterRatelimitMaxGroupShards),
+			ratelimitfilters.NewClusterClientRateLimit(provider),
+			ratelimitfilters.NewDisableRatelimit(provider),
+			ratelimitfilters.NewBackendRatelimit(),
+		)
+	}
+
+	if o.TLSMinVersion == 0 {
+		o.TLSMinVersion = tls.VersionTLS12
+	}
+
+	oauthConfig := &auth.OAuthConfig{}
+	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
+		grantSecrets := secrets.NewSecretPaths(o.CredentialsUpdateInterval)
+		defer grantSecrets.Close()
+
+		oauthConfig.AuthURL = o.OAuth2AuthURL
+		oauthConfig.TokenURL = o.OAuth2TokenURL
+		oauthConfig.RevokeTokenURL = o.OAuth2RevokeTokenURL
+		oauthConfig.TokeninfoURL = o.OAuthTokeninfoURL
+		oauthConfig.SecretFile = o.OAuth2SecretFile
+		oauthConfig.ClientID = o.OAuth2ClientID
+		oauthConfig.ClientSecret = o.OAuth2ClientSecret
+		oauthConfig.ClientIDFile = o.OAuth2ClientIDFile
+		oauthConfig.ClientSecretFile = o.OAuth2ClientSecretFile
+		oauthConfig.CallbackPath = o.OAuth2CallbackPath
+		oauthConfig.AuthURLParameters = o.OAuth2AuthURLParameters
+		oauthConfig.SecretsProvider = grantSecrets
+		oauthConfig.Secrets = o.SecretsRegistry
+		oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
+		oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
+		oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
+		oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout
+		oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
+		oauthConfig.Tracer = tracer
+
+		if err := oauthConfig.Init(); err != nil {
+			log.Errorf("Failed to initialize oauth grant filter: %v.", err)
+			return err
+		}
+
+		o.CustomFilters = append(o.CustomFilters,
+			oauthConfig.NewGrant(),
+			oauthConfig.NewGrantCallback(),
+			oauthConfig.NewGrantClaimsQuery(),
+			oauthConfig.NewGrantLogout(),
+		)
+	}
+
+	// create a filter registry with the available filter specs registered,
+	// and register the custom filters
+	registry := builtin.MakeRegistry()
+	for _, f := range o.CustomFilters {
+		registry.Register(f)
+	}
+
+	// create routing
+	// create the proxy instance
+	var mo routing.MatchingOptions
+	if o.IgnoreTrailingSlash {
+		mo = routing.IgnoreTrailingSlash
+	}
+
+	// ensure a non-zero poll timeout
+	if o.SourcePollTimeout <= 0 {
+		o.SourcePollTimeout = defaultSourcePollTimeout
+	}
+
+	// check for dev mode, and set update buffer of the routes
+	updateBuffer := defaultRoutingUpdateBuffer
+	if o.DevMode {
+		updateBuffer = 0
+	}
+
+	// include bundled custom predicates
+	o.CustomPredicates = append(o.CustomPredicates,
+		source.New(),
+		source.NewFromLast(),
+		source.NewClientIP(),
+		interval.NewBetween(),
+		interval.NewBefore(),
+		interval.NewAfter(),
+		cron.New(),
+		cookie.New(),
+		query.New(),
+		traffic.New(),
+		primitive.NewTrue(),
+		primitive.NewFalse(),
+		primitive.NewShutdown(),
+		pauth.NewJWTPayloadAllKV(),
+		pauth.NewJWTPayloadAnyKV(),
+		pauth.NewJWTPayloadAllKVRegexp(),
+		pauth.NewJWTPayloadAnyKVRegexp(),
+		methods.New(),
+		tee.New(),
+		forwarded.NewForwardedHost(),
+		forwarded.NewForwardedProto(),
+		host.NewAny(),
+	)
+
+	// provide default value for wrapper if not defined
+	if o.CustomHttpHandlerWrap == nil {
+		o.CustomHttpHandlerWrap = func(original http.Handler) http.Handler {
+			return original
+		}
+	}
+
+	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
+		Metrics:                mtr,
+		EnableRouteLIFOMetrics: o.EnableRouteLIFOMetrics,
+	})
+	defer schedulerRegistry.Close()
+
+	// create a routing engine
+	ro := routing.Options{
+		FilterRegistry:  registry,
+		MatchingOptions: mo,
+		PollTimeout:     o.SourcePollTimeout,
+		DataClients:     dataClients,
+		Predicates:      o.CustomPredicates,
+		UpdateBuffer:    updateBuffer,
+		SuppressLogs:    o.SuppressRouteUpdateLogs,
+		PostProcessors: []routing.PostProcessor{
+			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
+			loadbalancer.NewAlgorithmProvider(),
+			schedulerRegistry,
+			builtin.NewRouteCreationMetrics(mtr),
+			fadein.NewPostProcessor(),
+		},
+		SignalFirstLoad: o.WaitFirstRouteLoad,
+	}
+
+	if o.DefaultFilters != nil {
+		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
+	}
+
+	if o.CloneRoute != nil {
+		ro.PreProcessors = append(ro.PreProcessors, o.CloneRoute)
+	}
+
+	if o.EditRoute != nil {
+		ro.PreProcessors = append(ro.PreProcessors, o.EditRoute)
+	}
+
+	ro.PreProcessors = append(ro.PreProcessors, schedulerRegistry.PreProcessor())
+
+	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
+		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
+	}
+
+	routing := routing.New(ro)
+	defer routing.Close()
+
+	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
+	proxyParams := proxy.Params{
+		Routing:                    routing,
+		Flags:                      proxyFlags,
+		PriorityRoutes:             o.PriorityRoutes,
+		IdleConnectionsPerHost:     o.IdleConnectionsPerHost,
+		CloseIdleConnsPeriod:       o.CloseIdleConnsPeriod,
+		FlushInterval:              o.BackendFlushInterval,
+		ExperimentalUpgrade:        o.ExperimentalUpgrade,
+		ExperimentalUpgradeAudit:   o.ExperimentalUpgradeAudit,
+		MaxLoopbacks:               o.MaxLoopbacks,
+		DefaultHTTPStatus:          o.DefaultHTTPStatus,
+		LoadBalancer:               lbInstance,
+		Timeout:                    o.TimeoutBackend,
+		ResponseHeaderTimeout:      o.ResponseHeaderTimeoutBackend,
+		ExpectContinueTimeout:      o.ExpectContinueTimeoutBackend,
+		KeepAlive:                  o.KeepAliveBackend,
+		DualStack:                  o.DualStackBackend,
+		TLSHandshakeTimeout:        o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:               o.MaxIdleConnsBackend,
+		DisableHTTPKeepalives:      o.DisableHTTPKeepalives,
+		AccessLogDisabled:          o.AccessLogDisabled,
+		ClientTLS:                  o.ClientTLS,
+		CustomHttpRoundTripperWrap: o.CustomHttpRoundTripperWrap,
+		RateLimiters:               ratelimitRegistry,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
@@ -1317,7 +1662,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
 
-	return listenAndServeQuit(proxy, &o, sig, idleConnsCH, mtr)
+	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr)
 }
 
 // Run skipper.

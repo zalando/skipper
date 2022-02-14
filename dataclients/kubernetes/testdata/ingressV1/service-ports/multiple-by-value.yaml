@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deployment
+  labels:
+    app: myapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+        - name: myapp
+          image: myapp:v1
+          ports:
+            - name: web
+              containerPort: 8081
+              protocol: TCP
+            - name: web
+              containerPort: 8080
+              protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: myapp-deployment
+  name: myapp-service
+spec:
+  clusterIP: 10.3.190.1
+  ports:
+    - name: web
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: myapp
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: myapp
+  name: myapp-ingress
+  namespace: default
+spec:
+  rules:
+    - host: example.org
+      http:
+        paths:
+          - backend:
+              service:
+                name: myapp-service
+                port:
+                  number: 80
+            pathType: ImplementationSpecific
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    app: myapp-deployment
+  name: myapp-service
+subsets:
+  - addresses:
+      - ip: 10.3.0.3
+        targetRef:
+          kind: Pod
+          name: myapp-deployment-6786bf95fd-fnqnq
+    ports:
+      - name: web
+        port: 8080
+        protocol: TCP

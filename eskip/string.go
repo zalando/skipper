@@ -14,6 +14,7 @@ type PrettyPrintInfo struct {
 }
 
 func escape(s string, chars string) string {
+	s = strings.Replace(s, `\`, `\\`, -1) // escape backslash before others
 	s = strings.Replace(s, "\a", `\a`, -1)
 	s = strings.Replace(s, "\b", `\b`, -1)
 	s = strings.Replace(s, "\f", `\f`, -1)
@@ -60,6 +61,17 @@ func argsString(args []interface{}) string {
 			sargs = appendFmt(sargs, f, a)
 		case string:
 			sargs = appendFmtEscape(sargs, `"%s"`, `"`, a)
+		default:
+			if m, ok := a.(interface{ MarshalText() ([]byte, error) }); ok {
+				t, err := m.MarshalText()
+				if err != nil {
+					sargs = append(sargs, `"[error]"`)
+				} else {
+					sargs = appendFmtEscape(sargs, `"%s"`, `"`, string(t))
+				}
+			} else {
+				sargs = appendFmtEscape(sargs, `"%s"`, `"`, a)
+			}
 		}
 	}
 
@@ -133,16 +145,22 @@ func (r *Route) backendString() string {
 }
 
 func lbBackendString(r *Route) string {
-	var endpointStrings []string
-	for _, ep := range r.LBEndpoints {
-		endpointStrings = append(endpointStrings, fmt.Sprintf(`"%s"`, ep))
+	var b strings.Builder
+	b.WriteByte('<')
+	if r.LBAlgorithm != "" {
+		b.WriteString(r.LBAlgorithm)
+		b.WriteString(", ")
 	}
-
-	if r.LBAlgorithm == "" {
-		return fmt.Sprintf("<%s>", strings.Join(endpointStrings, ", "))
+	for i, ep := range r.LBEndpoints {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteByte('"')
+		b.WriteString(ep)
+		b.WriteByte('"')
 	}
-
-	return fmt.Sprintf("<%s, %s>", r.LBAlgorithm, strings.Join(endpointStrings, ", "))
+	b.WriteByte('>')
+	return b.String()
 }
 
 func (r *Route) backendStringQuoted() string {

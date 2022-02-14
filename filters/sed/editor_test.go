@@ -3,7 +3,6 @@ package sed
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"regexp"
 	"testing"
 )
@@ -78,7 +77,7 @@ func TestEditorMaxBuffer(t *testing.T) {
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
 
-		p, err := ioutil.ReadAll(e)
+		p, err := io.ReadAll(e)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -95,7 +94,7 @@ func TestEditorMaxBuffer(t *testing.T) {
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
 
-		p, err := ioutil.ReadAll(e)
+		p, err := io.ReadAll(e)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -137,7 +136,7 @@ func TestEditorIncreasingReadSize(t *testing.T) {
 	// hook the read buffer:
 	e.readBuffer = make([]byte, 2)
 
-	b, err := ioutil.ReadAll(io.LimitReader(e, 27))
+	b, err := io.ReadAll(io.LimitReader(e, 27))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +154,7 @@ func TestEditorInfiniteInput(t *testing.T) {
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
 
-		b, err := ioutil.ReadAll(io.LimitReader(e, 27))
+		b, err := io.ReadAll(io.LimitReader(e, 27))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,7 +171,7 @@ func TestEditorInfiniteInput(t *testing.T) {
 		// hook the read buffer:
 		e.readBuffer = make([]byte, 2)
 
-		b, err := ioutil.ReadAll(io.LimitReader(e, 27))
+		b, err := io.ReadAll(io.LimitReader(e, 27))
 		if err != nil {
 			t.Fatal(err)
 		}

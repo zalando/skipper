@@ -1,6 +1,9 @@
 package secrets
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type EncrypterCreator interface {
 	GetEncrypter(time.Duration, string) (Encryption, error)
@@ -14,6 +17,7 @@ type Encryption interface {
 }
 
 type Registry struct {
+	mu           sync.Mutex
 	encrypterMap map[string]*Encrypter
 }
 
@@ -27,6 +31,8 @@ func NewRegistry() *Registry {
 }
 
 func (r *Registry) GetEncrypter(refreshInterval time.Duration, file string) (Encryption, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if e, ok := r.encrypterMap[file]; ok {
 		return e, nil
 	}

@@ -2,12 +2,18 @@ package ratelimit
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	circularbuffer "github.com/szuecs/rate-limit-buffer"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/net"
 )
 
@@ -19,26 +25,26 @@ const (
 	// long a client should wait before making a new request
 	RetryAfterHeader = "Retry-After"
 
-	// ServiceRatelimitName is the name of the Ratelimit filter, which will be shown in log
-	ServiceRatelimitName = "ratelimit"
+	// Deprecated, use filters.RatelimitName instead
+	ServiceRatelimitName = filters.RatelimitName
 
 	// LocalRatelimitName *DEPRECATED*, use ClientRatelimitName instead
 	LocalRatelimitName = "localRatelimit"
 
-	// ClientRatelimitName is the name of the ClientRatelimit filter, which will be shown in log
-	ClientRatelimitName = "clientRatelimit"
+	// Deprecated, use filters.ClientRatelimitName instead
+	ClientRatelimitName = filters.ClientRatelimitName
 
-	// ClusterServiceRatelimitName is the name of the ClusterServiceRatelimit filter, which will be shown in log
-	ClusterServiceRatelimitName = "clusterRatelimit"
+	// Deprecated, use filters.ClusterRatelimitName instead
+	ClusterServiceRatelimitName = filters.ClusterRatelimitName
 
-	// ClusterClientRatelimitName is the name of the ClusterClientRatelimit filter, which will be shown in log
-	ClusterClientRatelimitName = "clusterClientRatelimit"
+	// Deprecated, use filters.ClusterClientRatelimitName instead
+	ClusterClientRatelimitName = filters.ClusterClientRatelimitName
 
-	// DisableRatelimitName is the name of the DisableRatelimit, which will be shown in log
-	DisableRatelimitName = "disableRatelimit"
+	// Deprecated, use filters.DisableRatelimitName instead
+	DisableRatelimitName = filters.DisableRatelimitName
 
-	// UknownRatelimitName is to print unknown ratelimit settings in error messages
-	UknownRatelimitName = "unknownRatelimit"
+	// Deprecated, use filters.UnknownRatelimitName instead
+	UknownRatelimitName = filters.UnknownRatelimitName
 )
 
 // RatelimitType defines the type of  the used ratelimit
@@ -58,6 +64,10 @@ func (rt *RatelimitType) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		*rt = ClientRatelimit
 	case "service":
 		*rt = ServiceRatelimit
+	case "clusterClient":
+		*rt = ClusterClientRatelimit
+	case "clusterService":
+		*rt = ClusterServiceRatelimit
 	case "disabled":
 		*rt = DisableRatelimit
 	default:
@@ -121,19 +131,19 @@ const (
 func (rt RatelimitType) String() string {
 	switch rt {
 	case DisableRatelimit:
-		return DisableRatelimitName
+		return filters.DisableRatelimitName
 	case ClientRatelimit:
-		return ClientRatelimitName
+		return filters.ClientRatelimitName
 	case ClusterClientRatelimit:
-		return ClusterClientRatelimitName
+		return filters.ClusterClientRatelimitName
 	case ClusterServiceRatelimit:
-		return ClusterServiceRatelimitName
+		return filters.ClusterRatelimitName
 	case LocalRatelimit:
 		return LocalRatelimitName
 	case ServiceRatelimit:
-		return ServiceRatelimitName
+		return filters.RatelimitName
 	default:
-		return UknownRatelimitName
+		return filters.UnknownRatelimitName
 
 	}
 
@@ -243,6 +253,29 @@ func (t TupleLookuper) String() string {
 	return "TupleLookuper"
 }
 
+// RoundRobinLookuper matches one of n buckets selected by round robin algorithm
+type RoundRobinLookuper struct {
+	// pointer is required to be hashable from Registry lookup table
+	c *uint64
+	// number of buckets, unchanged after creation
+	n uint64
+}
+
+// NewRoundRobinLookuper returns a RoundRobinLookuper.
+func NewRoundRobinLookuper(n uint64) Lookuper {
+	return &RoundRobinLookuper{c: new(uint64), n: n}
+}
+
+// Lookup will return one of n distinct keys in round robin fashion
+func (rrl *RoundRobinLookuper) Lookup(*http.Request) string {
+	next := atomic.AddUint64(rrl.c, 1) % rrl.n
+	return fmt.Sprintf("RoundRobin%d", next)
+}
+
+func (rrl *RoundRobinLookuper) String() string {
+	return "RoundRobinLookuper"
+}
+
 // Settings configures the chosen rate limiter
 type Settings struct {
 	// Type of the chosen rate limiter
@@ -320,6 +353,13 @@ type limiter interface {
 	RetryAfter(string) int
 }
 
+// contextLimiter extends limiter with an AllowContext method that accepts an additional
+// context.Context, e.g. to support OpenTracing.
+type contextLimiter interface {
+	limiter
+	AllowContext(context.Context, string) bool
+}
+
 // Ratelimit is a proxy object that delegates to limiter
 // implemetations and stores settings for the ratelimiter
 type Ratelimit struct {
@@ -334,6 +374,26 @@ func (l *Ratelimit) Allow(s string) bool {
 		return true
 	}
 	return l.impl.Allow(s)
+}
+
+// AllowContext is like Allow but accepts an optional context.Context, e.g. to
+// support OpenTracing. When the context handling is not provided by the
+// implementation, it falls back to the normal Allow method.
+func (l *Ratelimit) AllowContext(ctx context.Context, s string) bool {
+	if l == nil {
+		return true
+	}
+
+	if ctx == nil {
+		return l.impl.Allow(s)
+	}
+
+	implc, ok := l.impl.(contextLimiter)
+	if !ok {
+		return l.impl.Allow(s)
+	}
+
+	return implc.AllowContext(ctx, s)
 }
 
 // Close will stop any cleanup goroutines in underlying limiter implementation.
@@ -366,27 +426,62 @@ func (voidRatelimit) RetryAfter(string) int      { return 0 }
 func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
 func (voidRatelimit) Resize(string, int)         {}
 
-func newRatelimit(s Settings, sw Swarmer, redisRing *ring) *Ratelimit {
+type zeroRatelimit struct{}
+
+const (
+	// Delta() and RetryAfter() should return consistent values of type int64 and int respectively.
+	//
+	// News had just come over,
+	// We had five years left to cry in
+	zeroDelta time.Duration = 5 * 365 * 24 * time.Hour
+	zeroRetry int           = int(zeroDelta / time.Second)
+)
+
+func (zeroRatelimit) Allow(string) bool          { return false }
+func (zeroRatelimit) Close()                     {}
+func (zeroRatelimit) Oldest(string) time.Time    { return time.Time{} }
+func (zeroRatelimit) RetryAfter(string) int      { return zeroRetry }
+func (zeroRatelimit) Delta(string) time.Duration { return zeroDelta }
+func (zeroRatelimit) Resize(string, int)         {}
+
+func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratelimit {
 	var impl limiter
-	switch s.Type {
-	case ServiceRatelimit:
-		impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
-	case LocalRatelimit:
-		log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
-		fallthrough
-	case ClientRatelimit:
-		impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
-	case ClusterServiceRatelimit:
-		s.CleanInterval = 0
-		fallthrough
-	case ClusterClientRatelimit:
-		impl = newClusterRateLimiter(s, sw, redisRing, s.Group)
-	default:
-		impl = voidRatelimit{}
+	if s.MaxHits == 0 {
+		impl = zeroRatelimit{}
+	} else {
+		switch s.Type {
+		case ServiceRatelimit:
+			impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
+		case LocalRatelimit:
+			log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
+			fallthrough
+		case ClientRatelimit:
+			impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
+		case ClusterServiceRatelimit:
+			s.CleanInterval = 0
+			fallthrough
+		case ClusterClientRatelimit:
+			impl = newClusterRateLimiter(s, sw, redisRing, s.Group)
+		default:
+			impl = voidRatelimit{}
+		}
 	}
 
 	return &Ratelimit{
 		settings: s,
 		impl:     impl,
 	}
+}
+
+func Headers(maxHits int, timeWindow time.Duration, retryAfter int) http.Header {
+	limitPerHour := int64(maxHits) * int64(time.Hour) / int64(timeWindow)
+	return http.Header{
+		Header:           []string{strconv.FormatInt(limitPerHour, 10)},
+		RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
+	}
+}
+
+func getHashedKey(clearText string) string {
+	h := sha256.Sum256([]byte(clearText))
+	return hex.EncodeToString(h[:])
 }

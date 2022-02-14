@@ -65,7 +65,10 @@ nc -l 8080
 start skipper proxy
 
 ```
-skipper -inline-routes='Host("host1") -> bearerinjector("sec1") -> "http://127.0.0.1:8080/"' -credentials-paths=/tmp/secrets -credentials-update-interval=10s
+skipper -inline-routes='Host("host1") -> bearerinjector("/tmp/secrets/mytoken") -> "http://127.0.0.1:8080/"' -credentials-paths=/tmp/secrets -credentials-update-interval=10s
+..
+[APP]INFO[0004] Updated secret file: /tmp/secrets/mytoken
+..
 ```
 
 Client calls skipper proxy
@@ -88,7 +91,7 @@ Accept-Encoding: gzip
 ```
 
 Change the secret: `echo changedtoken >/tmp/secrets/mytoken`.
-Wait until skipper logs: `[APP]INFO[0010] update secret file: mytoken`
+Wait until skipper logs: `[APP]INFO[0010] update secret file: /tmp/secrets/mytoken`
 
 Restart fake service (CTRL-c to stop)
 
@@ -115,6 +118,37 @@ Accept-Encoding: gzip
 ```
 
 This example showed bearer injection with secrets rotation.
+
+##### Reach multiple services
+Often your service wants to reach multiple services, so you need to
+differentiate these routes, somehow.
+
+For example your service needs to access `a.example.com` and
+`b.example.com`.
+
+One example is to use `.localhost` domain, so `a.localhost` and
+`b.localhost` in your application and in skipper routes you would
+have:
+
+```
+a: Host("a.localhost") -> bearerinjector("/tmp/secrets/mytoken") -> "https://a.example.com"
+b: Host("b.localhost") -> bearerinjector("/tmp/secrets/mytoken") -> "https://b.example.com"
+```
+
+You can also use host aliases, in Linux `/etc/hosts`, or in Kubernetes
+`hostAliases`:
+
+Pod spec:
+
+```
+spec:
+  hostAliases:
+  - ip: 127.0.0.1
+    hostnames:
+    - a.local
+    - b.local
+```
+
 
 ## Future - TODOs
 

@@ -25,8 +25,6 @@ const (
 	KeyAllFiltersResponseCombined = "allfilters.combined.response"
 	KeyResponse                   = "response.%d.%s.skipper.%s"
 	KeyResponseCombined           = "all.response.%d.%s.skipper"
-	KeyServeRoute                 = "serveroute.%s.%s.%d"
-	KeyServeHost                  = "servehost.%s.%s.%d"
 	Key5xxsBackend                = "all.backend.5xx"
 
 	KeyErrorsBackend   = "errors.backend.%s"
@@ -95,9 +93,7 @@ func (c *CodaHale) getTimer(key string) metrics.Timer {
 }
 
 func (c *CodaHale) updateTimer(key string, d time.Duration) {
-	if t := c.getTimer(key); t != nil {
-		t.Update(d)
-	}
+	c.getTimer(key).Update(d)
 }
 
 func (c *CodaHale) MeasureSince(key string, start time.Time) {
@@ -109,9 +105,7 @@ func (c *CodaHale) getGauge(key string) metrics.GaugeFloat64 {
 }
 
 func (c *CodaHale) UpdateGauge(key string, v float64) {
-	if t := c.getGauge(key); t != nil {
-		t.Update(v)
-	}
+	c.getGauge(key).Update(v)
 }
 
 func (c *CodaHale) IncCounter(key string) {
@@ -182,14 +176,34 @@ func (c *CodaHale) MeasureResponse(code int, method string, routeId string, star
 }
 
 func (c *CodaHale) MeasureServe(routeId, host, method string, code int, start time.Time) {
+	if !(c.options.EnableServeRouteMetrics || c.options.EnableServeHostMetrics) {
+		return
+	}
+
+	var keyServeRoute, keyServeHost string
 	method = measuredMethod(method)
+	hfk := hostForKey(host)
+	switch {
+	case c.options.EnableServeMethodMetric && c.options.EnableServeStatusCodeMetric:
+		keyServeHost = fmt.Sprintf("servehost.%s.%s.%d", hfk, method, code)
+		keyServeRoute = fmt.Sprintf("serveroute.%s.%s.%d", routeId, method, code)
+	case c.options.EnableServeMethodMetric:
+		keyServeHost = fmt.Sprintf("servehost.%s.%s", hfk, method)
+		keyServeRoute = fmt.Sprintf("serveroute.%s.%s", routeId, method)
+	case c.options.EnableServeStatusCodeMetric:
+		keyServeHost = fmt.Sprintf("servehost.%s.%d", hfk, code)
+		keyServeRoute = fmt.Sprintf("serveroute.%s.%d", routeId, code)
+	default:
+		keyServeHost = fmt.Sprintf("servehost.%s", hfk)
+		keyServeRoute = fmt.Sprintf("serveroute.%s", routeId)
+	}
 
 	if c.options.EnableServeRouteMetrics {
-		c.measureSince(fmt.Sprintf(KeyServeRoute, routeId, method, code), start)
+		c.measureSince(keyServeRoute, start)
 	}
 
 	if c.options.EnableServeHostMetrics {
-		c.measureSince(fmt.Sprintf(KeyServeHost, hostForKey(host), method, code), start)
+		c.measureSince(keyServeHost, start)
 	}
 }
 
@@ -198,11 +212,7 @@ func (c *CodaHale) getCounter(key string) metrics.Counter {
 }
 
 func (c *CodaHale) incCounter(key string, value int64) {
-	go func() {
-		if c := c.getCounter(key); c != nil {
-			c.Inc(value)
-		}
-	}()
+	go c.getCounter(key).Inc(value)
 }
 
 func (c *CodaHale) IncRoutingFailures() {

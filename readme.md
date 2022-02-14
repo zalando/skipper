@@ -1,11 +1,13 @@
 [![Build Status](https://github.com/zalando/skipper/workflows/ci/badge.svg)](https://github.com/zalando/skipper/actions?query=branch%3Amaster)
-[![Doc](https://img.shields.io/badge/-userdocs-darkblue.svg)](https://opensource.zalando.com/skipper)
-[![GoDoc](https://godoc.org/github.com/zalando/skipper?status.svg)](https://godoc.org/github.com/zalando/skipper)
+[![Doc](https://img.shields.io/badge/user-documentation-darkblue.svg)](https://opensource.zalando.com/skipper)
+[![Go Reference](https://pkg.go.dev/badge/github.com/zalando/skipper.svg)](https://pkg.go.dev/github.com/zalando/skipper)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
 [![codecov](https://codecov.io/gh/zalando/skipper/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando/skipper)
 [![GitHub release](https://img.shields.io/github/release/zalando/skipper.svg)](https://github.com/zalando/skipper/releases)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/2461/badge)](https://bestpractices.coreinfrastructure.org/en/projects/2461)
+![CodeQL](https://github.com/zalando/skipper/actions/workflows/codeql-analysis.yml/badge.svg)
+
 
 <p><img height="180" alt="Skipper" src="https://raw.githubusercontent.com/zalando/skipper/master/img/skipper-h180.png"></p>
 
@@ -87,13 +89,13 @@ Start Skipper and make an HTTP request:
 
 To run the latest Docker container:
 
-    docker run registry.opensource.zalan.do/pathfinder/skipper:latest
+    docker run registry.opensource.zalan.do/teapot/skipper:latest
 
 To run `eskip` you first mount the `.eskip` file, into the container, and run the command
 
     docker run \
       -v $(PWD)/doc-docker-intro.eskip:/doc-docker-intro.eskip \
-      registry.opensource.zalan.do/pathfinder/skipper:latest eskip print doc-docker-intro.eskip
+      registry.opensource.zalan.do/teapot/skipper:latest eskip print doc-docker-intro.eskip
 
 To run `skipper` you first mount the `.eskip` file, into the container, expose the ports and run the command
 
@@ -101,7 +103,7 @@ To run `skipper` you first mount the `.eskip` file, into the container, expose t
         -v $(PWD)/doc-docker-intro.eskip:/doc-docker-intro.eskip \
         -p 9090:9090 \
         -p 9911:9911 \
-        registry.opensource.zalan.do/pathfinder/skipper:latest skipper -routes-file doc-docker-intro.eskip
+        registry.opensource.zalan.do/teapot/skipper:latest skipper -routes-file doc-docker-intro.eskip
 
 Skipper will then be available on http://localhost:9090
 
@@ -178,6 +180,7 @@ and detailed information on these topics:
 - Performance Considerations
 - [Rate Limiters](https://godoc.org/github.com/zalando/skipper/reference/filters/#ratelimit)
 - [Opentracing plugin](https://github.com/skipper-plugins/opentracing/) or extend [create your own](https://opensource.zalando.com/skipper/reference/plugins/#opentracing-plugins)
+- [WAF plugin](https://github.com/jptosso/coraza-waf) - Web Application Firewall filter for Skipper routes
 
 #### 1 Minute Skipper introduction
 
@@ -258,7 +261,9 @@ We moved the opentracing plugin source into the `tracing` package.
 
 User or developer questions can be asked in our [public Google Group](https://groups.google.com/forum/#!forum/skipper-router)
 
-We also have a slack channel #skipper in gophers.slack.com. Get an invite at [gophers official invite page](https://invite.slack.golangbridge.org).
+We also have a slack channel #skipper in gophers.slack.com. Get an [invite](https://invite.slack.golangbridge.org).
+If for some reason this link doesn't work, you can find more information about
+the gophers communities [here](https://github.com/gobridge/about-us/blob/master/README.md#onlineoffline-communities).
 
 ### Proposals
 

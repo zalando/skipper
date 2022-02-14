@@ -1,0 +1,51 @@
+kube_foo__qux_a_0__example_ingress_cluster_local_____:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	&& Method("OPTIONS") && ClientIP("10.2.0.0/16") -> <shunt>;
+
+kube_foo__qux_b_1__example_ingress_cluster_local_____:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	&& Cookie("alpha","^enabled$") && ClientIP("10.2.0.0/16")
+	-> "http://1.1.2.0:8181";
+
+kube_foo__qux_c_2__example_ingress_cluster_local_____:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") &&
+	Path("/a/path/somewhere") && ClientIP("10.2.0.0/16") && PathRegexp("^/")
+	-> "https://some.other-url.org/a/path/somewhere";
+
+kube_foo__qux__example_ingress_cluster_local_____qux:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	&& ClientIP("10.2.0.0/16") -> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_foo__qux_a_0__www_example_org_____:
+	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	&& Method("OPTIONS") -> <shunt>;
+
+kube_foo__qux_b_1__www_example_org_____:
+	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	&& Cookie("alpha","^enabled$")
+	-> "http://1.1.2.0:8181";
+
+kube_foo__qux_c_2__www_example_org_____:
+	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && Path("/a/path/somewhere") && PathRegexp("^/")
+	-> "https://some.other-url.org/a/path/somewhere";
+
+kube_foo__qux__www_example_org_____qux:
+	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	-> <roundRobin,	"http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_foo__qux_a_0__www2_anotherexample_org_____:
+	Host("^(www2[.]anotherexample[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	&& Method("OPTIONS") -> <shunt>;
+
+kube_foo__qux_b_1__www2_anotherexample_org_____:
+	Host("^(www2[.]anotherexample[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	&& Cookie("alpha","^enabled$")
+	-> "http://1.1.2.0:8181";
+
+kube_foo__qux_c_2__www2_anotherexample_org_____:
+	Host("^(www2[.]anotherexample[.]org[.]?(:[0-9]+)?)$") && Path("/a/path/somewhere") && PathRegexp("^/")
+	-> "https://some.other-url.org/a/path/somewhere";
+
+kube_foo__qux__www2_anotherexample_org_____qux:
+	Host("^(www2[.]anotherexample[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	-> <roundRobin,	"http://10.2.9.103:8080", "http://10.2.9.104:8080">;

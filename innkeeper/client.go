@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
@@ -159,7 +158,7 @@ func convertJsonToEskip(data []*routeData, prependFilters, appendFilters []*eski
 
 // Parses an Innkeeper API error message and returns its type.
 func parseApiError(r io.Reader) (string, error) {
-	message, err := ioutil.ReadAll(r)
+	message, err := io.ReadAll(r)
 
 	if err != nil {
 		return "", err
@@ -298,7 +297,7 @@ func (c *Client) requestData(authRetry bool, url string) ([]*routeData, error) {
 		return nil, err
 	}
 
-	routesData, err := ioutil.ReadAll(response.Body)
+	routesData, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}

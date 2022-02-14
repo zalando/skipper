@@ -25,6 +25,7 @@ func (sf scannerFunc) scan(code string) (token, string, error) { return sf(code)
 type eskipLex struct {
 	code          string
 	lastToken     *token
+	lastRouteID   string
 	err           error
 	initialLength int
 	routes        []*parsedRoute
@@ -380,6 +381,6 @@ func (l *eskipLex) Lex(lval *eskipSymType) int {
 
 func (l *eskipLex) Error(err string) {
 	l.err = fmt.Errorf(
-		"parse failed after token %v, position %d: %s",
-		l.lastToken, l.initialLength-len(l.code), err)
+		"parse failed after token %v, last route id: %v, position %d: %s",
+		l.lastToken, l.lastRouteID, l.initialLength-len(l.code), err)
 }

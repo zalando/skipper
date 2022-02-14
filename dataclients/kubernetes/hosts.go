@@ -1,27 +1,27 @@
 package kubernetes
 
 import (
-	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/zalando/skipper/eskip"
 )
 
-func rxDots(h string) string {
-	return strings.Replace(h, ".", "[.]", -1)
-}
-
-func createHostRx(h ...string) string {
-	if len(h) == 0 {
+func createHostRx(hosts ...string) string {
+	if len(hosts) == 0 {
 		return ""
 	}
 
-	hrx := make([]string, len(h))
-	for i := range h {
-		hrx[i] = rxDots(h[i])
+	hrx := make([]string, len(hosts))
+	for i, host := range hosts {
+		// trailing dots and port are not allowed in kube
+		// ingress spec, so we can append optional setting
+		// without check
+		hrx[i] = strings.Replace(host, ".", "[.]", -1) + "[.]?(:[0-9]+)?"
 	}
 
-	return fmt.Sprintf("^(%s)$", strings.Join(hrx, "|"))
+	return "^(" + strings.Join(hrx, "|") + ")$"
 }
 
 // hostCatchAllRoutes creates catch-all routes for those hosts that only have routes with
@@ -63,8 +63,21 @@ func hostCatchAllRoutes(hostRoutes map[string][]*eskip.Route, createID func(stri
 	return catchAll
 }
 
-func mergeHostRoutes(to, from map[string][]*eskip.Route) {
-	for host, routes := range from {
-		to[host] = append(to[host], routes...)
+func isExternalDomainAllowed(allowedDomains []*regexp.Regexp, domain string) bool {
+	for _, a := range allowedDomains {
+		if a.MatchString(domain) {
+			return true
+		}
 	}
+
+	return false
+}
+
+func isExternalAddressAllowed(allowedDomains []*regexp.Regexp, address string) bool {
+	u, err := url.Parse(address)
+	if err != nil {
+		return false
+	}
+
+	return isExternalDomainAllowed(allowedDomains, u.Hostname())
 }

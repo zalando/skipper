@@ -42,8 +42,8 @@ kube_ingress_aws_controller:
 
 # automatically create HTTP routing to endpoints for your ingress and routegroup
 skipper:
-  version: 0.11.48
-  image: registry.opensource.zalan.do/pathfinder/skipper
+  version: 0.12.0
+  image: registry.opensource.zalan.do/teapot/skipper
   cluster_ratelimit: false
   # redis is required for cluster ratelimit
   redis:

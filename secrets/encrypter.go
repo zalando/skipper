@@ -6,7 +6,7 @@ import (
 	crand "crypto/rand"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +25,7 @@ type fileSecretSource struct {
 }
 
 func (fss *fileSecretSource) GetSecret() ([][]byte, error) {
-	contents, err := ioutil.ReadFile(fss.fileName)
+	contents, err := os.ReadFile(fss.fileName)
 	if err != nil {
 		return nil, err
 	}

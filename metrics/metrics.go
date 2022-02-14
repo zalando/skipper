@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"runtime"
 	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -97,9 +100,34 @@ type Options struct {
 	// for each route, additionally grouped by status and method.
 	EnableServeRouteMetrics bool
 
+	// If set, a counter for each route is generated, additionally
+	// grouped by status and method. It differs from the automatically
+	// generated counter from `EnableServeRouteMetrics` because it will
+	// always contain the status and method labels, independently of the
+	// `EnableServeMethodMetric` and `EnableServeStatusCodeMetric`
+	// flags.
+	EnableServeRouteCounter bool
+
 	// If set, detailed total response time metrics will be collected
 	// for each host, additionally grouped by status and method.
 	EnableServeHostMetrics bool
+
+	// If set, a counter for each host is generated, additionally
+	// grouped by status and method. It differs from the automatically
+	// generated counter from `EnableServeHostMetrics` because it will
+	// always contain the status and method labels, independently of the
+	// `EnableServeMethodMetric` and `EnableServeStatusCodeMetric` flags.
+	EnableServeHostCounter bool
+
+	// If set, the detailed total response time metrics will contain the
+	// HTTP method as a domain of the metric. It affects both route and
+	// host splitted metrics.
+	EnableServeMethodMetric bool
+
+	// If set, the detailed total response time metrics will contain the
+	// HTTP Response status code as a domain of the metric. It affects
+	// both route and host splitted metrics.
+	EnableServeStatusCodeMetric bool
 
 	// If set, detailed response time metrics will be collected
 	// for each backend host
@@ -152,6 +180,20 @@ type Options struct {
 	// EnableProfile exposes profiling information on /pprof of the
 	// metrics listener.
 	EnableProfile bool
+
+	// BlockProfileRate calls runtime.SetBlockProfileRate(BlockProfileRate) if != 0 (<0 will disable) and profiling is enabled
+	BlockProfileRate int
+
+	// MutexProfileFraction calls runtime.SetMutexProfileFraction(MutexProfileFraction) if != 0 (<0 will disable) and profiling is enabled
+	MutexProfileFraction int
+
+	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if != 0 (<0 will disable) and profiling is enabled
+	MemProfileRate int
+
+	// An instance of a Prometheus registry. It allows registering and serving custom metrics when skipper is used as a
+	// library.
+	// A new registry is created if this option is nil.
+	PrometheusRegistry *prometheus.Registry
 }
 
 var (
@@ -195,6 +237,33 @@ func NewHandler(o Options, m Metrics) http.Handler {
 		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
 		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
 		mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+
+		switch n := o.BlockProfileRate; {
+		case n > 0:
+			runtime.SetBlockProfileRate(o.BlockProfileRate)
+		case n < 0:
+			runtime.SetBlockProfileRate(0)
+		default:
+			// 0 keeps default
+		}
+
+		switch n := o.MutexProfileFraction; {
+		case n > 0:
+			runtime.SetMutexProfileFraction(o.MutexProfileFraction)
+		case n < 0:
+			runtime.SetMutexProfileFraction(0)
+		default:
+			// 0 keeps default
+		}
+
+		switch n := o.MemProfileRate; {
+		case n > 0:
+			runtime.MemProfileRate = o.MemProfileRate
+		case n < 0:
+			runtime.MemProfileRate = 0
+		default:
+			// 0 keeps default
+		}
 	}
 
 	// Root path should return 404.

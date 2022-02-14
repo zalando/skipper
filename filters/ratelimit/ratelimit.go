@@ -6,6 +6,7 @@ For detailed documentation of the ratelimit, see https://godoc.org/github.com/za
 package ratelimit
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -15,24 +16,56 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
-// RetryAfterKey is used as key in the context state bag
-const RetryAfterKey = "#ratelimitretryafter"
-
-// RouteSettingsKey is used as key in the context state bag
-const RouteSettingsKey = "#ratelimitsettings"
+const defaultStatusCode = http.StatusTooManyRequests
 
 type spec struct {
 	typ        ratelimit.RatelimitType
+	provider   RatelimitProvider
 	filterName string
+	maxShards  int
 }
 
 type filter struct {
-	settings ratelimit.Settings
+	settings   ratelimit.Settings
+	provider   RatelimitProvider
+	statusCode int
+	maxHits    int // overrides settings.MaxHits
+}
+
+// RatelimitProvider returns a limit instance for provided Settings
+type RatelimitProvider interface {
+	get(s ratelimit.Settings) limit
+}
+
+type limit interface {
+	// AllowContext is used to decide if call is allowed to pass
+	AllowContext(context.Context, string) bool
+
+	// RetryAfter is used to inform the client how many seconds it
+	// should wait before making a new request
+	RetryAfter(string) int
+}
+
+// RegistryAdapter adapts ratelimit.Registry to RateLimitProvider interface.
+// ratelimit.Registry is not an interface and its Get method returns
+// ratelimit.Ratelimit which is not an interface either
+// RegistryAdapter narrows ratelimit interfaces to necessary minimum
+// and enables easier test stubbing
+type registryAdapter struct {
+	registry *ratelimit.Registry
+}
+
+func (a *registryAdapter) get(s ratelimit.Settings) limit {
+	return a.registry.Get(s)
+}
+
+func NewRatelimitProvider(registry *ratelimit.Registry) RatelimitProvider {
+	return &registryAdapter{registry}
 }
 
 // NewLocalRatelimit is *DEPRECATED*, use NewClientRatelimit, instead
-func NewLocalRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.LocalRatelimit, filterName: ratelimit.LocalRatelimitName}
+func NewLocalRatelimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.LocalRatelimit, provider: provider, filterName: ratelimit.LocalRatelimitName}
 }
 
 // NewClientRatelimit creates a instance based client rate limit.  If
@@ -53,8 +86,8 @@ func NewLocalRatelimit() filters.Spec {
 //    login: Path("/login")
 //    -> clientRatelimit(3, "1m", "Authorization")
 //    -> "https://login.backend.net";
-func NewClientRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.ClientRatelimit, filterName: ratelimit.ClientRatelimitName}
+func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.ClientRatelimit, provider: provider, filterName: filters.ClientRatelimitName}
 }
 
 // NewRatelimit creates a service rate limiting, that is
@@ -66,8 +99,17 @@ func NewClientRatelimit() filters.Spec {
 //    backendHealthcheck: Path("/healthcheck")
 //    -> ratelimit(20, "1s")
 //    -> "https://foo.backend.net";
-func NewRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.ServiceRatelimit, filterName: ratelimit.ServiceRatelimitName}
+//
+//
+// Optionally a custom response status code can be provided as an argument (default is 429).
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> ratelimit(20, "1s", 503)
+//    -> "https://foo.backend.net";
+func NewRatelimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: filters.RatelimitName}
 }
 
 // NewClusterRatelimit creates a rate limiting that is aware of the
@@ -81,8 +123,26 @@ func NewRatelimit() filters.Spec {
 //    -> clusterRatelimit("groupA", 200, "1m")
 //    -> "https://foo.backend.net";
 //
-func NewClusterRateLimit() filters.Spec {
-	return &spec{typ: ratelimit.ClusterServiceRatelimit, filterName: ratelimit.ClusterServiceRatelimitName}
+//
+// Optionally a custom response status code can be provided as an argument (default is 429).
+//
+// Example:
+//
+//    backendHealthcheck: Path("/healthcheck")
+//    -> clusterRatelimit("groupA", 200, "1m", 503)
+//    -> "https://foo.backend.net";
+func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
+	return NewShardedClusterRateLimit(provider, 1)
+}
+
+// NewShardedClusterRateLimit creates a cluster rate limiter that uses multiple group shards to count hits.
+// Based on the configured group and maxHits each filter instance selects N distinct group shards from [1, maxGroupShards].
+// For every subsequent request it uniformly picks one of N group shards and limits number of allowed requests per group shard to maxHits/N.
+//
+// For example if maxGroupShards = 10, clusterRatelimit("groupA", 200, "1m") will use 10 distinct groups to count hits and
+// will allow up to 20 hits per each group and thus up to configured 200 hits in total.
+func NewShardedClusterRateLimit(provider RatelimitProvider, maxGroupShards int) filters.Spec {
+	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: filters.ClusterRatelimitName, maxShards: maxGroupShards}
 }
 
 // NewClusterClientRatelimit creates a rate limiting that is aware of
@@ -110,8 +170,8 @@ func NewClusterRateLimit() filters.Spec {
 //    -> clusterClientRatelimit("groupC", 20, "1h", "Authorization")
 //    -> "https://foo.backend.net";
 //
-func NewClusterClientRateLimit() filters.Spec {
-	return &spec{typ: ratelimit.ClusterClientRatelimit, filterName: ratelimit.ClusterClientRatelimitName}
+func NewClusterClientRateLimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.ClusterClientRatelimit, provider: provider, filterName: filters.ClusterClientRatelimitName}
 }
 
 // NewDisableRatelimit disables rate limiting
@@ -121,16 +181,16 @@ func NewClusterClientRateLimit() filters.Spec {
 //    backendHealthcheck: Path("/healthcheck")
 //    -> disableRatelimit()
 //    -> "https://foo.backend.net";
-func NewDisableRatelimit() filters.Spec {
-	return &spec{typ: ratelimit.DisableRatelimit, filterName: ratelimit.DisableRatelimitName}
+func NewDisableRatelimit(provider RatelimitProvider) filters.Spec {
+	return &spec{typ: ratelimit.DisableRatelimit, provider: provider, filterName: filters.DisableRatelimitName}
 }
 
 func (s *spec) Name() string {
 	return s.filterName
 }
 
-func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 2 {
+func serviceRatelimitFilter(args []interface{}) (*filter, error) {
+	if !(len(args) == 2 || len(args) == 3) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -144,6 +204,11 @@ func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
 		return nil, err
 	}
 
+	statusCode, err := getStatusCodeArg(args, 2)
+	if err != nil {
+		return nil, err
+	}
+
 	return &filter{
 		settings: ratelimit.Settings{
 			Type:       ratelimit.ServiceRatelimit,
@@ -151,11 +216,12 @@ func serviceRatelimitFilter(args []interface{}) (filters.Filter, error) {
 			TimeWindow: timeWindow,
 			Lookuper:   ratelimit.NewSameBucketLookuper(),
 		},
+		statusCode: statusCode,
 	}, nil
 }
 
-func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 3 {
+func clusterRatelimitFilter(maxShards int, args []interface{}) (*filter, error) {
+	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -174,18 +240,48 @@ func clusterRatelimitFilter(args []interface{}) (filters.Filter, error) {
 		return nil, err
 	}
 
-	s := ratelimit.Settings{
-		Type:       ratelimit.ClusterServiceRatelimit,
-		Group:      group,
-		MaxHits:    maxHits,
-		TimeWindow: timeWindow,
-		Lookuper:   ratelimit.NewSameBucketLookuper(),
+	statusCode, err := getStatusCodeArg(args, 3)
+	if err != nil {
+		return nil, err
 	}
 
-	return &filter{settings: s}, nil
+	f := &filter{statusCode: statusCode, maxHits: maxHits}
+
+	keyShards := getKeyShards(maxHits, maxShards)
+	if keyShards > 1 {
+		f.settings = ratelimit.Settings{
+			Type:       ratelimit.ClusterServiceRatelimit,
+			Group:      group,
+			MaxHits:    maxHits / keyShards,
+			TimeWindow: timeWindow,
+			Lookuper:   ratelimit.NewRoundRobinLookuper(uint64(keyShards)),
+		}
+	} else {
+		f.settings = ratelimit.Settings{
+			Type:       ratelimit.ClusterServiceRatelimit,
+			Group:      group,
+			MaxHits:    maxHits,
+			TimeWindow: timeWindow,
+			Lookuper:   ratelimit.NewSameBucketLookuper(),
+		}
+	}
+	log.Debugf("maxHits: %d, keyShards: %d", maxHits, keyShards)
+
+	return f, nil
 }
 
-func clusterClientRatelimitFilter(args []interface{}) (filters.Filter, error) {
+// getKeyShards returns number of key shards based on max hits and max allowed shards.
+// Number of key shards k is the largest number from `[1, maxShards]` interval such that `maxHits % k == 0`
+func getKeyShards(maxHits, maxShards int) int {
+	for k := maxShards; k > 1; k-- {
+		if maxHits%k == 0 {
+			return k
+		}
+	}
+	return 1
+}
+
+func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 	if !(len(args) == 3 || len(args) == 4) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -231,7 +327,7 @@ func clusterClientRatelimitFilter(args []interface{}) (filters.Filter, error) {
 		s.Lookuper = ratelimit.NewXForwardedForLookuper()
 	}
 
-	return &filter{settings: s}, nil
+	return &filter{settings: s, statusCode: defaultStatusCode}, nil
 }
 
 func getLookuper(s string) ratelimit.Lookuper {
@@ -243,7 +339,7 @@ func getLookuper(s string) ratelimit.Lookuper {
 	}
 }
 
-func clientRatelimitFilter(args []interface{}) (filters.Filter, error) {
+func clientRatelimitFilter(args []interface{}) (*filter, error) {
 	if !(len(args) == 2 || len(args) == 3) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -285,18 +381,28 @@ func clientRatelimitFilter(args []interface{}) (filters.Filter, error) {
 			CleanInterval: 10 * timeWindow,
 			Lookuper:      lookuper,
 		},
+		statusCode: defaultStatusCode,
 	}, nil
 }
 
-func disableFilter([]interface{}) (filters.Filter, error) {
+func disableFilter([]interface{}) (*filter, error) {
 	return &filter{
 		settings: ratelimit.Settings{
 			Type: ratelimit.DisableRatelimit,
 		},
+		statusCode: defaultStatusCode,
 	}, nil
 }
 
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	f, err := s.createFilter(args)
+	if f != nil {
+		f.provider = s.provider
+	}
+	return f, err
+}
+
+func (s *spec) createFilter(args []interface{}) (*filter, error) {
 	switch s.typ {
 	case ratelimit.ServiceRatelimit:
 		return serviceRatelimitFilter(args)
@@ -306,7 +412,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	case ratelimit.ClientRatelimit:
 		return clientRatelimitFilter(args)
 	case ratelimit.ClusterServiceRatelimit:
-		return clusterRatelimitFilter(args)
+		return clusterRatelimitFilter(s.maxShards, args)
 	case ratelimit.ClusterClientRatelimit:
 		return clusterClientRatelimitFilter(args)
 	default:
@@ -343,13 +449,43 @@ func getDurationArg(a interface{}) (time.Duration, error) {
 	return time.Duration(i) * time.Second, err
 }
 
-// Request stores the configured ratelimit.Settings in the state bag,
-// such that it can be used in the proxy to check ratelimit.
+func getStatusCodeArg(args []interface{}, index int) (int, error) {
+	// status code arg is optional so we return default status code but no error
+	if len(args) <= index {
+		return defaultStatusCode, nil
+	}
+
+	return getIntArg(args[index])
+}
+
+// Request checks ratelimit using filter settings and serves `429 Too Many Requests` response if limit is reached
 func (f *filter) Request(ctx filters.FilterContext) {
-	if settings, ok := ctx.StateBag()[RouteSettingsKey].([]ratelimit.Settings); ok {
-		ctx.StateBag()[RouteSettingsKey] = append(settings, f.settings)
-	} else {
-		ctx.StateBag()[RouteSettingsKey] = []ratelimit.Settings{f.settings}
+	rateLimiter := f.provider.get(f.settings)
+	if rateLimiter == nil {
+		log.Errorf("RateLimiter is nil for settings: %s", f.settings)
+		return
+	}
+
+	if f.settings.Lookuper == nil {
+		log.Errorf("Lookuper is nil for settings: %s", f.settings)
+		return
+	}
+
+	s := f.settings.Lookuper.Lookup(ctx.Request())
+	if s == "" {
+		log.Debugf("Lookuper found no data in request for settings: %s and request: %v", f.settings, ctx.Request())
+		return
+	}
+
+	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
+		maxHits := f.settings.MaxHits
+		if f.maxHits != 0 {
+			maxHits = f.maxHits
+		}
+		ctx.Serve(&http.Response{
+			StatusCode: f.statusCode,
+			Header:     ratelimit.Headers(maxHits, f.settings.TimeWindow, rateLimiter.RetryAfter(s)),
+		})
 	}
 }
 

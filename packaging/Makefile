@@ -1,7 +1,7 @@
 .PHONY: docker-push
 
 VERSION            ?= $(shell git rev-parse HEAD)
-REGISTRY           ?= registry-write.opensource.zalan.do/pathfinder
+REGISTRY           ?= registry-write.opensource.zalan.do/teapot
 IMAGE              ?= $(REGISTRY)/skipper:$(VERSION)
 ARM64_IMAGE        ?= $(REGISTRY)/skipper-arm64:$(VERSION)
 ARM_IMAGE          ?= $(REGISTRY)/skipper-armv7:$(VERSION)
@@ -27,11 +27,17 @@ skipper:
 eskip:
 	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o eskip ../cmd/eskip/*.go
 
+webhook:
+	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o webhook ../cmd/webhook/*.go
+
+routesrv:
+	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o routesrv ../cmd/routesrv/*.go
+
 clean:
-	rm -rf skipper eskip build/
+	rm -rf skipper eskip webhook routesrv build/
 
 docker-build: docker.build.amd64 docker.build.arm64 docker.build.armv7
-docker.build.amd64: clean skipper eskip
+docker.build.amd64: clean skipper eskip webhook routesrv
 	docker build -t $(IMAGE) .
 docker.build.arm64: clean build.linux.arm64 docker.build.enable
 	docker buildx build -t $(ARM64_IMAGE) --load --platform "linux/arm64" -f Dockerfile.arm64 .

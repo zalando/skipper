@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 
@@ -12,7 +13,8 @@ import (
 )
 
 const (
-	Name = "apiUsageMonitoring"
+	// Deprecated, use filters.ApiUsageMonitoringName instead
+	Name = filters.ApiUsageMonitoringName
 
 	unknownPlaceholder = "{unknown}"
 	noMatchPlaceholder = "{no-match}"
@@ -20,8 +22,22 @@ const (
 )
 
 var (
-	log = logrus.WithField("filter", Name)
+	log      = logrus.WithField("filter", filters.ApiUsageMonitoringName)
+	regCache = sync.Map{}
 )
+
+func loadOrCompileRegex(pattern string) (*regexp.Regexp, error) {
+	var err error
+	var reg *regexp.Regexp
+	regI, ok := regCache.Load(pattern)
+	if !ok {
+		reg, err = regexp.Compile(pattern)
+		regCache.Store(pattern, reg)
+	} else {
+		reg = regI.(*regexp.Regexp)
+	}
+	return reg, err
+}
 
 // NewApiUsageMonitoring creates a new instance of the API Monitoring filter
 // specification (its factory).
@@ -32,7 +48,7 @@ func NewApiUsageMonitoring(
 	realmsTrackingPattern string,
 ) filters.Spec {
 	if !enabled {
-		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", Name)
+		log.Debugf("filter %q is not enabled. spec returns `noop` filters.", filters.ApiUsageMonitoringName)
 		return &noopSpec{&noopFilter{}}
 	}
 
@@ -52,8 +68,8 @@ func NewApiUsageMonitoring(
 			clientKeyList = append(clientKeyList, strippedKey)
 		}
 	}
-	// compile realms regex
-	realmsTrackingMatcher, err := regexp.Compile(realmsTrackingPattern)
+
+	realmsTrackingMatcher, err := loadOrCompileRegex(realmsTrackingPattern)
 	if err != nil {
 		log.Errorf(
 			"api-usage-monitoring-realmsTrackingPattern-tracking-pattern (global config) ignored: error compiling regular expression %q: %v",
@@ -107,7 +123,7 @@ type apiUsageMonitoringSpec struct {
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
-	return Name
+	return filters.ApiUsageMonitoringName
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
@@ -120,7 +136,8 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	}
 
 	filter = &apiUsageMonitoringFilter{
-		Spec:        s,
+		realmKeys:   s.realmKeys,
+		clientKeys:  s.clientKeys,
 		Paths:       paths,
 		UnknownPath: s.buildUnknownPathInfo(paths),
 	}
@@ -179,18 +196,18 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 		applicationId := api.ApplicationId
 		if applicationId == "" {
-			log.Errorf("args[%d] ignored: does not specify an application_id", apiIndex)
+			log.Warnf("args[%d] ignored: does not specify an application_id", apiIndex)
 			continue
 		}
 
 		apiId := api.ApiId
 		if apiId == "" {
-			log.Errorf("args[%d] ignored: does not specify an api_id", apiIndex)
+			log.Warnf("args[%d] ignored: does not specify an api_id", apiIndex)
 			continue
 		}
 
 		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
-			log.Errorf("args[%d] ignored: does not specify any path template", apiIndex)
+			log.Warnf("args[%d] ignored: does not specify any path template", apiIndex)
 			continue
 		}
 
@@ -200,7 +217,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Path Template validation
 			if template == "" {
-				log.Errorf(
+				log.Warnf(
 					"args[%d].path_templates[%d] ignored: empty",
 					apiIndex, templateIndex)
 				continue
@@ -215,7 +232,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
-				log.Errorf(
+				log.Warnf(
 					"args[%d].path_templates[%d] ignored: duplicate path template %q",
 					apiIndex, templateIndex, info.PathTemplate)
 				continue
@@ -224,21 +241,24 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Detect regular expression duplicates
 			if existingMatcher, ok := existingPathPattern[pathPattern]; ok {
-				log.Errorf(
+				log.Warnf(
 					"args[%d].path_templates[%d] ignored: two path templates yielded the same regular expression %q (%q and %q)",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, existingMatcher.PathTemplate)
 				continue
 			}
 			existingPathPattern[pathPattern] = info
 
-			// Compile the regular expression
-			pathPatternMatcher, err := regexp.Compile(pathPattern)
+			pathPatternMatcher, err := loadOrCompileRegex(pathPattern)
 			if err != nil {
-				log.Errorf(
+				log.Warnf(
 					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, err)
 				continue
 			}
+			if pathPatternMatcher == nil {
+				continue
+			}
+
 			info.Matcher = pathPatternMatcher
 
 			// Add valid entry to the results
@@ -272,11 +292,14 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 		return nil
 	}
 
-	clientTrackingMatcher, err := regexp.Compile(api.ClientTrackingPattern)
+	clientTrackingMatcher, err := loadOrCompileRegex(api.ClientTrackingPattern)
 	if err != nil {
 		log.Errorf(
 			"args[%d].client_tracking_pattern ignored (no client tracking): error compiling regular expression %q: %v",
 			apiIndex, api.ClientTrackingPattern, err)
+		return nil
+	}
+	if clientTrackingMatcher == nil {
 		return nil
 	}
 

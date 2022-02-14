@@ -8,26 +8,36 @@ additional filter, randomContent, can be used to generate response with random t
 package diag
 
 import (
+	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
+	"strconv"
+	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/serve"
 )
 
 const defaultChunkSize = 512
 
 const (
-	RandomName           = "randomContent"
-	LatencyName          = "latency"
-	ChunksName           = "chunks"
-	BandwidthName        = "bandwidth"
-	BackendLatencyName   = "backendLatency"
-	BackendBandwidthName = "backendBandwidth"
-	BackendChunksName    = "backendChunks"
+	// Deprecated, use filters.RandomContentName instead
+	RandomName = filters.RandomContentName
+	// Deprecated, use filters.RepeatContentName instead
+	RepeatName = filters.RepeatContentName
+	// Deprecated, use filters.LatencyName instead
+	LatencyName = filters.LatencyName
+	// Deprecated, use filters.ChunksName instead
+	ChunksName = filters.ChunksName
+	// Deprecated, use filters.BandwidthName instead
+	BandwidthName = filters.BandwidthName
+	// Deprecated, use filters.BackendLatencyName instead
+	BackendLatencyName = filters.BackendLatencyName
+	// Deprecated, use filters.BackendBandwidthName instead
+	BackendBandwidthName = filters.BackendBandwidthName
+	// Deprecated, use filters.BackendChunksName instead
+	BackendChunksName = filters.BackendChunksName
 )
 
 type throttleType int
@@ -42,13 +52,40 @@ const (
 )
 
 type random struct {
-	len int
+	mx   sync.Mutex
+	rand *rand.Rand
+	len  int64
+}
+
+type repeat struct {
+	bytes []byte
+	len   int64
+}
+
+type repeatReader struct {
+	bytes  []byte
+	offset int
 }
 
 type throttle struct {
 	typ       throttleType
 	chunkSize int
 	delay     time.Duration
+}
+
+type distribution int
+
+const (
+	uniformRequestDistribution distribution = iota
+	normalRequestDistribution
+	uniformResponseDistribution
+	normalResponseDistribution
+)
+
+type jitter struct {
+	mean  time.Duration
+	delta time.Duration
+	typ   distribution
 }
 
 var randomChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
@@ -65,6 +102,15 @@ func kbps2bpms(kbps float64) float64 {
 // 	* -> randomContent(2048) -> <shunt>;
 //
 func NewRandom() filters.Spec { return &random{} }
+
+// NewRepeat creates a filter specification whose filter instances can be used
+// to respond to requests with a repeated text. It expects the text and
+// the byte length of the response body to be generated as arguments.
+// Eskip example:
+//
+// 	* -> repeatContent("x", 100) -> <shunt>;
+//
+func NewRepeat() filters.Spec { return &repeat{} }
 
 // NewLatency creates a filter specification whose filter instances can be used
 // to add additional latency to responses. It expects the latency in milliseconds
@@ -112,7 +158,35 @@ func NewBackendBandwidth() filters.Spec { return &throttle{typ: backendBandwidth
 //
 func NewBackendChunks() filters.Spec { return &throttle{typ: backendChunks} }
 
-func (r *random) Name() string { return RandomName }
+// NewUniformRequestLatency creates a latency for requests with uniform
+// distribution. Example delay around 1s with +/-120ms.
+//
+// 	* -> uniformRequestLatency("1s", "120ms") -> "https://www.example.org";
+//
+func NewUniformRequestLatency() filters.Spec { return &jitter{typ: uniformRequestDistribution} }
+
+// NewNormalRequestLatency creates a latency for requests with normal
+// distribution. Example delay around 1s with +/-120ms.
+//
+// 	* -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
+//
+func NewNormalRequestLatency() filters.Spec { return &jitter{typ: normalRequestDistribution} }
+
+// NewUniformResponseLatency creates a latency for responses with uniform
+// distribution. Example delay around 1s with +/-120ms.
+//
+// 	* -> uniformRequestLatency("1s", "120ms") -> "https://www.example.org";
+//
+func NewUniformResponseLatency() filters.Spec { return &jitter{typ: uniformResponseDistribution} }
+
+// NewNormalResponseLatency creates a latency for responses with normal
+// distribution. Example delay around 1s with +/-120ms.
+//
+// 	* -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
+//
+func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalResponseDistribution} }
+
+func (r *random) Name() string { return filters.RandomContentName }
 
 func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {
@@ -120,54 +194,97 @@ func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if l, ok := args[0].(float64); ok {
-		return &random{int(l)}, nil
+		return &random{rand: rand.New(rand.NewSource(time.Now().UnixNano())), len: int64(l)}, nil // #nosec
 	} else {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 }
 
-func (r *random) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	for n := 0; n < r.len; {
-		l := defaultChunkSize
-		if n+l > r.len {
-			l = r.len - n
-		}
-
-		b := make([]byte, l)
-		for i := 0; i < l; i++ {
-			b[i] = randomChars[rand.Intn(len(randomChars))]
-		}
-
-		ni, err := w.Write(b)
-		if err != nil {
-			log.Error("error while writing random content", err)
-			return
-		}
-
-		n += ni
+func (r *random) Read(p []byte) (int, error) {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+	for i := 0; i < len(p); i++ {
+		p[i] = randomChars[r.rand.Intn(len(randomChars))]
 	}
+	return len(p), nil
 }
 
 func (r *random) Request(ctx filters.FilterContext) {
-	serve.ServeHTTP(ctx, r)
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(io.LimitReader(r, r.len)),
+	})
 }
 
 func (r *random) Response(ctx filters.FilterContext) {}
 
+func (r *repeat) Name() string { return filters.RepeatContentName }
+
+func (r *repeat) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	text, ok := args[0].(string)
+	if !ok || text == "" {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	var len int64
+	switch v := args[1].(type) {
+	case float64:
+		len = int64(v)
+	case int:
+		len = int64(v)
+	case int64:
+		len = v
+	default:
+		return nil, filters.ErrInvalidFilterParameters
+	}
+	if len < 0 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return &repeat{[]byte(text), len}, nil
+}
+
+func (r *repeat) Request(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Length": []string{strconv.FormatInt(r.len, 10)}},
+		Body:       io.NopCloser(io.LimitReader(&repeatReader{r.bytes, 0}, r.len)),
+	})
+}
+
+func (r *repeatReader) Read(p []byte) (int, error) {
+	n := copy(p, r.bytes[r.offset:])
+	if n < len(p) {
+		n += copy(p[n:], r.bytes[:r.offset])
+		for n < len(p) {
+			copy(p[n:], p[:n])
+			n *= 2
+		}
+	}
+	r.offset = (r.offset + len(p)) % len(r.bytes)
+	return len(p), nil
+}
+
+func (r *repeat) Response(ctx filters.FilterContext) {}
+
 func (t *throttle) Name() string {
 	switch t.typ {
 	case latency:
-		return LatencyName
+		return filters.LatencyName
 	case bandwidth:
-		return BandwidthName
+		return filters.BandwidthName
 	case chunks:
-		return ChunksName
+		return filters.ChunksName
 	case backendLatency:
-		return BackendLatencyName
+		return filters.BackendLatencyName
 	case backendBandwidth:
-		return BackendBandwidthName
+		return filters.BackendBandwidthName
 	case backendChunks:
-		return BackendChunksName
+		return filters.BackendChunksName
 	default:
 		panic("invalid throttle type")
 	}
@@ -350,4 +467,75 @@ func (t *throttle) Response(ctx filters.FilterContext) {
 
 	rsp := ctx.Response()
 	rsp.Body = t.goThrottle(rsp.Body, true)
+}
+
+func (j *jitter) Name() string {
+	switch j.typ {
+	case normalRequestDistribution:
+		return filters.NormalRequestLatencyName
+	case uniformRequestDistribution:
+		return filters.UniformRequestLatencyName
+	case normalResponseDistribution:
+		return filters.NormalResponseLatencyName
+	case uniformResponseDistribution:
+		return filters.UniformResponseLatencyName
+	}
+	return "unknown"
+}
+
+func (j *jitter) CreateFilter(args []interface{}) (filters.Filter, error) {
+	var (
+		mean  time.Duration
+		delta time.Duration
+		err   error
+	)
+
+	if len(args) != 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+	if mean, err = parseDuration(args[0]); err != nil {
+		return nil, fmt.Errorf("failed to parse duration mean %v: %w", args[0], err)
+	}
+
+	if delta, err = parseDuration(args[1]); err != nil {
+		return nil, fmt.Errorf("failed to parse duration delta %v: %w", args[1], err)
+	}
+
+	return &jitter{
+		typ:   j.typ,
+		mean:  mean,
+		delta: delta,
+	}, nil
+}
+
+func (j *jitter) Request(filters.FilterContext) {
+	var r float64
+
+	switch j.typ {
+	case uniformRequestDistribution:
+		/* #nosec */
+		r = 2*rand.Float64() - 1 // +/- sizing
+	case normalRequestDistribution:
+		r = rand.NormFloat64()
+	default:
+		return
+	}
+	f := r * float64(j.delta)
+	time.Sleep(j.mean + time.Duration(int64(f)))
+}
+
+func (j *jitter) Response(filters.FilterContext) {
+	var r float64
+
+	switch j.typ {
+	case uniformResponseDistribution:
+		/* #nosec */
+		r = 2*rand.Float64() - 1 // +/- sizing
+	case normalResponseDistribution:
+		r = rand.NormFloat64()
+	default:
+		return
+	}
+	f := r * float64(j.delta)
+	time.Sleep(j.mean + time.Duration(int64(f)))
 }

@@ -4,7 +4,7 @@ metadata:
   name: myapp
 spec:
   hosts:
-  - example.org
+  - www.skipper.cluster.local
   backends:
   - name: myapp
     type: service

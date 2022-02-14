@@ -2,8 +2,9 @@ package sed
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -16,18 +17,18 @@ const (
 )
 
 func TestWSDLExample(t *testing.T) {
-	response, err := ioutil.ReadFile(testWSDL)
+	response, err := os.ReadFile(testWSDL)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected, err := ioutil.ReadFile(patchedWSDL)
+	expected, err := os.ReadFile(patchedWSDL)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	resp := &http.Response{
-		Body:          ioutil.NopCloser(bytes.NewBuffer(response)),
+		Body:          io.NopCloser(bytes.NewBuffer(response)),
 		ContentLength: int64(len(response)),
 	}
 
@@ -45,7 +46,7 @@ func TestWSDLExample(t *testing.T) {
 	ctx := &filtertest.Context{FResponse: resp}
 	f.Response(ctx)
 
-	body, err := ioutil.ReadAll(ctx.Response().Body)
+	body, err := io.ReadAll(ctx.Response().Body)
 	if err != nil {
 		t.Error(err)
 	}

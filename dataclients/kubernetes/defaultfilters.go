@@ -2,12 +2,13 @@ package kubernetes
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -18,10 +19,10 @@ type filterSet struct {
 	err     error
 }
 
-type defaultFilters map[resourceID]*filterSet
+type defaultFilters map[definitions.ResourceID]*filterSet
 
 func readDefaultFilters(dir string) (defaultFilters, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -29,19 +30,20 @@ func readDefaultFilters(dir string) (defaultFilters, error) {
 	filters := make(defaultFilters)
 	for _, f := range files {
 		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
-		if len(r) != 2 || !(f.Mode().IsRegular() || f.Mode()&os.ModeSymlink != 0) || f.Size() > maxFileSize {
+		info, err := f.Info()
+		if err != nil || len(r) != 2 || !(f.Type().IsRegular() || f.Type()&os.ModeSymlink != 0) || info.Size() > maxFileSize {
 			log.WithError(err).WithField("file", f.Name()).Debug("incompatible file")
 			continue
 		}
 
 		file := filepath.Join(dir, f.Name())
-		config, err := ioutil.ReadFile(file)
+		config, err := os.ReadFile(file)
 		if err != nil {
 			log.WithError(err).WithField("file", file).Debug("could not read file")
 			continue
 		}
 
-		filters[resourceID{name: r[0], namespace: r[1]}] = &filterSet{text: string(config)}
+		filters[definitions.ResourceID{Name: r[0], Namespace: r[1]}] = &filterSet{text: string(config)}
 	}
 
 	return filters, nil
@@ -60,7 +62,7 @@ func (fs *filterSet) parse() {
 	fs.parsed = true
 }
 
-func (df defaultFilters) get(serviceID resourceID) ([]*eskip.Filter, error) {
+func (df defaultFilters) get(serviceID definitions.ResourceID) ([]*eskip.Filter, error) {
 	fs, ok := df[serviceID]
 	if !ok {
 		return nil, nil
@@ -77,5 +79,5 @@ func (df defaultFilters) get(serviceID resourceID) ([]*eskip.Filter, error) {
 }
 
 func (df defaultFilters) getNamed(namespace, serviceName string) ([]*eskip.Filter, error) {
-	return df.get(resourceID{namespace: namespace, name: serviceName})
+	return df.get(definitions.ResourceID{Namespace: namespace, Name: serviceName})
 }

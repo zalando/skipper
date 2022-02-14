@@ -25,8 +25,8 @@ represent time duration values as strings, parseable by [time.Duration](https://
 
 ## The path tree
 
-There is an important difference between the evaluation of the [Path](#Path) or [PathSubtree](#PathSubtree) predicates, and the
-evaluation of all the other predicates ([PathRegexp](#PathRegexp) belonging to the second group). Find an explanation in the
+There is an important difference between the evaluation of the [Path](#path) or [PathSubtree](#pathsubtree) predicates, and the
+evaluation of all the other predicates ([PathRegexp](#pathregexp) belonging to the second group). Find an explanation in the
 [Route matching](../tutorials/basics.md#route-matching) section explanation section.
 
 ### Path
@@ -128,6 +128,70 @@ Host(/^my-host-header\.example\.org$/)
 Host(/header\.example\.org$/)
 ```
 
+## HostAny
+
+Evaluates to true if request host exactly equals to any of the configured hostnames.
+
+Parameters:
+
+* hostnames (string)
+
+Examples:
+
+```
+HostAny("www.example.org", "www.example.com")
+HostAny("localhost:9090")
+```
+
+## Forwarded header predicates
+
+Uses standardized Forwarded header ([RFC 7239](https://tools.ietf.org/html/rfc7239))
+
+More info about the header: [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded)
+
+If multiple proxies chain values in the header, as a comma separated list, the predicates below will only match 
+the last value in the chain for each part of the header.
+
+Example: Forwarded: host=example.com;proto=https, host=example.org
+
+- `ForwardedHost(/^example\.com$/)` - does not match
+- `ForwardedHost(/^example\.org$/)` - matches
+- `ForwardedHost(/^example\.org$/) && ForwardedProto("https")` - matches
+- `ForwardedHost(/^example\.com$/) && ForwardedProto("https")` - does not match
+
+
+### ForwardedHost
+
+Regular expressions that the forwarded host header in the request must match.
+
+Parameters:
+
+* Host (regex)
+
+Examples:
+
+```
+ForwardedHost(/^my-host-header\.example\.org$/)
+ForwardedHost(/header\.example\.org$/)
+```
+
+### ForwardedProtocol
+
+Protocol the forwarded header in the request must match.
+
+Parameters:
+
+* Protocol (string)
+
+Only "http" and "https" values are allowed
+
+Examples:
+
+```
+ForwardedProtocol("http")
+ForwardedProtocol("https")
+```
+
 ## Weight (priority)
 
 By default, the weight (priority) of a route is determined by the number of defined predicates.
@@ -172,6 +236,15 @@ Example where `route2` is disabled.
 ```
 route1: Path("/test") -> "http://www.zalando.de";
 route2: Path("/test") && False() -> "http://www.github.com";
+```
+
+## Shutdown
+
+Evaluates to true if Skipper is shutting down. Can be used to create customized healthcheck.
+
+```
+health_up: Path("/health") -> inlineContent("OK") -> <shunt>;
+health_down: Path("/health") && Shutdown() -> status(503) -> inlineContent("shutdown") -> <shunt>;
 ```
 
 ## Method
@@ -310,9 +383,10 @@ JWTPayloadAnyKVRegexp("iss", "^https://")
 An interval implements custom predicates to match routes only during some period of time.
 
 There are three predicates: Between, Before and After. All
-predicates can be created using the date represented as a string in
-RFC3339 format (see https://golang.org/pkg/time/#pkg-constants), int64
-or float64 number. float64 number will be converted into int64 number.
+predicates can be created using the date represented as:
+* a string in RFC3339 format (see https://golang.org/pkg/time/#pkg-constants)
+* a string in RFC3339 format without numeric timezone offset and a location name corresponding to a file in the IANA Time Zone database
+* an `int64` or `float64` number corresponding to the given Unix time in seconds since January 1, 1970 UTC. `float64` number will be converted into `int64` number
 
 ### After
 
@@ -320,13 +394,15 @@ Matches if the request is after the specified time
 
 Parameters:
 
-* After (string) date string
-* After (int) unixtime
+* After (string) RFC3339 datetime string
+* After (string, string) RFC3339 datetime string without timezone offset, location name
+* After (int) unixtime in seconds
 
 Examples:
 
 ```
 After("2016-01-01T12:00:00+02:00")
+After("2021-02-18T00:00:00", "Europe/Berlin")
 After(1451642400)
 ```
 
@@ -336,28 +412,33 @@ Matches if the request is before the specified time
 
 Parameters:
 
-* Before (string) date string
-* Before (int) unixtime
+* Before (string) RFC3339 datetime string
+* Before (string, string) RFC3339 datetime string without timezone offset, location name
+* Before (int) unixtime in seconds
 
 Examples:
 
 ```
 Before("2016-01-01T12:00:00+02:00")
+Before("2021-02-18T00:00:00", "Europe/Berlin")
 Before(1451642400)
 ```
+
 ### Between
 
 Matches if the request is between the specified timeframe
 
 Parameters:
 
-* Between (string, string) date string, from - till
-* Between (int, int) unixtime, from - till
+* Between (string, string) RFC3339 datetime string, from - till
+* Between (string, string, string) RFC3339 datetime string without timezone offset, from - till and a location name
+* Between (int, int) unixtime in seconds, from - till
 
 Examples:
 
 ```
 Between("2016-01-01T12:00:00+02:00", "2016-02-01T12:00:00+02:00")
+Between("2021-02-18T00:00:00", "2021-02-18T01:00:00", "Europe/Berlin")
 Between(1451642400, 1454320800)
 ```
 
@@ -437,7 +518,7 @@ Source("1.2.3.4", "2.2.2.0/24")
 
 ### SourceFromLast
 
-The same as [Source](#Source), but use the last part of the
+The same as [Source](#source), but use the last part of the
 X-Forwarded-For header to match the network. This seems to be only
 used in the popular loadbalancers from AWS, ELB and ALB, because they
 put the client-IP as last part of the X-Forwarded-For headers.
@@ -452,6 +533,44 @@ Examples:
 SourceFromLast("1.2.3.4", "2.2.2.0/24")
 ```
 
+## ClientIP
+
+ClientIP implements a custom predicate to match routes based on
+the client IP of a request.
+
+Parameters:
+
+* ClientIP (string, ..) varargs with IPs or CIDR
+
+Examples:
+
+```
+// only match requests from 1.2.3.4
+ClientIP("1.2.3.4")
+
+// only match requests from 1.2.3.0 - 1.2.3.255
+ClientIP("1.2.3.0/24")
+
+// only match requests from 1.2.3.4 and the 2.2.2.0/24 network
+ClientIP("1.2.3.4", "2.2.2.0/24")
+```
+
+## Tee
+
+The Tee predicate matches a route when a request is spawn from the
+[teeLoopback](filters.md#teeloopback) filter as a tee request, using
+the same provided label.
+
+Parameters:
+
+* tee label (string): the predicate will match only those requests that
+  were spawn from a teeLoopback filter using the same label.
+
+See also:
+
+* [teeLoopback filter](filters.md#teeloopback)
+* [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
+
 ## Traffic
 
 Traffic implements a predicate to control the matching probability for
@@ -459,7 +578,7 @@ a given route by setting its weight.
 
 The probability for matching a route is defined by the mandatory first
 parameter, that must be a decimal number between 0.0 and 1.0 (both
-exclusive).
+inclusive).
 
 The optional second argument is used to specify the cookie name for
 the traffic group, in case you want to use stickiness. Stickiness

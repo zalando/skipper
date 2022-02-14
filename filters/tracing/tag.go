@@ -2,11 +2,8 @@ package tracing
 
 import (
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-)
-
-const (
-	name = "tracingTag"
 )
 
 type tagSpec struct {
@@ -14,7 +11,7 @@ type tagSpec struct {
 
 type tagFilter struct {
 	tagName  string
-	tagValue string
+	tagValue *eskip.Template
 }
 
 // NewTag creates a filter specification for the tracingTag filter.
@@ -23,7 +20,7 @@ func NewTag() filters.Spec {
 }
 
 func (s tagSpec) Name() string {
-	return name
+	return filters.TracingTagName
 }
 
 func (s tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -43,7 +40,7 @@ func (s tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	return tagFilter{
 		tagName:  tagName,
-		tagValue: tagValue,
+		tagValue: eskip.NewTemplate(tagValue),
 	}, nil
 }
 
@@ -54,7 +51,9 @@ func (f tagFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	span.SetTag(f.tagName, f.tagValue)
+	if v, ok := f.tagValue.ApplyContext(ctx); ok {
+		span.SetTag(f.tagName, v)
+	}
 }
 
 func (f tagFilter) Response(filters.FilterContext) {}

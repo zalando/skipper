@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/aryszka/jobqueue"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/scheduler"
@@ -28,8 +30,10 @@ type (
 )
 
 const (
-	LIFOName      = "lifo"
-	LIFOGroupName = "lifoGroup"
+	// Deprecated, use filters.LifoName instead
+	LIFOName = filters.LifoName
+	// Deprecated, use filters.LifoGroupName instead
+	LIFOGroupName = filters.LifoGroupName
 
 	defaultMaxConcurreny = 100
 	defaultMaxQueueSize  = 100
@@ -64,7 +68,7 @@ func durationArg(a interface{}) (time.Duration, error) {
 	}
 }
 
-func (s *lifoSpec) Name() string { return LIFOName }
+func (s *lifoSpec) Name() string { return filters.LifoName }
 
 // CreateFilter creates a lifoFilter, that will use a queue based
 // queue for handling requests instead of the fifo queue. The first
@@ -129,7 +133,7 @@ func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return &l, nil
 }
 
-func (*lifoGroupSpec) Name() string { return LIFOGroupName }
+func (*lifoGroupSpec) Name() string { return filters.LifoGroupName }
 
 // CreateFilter creates a lifoGroupFilter, that will use a queue based
 // queue for handling requests instead of the fifo queue. The first
@@ -294,16 +298,18 @@ func request(q *scheduler.Queue, key string, ctx filters.FilterContext) {
 
 	done, err := q.Wait()
 	if err != nil {
-		// TODO: replace the log with metrics
+		if span := opentracing.SpanFromContext(ctx.Request().Context()); span != nil {
+			ext.Error.Set(span, true)
+		}
 		switch err {
 		case jobqueue.ErrStackFull:
-			log.Errorf("Failed to get an entry on to the queue to process QueueFull: %v for host %s", err, ctx.Request().Host)
+			log.Debugf("Failed to get an entry on to the queue to process QueueFull: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusServiceUnavailable,
 				Status:     "Queue Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
 			})
 		case jobqueue.ErrTimeout:
-			log.Errorf("Failed to get an entry on to the queue to process Timeout: %v for host %s", err, ctx.Request().Host)
+			log.Debugf("Failed to get an entry on to the queue to process Timeout: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusBadGateway,
 				Status:     "Queue timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler",

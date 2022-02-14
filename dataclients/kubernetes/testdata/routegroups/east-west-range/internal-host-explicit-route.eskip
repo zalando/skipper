@@ -1,0 +1,7 @@
+kube_rg__internal_default__myapp__all__0_0:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && ClientIP("10.2.0.0/16")
+	&& Path("/app")
+	-> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
+
+kube_rg__internal___example_ingress_cluster_local__catchall__0_0:
+	Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && ClientIP("10.2.0.0/16") -> <shunt>;

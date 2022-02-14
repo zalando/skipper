@@ -61,3 +61,31 @@ func RemoteHostFromLast(r *http.Request) net.IP {
 
 	return parse(r.RemoteAddr)
 }
+
+// A list of IPNets
+type IPNets []*net.IPNet
+
+// Check if any of IPNets contains the IP
+func (nets IPNets) Contain(ip net.IP) bool {
+	for _, net := range nets {
+		if net.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// Parses list of CIDR addresses into a list of IPNets
+func ParseCIDRs(cidrs []string) (nets IPNets, err error) {
+	for _, cidr := range cidrs {
+		if !strings.Contains(cidr, "/") {
+			cidr += "/32"
+		}
+		_, net, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return nil, err
+		}
+		nets = append(nets, net)
+	}
+	return nets, nil
+}

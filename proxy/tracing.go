@@ -8,15 +8,14 @@ const (
 	ClientRequestStateTag = "client.request"
 	ComponentTag          = "component"
 	ErrorTag              = "error"
-	FlowIDTag             = "component"
+	FlowIDTag             = "flow_id"
 	HostnameTag           = "hostname"
 	HTTPHostTag           = "http.host"
 	HTTPMethodTag         = "http.method"
-	HTTPRemoteAddrTag     = "http.remote_addr"
+	HTTPRemoteIPTag       = "http.remote_ip"
 	HTTPPathTag           = "http.path"
 	HTTPUrlTag            = "http.url"
 	HTTPStatusCodeTag     = "http.status_code"
-	SkipperRouteTag       = "skipper.route"
 	SkipperRouteIDTag     = "skipper.route_id"
 	SpanKindTag           = "span.kind"
 
@@ -27,6 +26,8 @@ const (
 	EndEvent           = "end"
 	StartEvent         = "start"
 	StreamHeadersEvent = "stream_Headers"
+	StreamBodyEvent    = "streamBody.byte"
+	StreamBodyError    = "streamBody error"
 )
 
 type proxyTracing struct {

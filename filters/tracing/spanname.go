@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	// SpanNameFilterName is the name of the filter in eskip.
-	SpanNameFilterName = "tracingSpanName"
+	// Deprecated, use filters.TracingSpanNameName instead
+	SpanNameFilterName = filters.TracingSpanNameName
 
 	// OpenTracingProxySpanKey is the key used in the state bag to pass the span name to the proxy.
 	OpenTracingProxySpanKey = "statebag:opentracing:proxy:span"
@@ -25,12 +25,11 @@ type filter struct {
 //
 // 	tracingSpanName("example-operation")
 //
-// EXPERIMENTAL: this filter is experimental, and the name and the arguments can change until marked as stable.
 func NewSpanName() filters.Spec {
 	return &spec{}
 }
 
-func (s *spec) Name() string { return SpanNameFilterName }
+func (s *spec) Name() string { return filters.TracingSpanNameName }
 
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {

@@ -11,14 +11,15 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
-const ratelimitUsage = `set global rate limit settings, e.g. -ratelimit type=local,max-hits=20,time-window=60s
+const ratelimitsUsage = `set global rate limit settings, e.g. -ratelimits type=client,max-hits=20,time-window=60s
 	possible ratelimit properties:
-	type: local/service/disabled (defaults to disabled)
+	type: client/service/clusterClient/clusterService/disabled (defaults to disabled)
 	max-hits: the number of hits a ratelimiter can get
 	time-window: the duration of the sliding window for the rate limiter
+	group: defines the ratelimit group, which can be the same for different routes.
 	(see also: https://godoc.org/github.com/zalando/skipper/ratelimit)`
 
-const enableRatelimitUsage = `enable ratelimit`
+const enableRatelimitsUsage = `enable ratelimits`
 
 type ratelimitFlags []ratelimit.Settings
 
@@ -53,6 +54,10 @@ func (r *ratelimitFlags) Set(value string) error {
 				s.Type = ratelimit.ClientRatelimit
 			case "service":
 				s.Type = ratelimit.ServiceRatelimit
+			case "clusterClient":
+				s.Type = ratelimit.ClusterClientRatelimit
+			case "clusterService":
+				s.Type = ratelimit.ClusterServiceRatelimit
 			case "disabled":
 				s.Type = ratelimit.DisableRatelimit
 			default:

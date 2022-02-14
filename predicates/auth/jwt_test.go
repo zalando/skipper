@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -17,19 +18,19 @@ func Test_spec(t *testing.T) {
 	}{
 		{
 			spec: NewJWTPayloadAllKV(),
-			name: matchJWTPayloadAllKVName,
+			name: predicates.JWTPayloadAllKVName,
 		},
 		{
 			spec: NewJWTPayloadAnyKV(),
-			name: matchJWTPayloadAnyKVName,
+			name: predicates.JWTPayloadAnyKVName,
 		},
 		{
 			spec: NewJWTPayloadAllKVRegexp(),
-			name: matchJWTPayloadAllKVRegexpName,
+			name: predicates.JWTPayloadAllKVRegexpName,
 		},
 		{
 			spec: NewJWTPayloadAnyKVRegexp(),
-			name: matchJWTPayloadAnyKVRegexpName,
+			name: predicates.JWTPayloadAnyKVRegexpName,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

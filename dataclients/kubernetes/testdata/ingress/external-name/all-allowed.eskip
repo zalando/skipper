@@ -1,0 +1,9 @@
+kube_default__myapp__example_org____external1_example_org:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	-> setRequestHeader("Host", "external1.example.org")
+	-> "https://external1.example.org:443";
+
+kube_default__myapp__example_org____external2_example_org:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	-> setRequestHeader("Host", "external2.example.org")
+	-> "https://external2.example.org:443";

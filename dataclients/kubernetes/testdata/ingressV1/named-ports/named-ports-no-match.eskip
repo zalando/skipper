@@ -1,0 +1,5 @@
+kube_default__myapp__example_org____myapp:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	-> status(502)
+	-> inlineContent("no endpoints")
+	-> <shunt>;

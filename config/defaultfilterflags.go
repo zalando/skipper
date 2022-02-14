@@ -6,11 +6,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-const (
-	defaultPrependFiltersUsage = "set of default filters to apply to prepend to all filters of all routes"
-	defaultAppendFiltersUsage  = "set of default filters to apply to append to all filters of all routes"
-)
-
 type defaultFiltersFlags struct {
 	filters []*eskip.Filter
 }

@@ -2,7 +2,6 @@ package secrets
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -71,10 +70,12 @@ func (sp *SecretPaths) updateSecret(s string, dat []byte) {
 		dat = dat[:len(dat)-1]
 	}
 	sp.secrets.Store(s, dat)
+
+	log.Infof("Updated secret file: %s", s)
 }
 
 // Add adds a file or directory to find secrets in all files
-// found. The basename of the file will be the key to get the
+// found. The path of the file will be the key to get the
 // secret. Add is not synchronized and is not safe to call
 // concurrently. Add has a side effect of lazily init a goroutine to
 // start a single background refresher for the SecretPaths instance.
@@ -130,7 +131,7 @@ func (sp *SecretPaths) registerSecretFile(p string) error {
 	if _, ok := sp.GetSecret(p); ok {
 		return ErrAlreadyExists
 	}
-	dat, err := ioutil.ReadFile(p)
+	dat, err := os.ReadFile(p)
 	if err != nil {
 		log.Errorf("Failed to read file %s: %v", p, err)
 		return err
@@ -152,12 +153,11 @@ func (sp *SecretPaths) runRefresher() {
 					log.Errorf("Failed to convert k '%v' to string", k)
 					return true
 				}
-				sec, err := ioutil.ReadFile(f)
+				sec, err := os.ReadFile(f)
 				if err != nil {
 					log.Errorf("Failed to read file (%s): %v", f, err)
 					return true
 				}
-				log.Infof("update secret file: %s", f)
 				sp.updateSecret(f, sec)
 				return true
 			})

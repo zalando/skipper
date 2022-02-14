@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	OriginMarkerName = "originMarker"
+	// Deprecated, use filters.OriginMarkerName instead
+	OriginMarkerName = filters.OriginMarkerName
 )
 
 type originMarkerSpec struct{}
@@ -31,12 +32,12 @@ func NewOriginMarkerSpec() filters.Spec {
 
 func NewOriginMarker(origin string, id string, created time.Time) *eskip.Filter {
 	return &eskip.Filter{
-		Name: OriginMarkerName,
+		Name: filters.OriginMarkerName,
 		Args: []interface{}{origin, id, created},
 	}
 }
 
-func (s *originMarkerSpec) Name() string { return OriginMarkerName }
+func (s *originMarkerSpec) Name() string { return filters.OriginMarkerName }
 
 func (s *originMarkerSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 3 {

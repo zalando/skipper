@@ -1,7 +1,7 @@
 package builtin
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -142,7 +142,7 @@ func TestInlineContent(t *testing.T) {
 				t.Log("expected:", len(test.expectedContent))
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(err)
 				return

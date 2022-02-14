@@ -12,20 +12,18 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/predicates"
 )
 
 const (
-	// PathName represents the name of builtin path predicate.
-	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
-	PathName = "Path"
+	// Deprecated, use predicates.PathName instead
+	PathName = predicates.PathName
 
-	// PathSubtreeName represents the name of the builtin path subtree predicate.
-	// (See more details about the Path and PathSubtree predicates
-	// at https://godoc.org/github.com/zalando/skipper/eskip)
-	PathSubtreeName = "PathSubtree"
+	// Deprecated, use predicates.PathSubtreeName instead
+	PathSubtreeName = predicates.PathSubtreeName
 
-	WeightPredicateName = "Weight"
+	// Deprecated, use predicates.WeightName instead
+	WeightPredicateName = predicates.WeightName
 
 	routesTimestampName      = "X-Timestamp"
 	routesCountName          = "X-Count"
@@ -140,10 +138,35 @@ type RouteFilter struct {
 	Index int
 }
 
+// LBMetrics contains metrics used by LB algorithms
+type LBMetrics struct {
+	inflightRequests int64
+}
+
+// IncInflightRequest increments the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) IncInflightRequest() {
+	atomic.AddInt64(&m.inflightRequests, 1)
+}
+
+// DecInflightRequest decrements the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) DecInflightRequest() {
+	atomic.AddInt64(&m.inflightRequests, -1)
+}
+
+// GetInflightRequests decrements the number of outstanding requests from the proxy to a given backend.
+func (m *LBMetrics) GetInflightRequests() int {
+	return int(atomic.LoadInt64(&m.inflightRequests))
+}
+
 // LBEndpoint represents the scheme and the host of load balanced
 // backends.
 type LBEndpoint struct {
 	Scheme, Host string
+	Metrics      *LBMetrics
+
+	// Detected represents the time when skipper instances first detected a new LB endpoint. This detection
+	// time is used for the fade-in feature of the round-robin and random LB algorithms.
+	Detected time.Time
 }
 
 // LBAlgorithm implementations apply a load balancing algorithm
@@ -157,10 +180,12 @@ type LBAlgorithm interface {
 type LBContext struct {
 	Request *http.Request
 	Route   *Route
+	Params  map[string]interface{}
 }
 
 // NewLBContext is used to create a new LBContext, to pass data to the
 // load balancer algorithms.
+// Deprecated: create LBContext instead
 func NewLBContext(r *http.Request, rt *Route) *LBContext {
 	return &LBContext{
 		Request: r,
@@ -199,6 +224,19 @@ type Route struct {
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
 	LBAlgorithm LBAlgorithm
+
+	// LBFadeInDuration defines the duration of the fade-in
+	// function to be applied to new LB endpoints associated
+	// with this route.
+	LBFadeInDuration time.Duration
+
+	// LBExponent defines a secondary exponent modifier of
+	// the fade-in function configured mainly by the LBFadeInDuration
+	// field, adjusting the shape of the fade-in. By default,
+	// its value is usually 1, meaning linear fade-in, and it's
+	// configured by the post-processor found in the filters/fadein
+	// package.
+	LBFadeInExponent float64
 }
 
 // PostProcessor is an interface for custom post-processors applying changes
@@ -313,6 +351,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Routing) startReceivingUpdates(o Options) {
+	dc := len(o.DataClients)
 	c := make(chan *routeTable)
 	go receiveRouteMatcher(o, c, r.quit)
 	go func() {
@@ -321,8 +360,11 @@ func (r *Routing) startReceivingUpdates(o Options) {
 			case rt := <-c:
 				r.routeTable.Store(rt)
 				if !r.firstLoadSignaled {
-					close(r.firstLoad)
-					r.firstLoadSignaled = true
+					dc--
+					if dc == 0 {
+						close(r.firstLoad)
+						r.firstLoadSignaled = true
+					}
 				}
 				r.log.Info("route settings applied")
 			case <-r.quit:

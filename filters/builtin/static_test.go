@@ -15,16 +15,16 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/proxy/proxytest"
 	"io"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 func TestStatic(t *testing.T) {
@@ -90,7 +90,7 @@ func TestStatic(t *testing.T) {
 				continue
 			}
 		} else {
-			if err := ioutil.WriteFile("/tmp/static-test", []byte(ti.content), os.ModePerm); err != nil {
+			if err := os.WriteFile("/tmp/static-test", []byte(ti.content), os.ModePerm); err != nil {
 				t.Error(ti.msg, err)
 				continue
 			}
@@ -99,7 +99,7 @@ func TestStatic(t *testing.T) {
 		fr := make(filters.Registry)
 		fr.Register(NewStatic())
 		pr := proxytest.New(fr, &eskip.Route{
-			Filters: []*eskip.Filter{{Name: StaticName, Args: ti.args}},
+			Filters: []*eskip.Filter{{Name: filters.StaticName, Args: ti.args}},
 			Shunt:   true})
 		defer pr.Close()
 
@@ -120,7 +120,7 @@ func TestStatic(t *testing.T) {
 			continue
 		}
 
-		content, err := ioutil.ReadAll(rsp.Body)
+		content, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			t.Error(ti.msg, err)
 			continue
@@ -135,7 +135,7 @@ func TestStatic(t *testing.T) {
 func TestSameFileMultipleTimes(t *testing.T) {
 	const n = 6
 
-	if err := ioutil.WriteFile("/tmp/static-test", []byte("test content"), os.ModePerm); err != nil {
+	if err := os.WriteFile("/tmp/static-test", []byte("test content"), os.ModePerm); err != nil {
 		t.Error(err)
 		return
 	}
@@ -143,7 +143,7 @@ func TestSameFileMultipleTimes(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewStatic())
 	pr := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
+		Filters: []*eskip.Filter{{Name: filters.StaticName, Args: []interface{}{"/static", "/tmp"}}},
 		Shunt:   true})
 	defer pr.Close()
 
@@ -155,7 +155,7 @@ func TestSameFileMultipleTimes(t *testing.T) {
 		}
 
 		defer rsp.Body.Close()
-		_, err = ioutil.ReadAll(rsp.Body)
+		_, err = io.ReadAll(rsp.Body)
 		if err != nil {
 			t.Error(err)
 			return
@@ -165,7 +165,7 @@ func TestSameFileMultipleTimes(t *testing.T) {
 
 func TestMultipleRanges(t *testing.T) {
 	const fcontent = "test content"
-	if err := ioutil.WriteFile("/tmp/static-test", []byte(fcontent), os.ModePerm); err != nil {
+	if err := os.WriteFile("/tmp/static-test", []byte(fcontent), os.ModePerm); err != nil {
 		t.Error(err)
 		return
 	}
@@ -173,7 +173,7 @@ func TestMultipleRanges(t *testing.T) {
 	fr := make(filters.Registry)
 	fr.Register(NewStatic())
 	pr := proxytest.New(fr, &eskip.Route{
-		Filters: []*eskip.Filter{{Name: StaticName, Args: []interface{}{"/static", "/tmp"}}},
+		Filters: []*eskip.Filter{{Name: filters.StaticName, Args: []interface{}{"/static", "/tmp"}}},
 		Shunt:   true})
 	defer pr.Close()
 
@@ -211,7 +211,7 @@ func TestMultipleRanges(t *testing.T) {
 			break
 		}
 
-		partContent, err := ioutil.ReadAll(p)
+		partContent, err := io.ReadAll(p)
 		if err != nil {
 			t.Error(err)
 			break

@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	mrand "math/rand"
 	"net"
@@ -21,28 +20,24 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
-	"syscall"
 	"testing"
 	"testing/quick"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/predicates/source"
 )
 
 type testAPI struct {
 	test      *testing.T
 	services  *serviceList
 	endpoints *endpointList
-	ingresses *ingressList
+	ingresses *definitions.IngressList
 	server    *httptest.Server
 	failNext  bool
 }
@@ -52,11 +47,63 @@ func init() {
 	// log.SetLevel(log.DebugLevel)
 }
 
-func testService(namespace, name string, clusterIP string, ports map[string]int) *service {
-	return testServiceWithTargetPort(namespace, name, clusterIP, ports, nil)
+func testEndpointList() *endpointList {
+	eps := make([]*endpoint, 0)
+	eps = append(eps, testEndpoints("namespace1", "service1", "1.1.1", 1, map[string]int{"port1": 8080})...)
+	eps = append(eps, testEndpoints("namespace1", "service2", "1.1.2", 1, map[string]int{"port2": 8181})...)
+	eps = append(eps, testEndpoints("namespace2", "service3", "2.1.3", 1, map[string]int{"port3": 7272})...)
+	eps = append(eps, testEndpoints("namespace2", "service4", "2.1.4", 1, map[string]int{"port4": 4444, "port5": 5555})...)
+	return &endpointList{
+		Items: eps,
+	}
 }
 
-func testServiceWithTargetPort(namespace, name string, clusterIP string, ports map[string]int, targetPorts map[int]*backendPort) *service {
+func testEndpoints(namespace, name, base string, n int, ports map[string]int) []*endpoint {
+	eps := make([]*endpoint, 0, 1)
+
+	eps = append(eps, &endpoint{
+		Meta: &definitions.Metadata{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Subsets: []*subset{},
+	})
+	for j := range eps {
+		s := &subset{
+			Addresses: []*address{},
+			Ports:     []*port{},
+		}
+
+		for k, v := range ports {
+			s.Ports = append(s.Ports, &port{
+				Name: k,
+				Port: v,
+			})
+		}
+
+		for i := 0; i < n; i++ {
+			adr := &address{
+				IP:   fmt.Sprintf("%s.%d", base, i),
+				Node: fmt.Sprintf("node-%d", i),
+			}
+			s.Addresses = append(s.Addresses, adr)
+		}
+		eps[j].Subsets = append(eps[j].Subsets, s)
+	}
+	return eps
+}
+
+func testService(namespace, name string, clusterIP string, ports map[string]int) *service {
+	targetPorts := make(map[int]*definitions.BackendPort)
+	for _, v := range ports {
+		targetPorts[v] = &definitions.BackendPort{
+			Value: v,
+		}
+	}
+	return testServiceWithTargetPort(namespace, name, clusterIP, ports, targetPorts)
+}
+
+func testServiceWithTargetPort(namespace, name string, clusterIP string, ports map[string]int, targetPorts map[int]*definitions.BackendPort) *service {
 	sports := make([]*servicePort, 0, len(ports))
 	for name, port := range ports {
 		sports = append(sports, &servicePort{
@@ -67,7 +114,7 @@ func testServiceWithTargetPort(namespace, name string, clusterIP string, ports m
 	}
 
 	return &service{
-		Meta: &metadata{
+		Meta: &definitions.Metadata{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -78,28 +125,28 @@ func testServiceWithTargetPort(namespace, name string, clusterIP string, ports m
 	}
 }
 
-func testPathRule(path, serviceName string, port backendPort) *pathRule {
-	return &pathRule{
+func testPathRule(path, serviceName string, port definitions.BackendPort) *definitions.PathRule {
+	return &definitions.PathRule{
 		Path: path,
-		Backend: &backend{
+		Backend: &definitions.Backend{
 			ServiceName: serviceName,
 			ServicePort: port,
 		},
 	}
 }
 
-func testRule(host string, paths ...*pathRule) *rule {
-	return &rule{
+func testRule(host string, paths ...*definitions.PathRule) *definitions.Rule {
+	return &definitions.Rule{
 		Host: host,
-		Http: &httpRule{
+		Http: &definitions.HTTPRule{
 			Paths: paths,
 		},
 	}
 }
 
-func setAnnotation(i *ingressItem, key, value string) {
+func setAnnotation(i *definitions.IngressItem, key, value string) {
 	if i.Metadata == nil {
-		i.Metadata = &metadata{}
+		i.Metadata = &definitions.Metadata{}
 	}
 
 	if i.Metadata.Annotations == nil {
@@ -109,24 +156,24 @@ func setAnnotation(i *ingressItem, key, value string) {
 	i.Metadata.Annotations[key] = value
 }
 
-func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString, lbAlgorithm string, defaultPort backendPort, traffic float64, rules ...*rule) *ingressItem {
-	var defaultBackend *backend
+func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString, lbAlgorithm string, defaultPort definitions.BackendPort, traffic float64, rules ...*definitions.Rule) *definitions.IngressItem {
+	var defaultBackend *definitions.Backend
 	if len(defaultService) != 0 {
-		defaultBackend = &backend{
+		defaultBackend = &definitions.Backend{
 			ServiceName: defaultService,
 			ServicePort: defaultPort,
 			Traffic:     traffic,
 		}
 	}
 
-	meta := metadata{
+	meta := definitions.Metadata{
 		Namespace:   ns,
 		Name:        name,
 		Annotations: make(map[string]string),
 	}
-	i := &ingressItem{
+	i := &definitions.IngressItem{
 		Metadata: &meta,
-		Spec: &ingressSpec{
+		Spec: &definitions.IngressSpec{
 			DefaultBackend: defaultBackend,
 			Rules:          rules,
 		},
@@ -153,23 +200,6 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 	return i
 }
 
-func testIngressSimple(ns, name, defaultService string, defaultPort backendPort, rules ...*rule) *ingressItem {
-	return testIngress(
-		ns,
-		name,
-		defaultService,
-		"",
-		"",
-		"",
-		"",
-		"",
-		"",
-		defaultPort,
-		0,
-		rules...,
-	)
-}
-
 func testServices() *serviceList {
 	return &serviceList{
 		Items: []*service{
@@ -181,9 +211,9 @@ func testServices() *serviceList {
 	}
 }
 
-func testIngresses() []*ingressItem {
-	return []*ingressItem{
-		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", backendPort{8080}, 1.0),
+func testIngresses() []*definitions.IngressItem {
+	return []*definitions.IngressItem{
+		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0),
 		testIngress(
 			"namespace2",
 			"path-rule-only",
@@ -194,11 +224,11 @@ func testIngresses() []*ingressItem {
 			"",
 			"",
 			"",
-			backendPort{},
+			definitions.BackendPort{},
 			1.0,
 			testRule(
 				"www.example.org",
-				testPathRule("/", "service3", backendPort{"port3"}),
+				testPathRule("/", "service3", definitions.BackendPort{Value: "port3"}),
 			),
 		),
 		testIngress(
@@ -211,22 +241,22 @@ func testIngresses() []*ingressItem {
 			"",
 			"",
 			"",
-			backendPort{"port1"},
+			definitions.BackendPort{Value: "port1"},
 			1.0,
 			testRule(
 				"foo.example.org",
-				testPathRule("/test1", "service1", backendPort{"port1"}),
-				testPathRule("/test2", "service2", backendPort{"port2"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
+				testPathRule("/test2", "service2", definitions.BackendPort{Value: "port2"}),
 			),
 			testRule(
 				"bar.example.org",
-				testPathRule("/test1", "service1", backendPort{"port1"}),
-				testPathRule("/test2", "service2", backendPort{"port2"}),
+				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
+				testPathRule("/test2", "service2", definitions.BackendPort{Value: "port2"}),
 			),
 		),
-		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", backendPort{8080}, 1.0),
-		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", backendPort{8080}, 1.0),
-		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", backendPort{4444}, 1.0),
+		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0),
+		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0),
+		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", definitions.BackendPort{Value: 4444}, 1.0),
 	}
 }
 
@@ -253,7 +283,7 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 		for _, ri := range r {
 			if ri.Id == id {
 				if ri.Backend != backend {
-					t.Errorf("invalid backend %v", cmp.Diff(ri.Backend, backend))
+					t.Errorf("invalid backend for route %s, %v", ri.Id, cmp.Diff(ri.Backend, backend))
 					return
 				}
 
@@ -264,39 +294,6 @@ func checkRoutes(t *testing.T, r []*eskip.Route, expected map[string]string) {
 		if !found {
 			t.Error("expected route not found", id, backend)
 			t.Errorf("routes %v", r)
-			return
-		}
-	}
-}
-
-func checkRoutesDoc(t *testing.T, r []*eskip.Route, expect string) {
-	expectRoutes, err := eskip.Parse(expect)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	checkRoutesExact(t, r, expectRoutes)
-}
-
-func checkRoutesExact(t *testing.T, r []*eskip.Route, expect []*eskip.Route) {
-	if len(r) != len(expect) {
-		t.Error("length doesn't match")
-		t.Log("got:     ", len(r))
-		t.Log("expected:", len(expect))
-		return
-	}
-
-	for i := range r {
-		var found bool
-		for j := range expect {
-			if r[i].Id == expect[j].Id && r[i].String() == expect[j].String() {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			t.Errorf("route not found: %s: %v", r[i].Id, r[i])
 			return
 		}
 	}
@@ -324,92 +321,23 @@ func checkIDs(t *testing.T, got []string, expected ...string) {
 	}
 }
 
-func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, healthy, reversed bool) {
-	for _, r := range got {
-		if r.Id != healthcheckRouteID {
-			continue
-		}
-
-		if !expected {
-			t.Error("unexpected healthcheck route")
-			return
-		}
-
-		if !r.Shunt {
-			t.Error("healthcheck route must be a shunt")
-			return
-		}
-
-		if r.Path != healthcheckPath {
-			t.Error("invalid healthcheck path")
-			return
-		}
-
-		var found bool
-		for _, p := range r.Predicates {
-			if reversed && p.Name != source.NameLast {
-				continue
-			}
-			if !reversed && p.Name != source.Name {
-				continue
-			}
-
-			found = true
-
-			if len(p.Args) != len(internalIPs) {
-				t.Error("invalid source predicate")
-				return
-			}
-
-			for _, s := range internalIPs {
-				var found2 bool
-				for _, sp := range p.Args {
-					if sp == s {
-						found2 = true
-						break
-					}
-				}
-
-				if !found2 {
-					t.Error("invalid source ip")
-				}
-			}
-		}
-
-		if !found {
-			t.Error("source predicate not found")
-		}
-
-		for _, f := range r.Filters {
-			if f.Name != builtin.StatusName {
-				continue
-			}
-
-			if len(f.Args) != 1 {
-				t.Error("invalid healthcheck args")
-				return
-			}
-
-			if healthy && f.Args[0] != http.StatusOK {
-				t.Error("invalid healthcheck status", f.Args[0], http.StatusOK)
-			} else if !healthy && f.Args[0] != http.StatusServiceUnavailable {
-				t.Error("invalid healthcheck status", f.Args[0], http.StatusServiceUnavailable)
-			}
-
-			return
-		}
-	}
-
+func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, reversed bool) {
 	if expected {
-		t.Error("healthcheck route not found")
+		for _, r := range healthcheckRoutes(reversed) {
+			assert.Contains(t, got, r)
+		}
+	} else {
+		for _, r := range healthcheckRoutes(reversed) {
+			assert.NotContains(t, got, r)
+		}
 	}
 }
 
-func newTestAPI(t *testing.T, s *serviceList, i *ingressList) *testAPI {
+func newTestAPI(t *testing.T, s *serviceList, i *definitions.IngressList) *testAPI {
 	return newTestAPIWithEndpoints(t, s, i, &endpointList{})
 }
 
-func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *ingressList, e *endpointList) *testAPI {
+func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *definitions.IngressList, e *endpointList) *testAPI {
 	api := &testAPI{
 		test:      t,
 		services:  s,
@@ -439,17 +367,17 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.URL.Path {
-	case ingressesClusterURI:
+	case IngressesClusterURI:
 		if err := respondJSON(w, api.ingresses); err != nil {
 			api.test.Error(err)
 		}
 		return
-	case servicesClusterURI:
+	case ServicesClusterURI:
 		if err := respondJSON(w, api.services); err != nil {
 			api.test.Error(err)
 		}
 		return
-	case endpointsClusterURI:
+	case EndpointsClusterURI:
 		if err := respondJSON(w, api.endpoints); err != nil {
 			api.test.Error(err)
 		}
@@ -464,312 +392,43 @@ func (api *testAPI) Close() {
 	api.server.Close()
 }
 
-func TestIngressData(t *testing.T) {
-	for _, ti := range []struct {
-		msg            string
-		services       []*service
-		ingresses      []*ingressItem
-		expectedRoutes map[string]string
-	}{{
-		"service backend from ingress and service, default",
-		[]*service{
-			testService("foo", "bar", "1.2.3.4", nil),
-		},
-		[]*ingressItem{testIngress("foo", "baz", "bar", "", "", "", "", "", "", backendPort{8080}, 1.0)},
-		map[string]string{
-			"kube_foo__baz______": "http://1.2.3.4:8080",
-		},
-	}, {
-		"service backend from ingress and service, path rule",
-		[]*service{
-			testService("foo", "bar", "1.2.3.4", nil),
-		},
-		[]*ingressItem{testIngress(
-			"foo",
-			"baz",
-			"",
-			"",
-			"",
-			"",
-			"",
-			"",
-			"",
-			backendPort{},
-			1.0,
-			testRule(
-				"www.example.org",
-				testPathRule(
-					"/",
-					"bar",
-					backendPort{8181},
-				),
-			),
-		)},
-		map[string]string{
-			"kube_foo__baz__www_example_org_____bar": "http://1.2.3.4:8181",
-		},
-	}, {
-		"service backend from ingress and service, default and path rule",
-		[]*service{
-			testService("foo", "bar", "1.2.3.4", nil),
-			testService("foo", "baz", "5.6.7.8", nil),
-		},
-		[]*ingressItem{testIngress(
-			"foo",
-			"qux",
-			"bar",
-			"",
-			"",
-			"",
-			"",
-			"",
-			"",
-			backendPort{8080},
-			1.0,
-			testRule(
-				"www.example.org",
-				testPathRule(
-					"/",
-					"baz",
-					backendPort{8181},
-				),
-			),
-		)},
-		map[string]string{
-			"kube_foo__qux______":                    "http://1.2.3.4:8080",
-			"kube_foo__qux__www_example_org_____baz": "http://5.6.7.8:8181",
-		},
-	}, {
-		"service backend from ingress and service, with port name",
-		[]*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		[]*ingressItem{testIngress(
-			"foo",
-			"qux",
-			"",
-			"",
-			"",
-			"",
-			"",
-			"",
-			"",
-			backendPort{},
-			1.0,
-			testRule(
-				"www.example.org",
-				testPathRule(
-					"/",
-					"bar",
-					backendPort{"baz"},
-				),
-			),
-		)},
-		map[string]string{
-			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
-		},
-	}, {
-		"ingress with service type ExternalName should proxy to externalName",
-		[]*service{
-			{
-				Meta: &metadata{
-					Namespace: "foo",
-					Name:      "extname",
-				},
-				Spec: &serviceSpec{
-					Type:         "ExternalName",
-					ExternalName: "www.zalando.de",
-					Ports: []*servicePort{
-						{
-							Name: "ext",
-							Port: 443,
-							TargetPort: &backendPort{
-								value: 443,
-							},
-						},
-					},
-				},
-			},
-		},
-		[]*ingressItem{testIngress(
-			"foo",
-			"qux",
-			"",
-			"",
-			"",
-			"",
-			"",
-			"",
-			"",
-			backendPort{value: 443},
-			1.0,
-			testRule(
-				"www.zalando.de",
-				testPathRule(
-					"/",
-					"extname",
-					backendPort{value: 443},
-				),
-			),
-		)},
-		map[string]string{
-			"kube_foo__qux______www_zalando_de": "https://www.zalando.de:443",
-		},
-	}, {
-		"ignore ingress entries with missing metadata",
-		[]*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		[]*ingressItem{
-			testIngress(
-				"foo",
-				"qux",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				backendPort{},
-				1.0,
-				testRule(
-					"www.example.org",
-					testPathRule(
-						"/",
-						"bar",
-						backendPort{"baz"},
-					),
-				),
-			),
-			{
-				Spec: &ingressSpec{
-					Rules: []*rule{
-						testRule(
-							"ignored.example.org",
-							testPathRule(
-								"/ignored",
-								"ignored",
-								backendPort{"baz"},
-							),
-						),
-					},
-				},
-			},
-		},
-		map[string]string{
-			"kube_foo__qux__www_example_org_____bar": "http://1.2.3.4:8181",
-		},
-	}, {
-		"skipper-routes annotation",
-		[]*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		[]*ingressItem{testIngress(
-			"foo",
-			"qux",
-			"",
-			"",
-			"",
-			"",
-			`Method("OPTIONS") -> <shunt>`,
-			"",
-			"",
-			backendPort{},
-			1.0,
-			testRule(
-				"www1.example.org",
-				testPathRule(
-					"/",
-					"bar",
-					backendPort{"baz"},
-				),
-			),
-			testRule(
-				"www2.example.org",
-				testPathRule(
-					"/",
-					"bar",
-					backendPort{"baz"},
-				),
-			),
-			testRule(
-				"www3.example.org",
-				testPathRule(
-					"/foo",
-					"bar",
-					backendPort{"baz"},
-				),
-			),
-		)},
-		map[string]string{
-			"kube_foo__qux__www1_example_org_____bar":    "http://1.2.3.4:8181",
-			"kube_foo__qux__www2_example_org_____bar":    "http://1.2.3.4:8181",
-			"kube_foo__qux__www3_example_org___foo__bar": "http://1.2.3.4:8181",
-			"kube_foo__qux__0__www1_example_org_____":    "",
-			"kube_foo__qux__0__www2_example_org_____":    "",
-			"kube_foo__qux__0__www3_example_org_foo____": "",
-			"kube___catchall__www3_example_org____":      "",
-		},
-	}} {
-		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPI(t, &serviceList{Items: ti.services}, &ingressList{Items: ti.ingresses})
-			defer api.Close()
-			dc, err := New(Options{KubernetesURL: api.server.URL})
-			if err != nil {
-				t.Error(err)
-			}
-
-			defer dc.Close()
-
-			r, err := dc.LoadAll()
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			checkRoutes(t, r, ti.expectedRoutes)
-		})
-	}
-}
-
 func TestIngressClassFilter(t *testing.T) {
 	tests := []struct {
 		testTitle     string
-		items         []*ingressItem
+		items         []*definitions.IngressItem
 		ingressClass  string
-		expectedItems []*ingressItem
+		expectedItems []*definitions.IngressItem
 	}{
 		{
 			testTitle: "filter no class ingresses",
-			items: []*ingressItem{
-				{Metadata: &metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 				}},
 			},
 			ingressClass: "^test-filter$",
-			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 				}},
 			},
 		},
 		{
 			testTitle: "filter specific key ingress",
-			items: []*ingressItem{
-				{Metadata: &metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
 					},
 				}},
-				{Metadata: &metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -777,22 +436,22 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 			ingressClass: "^test-filter$",
-			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
 			},
 		},
 		{
 			testTitle: "filter empty class ingresses",
-			items: []*ingressItem{
-				{Metadata: &metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				{Metadata: &metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_not_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "another-test-filter",
@@ -800,22 +459,22 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 			ingressClass: "^test-filter$",
-			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
 			},
 		},
 		{
 			testTitle: "explicitly include any ingress class",
-			items: []*ingressItem{
-				{Metadata: &metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "",
 					},
 				}},
-				{Metadata: &metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "test-filter",
@@ -823,25 +482,25 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 			ingressClass: ".*",
-			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
-				{Metadata: &metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 				}},
 			},
 		},
 		{
 			testTitle: "match from a set of ingress classes",
-			items: []*ingressItem{
-				{Metadata: &metadata{
+			items: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 					Annotations: map[string]string{
 						ingressClassKey: "skipper-test, other-test",
 					},
 				}},
-				{Metadata: &metadata{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid2",
 					Annotations: map[string]string{
 						ingressClassKey: "other-test",
@@ -849,8 +508,8 @@ func TestIngressClassFilter(t *testing.T) {
 				}},
 			},
 			ingressClass: "skipper-test",
-			expectedItems: []*ingressItem{
-				{Metadata: &metadata{
+			expectedItems: []*definitions.IngressItem{
+				{Metadata: &definitions.Metadata{
 					Name: "test1_valid1",
 				}},
 			},
@@ -890,7 +549,7 @@ func TestIngressClassFilter(t *testing.T) {
 }
 
 func TestIngress(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("no services, no ingresses, load empty initial and update", func(t *testing.T) {
@@ -941,6 +600,7 @@ func TestIngress(t *testing.T) {
 			t.Error("failed to load initial")
 		}
 
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 
 		r, d, err := dc.LoadUpdate()
@@ -949,25 +609,26 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
-			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
-			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__default_only______":                           "http://1.1.1.0:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://2.1.3.0:7272",
+			"kube_namespace1__mega______":                                   "http://1.1.1.0:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.1.1.0:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://1.1.2.0:8181",
 			"kube___catchall__foo_example_org____":                          "",
-			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.1.1.0:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://1.1.2.0:8181",
 			"kube___catchall__bar_example_org____":                          "",
-			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
-			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
+			"kube_namespace1__ratelimit______":                              "http://1.1.1.0:8080",
+			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.1.1.0:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://2.1.4.0:4444",
 		})
 	})
 
 	t.Run("receives invalid ingress, parses the rest, gets fixed", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
-		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = backendPort{"not-existing"}
+		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = definitions.BackendPort{Value: "not-existing"}
 		dc, err := New(Options{KubernetesURL: api.server.URL})
 		if err != nil {
 			t.Error(err)
@@ -989,11 +650,12 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__mega__foo_example_org___test1__service1": "http://1.2.3.4:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1": "http://1.1.1.0:8080",
 		})
 	})
 
 	t.Run("has ingresses, receive initial", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1010,22 +672,22 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
-			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
-			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__default_only______":                           "http://1.1.1.0:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://2.1.3.0:7272",
+			"kube_namespace1__mega______":                                   "http://1.1.1.0:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.1.1.0:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://1.1.2.0:8181",
 			"kube___catchall__foo_example_org____":                          "",
-			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.1.1.0:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://1.1.2.0:8181",
 			"kube___catchall__bar_example_org____":                          "",
-			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
-			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
+			"kube_namespace1__ratelimit______":                              "http://1.1.1.0:8080",
+			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.1.1.0:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://2.1.4.0:4444",
 		})
 	})
 
-	t.Run("has ingresses, update some of them", func(t *testing.T) {
+	t.Run("has ingresses, with service, without endpoints, update some of them, result in shunt routes", func(t *testing.T) {
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1034,15 +696,14 @@ func TestIngress(t *testing.T) {
 		}
 
 		defer dc.Close()
-
 		_, err = dc.LoadAll()
 		if err != nil {
 			t.Error("failed to load initial routes", err)
 			return
 		}
 
-		api.ingresses.Items[0].Spec.DefaultBackend.ServicePort = backendPort{6363}
-		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = backendPort{9999}
+		api.ingresses.Items[0].Spec.DefaultBackend.ServicePort = definitions.BackendPort{Value: 6363}
+		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = definitions.BackendPort{Value: 9999}
 
 		r, d, err := dc.LoadUpdate()
 		if err != nil || len(d) != 0 {
@@ -1050,12 +711,43 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only______":                      "http://1.2.3.4:6363",
-			"kube_namespace1__mega__foo_example_org___test1__service1": "http://1.2.3.4:9999",
+			"kube_namespace1__default_only______":                      "", //shunted because invalid backend
+			"kube_namespace1__mega__foo_example_org___test1__service1": "", //shunted because invalid backend
+		})
+	})
+
+	t.Run("has ingresses, with service, with endpoints, update some of them, result in some routes are changed", func(t *testing.T) {
+		api.endpoints = testEndpointList()
+		api.services = testServices()
+		api.ingresses.Items = testIngresses()
+		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+		_, err = dc.LoadAll()
+		if err != nil {
+			t.Error("failed to load initial routes", err)
+			return
+		}
+
+		// change service name and port of one prule will delete old route id and create a new
+		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServiceName = "service2"
+		api.ingresses.Items[2].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = definitions.BackendPort{Value: 8181}
+
+		r, d, err := dc.LoadUpdate()
+		if err != nil || len(d) != 1 {
+			t.Error("failed to receive delete", err, len(r))
+		}
+
+		checkRoutes(t, r, map[string]string{
+			"kube_namespace1__mega__foo_example_org___test1__service2": "http://1.1.2.0:8181",
 		})
 	})
 
 	t.Run("has ingresses, lose a service", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1094,6 +786,7 @@ func TestIngress(t *testing.T) {
 	})
 
 	t.Run("has ingresses, delete some ingresses", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1134,6 +827,7 @@ func TestIngress(t *testing.T) {
 	})
 
 	t.Run("has ingresses, delete some ingress rules", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1166,6 +860,7 @@ func TestIngress(t *testing.T) {
 	})
 
 	t.Run("has ingresses, add new ones", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1193,11 +888,11 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/", "service1", backendPort{"port1"}),
+					testPathRule("/", "service1", definitions.BackendPort{Value: "port1"}),
 				),
 			),
 			testIngress(
@@ -1210,11 +905,11 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new2.example.org",
-					testPathRule("/", "service2", backendPort{"port2"}),
+					testPathRule("/", "service2", definitions.BackendPort{Value: "port2"}),
 				),
 			),
 		)
@@ -1226,12 +921,13 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org_____service1": "http://1.2.3.4:8080",
-			"kube_namespace1__new2__new2_example_org_____service2": "http://5.6.7.8:8181",
+			"kube_namespace1__new1__new1_example_org_____service1": "http://1.1.1.0:8080",
+			"kube_namespace1__new2__new2_example_org_____service2": "http://1.1.2.0:8181",
 		})
 	})
 
 	t.Run("has ingresses, mixed insert, update, delete", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1259,11 +955,11 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/", "service1", backendPort{"port1"}),
+					testPathRule("/", "service1", definitions.BackendPort{Value: "port1"}),
 				),
 			),
 			testIngress(
@@ -1276,16 +972,16 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new2.example.org",
-					testPathRule("/", "service2", backendPort{"port2"}),
+					testPathRule("/", "service2", definitions.BackendPort{Value: "port2"}),
 				),
 			),
 		)
 
-		api.ingresses.Items[1].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = backendPort{9999}
+		api.ingresses.Items[1].Spec.Rules[0].Http.Paths[0].Backend.ServicePort = definitions.BackendPort{Value: 9999}
 		api.ingresses.Items[2].Spec.Rules = api.ingresses.Items[2].Spec.Rules[:1]
 
 		r, d, err := dc.LoadUpdate()
@@ -1295,9 +991,9 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org_____service1":          "http://1.2.3.4:8080",
-			"kube_namespace1__new2__new2_example_org_____service2":          "http://5.6.7.8:8181",
-			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:9999",
+			"kube_namespace1__new1__new1_example_org_____service1":          "http://1.1.1.0:8080",
+			"kube_namespace1__new2__new2_example_org_____service2":          "http://1.1.2.0:8181",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "", // shunt because service referenced not found
 		})
 
 		checkIDs(
@@ -1309,6 +1005,7 @@ func TestIngress(t *testing.T) {
 		)
 	})
 	t.Run("has ingresses, add new ones and filter not valid ones using class ingress", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1334,11 +1031,11 @@ func TestIngress(t *testing.T) {
 			"",
 			"",
 			"",
-			backendPort{""},
+			definitions.BackendPort{Value: ""},
 			1.0,
 			testRule(
 				"new1.example.org",
-				testPathRule("/", "service1", backendPort{"port1"}),
+				testPathRule("/", "service1", definitions.BackendPort{Value: "port1"}),
 			),
 		)
 		ti2 := testIngress(
@@ -1351,11 +1048,11 @@ func TestIngress(t *testing.T) {
 			"",
 			"",
 			"",
-			backendPort{""},
+			definitions.BackendPort{Value: ""},
 			1.0,
 			testRule(
 				"new2.example.org",
-				testPathRule("/", "service2", backendPort{"port2"}),
+				testPathRule("/", "service2", definitions.BackendPort{Value: "port2"}),
 			),
 		)
 		// Set class ingress class annotation
@@ -1370,57 +1067,17 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org_____service1": "http://1.2.3.4:8080",
+			"kube_namespace1__new1__new1_example_org_____service1": "http://1.1.1.0:8080",
 		})
 	})
 }
 
-func TestOriginMarker(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
-	defer api.Close()
-
-	api.services = testServices()
-	ii := testIngresses()
-	ti := time.Now().UTC()
-	var expected []string
-	for _, i := range ii {
-		n := i.Metadata.Name
-		expected = append(expected, n)
-		i.Metadata.Uid = n
-		i.Metadata.Created = ti
-	}
-	api.ingresses.Items = ii
-
-	dc, err := New(Options{KubernetesURL: api.server.URL, OriginMarker: true})
-	if err != nil {
-		t.Error(err)
-	}
-
-	defer dc.Close()
-
-	rr, err := dc.LoadAll()
-	require.NoError(t, err)
-
-	var actual []string
-	for _, r := range rr {
-		for _, f := range r.Filters {
-			if f.Name == builtin.OriginMarkerName {
-				require.Len(t, f.Args, 3)
-				actual = append(actual, f.Args[1].(string))
-				assert.Equal(t, ingressOriginName, f.Args[0])
-				assert.Equal(t, ti, f.Args[2])
-			}
-		}
-	}
-
-	assert.ElementsMatch(t, actual, expected)
-}
-
 func TestConvertPathRule(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("has ingresses, receive two equal backends", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{KubernetesURL: api.server.URL})
@@ -1449,11 +1106,11 @@ func TestConvertPathRule(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/test1", "service1", backendPort{"port1"}),
+					testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
 				),
 			),
 			testIngress(
@@ -1466,11 +1123,11 @@ func TestConvertPathRule(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/test2", "service1", backendPort{"port1"}),
+					testPathRule("/test2", "service1", definitions.BackendPort{Value: "port1"}),
 				),
 			),
 		)
@@ -1481,117 +1138,18 @@ func TestConvertPathRule(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
+			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
 			"kube___catchall__new1_example_org____":                     "",
-			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
+			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
 		})
 	})
-
-	t.Run("has one ingress, with two rules with same service name, but two different ports", func(t *testing.T) {
-		dc, err := New(Options{KubernetesURL: api.server.URL})
-		if err != nil {
-			t.Error(err)
-		}
-
-		defer dc.Close()
-
-		_, err = dc.LoadAll()
-
-		if err != nil {
-			t.Error("failed to load initial routes", err)
-			return
-		}
-
-		api.services = &serviceList{
-			Items: []*service{
-				{
-					Meta: &metadata{
-						Namespace: "namespace1",
-						Name:      "svcname1",
-					},
-					Spec: &serviceSpec{
-						ClusterIP: "10.3.2.1",
-						Ports: []*servicePort{
-							{
-								Name:       "svcname1",
-								Port:       8080,
-								TargetPort: &backendPort{value: 8080},
-							},
-							{
-								Name:       "svcname1",
-								Port:       8181,
-								TargetPort: &backendPort{value: 8181},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		api.ingresses.Items = append(
-			api.ingresses.Items,
-			&ingressItem{
-				Metadata: &metadata{
-					Namespace: "namespace1",
-					Name:      "test1",
-				},
-				Spec: &ingressSpec{
-					DefaultBackend: &backend{
-						ServiceName: "svcname1",
-						ServicePort: backendPort{value: 8080},
-					},
-					Rules: []*rule{
-						{
-							Host: "host1",
-							Http: &httpRule{
-								Paths: []*pathRule{
-									{
-										Path: "/",
-										Backend: &backend{
-											ServiceName: "svcname1",
-											ServicePort: backendPort{value: 8080},
-										},
-									},
-								},
-							},
-						},
-						{
-							Host: "host2",
-							Http: &httpRule{
-								Paths: []*pathRule{
-									{
-										Path: "/",
-										Backend: &backend{
-											ServiceName: "svcname1",
-											ServicePort: backendPort{value: 8181},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		)
-
-		r, _, err := dc.LoadUpdate()
-		if err != nil {
-			t.Errorf("update failed: %v", err)
-		}
-
-		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__test1__host1_____svcname1": "http://10.3.2.1:8080",
-			"kube_namespace1__test1__host2_____svcname1": "http://10.3.2.1:8181",
-			"kube_namespace1__test1______":               "http://10.3.2.1:8080",
-		})
-	})
-
 }
 
 func TestConvertPathRuleEastWestEnabled(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 	t.Run("has one ingress, receive two backends pointing to the same backend", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{
@@ -1623,11 +1181,11 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/test1", "service1", backendPort{"port1"}),
+					testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
 				),
 			),
 		)
@@ -1639,13 +1197,14 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 
 		checkRoutes(t, r, map[string]string{
 			"kube___catchall__new1_example_org____":                       "",
-			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.2.3.4:8080",
-			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
-			"kubeew___catchall__new1_example_org____":                     "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
+			"kube___catchall__new1_namespace1_skipper_cluster_local____":  "",
 		})
 	})
 
 	t.Run("has ingresses, receive two equal backends", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 		dc, err := New(Options{
@@ -1677,11 +1236,11 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/test1", "service1", backendPort{"port1"}),
+					testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
 				),
 			),
 			testIngress(
@@ -1694,11 +1253,11 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 				"",
 				"",
 				"",
-				backendPort{""},
+				definitions.BackendPort{Value: ""},
 				1.0,
 				testRule(
 					"new1.example.org",
-					testPathRule("/test2", "service1", backendPort{"port1"}),
+					testPathRule("/test2", "service1", definitions.BackendPort{Value: "port1"}),
 				),
 			),
 		)
@@ -1709,140 +1268,35 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
-			"kube___catchall__new1_example_org____":                     "",
-			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
-			//"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.2.3.4:8080",
-			"kubeew_namespace1__new1__new1_example_org___test2__service1": "http://1.2.3.4:8080",
-			"kubeew___catchall__new1_example_org____":                     "",
+			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.1.1.0:8080",
+			"kube___catchall__new1_example_org____":                       "",
+			"kube_namespace1__new1__new1_example_org___test2__service1":   "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
+			"kubeew_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
+			"kube___catchall__new1_namespace1_skipper_cluster_local____":  "",
 		})
 	})
-
-	t.Run("has one ingress, with two rules with same service name, but two different ports", func(t *testing.T) {
-		dc, err := New(Options{
-			KubernetesURL:            api.server.URL,
-			KubernetesEnableEastWest: true,
-		})
-		if err != nil {
-			t.Error(err)
-		}
-
-		defer dc.Close()
-
-		_, err = dc.LoadAll()
-
-		if err != nil {
-			t.Error("failed to load initial routes", err)
-			return
-		}
-
-		api.services = &serviceList{
-			Items: []*service{
-				{
-					Meta: &metadata{
-						Namespace: "namespace1",
-						Name:      "svcname1",
-					},
-					Spec: &serviceSpec{
-						ClusterIP: "10.3.2.1",
-						Ports: []*servicePort{
-							{
-								Name:       "svcname1",
-								Port:       8080,
-								TargetPort: &backendPort{value: 8080},
-							},
-							{
-								Name:       "svcname1",
-								Port:       8181,
-								TargetPort: &backendPort{value: 8181},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		api.ingresses.Items = append(
-			api.ingresses.Items,
-			&ingressItem{
-				Metadata: &metadata{
-					Namespace: "namespace1",
-					Name:      "test1",
-				},
-				Spec: &ingressSpec{
-					DefaultBackend: &backend{
-						ServiceName: "svcname1",
-						ServicePort: backendPort{value: 8080},
-					},
-					Rules: []*rule{
-						{
-							Host: "host1",
-							Http: &httpRule{
-								Paths: []*pathRule{
-									{
-										Path: "/",
-										Backend: &backend{
-											ServiceName: "svcname1",
-											ServicePort: backendPort{value: 8080},
-										},
-									},
-								},
-							},
-						},
-						{
-							Host: "host2",
-							Http: &httpRule{
-								Paths: []*pathRule{
-									{
-										Path: "/",
-										Backend: &backend{
-											ServiceName: "svcname1",
-											ServicePort: backendPort{value: 8181},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		)
-
-		r, _, err := dc.LoadUpdate()
-		if err != nil {
-			t.Errorf("update failed: %v", err)
-		}
-
-		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__test1__host1_____svcname1":   "http://10.3.2.1:8080",
-			"kube_namespace1__test1__host2_____svcname1":   "http://10.3.2.1:8181",
-			"kube_namespace1__test1______":                 "http://10.3.2.1:8080",
-			"kubeew_namespace1__test1__host1_____svcname1": "http://10.3.2.1:8080",
-			"kubeew_namespace1__test1__host2_____svcname1": "http://10.3.2.1:8181",
-		})
-	})
-
 }
 
 func TestConvertPathRuleTraffic(t *testing.T) {
 	for _, tc := range []struct {
 		msg   string
-		rule  *pathRule
+		rule  *definitions.PathRule
 		route *eskip.Route
 	}{
 		{
 			msg: "if traffic weight is between 0 and 1 predicate should be added to route",
-			rule: &pathRule{
+			rule: &definitions.PathRule{
 				Path: "",
-				Backend: &backend{
+				Backend: &definitions.Backend{
 					ServiceName: "service1",
-					ServicePort: backendPort{"port1"},
+					ServicePort: definitions.BackendPort{Value: "port1"},
 					Traffic:     0.3,
 				},
 			},
 			route: &eskip.Route{
 				Id:      routeID("namespace1", "", "", "", "service1"),
-				Backend: "http://1.2.3.4:8080",
+				Backend: "http://1.1.1.0:8080",
 				Predicates: []*eskip.Predicate{
 					{
 						Name: "Traffic",
@@ -1853,37 +1307,37 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 		},
 		{
 			msg: "if traffic weight is 0, don't include traffic predicate",
-			rule: &pathRule{
+			rule: &definitions.PathRule{
 				Path: "",
-				Backend: &backend{
+				Backend: &definitions.Backend{
 					ServiceName: "service1",
-					ServicePort: backendPort{"port1"},
+					ServicePort: definitions.BackendPort{Value: "port1"},
 					Traffic:     0.0,
 				},
 			},
 			route: &eskip.Route{
 				Id:      routeID("namespace1", "", "", "", "service1"),
-				Backend: "http://1.2.3.4:8080",
+				Backend: "http://1.1.1.0:8080",
 			},
 		},
 		{
 			msg: "if traffic weight is 1, don't include traffic predicate",
-			rule: &pathRule{
+			rule: &definitions.PathRule{
 				Path: "",
-				Backend: &backend{
+				Backend: &definitions.Backend{
 					ServiceName: "service1",
-					ServicePort: backendPort{"port1"},
+					ServicePort: definitions.BackendPort{Value: "port1"},
 					Traffic:     1.0,
 				},
 			},
 			route: &eskip.Route{
 				Id:      routeID("namespace1", "", "", "", "service1"),
-				Backend: "http://1.2.3.4:8080",
+				Backend: "http://1.1.1.0:8080",
 			},
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
-			api := newTestAPI(t, testServices(), &ingressList{})
+			api := newTestAPIWithEndpoints(t, testServices(), &definitions.IngressList{}, testEndpointList())
 			defer api.Close()
 			dc, err := New(Options{KubernetesURL: api.server.URL})
 			if err != nil {
@@ -1898,10 +1352,17 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				return
 			}
 
-			state, err := dc.clusterClient.fetchClusterState()
+			state, err := dc.ClusterClient.fetchClusterState()
 			require.NoError(t, err)
 
-			route, err := convertPathRule(state, &metadata{Namespace: "namespace1"}, "", tc.rule, KubernetesIngressMode)
+			route, err := convertPathRule(
+				state,
+				&definitions.Metadata{Namespace: "namespace1"},
+				"",
+				tc.rule,
+				KubernetesIngressMode,
+				nil,
+			)
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
 			}
@@ -1914,8 +1375,60 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 	}
 }
 
+func TestHealthcheckRoutes(t *testing.T) {
+	for _, tc := range []struct {
+		logLevel               log.Level
+		reverseSourcePredicate bool
+		expected               string
+	}{
+		{
+			logLevel:               log.InfoLevel,
+			reverseSourcePredicate: false,
+			expected: `
+				kube__healthz_up:   Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> disableAccessLog(200) -> status(200) -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+			`,
+		},
+		{
+			logLevel:               log.InfoLevel,
+			reverseSourcePredicate: true,
+			expected: `
+				kube__healthz_up:   Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> disableAccessLog(200) -> status(200) -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+			`,
+		},
+		{
+			logLevel:               log.DebugLevel,
+			reverseSourcePredicate: false,
+			expected: `
+				kube__healthz_up:   Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> status(200) -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+			`,
+		},
+		{
+			logLevel:               log.DebugLevel,
+			reverseSourcePredicate: true,
+			expected: `
+				kube__healthz_up:   Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> status(200) -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+			`,
+		},
+	} {
+		t.Run(fmt.Sprintf("log: %s, reverse: %v", tc.logLevel.String(), tc.reverseSourcePredicate), func(t *testing.T) {
+			level := log.GetLevel()
+			defer func() { log.SetLevel(level) }()
+			log.SetLevel(tc.logLevel)
+
+			expected, err := eskip.Parse(tc.expected)
+			require.NoError(t, err)
+
+			assert.EqualValues(t, expected, healthcheckRoutes(tc.reverseSourcePredicate))
+		})
+	}
+}
+
 func TestHealthcheckInitial(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("no healthcheck, empty", func(t *testing.T) {
@@ -1931,7 +1444,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 	})
 
 	t.Run("no healthcheck", func(t *testing.T) {
@@ -1949,7 +1462,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 	})
 
 	t.Run("no healthcheck, fail", func(t *testing.T) {
@@ -1984,7 +1497,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true, false)
+		checkHealthcheck(t, r, true, false)
 	})
 
 	t.Run("use healthcheck", func(t *testing.T) {
@@ -2005,7 +1518,7 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true, false)
+		checkHealthcheck(t, r, true, false)
 	})
 
 	t.Run("use reverse healthcheck", func(t *testing.T) {
@@ -2027,12 +1540,12 @@ func TestHealthcheckInitial(t *testing.T) {
 			t.Error(err)
 		}
 
-		checkHealthcheck(t, r, true, true, true)
+		checkHealthcheck(t, r, true, true)
 	})
 }
 
 func TestHealthcheckUpdate(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("no healthcheck, update fail", func(t *testing.T) {
@@ -2054,7 +1567,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -2103,7 +1616,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -2133,7 +1646,7 @@ func TestHealthcheckUpdate(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 		if len(d) != 0 {
 			t.Error("unexpected delete")
 		}
@@ -2141,10 +1654,11 @@ func TestHealthcheckUpdate(t *testing.T) {
 }
 
 func TestHealthcheckReload(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("no healthcheck, reload fail", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 
@@ -2163,10 +1677,11 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, false, false, false)
+		checkHealthcheck(t, r, false, false)
 	})
 
 	t.Run("use healthcheck, reload succeeds", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 
@@ -2187,21 +1702,22 @@ func TestHealthcheckReload(t *testing.T) {
 			t.Error("failed to fail")
 		}
 
-		checkHealthcheck(t, r, true, true, false)
+		checkHealthcheck(t, r, true, false)
 		checkRoutes(t, r, map[string]string{
-			healthcheckRouteID:                                              "",
-			"kube_namespace1__default_only______":                           "http://1.2.3.4:8080",
-			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://9.0.1.2:7272",
-			"kube_namespace1__mega______":                                   "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube__healthz_up":                    "",
+			"kube__healthz_down":                  "",
+			"kube_namespace1__default_only______": "http://1.1.1.0:8080",
+			"kube_namespace2__path_rule_only__www_example_org_____service3": "http://2.1.3.0:7272",
+			"kube_namespace1__mega______":                                   "http://1.1.1.0:8080",
+			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.1.1.0:8080",
+			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://1.1.2.0:8181",
 			"kube___catchall__foo_example_org____":                          "",
-			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.2.3.4:8080",
-			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://5.6.7.8:8181",
+			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.1.1.0:8080",
+			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://1.1.2.0:8181",
 			"kube___catchall__bar_example_org____":                          "",
-			"kube_namespace1__ratelimit______":                              "http://1.2.3.4:8080",
-			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.2.3.4:8080",
-			"kube_namespace2__svcwith2ports______":                          "http://10.0.1.2:4444",
+			"kube_namespace1__ratelimit______":                              "http://1.1.1.0:8080",
+			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.1.1.0:8080",
+			"kube_namespace2__svcwith2ports______":                          "http://2.1.4.0:4444",
 		})
 	})
 }
@@ -2213,7 +1729,7 @@ func TestCreateRequest(t *testing.T) {
 		err error
 		url string
 	)
-	rc := ioutil.NopCloser(&buf)
+	rc := io.NopCloser(&buf)
 
 	client := &clusterClient{}
 
@@ -2269,15 +1785,12 @@ func TestBuildAPIURL(t *testing.T) {
 
 	o.KubernetesInCluster = true
 
-	curEnvHostVar, curEnvPortVar := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
-	defer func(host, port string) {
-		os.Setenv(serviceHostEnvVar, host)
-		os.Setenv(servicePortEnvVar, port)
-	}(curEnvHostVar, curEnvPortVar)
-
 	dummyHost := "10.0.0.2"
 	dummyPort := "8080"
 
+	// There is t.Unsetenv so set to properly restore/unset
+	t.Setenv(serviceHostEnvVar, "")
+	t.Setenv(servicePortEnvVar, "")
 	os.Unsetenv(serviceHostEnvVar)
 	os.Unsetenv(servicePortEnvVar)
 
@@ -2286,13 +1799,13 @@ func TestBuildAPIURL(t *testing.T) {
 		t.Error("build API url should fail if env var is missing")
 	}
 
-	os.Setenv(serviceHostEnvVar, dummyHost)
+	t.Setenv(serviceHostEnvVar, dummyHost)
 	apiURL, err = buildAPIURL(o)
 	if apiURL != "" || err != errAPIServerURLNotFound {
 		t.Error("build API url should fail if env var is missing")
 	}
 
-	os.Setenv(servicePortEnvVar, dummyPort)
+	t.Setenv(servicePortEnvVar, dummyPort)
 	apiURL, err = buildAPIURL(o)
 	if apiURL != "https://10.0.0.2:8080" || err != nil {
 		t.Error("incorrect result of build api url")
@@ -2321,7 +1834,7 @@ func TestBuildHTTPClient(t *testing.T) {
 		t.Errorf("should return invalid certificate")
 	}
 
-	err = ioutil.WriteFile("ca.empty.crt", []byte(""), 0644)
+	err = os.WriteFile("ca.empty.crt", []byte(""), 0644)
 	if err != nil {
 		t.Error(err)
 	}
@@ -2333,7 +1846,7 @@ func TestBuildHTTPClient(t *testing.T) {
 	}
 
 	//create CA file
-	err = ioutil.WriteFile("ca.temp.crt", generateSSCert(), 0644)
+	err = os.WriteFile("ca.temp.crt", generateSSCert(), 0644)
 	if err != nil {
 		t.Error(err)
 	}
@@ -2397,131 +1910,6 @@ func createCert(template, parent *x509.Certificate, pub interface{}, parentPriv 
 	return
 }
 
-func TestHealthcheckOnTerm(t *testing.T) {
-	api := newTestAPI(t, testServices(), &ingressList{})
-	defer api.Close()
-
-	t.Run("no difference after term when healthcheck disabled", func(t *testing.T) {
-		c, err := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: false,
-		})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		defer c.Close()
-
-		// send term only when the client is handling it:
-		select {
-		case c.sigs <- syscall.SIGTERM:
-		default:
-		}
-
-		r, err := c.LoadAll()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		checkHealthcheck(t, r, false, false, false)
-	})
-
-	t.Run("healthcheck false after term", func(t *testing.T) {
-		c, err := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: true,
-		})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		defer c.Close()
-
-		// send term only when the client is handling it:
-		select {
-		case c.sigs <- syscall.SIGTERM:
-		default:
-		}
-
-		r, err := c.LoadAll()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		checkHealthcheck(t, r, true, false, false)
-	})
-
-	t.Run("no difference after term when disabled, update", func(t *testing.T) {
-		c, err := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: false,
-		})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		defer c.Close()
-
-		_, err = c.LoadAll()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		// send term only when the client is handling it:
-		select {
-		case c.sigs <- syscall.SIGTERM:
-		default:
-		}
-
-		r, _, err := c.LoadUpdate()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		checkHealthcheck(t, r, false, false, false)
-	})
-
-	t.Run("healthcheck false after term, update", func(t *testing.T) {
-		c, err := New(Options{
-			KubernetesURL:      api.server.URL,
-			ProvideHealthcheck: true,
-		})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		defer c.Close()
-
-		_, err = c.LoadAll()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		// send term only when the client is handling it:
-		select {
-		case c.sigs <- syscall.SIGTERM:
-		default:
-		}
-
-		r, _, err := c.LoadUpdate()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-
-		checkHealthcheck(t, r, true, false, false)
-	})
-}
-
 func TestCatchAllRoutes(t *testing.T) {
 	for _, tc := range []struct {
 		msg         string
@@ -2569,45 +1957,45 @@ func TestComputeBackendWeights(t *testing.T) {
 	for _, tc := range []struct {
 		msg     string
 		weights map[string]float64
-		input   *rule
-		output  *rule
+		input   *definitions.Rule
+		output  *definitions.Rule
 	}{
 		{
 			msg: `if only one backend has a weight, only one backend should get 100% traffic`,
 			weights: map[string]float64{
 				"foo": 59,
 			},
-			input: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			input: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 							},
 						},
 					},
 				},
 			},
-			output: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			output: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 								Traffic:     1.0,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 								Traffic:     0.0,
 							},
@@ -2619,37 +2007,37 @@ func TestComputeBackendWeights(t *testing.T) {
 		{
 			msg:     `if two backends doesn't have any weight, they get equal amount of traffic.`,
 			weights: map[string]float64{},
-			input: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			input: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 							},
 						},
 					},
 				},
 			},
-			output: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			output: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 								Traffic:     0.5,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 								Traffic:     1.0,
 							},
@@ -2665,51 +2053,51 @@ func TestComputeBackendWeights(t *testing.T) {
 				"bar": 60,
 				"baz": 20,
 			},
-			input: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			input: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "baz",
 							},
 						},
 					},
 				},
 			},
-			output: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			output: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 								Traffic:     0.2,
-								noopCount:   1,
+								NoopCount:   1,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 								Traffic:     0.75,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "baz",
 								Traffic:     1.0,
 							},
@@ -2726,64 +2114,64 @@ func TestComputeBackendWeights(t *testing.T) {
 				"baz": 3,
 				"qux": 27,
 			},
-			input: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			input: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "baz",
 							},
 						}, {
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "qux",
 							},
 						},
 					},
 				},
 			},
-			output: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			output: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 								Traffic:     0.25,
-								noopCount:   2,
+								NoopCount:   2,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 								Traffic:     0.6,
-								noopCount:   1,
+								NoopCount:   1,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "baz",
 								Traffic:     0.1,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "qux",
 								Traffic:     1.0,
 							},
@@ -2798,37 +2186,37 @@ func TestComputeBackendWeights(t *testing.T) {
 				"foo": 60,
 				"bar": 140,
 			},
-			input: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			input: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 							},
 						},
 					},
 				},
 			},
-			output: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			output: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 								Traffic:     0.3,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 								Traffic:     1.0,
 							},
@@ -2843,50 +2231,50 @@ func TestComputeBackendWeights(t *testing.T) {
 				"foo": 30,
 				"bar": 70,
 			},
-			input: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			input: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "baz",
 							},
 						},
 					},
 				},
 			},
-			output: &rule{
-				Http: &httpRule{
-					Paths: []*pathRule{
+			output: &definitions.Rule{
+				Http: &definitions.HTTPRule{
+					Paths: []*definitions.PathRule{
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "foo",
 								Traffic:     0.3,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "bar",
 								Traffic:     1.0,
 							},
 						},
 						{
 							Path: "",
-							Backend: &backend{
+							Backend: &definitions.Backend{
 								ServiceName: "baz",
 							},
 						},
@@ -2918,23 +2306,23 @@ func TestComputeBackendWeightMustHaveFallback(t *testing.T) {
 		}
 
 		weights := map[string]float64{"foo": float64(a), "bar": float64(b), "baz": float64(c), "quux": float64(d)}
-		fooBackend := &backend{
+		fooBackend := &definitions.Backend{
 			ServiceName: "foo",
 		}
-		barBackend := &backend{
+		barBackend := &definitions.Backend{
 			ServiceName: "bar",
 		}
-		bazBackend := &backend{
+		bazBackend := &definitions.Backend{
 			ServiceName: "baz",
 		}
-		quuxBackend := &backend{
+		quuxBackend := &definitions.Backend{
 			ServiceName: "quux",
 		}
-		allBackends := []*backend{fooBackend, barBackend, bazBackend, quuxBackend}
+		allBackends := []*definitions.Backend{fooBackend, barBackend, bazBackend, quuxBackend}
 
-		input := &rule{
-			Http: &httpRule{
-				Paths: []*pathRule{
+		input := &definitions.Rule{
+			Http: &definitions.HTTPRule{
+				Paths: []*definitions.PathRule{
 					{
 						Path:    "",
 						Backend: fooBackend,
@@ -2971,10 +2359,11 @@ func TestComputeBackendWeightMustHaveFallback(t *testing.T) {
 }
 
 func TestRatelimits(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("check localratelimit", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 
@@ -2999,10 +2388,11 @@ func TestRatelimits(t *testing.T) {
 }
 
 func TestRatelimitsEastWest(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("check localratelimit", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 
@@ -3045,10 +2435,11 @@ func checkLocalRatelimit(t *testing.T, got []*eskip.Route, expected map[string]s
 }
 
 func TestSkipperFilter(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("check ingress filter", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 
@@ -3073,10 +2464,11 @@ func TestSkipperFilter(t *testing.T) {
 }
 
 func TestSkipperFilterEastWest(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("check ingress filter", func(t *testing.T) {
+		api.endpoints = testEndpointList()
 		api.services = testServices()
 		api.ingresses.Items = testIngresses()
 
@@ -3119,10 +2511,10 @@ func checkSkipperFilter(t *testing.T, got []*eskip.Route, expected map[string][]
 }
 
 func TestSkipperPredicate(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", backendPort{8080}, 1.0)
+	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", definitions.BackendPort{Value: 8080}, 1.0)
 
 	t.Run("check ingress predicate", func(t *testing.T) {
 		api.services = testServices()
@@ -3150,10 +2542,10 @@ func TestSkipperPredicate(t *testing.T) {
 }
 
 func TestSkipperPredicateEastWest(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", backendPort{8080}, 1.0)
+	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", definitions.BackendPort{Value: 8080}, 1.0)
 
 	t.Run("check ingress predicate", func(t *testing.T) {
 		api.services = testServices()
@@ -3197,408 +2589,184 @@ func checkSkipperPredicate(t *testing.T, got []*eskip.Route, expected map[string
 func TestSkipperCustomRoutes(t *testing.T) {
 	for _, ti := range []struct {
 		msg            string
+		endpoints      []*endpoint
 		services       []*service
-		ingresses      []*ingressItem
+		ingresses      []*definitions.IngressItem
 		expectedRoutes map[string]string
 	}{{
-		msg: "ingress with 1 host definitions and 1 additional custom route",
+		msg:       "ingress with 1 host definitions and 1 additional custom route",
+		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
 		services: []*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
+		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
+			"", "", definitions.BackendPort{}, 1.0,
+			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
 		)},
 		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux__www1_example_org_____bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux__0__www1_example_org_____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
 		},
 	}, {
-		msg: "ingress with 1 host definitions with path and 1 additional custom route",
+		msg:       "ingress with 1 host definitions with path and 1 additional custom route",
+		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
 		services: []*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
+		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
+			"", "", definitions.BackendPort{}, 1.0,
+			testRule("www1.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
 		)},
 		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org___a_path__bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_a_path____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www1_example_org____":         "Host(/^www1[.]example[.]org$/) -> <shunt>",
+			"kube_foo__qux__www1_example_org___a_path__bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux__0__www1_example_org_a_path____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
+			"kube___catchall__www1_example_org____":         "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 		},
 	}, {
-		msg: "ingress with 2 host definitions and 1 additional custom route",
+		msg:       "ingress with 2 host definitions and 1 additional custom route",
+		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
 		services: []*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
+		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
+			"", "", definitions.BackendPort{}, 1.0,
+			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
+			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
 		)},
 		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux__www2_example_org_____bar": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux__www1_example_org_____bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux__0__www1_example_org_____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux__www2_example_org_____bar": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux__0__www2_example_org_____": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
 		},
 	}, {
-		msg: "ingress with 2 host definitions with path and 1 additional custom route",
+		msg:       "ingress with 2 host definitions with path and 1 additional custom route",
+		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
 		services: []*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
+		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
-			testRule("www2.example.org", testPathRule("/another/path", "bar", backendPort{"baz"})),
+			"", "", definitions.BackendPort{}, 1.0,
+			testRule("www1.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
+			testRule("www2.example.org", testPathRule("/another/path", "bar", definitions.BackendPort{Value: "baz"})),
 		)},
 		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org___a_path__bar":       "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_a_path____":       "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www1_example_org____":               "Host(/^www1[.]example[.]org$/) -> <shunt>",
-			"kube_foo__qux__www2_example_org___another_path__bar": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\/another\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www2_example_org_another_path____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\/another\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www2_example_org____":               "Host(/^www2[.]example[.]org$/) -> <shunt>",
+			"kube_foo__qux__www1_example_org___a_path__bar":       "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux__0__www1_example_org_a_path____":       "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
+			"kube___catchall__www1_example_org____":               "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
+			"kube_foo__qux__www2_example_org___another_path__bar": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/another\\/path)/) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux__0__www2_example_org_another_path____": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/another\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
+			"kube___catchall__www2_example_org____":               "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 		},
 	}, {
 		msg: "ingress with 3 host definitions with one path and 3 additional custom routes",
+		endpoints: append(testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
+			testEndpoints("foo", "baz", "1.1.2", 1, map[string]int{"baz": 8181})...),
 		services: []*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
 		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
+		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
 			`a: Method("OPTIONS") -> <shunt>;
-                         b: Cookie("alpha", /^enabled$/) -> "http://1.2.3.6:8181";
+                         b: Cookie("alpha", /^enabled$/) -> "http://1.1.2.0:8181";
                          c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-			testRule("www3.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
+			"", "", definitions.BackendPort{}, 1.0,
+			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
+			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
+			testRule("www3.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
 		)},
 		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar":  "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www1_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
+			"kube_foo__qux__www1_example_org_____bar":  "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux_a_0__www1_example_org_____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux_b_1__www1_example_org_____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
+			"kube_foo__qux_c_2__www1_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
 
-			"kube_foo__qux__www2_example_org_____bar":  "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
+			"kube_foo__qux__www2_example_org_____bar":  "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux_a_0__www2_example_org_____": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux_b_1__www2_example_org_____": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
+			"kube_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
 
-			"kube_foo__qux__www3_example_org___a_path__bar":  "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kube___catchall__www3_example_org____":          "Host(/^www3[.]example[.]org$/) -> <shunt>",
+			"kube_foo__qux__www3_example_org___a_path__bar":  "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
+			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"https://some.other-url.org/a/path/somewhere\"",
+			"kube___catchall__www3_example_org____":          "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 		},
 	}, {
 		msg: "ingress with 3 host definitions with one without path and 3 additional custom routes",
+		endpoints: append(testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
+			testEndpoints("foo", "baz", "1.1.2", 1, map[string]int{"baz": 8181})...),
 		services: []*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
 		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
+		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
 			`a: Method("OPTIONS") -> <shunt>;
-                         b: Cookie("alpha", /^enabled$/) -> "http://1.2.3.6:8181";
+                         b: Cookie("alpha", /^enabled$/) -> "http://1.1.2.0:8181";
                          c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("", "bar", backendPort{"baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-			testRule("www3.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
+			"", "", definitions.BackendPort{}, 1.0,
+			testRule("www1.example.org", testPathRule("", "bar", definitions.BackendPort{Value: "baz"})),
+			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
+			testRule("www3.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
 		)},
 		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org____bar":  "Host(/^www1[.]example[.]org$/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www1_example_org____": "Host(/^www1[.]example[.]org$/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www1_example_org____": "Host(/^www1[.]example[.]org$/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www1_example_org____": "Path(\"/a/path/somewhere\") && Host(/^www1[.]example[.]org$/) -> \"https://some.other-url.org/a/path/somewhere\"",
+			"kube_foo__qux__www1_example_org____bar":  "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux_a_0__www1_example_org____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux_b_1__www1_example_org____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
+			"kube_foo__qux_c_2__www1_example_org____": "Path(\"/a/path/somewhere\") && Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) -> \"https://some.other-url.org/a/path/somewhere\"",
 
-			"kube_foo__qux__www2_example_org_____bar":  "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
+			"kube_foo__qux__www2_example_org_____bar":  "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux_a_0__www2_example_org_____": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux_b_1__www2_example_org_____": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
+			"kube_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
 
-			"kube_foo__qux__www3_example_org___a_path__bar":  "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kube___catchall__www3_example_org____":          "Host(/^www3[.]example[.]org$/) -> <shunt>",
+			"kube_foo__qux__www3_example_org___a_path__bar":  "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
+			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
+			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"https://some.other-url.org/a/path/somewhere\"",
+			"kube___catchall__www3_example_org____":          "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 		},
 	}, {
-		msg: "ingress with 1 host definitions and 1 additional custom route, changed pathmode to PathSubtree",
+		msg:       "ingress with 1 host definitions and 1 additional custom route, changed pathmode to PathSubtree",
+		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
 		services: []*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
+		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"path-prefix", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
+			"path-prefix", "", definitions.BackendPort{}, 1.0,
+			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
 		)},
 		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar": "Host(/^www1[.]example[.]org$/) && PathSubtree(\"/\") -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && Method(\"OPTIONS\") && PathSubtree(\"/\") -> <shunt>",
+			"kube_foo__qux__www1_example_org_____bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathSubtree(\"/\") -> \"http://1.1.1.0:8181\"",
+			"kube_foo__qux__0__www1_example_org_____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && Method(\"OPTIONS\") && PathSubtree(\"/\") -> <shunt>",
 		},
 	}, {
-		msg: "ingress with 1 host definitions and 1 additional custom route with path predicate, changed pathmode to PathSubtree",
+		msg:       "ingress with 1 host definitions and 1 additional custom route with path predicate, changed pathmode to PathSubtree",
+		endpoints: testEndpoints("foo", "bar", "1.1.1", 1, map[string]int{"baz": 8181}),
 		services: []*service{
 			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
+		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "",
 			`Path("/foo") -> <shunt>`,
-			"path-prefix", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
+			"path-prefix", "", definitions.BackendPort{}, 1.0,
+			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
 		)},
 		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar": "Host(/^www1[.]example[.]org$/) && PathSubtree(\"/\") -> \"http://1.2.3.4:8181\"",
+			"kube_foo__qux__www1_example_org_____bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathSubtree(\"/\") -> \"http://1.1.1.0:8181\"",
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPI(t, &serviceList{Items: ti.services}, &ingressList{Items: ti.ingresses})
+			api := newTestAPIWithEndpoints(t, &serviceList{Items: ti.services}, &definitions.IngressList{Items: ti.ingresses}, &endpointList{
+				Items: ti.endpoints,
+			})
 			defer api.Close()
 			dc, err := New(Options{
 				KubernetesURL: api.server.URL,
-			})
-			if err != nil {
-				t.Error(err)
-			}
-
-			defer dc.Close()
-
-			r, err := dc.LoadAll()
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			checkPrettyRoutes(t, r, ti.expectedRoutes)
-		})
-	}
-}
-
-func TestSkipperCustomRoutesEastWest(t *testing.T) {
-	for _, ti := range []struct {
-		msg            string
-		services       []*service
-		ingresses      []*ingressItem
-		expectedRoutes map[string]string
-	}{{
-		msg: "ingress with 1 host definitions and 1 additional custom route",
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux__www1_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-		},
-	}, {
-		msg: "ingress with 1 host definitions with path and 1 additional custom route",
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org___a_path__bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_a_path____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www1_example_org____":         "Host(/^www1[.]example[.]org$/) -> <shunt>",
-			//"kubeew_foo__qux__www1_example_org___a_path__bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kubeew___catchall__www1_example_org____":         "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>",
-		},
-	}, {
-		msg: "ingress with 2 host definitions and 1 additional custom route",
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux__www2_example_org_____bar": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux__www1_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux__www2_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux__0__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-		},
-	}, {
-		msg: "ingress with 2 host definitions with path and 1 additional custom route",
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
-			testRule("www2.example.org", testPathRule("/another/path", "bar", backendPort{"baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org___a_path__bar":       "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_a_path____":       "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www1_example_org____":               "Host(/^www1[.]example[.]org$/) -> <shunt>",
-			"kube_foo__qux__www2_example_org___another_path__bar": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\/another\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www2_example_org_another_path____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\/another\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www2_example_org____":               "Host(/^www2[.]example[.]org$/) -> <shunt>",
-			//"kubeew_foo__qux__www1_example_org___a_path__bar":       "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kubeew___catchall__www1_example_org____":         "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>",
-			//"kubeew_foo__qux__www2_example_org___another_path__bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/another\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux__0__www2_example_org_another_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/another\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kubeew___catchall__www2_example_org____":               "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>",
-		},
-	}, {
-		msg: "ingress with 3 host definitions with one path and 3 additional custom routes",
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
-			`a: Method("OPTIONS") -> <shunt>;
-                         b: Cookie("alpha", /^enabled$/) -> "http://1.2.3.6:8181";
-                         c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-			testRule("www3.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar":  "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www1_example_org_____": "Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www1_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www1[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube_foo__qux__www2_example_org_____bar":  "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube_foo__qux__www3_example_org___a_path__bar":  "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kube___catchall__www3_example_org____":          "Host(/^www3[.]example[.]org$/) -> <shunt>",
-
-			//"kubeew_foo__qux__www1_example_org_____bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux_a_0__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			//"kubeew_foo__qux__www2_example_org_____bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux_a_0__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-
-			//"kubeew_foo__qux__www3_example_org___a_path__bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux_a_0__www3_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www3_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-
-			"kubeew_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kubeew_foo__qux_c_2__www1_example_org_____":       "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kubeew_foo__qux_c_2__www2_example_org_____":       "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kubeew___catchall__www3_example_org____":          "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>"},
-	}, {
-		msg: "ingress with 3 host definitions with one without path and 3 additional custom routes",
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-			testService("foo", "baz", "1.2.3.6", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
-			`a: Method("OPTIONS") -> <shunt>;
-		                 b: Cookie("alpha", /^enabled$/) -> "http://1.2.3.6:8181";
-		                 c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("", "bar", backendPort{"baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-			testRule("www3.example.org", testPathRule("/a/path", "bar", backendPort{"baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org____bar":  "Host(/^www1[.]example[.]org$/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www1_example_org____": "Host(/^www1[.]example[.]org$/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www1_example_org____": "Host(/^www1[.]example[.]org$/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www1_example_org____": "Path(\"/a/path/somewhere\") && Host(/^www1[.]example[.]org$/) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			//"kubeew_foo__qux__www1_example_org____bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> \"http://1.2.3.4:8181\"",
-			//"kubeew_foo__qux__www2_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-
-			"kubeew_foo__qux_a_0__www1_example_org____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www1_example_org____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kubeew_foo__qux_c_2__www1_example_org____": "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube_foo__qux__www2_example_org_____bar":  "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www2_example_org_____": "Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^www2[.]example[.]org$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kubeew_foo__qux_a_0__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www2_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kubeew_foo__qux_c_2__www2_example_org_____": "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\//) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube_foo__qux__www3_example_org___a_path__bar":  "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^www3[.]example[.]org$/) && PathRegexp(/^\\/a\\/path/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			//"kubeew_foo__qux__www3_example_org___a_path__bar":  "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux_a_0__www3_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) && Method(\"OPTIONS\") -> <shunt>",
-			//"kubeew_foo__qux_b_1__www3_example_org_a_path____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.2.3.6:8181\"",
-			"kubeew_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathRegexp(/^\\/a\\/path/) -> \"https://some.other-url.org/a/path/somewhere\"",
-
-			"kube___catchall__www3_example_org____":   "Host(/^www3[.]example[.]org$/) -> <shunt>",
-			"kubeew___catchall__www3_example_org____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) -> <shunt>",
-		},
-	}, {
-		msg: "ingress with 1 host definitions and 1 additional custom route, changed pathmode to PathSubtree",
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
-			`Method("OPTIONS") -> <shunt>`,
-			"path-prefix", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar":   "Host(/^www1[.]example[.]org$/) && PathSubtree(\"/\") -> \"http://1.2.3.4:8181\"",
-			"kube_foo__qux__0__www1_example_org_____":   "Host(/^www1[.]example[.]org$/) && Method(\"OPTIONS\") && PathSubtree(\"/\") -> <shunt>",
-			"kubeew_foo__qux__www1_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathSubtree(\"/\") -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux__0__www1_example_org_____": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && Method(\"OPTIONS\") && PathSubtree(\"/\") -> <shunt>",
-		},
-	}, {
-		msg: "ingress with 1 host definitions and 1 additional custom route with path predicate, changed pathmode to PathSubtree",
-		services: []*service{
-			testService("foo", "bar", "1.2.3.4", map[string]int{"baz": 8181}),
-		},
-		ingresses: []*ingressItem{testIngress("foo", "qux", "", "", "", "",
-			`Path("/foo") -> <shunt>`,
-			"path-prefix", "", backendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", backendPort{"baz"})),
-		)},
-		expectedRoutes: map[string]string{
-			"kube_foo__qux__www1_example_org_____bar":   "Host(/^www1[.]example[.]org$/) && PathSubtree(\"/\") -> \"http://1.2.3.4:8181\"",
-			"kubeew_foo__qux__www1_example_org_____bar": "Host(/^qux[.]foo[.]skipper[.]cluster[.]local$/) && PathSubtree(\"/\") -> \"http://1.2.3.4:8181\"",
-		},
-	}} {
-		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPI(t, &serviceList{Items: ti.services}, &ingressList{Items: ti.ingresses})
-			defer api.Close()
-			dc, err := New(Options{
-				KubernetesURL:            api.server.URL,
-				KubernetesEnableEastWest: true,
 			})
 			if err != nil {
 				t.Error(err)
@@ -3685,8 +2853,7 @@ func TestCreateEastWestRoute(t *testing.T) {
 		expectedID: "kubeew_foo__qux__www3_example_org___a_path__bar",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			ewrs := createEastWestRoutesIng(rxDots("."+defaultEastWestDomain), "foo", "qux", []*eskip.Route{ti.route})
-			ewr := ewrs[0]
+			ewr := createEastWestRouteIng(defaultEastWestDomain, "foo", "qux", ti.route)
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
 			}
@@ -3760,8 +2927,7 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 			}
 
 			ing := kube.ingress
-			ewrs := createEastWestRoutesIng(ing.eastWestDomainRegexpPostfix, ti.name, ti.namespace, []*eskip.Route{ti.route})
-			ewr := ewrs[0]
+			ewr := createEastWestRouteIng(ing.kubernetesEastWestDomain, ti.name, ti.namespace, ti.route)
 			if ewr.Id != ti.expectedID {
 				t.Errorf("Failed to create east west route ID, %s, but expected %s", ewr.Id, ti.expectedID)
 			}
@@ -3776,7 +2942,7 @@ func TestCreateEastWestRouteOverwriteDomain(t *testing.T) {
 }
 
 func TestSkipperDefaultFilters(t *testing.T) {
-	api := newTestAPI(t, nil, &ingressList{})
+	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
 	t.Run("check routes are created if default filters dir is not set", func(t *testing.T) {
@@ -3806,16 +2972,16 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 	t.Run("check default filters are applied to the route", func(t *testing.T) {
 		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080})}}
-		api.ingresses = &ingressList{Items: []*ingressItem{testIngress("namespace1", "default-only",
-			"service1", "", "", "", "", "", "", backendPort{8080}, 1.0,
-			testRule("www.example.org", testPathRule("/", "service1", backendPort{8080})))}}
+		api.ingresses = &definitions.IngressList{Items: []*definitions.IngressItem{testIngress("namespace1", "default-only",
+			"service1", "", "", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0,
+			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPort{Value: 8080})))}}
 
-		defaultFiltersDir, err := ioutil.TempDir("", "filters")
+		defaultFiltersDir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
 		file := filepath.Join(defaultFiltersDir, "service1.namespace1")
-		if err := ioutil.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
 			t.Error(err)
 		}
 
@@ -3843,18 +3009,19 @@ func TestSkipperDefaultFilters(t *testing.T) {
 	})
 
 	t.Run("check default filters are prepended to the ingress filters", func(t *testing.T) {
-		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080})}}
-		api.ingresses = &ingressList{Items: []*ingressItem{testIngress("namespace1", "default-only",
-			"service1", "", "localRatelimit(20,\"1m\")", "", "", "", "", backendPort{8080}, 1.0,
-			testRule("www.example.org", testPathRule("/", "service1", backendPort{"port1"})))}}
+		api.endpoints = testEndpointList()
+		api.services = &serviceList{Items: []*service{testServiceWithTargetPort("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080}, map[int]*definitions.BackendPort{8080: {Value: 8080}})}}
+		api.ingresses = &definitions.IngressList{Items: []*definitions.IngressItem{testIngress("namespace1", "default-only",
+			"service1", "", "localRatelimit(20,\"1m\")", "", "", "", "", definitions.BackendPort{Value: 8080}, 1.0,
+			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPort{Value: "port1"})))}}
 
 		// store default configuration in the file
-		dir, err := ioutil.TempDir("", "filters")
+		dir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
 		file := filepath.Join(dir, "service1.namespace1")
-		if err := ioutil.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
 			t.Error(err)
 		}
 
@@ -3875,18 +3042,18 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			return
 		}
 		if len(r) != 2 || len(r[1].Filters) != 2 || r[1].Filters[0].Name != "consecutiveBreaker" || r[1].Filters[1].Name != "localRatelimit" {
-			t.Error("should prepend the default filter to the ingress filters")
+			t.Errorf("should prepend the default filter to the ingress filters: %d %d %s %s", len(r), len(r[1].Filters), r[1].Filters[0].Name, r[1].Filters[1].Name)
 			return
 		}
 	})
 
 	t.Run("check getDefaultFilterConfigurations ignores files names not following the pattern, directories and huge files", func(t *testing.T) {
-		defaultFiltersDir, err := ioutil.TempDir("", "filters")
+		defaultFiltersDir, err := os.MkdirTemp("", "filters")
 		if err != nil {
 			t.Error(err)
 		}
 		invalidFileName := filepath.Join(defaultFiltersDir, "file.name.doesnt.match.our.pattern")
-		if err := ioutil.WriteFile(invalidFileName, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(invalidFileName, []byte("consecutiveBreaker(15)"), 0666); err != nil {
 			t.Error(err)
 		}
 		err = os.Mkdir(filepath.Join(defaultFiltersDir, "some.directory"), os.ModePerm)
@@ -3894,21 +3061,11 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error(err)
 		}
 		bigFile := filepath.Join(defaultFiltersDir, "huge.file")
-		if err := ioutil.WriteFile(bigFile, make([]byte, 1024*1024+1), 0666); err != nil {
+		if err := os.WriteFile(bigFile, make([]byte, 1024*1024+1), 0666); err != nil {
 			t.Error(err)
 		}
 
-		dc, err := New(Options{
-			KubernetesURL:     api.server.URL,
-			DefaultFiltersDir: defaultFiltersDir,
-		})
-		if err != nil {
-			t.Error(err)
-		}
-
-		defer dc.Close()
-
-		df, err := readDefaultFilters(dc.defaultFiltersDir)
+		df, err := readDefaultFilters(defaultFiltersDir)
 
 		if err != nil || len(df) != 0 {
 			t.Error("should return empty slice", err, df)
@@ -3933,7 +3090,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			}
 		}()
 
-		df.get(resourceID{})
+		df.get(definitions.ResourceID{})
 	})
 }
 

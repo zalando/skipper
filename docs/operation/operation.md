@@ -134,7 +134,7 @@ size of the http header from your clients.
 ### TCP LIFO
 
 Skipper implements now controlling the maximum incoming TCP client
-connections. This is an experimental feature.
+connections.
 
 The purpose of the mechanism is to prevent Skipper requesting more memory
 than available in case of too many concurrent connections, especially in
@@ -273,8 +273,12 @@ Application metrics for your proxied applications you can enable with the option
 
     -serve-host-metrics
         enables reporting total serve time metrics for each host
+    -serve-route-metrics
+        enables reporting total serve time metrics for each route
 
-This will make sure you will get stats for each "Host" header as "timers":
+This will make sure you will get stats for each "Host" header or the
+route name as "timers". The following is an example for
+`-serve-host-metrics`:
 
     "timers": {
       "skipper.servehost.app1_example_com.GET.200": {
@@ -327,6 +331,12 @@ This will make sure you will get stats for each "Host" header as "timers":
       }
     },
 
+Note you can reduce the dimension of the metrics by removing the HTTP
+status code and method from it. Use the `-serve-method-metric=false`
+and/or `-serve-status-code-metric=false`. Both flags are enabled by
+default. For prometheus metrics flavour, a counter with both the HTTP
+method and status code can be enabled with `-serve-host-counter` or
+`-serve-route-counter`, even if these flags are disabled.
 
 To change the sampling type of how metrics are handled from
 [uniform](https://godoc.org/github.com/rcrowley/go-metrics#UniformSample)
@@ -446,6 +456,22 @@ are exposed from skipper to the metrics endpoint, default listener
       }
    }
 
+
+### Redis - Rate limiting metrics
+
+Timer metrics for the latencies and errors of the communication with the auxiliary Redis instances are enabled
+by the default, and exposed among the timers via the following keys:
+
+- skipper.swarm.redis.query.allow.success: successful allow requests to the rate limiter, ungrouped
+- skipper.swarm.redis.query.allow.failure: failed allow requests to the rate limiter, ungrouped, where the redis
+  communication failed
+- skipper.swarm.redis.query.retryafter.success.<group>: successful allow requests to the rate limiter, grouped
+  by the rate limiter group name when used
+- skipper.swarm.redis.query.retryafter.failure.<group>: failed allow requests to the rate limiter, ungrouped,
+  where the redis communication faileds, grouped by the rate limiter group name when used
+
+See more details about rate limiting at [Rate limiting](../reference/filters.md#clusterclientratelimit).
+
 ## OpenTracing
 
 Skipper has support for different [OpenTracing API](http://opentracing.io/) vendors, including
@@ -460,8 +486,8 @@ information and tags to the tracer:
 -opentracing=<vendor> component-name=skipper-ingress ... tag=cluster=mycluster ...
 ```
 
-The best tested tracer is the lightstep tracer, because we use it in
-our setup. In case you miss something for your chosen tracer, please
+The best tested tracer is the [lightstep tracer](https://github.com/zalando/skipper/tree/master/tracing/tracers/lightstep/README.md),
+because we use it in our setup. In case you miss something for your chosen tracer, please
 open an issue or pull request in our [repository](https://github.com/zalando/skipper).
 
 Skipper creates up to 5 different
@@ -512,10 +538,31 @@ Proxy span has logs to measure
 [connect](https://golang.org/pkg/net/http/#Transport.DialContext) (`dial_context`),
 [http roundtrip](https://golang.org/pkg/net/http/#Transport.RoundTrip)
 (`http_roundtrip`), stream headers from backend to client
-(`stream_Headers`) and stream body from backend to client
-(`streamBody.byte`).
+(`stream_Headers`), stream body from backend to client
+(`streamBody.byte`) and events by the [Go runtime](https://golang.org/pkg/net/http/httptrace/#ClientTrace).
 
 ![Proxy span with logs](../img/skipper_opentracing_proxy_span_with_logs.png)
+
+In addition to the manual instrumented proxy client logs, we use
+`net/http/httptrace.ClientTrace` to show events by the Go
+runtime. Full logs of the Proxy span:
+
+- `http_roundtrip: "start"`: just before [http roundtrip](https://golang.org/pkg/net/http/#Transport.RoundTrip)
+- `http_roundtrip: "end"`: just after [http roundtrip](https://golang.org/pkg/net/http/#Transport.RoundTrip)
+- `get_conn: "start"`: try to get a connection from the connection pool [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `get_conn: "end"`: got a connection from the connection pool [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `DNS: "start"`: try to resolve DNS [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `DNS: "end"`: got an IP [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `TLS: "start"`: start TLS connection [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `TLS: "end"`: established TLS connection [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `connect: "start"`: start to establish TCP/IP connection [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `connect: "end"`: established TCP/IP connection [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `wrote_headers: "done"`: wrote HTTP Headers into the socket [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `wrote_request: "done"`: wrote full HTTP Request into the socket [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+- `got_first_byte: "done"`: Got first byte of the HTTP response from
+  the backend [httptrace.ClientTrace](https://golang.org/pkg/net/http/httptrace/#ClientTrace)
+
+![Proxy span logs](../img/skipper_opentracing_proxy_span_logs.png)
 
 ### Request filters span
 
@@ -546,6 +593,23 @@ The auth filters have trace log values `start` and `end` for DNS, TCP
 connect, TLS handshake and connection pool:
 
 ![tokeninfo auth filter span with logs](../img/skipper_opentracing_auth_filter_tokeninfo_span_with_logs.png)
+
+### Redis rate limiting spans
+
+#### Operation: redis_allow_check_card
+
+Operation executed when the cluster rate limiting relies on the auxiliary Redis instances, and the Allow method
+checks if the rate exceeds the configured limit.
+
+#### Operation: redis_allow_add_card
+
+Operation setting the counter of the measured request rate for cluster rate limiting with auxiliary Redis
+instances.
+
+#### Operation: redis_oldest_score
+
+Operation querying the oldest request event for the rate limiting Retry-After header with cluster rate limiting
+when used with auxiliary Redis instances.
 
 ## Dataclient
 
@@ -626,6 +690,13 @@ it can count up. Please check the support listener endpoint (default
 ```
 % curl localhost:9911/metrics
 ```
+
+By default, the route and host metrics include the labels for the request
+HTTP response status code and the HTTP method. You can customize it by
+setting `-serve-method-metric=false` and/or
+`-serve-status-code-metric=false`. These two flags will enable or
+disable the method and status code labels from your metrics reducing the
+number of metrics generated and memory consumption.
 
 ### Filters
 
@@ -722,8 +793,8 @@ capable of responding some requests fast enough.
 
 ### A solution
 
-Skipper has two filters [`lifo()`](../reference/filters/#lifo) and
-[`lifoGroup()`](../reference/filters/#lifogroup), that can limit
+Skipper has two filters [`lifo()`](../reference/filters.md#lifo) and
+[`lifoGroup()`](../reference/filters.md#lifogroup), that can limit
 the number of requests for a route.  A [documented load
 test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
 shows the behavior with an enabled `lifo(100,100,"10s")` filter for
@@ -740,9 +811,9 @@ blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-servic
 
 Skipper's scheduler implementation makes sure, that one route will not
 interfere with other routes, if these routes are not in the same
-scheduler group. [`LifoGroup`](../reference/filters/#lifogroup) has
+scheduler group. [`LifoGroup`](../reference/filters.md#lifogroup) has
 a user chosen scheduler group and
-[`lifo()`](../reference/filters/#lifo) will get a per route unique
+[`lifo()`](../reference/filters.md#lifo) will get a per route unique
 scheduler group.
 
 ## URI standards interpretation
@@ -756,7 +827,7 @@ This is possible to achieve centrally, when Skipper is started with
 the -rfc-patch-path flag. It is also possible to allow the default
 behavior and only force the alternative interpretation on a per-route
 basis with the rfcPath() filter. See
-[`rfcPath()`](../reference/filters/#rfcPath).
+[`rfcPath()`](../reference/filters.md#rfcpath).
 
 If the second interpretation gets considered the right way, and the
 other one a bug, then the default value for this flag may become to
@@ -846,3 +917,148 @@ predicates and filters involved in the route processing:
   ]
 }
 ```
+
+## Profiling skipper
+
+Go profiling is explained in Go's
+[diagnostics](https://golang.org/doc/diagnostics.html) documentation.
+
+To enable profiling in skipper you have to use `-enable-profile`. This
+will start a profiling route at `/debug/pprof/profile` on the support
+listener, which defaults to `:9911`.
+
+### Profiling example
+
+Start skipper with enabled profiling:
+
+```
+skipper -inline-routes='r1: * -> inlineContent("hello") -> <shunt>' -enable-profile
+```
+
+Use Go tool pprof to download profiling sample to analyze (sample is not from the example):
+
+```
+go tool pprof http://127.0.0.1:9911
+Fetching profile over HTTP from http://127.0.0.1:9911/debug/pprof/profile
+Saved profile in /$HOME/pprof/pprof.skipper.samples.cpu.004.pb.gz
+File: skipper
+Build ID: 272c31a7bd60c9fabb637bdada37a3331a919b01
+Type: cpu
+Time: Oct 7, 2020 at 6:17pm (CEST)
+Duration: 30s, Total samples = 0
+No samples were found with the default sample value type.
+Try "sample_index" command to analyze different sample values.
+Entering interactive mode (type "help" for commands, "o" for options)
+(pprof) top
+Showing nodes accounting for 2140ms, 50.00% of 4280ms total
+Dropped 330 nodes (cum <= 21.40ms)
+Showing top 10 nodes out of 303
+      flat  flat%   sum%        cum   cum%
+     560ms 13.08% 13.08%      640ms 14.95%  syscall.Syscall
+     420ms  9.81% 22.90%      430ms 10.05%  runtime.nanotime
+     410ms  9.58% 32.48%      410ms  9.58%  runtime.futex
+     170ms  3.97% 36.45%      450ms 10.51%  runtime.mallocgc
+     170ms  3.97% 40.42%      180ms  4.21%  runtime.walltime
+     160ms  3.74% 44.16%      220ms  5.14%  runtime.scanobject
+      80ms  1.87% 46.03%       80ms  1.87%  runtime.heapBitsSetType
+      70ms  1.64% 47.66%       70ms  1.64%  runtime.epollwait
+      50ms  1.17% 48.83%      120ms  2.80%  compress/flate.(*compressor).deflate
+      50ms  1.17% 50.00%       50ms  1.17%  encoding/json.stateInString
+(pprof) web
+--> opens browser with SVG
+```
+
+![pprof svg in web browser](../img/skipper_pprof.svg)
+
+## Response serving
+
+When serving a response from a backend, Skipper serves first the HTTP
+response headers. After that Skipper streams the response payload and
+uses one 8kB buffer to stream the data through this 8kB buffer. It
+uses Flush() to make sure the 8kB chunk is written to the client.
+Details can be observed by opentracing in the logs of the [Proxy Span](#proxy-span).
+
+## Forwarded headers
+
+Skipper can be configured to add [`X-Forwarded-*` headers](https://en.wikipedia.org/wiki/X-Forwarded-For):
+
+```
+  -forwarded-headers value
+        comma separated list of headers to add to the incoming request before routing
+        X-Forwarded-For sets or appends with comma the remote IP of the request to the X-Forwarded-For header value
+        X-Forwarded-Host sets X-Forwarded-Host value to the request host
+        X-Forwarded-Port=<port> sets X-Forwarded-Port value
+        X-Forwarded-Proto=<http|https> sets X-Forwarded-Proto value
+  -forwarded-headers-exclude-cidrs value
+        disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs
+```
+
+## Converting Routes
+
+For migrations you need often to convert X to Y. This is also true in
+case you want to switch one predicate to another one or one filter to
+another one. In skipper we have `-edit-route` and `-clone-route` that
+either modifies matching routes or copy matching routes and change the
+copy.
+
+Example:
+
+A route with `edit-route`
+```
+% skipper -inline-routes='Path("/foo") -> setResponseHeader("X-Foo","bar") -> inlineContent("hi") -> <shunt>' \
+-edit-route='/inlineContent[(]["](.*)["][)]/inlineContent("modified \"$1\" response")/'
+[APP]INFO[0000] Expose metrics in codahale format
+[APP]INFO[0000] support listener on :9911
+[APP]INFO[0000] route settings, reset, route: : Path("/foo") -> setResponseHeader("X-Foo", "bar") -> inlineContent("hi") -> <shunt>
+[APP]INFO[0000] proxy listener on :9090
+[APP]INFO[0000] TLS settings not found, defaulting to HTTP
+[APP]INFO[0000] route settings received
+[APP]INFO[0000] route settings applied
+```
+
+Modified route:
+```
+curl localhost:9911/routes
+Path("/foo")
+  -> setResponseHeader("X-Foo", "bar")
+  -> inlineContent("modified \"hi\" response")
+  -> <shunt>
+```
+
+Modified response body:
+```
+% curl -v http://localhost:9090/foo
+*   Trying ::1...
+* Connected to localhost (::1) port 9090 (#0)
+> GET /foo HTTP/1.1
+> Host: localhost:9090
+> User-Agent: curl/7.49.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Content-Length: 22
+< Content-Type: text/plain; charset=utf-8
+< Server: Skipper
+< X-Foo: bar
+< Date: Thu, 14 Oct 2021 08:41:53 GMT
+<
+* Connection #0 to host localhost left intact
+modified "hi" response
+```
+
+With `edit-route` and `-clone-route` you can modify Predicates and Filters to convert from
+`SourceFromLast()` to `ClientIP`, for example if you want to migrate
+AWS cloud load balancer from Application Load Balancer to Network
+Load Balancer, you can use
+`-clone-route='/SourceFromLast[(](.*)[)]/ClientIP($1)/'` to create
+additional routes for
+
+```
+r: SourceFromLast("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
+```
+to change to
+```
+r: SourceFromLast("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
+clone_r: ClientIP("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
+```
+for migration time.

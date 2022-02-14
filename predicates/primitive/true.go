@@ -3,11 +3,13 @@ package primitive
 import (
 	"net/http"
 
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
 
 const (
-	NameTrue = "True"
+	// Deprecated, use predicates.TrueName instead
+	NameTrue = predicates.TrueName
 )
 
 type trueSpec struct{}
@@ -18,7 +20,7 @@ type truePredicate struct{}
 func NewTrue() routing.PredicateSpec { return &trueSpec{} }
 
 func (*trueSpec) Name() string {
-	return NameTrue
+	return predicates.TrueName
 }
 
 // Create a predicate instance that always evaluates to true

@@ -1,3 +1,47 @@
+## Local Setup
+
+### Build Skipper Binary
+
+Clone repository and compile with [Go](https://golang.org/dl).
+
+```sh
+git clone https://github.com/zalando/skipper.git
+cd skipper
+make skipper
+```
+
+binary will be `./bin/skipper`
+
+### Run Skipper as Proxy with 2 backends
+
+As a small example, we show how you can run one proxy skipper and 2
+backend skippers.
+
+Start the proxy that listens on port 9999 and serves all requests with a single route, that
+proxies to two backends using the round robin algorithm:
+```
+./bin/skipper -inline-routes='r1: * -> <roundRobin, "http://127.0.0.1:9001", "http://127.0.0.1:9002">' --address :9999
+```
+
+Start two backends, with similar routes, one responds with "1" and the
+other with "2" in the HTTP response body:
+```
+./bin/skipper -inline-routes='r1: * -> inlineContent("1") -> <shunt>' --address :9001 &
+./bin/skipper -inline-routes='r1: * -> inlineContent("2") -> <shunt>' --address :9002
+```
+
+Test the proxy with curl as a client:
+```
+curl -s http://localhost:9999/foo
+1
+curl -s http://localhost:9999/foo
+2
+curl -s http://localhost:9999/foo
+1
+curl -s http://localhost:9999/foo
+2
+```
+
 ## Docs
 
 We have user documentation and developer documentation separated.
@@ -8,18 +52,7 @@ Developer documentation for skipper as library users
 
 ### User documentation
 
-#### local Preview
-
-To see rendered documentation locally you need to replace `/skipper`
-path with `/` to see them correctly. This you can easily do with
-skipper in front of `mkdocs serve`. The following skipper inline route
-will do this for you, assuming that you build skipper with `make skipper`:
-
-```
-./bin/skipper -inline-routes 'r: * -> modPath("/skipper", "") -> "http://127.0.0.1:8000"'
-```
-
-Now you should be able to see the documentation at [http://127.0.0.1:9090](http://127.0.0.1:9090).
+To see rendered documentation locally run `mkdocs serve` and navigate to [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ## Filters
 
@@ -110,7 +143,7 @@ func (f *myPredicate) Match(r *http.Request) bool {
 ```
 
 Predicates are quite similar to implement as Filters, so for a more
-complete example, find an example [how to develop a filter](../reference/development#how-to-develop-a-filter).
+complete example, find an example [how to develop a filter](../reference/development.md#how-to-develop-a-filter).
 
 ## Dataclients
 

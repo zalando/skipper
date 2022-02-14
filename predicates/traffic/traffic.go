@@ -4,7 +4,7 @@ probability for a given route by setting its weight.
 
 The probability for matching a route is defined by the mandatory first
 parameter, that must be a decimal number between 0.0 and 1.0 (both
-exclusive).
+inclusive).
 
 The optional second argument is used to specify the cookie name for
 the traffic group, in case you want to use stickiness. Stickiness
@@ -78,8 +78,8 @@ import (
 )
 
 const (
-	// The eskip name of the predicate.
-	PredicateName = "Traffic"
+	// Deprecated, use predicates.TrafficName instead
+	PredicateName = predicates.TrafficName
 )
 
 type spec struct{}
@@ -93,7 +93,7 @@ type predicate struct {
 // Creates a new traffic control predicate specification.
 func New() routing.PredicateSpec { return &spec{} }
 
-func (s *spec) Name() string { return PredicateName }
+func (s *spec) Name() string { return predicates.TrafficName }
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if !(len(args) == 1 || len(args) == 3) {
@@ -102,7 +102,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 
 	p := &predicate{}
 
-	if c, ok := args[0].(float64); ok && 0.0 <= c && c < 1.0 {
+	if c, ok := args[0].(float64); ok && 0.0 <= c && c <= 1.0 {
 		p.chance = c
 	} else {
 		return nil, predicates.ErrInvalidPredicateParameters
@@ -125,7 +125,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicate) takeChance() bool {
-	return rand.Float64() < p.chance
+	return rand.Float64() < p.chance // #nosec
 }
 
 func (p *predicate) Match(r *http.Request) bool {

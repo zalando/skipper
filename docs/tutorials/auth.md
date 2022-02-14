@@ -220,12 +220,12 @@ In the case of a user info filter the payload is in the format:
 
 Skipper encrypts the cookies and also generates a nonce during the OAuth2.0 flow
 for which it needs a secret key. This key is in a file which can be rotated periodically
-because it is reread by Skipper. The path to this file can be passed with the flag
-`-oidc-secret-file` when Skipper is started.
+because it is reread by Skipper. The path to this file must be passed with the flag
+`-oidc-secrets-file` when Skipper is started.
 
 ### AuthZ and access control
 
-Authorization validation and access control is available by means of a subsequent filter [oidcClaimsQuery](../reference/filters.md#oidcClaimsQuery). It inspects the ID token, which exists after a successful `oauthOidc*` filter step, and validates the defined query with the request path.
+Authorization validation and access control is available by means of a subsequent filter [oidcClaimsQuery](../reference/filters.md#oidcclaimsquery). It inspects the ID token, which exists after a successful `oauthOidc*` filter step, and validates the defined query with the request path.
 
 Given following example ID token:
 
@@ -245,3 +245,167 @@ Access to path `/` would be granted to everyone in `example.org`, however path `
 ```
 oauthOidcAnyClaims(...) -> oidcClaimsQuery("/login:groups.#[==\"appX-Tester\"]", "/:@_:email%\"*@example.org\"")
 ```
+
+## OAuth2 authorization grant flow
+
+[Authorization grant flow](https://tools.ietf.org/html/rfc6749#section-1.3) is a mechanism
+to coordinate between a user-agent, a client, and an authorization server to obtain an OAuth2 
+access token for a user. Skipper supports the flow with the `oauthGrant()` filter. 
+It works as follows:
+
+1. A user makes a request to a route with `oauthGrant()`.
+1. The filter checks whether the request has a cookie called `oauth-grant`<sup>1</sup>. If it does not, or
+   if the cookie and its tokens are invalid, it redirects the user to the OAuth2 provider's 
+   authorization endpoint.
+1. The user logs into the external OAuth2 provider, e.g. by providing a username and password.
+1. The provider redirects the user back to Skipper with an authorization code, using the 
+   callback URL parameter which was part of the previous redirect. The callback route must
+   have a `grantCallback()` filter defined. Skipper automatically adds this callback route for you
+   when the OAuth2 authorization grant flow feature is enabled. Note that the automatically added
+	 callback route does not apply [default filters](../operation/operation.md#default-filters).
+	 If you need default filters to be applied to the callback route as well, please register
+	 the route manually in your routes files.
+1. Skipper calls the provider's token URL with the authorization code, and receives a response 
+   with the access and refresh tokens.
+1. Skipper stores the tokens in an `oauth-grant`<sup>1</sup> cookie which is stored in the user's browser.
+1. Subsequent calls to any route with an `oauthGrant()` filter will now pass as long as the
+   access token is valid.
+   
+1: The name of this cookie can be changed by providing the `-oauth2-token-cookie-name` parameter.
+
+Please note that it is not currently possible to use multiple OAuth2 providers with Skipper.
+
+### Encrypted cookie tokens
+
+The cookie set by the `oauthGrant()` filter contains the OAuth2 access and refresh tokens in 
+encrypted form. This means Skipper does not need to persist any session information about users, 
+while also not exposing the tokens to users.
+
+### Token refresh
+
+The `oauthGrant()` filter also supports token refreshing. Once the access token expires and
+the user makes another request, the filter automatically refreshes the token and sets the
+updated cookie in the response.
+
+### Instructions
+
+To use authorization grant flow, you need to:
+
+1. [Configure OAuth2 credentials.](#configure-oauth2-credentials)
+1. [Configure the grant filters with OAuth2 URLs.](#configure-the-grant-filters)
+1. [Add the OAuth2 grant filters to routes.](#add-filters-to-your-routes)
+
+#### Configure OAuth2 credentials
+Before you start, you need to register your application with the OAuth2 provider.
+If your provider asks you for the callback URL, provide the URL that you set 
+as the `-oauth2-callback-path` parameter. If you did not provide a value, use the default
+route : `/.well-known/oauth2-callback`. 
+
+Skipper must be configured with the following credentials and secrets:
+1. OAuth2 client ID for authenticating with the OAuth2 provider.
+1. OAuth2 client secret for authenticating with the OAuth2 provider.
+1. Cookie encryption secret for encrypting and decrypting token cookies.
+
+You can load all of theses secrets from separate files, in which case they get automatically
+reloaded to support secret rotation. You can provide the paths to the files containing each 
+secret as follows:
+
+```sh
+skipper -oauth2-client-id-file=/path/to/client_id \
+    -oauth2-client-secret-file=/path/to/client_secret \
+    -oauth2-secret-file=/path/to/cookie_encryption_secret \
+    -credentials-update-interval=30s
+```
+
+Care must be taken when used in conjunction with `-credentials-paths` option because files
+from `-credentials-paths` are available to `bearerinjector` filter.
+That is `-credentials-paths=/path/to` in above example will expose grant files to `bearerinjector` filter.
+
+You can modify the secret update interval using the `-credentials-update-interval` argument. In
+example above, the interval is configured to reload the secrets from the files every 30
+seconds.
+
+If you prefer, you can provide the client ID and secret values directly as arguments to
+Skipper instead of loading them from files. In that case, call Skipper with:
+
+```sh
+skipper -oauth2-client-id=<CLIENT_ID> -oauth2-client-secret=<CLIENT_SECRET>
+```
+
+#### Configure the grant filters
+
+The grant filters need to be enabled and configured with your OAuth2 provider's
+authorization, token, and tokeninfo endpoints. This can be achieved by providing Skipper
+with the following arguments:
+
+```sh
+skipper -enable-oauth2-grant-flow \
+    -oauth2-auth-url=<OAUTH2_AUTHORIZE_ENDPOINT> \
+    -oauth2-token-url=<OAUTH2_TOKEN_ENDPOINT> \
+    -oauth2-revoke-token-url=<OAUTH2_REVOKE_TOKEN_ENDPOINT> \
+    -oauth2-tokeninfo-url=<OAUTH2_TOKENINFO_ENDPOINT> \
+    -oauth2-callback-path=/oauth/callback
+```
+
+The `-oauth2-revoke-token-url` is optional, and must only be supplied if you plan
+on using the [grantLogout](../reference/filters.md#grantlogout) filter.
+
+You can configure the `oauthGrant()` filter further for your needs. See the
+[oauthGrant](../reference/filters.md#oauthgrant) filter reference for more details.
+
+#### Add filters to your routes
+
+You can protect any number of routes with the `oauthGrant()` filter. Unauthenticated users
+will be refused access and redirected to log in.
+
+Skipper will automatically add a callback route for you with the `grantCallback` filter registered 
+on it. The path for this route can be configured with the `-oauth2-callback-path` parameter.
+If the parameter is not given, it will be `/.well-known/oauth2-callback`
+
+You can optionally add a `grantLogout()` filter for revoking access and refresh tokens:
+
+```
+foo:
+    Path("/foo")
+    -> oauthGrant()
+    -> "http://localhost:9090";
+
+logout:
+    Path("/logout)
+    -> grantLogout()
+    -> <shunt>;
+```
+
+#### (Optional) AuthZ and access control
+
+You can add a [grantClaimsQuery](../reference/filters.md#grantclaimsquery) filter
+after a [oauthGrant](../reference/filters.md#oauthgrant) to control access based
+on any OAuth2 claim. A claim is any property returned by the tokeninfo endpoint.
+The filter works exactly like the [oidcClaimsQuery](../reference/filters.md#oidcclaimsquery)
+filter (it is actually just an alias for it).
+
+For example, if your tokeninfo endpoint returns the following JSON:
+
+```json
+{
+    "scope": ["email"],
+    "username": "foo"
+}
+```
+
+you could limit the access to a given route only to users that have the `email`
+scope by doing the following:
+
+1. Append a `grantClaimsQuery` filter to the `oauthGrant` filter with the following
+   query:
+    ```
+    -> oauthGrant() -> grantClaimsQuery("/path:scope.#[==\"email\"]")
+    ```
+2. Provide the name of the claim that corresponds to the OAuth2 subject in the
+   tokeninfo payload as an argument to Skipper:
+   ```sh
+   skipper -oauth2-tokeninfo-subject-key=username
+   ```
+
+> The subject is the field that identifies the user and is often called `sub`, 
+> especially in the context of OpenID Connect. In the example above, it is `username`.

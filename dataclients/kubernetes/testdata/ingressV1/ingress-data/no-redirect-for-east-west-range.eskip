@@ -1,0 +1,7 @@
+kube__redirect: Header("X-Forwarded-Proto", "http") && Weight(1000)
+	-> redirectTo(308, "https:")
+	-> <shunt>;
+
+kube_foo__qux__www_skipper_cluster_local____bar:
+	Host("^(www[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;

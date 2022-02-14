@@ -11,7 +11,7 @@ type statusFilter int
 // backend response.
 func NewStatus() filters.Spec { return new(statusSpec) }
 
-func (s *statusSpec) Name() string { return StatusName }
+func (s *statusSpec) Name() string { return filters.StatusName }
 
 func (s *statusSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {

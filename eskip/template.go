@@ -5,11 +5,15 @@
 package eskip
 
 import (
+	"net"
+	"net/http"
 	"regexp"
 	"strings"
+
+	snet "github.com/zalando/skipper/net"
 )
 
-var parameterRegexp = regexp.MustCompile(`\$\{(\w+)\}`)
+var placeholderRegexp = regexp.MustCompile(`\$\{([^{}]+)\}`)
 
 // TemplateGetter functions return the value for a template parameter name.
 type TemplateGetter func(string) string
@@ -20,13 +24,21 @@ type Template struct {
 	placeholders []string
 }
 
+type TemplateContext interface {
+	PathParam(string) string
+
+	Request() *http.Request
+
+	Response() *http.Response
+}
+
 // New parses a template string and returns a reusable *Template object.
 // The template string can contain named placeholders of the format:
 //
 // 	Hello, ${who}!
 //
 func NewTemplate(template string) *Template {
-	matches := parameterRegexp.FindAllStringSubmatch(template, -1)
+	matches := placeholderRegexp.FindAllStringSubmatch(template, -1)
 	placeholders := make([]string, len(matches))
 
 	for index, placeholder := range matches {
@@ -39,15 +51,65 @@ func NewTemplate(template string) *Template {
 // Apply evaluates the template using a TemplateGetter function to resolve the
 // placeholders.
 func (t *Template) Apply(get TemplateGetter) string {
-	result := t.template
-
 	if get == nil {
-		return result
+		return t.template
 	}
-
-	for _, placeholder := range t.placeholders {
-		result = strings.Replace(result, "${"+placeholder+"}", get(placeholder), -1)
-	}
-
+	result, _ := t.apply(get)
 	return result
+}
+
+// ApplyContext evaluates the template using template context to resolve the
+// placeholders. Returns true if all placeholders resolved to non-empty values.
+func (t *Template) ApplyContext(ctx TemplateContext) (string, bool) {
+	return t.apply(func(key string) string {
+		if h := strings.TrimPrefix(key, "request.header."); h != key {
+			return ctx.Request().Header.Get(h)
+		}
+		if q := strings.TrimPrefix(key, "request.query."); q != key {
+			return ctx.Request().URL.Query().Get(q)
+		}
+		if c := strings.TrimPrefix(key, "request.cookie."); c != key {
+			if cookie, err := ctx.Request().Cookie(c); err == nil {
+				return cookie.Value
+			}
+			return ""
+		}
+		switch key {
+		case "request.method":
+			return ctx.Request().Method
+		case "request.host":
+			return ctx.Request().Host
+		case "request.path":
+			return ctx.Request().URL.Path
+		case "request.source":
+			return snet.RemoteHost(ctx.Request()).String()
+		case "request.sourceFromLast":
+			return snet.RemoteHostFromLast(ctx.Request()).String()
+		case "request.clientIP":
+			if host, _, err := net.SplitHostPort(ctx.Request().RemoteAddr); err == nil {
+				return host
+			}
+		}
+		if ctx.Response() != nil {
+			if h := strings.TrimPrefix(key, "response.header."); h != key {
+				return ctx.Response().Header.Get(h)
+			}
+		}
+		return ctx.PathParam(key)
+	})
+}
+
+// apply evaluates the template using a TemplateGetter function to resolve the
+// placeholders. Returns true if all placeholders resolved to non-empty values.
+func (t *Template) apply(get TemplateGetter) (string, bool) {
+	result := t.template
+	missing := false
+	for _, placeholder := range t.placeholders {
+		value := get(placeholder)
+		if value == "" {
+			missing = true
+		}
+		result = strings.Replace(result, "${"+placeholder+"}", value, -1)
+	}
+	return result, !missing
 }

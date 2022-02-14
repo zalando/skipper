@@ -126,7 +126,7 @@ func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 func NewCompress() filters.Spec { return &compress{} }
 
 func (c *compress) Name() string {
-	return CompressName
+	return filters.CompressName
 }
 
 func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -140,13 +140,11 @@ func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	if lf, ok := args[0].(float64); ok && math.Trunc(lf) == lf {
 		f.level = int(lf)
-		_, err := gzip.NewWriterLevel(nil, f.level)
-		if err != nil {
+		if f.level < gzip.HuffmanOnly || f.level > gzip.BestCompression {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
-		_, err = flate.NewWriter(nil, f.level)
-		if err != nil {
+		if f.level < flate.HuffmanOnly || f.level > flate.BestCompression {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 

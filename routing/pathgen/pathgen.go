@@ -74,7 +74,7 @@ func New(o PathGeneratorOptions) *PathGenerator {
 	// options taken as value, free to modify
 	applyDefaults(&o)
 
-	return &PathGenerator{&o, rand.New(rand.NewSource(o.RandSeed))}
+	return &PathGenerator{&o, rand.New(rand.NewSource(o.RandSeed))} // #nosec
 }
 
 // takes a random number positioned between [min, max)

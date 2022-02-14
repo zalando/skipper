@@ -1,31 +1,95 @@
-//+build redis
-
 package ratelimit
 
 import (
 	"context"
-	"log"
-	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/metrics/metricstest"
+	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/net/redistest"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func startRedis(port string) func() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func Test_clusterLimitRedis_WithPass(t *testing.T) {
+	const redisPassword = "pass"
 
-	cmd := exec.CommandContext(ctx, "redis-server", "--port", port)
-	err := cmd.Start()
-	if err != nil {
-		log.Fatalf("Run '%q %q' failed, caused by: %s", cmd.Path, cmd.Args, err)
+	redisAddr, done := redistest.NewTestRedisWithPassword(t, redisPassword)
+	defer done()
+
+	clusterClientlimit := Settings{
+		Type:       ClusterClientRatelimit,
+		Lookuper:   NewHeaderLookuper("X-Test"),
+		MaxHits:    5,
+		TimeWindow: time.Second,
+		Group:      "Auth",
 	}
-	return func() { cancel(); _ = cmd.Wait() }
+
+	tests := []struct {
+		name       string
+		settings   Settings
+		iterations int
+		args       string
+		addrs      []string
+		password   string
+		want       []bool
+	}{
+		{
+			name:       "correct password",
+			settings:   clusterClientlimit,
+			args:       "clientAuth",
+			addrs:      []string{redisAddr},
+			password:   redisPassword,
+			iterations: 6,
+			want:       append(repeat(true, 5), false),
+		},
+		{
+			name:       "wrong password, fail open",
+			settings:   clusterClientlimit,
+			args:       "clientAuth",
+			addrs:      []string{redisAddr},
+			password:   "wrong",
+			iterations: 6,
+			want:       repeat(true, 6),
+		},
+		{
+			name:       "no password, fail open",
+			settings:   clusterClientlimit,
+			args:       "clientAuth",
+			addrs:      []string{redisAddr},
+			password:   "",
+			iterations: 6,
+			want:       repeat(true, 6),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{
+				Addrs:    []string{redisAddr},
+				Password: tt.password,
+			})
+			defer ringClient.Close()
+			c := newClusterRateLimiterRedis(
+				tt.settings,
+				ringClient,
+				tt.settings.Group,
+			)
+
+			var got []bool
+			for i := 0; i < tt.iterations; i++ {
+				got = append(got, c.Allow(tt.args))
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func Test_clusterLimitRedis_Allow(t *testing.T) {
-	redisPort := "16379"
-
-	cancel := startRedis(redisPort)
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	clusterlimit := Settings{
 		Type:       ClusterServiceRatelimit,
@@ -47,64 +111,60 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 		settings   Settings
 		args       string
 		iterations int
-		want       bool
+		want       []bool
 	}{
 		{
 			name:       "simple test clusterRatelimit",
 			settings:   clusterlimit,
 			args:       "clientA",
 			iterations: 1,
-			want:       true,
+			want:       []bool{true},
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
 			settings:   clusterClientlimit,
 			args:       "clientB",
 			iterations: 1,
-			want:       true,
+			want:       []bool{true},
 		},
 		{
 			name:       "simple test clusterRatelimit",
 			settings:   clusterlimit,
 			args:       "clientA",
 			iterations: 20,
-			want:       false,
+			want:       append(repeat(true, 9), repeat(false, 11)...),
 		},
 		{
 			name:       "simple test clusterClientRatelimit",
 			settings:   clusterClientlimit,
 			args:       "clientB",
 			iterations: 12,
-			want:       false,
+			want:       append(repeat(true, 9), repeat(false, 3)...),
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
-			var got bool
+			var got []bool
 			for i := 0; i < tt.iterations; i++ {
-				got = c.Allow(tt.args)
+				got = append(got, c.Allow(tt.args))
 			}
-			if got != tt.want {
-				t.Errorf("clusterLimitRedis.Allow() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func Test_clusterLimitRedis_Delta(t *testing.T) {
-	redisPort := "16380"
-
-	cancel := startRedis(redisPort)
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	clusterlimit := Settings{
 		Type:       ClusterServiceRatelimit,
@@ -147,11 +207,11 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
@@ -167,10 +227,8 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 }
 
 func Test_clusterLimitRedis_Oldest(t *testing.T) {
-	redisPort := "16381"
-
-	cancel := startRedis(redisPort)
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	clusterlimit := Settings{
 		Type:       ClusterServiceRatelimit,
@@ -213,11 +271,11 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
@@ -234,10 +292,8 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 }
 
 func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
-	redisPort := "16382"
-
-	cancel := startRedis(redisPort)
-	defer cancel()
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
 
 	clusterlimit := Settings{
 		Type:       ClusterServiceRatelimit,
@@ -280,11 +336,11 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			q := make(chan struct{})
-			defer close(q)
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer ringClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				newRing(&RedisOptions{Addrs: []string{"127.0.0.1:" + redisPort}}, q),
+				ringClient,
 				tt.settings.Group,
 			)
 
@@ -296,4 +352,56 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFailOpenOnRedisError(t *testing.T) {
+	dm := metrics.Default
+	defer func() { metrics.Default = dm }()
+
+	m := &metricstest.MockMetrics{}
+	metrics.Default = m
+
+	settings := Settings{
+		Type:       ClusterServiceRatelimit,
+		MaxHits:    10,
+		TimeWindow: 10 * time.Second,
+		Group:      "agroup",
+	}
+	// redis unavailable
+	ringClient := net.NewRedisRingClient(&net.RedisOptions{})
+	defer ringClient.Close()
+
+	c := newClusterRateLimiterRedis(
+		settings,
+		ringClient,
+		settings.Group,
+	)
+
+	allow := c.AllowContext(context.Background(), "akey")
+	if !allow {
+		t.Error("expected allow on error")
+	}
+	m.WithCounters(func(counters map[string]int64) {
+		if counters["swarm.redis.total"] != 1 {
+			t.Error("expected 1 total")
+		}
+		if counters["swarm.redis.allows"] != 1 {
+			t.Error("expected 1 allow on error")
+		}
+		if counters["swarm.redis.forbids"] != 0 {
+			t.Error("expected no forbids on error")
+		}
+	})
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		if _, ok := measures["swarm.redis.query.allow.failure.agroup"]; !ok {
+			t.Error("expected query allow failure on error")
+		}
+	})
+}
+
+func repeat(b bool, n int) (result []bool) {
+	for i := 0; i < n; i++ {
+		result = append(result, b)
+	}
+	return
 }

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	logFilter "github.com/zalando/skipper/filters/log"
 )
 
@@ -95,6 +97,26 @@ func TestUseXForwarded(t *testing.T) {
 	)
 }
 
+func TestUseXForwardedList(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3, 192.168.4.4")
+	testAccessLogDefault(
+		t,
+		entry,
+		`192.168.3.3, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+	)
+}
+
+func TestUseXForwardedListLiteral(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:80, 192.168.4.4")
+	testAccessLogDefault(
+		t,
+		entry,
+		`192.168.3.3:80, 192.168.4.4 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+	)
+}
+
 func TestUseXForwardedJSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3")
@@ -106,22 +128,22 @@ func TestUseXForwardedJSON(t *testing.T) {
 	)
 }
 
-func TestStripPortFwd4(t *testing.T) {
+func TestPortFwd4(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
 	testAccessLogDefault(
 		t,
 		entry,
-		`192.168.3.3 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
+		`192.168.3.3:6969 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`,
 	)
 }
 
-func TestStripPortFwd4JSON(t *testing.T) {
+func TestPortFwd4JSON(t *testing.T) {
 	entry := testAccessEntry()
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
 	testAccessLog(
 		t, entry,
-		`{"audit":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"","duration":42,"flow-id":"","host":"192.168.3.3:6969","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -195,6 +217,23 @@ func TestPresentAuditJSON(t *testing.T) {
 		entry,
 		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
+	)
+}
+
+func TestPresentAuditJSONWithCustomFormatter(t *testing.T) {
+	entry := testAccessEntry()
+	entry.Request.Header.Set(logFilter.UnverifiedAuditHeader, "c4ddfe9d-a0d3-4afb-bf26-24b9588731a0")
+	jsonFormatter := &logrus.JSONFormatter{
+		DisableTimestamp: true,
+		FieldMap: logrus.FieldMap{
+			logrus.FieldKeyLevel: "my_level",
+			logrus.FieldKeyMsg:   "my_message",
+		}}
+	testAccessLog(
+		t,
+		entry,
+		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","duration":42,"flow-id":"","host":"127.0.0.1","method":"GET","my_level":"info","my_message":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		Options{AccessLogJSONEnabled: true, AccessLogJsonFormatter: jsonFormatter},
 	)
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/tidwall/gjson"
 
@@ -12,9 +13,13 @@ import (
 )
 
 const (
-	OidcClaimsQueryName = "oidcClaimsQuery"
-	oidcClaimsCacheKey  = "oidcclaimscachekey"
+	// Deprecated, use filters.OidcClaimsQueryName instead
+	OidcClaimsQueryName = filters.OidcClaimsQueryName
+
+	oidcClaimsCacheKey = "oidcclaimscachekey"
 )
+
+var gjsonModifierMutex = sync.RWMutex{}
 
 type (
 	oidcIntrospectionSpec struct {
@@ -40,7 +45,7 @@ func NewOIDCQueryClaimsFilter() filters.Spec {
 func (spec *oidcIntrospectionSpec) Name() string {
 	switch spec.typ {
 	case checkOIDCQueryClaims:
-		return OidcClaimsQueryName
+		return filters.OidcClaimsQueryName
 	}
 	return AuthUnknown
 }
@@ -64,7 +69,7 @@ func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Fil
 				return nil, fmt.Errorf("%v: malformatted filter arg %s", filters.ErrInvalidFilterParameters, arg)
 			}
 			pq := pathQuery{path: slice[0]}
-			for _, query := range strings.Split(slice[1], " ") {
+			for _, query := range splitQueries(slice[1]) {
 				if query == "" {
 					return nil, fmt.Errorf("%v: %s", errUnsupportedClaimSpecified, arg)
 				}
@@ -82,6 +87,18 @@ func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Fil
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	gjsonModifierMutex.RLock()
+	// method is not thread safe
+	modExists := gjson.ModifierExists("_", gjsonThisModifier)
+	gjsonModifierMutex.RUnlock()
+
+	if !modExists {
+		gjsonModifierMutex.Lock()
+		// method is not thread safe
+		gjson.AddModifier("_", gjsonThisModifier)
+		gjsonModifierMutex.Unlock()
+	}
+
 	return filter, nil
 }
 
@@ -90,7 +107,7 @@ func (filter *oidcIntrospectionFilter) String() string {
 	for _, query := range filter.paths {
 		str = append(str, query.String())
 	}
-	return fmt.Sprintf("%s(%s)", OidcClaimsQueryName, strings.Join(str, "; "))
+	return fmt.Sprintf("%s(%s)", filters.OidcClaimsQueryName, strings.Join(str, "; "))
 }
 
 func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
@@ -110,7 +127,7 @@ func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 	default:
-		unauthorized(ctx, string(filter.typ), invalidClaim, r.Host, "Wrong oidcIntrospectionFilter type")
+		unauthorized(ctx, fmt.Sprint(filter.typ), invalidClaim, r.Host, "Wrong oidcIntrospectionFilter type")
 		return
 	}
 
@@ -120,11 +137,11 @@ func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
 
 func (filter *oidcIntrospectionFilter) Response(filters.FilterContext) {}
 
-func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotToken map[string]interface{}) bool {
-	gjson.AddModifier("_", func(json, arg string) string {
-		return gjson.Get(json, "[@this].#("+arg+")").Raw
-	})
+func gjsonThisModifier(json, arg string) string {
+	return gjson.Get(json, "[@this].#("+arg+")").Raw
+}
 
+func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotToken map[string]interface{}) bool {
 	l := len(filter.paths)
 	if l == 0 {
 		return false
@@ -156,6 +173,18 @@ func (filter *oidcIntrospectionFilter) validateClaimsQuery(reqPath string, gotTo
 
 func (p pathQuery) String() string {
 	return fmt.Sprintf("path: '%s*', matching: %s", p.path, strings.Join(p.queries, " ,"))
+}
+
+// Splits space-delimited GJSON queries ignoring spaces within quoted strings
+func splitQueries(s string) (q []string) {
+	for _, p := range strings.Split(s, " ") {
+		if len(q) == 0 || strings.Count(q[len(q)-1], `"`)%2 == 0 {
+			q = append(q, p)
+		} else {
+			q[len(q)-1] = q[len(q)-1] + " " + p
+		}
+	}
+	return
 }
 
 func trimQuotes(s string) string {

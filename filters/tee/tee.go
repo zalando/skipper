@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	Name           = "tee"
+	// Deprecated, use filters.TeeName instead
+	Name = filters.TeeName
+	// Deprecated, use filters.TeeName instead
 	DeprecatedName = "Tee"
-	NoFollowName   = "teenf"
+	// Deprecated, use filters.TeenfName instead
+	NoFollowName = filters.TeenfName
 )
 
 const defaultTeeTimeout = time.Second
@@ -250,12 +253,12 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 	if len(config) == 3 {
 		expr, ok := config[1].(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", Name, config)
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
 		}
 
 		replacement, ok := config[2].(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", Name, config)
+			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
 		}
 
 		rx, err := regexp.Compile(expr)
@@ -278,7 +281,7 @@ func (spec *teeSpec) Name() string {
 		return DeprecatedName
 	}
 	if spec.options.NoFollow {
-		return NoFollowName
+		return filters.TeenfName
 	}
-	return Name
+	return filters.TeeName
 }

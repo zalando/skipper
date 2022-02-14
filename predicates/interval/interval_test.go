@@ -29,12 +29,22 @@ func TestCreateBetween(t *testing.T) {
 		},
 		{
 			"first argument is not a string",
-			[]interface{}{1, "2016-01-01T12:00:00+07:00"},
+			[]interface{}{'1', "2016-01-01T12:00:00+07:00"},
 			true,
 		},
 		{
 			"second argument is not a string",
-			[]interface{}{"2016-01-01T12:00:00+07:00", 1},
+			[]interface{}{"2016-01-01T12:00:00+07:00", '1'},
+			true,
+		},
+		{
+			"mixed first unix and second string",
+			[]interface{}{time.Date(2021, 2, 18, 0, 0, 0, 0, time.UTC).Unix(), "2021-02-18T01:00:00Z"},
+			true,
+		},
+		{
+			"mixed first string and second unix",
+			[]interface{}{"2021-02-18T01:00:00Z", time.Date(2021, 2, 18, 2, 0, 0, 0, time.UTC).Unix()},
 			true,
 		},
 		{
@@ -61,6 +71,31 @@ func TestCreateBetween(t *testing.T) {
 			"valid interval using Unix time",
 			[]interface{}{float64(1451649600), float64(1454328000)},
 			false,
+		},
+		{
+			"valid interval, invalid location",
+			[]interface{}{"2021-02-18T00:00:00", "2021-02-18T01:00:00", "unknown location"},
+			true,
+		},
+		{
+			"begin after end in valid location",
+			[]interface{}{"2021-02-18T02:00:00", "2021-02-18T01:00:00", "Europe/Berlin"},
+			true,
+		},
+		{
+			"valid interval in valid location",
+			[]interface{}{"2021-02-18T00:00:00", "2021-02-18T01:00:00", "Europe/Berlin"},
+			false,
+		},
+		{
+			"unsupported timezone offset in location",
+			[]interface{}{"2021-02-18T00:00:00+01:00", "2021-02-18T01:00:00", "Europe/Berlin"},
+			true,
+		},
+		{
+			"unsupported unix in location",
+			[]interface{}{int64(1613603624), int64(1613603625), "Europe/Berlin"},
+			true,
 		},
 	}
 
@@ -104,6 +139,26 @@ func TestCreateBefore(t *testing.T) {
 			[]interface{}{float64(1451624400)},
 			false,
 		},
+		{
+			"valid timestamp, invalid location",
+			[]interface{}{"2021-02-18T00:00:00", "unknown location"},
+			true,
+		},
+		{
+			"valid timestamp in valid location",
+			[]interface{}{"2021-02-18T00:00:00", "Europe/Berlin"},
+			false,
+		},
+		{
+			"unsupported timezone offset in location",
+			[]interface{}{"2021-02-18T00:00:00+01:00", "Europe/Berlin"},
+			true,
+		},
+		{
+			"unsupported unix in location",
+			[]interface{}{int64(1613603624), "Europe/Berlin"},
+			true,
+		},
 	}
 
 	for _, c := range cases {
@@ -146,6 +201,26 @@ func TestCreateAfter(t *testing.T) {
 			[]interface{}{float64(1451624400)},
 			false,
 		},
+		{
+			"valid timestamp, invalid location",
+			[]interface{}{"2021-02-18T00:00:00", "unknown location"},
+			true,
+		},
+		{
+			"valid timestamp in valid location",
+			[]interface{}{"2021-02-18T00:00:00", "Europe/Berlin"},
+			false,
+		},
+		{
+			"unsupported timezone offset in location",
+			[]interface{}{"2021-02-18T00:00:00+01:00", "Europe/Berlin"},
+			true,
+		},
+		{
+			"unsupported unix in location",
+			[]interface{}{int64(1613603624), "Europe/Berlin"},
+			true,
+		},
 	}
 
 	for _, c := range cases {
@@ -158,7 +233,7 @@ func TestCreateAfter(t *testing.T) {
 }
 
 func TestMatchBetween(t *testing.T) {
-	reqeust := &http.Request{}
+	request := &http.Request{}
 
 	cases := []struct {
 		msg     string
@@ -201,9 +276,45 @@ func TestMatchBetween(t *testing.T) {
 			false,
 		},
 		{
-			"time afer end value",
+			"time after end value",
 			[]interface{}{time.Now().Add(-2 * time.Hour).Format(time.RFC3339), time.Now().Add(-1 * time.Hour).Format(time.RFC3339)},
 			nil,
+			false,
+		},
+		{
+			"time inside the interval in location",
+			[]interface{}{"2021-02-18T00:00:00", "2021-02-18T01:00:00", "Europe/Berlin"},
+			func() time.Time {
+				t, _ := time.Parse(time.RFC3339, "2021-02-17T23:01:00Z")
+				return t
+			},
+			true,
+		},
+		{
+			"time inside the interval in UTC location",
+			[]interface{}{"2021-02-18T00:00:00", "2021-02-18T01:00:00", "UTC"},
+			func() time.Time {
+				t, _ := time.Parse(time.RFC3339, "2021-02-18T00:01:00Z")
+				return t
+			},
+			true,
+		},
+		{
+			"time before the interval in location",
+			[]interface{}{"2021-02-18T00:00:00", "2021-02-18T01:00:00", "Europe/Berlin"},
+			func() time.Time {
+				t, _ := time.Parse(time.RFC3339, "2021-02-17T22:59:00Z")
+				return t
+			},
+			false,
+		},
+		{
+			"time after the interval in location",
+			[]interface{}{"2021-02-18T00:00:00", "2021-02-18T01:00:00", "Europe/Berlin"},
+			func() time.Time {
+				t, _ := time.Parse(time.RFC3339, "2021-02-18T00:01:00Z")
+				return t
+			},
 			false,
 		},
 	}
@@ -218,7 +329,7 @@ func TestMatchBetween(t *testing.T) {
 				betweenPredicate.getTime = c.getTime
 			}
 
-			matches := betweenPredicate.Match(reqeust)
+			matches := betweenPredicate.Match(request)
 
 			if matches != c.matches {
 				t.Errorf("%q: Expected result - %t; Actual result - %t", c.msg, c.matches, matches)
@@ -228,7 +339,7 @@ func TestMatchBetween(t *testing.T) {
 }
 
 func TestMatchBefore(t *testing.T) {
-	reqeust := &http.Request{}
+	request := &http.Request{}
 
 	cases := []struct {
 		msg     string
@@ -262,6 +373,24 @@ func TestMatchBefore(t *testing.T) {
 			nil,
 			false,
 		},
+		{
+			"time before the boundary in location",
+			[]interface{}{"2021-02-18T01:00:00", "Europe/Berlin"},
+			func() time.Time {
+				t, _ := time.Parse(time.RFC3339, "2021-02-17T23:59:00Z")
+				return t
+			},
+			true,
+		},
+		{
+			"time after the boundary in location",
+			[]interface{}{"2021-02-18T01:00:00", "Europe/Berlin"},
+			func() time.Time {
+				t, _ := time.Parse(time.RFC3339, "2021-02-18T00:01:00Z")
+				return t
+			},
+			false,
+		},
 	}
 
 	for _, c := range cases {
@@ -274,7 +403,7 @@ func TestMatchBefore(t *testing.T) {
 				beforePredicate.getTime = c.getTime
 			}
 
-			matches := beforePredicate.Match(reqeust)
+			matches := beforePredicate.Match(request)
 
 			if matches != c.matches {
 				t.Errorf("%q: Expected result - %t; Actual result - %t", c.msg, c.matches, matches)
@@ -284,7 +413,7 @@ func TestMatchBefore(t *testing.T) {
 }
 
 func TestMatchAfter(t *testing.T) {
-	reqeust := &http.Request{}
+	request := &http.Request{}
 
 	cases := []struct {
 		msg     string
@@ -318,6 +447,24 @@ func TestMatchAfter(t *testing.T) {
 			nil,
 			true,
 		},
+		{
+			"time before the boundary in location",
+			[]interface{}{"2021-02-18T01:00:00", "Europe/Berlin"},
+			func() time.Time {
+				t, _ := time.Parse(time.RFC3339, "2021-02-17T23:59:00Z")
+				return t
+			},
+			false,
+		},
+		{
+			"time after the boundary in location",
+			[]interface{}{"2021-02-18T01:00:00", "Europe/Berlin"},
+			func() time.Time {
+				t, _ := time.Parse(time.RFC3339, "2021-02-18T00:01:00Z")
+				return t
+			},
+			true,
+		},
 	}
 
 	for _, c := range cases {
@@ -330,7 +477,7 @@ func TestMatchAfter(t *testing.T) {
 				afterPredicate.getTime = c.getTime
 			}
 
-			matches := afterPredicate.Match(reqeust)
+			matches := afterPredicate.Match(request)
 
 			if matches != c.matches {
 				t.Errorf("%q: Expected result - %t; Actual result - %t", c.msg, c.matches, matches)

@@ -17,12 +17,11 @@ Examples:
 package auth
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"regexp"
 	"strings"
 
+	"github.com/zalando/skipper/jwt"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 )
@@ -42,11 +41,6 @@ type valueMatcher interface {
 }
 
 const (
-	matchJWTPayloadAllKVName       = "JWTPayloadAllKV"
-	matchJWTPayloadAnyKVName       = "JWTPayloadAnyKV"
-	matchJWTPayloadAllKVRegexpName = "JWTPayloadAllKVRegexp"
-	matchJWTPayloadAnyKVRegexpName = "JWTPayloadAnyKVRegexp"
-
 	matchBehaviorAll matchBehavior = iota
 	matchBehaviorAny
 
@@ -74,7 +68,7 @@ type (
 
 func NewJWTPayloadAnyKV() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAnyKVName,
+		name:          predicates.JWTPayloadAnyKVName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeExact,
 	}
@@ -82,7 +76,7 @@ func NewJWTPayloadAnyKV() routing.PredicateSpec {
 
 func NewJWTPayloadAllKV() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAllKVName,
+		name:          predicates.JWTPayloadAllKVName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeExact,
 	}
@@ -90,7 +84,7 @@ func NewJWTPayloadAllKV() routing.PredicateSpec {
 
 func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAnyKVRegexpName,
+		name:          predicates.JWTPayloadAnyKVRegexpName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeRegexp,
 	}
@@ -98,7 +92,7 @@ func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 
 func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
 	return &spec{
-		name:          matchJWTPayloadAllKVRegexpName,
+		name:          predicates.JWTPayloadAllKVRegexpName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeRegexp,
 	}
@@ -153,33 +147,21 @@ func (m regexMatcher) Match(jwtValue string) bool {
 
 func (p *predicate) Match(r *http.Request) bool {
 	ahead := r.Header.Get(authHeaderName)
-	if !strings.HasPrefix(ahead, authHeaderPrefix) {
+	tv := strings.TrimPrefix(ahead, authHeaderPrefix)
+	if tv == ahead {
 		return false
 	}
 
-	fields := strings.FieldsFunc(ahead, func(r rune) bool {
-		return r == []rune(".")[0]
-	})
-	if len(fields) != 3 {
-		return false
-	}
-
-	sDec, err := base64.RawURLEncoding.DecodeString(fields[1])
-	if err != nil {
-		return false
-	}
-
-	var payload map[string]interface{}
-	err = json.Unmarshal(sDec, &payload)
+	token, err := jwt.Parse(tv)
 	if err != nil {
 		return false
 	}
 
 	switch p.matchBehavior {
 	case matchBehaviorAll:
-		return allMatch(p.kv, payload)
+		return allMatch(p.kv, token.Claims)
 	case matchBehaviorAny:
-		return anyMatch(p.kv, payload)
+		return anyMatch(p.kv, token.Claims)
 	default:
 		return false
 	}

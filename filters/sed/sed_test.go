@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/filters/sed"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -52,7 +51,7 @@ func testResponse(name string, test testItem) func(*testing.T) {
 		}
 
 		defer rsp.Body.Close()
-		d, err := ioutil.ReadAll(rsp.Body)
+		d, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +68,7 @@ func testRequest(name string, test testItem) func(*testing.T) {
 	return func(t *testing.T) {
 		b := httptest.NewServer(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				b, err := ioutil.ReadAll(r.Body)
+				b, err := io.ReadAll(r.Body)
 				if err != nil {
 					w.WriteHeader(http.StatusBadRequest)
 					fmt.Fprintln(w, err)
@@ -107,7 +106,7 @@ func testRequest(name string, test testItem) func(*testing.T) {
 		defer rsp.Body.Close()
 		if rsp.StatusCode != http.StatusOK {
 			t.Error("Failed to edit stream.")
-			d, err := ioutil.ReadAll(rsp.Body)
+			d, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -173,8 +172,8 @@ func TestSed(t *testing.T) {
 		body:   "foobarbazfoobarbazfoobarbaz",
 		expect: "foobarbazbarbazfoobarbazbarbazfoobarbazbarbaz",
 	}} {
-		t.Run(fmt.Sprintf("%s/%s", sed.NameRequest, test.title), testRequest(sed.NameRequest, test))
-		t.Run(fmt.Sprintf("%s/%s", sed.Name, test.title), testResponse(sed.Name, test))
+		t.Run(fmt.Sprintf("%s/%s", filters.SedRequestName, test.title), testRequest(filters.SedRequestName, test))
+		t.Run(fmt.Sprintf("%s/%s", filters.SedName, test.title), testResponse(filters.SedName, test))
 	}
 }
 
@@ -197,18 +196,18 @@ func TestSedLongStream(t *testing.T) {
 
 	baseArgs := []interface{}{pattern, outputString}
 
-	t.Run("below max buffer size", testResponse(sed.Name, testItem{
+	t.Run("below max buffer size", testResponse(filters.SedName, testItem{
 		args:       append(baseArgs, bodySize*2),
 		bodyReader: createBody(),
 		expect:     "qux",
 	}))
 
-	t.Run("above max buffer size, abort", testResponse(sed.Name, testItem{
+	t.Run("above max buffer size, abort", testResponse(filters.SedName, testItem{
 		args:       append(baseArgs, bodySize/2, "abort"),
 		bodyReader: createBody(),
 	}))
 
-	t.Run("above max buffer size, best effort", testResponse(sed.Name, testItem{
+	t.Run("above max buffer size, best effort", testResponse(filters.SedName, testItem{
 		args:       append(baseArgs, bodySize/2),
 		bodyReader: createBody(),
 		expect:     "quxqux",

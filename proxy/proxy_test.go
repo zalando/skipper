@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -21,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -30,6 +30,8 @@ import (
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
+
+	teePredicate "github.com/zalando/skipper/predicates/tee"
 )
 
 const (
@@ -145,6 +147,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		DataClients:    []routing.DataClient{dc},
 		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()},
 		Log:            tl,
+		Predicates:     []routing.PredicateSpec{teePredicate.New()},
 	}
 	if len(preprocs) > 0 {
 		opts.PreProcessors = preprocs
@@ -310,50 +313,71 @@ func TestGetRoundtrip(t *testing.T) {
 	}
 }
 
-func TestRetryable(t *testing.T) {
-	reqWithoutBody, err := http.NewRequest("GET", "http://www.zalando.de", nil)
-	if err != nil {
-		t.Fatalf("Failed to create request without body: %v", err)
-	}
-	reqWithNoBody, err := http.NewRequest("GET", "http://www.zalando.de", http.NoBody)
-	if err != nil {
-		t.Fatalf("Failed to create request with NoBody: %v", err)
-	}
-	reqWithBody, err := http.NewRequest("GET", "http://www.zalando.de", bytes.NewBufferString("hello"))
-	if err != nil {
-		t.Fatalf("Failed to create request with body: %v", err)
-	}
-
+func TestRetries(t *testing.T) {
 	for _, tt := range []struct {
-		name string
-		req  *http.Request
-		want bool
+		name   string
+		method string
+		body   func() io.Reader
+		want   []int
 	}{
 		{
-			name: "test nil request",
-			req:  nil,
-			want: false,
+			name:   "GET request with nil body",
+			method: "GET",
+			body:   func() io.Reader { return nil },
+			want:   []int{200, 200},
 		},
 		{
-			name: "test request without body",
-			req:  reqWithoutBody,
-			want: true,
+			name:   "GET request with http.NoBody",
+			method: "GET",
+			body:   func() io.Reader { return http.NoBody },
+			want:   []int{200, 200},
 		},
 		{
-			name: "test request with no body",
-			req:  reqWithNoBody,
-			want: true,
+			name:   "POST request without body",
+			method: "POST",
+			body:   func() io.Reader { return nil },
+			want:   []int{200, 200},
 		},
 		{
-			name: "test request with body",
-			req:  reqWithBody,
-			want: false,
-		}} {
+			name:   "POST request with body",
+			method: "POST",
+			body:   func() io.Reader { return strings.NewReader("hello") },
+			want:   []int{200, 502},
+		},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := retryable(tt.req)
-			if got != tt.want {
-				t.Errorf("Failed to find retryable, want %v, got %v", tt.want, got)
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprintln(w, "backend reply")
+			}))
+			defer backend.Close()
+
+			unavailableBackend := "http://127.0.0.5:9" // refuses connections
+
+			doc := fmt.Sprintf(`hello: * -> <roundRobin, "%s", "%s">`, unavailableBackend, backend.URL)
+			tp, err := newTestProxy(doc, FlagsNone)
+			require.NoError(t, err)
+
+			ps := httptest.NewServer(tp.proxy)
+			defer func() {
+				ps.Close()
+				tp.close()
+			}()
+
+			// To avoid guessing which endpoint round robin picks first,
+			// make two requests and compare response codes ignoring request order
+			var codes []int
+			for i := 0; i < 2; i++ {
+				req, err := http.NewRequest(tt.method, ps.URL, tt.body())
+				require.NoError(t, err)
+
+				rsp, err := http.DefaultClient.Do(req)
+				require.NoError(t, err)
+
+				rsp.Body.Close()
+				codes = append(codes, rsp.StatusCode)
 			}
+			assert.ElementsMatch(t, tt.want, codes)
 		})
 	}
 }
@@ -590,52 +614,87 @@ func TestRoute(t *testing.T) {
 }
 
 func TestFastCgi(t *testing.T) {
-	payload := []byte("Hello, World!")
-	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Test-Response-Header", "response header value")
+	testTables := []struct {
+		path        string
+		payload     []byte
+		requestURI  string
+		httpRetCode int
+	}{
+		{"/hello", []byte("Hello, World!"), "https://www.example.org/hello", http.StatusOK},
+		{"/world", []byte("404 page not found\n"), "https://www.example.org/world/test.php", http.StatusNotFound},
+	}
 
-		if len(payload) <= 0 {
+	for _, table := range testTables {
+		payload := table.payload
+		http.HandleFunc(table.path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Test-Response-Header", "response header value")
+
+			if len(payload) <= 0 {
+				return
+			}
+
+			w.Header().Set("Content-Type", "text/plain")
+			w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+			w.WriteHeader(http.StatusOK)
+
+			w.Write(payload)
+		})
+
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			panic(err)
+		}
+		defer l.Close()
+
+		go fcgi.Serve(l, nil)
+
+		doc := fmt.Sprintf(`fastcgi: * -> "%s"`, "fastcgi://"+l.Addr().String())
+		tp, err := newTestProxy(doc, FlagsNone)
+		if err != nil {
+			t.Error(err)
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/plain")
-		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
-		w.WriteHeader(http.StatusOK)
+		defer tp.close()
 
-		w.Write(payload)
-	})
+		var (
+			r *http.Request
+			w *httptest.ResponseRecorder
+			u *url.URL
+		)
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		panic(err)
-	}
-	defer l.Close()
-
-	go fcgi.Serve(l, nil)
-
-	doc := fmt.Sprintf(`fastcgi: * -> "%s"`, "fastcgi://"+l.Addr().String())
-	tp, err := newTestProxy(doc, FlagsNone)
-	if err != nil {
-		t.Error(err)
-		return
+		u, _ = url.ParseRequestURI(table.requestURI)
+		r = &http.Request{
+			URL:    u,
+			Method: "GET"}
+		w = httptest.NewRecorder()
+		tp.proxy.ServeHTTP(w, r)
+		if w.Code != table.httpRetCode || !bytes.Equal(w.Body.Bytes(), table.payload) {
+			t.Errorf("wrong routing for %s, body got:%s want:%s", table.requestURI, w.Body.Bytes(), table.payload)
+			t.Errorf("wrong routing for %s, status got: %d, want: %d.", table.requestURI, w.Code, table.httpRetCode)
+		}
 	}
 
+}
+
+func TestFastCgiServiceUnavailable(t *testing.T) {
+	tp, err := newTestProxy(`fastcgi: * -> "fastcgi://invalid.test"`, FlagsNone)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer tp.close()
 
-	var (
-		r *http.Request
-		w *httptest.ResponseRecorder
-		u *url.URL
-	)
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
 
-	u, _ = url.ParseRequestURI("https://www.example.org/hello")
-	r = &http.Request{
-		URL:    u,
-		Method: "GET"}
-	w = httptest.NewRecorder()
-	tp.proxy.ServeHTTP(w, r)
-	if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), payload) {
-		t.Error("wrong routing 1")
+	rsp, err := http.Get(ps.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("expected 502, got: %v", rsp)
 	}
 }
 
@@ -825,7 +884,7 @@ func TestBreakFilterChain(t *testing.T) {
 	fr.Register(builtin.NewAppendRequestHeader())
 	resp1 := &http.Response{
 		Header:     make(http.Header),
-		Body:       ioutil.NopCloser(new(bytes.Buffer)),
+		Body:       io.NopCloser(new(bytes.Buffer)),
 		StatusCode: http.StatusUnauthorized,
 		Status:     "Impossible body",
 	}
@@ -934,9 +993,11 @@ func TestNilFilterIsNotCalledAndDoesNotBreakFilterChain(t *testing.T) {
 
 func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	reqBody := strings.NewReader("sample request body")
 	r := &http.Request{
 		URL:    u,
-		Method: "GET",
+		Method: "POST",
+		Body:   io.NopCloser(reqBody),
 		Header: http.Header{"X-Test-Header": []string{"test value"}}}
 	w := httptest.NewRecorder()
 
@@ -957,6 +1018,11 @@ func TestProcessesRequestWithShuntBackend(t *testing.T) {
 	if h, ok := w.Header()["X-Test-Response-Header"]; !ok || h[0] != "response header value" {
 		t.Error("wrong response header")
 	}
+	_, err = reqBody.ReadByte()
+	if err != io.EOF {
+		t.Error("request body was not read")
+	}
+
 }
 
 func TestProcessesRequestWithPriorityRoute(t *testing.T) {
@@ -1074,7 +1140,7 @@ func TestFlusherImplementation(t *testing.T) {
 		return
 	}
 	defer rsp.Body.Close()
-	b, err := ioutil.ReadAll(rsp.Body)
+	b, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Error(err)
 		return
@@ -1313,6 +1379,14 @@ func TestBackendServiceUnavailable(t *testing.T) {
 	if rsp.StatusCode != http.StatusBadGateway {
 		t.Error("failed to return 502 Bad Gateway on failing backend connection")
 	}
+
+	if rsp.Header.Get("Content-Length") != "12" { // len("Bad Gateway\n")
+		t.Errorf("expected content length of 12, got %s", rsp.Header.Get("Content-Length"))
+	}
+
+	if rsp.Header.Get("Transfer-Encoding") != "" {
+		t.Error("unexpected transfer encoding")
+	}
 }
 
 func TestRoundtripperRetry(t *testing.T) {
@@ -1384,6 +1458,33 @@ func TestRoundtripperRetry(t *testing.T) {
 
 	if rsp.StatusCode != http.StatusOK {
 		t.Error("failed to retry failing connection")
+	}
+}
+
+func TestResponseHeaderTimeout(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(5 * time.Microsecond)
+	}))
+	defer s.Close()
+
+	p, err := newTestProxyWithParams(fmt.Sprintf(`* -> "%s"`, s.URL), Params{ResponseHeaderTimeout: 1 * time.Microsecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.proxy.Close()
+
+	ps := httptest.NewServer(p.proxy)
+	defer ps.Close()
+
+	// Prevent retry
+	rsp, err := http.Post(ps.URL, "text/plain", strings.NewReader("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504, got: %v", rsp)
 	}
 }
 
@@ -1542,7 +1643,7 @@ func TestRequestContentHeaders(t *testing.T) {
 	const contentLength = 1 << 15
 
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Error(err)
 			return
@@ -1914,7 +2015,7 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1"`, http.StatusBadGateway, rsp.ContentLength)
+	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1"`, http.StatusBadGateway, len(http.StatusText(http.StatusBadGateway))+1)
 	if !strings.Contains(output, expected) || !strings.Contains(output, proxyURL.Host) {
 		t.Error("failed to log access", output, expected)
 		t.Log(output)

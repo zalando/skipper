@@ -7,7 +7,6 @@ package log
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"os"
@@ -17,11 +16,13 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/jwt"
 )
 
 const (
-	// AuditLogName is the filter name seen by the user
-	AuditLogName = "auditLog"
+	// Deprecated, use filters.AuditLogName instead
+	AuditLogName = filters.AuditLogName
+
 	// AuthUserKey is used by the auth package to set the user
 	// information into the state bag to pass the information to
 	// the auditLog filter.
@@ -30,8 +31,9 @@ const (
 	// reject reason information into the state bag to pass the
 	// information to the auditLog filter.
 	AuthRejectReasonKey = "auth-reject-reason"
-	// UnverifiedAuditLogName is the filtername seen by the user
-	UnverifiedAuditLogName = "unverifiedAuditLog"
+
+	// Deprecated, use filters.UnverifiedAuditLogName instead
+	UnverifiedAuditLogName = filters.UnverifiedAuditLogName
 
 	// UnverifiedAuditHeader is the name of the header added to the request which contains the unverified audit details
 	UnverifiedAuditHeader        = "X-Unverified-Audit"
@@ -42,7 +44,7 @@ const (
 )
 
 var (
-	re = regexp.MustCompile("^[a-zA-z0-9_/:?=&%@.#-]*$")
+	re = regexp.MustCompile("^[a-zA-Z0-9_/:?=&%@.#-]*$")
 )
 
 type auditLog struct {
@@ -117,7 +119,7 @@ func NewAuditLog(maxAuditBody int) filters.Spec {
 	}
 }
 
-func (al *auditLog) Name() string { return AuditLogName }
+func (al *auditLog) Name() string { return filters.AuditLogName }
 
 // CreateFilter has no arguments. It creates the filter if the user
 // specifies auditLog() in their route.
@@ -184,7 +186,7 @@ type (
 // NewUnverifiedAuditLog logs "Sub" of the middle part of a JWT Token. Or else, logs the requested JSON key if present
 func NewUnverifiedAuditLog() filters.Spec { return &unverifiedAuditLogSpec{} }
 
-func (ual *unverifiedAuditLogSpec) Name() string { return UnverifiedAuditLogName }
+func (ual *unverifiedAuditLogSpec) Name() string { return filters.UnverifiedAuditLogName }
 
 // CreateFilter has no arguments. It creates the filter if the user
 // specifies unverifiedAuditLog() in their route.
@@ -209,31 +211,21 @@ func (ual *unverifiedAuditLogSpec) CreateFilter(args []interface{}) (filters.Fil
 func (ual *unverifiedAuditLogFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	ahead := req.Header.Get(authHeaderName)
-	if !strings.HasPrefix(ahead, authHeaderPrefix) {
+	tv := strings.TrimPrefix(ahead, authHeaderPrefix)
+	if tv == ahead {
 		return
 	}
 
-	fields := strings.FieldsFunc(ahead, func(r rune) bool {
-		return r == []rune(".")[0]
-	})
-	if len(fields) == 3 {
-		sDec, err := base64.RawURLEncoding.DecodeString(fields[1])
-		if err != nil {
-			return
-		}
+	token, err := jwt.Parse(tv)
+	if err != nil {
+		return
+	}
 
-		var j map[string]interface{}
-		err = json.Unmarshal(sDec, &j)
-		if err != nil {
-			return
-		}
-
-		for i := 0; i < len(ual.TokenKeys); i++ {
-			if k, ok := j[ual.TokenKeys[i]]; ok {
-				if v, ok2 := k.(string); ok2 {
-					req.Header.Add(UnverifiedAuditHeader, cleanSub(v))
-					return
-				}
+	for i := 0; i < len(ual.TokenKeys); i++ {
+		if k, ok := token.Claims[ual.TokenKeys[i]]; ok {
+			if v, ok2 := k.(string); ok2 {
+				req.Header.Add(UnverifiedAuditHeader, cleanSub(v))
+				return
 			}
 		}
 	}

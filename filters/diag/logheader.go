@@ -2,33 +2,119 @@ package diag
 
 import (
 	"bytes"
-	"io/ioutil"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
-type logHeader struct{}
+type logHeader struct {
+	request  bool
+	response bool
+}
 
 // NewLogHeader creates a filter specification for the 'logHeader()' filter.
-func NewLogHeader() filters.Spec                                     { return logHeader{} }
-func (logHeader) Name() string                                       { return "logHeader" }
-func (logHeader) CreateFilter([]interface{}) (filters.Filter, error) { return logHeader{}, nil }
-func (logHeader) Response(filters.FilterContext)                     {}
+func NewLogHeader() filters.Spec { return logHeader{} }
 
-func (logHeader) Request(ctx filters.FilterContext) {
-	req := ctx.Request()
-	body := req.Body
-	defer func() {
-		req.Body = body
-	}()
+// Name returns the logHeader filtern name.
+func (logHeader) Name() string {
+	return filters.LogHeaderName
+}
 
-	req.Body = ioutil.NopCloser(bytes.NewBuffer(nil))
-	buf := bytes.NewBuffer(nil)
-	if err := req.Write(buf); err != nil {
-		log.Println(err)
+func (logHeader) CreateFilter(args []interface{}) (filters.Filter, error) {
+	var (
+		request  = false
+		response = false
+	)
+
+	// default behavior
+	if len(args) == 0 {
+		request = true
+	}
+
+	for i := range args {
+		opt, ok := args[i].(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		switch strings.ToLower(opt) {
+		case "response":
+			response = true
+		case "request":
+			request = true
+		}
+
+	}
+
+	return logHeader{
+		request:  request,
+		response: response,
+	}, nil
+}
+
+func (lh logHeader) Response(ctx filters.FilterContext) {
+	if !lh.response {
 		return
 	}
+
+	req := ctx.Request()
+	resp := ctx.Response()
+
+	buf := bytes.NewBuffer(nil)
+	buf.WriteString(req.Method)
+	buf.WriteString(" ")
+	buf.WriteString(req.URL.Path)
+	buf.WriteString(" ")
+	buf.WriteString(req.Proto)
+	buf.WriteString("\r\n")
+	buf.WriteString(resp.Status)
+	buf.WriteString("\r\n")
+	for k, v := range resp.Header {
+		if strings.ToLower(k) == "authorization" {
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.WriteString("TRUNCATED\r\n")
+		} else {
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.WriteString(strings.Join(v, " "))
+			buf.WriteString("\r\n")
+		}
+	}
+	buf.WriteString("\r\n")
+
+	log.Println("Response for", buf.String())
+}
+
+func (lh logHeader) Request(ctx filters.FilterContext) {
+	if !lh.request {
+		return
+	}
+
+	req := ctx.Request()
+
+	buf := bytes.NewBuffer(nil)
+	buf.WriteString(req.Method)
+	buf.WriteString(" ")
+	buf.WriteString(req.URL.Path)
+	buf.WriteString(" ")
+	buf.WriteString(req.Proto)
+	buf.WriteString("\r\nHost: ")
+	buf.WriteString(req.Host)
+	buf.WriteString("\r\n")
+	for k, v := range req.Header {
+		if strings.ToLower(k) == "authorization" {
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.WriteString("TRUNCATED\r\n")
+		} else {
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.WriteString(strings.Join(v, " "))
+			buf.WriteString("\r\n")
+		}
+	}
+	buf.WriteString("\r\n")
 
 	log.Println(buf.String())
 }

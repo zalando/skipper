@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 )
@@ -98,6 +99,13 @@ func TestLocalRatelimit(t *testing.T) {
 		}
 		waitClean()
 		checkNotRatelimitted(t, rl, client1)
+	})
+
+	t.Run("max hits 0", func(t *testing.T) {
+		s := s
+		s.MaxHits = 0
+		rl := newRatelimit(s, nil, nil)
+		checkRatelimitted(t, rl, client1)
 	})
 }
 
@@ -203,6 +211,61 @@ func TestTupleLookuper(t *testing.T) {
 			t.Errorf("Failed to lookup request")
 		}
 	})
+}
+
+func TestRoundRobinLookuper(t *testing.T) {
+	for _, tc := range []struct {
+		n, concurrency, iterations int
+	}{
+		{1, 1, 1},
+		{1, 100, 100},
+		{2, 100, 100},
+		{3, 100, 100},
+		{10, 100, 100},
+		{11, 100, 100},
+		{13, 17, 23},
+	} {
+		t.Run(fmt.Sprintf("n=%d, concurrency=%d, iterations=%d", tc.n, tc.concurrency, tc.iterations), func(t *testing.T) {
+			lookuper := NewRoundRobinLookuper(uint64(tc.n))
+			buckets := testRoundRobinLookuper(lookuper, tc.concurrency, tc.iterations)
+			if len(buckets) != tc.n {
+				t.Errorf("expected %d buckets, got %d", tc.n, len(buckets))
+			}
+			maxPerBucket := (tc.concurrency * tc.iterations / tc.n) + 1
+			for key, count := range buckets {
+				if count > maxPerBucket {
+					t.Errorf("expected max %d request for bucket %s, got %d", maxPerBucket, key, count)
+				}
+			}
+		})
+	}
+}
+
+func testRoundRobinLookuper(lookuper Lookuper, concurrency, iterations int) map[string]int {
+	ch := make(chan map[string]int, concurrency)
+	var wg sync.WaitGroup
+	for c := 0; c < concurrency; c++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			buckets := make(map[string]int)
+			for i := 0; i < iterations; i++ {
+				r, _ := http.NewRequest("GET", "/foo", nil)
+				buckets[lookuper.Lookup(r)]++
+			}
+			ch <- buckets
+		}()
+	}
+	wg.Wait()
+	close(ch)
+
+	result := make(map[string]int)
+	for b := range ch {
+		for key, count := range b {
+			result[key] += count
+		}
+	}
+	return result
 }
 
 func BenchmarkServiceRatelimit(b *testing.B) {

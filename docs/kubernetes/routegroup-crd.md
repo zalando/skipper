@@ -1,8 +1,8 @@
 # RouteGroup CRD Semantics
 
 This document contains the semantic definition of the RouteGroup CRD. For more information, see the [route group
-documentation](../routegroups/), or see the [CRD yaml
-definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/routegroups/apply/routegroups_crd.yaml).
+documentation](routegroups.md), or see the [CRD yaml
+definition](https://github.com/zalando/skipper/blob/master/dataclients/kubernetes/deploy/apply/routegroups_crd.yaml).
 
 ## Concepts
 
@@ -15,7 +15,7 @@ detected during processing a route group, none of the generated routes from that
 ### Hosts
 
 A list of allowed DNS host names that an incoming HTTP request should match in order to be handled by the route
-group. Hosts are optional.
+group. Host list is mandatory.
 
 ### Backend
 
@@ -36,18 +36,17 @@ Routes describe how a matching HTTP request is handled and where it is forwarded
 A predicate is used during route lookup to identify which route should handle an incoming request. Route group
 routes provide dedicated fields for the most common predicates like the path or the HTTP method, but in the
 predicates list field, it is possible to define and configure any predicate supported by Skipper. See the
-[Predicates](../../reference/predicates/) section of the reference.
+[Predicates](../reference/predicates.md) section of the reference.
 
 ### Filter
 
 A filter is used during handling the request to shape the request flow. In a route group, any filter supported
-by Skipper is allowed to be used. See the [Filters](../../reference/filters/)
+by Skipper is allowed to be used. See the [Filters](../reference/filters.md)
 section of the reference.
 
 ## RouteGroup - top level object
 
-The route group spec can or must contain the hosts, backends, default backends and routes. Mandatory fields are
-the backends, and either the defaultBackends or the routes.
+The route group spec must contain hosts, backends, routes and optional default backends.
 
 ```yaml
 apiVersion: zalando.org/v1
@@ -73,13 +72,13 @@ fields are the name and the type, while the rest of the fields may be required b
   name: <string>
   type: <string>            one of "service|shunt|loopback|dynamic|lb|network"
   address: <string>         optional, required for type=network
-  algorithm: <string>       optional, valid for type=lb|service, values=roundRobin|random|consistentHash
+  algorithm: <string>       optional, valid for type=lb|service, values=roundRobin|random|consistentHash|powerOfRandomNChoices
   endpoints: <stringarray>  optional, required for type=lb
   serviceName: <string>     optional, required for type=service
   servicePort: <number>     optional, required for type=service
 ```
 
-See more about Skipper backends in the [backend documentation](../../reference/backends/).
+See more about Skipper backends in the [backend documentation](../reference/backends.md).
 
 ## Backend reference
 
@@ -112,7 +111,7 @@ shaping with filters.
 ```
 
 The `path`, `pathSubtree` and `pathRegexp` fields work the same way as the predicate counterparts on eskip
-routes. See the [reference manual](../../reference/predicates/) for more details.
+routes. See the [reference manual](../reference/predicates.md) for more details.
 
 The `methods` field defines which methods an incoming request can have in order to match the route.
 
@@ -130,7 +129,7 @@ their eskip format. Example:
 
 See also:
 
-- [predicates](../../reference/predicates/)
-- [filters](../../reference/filters/)
+- [predicates](../reference/predicates.md)
+- [filters](../reference/filters.md)
 
 The <backendRef> references in the backends field, if present, define which backends a route should use.

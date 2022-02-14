@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -94,7 +93,7 @@ func compareBody(r *http.Response, contentLength int) (bool, error) {
 		}
 	}
 
-	b, err := ioutil.ReadAll(c)
+	b, err := io.ReadAll(c)
 	if err != nil {
 		return false, err
 	}
@@ -107,7 +106,7 @@ func benchmarkCompress(b *testing.B, n int64) {
 	f, _ := s.CreateFilter(nil)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			body := ioutil.NopCloser(&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: n})
+			body := io.NopCloser(&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: n})
 			req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,deflate"}}}
 			rsp := &http.Response{
 				Header: http.Header{"Content-Type": []string{"application/octet-stream"}},
@@ -116,7 +115,7 @@ func benchmarkCompress(b *testing.B, n int64) {
 				FRequest:  req,
 				FResponse: rsp}
 			f.Response(ctx)
-			_, err := ioutil.ReadAll(rsp.Body)
+			_, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -433,7 +432,7 @@ func TestCompress(t *testing.T) {
 			defer s.Close()
 
 			p := proxytest.New(MakeRegistry(), &eskip.Route{
-				Filters: []*eskip.Filter{{Name: CompressName, Args: ti.compressArgs}},
+				Filters: []*eskip.Filter{{Name: filters.CompressName, Args: ti.compressArgs}},
 				Backend: s.URL})
 			defer p.Close()
 
@@ -488,12 +487,12 @@ func TestForwardError(t *testing.T) {
 	req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,deflate"}}}
 	rsp := &http.Response{
 		Header: http.Header{"Content-Type": []string{"text/plain"}},
-		Body:   ioutil.NopCloser(&errorReader{"test-content", testError})}
+		Body:   io.NopCloser(&errorReader{"test-content", testError})}
 	ctx := &filtertest.Context{FRequest: req, FResponse: rsp}
 	f.Response(ctx)
 	enc := rsp.Header.Get("Content-Encoding")
 	dec := decoder(enc, rsp.Body)
-	b, err := ioutil.ReadAll(dec)
+	b, err := io.ReadAll(dec)
 	if string(b) != "test-content" || err != testError {
 		t.Error("failed to forward error", string(b), err)
 	}
@@ -549,7 +548,7 @@ func TestStreaming(t *testing.T) {
 	defer s.Close()
 
 	p := proxytest.New(MakeRegistry(), &eskip.Route{
-		Filters: []*eskip.Filter{{Name: CompressName}},
+		Filters: []*eskip.Filter{{Name: filters.CompressName}},
 		Backend: s.URL})
 	defer p.Close()
 
@@ -590,7 +589,7 @@ func TestStreaming(t *testing.T) {
 	defer body.Close()
 
 	if err := timeoutCall(chunkDelay*3/2, func(c chan<- error) {
-		_, err := ioutil.ReadAll(body)
+		_, err := io.ReadAll(body)
 		c <- err
 	}); err != nil {
 		t.Error(err)
@@ -632,12 +631,12 @@ func TestPoolRelease(t *testing.T) {
 							"Content-Length": []string{"9000"},
 							"Content-Type":   []string{"application/octet-stream"},
 						},
-						Body: ioutil.NopCloser(bytes.NewBuffer(testContent[:9000])),
+						Body: io.NopCloser(bytes.NewBuffer(testContent[:9000])),
 					},
 				}
 
 				f.Response(ctx)
-				ioutil.ReadAll(ctx.Response().Body)
+				io.ReadAll(ctx.Response().Body)
 				ctx.Response().Body.Close()
 			}
 

@@ -24,17 +24,27 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		port             int
 		host, token      string
 		cmdLine          string
+		plaintext        bool
 		logCmdLine       bool
 		logEvents        bool
 		maxBufferedSpans int
+		maxLogKeyLen     int
+		maxLogValueLen   int
+		maxLogsPerSpan   int
 
 		grpcMaxMsgSize     = defaultGRPMaxMsgSize
 		minReportingPeriod = lightstep.DefaultMinReportingPeriod
 		maxReportingPeriod = lightstep.DefaultMaxReportingPeriod
+		propagators        = make(map[opentracing.BuiltinFormat]lightstep.Propagator)
+		useGRPC            = true
 	)
 
 	componentName := defComponentName
 	globalTags := make(map[string]string)
+
+	defPropagator := lightstep.PropagatorStack{}
+	defPropagator.PushPropagator(lightstep.LightStepPropagator)
+	propagators[opentracing.HTTPHeaders] = defPropagator
 
 	for _, o := range opts {
 		parts := strings.SplitN(o, "=", 2)
@@ -84,15 +94,61 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 			if err != nil {
 				return lightstep.Options{}, fmt.Errorf("failed to parse %s as int: %v", sport, err)
 			}
+		case "plaintext":
+			var err error
+			plaintext, err = strconv.ParseBool(parts[1])
+			if err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as bool: %v", parts[1], err)
+			}
 		case "cmd-line":
 			cmdLine = parts[1]
 			logCmdLine = true
+		case "protocol":
+			switch parts[1] {
+			case "http":
+				useGRPC = false
+			case "grpc":
+				useGRPC = true
+			default:
+				return lightstep.Options{}, fmt.Errorf("failed to parse protocol allowed 'http' or 'grpc', got: %s", parts[1])
+			}
 		case "log-events":
 			logEvents = true
 		case "max-buffered-spans":
 			var err error
 			if maxBufferedSpans, err = strconv.Atoi(parts[1]); err != nil {
 				return lightstep.Options{}, fmt.Errorf("failed to parse max buffered spans: %v", err)
+			}
+		case "max-log-key-len":
+			var err error
+			if maxLogKeyLen, err = strconv.Atoi(parts[1]); err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse max log key length: %v", err)
+			}
+		case "max-log-value-len":
+			var err error
+			if maxLogValueLen, err = strconv.Atoi(parts[1]); err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse max log value length: %v", err)
+			}
+		case "max-logs-per-span":
+			var err error
+			if maxLogsPerSpan, err = strconv.Atoi(parts[1]); err != nil {
+				return lightstep.Options{}, fmt.Errorf("failed to parse max logs per span: %v", err)
+			}
+		case "propagators":
+			if len(parts) > 1 {
+				prStack := lightstep.PropagatorStack{}
+				prs := strings.SplitN(parts[1], ",", 2)
+				for _, pr := range prs {
+					switch pr {
+					case "lightstep", "ls":
+						prStack.PushPropagator(lightstep.LightStepPropagator)
+					case "b3":
+						prStack.PushPropagator(lightstep.B3Propagator)
+					default:
+						return lightstep.Options{}, fmt.Errorf("unknown propagator `%v`", pr)
+					}
+				}
+				propagators[opentracing.HTTPHeaders] = prStack
 			}
 		}
 	}
@@ -130,15 +186,20 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 	return lightstep.Options{
 		AccessToken: token,
 		Collector: lightstep.Endpoint{
-			Host: host,
-			Port: port,
+			Host:      host,
+			Port:      port,
+			Plaintext: plaintext,
 		},
-		UseGRPC:                     true,
+		UseGRPC:                     useGRPC,
 		Tags:                        tags,
 		MaxBufferedSpans:            maxBufferedSpans,
+		MaxLogKeyLen:                maxLogKeyLen,
+		MaxLogValueLen:              maxLogValueLen,
+		MaxLogsPerSpan:              maxLogsPerSpan,
 		GRPCMaxCallSendMsgSizeBytes: grpcMaxMsgSize,
 		ReportingPeriod:             maxReportingPeriod,
 		MinReportingPeriod:          minReportingPeriod,
+		Propagators:                 propagators,
 	}, nil
 }
 

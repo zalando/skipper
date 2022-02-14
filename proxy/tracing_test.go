@@ -1,10 +1,8 @@
 package proxy
 
 import (
-	"bytes"
 	"crypto/md5"
 	"fmt"
-	"github.com/zalando/skipper/tracing/tracingtest"
 	"io"
 	"math/rand"
 	"net/http"
@@ -13,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 const traceHeader = "X-Trace-Header"
@@ -70,30 +70,19 @@ func TestTracingFromWire(t *testing.T) {
 	}
 }
 
-func TestTracingRoot(t *testing.T) {
-	traceContent := fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
+func TestTracingIngressSpan(t *testing.T) {
 	s := startTestServer(nil, 0, func(r *http.Request) {
-		th, ok := r.Header[traceHeader]
-		if !ok {
-			t.Errorf("missing %s request header", traceHeader)
-		} else {
-			if th[0] != traceContent {
-				t.Errorf("wrong X-Trace-Header content: %s", th[0])
-			}
+		p := &mocktracer.TextMapPropagator{}
+		_, err := p.Extract(ot.HTTPHeadersCarrier(r.Header))
+		if err != nil {
+			t.Error(err)
 		}
 	})
 	defer s.Close()
 
-	u, _ := url.ParseRequestURI("https://www.example.org/hello")
-	r := &http.Request{
-		URL:    u,
-		Method: "GET",
-		Header: make(http.Header),
-	}
-	w := httptest.NewRecorder()
+	doc := fmt.Sprintf(`hello: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, s.URL)
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	tracer := &tracingtest.Tracer{TraceContent: traceContent}
+	tracer := mocktracer.New()
 	params := Params{
 		OpenTracing: &OpenTracingParams{
 			Tracer: tracer,
@@ -101,30 +90,47 @@ func TestTracingRoot(t *testing.T) {
 		Flags: FlagsNone,
 	}
 
+	t.Setenv("HOSTNAME", "ingress.tracing.test")
+
 	tp, err := newTestProxyWithParams(doc, params)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	defer tp.close()
 
-	tp.proxy.ServeHTTP(w, r)
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
 
-	if len(tracer.RecordedSpans) == 0 {
-		t.Fatal("no span recorded...")
+	req, err := http.NewRequest("GET", ps.URL+"/hello?world", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if tracer.RecordedSpans[0].Trace != traceContent {
-		t.Errorf("trace not found, got `%s` instead", tracer.RecordedSpans[0].Trace)
+	req.Header.Set("X-Flow-Id", "test-flow-id")
+
+	_, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	root, ok := tracer.FindSpan("ingress")
+	// client may get response before proxy finishes span
+	time.Sleep(10 * time.Millisecond)
+
+	span, ok := findSpan(tracer, "ingress")
 	if !ok {
-		t.Fatal("root span not found")
+		t.Fatal("ingress span not found")
 	}
 
-	if len(root.Refs) != 0 {
-		t.Error("root span cannot have references")
-	}
+	verifyTag(t, span, SpanKindTag, SpanKindServer)
+	verifyTag(t, span, ComponentTag, "skipper")
+	// to save memory we dropped the URL tag from ingress span
+	//verifyTag(t, span, HTTPUrlTag, "/hello?world") // For server requests there is no scheme://host:port, see https://golang.org/pkg/net/http/#Request
+	verifyTag(t, span, HTTPMethodTag, "GET")
+	verifyTag(t, span, HostnameTag, "ingress.tracing.test")
+	verifyTag(t, span, HTTPPathTag, "/hello")
+	verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
+	verifyTag(t, span, FlowIDTag, "test-flow-id")
+	verifyTag(t, span, HTTPStatusCodeTag, uint16(200))
+	verifyHasTag(t, span, HTTPRemoteIPTag)
 }
 
 func TestTracingSpanName(t *testing.T) {
@@ -219,54 +225,62 @@ func TestTracingInitialSpanName(t *testing.T) {
 }
 
 func TestTracingProxySpan(t *testing.T) {
-	const (
-		contentSize         = 1 << 16
-		prereadSize         = 1 << 12
-		responseStreamDelay = 30 * time.Millisecond
-	)
-
-	var content bytes.Buffer
-	if _, err := io.CopyN(&content, rand.New(rand.NewSource(0)), contentSize); err != nil {
-		t.Fatal(err)
-	}
-
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		if _, err := io.CopyN(w, &content, prereadSize); err != nil {
-			t.Fatal(err)
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := &mocktracer.TextMapPropagator{}
+		_, err := p.Extract(ot.HTTPHeadersCarrier(r.Header))
+		if err != nil {
+			t.Error(err)
 		}
-
-		time.Sleep(responseStreamDelay)
-		if _, err := io.Copy(w, &content); err != nil {
-			t.Fatal(err)
-		}
+		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer s.Close()
 
-	doc := fmt.Sprintf(`* -> "%s"`, s.URL)
-	tracer := &tracingtest.Tracer{}
+	doc := fmt.Sprintf(`hello: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, s.URL)
+	tracer := mocktracer.New()
+
+	t.Setenv("HOSTNAME", "proxy.tracing.test")
+
 	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{Tracer: tracer}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer tp.close()
 
-	req, err := http.NewRequest("GET", "https://www.example.org", nil)
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/hello?world", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Flow-Id", "test-flow-id")
+
+	_, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	w := httptest.NewRecorder()
-	tp.proxy.ServeHTTP(w, req)
+	// client may get response before proxy finishes span
+	time.Sleep(10 * time.Millisecond)
 
-	proxySpan, ok := tracer.FindSpan("proxy")
+	span, ok := findSpan(tracer, "proxy")
 	if !ok {
 		t.Fatal("proxy span not found")
 	}
 
-	if proxySpan.FinishTime.Sub(proxySpan.StartTime) < responseStreamDelay {
-		t.Error("proxy span did not wait for response stream to finish")
-	}
+	backendAddr := s.Listener.Addr().String()
+
+	verifyTag(t, span, SpanKindTag, SpanKindClient)
+	verifyTag(t, span, SkipperRouteIDTag, "hello")
+	verifyTag(t, span, ComponentTag, "skipper")
+	verifyTag(t, span, HTTPUrlTag, "http://"+backendAddr+"/bye") // proxy removes query
+	verifyTag(t, span, HTTPMethodTag, "GET")
+	verifyTag(t, span, HostnameTag, "proxy.tracing.test")
+	verifyTag(t, span, HTTPPathTag, "/bye")
+	verifyTag(t, span, HTTPHostTag, backendAddr)
+	verifyTag(t, span, FlowIDTag, "test-flow-id")
+	verifyTag(t, span, HTTPStatusCodeTag, uint16(204))
+	verifyNoTag(t, span, HTTPRemoteIPTag)
 }
 
 func TestTracingProxySpanWithRetry(t *testing.T) {
@@ -453,7 +467,7 @@ func TestSetDisabledTags(t *testing.T) {
 	tracing := newProxyTracing(&OpenTracingParams{
 		Tracer: tracer,
 		ExcludeTags: []string{
-			SkipperRouteTag,
+			SkipperRouteIDTag,
 		},
 	})
 	span := tracer.StartSpan("test")
@@ -461,7 +475,7 @@ func TestSetDisabledTags(t *testing.T) {
 
 	tracing.setTag(span, HTTPStatusCodeTag, 200)
 	tracing.setTag(span, ComponentTag, "skipper")
-	tracing.setTag(span, SkipperRouteTag, "long route definition")
+	tracing.setTag(span, SkipperRouteIDTag, "long_route_id")
 
 	mockSpan := span.(*mocktracer.MockSpan)
 
@@ -469,7 +483,7 @@ func TestSetDisabledTags(t *testing.T) {
 
 	_, ok := tags[HTTPStatusCodeTag]
 	_, ok2 := tags[ComponentTag]
-	_, ok3 := tags[SkipperRouteTag]
+	_, ok3 := tags[SkipperRouteIDTag]
 
 	if !ok || !ok2 {
 		t.Errorf("could not set tags although they were not configured to be excluded")
@@ -499,4 +513,34 @@ func TestSetTagWithEmptySpan(t *testing.T) {
 
 	// should not panic
 	tracing.setTag(nil, "test", "val")
+}
+
+func findSpan(tracer *mocktracer.MockTracer, name string) (*mocktracer.MockSpan, bool) {
+	for _, s := range tracer.FinishedSpans() {
+		if s.OperationName == name {
+			return s, true
+		}
+	}
+	return nil, false
+}
+
+func verifyTag(t *testing.T, span *mocktracer.MockSpan, name string, expected interface{}) {
+	t.Helper()
+	if got := span.Tag(name); got != expected {
+		t.Errorf("unexpected '%s' tag value: '%v' != '%v'", name, got, expected)
+	}
+}
+
+func verifyNoTag(t *testing.T, span *mocktracer.MockSpan, name string) {
+	t.Helper()
+	if got, ok := span.Tags()[name]; ok {
+		t.Errorf("unexpected '%s' tag: '%v'", name, got)
+	}
+}
+
+func verifyHasTag(t *testing.T, span *mocktracer.MockSpan, name string) {
+	t.Helper()
+	if got, ok := span.Tags()[name]; !ok || got == "" {
+		t.Errorf("expected '%s' tag", name)
+	}
 }

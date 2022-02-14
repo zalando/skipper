@@ -189,6 +189,9 @@ $ curl -sv localhost:9090/api >/dev/null
 
 ```
 
+If the request processing reaches the maximum number of loopbacks (by default max=9), the routing will
+result in an error.
+
 ## Dynamic backend
 
 The dynamic backend, `<dynamic>`, will get the backend to call by data
@@ -254,7 +257,8 @@ Current implemented algorithms:
 
 - `roundRobin`: backend is chosen by the round robin algorithm, starting with a random selected backend to spread across all backends from the beginning
 - `random`: backend is chosen at random
-- `consistentHash`: backend is chosen by a consistent hashing algorithm with the client X-Forwarded-For header with remote IP as the fallback as input to the hash function
+- `consistentHash`: backend is chosen by [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing) algorithm based on the request key. The request key is derived from `X-Forwarded-For` header or request remote IP address as the fallback. Use [`consistentHashKey`](filters.md#consistenthashkey) filter to set the request key. Use [`consistentHashBalanceFactor`](filters.md#consistenthashbalancefactor) to prevent popular keys from overloading a single backend endpoint.
+- `powerOfRandomNChoices`: backend is chosen by powerOfRandomNChoices algorithm with selecting N random endpoints and picking the one with least outstanding requests from them. (http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf)
 - __TODO__: https://github.com/zalando/skipper/issues/557
 
 Route example with 2 backends and the `roundRobin` algorithm:
@@ -270,6 +274,11 @@ r0: * -> <random, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 Route example with 2 backends and the `consistentHash` algorithm:
 ```
 r0: * -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+
+Route example with 2 backends and the `powerOfRandomNChoices` algorithm:
+```
+r0: * -> <powerOfRandomNChoices, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
 ```
 
 Proxy with `roundRobin` loadbalancer and two backends:

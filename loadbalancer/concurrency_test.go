@@ -2,7 +2,7 @@ package loadbalancer_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -106,7 +106,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 				break
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(err)
 				break
@@ -139,10 +139,14 @@ func TestConcurrencySingleRoute(t *testing.T) {
 
 func TestConstantlyUpdatingRoutes(t *testing.T) {
 	const (
-		backendCount       = 7
-		concurrency        = 32
-		repeatedRequests   = 300
-		routeUpdateTimeout = 5 * time.Millisecond
+		backendCount     = 7
+		concurrency      = 32
+		repeatedRequests = 300
+
+		routeUpdateTimeout   = 5 * time.Millisecond
+		routePollTimeout     = 10 * time.Millisecond
+		clientRequestTimeout = routeUpdateTimeout
+
 		// 5% tolerated
 		distributionTolerance = concurrency * repeatedRequests / backendCount * 5 / 100
 	)
@@ -180,7 +184,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 
 	p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
 		DataClients: []routing.DataClient{dataClient},
-		PollTimeout: routeUpdateTimeout,
+		PollTimeout: routePollTimeout,
 	}, route...)
 	defer p.Close()
 
@@ -191,7 +195,8 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 
 	var wg sync.WaitGroup
 	runClient := func() {
-		ticker := time.NewTicker(routeUpdateTimeout)
+		ticker := time.NewTicker(clientRequestTimeout)
+		defer ticker.Stop()
 		for i := 0; i < repeatedRequests && !t.Failed(); i++ {
 			<-ticker.C
 			req, err := http.NewRequest("GET", p.URL, nil)
@@ -212,7 +217,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 				break
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(err)
 				break
@@ -325,7 +330,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 				break
 			}
 
-			b, err := ioutil.ReadAll(rsp.Body)
+			b, err := io.ReadAll(rsp.Body)
 			if err != nil {
 				t.Error(err)
 				break
@@ -390,12 +395,13 @@ func checkDistribution(t *testing.T, counters map[string]counter, tolerance int)
 			}
 
 			if d > tolerance {
-				t.Error(
-					"failed to equally balance load, counters:",
+				t.Errorf(
+					"failed to equally balance load: %s: %d, %s: %d (diff: %d > tolerance: %d)",
 					member,
 					counter.value(),
 					compareMember,
 					compare.value(),
+					d, tolerance,
 				)
 			}
 		}

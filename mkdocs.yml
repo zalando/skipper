@@ -26,12 +26,15 @@ nav:
         - Ingress Backends: kubernetes/ingress-backends.md
         - RouteGroups: kubernetes/routegroups.md
         - RouteGroup CRD Semantics: kubernetes/routegroup-crd.md
+        - RouteGroup Validation: kubernetes/routegroup-validation.md
         - East-West aka svc-to-svc: kubernetes/east-west-usage.md
+        - External Addresses aka External Name: kubernetes/external-addresses.md
     - Tutorials:
         - Basics: tutorials/basics.md
         - Common Use Cases: tutorials/common-use-cases.md
         - Authentication and Autorization: tutorials/auth.md
         - Ratelimits: tutorials/ratelimit.md
+        - Shadow Traffic: tutorials/shadow-traffic.md
         - Operations: tutorials/operations.md
         - Development: tutorials/development.md
 theme:

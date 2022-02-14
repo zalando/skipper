@@ -2,8 +2,9 @@ package proxy
 
 import (
 	"bytes"
+	stdlibcontext "context"
+	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -28,6 +29,7 @@ type context struct {
 	route                *routing.Route
 	deprecatedServed     bool
 	servedWithResponse   bool // to support the deprecated way independently
+	successfulUpgrade    bool
 	pathParams           map[string]string
 	stateBag             map[string]interface{}
 	originalRequest      *http.Request
@@ -35,14 +37,16 @@ type context struct {
 	outgoingHost         string
 	debugFilterPanics    []interface{}
 	outgoingDebugRequest *http.Request
-	loopCounter          int
+	executionCounter     int
 	startServe           time.Time
 	metrics              *filterMetrics
 	tracer               opentracing.Tracer
+	initialSpan          opentracing.Span
 	proxySpan            opentracing.Span
 	parentSpan           opentracing.Span
-
-	routeLookup *routing.RouteLookup
+	proxy                *Proxy
+	routeLookup          *routing.RouteLookup
+	cancelBackendContext stdlibcontext.CancelFunc
 }
 
 type filterMetrics struct {
@@ -50,8 +54,12 @@ type filterMetrics struct {
 	impl   metrics.Metrics
 }
 
+type noopFlushedResponseWriter struct {
+	ignoredHeader http.Header
+}
+
 func defaultBody() io.ReadCloser {
-	return ioutil.NopCloser(&bytes.Buffer{})
+	return io.NopCloser(&bytes.Buffer{})
 }
 
 func defaultResponse(r *http.Request) *http.Response {
@@ -123,21 +131,19 @@ func appendParams(to, from map[string]string) map[string]string {
 func newContext(
 	w flushedResponseWriter,
 	r *http.Request,
-	preserveOriginal bool,
-	m metrics.Metrics,
-	rl *routing.RouteLookup,
+	p *Proxy,
 ) *context {
 	c := &context{
 		responseWriter: w,
 		request:        r,
 		stateBag:       make(map[string]interface{}),
 		outgoingHost:   r.Host,
-		metrics:        &filterMetrics{impl: m},
-
-		routeLookup: rl,
+		metrics:        &filterMetrics{impl: p.metrics},
+		proxy:          p,
+		routeLookup:    p.routing.Get(),
 	}
 
-	if preserveOriginal {
+	if p.flags.PreserveOriginal() {
 		c.originalRequest = cloneRequestMetadata(r)
 	}
 
@@ -233,8 +239,65 @@ func (c *context) clone() *context {
 	return &cc
 }
 
+func (c *context) wasExecuted() bool {
+	return c.executionCounter != 0
+}
+
 func (c *context) setMetricsPrefix(prefix string) {
 	c.metrics.prefix = prefix + ".custom."
+}
+
+func (c *context) Split() (filters.FilterContext, error) {
+	originalRequest := c.Request()
+	if c.proxy.experimentalUpgrade && isUpgradeRequest(originalRequest) {
+		return nil, errors.New("context: cannot split the context that contains an upgrade request")
+	}
+	cc := c.clone()
+	cc.stateBag = map[string]interface{}{}
+	cc.responseWriter = noopFlushedResponseWriter{}
+	cc.metrics = &filterMetrics{
+		prefix: cc.metrics.prefix,
+		impl:   cc.proxy.metrics,
+	}
+	u := new(url.URL)
+	*u = *originalRequest.URL
+	u.Host = originalRequest.Host
+	cr, body, err := cloneRequestForSplit(u, originalRequest)
+	if err != nil {
+		c.proxy.log.Errorf("context: failed to clone request: %v", err)
+		return nil, err
+	}
+	serverSpan := opentracing.SpanFromContext(originalRequest.Context())
+	cr = cr.WithContext(opentracing.ContextWithSpan(cr.Context(), serverSpan))
+	originalRequest.Body = body
+	cc.request = cr
+	return cc, nil
+}
+
+func (c *context) Loopback() {
+	err := c.proxy.do(c)
+	if c.response != nil && c.response.Body != nil {
+		if _, err := io.Copy(io.Discard, c.response.Body); err != nil {
+			c.proxy.log.Errorf("context: error while discarding remainder response body: %v.", err)
+		}
+		err := c.response.Body.Close()
+		if err != nil {
+			c.proxy.log.Errorf("context: error during closing the response body: %v", err)
+		}
+	}
+	if c.proxySpan != nil {
+		c.proxy.tracing.setTag(c.proxySpan, "shadow", "true")
+		c.proxySpan.Finish()
+	}
+
+	perr, ok := err.(*proxyError)
+	if ok && perr.handled {
+		return
+	}
+
+	if err != nil {
+		c.proxy.log.Errorf("context: failed to execute loopback request: %v", err)
+	}
 }
 
 func (m *filterMetrics) IncCounter(key string) {
@@ -252,3 +315,16 @@ func (m *filterMetrics) MeasureSince(key string, start time.Time) {
 func (m *filterMetrics) IncFloatCounterBy(key string, value float64) {
 	m.impl.IncFloatCounterBy(m.prefix+key, value)
 }
+
+func (w noopFlushedResponseWriter) Header() http.Header {
+	if w.ignoredHeader == nil {
+		w.ignoredHeader = make(http.Header)
+	}
+
+	return w.ignoredHeader
+}
+func (w noopFlushedResponseWriter) Write([]byte) (int, error) {
+	return 0, nil
+}
+func (w noopFlushedResponseWriter) WriteHeader(_ int) {}
+func (w noopFlushedResponseWriter) Flush()            {}

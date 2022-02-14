@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/predicates"
 )
 
 const (
@@ -17,10 +19,10 @@ const (
 )
 
 type redirectInfo struct {
-	defaultEnabled, enable, disable, override bool
-	defaultCode, code                         int
-	setHostCode                               map[string]int
-	disableHost                               map[string]bool
+	defaultEnabled, enable, disable, ignore bool
+	defaultCode, code                       int
+	setHostCode                             map[string]int
+	disableHost                             map[string]bool
 }
 
 func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
@@ -32,9 +34,10 @@ func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
 	}
 }
 
-func (r *redirectInfo) initCurrent(m *metadata) {
-	r.enable = !r.defaultEnabled && m.Annotations[redirectAnnotationKey] == "true"
-	r.disable = r.defaultEnabled && m.Annotations[redirectAnnotationKey] == "false"
+func (r *redirectInfo) initCurrent(m *definitions.Metadata) {
+	r.enable = m.Annotations[redirectAnnotationKey] == "true"
+	r.disable = m.Annotations[redirectAnnotationKey] == "false"
+	r.ignore = strings.Contains(m.Annotations[skipperpredicateAnnotationKey], `Header("X-Forwarded-Proto"`) || strings.Contains(m.Annotations[skipperRoutesAnnotationKey], `Header("X-Forwarded-Proto"`)
 
 	r.code = r.defaultCode
 	if annotationCode, ok := m.Annotations[redirectCodeAnnotationKey]; ok {
@@ -51,8 +54,6 @@ func (r *redirectInfo) initCurrent(m *metadata) {
 			r.code = r.defaultCode
 		}
 	}
-
-	r.override = r.defaultEnabled && !r.disable && r.code != r.defaultCode
 }
 
 func (r *redirectInfo) setHost(host string) {
@@ -64,12 +65,13 @@ func (r *redirectInfo) setHostDisabled(host string) {
 }
 
 func (r *redirectInfo) updateHost(host string) {
-	if r.enable || r.override {
+	switch {
+	case r.enable:
 		r.setHost(host)
-	}
-
-	if r.disable {
+	case r.disable:
 		r.setHostDisabled(host)
+	case r.defaultEnabled:
+		r.setHost(host)
 	}
 }
 
@@ -90,14 +92,17 @@ func initRedirectRoute(r *eskip.Route, code int) {
 
 	// Give this route a higher weight so that it will get precedence over existing routes
 	r.Predicates = append([]*eskip.Predicate{{
-		Name: routing.WeightPredicateName,
+		Name: predicates.WeightName,
 		Args: []interface{}{float64(1000)},
 	}}, r.Predicates...)
 
-	r.Filters = append(r.Filters, &eskip.Filter{
-		Name: "redirectTo",
-		Args: []interface{}{float64(code), "https:"},
-	})
+	// remove all filters and just set redirect filter
+	r.Filters = []*eskip.Filter{
+		{
+			Name: "redirectTo",
+			Args: []interface{}{float64(code), "https:"},
+		},
+	}
 
 	r.BackendType = eskip.ShuntBackend
 	r.Backend = ""
@@ -111,7 +116,7 @@ func initDisableRedirectRoute(r *eskip.Route) {
 
 	// Give this route a higher weight so that it will get precedence over existing routes
 	r.Predicates = append([]*eskip.Predicate{{
-		Name: routing.WeightPredicateName,
+		Name: predicates.WeightName,
 		Args: []interface{}{float64(1000)},
 	}}, r.Predicates...)
 }
@@ -177,10 +182,13 @@ func createHTTPSRedirect(code int, r *eskip.Route) *eskip.Route {
 		Args: []interface{}{forwardedProtoHeader, "http"},
 	})
 
-	rr.Filters = append(rr.Filters, &eskip.Filter{
-		Name: "redirectTo",
-		Args: []interface{}{float64(code), "https:"},
-	})
+	// remove all filters and just set redirect filter
+	rr.Filters = []*eskip.Filter{
+		{
+			Name: "redirectTo",
+			Args: []interface{}{float64(code), "https:"},
+		},
+	}
 
 	return rr
 }

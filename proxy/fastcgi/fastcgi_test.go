@@ -2,7 +2,7 @@ package fastcgi
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/fcgi"
@@ -58,7 +58,7 @@ func TestFastCgi(t *testing.T) {
 
 		return
 	}
-	b, err := ioutil.ReadAll(response.Body)
+	b, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Error(err)
 

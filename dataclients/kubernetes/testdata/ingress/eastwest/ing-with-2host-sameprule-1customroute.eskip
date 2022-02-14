@@ -1,0 +1,23 @@
+kube_foo__qux__0__www1_example_org_____:
+	Host("^(www1[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/") && Method("OPTIONS") -> <shunt>;
+kube_foo__qux__www1_example_org_____qux:
+	Host("^(www1[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+kube_foo__qux__0__www2_example_org_____:
+	Host("^(www2[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/") && Method("OPTIONS") -> <shunt>;
+kube_foo__qux__www2_example_org_____qux:
+	Host("^(www2[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+kubeew_foo__qux__0__www1_example_org_____:
+	Host("^(qux[.]foo[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$") && Method("OPTIONS") && PathRegexp("^/")
+	-> <shunt>;
+kubeew_foo__qux__www1_example_org_____qux:
+	Host("^(qux[.]foo[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+kubeew_foo__qux__0__www2_example_org_____:
+	Host("^(qux[.]foo[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$") && Method("OPTIONS") && PathRegexp("^/")
+	-> <shunt>;
+kubeew_foo__qux__www2_example_org_____qux:
+	Host("^(qux[.]foo[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+

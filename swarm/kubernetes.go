@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -124,7 +123,7 @@ func buildHTTPClient(certFilePath string, inCluster bool, quit chan struct{}) (*
 		return http.DefaultClient, nil
 	}
 
-	rootCA, err := ioutil.ReadFile(certFilePath)
+	rootCA, err := os.ReadFile(certFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +188,7 @@ func readServiceAccountToken(tokenFilePath string, inCluster bool) (string, erro
 		return "", nil
 	}
 
-	bToken, err := ioutil.ReadFile(tokenFilePath)
+	bToken, err := os.ReadFile(tokenFilePath)
 	if err != nil {
 		return "", err
 	}

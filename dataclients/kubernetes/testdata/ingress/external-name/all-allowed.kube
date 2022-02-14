@@ -1,0 +1,4 @@
+onlyAllowedExternalNames: true
+allowedExternalNames:
+- ^external1[.]example[.]org$
+- ^external2[.]example[.]org$

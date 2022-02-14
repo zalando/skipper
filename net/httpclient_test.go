@@ -1,13 +1,13 @@
 package net
 
 import (
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing/tracers/basic"
@@ -45,6 +45,13 @@ func TestClient(t *testing.T) {
 	}{
 		{
 			name:    "All defaults, with request should have a response",
+			wantErr: false,
+		},
+		{
+			name: "Idle conn timeout",
+			options: Options{
+				Timeout: 3 * time.Second,
+			},
 			wantErr: false,
 		},
 		{
@@ -99,6 +106,15 @@ func TestClient(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "With Transport",
+			options: Options{
+				Transport: &http.Transport{
+					ResponseHeaderTimeout: 5 * time.Second,
+				},
+			},
+			wantErr: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := startTestServer(func(r *http.Request) {
@@ -128,13 +144,13 @@ func TestClient(t *testing.T) {
 			defer s.Close()
 
 			if tt.tokenFile != "" {
-				dir, err := ioutil.TempDir("/tmp", "skipper-httpclient-test")
+				dir, err := os.MkdirTemp("/tmp", "skipper-httpclient-test")
 				if err != nil {
 					t.Fatalf("Failed to create temp dir: %v", err)
 				}
 				defer os.RemoveAll(dir) // clean up
 				tokenFile := filepath.Join(dir, tt.tokenFile)
-				if err := ioutil.WriteFile(tokenFile, []byte(testToken), 0600); err != nil {
+				if err := os.WriteFile(tokenFile, []byte(testToken), 0600); err != nil {
 					t.Fatalf("Failed to create token file: %v", err)
 				}
 				tt.options.BearerTokenFile = tokenFile
@@ -200,6 +216,16 @@ func TestTransport(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Transport, with request should have a response",
+			options: Options{
+				Transport: &http.Transport{
+					ResponseHeaderTimeout: 5 * time.Second,
+				},
+			},
+			req:     httptest.NewRequest("GET", "http://example.com/", nil),
+			wantErr: false,
+		},
+		{
 			name: "With opentracing, should have opentracing headers",
 			options: Options{
 				Tracer: tracer,
@@ -260,6 +286,7 @@ func TestTransport(t *testing.T) {
 				t.Errorf("Transport.RoundTrip() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			rt.CloseIdleConnections()
 
 		})
 	}

@@ -16,6 +16,38 @@ Example route with a match all, 2 filters and a backend:
 all: * -> filter1 -> filter2 -> "http://127.0.0.1:1234/";
 ```
 
+## Template placeholders
+
+Several filters support template placeholders (`${var}`) in string parameters.
+
+Template placeholder is replaced by the value that is looked up in the following sources:
+
+* request method (`${request.method}`)
+* request host (`${request.host}`)
+* request url path (`${request.path}`)
+* request url query (if starts with `request.query.` prefix, e.g `${request.query.q}` is replaced by `q` query parameter value)
+* request headers (if starts with `request.header.` prefix, e.g `${request.header.Content-Type}` is replaced by `Content-Type` request header value)
+* request cookies (if starts with `request.cookie.` prefix, e.g `${request.cookie.PHPSESSID}` is replaced by `PHPSESSID` request cookie value)
+* request IP address
+    - `${request.source}` - first IP address from `X-Forwarded-For` header or request remote IP address if header is absent, similar to [Source](predicates.md#source) predicate
+    - `${request.sourceFromLast}` - last IP address from `X-Forwarded-For` header or request remote IP address if header is absent, similar to [SourceFromLast](predicates.md#sourcefromlast) predicate
+    - `${request.clientIP}` - request remote IP address similar to [ClientIP](predicates.md#clientip) predicate
+* response headers (if starts with `response.header.` prefix, e.g `${response.header.Location}` is replaced by `Location` response header value)
+* filter context path parameters (e.g. `${id}` is replaced by `id` path parameter value)
+
+Missing value interpretation depends on the filter.
+
+Example route that rewrites path using template placeholder:
+
+```
+u1: Path("/user/:id") -> setPath("/v2/user/${id}") -> <loopback>;
+```
+
+Example route that creates header from query parameter:
+```
+r: Path("/redirect") && QueryParam("to") -> status(303) -> setResponseHeader("Location", "${request.query.to}") -> <shunt>;
+```
+
 ## backendIsProxy
 
 Notifies the proxy that the backend handling this request is also a
@@ -68,20 +100,28 @@ enforce_www: * -> modRequestHeader("Host", "^zalando\.(\w+)$", "www.zalando.$1")
 
 Set headers for requests.
 
+Header value may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then filter does not set the header.
+
 Parameters:
 
 * header name (string)
 * header value (string)
 
-Example:
+Examples:
 
 ```
 foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.example.org";
 ```
 
+```
+// Ratelimit per resource
+Path("/resource/:id") -> setRequestHeader("X-Resource-Id", "${id}") -> clusterClientRateLimit("resource", 10, "1m", "X-Resource-Id") -> "https://backend.example.org";
+```
+
 ## appendRequestHeader
 
-Same as [setRequestHeader](#setRequestHeader),
+Same as [setRequestHeader](#setrequestheader),
 but appends the provided value to the already existing ones.
 
 ## dropRequestHeader
@@ -102,6 +142,16 @@ foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
 
 Same as [setRequestHeader](#setrequestheader), only for responses
 
+Example:
+
+```
+set_cookie_with_path_param:
+  Path("/path/:id") && Method("GET")
+  -> setResponseHeader("Set-Cookie", "cid=${id}; Max-Age=36000; Secure")
+  -> redirectTo(302, "/")
+  -> <shunt>
+```
+
 ## appendResponseHeader
 
 Same as [appendRequestHeader](#appendrequestheader), only for responses
@@ -121,7 +171,7 @@ Parameters:
 * header name (string)
 * key in the state bag (string)
 
-The the route in the following example checkes whether the request is authorized with the
+The route in the following example checks whether the request is authorized with the
 oauthTokeninfoAllScope() filter. This filter stores the authenticated user with "auth-user"
 key in the context, and the setContextRequestHeader() filter in the next step stores it in
 the header of the outgoing request with the X-Uid name:
@@ -132,16 +182,35 @@ foo: * -> oauthTokeninfoAllScope("address_service.all") -> setContextRequestHead
 
 ## appendContextRequestHeader
 
-Same as [setContextRequestHeader](#setContextRequestHeader),
+Same as [setContextRequestHeader](#setcontextrequestheader),
 but appends the provided value to the already existing ones.
 
 ## setContextResponseHeader
 
-Same as [setContextRequestHeader](#setContextRequestHeader), except for responses.
+Same as [setContextRequestHeader](#setcontextrequestheader), except for responses.
 
 ## appendContextResponseHeader
 
-Same as [appendContextRequestHeader](#appendContextRequestHeader), except for responses.
+Same as [appendContextRequestHeader](#appendcontextrequestheader), except for responses.
+
+## copyRequestHeader
+
+Copies value of a given request header to another header.
+
+Parameters:
+
+* source header name (string)
+* target header name (string)
+
+Example:
+
+```
+foo: * -> copyRequestHeader("X-Foo", "X-Bar") -> "https://backend.example.org";
+```
+
+## copyResponseHeader
+
+Same as [copyRequestHeader](#copyrequestheader), except for responses.
 
 ## modPath
 
@@ -169,6 +238,9 @@ Parameters:
 
 * the replacement (string)
 
+The replacement may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
+
 ## redirectTo
 
 Creates an HTTP redirect response.
@@ -194,7 +266,7 @@ see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
 ## redirectToLower
 
-Same as [redirectTo](#redirectTo), but replaces all strings to lower case.
+Same as [redirectTo](#redirectto), but replaces all strings to lower case.
 
 ## static
 
@@ -338,6 +410,9 @@ Parameters:
 * key (string)
 * value (string)
 
+Key and value may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
+
 Example:
 
 ```
@@ -352,6 +427,9 @@ given key.
 Parameters:
 
 * key (string)
+
+Key may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
 
 Example:
 
@@ -373,12 +451,15 @@ Example:
 ```
 * -> inlineContent("<h1>Hello</h1>") -> <shunt>
 * -> inlineContent("[1,2,3]", "application/json") -> <shunt>
+* -> status(418) -> inlineContent("Would you like a cup of tea?") -> <shunt>
 ```
 
-Content type will be automatically detected when not provided.
+Content type will be automatically detected when not provided using https://mimesniff.spec.whatwg.org/#rules-for-identifying-an-unknown-mime-type algorithm.
+Note that content detection algorithm does not contain any rules for recognizing JSON.
 
 !!! note
-    `inlineContent` filter is special and must be the last in the filter chain.
+    `inlineContent` filter sets the response on request path and starts the response path immediately.
+    The rest of the filter chain and backend are ignored and therefore `inlineContent` filter must be the last in the chain.
 
 ## inlineContentIfStatus
 
@@ -428,7 +509,7 @@ header.
 
 ## xforwardFirst
 
-Same as [xforward](xforward), but instead of appending the last remote IP, it prepends it to comply with the
+Same as [xforward](#xforward), but instead of appending the last remote IP, it prepends it to comply with the
 approach of certain LB implementations.
 
 ## randomContent
@@ -443,6 +524,38 @@ Example:
 
 ```
 * -> randomContent(42) -> <shunt>;
+```
+
+## repeatContent
+
+Generate response of specified size from repeated text.
+
+Parameters:
+
+* text to repeat (string)
+* size of response in bytes (int)
+
+Example:
+
+```
+* -> repeatContent("I will not waste chalk. ", 1000) -> <shunt>;
+```
+
+## backendTimeout
+
+Configure backend timeout. Skipper responds with `504 Gateway Timeout` status if obtaining a connection,
+sending the request, and reading the backend response headers and body takes longer than the configured timeout.
+However, if response streaming has already started it will be terminated, i.e. client will receive backend response
+status and truncated response body.
+
+Parameters:
+
+* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+
+Example:
+
+```
+* -> backendTimeout("10ms") -> "https://www.example.org";
 ```
 
 ## latency
@@ -516,12 +629,85 @@ It logs with INFO level and a unique ID per request:
 - the finishing event of the request
 - any read errors other than EOF
 
+## absorbSilent
+
+The absorbSilent filter reads and discards the payload of the incoming requests. It only
+logs read errors other than EOF.
+
+## uniformRequestLatency
+
+The uniformRequestLatency filter introduces uniformly distributed
+jitter latency within `[mean-delta, mean+delta]` interval for
+requests. The first parameter is the mean and the second is delta. In
+the example we would sleep for `100ms+/-10ms`.
+
+Example:
+
+```
+* -> uniformRequestLatency("100ms", "10ms") -> "https://www.example.org";
+```
+
+## normalRequestLatency
+
+The normalRequestLatency filter introduces normally distributed jitter
+latency with configured mean value for requests. The first parameter
+is µ (mean) and the second is σ as in
+https://en.wikipedia.org/wiki/Normal_distribution.
+
+Example:
+
+```
+* -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
+```
+
+## uniformResponseLatency
+
+The uniformResponseLatency filter introduces uniformly distributed
+jitter latency within `[mean-delta, mean+delta]` interval for
+responses. The first parameter is the mean and the second is delta. In
+the example we would sleep for `100ms+/-10ms`.
+
+Example:
+
+```
+* -> uniformRequestLatency("100ms", "10ms") -> "https://www.example.org";
+```
+
+## normalResponseLatency
+
+The normalResponseLatency filter introduces normally distributed
+jitter latency with configured mean value for responses. The first
+parameter is µ (mean) and the second is σ as in
+https://en.wikipedia.org/wiki/Normal_distribution.
+
+Example:
+
+```
+* -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
+```
+
 ## logHeader
 
 The logHeader filter prints the request line and the header, but not the body, to
 stderr. Note that this filter should be used only in diagnostics setup and with care,
 since the request headers may contain sensitive data, and they also can explode the
-amount of logs.
+amount of logs. Authorization headers will be truncated in request and
+response header logs. You can log request or response headers, which
+defaults for backwards compatibility to request headers.
+
+Parameters:
+
+* no arg, similar to: "request"
+* "request" or "response" (string varargs)
+
+Example:
+
+```
+* -> logHeader() -> "https://www.example.org";
+* -> logHeader("request") -> "https://www.example.org";
+* -> logHeader("response") -> "https://www.example.org";
+* -> logHeader("request", "response") -> "https://www.example.org";
+```
 
 ## tee
 
@@ -559,6 +745,42 @@ incoming requests.
 ## teenf
 
 The same as [tee filter](#tee), but does not follow redirects from the backend.
+
+## teeLoopback
+
+This filter provides a unix-like tee feature for routing, but unlike the [tee](#tee),
+this filter feeds the copied request to the start of the routing, including the
+route lookup and executing the filters on the matched route.
+
+It is recommended to use this solution instead of the tee filter, because the same
+routing facilities are used for the outgoing tee requests as for the normal
+requests, and all the filters and backend types are supported.
+
+To ensure that the right route, or one of the right set of routes, is matched
+after the loopback, use the filter together with the [Tee](predicates.md#tee)
+predicate, however, this is not mandatory if the request is changed via other
+filters, such that other predicates ensure matching the right route. To avoid
+infinite looping, the number of requests spawn from a single incoming request
+is limited similarly as in case of the
+[loopback backend](backends.md#loopback-backend).
+
+Parameters:
+
+* tee group (string): a label identifying which routes should match the loopback
+  request, marked with the [Tee](predicates.md#tee) predicate
+
+Example, generate shadow traffic from 10% of the production traffic:
+
+```
+main: * -> "https://main-backend.example.org;
+main-split: Traffic(.1) -> teeLoopback("test-A") -> "https://main-backend.example.org";
+shadow: Tee("test-A") && True() -> "https://test-backend.example.org";
+```
+
+See also:
+
+* [Tee predicate](predicates.md#tee)
+* [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
 
 ## sed
 
@@ -681,8 +903,11 @@ is being done to the webhook endpoint. It is possible to copy headers
 from the webhook response into the continuing request by specifying the
 headers to copy as an optional second argument to the filter.
 
-Responses from the webhook with status code less than 300 will be
-authorized, the rest will be unauthorized.
+Responses from the webhook will be treated as follows:
+
+* Authorized if the status code is less than 300
+* Forbidden if the status code is 403
+* Unauthorized for remaining status codes
 
 Examples:
 
@@ -797,7 +1022,7 @@ token, it will allow the request to pass.
 Examples:
 
 ```
-oauthTokenintrospectionAnyClaims("c1", "c2", "c3")
+oauthTokenintrospectionAnyClaims("https://accounts.google.com", "c1", "c2", "c3")
 ```
 
 ## oauthTokenintrospectionAllClaims
@@ -816,7 +1041,7 @@ token, it will allow the request to pass.
 Examples:
 
 ```
-oauthTokenintrospectionAllClaims("c1", "c2", "c3")
+oauthTokenintrospectionAllClaims("https://accounts.google.com", "c1", "c2", "c3")
 ```
 
 ## oauthTokenintrospectionAnyKV
@@ -836,8 +1061,8 @@ it will allow the request to pass.
 Examples:
 
 ```
-oauthTokenintrospectionAnyKV("k1", "v1", "k2", "v2")
-oauthTokenintrospectionAnyKV("k1", "v1", "k1", "v2")
+oauthTokenintrospectionAnyKV("https://accounts.google.com", "k1", "v1", "k2", "v2")
+oauthTokenintrospectionAnyKV("https://accounts.google.com", "k1", "v1", "k1", "v2")
 ```
 
 ## oauthTokenintrospectionAllKV
@@ -857,7 +1082,7 @@ it will allow the request to pass.
 Examples:
 
 ```
-oauthTokenintrospectionAllKV("k1", "v1", "k2", "v2")
+oauthTokenintrospectionAllKV("https://accounts.google.com", "k1", "v1", "k2", "v2")
 ```
 
 ## secureOauthTokenintrospectionAnyClaims
@@ -869,6 +1094,7 @@ for example `https://accounts.google.com`, that will be used as
 described in [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
 to find the configuration and for example supported claims.
 
+Second and third arguments are the client-id and client-secret.
 Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
 The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
 
@@ -896,6 +1122,7 @@ for example `https://accounts.google.com`, that will be used as
 described in [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
 to find the configuration and for example supported claims.
 
+Second and third arguments are the client-id and client-secret.
 Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
 The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
 
@@ -924,6 +1151,7 @@ that will be used as described in
 [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
 to find the configuration and for example supported claims.
 
+Second and third arguments are the client-id and client-secret.
 Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
 The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
 
@@ -952,6 +1180,7 @@ that will be used as described in
 [RFC Draft](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06#section-5)
 to find the configuration and for example supported claims.
 
+Second and third arguments are the client-id and client-secret.
 Use this filter if the Token Introspection endpoint requires authorization to validate and decode the incoming token.
 The filter will optionally read client-id and client-secret from environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET
 
@@ -970,12 +1199,26 @@ Read client-id and client-secret from environment variables
 secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 ```
 
+## jwtValidation
+
+The filter parses bearer jwt token from Authorization header and validates the signature using public keys
+discovered via /.well-known/openid-configuration endpoint. Takes issuer url as single parameter.
+The filter stores token claims into the state bag where they can be used by oidcClaimsQuery() or forwardTokenPart()
+
+
+Examples:
+
+```
+jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
+```
+
+
+
 ## forwardToken
 
-The filter takes the (string) header name as its first argument. The result of token info or token introspection is added to
-this header when the request is passed to the backend. If there are additional arguments, these
-values are treated as a whitelisted set of JSON keys to be included in the
-header payload when forwarding to the backend service.
+The filter takes the header name as its first argument and sets header value to the
+token info or token introspection result serialized as a JSON object.
+To include only particular fields provide their names as additional arguments.
 
 If this filter is used when there is no token introspection or token info data
 then it does not have any effect.
@@ -984,14 +1227,147 @@ Examples:
 
 ```
 forwardToken("X-Tokeninfo-Forward")
-forwardToken("X-Tokeninfo-Forward", "access_token")
+forwardToken("X-Tokeninfo-Forward", "access_token", "token_type")
 ```
+
+## forwardTokenField
+
+The filter takes a header name and a field as its first and second arguments. The corresponding field from the result of token info, token introspection or oidc user info is added as
+corresponding header when the request is passed to the backend.
+
+If this filter is used when there is no token introspection, token info or oidc user info data
+then it does not have any effect.
+
+To forward multiple fields filters can be sequenced
+
+Examples:
+
+```
+forwardTokenField("X-Tokeninfo-Forward-Oid", "oid") -> forwardTokenField("X-Tokeninfo-Forward-Sub", "sub")
+```
+
+## oauthGrant
+
+Enables authentication and authorization with an OAuth2 authorization code grant flow as
+specified by [RFC 6749 Section 1.3.1](https://tools.ietf.org/html/rfc6749#section-1.3.1).
+Automatically redirects unauthenticated users to log in at their provider's authorization
+endpoint. Supports token refreshing and stores access and refresh tokens in an encrypted
+cookie. Supports credential rotation for the OAuth2 client ID and secret.
+
+The filter consumes and drops the grant token request cookie to prevent it from leaking
+to untrusted downstream services.
+
+The filter will inject the OAuth2 bearer token into the request headers if the flag
+`oauth2-access-token-header-name` is set.
+
+The filter must be used in conjunction with the [grantCallback](#grantcallback) filter
+where the OAuth2 provider can redirect authenticated users with an authorization code.
+Skipper will make sure to add the `grantCallback` filter for you to your routes when
+you pass the `-enable-oauth2-grant-flow` flag.
+
+The filter may be used with the [grantClaimsQuery](#grantclaimsquery) filter to perform
+authz and access control.
+
+See the [tutorial](../tutorials/auth.md#oauth2-authorization-grant-flow) for step-by-step
+instructions.
+
+Examples:
+
+```
+all:
+    *
+    -> oauthGrant()
+    -> "http://localhost:9090";
+```
+
+Skipper arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-enable-oauth2-grant-flow` | **yes** | toggle flag to enable the `oauthGrant()` filter. Must be set if you use the filter in routes. Example: `-enable-oauth2-grant-flow` |
+| `-oauth2-auth-url` | **yes** | URL of the OAuth2 provider's authorize endpoint. Example: `-oauth2-auth-url=https://identity.example.com/oauth2/authorize` |
+| `-oauth2-token-url` | **yes** | URL of the OAuth2 provider's token endpoint. Example: `-oauth2-token-url=https://identity.example.com/oauth2/token` |
+| `-oauth2-tokeninfo-url` | **yes** | URL of the OAuth2 provider's tokeninfo endpoint. Example: `-oauth2-tokeninfo-url=https://identity.example.com/oauth2/tokeninfo` |
+| `-oauth2-secret-file` | **yes** | path to the file containing the secret for encrypting and decrypting the grant token cookie (the secret can be anything). Example: `-oauth2-secret-file=/path/to/secret` |
+| `-oauth2-client-id-file` | conditional | path to the file containing the OAuth2 client ID. Required if you have not set `-oauth2-client-id`. Example: `-oauth2-client-id-file=/path/to/client_id` |
+| `-oauth2-client-secret-file` | conditional | path to the file containing the OAuth2 client secret. Required if you have not set `-oauth2-client-secret`. Example: `-oauth2-client-secret-file=/path/to/client_secret` |
+| `-oauth2-client-id` | conditional | OAuth2 client ID for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-id-file`. Example: `-oauth2-client-id=myclientid` |
+| `-oauth2-client-secret` | conditional | OAuth2 client secret for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-secret-file`. Example: `-oauth2-client-secret=myclientsecret` |
+| `-credentials-update-interval` | no | the time interval for updating client id and client secret from files. Example: `-credentials-update-interval=30s` |
+| `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Example: `-oauth2-access-token-header-name=X-Grant-Authorization` |
+| `-oauth2-auth-url-parameters` | no | any additional URL query parameters to set for the OAuth2 provider's authorize and token endpoint calls. Example: `-oauth2-auth-url-parameters=key1=foo,key2=bar` |
+| `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
+| `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`.  Example: `-oauth2-token-cookie-name=SESSION` |
+
+## grantCallback
+
+The filter accepts authorization codes as a result of an OAuth2 authorization code grant
+flow triggered by [oauthGrant](#oauthgrant). It uses the code to request access and
+refresh tokens from the OAuth2 provider's token endpoint.
+
+Examples:
+
+```
+// The callback route is automatically added when the `-enable-oauth2-grant-flow`
+// flag is passed. You do not need to register it yourself. This is the equivalent
+// of the route that Skipper adds for you:
+callback:
+    Path("/.well-known/oauth2-callback")
+    -> grantCallback()
+    -> <shunt>;
+```
+
+Skipper arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter. Example: `-oauth2-callback-path=/oauth/callback` |
+
+## grantLogout
+
+The filter revokes the refresh and access tokens in the cookie set by
+[oauthGrant](#oauthgrant). It also deletes the cookie by setting the `Set-Cookie`
+response header to an empty value after a successful token revocation.
+
+Examples:
+
+```
+grantLogout()
+```
+
+Skipper arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-oauth2-revoke-token-url` | **yes** | URL of the OAuth2 provider's token revocation endpoint. Example: `-oauth2-revoke-token-url=https://identity.example.com/oauth2/revoke` |
+
+## grantClaimsQuery
+
+The filter allows defining access control rules based on claims in a tokeninfo JSON
+payload.
+
+This filter is an alias for `oidcClaimsQuery` and functions identically to it.
+See [oidcClaimsQuery](#oidcclaimsquery) for more information.
+
+Examples:
+
+```
+oauthGrant() -> grantClaimsQuery("/path:@_:sub%\"userid\"")
+oauthGrant() -> grantClaimsQuery("/path:scope.#[==\"email\"]")
+```
+
+Skipper arguments:
+
+| Argument | Required? | Description |
+| -------- | --------- | ----------- |
+| `-oauth2-tokeninfo-subject-key` | **yes** | the key of the attribute containing the OAuth2 subject ID in the OAuth2 provider's tokeninfo JSON payload. Default: `uid`. Example: `-oauth2-tokeninfo-subject-key=sub` |
 
 ## oauthOidcUserInfo
 
 ```
 oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
-    "http://target.example.com/subpath/callback", "email profile", "name email picture")
+    "http://target.example.com/subpath/callback", "email profile", "name email picture",
+    "parameter=value", "X-Auth-Authorization:claims.email", "0")
 ```
 
 The filter needs the following parameters:
@@ -1003,13 +1379,18 @@ The filter needs the following parameters:
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** The claims which should be present in the token returned by the provider.
+* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
+* **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
+* **SubdomainsToRemove** (optional, default "1") Configures number of subdomains to remove from the request hostname to derive OIDC cookie domain. By default one subdomain is removed, e.g. for the www.example.com request hostname the OIDC cookie domain will be example.com (to support SSO for all subdomains of the example.com). Configure "0" to use the same hostname. Note that value is a string.
 
 ## oauthOidcAnyClaims
 
 ```
 oauthOidcAnyClaims("https://oidc-provider.example.com", "client_id", "client_secret",
-    "http://target.example.com/subpath/callback", "email profile", "name email picture")
+    "http://target.example.com/subpath/callback", "email profile", "name email picture",
+    "parameter=value", "X-Auth-Authorization:claims.email")
 ```
+
 The filter needs the following parameters:
 
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
@@ -1019,13 +1400,17 @@ The filter needs the following parameters:
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** Several claims can be specified and the request is allowed as long as at least one of them is present.
+* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
+* **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
 
 ## oauthOidcAllClaims
 
 ```
 oauthOidcAllClaims("https://oidc-provider.example.com", "client_id", "client_secret",
-    "http://target.example.com/subpath/callback", "email profile", "name email picture")
+    "http://target.example.com/subpath/callback", "email profile", "name email picture",
+    "parameter=value", "X-Auth-Authorization:claims.email")
 ```
+
 The filter needs the following parameters:
 
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
@@ -1035,6 +1420,8 @@ The filter needs the following parameters:
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
 * **Claims** Several claims can be specified and the request is allowed only when all claims are present.
+* **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
+* **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
 
 ## requestCookie
 
@@ -1057,8 +1444,8 @@ requestCookie("test-session", "abc")
 oidcClaimsQuery("<path>:[<query>]", ...)
 ```
 
-The filter is chained after `oauthOidc*` authentication as it parses the ID token that has been saved in the internal `StateBag` for this request. It validates access control of the requested path against the defined query.  
-It accepts one or more arguments, thats is a path prefix which is granted access to when the query definition evaluates positive.  
+The filter is chained after `oauthOidc*` authentication as it parses the ID token that has been saved in the internal `StateBag` for this request. It validates access control of the requested path against the defined query.
+It accepts one or more arguments, thats is a path prefix which is granted access to when the query definition evaluates positive.
 It supports exact matches of keys, key-value pairs, introspecting of arrays or exact and wildcard matching of nested structures.
 The query definition can be one or more queries per path, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) with a convenience modifier of `@_` which unfolds to `[@this].#("+arg+")`
 
@@ -1153,7 +1540,8 @@ and allows the same breaker characteristics for low and high rate traffic.
 Parameters:
 
 * number of consecutive failures to open (int)
-* sliding window (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
+* sliding window (int)
+* timeout (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 * half-open requests (int) - optional
 * idle-ttl (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 
@@ -1192,8 +1580,21 @@ of the http header and can be changed with an optional third
 parameter. If the third parameter is set skipper will use the
 defined HTTP header to put the request in the same client bucket,
 else the X-Forwarded-For Header will be used. You need to run skipper
-with command line flag `-enable-ratelimits`. Skipper will consume
-roughly 15 MB per filter for 100.000 clients.
+with command line flag `-enable-ratelimits`.
+
+One filter consumes memory calculated by the following formula, where
+N is the number of individual clients put into the same bucket, M the
+maximum number of requests allowed:
+
+```
+memory = N * M * 15 byte
+```
+
+Memory usage examples:
+
+- 5MB   for M=3  and N=100000
+- 15MB  for M=10 and N=100000
+- 150MB for M=100 and N=100000
 
 Parameters:
 
@@ -1219,10 +1620,12 @@ Parameters:
 
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
+* response status code to use for a rate limited request - optional, default: 429
 
 ```
 ratelimit(20, "1m")
 ratelimit(300, "1h")
+ratelimit(4000, "1m", 503)
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -1238,7 +1641,7 @@ with an optional fourth parameter. If the fourth parameter is set
 skipper will use the HTTP header defined by this to put the request in
 the same client bucket, else the X-Forwarded-For Header will be used.
 You need to run skipper with command line flags `-enable-swarm` and
-`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../../tutorials/ratelimit/#cluster-ratelimit)
+`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../tutorials/ratelimit.md#cluster-ratelimit)
 
 Parameters:
 
@@ -1262,7 +1665,7 @@ rate limit group. The first parameter is a string to select the same
 ratelimit group across one or more routes.  The rate limit group
 allows the given number of requests to a backend. You need to have run
 skipper with command line flags `-enable-swarm` and
-`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../../tutorials/ratelimit/#cluster-ratelimit)
+`-enable-ratelimits`. See also our [cluster ratelimit tutorial](../tutorials/ratelimit.md#cluster-ratelimit)
 
 
 Parameters:
@@ -1270,13 +1673,73 @@ Parameters:
 * rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
+* response status code to use for a rate limited request - optional, default: 429
 
 ```
 clusterRatelimit("groupB", 20, "1m")
 clusterRatelimit("groupB", 300, "1h")
+clusterRatelimit("groupB", 4000, "1m", 503)
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
+
+## backendRatelimit
+
+The filter configures request rate limit for each backend endpoint within rate limit group across all Skipper peers.
+When limit is reached Skipper refuses to forward the request to the backend and
+responds with `503 Service Unavailable` status to the client, i.e. implements _load shedding_.
+
+It is similar to [clusterClientRatelimit](#clusterclientratelimit) filter but counts request rate
+using backend endpoint address instead of incoming request IP address or a HTTP header.
+Requires command line flags `-enable-swarm` and `-enable-ratelimits`.
+
+Both _rate limiting_ and _load shedding_ can use the exact same mechanism to protect the backend but the key difference is the semantics:
+* _rate limiting_ should adopt 4XX and inform the client that they are exceeding some quota. It doesn't depend on the current capacity of the backend.
+* _load shedding_ should adopt 5XX and inform the client that the backend is not able to provide the service. It depends on the current capacity of the backend.
+
+Parameters:
+
+* rate limit group (string)
+* number of allowed requests per time period (int)
+* timeframe for requests being counted (time.Duration)
+* response status code to use for rejected requests - optional, default: 503
+
+Multiple filter definitions using the same group must use the same number of allowed requests and timeframe values.
+
+Examples:
+
+```
+foo: Path("/foo")
+  -> backendRatelimit("foobar", 100, "1s")
+  -> <"http://backend1", "http://backend2">;
+
+bar: Path("/bar")
+  -> backendRatelimit("foobar", 100, "1s")
+  -> <"http://backend1", "http://backend2">;
+```
+Configures rate limit of 100 requests per second for each `backend1` and `backend2`
+regardless of the request path by using the same group name, number of request and timeframe parameters.
+
+```
+foo: Path("/foo")
+  -> backendRatelimit("foo", 40, "1s")
+  -> <"http://backend1", "http://backend2">;
+
+bar: Path("/bar")
+  -> backendRatelimit("bar", 80, "1s")
+  -> <"http://backend1", "http://backend2">;
+```
+Configures rate limit of 40 requests per second for each `backend1` and `backend2`
+for the `/foo` requests and 80 requests per second for the `/bar` requests by using different group name per path.
+The total request rate each backend receives can not exceed `40+80=120` requests per second.
+
+```
+foo: Path("/baz")
+  -> backendRatelimit("baz", 100, "1s", 429)
+  -> <"http://backend1", "http://backend2">;
+```
+Configures rate limit of 100 requests per second for each `backend1` and `backend2` and responds
+with `429 Too Many Requests` when limit is reached.
 
 ## lua
 
@@ -1419,7 +1882,7 @@ token.
 
 *N.B.* It is important to note that, if the content of the `X-Unverified-Audit` header does not match the following regex, then
 a default value of `invalid-sub` will be populated in the header instead:
-    `^[a-zA-z0-9_/:?=&%@.#-]*$`
+    `^[a-zA-Z0-9_/:?=&%@.#-]*$`
 
 Examples:
 
@@ -1774,8 +2237,7 @@ lifo(100, 150, "10s")
 The above configuration will set MaxConcurrency to 100, MaxQueueSize
 to 150 and Timeout to 10 seconds.
 
-When multiple lifo filters are set in a route, only one of them will be
-applied. It is undefined which one.
+When there are multiple lifo filters on the route, only the last one will be applied.
 
 ## lifoGroup
 
@@ -1808,6 +2270,19 @@ It is possible to use the lifoGroup filter together with the single lifo filter,
 a route belongs to a group, but needs to have additional stricter settings then the whole
 group.
 
+## rfcHost
+
+This filter removes the optional trailing dot in the outgoing host
+header.
+
+
+Example:
+
+```
+rfcHost()
+```
+
+
 ## rfcPath
 
 This filter forces an alternative interpretation of the RFC 2616 and RFC 3986 standards,
@@ -1838,7 +2313,7 @@ the api-backend service will receive a request with the path /api/foo%2Fbar/summ
 
 It is also possible to enable this behavior centrally for a Skipper instance with
 the -rfc-patch-path flag. See
-[URI standards interpretation](../../operation/operation/#uri-standards-interpretation).
+[URI standards interpretation](../operation/operation.md#uri-standards-interpretation).
 
 ## bearerinjector
 
@@ -1853,8 +2328,8 @@ This filter should be used as an [egress](egress.md) only feature.
 Example:
 
 ```
-egress1: Method("POST") && Host("api.example.com") -> bearerinjector("write-token") -> "https://api.example.com/shoes";
-egress2: Method("GET") && Host("api.example.com") -> bearerinjector("read-token") -> "https://api.example.com/shoes";
+egress1: Method("POST") && Host("api.example.com") -> bearerinjector("/tmp/secrets/write-token") -> "https://api.example.com/shoes";
+egress2: Method("GET") && Host("api.example.com") -> bearerinjector("/tmp/secrets/read-token") -> "https://api.example.com/shoes";
 ```
 
 To integrate with the `bearerinjector` filter you need to run skipper
@@ -1880,6 +2355,25 @@ Example: If a trace consists of baggage item named `foo` with a value `bar`. Add
 tracingBaggageToTag("foo", "baz")
 ```
 
+## stateBagToTag
+
+This filter sets an opentracing tag from the filter context (state bag).
+If the provided key (first parameter) cannot be found in the state bag, then it doesn't set the tag.
+
+Parameters:
+
+* key in the state bag (string)
+* tag name (string)
+
+The route in the following example checks whether the request is authorized with the
+oauthTokeninfoAllScope() filter. This filter stores the authenticated user with "auth-user"
+key in the context, and the stateBagToTag() filter in the next step stores it in
+the opentracing tag "client_id":
+
+```
+foo: * -> oauthTokeninfoAllScope("address_service.all") -> stateBagToTag("auth-user", "client_id") -> "https://backend.example.org";
+```
+
 ## tracingTag
 
 This filter adds an opentracing tag.
@@ -1889,9 +2383,25 @@ Syntax:
 tracingTag("<tag_name>", "<tag_value>")
 ```
 
+Tag value may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then filter does not set the tag.
+
 Example: Adding the below filter will add a tag named `foo` with the value `bar`.
 ```
 tracingTag("foo", "bar")
+```
+
+Example: Set tag from request header
+```
+tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
+```
+
+## tracingSpanName
+
+This filter sets the name of the outgoing (client span) in opentracing. The default name is "proxy". Example:
+
+```
+tracingSpanName("api-operation")
 ```
 
 ## originMarker
@@ -1910,4 +2420,94 @@ Example:
 
 ```
 originMarker("apiUsageMonitoring", "deployment1", "2019-08-30T09:55:51Z")
+```
+
+## fadeIn
+
+When this filter is set, and the route has a load balanced backend, then the newly added endpoints will receive
+the traffic in a gradually increasing way, starting from their detection for the specified duration, after which
+they receive equal amount traffic as the previously existing routes. The detection time of an load balanced
+backend endpoint is preserved over multiple generations of the route configuration (over route changes). This
+filter can be used to saturate the load of autoscaling applications that require a warm-up time and therefore a
+smooth ramp-up. The fade-in feature can be used together with the round-robin and random LB algorithms.
+
+While the default fade-in curve is linear, the optional exponent parameter can be used to adjust the shape of
+the fade-in curve, based on the following equation:
+
+current_rate = proportional_rate * min((now - detected) / duration, 1) ^ exponent
+
+Parameters:
+
+* duration: duration of the fade-in in milliseconds or as a duration string
+* fade-in curve exponent - optional: a floating point number, default: 1
+
+Examples:
+
+```
+fadeIn("3m")
+fadeIn("3m", 1.5)
+```
+
+## endpointCreated
+
+This filter marks the creation time of a load balanced endpoint. When used together with the fadeIn
+filter, it prevents missing the detection of a new backend instance with the same hostname. This filter is
+typically automatically appended, and it's parameters are based on external sources, e.g. the Kubernetes API.
+
+Parameters:
+
+* the address of the endpoint
+* timestamp, either as a number of seconds since the unix epocs, or a string in RFC3339 format
+
+Example:
+
+```
+endpointCreated("http://10.0.0.1:8080", "2020-12-18T15:30:00Z01:00")
+```
+
+## consistentHashKey
+
+This filter sets the request key used by the [`consistentHash`](backends.md#load-balancer-backend) algorithm to select the backend endpoint.
+
+Parameters:
+
+* key (string)
+
+The key should contain [template placeholders](#template-placeholders), without placeholders the key
+is constant and therefore all requests would be made to the same endpoint.
+The algorithm will use the default key if any of the template placeholders can't be resolved.
+
+Examples:
+
+```
+pr: Path("/products/:productId")
+    -> consistentHashKey("${productId}")
+    -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+```
+consistentHashKey("${request.header.Authorization}")
+consistentHashKey("${request.source}") // same as the default key
+```
+
+## consistentHashBalanceFactor
+
+This filter sets the balance factor used by the [`consistentHash`](backends.md#load-balancer-backend) algorithm to prevent a single backend endpoint from being overloaded.
+The number of in-flight requests for an endpoint can be no higher than `(average-in-flight-requests * balanceFactor) + 1`.
+This is helpful in the case where certain keys are very popular and threaten to overload the endpoint they are mapped to.
+[Further Details](https://ai.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html).
+
+Parameters:
+
+* balanceFactor: A float or int, must be >= 1
+
+Examples:
+
+```
+pr: Path("/products/:productId")
+    -> consistentHashKey("${productId}")
+    -> consistentHashBalanceFactor(1.25)
+    -> <consistentHash, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;
+```
+```
+consistentHashBalanceFactor(3)
 ```

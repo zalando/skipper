@@ -36,30 +36,41 @@ type watchTest struct {
 	routing *routing.Routing
 }
 
-func deleteFile() {
-	os.RemoveAll(testWatchFile)
+func deleteFile(t *testing.T) {
+	err := os.Remove(testWatchFile)
+	if err != nil {
+		t.Logf("Ignoring %v", err)
+	}
 }
 
-func createFileWith(content string) {
-	f, err := os.Create(testWatchFile)
+func createFileWith(content string, t *testing.T) {
+	tmpfile, err := os.Create(testWatchFile + ".tmp")
 	if err != nil {
-		return
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	_, err = tmpfile.WriteString(content)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	defer f.Close()
-	f.Write([]byte(content))
+	err = os.Rename(tmpfile.Name(), testWatchFile)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
-func createFile() {
-	createFileWith(testWatchFileContent)
+func createFile(t *testing.T) {
+	createFileWith(testWatchFileContent, t)
 }
 
-func invalidFile() {
-	createFileWith(testWatchFileInvalidContent)
+func invalidFile(t *testing.T) {
+	createFileWith(testWatchFileInvalidContent, t)
 }
 
-func updateFile() {
-	createFileWith(testWatchFileUpdatedContent)
+func updateFile(t *testing.T) {
+	createFileWith(testWatchFileUpdatedContent, t)
 }
 
 func initWatchTest(t *testing.T) *watchTest {
@@ -80,53 +91,40 @@ func initWatchTest(t *testing.T) *watchTest {
 
 func (t *watchTest) testFail(path string) {
 	if r, _ := t.routing.Route(&http.Request{URL: &url.URL{Path: path}}); r != nil {
-		t.testing.Error("unexpected route received for:", path)
 		t.testing.Log("got:     ", r.Id)
 		t.testing.Log("expected: nil")
-		t.testing.FailNow()
+		t.testing.Fatalf("unexpected route received for: %v", path)
 	}
 }
 
 func (t *watchTest) testSuccess(id, path, backend string) {
 	r, _ := t.routing.Route(&http.Request{URL: &url.URL{Path: path}})
 	if r == nil {
-		t.testing.Error("failed to load route for:", path)
-		t.testing.FailNow()
+		t.testing.Fatalf("failed to load route for: %v", path)
 		return
 	}
 
 	if r.Id != id || r.Backend != backend {
-		t.testing.Error("unexpected route received")
 		t.testing.Log("got:     ", r.Id, backend)
 		t.testing.Log("expected:", id, r.Backend)
-		t.testing.FailNow()
+		t.testing.Fatal("unexpected route received")
 	}
 }
 
-func (t *watchTest) timeoutOrFailInitial() {
-	if t.testing.Failed() {
-		return
-	}
-
+func (t *watchTest) timeoutInitial() {
 	defer t.log.Reset()
-	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err != nil {
-		// timeout is also good, the routing handles its own
-		return
+	err := t.log.WaitFor("route settings applied", 90*time.Millisecond)
+	if err == nil {
+		t.testing.Fatal("expected timeout, got route settings applied")
+	} else if err != loggingtest.ErrWaitTimeout {
+		t.testing.Fatalf("unexpected error: %v", err)
 	}
-
-	t.testFail("/foo")
-	t.testFail("/bar")
-	t.testFail("/baz")
 }
 
 func (t *watchTest) timeoutAndSucceedInitial() {
-	if t.testing.Failed() {
-		return
-	}
-
 	defer t.log.Reset()
 	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err == nil {
-		t.testing.Error("unexpected change detected")
+		t.testing.Fatal("unexpected change detected")
 	}
 
 	t.testSuccess("foo", "/foo", "https://foo.example.org")
@@ -135,10 +133,6 @@ func (t *watchTest) timeoutAndSucceedInitial() {
 }
 
 func (t *watchTest) waitAndFailInitial() {
-	if t.testing.Failed() {
-		return
-	}
-
 	defer t.log.Reset()
 	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
@@ -150,10 +144,6 @@ func (t *watchTest) waitAndFailInitial() {
 }
 
 func (t *watchTest) waitAndSucceedInitial() {
-	if t.testing.Failed() {
-		return
-	}
-
 	defer t.log.Reset()
 	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
@@ -165,10 +155,6 @@ func (t *watchTest) waitAndSucceedInitial() {
 }
 
 func (t *watchTest) waitAndSucceedUpdated() {
-	if t.testing.Failed() {
-		return
-	}
-
 	defer t.log.Reset()
 	if err := t.log.WaitFor("route settings applied", 90*time.Millisecond); err != nil {
 		t.testing.Fatal(err)
@@ -186,47 +172,45 @@ func (t *watchTest) close() {
 }
 
 func TestWatchInitialFails(t *testing.T) {
-	deleteFile()
 	test := initWatchTest(t)
 	defer test.close()
-	test.timeoutOrFailInitial()
+	test.timeoutInitial()
 }
 
 func TestWatchInitialRecovers(t *testing.T) {
-	deleteFile()
 	test := initWatchTest(t)
 	defer test.close()
-	test.timeoutOrFailInitial()
-	createFile()
-	defer deleteFile()
+	test.timeoutInitial()
+	createFile(t)
+	defer deleteFile(t)
 	test.waitAndSucceedInitial()
 }
 
 func TestWatchUpdateFails(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
-	invalidFile()
+	invalidFile(t)
 	test.timeoutAndSucceedInitial()
 }
 
 func TestWatchUpdateRecover(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
-	invalidFile()
+	invalidFile(t)
 	test.timeoutAndSucceedInitial()
-	updateFile()
+	updateFile(t)
 	test.waitAndSucceedUpdated()
 }
 
 func TestInitialAndUnchanged(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
@@ -234,21 +218,21 @@ func TestInitialAndUnchanged(t *testing.T) {
 }
 
 func TestInitialAndDeleteFile(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
-	deleteFile()
+	deleteFile(t)
 	test.waitAndFailInitial()
 }
 
 func TestWatchUpdate(t *testing.T) {
-	createFile()
-	defer deleteFile()
+	createFile(t)
+	defer deleteFile(t)
 	test := initWatchTest(t)
 	defer test.close()
 	test.waitAndSucceedInitial()
-	updateFile()
+	updateFile(t)
 	test.waitAndSucceedUpdated()
 }

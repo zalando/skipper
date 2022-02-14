@@ -1,22 +1,9 @@
-// Copyright 2015 Zalando SE
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package builtin
 
 import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"net/http"
 	"net/http/httptest"
@@ -108,10 +95,11 @@ func testHeaders(t *testing.T, got, expected http.Header) {
 func TestHeader(t *testing.T) {
 	type testItem struct {
 		msg            string
-		filterName     string
 		args           []interface{}
 		context        map[string]interface{}
 		host           string
+		pathPredicate  string
+		path           string
 		valid          bool
 		requestHeader  http.Header
 		responseHeader http.Header
@@ -120,159 +108,344 @@ func TestHeader(t *testing.T) {
 
 	for filter, tests := range map[string][]testItem{
 		"setRequestHeader": {{
-			msg:        "invalid number of args",
-			filterName: "setRequestHeader",
-			args:       []interface{}{"name", "value", "other value"},
-			valid:      false,
+			msg:   "invalid number of args",
+			args:  []interface{}{"name", "value", "other value"},
+			valid: false,
 		}, {
-			msg:        "name not string",
-			filterName: "setRequestHeader",
-			args:       []interface{}{3, "value"},
-			valid:      false,
+			msg:   "name not string",
+			args:  []interface{}{3, "value"},
+			valid: false,
 		}, {
-			msg:        "value not string",
-			filterName: "setRequestHeader",
-			args:       []interface{}{"name", 3},
-			valid:      false,
+			msg:   "value not string",
+			args:  []interface{}{"name", 3},
+			valid: false,
 		}, {
 			msg:            "set request header when none",
-			filterName:     "setRequestHeader",
 			args:           []interface{}{"X-Test-Name", "value"},
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value"}},
 		}, {
 			msg:            "set request header when exists",
-			filterName:     "setRequestHeader",
 			args:           []interface{}{"X-Test-Name", "value"},
 			valid:          true,
 			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value"}},
 		}, {
-			msg:        "set outgoing host on set",
-			filterName: "setRequestHeader",
-			args:       []interface{}{"Host", "www.example.org"},
-			valid:      true,
-			host:       "www.example.org",
+			msg:   "set outgoing host on set",
+			args:  []interface{}{"Host", "www.example.org"},
+			valid: true,
+			host:  "www.example.org",
+		}, {
+			msg:            "set request header from path params",
+			args:           []interface{}{"X-Test-Name", "Mit ${was} zu ${wo}"},
+			pathPredicate:  "/path/:was/:wo",
+			path:           "/path/Raketen/Planeten",
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"Mit Raketen zu Planeten"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name", "Value"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"Value"}},
 		}},
 		"appendRequestHeader": {{
 			msg:            "append request header when none",
-			filterName:     "appendRequestHeader",
 			args:           []interface{}{"X-Test-Name", "value"},
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value"}},
 		}, {
 			msg:            "append request header when exists",
-			filterName:     "appendRequestHeader",
 			args:           []interface{}{"X-Test-Name", "value"},
 			valid:          true,
 			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0", "value1", "value"}},
 		}, {
-			msg:        "append outgoing host on set",
-			filterName: "appendRequestHeader",
-			args:       []interface{}{"Host", "www.example.org"},
-			valid:      true,
-			host:       "www.example.org",
+			msg:   "append outgoing host on set",
+			args:  []interface{}{"Host", "www.example.org"},
+			valid: true,
+			host:  "www.example.org",
+		}, {
+			msg:            "append request header from path params",
+			args:           []interface{}{"X-Test-Name", "a ${foo}ter"},
+			pathPredicate:  "/path/:foo",
+			path:           "/path/bar",
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0", "value1", "a barter"}},
+		}, {
+			msg:            "append request header from path params when missing",
+			args:           []interface{}{"X-Test-Name", "${foo}"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"value0", "value1"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name", "Value"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Name": []string{"Value"}},
 		}},
 		"dropRequestHeader": {{
-			msg:        "drop request header when none",
-			filterName: "dropRequestHeader",
-			args:       []interface{}{"X-Test-Name"},
-			valid:      true,
+			msg:   "drop request header when none",
+			args:  []interface{}{"X-Test-Name"},
+			valid: true,
 		}, {
 			msg:           "drop request header when exists",
-			filterName:    "dropRequestHeader",
 			args:          []interface{}{"X-Test-Name"},
+			valid:         true,
+			requestHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		}, {
+			msg:           "name parameter is case-insensitive",
+			args:          []interface{}{"x-test-name"},
 			valid:         true,
 			requestHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 		}},
 		"setResponseHeader": {{
 			msg:            "set response header when none",
-			filterName:     "setResponseHeader",
 			args:           []interface{}{"X-Test-Name", "value"},
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Name": []string{"value"}},
 		}, {
 			msg:            "set response header when exists",
-			filterName:     "setResponseHeader",
 			args:           []interface{}{"X-Test-Name", "value"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Name": []string{"value"}},
+		}, {
+			msg:            "set response header from path params",
+			args:           []interface{}{"X-Test-Name", "a ${sizeof} ${foo}ter"},
+			pathPredicate:  "/path/:sizeof/:foo",
+			path:           "/path/small/bar",
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Name": []string{"a small barter"}},
+		}, {
+			msg:   "set response header from path params when missing",
+			args:  []interface{}{"X-Test-Name", "a ${foo}ter"},
+			valid: true,
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name", "Value"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Name": []string{"Value"}},
 		}},
 		"appendResponseHeader": {{
 			msg:            "append response header when none",
-			filterName:     "appendResponseHeader",
 			args:           []interface{}{"X-Test-Name", "value"},
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Name": []string{"value"}},
 		}, {
 			msg:            "append response header when exists",
-			filterName:     "appendResponseHeader",
 			args:           []interface{}{"X-Test-Name", "value"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 			expectedHeader: http.Header{"X-Test-Name": []string{"value0", "value1", "value"}},
+		}, {
+			msg:            "append response header from path params",
+			args:           []interface{}{"X-Test-Name", "a ${foo}ter"},
+			pathPredicate:  "/path/:foo",
+			path:           "/path/bar",
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Name": []string{"value0", "value1", "a barter"}},
+		}, {
+			msg:            "append response header from path params when missing",
+			args:           []interface{}{"X-Test-Name", "a ${foo}ter"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+			expectedHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name", "Value"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Name": []string{"Value"}},
 		}},
 		"dropResponseHeader": {{
-			msg:        "drop response header when none",
-			filterName: "dropResponseHeader",
-			args:       []interface{}{"X-Test-Name"},
-			valid:      true,
+			msg:   "drop response header when none",
+			args:  []interface{}{"X-Test-Name"},
+			valid: true,
 		}, {
 			msg:            "drop response header when exists",
-			filterName:     "dropResponseHeader",
 			args:           []interface{}{"X-Test-Name"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-name"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Name": []string{"value0", "value1"}},
 		}},
 		"setContextRequestHeader": {{
 			msg:            "set request header from context",
-			filterName:     "setContextRequestHeader",
 			args:           []interface{}{"X-Test-Foo", "foo"},
 			context:        map[string]interface{}{"foo": "bar"},
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar"}},
 		}, {
-			msg:        "set request host header from context",
-			filterName: "setContextRequestHeader",
-			args:       []interface{}{"Host", "foo"},
-			context:    map[string]interface{}{"foo": "www.example.org"},
-			valid:      true,
-			host:       "www.example.org",
+			msg:     "set request host header from context",
+			args:    []interface{}{"Host", "foo"},
+			context: map[string]interface{}{"foo": "www.example.org"},
+			valid:   true,
+			host:    "www.example.org",
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar"}},
 		}},
 		"appendContextRequestHeader": {{
 			msg:            "append request header from context",
-			filterName:     "appendContextRequestHeader",
 			args:           []interface{}{"X-Test-Foo", "foo"},
 			context:        map[string]interface{}{"foo": "baz"},
 			valid:          true,
 			requestHeader:  http.Header{"X-Test-Foo": []string{"bar"}},
 			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar", "baz"}},
 		}, {
-			msg:        "append request host header from context",
-			filterName: "appendContextRequestHeader",
-			args:       []interface{}{"Host", "foo"},
-			context:    map[string]interface{}{"foo": "www.example.org"},
-			valid:      true,
-			host:       "www.example.org",
+			msg:     "append request host header from context",
+			args:    []interface{}{"Host", "foo"},
+			context: map[string]interface{}{"foo": "www.example.org"},
+			valid:   true,
+			host:    "www.example.org",
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "baz"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar", "baz"}},
 		}},
 		"setContextResponseHeader": {{
 			msg:            "set response header from context",
-			filterName:     "setContextResponseHeader",
 			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
 			context:        map[string]interface{}{"foo": "bar"},
 			valid:          true,
 			expectedHeader: http.Header{"X-Test-Foo": []string{"bar"}},
 		}},
 		"appendContextResponseHeader": {{
 			msg:            "append response header from context",
-			filterName:     "appendContextResponseHeader",
 			args:           []interface{}{"X-Test-Foo", "foo"},
 			context:        map[string]interface{}{"foo": "baz"},
 			valid:          true,
 			responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
 			expectedHeader: http.Header{"X-Test-Foo": []string{"bar", "baz"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "baz"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Foo": []string{"bar", "baz"}},
+		}},
+		"copyRequestHeader": {{
+			msg:  "too few args",
+			args: []interface{}{"X-Test-Foo"},
+		}, {
+			msg:  "too many args",
+			args: []interface{}{"X-Test-Foo", "X-Test-Bar", "baz"},
+		}, {
+			msg:  "invalid source header name",
+			args: []interface{}{42, "X-Test-Bar"},
+		}, {
+			msg:  "invalid target header name",
+			args: []interface{}{"X-Test-Foo", 42},
+		}, {
+			msg:   "no header to copy",
+			args:  []interface{}{"X-Test-Foo", "X-Test-Bar"},
+			valid: true,
+		}, {
+			msg:           "copy header",
+			args:          []interface{}{"X-Test-Foo", "X-Test-Bar"},
+			valid:         true,
+			requestHeader: http.Header{"X-Test-Foo": []string{"foo"}},
+			expectedHeader: http.Header{
+				"X-Test-Request-Foo": []string{"foo"},
+				"X-Test-Request-Bar": []string{"foo"},
+			},
+		}, {
+			msg:   "overwrite header",
+			args:  []interface{}{"X-Test-Foo", "X-Test-Bar"},
+			valid: true,
+			requestHeader: http.Header{
+				"X-Test-Foo": []string{"foo"},
+				"X-Test-Bar": []string{"bar"},
+			},
+			expectedHeader: http.Header{
+				"X-Test-Request-Foo": []string{"foo"},
+				"X-Test-Request-Bar": []string{"foo"},
+			},
+		}, {
+			msg:   "host header",
+			args:  []interface{}{"X-Test-Source-Host", "Host"},
+			valid: true,
+			host:  "www.example.org",
+			requestHeader: http.Header{
+				"X-Test-Source-Host": []string{"www.example.org"},
+			},
+			expectedHeader: http.Header{
+				"X-Test-Request-Source-Host": []string{"www.example.org"},
+			},
+		}, {
+			msg:           "name parameters are case-insensitive",
+			args:          []interface{}{"x-test-foo", "x-test-bar"},
+			valid:         true,
+			requestHeader: http.Header{"X-Test-Foo": []string{"foo"}},
+			expectedHeader: http.Header{
+				"X-Test-Request-Foo": []string{"foo"},
+				"X-Test-Request-Bar": []string{"foo"},
+			},
+		}},
+		"copyResponseHeader": {{
+			msg:  "too few args",
+			args: []interface{}{"X-Test-Foo"},
+		}, {
+			msg:  "too many args",
+			args: []interface{}{"X-Test-Foo", "X-Test-Bar", "baz"},
+		}, {
+			msg:  "invalid source header name",
+			args: []interface{}{42, "X-Test-Bar"},
+		}, {
+			msg:  "invalid target header name",
+			args: []interface{}{"X-Test-Foo", 42},
+		}, {
+			msg:   "no header to copy",
+			args:  []interface{}{"X-Test-Foo", "X-Test-Bar"},
+			valid: true,
+		}, {
+			msg:            "copy header",
+			args:           []interface{}{"X-Test-Foo", "X-Test-Bar"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"foo"}},
+			expectedHeader: http.Header{
+				"X-Test-Foo": []string{"foo"},
+				"X-Test-Bar": []string{"foo"},
+			},
+		}, {
+			msg:   "overwrite header",
+			args:  []interface{}{"X-Test-Foo", "X-Test-Bar"},
+			valid: true,
+			responseHeader: http.Header{
+				"X-Test-Foo": []string{"foo"},
+				"X-Test-Bar": []string{"bar"},
+			},
+			expectedHeader: http.Header{
+				"X-Test-Foo": []string{"foo"},
+				"X-Test-Bar": []string{"foo"},
+			},
+		}, {
+			msg:            "name parameters are case-insensitive",
+			args:           []interface{}{"x-test-foo", "x-test-bar"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"foo"}},
+			expectedHeader: http.Header{
+				"X-Test-Foo": []string{"foo"},
+				"X-Test-Bar": []string{"foo"},
+			},
 		}}} {
 		t.Run(filter, func(t *testing.T) {
 			for _, ti := range tests {
@@ -303,9 +476,11 @@ func TestHeader(t *testing.T) {
 					fr.Register(NewAppendContextRequestHeader())
 					fr.Register(NewSetContextResponseHeader())
 					fr.Register(NewAppendContextResponseHeader())
+					fr.Register(NewCopyRequestHeader())
+					fr.Register(NewCopyResponseHeader())
 					fr.Register(testContext{})
 
-					filters := []*eskip.Filter{{Name: ti.filterName, Args: ti.args}}
+					filters := []*eskip.Filter{{Name: filter, Args: ti.args}}
 					for key, value := range ti.context {
 						filters = append([]*eskip.Filter{{
 							Name: "testContext",
@@ -313,13 +488,24 @@ func TestHeader(t *testing.T) {
 						}}, filters...)
 					}
 
-					pr := proxytest.New(fr, &eskip.Route{
+					r := &eskip.Route{
 						Filters: filters,
-						Backend: bs.URL},
-					)
+						Backend: bs.URL,
+					}
+
+					if ti.pathPredicate != "" {
+						r.Predicates = append(r.Predicates, &eskip.Predicate{Name: "Path", Args: []interface{}{ti.pathPredicate}})
+					}
+
+					pr := proxytest.New(fr, r)
 					defer pr.Close()
 
-					req, err := http.NewRequest("GET", pr.URL, nil)
+					path := pr.URL
+					if ti.path != "" {
+						path += ti.path
+					}
+
+					req, err := http.NewRequest("GET", path, nil)
 					if err != nil {
 						t.Error(err)
 						return
@@ -339,7 +525,7 @@ func TestHeader(t *testing.T) {
 
 					if ti.valid && rsp.StatusCode != http.StatusOK ||
 						!ti.valid && rsp.StatusCode != http.StatusNotFound {
-						t.Error("failed to validate arguments")
+						t.Errorf("failed to validate arguments, valid: %v, status: %v", ti.valid, rsp.StatusCode)
 						return
 					}
 
@@ -353,5 +539,19 @@ func TestHeader(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func BenchmarkCopyRequestHeader(b *testing.B) {
+	spec := NewCopyRequestHeader()
+	f, _ := spec.CreateFilter([]interface{}{"X-Foo", "X-Bar"})
+
+	r, _ := http.NewRequest("GET", "http://example.com", nil)
+	r.Header.Add("X-Foo", "whatever")
+	fc := &filtertest.Context{FRequest: r}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.Request(fc)
 	}
 }

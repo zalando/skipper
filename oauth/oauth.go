@@ -36,9 +36,10 @@ package oauth
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 )
@@ -107,7 +108,7 @@ func (oc *OAuthClient) GetToken() (string, error) {
 
 	defer response.Body.Close()
 
-	authResponseBody, err := ioutil.ReadAll(response.Body)
+	authResponseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", err
 	}
@@ -133,7 +134,7 @@ func (oc *OAuthClient) getAuthPostBody(us *userCredentials) string {
 
 // Loads and parses the credentials from a credentials document.
 func (oc *OAuthClient) getCredentials(to interface{}, fn string) error {
-	data, err := ioutil.ReadFile(path.Join(oc.credentialsDir, fn))
+	data, err := os.ReadFile(path.Join(oc.credentialsDir, fn))
 	if err != nil {
 		return err
 	}
