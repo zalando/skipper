@@ -460,7 +460,7 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
-	"multiple compression, priority to brotli",
+		"multiple compression, priority to brotli",
 		http.Header{},
 		3 * 8192,
 		[]interface{}{float64(brotli.BestCompression)},

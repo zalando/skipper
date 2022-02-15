@@ -28,8 +28,8 @@ type encoding struct {
 type encodings []*encoding
 
 type compress struct {
-	mime  []string
-	level int
+	mime     []string
+	level    int
 	encoding []string
 }
 
@@ -80,14 +80,14 @@ var (
 	}}
 )
 
-func (e encodings) Len() int           { return len(e) }
+func (e encodings) Len() int { return len(e) }
 func (e encodings) Less(i, j int) bool {
 	if e[i].q != e[j].q {
 		return e[i].q > e[j].q // higher first
 	}
 	return e[i].p < e[j].p // smallest first
 }
-func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
+func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 
 // Returns a filter specification that is used to compress the response content.
 //
@@ -138,9 +138,7 @@ func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 //
 // The compression happens in a streaming way, using only a small internal buffer.
 //
-func NewCompress() filters.Spec { return &compress{
-	encoding: supportedEncodings,
-} }
+func NewCompress() filters.Spec { return &compress{} }
 
 func (c *compress) Name() string {
 	return filters.CompressName
@@ -148,9 +146,9 @@ func (c *compress) Name() string {
 
 func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 	f := &compress{
-		mime:  defaultCompressMIME,
-		level: flate.BestSpeed,
-		encoding: c.encoding,
+		mime:     defaultCompressMIME,
+		level:    flate.BestSpeed,
+		encoding: supportedEncodings,
 	}
 
 	if len(args) == 0 {
