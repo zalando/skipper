@@ -148,16 +148,7 @@ func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	if lf, ok := args[0].(float64); ok && math.Trunc(lf) == lf {
 		f.level = int(lf)
-		// todo verify if this is correct, brotli highest level is 11 in place of 9
 		if f.level < flate.HuffmanOnly || f.level > brotli.BestCompression {
-			return nil, filters.ErrInvalidFilterParameters
-		}
-
-		if f.level < gzip.HuffmanOnly || f.level > gzip.BestCompression {
-			return nil, filters.ErrInvalidFilterParameters
-		}
-
-		if f.level < flate.HuffmanOnly || f.level > flate.BestCompression {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
@@ -282,10 +273,19 @@ func unsupported() {
 func newEncoder(enc string, level int) (encoder, error) {
 	switch enc {
 	case "br":
+		if level > brotli.BestCompression {
+			level = brotli.BestCompression
+		}
 		return brotli.NewWriterLevel(nil, level), nil
 	case "gzip":
+		if level > gzip.BestCompression {
+			level = gzip.BestCompression
+		}
 		return gzip.NewWriterLevel(nil, level)
 	case "deflate":
+		if level > flate.BestCompression {
+			level = flate.BestCompression
+		}
 		return flate.NewWriter(nil, level)
 	default:
 		unsupported()
