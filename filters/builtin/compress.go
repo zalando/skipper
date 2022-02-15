@@ -400,9 +400,9 @@ func (c *compress) Response(ctx filters.FilterContext) {
 }
 
 func index(array []string, value string) int {
-	for k, v := range array {
+	for i, v := range array {
 		if v == value {
-			return k
+			return i
 		}
 	}
 	return -1
