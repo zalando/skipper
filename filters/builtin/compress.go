@@ -4,6 +4,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"errors"
+	"github.com/andybalholm/brotli"
 	"io"
 	"math"
 	"net/http"
@@ -37,7 +38,7 @@ type encoder interface {
 }
 
 var (
-	supportedEncodings  = []string{"gzip", "deflate"}
+	supportedEncodings  = []string{"br", "gzip", "deflate"}
 	unsupportedEncoding = errors.New("unsupported encoding")
 )
 
@@ -54,6 +55,13 @@ var defaultCompressMIME = []string{
 }
 
 var (
+	brotliPool = &sync.Pool{New: func() interface{} {
+		ge, err := newEncoder("br", flate.BestSpeed)
+		if err != nil {
+			log.Error(err)
+		}
+		return ge
+	}}
 	gzipPool = &sync.Pool{New: func() interface{} {
 		ge, err := newEncoder("gzip", flate.BestSpeed)
 		if err != nil {
@@ -112,7 +120,7 @@ func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 //
 // The filter also checks the incoming request, if it accepts the supported
 // encodings, explicitly stated in the Accept-Encoding header. The filter currently
-// supports gzip and deflate. It does not assume that the client accepts any
+// supports brotli, gzip and deflate. It does not assume that the client accepts any
 // encoding if the Accept-Encoding header is not set. It ignores * in the
 // Accept-Encoding header.
 //
@@ -140,6 +148,11 @@ func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	if lf, ok := args[0].(float64); ok && math.Trunc(lf) == lf {
 		f.level = int(lf)
+		// todo verify if this is correct, brotli highest level is 11 in place of 9
+		if f.level < flate.HuffmanOnly || f.level > brotli.BestCompression {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+
 		if f.level < gzip.HuffmanOnly || f.level > gzip.BestCompression {
 			return nil, filters.ErrInvalidFilterParameters
 		}
@@ -268,6 +281,8 @@ func unsupported() {
 
 func newEncoder(enc string, level int) (encoder, error) {
 	switch enc {
+	case "br":
+		return brotli.NewWriterLevel(nil, level), nil
 	case "gzip":
 		return gzip.NewWriterLevel(nil, level)
 	case "deflate":
@@ -280,6 +295,8 @@ func newEncoder(enc string, level int) (encoder, error) {
 
 func encoderPool(enc string) *sync.Pool {
 	switch enc {
+	case "br":
+		return brotliPool
 	case "gzip":
 		return gzipPool
 	case "deflate":

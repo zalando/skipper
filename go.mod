@@ -4,6 +4,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
 	github.com/MicahParks/keyfunc v1.0.1
 	github.com/abbot/go-http-auth v0.4.0
+	github.com/andybalholm/brotli v1.0.4
 	github.com/aryszka/jobqueue v0.0.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cespare/xxhash/v2 v2.1.2
