@@ -459,6 +459,24 @@ func TestCompress(t *testing.T) {
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+	"multiple compression, priority to brotli",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(brotli.BestCompression)},
+		"x-custom,br,gzip,deflate",
+		http.Header{
+			"Content-Encoding": []string{"br"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"multiple compression, priority to gzip",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(gzip.BestCompression)},
+		"x-custom,gzip,deflate",
+		http.Header{
+			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

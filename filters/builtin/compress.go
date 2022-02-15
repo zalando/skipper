@@ -21,7 +21,8 @@ const bufferSize = 8192
 
 type encoding struct {
 	name string
-	q    float32
+	q    float32 // encoding client priority
+	p    int     // encoding default priority
 }
 
 type encodings []*encoding
@@ -29,6 +30,7 @@ type encodings []*encoding
 type compress struct {
 	mime  []string
 	level int
+	encoding []string
 }
 
 type encoder interface {
@@ -79,7 +81,12 @@ var (
 )
 
 func (e encodings) Len() int           { return len(e) }
-func (e encodings) Less(i, j int) bool { return e[i].q > e[j].q } // higher first
+func (e encodings) Less(i, j int) bool {
+	if e[i].q != e[j].q {
+		return e[i].q > e[j].q // higher first
+	}
+	return e[i].p < e[j].p // smallest first
+}
 func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 
 // Returns a filter specification that is used to compress the response content.
@@ -131,7 +138,9 @@ func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 //
 // The compression happens in a streaming way, using only a small internal buffer.
 //
-func NewCompress() filters.Spec { return &compress{} }
+func NewCompress() filters.Spec { return &compress{
+	encoding: supportedEncodings,
+} }
 
 func (c *compress) Name() string {
 	return filters.CompressName
@@ -140,7 +149,9 @@ func (c *compress) Name() string {
 func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 	f := &compress{
 		mime:  defaultCompressMIME,
-		level: flate.BestSpeed}
+		level: flate.BestSpeed,
+		encoding: c.encoding,
+	}
 
 	if len(args) == 0 {
 		return f, nil
@@ -214,7 +225,7 @@ func canEncodeEntity(r *http.Response, mime []string) bool {
 	return true
 }
 
-func acceptedEncoding(r *http.Request) string {
+func (c *compress) acceptedEncoding(r *http.Request) string {
 	var encs encodings
 	for _, s := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
 		sp := strings.Split(s, ";")
@@ -223,11 +234,12 @@ func acceptedEncoding(r *http.Request) string {
 		}
 
 		name := strings.ToLower(strings.TrimSpace(sp[0]))
-		if !stringsContain(supportedEncodings, name) {
+		prio := index(c.encoding, name)
+		if prio < 0 {
 			continue
 		}
 
-		enc := &encoding{name, 1}
+		enc := &encoding{name, 1, prio}
 		encs = append(encs, enc)
 
 		for _, spi := range sp[1:] {
@@ -380,11 +392,20 @@ func (c *compress) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	enc := acceptedEncoding(ctx.Request())
+	enc := c.acceptedEncoding(ctx.Request())
 	if enc == "" {
 		return
 	}
 
 	responseHeader(rsp, enc)
 	responseBody(rsp, enc, c.level)
+}
+
+func index(array []string, value string) int {
+	for k, v := range array {
+		if v == value {
+			return k
+		}
+	}
+	return -1
 }
