@@ -273,9 +273,6 @@ func unsupported() {
 func newEncoder(enc string, level int) (encoder, error) {
 	switch enc {
 	case "br":
-		if level > brotli.BestCompression {
-			level = brotli.BestCompression
-		}
 		return brotli.NewWriterLevel(nil, level), nil
 	case "gzip":
 		if level > gzip.BestCompression {
