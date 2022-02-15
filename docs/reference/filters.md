@@ -365,14 +365,14 @@ to be omitted:
 It is possible to control the compression level, by setting it as the first filter
 argument, in front of the MIME types. The default compression level is best-speed.
 The possible values are integers between 0 and 9 (inclusive), where 0 means
-no-compression, 1 means best-speed and 9 means best-compression. Example:
+no-compression, 1 means best-speed and 11 means best-compression. Example:
 
 ```
-* -> compress(9, "image/tiff") -> "https://www.example.org"
+* -> compress(11, "image/tiff") -> "https://www.example.org"
 ```
 
 The filter also checks the incoming request, if it accepts the supported encodings,
-explicitly stated in the Accept-Encoding header. The filter currently supports `gzip`
+explicitly stated in the Accept-Encoding header. The filter currently supports `gzip`, `brotli`
 and `deflate`. It does not assume that the client accepts any encoding if the
 Accept-Encoding header is not set. It ignores * in the Accept-Encoding header.
 

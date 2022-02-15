@@ -424,13 +424,13 @@ Add a HTTP header in the response path of your clients.
 
     setResponseHeader("X-Foo", "bar")
 
-### Enable gzip
+### Enable compression
 
-Compress responses with gzip.
+Compress responses with gzip/brotli (depending on accepted encoding).
 
     compress() // compress all valid MIME types
     compress("text/html") // only compress HTML files
-    compress(9, "text/html") // control the level of compression, 1 = fastest, 9 = best compression, 0 = no compression
+    compress(11, "text/html") // control the level of compression, 1 = fastest, 11 = best compression (fallback to 9 for gzip), 0 = no compression
 
 ### Set the Path
 
