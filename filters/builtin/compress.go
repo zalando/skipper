@@ -148,7 +148,8 @@ func NewCompressWithEncodings(encoding []string) filters.Spec {
 	encodingMap := map[string]int{}
 	for i, v := range encoding {
 		if !stringsContain(supportedEncodings, v) {
-			continue // skipping unsupported encodingPriority
+			log.Warningf("Skipping unsupported encoding: %s", v)
+			continue
 		}
 		encodingMap[v] = i
 	}

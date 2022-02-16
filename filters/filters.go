@@ -2,6 +2,7 @@ package filters
 
 import (
 	"errors"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"time"
 
@@ -169,6 +170,9 @@ var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
 
 // Registers a filter specification.
 func (r Registry) Register(s Spec) {
+	if _, ok := r[s.Name()]; ok {
+		log.Infof("Replacing registry: %s", s.Name())
+	}
 	r[s.Name()] = s
 }
 
