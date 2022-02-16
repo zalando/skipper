@@ -426,7 +426,7 @@ Add a HTTP header in the response path of your clients.
 
 ### Enable compression
 
-Compress responses with gzip/brotli (depending on accepted encoding).
+Compress responses with accepted encoding (more details [here](../reference/filters.md#compress)).
 
     compress() // compress all valid MIME types
     compress("text/html") // only compress HTML files
