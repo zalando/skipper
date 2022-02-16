@@ -566,6 +566,28 @@ func TestForwardError(t *testing.T) {
 	}
 }
 
+func TestCompressWithEncodings(t *testing.T) {
+	spec := NewCompressWithOptions(CompressOptions{Encodings: []string{"br", "gzip"}})
+	f, err := spec.CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,br,deflate"}}}
+	body := io.NopCloser(&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: 100})
+	rsp := &http.Response{
+		Header: http.Header{"Content-Type": []string{"application/octet-stream"}},
+		Body:   body}
+
+	ctx := &filtertest.Context{FRequest: req, FResponse: rsp}
+	f.Response(ctx)
+
+	enc := rsp.Header.Get("Content-Encoding")
+	if enc != "br" {
+		t.Error("unexpected value", enc)
+	}
+}
+
 func TestStreaming(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
