@@ -251,7 +251,7 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
-		"encodingPriority prohibited by cache control",
+		"encoding prohibited by cache control",
 		http.Header{"Cache-Control": []string{"x-test,no-transform"}},
 		3 * 8192,
 		nil,
@@ -275,14 +275,14 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
-		"does not accept encodingPriority",
+		"does not accept encoding",
 		http.Header{},
 		3 * 8192,
 		nil,
 		"",
 		http.Header{},
 	}, {
-		"unknown encodingPriority",
+		"unknown encoding",
 		http.Header{},
 		3 * 8192,
 		nil,

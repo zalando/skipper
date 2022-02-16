@@ -133,7 +133,7 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 // The filter also checks the incoming request, if it accepts the supported
 // encodings, explicitly stated in the Accept-Encoding header. The filter currently
 // supports brotli, gzip and deflate. It does not assume that the client accepts any
-// encodingPriority if the Accept-Encoding header is not set. It ignores * in the
+// encoding if the Accept-Encoding header is not set. It ignores * in the
 // Accept-Encoding header.
 //
 // Supported encodings are prioritized on:
@@ -142,8 +142,8 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 //
 // When compressing the response, it updates the response header. It deletes the
 // the Content-Length value triggering the proxy to always return the response
-// with chunked transfer encodingPriority, sets the Content-Encoding to the selected
-// encodingPriority and sets the Vary: Accept-Encoding header, if missing.
+// with chunked transfer encoding, sets the Content-Encoding to the selected
+// encoding and sets the Vary: Accept-Encoding header, if missing.
 //
 // The compression happens in a streaming way, using only a small internal buffer.
 //
