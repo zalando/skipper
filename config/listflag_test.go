@@ -77,12 +77,15 @@ func TestListFlag(t *testing.T) {
 
 		t.Run("bad", func(t *testing.T) {
 			current := commaListFlag("foo", "bar")
-			if err := current.Set("foo,bar,baz"); err == nil {
-				t.Error("failed to fail")
+
+			err := current.Set("foo,bar,baz")
+			if err == nil || err.Error() != `"baz" is not allowed, must be one of bar,foo` {
+				t.Errorf("unexpected error: %v", err)
 			}
 
-			if err := yaml.Unmarshal([]byte(yamlList), current); err == nil {
-				t.Error("failed to fail")
+			err = yaml.Unmarshal([]byte(yamlList), current)
+			if err == nil || err.Error() != `"baz" is not allowed, must be one of bar,foo` {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	})

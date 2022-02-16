@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -67,10 +68,21 @@ func (lf *listFlag) validate() error {
 
 	for _, v := range lf.values {
 		if !lf.allowed[v] {
-			return fmt.Errorf("value not allowed: %s", v)
+			return fmt.Errorf("%q is not allowed, must be one of %s", v, lf.allowedHelp())
 		}
 	}
 	return nil
 }
 
-func (lf listFlag) String() string { return lf.value }
+func (lf *listFlag) allowedHelp() string {
+	var values []string
+	for v := range lf.allowed {
+		values = append(values, v)
+	}
+	sort.Strings(values)
+	return strings.Join(values, lf.sep)
+}
+
+func (lf *listFlag) String() string {
+	return lf.value
+}
