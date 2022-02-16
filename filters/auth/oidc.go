@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -734,6 +735,57 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
+	// const
+	//claimNamesField   = "_claim_names"
+	//claimSourcesField = "_claim_sources"
+
+	// insert here: Aggregated and Distributed Claims
+	// 1. getClaimSouce
+	// 2. getClaimEndpointSouce
+
+	if groupsURL, ok := container.Claims["_claim_sources"]; ok {
+		log.Debug(groupsURL)
+		//urlParsed, err := url.Parse(groupsURL)
+		urlParsed, err := url.Parse("http://externalsourceexample.com")
+		if err != nil {
+			log.Errorf("failed to parse distributed groups source url %s: %s", groupsURL, err)
+			return
+		}
+		payload := strings.NewReader("{\"securityEnabledOnly\": false}")
+		req, err := http.NewRequest("POST", urlParsed.String(), payload)
+		if err != nil {
+			log.Errorf("error constructing groups endpoint request: %s", err)
+			return
+		}
+		req.Header.Add("content-type", "application/json")
+		container.OAuth2Token.SetAuthHeader(req)
+
+		client := http.DefaultClient
+		res, err := client.Do(req)
+		if err != nil {
+			log.Errorf("unable to call Microsoft Graph API: %s", err)
+			return
+		}
+		defer res.Body.Close()
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Errorf("failed to read Microsoft Graph API response: %s", err)
+			return
+		}
+		if res.StatusCode != http.StatusOK {
+			log.Errorf("failed to get groups: %s", string(body))
+			return
+		}
+
+		var target azureGroups
+		if err := json.Unmarshal(body, &target); err != nil {
+			log.Errorf("unabled to decode response: %s", err)
+			return
+		}
+
+		//container.Claims = target
+	}
+
 	// saving token info for chained filter
 	ctx.StateBag()[oidcClaimsCacheKey] = container
 
@@ -744,6 +796,10 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		f.internalServerError(ctx)
 		return
 	}
+}
+
+type azureGroups struct {
+	Value []interface{} `json:"value"`
 }
 
 func setHeaders(upstreamHeaders map[string]string, ctx filters.FilterContext, container interface{}) (err error) {
