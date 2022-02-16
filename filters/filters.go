@@ -170,10 +170,11 @@ var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
 
 // Registers a filter specification.
 func (r Registry) Register(s Spec) {
-	if _, ok := r[s.Name()]; ok {
-		log.Infof("Replacing registry: %s", s.Name())
+	name := s.Name()
+	if _, ok := r[name]; ok {
+		log.Infof("Replacing %s filter specification", name)
 	}
-	r[s.Name()] = s
+	r[name] = s
 }
 
 // All Skipper filter names
