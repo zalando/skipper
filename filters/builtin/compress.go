@@ -22,15 +22,15 @@ const bufferSize = 8192
 type encoding struct {
 	name string
 	q    float32 // encoding client priority
-	p    int     // encoding default priority
+	p    int     // encoding server priority
 }
 
 type encodings []*encoding
 
 type compress struct {
-	mime     []string
-	level    int
-	encoding []string
+	mime             []string
+	level            int
+	encodingPriority map[string]int
 }
 
 type encoder interface {
@@ -41,7 +41,7 @@ type encoder interface {
 
 var (
 	supportedEncodings  = []string{"gzip", "deflate", "br"}
-	unsupportedEncoding = errors.New("unsupported encoding")
+	unsupportedEncoding = errors.New("unsupported encodingPriority")
 )
 
 var defaultCompressMIME = []string{
@@ -119,8 +119,8 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 //
 // It is possible to control the compression level, by setting it as the first
 // filter argument, in front of the MIME types. The default compression level is
-// best-speed. The possible values are integers between 0 and 9 (inclusive), where
-// 0 means no-compression, 1 means best-speed and 9 means best-compression.
+// best-speed. The possible values are integers between 0 and 11 (inclusive), where
+// 0 means no-compression, 1 means best-speed and 11 means best-compression.
 // Example:
 //
 // 	* -> compress(9, "image/tiff") -> "https://www.example.org"
@@ -128,19 +128,32 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 // The filter also checks the incoming request, if it accepts the supported
 // encodings, explicitly stated in the Accept-Encoding header. The filter currently
 // supports brotli, gzip and deflate. It does not assume that the client accepts any
-// encoding if the Accept-Encoding header is not set. It ignores * in the
+// encodingPriority if the Accept-Encoding header is not set. It ignores * in the
 // Accept-Encoding header.
+//
+// Supported encodings are prioritized on:
+// - quality value if provided by client
+// - server side priority (encodingPriority) otherwise
 //
 // When compressing the response, it updates the response header. It deletes the
 // the Content-Length value triggering the proxy to always return the response
-// with chunked transfer encoding, sets the Content-Encoding to the selected
-// encoding and sets the Vary: Accept-Encoding header, if missing.
+// with chunked transfer encodingPriority, sets the Content-Encoding to the selected
+// encodingPriority and sets the Vary: Accept-Encoding header, if missing.
 //
 // The compression happens in a streaming way, using only a small internal buffer.
 //
-func NewCompress() filters.Spec { return &compress{encoding: supportedEncodings} }
+func NewCompress() filters.Spec { return NewCompressWithEncodings(supportedEncodings) }
 
-func NewCompressWithEncodings(encoding []string) filters.Spec { return &compress{encoding: encoding} }
+func NewCompressWithEncodings(encoding []string) filters.Spec {
+	encodingMap := map[string]int{}
+	for i, v := range encoding {
+		if !stringsContain(supportedEncodings, v) {
+			continue // skipping unsupported encodingPriority
+		}
+		encodingMap[v] = i
+	}
+	return &compress{encodingPriority: encodingMap}
+}
 
 func (c *compress) Name() string {
 	return filters.CompressName
@@ -148,9 +161,9 @@ func (c *compress) Name() string {
 
 func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 	f := &compress{
-		mime:     defaultCompressMIME,
-		level:    flate.BestSpeed,
-		encoding: c.encoding,
+		mime:             defaultCompressMIME,
+		level:            flate.BestSpeed,
+		encodingPriority: c.encodingPriority,
 	}
 
 	if len(args) == 0 {
@@ -234,8 +247,8 @@ func (c *compress) acceptedEncoding(r *http.Request) string {
 		}
 
 		name := strings.ToLower(strings.TrimSpace(sp[0]))
-		prio := index(c.encoding, name)
-		if prio < 0 {
+		prio, ok := c.encodingPriority[name]
+		if !ok {
 			continue
 		}
 
@@ -399,13 +412,4 @@ func (c *compress) Response(ctx filters.FilterContext) {
 
 	responseHeader(rsp, enc)
 	responseBody(rsp, enc, c.level)
-}
-
-func index(array []string, value string) int {
-	for i, v := range array {
-		if v == value {
-			return i
-		}
-	}
-	return -1
 }

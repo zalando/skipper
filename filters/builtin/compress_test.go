@@ -196,7 +196,7 @@ func TestCompressArgs(t *testing.T) {
 		append(defaultCompressMIME, "x/custom-0", "x/custom-1"),
 		6,
 	}} {
-		s := &compress{encoding: supportedEncodings}
+		s := NewCompress()
 		f, err := s.CreateFilter(ti.args)
 
 		if ti.err != err {
@@ -251,7 +251,7 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
-		"encoding prohibited by cache control",
+		"encodingPriority prohibited by cache control",
 		http.Header{"Cache-Control": []string{"x-test,no-transform"}},
 		3 * 8192,
 		nil,
@@ -275,14 +275,14 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
-		"does not accept encoding",
+		"does not accept encodingPriority",
 		http.Header{},
 		3 * 8192,
 		nil,
 		"",
 		http.Header{},
 	}, {
-		"unknown encoding",
+		"unknown encodingPriority",
 		http.Header{},
 		3 * 8192,
 		nil,
@@ -545,7 +545,7 @@ func TestCompress(t *testing.T) {
 }
 
 func TestForwardError(t *testing.T) {
-	spec := &compress{encoding: supportedEncodings}
+	spec := NewCompress()
 	f, err := spec.CreateFilter(nil)
 	if err != nil {
 		t.Fatal(err)
