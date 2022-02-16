@@ -33,6 +33,11 @@ type compress struct {
 	encodingPriority map[string]int
 }
 
+type CompressOptions struct {
+	// Specifies encodings supported for compression, the order defines priority when Accept-Header has equal quality values, see RFC 7231 section 5.3.1
+	Encodings []string
+}
+
 type encoder interface {
 	io.WriteCloser
 	Reset(io.Writer)
@@ -41,7 +46,7 @@ type encoder interface {
 
 var (
 	supportedEncodings  = []string{"gzip", "deflate", "br"}
-	unsupportedEncoding = errors.New("unsupported encodingPriority")
+	unsupportedEncoding = errors.New("unsupported encoding")
 )
 
 var defaultCompressMIME = []string{
@@ -142,11 +147,13 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 //
 // The compression happens in a streaming way, using only a small internal buffer.
 //
-func NewCompress() filters.Spec { return NewCompressWithEncodings(supportedEncodings) }
+func NewCompress() filters.Spec {
+	return NewCompressWithOptions(CompressOptions{supportedEncodings})
+}
 
-func NewCompressWithEncodings(encoding []string) filters.Spec {
+func NewCompressWithOptions(options CompressOptions) filters.Spec {
 	encodingMap := map[string]int{}
-	for i, v := range encoding {
+	for i, v := range options.Encodings {
 		if !stringsContain(supportedEncodings, v) {
 			log.Warningf("Skipping unsupported encoding: %s", v)
 			continue
