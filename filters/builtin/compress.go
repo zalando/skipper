@@ -152,15 +152,15 @@ func NewCompress() filters.Spec {
 }
 
 func NewCompressWithOptions(options CompressOptions) filters.Spec {
-	encodingMap := map[string]int{}
+	m := map[string]int{}
 	for i, v := range options.Encodings {
 		if !stringsContain(supportedEncodings, v) {
 			log.Warningf("Skipping unsupported encoding: %s", v)
 			continue
 		}
-		encodingMap[v] = i
+		m[v] = i
 	}
-	return &compress{encodingPriority: encodingMap}
+	return &compress{encodingPriority: m}
 }
 
 func (c *compress) Name() string {
