@@ -196,7 +196,7 @@ func TestCompressArgs(t *testing.T) {
 		append(defaultCompressMIME, "x/custom-0", "x/custom-1"),
 		6,
 	}} {
-		s := &compress{}
+		s := &compress{encoding: supportedEncodings}
 		f, err := s.CreateFilter(ti.args)
 
 		if ti.err != err {
@@ -545,7 +545,7 @@ func TestCompress(t *testing.T) {
 }
 
 func TestForwardError(t *testing.T) {
-	spec := &compress{}
+	spec := &compress{encoding: supportedEncodings}
 	f, err := spec.CreateFilter(nil)
 	if err != nil {
 		t.Fatal(err)
