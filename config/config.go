@@ -62,6 +62,7 @@ type Config struct {
 	PredicatePlugins                *pluginFlag    `yaml:"predicate-plugin"`
 	DataclientPlugins               *pluginFlag    `yaml:"dataclient-plugin"`
 	MultiPlugins                    *pluginFlag    `yaml:"multi-plugin"`
+	CompressEncodings               *listFlag      `yaml:"compress-encodings"`
 
 	// logging, metrics, profiling, tracing:
 	EnablePrometheusMetrics             bool      `yaml:"enable-prometheus-metrics"`
@@ -281,6 +282,7 @@ func NewConfig() *Config {
 	cfg.RoutesURLs = commaListFlag()
 	cfg.ForwardedHeadersList = commaListFlag()
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
+	cfg.CompressEncodings = commaListFlag("gzip", "br", "deflate")
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
 
@@ -318,6 +320,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.PredicatePlugins, "predicate-plugin", "set a custom predicate plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.MultiPlugins, "multi-plugin", "set a custom multitype plugins to load, a comma separated list of name and arguments")
+	flag.Var(cfg.CompressEncodings, "compress-encodings", "set encodings supported for compression, when client has no preference, uses in priority in the order of this array")
 
 	// logging, metrics, tracing:
 	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, "*Deprecated*: use metrics-flavour. Switch to Prometheus metrics format to expose metrics")
@@ -672,6 +675,7 @@ func (c *Config) ToOptions() skipper.Options {
 		DataClientPlugins:               c.DataclientPlugins.values,
 		Plugins:                         c.MultiPlugins.values,
 		PluginDirs:                      []string{skipper.DefaultPluginDir},
+		CompressEncodings:               c.CompressEncodings.values,
 
 		// logging, metrics, profiling, tracing:
 		EnablePrometheusMetrics:             c.EnablePrometheusMetrics,

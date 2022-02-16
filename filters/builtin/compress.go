@@ -40,7 +40,7 @@ type encoder interface {
 }
 
 var (
-	supportedEncodings  = []string{"br", "gzip", "deflate"}
+	supportedEncodings  = []string{"gzip", "deflate", "br"}
 	unsupportedEncoding = errors.New("unsupported encoding")
 )
 
@@ -138,7 +138,9 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 //
 // The compression happens in a streaming way, using only a small internal buffer.
 //
-func NewCompress() filters.Spec { return &compress{} }
+func NewCompress() filters.Spec { return &compress{encoding: supportedEncodings} }
+
+func NewCompressWithEncodings(encoding []string) filters.Spec { return &compress{encoding: encoding} }
 
 func (c *compress) Name() string {
 	return filters.CompressName
@@ -148,7 +150,7 @@ func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 	f := &compress{
 		mime:     defaultCompressMIME,
 		level:    flate.BestSpeed,
-		encoding: supportedEncodings,
+		encoding: c.encoding,
 	}
 
 	if len(args) == 0 {
