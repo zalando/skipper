@@ -4,6 +4,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"errors"
+	"github.com/andybalholm/brotli"
 	"io"
 	"math"
 	"net/http"
@@ -20,14 +21,21 @@ const bufferSize = 8192
 
 type encoding struct {
 	name string
-	q    float32
+	q    float32 // encoding client priority
+	p    int     // encoding server priority
 }
 
 type encodings []*encoding
 
 type compress struct {
-	mime  []string
-	level int
+	mime             []string
+	level            int
+	encodingPriority map[string]int
+}
+
+type CompressOptions struct {
+	// Specifies encodings supported for compression, the order defines priority when Accept-Header has equal quality values, see RFC 7231 section 5.3.1
+	Encodings []string
 }
 
 type encoder interface {
@@ -37,7 +45,7 @@ type encoder interface {
 }
 
 var (
-	supportedEncodings  = []string{"gzip", "deflate"}
+	supportedEncodings  = []string{"gzip", "deflate", "br"}
 	unsupportedEncoding = errors.New("unsupported encoding")
 )
 
@@ -54,6 +62,13 @@ var defaultCompressMIME = []string{
 }
 
 var (
+	brotliPool = &sync.Pool{New: func() interface{} {
+		ge, err := newEncoder("br", flate.BestSpeed)
+		if err != nil {
+			log.Error(err)
+		}
+		return ge
+	}}
 	gzipPool = &sync.Pool{New: func() interface{} {
 		ge, err := newEncoder("gzip", flate.BestSpeed)
 		if err != nil {
@@ -70,9 +85,14 @@ var (
 	}}
 )
 
-func (e encodings) Len() int           { return len(e) }
-func (e encodings) Less(i, j int) bool { return e[i].q > e[j].q } // higher first
-func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
+func (e encodings) Len() int { return len(e) }
+func (e encodings) Less(i, j int) bool {
+	if e[i].q != e[j].q {
+		return e[i].q > e[j].q // higher first
+	}
+	return e[i].p < e[j].p // smallest first
+}
+func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 
 // Returns a filter specification that is used to compress the response content.
 //
@@ -104,17 +124,21 @@ func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 //
 // It is possible to control the compression level, by setting it as the first
 // filter argument, in front of the MIME types. The default compression level is
-// best-speed. The possible values are integers between 0 and 9 (inclusive), where
-// 0 means no-compression, 1 means best-speed and 9 means best-compression.
+// best-speed. The possible values are integers between 0 and 11 (inclusive), where
+// 0 means no-compression, 1 means best-speed and 11 means best-compression.
 // Example:
 //
 // 	* -> compress(9, "image/tiff") -> "https://www.example.org"
 //
 // The filter also checks the incoming request, if it accepts the supported
 // encodings, explicitly stated in the Accept-Encoding header. The filter currently
-// supports gzip and deflate. It does not assume that the client accepts any
+// supports brotli, gzip and deflate. It does not assume that the client accepts any
 // encoding if the Accept-Encoding header is not set. It ignores * in the
 // Accept-Encoding header.
+//
+// Supported encodings are prioritized on:
+// - quality value if provided by client
+// - server side priority (encodingPriority) otherwise
 //
 // When compressing the response, it updates the response header. It deletes the
 // the Content-Length value triggering the proxy to always return the response
@@ -123,7 +147,24 @@ func (e encodings) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 //
 // The compression happens in a streaming way, using only a small internal buffer.
 //
-func NewCompress() filters.Spec { return &compress{} }
+func NewCompress() filters.Spec {
+	c, err := NewCompressWithOptions(CompressOptions{supportedEncodings})
+	if err != nil {
+		log.Warningf("Failed to create compress filter: %v", err)
+	}
+	return c
+}
+
+func NewCompressWithOptions(options CompressOptions) (filters.Spec, error) {
+	m := map[string]int{}
+	for i, v := range options.Encodings {
+		if !stringsContain(supportedEncodings, v) {
+			return nil, unsupportedEncoding
+		}
+		m[v] = i
+	}
+	return &compress{encodingPriority: m}, nil
+}
 
 func (c *compress) Name() string {
 	return filters.CompressName
@@ -131,8 +172,10 @@ func (c *compress) Name() string {
 
 func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 	f := &compress{
-		mime:  defaultCompressMIME,
-		level: flate.BestSpeed}
+		mime:             defaultCompressMIME,
+		level:            flate.BestSpeed,
+		encodingPriority: c.encodingPriority,
+	}
 
 	if len(args) == 0 {
 		return f, nil
@@ -140,11 +183,7 @@ func (c *compress) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	if lf, ok := args[0].(float64); ok && math.Trunc(lf) == lf {
 		f.level = int(lf)
-		if f.level < gzip.HuffmanOnly || f.level > gzip.BestCompression {
-			return nil, filters.ErrInvalidFilterParameters
-		}
-
-		if f.level < flate.HuffmanOnly || f.level > flate.BestCompression {
+		if f.level < flate.HuffmanOnly || f.level > brotli.BestCompression {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
@@ -210,7 +249,7 @@ func canEncodeEntity(r *http.Response, mime []string) bool {
 	return true
 }
 
-func acceptedEncoding(r *http.Request) string {
+func (c *compress) acceptedEncoding(r *http.Request) string {
 	var encs encodings
 	for _, s := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
 		sp := strings.Split(s, ";")
@@ -219,11 +258,12 @@ func acceptedEncoding(r *http.Request) string {
 		}
 
 		name := strings.ToLower(strings.TrimSpace(sp[0]))
-		if !stringsContain(supportedEncodings, name) {
+		prio, ok := c.encodingPriority[name]
+		if !ok {
 			continue
 		}
 
-		enc := &encoding{name, 1}
+		enc := &encoding{name, 1, prio}
 		encs = append(encs, enc)
 
 		for _, spi := range sp[1:] {
@@ -268,9 +308,17 @@ func unsupported() {
 
 func newEncoder(enc string, level int) (encoder, error) {
 	switch enc {
+	case "br":
+		return brotli.NewWriterLevel(nil, level), nil
 	case "gzip":
+		if level > gzip.BestCompression {
+			level = gzip.BestCompression
+		}
 		return gzip.NewWriterLevel(nil, level)
 	case "deflate":
+		if level > flate.BestCompression {
+			level = flate.BestCompression
+		}
 		return flate.NewWriter(nil, level)
 	default:
 		unsupported()
@@ -280,6 +328,8 @@ func newEncoder(enc string, level int) (encoder, error) {
 
 func encoderPool(enc string) *sync.Pool {
 	switch enc {
+	case "br":
+		return brotliPool
 	case "gzip":
 		return gzipPool
 	case "deflate":
@@ -366,7 +416,7 @@ func (c *compress) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	enc := acceptedEncoding(ctx.Request())
+	enc := c.acceptedEncoding(ctx.Request())
 	if enc == "" {
 		return
 	}

@@ -738,6 +738,9 @@ type Options struct {
 	// successful OAuth2 token exchange. Stores the encrypted access token.
 	OAuth2TokenCookieName string
 
+	// CompressEncodings, if not empty replace default compression encodings
+	CompressEncodings []string
+
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
 
@@ -1454,6 +1457,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			oauthConfig.NewGrantClaimsQuery(),
 			oauthConfig.NewGrantLogout(),
 		)
+	}
+
+	if len(o.CompressEncodings) > 0 {
+		compress, err := builtin.NewCompressWithOptions(builtin.CompressOptions{Encodings: o.CompressEncodings})
+		if err != nil {
+			log.Errorf("Failed to create compress filter: %v.", err)
+			return err
+		}
+		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
 	// create a filter registry with the available filter specs registered,

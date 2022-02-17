@@ -365,16 +365,22 @@ to be omitted:
 It is possible to control the compression level, by setting it as the first filter
 argument, in front of the MIME types. The default compression level is best-speed.
 The possible values are integers between 0 and 9 (inclusive), where 0 means
-no-compression, 1 means best-speed and 9 means best-compression. Example:
+no-compression, 1 means best-speed and 11 means best-compression. Example:
 
 ```
-* -> compress(9, "image/tiff") -> "https://www.example.org"
+* -> compress(11, "image/tiff") -> "https://www.example.org"
 ```
 
 The filter also checks the incoming request, if it accepts the supported encodings,
-explicitly stated in the Accept-Encoding header. The filter currently supports `gzip`
-and `deflate`. It does not assume that the client accepts any encoding if the
+explicitly stated in the Accept-Encoding header. 
+The filter currently supports by default `gzip`, `deflate` and `br` (can be overridden with flag `compress-encodings`). 
+It does not assume that the client accepts any encoding if the
 Accept-Encoding header is not set. It ignores * in the Accept-Encoding header.
+
+Supported encodings are prioritized on:
+- quality value provided by client
+- compress-encodings flag following order as provided if quality value is equal
+- `gzip`, `deflate`, `br` in this order otherwise
 
 When compressing the response, it updates the response header. It deletes the
 `Content-Length` value triggering the proxy to always return the response with chunked
@@ -386,7 +392,7 @@ The compression happens in a streaming way, using only a small internal buffer.
 ## decompress
 
 The filter, when executed on the response path, checks if the response entity is
-compressed by a supported algorithm. To decide, it checks the Content-Encoding
+compressed by a supported algorithm (`gzip`, `deflate`, `br`). To decide, it checks the Content-Encoding
 header.
 
 When compressing the response, it updates the response header. It deletes the

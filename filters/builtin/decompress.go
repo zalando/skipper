@@ -4,6 +4,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"fmt"
+	"github.com/andybalholm/brotli"
 	"io"
 	"net/http"
 	"runtime"
@@ -43,9 +44,17 @@ type decodingError struct {
 
 type decompress struct{}
 
+// workaround to make brotli library compatible with decompress
+type brotliWrapper struct {
+	brotli.Reader
+}
+
+func (brotliWrapper) Close() error { return nil }
+
 var supportedEncodingsDecompress = map[string]*sync.Pool{
 	"gzip":    {},
 	"deflate": {},
+	"br":      {},
 }
 
 func init() {
@@ -63,6 +72,8 @@ func newDecoder(enc string) io.ReadCloser {
 	switch enc {
 	case "gzip":
 		return new(gzip.Reader)
+	case "br":
+		return new(brotliWrapper)
 	default:
 		return flate.NewReader(nil)
 	}
@@ -77,6 +88,8 @@ func reset(decoder, original io.ReadCloser, enc string) error {
 	switch enc {
 	case "gzip":
 		return decoder.(*gzip.Reader).Reset(original)
+	case "br":
+		return decoder.(*brotliWrapper).Reset(original)
 	default:
 		return decoder.(flate.Resetter).Reset(original, nil)
 	}
@@ -150,7 +163,7 @@ func (e decodingError) Error() string {
 
 // NewDecompress creates a filter specification for the decompress() filter.
 // The filter attempts to decompress the response body, if it was compressed
-// with any of deflate or gzip.
+// with any of deflate, gzip or br.
 //
 // If decompression is not possible, but the body is compressed, then it indicates it
 // with the "filter::decompress::not-possible" key in the state-bag. If the decompression
