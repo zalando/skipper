@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"fmt"
+	"github.com/andybalholm/brotli"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -50,7 +51,7 @@ func request(t *testing.T, url string) (status int, h http.Header, content strin
 		t.Fatal(err)
 	}
 
-	req.Header.Set("Accept-Encoding", "deflate, gzip")
+	req.Header.Set("Accept-Encoding", "deflate, gzip, br")
 	c := &http.Client{Transport: &http.Transport{DisableCompression: true}}
 	rsp, err := c.Do(req)
 	if err != nil {
@@ -95,6 +96,8 @@ func compressedBody(t *testing.T, content io.Reader, enc string) io.Reader {
 	switch enc {
 	case "gzip":
 		c = gzip.NewWriter(&b)
+	case "br":
+		c = brotli.NewWriter(&b)
 	default:
 		c, err = flate.NewWriter(&b, flate.DefaultCompression)
 	}
@@ -132,7 +135,7 @@ func TestDecompress(t *testing.T) {
 	})
 
 	t.Run("cannot decompress", func(t *testing.T) {
-		b := backend(t, "br", bytes.NewReader([]byte{1, 2, 3}))
+		b := backend(t, "unsupported", bytes.NewReader([]byte{1, 2, 3}))
 		defer b.Close()
 
 		p := decompressingProxy(t, b.URL)
@@ -188,6 +191,31 @@ func TestDecompress(t *testing.T) {
 
 	t.Run("decompress, gzip", func(t *testing.T) {
 		b := backend(t, "gzip", compressedBody(t, bytes.NewBufferString("Hello, world!"), "gzip"))
+		defer b.Close()
+
+		p := decompressingProxy(t, b.URL)
+		defer p.Close()
+
+		status, h, content := request(t, p.URL)
+		if status != http.StatusOK {
+			t.Error(status)
+		}
+
+		if _, has := h["Content-Encoding"]; has {
+			t.Error("Failed to remove Content-Encoding header")
+		}
+
+		if _, has := h["Vary"]; has {
+			t.Error("Failed to remove Vary header")
+		}
+
+		if content != "Hello, world!" {
+			t.Error("Failed to return the content unchanged.")
+		}
+	})
+
+	t.Run("decompress, br", func(t *testing.T) {
+		b := backend(t, "br", compressedBody(t, bytes.NewBufferString("Hello, world!"), "br"))
 		defer b.Close()
 
 		p := decompressingProxy(t, b.URL)
