@@ -1460,7 +1460,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if len(o.CompressEncodings) > 0 {
-		o.CustomFilters = append(o.CustomFilters, builtin.NewCompressWithOptions(builtin.CompressOptions{Encodings: o.CompressEncodings}))
+		compress, err := builtin.NewCompressWithOptions(builtin.CompressOptions{Encodings: o.CompressEncodings})
+		if err != nil {
+			log.Errorf("Failed to create compress filter: %v.", err)
+			return err
+		}
+		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
 	// create a filter registry with the available filter specs registered,

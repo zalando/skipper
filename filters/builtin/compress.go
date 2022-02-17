@@ -148,19 +148,22 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 // The compression happens in a streaming way, using only a small internal buffer.
 //
 func NewCompress() filters.Spec {
-	return NewCompressWithOptions(CompressOptions{supportedEncodings})
+	c, err := NewCompressWithOptions(CompressOptions{supportedEncodings})
+	if err != nil {
+		log.Warningf("Failed to create compress filter: %v", err)
+	}
+	return c
 }
 
-func NewCompressWithOptions(options CompressOptions) filters.Spec {
+func NewCompressWithOptions(options CompressOptions) (filters.Spec, error) {
 	m := map[string]int{}
 	for i, v := range options.Encodings {
 		if !stringsContain(supportedEncodings, v) {
-			log.Warningf("Skipping unsupported encoding: %s", v)
-			continue
+			return nil, unsupportedEncoding
 		}
 		m[v] = i
 	}
-	return &compress{encodingPriority: m}
+	return &compress{encodingPriority: m}, nil
 }
 
 func (c *compress) Name() string {

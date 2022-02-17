@@ -567,7 +567,10 @@ func TestForwardError(t *testing.T) {
 }
 
 func TestCompressWithEncodings(t *testing.T) {
-	spec := NewCompressWithOptions(CompressOptions{Encodings: []string{"br", "gzip"}})
+	spec, err := NewCompressWithOptions(CompressOptions{Encodings: []string{"br", "gzip"}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	f, err := spec.CreateFilter(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -585,6 +588,13 @@ func TestCompressWithEncodings(t *testing.T) {
 	enc := rsp.Header.Get("Content-Encoding")
 	if enc != "br" {
 		t.Error("unexpected value", enc)
+	}
+}
+
+func TestCompressWithUnsupportedEncodings(t *testing.T) {
+	_, err := NewCompressWithOptions(CompressOptions{Encodings: []string{"br", "notSupported", "gzip"}})
+	if err == nil {
+		t.Error("expect error")
 	}
 }
 
