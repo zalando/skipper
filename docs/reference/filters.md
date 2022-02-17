@@ -392,7 +392,7 @@ The compression happens in a streaming way, using only a small internal buffer.
 ## decompress
 
 The filter, when executed on the response path, checks if the response entity is
-compressed by a supported algorithm. To decide, it checks the Content-Encoding
+compressed by a supported algorithm (`gzip`, `deflate`, `br`). To decide, it checks the Content-Encoding
 header.
 
 When compressing the response, it updates the response header. It deletes the
