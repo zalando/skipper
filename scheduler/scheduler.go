@@ -409,6 +409,12 @@ func (r *Registry) updateMetrics() {
 	}
 }
 
+func (r *Registry) UpdateMetrics() {
+	if r.options.Metrics != nil {
+		r.updateMetrics()
+	}
+}
+
 // Close closes the registry, including graceful tearing down the stored queues.
 func (r *Registry) Close() {
 	r.mu.Lock()

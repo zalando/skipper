@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/aryszka/jobqueue"
+	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -301,6 +303,38 @@ func TestNewLIFO(t *testing.T) {
 	}
 }
 
+type testTracer struct {
+	*mocktracer.MockTracer
+	spans int32
+}
+
+func (t *testTracer) Reset() {
+	atomic.StoreInt32(&t.spans, 0)
+	t.MockTracer.Reset()
+}
+
+func (t *testTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
+	atomic.AddInt32(&t.spans, 1)
+	return t.MockTracer.StartSpan(operationName, opts...)
+}
+
+func (t *testTracer) FinishedSpans() []*mocktracer.MockSpan {
+	timeout := time.After(1 * time.Second)
+	retry := time.NewTicker(100 * time.Millisecond)
+	defer retry.Stop()
+	for {
+		finished := t.MockTracer.FinishedSpans()
+		if len(finished) == int(atomic.LoadInt32(&t.spans)) {
+			return finished
+		}
+		select {
+		case <-retry.C:
+		case <-timeout:
+			return nil
+		}
+	}
+}
+
 func TestLifoErrors(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		time.Sleep(time.Second)
@@ -334,7 +368,7 @@ func TestLifoErrors(t *testing.T) {
 
 	<-rt.FirstLoad()
 
-	tracer := mocktracer.New()
+	tracer := &testTracer{MockTracer: mocktracer.New()}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
 		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
@@ -365,6 +399,8 @@ func TestLifoErrors(t *testing.T) {
 		502: 7, // were queued and timed out as backend latency is greater than scheduling timeout
 		503: 8, // were refused due to full queue
 	}, codes)
+
+	reg.UpdateMetrics()
 
 	metrics.WithCounters(func(counters map[string]int64) {
 		assert.Equal(t, int64(7), counters["lifo.aroute.error.timeout"])
