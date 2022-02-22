@@ -566,18 +566,19 @@ runtime. Full logs of the Proxy span:
 
 ### Request filters span
 
-The request filters span logs shows `start` and `end` values for each
-filter applied.
+The request filters span logs show `start` and `end` events for each filter applied.
 
 ![request filter span with logs](../img/skipper_opentracing_request_filters_span_with_logs.png)
 
 
 ### Response filters span
 
-The response filters span logs shows `start` and `end` values for each
-filter applied.
+The response filters span logs show `start` and `end` events for each filter applied.
 
 ![response filter span with logs](../img/skipper_opentracing_response_filters_span_with_logs.png)
+
+Request and response filters event logging can be disabled by setting the `-opentracing-log-filter-lifecycle-events=false` flag and
+span creation can be disabled altogether by the `-opentracing-disable-filter-spans` flag.
 
 ### Auth filters span
 

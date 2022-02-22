@@ -8,12 +8,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/tracing/tracingtest"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const traceHeader = "X-Trace-Header"
@@ -363,43 +367,77 @@ func TestProxyTracingDefaultOptions(t *testing.T) {
 	}
 }
 
-func TestEnabledLogFilterLifecycleEvents(t *testing.T) {
-	tracer := mocktracer.New()
-	tracing := newProxyTracing(&OpenTracingParams{
-		Tracer:          tracer,
-		LogFilterEvents: true,
-	})
-	span := tracer.StartSpan("test")
-	defer span.Finish()
+func TestFilterTracing(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		operation  string
+		filters    []string
+		params     *OpenTracingParams
+		expectLogs string
+	}{
+		{
+			name:       "enable log filter events",
+			operation:  "request_filters",
+			filters:    []string{"f1", "f2"},
+			params:     &OpenTracingParams{LogFilterEvents: true},
+			expectLogs: "f1: start, f1: end, f2: start, f2: end",
+		},
+		{
+			name:       "disable log filter events",
+			operation:  "request_filters",
+			filters:    []string{"f1", "f2"},
+			params:     &OpenTracingParams{LogFilterEvents: false},
+			expectLogs: "",
+		},
+		{
+			name:      "disable filter span (ignores log events)",
+			operation: "request_filters",
+			filters:   []string{"f1", "f2"},
+			params:    &OpenTracingParams{DisableFilterSpans: true, LogFilterEvents: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tracer := mocktracer.New()
+			tc.params.Tracer = tracer
+			tracing := newProxyTracing(tc.params)
 
-	tracing.logFilterStart(span, "test-filter")
-	tracing.logFilterEnd(span, "test-filter")
+			ctx := &context{request: &http.Request{}}
 
-	mockSpan := span.(*mocktracer.MockSpan)
+			ft := tracing.startFilterTracing(tc.operation, ctx)
+			for _, f := range tc.filters {
+				ft.logStart(f)
+				ft.logEnd(f)
+			}
+			ft.finish()
 
-	if len(mockSpan.Logs()) != 2 {
-		t.Errorf("filter lifecycle events were not logged although it was enabled")
+			spans := tracer.FinishedSpans()
+
+			if tc.params.DisableFilterSpans {
+				assert.Nil(t, ctx.parentSpan)
+				assert.Len(t, spans, 0)
+				return
+			}
+
+			require.Len(t, spans, 1)
+
+			span := spans[0]
+			assert.Equal(t, span, ctx.parentSpan)
+			assert.Equal(t, tc.operation, span.OperationName)
+			assert.Equal(t, tc.expectLogs, spanLogs(span))
+		})
 	}
 }
 
-func TestDisabledLogFilterLifecycleEvents(t *testing.T) {
-	tracer := mocktracer.New()
-	tracing := newProxyTracing(&OpenTracingParams{
-		Tracer:          tracer,
-		LogFilterEvents: false,
-	})
-	span := tracer.StartSpan("test")
-	defer span.Finish()
-
-	tracing.logFilterStart(span, "test-filter")
-	tracing.logFilterEnd(span, "test-filter")
-
-	mockSpan := span.(*mocktracer.MockSpan)
-
-	if len(mockSpan.Logs()) != 0 {
-		t.Errorf("filter lifecycle events were logged although it was disabled")
+func spanLogs(span *mocktracer.MockSpan) string {
+	var logs []string
+	for _, e := range span.Logs() {
+		for _, f := range e.Fields {
+			logs = append(logs, fmt.Sprintf("%s: %s", f.Key, f.ValueString))
+		}
 	}
+	return strings.Join(logs, ", ")
 }
+
 func TestEnabledLogStreamEvents(t *testing.T) {
 	tracer := mocktracer.New()
 	tracing := newProxyTracing(&OpenTracingParams{

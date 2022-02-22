@@ -69,6 +69,7 @@ type Config struct {
 	OpenTracing                         string    `yaml:"opentracing"`
 	OpenTracingInitialSpan              string    `yaml:"opentracing-initial-span"`
 	OpenTracingExcludedProxyTags        string    `yaml:"opentracing-excluded-proxy-tags"`
+	OpenTracingDisableFilterSpans       bool      `yaml:"opentracing-disable-filter-spans"`
 	OpentracingLogFilterLifecycleEvents bool      `yaml:"opentracing-log-filter-lifecycle-events"`
 	OpentracingLogStreamEvents          bool      `yaml:"opentracing-log-stream-events"`
 	OpentracingBackendNameTag           bool      `yaml:"opentracing-backend-name-tag"`
@@ -327,6 +328,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.OpenTracing, "opentracing", "noop", "list of arguments for opentracing (space separated), first argument is the tracer implementation")
 	flag.StringVar(&cfg.OpenTracingInitialSpan, "opentracing-initial-span", "ingress", "set the name of the initial, pre-routing, tracing span")
 	flag.StringVar(&cfg.OpenTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings.")
+	flag.BoolVar(&cfg.OpenTracingDisableFilterSpans, "opentracing-disable-filter-spans", false, "disable creation of spans representing request and response filters")
 	flag.BoolVar(&cfg.OpentracingLogFilterLifecycleEvents, "opentracing-log-filter-lifecycle-events", true, "enables the logs for request & response filters' lifecycle events that are marking start & end times.")
 	flag.BoolVar(&cfg.OpentracingLogStreamEvents, "opentracing-log-stream-events", true, "enables the logs for events marking the times response headers & payload are streamed to the client")
 	flag.BoolVar(&cfg.OpentracingBackendNameTag, "opentracing-backend-name-tag", false, "enables an additional tracing tag that contains a backend name for a route when it's available  (e.g. for RouteGroups) (default false)")
