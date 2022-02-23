@@ -64,6 +64,7 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	var ok bool
 	s, ok := args[0].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
@@ -89,13 +90,20 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 		}
 	}
 
-	ac, err := newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
-	if err != nil {
-		return nil, filters.ErrInvalidFilterParameters
+	var ac *authClient
+	var err error
+	if ac, ok = webhookAuthClient[s]; !ok {
+		ac, err = newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
+		if err != nil {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		webhookAuthClient[s] = ac
 	}
 
 	return &webhookFilter{authClient: ac, forwardResponseHeaderKeys: forwardResponseHeaderKeys}, nil
 }
+
+var webhookAuthClient map[string]*authClient = make(map[string]*authClient)
 
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
