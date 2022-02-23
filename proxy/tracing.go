@@ -2,6 +2,8 @@ package proxy
 
 import (
 	ot "github.com/opentracing/opentracing-go"
+
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -33,9 +35,15 @@ const (
 type proxyTracing struct {
 	tracer                   ot.Tracer
 	initialOperationName     string
+	disableFilterSpans       bool
 	logFilterLifecycleEvents bool
 	logStreamEvents          bool
 	excludeTags              map[string]bool
+}
+
+type filterTracing struct {
+	span      ot.Span
+	logEvents bool
 }
 
 func newProxyTracing(p *OpenTracingParams) *proxyTracing {
@@ -60,6 +68,7 @@ func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 	return &proxyTracing{
 		tracer:                   p.Tracer,
 		initialOperationName:     p.InitialSpan,
+		disableFilterSpans:       p.DisableFilterSpans,
 		logFilterLifecycleEvents: p.LogFilterEvents,
 		logStreamEvents:          p.LogStreamEvents,
 		excludeTags:              excludedTags,
@@ -86,14 +95,6 @@ func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *prox
 	return t
 }
 
-func (t *proxyTracing) logFilterEvent(span ot.Span, filterName, event string) {
-	if !t.logFilterLifecycleEvents {
-		return
-	}
-
-	t.logEvent(span, filterName, event)
-}
-
 func (t *proxyTracing) logStreamEvent(span ot.Span, eventName, eventValue string) {
 	if !t.logStreamEvents {
 		return
@@ -102,10 +103,30 @@ func (t *proxyTracing) logStreamEvent(span ot.Span, eventName, eventValue string
 	t.logEvent(span, eventName, eventValue)
 }
 
-func (t *proxyTracing) logFilterStart(span ot.Span, filterName string) {
-	t.logFilterEvent(span, filterName, StartEvent)
+func (t *proxyTracing) startFilterTracing(operation string, ctx *context) *filterTracing {
+	if t.disableFilterSpans {
+		return nil
+	}
+	span := tracing.CreateSpan(operation, ctx.request.Context(), t.tracer)
+	ctx.parentSpan = span
+
+	return &filterTracing{span, t.logFilterLifecycleEvents}
 }
 
-func (t *proxyTracing) logFilterEnd(span ot.Span, filterName string) {
-	t.logFilterEvent(span, filterName, EndEvent)
+func (t *filterTracing) finish() {
+	if t != nil {
+		t.span.Finish()
+	}
+}
+
+func (t *filterTracing) logStart(filterName string) {
+	if t != nil && t.logEvents {
+		t.span.LogKV(filterName, StartEvent)
+	}
+}
+
+func (t *filterTracing) logEnd(filterName string) {
+	if t != nil && t.logEvents {
+		t.span.LogKV(filterName, EndEvent)
+	}
 }

@@ -608,6 +608,9 @@ type Options struct {
 	// OpenTracingExcludedProxyTags can disable a tag so that it is not recorded. By default every tag is included.
 	OpenTracingExcludedProxyTags []string
 
+	// OpenTracingDisableFilterSpans flag is used to disable creation of spans representing request and response filters.
+	OpenTracingDisableFilterSpans bool
+
 	// OpenTracingLogFilterLifecycleEvents flag is used to enable/disable the logs for events marking request and
 	// response filters' start & end times.
 	OpenTracingLogFilterLifecycleEvents bool
@@ -1641,11 +1644,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	proxyParams.OpenTracing = &proxy.OpenTracingParams{
-		Tracer:          tracer,
-		InitialSpan:     o.OpenTracingInitialSpan,
-		ExcludeTags:     o.OpenTracingExcludedProxyTags,
-		LogFilterEvents: o.OpenTracingLogFilterLifecycleEvents,
-		LogStreamEvents: o.OpenTracingLogStreamEvents,
+		Tracer:             tracer,
+		InitialSpan:        o.OpenTracingInitialSpan,
+		ExcludeTags:        o.OpenTracingExcludedProxyTags,
+		DisableFilterSpans: o.OpenTracingDisableFilterSpans,
+		LogFilterEvents:    o.OpenTracingLogFilterLifecycleEvents,
+		LogStreamEvents:    o.OpenTracingLogStreamEvents,
 	}
 
 	// create the proxy
