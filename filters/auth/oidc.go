@@ -129,7 +129,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if err != nil {
 		return nil, err
 	}
-	if len(sargs) < paramClaims {
+	if len(sargs) <= paramClaims {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
