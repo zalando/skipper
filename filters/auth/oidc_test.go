@@ -592,6 +592,17 @@ func TestCreateFilterOIDC(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "missing claims result in error",
+			args: []interface{}{
+				oidcServer.URL, // provider/issuer
+				"cliendId",
+				"clientSecret",
+				oidcServer.URL + "/redirect", // redirect URL
+				"email name",
+			},
+			wantErr: true,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := &tokenOidcSpec{
