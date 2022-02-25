@@ -684,6 +684,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenTracing:                         strings.Split(c.OpenTracing, " "),
 		OpenTracingInitialSpan:              c.OpenTracingInitialSpan,
 		OpenTracingExcludedProxyTags:        strings.Split(c.OpenTracingExcludedProxyTags, ","),
+		OpenTracingDisableFilterSpans:       c.OpenTracingDisableFilterSpans,
 		OpenTracingLogStreamEvents:          c.OpentracingLogStreamEvents,
 		OpenTracingLogFilterLifecycleEvents: c.OpentracingLogFilterLifecycleEvents,
 		MetricsListener:                     c.MetricsListener,
