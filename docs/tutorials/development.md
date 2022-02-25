@@ -42,6 +42,45 @@ curl -s http://localhost:9999/foo
 2
 ```
 
+### Debugging Skipper
+
+It can be helpful to run Skipper in a debug session locally that enables one to inspect variables and do other debugging activities in order to analyze filter and token states.
+
+For *Visual Studion Code* users, a simple setup could be to create following *launch configuration* that compiles Skipper, runs it in a *Delve* debug session, and then opens the default web browser creating the request. By setting a breakpoint, you can inspect the state of the filter or application. This setup is especially useful when inspecting *oauth* flows and tokens as it allows stepping through the states.
+
+<details>
+<summary>Example `.vscode/launch.json` file</summary>
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Package",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd/skipper/main.go",
+            "args": [
+                "-application-log-level=debug",
+                "-address=:9999",
+                "-inline-routes=PathSubtree(\"/\") -> inlineContent(\"Hello World\") -> <shunt>",
+               // example OIDC setup, using https://developer.microsoft.com/en-us/microsoft-365/dev-program
+               //  "-oidc-secrets-file=${workspaceFolder}/.vscode/launch.json",
+               //  "-inline-routes=* -> oauthOidcAnyClaims(\"https://login.microsoftonline.com/<tenant Id>/v2.0\",\"<application id>\",\"<client secret>\",\"http://localhost:9999/authcallback\", \"profile\", \"\", \"\", \"x-auth-email:claims.email x-groups:claims.groups\") -> inlineContent(\"restriced access\") -> <shunt>",
+            ],
+            "serverReadyAction": {
+                "pattern": "route settings applied",
+                "uriFormat": "http://localhost:9999",
+                "action": "openExternally"
+            }
+        }
+    ]
+}
+```
+
+</details>
+
 ## Docs
 
 We have user documentation and developer documentation separated.
