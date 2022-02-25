@@ -34,6 +34,8 @@ type (
 	}
 )
 
+var webhookAuthClient map[string]*authClient = make(map[string]*authClient)
+
 // NewWebhook creates a new auth filter specification
 // to validate authorization for requests via an
 // external web hook.
@@ -103,8 +105,6 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 	return &webhookFilter{authClient: ac, forwardResponseHeaderKeys: forwardResponseHeaderKeys}, nil
 }
 
-var webhookAuthClient map[string]*authClient = make(map[string]*authClient)
-
 func copyHeader(to, from http.Header) {
 	for k, v := range from {
 		to[http.CanonicalHeaderKey(k)] = v
@@ -140,8 +140,3 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 }
 
 func (*webhookFilter) Response(filters.FilterContext) {}
-
-// Close cleans-up the authClient
-func (f *webhookFilter) Close() {
-	f.authClient.Close()
-}
