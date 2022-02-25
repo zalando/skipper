@@ -70,8 +70,6 @@ process. A spec has to satisfy the `filters.Spec` interface `Name() string` and
 
 The actual filter implementation has to satisfy the `filter.Filter`
 interface `Request(filters.FilterContext)` and `Response(filters.FilterContext)`.
-If you need to clean up for example a goroutine you can do it in
-`Close()`, which will be called on filter shutdown.
 
 The simplest filter possible is, if `filters.Spec` and
 `filters.Filter` are the same type:
