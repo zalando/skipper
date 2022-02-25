@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,9 +20,11 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
+	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"github.com/zalando/skipper/filters"
+	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/secrets"
 	"golang.org/x/oauth2"
 )
@@ -38,7 +41,33 @@ const (
 	stateValidity       = 1 * time.Minute
 	oidcInfoHeader      = "Skipper-Oidc-Info"
 	cookieMaxSize       = 4093 // common cookie size limit http://browsercookielimits.squawky.net/
+
+	// Deprecated: The host of the Azure Active Directory (AAD) graph API
+	azureADGraphHost = "graph.windows.net"
 )
+
+var (
+	distributedClaimsClients = sync.Map{}
+	microsoftGraphHost       = "graph.microsoft.com" // global for testing
+)
+
+type distributedClaims struct {
+	ClaimNames   map[string]string      `json:"_claim_names"`
+	ClaimSources map[string]claimSource `json:"_claim_sources"`
+}
+
+type claimSource struct {
+	Endpoint    string `json:"endpoint"`
+	AccessToken string `json:"access_token,omitempty"`
+}
+
+type azureGraphGroups struct {
+	OdataNextLink string `json:"@odata.nextLink,omitempty"`
+	Value         []struct {
+		DisplayName string `json:"displayName"`
+		ID          string `json:"id"`
+	} `json:"value"`
+}
 
 // Filter parameter:
 //
@@ -57,11 +86,18 @@ const (
 	paramSubdomainsToRemove
 )
 
+type OidcOptions struct {
+	MaxIdleConns int
+	Timeout      time.Duration
+	Tracer       opentracing.Tracer
+}
+
 type (
 	tokenOidcSpec struct {
 		typ             roleCheckType
 		SecretsFile     string
 		secretsRegistry secrets.EncrypterCreator
+		options         OidcOptions
 	}
 
 	tokenOidcFilter struct {
@@ -79,6 +115,7 @@ type (
 		compressor         cookieCompression
 		upstreamHeaders    map[string]string
 		subdomainsToRemove int
+		oidcOptions        OidcOptions
 	}
 
 	tokenContainer struct {
@@ -98,21 +135,36 @@ type (
 	}
 )
 
-// NewOAuthOidcUserInfos creates filter spec which tests user info.
+// NewOAuthOidcUserInfosWithOptions creates filter spec which tests user info.
+func NewOAuthOidcUserInfosWithOptions(secretsFile string, secretsRegistry secrets.EncrypterCreator, o OidcOptions) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
+}
+
+// Deprecated: use NewOAuthOidcUserInfosWithOptions instead.
 func NewOAuthOidcUserInfos(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
-	return &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
+	return NewOAuthOidcUserInfosWithOptions(secretsFile, secretsRegistry, OidcOptions{})
 }
 
-// NewOAuthOidcAnyClaims creates a filter spec which verifies that the token
+// NewOAuthOidcAnyClaimsWithOptions creates a filter spec which verifies that the token
 // has one of the claims specified
-func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
-	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
+func NewOAuthOidcAnyClaimsWithOptions(secretsFile string, secretsRegistry secrets.EncrypterCreator, o OidcOptions) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
 }
 
-// NewOAuthOidcAllClaims creates a filter spec which verifies that the token
+// Deprecated: use NewOAuthOidcAnyClaimsWithOptions instead.
+func NewOAuthOidcAnyClaims(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
+	return NewOAuthOidcAnyClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{})
+}
+
+// NewOAuthOidcAllClaimsWithOptions creates a filter spec which verifies that the token
 // has all the claims specified
+func NewOAuthOidcAllClaimsWithOptions(secretsFile string, secretsRegistry secrets.EncrypterCreator, o OidcOptions) filters.Spec {
+	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry, options: o}
+}
+
+// Deprecated: use NewOAuthOidcAllClaimsWithOptions instead.
 func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry secrets.EncrypterCreator) filters.Spec {
-	return &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: secretsFile, secretsRegistry: secretsRegistry}
+	return NewOAuthOidcAllClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{})
 }
 
 // CreateFilter creates an OpenID Connect authorization filter.
@@ -198,6 +250,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		encrypter:          encrypter,
 		compressor:         newDeflatePoolCompressor(flate.BestCompression),
 		subdomainsToRemove: subdomainsToRemove,
+		oidcOptions:        s.options,
 	}
 
 	// user defined scopes
@@ -820,6 +873,10 @@ func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oa
 		return nil, "", requestErrorf("claims do not contain sub")
 	}
 
+	if err = f.handleDistributedClaims(r.Context(), idToken, oauth2Token, tokenMap); err != nil {
+		return nil, "", requestErrorf("failed to handle distributed claims: %v", err)
+	}
+
 	return tokenMap, sub, nil
 }
 
@@ -883,6 +940,150 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 	}
 
 	return oauth2Token, err
+}
+
+// handleDistributedClaims handles if user has a distributed / overage token.
+// https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens#groups-overage-claim
+// In Azure, if you are indirectly member of more than 200 groups, they will
+// send _claim_names and _claim_sources instead of the groups, per OIDC Core 1.0, section 5.6.2:
+// https://openid.net/specs/openid-connect-core-1_0.html#AggregatedDistributedClaims
+// Example:
+//
+// {
+// 	 "_claim_names": {
+// 	   "groups": "src1"
+// 	 },
+// 	 "_claim_sources": {
+// 	   "src1": {
+// 	     "endpoint": "https://graph.windows.net/.../getMemberObjects"
+// 	   }
+//   }
+// }
+//
+func (f *tokenOidcFilter) handleDistributedClaims(ctx context.Context, idToken *oidc.IDToken, oauth2Token *oauth2.Token, claimsMap map[string]interface{}) error {
+	// https://github.com/coreos/go-oidc/issues/171#issuecomment-1044286153
+	var distClaims distributedClaims
+	err := idToken.Claims(&distClaims)
+	if err != nil {
+		return err
+	}
+	if len(distClaims.ClaimNames) == 0 || len(distClaims.ClaimSources) == 0 {
+		log.Debugf("No distributed claims found")
+		return nil
+	}
+
+	for claim, ref := range distClaims.ClaimNames {
+		source, ok := distClaims.ClaimSources[ref]
+		if !ok {
+			return fmt.Errorf("invalid distributed claims: missing claim source for %s", claim)
+		}
+		uri, err := url.Parse(source.Endpoint)
+		if err != nil {
+			return fmt.Errorf("failed to parse distributed claim endpoint: %w", err)
+		}
+
+		var results []interface{}
+
+		switch uri.Host {
+		case azureADGraphHost, microsoftGraphHost:
+			results, err = f.handleDistributedClaimsAzure(uri, oauth2Token, claimsMap)
+			if err != nil {
+				return fmt.Errorf("failed to get distributed Azure claim: %w", err)
+			}
+		default:
+			return fmt.Errorf("unsupported distributed claims endpoint '%s', please create an issue at https://github.com/zalando/skipper/issues/new/choose", uri.Host)
+		}
+
+		claimsMap[claim] = results
+	}
+	return nil
+}
+
+// Azure customizations https://docs.microsoft.com/en-us/graph/migrate-azure-ad-graph-overview
+// If the endpoints provided in _claim_source is pointed to the deprecated "graph.windows.net" api
+// replace with handcrafted url to graph.microsoft.com
+func (f *tokenOidcFilter) handleDistributedClaimsAzure(url *url.URL, oauth2Token *oauth2.Token, claimsMap map[string]interface{}) (values []interface{}, err error) {
+	url.Host = microsoftGraphHost
+	// transitiveMemberOf for group names
+	userID, ok := claimsMap["oid"].(string)
+	if !ok {
+		return nil, fmt.Errorf("oid claim not found in claims map")
+	}
+	url.Path = fmt.Sprintf("/v1.0/users/%s/transitiveMemberOf", userID)
+	q := url.Query()
+	q.Set("$select", "displayName,id")
+	url.RawQuery = q.Encode()
+	return f.resolveDistributedClaimAzure(url, oauth2Token)
+}
+
+func (f *tokenOidcFilter) initClient() *snet.Client {
+	newCli := snet.NewClient(snet.Options{
+		ResponseHeaderTimeout:   f.oidcOptions.Timeout,
+		TLSHandshakeTimeout:     f.oidcOptions.Timeout,
+		MaxIdleConnsPerHost:     f.oidcOptions.MaxIdleConns,
+		Tracer:                  f.oidcOptions.Tracer,
+		OpentracingComponentTag: "skipper",
+		OpentracingSpanName:     "distributedClaims",
+	})
+	return newCli
+}
+
+func (f *tokenOidcFilter) resolveDistributedClaimAzure(url *url.URL, oauth2Token *oauth2.Token) (values []interface{}, err error) {
+	var target azureGraphGroups
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error constructing groups endpoint request: %w", err)
+	}
+	oauth2Token.SetAuthHeader(req)
+
+	cli, ok := distributedClaimsClients.Load(url.Host)
+	if !ok {
+		var loaded bool
+		newCli := f.initClient()
+		cli, loaded = distributedClaimsClients.LoadOrStore(url.Host, newCli)
+		if loaded {
+			newCli.Close()
+		}
+	}
+
+	client, ok := cli.(*snet.Client)
+	if !ok {
+		return nil, errors.New("invalid distributed claims client type")
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("unable to call API: %w", err)
+	}
+	body, err := io.ReadAll(res.Body)
+	res.Body.Close() // closing for connection reuse
+	if err != nil {
+		return nil, fmt.Errorf("failed to read API response: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned error: %s", string(body))
+	}
+
+	err = json.Unmarshal(body, &target)
+	if err != nil {
+		return nil, fmt.Errorf("unabled to decode response: %w", err)
+	}
+	for _, v := range target.Value {
+		values = append(values, v.DisplayName)
+	}
+	// recursive pagination
+	if target.OdataNextLink != "" {
+		nextURL, err := url.Parse(target.OdataNextLink)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse next link: %w", err)
+		}
+		vs, err := f.resolveDistributedClaimAzure(nextURL, oauth2Token)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, vs...)
+	}
+	return
 }
 
 func newDeflatePoolCompressor(level int) *deflatePoolCompressor {

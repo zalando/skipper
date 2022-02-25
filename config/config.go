@@ -192,6 +192,7 @@ type Config struct {
 	Oauth2TokenCookieName           string        `yaml:"oauth2-token-cookie-name"`
 	WebhookTimeout                  time.Duration `yaml:"webhook-timeout"`
 	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
+	OidcDistributedClaimsTimeout    time.Duration `yaml:"oidc-distributed-claims-timeout"`
 	CredentialPaths                 *listFlag     `yaml:"credentials-paths"`
 	CredentialsUpdateInterval       time.Duration `yaml:"credentials-update-interval"`
 
@@ -447,6 +448,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.Oauth2TokenCookieName, "oauth2-token-cookie-name", "oauth2-grant", "sets the name of the cookie where the encrypted token is stored")
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", "file storing the encryption key of the OID Connect token")
+	flag.DurationVar(&cfg.OidcDistributedClaimsTimeout, "oidc-distributed-claims-timeout", 2*time.Second, "sets the default OIDC distributed claims request timeout duration to 2000ms")
 	flag.Var(cfg.CredentialPaths, "credentials-paths", "directories or files to watch for credentials to use by bearerinjector filter")
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", 10*time.Minute, "sets the interval to update secrets")
 
@@ -800,6 +802,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuth2TokenCookieName:          c.Oauth2TokenCookieName,
 		WebhookTimeout:                 c.WebhookTimeout,
 		OIDCSecretsFile:                c.OidcSecretsFile,
+		OIDCDistributedClaimsTimeout:   c.OidcDistributedClaimsTimeout,
 		CredentialsPaths:               c.CredentialPaths.values,
 		CredentialsUpdateInterval:      c.CredentialsUpdateInterval,
 

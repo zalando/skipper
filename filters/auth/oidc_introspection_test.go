@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -289,7 +290,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
 			}
 			reqURL.Path = tc.path
-			oidcServer := createOIDCServer(proxy.URL+"/redirect", validClient, "mysec")
+			oidcServer := createOIDCServer(proxy.URL+"/redirect", validClient, "mysec", jwt.MapClaims{"groups": []string{"CD-Administrators", "Purchasing-Department", "AppX-Test-Users", "white space"}})
 			defer oidcServer.Close()
 			t.Logf("oidc/auth server URL: %s", oidcServer.URL)
 			// create filter
