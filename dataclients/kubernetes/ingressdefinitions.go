@@ -172,3 +172,9 @@ type ClusterResourceList struct {
 	// Items, aka "resources".
 	Items []*ClusterResource `json:"resources"`
 }
+
+type secret struct {
+	Meta *definitions.Metadata `json:"Metadata"`
+	Type string                `json:"type"`
+	Data map[string]string     `json:"data"`
+}

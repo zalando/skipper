@@ -37,6 +37,7 @@ const (
 	routeGroupsNamespaceFmt    = "/apis/zalando.org/v1/namespaces/%s/routegroups"
 	ServicesNamespaceFmt       = "/api/v1/namespaces/%s/services"
 	EndpointsNamespaceFmt      = "/api/v1/namespaces/%s/endpoints"
+	SecretsNamespaceFmt        = "/api/v1/namespaces/%s/secrets/"
 	serviceAccountDir          = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey     = "token"
 	serviceAccountRootCAKey    = "ca.crt"
@@ -50,6 +51,7 @@ type clusterClient struct {
 	routeGroupsURI string
 	servicesURI    string
 	endpointsURI   string
+	secretsURI     string
 	tokenProvider  secrets.SecretsProvider
 	apiURL         string
 
@@ -374,6 +376,18 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 	return rgs, nil
 }
 
+func (c *clusterClient) loadSecret(name string, namespace string) (*secret, error) {
+	var secret *secret
+	c.secretsURI = fmt.Sprintf(SecretsNamespaceFmt, namespace)
+	if err := c.getJSON(c.secretsURI+name, &secret); err != nil {
+		log.Debugf("requesting secret failed: %v", err)
+		return nil, err
+	}
+
+	log.Debugf("secret received: %s", name)
+	return secret, nil
+}
+
 func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, error) {
 	var services serviceList
 	if err := c.getJSON(c.servicesURI, &services); err != nil {
@@ -430,9 +444,22 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		err         error
 		ingressesV1 []*definitions.IngressV1Item
 		ingresses   []*definitions.IngressItem
+		secrets     []*secret
 	)
 	if c.ingressV1 {
 		ingressesV1, err = c.loadIngressesV1()
+		for _, ing := range ingressesV1 {
+			if ing.Spec.IngressTLS != nil {
+				for _, sec := range ing.Spec.IngressTLS {
+					secret, err := c.loadSecret(sec.SecretName, ing.Metadata.Namespace)
+					if err != nil {
+						log.Println(err)
+						return nil, err
+					}
+					secrets = append(secrets, secret)
+				}
+			}
+		}
 	} else {
 		ingresses, err = c.loadIngresses()
 	}
@@ -469,5 +496,6 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		services:        services,
 		endpoints:       endpoints,
 		cachedEndpoints: make(map[endpointID][]string),
+		secrets:         secrets,
 	}, nil
 }

@@ -23,7 +23,7 @@ type IngressV1Spec struct {
 	DefaultBackend   *BackendV1 `json:"defaultBackend,omitempty"`
 	IngressClassName string     `json:"ingressClassName,omitempty"`
 	Rules            []*RuleV1  `json:"rules"`
-	// Ingress TLS not supported: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressspec-v1-networking-k8s-io
+	IngressTLS       []*TLSV1   `json:"tls,omitempty"`
 }
 
 // BackendV1 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressbackend-v1-networking-k8s-io
@@ -69,6 +69,11 @@ type PathRuleV1 struct {
 	Path     string     `json:"path"`
 	PathType string     `json:"pathType"`
 	Backend  *BackendV1 `json:"backend"`
+}
+
+type TLSV1 struct {
+	Hosts      []string `json:"hosts"`
+	SecretName string   `json:"secretName"`
 }
 
 // ParseIngressV1JSON parse JSON into an IngressV1List
