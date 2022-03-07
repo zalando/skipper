@@ -72,7 +72,7 @@ type Queue struct {
 // Options provides options for the registry.
 type Options struct {
 
-	// MetricsUpdateTimeout defines the frequence of how often the LIFO metrics
+	// MetricsUpdateTimeout defines the frequency of how often the LIFO metrics
 	// are updated when they are enabled. Defaults to 1s.
 	MetricsUpdateTimeout time.Duration
 
@@ -95,10 +95,21 @@ type Options struct {
 //
 type Registry struct {
 	options   Options
-	queues    *sync.Map
 	measuring bool
 	quit      chan struct{}
+
+	mu      sync.Mutex
+	queues  map[queueId]*Queue
+	deleted map[*Queue]time.Time
 }
+
+type queueId struct {
+	name    string
+	grouped bool
+}
+
+// Amount of time to wait before closing the deleted queues
+var queueCloseDelay = 1 * time.Minute
 
 // LIFOFilter is the interface that needs to be implemented by the filters that
 // use a LIFO queue maintained by the registry.
@@ -184,14 +195,32 @@ func RegistryWith(o Options) *Registry {
 
 	return &Registry{
 		options: o,
-		queues:  new(sync.Map),
 		quit:    make(chan struct{}),
+		queues:  make(map[queueId]*Queue),
+		deleted: make(map[*Queue]time.Time),
 	}
 }
 
 // NewRegistry creates a registry with the default options.
 func NewRegistry() *Registry {
 	return RegistryWith(Options{})
+}
+
+func (r *Registry) getQueue(id queueId, c Config) *Queue {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	q, ok := r.queues[id]
+	if ok {
+		if q.config != c {
+			q.config = c
+			q.reconfigure()
+		}
+	} else {
+		q = r.newQueue(id.name, c)
+		r.queues[id] = q
+	}
+	return q
 }
 
 func (r *Registry) newQueue(name string, c Config) *Queue {
@@ -220,6 +249,28 @@ func (r *Registry) newQueue(name string, c Config) *Queue {
 	}
 
 	return q
+}
+
+func (r *Registry) deleteUnused(inUse map[queueId]struct{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now()
+	closeCutoff := now.Add(-queueCloseDelay)
+
+	for q, deleted := range r.deleted {
+		if deleted.Before(closeCutoff) {
+			delete(r.deleted, q)
+			q.close()
+		}
+	}
+
+	for id, q := range r.queues {
+		if _, ok := inUse[id]; !ok {
+			delete(r.queues, id)
+			r.deleted[q] = now
+		}
+	}
 }
 
 // Returns routing.PreProcessor that ensures single lifo filter instance per route
@@ -261,7 +312,7 @@ func (registryPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 // It preserves the existing queue when available.
 func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 	rr := make([]*routing.Route, len(routes))
-	existingKeys := make(map[string]bool)
+	inUse := make(map[queueId]struct{})
 	groups := make(map[string][]GroupedLIFOFilter)
 
 	for i, ri := range routes {
@@ -280,24 +331,11 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 			}
 
 			lifoCount++
-			var q *Queue
-			key := fmt.Sprintf("lifo::%s", ri.Id)
-			existingKeys[key] = true
-			c := lf.Config()
-			qi, ok := r.queues.Load(key)
-			if ok {
-				// Will not reach here if routes were pre-processed
-				// because key is derived from the unique route id and
-				// pre-processor ensures single lifo filter instance per route
-				q = qi.(*Queue)
-				if q.config != c {
-					q.config = c
-					q.reconfigure()
-				}
-			} else {
-				q = r.newQueue(ri.Id, c)
-				r.queues.Store(key, q)
-			}
+
+			id := queueId{ri.Id, false}
+			inUse[id] = struct{}{}
+
+			q := r.getQueue(id, lf.Config())
 
 			lf.SetQueue(q)
 		}
@@ -327,34 +365,17 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 			foundConfig = true
 		}
 
-		var q *Queue
-		key := fmt.Sprintf("group-lifo::%s", name)
-		existingKeys[key] = true
-		qi, ok := r.queues.Load(key)
-		if ok {
-			q = qi.(*Queue)
-			if q.config != c {
-				q.config = c
-				q.reconfigure()
-			}
-		} else {
-			q = r.newQueue(name, c)
-			r.queues.Store(key, q)
-		}
+		id := queueId{name, true}
+		inUse[id] = struct{}{}
+
+		q := r.getQueue(id, c)
 
 		for _, glf := range group {
 			glf.SetQueue(q)
 		}
 	}
 
-	r.queues.Range(func(key, qi interface{}) bool {
-		if !existingKeys[key.(string)] {
-			qi.(*Queue).close()
-			r.queues.Delete(key)
-		}
-
-		return true
-	})
+	r.deleteUnused(inUse)
 
 	return rr
 }
@@ -367,16 +388,9 @@ func (r *Registry) measure() {
 	r.measuring = true
 	go func() {
 		for {
-			r.queues.Range(func(_, value interface{}) bool {
-				q := value.(*Queue)
-				s := q.Status()
-				r.options.Metrics.UpdateGauge(q.activeRequestsMetricsKey, float64(s.ActiveRequests))
-				r.options.Metrics.UpdateGauge(q.queuedRequestsMetricsKey, float64(s.QueuedRequests))
-				return true
-			})
-
 			select {
 			case <-time.After(r.options.MetricsUpdateTimeout):
+				r.updateMetrics()
 			case <-r.quit:
 				return
 			}
@@ -384,13 +398,37 @@ func (r *Registry) measure() {
 	}()
 }
 
-// Close closes the registry, including gracefull tearing down the stored
-// queues.
+func (r *Registry) updateMetrics() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, q := range r.queues {
+		s := q.Status()
+		r.options.Metrics.UpdateGauge(q.activeRequestsMetricsKey, float64(s.ActiveRequests))
+		r.options.Metrics.UpdateGauge(q.queuedRequestsMetricsKey, float64(s.QueuedRequests))
+	}
+}
+
+func (r *Registry) UpdateMetrics() {
+	if r.options.Metrics != nil {
+		r.updateMetrics()
+	}
+}
+
+// Close closes the registry, including graceful tearing down the stored queues.
 func (r *Registry) Close() {
-	r.queues.Range(func(_, value interface{}) bool {
-		value.(*Queue).close()
-		return true
-	})
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for q := range r.deleted {
+		delete(r.deleted, q)
+		q.close()
+	}
+
+	for id, q := range r.queues {
+		delete(r.queues, id)
+		q.close()
+	}
 
 	close(r.quit)
 }

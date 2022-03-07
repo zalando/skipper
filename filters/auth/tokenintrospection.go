@@ -482,8 +482,3 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *tokenintrospectFilter) Response(filters.FilterContext) {}
-
-// Close cleans-up the authClient
-func (f *tokenintrospectFilter) Close() {
-	f.authClient.Close()
-}

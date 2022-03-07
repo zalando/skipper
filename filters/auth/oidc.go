@@ -129,7 +129,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	if err != nil {
 		return nil, err
 	}
-	if len(sargs) < paramClaims {
+	if len(sargs) <= paramClaims {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -858,11 +858,6 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 	}
 
 	return oauth2Token, err
-}
-
-func (f *tokenOidcFilter) Close() error {
-	f.encrypter.Close()
-	return nil
 }
 
 func newDeflatePoolCompressor(level int) *deflatePoolCompressor {

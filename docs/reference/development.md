@@ -97,7 +97,7 @@ index 10d5769..da46fe0 100644
 
 Documentation for users should be done in `docs/`.
 
-```
+````
 diff --git a/docs/filters.md b/docs/filters.md
 index d3bb872..a877062 100644
 --- a/docs/filters.md
@@ -127,7 +127,7 @@ index d3bb872..a877062 100644
  ## oauthTokeninfoAnyScope
 
  If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
-```
+````
 
 ### Add godoc
 
@@ -170,8 +170,6 @@ process. A spec has to satisfy the `Spec` interface `Name() string` and
 
 The actual filter implementation has to satisfy the `Filter`
 interface `Request(filters.FilterContext)` and `Response(filters.FilterContext)`.
-If you need to clean up for example a goroutine you can do it in
-`Close()`, which will be called on filter shutdown.
 
 ```
 diff --git a/filters/auth/webhook.go b/filters/auth/webhook.go
@@ -254,16 +252,6 @@ index 0000000..f0632a6
 +}
 +
 +func (*webhookFilter) Response(filters.FilterContext) {}
-+
-+// Close cleans-up the quit channel used for this filter
-+func (f *webhookFilter) Close() {
-+	f.authClient.mu.Lock()
-+	if f.authClient.quit != nil {
-+		close(f.authClient.quit)
-+		f.authClient.quit = nil
-+	}
-+	f.authClient.mu.Unlock()
-+}
 ```
 
 ### Writing tests

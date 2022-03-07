@@ -97,6 +97,7 @@ func Test_NewConfig(t *testing.T) {
 				PredicatePlugins:                        newPluginFlag(),
 				DataclientPlugins:                       newPluginFlag(),
 				MultiPlugins:                            newPluginFlag(),
+				CompressEncodings:                       commaListFlag("gzip", "deflate", "br"),
 				OpenTracing:                             "noop",
 				OpenTracingInitialSpan:                  "ingress",
 				OpentracingLogFilterLifecycleEvents:     true,

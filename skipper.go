@@ -608,6 +608,9 @@ type Options struct {
 	// OpenTracingExcludedProxyTags can disable a tag so that it is not recorded. By default every tag is included.
 	OpenTracingExcludedProxyTags []string
 
+	// OpenTracingDisableFilterSpans flag is used to disable creation of spans representing request and response filters.
+	OpenTracingDisableFilterSpans bool
+
 	// OpenTracingLogFilterLifecycleEvents flag is used to enable/disable the logs for events marking request and
 	// response filters' start & end times.
 	OpenTracingLogFilterLifecycleEvents bool
@@ -737,6 +740,9 @@ type Options struct {
 	// OAuth2TokenCookieName the name of the cookie that Skipper sets after a
 	// successful OAuth2 token exchange. Stores the encrypted access token.
 	OAuth2TokenCookieName string
+
+	// CompressEncodings, if not empty replace default compression encodings
+	CompressEncodings []string
 
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
@@ -1456,6 +1462,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
+	if len(o.CompressEncodings) > 0 {
+		compress, err := builtin.NewCompressWithOptions(builtin.CompressOptions{Encodings: o.CompressEncodings})
+		if err != nil {
+			log.Errorf("Failed to create compress filter: %v.", err)
+			return err
+		}
+		o.CustomFilters = append(o.CustomFilters, compress)
+	}
+
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
 	registry := builtin.MakeRegistry()
@@ -1629,11 +1644,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	proxyParams.OpenTracing = &proxy.OpenTracingParams{
-		Tracer:          tracer,
-		InitialSpan:     o.OpenTracingInitialSpan,
-		ExcludeTags:     o.OpenTracingExcludedProxyTags,
-		LogFilterEvents: o.OpenTracingLogFilterLifecycleEvents,
-		LogStreamEvents: o.OpenTracingLogStreamEvents,
+		Tracer:             tracer,
+		InitialSpan:        o.OpenTracingInitialSpan,
+		ExcludeTags:        o.OpenTracingExcludedProxyTags,
+		DisableFilterSpans: o.OpenTracingDisableFilterSpans,
+		LogFilterEvents:    o.OpenTracingLogFilterLifecycleEvents,
+		LogStreamEvents:    o.OpenTracingLogStreamEvents,
 	}
 
 	// create the proxy

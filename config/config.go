@@ -62,12 +62,14 @@ type Config struct {
 	PredicatePlugins                *pluginFlag    `yaml:"predicate-plugin"`
 	DataclientPlugins               *pluginFlag    `yaml:"dataclient-plugin"`
 	MultiPlugins                    *pluginFlag    `yaml:"multi-plugin"`
+	CompressEncodings               *listFlag      `yaml:"compress-encodings"`
 
 	// logging, metrics, profiling, tracing:
 	EnablePrometheusMetrics             bool      `yaml:"enable-prometheus-metrics"`
 	OpenTracing                         string    `yaml:"opentracing"`
 	OpenTracingInitialSpan              string    `yaml:"opentracing-initial-span"`
 	OpenTracingExcludedProxyTags        string    `yaml:"opentracing-excluded-proxy-tags"`
+	OpenTracingDisableFilterSpans       bool      `yaml:"opentracing-disable-filter-spans"`
 	OpentracingLogFilterLifecycleEvents bool      `yaml:"opentracing-log-filter-lifecycle-events"`
 	OpentracingLogStreamEvents          bool      `yaml:"opentracing-log-stream-events"`
 	OpentracingBackendNameTag           bool      `yaml:"opentracing-backend-name-tag"`
@@ -281,6 +283,7 @@ func NewConfig() *Config {
 	cfg.RoutesURLs = commaListFlag()
 	cfg.ForwardedHeadersList = commaListFlag()
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
+	cfg.CompressEncodings = commaListFlag("gzip", "deflate", "br")
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
 
@@ -318,12 +321,14 @@ func NewConfig() *Config {
 	flag.Var(cfg.PredicatePlugins, "predicate-plugin", "set a custom predicate plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.MultiPlugins, "multi-plugin", "set a custom multitype plugins to load, a comma separated list of name and arguments")
+	flag.Var(cfg.CompressEncodings, "compress-encodings", "set encodings supported for compression, the order defines priority when Accept-Header has equal quality values, see RFC 7231 section 5.3.1")
 
 	// logging, metrics, tracing:
 	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, "*Deprecated*: use metrics-flavour. Switch to Prometheus metrics format to expose metrics")
 	flag.StringVar(&cfg.OpenTracing, "opentracing", "noop", "list of arguments for opentracing (space separated), first argument is the tracer implementation")
 	flag.StringVar(&cfg.OpenTracingInitialSpan, "opentracing-initial-span", "ingress", "set the name of the initial, pre-routing, tracing span")
 	flag.StringVar(&cfg.OpenTracingExcludedProxyTags, "opentracing-excluded-proxy-tags", "", "set tags that should be excluded from spans created for proxy operation. must be a comma-separated list of strings.")
+	flag.BoolVar(&cfg.OpenTracingDisableFilterSpans, "opentracing-disable-filter-spans", false, "disable creation of spans representing request and response filters")
 	flag.BoolVar(&cfg.OpentracingLogFilterLifecycleEvents, "opentracing-log-filter-lifecycle-events", true, "enables the logs for request & response filters' lifecycle events that are marking start & end times.")
 	flag.BoolVar(&cfg.OpentracingLogStreamEvents, "opentracing-log-stream-events", true, "enables the logs for events marking the times response headers & payload are streamed to the client")
 	flag.BoolVar(&cfg.OpentracingBackendNameTag, "opentracing-backend-name-tag", false, "enables an additional tracing tag that contains a backend name for a route when it's available  (e.g. for RouteGroups) (default false)")
@@ -672,12 +677,14 @@ func (c *Config) ToOptions() skipper.Options {
 		DataClientPlugins:               c.DataclientPlugins.values,
 		Plugins:                         c.MultiPlugins.values,
 		PluginDirs:                      []string{skipper.DefaultPluginDir},
+		CompressEncodings:               c.CompressEncodings.values,
 
 		// logging, metrics, profiling, tracing:
 		EnablePrometheusMetrics:             c.EnablePrometheusMetrics,
 		OpenTracing:                         strings.Split(c.OpenTracing, " "),
 		OpenTracingInitialSpan:              c.OpenTracingInitialSpan,
 		OpenTracingExcludedProxyTags:        strings.Split(c.OpenTracingExcludedProxyTags, ","),
+		OpenTracingDisableFilterSpans:       c.OpenTracingDisableFilterSpans,
 		OpenTracingLogStreamEvents:          c.OpentracingLogStreamEvents,
 		OpenTracingLogFilterLifecycleEvents: c.OpentracingLogFilterLifecycleEvents,
 		MetricsListener:                     c.MetricsListener,

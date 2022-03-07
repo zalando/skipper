@@ -101,14 +101,11 @@ func TestWebhook(t *testing.T) {
 				args = append(args, headerToCopy)
 			}
 
-			f, err := spec.CreateFilter(args)
+			_, err := spec.CreateFilter(args)
 			if err != nil {
-				t.Errorf("error in creating filter for %s: %v", ti.msg, err)
+				t.Errorf("error creating filter for %s: %v", ti.msg, err)
 				return
 			}
-
-			f2 := f.(*webhookFilter)
-			defer f2.Close()
 
 			fr := make(filters.Registry)
 			fr.Register(spec)

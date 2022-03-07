@@ -123,8 +123,12 @@ type OpenTracingParams struct {
 	// Default: "ingress".
 	InitialSpan string
 
+	// DisableFilterSpans disables creation of spans representing request and response filters.
+	// Default: false
+	DisableFilterSpans bool
+
 	// LogFilterEvents enables the behavior to mark start and completion times of filters
-	// on the span representing request filters being processed.
+	// on the span representing request/response filters being processed.
 	// Default: false
 	LogFilterEvents bool
 
@@ -735,14 +739,13 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	}
 
 	filtersStart := time.Now()
-	filtersSpan := tracing.CreateSpan("request_filters", ctx.request.Context(), p.tracing.tracer)
-	defer filtersSpan.Finish()
-	ctx.parentSpan = filtersSpan
+	filterTracing := p.tracing.startFilterTracing("request_filters", ctx)
+	defer filterTracing.finish()
 
 	var filters = make([]*routing.RouteFilter, 0, len(f))
 	for _, fi := range f {
 		start := time.Now()
-		p.tracing.logFilterStart(filtersSpan, fi.Name)
+		filterTracing.logStart(fi.Name)
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Request(ctx)
@@ -757,7 +760,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 
 			p.log.Errorf("error while processing filter during request: %s: %v (%s)", fi.Name, err, stack)
 		})
-		p.tracing.logFilterEnd(filtersSpan, fi.Name)
+		filterTracing.logEnd(fi.Name)
 
 		filters = append(filters, fi)
 		if ctx.deprecatedShunted() || ctx.shunted() {
@@ -772,15 +775,14 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 // applies filters to a response in reverse order
 func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *context) {
 	filtersStart := time.Now()
-	filtersSpan := tracing.CreateSpan("response_filters", ctx.request.Context(), p.tracing.tracer)
-	defer filtersSpan.Finish()
-	ctx.parentSpan = filtersSpan
+	filterTracing := p.tracing.startFilterTracing("response_filters", ctx)
+	defer filterTracing.finish()
 
 	last := len(filters) - 1
 	for i := range filters {
 		fi := filters[last-i]
 		start := time.Now()
-		p.tracing.logFilterStart(filtersSpan, fi.Name)
+		filterTracing.logStart(fi.Name)
 		tryCatch(func() {
 			ctx.setMetricsPrefix(fi.Name)
 			fi.Response(ctx)
@@ -795,7 +797,7 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 
 			p.log.Errorf("error while processing filters during response: %s: %v (%s)", fi.Name, err, stack)
 		})
-		p.tracing.logFilterEnd(filtersSpan, fi.Name)
+		filterTracing.logEnd(fi.Name)
 	}
 
 	p.metrics.MeasureAllFiltersResponse(ctx.route.Id, filtersStart)

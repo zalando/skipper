@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"errors"
+	"github.com/andybalholm/brotli"
 	"io"
 	"math/rand"
 	"net/http"
@@ -68,6 +69,10 @@ func setHeaders(to, from http.Header) {
 
 func decoder(enc string, r io.Reader) io.Reader {
 	switch enc {
+	case "br":
+		rr := brotli.NewReader(r)
+
+		return rr
 	case "gzip":
 		rr, err := gzip.NewReader(r)
 		if err != nil {
@@ -101,13 +106,13 @@ func compareBody(r *http.Response, contentLength int) (bool, error) {
 	return bytes.Equal(b, testContent[:contentLength]), nil
 }
 
-func benchmarkCompress(b *testing.B, n int64) {
+func benchmarkCompress(b *testing.B, n int64, encoding []string) {
 	s := NewCompress()
 	f, _ := s.CreateFilter(nil)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			body := io.NopCloser(&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: n})
-			req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,deflate"}}}
+			req := &http.Request{Header: http.Header{"Accept-Encoding": encoding}}
 			rsp := &http.Response{
 				Header: http.Header{"Content-Type": []string{"application/octet-stream"}},
 				Body:   body}
@@ -191,7 +196,7 @@ func TestCompressArgs(t *testing.T) {
 		append(defaultCompressMIME, "x/custom-0", "x/custom-1"),
 		6,
 	}} {
-		s := &compress{}
+		s := NewCompress()
 		f, err := s.CreateFilter(ti.args)
 
 		if ti.err != err {
@@ -329,6 +334,15 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
+		"gzip, higher compression",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(brotli.BestCompression)},
+		"x-custom,gzip",
+		http.Header{
+			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
 		"deflate",
 		http.Header{},
 		3 * 8192,
@@ -374,6 +388,42 @@ func TestCompress(t *testing.T) {
 			"Content-Encoding": []string{"deflate"},
 			"Vary":             []string{"Accept-Encoding"}},
 	}, {
+		"brotli",
+		http.Header{},
+		3 * 8192,
+		nil,
+		"x-custom,br",
+		http.Header{
+			"Content-Encoding": []string{"br"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"brotli, best speed",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(brotli.BestSpeed)},
+		"x-custom,br",
+		http.Header{
+			"Content-Encoding": []string{"br"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"brotli, stdlib default",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(brotli.DefaultCompression)},
+		"x-custom,br",
+		http.Header{
+			"Content-Encoding": []string{"br"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"brotli, best compression",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(brotli.BestCompression)},
+		"x-custom,br",
+		http.Header{
+			"Content-Encoding": []string{"br"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
 		"weighted first",
 		http.Header{},
 		3 * 8192,
@@ -406,6 +456,24 @@ func TestCompress(t *testing.T) {
 		maxTestContent,
 		nil,
 		"gzip,deflate",
+		http.Header{
+			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"multiple compression, priority to gzip",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(brotli.BestCompression)},
+		"x-custom,br,gzip,deflate",
+		http.Header{
+			"Content-Encoding": []string{"gzip"},
+			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"multiple compression, priority to gzip",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(gzip.BestCompression)},
+		"x-custom,gzip,deflate",
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
@@ -477,7 +545,7 @@ func TestCompress(t *testing.T) {
 }
 
 func TestForwardError(t *testing.T) {
-	spec := &compress{}
+	spec := NewCompress()
 	f, err := spec.CreateFilter(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -495,6 +563,38 @@ func TestForwardError(t *testing.T) {
 	b, err := io.ReadAll(dec)
 	if string(b) != "test-content" || err != testError {
 		t.Error("failed to forward error", string(b), err)
+	}
+}
+
+func TestCompressWithEncodings(t *testing.T) {
+	spec, err := NewCompressWithOptions(CompressOptions{Encodings: []string{"br", "gzip"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := spec.CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,br,deflate"}}}
+	body := io.NopCloser(&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: 100})
+	rsp := &http.Response{
+		Header: http.Header{"Content-Type": []string{"application/octet-stream"}},
+		Body:   body}
+
+	ctx := &filtertest.Context{FRequest: req, FResponse: rsp}
+	f.Response(ctx)
+
+	enc := rsp.Header.Get("Content-Encoding")
+	if enc != "br" {
+		t.Error("unexpected value", enc)
+	}
+}
+
+func TestCompressWithUnsupportedEncodings(t *testing.T) {
+	_, err := NewCompressWithOptions(CompressOptions{Encodings: []string{"br", "notSupported", "gzip"}})
+	if err == nil {
+		t.Error("expect error")
 	}
 }
 
@@ -647,8 +747,14 @@ func TestPoolRelease(t *testing.T) {
 	wg.Wait()
 }
 
-func BenchmarkCompress0(b *testing.B) { benchmarkCompress(b, 0) }
-func BenchmarkCompress2(b *testing.B) { benchmarkCompress(b, 100) }
-func BenchmarkCompress4(b *testing.B) { benchmarkCompress(b, 10000) }
-func BenchmarkCompress6(b *testing.B) { benchmarkCompress(b, 1000000) }
-func BenchmarkCompress8(b *testing.B) { benchmarkCompress(b, 100000000) }
+func BenchmarkCompressGzip0(b *testing.B) { benchmarkCompress(b, 0, []string{"gzip,deflate"}) }
+func BenchmarkCompressGzip2(b *testing.B) { benchmarkCompress(b, 100, []string{"gzip,deflate"}) }
+func BenchmarkCompressGzip4(b *testing.B) { benchmarkCompress(b, 10000, []string{"gzip,deflate"}) }
+func BenchmarkCompressGzip6(b *testing.B) { benchmarkCompress(b, 1000000, []string{"gzip,deflate"}) }
+func BenchmarkCompressGzip8(b *testing.B) { benchmarkCompress(b, 100000000, []string{"gzip,deflate"}) }
+
+func BenchmarkCompressBrotli0(b *testing.B) { benchmarkCompress(b, 0, []string{"br"}) }
+func BenchmarkCompressBrotli2(b *testing.B) { benchmarkCompress(b, 100, []string{"br"}) }
+func BenchmarkCompressBrotli4(b *testing.B) { benchmarkCompress(b, 10000, []string{"br"}) }
+func BenchmarkCompressBrotli6(b *testing.B) { benchmarkCompress(b, 1000000, []string{"br"}) }
+func BenchmarkCompressBrotli8(b *testing.B) { benchmarkCompress(b, 100000000, []string{"br"}) }

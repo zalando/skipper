@@ -25,3 +25,4 @@ _test_plugins_fail/*.so
 opentracingplugin/build
 build/
 skptesting/lorem.html
+.vscode/*

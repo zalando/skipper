@@ -8,8 +8,6 @@ pipeline:
   commands:
   - desc: build-push
     cmd: |
-      apt-get update  -o Acquire::http::AllowRedirect=false
-      apt-get install -o Acquire::http::AllowRedirect=false -y bzr redis-server jq
       IMAGE_REGISTRY="registry-write.opensource.zalan.do"
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         LATEST_VERSION=$(git describe --tags --always | awk -F \- '{print $1}')

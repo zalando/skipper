@@ -34,6 +34,8 @@ type (
 	}
 )
 
+var webhookAuthClient map[string]*authClient = make(map[string]*authClient)
+
 // NewWebhook creates a new auth filter specification
 // to validate authorization for requests via an
 // external web hook.
@@ -64,6 +66,7 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	var ok bool
 	s, ok := args[0].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
@@ -89,9 +92,14 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 		}
 	}
 
-	ac, err := newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
-	if err != nil {
-		return nil, filters.ErrInvalidFilterParameters
+	var ac *authClient
+	var err error
+	if ac, ok = webhookAuthClient[s]; !ok {
+		ac, err = newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
+		if err != nil {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		webhookAuthClient[s] = ac
 	}
 
 	return &webhookFilter{authClient: ac, forwardResponseHeaderKeys: forwardResponseHeaderKeys}, nil
@@ -132,8 +140,3 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 }
 
 func (*webhookFilter) Response(filters.FilterContext) {}
-
-// Close cleans-up the authClient
-func (f *webhookFilter) Close() {
-	f.authClient.Close()
-}

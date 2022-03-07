@@ -182,6 +182,7 @@ func TestScheduler(t *testing.T) {
 
 func TestConfig(t *testing.T) {
 	waitForStatus := func(t *testing.T, q *scheduler.Queue, s scheduler.QueueStatus) {
+		t.Helper()
 		timeout := time.After(120 * time.Millisecond)
 		for {
 			if q.Status() == s {
@@ -195,6 +196,9 @@ func TestConfig(t *testing.T) {
 			}
 		}
 	}
+
+	const testQueueCloseDelay = 1 * time.Second
+	*scheduler.ExportQueueCloseDelay = testQueueCloseDelay
 
 	initTest := func(doc string) (*routing.Routing, *testdataclient.Client, func()) {
 		cli, err := testdataclient.NewDoc(doc)
@@ -218,6 +222,21 @@ func TestConfig(t *testing.T) {
 			rt.Close()
 			reg.Close()
 		}
+	}
+
+	updateDoc := func(t *testing.T, dc *testdataclient.Client, upsertDoc string, deletedIDs []string) {
+		t.Helper()
+		if err := dc.UpdateDoc(upsertDoc, deletedIDs); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(120 * time.Millisecond)
+	}
+
+	getQueue := func(path string, rt *routing.Routing) *scheduler.Queue {
+		req := &http.Request{URL: &url.URL{Path: path}}
+		r, _ := rt.Route(req)
+		f := r.Filters[0]
+		return f.Filter.(scheduler.LIFOFilter).GetQueue()
 	}
 
 	t.Run("group config applied", func(t *testing.T) {
@@ -273,10 +292,7 @@ func TestConfig(t *testing.T) {
 		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
 
 		// change the configuration, should decrease the queue size:
-		const updateDoc = `route: * -> lifo(2, 1) -> <shunt>`
-		if err := dc.UpdateDoc(updateDoc, nil); err != nil {
-			t.Fatal(err)
-		}
+		updateDoc(t, dc, `route: * -> lifo(2, 1) -> <shunt>`, nil)
 
 		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
 	})
@@ -309,19 +325,15 @@ func TestConfig(t *testing.T) {
 		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
 
 		// change the configuration, should decrease the queue size:
-		const updateDoc = `
+		updateDoc(t, dc, `
 			g1: Path("/one") -> lifoGroup("g", 2, 1) -> <shunt>;
 			g2: Path("/two") -> lifoGroup("g") -> <shunt>;
-		`
-
-		if err := dc.UpdateDoc(updateDoc, nil); err != nil {
-			t.Fatal(err)
-		}
+		`, nil)
 
 		waitForStatus(t, q, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
 	})
 
-	t.Run("queue gets closed when removed", func(t *testing.T) {
+	t.Run("queue gets closed when removed after delay", func(t *testing.T) {
 		const doc = `
 			g1: Path("/one") -> lifo(2, 2) -> <shunt>;
 			g2: Path("/two") -> lifo(2, 2) -> <shunt>;
@@ -330,16 +342,28 @@ func TestConfig(t *testing.T) {
 		rt, dc, close := initTest(doc)
 		defer close()
 
-		req := &http.Request{URL: &url.URL{Path: "/one"}}
-		r, _ := rt.Route(req)
-		f := r.Filters[0]
-		q := f.Filter.(scheduler.LIFOFilter).GetQueue()
+		q1 := getQueue("/one", rt)
+		q2 := getQueue("/two", rt)
 
-		if err := dc.UpdateDoc("", []string{"g1"}); err != nil {
-			t.Fatal(err)
-		}
+		waitForStatus(t, q1, scheduler.QueueStatus{Closed: false})
+		waitForStatus(t, q2, scheduler.QueueStatus{Closed: false})
 
-		waitForStatus(t, q, scheduler.QueueStatus{Closed: true})
+		updateDoc(t, dc, "", []string{"g1"})
+
+		// Queue is not closed immediately when deleted
+		waitForStatus(t, q1, scheduler.QueueStatus{Closed: false})
+		waitForStatus(t, q2, scheduler.QueueStatus{Closed: false})
+
+		// An update triggers closing of the deleted queue if it
+		// was deleted more than testQueueCloseDelay ago
+		time.Sleep(testQueueCloseDelay)
+		updateDoc(t, dc, `g3: Path("/three") -> lifo(2, 2) -> <shunt>;`, nil)
+
+		q3 := getQueue("/three", rt)
+
+		waitForStatus(t, q1, scheduler.QueueStatus{Closed: true})
+		waitForStatus(t, q2, scheduler.QueueStatus{Closed: false})
+		waitForStatus(t, q3, scheduler.QueueStatus{Closed: false})
 	})
 }
 

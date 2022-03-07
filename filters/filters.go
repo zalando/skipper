@@ -2,6 +2,7 @@ package filters
 
 import (
 	"errors"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"time"
 
@@ -169,7 +170,11 @@ var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
 
 // Registers a filter specification.
 func (r Registry) Register(s Spec) {
-	r[s.Name()] = s
+	name := s.Name()
+	if _, ok := r[name]; ok {
+		log.Infof("Replacing %s filter specification", name)
+	}
+	r[name] = s
 }
 
 // All Skipper filter names
