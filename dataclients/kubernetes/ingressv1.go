@@ -311,6 +311,26 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 	return nil
 }
 
+// addSpecIngressTLSV1 is used to add TLS Certificates to hostRoutes
+func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.TLSV1) error {
+	for host, rs := range ic.hostRoutes {
+		if len(rs) == 0 {
+			continue
+		}
+		for _, htls := range ingtls.Hosts {
+			if htls == host {
+				err := addHostTLSCerts(ic, rs, host, ingtls.SecretName)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+	}
+
+	return nil
+}
+
 // converts the default backend if any
 func (ing *ingress) convertDefaultBackendV1(
 	state *clusterState,
@@ -426,6 +446,12 @@ func (ing *ingress) ingressV1Route(
 	}
 	for _, rule := range i.Spec.Rules {
 		err := ing.addSpecRuleV1(ic, rule)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, ingtls := range i.Spec.IngressTLS {
+		err := ing.addSpecIngressTLSV1(ic, ingtls)
 		if err != nil {
 			return nil, err
 		}

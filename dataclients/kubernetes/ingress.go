@@ -1,6 +1,8 @@
 package kubernetes
 
 import (
+	"crypto/tls"
+	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -349,6 +351,29 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	}
 
 	return false
+}
+
+func addHostTLSCerts(ic ingressContext, routes []*eskip.Route, host string, secretName string) error {
+	for k := range routes {
+		for _, secret := range ic.state.secrets {
+			if secret.Meta.Name == secretName {
+				crt, err := b64.StdEncoding.DecodeString(secret.Data["tls.crt"])
+				if err != nil {
+					return err
+				}
+				key, err := b64.StdEncoding.DecodeString(secret.Data["tls.key"])
+				if err != nil {
+					return err
+				}
+				cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
+				if err != nil {
+					return err
+				}
+				ic.hostRoutes[host][k].TLSCert = cert
+			}
+		}
+	}
+	return nil
 }
 
 // convert logs if an invalid found, but proceeds with the
