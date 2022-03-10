@@ -15,8 +15,8 @@ type clusterState struct {
 	routeGroups     []*definitions.RouteGroupItem
 	services        map[definitions.ResourceID]*service
 	endpoints       map[definitions.ResourceID]*endpoint
+	secrets         map[definitions.ResourceID]*secret
 	cachedEndpoints map[endpointID][]string
-	secrets         []*secret
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {

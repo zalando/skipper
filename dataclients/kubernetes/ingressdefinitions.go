@@ -178,3 +178,7 @@ type secret struct {
 	Type string                `json:"type"`
 	Data map[string]string     `json:"data"`
 }
+
+type secretList struct {
+	Items []*secret `json:"items"`
+}
