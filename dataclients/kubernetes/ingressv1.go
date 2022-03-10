@@ -313,18 +313,16 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 
 // addSpecIngressTLSV1 is used to add TLS Certificates to hostRoutes
 func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.TLSV1) error {
-	for host, _ := range ic.hostRoutes {
+	for _, rules := range ic.ingressV1.Spec.Rules {
 		for _, htls := range ingtls.Hosts {
-			if htls == host {
-				err := addHostTLSCerts(ic, host, ingtls.SecretName)
+			if htls == rules.Host {
+				err := addHostTLSCerts(ic, rules.Host, ingtls.SecretName)
 				if err != nil {
 					return err
 				}
 			}
 		}
-
 	}
-
 	return nil
 }
 
