@@ -26,6 +26,7 @@ type namespace struct {
 	ingresses   []byte
 	routeGroups []byte
 	endpoints   []byte
+	secrets     []byte
 }
 
 type api struct {
@@ -41,7 +42,7 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
-			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpoints)",
+			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpoints|secrets)",
 		),
 	}
 
@@ -160,6 +161,8 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b = ns.routeGroups
 	case "endpoints":
 		b = ns.endpoints
+	case "secrets":
+		b = ns.secrets
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -182,6 +185,10 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 	}
 
 	if err = itemsJSON(&ns.endpoints, kinds["Endpoints"]); err != nil {
+		return
+	}
+
+	if err = itemsJSON(&ns.secrets, kinds["Secret"]); err != nil {
 		return
 	}
 
