@@ -27,6 +27,7 @@ const (
 	skipperBackendProtocolAnnotationKey = "zalando.org/skipper-backend-protocol"
 	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
 	ingressOriginName                   = "ingress"
+	tlsSecretType                       = "kubernetes.io/tls"
 )
 
 type ingressContext struct {
@@ -353,25 +354,40 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	return false
 }
 
-func addHostTLSCerts(ic ingressContext, routes []*eskip.Route, host string, secretName string) error {
-	for k := range routes {
-		for _, secret := range ic.state.secrets {
-			if secret.Meta.Name == secretName {
-				crt, err := b64.StdEncoding.DecodeString(secret.Data["tls.crt"])
-				if err != nil {
-					return err
-				}
-				key, err := b64.StdEncoding.DecodeString(secret.Data["tls.key"])
-				if err != nil {
-					return err
-				}
-				cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
-				if err != nil {
-					return err
-				}
-				ic.hostRoutes[host][k].TLSCert = cert
+func addHostTLSCerts(ic ingressContext, host string, secretName string) error {
+	var (
+		err   error
+		found bool
+	)
+	for _, secret := range ic.state.secrets {
+		if secret.Meta.Name == secretName {
+			found = true
+			if secret.Type != tlsSecretType {
+				log.Warnf("ingress tls secret %s is not of type %s", secretName, tlsSecretType)
 			}
+			if secret.Data["tls.crt"] == "" || secret.Data["tls.key"] == "" {
+				log.Errorf("failed to use %s for TLS, secret must contain tls.crt and tls.key in data field", secretName)
+				return err
+			}
+			crt, err := b64.StdEncoding.DecodeString(secret.Data["tls.crt"])
+			if err != nil {
+				return err
+			}
+			key, err := b64.StdEncoding.DecodeString(secret.Data["tls.key"])
+			if err != nil {
+				return err
+			}
+			cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
+			if err != nil {
+				return err
+			}
+			// TODO: Send this to RegisterCertificate(host string, *tls.Certificate) error...
+			log.Debugf("registering cert %s, %v", host, cert)
 		}
+	}
+	if !found {
+		log.Errorf("failed to find secret %s", secretName)
+		return err
 	}
 	return nil
 }
