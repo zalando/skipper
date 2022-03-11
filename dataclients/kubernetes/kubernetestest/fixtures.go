@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/certregistry"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
 	"gopkg.in/yaml.v2"
@@ -191,6 +192,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 	}()
 
 	var o kubernetes.Options
+	cr := certregistry.NewCertRegistry()
 	if f.kube != "" {
 		ko, err := os.Open(f.kube)
 		if err != nil {
@@ -217,6 +219,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
 		o.BackendNameTracingTag = kop.BackendNameTracingTag
 		o.IngressClass = kop.IngressClass
+		o.CertificateRegistry = cr
 
 		aen, err := compileRegexps(kop.AllowedExternalNames)
 		if err != nil {
