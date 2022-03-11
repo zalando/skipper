@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/certregistry"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 )
@@ -410,6 +411,7 @@ func (ing *ingress) ingressV1Route(
 	state *clusterState,
 	hostRoutes map[string][]*eskip.Route,
 	df defaultFilters,
+	r *certregistry.CertRegistry,
 ) (*eskip.Route, error) {
 	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
 		log.Error("invalid ingress item: missing Metadata or Spec")
@@ -431,6 +433,7 @@ func (ing *ingress) ingressV1Route(
 		redirect:            redirect,
 		hostRoutes:          hostRoutes,
 		defaultFilters:      df,
+		certificateRegistry: r,
 	}
 
 	var route *eskip.Route

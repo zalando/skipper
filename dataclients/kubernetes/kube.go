@@ -11,6 +11,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/certregistry"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 )
@@ -194,10 +195,13 @@ type Client struct {
 	current                map[string]*eskip.Route
 	quit                   chan struct{}
 	defaultFiltersDir      string
+	certificateRegistry    *certregistry.CertRegistry
 }
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
+	certregistry := certregistry.NewCertRegistry()
+
 	if o.OriginMarker {
 		log.Warning("OriginMarker is deprecated")
 	}
@@ -267,6 +271,7 @@ func New(o Options) (*Client, error) {
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
+		certificateRegistry:    certregistry,
 	}, nil
 }
 
@@ -331,7 +336,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
-	ri, err := c.ingress.convert(state, defaultFilters)
+	ri, err := c.ingress.convert(state, defaultFilters, c.certificateRegistry)
 	if err != nil {
 		return nil, err
 	}

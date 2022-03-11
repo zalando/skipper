@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/certregistry"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/predicates"
@@ -43,6 +44,7 @@ type ingressContext struct {
 	redirect            *redirectInfo
 	hostRoutes          map[string][]*eskip.Route
 	defaultFilters      defaultFilters
+	certificateRegistry *certregistry.CertRegistry
 }
 
 type ingress struct {
@@ -381,8 +383,7 @@ func addHostTLSCerts(ic ingressContext, host string, secretName string) error {
 			if err != nil {
 				return err
 			}
-			// TODO: Send this to RegisterCertificate(host string, *tls.Certificate) error...
-			log.Debugf("registering cert %s, %v", host, cert)
+			ic.certificateRegistry.SyncCert(host, cert)
 		}
 	}
 	if !found {
@@ -396,7 +397,7 @@ func addHostTLSCerts(ic ingressContext, host string, secretName string) error {
 // valid ones.  Reporting failures in Ingress status is not possible,
 // because Ingress status field is v1beta1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
-func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Route, error) {
+func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregistry.CertRegistry) ([]*eskip.Route, error) {
 	var ewIngInfo map[string][]string // r.Id -> {namespace, name}
 	if ing.kubernetesEnableEastWest {
 		ewIngInfo = make(map[string][]string)
@@ -406,7 +407,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
 	if ing.ingressV1 {
 		for _, i := range state.ingressesV1 {
-			r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df)
+			r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df, r)
 			if err != nil {
 				return nil, err
 			}
