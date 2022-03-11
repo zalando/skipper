@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/zalando/skipper/certregistry"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -825,7 +826,7 @@ func newServerErrorLog() *stdlog.Logger {
 	return stdlog.New(&serverErrorLogWriter{}, "", 0)
 }
 
-func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
+func createDataClients(o Options, auth innkeeper.Authentication, cr *certregistry.CertRegistry) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
@@ -929,6 +930,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ReverseSourcePredicate:            o.ReverseSourcePredicate,
 			RouteGroupClass:                   o.KubernetesRouteGroupClass,
 			WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
+			CertificateRegistry:               cr,
 		})
 		if err != nil {
 			return nil, err
@@ -1237,8 +1239,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		return err
 	}
 
+	cr := certregistry.NewCertRegistry()
+
 	// *DEPRECATED* innkeeper - create data clients
-	dataClients, err := createDataClients(o, inkeeperAuth)
+	dataClients, err := createDataClients(o, inkeeperAuth, cr)
 	if err != nil {
 		return err
 	}

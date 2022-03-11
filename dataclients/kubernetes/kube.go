@@ -181,6 +181,8 @@ type Options struct {
 	// AllowedExternalNames contains regexp patterns of those domain names that are allowed to be
 	// used with external name services (type=ExternalName).
 	AllowedExternalNames []*regexp.Regexp
+
+	CertificateRegistry *certregistry.CertRegistry
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -200,8 +202,6 @@ type Client struct {
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
-	certregistry := certregistry.NewCertRegistry()
-
 	if o.OriginMarker {
 		log.Warning("OriginMarker is deprecated")
 	}
@@ -271,7 +271,7 @@ func New(o Options) (*Client, error) {
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
-		certificateRegistry:    certregistry,
+		certificateRegistry:    o.CertificateRegistry,
 	}, nil
 }
 
