@@ -383,7 +383,7 @@ func addHostTLSCerts(ic ingressContext, host string, secretName string) error {
 			if err != nil {
 				return err
 			}
-			ic.certificateRegistry.SyncCert(host, cert)
+			ic.certificateRegistry.SyncCert(host, &cert)
 		}
 	}
 	if !found {
