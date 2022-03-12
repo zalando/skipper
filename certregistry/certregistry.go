@@ -2,10 +2,14 @@ package certregistry
 
 import (
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
+)
+
+var (
+	errCertNotFound = errors.New("certificate not found")
 )
 
 type CertRegistry struct {
@@ -21,17 +25,14 @@ func NewCertRegistry() *CertRegistry {
 }
 
 func (r *CertRegistry) GetCertByKey(key string) (*tls.Certificate, error) {
-	var err error
-
 	r.mx.Lock()
 	defer r.mx.Unlock()
 
 	cert, ok := r.lookup[key]
 	if !ok || cert == nil {
 		log.Debugf("certificate not found in store - %s", key)
-		return nil, err
+		return nil, errCertNotFound
 	}
-	fmt.Println(cert)
 	return cert, nil
 }
 
