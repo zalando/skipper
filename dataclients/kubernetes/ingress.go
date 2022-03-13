@@ -356,14 +356,14 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	return false
 }
 
-func addHostTLSCerts(ic ingressContext, hosts []string, secretName string) error {
+func addHostTLSCerts(ic ingressContext, hosts []string, secretName string, ns string) error {
 	var (
 		err   error
 		found bool
 	)
 
 	for _, secret := range ic.state.secrets {
-		if secret.Meta.Name == secretName {
+		if (secret.Meta.Name == secretName) && (secret.Meta.Namespace == ns) {
 			found = true
 			if secret.Type != tlsSecretType {
 				log.Warnf("ingress tls secret %s is not of type %s", secretName, tlsSecretType)
@@ -390,7 +390,7 @@ func addHostTLSCerts(ic ingressContext, hosts []string, secretName string) error
 	}
 
 	if !found {
-		log.Errorf("failed to find secret %s", secretName)
+		log.Errorf("failed to find secret %s in namespace %s", secretName, ns)
 		return err
 	}
 	
