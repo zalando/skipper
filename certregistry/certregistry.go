@@ -56,3 +56,12 @@ func (r *CertRegistry) SyncCert(key string, cert *tls.Certificate) {
 	
 	r.AddCert(key, cert)
 }
+
+func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	key := hello.ServerName
+	cert, err := r.getCertByKey(key)
+	if err != nil {
+		return nil, nil
+	}
+	return cert, nil
+}

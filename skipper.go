@@ -805,6 +805,10 @@ type Options struct {
 	// ClusterRatelimitMaxGroupShards specifies the maximum number of group shards for the clusterRatelimit filter
 	ClusterRatelimitMaxGroupShards int
 
+	// TLSCertificateRegistry will enable the TLS listener to use the certificate
+	// registry to look for certificates
+	TLSCertificateRegistry bool
+
 	testOptions
 }
 
@@ -990,7 +994,16 @@ func initLog(o Options) error {
 	return nil
 }
 
-func (o *Options) tlsConfig() (*tls.Config, error) {
+func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+	
+	if o.TLSCertificateRegistry {
+		config := &tls.Config{
+			MinVersion: o.TLSMinVersion,
+			GetCertificate: cr.GetCertFromHello,
+		}
+		return config, nil
+	}
+
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
 	}
@@ -1077,8 +1090,9 @@ func listenAndServeQuit(
 	sigs chan os.Signal,
 	idleConnsCH chan struct{},
 	mtr metrics.Metrics,
+	cr *certregistry.CertRegistry,
 ) error {
-	tlsConfig, err := o.tlsConfig()
+	tlsConfig, err := o.tlsConfig(cr)
 	if err != nil {
 		return err
 	}
@@ -1154,7 +1168,7 @@ func listenAndServeQuit(
 }
 
 func listenAndServe(proxy http.Handler, o *Options) error {
-	return listenAndServeQuit(proxy, o, nil, nil, nil)
+	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
@@ -1683,7 +1697,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
 
-	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr)
+	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
 }
 
 // Run skipper.
