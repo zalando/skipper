@@ -384,7 +384,7 @@ func addHostTLSCerts(ic ingressContext, hosts []string, secretName string) error
 			if err != nil {
 				return err
 			}
-			ic.certificateRegistry.SyncCert(secretName, hosts, &cert)
+			ic.certificateRegistry.SyncCert(fmt.Sprintf("%s/%s", secret.Meta.Name, secret.Meta.Namespace), hosts, &cert)
 			break
 		}
 	}
