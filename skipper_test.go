@@ -89,6 +89,12 @@ func TestOptionsTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, c)
 
+	// tls certificate registry
+	o = &Options{TLSCertificateRegistry: true}
+	c, err = o.tlsConfig(cr)
+	require.NoError(t, err)
+	require.NotNil(t, c.GetCertificate)
+	
 	// proxy tls config
 	o = &Options{ProxyTLS: &tls.Config{}}
 	c, err = o.tlsConfig(cr)
