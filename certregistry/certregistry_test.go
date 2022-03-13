@@ -25,4 +25,12 @@ func TestCertRegistry(t *testing.T) {
 		cr.SyncCert("example.org", &cert)
 		cr.SyncCert("example.org", &newcert)
 	})
+
+	t.Run("get default certificate", func(t *testing.T) {
+		cr := NewCertRegistry()
+		_, err := cr.getCertByKey(defaultHost)
+		if err != nil {
+			t.Error("failed to read certificate")
+		}
+	})
 }
