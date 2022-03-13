@@ -356,11 +356,12 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	return false
 }
 
-func addHostTLSCerts(ic ingressContext, host string, secretName string) error {
+func addHostTLSCerts(ic ingressContext, hosts []string, secretName string) error {
 	var (
 		err   error
 		found bool
 	)
+
 	for _, secret := range ic.state.secrets {
 		if secret.Meta.Name == secretName {
 			found = true
@@ -383,13 +384,16 @@ func addHostTLSCerts(ic ingressContext, host string, secretName string) error {
 			if err != nil {
 				return err
 			}
-			ic.certificateRegistry.SyncCert(host, &cert)
+			ic.certificateRegistry.SyncCert(secretName, hosts, &cert)
+			break
 		}
 	}
+
 	if !found {
 		log.Errorf("failed to find secret %s", secretName)
 		return err
 	}
+	
 	return nil
 }
 

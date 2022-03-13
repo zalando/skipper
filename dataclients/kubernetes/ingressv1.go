@@ -317,10 +317,11 @@ func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.T
 	for _, rules := range ic.ingressV1.Spec.Rules {
 		for _, htls := range ingtls.Hosts {
 			if htls == rules.Host {
-				err := addHostTLSCerts(ic, rules.Host, ingtls.SecretName)
+				err := addHostTLSCerts(ic, ingtls.Hosts, ingtls.SecretName)
 				if err != nil {
 					return err
 				}
+				break
 			}
 		}
 	}
