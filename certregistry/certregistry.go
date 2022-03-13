@@ -24,13 +24,13 @@ func NewCertRegistry() *CertRegistry {
 	}
 }
 
-func (r *CertRegistry) GetCertByKey(key string) (*tls.Certificate, error) {
+func (r *CertRegistry) getCertByKey(key string) (*tls.Certificate, error) {
 	r.mx.Lock()
 	defer r.mx.Unlock()
 
 	cert, ok := r.lookup[key]
 	if !ok || cert == nil {
-		log.Debugf("certificate not found in store - %s", key)
+		log.Debugf("certificate not found in registry - %s", key)
 		return nil, errCertNotFound
 	}
 	return cert, nil
@@ -47,7 +47,7 @@ func (r *CertRegistry) AddCert(key string, cert *tls.Certificate) {
 
 func (r *CertRegistry) SyncCert(key string, cert *tls.Certificate) {	
 	log.Debugf("syncing certificate to registry - %s", key)
-	_, err := r.GetCertByKey(key)
+	_, err := r.getCertByKey(key)
 	if err == nil {
 		log.Debugf("updating certificate in registry - %s", key)
 		r.AddCert(key, cert)

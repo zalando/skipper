@@ -14,7 +14,7 @@ func TestCertRegistry(t *testing.T) {
     t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
 		cr.SyncCert("example.org", &cert)
-		_, err := cr.GetCertByKey("example.org")
+		_, err := cr.getCertByKey("example.org")
 		if err != nil {
 			t.Error("failed to read certificate")
 		}
