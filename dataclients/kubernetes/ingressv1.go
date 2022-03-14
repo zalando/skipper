@@ -312,20 +312,21 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 	return nil
 }
 
-// addSpecIngressTLSV1 is used to add TLS Certificates from Ingress resources. Certificates will be added 
+// addSpecIngressTLSV1 is used to add TLS Certificates from Ingress resources. Certificates will be added
 // only if the Ingress rule host matches a host in TLS config
 func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.TLSV1) error {
-	for _, rules := range ic.ingressV1.Spec.Rules {
-		for _, htls := range ingtls.Hosts {
+	for _, htls := range ingtls.Hosts {
+		for _, rules := range ic.ingressV1.Spec.Rules {
 			if htls == rules.Host {
 				err := addHostTLSCert(ic, ingtls.Hosts, ingtls.SecretName, ic.ingressV1.Metadata.Namespace)
 				if err != nil {
-					log.Errorf("was not able to use TLS secret %s for %s", ingtls.SecretName, htls)
+					log.Errorf("failed using secret %s for %s TLS", ingtls.SecretName, htls)
 				}
-				break
+				return nil
 			}
 		}
 	}
+	log.Errorf("no matching host rules found for tls hosts %s", ingtls.Hosts)
 	return nil
 }
 

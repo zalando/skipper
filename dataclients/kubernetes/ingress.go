@@ -29,6 +29,8 @@ const (
 	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
 	ingressOriginName                   = "ingress"
 	tlsSecretType                       = "kubernetes.io/tls"
+	tlsSecretDataCrt                    = "tls.crt"
+	tlsSecretDataKey                    = "tls.key"
 )
 
 type ingressContext struct {
@@ -361,40 +363,37 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 // addHostTLSCert adds a TLS certificate to the certificate registry when the referenced secret is found
 // and is a valid TLS secret.
 func addHostTLSCert(ic ingressContext, hosts []string, secretName string, ns string) error {
-	var found bool
 	for _, secret := range ic.state.secrets {
 		if (secret.Meta.Name == secretName) && (secret.Meta.Namespace == ns) {
-			found = true
 			if secret.Type != tlsSecretType {
 				log.Warnf("ingress tls secret %s is not of type %s", secretName, tlsSecretType)
 			}
-			if secret.Data["tls.crt"] == "" || secret.Data["tls.key"] == "" {
-				log.Errorf("failed to use %s for TLS, secret must contain tls.crt and tls.key in data field", secretName)
+			if secret.Data[tlsSecretDataCrt] == "" || secret.Data[tlsSecretDataKey] == "" {
+				log.Errorf("failed to use %s for TLS, secret must contain %s and %s in data field", secretName, tlsSecretDataCrt, tlsSecretDataKey)
 				return errInvalidTLSSecret
 			}
-			crt, err := b64.StdEncoding.DecodeString(secret.Data["tls.crt"])
+			crt, err := b64.StdEncoding.DecodeString(secret.Data[tlsSecretDataCrt])
 			if err != nil {
+				log.Errorf("failed to decode secret data %s", tlsSecretDataCrt)
 				return err
 			}
-			key, err := b64.StdEncoding.DecodeString(secret.Data["tls.key"])
+			key, err := b64.StdEncoding.DecodeString(secret.Data[tlsSecretDataKey])
 			if err != nil {
+				log.Errorf("failed to decode secret data %s", tlsSecretDataKey)
 				return err
 			}
 			cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
 			if err != nil {
+				log.Errorf("failed to create secret TLS certificate from secret %s", secretName)
 				return err
 			}
 			ic.certificateRegistry.SyncCert(fmt.Sprintf("%s/%s", secret.Meta.Name, secret.Meta.Namespace), hosts, &cert)
-			break
+			return nil
 		}
 	}
 
-	if !found {
-		log.Errorf("failed to find secret %s in namespace %s", secretName, ns)
-		return errSecretNotFound
-	}
-	
-	return nil
+	log.Errorf("failed to find secret %s in namespace %s", secretName, ns)
+	return errSecretNotFound
 }
 
 // convert logs if an invalid found, but proceeds with the
