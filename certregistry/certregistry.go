@@ -66,11 +66,13 @@ func (r *CertRegistry) SyncCert(key string, hosts []string, crt *tls.Certificate
 		cert: crt,
 	}	
 
-	_, err := r.getCertByKey(key)
+	curr, err := r.getCertByKey(key)
 	if err == nil {
-		log.Debugf("updating certificate in registry - %s", key)
-		r.addCertToRegistry(key, cert)
-		return
+		if !equalCert(curr, cert) {
+			log.Debugf("updating certificate in registry - %s", key)
+			r.addCertToRegistry(key, cert)
+			return
+		}
 	}
 
 	log.Debugf("adding certificate to registry - %s", key)
