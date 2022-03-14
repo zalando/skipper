@@ -59,8 +59,9 @@ func (r *CertRegistry) addCertToRegistry(key string, cert *tlsCertificate) {
 }
 
 // SyncCert takes a TLS certificate and list of hosts and saves them to the registry with the 
-// provided key. If the object already exists it will be updated or added otherwise.
-func (r *CertRegistry) SyncCert(key string, hosts []string, crt *tls.Certificate) {
+// provided key. If the object already exists it will be updated or added otherwise. Returns 
+// true if key was changed.
+func (r *CertRegistry) SyncCert(key string, hosts []string, crt *tls.Certificate) bool {
 	cert := &tlsCertificate{
 		hosts: hosts, 
 		cert: crt,
@@ -71,12 +72,16 @@ func (r *CertRegistry) SyncCert(key string, hosts []string, crt *tls.Certificate
 		if !equalCert(curr, cert) {
 			log.Debugf("updating certificate in registry - %s", key)
 			r.addCertToRegistry(key, cert)
-			return
+			return true
+		} else {
+			return false
 		}
 	}
 
 	log.Debugf("adding certificate to registry - %s", key)
 	r.addCertToRegistry(key, cert)
+
+	return true
 }
 
 // GetCertFromHello reads the SNI from a TLS client and returns the appropriate certificate.
