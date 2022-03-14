@@ -62,6 +62,8 @@ type ingress struct {
 var nonWord = regexp.MustCompile(`\W`)
 
 var errNotAllowedExternalName = errors.New("ingress with not allowed external name service")
+var errSecretNotFound = errors.New("ingress tls secret was not found")
+var errInvalidTLSSecret = errors.New("ingress tls secret was not valid")
 
 func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 	ic.hostRoutes[host] = append(ic.hostRoutes[host], route)
@@ -356,12 +358,10 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	return false
 }
 
-func addHostTLSCerts(ic ingressContext, hosts []string, secretName string, ns string) error {
-	var (
-		err   error
-		found bool
-	)
-
+// addHostTLSCert adds a TLS certificate to the certificate registry when the referenced secret is found
+// and is a valid TLS secret.
+func addHostTLSCert(ic ingressContext, hosts []string, secretName string, ns string) error {
+	var found bool
 	for _, secret := range ic.state.secrets {
 		if (secret.Meta.Name == secretName) && (secret.Meta.Namespace == ns) {
 			found = true
@@ -370,7 +370,7 @@ func addHostTLSCerts(ic ingressContext, hosts []string, secretName string, ns st
 			}
 			if secret.Data["tls.crt"] == "" || secret.Data["tls.key"] == "" {
 				log.Errorf("failed to use %s for TLS, secret must contain tls.crt and tls.key in data field", secretName)
-				return err
+				return errInvalidTLSSecret
 			}
 			crt, err := b64.StdEncoding.DecodeString(secret.Data["tls.crt"])
 			if err != nil {
@@ -391,7 +391,7 @@ func addHostTLSCerts(ic ingressContext, hosts []string, secretName string, ns st
 
 	if !found {
 		log.Errorf("failed to find secret %s in namespace %s", secretName, ns)
-		return err
+		return errSecretNotFound
 	}
 	
 	return nil
