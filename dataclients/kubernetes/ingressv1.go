@@ -321,7 +321,9 @@ func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.T
 				err := addHostTLSCert(ic, ingtls.Hosts, ingtls.SecretName, ic.ingressV1.Metadata.Namespace)
 				if err != nil {
 					log.Errorf("failed using secret %s for %s TLS", ingtls.SecretName, htls)
+					return nil
 				}
+				log.Debugf("loaded tls certificate for %s", htls)
 				return nil
 			}
 		}
