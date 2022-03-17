@@ -20,10 +20,16 @@ const (
 	maxCalculatedQueueSize          = 50_000
 	acceptedConnectionsKey          = "listener.accepted.connections"
 	queuedConnectionsKey            = "listener.queued.connections"
+	acceptLatencyKey                = "listener.accept.latency"
 )
 
+type external struct {
+	net.Conn
+	accepted time.Time
+}
+
 type connection struct {
-	net           net.Conn
+	*external
 	queueDeadline time.Time
 	release       chan<- struct{}
 	quit          <-chan struct{}
@@ -77,9 +83,9 @@ type listener struct {
 	maxConcurrency    int
 	maxQueueSize      int
 	externalListener  net.Listener
-	acceptExternal    chan net.Conn
+	acceptExternal    chan *external
 	externalError     chan error
-	acceptInternal    chan net.Conn
+	acceptInternal    chan *connection
 	internalError     chan error
 	releaseConnection chan struct{}
 	quit              chan struct{}
@@ -92,14 +98,6 @@ var (
 	errListenerClosed = errors.New("listener closed")
 )
 
-func (c *connection) Read(b []byte) (n int, err error)   { return c.net.Read(b) }
-func (c *connection) Write(b []byte) (n int, err error)  { return c.net.Write(b) }
-func (c *connection) LocalAddr() net.Addr                { return c.net.LocalAddr() }
-func (c *connection) RemoteAddr() net.Addr               { return c.net.RemoteAddr() }
-func (c *connection) SetDeadline(t time.Time) error      { return c.net.SetDeadline(t) }
-func (c *connection) SetReadDeadline(t time.Time) error  { return c.net.SetReadDeadline(t) }
-func (c *connection) SetWriteDeadline(t time.Time) error { return c.net.SetWriteDeadline(t) }
-
 func (c *connection) Close() error {
 	c.once.Do(func() {
 		select {
@@ -107,7 +105,7 @@ func (c *connection) Close() error {
 		case <-c.quit:
 		}
 
-		c.closeErr = c.net.Close()
+		c.closeErr = c.external.Close()
 	})
 
 	return c.closeErr
@@ -160,9 +158,9 @@ func listenWith(nl net.Listener, o Options) (net.Listener, error) {
 		maxConcurrency:    o.maxConcurrency(),
 		maxQueueSize:      o.maxQueueSize(),
 		externalListener:  nl,
-		acceptExternal:    make(chan net.Conn),
+		acceptExternal:    make(chan *external),
 		externalError:     make(chan error),
-		acceptInternal:    make(chan net.Conn),
+		acceptInternal:    make(chan *connection),
 		internalError:     make(chan error),
 		releaseConnection: make(chan struct{}),
 		quit:              make(chan struct{}),
@@ -220,9 +218,10 @@ func (l *listener) String() string {
 func (l *listener) listenExternal() {
 	var (
 		c              net.Conn
+		ex             *external
 		err            error
 		delay          time.Duration
-		acceptExternal chan<- net.Conn
+		acceptExternal chan<- *external
 		externalError  chan<- error
 		retry          <-chan time.Time
 	)
@@ -251,13 +250,14 @@ func (l *listener) listenExternal() {
 			}
 		} else {
 			acceptExternal = l.acceptExternal
+			ex = &external{c, time.Now()}
 			externalError = nil
 			retry = nil
 			delay = 0
 		}
 
 		select {
-		case acceptExternal <- c:
+		case acceptExternal <- ex:
 		case externalError <- err:
 			// we cannot accept anymore, but we have returned the permanent error
 			return
@@ -277,17 +277,17 @@ func (l *listener) listenInternal() {
 		concurrency    int
 		queue          *ring
 		err            error
-		acceptInternal chan<- net.Conn
+		acceptInternal chan<- *connection
 		internalError  chan<- error
 		nextTimeout    <-chan time.Time
 	)
 
 	queue = newRing(l.maxQueueSize)
 	for {
-		var nextConn net.Conn
+		var nextConn *connection
 		if queue.size > 0 && concurrency < l.maxConcurrency {
 			acceptInternal = l.acceptInternal
-			nextConn = queue.peek()
+			nextConn = queue.peek().(*connection)
 		} else {
 			acceptInternal = nil
 		}
@@ -316,10 +316,10 @@ func (l *listener) listenInternal() {
 		select {
 		case conn := <-l.acceptExternal:
 			cc := &connection{
-				net:     conn,
-				release: l.releaseConnection,
-				quit:    l.quit,
-				once:    sync.Once{},
+				external: conn,
+				release:  l.releaseConnection,
+				quit:     l.quit,
+				once:     sync.Once{},
 			}
 
 			if l.options.QueueTimeout > 0 {
@@ -328,7 +328,7 @@ func (l *listener) listenInternal() {
 
 			drop := queue.enqueue(cc)
 			if drop != nil {
-				drop.(*connection).net.Close()
+				drop.(*connection).external.Close()
 			}
 
 			l.testNotifyQueueChange()
@@ -347,7 +347,7 @@ func (l *listener) listenInternal() {
 			var dropped int
 			for queue.size > 0 && queue.peekOldest().(*connection).queueDeadline.Before(now) {
 				drop := queue.dequeueOldest()
-				drop.(*connection).net.Close()
+				drop.(*connection).external.Close()
 			}
 
 			nextTimeout = nil
@@ -356,7 +356,7 @@ func (l *listener) listenInternal() {
 				l.testNotifyQueueChange()
 			}
 		case <-l.quit:
-			queue.rangeOver(func(c net.Conn) { c.(*connection).net.Close() })
+			queue.rangeOver(func(c net.Conn) { c.(*connection).external.Close() })
 
 			// Closing the real listener in a separate goroutine is based on inspecting the
 			// stdlib. It's fair to just log the errors.
@@ -376,6 +376,9 @@ func (l *listener) listenInternal() {
 func (l *listener) Accept() (net.Conn, error) {
 	select {
 	case c := <-l.acceptInternal:
+		if l.options.Metrics != nil {
+			l.options.Metrics.MeasureSince(acceptLatencyKey, c.external.accepted)
+		}
 		return c, nil
 	case err := <-l.internalError:
 		return nil, err

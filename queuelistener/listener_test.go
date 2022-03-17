@@ -348,7 +348,7 @@ func TestInterface(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !conn.(*connection).net.(*testConnection).isClosed() {
+		if !conn.(*connection).external.Conn.(*testConnection).isClosed() {
 			t.Error("failed to close underlying connection")
 		}
 	})
@@ -880,7 +880,7 @@ func TestTeardown(t *testing.T) {
 			}
 		}
 
-		if c0.(*connection).net.(*testConnection).isClosed() {
+		if c0.(*connection).external.Conn.(*testConnection).isClosed() {
 			t.Error("the accepted connection was closed by the queue")
 		}
 
@@ -1004,7 +1004,7 @@ func TestMonitoring(t *testing.T) {
 		}
 	})
 
-	t.Run("updates the gauges for the concurrency and the queue size", func(t *testing.T) {
+	t.Run("updates the gauges for the concurrency and the queue size, measures accept latency", func(t *testing.T) {
 		m := &metricstest.MockMetrics{}
 		l, err := listenWith(&testListener{}, Options{
 			Metrics:        m,
@@ -1034,6 +1034,12 @@ func TestMonitoring(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
+
+		m.WithMeasures(func(measures map[string][]time.Duration) {
+			if len(measures[acceptLatencyKey]) != 3 {
+				t.Error("latency measures mismatch")
+			}
+		})
 	})
 
 	t.Run("multiple calls to close are tolerated", func(t *testing.T) {
