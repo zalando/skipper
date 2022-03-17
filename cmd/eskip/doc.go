@@ -112,6 +112,7 @@ append file   a file containing a chain of filters to be appended to the
               filter chain in each route
 
 Media flags:
+
 `
 
 	/* position for generated flags */
@@ -146,7 +147,8 @@ patch    takes a list of routes as input from any media except of inline
 		 route. Example:
 		 eskip patch -append 'filter1() -> filter2()'
 
-version  print eskip version`
+version  print eskip version
+`
 )
 
 // simplified check for help request:
@@ -162,9 +164,9 @@ func isHelp() bool {
 
 // print command line help:
 func usage() {
-	fmt.Println(help1)
+	fmt.Print(help1)
 	flags.SetOutput(os.Stdout)
 	flags.PrintDefaults()
 	flags.SetOutput(nowrite)
-	fmt.Println(help2)
+	fmt.Print(help2)
 }
