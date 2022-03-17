@@ -1,11 +1,12 @@
-FROM arm64v8/alpine
+FROM --platform=linux/amd64 alpine:3.13 AS build
 LABEL maintainer="Team Teapot @ Zalando SE <team-teapot@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates
-RUN mkdir -p /usr/bin
+
+FROM --platform=linux/arm64 alpine:3.13
+COPY --from=build /etc/ssl/certs/ /etc/ssl/certs/
 ADD build/linux_arm8/skipper /usr/bin/
 ENV PATH $PATH:/usr/bin
 
 EXPOSE 9090 9911
 
 CMD ["/usr/bin/skipper"]
-

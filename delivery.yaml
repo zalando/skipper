@@ -8,6 +8,7 @@ pipeline:
   commands:
   - desc: build-push
     cmd: |
+      IMAGE_REGISTRY="registry-write.opensource.zalan.do"
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         LATEST_VERSION=$(git describe --tags --always | awk -F \- '{print $1}')
         CUR_PART=$(echo $LATEST_VERSION | awk -F . '{print $1"."$2}')
@@ -17,11 +18,15 @@ pipeline:
         if [ "$CUR_PART" != "$VERSION_PART" ]; then NEW_PATCH=0; fi
         RELEASE_VERSION=${VERSION_PART}.${NEW_PATCH}
         export VERSION="${RELEASE_VERSION}"
-        IMAGE="registry-write.opensource.zalan.do/teapot/skipper:${RELEASE_VERSION}"
+        IMAGE="${IMAGE_REGISTRY}/teapot/skipper:${RELEASE_VERSION}"
+        ARM_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-armv7:${RELEASE_VERSION}"
+        ARM64_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-arm64:${RELEASE_VERSION}"
       else
-        IMAGE="registry-write.opensource.zalan.do/teapot/skipper-test:${CDP_BUILD_VERSION}"
+        IMAGE="${IMAGE_REGISTRY}/teapot/skipper-test:${CDP_BUILD_VERSION}"
+        ARM_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-armv7-test:${CDP_BUILD_VERSION}"
+        ARM64_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-arm64-test:${CDP_BUILD_VERSION}"
       fi
-      export IMAGE
+      export IMAGE ARM_IMAGE ARM64_IMAGE
 
       make deps cicheck staticcheck gosec
       git status
