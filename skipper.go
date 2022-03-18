@@ -811,9 +811,10 @@ type serverErrorLogWriter struct{}
 
 func (*serverErrorLogWriter) Write(p []byte) (int, error) {
 	m := string(p)
-	// https://github.com/golang/go/issues/26918
 	if strings.HasPrefix(m, "http: TLS handshake error") && strings.HasSuffix(m, ": EOF\n") {
-		log.Debug(m)
+		log.Debug(m) // https://github.com/golang/go/issues/26918
+	} else if strings.HasPrefix(m, "http: URL query contains semicolon") {
+		log.Debug(m) // https://github.com/golang/go/issues/25192
 	} else {
 		log.Error(m)
 	}
