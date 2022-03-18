@@ -3,7 +3,7 @@ pipeline:
 - id: build
   vm_config:
     type: linux
-    image: "cdp-runtime/go"
+    image: "cdp-runtime/go-1.17"
   type: script
   commands:
   - desc: build-push
