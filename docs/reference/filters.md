@@ -570,12 +570,13 @@ Enable adding artificial latency
 
 Parameters:
 
-* latency in milliseconds (int)
+* latency in milliseconds (int) or in `time` as a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
 
 Example:
 
 ```
 * -> latency(120) -> "https://www.example.org";
+* -> latency("120ms") -> "https://www.example.org";
 ```
 
 ## bandwidth
