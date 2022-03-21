@@ -75,7 +75,7 @@ func findAddress() (string, error) {
 }
 
 func TestOptionsTLSConfig(t *testing.T) {
-    cr := certregistry.NewCertRegistry()
+	cr := certregistry.NewCertRegistry()
 
 	cert, err := tls.LoadX509KeyPair("fixtures/test.crt", "fixtures/test.key")
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestOptionsTLSConfig(t *testing.T) {
 	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
 	require.NotNil(t, c.GetCertificate)
-	
+
 	// proxy tls config
 	o = &Options{ProxyTLS: &tls.Config{}}
 	c, err = o.tlsConfig(cr)

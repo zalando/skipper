@@ -995,10 +995,10 @@ func initLog(o Options) error {
 }
 
 func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
-	
+
 	if o.TLSCertificateRegistry {
 		config := &tls.Config{
-			MinVersion: o.TLSMinVersion,
+			MinVersion:     o.TLSMinVersion,
 			GetCertificate: cr.GetCertFromHello,
 		}
 		return config, nil

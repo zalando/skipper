@@ -205,7 +205,7 @@ func TestTestAPI(t *testing.T) {
 		}
 
 		check(t, e, 1, "Endpoints")
-		
+
 		var sec map[string]interface{}
 		if err := get(fmt.Sprintf(kubernetes.SecretsNamespaceFmt, namespace), &sec); err != nil {
 			t.Fatal(err)

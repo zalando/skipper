@@ -18,7 +18,7 @@ func TestCertRegistry(t *testing.T) {
 		ServerName: "foo.org",
 	}
 
-    t.Run("sync new certificate", func(t *testing.T) {
+	t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
 		cr.SyncCert("foo", hosts, cert)
 		_, err := cr.getCertByKey("foo")
@@ -40,7 +40,7 @@ func TestCertRegistry(t *testing.T) {
 		if equalCert(cert1, cert2) {
 			t.Error("foo key was not updated")
 		}
-		
+
 	})
 
 	t.Run("sync existing equal certificate", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestCertRegistry(t *testing.T) {
 	t.Run("get non existent cert", func(t *testing.T) {
 		cr := NewCertRegistry()
 		_, err := cr.getCertByKey("foobar")
-        require.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("get cert from hello", func(t *testing.T) {
