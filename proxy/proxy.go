@@ -1190,7 +1190,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
 		// see https://github.com/zalando/skipper/pull/864
-		p.log.Infof("Client request: %v", err)
+		p.log.Debugf("Client request: %v", err)
 		ctx.response.StatusCode = 499
 		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
 	}
@@ -1205,7 +1205,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
-		p.log.Errorf("error while copying the response stream: %v", err)
+		p.log.Debugf("error while copying the response stream: %v", err)
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
