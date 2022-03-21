@@ -76,12 +76,12 @@ func (r *CertRegistry) SyncCert(key string, hosts []string, crt *tls.Certificate
 		} else {
 			return false
 		}
+	} else {
+		log.Debugf("adding certificate to registry - %s", key)
+		r.addCertToRegistry(key, cert)
+		return true
 	}
 
-	log.Debugf("adding certificate to registry - %s", key)
-	r.addCertToRegistry(key, cert)
-
-	return true
 }
 
 // GetCertFromHello reads the SNI from a TLS client and returns the appropriate certificate.
