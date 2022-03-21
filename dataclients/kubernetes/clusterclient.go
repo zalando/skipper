@@ -425,7 +425,7 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 	}
 
 	if hasInvalidSecret {
-		log.Errorf("Invalid service resource detected.")
+		log.Errorf("Invalid secret resource detected.")
 	}
 
 	return result, nil
