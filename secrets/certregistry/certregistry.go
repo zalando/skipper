@@ -2,15 +2,13 @@ package certregistry
 
 import (
 	"crypto/tls"
-	"errors"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 )
 
 var (
-	errCertNotFound = errors.New("certificate not found")
-	defaultHost     = "ingress.local"
+	defaultHost = "ingress.local"
 )
 
 type tlsCertificate struct {
@@ -38,17 +36,17 @@ func NewCertRegistry() *CertRegistry {
 	}
 }
 
-func (r *CertRegistry) getCertByKey(key string) (*tlsCertificate, error) {
+func (r *CertRegistry) getCertByKey(key string) (*tlsCertificate, bool) {
 	r.mx.Lock()
 	defer r.mx.Unlock()
 
 	cert, ok := r.lookup[key]
 	if !ok || cert == nil {
 		log.Debugf("certificate not found in registry - %s", key)
-		return nil, errCertNotFound
+		return nil, false
 	}
 
-	return cert, nil
+	return cert, true
 }
 
 func (r *CertRegistry) addCertToRegistry(key string, cert *tlsCertificate) {
@@ -67,8 +65,8 @@ func (r *CertRegistry) SyncCert(key string, hosts []string, crt *tls.Certificate
 		cert:  crt,
 	}
 
-	curr, err := r.getCertByKey(key)
-	if err == nil {
+	curr, found := r.getCertByKey(key)
+	if found {
 		if !equalCert(curr, cert) {
 			log.Debugf("updating certificate in registry - %s", key)
 			r.addCertToRegistry(key, cert)

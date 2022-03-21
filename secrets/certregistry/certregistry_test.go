@@ -4,8 +4,6 @@ import (
 	"crypto/tls"
 	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestCertRegistry(t *testing.T) {
@@ -21,8 +19,8 @@ func TestCertRegistry(t *testing.T) {
 	t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
 		cr.SyncCert("foo", hosts, cert)
-		_, err := cr.getCertByKey("foo")
-		if err != nil {
+		_, found := cr.getCertByKey("foo")
+		if !found {
 			t.Error("failed to read certificate")
 		}
 	})
@@ -54,8 +52,10 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("get non existent cert", func(t *testing.T) {
 		cr := NewCertRegistry()
-		_, err := cr.getCertByKey("foobar")
-		require.Error(t, err)
+		_, found := cr.getCertByKey("foobar")
+		if found {
+			t.Error("non existent certificate was found")
+		}
 	})
 
 	t.Run("get cert from hello", func(t *testing.T) {
