@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/certregistry"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 func setPathV1(m PathMode, r *eskip.Route, pathType, path string) {

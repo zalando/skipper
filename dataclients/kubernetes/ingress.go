@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/certregistry"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 const (

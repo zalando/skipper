@@ -22,7 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/zalando/skipper/certregistry"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
@@ -59,6 +58,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/secrets"
+	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
 )
