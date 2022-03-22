@@ -128,7 +128,7 @@ func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certif
 // getBestMatchingCertificate uses a suffix search, best match operation, in order to find the best matching
 // certificate for a given hostname.
 func getBestMatchingCertificate(host string, certList []*tlsCertificate) (*tls.Certificate, error) {
-	candidate := &tls.Certificate{}
+	candidate := certList[0].cert
 	longestMatch := -1
 	now := currentTime()
 
@@ -189,10 +189,6 @@ func getBestMatchingCertificate(host string, certList []*tlsCertificate) (*tls.C
 				}
 			}
 		}
-	}
-
-	if longestMatch == -1 {
-		return nil, ErrNoMatchingCertificateFound
 	}
 
 	return candidate, nil
