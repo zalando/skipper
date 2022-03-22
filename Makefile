@@ -109,6 +109,12 @@ bench: build $(TEST_PLUGINS)
 
 lint: build staticcheck
 
+golangcilint:
+	./bin/golangci-lint run ./...
+
+golangcilint.install:
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s
+
 clean:
 	go clean -i -cache -testcache ./...
 	rm -rf .coverprofile-all .cover
