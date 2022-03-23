@@ -149,6 +149,9 @@ func (api apiV1) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case EndpointsClusterURI:
 		w.Write([]byte("{}"))
 		return
+	case SecretsClusterURI:
+		w.Write([]byte("{}"))
+		return
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		w.Write(nil)
