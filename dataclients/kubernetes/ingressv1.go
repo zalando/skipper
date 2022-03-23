@@ -453,10 +453,12 @@ func (ing *ingress) ingressV1Route(
 			return nil, err
 		}
 	}
-	for _, ingtls := range i.Spec.IngressTLS {
-		err := ing.addSpecIngressTLSV1(ic, ingtls)
-		if err != nil {
-			return nil, err
+	if ic.certificateRegistry != nil {
+		for _, ingtls := range i.Spec.IngressTLS {
+			err := ing.addSpecIngressTLSV1(ic, ingtls)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return route, nil
