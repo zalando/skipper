@@ -416,7 +416,7 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 	result := make(map[definitions.ResourceID]*secret)
 	var hasInvalidSecret bool
 	for _, secret := range secrets.Items {
-		if secret == nil || secret.Meta == nil || secret.Data == nil {
+		if secret == nil || secret.Meta == nil {
 			hasInvalidSecret = true
 			continue
 		}
