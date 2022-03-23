@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/metrics"
 )
@@ -205,5 +206,23 @@ func TestHandlerCodaHaleUnknownMetricRequest(t *testing.T) {
 	mh.ServeHTTP(rw, r)
 	if rw.Code != http.StatusNotFound {
 		t.Error("Request for unknown metrics should return a Not Found status")
+	}
+}
+
+func BenchmarkMeasureSincePrometheus(b *testing.B) {
+	m := metrics.NewMetrics(metrics.Options{Format: metrics.PrometheusKind})
+	benchmarkMeasureSince(b, m)
+}
+
+func BenchmarkMeasureSinceCodaHale(b *testing.B) {
+	m := metrics.NewMetrics(metrics.Options{Format: metrics.CodaHaleKind})
+	benchmarkMeasureSince(b, m)
+}
+
+func benchmarkMeasureSince(b *testing.B, m metrics.Metrics) {
+	start := time.Now()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.MeasureSince("a.metrics.key", start)
 	}
 }
