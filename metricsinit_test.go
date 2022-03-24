@@ -36,7 +36,7 @@ func mustAvailablePort(t *testing.T) int {
 func TestInitOrderAndDefault(t *testing.T) {
 	const (
 		ringMetricsUpdatePeriod = time.Millisecond
-		testTimeout             = 120 * time.Millisecond
+		testTimeout             = 5 * time.Second
 	)
 
 	port := mustAvailablePort(t)
