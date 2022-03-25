@@ -31,6 +31,7 @@ import (
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 type testAPI struct {
@@ -3121,6 +3122,49 @@ func TestSkipperDefaultFilters(t *testing.T) {
 		}()
 
 		df.get(definitions.ResourceID{})
+	})
+}
+
+func TestCertificateRegistry(t *testing.T) {
+	api := newTestAPI(t, nil, &definitions.IngressList{})
+	defer api.Close()
+
+	t.Run("certificate registry is enabled, secrets are loaded", func(t *testing.T) {
+		api.secrets = testSecrets()
+		dc, err := New(Options{KubernetesURL: api.server.URL, CertificateRegistry: &certregistry.CertRegistry{}})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		state, err := dc.ClusterClient.fetchClusterState()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if len(state.secrets) == 0 {
+			t.Errorf("no secrets were loaded")
+		}
+	})
+
+	t.Run("certificate registry is disabled, secrets are not loaded", func(t *testing.T) {
+		api.secrets = testSecrets()
+		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		state, err := dc.ClusterClient.fetchClusterState()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if len(state.secrets) > 0 {
+			t.Errorf("secrets are loaded but registry is disabled")
+		}
 	})
 }
 

@@ -197,7 +197,6 @@ type Client struct {
 	current                map[string]*eskip.Route
 	quit                   chan struct{}
 	defaultFiltersDir      string
-	certificateRegistry    *certregistry.CertRegistry
 }
 
 // New creates and initializes a Kubernetes DataClient.
@@ -271,7 +270,6 @@ func New(o Options) (*Client, error) {
 		reverseSourcePredicate: o.ReverseSourcePredicate,
 		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
-		certificateRegistry:    o.CertificateRegistry,
 	}, nil
 }
 
@@ -336,7 +334,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
-	ri, err := c.ingress.convert(state, defaultFilters, c.certificateRegistry)
+	ri, err := c.ingress.convert(state, defaultFilters, c.ClusterClient.certificateRegistry)
 	if err != nil {
 		return nil, err
 	}

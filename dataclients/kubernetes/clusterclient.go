@@ -19,6 +19,7 @@ import (
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/secrets"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 const (
@@ -48,13 +49,14 @@ const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the 
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
 
 type clusterClient struct {
-	ingressesURI   string
-	routeGroupsURI string
-	servicesURI    string
-	endpointsURI   string
-	secretsURI     string
-	tokenProvider  secrets.SecretsProvider
-	apiURL         string
+	ingressesURI        string
+	routeGroupsURI      string
+	servicesURI         string
+	endpointsURI        string
+	secretsURI          string
+	tokenProvider       secrets.SecretsProvider
+	apiURL              string
+	certificateRegistry *certregistry.CertRegistry
 
 	routeGroupClass *regexp.Regexp
 	ingressClass    *regexp.Regexp
@@ -140,16 +142,17 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		ingressURI = IngressesV1ClusterURI
 	}
 	c := &clusterClient{
-		ingressV1:       o.KubernetesIngressV1,
-		ingressesURI:    ingressURI,
-		routeGroupsURI:  routeGroupsClusterURI,
-		servicesURI:     ServicesClusterURI,
-		endpointsURI:    EndpointsClusterURI,
-		secretsURI:      SecretsClusterURI,
-		ingressClass:    ingClsRx,
-		routeGroupClass: rgClsRx,
-		httpClient:      httpClient,
-		apiURL:          apiURL,
+		ingressV1:           o.KubernetesIngressV1,
+		ingressesURI:        ingressURI,
+		routeGroupsURI:      routeGroupsClusterURI,
+		servicesURI:         ServicesClusterURI,
+		endpointsURI:        EndpointsClusterURI,
+		secretsURI:          SecretsClusterURI,
+		ingressClass:        ingClsRx,
+		routeGroupClass:     rgClsRx,
+		httpClient:          httpClient,
+		apiURL:              apiURL,
+		certificateRegistry: o.CertificateRegistry,
 	}
 
 	if o.KubernetesInCluster {
@@ -455,6 +458,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		err         error
 		ingressesV1 []*definitions.IngressV1Item
 		ingresses   []*definitions.IngressItem
+		secrets     map[definitions.ResourceID]*secret
 	)
 	if c.ingressV1 {
 		ingressesV1, err = c.loadIngressesV1()
@@ -487,9 +491,11 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		return nil, err
 	}
 
-	secrets, err := c.loadSecrets()
-	if err != nil {
-		return nil, err
+	if c.certificateRegistry != nil {
+		secrets, err = c.loadSecrets()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &clusterState{
