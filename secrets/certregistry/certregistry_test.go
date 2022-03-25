@@ -41,7 +41,7 @@ type certCondition func(error, *tls.Certificate, *tls.Certificate) bool
 
 var ca = caInfra{}
 
-func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefore, notAfter time.Time) *tlsCertificate {
+func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefore, notAfter time.Time) *tls.Certificate {
 	ca.Do(func() {
 		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
@@ -137,19 +137,13 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		log.Errorf("failed to generate fake serial number: %v", err)
 	}
 
-	tls := &tlsCertificate{
-		hosts: altNames,
-		cert:  &certificate,
-	}
-
-	return tls
+	return &certificate
 }
 
 func TestCertRegistry(t *testing.T) {
 
 	cert := getFakeHostTLSCert("foo.org")
-	hosts := make([]string, 1)
-	hosts[0] = "foo.org"
+	host := "foo.org"
 
 	hello := &tls.ClientHelloInfo{
 		ServerName: "foo.org",
@@ -157,36 +151,34 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert("foo", hosts, cert)
-		_, found := cr.getCertByKey("foo")
+		cr.SyncCert(host, cert)
+		_, found := cr.getCertByKey("foo.org")
 		if !found {
 			t.Error("failed to read certificate")
 		}
 	})
 
-	t.Run("sync existing certificate", func(t *testing.T) {
-		newcert := getFakeHostTLSCert("bar.org")
-		newhosts := make([]string, 1)
-		newhosts[0] = "bar.org"
-
+	t.Run("sync a nil certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert("foo", hosts, cert)
-		cert1, _ := cr.getCertByKey("foo")
-		cr.SyncCert("foo", newhosts, newcert)
-		cert2, _ := cr.getCertByKey("foo")
-		if equalCert(cert1, cert2) {
-			t.Error("foo key was not updated")
+		cr.SyncCert(host, nil)
+		_, found := cr.getCertByKey("foo.org")
+		if found {
+			t.Error("nil certificate should not sync")
 		}
-
 	})
 
-	t.Run("sync existing equal certificate", func(t *testing.T) {
+	t.Run("sync existing certificate", func(t *testing.T) {
+		newcert := getFakeHostTLSCert("bar.org")
+
 		cr := NewCertRegistry()
-		cr.SyncCert("bar", hosts, cert)
-		changed := cr.SyncCert("bar", hosts, cert)
-		if changed {
-			t.Error("equal certificate was updated")
+		cr.SyncCert(host, cert)
+		cert1, _ := cr.getCertByKey("foo.org")
+		cr.SyncCert(host, newcert)
+		cert2, _ := cr.getCertByKey("foo.org")
+		if equalCert(cert1, cert2) {
+			t.Error("host cert was not updated")
 		}
+
 	})
 
 	t.Run("get non existent cert", func(t *testing.T) {
@@ -199,7 +191,7 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("get cert from hello", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert("foo", hosts, cert)
+		cr.SyncCert(host, cert)
 		crt, err := cr.GetCertFromHello(hello)
 		if err != nil {
 			t.Error("failed to read certificate from hello")
@@ -221,8 +213,8 @@ func TestCertRegistry(t *testing.T) {
 		newcert := getFakeHostTLSCert("foo.org")
 
 		cr := NewCertRegistry()
-		cr.SyncCert("foo", hosts, cert)
-		cr.SyncCert("bar", hosts, newcert)
+		cr.SyncCert(host, cert)
+		cr.SyncCert(host, newcert)
 		reply, err := cr.GetCertFromHello(hello)
 		if err != nil {
 			t.Error("failed to certificate from hello")
@@ -287,183 +279,183 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 	for _, ti := range []struct {
 		msg       string
 		hostname  string
-		cert      []*tlsCertificate
+		cert      []*tls.Certificate
 		expect    *tls.Certificate
 		condition certCondition
 	}{
 		{
 			msg:       "Not found best match",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCert},
-			expect:    validCert.cert,
+			cert:      []*tls.Certificate{validCert},
+			expect:    validCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found wildcard as best match",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validWildcardCert},
-			expect:    validWildcardCert.cert,
+			cert:      []*tls.Certificate{validWildcardCert},
+			expect:    validWildcardCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of multiple valid certs",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCert, validWildcardCert},
-			expect:    validCert.cert,
+			cert:      []*tls.Certificate{validCert, validWildcardCert},
+			expect:    validCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of multiple certs one wildcard valid",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{invalidDomainCert, validWildcardCert, invalidWildcardCert},
-			expect:    validWildcardCert.cert,
+			cert:      []*tls.Certificate{invalidDomainCert, validWildcardCert, invalidWildcardCert},
+			expect:    validWildcardCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of multiple certs one valid",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{invalidDomainCert, validCert, invalidWildcardCert},
-			expect:    validCert.cert,
+			cert:      []*tls.Certificate{invalidDomainCert, validCert, invalidWildcardCert},
+			expect:    validCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid hostname",
 			hostname:  invalidHostname,
-			cert:      []*tlsCertificate{validCert},
+			cert:      []*tls.Certificate{validCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid cert",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{invalidDomainCert},
+			cert:      []*tls.Certificate{invalidDomainCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid wildcardcert",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{invalidWildcardCert},
+			cert:      []*tls.Certificate{invalidWildcardCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for multiple invalid certs",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{invalidWildcardCert, invalidDomainCert},
+			cert:      []*tls.Certificate{invalidWildcardCert, invalidDomainCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert with one valid and multiple invalid names",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{saValidCert},
-			expect:    saValidCert.cert,
+			cert:      []*tls.Certificate{saValidCert},
+			expect:    saValidCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert with one valid wildcard and multiple invalid names",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{saValidWildcardCert},
-			expect:    saValidWildcardCert.cert,
+			cert:      []*tls.Certificate{saValidWildcardCert},
+			expect:    saValidWildcardCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert with multiple valid and multiple invalid names",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{saMultipleValidCert},
-			expect:    saMultipleValidCert.cert,
+			cert:      []*tls.Certificate{saMultipleValidCert},
+			expect:    saMultipleValidCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid time cert 1",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{invalidTimeCert1},
+			cert:      []*tls.Certificate{invalidTimeCert1},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid time cert 2",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{invalidTimeCert2},
+			cert:      []*tls.Certificate{invalidTimeCert2},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid time cert 3",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{invalidTimeCert3},
+			cert:      []*tls.Certificate{invalidTimeCert3},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Not found best match tricky cert NotAfter 1 day compared to 6 days",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertForOneDay, validCertForSixDays},
-			expect:    validCertForSixDays.cert,
+			cert:      []*tls.Certificate{validCertForOneDay, validCertForSixDays},
+			expect:    validCertForSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match tricky cert NotAfter 365 days compared to 1 day",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertForOneYear, validCertForOneDay},
-			expect:    validCertForOneYear.cert,
+			cert:      []*tls.Certificate{validCertForOneYear, validCertForOneDay},
+			expect:    validCertForOneYear,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match tricky cert NotAfter 365 days compared to 6 day",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertForOneYear, validCertForSixDays},
-			expect:    validCertForOneYear.cert,
+			cert:      []*tls.Certificate{validCertForOneYear, validCertForSixDays},
+			expect:    validCertForOneYear,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match tricky cert NotAfter 365 days compared to 10 day",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertForTenDays, validCertForOneYear},
-			expect:    validCertForOneYear.cert,
+			cert:      []*tls.Certificate{validCertForTenDays, validCertForOneYear},
+			expect:    validCertForOneYear,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 1 day",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertSinceOneDay, validCertSinceSixDays}, // FIXME: this is by order
-			expect:    validCertSinceOneDay.cert,
+			cert:      []*tls.Certificate{validCertSinceOneDay, validCertSinceSixDays}, // FIXME: this is by order
+			expect:    validCertSinceOneDay,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertSinceSixDays, validCertSinceOneYear},
-			expect:    validCertSinceSixDays.cert,
+			cert:      []*tls.Certificate{validCertSinceSixDays, validCertSinceOneYear},
+			expect:    validCertSinceSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days another order by cert",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertSinceOneYear, validCertSinceSixDays},
-			expect:    validCertSinceSixDays.cert,
+			cert:      []*tls.Certificate{validCertSinceOneYear, validCertSinceSixDays},
+			expect:    validCertSinceSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 1 days compared to 365 days and both valid for 1 year",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertForOneYearSinceOneDay, validCertForOneYearSinceOneYear},
-			expect:    validCertForOneYearSinceOneDay.cert,
+			cert:      []*tls.Certificate{validCertForOneYearSinceOneDay, validCertForOneYearSinceOneYear},
+			expect:    validCertForOneYearSinceOneDay,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days and both valid for 1 year",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertForOneYearSinceOneYear, validCertForOneYearSinceSixDays},
-			expect:    validCertForOneYearSinceSixDays.cert,
+			cert:      []*tls.Certificate{validCertForOneYearSinceOneYear, validCertForOneYearSinceSixDays},
+			expect:    validCertForOneYearSinceSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore/NotAfter 6d/1y compared to 1d/10d",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertFor6dUntill1y, validCertFor1dUntill10d},
-			expect:    validCertFor1dUntill10d.cert,
+			cert:      []*tls.Certificate{validCertFor6dUntill1y, validCertFor1dUntill10d},
+			expect:    validCertFor1dUntill10d,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newer first) tricky cert NotBefore/NotAfter 1d/7d1s compared to 6d/10d",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertFor1dUntill7d1s, validCertFor6dUntill10d},
-			expect:    validCertFor1dUntill7d1s.cert,
+			cert:      []*tls.Certificate{validCertFor1dUntill7d1s, validCertFor6dUntill10d},
+			expect:    validCertFor1dUntill7d1s,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 6d/6d compared to 6d/1y",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertFor6dUntill6d, validCertForOneYearSinceSixDays},
-			expect:    validCertForOneYearSinceSixDays.cert,
+			cert:      []*tls.Certificate{validCertFor6dUntill6d, validCertForOneYearSinceSixDays},
+			expect:    validCertForOneYearSinceSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 1d/6d compared to 6d/10d",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertFor1dUntill6d, validCertFor6dUntill10d},
-			expect:    validCertFor6dUntill10d.cert,
+			cert:      []*tls.Certificate{validCertFor1dUntill6d, validCertFor6dUntill10d},
+			expect:    validCertFor6dUntill10d,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 6d/10d compared to 1d/7d-1s",
 			hostname:  validHostname,
-			cert:      []*tlsCertificate{validCertFor6dUntill10d, validCertFor1dUntill7d1sLess},
-			expect:    validCertFor6dUntill10d.cert,
+			cert:      []*tls.Certificate{validCertFor6dUntill10d, validCertFor1dUntill7d1sLess},
+			expect:    validCertFor6dUntill10d,
 			condition: certValidMatchFunction,
 		},
 	} {

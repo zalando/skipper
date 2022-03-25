@@ -63,16 +63,12 @@ func getFakeHostTLSCert(host string) *tls.Certificate {
 	return &cert
 }
 
-func equalCert(l *tlsCertificate, r *tlsCertificate) bool {
-	if !reflect.DeepEqual(l.hosts, r.hosts) {
+func equalCert(l *tls.Certificate, r *tls.Certificate) bool {
+	if !reflect.DeepEqual(l.Certificate, r.Certificate) {
 		return false
 	}
 
-	if !reflect.DeepEqual(l.cert.Certificate, r.cert.Certificate) {
-		return false
-	}
-
-	if !reflect.DeepEqual(l.cert.PrivateKey, r.cert.PrivateKey) {
+	if !reflect.DeepEqual(l.PrivateKey, r.PrivateKey) {
 		return false
 	}
 
