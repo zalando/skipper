@@ -1253,7 +1253,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		return err
 	}
 
-	cr := certregistry.NewCertRegistry()
+	var cr *certregistry.CertRegistry
+	if o.TLSCertificateRegistry {
+		cr = certregistry.NewCertRegistry()
+	}
 
 	// *DEPRECATED* innkeeper - create data clients
 	dataClients, err := createDataClients(o, inkeeperAuth, cr)
