@@ -16,7 +16,7 @@ var (
 	currentTime = time.Now
 	// ErrNoMatchingCertificateFound is used if there is no matching certificate found
 	errNoMatchingCertificateFound = errors.New("no matching certificate found")
-	errSyncNilCertificate = errors.New("empty certificate cannot sync")
+	errSyncNilCertificate         = errors.New("empty certificate cannot sync")
 )
 
 const (
@@ -93,10 +93,10 @@ func (r *CertRegistry) SyncCert(host string, cert *tls.Certificate) {
 func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	cert, found := r.getCertByKey(hello.ServerName)
 	if found {
-			return cert, nil
-		} else {
-			return r.defaultTLSCert, nil
-		}
+		return cert, nil
+	} else {
+		return r.defaultTLSCert, nil
+	}
 }
 
 // getBestMatchingCertificate uses a suffix search, best match operation, in order to find the best matching
