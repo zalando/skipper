@@ -66,6 +66,8 @@ var nonWord = regexp.MustCompile(`\W`)
 var errNotAllowedExternalName = errors.New("ingress with not allowed external name service")
 var errSecretNotFound = errors.New("ingress tls secret was not found")
 var errInvalidTLSSecret = errors.New("ingress tls secret was not valid")
+var errFailToDecode = errors.New("failed to decode the secret data")
+var errFailtoCreateCert = errors.New("failed to create a tls certificate")
 
 func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 	ic.hostRoutes[host] = append(ic.hostRoutes[host], route)
@@ -360,40 +362,40 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	return false
 }
 
-// addHostTLSCert adds a TLS certificate to the certificate registry when the referenced secret is found
-// and is a valid TLS secret.
-func addHostTLSCert(ic ingressContext, hosts []string, secretName string, ns string) error {
-	secret, ok := ic.state.secrets[definitions.ResourceID{Namespace: ns, Name: secretName}]
+// addHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
+// secret is found and is a valid TLS secret.
+func addHostTLSCert(ic ingressContext, hosts []string, secretID *definitions.ResourceID) error {
+	secret, ok := ic.state.secrets[*secretID]
 	if !ok {
-		log.Errorf("failed to find secret %s in namespace %s", secretName, ns)
+		log.Errorf("failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
 		return errSecretNotFound
 	}
-
 	if secret.Type != tlsSecretType {
-		log.Warnf("ingress tls secret %s is not of type %s", secretName, tlsSecretType)
+		log.Warnf("ingress tls secret %s is not of type %s", secretID.Name, tlsSecretType)
 	}
 	if secret.Data[tlsSecretDataCrt] == "" || secret.Data[tlsSecretDataKey] == "" {
-		log.Errorf("failed to use %s for TLS, secret must contain %s and %s in data field", secretName, tlsSecretDataCrt, tlsSecretDataKey)
+		log.Errorf("failed to use %s for TLS, secret must contain %s and %s in data field", secretID.Name, tlsSecretDataCrt, tlsSecretDataKey)
 		return errInvalidTLSSecret
 	}
 	crt, err := b64.StdEncoding.DecodeString(secret.Data[tlsSecretDataCrt])
 	if err != nil {
 		log.Errorf("failed to decode secret data %s", tlsSecretDataCrt)
-		return err
+		return errFailToDecode
 	}
 	key, err := b64.StdEncoding.DecodeString(secret.Data[tlsSecretDataKey])
 	if err != nil {
 		log.Errorf("failed to decode secret data %s", tlsSecretDataKey)
-		return err
+		return errFailToDecode
 	}
 	cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
 	if err != nil {
-		log.Errorf("failed to create secret TLS certificate from secret %s", secretName)
-		return err
+		log.Errorf("failed to create secret TLS certificate from secret %s", secretID.Name)
+		return errFailtoCreateCert
 	}
-	ic.certificateRegistry.SyncCert(fmt.Sprintf("%s/%s", secret.Meta.Name, secret.Meta.Namespace), hosts, &cert)
-	return nil
-
+	for _, host := range hosts {
+		ic.certificateRegistry.SyncCert(host, &cert)
+	}
+	return nil	
 }
 
 // convert logs if an invalid found, but proceeds with the

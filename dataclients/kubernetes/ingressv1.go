@@ -315,20 +315,19 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 // addSpecIngressTLSV1 is used to add TLS Certificates from Ingress resources. Certificates will be added
 // only if the Ingress rule host matches a host in TLS config
 func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.TLSV1) error {
-	for _, htls := range ingtls.Hosts {
-		for _, rules := range ic.ingressV1.Spec.Rules {
-			if htls == rules.Host {
-				err := addHostTLSCert(ic, ingtls.Hosts, ingtls.SecretName, ic.ingressV1.Metadata.Namespace)
-				if err != nil {
-					log.Errorf("failed using secret %s for %s TLS", ingtls.SecretName, htls)
-					return nil
-				}
-				log.Debugf("loaded tls certificate for %s", htls)
-				return nil
-			}
-		}
+	// Hosts in the tls section need to explicitly match the host in the rules section.
+	hostlist := compareStringList(ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
+	if len(hostlist) == 0 {
+		log.Infof("no matching tls hosts found for ingress %s", ic.ingressV1.Metadata.Name)
+		return nil
 	}
-	log.Errorf("no matching host rules found for tls hosts %s", ingtls.Hosts)
+	// Secrets should always reside in same namespace as the Ingress
+	secretID := &definitions.ResourceID{Name: ingtls.SecretName, Namespace: ic.ingressV1.Metadata.Namespace}
+	err := addHostTLSCert(ic, hostlist, secretID)
+	if err != nil {
+		log.Errorf("failed using tls secret %s for ingress %s", ingtls.SecretName, ic.ingressV1.Metadata.Name)
+		return nil
+	}
 	return nil
 }
 

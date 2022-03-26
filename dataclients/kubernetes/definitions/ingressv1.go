@@ -116,3 +116,11 @@ func ValidateIngressesV1(ingressList IngressV1List) error {
 
 	return nil
 }
+
+func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {
+	hostList := make([]string, 0)
+	for _, i := range ing.Spec.Rules {
+		hostList = append(hostList, i.Host)
+	}
+	return hostList
+}

@@ -487,3 +487,16 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 	log.WithField("#configs", len(filters)).Debug("default filter configurations loaded")
 	return filters
 }
+
+func compareStringList(a, b []string) []string {
+	c := make([]string, 0)
+	for i := len(a) - 1; i >= 0; i-- {
+		for _, vD := range b {
+			if a[i] == vD {
+				c = append(c, vD)
+				break
+			}
+		}
+	}
+	return c
+}
