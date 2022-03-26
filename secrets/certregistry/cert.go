@@ -8,7 +8,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
-	"reflect"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -61,16 +60,4 @@ func getFakeHostTLSCert(host string) *tls.Certificate {
 	}
 
 	return &cert
-}
-
-func equalCert(l *tls.Certificate, r *tls.Certificate) bool {
-	if !reflect.DeepEqual(l.Certificate, r.Certificate) {
-		return false
-	}
-
-	if !reflect.DeepEqual(l.PrivateKey, r.PrivateKey) {
-		return false
-	}
-
-	return true
 }
