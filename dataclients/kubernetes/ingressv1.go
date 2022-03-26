@@ -314,21 +314,16 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 
 // addSpecIngressTLSV1 is used to add TLS Certificates from Ingress resources. Certificates will be added
 // only if the Ingress rule host matches a host in TLS config
-func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.TLSV1) error {
+func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.TLSV1) {
 	// Hosts in the tls section need to explicitly match the host in the rules section.
 	hostlist := compareStringList(ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
 	if len(hostlist) == 0 {
 		log.Infof("no matching tls hosts found for ingress %s", ic.ingressV1.Metadata.Name)
-		return nil
+		return
 	}
 	// Secrets should always reside in same namespace as the Ingress
 	secretID := &definitions.ResourceID{Name: ingtls.SecretName, Namespace: ic.ingressV1.Metadata.Namespace}
-	err := addHostTLSCert(ic, hostlist, secretID)
-	if err != nil {
-		log.Errorf("failed using tls secret %s for ingress %s", ingtls.SecretName, ic.ingressV1.Metadata.Name)
-		return nil
-	}
-	return nil
+	addHostTLSCert(ic, hostlist, secretID)
 }
 
 // converts the default backend if any
@@ -454,10 +449,7 @@ func (ing *ingress) ingressV1Route(
 	}
 	if ic.certificateRegistry != nil {
 		for _, ingtls := range i.Spec.IngressTLS {
-			err := ing.addSpecIngressTLSV1(ic, ingtls)
-			if err != nil {
-				return nil, err
-			}
+			ing.addSpecIngressTLSV1(ic, ingtls)
 		}
 	}
 	return route, nil
