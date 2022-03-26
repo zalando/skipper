@@ -43,6 +43,7 @@ type kubeOptionsParser struct {
 	OnlyAllowedExternalNames bool               `yaml:"onlyAllowedExternalNames"`
 	AllowedExternalNames     []string           `yaml:"allowedExternalNames"`
 	IngressClass             string             `yaml:"kubernetes-ingress-class"`
+	TLSCertificateRegistry   bool               `yaml:"tls-certificate-registry"`
 }
 
 func baseNoExt(n string) string {
@@ -192,7 +193,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 	}()
 
 	var o kubernetes.Options
-	cr := certregistry.NewCertRegistry()
+	var cr *certregistry.CertRegistry
 	if f.kube != "" {
 		ko, err := os.Open(f.kube)
 		if err != nil {
@@ -208,6 +209,10 @@ func testFixture(t *testing.T, f fixtureSet) {
 		var kop kubeOptionsParser
 		if err := yaml.Unmarshal(b, &kop); err != nil {
 			t.Fatal(err)
+		}
+
+		if kop.TLSCertificateRegistry {
+			cr = certregistry.NewCertRegistry()
 		}
 
 		o.KubernetesIngressV1 = kop.IngressV1

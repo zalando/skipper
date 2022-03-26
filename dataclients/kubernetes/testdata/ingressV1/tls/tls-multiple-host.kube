@@ -1,1 +1,2 @@
 ingressv1: true
+tls-certificate-registry: true
