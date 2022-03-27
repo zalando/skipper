@@ -77,7 +77,7 @@ func (r *CertRegistry) SyncCert(host string, cert *tls.Certificate) {
 		if curr.Leaf.Equal(cert.Leaf) {
 			return
 		}
-		log.Debugf("updating existing certificate in registry - %s", host)
+		log.Infof("updating existing certificate in registry - %s", host)
 		curr, err := chooseBestCertificate(curr, cert)
 		if err != nil {
 			log.Warnf("choosing best certificate for %s failed, keeping current", host)
@@ -85,7 +85,7 @@ func (r *CertRegistry) SyncCert(host string, cert *tls.Certificate) {
 		}
 		r.addCertToRegistry(host, curr)
 	} else {
-		log.Debugf("adding certificate to registry - %s", host)
+		log.Infof("adding certificate to registry - %s", host)
 		r.addCertToRegistry(host, cert)
 	}
 
