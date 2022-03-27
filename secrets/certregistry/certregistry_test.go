@@ -148,9 +148,12 @@ func TestCertRegistry(t *testing.T) {
 	t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
 		cr.SyncCert(host, cert)
-		_, found := cr.getCertByKey("foo.org")
+		cert, found := cr.getCertByKey("foo.org")
 		if !found {
 			t.Error("failed to read certificate")
+		}
+		if cert.Leaf == nil {
+			t.Error("synced cert should have a parsed leaf")
 		}
 	})
 
@@ -204,21 +207,6 @@ func TestCertRegistry(t *testing.T) {
 			t.Error("failed to read default certificate from hello")
 		}
 	})
-
-	t.Run("get cert from hello - multiple matches", func(t *testing.T) {
-		newcert := getFakeHostTLSCert("foo.org")
-
-		cr := NewCertRegistry()
-		cr.SyncCert(host, cert)
-		cr.SyncCert(host, newcert)
-		reply, err := cr.GetCertFromHello(hello)
-		if err != nil {
-			t.Error("failed to certificate from hello")
-		}
-		if !reflect.DeepEqual(reply, newcert) {
-			t.Error("failed to read best certificate from hello")
-		}
-	})
 }
 
 func TestChooseBestCertificate(t *testing.T) {
@@ -235,6 +223,9 @@ func TestChooseBestCertificate(t *testing.T) {
 	// simple cert
 	oldValidCert := createDummyCertDetail(t, dummyArn, []string{validHostname}, old, after)
 	newValidCert := createDummyCertDetail(t, dummyArn, []string{validHostname}, new, after)
+
+	oldValidCert.Leaf, _ = x509.ParseCertificate(oldValidCert.Certificate[0])
+	newValidCert.Leaf, _ = x509.ParseCertificate(newValidCert.Certificate[0])
 
 	for _, ti := range []struct {
 		msg       string
