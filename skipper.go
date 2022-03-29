@@ -996,20 +996,20 @@ func initLog(o Options) error {
 
 func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 
-	if o.TLSCertificateRegistry {
+	if o.ProxyTLS != nil {
+		return o.ProxyTLS, nil
+	}
+
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" && !o.TLSCertificateRegistry {
+		return nil, nil
+	}
+
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
 		config := &tls.Config{
 			MinVersion:     o.TLSMinVersion,
 			GetCertificate: cr.GetCertFromHello,
 		}
 		return config, nil
-	}
-
-	if o.ProxyTLS != nil {
-		return o.ProxyTLS, nil
-	}
-
-	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
-		return nil, nil
 	}
 
 	crts := strings.Split(o.CertPathTLS, ",")
@@ -1021,6 +1021,10 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 
 	config := &tls.Config{
 		MinVersion: o.TLSMinVersion,
+	}
+
+	if o.TLSCertificateRegistry {
+		config.GetCertificate = cr.GetCertFromHello
 	}
 
 	for i := 0; i < len(crts); i++ {
