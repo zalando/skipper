@@ -138,17 +138,31 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 
 func TestCertRegistry(t *testing.T) {
 
-	cert := getFakeHostTLSCert("foo.org")
-	host := "foo.org"
+	domain := "example.org"
+	validHostname := "foo." + domain
+
+	now := time.Now().Truncate(time.Millisecond)
+
+	old := now.Add(-time.Hour * 48 * 7)
+	new := now.Add(-time.Hour * 24 * 7)
+	after := now.Add(time.Hour*24*7 + 1*time.Second)
+	dummyArn := "DUMMY"
+
+	// simple cert
+	validCert := createDummyCertDetail(t, dummyArn, []string{validHostname}, old, after)
+	newValidCert := createDummyCertDetail(t, dummyArn, []string{validHostname}, new, after)
+
+	validCert.Leaf, _ = x509.ParseCertificate(validCert.Certificate[0])
+	newValidCert.Leaf, _ = x509.ParseCertificate(newValidCert.Certificate[0])
 
 	hello := &tls.ClientHelloInfo{
-		ServerName: "foo.org",
+		ServerName: "foo.example.org",
 	}
 
 	t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert(host, cert)
-		cert, found := cr.getCertByKey("foo.org")
+		cr.SyncCert(validHostname, validCert)
+		cert, found := cr.getCertByKey(validHostname)
 		if !found {
 			t.Error("failed to read certificate")
 		}
@@ -159,21 +173,20 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("sync a nil certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert(host, nil)
-		_, found := cr.getCertByKey("foo.org")
+		cr.SyncCert(validHostname, nil)
+		_, found := cr.getCertByKey(validHostname)
 		if found {
 			t.Error("nil certificate should not sync")
 		}
 	})
 
 	t.Run("sync existing certificate", func(t *testing.T) {
-		newcert := getFakeHostTLSCert("bar.org")
 
 		cr := NewCertRegistry()
-		cr.SyncCert(host, cert)
-		cert1, _ := cr.getCertByKey("foo.org")
-		cr.SyncCert(host, newcert)
-		cert2, _ := cr.getCertByKey("foo.org")
+		cr.SyncCert(validHostname, validCert)
+		cert1, _ := cr.getCertByKey(validHostname)
+		cr.SyncCert(validHostname, newValidCert)
+		cert2, _ := cr.getCertByKey(validHostname)
 		if equalCert(cert1, cert2) {
 			t.Error("host cert was not updated")
 		}
@@ -190,21 +203,21 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("get cert from hello", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert(host, cert)
-		crt, err := cr.GetCertFromHello(hello)
-		if err != nil {
+		cr.SyncCert(validHostname, validCert)
+		crt, _ := cr.GetCertFromHello(hello)
+		if crt == nil {
 			t.Error("failed to read certificate from hello")
 		}
-		if !reflect.DeepEqual(crt.Certificate, cert.Certificate) {
-			t.Error("failed to read certificate from hello")
+		if !reflect.DeepEqual(crt.Certificate, validCert.Certificate) {
+			t.Error("failed to read correct certificate from hello")
 		}
 	})
 
-	t.Run("get default cert from hello", func(t *testing.T) {
+	t.Run("get nil cert from unknown hello", func(t *testing.T) {
 		cr := NewCertRegistry()
-		_, err := cr.GetCertFromHello(hello)
-		if err != nil {
-			t.Error("failed to read default certificate from hello")
+		cert, _ := cr.GetCertFromHello(hello)
+		if cert != nil {
+			t.Error("should return nil when cert not found")
 		}
 	})
 }

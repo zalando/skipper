@@ -10,28 +10,24 @@ import (
 )
 
 var (
-	defaultHost           = "ingress.local"
 	errSyncNilCertificate = errors.New("empty certificate cannot sync")
 	errNilLeafCertificate = errors.New("certificate leaf is nil")
 )
 
 // CertRegistry object holds TLS certificates to be used to terminate TLS connections
-// We ensure ensure syncronized access to them and hold a default certificate.
+// ensuring syncronized access to them.
 type CertRegistry struct {
-	lookup         map[string]*tls.Certificate
-	mx             *sync.Mutex
-	defaultTLSCert *tls.Certificate
+	lookup map[string]*tls.Certificate
+	mx     *sync.Mutex
 }
 
-// NewCertRegistry initializes the certificate registry with an empty map
-// and a generated default certificate.
+// NewCertRegistry initializes the certificate registry.
 func NewCertRegistry() *CertRegistry {
 	l := make(map[string]*tls.Certificate)
 
 	return &CertRegistry{
-		lookup:         l,
-		mx:             &sync.Mutex{},
-		defaultTLSCert: getFakeHostTLSCert(defaultHost),
+		lookup: l,
+		mx:     &sync.Mutex{},
 	}
 }
 
@@ -57,7 +53,7 @@ func (r *CertRegistry) addCertToRegistry(key string, cert *tls.Certificate) erro
 	return nil
 }
 
-// SyncCert takes a TLS certificate and a host and saves them to the registry with the
+// SyncCert takes a host and TLS certificate and saves them to the registry with the
 // host as the key. If the cert already exists it will be updated or added otherwise.
 func (r *CertRegistry) SyncCert(host string, cert *tls.Certificate) {
 	if cert == nil {
@@ -92,14 +88,13 @@ func (r *CertRegistry) SyncCert(host string, cert *tls.Certificate) {
 }
 
 // GetCertFromHello reads the SNI from a TLS client and returns the appropriate certificate.
-// If no certificate is found for the host it will return a default certificate.
+// If no certificate is found for the host it will return nil.
 func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	cert, found := r.getCertByKey(hello.ServerName)
 	if found {
 		return cert, nil
-	} else {
-		return r.defaultTLSCert, nil
 	}
+	return nil, nil
 }
 
 // chooseBestCertificate compares two certificates and returns the newest certificate from
