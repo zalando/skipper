@@ -3,14 +3,9 @@ package certregistry
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-)
-
-var (
-	errSyncNilCertificate = errors.New("empty certificate cannot sync")
 )
 
 // CertRegistry object holds TLS certificates to be used to terminate TLS connections
