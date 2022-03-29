@@ -11,7 +11,6 @@ import (
 
 var (
 	errSyncNilCertificate = errors.New("empty certificate cannot sync")
-	errNilLeafCertificate = errors.New("certificate leaf is nil")
 )
 
 // CertRegistry object holds TLS certificates to be used to terminate TLS connections
@@ -100,10 +99,6 @@ func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certif
 // chooseBestCertificate compares two certificates and returns the newest certificate from
 // NotBefore date.
 func chooseBestCertificate(l *tls.Certificate, r *tls.Certificate) (*tls.Certificate, error) {
-	if l.Leaf == nil || r.Leaf == nil {
-		return nil, errNilLeafCertificate
-	}
-
 	if l.Leaf.NotBefore.After(r.Leaf.NotBefore) {
 		return l, nil
 	} else {
