@@ -26,9 +26,6 @@ func NewCertRegistry() *CertRegistry {
 }
 
 func (r *CertRegistry) getCertByKey(key string) (*tls.Certificate, bool) {
-	r.mx.Lock()
-	defer r.mx.Unlock()
-
 	cert, found := r.lookup[key]
 	if !found {
 		log.Debugf("certificate not found in registry - %s", key)
@@ -39,9 +36,6 @@ func (r *CertRegistry) getCertByKey(key string) (*tls.Certificate, bool) {
 }
 
 func (r *CertRegistry) addCertToRegistry(key string, cert *tls.Certificate) error {
-	r.mx.Lock()
-	defer r.mx.Unlock()
-
 	r.lookup[key] = cert
 
 	return nil
@@ -61,6 +55,9 @@ func (r *CertRegistry) SyncCert(host string, cert *tls.Certificate) {
 		return
 	}
 	cert.Leaf = leaf
+
+	r.mx.Lock()
+	defer r.mx.Unlock()
 
 	curr, found := r.getCertByKey(host)
 	if found {
@@ -84,6 +81,9 @@ func (r *CertRegistry) SyncCert(host string, cert *tls.Certificate) {
 // GetCertFromHello reads the SNI from a TLS client and returns the appropriate certificate.
 // If no certificate is found for the host it will return nil.
 func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
 	cert, found := r.getCertByKey(hello.ServerName)
 	if found {
 		return cert, nil
