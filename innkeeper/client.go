@@ -196,7 +196,6 @@ func (c *Client) authenticate() error {
 
 // Checks if an http response status indicates an error, and returns an error
 // object if it does.
-//lint:ignore ST1008 inkeeper is deprecated and will be deleted
 func getHttpError(r *http.Response) (error, bool) {
 	switch {
 	case r.StatusCode < http.StatusBadRequest:
