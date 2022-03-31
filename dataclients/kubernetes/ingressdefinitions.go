@@ -174,9 +174,9 @@ type ClusterResourceList struct {
 }
 
 type secret struct {
-	Meta *definitions.Metadata `json:"Metadata"`
-	Type string                `json:"type"`
-	Data map[string]string     `json:"data"`
+	Metadata *definitions.Metadata `json:"metadata"`
+	Type     string                `json:"type"`
+	Data     map[string]string     `json:"data"`
 }
 
 type secretList struct {

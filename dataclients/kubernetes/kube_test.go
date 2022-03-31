@@ -97,7 +97,7 @@ func testEndpoints(namespace, name, base string, n int, ports map[string]int) []
 
 func testSecret(namespace, name string, clusterIP string, t string, data map[string]string) *secret {
 	return &secret{
-		Meta: &definitions.Metadata{
+		Metadata: &definitions.Metadata{
 			Namespace: namespace,
 			Name:      name,
 		},

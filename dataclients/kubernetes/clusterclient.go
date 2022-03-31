@@ -418,11 +418,11 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 	log.Debugf("all secrets received: %d", len(secrets.Items))
 	result := make(map[definitions.ResourceID]*secret)
 	for _, secret := range secrets.Items {
-		if secret == nil || secret.Meta == nil {
+		if secret == nil || secret.Metadata == nil {
 			continue
 		}
 
-		result[secret.Meta.ToResourceID()] = secret
+		result[secret.Metadata.ToResourceID()] = secret
 	}
 
 	return result, nil

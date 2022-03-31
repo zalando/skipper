@@ -464,10 +464,10 @@ func generateTLSCertFromSecret(secret *secret) (*tls.Certificate, error) {
 	}
 	cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tls certificate from secret %s", secret.Meta.Name)
+		return nil, fmt.Errorf("failed to create tls certificate from secret %s", secret.Metadata.Name)
 	}
 	if secret.Type != tlsSecretType {
-		return nil, fmt.Errorf("secret %s is not of type %s", secret.Meta.Name, tlsSecretType)
+		return nil, fmt.Errorf("secret %s is not of type %s", secret.Metadata.Name, tlsSecretType)
 	}
 	return &cert, nil
 }
