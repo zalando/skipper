@@ -29,12 +29,6 @@ type caInfra struct {
 	chainCert *x509.Certificate
 }
 
-func certValidMatchFunction(expect, c *tls.Certificate, err error) bool {
-	return c != expect || err != nil
-}
-
-type certCondition func(*tls.Certificate, *tls.Certificate, error) bool
-
 var ca = caInfra{}
 
 func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefore, notAfter time.Time) *tls.Certificate {
@@ -184,9 +178,9 @@ func TestCertRegistry(t *testing.T) {
 
 		cr := NewCertRegistry()
 		cr.ConfigureCertificate(validHostname, validCert)
-		cert1, _ := cr.lookup[validHostname]
+		cert1 := cr.lookup[validHostname]
 		cr.ConfigureCertificate(validHostname, newValidCert)
-		cert2, _ := cr.lookup[validHostname]
+		cert2 := cr.lookup[validHostname]
 		if equalCert(cert1, cert2) {
 			t.Error("host cert was not updated")
 		}
@@ -207,9 +201,10 @@ func TestCertRegistry(t *testing.T) {
 		crt, _ := cr.GetCertFromHello(hello)
 		if crt == nil {
 			t.Error("failed to read certificate from hello")
-		}
-		if !reflect.DeepEqual(crt.Certificate, validCert.Certificate) {
-			t.Error("failed to read correct certificate from hello")
+		} else {
+			if !reflect.DeepEqual(crt.Certificate, validCert.Certificate) {
+				t.Error("failed to read correct certificate from hello")
+			}
 		}
 	})
 
