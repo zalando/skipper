@@ -3,6 +3,7 @@ package certregistry
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -25,57 +26,36 @@ func NewCertRegistry() *CertRegistry {
 	}
 }
 
-func (r *CertRegistry) getCertByKey(key string) (*tls.Certificate, bool) {
-	cert, found := r.lookup[key]
-	if !found {
-		log.Debugf("certificate not found in registry - %s", key)
-		return nil, false
-	}
-
-	return cert, true
-}
-
-func (r *CertRegistry) addCertToRegistry(key string, cert *tls.Certificate) error {
-	r.lookup[key] = cert
-
-	return nil
-}
-
-// SyncCert takes a host and TLS certificate and saves them to the registry with the
-// host as the key. If the cert already exists it will be updated or added otherwise.
-func (r *CertRegistry) SyncCert(host string, cert *tls.Certificate) {
+// Configures certificate for the host if no configuration exists or
+// if certificate is valid (`NotBefore` field) after previously configured certificate.
+func (r *CertRegistry) ConfigureCertificate(key string, cert *tls.Certificate) error {
 	if cert == nil {
-		log.Errorf("cannot sync nil certificate")
-		return
+		return fmt.Errorf("cannot configure nil certificate")
 	}
 	// loading parsed leaf certificate to certificate
 	leaf, err := x509.ParseCertificate(cert.Certificate[0])
 	if err != nil {
-		log.Errorf("failed parsing leaf certificate for %s", host)
-		return
+		return fmt.Errorf("failed parsing leaf certificate")
 	}
 	cert.Leaf = leaf
 
 	r.mx.Lock()
 	defer r.mx.Unlock()
 
-	curr, found := r.getCertByKey(host)
+	curr, found := r.lookup[key]
 	if found {
-		if curr.Leaf.Equal(cert.Leaf) {
-			return
+		if cert.Leaf.NotBefore.After(curr.Leaf.NotBefore) {
+			log.Infof("updating certificate in registry - %s", key)
+			r.lookup[key] = cert
+			return nil
+		} else {
+			return nil
 		}
-		log.Infof("updating existing certificate in registry - %s", host)
-		curr, err := chooseBestCertificate(curr, cert)
-		if err != nil {
-			log.Warnf("choosing best certificate for %s failed, keeping current", host)
-			return
-		}
-		r.addCertToRegistry(host, curr)
 	} else {
-		log.Infof("adding certificate to registry - %s", host)
-		r.addCertToRegistry(host, cert)
+		log.Infof("adding certificate to registry - %s", key)
+		r.lookup[key] = cert
+		return nil
 	}
-
 }
 
 // GetCertFromHello reads the SNI from a TLS client and returns the appropriate certificate.
@@ -84,19 +64,9 @@ func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certif
 	r.mx.Lock()
 	defer r.mx.Unlock()
 
-	cert, found := r.getCertByKey(hello.ServerName)
+	cert, found := r.lookup[hello.ServerName]
 	if found {
 		return cert, nil
 	}
 	return nil, nil
-}
-
-// chooseBestCertificate compares two certificates and returns the newest certificate from
-// NotBefore date.
-func chooseBestCertificate(l *tls.Certificate, r *tls.Certificate) (*tls.Certificate, error) {
-	if l.Leaf.NotBefore.After(r.Leaf.NotBefore) {
-		return l, nil
-	} else {
-		return r, nil
-	}
 }

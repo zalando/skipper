@@ -161,8 +161,8 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert(validHostname, validCert)
-		cert, found := cr.getCertByKey(validHostname)
+		cr.ConfigureCertificate(validHostname, validCert)
+		cert, found := cr.lookup[validHostname]
 		if !found {
 			t.Error("failed to read certificate")
 		}
@@ -173,8 +173,8 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("sync a nil certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert(validHostname, nil)
-		_, found := cr.getCertByKey(validHostname)
+		cr.ConfigureCertificate(validHostname, nil)
+		_, found := cr.lookup[validHostname]
 		if found {
 			t.Error("nil certificate should not sync")
 		}
@@ -183,10 +183,10 @@ func TestCertRegistry(t *testing.T) {
 	t.Run("sync existing certificate", func(t *testing.T) {
 
 		cr := NewCertRegistry()
-		cr.SyncCert(validHostname, validCert)
-		cert1, _ := cr.getCertByKey(validHostname)
-		cr.SyncCert(validHostname, newValidCert)
-		cert2, _ := cr.getCertByKey(validHostname)
+		cr.ConfigureCertificate(validHostname, validCert)
+		cert1, _ := cr.lookup[validHostname]
+		cr.ConfigureCertificate(validHostname, newValidCert)
+		cert2, _ := cr.lookup[validHostname]
 		if equalCert(cert1, cert2) {
 			t.Error("host cert was not updated")
 		}
@@ -195,7 +195,7 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("get non existent cert", func(t *testing.T) {
 		cr := NewCertRegistry()
-		_, found := cr.getCertByKey("foobar")
+		_, found := cr.lookup["foo"]
 		if found {
 			t.Error("non existent certificate was found")
 		}
@@ -203,7 +203,7 @@ func TestCertRegistry(t *testing.T) {
 
 	t.Run("get cert from hello", func(t *testing.T) {
 		cr := NewCertRegistry()
-		cr.SyncCert(validHostname, validCert)
+		cr.ConfigureCertificate(validHostname, validCert)
 		crt, _ := cr.GetCertFromHello(hello)
 		if crt == nil {
 			t.Error("failed to read certificate from hello")
@@ -220,47 +220,6 @@ func TestCertRegistry(t *testing.T) {
 			t.Error("should return nil when cert not found")
 		}
 	})
-}
-
-func TestChooseBestCertificate(t *testing.T) {
-	domain := "example.org"
-	validHostname := "foo." + domain
-
-	now := time.Now().Truncate(time.Millisecond)
-
-	old := now.Add(-time.Hour * 48 * 7)
-	new := now.Add(-time.Hour * 24 * 7)
-	after := now.Add(time.Hour*24*7 + 1*time.Second)
-	dummyArn := "DUMMY"
-
-	// simple cert
-	oldValidCert := createDummyCertDetail(t, dummyArn, []string{validHostname}, old, after)
-	newValidCert := createDummyCertDetail(t, dummyArn, []string{validHostname}, new, after)
-
-	oldValidCert.Leaf, _ = x509.ParseCertificate(oldValidCert.Certificate[0])
-	newValidCert.Leaf, _ = x509.ParseCertificate(newValidCert.Certificate[0])
-
-	for _, ti := range []struct {
-		msg       string
-		lcert     *tls.Certificate
-		rcert     *tls.Certificate
-		expect    *tls.Certificate
-		condition certCondition
-	}{
-		{
-			msg:       "Not found best match",
-			lcert:     oldValidCert,
-			rcert:     newValidCert,
-			expect:    newValidCert,
-			condition: certValidMatchFunction,
-		},
-	} {
-		t.Run(ti.msg, func(t *testing.T) {
-			if c, err := chooseBestCertificate(ti.lcert, ti.rcert); ti.condition(c, ti.expect, err) {
-				t.Errorf("%s, error: %s", ti.msg, err)
-			}
-		})
-	}
 }
 
 func equalCert(l *tls.Certificate, r *tls.Certificate) bool {

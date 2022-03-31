@@ -372,7 +372,10 @@ func addHostTLSCert(ic ingressContext, hosts []string, secretID *definitions.Res
 		return
 	}
 	for _, host := range hosts {
-		ic.certificateRegistry.SyncCert(host, cert)
+		err := ic.certificateRegistry.ConfigureCertificate(host, cert)
+		if err != nil {
+			log.Error(err)
+		}
 	}
 }
 
