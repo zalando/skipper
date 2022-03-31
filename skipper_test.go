@@ -89,8 +89,8 @@ func TestOptionsTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, c)
 
-	// tls certificate registry
-	o = &Options{TLSCertificateRegistry: true}
+	// enable kubernetes tls
+	o = &Options{KubernetesEnableTLS: true}
 	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
 	require.NotNil(t, c.GetCertificate)

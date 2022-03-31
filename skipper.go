@@ -805,9 +805,8 @@ type Options struct {
 	// ClusterRatelimitMaxGroupShards specifies the maximum number of group shards for the clusterRatelimit filter
 	ClusterRatelimitMaxGroupShards int
 
-	// TLSCertificateRegistry will enable the TLS listener to use the certificate
-	// registry to look for certificates
-	TLSCertificateRegistry bool
+	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
+	KubernetesEnableTLS bool
 
 	testOptions
 }
@@ -1000,7 +999,7 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return o.ProxyTLS, nil
 	}
 
-	if o.CertPathTLS == "" && o.KeyPathTLS == "" && !o.TLSCertificateRegistry {
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" && !o.KubernetesEnableTLS {
 		return nil, nil
 	}
 
@@ -1023,7 +1022,7 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		MinVersion: o.TLSMinVersion,
 	}
 
-	if o.TLSCertificateRegistry {
+	if o.KubernetesEnableTLS {
 		config.GetCertificate = cr.GetCertFromHello
 	}
 
@@ -1258,7 +1257,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	var cr *certregistry.CertRegistry
-	if o.TLSCertificateRegistry {
+	if o.KubernetesEnableTLS {
 		cr = certregistry.NewCertRegistry()
 	}
 

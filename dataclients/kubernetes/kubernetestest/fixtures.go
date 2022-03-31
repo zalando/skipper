@@ -43,7 +43,7 @@ type kubeOptionsParser struct {
 	OnlyAllowedExternalNames bool               `yaml:"onlyAllowedExternalNames"`
 	AllowedExternalNames     []string           `yaml:"allowedExternalNames"`
 	IngressClass             string             `yaml:"kubernetes-ingress-class"`
-	TLSCertificateRegistry   bool               `yaml:"tls-certificate-registry"`
+	KubernetesEnableTLS      bool               `yaml:"kubernetes-enable-tls"`
 }
 
 func baseNoExt(n string) string {
@@ -211,7 +211,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
-		if kop.TLSCertificateRegistry {
+		if kop.KubernetesEnableTLS {
 			cr = certregistry.NewCertRegistry()
 		}
 
