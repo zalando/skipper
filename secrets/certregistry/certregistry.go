@@ -28,7 +28,7 @@ func NewCertRegistry() *CertRegistry {
 
 // Configures certificate for the host if no configuration exists or
 // if certificate is valid (`NotBefore` field) after previously configured certificate.
-func (r *CertRegistry) ConfigureCertificate(key string, cert *tls.Certificate) error {
+func (r *CertRegistry) ConfigureCertificate(host string, cert *tls.Certificate) error {
 	if cert == nil {
 		return fmt.Errorf("cannot configure nil certificate")
 	}
@@ -42,18 +42,18 @@ func (r *CertRegistry) ConfigureCertificate(key string, cert *tls.Certificate) e
 	r.mx.Lock()
 	defer r.mx.Unlock()
 
-	curr, found := r.lookup[key]
+	curr, found := r.lookup[host]
 	if found {
 		if cert.Leaf.NotBefore.After(curr.Leaf.NotBefore) {
-			log.Infof("updating certificate in registry - %s", key)
-			r.lookup[key] = cert
+			log.Infof("updating certificate in registry - %s", host)
+			r.lookup[host] = cert
 			return nil
 		} else {
 			return nil
 		}
 	} else {
-		log.Infof("adding certificate to registry - %s", key)
-		r.lookup[key] = cert
+		log.Infof("adding certificate to registry - %s", host)
+		r.lookup[host] = cert
 		return nil
 	}
 }
