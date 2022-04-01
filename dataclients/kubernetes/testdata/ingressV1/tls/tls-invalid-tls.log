@@ -1,1 +1,1 @@
-.*level=error msg="failed to decode secret data tls.crt"
+.*level=error msg="failed to decode tls.crt from secret myapp-secret"

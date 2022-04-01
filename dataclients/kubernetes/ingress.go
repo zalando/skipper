@@ -456,11 +456,11 @@ func generateTLSCertFromSecret(secret *secret) (*tls.Certificate, error) {
 	}
 	crt, err := b64.StdEncoding.DecodeString(secret.Data[tlsSecretDataCrt])
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode secret data %s", tlsSecretDataCrt)
+		return nil, fmt.Errorf("failed to decode %s from secret %s", tlsSecretDataCrt, secret.Metadata.Name)
 	}
 	key, err := b64.StdEncoding.DecodeString(secret.Data[tlsSecretDataKey])
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode secret data %s", tlsSecretDataKey)
+		return nil, fmt.Errorf("failed to decode %s from secret %s", tlsSecretDataKey, secret.Metadata.Name)
 	}
 	cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
 	if err != nil {
