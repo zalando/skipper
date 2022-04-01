@@ -35,7 +35,7 @@ func (r *CertRegistry) ConfigureCertificate(host string, cert *tls.Certificate) 
 	// loading parsed leaf certificate to certificate
 	leaf, err := x509.ParseCertificate(cert.Certificate[0])
 	if err != nil {
-		return fmt.Errorf("failed parsing leaf certificate")
+		return fmt.Errorf("failed parsing leaf certificate: %w", err)
 	}
 	cert.Leaf = leaf
 
