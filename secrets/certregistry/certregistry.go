@@ -62,9 +62,8 @@ func (r *CertRegistry) ConfigureCertificate(host string, cert *tls.Certificate) 
 // If no certificate is found for the host it will return nil.
 func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	r.mx.Lock()
-	defer r.mx.Unlock()
-
 	cert, found := r.lookup[hello.ServerName]
+	r.mx.Unlock()
 	if found {
 		return cert, nil
 	}
