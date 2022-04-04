@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 const (
@@ -180,6 +181,8 @@ type Options struct {
 	// AllowedExternalNames contains regexp patterns of those domain names that are allowed to be
 	// used with external name services (type=ExternalName).
 	AllowedExternalNames []*regexp.Regexp
+
+	CertificateRegistry *certregistry.CertRegistry
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -331,7 +334,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
-	ri, err := c.ingress.convert(state, defaultFilters)
+	ri, err := c.ingress.convert(state, defaultFilters, c.ClusterClient.certificateRegistry)
 	if err != nil {
 		return nil, err
 	}
@@ -483,4 +486,17 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 
 	log.WithField("#configs", len(filters)).Debug("default filter configurations loaded")
 	return filters
+}
+
+func compareStringList(a, b []string) []string {
+	c := make([]string, 0)
+	for i := len(a) - 1; i >= 0; i-- {
+		for _, vD := range b {
+			if a[i] == vD {
+				c = append(c, vD)
+				break
+			}
+		}
+	}
+	return c
 }

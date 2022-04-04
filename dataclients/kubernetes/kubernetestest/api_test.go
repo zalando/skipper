@@ -113,6 +113,18 @@ subsets:
   - name: main
     port: 7878
     protocol: TCP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    application: bar
+  name: bar
+  namespace: internal
+data:
+  tls.crt: foo
+  tls.key: bar
+type: kubernetes.io/tls
 `
 
 func getJSON(u string, o interface{}) error {
@@ -193,6 +205,13 @@ func TestTestAPI(t *testing.T) {
 		}
 
 		check(t, e, 1, "Endpoints")
+
+		var sec map[string]interface{}
+		if err := get(fmt.Sprintf(kubernetes.SecretsNamespaceFmt, namespace), &sec); err != nil {
+			t.Fatal(err)
+		}
+
+		check(t, sec, 1, "Secret")
 	})
 
 	t.Run("without namespace", func(t *testing.T) {

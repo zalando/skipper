@@ -18,6 +18,7 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/secrets/certregistry"
 
 	"github.com/stretchr/testify/require"
 )
@@ -74,6 +75,8 @@ func findAddress() (string, error) {
 }
 
 func TestOptionsTLSConfig(t *testing.T) {
+	cr := certregistry.NewCertRegistry()
+
 	cert, err := tls.LoadX509KeyPair("fixtures/test.crt", "fixtures/test.key")
 	require.NoError(t, err)
 
@@ -82,38 +85,46 @@ func TestOptionsTLSConfig(t *testing.T) {
 
 	// empty
 	o := &Options{}
-	c, err := o.tlsConfig()
+	c, err := o.tlsConfig(cr)
 	require.NoError(t, err)
 	require.Nil(t, c)
 
+	// enable kubernetes tls
+	o = &Options{KubernetesEnableTLS: true}
+	c, err = o.tlsConfig(cr)
+	require.NoError(t, err)
+	require.NotNil(t, c.GetCertificate)
+
 	// proxy tls config
 	o = &Options{ProxyTLS: &tls.Config{}}
-	c, err = o.tlsConfig()
+	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
 	require.Equal(t, &tls.Config{}, c)
 
 	// proxy tls config priority
 	o = &Options{ProxyTLS: &tls.Config{}, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
-	c, err = o.tlsConfig()
+	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
 	require.Equal(t, &tls.Config{}, c)
 
 	// cert key path
 	o = &Options{TLSMinVersion: tls.VersionTLS12, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
-	c, err = o.tlsConfig()
+	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), c.MinVersion)
 	require.Equal(t, []tls.Certificate{cert}, c.Certificates)
 
 	// multiple cert key paths
 	o = &Options{TLSMinVersion: tls.VersionTLS13, CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test.key,fixtures/test2.key"}
-	c, err = o.tlsConfig()
+	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), c.MinVersion)
 	require.Equal(t, []tls.Certificate{cert, cert2}, c.Certificates)
 }
 
 func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
+	cr := certregistry.NewCertRegistry()
+
 	for _, tt := range []struct {
 		name    string
 		options *Options
@@ -127,7 +138,7 @@ func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
 		{"multiple cert key mismatch", &Options{CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test2.key,fixtures/test.key"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.options.tlsConfig()
+			_, err := tt.options.tlsConfig(cr)
 			t.Logf("tlsConfig error: %v", err)
 			require.Error(t, err)
 		})
@@ -252,7 +263,7 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 
 	sigs := make(chan os.Signal, 1)
 	go func() {
-		err := listenAndServeQuit(proxy, o, sigs, nil, nil)
+		err := listenAndServeQuit(proxy, o, sigs, nil, nil, nil)
 		require.NoError(t, err)
 	}()
 

@@ -203,6 +203,9 @@ type Config struct {
 	// TLS version
 	TLSMinVersion string `yaml:"tls-min-version"`
 
+	// TLS Config
+	KubernetesEnableTLS bool `yaml:"kubernetes-enable-tls"`
+
 	// API Monitoring
 	ApiUsageMonitoringEnable                       bool   `yaml:"enable-api-usage-monitoring"`
 	ApiUsageMonitoringRealmKeys                    string `yaml:"api-usage-monitoring-realm-keys"`
@@ -485,6 +488,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.ExpectContinueTimeoutBackend, "expect-continue-timeout-backend", 30*time.Second, "sets the HTTP expect continue timeout for backend connections")
 	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", 0, "sets the maximum idle connections for all backend connections")
 	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
+	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubnernetes resources to terminate tls")
 
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
@@ -820,6 +824,7 @@ func (c *Config) ToOptions() skipper.Options {
 		ExpectContinueTimeoutBackend: c.ExpectContinueTimeoutBackend,
 		MaxIdleConnsBackend:          c.MaxIdleConnsBackend,
 		DisableHTTPKeepalives:        c.DisableHTTPKeepalives,
+		KubernetesEnableTLS:          c.KubernetesEnableTLS,
 
 		// swarm:
 		EnableSwarm: c.EnableSwarm,

@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 func setPathV1(m PathMode, r *eskip.Route, pathType, path string) {
@@ -311,6 +312,20 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 	return nil
 }
 
+// addSpecIngressTLSV1 is used to add TLS Certificates from Ingress resources. Certificates will be added
+// only if the Ingress rule host matches a host in TLS config
+func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.TLSV1) {
+	// Hosts in the tls section need to explicitly match the host in the rules section.
+	hostlist := compareStringList(ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
+	if len(hostlist) == 0 {
+		log.Infof("no matching tls hosts found for ingress %s", ic.ingressV1.Metadata.Name)
+		return
+	}
+	// Secrets should always reside in same namespace as the Ingress
+	secretID := &definitions.ResourceID{Name: ingtls.SecretName, Namespace: ic.ingressV1.Metadata.Namespace}
+	addHostTLSCert(ic, hostlist, secretID)
+}
+
 // converts the default backend if any
 func (ing *ingress) convertDefaultBackendV1(
 	state *clusterState,
@@ -395,6 +410,7 @@ func (ing *ingress) ingressV1Route(
 	state *clusterState,
 	hostRoutes map[string][]*eskip.Route,
 	df defaultFilters,
+	r *certregistry.CertRegistry,
 ) (*eskip.Route, error) {
 	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
 		log.Error("invalid ingress item: missing Metadata or Spec")
@@ -416,6 +432,7 @@ func (ing *ingress) ingressV1Route(
 		redirect:            redirect,
 		hostRoutes:          hostRoutes,
 		defaultFilters:      df,
+		certificateRegistry: r,
 	}
 
 	var route *eskip.Route
@@ -428,6 +445,11 @@ func (ing *ingress) ingressV1Route(
 		err := ing.addSpecRuleV1(ic, rule)
 		if err != nil {
 			return nil, err
+		}
+	}
+	if ic.certificateRegistry != nil {
+		for _, ingtls := range i.Spec.IngressTLS {
+			ing.addSpecIngressTLSV1(ic, ingtls)
 		}
 	}
 	return route, nil

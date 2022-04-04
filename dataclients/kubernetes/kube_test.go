@@ -31,6 +31,7 @@ import (
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 type testAPI struct {
@@ -38,6 +39,7 @@ type testAPI struct {
 	services  *serviceList
 	endpoints *endpointList
 	ingresses *definitions.IngressList
+	secrets   *secretList
 	server    *httptest.Server
 	failNext  bool
 }
@@ -91,6 +93,17 @@ func testEndpoints(namespace, name, base string, n int, ports map[string]int) []
 		eps[j].Subsets = append(eps[j].Subsets, s)
 	}
 	return eps
+}
+
+func testSecret(namespace, name string, clusterIP string, t string, data map[string]string) *secret {
+	return &secret{
+		Metadata: &definitions.Metadata{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Type: t,
+		Data: data,
+	}
 }
 
 func testService(namespace, name string, clusterIP string, ports map[string]int) *service {
@@ -198,6 +211,17 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 	}
 
 	return i
+}
+
+func testSecrets() *secretList {
+	return &secretList{
+		Items: []*secret{
+			testSecret("namespace1", "secret1", "1.2.3.4", "Opaque", map[string]string{"foo": "bar"}),
+			testSecret("namespace1", "secret2", "5.6.7.8", "Opaque", map[string]string{"bar": "foo"}),
+			testSecret("namespace2", "secret3", "9.0.1.2", "Opaque", map[string]string{"foo": "foo"}),
+			testSecret("namespace2", "secret4", "10.0.1.2", "Opaque", map[string]string{"bar": "bar"}),
+		},
+	}
 }
 
 func testServices() *serviceList {
@@ -334,15 +358,16 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, reversed bool)
 }
 
 func newTestAPI(t *testing.T, s *serviceList, i *definitions.IngressList) *testAPI {
-	return newTestAPIWithEndpoints(t, s, i, &endpointList{})
+	return newTestAPIWithEndpoints(t, s, i, &endpointList{}, &secretList{})
 }
 
-func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *definitions.IngressList, e *endpointList) *testAPI {
+func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *definitions.IngressList, e *endpointList, sec *secretList) *testAPI {
 	api := &testAPI{
 		test:      t,
 		services:  s,
 		ingresses: i,
 		endpoints: e,
+		secrets:   sec,
 	}
 
 	api.server = httptest.NewServer(api)
@@ -379,6 +404,11 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case EndpointsClusterURI:
 		if err := respondJSON(w, api.endpoints); err != nil {
+			api.test.Error(err)
+		}
+		return
+	case SecretsClusterURI:
+		if err := respondJSON(w, api.secrets); err != nil {
 			api.test.Error(err)
 		}
 		return
@@ -1337,7 +1367,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 		},
 	} {
 		t.Run(tc.msg, func(t *testing.T) {
-			api := newTestAPIWithEndpoints(t, testServices(), &definitions.IngressList{}, testEndpointList())
+			api := newTestAPIWithEndpoints(t, testServices(), &definitions.IngressList{}, testEndpointList(), testSecrets())
 			defer api.Close()
 			dc, err := New(Options{KubernetesURL: api.server.URL})
 			if err != nil {
@@ -2592,6 +2622,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		endpoints      []*endpoint
 		services       []*service
 		ingresses      []*definitions.IngressItem
+		secrets        []*secret
 		expectedRoutes map[string]string
 	}{{
 		msg:       "ingress with 1 host definitions and 1 additional custom route",
@@ -2763,7 +2794,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			api := newTestAPIWithEndpoints(t, &serviceList{Items: ti.services}, &definitions.IngressList{Items: ti.ingresses}, &endpointList{
 				Items: ti.endpoints,
-			})
+			}, &secretList{Items: ti.secrets})
 			defer api.Close()
 			dc, err := New(Options{
 				KubernetesURL: api.server.URL,
@@ -3091,6 +3122,49 @@ func TestSkipperDefaultFilters(t *testing.T) {
 		}()
 
 		df.get(definitions.ResourceID{})
+	})
+}
+
+func TestCertificateRegistry(t *testing.T) {
+	api := newTestAPI(t, nil, &definitions.IngressList{})
+	defer api.Close()
+
+	t.Run("certificate registry is enabled, secrets are loaded", func(t *testing.T) {
+		api.secrets = testSecrets()
+		dc, err := New(Options{KubernetesURL: api.server.URL, CertificateRegistry: &certregistry.CertRegistry{}})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		state, err := dc.ClusterClient.fetchClusterState()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if len(state.secrets) == 0 {
+			t.Errorf("no secrets were loaded")
+		}
+	})
+
+	t.Run("certificate registry is disabled, secrets are not loaded", func(t *testing.T) {
+		api.secrets = testSecrets()
+		dc, err := New(Options{KubernetesURL: api.server.URL})
+		if err != nil {
+			t.Error(err)
+		}
+
+		defer dc.Close()
+
+		state, err := dc.ClusterClient.fetchClusterState()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if len(state.secrets) > 0 {
+			t.Errorf("secrets are loaded but registry is disabled")
+		}
 	})
 }
 

@@ -16,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/secrets/certregistry"
 	"gopkg.in/yaml.v2"
 )
 
@@ -42,6 +43,7 @@ type kubeOptionsParser struct {
 	OnlyAllowedExternalNames bool               `yaml:"onlyAllowedExternalNames"`
 	AllowedExternalNames     []string           `yaml:"allowedExternalNames"`
 	IngressClass             string             `yaml:"kubernetes-ingress-class"`
+	KubernetesEnableTLS      bool               `yaml:"kubernetes-enable-tls"`
 }
 
 func baseNoExt(n string) string {
@@ -191,6 +193,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 	}()
 
 	var o kubernetes.Options
+	var cr *certregistry.CertRegistry
 	if f.kube != "" {
 		ko, err := os.Open(f.kube)
 		if err != nil {
@@ -208,6 +211,10 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Fatal(err)
 		}
 
+		if kop.KubernetesEnableTLS {
+			cr = certregistry.NewCertRegistry()
+		}
+
 		o.KubernetesIngressV1 = kop.IngressV1
 		o.KubernetesEnableEastWest = kop.EastWest
 		o.KubernetesEastWestDomain = kop.EastWestDomain
@@ -217,6 +224,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
 		o.BackendNameTracingTag = kop.BackendNameTracingTag
 		o.IngressClass = kop.IngressClass
+		o.CertificateRegistry = cr
 
 		aen, err := compileRegexps(kop.AllowedExternalNames)
 		if err != nil {

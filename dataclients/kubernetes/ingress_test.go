@@ -27,5 +27,6 @@ func TestIngressV1Fixtures(t *testing.T) {
 		"testdata/ingressV1/eastwestrange",
 		"testdata/ingressV1/service-ports",
 		"testdata/ingressV1/external-name",
+		"testdata/ingressV1/tls",
 	)
 }

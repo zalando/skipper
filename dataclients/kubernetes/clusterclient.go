@@ -19,6 +19,7 @@ import (
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/secrets"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 const (
@@ -31,12 +32,14 @@ const (
 	routeGroupClassKey         = "zalando.org/routegroup.class"
 	ServicesClusterURI         = "/api/v1/services"
 	EndpointsClusterURI        = "/api/v1/endpoints"
+	SecretsClusterURI          = "/api/v1/secrets"
 	defaultKubernetesURL       = "http://localhost:8001"
 	IngressesNamespaceFmt      = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
 	IngressesV1NamespaceFmt    = "/apis/networking.k8s.io/v1/namespaces/%s/ingresses"
 	routeGroupsNamespaceFmt    = "/apis/zalando.org/v1/namespaces/%s/routegroups"
 	ServicesNamespaceFmt       = "/api/v1/namespaces/%s/services"
 	EndpointsNamespaceFmt      = "/api/v1/namespaces/%s/endpoints"
+	SecretsNamespaceFmt        = "/api/v1/namespaces/%s/secrets"
 	serviceAccountDir          = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey     = "token"
 	serviceAccountRootCAKey    = "ca.crt"
@@ -46,12 +49,14 @@ const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the 
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
 
 type clusterClient struct {
-	ingressesURI   string
-	routeGroupsURI string
-	servicesURI    string
-	endpointsURI   string
-	tokenProvider  secrets.SecretsProvider
-	apiURL         string
+	ingressesURI        string
+	routeGroupsURI      string
+	servicesURI         string
+	endpointsURI        string
+	secretsURI          string
+	tokenProvider       secrets.SecretsProvider
+	apiURL              string
+	certificateRegistry *certregistry.CertRegistry
 
 	routeGroupClass *regexp.Regexp
 	ingressClass    *regexp.Regexp
@@ -137,15 +142,17 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		ingressURI = IngressesV1ClusterURI
 	}
 	c := &clusterClient{
-		ingressV1:       o.KubernetesIngressV1,
-		ingressesURI:    ingressURI,
-		routeGroupsURI:  routeGroupsClusterURI,
-		servicesURI:     ServicesClusterURI,
-		endpointsURI:    EndpointsClusterURI,
-		ingressClass:    ingClsRx,
-		routeGroupClass: rgClsRx,
-		httpClient:      httpClient,
-		apiURL:          apiURL,
+		ingressV1:           o.KubernetesIngressV1,
+		ingressesURI:        ingressURI,
+		routeGroupsURI:      routeGroupsClusterURI,
+		servicesURI:         ServicesClusterURI,
+		endpointsURI:        EndpointsClusterURI,
+		secretsURI:          SecretsClusterURI,
+		ingressClass:        ingClsRx,
+		routeGroupClass:     rgClsRx,
+		httpClient:          httpClient,
+		apiURL:              apiURL,
+		certificateRegistry: o.CertificateRegistry,
 	}
 
 	if o.KubernetesInCluster {
@@ -179,6 +186,7 @@ func (c *clusterClient) setNamespace(namespace string) {
 	c.routeGroupsURI = fmt.Sprintf(routeGroupsNamespaceFmt, namespace)
 	c.servicesURI = fmt.Sprintf(ServicesNamespaceFmt, namespace)
 	c.endpointsURI = fmt.Sprintf(EndpointsNamespaceFmt, namespace)
+	c.secretsURI = fmt.Sprintf(SecretsNamespaceFmt, namespace)
 }
 
 func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request, error) {
@@ -400,6 +408,26 @@ func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, err
 	return result, nil
 }
 
+func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error) {
+	var secrets secretList
+	if err := c.getJSON(c.secretsURI, &secrets); err != nil {
+		log.Debugf("requesting all secrets failed: %v", err)
+		return nil, err
+	}
+
+	log.Debugf("all secrets received: %d", len(secrets.Items))
+	result := make(map[definitions.ResourceID]*secret)
+	for _, secret := range secrets.Items {
+		if secret == nil || secret.Metadata == nil {
+			continue
+		}
+
+		result[secret.Metadata.ToResourceID()] = secret
+	}
+
+	return result, nil
+}
+
 func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
 	var endpoints endpointList
 	if err := c.getJSON(c.endpointsURI, &endpoints); err != nil {
@@ -430,6 +458,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		err         error
 		ingressesV1 []*definitions.IngressV1Item
 		ingresses   []*definitions.IngressItem
+		secrets     map[definitions.ResourceID]*secret
 	)
 	if c.ingressV1 {
 		ingressesV1, err = c.loadIngressesV1()
@@ -462,12 +491,20 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		return nil, err
 	}
 
+	if c.certificateRegistry != nil {
+		secrets, err = c.loadSecrets()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &clusterState{
 		ingresses:       ingresses,
 		ingressesV1:     ingressesV1,
 		routeGroups:     routeGroups,
 		services:        services,
 		endpoints:       endpoints,
+		secrets:         secrets,
 		cachedEndpoints: make(map[endpointID][]string),
 	}, nil
 }

@@ -58,6 +58,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/secrets"
+	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
 )
@@ -804,6 +805,9 @@ type Options struct {
 	// ClusterRatelimitMaxGroupShards specifies the maximum number of group shards for the clusterRatelimit filter
 	ClusterRatelimitMaxGroupShards int
 
+	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
+	KubernetesEnableTLS bool
+
 	testOptions
 }
 
@@ -825,7 +829,7 @@ func newServerErrorLog() *stdlog.Logger {
 	return stdlog.New(&serverErrorLogWriter{}, "", 0)
 }
 
-func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.DataClient, error) {
+func createDataClients(o Options, auth innkeeper.Authentication, cr *certregistry.CertRegistry) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
@@ -929,6 +933,7 @@ func createDataClients(o Options, auth innkeeper.Authentication) ([]routing.Data
 			ReverseSourcePredicate:            o.ReverseSourcePredicate,
 			RouteGroupClass:                   o.KubernetesRouteGroupClass,
 			WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
+			CertificateRegistry:               cr,
 		})
 		if err != nil {
 			return nil, err
@@ -988,13 +993,22 @@ func initLog(o Options) error {
 	return nil
 }
 
-func (o *Options) tlsConfig() (*tls.Config, error) {
+func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
+
 	if o.ProxyTLS != nil {
 		return o.ProxyTLS, nil
 	}
 
-	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" && !o.KubernetesEnableTLS {
 		return nil, nil
+	}
+
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
+		config := &tls.Config{
+			MinVersion:     o.TLSMinVersion,
+			GetCertificate: cr.GetCertFromHello,
+		}
+		return config, nil
 	}
 
 	crts := strings.Split(o.CertPathTLS, ",")
@@ -1006,6 +1020,10 @@ func (o *Options) tlsConfig() (*tls.Config, error) {
 
 	config := &tls.Config{
 		MinVersion: o.TLSMinVersion,
+	}
+
+	if o.KubernetesEnableTLS {
+		config.GetCertificate = cr.GetCertFromHello
 	}
 
 	for i := 0; i < len(crts); i++ {
@@ -1075,8 +1093,9 @@ func listenAndServeQuit(
 	sigs chan os.Signal,
 	idleConnsCH chan struct{},
 	mtr metrics.Metrics,
+	cr *certregistry.CertRegistry,
 ) error {
-	tlsConfig, err := o.tlsConfig()
+	tlsConfig, err := o.tlsConfig(cr)
 	if err != nil {
 		return err
 	}
@@ -1152,7 +1171,7 @@ func listenAndServeQuit(
 }
 
 func listenAndServe(proxy http.Handler, o *Options) error {
-	return listenAndServeQuit(proxy, o, nil, nil, nil)
+	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
@@ -1237,8 +1256,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		return err
 	}
 
+	var cr *certregistry.CertRegistry
+	if o.KubernetesEnableTLS {
+		cr = certregistry.NewCertRegistry()
+	}
+
 	// *DEPRECATED* innkeeper - create data clients
-	dataClients, err := createDataClients(o, inkeeperAuth)
+	dataClients, err := createDataClients(o, inkeeperAuth, cr)
 	if err != nil {
 		return err
 	}
@@ -1679,7 +1703,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
 
-	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr)
+	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
 }
 
 // Run skipper.

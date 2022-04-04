@@ -1,6 +1,8 @@
 package kubernetes
 
 import (
+	"crypto/tls"
+	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +14,7 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 const (
@@ -25,6 +28,9 @@ const (
 	skipperBackendProtocolAnnotationKey = "zalando.org/skipper-backend-protocol"
 	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
 	ingressOriginName                   = "ingress"
+	tlsSecretType                       = "kubernetes.io/tls"
+	tlsSecretDataCrt                    = "tls.crt"
+	tlsSecretDataKey                    = "tls.key"
 )
 
 type ingressContext struct {
@@ -40,6 +46,7 @@ type ingressContext struct {
 	redirect            *redirectInfo
 	hostRoutes          map[string][]*eskip.Route
 	defaultFilters      defaultFilters
+	certificateRegistry *certregistry.CertRegistry
 }
 
 type ingress struct {
@@ -351,11 +358,32 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	return false
 }
 
+// addHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
+// secret is found and is a valid TLS secret.
+func addHostTLSCert(ic ingressContext, hosts []string, secretID *definitions.ResourceID) {
+	secret, ok := ic.state.secrets[*secretID]
+	if !ok {
+		log.Errorf("failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
+		return
+	}
+	cert, err := generateTLSCertFromSecret(secret)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	for _, host := range hosts {
+		err := ic.certificateRegistry.ConfigureCertificate(host, cert)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+}
+
 // convert logs if an invalid found, but proceeds with the
 // valid ones.  Reporting failures in Ingress status is not possible,
 // because Ingress status field is v1beta1.LoadBalancerIngress that only
 // supports IP and Hostname as string.
-func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Route, error) {
+func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregistry.CertRegistry) ([]*eskip.Route, error) {
 	var ewIngInfo map[string][]string // r.Id -> {namespace, name}
 	if ing.kubernetesEnableEastWest {
 		ewIngInfo = make(map[string][]string)
@@ -365,7 +393,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
 	if ing.ingressV1 {
 		for _, i := range state.ingressesV1 {
-			r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df)
+			r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df, r)
 			if err != nil {
 				return nil, err
 			}
@@ -420,4 +448,26 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters) ([]*eskip.Ro
 	}
 
 	return routes, nil
+}
+
+func generateTLSCertFromSecret(secret *secret) (*tls.Certificate, error) {
+	if secret.Data[tlsSecretDataCrt] == "" || secret.Data[tlsSecretDataKey] == "" {
+		return nil, fmt.Errorf("secret must contain %s and %s in data field", tlsSecretDataCrt, tlsSecretDataKey)
+	}
+	crt, err := b64.StdEncoding.DecodeString(secret.Data[tlsSecretDataCrt])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode %s from secret %s", tlsSecretDataCrt, secret.Metadata.Name)
+	}
+	key, err := b64.StdEncoding.DecodeString(secret.Data[tlsSecretDataKey])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode %s from secret %s", tlsSecretDataKey, secret.Metadata.Name)
+	}
+	cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tls certificate from secret %s", secret.Metadata.Name)
+	}
+	if secret.Type != tlsSecretType {
+		return nil, fmt.Errorf("secret %s is not of type %s", secret.Metadata.Name, tlsSecretType)
+	}
+	return &cert, nil
 }
