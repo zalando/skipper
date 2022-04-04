@@ -7,6 +7,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/filters/body"
 	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/consistenthash"
 	"github.com/zalando/skipper/filters/cookie"
@@ -216,6 +217,7 @@ func MakeRegistry() filters.Registry {
 		fadein.NewEndpointCreated(),
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
+		body.NewBodyMatchFilter(),
 	} {
 		r.Register(s)
 	}

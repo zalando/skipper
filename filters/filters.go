@@ -2,9 +2,10 @@ package filters
 
 import (
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/opentracing/opentracing-go"
 )
@@ -213,6 +214,7 @@ const (
 	RandomContentName                          = "randomContent"
 	RepeatContentName                          = "repeatContent"
 	BackendTimeoutName                         = "backendTimeout"
+	BodyMatchName                              = "bodyMatch"
 	LatencyName                                = "latency"
 	BandwidthName                              = "bandwidth"
 	ChunksName                                 = "chunks"
