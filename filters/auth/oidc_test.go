@@ -921,7 +921,7 @@ func TestChunkAndMergerCookie(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("test:%v", ht.name), func(t *testing.T) {
 			assert := assert.New(t)
-			got := chunkCookie(ht.given)
+			got := chunkCookie(&ht.given)
 			assert.NotNil(t, got, "it should not be empty")
 			// shuffle the order of response cookies
 			rand.Shuffle(len(got), func(i, j int) {
@@ -930,7 +930,7 @@ func TestChunkAndMergerCookie(t *testing.T) {
 			assert.Len(got, ht.num, "should result in a different number of chunks")
 			mergedCookie := mergerCookies(got)
 			assert.NotNil(mergedCookie, "should receive a valid cookie")
-			assert.Equal(ht.given, mergedCookie, "after chunking and remerging the content must be equal")
+			assert.Equal(ht.given, *mergedCookie, "after chunking and remerging the content must be equal")
 			// verify no cookie exceeds limits
 			for _, ck := range got {
 				assert.True(func() bool {

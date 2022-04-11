@@ -327,7 +327,7 @@ func (f *tokenOidcFilter) internalServerError(ctx filters.FilterContext) {
 // https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowSteps
 // 1. Client prepares an Authentication Request containing the desired request parameters.
 // 2. Client sends the request to the Authorization Server.
-func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies ...*http.Cookie) {
+func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*http.Cookie) {
 	nonce, err := f.encrypter.CreateNonce()
 	if err != nil {
 		log.Errorf("Failed to create nonce: %v.", err)
@@ -404,7 +404,7 @@ func getHost(request *http.Request) string {
 	}
 }
 
-func createOidcCookie(name string, value string, maxAge int, domain string) (cookie *http.Cookie) {
+func (f *tokenOidcFilter) createOidcCookie(ctx filters.FilterContext, name string, value string, maxAge int) (cookie *http.Cookie) {
 	return &http.Cookie{
 		Name:     name,
 		Value:    value,
@@ -412,38 +412,41 @@ func createOidcCookie(name string, value string, maxAge int, domain string) (coo
 		Secure:   true,
 		HttpOnly: true,
 		MaxAge:   maxAge,
-		Domain:   domain,
+		Domain:   extractDomainFromHost(getHost(ctx.Request()), f.subdomainsToRemove),
 	}
 }
 
-func deleteOidcCookie(name string, domain string) (cookie *http.Cookie) {
-	return createOidcCookie(name, "", -1, domain)
+func (f *tokenOidcFilter) deleteOidcCookie(ctx filters.FilterContext, name string) (cookie *http.Cookie) {
+	return f.createOidcCookie(ctx, name, "", -1)
 }
 
-func chunkCookie(cookie http.Cookie) (cookies []*http.Cookie) {
+func chunkCookie(cookie *http.Cookie) (cookies []*http.Cookie) {
+	// We need to dereference the cookie to avoid modifying the original cookie.
+	cookieCopy := *cookie
+
 	for index := 'a'; index <= 'z'; index++ {
-		cookieSize := len(cookie.String())
+		cookieSize := len(cookieCopy.String())
 		if cookieSize < cookieMaxSize {
-			cookie.Name += string(index)
-			return append(cookies, &cookie)
+			cookieCopy.Name += string(index)
+			return append(cookies, &cookieCopy)
 		}
 
-		newCookie := cookie
+		newCookie := cookieCopy
 		newCookie.Name += string(index)
 		// non-deterministic approach support signature changes
-		cut := len(cookie.Value) - (cookieSize - cookieMaxSize) - 1
-		newCookie.Value, cookie.Value = cookie.Value[:cut], cookie.Value[cut:]
+		cut := len(cookieCopy.Value) - (cookieSize - cookieMaxSize) - 1
+		newCookie.Value, cookieCopy.Value = cookieCopy.Value[:cut], cookieCopy.Value[cut:]
 		cookies = append(cookies, &newCookie)
 	}
 	log.Error("unsupported amount of chunked cookies")
 	return
 }
 
-func mergerCookies(cookies []*http.Cookie) (cookie http.Cookie) {
+func mergerCookies(cookies []*http.Cookie) *http.Cookie {
 	if len(cookies) == 0 {
-		return
+		return nil
 	}
-	cookie = *(cookies[0])
+	cookie := *(cookies[0])
 	cookie.Name = cookie.Name[:len(cookie.Name)-1]
 	cookie.Value = ""
 	// potentially shuffeled
@@ -453,7 +456,7 @@ func mergerCookies(cookies []*http.Cookie) (cookie http.Cookie) {
 	for _, ck := range cookies {
 		cookie.Value += ck.Value
 	}
-	return
+	return &cookie
 }
 
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, maxAge time.Duration, redirectUrl string) {
@@ -464,12 +467,14 @@ func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcSt
 			"Location": {redirectUrl},
 		},
 	}
-	oidcCookies := chunkCookie(*createOidcCookie(
-		f.cookiename,
-		base64.StdEncoding.EncodeToString(oidcState),
-		int(maxAge.Seconds()),
-		extractDomainFromHost(getHost(ctx.Request()),
-			f.subdomainsToRemove)))
+	oidcCookies := chunkCookie(
+		f.createOidcCookie(
+			ctx,
+			f.cookiename,
+			base64.StdEncoding.EncodeToString(oidcState),
+			int(maxAge.Seconds()),
+		),
+	)
 	for _, cookie := range oidcCookies {
 		r.Header.Add("Set-Cookie", cookie.String())
 	}
@@ -704,7 +709,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	sessionCookie := mergerCookies(cookies)
 	log.Debugf("Request: Cookie merged, %d chunks, len: %d", len(cookies), len(sessionCookie.String()))
 
-	cookie, ok := f.validateCookie(&sessionCookie)
+	cookie, ok := f.validateCookie(sessionCookie)
 	log.Debugf("Request: Cookie Validation: %v", ok)
 	if !ok {
 		// 5. Authorization Server sends the End-User back to the Client with an Authorization Code.
@@ -716,9 +721,9 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 		// clear existing, invalid cookies
 		var purgeCookies = make([]*http.Cookie, len(cookies))
 		for i, c := range cookies {
-			purgeCookies[i] = deleteOidcCookie(c.Name, extractDomainFromHost(ctx.Request().Host, 1))
+			purgeCookies[i] = f.deleteOidcCookie(ctx, c.Name)
 		}
-		f.doOauthRedirect(ctx, purgeCookies...)
+		f.doOauthRedirect(ctx, purgeCookies)
 		return
 	}
 
