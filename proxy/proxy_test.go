@@ -2062,6 +2062,42 @@ func TestHopHeaderRemovalDisabled(t *testing.T) {
 	}
 }
 
+func TestUserAgent(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		userAgent string
+	}{
+		{name: "no user agent"},
+		{name: "with user agent", userAgent: "test ua"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := startTestServer(nil, 0, func(r *http.Request) {
+				if got := r.Header.Get("User-Agent"); tc.userAgent != got {
+					t.Errorf("user agent mismatch: expected %q, got %q", tc.userAgent, got)
+				}
+			})
+			defer s.Close()
+
+			r := httptest.NewRequest("GET", "http://example.com/foo", nil)
+			if tc.userAgent != "" {
+				r.Header.Set("User-Agent", tc.userAgent)
+			}
+
+			w := httptest.NewRecorder()
+
+			doc := fmt.Sprintf(`* -> "%s"`, s.URL)
+
+			tp, err := newTestProxy(doc, FlagsNone)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tp.close()
+
+			tp.proxy.ServeHTTP(w, r)
+		})
+	}
+}
+
 func thisOneWillPanic() {
 	panic("oops")
 }
