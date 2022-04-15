@@ -501,6 +501,10 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 	} else {
 		rr.Header = cloneHeader(r.Header)
 	}
+	// Disable default net/http user agent when user agent is not specified
+	if _, ok := rr.Header["User-Agent"]; !ok {
+		rr.Header["User-Agent"] = []string{""}
+	}
 	rr.Host = host
 
 	// If there is basic auth configured in the URL we add them as headers
