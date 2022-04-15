@@ -119,7 +119,6 @@ clean:
 deps:
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
-	mkdir -p .bin
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 
@@ -165,7 +164,7 @@ precommit: fmt build vet staticcheck check-race shortcheck
 			'{{if len .TestGoFiles}}"GO111MODULE=on go test -tags=redis -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
 			$$p | xargs -i sh -c {}; \
 	done
-	go get github.com/modocache/gover
+	go install github.com/modocache/gover@latest
 	gover . .coverprofile-all
 
 cover: .coverprofile-all
