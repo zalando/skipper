@@ -57,7 +57,6 @@ type ingress struct {
 	pathMode                 PathMode
 	httpsRedirectCode        int
 	kubernetesEnableEastWest bool
-	ingressV1                bool
 	provideHTTPSRedirect     bool
 	forceKubernetesService   bool
 }
@@ -72,7 +71,6 @@ func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 
 func newIngress(o Options) *ingress {
 	return &ingress{
-		ingressV1:                o.KubernetesIngressV1,
 		provideHTTPSRedirect:     o.ProvideHTTPSRedirect,
 		httpsRedirectCode:        o.HTTPSRedirectCode,
 		pathMode:                 o.PathMode,
@@ -198,14 +196,8 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 func addExtraRoutes(ic ingressContext, ruleHost, path, pathType, eastWestDomain string, enableEastWest bool) {
 	hosts := []string{createHostRx(ruleHost)}
 	var ns, name string
-	if ic.ingressV1 != nil {
-		name = ic.ingressV1.Metadata.Name
-		ns = ic.ingressV1.Metadata.Namespace
-
-	} else {
-		name = ic.ingress.Metadata.Name
-		ns = ic.ingress.Metadata.Namespace
-	}
+	name = ic.ingressV1.Metadata.Name
+	ns = ic.ingressV1.Metadata.Namespace
 
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
@@ -393,31 +385,15 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregis
 	routes := make([]*eskip.Route, 0, len(state.ingresses))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
-	if ing.ingressV1 {
-		for _, i := range state.ingressesV1 {
-			r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df, r)
-			if err != nil {
-				return nil, err
-			}
-			if r != nil {
-				routes = append(routes, r)
-				if ing.kubernetesEnableEastWest {
-					ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
-				}
-			}
+	for _, i := range state.ingressesV1 {
+		r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df, r)
+		if err != nil {
+			return nil, err
 		}
-
-	} else {
-		for _, i := range state.ingresses {
-			r, err := ing.ingressRoute(i, redirect, state, hostRoutes, df)
-			if err != nil {
-				return nil, err
-			}
-			if r != nil {
-				routes = append(routes, r)
-				if ing.kubernetesEnableEastWest {
-					ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
-				}
+		if r != nil {
+			routes = append(routes, r)
+			if ing.kubernetesEnableEastWest {
+				ewIngInfo[r.Id] = []string{i.Metadata.Namespace, i.Metadata.Name}
 			}
 		}
 	}

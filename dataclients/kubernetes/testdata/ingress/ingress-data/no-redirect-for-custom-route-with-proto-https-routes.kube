@@ -1,3 +1,0 @@
-httpsRedirect: true
-eastWestRangeDomains:
-- "skipper.cluster.local"

@@ -1331,17 +1331,22 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 func TestConvertPathRuleTraffic(t *testing.T) {
 	for _, tc := range []struct {
 		msg   string
-		rule  *definitions.PathRule
+		rule  *definitions.PathRuleV1
 		route *eskip.Route
 	}{
 		{
 			msg: "if traffic weight is between 0 and 1 predicate should be added to route",
-			rule: &definitions.PathRule{
-				Path: "",
-				Backend: &definitions.Backend{
-					ServiceName: "service1",
-					ServicePort: definitions.BackendPort{Value: "port1"},
-					Traffic:     0.3,
+			rule: &definitions.PathRuleV1{
+				Path:     "",
+				PathType: "ImplementationSpecific",
+				Backend: &definitions.BackendV1{
+					Service: definitions.Service{
+						Name: "service1",
+						Port: definitions.BackendPortV1{
+							Name: "port1",
+						},
+					},
+					Traffic: 0.3,
 				},
 			},
 			route: &eskip.Route{
