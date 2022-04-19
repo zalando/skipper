@@ -644,6 +644,7 @@ func TestOIDCSetup(t *testing.T) {
 		expectRequest      string
 		expectNoCookies    bool
 		expectCookieDomain string
+		filterCookies      []string
 	}{{
 		msg:             "wrong provider",
 		filter:          `oauthOidcAnyClaims("no url", "", "", "{{ .RedirectURL }}", "", "")`,
@@ -740,6 +741,13 @@ func TestOIDCSetup(t *testing.T) {
 		filter:             `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "", "", "", "3")`,
 		expected:           200,
 		expectCookieDomain: "bar.foo.skipper.test",
+	}, {
+		msg:                "remove unverified cookies",
+		hostname:           "bar.foo.skipper.test",
+		filter:             `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid email", "", "", "", "3")`,
+		expected:           200,
+		expectCookieDomain: "bar.foo.skipper.test",
+		filterCookies:      []string{"badheader", "malformed"},
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -816,6 +824,10 @@ func TestOIDCSetup(t *testing.T) {
 			}
 			req.Header.Set(authHeaderName, authHeaderPrefix+testToken)
 
+			for _, v := range tc.filterCookies {
+				req.Header.Set("Set-Cookie", v)
+			}
+
 			// client with cookie handling to support 127.0.0.1 with ports
 			client := http.Client{
 				Timeout: 1 * time.Second,
@@ -853,6 +865,12 @@ func TestOIDCSetup(t *testing.T) {
 					left, right := tokenExp-time.Minute, tokenExp
 					maxAge := time.Duration(c.MaxAge) * time.Second
 					assert.True(t, left <= maxAge && maxAge <= right, "maxAge has to be within [%v, %v]", left, right)
+
+					for _, v := range tc.filterCookies {
+						if v == c.Name {
+							assert.True(t, c.Value == "")
+						}
+					}
 				}
 			}
 		})
@@ -914,7 +932,7 @@ func TestChunkAndMergerCookie(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("test:%v", ht.name), func(t *testing.T) {
 			assert := assert.New(t)
-			got := chunkCookie(ht.given)
+			got := chunkCookie(&ht.given)
 			assert.NotNil(t, got, "it should not be empty")
 			// shuffle the order of response cookies
 			rand.Shuffle(len(got), func(i, j int) {
@@ -923,7 +941,7 @@ func TestChunkAndMergerCookie(t *testing.T) {
 			assert.Len(got, ht.num, "should result in a different number of chunks")
 			mergedCookie := mergerCookies(got)
 			assert.NotNil(mergedCookie, "should receive a valid cookie")
-			assert.Equal(ht.given, mergedCookie, "after chunking and remerging the content must be equal")
+			assert.Equal(ht.given, *mergedCookie, "after chunking and remerging the content must be equal")
 			// verify no cookie exceeds limits
 			for _, ck := range got {
 				assert.True(func() bool {
