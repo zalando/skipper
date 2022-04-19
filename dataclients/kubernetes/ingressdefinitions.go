@@ -2,7 +2,9 @@ package kubernetes
 
 import (
 	"fmt"
+	"net"
 	"strconv"
+	"strings"
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
@@ -83,7 +85,11 @@ type endpointList struct {
 }
 
 func formatEndpoint(a *address, p *port, protocol string) string {
-	return fmt.Sprintf("%s://%s:%d", protocol, a.IP, p.Port)
+	ip := net.ParseIP(a.IP)
+	if strings.Count(a.IP, ":") >= 2 { // our naive IPv6 check
+		return fmt.Sprintf("%s://[%s]:%d", protocol, ip.String(), p.Port)
+	}
+	return fmt.Sprintf("%s://%s:%d", protocol, ip.String(), p.Port)
 }
 
 func formatEndpointsForSubsetAddresses(addresses []*address, port *port, protocol string) []string {

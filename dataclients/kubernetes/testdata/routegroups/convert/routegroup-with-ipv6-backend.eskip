@@ -1,0 +1,3 @@
+kube_rg__default__myapp__all__0_0:
+	Host("^(example[.]org[.]?(:[0-9]+)?)$")
+	-> <roundRobin, "http://[10::8]:80", "http://[10:ab::8]:80">;
