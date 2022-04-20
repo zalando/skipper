@@ -35,7 +35,6 @@ const (
 
 type ingressContext struct {
 	state               *clusterState
-	ingress             *definitions.IngressItem
 	ingressV1           *definitions.IngressV1Item
 	logger              *log.Entry
 	annotationFilters   []*eskip.Filter

@@ -124,3 +124,8 @@ func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {
 	}
 	return hostList
 }
+
+/* required from v1beta1 */
+type BackendPort struct {
+	Value interface{}
+}

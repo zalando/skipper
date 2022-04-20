@@ -40,10 +40,6 @@ type Rule struct {
 	Http *HTTPRule `json:"http"`
 }
 
-type BackendPort struct {
-	Value interface{}
-}
-
 type HTTPRule struct {
 	Paths []*PathRule `json:"paths"`
 }
