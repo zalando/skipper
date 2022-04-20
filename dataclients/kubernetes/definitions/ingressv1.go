@@ -125,16 +125,20 @@ func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {
 	return hostList
 }
 
+// ResourceID is a stripped down version of Metadata used to identify resources in a cache map
 type ResourceID struct {
 	Namespace string
 	Name      string
 }
 
 /* required from v1beta1 */
+
+// BackendPort is used for TargetPort similar to Kubernetes intOrString type
 type BackendPort struct {
 	Value interface{}
 }
 
+// String converts BackendPort to string
 func (p BackendPort) String() string {
 	switch v := p.Value.(type) {
 	case string:
@@ -146,6 +150,7 @@ func (p BackendPort) String() string {
 	}
 }
 
+// Number converts BackendPort to int
 func (p BackendPort) Number() (int, bool) {
 	i, ok := p.Value.(int)
 	return i, ok

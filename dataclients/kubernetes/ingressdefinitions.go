@@ -46,15 +46,6 @@ type serviceList struct {
 	Items []*service `json:"items"`
 }
 
-func (s service) getServicePort(port definitions.BackendPort) (*servicePort, error) {
-	for _, sp := range s.Spec.Ports {
-		if sp.matchingPort(port) && sp.TargetPort != nil {
-			return sp, nil
-		}
-	}
-	return nil, fmt.Errorf("getServicePort: service port not found %v given %v", s.Spec.Ports, port)
-}
-
 func (s service) getServicePortV1(port definitions.BackendPortV1) (*servicePort, error) {
 	for _, sp := range s.Spec.Ports {
 		if sp.matchingPortV1(port) && sp.TargetPort != nil {
