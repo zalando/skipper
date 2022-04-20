@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
@@ -83,7 +84,7 @@ type endpointList struct {
 }
 
 func formatEndpoint(a *address, p *port, protocol string) string {
-	return fmt.Sprintf("%s://%s:%d", protocol, a.IP, p.Port)
+	return protocol + "://" + net.JoinHostPort(a.IP, strconv.Itoa(p.Port))
 }
 
 func formatEndpointsForSubsetAddresses(addresses []*address, port *port, protocol string) []string {
