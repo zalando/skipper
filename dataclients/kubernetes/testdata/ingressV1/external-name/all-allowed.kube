@@ -1,4 +1,3 @@
-ingressv1: true
 onlyAllowedExternalNames: true
 allowedExternalNames:
 - ^external1[.]example[.]org$
