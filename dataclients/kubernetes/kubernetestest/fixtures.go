@@ -251,6 +251,10 @@ func testFixture(t *testing.T, f fixtureSet) {
 	defer c.Close()
 
 	routes, err := c.LoadAll()
+	if f.api == "" && err != nil {
+		t.Fatalf("LoadAll failed: %v", err)
+	}
+
 	if f.eskip != "" {
 		eskp, err := os.Open(f.eskip)
 		if err != nil {

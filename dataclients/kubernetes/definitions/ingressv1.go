@@ -155,3 +155,33 @@ func (p BackendPort) Number() (int, bool) {
 	i, ok := p.Value.(int)
 	return i, ok
 }
+func (p *BackendPort) UnmarshalJSON(value []byte) error {
+	if value[0] == '"' {
+		var s string
+		if err := json.Unmarshal(value, &s); err != nil {
+			return err
+		}
+
+		p.Value = s
+		return nil
+	}
+
+	var i int
+	if err := json.Unmarshal(value, &i); err != nil {
+		return err
+	}
+
+	p.Value = i
+	return nil
+}
+
+func (p BackendPort) MarshalJSON() ([]byte, error) {
+	switch p.Value.(type) {
+	case string, int:
+		return json.Marshal(p.Value)
+	default:
+		return nil, errInvalidPortType
+	}
+}
+
+var errInvalidPortType = errors.New("invalid port type")
