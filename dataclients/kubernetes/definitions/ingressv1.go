@@ -125,7 +125,28 @@ func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {
 	return hostList
 }
 
+type ResourceID struct {
+	Namespace string
+	Name      string
+}
+
 /* required from v1beta1 */
 type BackendPort struct {
 	Value interface{}
+}
+
+func (p BackendPort) String() string {
+	switch v := p.Value.(type) {
+	case string:
+		return v
+	case int:
+		return strconv.Itoa(v)
+	default:
+		return ""
+	}
+}
+
+func (p BackendPort) Number() (int, bool) {
+	i, ok := p.Value.(int)
+	return i, ok
 }

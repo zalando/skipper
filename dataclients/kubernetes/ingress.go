@@ -381,7 +381,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregis
 	if ing.kubernetesEnableEastWest {
 		ewIngInfo = make(map[string][]string)
 	}
-	routes := make([]*eskip.Route, 0, len(state.ingresses))
+	routes := make([]*eskip.Route, 0, len(state.ingressesV1))
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
 	for _, i := range state.ingressesV1 {

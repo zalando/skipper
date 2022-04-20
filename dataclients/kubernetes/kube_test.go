@@ -175,14 +175,8 @@ func setAnnotation(i *definitions.IngressV1Item, key, value string) {
 	i.Metadata.Annotations[key] = value
 }
 
-<<<<<<< HEAD
-func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString, lbAlgorithm string, labels map[string]string,
-	defaultPort definitions.BackendPort, traffic float64, rules ...*definitions.Rule) *definitions.IngressItem {
-	var defaultBackend *definitions.Backend
-=======
-func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString, lbAlgorithm string, defaultPort definitions.BackendPortV1, traffic float64, rules ...*definitions.RuleV1) *definitions.IngressV1Item {
+func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicateString, routesString, pathModeString, lbAlgorithm string, labels map[string]string, defaultPort definitions.BackendPortV1, traffic float64, rules ...*definitions.RuleV1) *definitions.IngressV1Item {
 	var defaultBackend *definitions.BackendV1
->>>>>>> update version
 	if len(defaultService) != 0 {
 		defaultBackend = &definitions.BackendV1{
 			Service: definitions.Service{
@@ -250,18 +244,9 @@ func testServices() *serviceList {
 	}
 }
 
-<<<<<<< HEAD
-func testIngresses() []*definitions.IngressItem {
-	return []*definitions.IngressItem{
-		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0),
-		testIngress("namespace2", "path-rule-only", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{}, 1.0, testRule(
-			"www.example.org",
-			testPathRule("/", "service3", definitions.BackendPort{Value: "port3"}),
-		)),
-=======
 func testIngresses() []*definitions.IngressV1Item {
 	return []*definitions.IngressV1Item{
-		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", definitions.BackendPortV1{Number: 8080}, 1.0),
+		testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0),
 		testIngress(
 			"namespace2",
 			"path-rule-only",
@@ -272,6 +257,7 @@ func testIngresses() []*definitions.IngressV1Item {
 			"",
 			"",
 			"",
+			map[string]string{},
 			definitions.BackendPortV1{},
 			1.0,
 			testRule(
@@ -279,7 +265,6 @@ func testIngresses() []*definitions.IngressV1Item {
 				testPathRule("/", "service3", definitions.BackendPortV1{Name: "port3"}),
 			),
 		),
->>>>>>> update version
 		testIngress(
 			"namespace1",
 			"mega",
@@ -290,12 +275,8 @@ func testIngresses() []*definitions.IngressV1Item {
 			"",
 			"",
 			"",
-<<<<<<< HEAD
 			map[string]string{},
-			definitions.BackendPort{Value: "port1"},
-=======
 			definitions.BackendPortV1{Name: "port1"},
->>>>>>> update version
 			1.0,
 			testRule(
 				"foo.example.org",
@@ -308,15 +289,9 @@ func testIngresses() []*definitions.IngressV1Item {
 				testPathRule("/test2", "service2", definitions.BackendPortV1{Name: "port2"}),
 			),
 		),
-<<<<<<< HEAD
-		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0),
-		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0),
-		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 4444}, 1.0),
-=======
-		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", definitions.BackendPortV1{Number: 8080}, 1.0),
-		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", definitions.BackendPortV1{Number: 8080}, 1.0),
-		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", definitions.BackendPortV1{Number: 4444}, 1.0),
->>>>>>> update version
+		testIngress("namespace1", "ratelimit", "service1", "localRatelimit(20,\"1m\")", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0),
+		testIngress("namespace1", "ratelimitAndBreaker", "service1", "", "localRatelimit(20,\"1m\") -> consecutiveBreaker(15)", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0),
+		testIngress("namespace2", "svcwith2ports", "service4", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 4444}, 1.0),
 	}
 }
 
@@ -500,13 +475,8 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.URL.Path {
-<<<<<<< HEAD
-	case IngressesClusterURI:
-		if err := respondJSON(w, filterIngressByLabels(labelSelectors, api.ingresses)); err != nil {
-=======
 	case IngressesV1ClusterURI:
-		if err := respondJSON(w, api.ingresses); err != nil {
->>>>>>> update version
+		if err := respondJSON(w, filterIngressByLabels(labelSelectors, api.ingresses)); err != nil {
 			api.test.Error(err)
 		}
 		return
@@ -1021,16 +991,6 @@ func TestIngress(t *testing.T) {
 
 		api.ingresses.Items = append(
 			api.ingresses.Items,
-<<<<<<< HEAD
-			testIngress("namespace1", "new1", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new1.example.org",
-				testPathRule("/", "service1", definitions.BackendPort{Value: "port1"}),
-			)),
-			testIngress("namespace1", "new2", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new2.example.org",
-				testPathRule("/", "service2", definitions.BackendPort{Value: "port2"}),
-			)),
-=======
 			testIngress(
 				"namespace1",
 				"new1",
@@ -1041,6 +1001,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1058,6 +1019,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1065,7 +1027,6 @@ func TestIngress(t *testing.T) {
 					testPathRule("/", "service2", definitions.BackendPortV1{Name: "port2"}),
 				),
 			),
->>>>>>> update version
 		)
 
 		r, d, err := dc.LoadUpdate()
@@ -1099,16 +1060,6 @@ func TestIngress(t *testing.T) {
 
 		api.ingresses.Items = append(
 			api.ingresses.Items,
-<<<<<<< HEAD
-			testIngress("namespace1", "new1", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new1.example.org",
-				testPathRule("/", "service1", definitions.BackendPort{Value: "port1"}),
-			)),
-			testIngress("namespace1", "new2", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new2.example.org",
-				testPathRule("/", "service2", definitions.BackendPort{Value: "port2"}),
-			)),
-=======
 			testIngress(
 				"namespace1",
 				"new1",
@@ -1119,6 +1070,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1136,6 +1088,7 @@ func TestIngress(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1143,7 +1096,6 @@ func TestIngress(t *testing.T) {
 					testPathRule("/", "service2", definitions.BackendPortV1{Name: "port2"}),
 				),
 			),
->>>>>>> update version
 		)
 
 		api.ingresses.Items[1].Spec.Rules[0].Http.Paths[0].Backend.Service.Port.Number = 9999
@@ -1186,16 +1138,6 @@ func TestIngress(t *testing.T) {
 			return
 		}
 
-<<<<<<< HEAD
-		ti1 := testIngress("namespace1", "new1", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-			"new1.example.org",
-			testPathRule("/", "service1", definitions.BackendPort{Value: "port1"}),
-		))
-		ti2 := testIngress("namespace1", "new2", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-			"new2.example.org",
-			testPathRule("/", "service2", definitions.BackendPort{Value: "port2"}),
-		))
-=======
 		ti1 := testIngress(
 			"namespace1",
 			"new1",
@@ -1206,6 +1148,7 @@ func TestIngress(t *testing.T) {
 			"",
 			"",
 			"",
+			map[string]string{},
 			definitions.BackendPortV1{Name: ""},
 			1.0,
 			testRule(
@@ -1223,6 +1166,7 @@ func TestIngress(t *testing.T) {
 			"",
 			"",
 			"",
+			map[string]string{},
 			definitions.BackendPortV1{Name: ""},
 			1.0,
 			testRule(
@@ -1230,7 +1174,6 @@ func TestIngress(t *testing.T) {
 				testPathRule("/", "service2", definitions.BackendPortV1{Name: "port2"}),
 			),
 		)
->>>>>>> update version
 		// Set class ingress class annotation
 		ti1.Metadata.Annotations = map[string]string{ingressClassKey: defaultIngressClass}
 		ti2.Metadata.Annotations = map[string]string{ingressClassKey: "nginx"}
@@ -1369,16 +1312,6 @@ func TestConvertPathRule(t *testing.T) {
 
 		api.ingresses.Items = append(
 			api.ingresses.Items,
-<<<<<<< HEAD
-			testIngress("namespace1", "new1", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new1.example.org",
-				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
-			)),
-			testIngress("namespace1", "new1", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new1.example.org",
-				testPathRule("/test2", "service1", definitions.BackendPort{Value: "port1"}),
-			)),
-=======
 			testIngress(
 				"namespace1",
 				"new1",
@@ -1389,6 +1322,7 @@ func TestConvertPathRule(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1406,6 +1340,7 @@ func TestConvertPathRule(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1413,7 +1348,6 @@ func TestConvertPathRule(t *testing.T) {
 					testPathRule("/test2", "service1", definitions.BackendPortV1{Name: "port1"}),
 				),
 			),
->>>>>>> update version
 		)
 
 		r, d, err := dc.LoadUpdate()
@@ -1455,12 +1389,6 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 
 		api.ingresses.Items = append(
 			api.ingresses.Items,
-<<<<<<< HEAD
-			testIngress("namespace1", "new1", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new1.example.org",
-				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
-			)),
-=======
 			testIngress(
 				"namespace1",
 				"new1",
@@ -1471,6 +1399,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1478,7 +1407,6 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 					testPathRule("/test1", "service1", definitions.BackendPortV1{Name: "port1"}),
 				),
 			),
->>>>>>> update version
 		)
 
 		r, d, err := dc.LoadUpdate()
@@ -1517,16 +1445,6 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 
 		api.ingresses.Items = append(
 			api.ingresses.Items,
-<<<<<<< HEAD
-			testIngress("namespace1", "new1", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new1.example.org",
-				testPathRule("/test1", "service1", definitions.BackendPort{Value: "port1"}),
-			)),
-			testIngress("namespace1", "new1", "", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: ""}, 1.0, testRule(
-				"new1.example.org",
-				testPathRule("/test2", "service1", definitions.BackendPort{Value: "port1"}),
-			)),
-=======
 			testIngress(
 				"namespace1",
 				"new1",
@@ -1537,6 +1455,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1554,6 +1473,7 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 				"",
 				"",
 				"",
+				map[string]string{},
 				definitions.BackendPortV1{Name: ""},
 				1.0,
 				testRule(
@@ -1561,7 +1481,6 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 					testPathRule("/test2", "service1", definitions.BackendPortV1{Name: "port1"}),
 				),
 			),
->>>>>>> update version
 		)
 
 		r, d, err := dc.LoadUpdate()
@@ -3051,11 +2970,7 @@ func TestSkipperPredicate(t *testing.T) {
 	api := newTestAPI(t, nil, &definitions.IngressV1List{})
 	defer api.Close()
 
-<<<<<<< HEAD
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0)
-=======
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", definitions.BackendPortV1{Number: 8080}, 1.0)
->>>>>>> update version
+	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0)
 
 	t.Run("check ingress predicate", func(t *testing.T) {
 		api.services = testServices()
@@ -3086,11 +3001,7 @@ func TestSkipperPredicateEastWest(t *testing.T) {
 	api := newTestAPI(t, nil, &definitions.IngressV1List{})
 	defer api.Close()
 
-<<<<<<< HEAD
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0)
-=======
-	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", definitions.BackendPortV1{Number: 8080}, 1.0)
->>>>>>> update version
+	ingWithPredicate := testIngress("namespace1", "predicate", "service1", "", "", "QueryParam(\"query\", \"^example$\")", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0)
 
 	t.Run("check ingress predicate", func(t *testing.T) {
 		api.services = testServices()
@@ -3145,15 +3056,11 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		services: []*service{
 			testService("foo", "bar", map[string]string{}, "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-<<<<<<< HEAD
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "", `Method("OPTIONS") -> <shunt>`, "", "", map[string]string{}, definitions.BackendPort{}, 1.0, testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})))},
-=======
 		ingresses: []*definitions.IngressV1Item{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", "", definitions.BackendPortV1{}, 1.0,
+			"", "", map[string]string{}, definitions.BackendPortV1{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPortV1{Name: "baz"})),
 		)},
->>>>>>> update version
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org_____bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
 			"kube_foo__qux__0__www1_example_org_____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
@@ -3164,15 +3071,11 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		services: []*service{
 			testService("foo", "bar", map[string]string{}, "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-<<<<<<< HEAD
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "", `Method("OPTIONS") -> <shunt>`, "", "", map[string]string{}, definitions.BackendPort{}, 1.0, testRule("www1.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})))},
-=======
 		ingresses: []*definitions.IngressV1Item{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"", "", definitions.BackendPortV1{}, 1.0,
+			"", "", map[string]string{}, definitions.BackendPortV1{}, 1.0,
 			testRule("www1.example.org", testPathRule("/a/path", "bar", definitions.BackendPortV1{Name: "baz"})),
 		)},
->>>>>>> update version
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org___a_path__bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
 			"kube_foo__qux__0__www1_example_org_a_path____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
@@ -3186,15 +3089,9 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 		ingresses: []*definitions.IngressV1Item{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-<<<<<<< HEAD
-			"", "", map[string]string{}, definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})),
-=======
-			"", "", definitions.BackendPortV1{}, 1.0,
+			"", "", map[string]string{}, definitions.BackendPortV1{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPortV1{Name: "baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPortV1{Name: "baz"})),
->>>>>>> update version
 		)},
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org_____bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
@@ -3210,15 +3107,9 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 		ingresses: []*definitions.IngressV1Item{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-<<<<<<< HEAD
-			"", "", map[string]string{}, definitions.BackendPort{}, 1.0,
-			testRule("www1.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})),
-			testRule("www2.example.org", testPathRule("/another/path", "bar", definitions.BackendPort{Value: "baz"})),
-=======
-			"", "", definitions.BackendPortV1{}, 1.0,
+			"", "", map[string]string{}, definitions.BackendPortV1{}, 1.0,
 			testRule("www1.example.org", testPathRule("/a/path", "bar", definitions.BackendPortV1{Name: "baz"})),
 			testRule("www2.example.org", testPathRule("/another/path", "bar", definitions.BackendPortV1{Name: "baz"})),
->>>>>>> update version
 		)},
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org___a_path__bar":       "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
@@ -3236,21 +3127,15 @@ func TestSkipperCustomRoutes(t *testing.T) {
 			testService("foo", "bar", map[string]string{}, "1.2.3.4", map[string]int{"baz": 8181}),
 			testService("foo", "baz", map[string]string{}, "1.2.3.6", map[string]int{"baz": 8181}),
 		},
-<<<<<<< HEAD
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "", `a: Method("OPTIONS") -> <shunt>;
-                         b: Cookie("alpha", /^enabled$/) -> "http://1.1.2.0:8181";
-                         c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`, "", "", map[string]string{}, definitions.BackendPort{}, 1.0, testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})), testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})), testRule("www3.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})))},
-=======
 		ingresses: []*definitions.IngressV1Item{testIngress("foo", "qux", "", "", "", "",
 			`a: Method("OPTIONS") -> <shunt>;
                          b: Cookie("alpha", /^enabled$/) -> "http://1.1.2.0:8181";
                          c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", "", definitions.BackendPortV1{}, 1.0,
+			"", "", map[string]string{}, definitions.BackendPortV1{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPortV1{Name: "baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPortV1{Name: "baz"})),
 			testRule("www3.example.org", testPathRule("/a/path", "bar", definitions.BackendPortV1{Name: "baz"})),
 		)},
->>>>>>> update version
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org_____bar":  "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) -> \"http://1.1.1.0:8181\"",
 			"kube_foo__qux_a_0__www1_example_org_____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^\\//) && Method(\"OPTIONS\") -> <shunt>",
@@ -3276,21 +3161,15 @@ func TestSkipperCustomRoutes(t *testing.T) {
 			testService("foo", "bar", map[string]string{}, "1.2.3.4", map[string]int{"baz": 8181}),
 			testService("foo", "baz", map[string]string{}, "1.2.3.6", map[string]int{"baz": 8181}),
 		},
-<<<<<<< HEAD
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "", `a: Method("OPTIONS") -> <shunt>;
-                         b: Cookie("alpha", /^enabled$/) -> "http://1.1.2.0:8181";
-                         c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`, "", "", map[string]string{}, definitions.BackendPort{}, 1.0, testRule("www1.example.org", testPathRule("", "bar", definitions.BackendPort{Value: "baz"})), testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})), testRule("www3.example.org", testPathRule("/a/path", "bar", definitions.BackendPort{Value: "baz"})))},
-=======
 		ingresses: []*definitions.IngressV1Item{testIngress("foo", "qux", "", "", "", "",
 			`a: Method("OPTIONS") -> <shunt>;
                          b: Cookie("alpha", /^enabled$/) -> "http://1.1.2.0:8181";
                          c: Path("/a/path/somewhere") -> "https://some.other-url.org/a/path/somewhere";`,
-			"", "", definitions.BackendPortV1{}, 1.0,
+			"", "", map[string]string{}, definitions.BackendPortV1{}, 1.0,
 			testRule("www1.example.org", testPathRule("", "bar", definitions.BackendPortV1{Name: "baz"})),
 			testRule("www2.example.org", testPathRule("/", "bar", definitions.BackendPortV1{Name: "baz"})),
 			testRule("www3.example.org", testPathRule("/a/path", "bar", definitions.BackendPortV1{Name: "baz"})),
 		)},
->>>>>>> update version
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org____bar":  "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) -> \"http://1.1.1.0:8181\"",
 			"kube_foo__qux_a_0__www1_example_org____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && Method(\"OPTIONS\") -> <shunt>",
@@ -3314,15 +3193,11 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		services: []*service{
 			testService("foo", "bar", map[string]string{}, "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-<<<<<<< HEAD
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "", `Method("OPTIONS") -> <shunt>`, "path-prefix", "", map[string]string{}, definitions.BackendPort{}, 1.0, testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})))},
-=======
 		ingresses: []*definitions.IngressV1Item{testIngress("foo", "qux", "", "", "", "",
 			`Method("OPTIONS") -> <shunt>`,
-			"path-prefix", "", definitions.BackendPortV1{}, 1.0,
+			"path-prefix", "", map[string]string{}, definitions.BackendPortV1{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPortV1{Name: "baz"})),
 		)},
->>>>>>> update version
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org_____bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathSubtree(\"/\") -> \"http://1.1.1.0:8181\"",
 			"kube_foo__qux__0__www1_example_org_____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && Method(\"OPTIONS\") && PathSubtree(\"/\") -> <shunt>",
@@ -3333,15 +3208,11 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		services: []*service{
 			testService("foo", "bar", map[string]string{}, "1.2.3.4", map[string]int{"baz": 8181}),
 		},
-<<<<<<< HEAD
-		ingresses: []*definitions.IngressItem{testIngress("foo", "qux", "", "", "", "", `Path("/foo") -> <shunt>`, "path-prefix", "", map[string]string{}, definitions.BackendPort{}, 1.0, testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPort{Value: "baz"})))},
-=======
 		ingresses: []*definitions.IngressV1Item{testIngress("foo", "qux", "", "", "", "",
 			`Path("/foo") -> <shunt>`,
-			"path-prefix", "", definitions.BackendPortV1{}, 1.0,
+			"path-prefix", "", map[string]string{}, definitions.BackendPortV1{}, 1.0,
 			testRule("www1.example.org", testPathRule("/", "bar", definitions.BackendPortV1{Name: "baz"})),
 		)},
->>>>>>> update version
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org_____bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathSubtree(\"/\") -> \"http://1.1.1.0:8181\"",
 		},
@@ -3557,15 +3428,10 @@ func TestSkipperDefaultFilters(t *testing.T) {
 	})
 
 	t.Run("check default filters are applied to the route", func(t *testing.T) {
-<<<<<<< HEAD
-		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", map[string]string{}, "1.2.3.4", map[string]int{"port1": 8080})}}
-		api.ingresses = &definitions.IngressList{Items: []*definitions.IngressItem{testIngress("namespace1", "default-only", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0, testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPort{Value: 8080})))}}
-=======
 		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080})}}
 		api.ingresses = &definitions.IngressV1List{Items: []*definitions.IngressV1Item{testIngress("namespace1", "default-only",
-			"service1", "", "", "", "", "", "", definitions.BackendPortV1{Number: 8080}, 1.0,
+			"service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
 			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPortV1{Number: 8080})))}}
->>>>>>> update version
 
 		defaultFiltersDir, err := os.MkdirTemp("", "filters")
 		if err != nil {
@@ -3601,15 +3467,10 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 	t.Run("check default filters are prepended to the ingress filters", func(t *testing.T) {
 		api.endpoints = testEndpointList()
-<<<<<<< HEAD
-		api.services = &serviceList{Items: []*service{testServiceWithTargetPort("namespace1", "service1", map[string]string{}, "1.2.3.4", map[string]int{"port1": 8080}, map[int]*definitions.BackendPort{8080: {Value: 8080}})}}
-		api.ingresses = &definitions.IngressList{Items: []*definitions.IngressItem{testIngress("namespace1", "default-only", "service1", "", "localRatelimit(20,\"1m\")", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0, testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPort{Value: "port1"})))}}
-=======
 		api.services = &serviceList{Items: []*service{testServiceWithTargetPort("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080}, map[int]*definitions.BackendPort{8080: {Value: 8080}})}}
 		api.ingresses = &definitions.IngressV1List{Items: []*definitions.IngressV1Item{testIngress("namespace1", "default-only",
-			"service1", "", "localRatelimit(20,\"1m\")", "", "", "", "", definitions.BackendPortV1{Number: 8080}, 1.0,
+			"service1", "", "localRatelimit(20,\"1m\")", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
 			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPortV1{Name: "port1"})))}}
->>>>>>> update version
 
 		// store default configuration in the file
 		dir, err := os.MkdirTemp("", "filters")
