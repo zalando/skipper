@@ -150,6 +150,8 @@ type Config struct {
 	ValidateQueryLog bool      `yaml:"validate-query-log"`
 	RefusePayload    multiFlag `yaml:"refuse-payload"`
 
+	// KubernetesIngressV1 setting is deprecated and has no effect, only v1 is supported
+	KubernetesIngressV1 bool `yaml:"kubernetes-ingress-v1"`
 	// Kubernetes:
 	KubernetesIngress                       bool                `yaml:"kubernetes"`
 	KubernetesInCluster                     bool                `yaml:"kubernetes-in-cluster"`
@@ -157,7 +159,6 @@ type Config struct {
 	KubernetesHealthcheck                   bool                `yaml:"kubernetes-healthcheck"`
 	KubernetesHTTPSRedirect                 bool                `yaml:"kubernetes-https-redirect"`
 	KubernetesHTTPSRedirectCode             int                 `yaml:"kubernetes-https-redirect-code"`
-	KubernetesIngressV1                     bool                `yaml:"kubernetes-ingress-v1"`
 	KubernetesIngressClass                  string              `yaml:"kubernetes-ingress-class"`
 	KubernetesRouteGroupClass               string              `yaml:"kubernetes-routegroup-class"`
 	WhitelistedHealthCheckCIDR              string              `yaml:"whitelisted-healthcheck-cidr"`
@@ -436,7 +437,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.KubernetesHealthcheck, "kubernetes-healthcheck", true, "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes")
 	flag.BoolVar(&cfg.KubernetesHTTPSRedirect, "kubernetes-https-redirect", true, "automatic HTTP->HTTPS redirect route; valid only with kubernetes")
 	flag.IntVar(&cfg.KubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, "overrides the default redirect code (308) when used together with -kubernetes-https-redirect")
-	flag.BoolVar(&cfg.KubernetesIngressV1, "kubernetes-ingress-v1", false, "enable kubernetes ingress version v1, defaults to version v1beta1")
+	flag.BoolVar(&cfg.KubernetesIngressV1, "kubernetes-ingress-v1", true, "*deprecated*, setting has no effect, only v1 is supported.")
 	flag.StringVar(&cfg.KubernetesIngressClass, "kubernetes-ingress-class", "", "ingress class regular expression used to filter ingress resources for kubernetes")
 	flag.StringVar(&cfg.KubernetesRouteGroupClass, "kubernetes-routegroup-class", "", "route group class regular expression used to filter route group resources for kubernetes")
 	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", "sets the iprange/CIDRS to be whitelisted during healthcheck")
@@ -654,7 +655,6 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 		KubernetesHealthcheck:              c.KubernetesHealthcheck,
 		KubernetesHTTPSRedirect:            c.KubernetesHTTPSRedirect,
 		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
-		KubernetesIngressV1:                c.KubernetesIngressV1,
 		KubernetesIngressClass:             c.KubernetesIngressClass,
 		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
 		KubernetesPathMode:                 c.KubernetesPathMode,
@@ -806,7 +806,6 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesHealthcheck:              c.KubernetesHealthcheck,
 		KubernetesHTTPSRedirect:            c.KubernetesHTTPSRedirect,
 		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
-		KubernetesIngressV1:                c.KubernetesIngressV1,
 		KubernetesIngressClass:             c.KubernetesIngressClass,
 		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
 		WhitelistedHealthCheckCIDR:         whitelistCIDRS,

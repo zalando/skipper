@@ -201,15 +201,14 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	wantHTTPCode(t, w, http.StatusOK)
 }
 
-func TestFetchedV1IngressRoutesAreServedInEskipFormat(t *testing.T) {
+func TestFetchedIngressRoutesAreServedInEskipFormat(t *testing.T) {
 	defer tl.Reset()
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/ing-v1-lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:   pollInterval,
-		KubernetesURL:       ks.URL,
-		KubernetesIngressV1: true,
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
 	})
 
 	rs.StartUpdates()
