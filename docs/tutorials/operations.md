@@ -48,14 +48,19 @@ ratelimits, a wide range of Prometheus metrics, websockets and a
 better HTTP path routing than the default Kubernetes Ingress spec
 supports.
 
-The Kubernetes Ingress spec defines a
-[path](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.14/#httpingresspath-v1beta1-networking-k8s-io)
+The former Kubernetes Ingress v1beta1 spec defined a path
 as regular expression, which is not what most people would expect, nor
 want. Skipper defaults in Kubernetes to use the [PathRegexp predicate](../reference/predicates.md#pathregexp)
 for routing, because of the spec. We believe the better default is the
 path prefix mode, that uses [PathSubtree predicate](../reference/predicates.md#pathsubtree),
 instead. Path prefix search is much more scalable and can not lead to
 unexpected results by not so experienced regular expressions users.
+Since Kubernetes v1.18, [Ingress v1 path definition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#httpingresspath-v1-networking-k8s-io)
+supports all path matching modes that are common in skipper:
+
+- `pathType: Exact` maps to [`Path()`](../reference/predicates.md#path)
+- `pathType: Prefix` maps to [`PathSubtree()`](../reference/predicates.md#pathsubtree)
+- `pathType: ImplementationSpecific` is defined as you set path prefix mode.
 
 To find more information about Metrics, including formats and example
 Prometheus queries you find in the [metrics
@@ -143,7 +148,7 @@ skipper \
 and the following ingress is defined:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: qux
@@ -154,9 +159,12 @@ spec:
     http:
       paths:
       - path: "/"
+        pathType: Prefix
         backend:
-          serviceName: qux
-          servicePort: baz
+          service:
+            name: qux
+            port:
+              name: baz
 ```
 
 Skipper will secure this route adding the predicate `ClientIP("10.2.0.0/16")`.
@@ -165,7 +173,7 @@ The same ingress might be used for internal and external hostnames. For
 example, given a slightly modified version of the ingress:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
 ...

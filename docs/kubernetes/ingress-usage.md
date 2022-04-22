@@ -24,7 +24,7 @@ zalando.org/skipper-ingress-redirect | `"true"` | change the default HTTPS redir
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
 zalando.org/skipper-loadbalancer | `consistentHash` | defaults to `roundRobin`, [see available choices](../reference/backends.md#load-balancer-backend)
 zalando.org/skipper-backend-protocol | `fastcgi` | (*experimental*) defaults to `http`, [see available choices](../reference/backends.md#backend-protocols)
-zalando.org/skipper-ingress-path-mode | `path-prefix` | defaults to `kubernetes-ingress`, [see available choices](#ingress-path-handling), to change the default use `-kubernetes-path-mode`
+zalando.org/skipper-ingress-path-mode | `path-prefix` | (*deprecated*) please use [Ingress version 1 pathType option](https://kubernetes.io/docs/concepts/services-networking/ingress/#path-types), which defaults to ImplementationSpecific and does not change the behavior. Skipper's path-mode defaults to `kubernetes-ingress`, [see available choices](#ingress-path-handling), to change the default use `-kubernetes-path-mode`.
 
 ## Supported Service types
 
@@ -46,7 +46,7 @@ route will match by http `Host: app-default.example.org` and route to
 endpoints selected by the Kubernetes service `app-svc` on port `80`.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app
@@ -56,8 +56,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 To have 2 routes with different `Host` headers serving the same
@@ -70,7 +73,7 @@ GCP migration, GCP to bare metal migration or bare metal to Alibaba
 Cloud migration.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app
@@ -80,14 +83,20 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
   - host: foo.example.org
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ### Multiple Ingresses defining the same route
@@ -107,48 +116,62 @@ endpoints. (Most likely service-x was renamed to service-x-live and the old
 ingress was forgot).
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: service-x
 spec:
   rules:
   - host: service-x.example.org
-      http:
-        paths:
-        - backend:
-            serviceName: service-x # this service has 0 endpoints
-            servicePort: 80
+    http:
+      paths:
+      - backend:
+          service:
+            name: service-x # this service has 0 endpoints
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 &#x200B;
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: service-x-live
 spec:
   rules:
   - host: service-x.example.org
-      http:
-        paths:
-        - backend:
-            serviceName: service-x-live
-            servicePort: 80
+    http:
+      paths:
+      - backend:
+          service:
+            name: service-x-live
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ## Ingress path handling
 
-Ingress paths can be interpreted in four different modes:
+Skipper supports all [Kubernetes
+path-types](https://kubernetes.io/docs/concepts/services-networking/ingress/#path-types)
+as documented in Kubernetes documentation.
 
-1. based on the kubernetes ingress specification
-2. as plain regular expression
-3. as a path prefix
+Ingress paths can be interpreted in five different modes:
 
-The default is the kubernetes ingress mode. It can be changed by a startup option
+1. `pathType: Prefix` results in [PathSubtree predicate](../reference/predicates.md#pathsubtree))
+2. `pathType: Exact` results in [Path predicate](../reference/predicates.md#path))
+3. `pathType: ImplementationSpecific`
+   1. based on the kubernetes ingress specification
+   2. as plain regular expression
+   3. as a path prefix (same as `pathType: Prefix` and results in [PathSubtree](../reference/predicates.md#pathsubtree))
+
+The default is 3.1 the kubernetes ingress mode. It can be changed by a startup option
 to any of the other modes, and the individual ingress rules can also override the
-default behavior with the zalando.org/skipper-ingress-path-mode annotation.
+default behavior with the zalando.org/skipper-ingress-path-mode annotation. You can
+also set for each path rule a different Kubernetes `pathType` like `Prefix` and `Exact`.
 
 E.g.:
 
@@ -189,7 +212,7 @@ path.
 This example shows how to add predicates and filters:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -202,11 +225,17 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ## Custom Routes
+
+Please consider using [RouteGroups](routegroups.md), instead of custom
+routes!
 
 Custom routes is a way of extending the default routes configured for
 an ingress resource.
@@ -257,7 +286,7 @@ instead of the 2 Predicates
 created for the ingress backend.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app
@@ -271,9 +300,12 @@ spec:
     http:
       paths:
       - path: /
+        pathType: Prefix
         backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
 ```
 
 #### Redirect a specific path from ingress
@@ -289,7 +321,7 @@ redirected and passed to the backend selected by `serviceName=app-svc` and
 `servicePort=80`:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app
@@ -303,9 +335,12 @@ spec:
     http:
       paths:
       - path: /
+        pathType: Prefix
         backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
 ```
 
 ### Return static content
@@ -328,7 +363,7 @@ route definition from the ingress object for safety reasons.
 This example shows how to add a custom route for handling `OPTIONS` requests.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -345,8 +380,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 This will generate a custom route for the ingress which looks like this:
@@ -378,7 +416,7 @@ predicates in ingress, if there are no paths rules defined. For
 example this will **not** work:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: skipper-ingress
@@ -386,22 +424,28 @@ metadata:
     kubernetes.io/ingress.class: skipper
     zalando.org/skipper-routes: |
        redirect1: Path("/foo/") -> redirectTo(308, "/bar/") -> <shunt>;
-  spec:
-    rules:
-      - host: foo.bar
-        http:
-          paths:
-            - path: /something/
-              backend:
-                serviceName: something
-                servicePort: 80
-            - path: /else/
-              backend:
-                serviceName: else
-                servicePort: 80
+spec:
+  rules:
+  - host: foo.bar
+    http:
+      paths:
+      - path: /something
+        pathType: Prefix
+        backend:
+          service:
+            name: something
+            port:
+              number: 80
+      - path: /else
+        pathType: Prefix
+        backend:
+          service:
+            name: else
+            port:
+              number: 80
 ```
 
-A possible solution will be a skipper route CRD: https://github.com/zalando/skipper/issues/660
+A possible solution is to use skipper's [RouteGroups](routegroups.md).
 
 ## Filters - Basic HTTP manipulations
 
@@ -552,7 +596,7 @@ documented.
 The ingress spec would look like this:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -564,8 +608,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 #### Rate Breaker
@@ -582,7 +629,7 @@ documented.
 The ingress spec would look like this:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -594,8 +641,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 
@@ -626,7 +676,7 @@ X-Forwarded-For header or IP incase there is no X-Forwarded-For header
 set, are allowed to each skipper instance for the given ingress.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -638,8 +688,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 If you need to rate limit service to service communication and
@@ -648,7 +701,7 @@ clients, then you can pass a 3 parameter to group clients by "Authorization
 Header":
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -660,8 +713,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 
@@ -671,7 +727,7 @@ The example shows 50 calls per minute are allowed to each skipper
 instance for the given ingress.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -683,8 +739,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 #### Cluster Ratelimits
@@ -698,7 +757,7 @@ The example shows 50 calls per minute are allowed to pass this ingress
 rule to the backend.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -710,8 +769,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ##### Client
@@ -720,7 +782,7 @@ The example shows 10 calls per hour are allowed per client,
 X-Forwarded-For header, to pass this ingress rule to the backend.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -732,8 +794,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 #### Path ratelimit
@@ -741,7 +806,7 @@ spec:
 To ratelimit a specific path use a second ingress definition like
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app-default
@@ -751,10 +816,13 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ---
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app-login
@@ -767,8 +835,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 or use [RouteGroups](routegroups.md).
 
@@ -780,7 +851,7 @@ and ignore the responses from your new backend. This can be done by
 the [tee()](../reference/filters.md#tee) and [teenf()](../reference/filters.md#teenf) filters.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -792,8 +863,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ## Predicates
@@ -823,7 +897,7 @@ query string in the URL has `version=alpha` set, for example
 alpha-svc:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -835,14 +909,17 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: alpha-svc
-          servicePort: 80
+          service:
+            name: alpha-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 prod-svc:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: prod-app
@@ -852,8 +929,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: prod-svc
-          servicePort: 80
+          service:
+            name: prod-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ### IP Whitelisting
@@ -861,7 +941,7 @@ spec:
 This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.0.0/17
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -873,8 +953,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 
@@ -894,7 +977,7 @@ shows to have 10% traffic using A and the rest using B.
 10% choice of setting the Cookie "flavor" to "A":
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -907,14 +990,17 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: a-app-svc
-          servicePort: 80
+          service:
+            name: a-app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 Rest is setting Cookie "flavor" to "B":
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -926,15 +1012,18 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: b-app-svc
-          servicePort: 80
+          service:
+            name: b-app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 To be sticky, you have to create 2 ingress with predicate to match
 routes with the cookie we set before. For "A" this would be:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -946,14 +1035,17 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: a-app-svc
-          servicePort: 80
+          service:
+            name: a-app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 For "B" this would be:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -965,8 +1057,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: b-app-svc
-          servicePort: 80
+          service:
+            name: b-app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ## Blue-Green deployments
@@ -984,7 +1079,7 @@ In the following example **my-app-1** service will get **80%** of the traffic
 and **my-app-2** will get **20%** of the traffic:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-app
@@ -999,12 +1094,18 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: my-app-1
-          servicePort: http
+          service:
+            name: my-app
+            port:
+              name: http
+        pathType: Prefix
         path: /
       - backend:
-          serviceName: my-app-2
-          servicePort: http
+          service:
+            name: my-app-2
+            port:
+              name: http
+        pathType: Prefix
         path: /
 ```
 
@@ -1015,7 +1116,7 @@ For more advanced blue-green deployments, check out our [stackset-controller](ht
 You can set multiple filters in a chain similar to the [eskip format](https://godoc.org/github.com/zalando/skipper/eskip).
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -1028,8 +1129,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ## Controlling HTTPS redirect
@@ -1050,7 +1154,7 @@ Annotations:
 Example:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -1063,8 +1167,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ## Load Balancer Algorithm
@@ -1086,7 +1193,7 @@ Annotations:
 Example:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -1098,6 +1205,9 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```

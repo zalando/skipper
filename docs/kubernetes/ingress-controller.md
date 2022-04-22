@@ -345,7 +345,7 @@ the application with Ingress to the external network:
 
 ```bash
 # cat demo-ing.yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: skipper-demo
@@ -355,8 +355,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: skipper-demo
-          servicePort: 80
+          service:
+            name: skipper-demo
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 To deploy this ingress, you have to run:
@@ -404,7 +407,7 @@ serve the traffic.
 Example ingress:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
@@ -416,8 +419,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: app-svc
-          servicePort: 80
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 ## Scoping Skipper Deployments to a Single Namespace
@@ -542,7 +548,7 @@ If the setup is correct, skipper will protect the following ingress
 example with the `ClientIP` predicate:
 
 ```
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: demo
@@ -553,8 +559,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: example
-          servicePort: 80
+          service:
+            name: example
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 Your clients inside the cluster should call this example with
@@ -695,4 +704,82 @@ the communication work with TCP and UDP to the specified `swarm-port`:
   hostPort: 9990
   name: swarm-port
   protocol: TCP
+```
+
+## Upgrades
+
+### <v0.14.0 to >=v0.14.0
+
+Kubernetes dataclient removes support for ingress v1beta1.
+What does it mean for you?
+
+1. If you run with enabled `-kubernetes-ingress-v1`, you won't need to
+  do anything and you can safely delete the flag while updating to
+  `>=0.14.0`.
+2. If you use skipper as library and pass `KubernetesIngressV1: true`
+  via `kubernetes.Options` into `kubernetes.New()`, then you won't need to
+  do anything and you can safely delete passing the option while updating to
+  `>=0.14.0`.
+3. If you use Ingress v1beta1 and run Kubernetes cluster version that
+  does not support ingress v1, then you can't update skipper to
+  `>=0.14.0`, before you upgrade your Kubernetes cluster.
+4. If you use Ingress v1beta1 and run Kubernetes cluster version that
+  support ingress v1, then you need to allow skipper to access the new
+  APIs with a changed RBAC. See the guide below.
+
+
+If you are in case 4., you have to apply a change in your RBAC, please
+check the diff or the full rendered file.
+
+Diff view (same for deployment and daemonset):
+```diff
+diff --git docs/kubernetes/deploy/deployment/rbac.yaml docs/kubernetes/deploy/deployment/rbac.yaml
+index 361f3789..c0e448a4 100644
+--- docs/kubernetes/deploy/deployment/rbac.yaml
++++ docs/kubernetes/deploy/deployment/rbac.yaml
+@@ -37,11 +37,18 @@ metadata:
+   name: skipper-ingress
+   namespace: kube-system
+ ---
+-apiVersion: rbac.authorization.k8s.io/v1beta1
++apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRole
+ metadata:
+   name: skipper-ingress
+ rules:
++- apiGroups:
++  - networking.k8s.io
++  resources:
++  - ingresses
++  verbs:
++  - get
++  - list
+ - apiGroups:
+     - extensions
+   resources:
+@@ -66,7 +73,7 @@ rules:
+   - get
+   - list
+ ---
+-apiVersion: rbac.authorization.k8s.io/v1beta1
++apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRoleBinding
+ metadata:
+   name: skipper-ingress
+@@ -79,7 +86,7 @@ subjects:
+   name: skipper-ingress
+   namespace: kube-system
+ ---
+-apiVersion: rbac.authorization.k8s.io/v1beta1
++apiVersion: rbac.authorization.k8s.io/v1
+ kind: RoleBinding
+ metadata:
+   name: skipper-ingress-hostnetwork-psp
+```
+
+Full rendered RBAC files (same for deployment and daemonset):
+
+```yaml
+# cat docs/kubernetes/deploy/deployment/rbac.yaml
+{!kubernetes/deploy/deployment/rbac.yaml!}
 ```

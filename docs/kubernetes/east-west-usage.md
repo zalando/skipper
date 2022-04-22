@@ -10,7 +10,7 @@ ingress configuration.
 Example:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: demo
@@ -21,8 +21,11 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: example
-          servicePort: 80
+          service:
+            name: example
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 Or as a [RouteGroup](./routegroups.md):
@@ -57,7 +60,7 @@ You can also use the same ingress or RouteGroup object to accept
 internal and external traffic:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: demo
@@ -68,14 +71,20 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: example
-          servicePort: 80
+          service:
+            name: example
+            port:
+              number: 80
+        pathType: ImplementationSpecific
   - host: demo.skipper.cluster.local
     http:
       paths:
       - backend:
-          serviceName: example
-          servicePort: 80
+          service:
+            name: example
+            port:
+              number: 80
+        pathType: ImplementationSpecific
 ```
 
 Or, again, as a [RouteGroup](./routegroups.md):
