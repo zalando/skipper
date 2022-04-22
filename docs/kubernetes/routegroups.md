@@ -127,14 +127,16 @@ spec:
 This is equivalent to the ingress:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-ingress
 spec:
-  backend:
-    serviceName: my-service
-    servicePort: 80
+  defaultBackend:
+    service:
+      name: my-service
+      port:
+        number: 80
 ```
 
 Notice that the route group contains a list of actual backends, and the defined service backend is then
@@ -322,14 +324,16 @@ fields.
 Ingress:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-ingress
 spec:
-  backend:
-    serviceName: my-service
-    servicePort: 80
+  defaultBackend:
+    service:
+      name: my-service
+      port:
+        number: 80
 ```
 
 RouteGroup:
@@ -354,7 +358,7 @@ spec:
 Ingress:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-ingress
@@ -364,9 +368,12 @@ spec:
     http:
       paths:
       - path: /api
+        pathType: Prefix
         backend:
-          serviceName: my-service
-          servicePort: 80
+          service:
+            name: my-service
+            port:
+              number: 80
 ```
 
 RouteGroup:
@@ -393,7 +400,7 @@ spec:
 Ingress (we need to define two rules):
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-ingress
@@ -403,16 +410,22 @@ spec:
     http:
       paths:
       - path: /api
+        pathType: Prefix
         backend:
-          serviceName: my-service
-          servicePort: 80
+          service:
+            name: my-service
+            port:
+              number: 80
   - host: legacy-name.example.org
     http:
       paths:
       - path: /api
+        pathType: Prefix
         backend:
-          serviceName: my-service
-          servicePort: 80
+          service:
+            name: my-service
+            port:
+              number: 80
 ```
 
 RouteGroup (we just define an additional host):
@@ -441,7 +454,7 @@ For those cases when using multiple hostnames in the same ingress with different
 small workaround for the equivalent route group spec. Ingress:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-ingress
@@ -451,16 +464,22 @@ spec:
     http:
       paths:
       - path: /api
+        pathType: Prefix
         backend:
-          serviceName: my-service
-          servicePort: 80
+          service:
+            name: my-service
+            port:
+              number: 80
   - host: legacy-name.example.org
     http:
       paths:
       - path: /application
+        pathType: Prefix
         backend:
-          serviceName: my-service
-          servicePort: 80
+          service:
+            name: my-service
+            port:
+              number: 80
 ```
 
 RouteGroup (we need to use additional host predicates):
@@ -514,7 +533,7 @@ for different routes.
 and backends without limitations. E.g where an ingress annotation's metadata may look like this:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-ingress
@@ -522,8 +541,10 @@ metadata:
     Method("OPTIONS") -> status(200) -> <shunt>
 spec:
   backend:
-    serviceName: my-service
-    servicePort: 80
+    service:
+      name: my-service
+      port:
+        number: 80
 ```
 
 the equivalent RouteGroup would look like this:
@@ -616,7 +637,12 @@ The route objects support the different path lookup modes, by using the path, pa
 pathRegexp field. See also the [route matching](../reference/architecture.md#route-matching)
 explained for the internals. The mapping is as follows:
 
-Ingress: | RouteGroup:
+Ingress pathType: | RouteGroup:
+--- | ---
+`Exact` and `/foo`  | path: `/foo`
+`Prefix` and `/foo` | pathSubtree: `/foo`
+
+Ingress (`pathType: ImplementationSpecific`): | RouteGroup:
 --- | ---
 `kubernetes-ingress` and `/foo` | pathRegexp: `^/foo`
 `path-regexp` and `/foo` | pathRegexp: `/foo`
@@ -631,7 +657,7 @@ the flag `--kubernetes-routegroup-class=<string>` to only select RouteGroup
 objects that have the annotation `zalando.org/routegroup.class` set to
 `<string>`. Skipper will only create routes for RouteGroup objects with
 it's annotation or RouteGroup objects that do not have this annotation. The
-default class is `skipper`, if not set. 
+default class is `skipper`, if not set.
 
 Example RouteGroup:
 
