@@ -389,7 +389,6 @@ func Test_NewConfigWithArgs(t *testing.T) {
 				CloneRoute:                              &routeChangerConfig{},
 				EditRoute:                               &routeChangerConfig{},
 				SourcePollTimeout:                       3000,
-				KubernetesIngressV1:                     true,
 				KubernetesEastWestRangeDomains:          commaListFlag(),
 				KubernetesHealthcheck:                   true,
 				KubernetesHTTPSRedirect:                 true,
