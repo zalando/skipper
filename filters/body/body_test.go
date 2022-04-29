@@ -72,8 +72,13 @@ func TestSimple(t *testing.T) {
 			bmb := newBodyMatchBuffer(r, []string{".class"})
 			p := make([]byte, 10240)
 			n, err := bmb.Read(p)
+
 			if err != nil {
-				t.Errorf("Failed to read: %v", err)
+				if err == ErrBlocked {
+					t.Logf("Stop! Request has some blocked content!")
+				} else {
+					t.Errorf("Failed to read: %v", err)
+				}
 			}
 
 			if n != len(tt.content) {
