@@ -90,10 +90,10 @@ func (bmb *bodyMatchBuffer) Read(p []byte) (int, error) {
 	}
 
 	for _, s := range bmb.match {
-		if bytes.Index(p, []byte(s)) != -1 {
+		if bytes.Contains(p, []byte(s)) {
 			p = nil
 			println("blocked")
-			return 0, ErrBlocked
+			return n, ErrBlocked
 		}
 	}
 
