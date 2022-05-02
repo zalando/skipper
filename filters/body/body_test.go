@@ -1,6 +1,7 @@
 package body
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -70,7 +71,7 @@ func TestSimple(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &nonBlockingReader{initialContent: []byte(tt.content)}
 			bmb := newBodyMatchBuffer(r, []string{".class"})
-			p := make([]byte, 10240)
+			p := make([]byte, len(tt.content))
 			n, err := bmb.Read(p)
 
 			if err != nil {
@@ -79,13 +80,51 @@ func TestSimple(t *testing.T) {
 				} else {
 					t.Errorf("Failed to read: %v", err)
 				}
-			}
-
-			if n != len(tt.content) {
+			} else if n != len(tt.content) {
 				t.Errorf("Failed to read content length %d, got %d", len(tt.content), n)
 			}
 
 		})
 	}
 
+}
+
+func BenchmarkBodyMatch(b *testing.B) {
+
+	fake := func(source string, len int) string {
+		return strings.Repeat(source[:2], len/2) // partially matches target
+	}
+
+	for _, tt := range []struct {
+		name    string
+		tomatch string
+		bm      []byte
+	}{
+		{
+			name:    "Small",
+			tomatch: ".class",
+			bm:      []byte(fake(".class", 10)),
+		},
+		{
+			name:    "Medium",
+			tomatch: ".class",
+			bm:      []byte(fake(".class", 1000)),
+		},
+		{
+			name:    "Large",
+			tomatch: ".class",
+			bm:      []byte(fake(".class", 10000)),
+		}} {
+		b.Run(tt.name, func(b *testing.B) {
+			target := &nonBlockingReader{initialContent: tt.bm}
+			r := &http.Request{
+				Body: target,
+			}
+
+			for n := 0; n < b.N; n++ {
+				bmb := newBodyMatchBuffer(r.Body, []string{tt.tomatch})
+				bmb.Read(target.initialContent)
+			}
+		})
+	}
 }
