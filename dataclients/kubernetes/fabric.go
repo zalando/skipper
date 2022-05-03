@@ -14,7 +14,6 @@ import (
 	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/predicates"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -181,7 +180,7 @@ func newFabricGateways(o Options) *fabricGateways {
 func (fgs *fabricGateways) convert(s *clusterState, df defaultFilters) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(s.fabricGateways))
 	for _, fg := range s.fabricGateways {
-		r, err := fgs.convertOne(fg)
+		r, err := fgs.convertOne(fg, s)
 		if err != nil {
 			log.Errorf("Ignore: %v", err)
 			continue
@@ -269,7 +268,6 @@ func createRouteID(prefix, name, namespace, host, path, method string) string {
 	return fmt.Sprintf("%s_%s_%s_%s_%s_%s", prefix, namespace, name, host, path, method)
 }
 
-// TODO(sszuecs): get rid of this
 // getKubeSvc returns serviceName, portName, portNumber, if portName is emtpy,
 // portNumber will have a non zero number.
 func getKubeSvc(fabsvc *definitions.FabricService) (string, string, int) {
@@ -284,57 +282,6 @@ func getKubeSvc(fabsvc *definitions.FabricService) (string, string, int) {
 	}
 
 	return fabsvc.ServiceName, portName, portNumber
-}
-
-// TODO(sszuecs): get rid of this
-// signature copied from github.com/zalando/skipper/dataclients/kubernetes/clusterstate.go
-func getEndpointsByService(namespace, name, protocol string, servicePort *servicePort) []string {
-	defaultEndpoints := []string{
-		"http://10.2.23.42:8080",
-		"http://10.2.5.4:8080",
-	}
-
-	if strings.HasPrefix(namespace, "traffic-") {
-		a := strings.Split(namespace, "-")
-		if len(a) != 2 {
-			return defaultEndpoints
-		}
-		w := a[1]
-		n, err := strconv.Atoi(w)
-		if err != nil {
-			return defaultEndpoints
-		}
-		eps := make([]string, 0, n)
-		for i := 0; i < n; i++ {
-			eps = append(eps, fmt.Sprintf("http://10.2.100.1%d:8088", i))
-		}
-		return eps
-	}
-	return defaultEndpoints
-}
-
-// TODO(sszuecs): get rid of this
-func getStacksetTrafficByName(namespace, name string) []*definitions.ActualTraffic {
-	return []*definitions.ActualTraffic{
-		{
-			StackName:   "s1",
-			ServiceName: "svc1",
-			ServicePort: intstr.FromString("ingress"),
-			Weight:      30,
-		},
-		{
-			StackName:   "s2",
-			ServiceName: "svc2",
-			ServicePort: intstr.FromInt(8080),
-			Weight:      30,
-		},
-		{
-			StackName:   "s3",
-			ServiceName: "svc3",
-			ServicePort: intstr.FromInt(8081),
-			Weight:      30,
-		},
-	}
 }
 
 // decideAllowedServices returns a definitive list of allowed services as a result of
@@ -389,7 +336,7 @@ func applyAnnotation(r *eskip.Route, m *definitions.Metadata) {
 	}
 }
 
-func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem) ([]*eskip.Route, error) {
+func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem, state *clusterState) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0)
 
 	lbAlgorithm := loadbalancer.RoundRobin.String()
@@ -422,8 +369,10 @@ func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem) ([]*eskip.Rout
 
 	// x-external-service-provider
 	if esp := fg.Spec.ExternalServiceProvider; esp != nil {
-		// TODO(sszuecs) use clusterclient instead of this dummy to fetch online resources, but here we only care that we get something in case of x-external-service-provider is set
-		trs := getStacksetTrafficByName(fg.Metadata.Namespace, fg.Metadata.Name)
+		trs, err := state.getStacksetTraffic(fg.Metadata.Namespace, fg.Metadata.Name)
+		if err != nil {
+			return nil, fmt.Errorf("no traffic for x-external-service-provider: %w", err)
+		}
 
 		weightsMap, noopCount := calculateTrafficForStackset(trs)
 
@@ -446,8 +395,7 @@ func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem) ([]*eskip.Rout
 			}
 			println("trafficParam:", trafficParam, "noopCount:", noopCount, "ridSuffix:", ridSuffix)
 
-			// TODO(sszuecs): fix how to get endpoints
-			endpoints := getEndpointsByService(fg.Metadata.Namespace, traffic.ServiceName, "tcp", &servicePort{
+			endpoints := state.getEndpointsByService(fg.Metadata.Namespace, traffic.ServiceName, "tcp", &servicePort{
 				Name: traffic.ServicePort.StrVal,
 				Port: traffic.ServicePort.IntValue(),
 			})
@@ -467,11 +415,8 @@ func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem) ([]*eskip.Rout
 	// x-fabric-service
 	for _, fabsvc := range fg.Spec.Service {
 		host := fabsvc.Host
-
-		// TODO(sszuecs): cleanup this hack and think about ingress v1, do we want to change svc def in Fabric?
 		svcName, svcPortName, svcPortNumber := getKubeSvc(fabsvc)
-		// TODO(sszuecs): fix how to get endpoints
-		endpoints := getEndpointsByService(fg.Metadata.Namespace, svcName, "tcp", &servicePort{
+		endpoints := state.getEndpointsByService(fg.Metadata.Namespace, svcName, "tcp", &servicePort{
 			Name: svcPortName,
 			Port: svcPortNumber,
 		})

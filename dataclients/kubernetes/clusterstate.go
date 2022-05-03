@@ -21,6 +21,19 @@ type clusterState struct {
 	cachedEndpoints  map[endpointID][]string
 }
 
+func (state *clusterState) getStacksetTraffic(namespace, name string) ([]*definitions.ActualTraffic, error) {
+	tr, ok := state.stacksetsTraffic[newResourceID(namespace, name)]
+	if !ok {
+		return nil, errTrafficNotFound
+	}
+
+	if len(tr) == 0 {
+		return nil, errTrafficNotFound
+	}
+
+	return tr, nil
+}
+
 func (state *clusterState) getService(namespace, name string) (*service, error) {
 	s, ok := state.services[newResourceID(namespace, name)]
 	if !ok {

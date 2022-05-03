@@ -87,6 +87,7 @@ type clusterClient struct {
 var (
 	errResourceNotFound     = errors.New("resource not found")
 	errServiceNotFound      = errors.New("service not found")
+	errTrafficNotFound      = errors.New("traffic not found")
 	errAPIServerURLNotFound = errors.New("kubernetes API server URL could not be constructed from env vars")
 	errInvalidCertificate   = errors.New("invalid CA")
 )
