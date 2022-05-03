@@ -1,0 +1,18 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: feature-compression
+  namespace: default
+spec:
+  x-fabric-compression-support:
+    compressionFactor: 3
+    encoding: application/json
+  x-fabric-service:
+    - host: my-app.example.org
+      serviceName: my-app-service-name
+      servicePort: http
+  paths:
+    /resources:
+      get: {}
+    /foos:
+      get: {}

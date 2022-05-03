@@ -18,6 +18,7 @@ import (
 
 const (
 	defaultIngressClass          = "skipper"
+	defaultFabricGatewayClass    = "skipper"
 	defaultRouteGroupClass       = "skipper"
 	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
@@ -127,6 +128,11 @@ type Options struct {
 	//		https://github.com/nginxinc/kubernetes-ingress/tree/master/examples/multiple-ingress-controllers
 	IngressClass string
 
+	// FabricGatewayClass is a regular expression to filter only those FabricGateways that match. If a FabricGateway
+	// does not have the required annotation (zalando.org/fabricgateway.class) or the annotation is an empty string,
+	// skipper will load it. The default value for the FabricGateway class is 'skipper'.
+	FabricGatewayClass string
+
 	// RouteGroupClass is a regular expression to filter only those RouteGroups that match. If a RouteGroup
 	// does not have the required annotation (zalando.org/routegroup.class) or the annotation is an empty string,
 	// skipper will load it. The default value for the RouteGroup class is 'skipper'.
@@ -189,6 +195,7 @@ type Options struct {
 type Client struct {
 	ClusterClient          *clusterClient
 	ingress                *ingress
+	fabricGateways         *fabricGateways
 	routeGroups            *routeGroups
 	provideHealthcheck     bool
 	provideHTTPSRedirect   bool
@@ -219,14 +226,19 @@ func New(o Options) (*Client, error) {
 		ingCls = o.IngressClass
 	}
 
+	fgCls := defaultFabricGatewayClass
+	if o.FabricGatewayClass != "" {
+		fgCls = o.FabricGatewayClass
+	}
+
 	rgCls := defaultRouteGroupClass
 	if o.RouteGroupClass != "" {
 		rgCls = o.RouteGroupClass
 	}
 
 	log.Debugf(
-		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. routegroup.class filter: %s. namespace: %s",
-		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, rgCls, o.KubernetesNamespace,
+		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. fabricgateway.class: %s. routegroup.class filter: %s. namespace: %s",
+		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, fgCls, rgCls, o.KubernetesNamespace,
 	)
 
 	if len(o.WhitelistedHealthCheckCIDR) > 0 {
@@ -250,7 +262,7 @@ func New(o Options) (*Client, error) {
 		}
 	}
 
-	clusterClient, err := newClusterClient(o, apiURL, ingCls, rgCls, quit)
+	clusterClient, err := newClusterClient(o, apiURL, ingCls, fgCls, rgCls, quit)
 	if err != nil {
 		return nil, err
 	}
@@ -261,10 +273,12 @@ func New(o Options) (*Client, error) {
 
 	ing := newIngress(o)
 	rg := newRouteGroups(o)
+	fg := newFabricGateways(o)
 
 	return &Client{
 		ClusterClient:          clusterClient,
 		ingress:                ing,
+		fabricGateways:         fg,
 		routeGroups:            rg,
 		provideHealthcheck:     o.ProvideHealthcheck,
 		provideHTTPSRedirect:   o.ProvideHTTPSRedirect,
@@ -342,12 +356,17 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
+	rfgs, err := c.fabricGateways.convert(state, defaultFilters)
+	if err != nil {
+		return nil, err
+	}
+	rf := append(ri, rfgs...)
+
 	rg, err := c.routeGroups.convert(state, defaultFilters)
 	if err != nil {
 		return nil, err
 	}
-
-	r := append(ri, rg...)
+	r := append(rf, rg...)
 
 	if c.provideHealthcheck {
 		r = append(r, healthcheckRoutes(c.reverseSourcePredicate)...)

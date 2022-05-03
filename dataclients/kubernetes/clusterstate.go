@@ -10,13 +10,15 @@ import (
 )
 
 type clusterState struct {
-	ingresses       []*definitions.IngressItem
-	ingressesV1     []*definitions.IngressV1Item
-	routeGroups     []*definitions.RouteGroupItem
-	services        map[definitions.ResourceID]*service
-	endpoints       map[definitions.ResourceID]*endpoint
-	secrets         map[definitions.ResourceID]*secret
-	cachedEndpoints map[endpointID][]string
+	ingresses        []*definitions.IngressItem
+	ingressesV1      []*definitions.IngressV1Item
+	fabricGateways   []*definitions.FabricItem
+	routeGroups      []*definitions.RouteGroupItem
+	stacksetsTraffic map[definitions.ResourceID][]*definitions.ActualTraffic
+	services         map[definitions.ResourceID]*service
+	endpoints        map[definitions.ResourceID]*endpoint
+	secrets          map[definitions.ResourceID]*secret
+	cachedEndpoints  map[endpointID][]string
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {

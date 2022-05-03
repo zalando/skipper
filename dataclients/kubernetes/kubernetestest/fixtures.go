@@ -174,7 +174,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 
 	a, err := NewAPI(apiOptions, resources...)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to create API: %v", err)
 	}
 
 	s := httptest.NewServer(a)
@@ -244,6 +244,8 @@ func testFixture(t *testing.T, f fixtureSet) {
 	defer c.Close()
 
 	routes, err := c.LoadAll()
+	// TODO(sszuecs) cleanup remove next line
+	//c, err := kubernetes.NewFabricDataClient(o)
 	if f.eskip != "" {
 		eskp, err := os.Open(f.eskip)
 		if err != nil {
@@ -280,7 +282,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 	}
 
 	if f.error == "" && err != nil {
-		t.Fatal(err)
+		t.Fatalf("Fixture test %s: %v", f.name, err)
 	} else if f.error != "" {
 		var msg string
 		if err != nil {

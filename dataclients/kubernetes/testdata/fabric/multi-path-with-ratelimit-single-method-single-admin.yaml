@@ -1,0 +1,31 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: simplest-multi-path-with-ratelimit
+  namespace: default
+spec:
+  paths:
+    /resources:
+      get:
+        x-fabric-privileges:
+        - foo
+        x-fabric-ratelimits:
+          default-rate: 100
+          period: second
+          target:
+            bar: 250
+    /resources/sub:
+      get:
+        x-fabric-privileges:
+        - foo
+        x-fabric-ratelimits:
+          default-rate: 120
+          period: minute
+          target:
+            foo: 500
+  x-fabric-admins:
+  - bmooney
+  x-fabric-service:
+  - host: simplest-multi-path-with-ratelimit.example.org
+    serviceName: simple-svc
+    servicePort: http

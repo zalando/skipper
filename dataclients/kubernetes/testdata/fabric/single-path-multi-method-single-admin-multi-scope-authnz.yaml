@@ -1,0 +1,22 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: simplest-multi-app-authnz
+  namespace: default
+spec:
+  paths:
+    /resources:
+      get:
+        x-fabric-privileges:
+        - foo.read
+        - bar.read
+      put:
+        x-fabric-privileges:
+        - foo.write
+        - bar.write
+  x-fabric-admins:
+  - bmooney
+  x-fabric-service:
+  - host: simplest-multi-app-authnz.example.org
+    serviceName: simple-svc
+    servicePort: http

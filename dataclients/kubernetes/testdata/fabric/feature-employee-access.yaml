@@ -1,0 +1,33 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: feature-employee-access
+  namespace: default
+spec:
+  x-fabric-service:
+  - host: feature-employee-access.example.org
+    serviceName: simple-svc
+    servicePort: http
+  paths:
+    /api/resource:
+      get:
+        x-fabric-privileges:
+          - "foo.read"
+        x-fabric-employee-access:
+          type: allow_list
+          user-list:
+            - jdoe
+        x-fabric-ratelimits:
+          default-rate: 5
+    /api/secondary-resource:
+      get:
+        x-fabric-privileges:
+          - "bar.read"
+        x-fabric-employee-access:
+          type: allow_all
+    /api/third-resource:
+      get:
+        x-fabric-privileges:
+          - "qux.read"
+        x-fabric-employee-access:
+          type: deny_all

@@ -1,0 +1,30 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: simplest-multi-path
+  namespace: default
+spec:
+  paths:
+    /resources:
+      get:
+        x-fabric-privileges:
+        - foo
+    /resources/sub:
+      get:
+        x-fabric-privileges:
+        - foo
+  x-fabric-admins:
+  - bmooney
+  x-fabric-service:
+  - host: simplest-multi-path.example.org
+    serviceName: simple-svc
+    servicePort: http
+status:
+  num_owned_ingress: 5
+  observedGeneration: 2
+  owned_ingress_names:
+  - simplest-multi-path-default-404-route
+  - simplest-multi-path-get-resources-admins
+  - simplest-multi-path-get-resources-all
+  - simplest-multi-path-get-resources-sub
+  - simplest-multi-path-reject-http-route

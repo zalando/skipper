@@ -1,0 +1,16 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: simple-mode-static
+  namespace: default
+spec:
+  x-fabric-service:
+    - host: my-app.example.org
+      serviceName: my-app-service-name
+      servicePort: http
+    - host: my-app.example.com
+      serviceName: my-app-service-name
+      servicePort: http
+  paths:
+    /resources:
+      get: {}

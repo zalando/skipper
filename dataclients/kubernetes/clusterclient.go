@@ -27,16 +27,23 @@ const (
 	IngressesClusterURI        = "/apis/extensions/v1beta1/ingresses"
 	IngressesV1ClusterURI      = "/apis/networking.k8s.io/v1/ingresses"
 	ZalandoResourcesClusterURI = "/apis/zalando.org/v1"
+	FabricGatewaysName         = "fabricgateways"
+	fabricGatewaysClusterURI   = ZalandoResourcesClusterURI + "/fabricgateways"
+	fabricGatewayClassKey      = "zalando.org/fabricgateway.class"
 	RouteGroupsName            = "routegroups"
-	routeGroupsClusterURI      = "/apis/zalando.org/v1/routegroups"
+	routeGroupsClusterURI      = ZalandoResourcesClusterURI + "/routegroups"
 	routeGroupClassKey         = "zalando.org/routegroup.class"
+	StacksetsName              = "stacksets"
+	stacksetsClusterURI        = ZalandoResourcesClusterURI + "/routegroups"
 	ServicesClusterURI         = "/api/v1/services"
 	EndpointsClusterURI        = "/api/v1/endpoints"
 	SecretsClusterURI          = "/api/v1/secrets"
 	defaultKubernetesURL       = "http://localhost:8001"
 	IngressesNamespaceFmt      = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
 	IngressesV1NamespaceFmt    = "/apis/networking.k8s.io/v1/namespaces/%s/ingresses"
-	routeGroupsNamespaceFmt    = "/apis/zalando.org/v1/namespaces/%s/routegroups"
+	fabricGatewaysNamespaceFmt = ZalandoResourcesClusterURI + "/namespaces/%s/fabricgateways"
+	routeGroupsNamespaceFmt    = ZalandoResourcesClusterURI + "namespaces/%s/routegroups"
+	stacksetsNamespaceFmt      = ZalandoResourcesClusterURI + "namespaces/%s/stacksets"
 	ServicesNamespaceFmt       = "/api/v1/namespaces/%s/services"
 	EndpointsNamespaceFmt      = "/api/v1/namespaces/%s/endpoints"
 	SecretsNamespaceFmt        = "/api/v1/namespaces/%s/secrets"
@@ -45,12 +52,20 @@ const (
 	serviceAccountRootCAKey    = "ca.crt"
 )
 
-const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the cluster.
+const (
+	RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the cluster.
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
+	FabricGatewaysNotInstalledMessage = `FabricGateways CRD is not installed in the cluster.
+See: https://opensource.zalando.com/skipper/kubernetes/fabricgateways/#installation`
+	StacksetsNotInstalledMessage = `Stacksets CRD is not installed in the cluster, so you can not use x-external-service-provider in case you have FabricGateways installed.
+See: https://opensource.zalando.com/skipper/kubernetes/fabricgateways/#installation`
+)
 
 type clusterClient struct {
 	ingressesURI        string
+	fabricGatewaysURI   string
 	routeGroupsURI      string
+	stacksetsURI        string
 	servicesURI         string
 	endpointsURI        string
 	secretsURI          string
@@ -58,12 +73,15 @@ type clusterClient struct {
 	apiURL              string
 	certificateRegistry *certregistry.CertRegistry
 
-	routeGroupClass *regexp.Regexp
-	ingressClass    *regexp.Regexp
-	httpClient      *http.Client
-	ingressV1       bool
+	fabricGatewayClass *regexp.Regexp
+	routeGroupClass    *regexp.Regexp
+	ingressClass       *regexp.Regexp
+	httpClient         *http.Client
+	ingressV1          bool
 
-	loggedMissingRouteGroups bool
+	loggedMissingFabricGateways bool
+	loggedMissingStacksets      bool
+	loggedMissingRouteGroups    bool
 }
 
 var (
@@ -121,13 +139,18 @@ func buildHTTPClient(certFilePath string, inCluster bool, quit <-chan struct{}) 
 	}, nil
 }
 
-func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struct{}) (*clusterClient, error) {
+func newClusterClient(o Options, apiURL, ingCls, fgCls, rgCls string, quit <-chan struct{}) (*clusterClient, error) {
 	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
 	if err != nil {
 		return nil, err
 	}
 
 	ingClsRx, err := regexp.Compile(ingCls)
+	if err != nil {
+		return nil, err
+	}
+
+	fgClsRx, err := regexp.Compile(fgCls)
 	if err != nil {
 		return nil, err
 	}
@@ -144,11 +167,14 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 	c := &clusterClient{
 		ingressV1:           o.KubernetesIngressV1,
 		ingressesURI:        ingressURI,
+		fabricGatewaysURI:   fabricGatewaysClusterURI,
 		routeGroupsURI:      routeGroupsClusterURI,
+		stacksetsURI:        stacksetsClusterURI,
 		servicesURI:         ServicesClusterURI,
 		endpointsURI:        EndpointsClusterURI,
 		secretsURI:          SecretsClusterURI,
 		ingressClass:        ingClsRx,
+		fabricGatewayClass:  fgClsRx,
 		routeGroupClass:     rgClsRx,
 		httpClient:          httpClient,
 		apiURL:              apiURL,
@@ -183,7 +209,9 @@ func (c *clusterClient) setNamespace(namespace string) {
 	} else {
 		c.ingressesURI = fmt.Sprintf(IngressesNamespaceFmt, namespace)
 	}
+	c.fabricGatewaysURI = fmt.Sprintf(fabricGatewaysNamespaceFmt, namespace)
 	c.routeGroupsURI = fmt.Sprintf(routeGroupsNamespaceFmt, namespace)
+	c.stacksetsURI = fmt.Sprintf(stacksetsNamespaceFmt, namespace)
 	c.servicesURI = fmt.Sprintf(ServicesNamespaceFmt, namespace)
 	c.endpointsURI = fmt.Sprintf(EndpointsNamespaceFmt, namespace)
 	c.secretsURI = fmt.Sprintf(SecretsNamespaceFmt, namespace)
@@ -244,6 +272,36 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 	}
 
 	return err
+}
+
+func (c *clusterClient) clusterHasFabricGateways() (bool, error) {
+	var crl ClusterResourceList
+	if err := c.getJSON(ZalandoResourcesClusterURI, &crl); err != nil { // it probably should bounce once
+		return false, err
+	}
+
+	for _, cr := range crl.Items {
+		if cr.Name == FabricGatewaysName {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (c *clusterClient) clusterHasStacksets() (bool, error) {
+	var crl ClusterResourceList
+	if err := c.getJSON(ZalandoResourcesClusterURI, &crl); err != nil { // it probably should bounce once
+		return false, err
+	}
+
+	for _, cr := range crl.Items {
+		if cr.Name == StacksetsName {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
@@ -352,6 +410,60 @@ func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) 
 	return fItems, nil
 }
 
+func (c *clusterClient) LoadFabricgateways() ([]*definitions.FabricItem, error) {
+	var fl definitions.FabricList
+	err := c.getJSON(c.fabricGatewaysURI, &fl)
+	if err != nil {
+		return nil, err
+	}
+
+	fcs := make([]*definitions.FabricItem, 0, len(fl.Items))
+	for _, fg := range fl.Items {
+		err := definitions.ValidateFabricResource(fg)
+		if err != nil {
+			log.Errorf("Failed to validate FabricGateway resource: %v", err)
+			continue
+		}
+
+		fcs = append(fcs, fg)
+	}
+
+	return fcs, nil
+}
+
+// LoadStacksetsTraffic returns a map of definitions.ResourceID to slice of
+// ActualTraffic, used by the FabricGateway x-external-service-provider feature
+func (c *clusterClient) LoadStacksetsTraffic() (map[definitions.ResourceID][]*definitions.ActualTraffic, error) {
+	type (
+		status struct {
+			Traffic []*definitions.ActualTraffic `json:"traffic"`
+		}
+		stackset struct {
+			Meta   *definitions.Metadata `json:"metadata"`
+			Status *status               `json:"status"`
+		}
+		stacksetList struct {
+			Items []*stackset `json:"items"`
+		}
+	)
+
+	var stl stacksetList
+	err := c.getJSON(c.stacksetsURI, &stl)
+	if err != nil {
+		return nil, err
+	}
+
+	fcs := make(map[definitions.ResourceID][]*definitions.ActualTraffic)
+	for _, st := range stl.Items {
+		rid := definitions.ResourceID{
+			Namespace: st.Meta.Namespace,
+			Name:      st.Meta.Name,
+		}
+		fcs[rid] = st.Status.Traffic
+	}
+	return fcs, nil
+}
+
 func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error) {
 	var rgl definitions.RouteGroupList
 	if err := c.getJSON(c.routeGroupsURI, &rgl); err != nil {
@@ -444,6 +556,24 @@ func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, e
 	return result, nil
 }
 
+func (c *clusterClient) logMissingFabricGatewaysOnce() {
+	if c.loggedMissingFabricGateways {
+		return
+	}
+
+	c.loggedMissingFabricGateways = true
+	log.Warn(FabricGatewaysNotInstalledMessage)
+}
+
+func (c *clusterClient) logMissingStacksetsOnce() {
+	if c.loggedMissingStacksets {
+		return
+	}
+
+	c.loggedMissingStacksets = true
+	log.Warn(StacksetsNotInstalledMessage)
+}
+
 func (c *clusterClient) logMissingRouteGroupsOnce() {
 	if c.loggedMissingRouteGroups {
 		return
@@ -467,6 +597,33 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	var (
+		fabricGateways   []*definitions.FabricItem
+		stacksetsTraffic map[definitions.ResourceID][]*definitions.ActualTraffic
+	)
+	if hasFabricGateways, err := c.clusterHasFabricGateways(); errors.Is(err, errResourceNotFound) {
+		c.logMissingFabricGatewaysOnce()
+	} else if err != nil {
+		log.Errorf("Error while checking known resource types: %v.", err)
+	} else if hasFabricGateways {
+		c.loggedMissingRouteGroups = false
+		if fabricGateways, err = c.LoadFabricgateways(); err != nil {
+			return nil, err
+		}
+
+		// load stacksets only if fabricgateways are loaded successfully
+		if hasStacksets, err := c.clusterHasStacksets(); errors.Is(err, errResourceNotFound) {
+			c.logMissingStacksetsOnce()
+		} else if err != nil {
+			log.Errorf("Error while checking known resource types: %v.", err)
+		} else if hasStacksets {
+			c.loggedMissingStacksets = false
+			if stacksetsTraffic, err = c.LoadStacksetsTraffic(); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	var routeGroups []*definitions.RouteGroupItem
@@ -499,12 +656,15 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	}
 
 	return &clusterState{
-		ingresses:       ingresses,
-		ingressesV1:     ingressesV1,
-		routeGroups:     routeGroups,
-		services:        services,
-		endpoints:       endpoints,
-		secrets:         secrets,
-		cachedEndpoints: make(map[endpointID][]string),
+		ingresses:        ingresses,
+		ingressesV1:      ingressesV1,
+		fabricGateways:   fabricGateways,
+		stacksetsTraffic: stacksetsTraffic,
+		routeGroups:      routeGroups,
+		services:         services,
+		endpoints:        endpoints,
+		secrets:          secrets,
+		cachedEndpoints:  make(map[endpointID][]string),
 	}, nil
+
 }

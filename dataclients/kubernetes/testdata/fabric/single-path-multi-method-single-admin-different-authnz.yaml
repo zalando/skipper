@@ -1,0 +1,20 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: simplest-multi-method-diff-authnz
+  namespace: default
+spec:
+  paths:
+    /resources:
+      get:
+        x-fabric-privileges:
+        - foo.read
+      put:
+        x-fabric-privileges:
+        - foo.write
+  x-fabric-admins:
+  - bmooney
+  x-fabric-service:
+  - host: simplest-multi-method-diff-authnz.example.org
+    serviceName: simple-svc
+    servicePort: http

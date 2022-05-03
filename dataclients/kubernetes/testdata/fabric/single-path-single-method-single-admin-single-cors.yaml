@@ -1,0 +1,25 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: simplest-with-cors
+  namespace: default
+spec:
+  paths:
+    /resources:
+      get:
+        x-fabric-privileges:
+        - foo
+  x-fabric-admins:
+  - bmooney
+  x-fabric-service:
+  - host: simplest.example.org
+    serviceName: simple-svc
+    servicePort: http
+  x-fabric-cors-support:
+    allowedOrigins:
+      - example.com
+      - example-other.com
+    allowedHeaders:
+      - Authorization
+      - Content-Type
+      - X-Flow-Id

@@ -1,0 +1,25 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: traffic-switching
+  namespace: traffic-3
+spec:
+  paths:
+    /resources:
+      get:
+        x-fabric-privileges:
+        - foo.read
+      post:
+        x-fabric-privileges:
+        - foo.write
+    /resources/sub:
+      get:
+        x-fabric-privileges:
+        - foo.sub
+  x-fabric-admins:
+  - bmooney
+  x-external-service-provider:
+    hosts:
+      - stackset-managed-test.cluster.zalan.do
+      - stackset-managed-test.ingress.cluster.local
+    stackSetName: my-stackset

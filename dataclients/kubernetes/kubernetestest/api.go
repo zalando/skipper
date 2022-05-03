@@ -16,17 +16,20 @@ import (
 var errInvalidFixture = errors.New("invalid fixture")
 
 type TestAPIOptions struct {
-	FailOn             []string `yaml:"failOn"`
-	FindNot            []string `yaml:"findNot"`
-	DisableRouteGroups bool     `yaml:"disableRouteGroups"`
+	FailOn                []string `yaml:"failOn"`
+	FindNot               []string `yaml:"findNot"`
+	DisableRouteGroups    bool     `yaml:"disableRouteGroups"`
+	DisableFabricGateways bool     `yaml:"disableFabricGateways"`
 }
 
 type namespace struct {
-	services    []byte
-	ingresses   []byte
-	routeGroups []byte
-	endpoints   []byte
-	secrets     []byte
+	services       []byte
+	ingresses      []byte
+	fabricgateways []byte
+	routeGroups    []byte
+	//	stacksets      []byte
+	endpoints []byte
+	secrets   []byte
 }
 
 type api struct {
@@ -42,13 +45,16 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
-			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpoints|secrets)",
+			"(/namespaces/([^/]+))?/(services|ingresses|fabricgateways|routegroups|endpoints|secrets)",
 		),
 	}
 
 	var clr kubernetes.ClusterResourceList
 	if !o.DisableRouteGroups {
 		clr.Items = append(clr.Items, &kubernetes.ClusterResource{Name: kubernetes.RouteGroupsName})
+	}
+	if !o.DisableFabricGateways {
+		clr.Items = append(clr.Items, &kubernetes.ClusterResource{Name: kubernetes.FabricGatewaysName})
 	}
 
 	a.failOn = mapStrings(o.FailOn)
@@ -157,8 +163,12 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b = ns.services
 	case "ingresses":
 		b = ns.ingresses
+	case "fabricgateways":
+		b = ns.fabricgateways
 	case "routegroups":
 		b = ns.routeGroups
+	// case "stacksets":
+	// 	b = ns.stacksets
 	case "endpoints":
 		b = ns.endpoints
 	case "secrets":
@@ -177,6 +187,10 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 	}
 
 	if err = itemsJSON(&ns.ingresses, kinds["Ingress"]); err != nil {
+		return
+	}
+
+	if err = itemsJSON(&ns.fabricgateways, kinds["FabricGateway"]); err != nil {
 		return
 	}
 

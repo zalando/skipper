@@ -1,0 +1,74 @@
+fg_404_default_simplest_multi_path_with_ratelimit_simplest_multi_path_with_ratelimit_example_org__: HostAny("simplest-multi-path-with-ratelimit.example.org", "simplest-multi-path-with-ratelimit.example.org:80", "simplest-multi-path-with-ratelimit.example.org:443") && PathSubtree("/")
+  -> oauthTokeninfoAllScope("uid")
+  -> unverifiedAuditLog("sub")
+  -> status(404)
+  -> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":404,\"detail\":\"Gateway Route Not Matched\"}")
+  -> <shunt>;
+
+fg_admin_default_simplest_multi_path_with_ratelimit_simplest_multi_path_with_ratelimit_example_org__resources__get: Path("/resources") && HostAny("simplest-multi-path-with-ratelimit.example.org", "simplest-multi-path-with-ratelimit.example.org:443") && Method("GET") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> enableAccessLog(2, 4, 5)
+  -> oauthTokeninfoAllScope("uid")
+  -> unverifiedAuditLog("https://identity.zalando.com/managed-id")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_admin_default_simplest_multi_path_with_ratelimit_simplest_multi_path_with_ratelimit_example_org__resources_sub__get:
+Path("/resources/sub") && HostAny("simplest-multi-path-with-ratelimit.example.org", "simplest-multi-path-with-ratelimit.example.org:443") && Method("GET") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> enableAccessLog(2, 4, 5)
+  -> oauthTokeninfoAllScope("uid")
+  -> unverifiedAuditLog("https://identity.zalando.com/managed-id")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_simplest_multi_path_with_ratelimit_simplest_multi_path_with_ratelimit_example_org__resources_get: Path("/resources") && HostAny("simplest-multi-path-with-ratelimit.example.org","simplest-multi-path-with-ratelimit.example.org:443") && Method("GET") && Header("X-Forwarded-Proto", "https") && Weight(23)
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> oauthTokeninfoAllScope("uid", "foo")
+  -> unverifiedAuditLog("sub")
+  -> inlineContentIfStatus(429, "{\"title\":\"Rate limit exceeded\",\"detail\":\"See the retry-after header for how many seconds to wait before retrying.\",\"status\":429}", "application/problem+json")
+  -> clusterClientRatelimit("simplest-multi-path-with-ratelimit_resources_get", 100, "1s", "Authorization")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_simplest_multi_path_with_ratelimit_simplest_multi_path_with_ratelimit_example_org__resources_get0: Header("X-Forwarded-Proto", "https") && HostAny("simplest-multi-path-with-ratelimit.example.org", "simplest-multi-path-with-ratelimit.example.org:443") && JWTPayloadAllKV("sub", "bar") && Method("GET") && Path("/resources") && Weight(23)
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> oauthTokeninfoAllScope("uid", "foo")
+  -> unverifiedAuditLog("sub")
+  -> inlineContentIfStatus(429, "{\"title\":\"Rate limit exceeded\",\"detail\":\"See the retry-after header for how many seconds to wait before retrying.\",\"status\":429}", "application/problem+json")
+  -> clusterRatelimit("simplest-multi-path-with-ratelimit_resources_get_bar", 250, "1s")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_simplest_multi_path_with_ratelimit_simplest_multi_path_with_ratelimit_example_org__resources_sub_get:
+Path("/resources/sub") && HostAny("simplest-multi-path-with-ratelimit.example.org","simplest-multi-path-with-ratelimit.example.org:443") && Method("GET") && Header("X-Forwarded-Proto", "https") && Weight(23)
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> oauthTokeninfoAllScope("uid", "foo")
+  -> unverifiedAuditLog("sub")
+  -> inlineContentIfStatus(429, "{\"title\":\"Rate limit exceeded\",\"detail\":\"See the retry-after header for how many seconds to wait before retrying.\",\"status\":429}", "application/problem+json")
+  -> clusterClientRatelimit("simplest-multi-path-with-ratelimit_resources-sub_get", 120, "1m0s", "Authorization")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_simplest_multi_path_with_ratelimit_simplest_multi_path_with_ratelimit_example_org__resources_sub_get0:
+Path("/resources/sub") && HostAny("simplest-multi-path-with-ratelimit.example.org","simplest-multi-path-with-ratelimit.example.org:443") && JWTPayloadAllKV("sub", "foo") && Method("GET") && Header("X-Forwarded-Proto", "https") && Weight(23)
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> oauthTokeninfoAllScope("uid", "foo")
+  -> unverifiedAuditLog("sub")
+  -> inlineContentIfStatus(429, "{\"title\":\"Rate limit exceeded\",\"detail\":\"See the retry-after header for how many seconds to wait before retrying.\",\"status\":429}", "application/problem+json")
+  -> clusterRatelimit("simplest-multi-path-with-ratelimit_resources-sub_get_foo", 500, "1m0s")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_reject_default_simplest_multi_path_with_ratelimit_simplest_multi_path_with_ratelimit_example_org__: HostAny("simplest-multi-path-with-ratelimit.example.org", "simplest-multi-path-with-ratelimit.example.org:443") && Header("X-Forwarded-Proto", "http") && PathSubtree("/")
+  -> oauthTokeninfoAllScope("uid")
+  -> unverifiedAuditLog("sub")
+  -> status(400)
+  -> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":400,\"detail\":\"TLS is required\",\"type\":\"https://cloud.docs.zalando.net/howtos/ingress/#redirect-http-to-https\"}")
+  -> <shunt>;

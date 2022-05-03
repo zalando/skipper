@@ -1,0 +1,39 @@
+fg_404_default_feature_service_whitelist_feature_service_whitelist_example_org__: PathSubtree("/") && HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:80", "feature-service-whitelist.example.org:443")
+	-> oauthTokeninfoAllScope("uid")
+	-> unverifiedAuditLog("sub")
+	-> status(404)
+	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":404,\"detail\":\"Gateway Route Not Matched\"}")
+	-> <shunt>;
+
+fg_reject_default_feature_service_whitelist_feature_service_whitelist_example_org__: PathSubtree("/") && HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:443") && Header("X-Forwarded-Proto", "http")
+	-> oauthTokeninfoAllScope("uid")
+	-> unverifiedAuditLog("sub")
+	-> status(400)
+	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":400,\"detail\":\"TLS is required\",\"type\":\"https://cloud.docs.zalando.net/howtos/ingress/#redirect-http-to-https\"}")
+	-> <shunt>;
+
+fg_default_feature_service_whitelist_feature_service_whitelist_example_org__api_resource_get: Path("/api/resource") && Method("GET") && HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+	-> oauthTokeninfoAllScope("uid", "my-application.read")
+	-> oauthTokeninfoAnyKV("sub", "stups_some-whitelisted-service")
+	-> unverifiedAuditLog("sub")
+	-> flowId("reuse")
+	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_feature_service_whitelist_feature_service_whitelist_example_org__api_resource_head: Path("/api/resource") && Method("HEAD") && HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+	-> oauthTokeninfoAllScope("uid", "my-application.read")
+	-> unverifiedAuditLog("sub")
+	-> flowId("reuse")
+	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_feature_service_whitelist_feature_service_whitelist_example_org__api_resource_post: Path("/api/resource") && Method("POST") && HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+	-> oauthTokeninfoAllScope("uid", "my-application.write")
+	-> oauthTokeninfoAnyKV("sub", "stups_some-other-service")
+	-> unverifiedAuditLog("sub")
+	-> flowId("reuse")
+	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;

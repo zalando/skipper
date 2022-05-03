@@ -1,0 +1,17 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: feature-additional-filter
+  namespace: default
+  annotations:
+    fabric/additional-filters: notAFilter("https://tee.example.org"
+spec:
+  x-fabric-service:
+    - host: my-app.example.org
+      serviceName: my-app-service-name
+      servicePort: http
+  paths:
+    /resources:
+      get: {}
+    /foos:
+      get: {}

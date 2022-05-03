@@ -1,0 +1,21 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: feature-static-response
+  namespace: default
+spec:
+  x-fabric-service:
+  - host: feature-static-response.example.org
+    serviceName: simple-svc
+    servicePort: http
+  paths:
+    /api/resource:
+      get:
+        x-fabric-privileges:
+          - "my-application.read"
+      post:
+        x-fabric-static-response:
+          status: 503
+          headers:
+            Content-Type: application/problem+json
+          body: '{"title": "Service down for maintenance", "status": 503}'

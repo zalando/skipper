@@ -1,0 +1,32 @@
+fg_404_default_feature_additional_filter_my_app_example_org__: HostAny("my-app.example.org", "my-app.example.org:80", "my-app.example.org:443") && PathSubtree("/")
+	-> oauthTokeninfoAllScope("uid")
+	-> unverifiedAuditLog("sub")
+	-> status(404)
+	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":404,\"detail\":\"Gateway Route Not Matched\"}")
+	-> <shunt>;
+
+fg_default_feature_additional_filter_my_app_example_org__resources_get: Header("X-Forwarded-Proto", "https") && HostAny("my-app.example.org", "my-app.example.org:443") && Method("GET") && Path("/resources") && Weight(23)
+	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+	-> oauthTokeninfoAllScope("uid")
+	-> unverifiedAuditLog("sub")
+	-> flowId("reuse")
+	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+	-> tee("https://tee.example.org")
+	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_feature_additional_filter_my_app_example_org__foos_get: Header("X-Forwarded-Proto", "https") && HostAny("my-app.example.org", "my-app.example.org:443") && Method("GET") && Path("/foos") && Weight(23)
+	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+	-> oauthTokeninfoAllScope("uid")
+	-> unverifiedAuditLog("sub")
+	-> flowId("reuse")
+	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+	-> tee("https://tee.example.org")
+	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_reject_default_feature_additional_filter_my_app_example_org__: Header("X-Forwarded-Proto", "http") && HostAny("my-app.example.org", "my-app.example.org:443") && PathSubtree("/")
+	-> oauthTokeninfoAllScope("uid")
+	-> unverifiedAuditLog("sub")
+	-> status(400)
+	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":400,\"detail\":\"TLS is required\",\"type\":\"https://cloud.docs.zalando.net/howtos/ingress/#redirect-http-to-https\"}")
+	-> <shunt>;
+

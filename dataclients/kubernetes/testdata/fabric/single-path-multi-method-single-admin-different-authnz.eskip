@@ -1,0 +1,47 @@
+fg_404_default_simplest_multi_method_diff_authnz_simplest_multi_method_diff_authnz_example_org__: HostAny("simplest-multi-method-diff-authnz.example.org", "simplest-multi-method-diff-authnz.example.org:80", "simplest-multi-method-diff-authnz.example.org:443") && PathSubtree("/")
+  -> oauthTokeninfoAllScope("uid")
+  -> unverifiedAuditLog("sub")
+  -> status(404)
+  -> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":404,\"detail\":\"Gateway Route Not Matched\"}")
+  -> <shunt>;
+
+fg_admin_default_simplest_multi_method_diff_authnz_simplest_multi_method_diff_authnz_example_org__resources__get: Path("/resources") && HostAny("simplest-multi-method-diff-authnz.example.org", "simplest-multi-method-diff-authnz.example.org:443") && Method("GET") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> enableAccessLog(2, 4, 5)
+  -> oauthTokeninfoAllScope("uid")
+  -> unverifiedAuditLog("https://identity.zalando.com/managed-id")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_admin_default_simplest_multi_method_diff_authnz_simplest_multi_method_diff_authnz_example_org__resources__put: Path("/resources") && HostAny("simplest-multi-method-diff-authnz.example.org", "simplest-multi-method-diff-authnz.example.org:443") && Method("PUT") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> enableAccessLog(2, 4, 5)
+  -> oauthTokeninfoAllScope("uid")
+  -> unverifiedAuditLog("https://identity.zalando.com/managed-id")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_simplest_multi_method_diff_authnz_simplest_multi_method_diff_authnz_example_org__resources_get: Path("/resources") && HostAny("simplest-multi-method-diff-authnz.example.org","simplest-multi-method-diff-authnz.example.org:443") && Method("GET") && Header("X-Forwarded-Proto", "https") && Weight(23)
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> oauthTokeninfoAllScope("uid", "foo.read")
+  -> unverifiedAuditLog("sub")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_default_simplest_multi_method_diff_authnz_simplest_multi_method_diff_authnz_example_org__resources_put: Path("/resources") && HostAny("simplest-multi-method-diff-authnz.example.org","simplest-multi-method-diff-authnz.example.org:443") && Method("PUT") && Header("X-Forwarded-Proto", "https") && Weight(23)
+  -> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
+  -> oauthTokeninfoAllScope("uid", "foo.write")
+  -> unverifiedAuditLog("sub")
+  -> flowId("reuse")
+  -> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
+  -> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
+
+fg_reject_default_simplest_multi_method_diff_authnz_simplest_multi_method_diff_authnz_example_org__: HostAny("simplest-multi-method-diff-authnz.example.org", "simplest-multi-method-diff-authnz.example.org:443") && Header("X-Forwarded-Proto", "http") && PathSubtree("/")
+  -> oauthTokeninfoAllScope("uid")
+  -> unverifiedAuditLog("sub")
+  -> status(400)
+  -> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":400,\"detail\":\"TLS is required\",\"type\":\"https://cloud.docs.zalando.net/howtos/ingress/#redirect-http-to-https\"}")
+  -> <shunt>;

@@ -1,0 +1,43 @@
+apiVersion: zalando.org/v1
+kind: FabricGateway
+metadata:
+  name: feature-service-whitelist
+  namespace: default
+spec:
+  x-fabric-service:
+  - host: feature-service-whitelist.example.org
+    serviceName: simple-svc
+    servicePort: http
+  x-fabric-admins:
+    - jblogs
+  x-fabric-whitelist:
+    - stups_some-whitelisted-service
+  paths:
+    /api/resource:
+      get:
+        x-fabric-privileges:
+          - "my-application.read"
+      post:
+        x-fabric-privileges:
+          - "my-application.write"
+        # This is a more fine-grained whitelist and overrides the global whitelist. Only some-other-service can access this path.
+        # This id is taken from the "sub" field of a JWT token. For a service, this value is always "stups_" followed by the application's Kio id.
+        # some-whitelisted-service from the global whitelist cannot access this path.
+        x-fabric-whitelist:
+          service-list:
+            - stups_some-other-service
+      head:
+        x-fabric-privileges:
+          - "my-application.read"
+        # Another type of fine-grained whitelist over-ride is to disabled whitelisting altogether and allow any
+        # service which has the correct scopes to access the route.
+        x-fabric-whitelist:
+          state: disabled
+          service-list: []
+    /api/resource/{resource_id}:
+      put:
+        # This whitelist config overrides the global whitelist and because of the empty whitelist
+        # no other service will be able to access this route. i.e. Only defined admins would be able to access the
+        # route
+        x-fabric-whitelist:
+          service-list: []
