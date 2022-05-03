@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
