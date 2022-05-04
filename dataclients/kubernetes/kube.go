@@ -189,6 +189,9 @@ type Options struct {
 	AllowedExternalNames []*regexp.Regexp
 
 	CertificateRegistry *certregistry.CertRegistry
+
+	// FabricOptions to configure FabricGateway predicates and filter generators
+	FabricOptions FabricOptions
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -273,7 +276,10 @@ func New(o Options) (*Client, error) {
 
 	ing := newIngress(o)
 	rg := newRouteGroups(o)
-	fg := newFabricGateways(o)
+	fg, err := newFabricGateways(o)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create FabricGateway dataclient: %w", err)
+	}
 
 	return &Client{
 		ClusterClient:          clusterClient,

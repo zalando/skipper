@@ -15,3 +15,30 @@ spec:
       get: {}
     /foos:
       get: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: default
+  name: my-app-service-name
+spec:
+  ports:
+  - port: 8080
+    name: http
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    application: my-service
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: default
+  name: my-app-service-name
+subsets:
+- addresses:
+  - ip: 10.2.23.42
+  - ip: 10.2.5.4
+  ports:
+  - port: 8080

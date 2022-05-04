@@ -31,3 +31,30 @@ spec:
   - host: simplest-multi-path-with-multi-overwrite-ratelimit.example.org
     serviceName: simple-svc
     servicePort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: default
+  name: simple-service
+spec:
+  ports:
+  - port: 8080
+    name: http
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    application: my-service
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: default
+  name: simple-service
+subsets:
+- addresses:
+  - ip: 10.2.23.42
+  - ip: 10.2.5.4
+  ports:
+  - port: 8080

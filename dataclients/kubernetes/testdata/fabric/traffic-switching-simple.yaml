@@ -14,3 +14,107 @@ spec:
       - stackset-managed-test.cluster.zalan.do
       - stackset-managed-test.ingress.cluster.local
     stackSetName: my-stackset
+---
+apiVersion: zalando.org/v1
+kind: StackSet
+metadata:
+  creationTimestamp: "2021-10-07T13:13:31Z"
+  generation: 25
+  labels:
+    application: traffic
+  name: my-stackset
+  namespace: traffic-2
+spec:
+status:
+  traffic:
+  - serviceName: svc1
+    servicePort: "ingress"
+    stackName: s1
+    weight: 30
+  - serviceName: svc2
+    servicePort: 8080
+    stackName: s2
+    weight: 30
+  - serviceName: svc3
+    servicePort: 8080
+    stackName: s3
+    weight: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: traffic-2
+  name: svc1
+spec:
+  ports:
+  - port: 8080
+    name: "ingress"
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    application: my-service
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: traffic-2
+  name: svc2
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    application: my-service
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: traffic-2
+  name: svc3
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    application: my-service
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: traffic-2
+  name: svc1
+subsets:
+- addresses:
+  - ip: 10.2.23.42
+  - ip: 10.2.5.4
+  ports:
+  - port: 8080
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: traffic-2
+  name: svc2
+subsets:
+- addresses:
+  - ip: 10.2.23.42
+  - ip: 10.2.5.4
+  ports:
+  - port: 8080
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: traffic-2
+  name: svc3
+subsets:
+- addresses:
+  - ip: 10.2.23.42
+  - ip: 10.2.5.4
+  ports:
+  - port: 8080

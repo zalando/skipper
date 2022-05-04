@@ -89,11 +89,6 @@ var (
 )
 
 type fabricGateways struct {
-	options       Options
-	ClusterClient *clusterClient
-
-	quit chan struct{}
-
 	clusterClientRatelimitHeader string
 	uidKey                       string
 	userListPredicateName        string
@@ -117,11 +112,9 @@ type fabricGateways struct {
 	serviceUidSelectorPredicateTemplate *eskip.Predicate
 }
 
+// FabricOptions are used to customize filter, predicates and
+// arguments used to identify certain conditions to your needs.
 type FabricOptions struct {
-	KubernetesURL       string
-	KubernetesInCluster bool
-	opt                 Options
-
 	// filter + args
 	CheckEmployeeFilter          string
 	CheckServiceFilter           string
@@ -172,11 +165,6 @@ func configureFilters(s string, defaultFilter *eskip.Filter) []*eskip.Filter {
 	return target
 }
 
-// TODO(sszuecs): make it
-func newFabricGateways(o Options) *fabricGateways {
-	return &fabricGateways{options: o}
-}
-
 func (fgs *fabricGateways) convert(s *clusterState, df defaultFilters) ([]*eskip.Route, error) {
 	routes := make([]*eskip.Route, 0, len(s.fabricGateways))
 	for _, fg := range s.fabricGateways {
@@ -192,8 +180,9 @@ func (fgs *fabricGateways) convert(s *clusterState, df defaultFilters) ([]*eskip
 
 }
 
-func NewfabricGateways(o FabricOptions) (*fabricGateways, error) {
-	dc := &fabricGateways{
+func newFabricGateways(opt Options) (*fabricGateways, error) {
+	o := opt.FabricOptions
+	fg := &fabricGateways{
 		clusterClientRatelimitHeader: defaultClusterClientRatelimitHeader,
 		uidKey:                       defaultUidKey,
 		userListPredicateName:        defaultUserListPredicateName,
@@ -202,44 +191,44 @@ func NewfabricGateways(o FabricOptions) (*fabricGateways, error) {
 		checkServiceFilterName:       defaultCheckServiceFilterName,
 		userRealmPredicates:          []*eskip.Predicate{&defaultUserRealmPredicate},
 
-		// TODO(sszuecs): requires config via Options
+		// TODO(sszuecs): requires config via FabricOptions
 		// this needs to be dynamic, because of it's the selector for ratelimit target set for specific apps
 		serviceUidSelectorPredicateTemplate: &eskip.Predicate{
 			Name: predicates.JWTPayloadAllKVName,
 			Args: []interface{}{"sub"},
 		},
 	}
-	dc.checkEmployeeFilter = configureFilters(o.CheckEmployeeFilter, &defaultCheckEmployeeFilter)
-	dc.checkServiceFilter = configureFilters(o.CheckServiceFilter, &defaultCheckServiceFilter)
-	dc.checkEmployeeOrServiceFilter = configureFilters(o.CheckEmployeeOrServiceFilter, &defaultCheckEmployeeOrServiceFilter)
-	dc.checkCommonScopeFilter = configureFilters(o.CheckCommonScopeFilter, &defaultCheckCommonScopeFilter)
-	dc.logServiceFilter = configureFilters(o.LogServiceFilter, &defaultLogServiceFilter)
-	dc.logUserFilter = configureFilters(o.LogUserFilter, &defaultLogUserFilter)
-	dc.forwardTokenServiceFilter = configureFilters(o.ForwardTokenServiceFilter, &defaultForwardTokenServiceFilter)
-	dc.forwardTokenEmployeeFilter = configureFilters(o.ForwardTokenEmployeeFilter, &defaultForwardTokenEmployeeFilter)
-	dc.flowIDFilter = configureFilters(o.FlowIDFilter, &defaultFlowIDFilter)
+	fg.checkEmployeeFilter = configureFilters(o.CheckEmployeeFilter, &defaultCheckEmployeeFilter)
+	fg.checkServiceFilter = configureFilters(o.CheckServiceFilter, &defaultCheckServiceFilter)
+	fg.checkEmployeeOrServiceFilter = configureFilters(o.CheckEmployeeOrServiceFilter, &defaultCheckEmployeeOrServiceFilter)
+	fg.checkCommonScopeFilter = configureFilters(o.CheckCommonScopeFilter, &defaultCheckCommonScopeFilter)
+	fg.logServiceFilter = configureFilters(o.LogServiceFilter, &defaultLogServiceFilter)
+	fg.logUserFilter = configureFilters(o.LogUserFilter, &defaultLogUserFilter)
+	fg.forwardTokenServiceFilter = configureFilters(o.ForwardTokenServiceFilter, &defaultForwardTokenServiceFilter)
+	fg.forwardTokenEmployeeFilter = configureFilters(o.ForwardTokenEmployeeFilter, &defaultForwardTokenEmployeeFilter)
+	fg.flowIDFilter = configureFilters(o.FlowIDFilter, &defaultFlowIDFilter)
 
 	if o.ClusterClientRatelimitHeader != "" {
-		dc.clusterClientRatelimitHeader = o.ClusterClientRatelimitHeader
+		fg.clusterClientRatelimitHeader = o.ClusterClientRatelimitHeader
 	}
 	if o.UidKey != "" {
-		dc.uidKey = o.UidKey
+		fg.uidKey = o.UidKey
 	}
 	if o.UserListPredicate != "" {
-		dc.userListPredicateName = o.UserListPredicate
+		fg.userListPredicateName = o.UserListPredicate
 	}
 	if o.UserRealmPredicate != "" {
 		var err error
-		dc.userRealmPredicates, err = eskip.ParsePredicates(o.UserRealmPredicate)
+		fg.userRealmPredicates, err = eskip.ParsePredicates(o.UserRealmPredicate)
 		if err != nil {
 			log.Errorf("Parse '%s' failed: %v", o.UserRealmPredicate, err)
 			return nil, fmt.Errorf("parse '%s' failed: %w", o.UserRealmPredicate, err)
 		}
 	}
-	log.Infof("DC: %+v", dc)
-	log.Infof("filter: %d", len(dc.flowIDFilter))
+	log.Infof("DC: %+v", fg)
+	log.Infof("filter: %d", len(fg.flowIDFilter))
 
-	return dc, nil
+	return fg, nil
 }
 
 func createRejectRouteID(fg *definitions.FabricItem, host string) string {
@@ -395,7 +384,7 @@ func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem, state *cluster
 			}
 			println("trafficParam:", trafficParam, "noopCount:", noopCount, "ridSuffix:", ridSuffix)
 
-			endpoints := state.getEndpointsByService(fg.Metadata.Namespace, traffic.ServiceName, "tcp", &servicePort{
+			endpoints := state.getEndpointsByService(fg.Metadata.Namespace, traffic.ServiceName, "http", &servicePort{
 				Name: traffic.ServicePort.StrVal,
 				Port: traffic.ServicePort.IntValue(),
 			})
@@ -415,12 +404,19 @@ func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem, state *cluster
 	// x-fabric-service
 	for _, fabsvc := range fg.Spec.Service {
 		host := fabsvc.Host
-		svcName, svcPortName, svcPortNumber := getKubeSvc(fabsvc)
-		endpoints := state.getEndpointsByService(fg.Metadata.Namespace, svcName, "tcp", &servicePort{
-			Name: svcPortName,
-			Port: svcPortNumber,
+		svc, err := state.getService(fg.Metadata.Namespace, fabsvc.ServiceName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find service for %s/%s x-fabric-service: %w", fg.Metadata.Namespace, fabsvc.ServiceName, err)
+		}
+
+		endpoints := state.getEndpointsByService(svc.Meta.Namespace, svc.Meta.Name, "http", &servicePort{
+			Name:       svc.Spec.Ports[0].Name,
+			Port:       svc.Spec.Ports[0].Port,
+			TargetPort: svc.Spec.Ports[0].TargetPort,
 		})
-		log.Debugf("fabsvc host=%s svc=%s portName=%s, portNumber=%d", host, svcName, svcPortName, svcPortNumber)
+		log.Debugf("fabsvc host=%s svc=%s portName=%s, portNumber=%d", host, svc.Meta.Name,
+			svc.Spec.Ports[0].Name,
+			svc.Spec.Ports[0].Port)
 
 		routes = append(routes, fgs.createRoutes(fg, false, -1, -1, "", host, lbAlgorithm, endpoints, adminArgs, allowedOrigins)...)
 
@@ -953,8 +949,6 @@ func (fgs *fabricGateways) createServiceRoute(m *definitions.FabricMethod, eskip
 	}
 
 	applyCommonPredicates(r, host)
-
-	println("END of createServiceRoute:", len(r.Filters), len(r.Predicates))
 	return r
 }
 

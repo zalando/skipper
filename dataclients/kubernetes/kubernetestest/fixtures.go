@@ -244,8 +244,6 @@ func testFixture(t *testing.T, f fixtureSet) {
 	defer c.Close()
 
 	routes, err := c.LoadAll()
-	// TODO(sszuecs) cleanup remove next line
-	//c, err := kubernetes.NewFabricDataClient(o)
 	if f.eskip != "" {
 		eskp, err := os.Open(f.eskip)
 		if err != nil {

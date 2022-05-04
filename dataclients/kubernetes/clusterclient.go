@@ -667,5 +667,4 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		secrets:          secrets,
 		cachedEndpoints:  make(map[endpointID][]string),
 	}, nil
-
 }

@@ -248,5 +248,4 @@ func TestCalculateTraffic(t *testing.T) {
 			}
 		})
 	}
-
 }

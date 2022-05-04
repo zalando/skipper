@@ -27,9 +27,9 @@ type namespace struct {
 	ingresses      []byte
 	fabricgateways []byte
 	routeGroups    []byte
-	//	stacksets      []byte
-	endpoints []byte
-	secrets   []byte
+	stacksets      []byte
+	endpoints      []byte
+	secrets        []byte
 }
 
 type api struct {
@@ -45,7 +45,7 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
-			"(/namespaces/([^/]+))?/(services|ingresses|fabricgateways|routegroups|endpoints|secrets)",
+			"(/namespaces/([^/]+))?/(services|ingresses|fabricgateways|stacksets|routegroups|endpoints|secrets)",
 		),
 	}
 
@@ -55,6 +55,7 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	}
 	if !o.DisableFabricGateways {
 		clr.Items = append(clr.Items, &kubernetes.ClusterResource{Name: kubernetes.FabricGatewaysName})
+		clr.Items = append(clr.Items, &kubernetes.ClusterResource{Name: kubernetes.StacksetsName})
 	}
 
 	a.failOn = mapStrings(o.FailOn)
@@ -167,8 +168,8 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b = ns.fabricgateways
 	case "routegroups":
 		b = ns.routeGroups
-	// case "stacksets":
-	// 	b = ns.stacksets
+	case "stacksets":
+		b = ns.stacksets
 	case "endpoints":
 		b = ns.endpoints
 	case "secrets":
@@ -191,6 +192,10 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 	}
 
 	if err = itemsJSON(&ns.fabricgateways, kinds["FabricGateway"]); err != nil {
+		return
+	}
+
+	if err = itemsJSON(&ns.stacksets, kinds["Stacksets"]); err != nil {
 		return
 	}
 
