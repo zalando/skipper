@@ -128,7 +128,7 @@ var testOpenIDConfig = `{
 // returns a localhost instance implementation of an OpenID Connect
 // server with configendpoint, tokenendpoint, authenticationserver endpoint, userinfor
 // endpoint, jwks endpoint
-func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
+func createOIDCServer(cb, client, clientsecret string, extraClaims jwt.MapClaims) *httptest.Server {
 	var oidcServer *httptest.Server
 	oidcServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -222,21 +222,19 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 				w.Header().Set("Cache-Control", "no-store")
 				w.Header().Set("Pragma", "no-cache")
 
-				token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+				claims := jwt.MapClaims{
 					testKey: testValue, // claims to check
 					"iss":   oidcServer.URL,
 					"sub":   testSub,
 					"aud":   validClient,
 					"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
 					"exp":   time.Now().Add(tokenExp).UTC().Unix(),
-					"groups": []string{
-						"CD-Administrators",
-						"Purchasing-Department",
-						"AppX-Test-Users",
-						"white space",
-					},
 					"email": "someone@example.org",
-				})
+				}
+				for k, v := range extraClaims {
+					claims[k] = v
+				}
+				token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 				privKey, err := os.ReadFile(keyPath)
 				if err != nil {
@@ -317,7 +315,43 @@ func createOIDCServer(cb, client, clientsecret string) *httptest.Server {
 			if err != nil {
 				log.Fatalf("Failed to write: %v", err)
 			}
-
+		case "/v1.0/users/me/transitiveMemberOf":
+			if r.Header.Get(authHeaderName) == authHeaderPrefix+validAccessToken &&
+				r.URL.Query().Get("$select") == "displayName,id" {
+				body, err := json.Marshal(azureGraphGroups{
+					OdataNextLink: fmt.Sprintf("http://%s/v1.0/users/paginatedresponse", r.Host),
+					Value: []struct {
+						DisplayName string `json:"displayName"`
+						ID          string `json:"id"`
+					}{
+						{DisplayName: "CD-Administrators", ID: "1"},
+						{DisplayName: "Purchasing-Department", ID: "2"},
+					}})
+				if err != nil {
+					log.Fatalf("Failed to marshal to json: %v", err)
+				}
+				w.Write(body)
+			} else {
+				w.WriteHeader(401)
+			}
+		case "/v1.0/users/paginatedresponse":
+			if r.Header.Get(authHeaderName) == authHeaderPrefix+validAccessToken {
+				body, err := json.Marshal(azureGraphGroups{
+					OdataNextLink: "",
+					Value: []struct {
+						DisplayName string `json:"displayName"`
+						ID          string `json:"id"`
+					}{
+						{DisplayName: "AppX-Test-Users", ID: "3"},
+						{DisplayName: "white space", ID: "4"},
+					}})
+				if err != nil {
+					log.Fatalf("Failed to marshal to json: %v", err)
+				}
+				w.Write(body)
+			} else {
+				w.WriteHeader(401)
+			}
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -460,30 +494,30 @@ func TestNewOidc(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		args string
-		f    func(string, secrets.EncrypterCreator) filters.Spec
+		f    func(string, secrets.EncrypterCreator, OidcOptions) filters.Spec
 		want *tokenOidcSpec
 	}{
 		{
 			name: "test UserInfo",
 			args: "/foo",
-			f:    NewOAuthOidcUserInfos,
+			f:    NewOAuthOidcUserInfosWithOptions,
 			want: &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: "/foo", secretsRegistry: reg},
 		},
 		{
 			name: "test AnyClaims",
 			args: "/foo",
-			f:    NewOAuthOidcAnyClaims,
+			f:    NewOAuthOidcAnyClaimsWithOptions,
 			want: &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg},
 		},
 		{
 			name: "test AllClaims",
 			args: "/foo",
-			f:    NewOAuthOidcAllClaims,
+			f:    NewOAuthOidcAllClaimsWithOptions,
 			want: &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo", secretsRegistry: reg},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.f(tt.args, reg); !reflect.DeepEqual(got, tt.want) {
+			if got := tt.f(tt.args, reg, OidcOptions{}); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Failed to create object: Want %v, got %v", tt.want, got)
 			}
 		})
@@ -492,7 +526,7 @@ func TestNewOidc(t *testing.T) {
 }
 
 func TestCreateFilterOIDC(t *testing.T) {
-	oidcServer := createOIDCServer("", "", "")
+	oidcServer := createOIDCServer("", "", "", nil)
 	defer oidcServer.Close()
 
 	for _, tt := range []struct {
@@ -645,6 +679,7 @@ func TestOIDCSetup(t *testing.T) {
 		expectNoCookies    bool
 		expectCookieDomain string
 		filterCookies      []string
+		extraClaims        jwt.MapClaims
 	}{{
 		msg:             "wrong provider",
 		filter:          `oauthOidcAnyClaims("no url", "", "", "{{ .RedirectURL }}", "", "")`,
@@ -704,8 +739,42 @@ func TestOIDCSetup(t *testing.T) {
 		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
 			"x-auth-email:claims.email x-auth-something:claims.sub x-auth-groups:claims.groups.#[%\"*-Users\"]"
 		)`,
+		extraClaims:   jwt.MapClaims{"groups": []string{"CD-Administrators", "Purchasing-Department", "AppX-Test-Users", "white space"}},
 		expected:      200,
 		expectRequest: "X-Auth-Email: someone@example.org\r\nX-Auth-Groups: AppX-Test-Users\r\nX-Auth-Something: somesub",
+	}, {
+		msg: "distributed Azure claims looked up in Microsoft Graph ",
+		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
+		"x-auth-email:claims.email x-auth-something:claims.sub x-auth-groups:claims.groups.#[%\"*-Users\"]")`,
+		extraClaims: jwt.MapClaims{
+			"oid":            "me",
+			"_claim_names":   map[string]string{"groups": "src1"},
+			"_claim_sources": map[string]map[string]string{"src1": {"endpoint": "http://graph.windows.net/distributedClaims/getMemberObjects"}},
+		},
+		expected:      200,
+		expectRequest: "X-Auth-Email: someone@example.org\r\nX-Auth-Groups: AppX-Test-Users\r\nX-Auth-Something: somesub\r\n\r\n",
+	}, {
+		msg: "distributed Azure claims with pagination resolved",
+		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
+		"x-auth-groups:claims.groups")`,
+		extraClaims: jwt.MapClaims{
+			"oid":            "me",
+			"_claim_names":   map[string]string{"groups": "src1"},
+			"_claim_sources": map[string]map[string]string{"src1": {"endpoint": "http://graph.windows.net/distributedClaims/getMemberObjects"}},
+		},
+		expected:      200,
+		expectRequest: "X-Auth-Groups: [\"CD-Administrators\",\"Purchasing-Department\",\"AppX-Test-Users\",\"white space\"]\r\n\r\n",
+	}, {
+		msg: "distributed claims on unsupported IdP no groups claim returned",
+		filter: `oauthOidcAllClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "uid", "sub uid", "",
+	"x-auth-email:claims.email x-auth-something:claims.sub x-auth-groups:claims.groups.#[%\"*-Users\"]")`,
+		extraClaims: jwt.MapClaims{
+			"oid":            "me",
+			"_claim_names":   map[string]string{"groups": "src1"},
+			"_claim_sources": map[string]map[string]string{"src1": {"endpoint": "http://unknown.com/someendpoint"}},
+		},
+		expected:        401,
+		expectNoCookies: true,
 	}, {
 		msg:      "auth code with a placeholder and a regular option",
 		filter:   `oauthOidcAnyClaims("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "", "foo=skipper-request-query bar=baz")`,
@@ -768,9 +837,9 @@ func TestOIDCSetup(t *testing.T) {
 			secretsRegistry := secrettest.NewTestRegistry()
 
 			fr := make(filters.Registry)
-			fr.Register(NewOAuthOidcUserInfos(secretsFile, secretsRegistry))
-			fr.Register(NewOAuthOidcAnyClaims(secretsFile, secretsRegistry))
-			fr.Register(NewOAuthOidcAllClaims(secretsFile, secretsRegistry))
+			fr.Register(NewOAuthOidcUserInfosWithOptions(secretsFile, secretsRegistry, OidcOptions{}))
+			fr.Register(NewOAuthOidcAnyClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{}))
+			fr.Register(NewOAuthOidcAllClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{}))
 
 			dc := testdataclient.New(nil)
 			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
@@ -788,9 +857,13 @@ func TestOIDCSetup(t *testing.T) {
 
 			t.Logf("redirect URL: %s", redirectURL.String())
 
-			oidcServer := createOIDCServer(redirectURL.String(), "valid-client", "mysec")
+			oidcServer := createOIDCServer(redirectURL.String(), "valid-client", "mysec", tc.extraClaims)
 			defer oidcServer.Close()
 			t.Logf("oidc server URL: %s", oidcServer.URL)
+
+			oidcsrv, err := url.Parse(oidcServer.URL)
+			assert.NoError(t, err)
+			microsoftGraphHost = oidcsrv.Host
 
 			if tc.queries != nil {
 				q := reqURL.Query()

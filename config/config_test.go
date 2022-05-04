@@ -126,6 +126,7 @@ func Test_NewConfig(t *testing.T) {
 				Oauth2TokeninfoSubjectKey:               "uid",
 				Oauth2TokenCookieName:                   "oauth2-grant",
 				WebhookTimeout:                          2 * time.Second,
+				OidcDistributedClaimsTimeout:            2 * time.Second,
 				CredentialPaths:                         commaListFlag(),
 				CredentialsUpdateInterval:               10 * time.Minute,
 				ApiUsageMonitoringClientKeys:            "sub",

@@ -748,6 +748,9 @@ type Options struct {
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
 
+	// OIDCDistributedClaimsTimeout sets timeout duration while calling Distributed Claims endpoint.
+	OIDCDistributedClaimsTimeout time.Duration
+
 	// SecretsRegistry to store and load secretsencrypt
 	SecretsRegistry *secrets.Registry
 
@@ -1323,6 +1326,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		Tracer:       tracer,
 	}
 
+	oo := auth.OidcOptions{
+		Timeout:      o.OIDCDistributedClaimsTimeout,
+		MaxIdleConns: o.IdleConnectionsPerHost,
+		Tracer:       tracer,
+	}
+
 	who := auth.WebhookOptions{
 		Timeout:      o.WebhookTimeout,
 		MaxIdleConns: o.IdleConnectionsPerHost,
@@ -1342,9 +1351,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAnyKV, tio),
 		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAllKV, tio),
 		auth.WebhookWithOptions(who),
-		auth.NewOAuthOidcUserInfos(o.OIDCSecretsFile, o.SecretsRegistry),
-		auth.NewOAuthOidcAnyClaims(o.OIDCSecretsFile, o.SecretsRegistry),
-		auth.NewOAuthOidcAllClaims(o.OIDCSecretsFile, o.SecretsRegistry),
+		auth.NewOAuthOidcUserInfosWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, oo),
+		auth.NewOAuthOidcAnyClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, oo),
+		auth.NewOAuthOidcAllClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, oo),
 		auth.NewOIDCQueryClaimsFilter(),
 		apiusagemonitoring.NewApiUsageMonitoring(
 			o.ApiUsageMonitoringEnable,
