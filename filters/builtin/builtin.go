@@ -7,6 +7,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/filters/block"
 	"github.com/zalando/skipper/filters/body"
 	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/consistenthash"
@@ -218,6 +219,7 @@ func MakeRegistry() filters.Registry {
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
 		body.NewBodyMatchFilter(),
+		block.NewBlockFilter(),
 	} {
 		r.Register(s)
 	}
