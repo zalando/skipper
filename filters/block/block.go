@@ -1,11 +1,8 @@
 package block
 
 import (
-	"bytes"
 	"errors"
-	"io"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -21,7 +18,20 @@ var (
 type blockSpec struct{}
 
 type block struct {
-	match []string
+	match             []string
+	maxEditorBuffer   int
+	maxBufferHandling maxBufferHandling
+}
+
+func parseMaxBufferHandling(h interface{}) (maxBufferHandling, error) {
+	switch h {
+	case "best-effort":
+		return maxBufferBestEffort, nil
+	case "abort":
+		return maxBufferAbort, nil
+	default:
+		return 0, filters.ErrInvalidFilterParameters
+	}
 }
 
 func NewBlockFilter() filters.Spec {
@@ -42,70 +52,79 @@ func (*blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		switch v := w.(type) {
 		case string:
 			sargs = append(sargs, string(v))
+
 		default:
 			return nil, filters.ErrInvalidFilterParameters
 		}
 	}
 
-	return &block{
-		match: sargs,
-	}, nil
+	b := &block{
+		match:             sargs,
+		maxBufferHandling: maxBufferBestEffort,
+	}
+
+	return *b, nil
 }
 
-func (bm *block) Request(ctx filters.FilterContext) {
+func (b block) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	if req.ContentLength == 0 {
 		return
 	}
 	println(req.Body)
-	req.Body = newBlockBuffer(req.Body, bm.match)
+	req.Body = newMatcher(
+		req.Body,
+		b.match,
+		b.maxEditorBuffer,
+		b.maxBufferHandling,
+	)
 }
 
-func (*block) Response(filters.FilterContext) {}
+func (block) Response(filters.FilterContext) {}
 
-type blockBuffer struct {
-	input         io.ReadCloser
-	closed        bool
-	maxBufferSize int
-	match         []string
-}
+// type blockBuffer struct {
+// 	input         io.ReadCloser
+// 	closed        bool
+// 	maxBufferSize int
+// 	match         []string
+// }
 
-func newBlockBuffer(rc io.ReadCloser, match []string) *blockBuffer {
-	return &blockBuffer{
-		input:  rc,
-		match:  match,
-		closed: false,
-	}
-}
-func (bmb *blockBuffer) Read(p []byte) (int, error) {
-	// println("len(p)", len(p))
-	if bmb.closed {
-		// println("closed")
-		return 0, ErrClosed
-	}
-	n, err := bmb.input.Read(p)
-	if err != nil && err != io.EOF {
-		log.Errorf("blockBuffer: Failed to read body: %v", err)
-		// println("err not EOF")
-		return 0, err
-	}
+// func newBlockBuffer(rc io.ReadCloser, match []string) *blockBuffer {
+// 	return &blockBuffer{
+// 		input:  rc,
+// 		match:  match,
+// 		closed: false,
+// 	}
+// }
+// func (bmb *blockBuffer) Read(p []byte) (int, error) {
+// 	// println("len(p)", len(p))
+// 	if bmb.closed {
+// 		// println("closed")
+// 		return 0, ErrClosed
+// 	}
+// 	n, err := bmb.input.Read(p)
+// 	if err != nil && err != io.EOF {
+// 		log.Errorf("blockBuffer: Failed to read body: %v", err)
+// 		// println("err not EOF")
+// 		return 0, err
+// 	}
 
-	for _, s := range bmb.match {
-		if bytes.Contains(p, []byte(s)) {
-			p = nil
-			// println("blocked")
-			return 0, ErrBlocked
-		}
-	}
+// 	for _, s := range bmb.match {
+// 		if bytes.Contains(p, []byte(s)) {
+// 			p = nil
+// 			log.Errorf("Content blocked: %v", err)
+// 			return 0, ErrBlocked
+// 		}
+// 	}
 
-	// println("END")
-	return n, err
-}
+// 	// println("END")
+// 	return n, err
+// }
 
-func (bmb *blockBuffer) Close() error {
-	if bmb.closed {
-		return nil
-	}
-	bmb.closed = true
-	return bmb.input.Close()
-}
+// func (bmb *blockBuffer) Close() error {
+// 	if bmb.closed {
+// 		return nil
+// 	}
+// 	bmb.closed = true
+// 	return bmb.input.Close()
+// }
