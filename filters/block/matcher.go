@@ -55,7 +55,7 @@ const (
 type matcher struct {
 
 	// init:
-	input             io.Reader
+	input             io.ReadCloser
 	matchList         []string
 	maxBufferSize     int
 	maxBufferHandling maxBufferHandling
@@ -75,7 +75,7 @@ var (
 )
 
 func newMatcher(
-	input io.Reader,
+	input io.ReadCloser,
 	matchList []string,
 	maxBufferSize int,
 	mbh maxBufferHandling,
@@ -112,36 +112,26 @@ func (m *matcher) readNTimes(times int) (bool, error) {
 		if err != nil {
 			return consumedInput, err
 		}
+
 	}
 
 	return consumedInput, nil
 }
 
-func (m *matcher) match(b []byte, keepLastChunk bool) (int, bool) {
+func (m *matcher) match(b []byte) (int, error) {
 	var consumed int
+
 	for _, s := range m.matchList {
 		if bytes.Contains(b, []byte(s)) {
 			b = nil
 			log.Errorf("Content blocked: %v", ErrBlocked)
-			return 0, false
+			return 0, ErrBlocked
 		}
 	}
-
-	if keepLastChunk {
-		return consumed, false
-	}
-
-	m.ready.Write(b)
 	consumed += len(b)
-	return consumed, false
+	return consumed, nil
 
 }
-
-// func (m *matcher) editUnbound() bool {
-// 	consumed, pendingMatches := m.match(m.pending.Bytes(), true)
-// 	m.pending.Next(consumed)
-// 	return pendingMatches
-// }
 
 func (m *matcher) fill(requested int) error {
 	readSize := 1
@@ -150,12 +140,8 @@ func (m *matcher) fill(requested int) error {
 		consumedInput, err := m.readNTimes(readSize)
 		if !consumedInput {
 			if err != nil {
-				return err
+				io.CopyBuffer(m.ready, m.pending, m.readBuffer)
 			}
-
-		}
-
-		if err != nil {
 			return err
 		}
 
@@ -164,7 +150,7 @@ func (m *matcher) fill(requested int) error {
 			case maxBufferAbort:
 				return ErrEditorBufferFull
 			default:
-				m.match(m.pending.Bytes(), false)
+				m.match(m.pending.Bytes())
 				m.pending.Reset()
 				readSize = 1
 			}
@@ -197,6 +183,13 @@ func (m *matcher) Read(p []byte) (int, error) {
 
 	if n == 0 && len(p) > 0 && m.err != nil {
 		return 0, m.err
+	}
+
+	n, err := m.match(p)
+
+	if err != nil {
+		m.closed = true
+		return 0, err
 	}
 
 	return n, nil

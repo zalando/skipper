@@ -6,10 +6,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	defaultMaxBufferSize = 4096
-)
-
 var (
 	ErrClosed  = errors.New("reader closed")
 	ErrBlocked = errors.New("blocked string match found in body")
@@ -21,17 +17,6 @@ type block struct {
 	match             []string
 	maxEditorBuffer   int
 	maxBufferHandling maxBufferHandling
-}
-
-func parseMaxBufferHandling(h interface{}) (maxBufferHandling, error) {
-	switch h {
-	case "best-effort":
-		return maxBufferBestEffort, nil
-	case "abort":
-		return maxBufferAbort, nil
-	default:
-		return 0, filters.ErrInvalidFilterParameters
-	}
 }
 
 func NewBlockFilter() filters.Spec {
@@ -71,7 +56,6 @@ func (b block) Request(ctx filters.FilterContext) {
 	if req.ContentLength == 0 {
 		return
 	}
-	println(req.Body)
 	req.Body = newMatcher(
 		req.Body,
 		b.match,
@@ -81,50 +65,3 @@ func (b block) Request(ctx filters.FilterContext) {
 }
 
 func (block) Response(filters.FilterContext) {}
-
-// type blockBuffer struct {
-// 	input         io.ReadCloser
-// 	closed        bool
-// 	maxBufferSize int
-// 	match         []string
-// }
-
-// func newBlockBuffer(rc io.ReadCloser, match []string) *blockBuffer {
-// 	return &blockBuffer{
-// 		input:  rc,
-// 		match:  match,
-// 		closed: false,
-// 	}
-// }
-// func (bmb *blockBuffer) Read(p []byte) (int, error) {
-// 	// println("len(p)", len(p))
-// 	if bmb.closed {
-// 		// println("closed")
-// 		return 0, ErrClosed
-// 	}
-// 	n, err := bmb.input.Read(p)
-// 	if err != nil && err != io.EOF {
-// 		log.Errorf("blockBuffer: Failed to read body: %v", err)
-// 		// println("err not EOF")
-// 		return 0, err
-// 	}
-
-// 	for _, s := range bmb.match {
-// 		if bytes.Contains(p, []byte(s)) {
-// 			p = nil
-// 			log.Errorf("Content blocked: %v", err)
-// 			return 0, ErrBlocked
-// 		}
-// 	}
-
-// 	// println("END")
-// 	return n, err
-// }
-
-// func (bmb *blockBuffer) Close() error {
-// 	if bmb.closed {
-// 		return nil
-// 	}
-// 	bmb.closed = true
-// 	return bmb.input.Close()
-// }
