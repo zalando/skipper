@@ -3,6 +3,7 @@ package block
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 
 	log "github.com/sirupsen/logrus"
@@ -135,6 +136,7 @@ func (m *matcher) match(b []byte) (int, error) {
 
 func (m *matcher) fill(requested int) error {
 	readSize := 1
+	println(m.ready.String())
 	for m.ready.Len() < requested {
 		println(m.ready.String())
 		consumedInput, err := m.readNTimes(readSize)
@@ -186,6 +188,8 @@ func (m *matcher) Read(p []byte) (int, error) {
 	}
 
 	n, err := m.match(p)
+
+	fmt.Printf("Ready: %s", m.ready.String())
 
 	if err != nil {
 		m.closed = true

@@ -6,17 +6,11 @@ import (
 	"testing"
 )
 
-type nonBlockingReader struct {
-	initialContent []byte
-}
-
-func (r *nonBlockingReader) Read(p []byte) (int, error) {
-	n := copy(p, r.initialContent)
-	r.initialContent = r.initialContent[n:]
-	return n, nil
-}
-
 func (r *nonBlockingReader) Close() error {
+	return nil
+}
+
+func (r *infiniteReader) Close() error {
 	return nil
 }
 
@@ -28,11 +22,11 @@ func TestBlock(t *testing.T) {
 	}{
 		{
 			name:    "small string",
-			content: "fox",
-			err:     nil,
+			content: ".class",
+			err:     ErrBlocked,
 		},
 		{
-			name:    "small string",
+			name:    "small string without match",
 			content: "foxi",
 			err:     nil,
 		},
@@ -48,9 +42,11 @@ func TestBlock(t *testing.T) {
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &nonBlockingReader{initialContent: []byte(tt.content)}
-			bmb := newBlockBuffer(r, []string{".class"})
+			bmb := newMatcher(r, []string{".class"}, defaultMaxEditorBufferSize, maxBufferBestEffort)
+			t.Logf("Content: %s", r.initialContent)
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)
+			t.Logf("P after reading is: %s", p)
 			if err != nil {
 				if err == ErrBlocked {
 					t.Logf("Stop! Request has some blocked content!")
@@ -72,6 +68,10 @@ func BenchmarkBlock(b *testing.B) {
 		return strings.Repeat(source[:2], len/2) // partially matches target
 	}
 
+	fakematch := func(source string, len int) string {
+		return strings.Repeat(source, len/2) // partially matches target
+	}
+
 	for _, tt := range []struct {
 		name    string
 		tomatch string
@@ -81,6 +81,11 @@ func BenchmarkBlock(b *testing.B) {
 			name:    "Small",
 			tomatch: ".class",
 			bm:      []byte(fake(".class", 10)),
+		},
+		{
+			name:    "Small with match",
+			tomatch: ".class",
+			bm:      []byte(fakematch(".class", 10)),
 		},
 		{
 			name:    "Medium",
@@ -93,13 +98,14 @@ func BenchmarkBlock(b *testing.B) {
 			bm:      []byte(fake(".class", 10000)),
 		}} {
 		b.Run(tt.name, func(b *testing.B) {
+			b.Logf("Request Content: %s", tt.bm)
 			target := &nonBlockingReader{initialContent: tt.bm}
 			r := &http.Request{
 				Body: target,
 			}
-
-			bmb := newBlockBuffer(r.Body, []string{tt.tomatch})
+			bmb := newMatcher(r.Body, []string{tt.tomatch}, defaultMaxEditorBufferSize, maxBufferBestEffort)
 			p := make([]byte, len(target.initialContent))
+			b.Logf("Number of loops: %b", b.N)
 			for n := 0; n < b.N; n++ {
 				bmb.Read(p)
 			}
