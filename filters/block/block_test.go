@@ -68,9 +68,9 @@ func BenchmarkBlock(b *testing.B) {
 		return strings.Repeat(source[:2], len/2) // partially matches target
 	}
 
-	fakematch := func(source string, len int) string {
-		return strings.Repeat(source, len/2) // partially matches target
-	}
+	// fakematch := func(source string, len int) string {
+	// 	return strings.Repeat(source, len/2) // matches target
+	// }
 
 	for _, tt := range []struct {
 		name    string
@@ -83,11 +83,6 @@ func BenchmarkBlock(b *testing.B) {
 			bm:      []byte(fake(".class", 10)),
 		},
 		{
-			name:    "Small with match",
-			tomatch: ".class",
-			bm:      []byte(fakematch(".class", 10)),
-		},
-		{
 			name:    "Medium",
 			tomatch: ".class",
 			bm:      []byte(fake(".class", 1000)),
@@ -98,7 +93,6 @@ func BenchmarkBlock(b *testing.B) {
 			bm:      []byte(fake(".class", 10000)),
 		}} {
 		b.Run(tt.name, func(b *testing.B) {
-			b.Logf("Request Content: %s", tt.bm)
 			target := &nonBlockingReader{initialContent: tt.bm}
 			r := &http.Request{
 				Body: target,
