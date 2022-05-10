@@ -9,10 +9,6 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-const (
-	defaultMaxBufferSize = 4096
-)
-
 var (
 	ErrClosed  = errors.New("reader closed")
 	ErrBlocked = errors.New("blocked string match found in body")
@@ -63,10 +59,9 @@ func (bm *bodyMatch) Request(ctx filters.FilterContext) {
 func (*bodyMatch) Response(filters.FilterContext) {}
 
 type bodyMatchBuffer struct {
-	input         io.ReadCloser
-	closed        bool
-	maxBufferSize int
-	match         []string
+	input  io.ReadCloser
+	closed bool
+	match  []string
 }
 
 func newBodyMatchBuffer(rc io.ReadCloser, match []string) *bodyMatchBuffer {
@@ -77,27 +72,25 @@ func newBodyMatchBuffer(rc io.ReadCloser, match []string) *bodyMatchBuffer {
 	}
 }
 func (bmb *bodyMatchBuffer) Read(p []byte) (int, error) {
-	println("len(p)", len(p))
+
 	if bmb.closed {
-		println("closed")
 		return 0, ErrClosed
 	}
+
 	n, err := bmb.input.Read(p)
+
 	if err != nil && err != io.EOF {
 		log.Errorf("bodyMatchBuffer: Failed to read body: %v", err)
-		println("err not EOF")
 		return 0, err
 	}
 
 	for _, s := range bmb.match {
 		if bytes.Contains(p, []byte(s)) {
 			p = nil
-			println("blocked")
-			return n, ErrBlocked
+			return 0, ErrBlocked
 		}
 	}
 
-	println("END")
 	return n, err
 }
 

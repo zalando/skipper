@@ -10,12 +10,6 @@ type nonBlockingReader struct {
 	initialContent []byte
 }
 
-type infiniteReader struct {
-	content []byte
-}
-
-type errorReader string
-
 func (r *nonBlockingReader) Read(p []byte) (int, error) {
 	n := copy(p, r.initialContent)
 	r.initialContent = r.initialContent[n:]
@@ -25,22 +19,6 @@ func (r *nonBlockingReader) Read(p []byte) (int, error) {
 func (r *nonBlockingReader) Close() error {
 	return nil
 }
-
-func (r *infiniteReader) Read(p []byte) (int, error) {
-	l := len(p)
-	for {
-		if len(p) == 0 {
-			return l, nil
-		}
-
-		n := copy(p, r.content)
-		p = p[n:]
-		r.content = append(r.content[n:], r.content[:n]...)
-	}
-}
-
-func (r errorReader) Read([]byte) (int, error) { return 0, r }
-func (r errorReader) Error() string            { return string(r) }
 
 func TestSimple(t *testing.T) {
 	for _, tt := range []struct {
@@ -121,9 +99,10 @@ func BenchmarkBodyMatch(b *testing.B) {
 				Body: target,
 			}
 
+			bmb := newBodyMatchBuffer(r.Body, []string{tt.tomatch})
+			p := make([]byte, len(target.initialContent))
 			for n := 0; n < b.N; n++ {
-				bmb := newBodyMatchBuffer(r.Body, []string{tt.tomatch})
-				bmb.Read(target.initialContent)
+				bmb.Read(p)
 			}
 		})
 	}

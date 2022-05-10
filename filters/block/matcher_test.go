@@ -16,7 +16,7 @@ type infiniteReader struct {
 	content []byte
 }
 
-type errorReader string
+// type errorReader string
 
 func (r *nonBlockingReader) Read(p []byte) (int, error) {
 	n := copy(p, r.initialContent)
@@ -37,8 +37,8 @@ func (r *infiniteReader) Read(p []byte) (int, error) {
 	}
 }
 
-func (r errorReader) Read([]byte) (int, error) { return 0, r }
-func (r errorReader) Error() string            { return string(r) }
+// func (r errorReader) Read([]byte) (int, error) { return 0, r }
+// func (r errorReader) Error() string            { return string(r) }
 
 func TestEditorNonBlockingSource(t *testing.T) {
 	r := &nonBlockingReader{initialContent: []byte("fox")}
