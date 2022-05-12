@@ -68,9 +68,9 @@ func BenchmarkBlock(b *testing.B) {
 		return strings.Repeat(source[:2], len/2) // partially matches target
 	}
 
-	// fakematch := func(source string, len int) string {
-	// 	return strings.Repeat(source, len/2) // matches target
-	// }
+	fakematch := func(source string, len int) string {
+		return strings.Repeat(source, len/2) // matches target
+	}
 
 	for _, tt := range []struct {
 		name    string
@@ -78,19 +78,34 @@ func BenchmarkBlock(b *testing.B) {
 		bm      []byte
 	}{
 		{
-			name:    "Small",
+			name:    "Small Stream without blocking",
 			tomatch: ".class",
-			bm:      []byte(fake(".class", 10)),
+			bm:      []byte(fake(".class", 1<<6)),
 		},
 		{
-			name:    "Medium",
+			name:    "Small Stream with blocking",
 			tomatch: ".class",
-			bm:      []byte(fake(".class", 1000)),
+			bm:      []byte(fakematch(".class", 1<<6)),
 		},
 		{
-			name:    "Large",
+			name:    "Medium Stream without blocking",
 			tomatch: ".class",
-			bm:      []byte(fake(".class", 10000)),
+			bm:      []byte(fake(".class", 1<<11)),
+		},
+		{
+			name:    "Medium Stream with blocking",
+			tomatch: ".class",
+			bm:      []byte(fakematch(".class", 1<<11)),
+		},
+		{
+			name:    "Large Stream without blocking",
+			tomatch: ".class",
+			bm:      []byte(fake(".class", 1<<30)),
+		},
+		{
+			name:    "Large Stream with blocking",
+			tomatch: ".class",
+			bm:      []byte(fakematch(".class", 1<<30)),
 		}} {
 		b.Run(tt.name, func(b *testing.B) {
 			target := &nonBlockingReader{initialContent: tt.bm}
@@ -101,7 +116,10 @@ func BenchmarkBlock(b *testing.B) {
 			p := make([]byte, len(target.initialContent))
 			b.Logf("Number of loops: %b", b.N)
 			for n := 0; n < b.N; n++ {
-				bmb.Read(p)
+				_, err := bmb.Read(p)
+				if err != nil {
+					return
+				}
 			}
 		})
 	}

@@ -147,7 +147,10 @@ func (m *matcher) fill(requested int) error {
 			case maxBufferAbort:
 				return ErrEditorBufferFull
 			default:
-				m.match(m.pending.Bytes())
+				_, err := m.match(m.pending.Bytes())
+				if err != nil {
+					return err
+				}
 				m.pending.Reset()
 				readSize = 1
 			}
@@ -173,6 +176,10 @@ func (m *matcher) Read(p []byte) (int, error) {
 
 	if m.err == ErrEditorBufferFull {
 		return 0, ErrEditorBufferFull
+	}
+
+	if m.err == ErrBlocked {
+		return 0, ErrBlocked
 	}
 
 	n, _ := m.ready.Read(p)
