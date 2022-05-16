@@ -149,7 +149,7 @@ Uses standardized Forwarded header ([RFC 7239](https://tools.ietf.org/html/rfc72
 
 More info about the header: [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded)
 
-If multiple proxies chain values in the header, as a comma separated list, the predicates below will only match 
+If multiple proxies chain values in the header, as a comma separated list, the predicates below will only match
 the last value in the chain for each part of the header.
 
 Example: Forwarded: host=example.com;proto=https, host=example.org
@@ -192,7 +192,7 @@ ForwardedProtocol("http")
 ForwardedProtocol("https")
 ```
 
-## Weight (priority)
+## Weight
 
 By default, the weight (priority) of a route is determined by the number of defined predicates.
 
