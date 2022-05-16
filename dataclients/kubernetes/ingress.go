@@ -372,10 +372,9 @@ func addHostTLSCert(ic ingressContext, hosts []string, secretID *definitions.Res
 	}
 }
 
-// convert logs if an invalid found, but proceeds with the
-// valid ones.  Reporting failures in Ingress status is not possible,
-// because Ingress status field is v1beta1.LoadBalancerIngress that only
-// supports IP and Hostname as string.
+// convert logs if an invalid found, but proceeds with the valid ones.
+// Reporting failures in Ingress status is not possible, because
+// Ingress status field only supports IP and Hostname as string.
 func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregistry.CertRegistry) ([]*eskip.Route, error) {
 	var ewIngInfo map[string][]string // r.Id -> {namespace, name}
 	if ing.kubernetesEnableEastWest {
