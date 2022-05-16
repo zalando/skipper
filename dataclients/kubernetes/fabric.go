@@ -361,9 +361,9 @@ func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem, state *cluster
 
 	// x-external-service-provider
 	if esp := fg.Spec.ExternalServiceProvider; esp != nil {
-		trs, err := state.getStacksetTraffic(fg.Metadata.Namespace, fg.Metadata.Name)
+		trs, err := state.getStacksetTraffic(fg.Metadata.Namespace, fg.Spec.ExternalServiceProvider.StackSet)
 		if err != nil {
-			return nil, fmt.Errorf("no traffic for x-external-service-provider: %w", err)
+			return nil, fmt.Errorf("no traffic for x-external-service-provider %s/%s: %w", fg.Metadata.Namespace, fg.Spec.ExternalServiceProvider.StackSet, err)
 		}
 
 		weightsMap, noopCount := calculateTrafficForStackset(trs)
@@ -388,8 +388,9 @@ func (fgs *fabricGateways) convertOne(fg *definitions.FabricItem, state *cluster
 			println("trafficParam:", trafficParam, "noopCount:", noopCount, "ridSuffix:", ridSuffix)
 
 			endpoints := state.getEndpointsByService(fg.Metadata.Namespace, traffic.ServiceName, "http", &servicePort{
-				Name: traffic.ServicePort.StrVal,
-				Port: traffic.ServicePort.IntValue(),
+				Name:       traffic.ServicePort.StrVal,
+				Port:       traffic.ServicePort.IntValue(),
+				TargetPort: &definitions.BackendPort{Value: traffic.ServicePort},
 			})
 			// TODO(sszuecs): maybe check that endpoints are not 0, but what if all of them are 0. Maybe better to shortcut the routes with `status(502) -> <shunt>` in this case.
 

@@ -90,8 +90,9 @@ metadata:
   name: svc1
 subsets:
 - addresses:
-  - ip: 10.2.23.42
-  - ip: 10.2.5.4
+  - ip: 10.2.100.10
+  - ip: 10.2.100.11
+  - ip: 10.2.100.12
   ports:
   - port: 8080
 ---
@@ -102,8 +103,9 @@ metadata:
   name: svc2
 subsets:
 - addresses:
-  - ip: 10.2.23.42
-  - ip: 10.2.5.4
+  - ip: 10.2.101.10
+  - ip: 10.2.101.11
+  - ip: 10.2.101.12
   ports:
   - port: 8080
 ---
@@ -114,7 +116,8 @@ metadata:
   name: svc3
 subsets:
 - addresses:
-  - ip: 10.2.23.42
-  - ip: 10.2.5.4
+  - ip: 10.2.102.10
+  - ip: 10.2.102.11
+  - ip: 10.2.102.12
   ports:
   - port: 8080

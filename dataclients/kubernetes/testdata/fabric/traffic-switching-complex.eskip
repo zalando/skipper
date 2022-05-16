@@ -1,69 +1,69 @@
-fg_404_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__: PathSubtree("/") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:80", "stackset-managed-test.cluster.zalan.do:443")
+fg_404_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__: HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:80", "stackset-managed-test.cluster.zalan.do:443") && PathSubtree("/")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
 	-> status(404)
 	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":404,\"detail\":\"Gateway Route Not Matched\"}")
 	-> <shunt>;
 
-fg_reject_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__: PathSubtree("/") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "http")
+fg_reject_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__: Header("X-Forwarded-Proto", "http") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && PathSubtree("/")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
 	-> status(400)
 	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":400,\"detail\":\"TLS is required\",\"type\":\"https://cloud.docs.zalando.net/howtos/ingress/#redirect-http-to-https\"}")
 	-> <shunt>;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_get_0: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Traffic(0.3333333333333333) && True()
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_get_0: Path("/resources") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23) && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.read")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__0_get: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__0_get: Path("/resources") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_post_0: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Traffic(0.3333333333333333) && True()
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_post_0: Path("/resources") && Method("POST") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23) && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.write")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__0_post: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__0_post: Path("/resources") && Method("POST") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub_get_0: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Traffic(0.3333333333333333) && True()
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub_get_0: Path("/resources/sub") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23) && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.sub")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub__0_get: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub__0_get: Path("/resources/sub") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
-fg_404_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__: PathSubtree("/") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80", "stackset-managed-test.ingress.cluster.local:443")
+fg_404_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__: HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80", "stackset-managed-test.ingress.cluster.local:443") && PathSubtree("/")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
 	-> status(404)
@@ -76,7 +76,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources__0_get: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -85,7 +85,7 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
 fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_post_0: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(23) && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -93,7 +93,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources__0_post: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -102,7 +102,7 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
 fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_sub_get_0: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(23) && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -110,7 +110,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_sub__0_get: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.3333333333333333) && True()
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -119,58 +119,58 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.100.10:8080", "http://10.2.100.11:8080", "http://10.2.100.12:8080">;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_get_1: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Traffic(0.5)
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_get_1: Path("/resources") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23) && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.read")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__1_get: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__1_get: Path("/resources") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_post_1: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Traffic(0.5)
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_post_1: Path("/resources") && Method("POST") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23) && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.write")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__1_post: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__1_post: Path("/resources") && Method("POST") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub_get_1: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Traffic(0.5)
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub_get_1: Path("/resources/sub") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23) && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.sub")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub__1_get: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub__1_get: Path("/resources/sub") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
 fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_get_1: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(23) && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -178,7 +178,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources__1_get: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -187,7 +187,7 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
 fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_post_1: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(23) && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -195,7 +195,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources__1_post: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -204,7 +204,7 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
 fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_sub_get_1: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(23) && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -212,7 +212,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_sub__1_get: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney") && Traffic(0.5)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -221,58 +221,58 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.101.10:8080", "http://10.2.101.11:8080", "http://10.2.101.12:8080">;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_get_2: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_get_2: Path("/resources") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.read")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__2_get: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__2_get: Path("/resources") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_post_2: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_post_2: Path("/resources") && Method("POST") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.write")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__2_post: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources__2_post: Path("/resources") && Method("POST") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
-fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub_get_2: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+fg_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub_get_2: Path("/resources/sub") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(23)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.sub")
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
-fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub__2_get: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Header("X-Forwarded-Proto", "https") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
+fg_admin_traffic_3_traffic_switching_stackset_managed_test_cluster_zalan_do__resources_sub__2_get: Path("/resources/sub") && Method("GET") && Header("X-Forwarded-Proto", "https") && HostAny("stackset-managed-test.cluster.zalan.do", "stackset-managed-test.cluster.zalan.do:443") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> enableAccessLog(2, 4, 5)
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
 fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_get_2: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(23)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -280,7 +280,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources__2_get: Path("/resources") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -289,7 +289,7 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
 fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_post_2: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(23)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -297,7 +297,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources__2_post: Path("/resources") && Method("POST") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -306,7 +306,7 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
 fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_sub_get_2: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(23)
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -314,7 +314,7 @@ fg_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__reso
 	-> unverifiedAuditLog("sub")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;
 
 fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local__resources_sub__2_get: Path("/resources/sub") && Method("GET") && HostAny("stackset-managed-test.ingress.cluster.local", "stackset-managed-test.ingress.cluster.local:80") && Weight(5) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "bmooney")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
@@ -323,4 +323,4 @@ fg_admin_traffic_3_traffic_switching_stackset_managed_test_ingress_cluster_local
 	-> unverifiedAuditLog("https://identity.zalando.com/managed-id")
 	-> flowId("reuse")
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
-	-> <roundRobin, "http://10.2.100.10:8088", "http://10.2.100.11:8088", "http://10.2.100.12:8088">;
+	-> <roundRobin, "http://10.2.102.10:8080", "http://10.2.102.11:8080", "http://10.2.102.12:8080">;

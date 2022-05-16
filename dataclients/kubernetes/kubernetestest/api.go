@@ -195,7 +195,7 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 		return
 	}
 
-	if err = itemsJSON(&ns.stacksets, kinds["Stacksets"]); err != nil {
+	if err = itemsJSON(&ns.stacksets, kinds["StackSet"]); err != nil {
 		return
 	}
 

@@ -34,7 +34,7 @@ const (
 	routeGroupsClusterURI      = ZalandoResourcesClusterURI + "/routegroups"
 	routeGroupClassKey         = "zalando.org/routegroup.class"
 	StacksetsName              = "stacksets"
-	stacksetsClusterURI        = ZalandoResourcesClusterURI + "/routegroups"
+	stacksetsClusterURI        = ZalandoResourcesClusterURI + "/stacksets"
 	ServicesClusterURI         = "/api/v1/services"
 	EndpointsClusterURI        = "/api/v1/endpoints"
 	SecretsClusterURI          = "/api/v1/secrets"
@@ -454,15 +454,15 @@ func (c *clusterClient) LoadStacksetsTraffic() (map[definitions.ResourceID][]*de
 		return nil, err
 	}
 
-	fcs := make(map[definitions.ResourceID][]*definitions.ActualTraffic)
+	tr := make(map[definitions.ResourceID][]*definitions.ActualTraffic)
 	for _, st := range stl.Items {
 		rid := definitions.ResourceID{
 			Namespace: st.Meta.Namespace,
 			Name:      st.Meta.Name,
 		}
-		fcs[rid] = st.Status.Traffic
+		tr[rid] = st.Status.Traffic
 	}
-	return fcs, nil
+	return tr, nil
 }
 
 func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error) {
