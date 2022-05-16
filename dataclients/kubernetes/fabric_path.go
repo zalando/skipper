@@ -44,5 +44,13 @@ func fabricPathStrToPredicate(fps string) *eskip.Predicate {
 }
 
 func applyPath(r *eskip.Route, fp *definitions.FabricPath) {
-	r.Predicates = append(r.Predicates, fabricPathStrToPredicate(fp.Path))
+	if fp.Path == "/**" {
+		r.Predicates = append(r.Predicates, &eskip.Predicate{Name: predicates.PathSubtreeName, Args: []interface{}{"/"}})
+	}
+
+	fps := fp.Path
+	for _, repl := range repls {
+		fps = repl.match.ReplaceAllString(fps, repl.repl)
+	}
+	r.Path = fps
 }

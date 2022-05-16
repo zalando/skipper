@@ -651,14 +651,10 @@ func (fgs *fabricGateways) createRejectRoute(rid, host string, privs []interface
 				Args: []interface{}{
 					"/",
 				},
-			}, {
-				Name: predicates.HeaderName,
-				Args: []interface{}{
-					"X-Forwarded-Proto",
-					"http",
-				},
 			},
 		},
+		Headers: map[string]string{"X-Forwarded-Proto": "http"},
+
 		Filters:     append(fgs.checkCommonScopeFilter, fgs.logServiceFilter...),
 		BackendType: eskip.ShuntBackend,
 		Shunt:       true,
@@ -855,14 +851,8 @@ func applyCommonPredicates(r *eskip.Route, host string) {
 						host + ":443",
 					},
 				},
-				{
-					Name: predicates.HeaderName,
-					Args: []interface{}{
-						"X-Forwarded-Proto",
-						"https",
-					},
-				},
 			}, r.Predicates...)
+		r.Headers = map[string]string{"X-Forwarded-Proto": "https"}
 	} else {
 		r.Predicates = append(
 			[]*eskip.Predicate{
