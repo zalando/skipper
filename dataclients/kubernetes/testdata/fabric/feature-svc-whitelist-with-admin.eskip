@@ -1,11 +1,11 @@
-fg_404_default_feature_service_whitelist_feature_service_whitelist_example_org__: PathSubtree("/") && HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:80", "feature-service-whitelist.example.org:443")
+fg_404_default_feature_service_whitelist_feature_service_whitelist_example_org__: HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:80", "feature-service-whitelist.example.org:443") && PathSubtree("/")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
 	-> status(404)
 	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":404,\"detail\":\"Gateway Route Not Matched\"}")
 	-> <shunt>;
 
-fg_reject_default_feature_service_whitelist_feature_service_whitelist_example_org__: PathSubtree("/") && HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:443") && Header("X-Forwarded-Proto", "http")
+fg_reject_default_feature_service_whitelist_feature_service_whitelist_example_org__: HostAny("feature-service-whitelist.example.org", "feature-service-whitelist.example.org:443") && PathSubtree("/") && Header("X-Forwarded-Proto", "http")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
 	-> status(400)

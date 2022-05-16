@@ -176,6 +176,9 @@ func (fgs *fabricGateways) convert(s *clusterState, df defaultFilters) ([]*eskip
 
 		routes = append(routes, r...)
 	}
+	sort.SliceStable(routes, func(i, j int) bool {
+		return strings.Compare(routes[i].Id, routes[j].Id) < 0
+	})
 	return routes, nil
 
 }
@@ -308,7 +311,7 @@ func applyCompression(r *eskip.Route, fc *definitions.FabricCompression) {
 	r.Filters = append(r.Filters, &eskip.Filter{
 		Name: "compress",
 		Args: []interface{}{
-			fc.Factor,
+			float64(fc.Factor),
 			fc.Encoding,
 		},
 	})
@@ -513,6 +516,9 @@ func (fgs *fabricGateways) createRoutes(fg *definitions.FabricItem, hostGlobalRo
 	}
 
 	for _, fp := range fg.Spec.Paths.Path {
+		sort.SliceStable(fp.Methods, func(i, j int) bool {
+			return fp.Methods[i].Method < fp.Methods[j].Method
+		})
 		methods := make([]string, 0, len(fp.Methods))
 		for _, m := range fp.Methods {
 			methods = append(methods, m.Method)
@@ -594,28 +600,29 @@ func (fgs *fabricGateways) create404Route(rid, host string, privs []interface{})
 		Id: rid,
 		Predicates: []*eskip.Predicate{
 			{
-				Name: predicates.PathSubtreeName,
-				Args: []interface{}{
-					"/",
-				},
-			}, {
 				Name: predicates.HostAnyName,
 				Args: []interface{}{
 					host,
 					host + ":80",
 					host + ":443",
 				},
+			}, {
+				Name: predicates.PathSubtreeName,
+				Args: []interface{}{
+					"/",
+				},
 			},
 		},
 		Filters:     append(fgs.checkCommonScopeFilter, fgs.logServiceFilter...),
 		BackendType: eskip.ShuntBackend,
+		Shunt:       true,
 	}
 
 	r.Filters = append(r.Filters,
 		&eskip.Filter{
 			Name: filters.StatusName,
 			Args: []interface{}{
-				404,
+				float64(404),
 			},
 		},
 		&eskip.Filter{
@@ -634,15 +641,15 @@ func (fgs *fabricGateways) createRejectRoute(rid, host string, privs []interface
 		Id: rid,
 		Predicates: []*eskip.Predicate{
 			{
-				Name: predicates.PathSubtreeName,
-				Args: []interface{}{
-					"/",
-				},
-			}, {
 				Name: predicates.HostAnyName,
 				Args: []interface{}{
 					host,
 					host + ":443",
+				},
+			}, {
+				Name: predicates.PathSubtreeName,
+				Args: []interface{}{
+					"/",
 				},
 			}, {
 				Name: predicates.HeaderName,
@@ -654,13 +661,14 @@ func (fgs *fabricGateways) createRejectRoute(rid, host string, privs []interface
 		},
 		Filters:     append(fgs.checkCommonScopeFilter, fgs.logServiceFilter...),
 		BackendType: eskip.ShuntBackend,
+		Shunt:       true,
 	}
 
 	r.Filters = append(r.Filters,
 		&eskip.Filter{
 			Name: filters.StatusName,
 			Args: []interface{}{
-				400,
+				float64(400),
 			},
 		},
 		&eskip.Filter{
@@ -682,7 +690,7 @@ func (fgs *fabricGateways) createEmployeeAccessRoute(m *definitions.FabricMethod
 			{
 				Name: predicates.WeightName,
 				Args: []interface{}{
-					4, // TODO(sszuecs) needs checking
+					float64(4), // TODO(sszuecs) needs checking
 				},
 			},
 		},
@@ -701,7 +709,7 @@ func (fgs *fabricGateways) createEmployeeAccessRoute(m *definitions.FabricMethod
 				//inlineContentIfStatus(429, "{\"title\": \"Rate limit exceeded\", \"detail\": \"See the retry-after header for how many seconds to wait before retrying.\", \"status\": 429}", "application/problem+json")
 				Name: filters.InlineContentIfStatusName,
 				Args: []interface{}{
-					429,
+					float64(429),
 					"{\"title\":\"Rate limit exceeded\",\"detail\":\"See the retry-after header for how many seconds to wait before retrying.\",\"status\":429}",
 					"application/problem+json",
 				},
@@ -716,8 +724,8 @@ func (fgs *fabricGateways) createEmployeeAccessRoute(m *definitions.FabricMethod
 						strings.Trim(nonWord.ReplaceAllString(path, "-"), "-"),
 						m.Method,
 					),
-					m.Ratelimit.DefaultRate,
-					m.Ratelimit.Period,
+					float64(m.Ratelimit.DefaultRate),
+					m.Ratelimit.Period.String(),
 					fgs.clusterClientRatelimitHeader,
 				},
 			},
@@ -757,7 +765,7 @@ func (fgs *fabricGateways) createEmployeeAccessRoute(m *definitions.FabricMethod
 		r.Filters = []*eskip.Filter{
 			{
 				Name: filters.StatusName,
-				Args: []interface{}{403}, // TODO(sszuecs): status similar to fg-controller?
+				Args: []interface{}{float64(403)}, // TODO(sszuecs): status similar to fg-controller?
 			},
 			{
 				// TODO(sszuecs): what would the current FG-controller do to return a response message?
@@ -768,6 +776,7 @@ func (fgs *fabricGateways) createEmployeeAccessRoute(m *definitions.FabricMethod
 			},
 		}
 		r.BackendType = eskip.ShuntBackend
+		r.Shunt = true
 		r.Backend = ""
 		r.LBAlgorithm = ""
 		r.LBEndpoints = nil
@@ -779,6 +788,7 @@ func (fgs *fabricGateways) createEmployeeAccessRoute(m *definitions.FabricMethod
 func applyStaticResponse(r *eskip.Route, static *definitions.FabricResponse) {
 	if static != nil {
 		r.BackendType = eskip.ShuntBackend
+		r.Shunt = true
 		r.Backend = ""
 		r.LBAlgorithm = ""
 		r.LBEndpoints = nil
@@ -798,7 +808,7 @@ func applyStaticResponse(r *eskip.Route, static *definitions.FabricResponse) {
 			// -> status(501)
 			&eskip.Filter{
 				Name: filters.StatusName,
-				Args: []interface{}{static.StatusCode},
+				Args: []interface{}{float64(static.StatusCode)},
 			},
 			// -> inlineContent("{\"title\": \"Issues Updates Not Yet Supported\", \"status\": 501}")
 			&eskip.Filter{
@@ -875,7 +885,7 @@ func (fgs *fabricGateways) createServiceRoute(m *definitions.FabricMethod, eskip
 			{
 				Name: predicates.WeightName,
 				Args: []interface{}{
-					23, // TODO(sszuecs) needs checking
+					float64(23), // TODO(sszuecs) needs checking
 				},
 			},
 		},
@@ -910,7 +920,7 @@ func (fgs *fabricGateways) createServiceRoute(m *definitions.FabricMethod, eskip
 				//inlineContentIfStatus(429, "{\"title\": \"Rate limit exceeded\", \"detail\": \"See the retry-after header for how many seconds to wait before retrying.\", \"status\": 429}", "application/problem+json")
 				Name: filters.InlineContentIfStatusName,
 				Args: []interface{}{
-					429,
+					float64(429),
 					"{\"title\":\"Rate limit exceeded\",\"detail\":\"See the retry-after header for how many seconds to wait before retrying.\",\"status\":429}",
 					"application/problem+json",
 				},
@@ -925,8 +935,8 @@ func (fgs *fabricGateways) createServiceRoute(m *definitions.FabricMethod, eskip
 						strings.Trim(nonWord.ReplaceAllString(path, "-"), "-"),
 						m.Method,
 					),
-					m.Ratelimit.DefaultRate,
-					m.Ratelimit.Period,
+					float64(m.Ratelimit.DefaultRate),
+					m.Ratelimit.Period.String(),
 					fgs.clusterClientRatelimitHeader,
 				},
 			},
@@ -978,8 +988,8 @@ func (fgs *fabricGateways) createRatelimitRoutes(r *eskip.Route, m *definitions.
 						m.Method,
 						rTarget.UID,
 					),
-					rTarget.Rate,
-					m.Ratelimit.Period,
+					float64(rTarget.Rate),
+					m.Ratelimit.Period.String(),
 				}
 			}
 		}
@@ -1000,7 +1010,7 @@ func (fgs *fabricGateways) createAdminRoute(eskipBackend *eskipBackend, routeID,
 		Predicates: []*eskip.Predicate{
 			{
 				Name: predicates.WeightName,
-				Args: []interface{}{5},
+				Args: []interface{}{float64(5)},
 			},
 		},
 		Filters: append(fgs.checkEmployeeOrServiceFilter,
@@ -1043,14 +1053,14 @@ func (fgs *fabricGateways) createCorsRoute(routeID, host, path, corsMethods, cor
 		Predicates: []*eskip.Predicate{
 			{
 				Name: predicates.WeightName,
-				Args: []interface{}{3},
+				Args: []interface{}{float64(3)},
 			},
 		},
 		Filters: []*eskip.Filter{
 			{
 				//status(204)
 				Name: filters.StatusName,
-				Args: []interface{}{204},
+				Args: []interface{}{float64(204)},
 			},
 		},
 	}

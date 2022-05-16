@@ -1,18 +1,18 @@
-fg_404_default_feature_employee_access_feature_employee_access_example_org__: PathSubtree("/") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:80", "feature-employee-access.example.org:443")
+fg_404_default_feature_employee_access_feature_employee_access_example_org__: HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:80", "feature-employee-access.example.org:443") && PathSubtree("/")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
 	-> status(404)
 	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":404,\"detail\":\"Gateway Route Not Matched\"}")
 	-> <shunt>;
 
-fg_reject_default_feature_employee_access_feature_employee_access_example_org__: PathSubtree("/") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "http")
+fg_reject_default_feature_employee_access_feature_employee_access_example_org__: HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && PathSubtree("/") && Header("X-Forwarded-Proto", "http")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
 	-> status(400)
 	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":400,\"detail\":\"TLS is required\",\"type\":\"https://cloud.docs.zalando.net/howtos/ingress/#redirect-http-to-https\"}")
 	-> <shunt>;
 
-fg_default_feature_employee_access_feature_employee_access_example_org__api_resource_get: Path("/api/resource") && Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+fg_default_feature_employee_access_feature_employee_access_example_org__api_resource_get: Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Path("/api/resource")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "foo.read")
 	-> unverifiedAuditLog("sub")
@@ -22,7 +22,7 @@ fg_default_feature_employee_access_feature_employee_access_example_org__api_reso
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
 	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
 
-fg_eaccess_default_feature_employee_access_feature_employee_access_example_org__api_resource_get: Path("/api/resource") && Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(4) && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "jdoe")
+fg_eaccess_default_feature_employee_access_feature_employee_access_example_org__api_resource_get: Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(4) && JWTPayloadAnyKV("https://identity.zalando.com/managed-id", "jdoe") && Path("/api/resource")
 	-> oauthTokeninfoAnyKV("realm", "/employees")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
@@ -32,7 +32,7 @@ fg_eaccess_default_feature_employee_access_feature_employee_access_example_org__
 	-> forwardToken("X-TokenInfo-Forward", "uid", "realm")
 	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
 
-fg_default_feature_employee_access_feature_employee_access_example_org__api_secondary_resource_get: Path("/api/secondary-resource") && Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+fg_default_feature_employee_access_feature_employee_access_example_org__api_secondary_resource_get: Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Path("/api/secondary-resource")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "bar.read")
 	-> unverifiedAuditLog("sub")
@@ -40,7 +40,7 @@ fg_default_feature_employee_access_feature_employee_access_example_org__api_seco
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
 	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
 
-fg_eaccess_default_feature_employee_access_feature_employee_access_example_org__api_secondary_resource_get: Path("/api/secondary-resource") && Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(4) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users")
+fg_eaccess_default_feature_employee_access_feature_employee_access_example_org__api_secondary_resource_get: Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(4) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && Path("/api/secondary-resource")
 	-> oauthTokeninfoAnyKV("realm", "/employees")
 	-> oauthTokeninfoAllScope("uid")
 	-> unverifiedAuditLog("sub")
@@ -48,7 +48,7 @@ fg_eaccess_default_feature_employee_access_feature_employee_access_example_org__
 	-> forwardToken("X-TokenInfo-Forward", "uid", "realm")
 	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
 
-fg_default_feature_employee_access_feature_employee_access_example_org__api_third_resource_get: Path("/api/third-resource") && Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23)
+fg_default_feature_employee_access_feature_employee_access_example_org__api_third_resource_get: Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(23) && Path("/api/third-resource")
 	-> oauthTokeninfoAnyKV("realm", "/services", "realm", "/employees")
 	-> oauthTokeninfoAllScope("uid", "qux.read")
 	-> unverifiedAuditLog("sub")
@@ -56,7 +56,7 @@ fg_default_feature_employee_access_feature_employee_access_example_org__api_thir
 	-> forwardToken("X-TokenInfo-Forward", "uid", "scope", "realm")
 	-> <roundRobin, "http://10.2.23.42:8080", "http://10.2.5.4:8080">;
 
-fg_eaccess_default_feature_employee_access_feature_employee_access_example_org__api_third_resource_get: Path("/api/third-resource") && Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(4) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users")
+fg_eaccess_default_feature_employee_access_feature_employee_access_example_org__api_third_resource_get: Method("GET") && HostAny("feature-employee-access.example.org", "feature-employee-access.example.org:443") && Header("X-Forwarded-Proto", "https") && Weight(4) && JWTPayloadAnyKV("https://identity.zalando.com/realm", "users") && Path("/api/third-resource")
 	-> status(403)
 	-> inlineContent("{\"title\":\"Gateway Rejected\",\"status\":403,\"detail\":\"deny all employees\"}")
 	-> <shunt>;
