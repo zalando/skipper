@@ -1,6 +1,10 @@
 package eskip
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/google/go-cmp/cmp"
+)
 
 // used for sorting:
 func compareRouteID(r []*Route) func(int, int) bool {
@@ -164,6 +168,7 @@ func EqLists(r ...[]*Route) bool {
 
 	for i := 1; i < len(rc); i++ {
 		if !eq2Lists(rc[i-1], rc[i]) {
+			println(cmp.Diff(rc[i-1], rc[i]))
 			return false
 		}
 	}
