@@ -42,7 +42,7 @@ func TestBlock(t *testing.T) {
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &nonBlockingReader{initialContent: []byte(tt.content)}
-			bmb := newMatcher(r, []string{".class"}, defaultMaxEditorBufferSize, maxBufferBestEffort)
+			bmb := newMatcher(r, []string{".class"}, defaultMaxMatcherBufferSize, maxBufferBestEffort)
 			t.Logf("Content: %s", r.initialContent)
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)
@@ -112,7 +112,7 @@ func BenchmarkBlock(b *testing.B) {
 			r := &http.Request{
 				Body: target,
 			}
-			bmb := newMatcher(r.Body, []string{tt.tomatch}, defaultMaxEditorBufferSize, maxBufferBestEffort)
+			bmb := newMatcher(r.Body, []string{tt.tomatch}, defaultMaxMatcherBufferSize, maxBufferBestEffort)
 			p := make([]byte, len(target.initialContent))
 			b.Logf("Number of loops: %b", b.N)
 			for n := 0; n < b.N; n++ {
