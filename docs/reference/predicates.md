@@ -192,7 +192,8 @@ ForwardedProtocol("http")
 ForwardedProtocol("https")
 ```
 
-## Weight (priority)
+## Weight
+###### Weight (priority)
 
 By default, the weight (priority) of a route is determined by the number of defined predicates.
 
