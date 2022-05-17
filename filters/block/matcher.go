@@ -11,6 +11,11 @@ import (
 type maxBufferHandling int
 
 const (
+	readBufferSize              = 8192
+	defaultMaxMatcherBufferSize = 2097152 // 2Mi
+)
+
+const (
 	maxBufferBestEffort maxBufferHandling = iota
 	maxBufferAbort
 )
