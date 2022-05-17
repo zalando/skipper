@@ -80,6 +80,21 @@ foo3:
   -> <dynamic>;
 ```
 
+
+## block
+
+Block a request based on it's body content.
+
+Parameters:
+
+* match (list of strings)
+
+Example:
+
+```
+* -> block("maliciousCotent") -> "http://example.com";
+```
+
 ## modRequestHeader
 
 Replace all matched regex expressions in the given header.
