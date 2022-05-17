@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	readBufferSize             = 8192
-	defaultMaxEditorBufferSize = 2097152 // 2Mi
+	readBufferSize              = 8192
+	defaultMaxMatcherBufferSize = 2097152 // 2Mi
 )
 
 type maxBufferHandling int
@@ -20,20 +20,14 @@ const (
 	maxBufferAbort
 )
 
-// editor provides a reader that wraps an input reader, and replaces each occurence of
-// the provided search pattern with the provided replacement. It can be used with a
-// delimiter or without.
+// matcher provides a reader that wraps an input reader, and blocks the request
+// if a pattern was found.
 //
-// When using it with a delimiter, it reads enough data from the input until meeting
-// a delimiter or reaching maxBufferSize. The chunk includes the delimiter if any. Then
-// every occurence of the pattern is replaced, and the entire edited chunk is returned
-// to the caller.
-//
-// When not using a delimiter, it reads enough data until at least a complete match of the
+// It reads enough data until at least a complete match of the
 // pattern is met or the maxBufferSize is reached. When the pattern matches the entire
 // buffered input, the replaced content is returned to the caller when maxBufferSize is
 // reached. This also means that more replacements can happen than if we edited the
-// entire content in one piece, but this is necessary to be able to use the editor for
+// entire content in one piece, but this is necessary to be able to use the matcher for
 // input with unknown length.
 //
 // When the maxBufferHandling is set to maxBufferAbort, then the streaming is aborted
@@ -41,15 +35,14 @@ const (
 //
 // To limit the number of repeated scans over the buffered data, the size of the
 // additional data read from the input grows exponentially with every iteration that
-// didn't result with any edited data returned to the caller. If there was any edited
-// returned to the caller, the read size is reset to the initial value.
+// didn't result with any matched data blocked. If there was any matched data
+// the read size is reset to the initial value.
 //
-// When the input returns an error, e.g. EOF, the editor finishes editing the buffered
-// data, returns it to the caller, and returns the received error on every subsequent
-// read.
+// When the input returns an error, e.g. EOF, the matcher finishes matching the buffered
+// data, blocks or return it to the caller.
 //
-// When the editor is closed, it doesn't read anymore from the input or return any
-// buffered data. If the input implements io.Closer, closing the editor closes the
+// When the matcher is closed, it doesn't read anymore from the input or return any
+// buffered data. If the input implements io.Closer, closing the matcher closes the
 // input, too.
 //
 type matcher struct {
@@ -81,7 +74,7 @@ func newMatcher(
 	mbh maxBufferHandling,
 ) *matcher {
 	if maxBufferSize <= 0 {
-		maxBufferSize = defaultMaxEditorBufferSize
+		maxBufferSize = defaultMaxMatcherBufferSize
 	}
 
 	rsize := readBufferSize
