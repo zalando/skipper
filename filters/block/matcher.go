@@ -8,11 +8,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	readBufferSize              = 8192
-	defaultMaxMatcherBufferSize = 2097152 // 2Mi
-)
-
 type maxBufferHandling int
 
 const (
@@ -64,7 +59,7 @@ type matcher struct {
 }
 
 var (
-	ErrEditorBufferFull = errors.New("editor buffer full")
+	ErrMatcherBufferFull = errors.New("matcher buffer full")
 )
 
 func newMatcher(
@@ -138,7 +133,7 @@ func (m *matcher) fill(requested int) error {
 		if m.pending.Len() > m.maxBufferSize {
 			switch m.maxBufferHandling {
 			case maxBufferAbort:
-				return ErrEditorBufferFull
+				return ErrMatcherBufferFull
 			default:
 				_, err := m.match(m.pending.Bytes())
 				if err != nil {
@@ -167,8 +162,8 @@ func (m *matcher) Read(p []byte) (int, error) {
 		m.err = m.fill(len(p))
 	}
 
-	if m.err == ErrEditorBufferFull {
-		return 0, ErrEditorBufferFull
+	if m.err == ErrMatcherBufferFull {
+		return 0, ErrMatcherBufferFull
 	}
 
 	if m.err == ErrBlocked {
