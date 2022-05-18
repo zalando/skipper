@@ -6,11 +6,17 @@ import (
 	"testing"
 )
 
-func (r *nonBlockingReader) Close() error {
-	return nil
+type nonBlockingReader struct {
+	initialContent []byte
 }
 
-func (r *infiniteReader) Close() error {
+func (r *nonBlockingReader) Read(p []byte) (int, error) {
+	n := copy(p, r.initialContent)
+	r.initialContent = r.initialContent[n:]
+	return n, nil
+}
+
+func (r *nonBlockingReader) Close() error {
 	return nil
 }
 
