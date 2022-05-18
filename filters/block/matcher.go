@@ -11,8 +11,7 @@ import (
 type maxBufferHandling int
 
 const (
-	readBufferSize              = 8192
-	defaultMaxMatcherBufferSize = 2097152 // 2Mi
+	readBufferSize uint64 = 8192
 )
 
 const (
@@ -50,7 +49,7 @@ type matcher struct {
 	// init:
 	input             io.ReadCloser
 	matchList         []string
-	maxBufferSize     int
+	maxBufferSize     uint64
 	maxBufferHandling maxBufferHandling
 	readBuffer        []byte
 
@@ -70,12 +69,9 @@ var (
 func newMatcher(
 	input io.ReadCloser,
 	matchList []string,
-	maxBufferSize int,
+	maxBufferSize uint64,
 	mbh maxBufferHandling,
 ) *matcher {
-	if maxBufferSize <= 0 {
-		maxBufferSize = defaultMaxMatcherBufferSize
-	}
 
 	rsize := readBufferSize
 	if maxBufferSize < rsize {
@@ -135,7 +131,7 @@ func (m *matcher) fill(requested int) error {
 			return err
 		}
 
-		if m.pending.Len() > m.maxBufferSize {
+		if uint64(m.pending.Len()) > m.maxBufferSize {
 			switch m.maxBufferHandling {
 			case maxBufferAbort:
 				return ErrMatcherBufferFull

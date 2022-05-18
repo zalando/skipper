@@ -11,23 +11,27 @@ var (
 	ErrBlocked = errors.New("blocked string match found in body")
 )
 
-type blockSpec struct{}
+type blockSpec struct {
+	MaxMatcherBufferSize uint64
+}
 
 type block struct {
 	match             []string
-	maxEditorBuffer   int
+	maxEditorBuffer   uint64
 	maxBufferHandling maxBufferHandling
 }
 
-func NewBlockFilter() filters.Spec {
-	return &blockSpec{}
+func NewBlockFilter(maxMatcherBufferSize uint64) filters.Spec {
+	return &blockSpec{
+		MaxMatcherBufferSize: maxMatcherBufferSize,
+	}
 }
 
 func (*blockSpec) Name() string {
 	return filters.BlockName
 }
 
-func (*blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -46,6 +50,7 @@ func (*blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	b := &block{
 		match:             sargs,
 		maxBufferHandling: maxBufferBestEffort,
+		maxEditorBuffer:   bs.MaxMatcherBufferSize,
 	}
 
 	return *b, nil
@@ -56,6 +61,7 @@ func (b block) Request(ctx filters.FilterContext) {
 	if req.ContentLength == 0 {
 		return
 	}
+
 	req.Body = newMatcher(
 		req.Body,
 		b.match,
