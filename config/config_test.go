@@ -92,6 +92,7 @@ func Test_NewConfig(t *testing.T) {
 				MaxLoopbacks:                            12,
 				DefaultHTTPStatus:                       404,
 				MaxAuditBody:                            1024,
+				MaxMatcherBufferSize:                    2097152,
 				MetricsFlavour:                          commaListFlag("codahale", "prometheus"),
 				FilterPlugins:                           newPluginFlag(),
 				PredicatePlugins:                        newPluginFlag(),

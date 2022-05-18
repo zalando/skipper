@@ -42,11 +42,10 @@ func TestBlock(t *testing.T) {
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &nonBlockingReader{initialContent: []byte(tt.content)}
-			bmb := newMatcher(r, []string{".class"}, defaultMaxMatcherBufferSize, maxBufferBestEffort)
+			bmb := newMatcher(r, []string{".class"}, 2097152, maxBufferBestEffort)
 			t.Logf("Content: %s", r.initialContent)
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)
-			t.Logf("P after reading is: %s", p)
 			if err != nil {
 				if err == ErrBlocked {
 					t.Logf("Stop! Request has some blocked content!")
@@ -112,7 +111,7 @@ func BenchmarkBlock(b *testing.B) {
 			r := &http.Request{
 				Body: target,
 			}
-			bmb := newMatcher(r.Body, []string{tt.tomatch}, defaultMaxMatcherBufferSize, maxBufferBestEffort)
+			bmb := newMatcher(r.Body, []string{tt.tomatch}, 2097152, maxBufferBestEffort)
 			p := make([]byte, len(target.initialContent))
 			b.Logf("Number of loops: %b", b.N)
 			for n := 0; n < b.N; n++ {
