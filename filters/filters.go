@@ -214,7 +214,6 @@ const (
 	RandomContentName                          = "randomContent"
 	RepeatContentName                          = "repeatContent"
 	BackendTimeoutName                         = "backendTimeout"
-	BodyMatchName                              = "bodyMatch"
 	BlockName                                  = "block"
 	LatencyName                                = "latency"
 	BandwidthName                              = "bandwidth"
