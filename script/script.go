@@ -66,6 +66,7 @@ func newStatePool(max int) (*statePool, error) {
 	return sp, nil
 }
 
+// GetState acquires a Lua VM from the pool
 func (sp *statePool) GetState() (*lua.LState, error) {
 	select {
 	case L := <-sp.pool:
@@ -74,11 +75,12 @@ func (sp *statePool) GetState() (*lua.LState, error) {
 		}
 		return L, nil
 	default:
-		//log.Info("create new state")
+		log.Debug("create new Lua VM")
 		return newState()
 	}
 }
 
+// PutState releases the given Lua VM into the pool
 func (sp *statePool) PutState(L *lua.LState) {
 	if sp.pool == nil { // pool closed
 		L.Close()
@@ -95,31 +97,12 @@ type luaScript struct {
 	pool *statePool
 }
 
-// NewLuaScript creates a new filter spec for skipper with default pool size
-func NewLuaScript() filters.Spec {
-	return WithPoolSize(defaultPoolSize)
-}
-
-// WithPoolSize creates a new filter spec for skipper with global pool size set
-func WithPoolSize(poolSize int) filters.Spec {
-	log.Infof("creating Lua pool of %d", poolSize)
-	p, err := newStatePool(poolSize)
-	if err != nil {
-		log.Fatalf("Failed to create Lua pool: %v", err)
-		return nil
-	}
-
-	return &luaScript{
-		pool: p,
-	}
-}
-
 // Name returns the name of the filter ("lua")
 func (ls *luaScript) Name() string {
 	return filters.LuaName
 }
 
-// CreateFilter creates the filter
+// CreateFilter creates the filter. It initializes and compiles the lua script
 func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -148,12 +131,30 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 	return s, nil
 }
 
+// NewLuaScript creates a new filter spec for skipper with default pool size
+func NewLuaScript() filters.Spec {
+	return WithPoolSize(defaultPoolSize)
+}
+
+// WithPoolSize creates a new filter spec for skipper with global pool size set
+func WithPoolSize(poolSize int) filters.Spec {
+	log.Debugf("creating Lua pool of %d", poolSize)
+	p, err := newStatePool(poolSize)
+	if err != nil {
+		log.Fatalf("Failed to create Lua pool: %v", err)
+		return nil
+	}
+
+	return &luaScript{
+		pool: p,
+	}
+}
+
 func createScript(L *lua.LState, proto *lua.FunctionProto) (*lua.LState, error) {
 	L.Push(L.NewFunctionFromProto(proto))
 
 	err := L.PCall(0, lua.MultRet, nil)
 	if err != nil {
-		L.Close()
 		return nil, err
 	}
 	return L, nil
@@ -178,10 +179,29 @@ func (s *script) newState() (*lua.LState, error) {
 
 	err = L.PCall(0, lua.MultRet, nil)
 	if err != nil {
-		L.Close()
+		s.putState(L) // VM is fine, script is not, release VM to pool
 		return nil, err
 	}
 	return L, err
+}
+
+func (s *script) getState() (*lua.LState, error) {
+	L, err := s.globalPool.GetState()
+	if err != nil {
+		return nil, err
+	}
+	l, err := createScript(L, s.proto)
+	if err != nil {
+		// LState (Lua VM) remains usable https://github.com/yuin/gopher-lua/discussions/377#discussioncomment-2665698
+		// release VM to pool
+		s.putState(L)
+	}
+
+	return l, err
+}
+
+func (s *script) putState(L *lua.LState) {
+	s.globalPool.PutState(L)
 }
 
 // compile, save and test
@@ -195,7 +215,6 @@ func (s *script) initScript() error {
 	if err != nil {
 		return err
 	}
-	defer L.Close()
 
 	if fn := L.GetGlobal("request"); fn.Type() == lua.LTFunction {
 		s.hasRequest = true
@@ -208,18 +227,6 @@ func (s *script) initScript() error {
 	}
 
 	return nil
-}
-
-func (s *script) getState() (*lua.LState, error) {
-	L, err := s.globalPool.GetState()
-	if err != nil {
-		return nil, err
-	}
-	return createScript(L, s.proto)
-}
-
-func (s *script) putState(L *lua.LState) {
-	s.globalPool.PutState(L)
 }
 
 func (s *script) compileSource() error {
@@ -256,12 +263,14 @@ func (s *script) compileSource() error {
 	return nil
 }
 
+// Request is running the request() function of the filter in a pooled Lua VM
 func (s *script) Request(f filters.FilterContext) {
 	if s.hasRequest {
 		s.runFunc("request", f)
 	}
 }
 
+// Response is running the response() function of the filter in a pooled Lua VM
 func (s *script) Response(f filters.FilterContext) {
 	if s.hasResponse {
 		s.runFunc("response", f)
