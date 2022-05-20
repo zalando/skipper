@@ -5,14 +5,17 @@ import (
 	"errors"
 	"io"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/prometheus/common/log"
+	"github.com/zalando/skipper/metrics"
 )
 
-type maxBufferHandling int
+type toblockKeys struct{ str []byte }
 
 const (
 	readBufferSize uint64 = 8192
 )
+
+type maxBufferHandling int
 
 const (
 	maxBufferBestEffort maxBufferHandling = iota
@@ -48,7 +51,7 @@ type matcher struct {
 
 	// init:
 	input             io.ReadCloser
-	matchList         []string
+	toblockList       []toblockKeys
 	maxBufferSize     uint64
 	maxBufferHandling maxBufferHandling
 	readBuffer        []byte
@@ -56,6 +59,9 @@ type matcher struct {
 	// state:
 	ready   *bytes.Buffer
 	pending *bytes.Buffer
+
+	// metrices:
+	metrics metrics.Metrics
 
 	// final:
 	err    error
@@ -68,7 +74,7 @@ var (
 
 func newMatcher(
 	input io.ReadCloser,
-	matchList []string,
+	toblockList []toblockKeys,
 	maxBufferSize uint64,
 	mbh maxBufferHandling,
 ) *matcher {
@@ -80,12 +86,13 @@ func newMatcher(
 
 	return &matcher{
 		input:             input,
-		matchList:         matchList,
+		toblockList:       toblockList,
 		maxBufferSize:     maxBufferSize,
 		maxBufferHandling: mbh,
 		readBuffer:        make([]byte, rsize),
 		pending:           bytes.NewBuffer(nil),
 		ready:             bytes.NewBuffer(nil),
+		metrics:           metrics.Default,
 	}
 }
 
@@ -110,10 +117,9 @@ func (m *matcher) readNTimes(times int) (bool, error) {
 func (m *matcher) match(b []byte) (int, error) {
 	var consumed int
 
-	for _, s := range m.matchList {
-		if bytes.Contains(b, []byte(s)) {
+	for _, s := range m.toblockList {
+		if bytes.Contains(b, s.str) {
 			b = nil
-			log.Errorf("Content blocked: %v", ErrBlocked)
 			return 0, ErrBlocked
 		}
 	}
@@ -168,6 +174,8 @@ func (m *matcher) Read(p []byte) (int, error) {
 	}
 
 	if m.err == ErrBlocked {
+		m.metrics.IncCounter("blocked-requests")
+		log.Errorf("Content blocked: %v", ErrBlocked)
 		return 0, ErrBlocked
 	}
 
