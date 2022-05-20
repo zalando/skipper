@@ -174,7 +174,7 @@ func (m *matcher) Read(p []byte) (int, error) {
 	}
 
 	if m.err == ErrBlocked {
-		m.metrics.IncCounter("blocked-requests")
+		m.metrics.IncCounter("blocked.requests")
 		log.Errorf("Content blocked: %v", ErrBlocked)
 		return 0, ErrBlocked
 	}
@@ -189,6 +189,12 @@ func (m *matcher) Read(p []byte) (int, error) {
 
 	if err != nil {
 		m.closed = true
+
+		if err == ErrBlocked {
+			m.metrics.IncCounter("blocked.requests")
+			log.Errorf("Content blocked: %v", ErrBlocked)
+		}
+
 		return 0, err
 	}
 
