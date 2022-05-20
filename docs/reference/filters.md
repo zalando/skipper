@@ -81,13 +81,15 @@ foo3:
 ```
 
 
-## block
+## blockContent
 
 Block a request based on it's body content.
 
+The filter max request body is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
+
 Parameters:
 
-* match (list of strings)
+* toblockList (List of []bytes)
 
 Example:
 
