@@ -16,7 +16,7 @@ type blockSpec struct {
 }
 
 type block struct {
-	match             []string
+	toblockList       []toblockKeys
 	maxEditorBuffer   uint64
 	maxBufferHandling maxBufferHandling
 }
@@ -36,11 +36,11 @@ func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	sargs := make([]string, 0, len(args))
+	sargs := make([]toblockKeys, 0, len(args))
 	for _, w := range args {
 		switch v := w.(type) {
 		case string:
-			sargs = append(sargs, string(v))
+			sargs = append(sargs, toblockKeys{str: []byte(v)})
 
 		default:
 			return nil, filters.ErrInvalidFilterParameters
@@ -48,7 +48,7 @@ func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	b := &block{
-		match:             sargs,
+		toblockList:       sargs,
 		maxBufferHandling: maxBufferBestEffort,
 		maxEditorBuffer:   bs.MaxMatcherBufferSize,
 	}
@@ -64,7 +64,7 @@ func (b block) Request(ctx filters.FilterContext) {
 
 	req.Body = newMatcher(
 		req.Body,
-		b.match,
+		b.toblockList,
 		b.maxEditorBuffer,
 		b.maxBufferHandling,
 	)

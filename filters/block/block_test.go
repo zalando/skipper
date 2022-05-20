@@ -48,7 +48,10 @@ func TestBlock(t *testing.T) {
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &nonBlockingReader{initialContent: []byte(tt.content)}
-			bmb := newMatcher(r, []string{".class"}, 2097152, maxBufferBestEffort)
+			toblockList := []toblockKeys{{str: []byte(".class")}}
+
+			bmb := newMatcher(r, toblockList, 2097152, maxBufferBestEffort)
+
 			t.Logf("Content: %s", r.initialContent)
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)
@@ -79,37 +82,37 @@ func BenchmarkBlock(b *testing.B) {
 
 	for _, tt := range []struct {
 		name    string
-		tomatch string
+		tomatch []byte
 		bm      []byte
 	}{
 		{
 			name:    "Small Stream without blocking",
-			tomatch: ".class",
+			tomatch: []byte(".class"),
 			bm:      []byte(fake(".class", 1<<20)), // Test with 1Mib
 		},
 		{
 			name:    "Small Stream with blocking",
-			tomatch: ".class",
+			tomatch: []byte(".class"),
 			bm:      []byte(fakematch(".class", 1<<20)),
 		},
 		{
 			name:    "Medium Stream without blocking",
-			tomatch: ".class",
+			tomatch: []byte(".class"),
 			bm:      []byte(fake(".class", 1<<24)), // Test with ~10Mib
 		},
 		{
 			name:    "Medium Stream with blocking",
-			tomatch: ".class",
+			tomatch: []byte(".class"),
 			bm:      []byte(fakematch(".class", 1<<24)),
 		},
 		{
 			name:    "Large Stream without blocking",
-			tomatch: ".class",
+			tomatch: []byte(".class"),
 			bm:      []byte(fake(".class", 1<<27)), // Test with ~100Mib
 		},
 		{
 			name:    "Large Stream with blocking",
-			tomatch: ".class",
+			tomatch: []byte(".class"),
 			bm:      []byte(fakematch(".class", 1<<27)),
 		}} {
 		b.Run(tt.name, func(b *testing.B) {
@@ -117,7 +120,8 @@ func BenchmarkBlock(b *testing.B) {
 			r := &http.Request{
 				Body: target,
 			}
-			bmb := newMatcher(r.Body, []string{tt.tomatch}, 2097152, maxBufferBestEffort)
+			toblockList := []toblockKeys{{str: tt.tomatch}}
+			bmb := newMatcher(r.Body, toblockList, 2097152, maxBufferBestEffort)
 			p := make([]byte, len(target.initialContent))
 			b.Logf("Number of loops: %b", b.N)
 			for n := 0; n < b.N; n++ {
