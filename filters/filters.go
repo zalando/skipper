@@ -268,6 +268,7 @@ const (
 	RatelimitName                              = "ratelimit"
 	ClusterClientRatelimitName                 = "clusterClientRatelimit"
 	ClusterRatelimitName                       = "clusterRatelimit"
+	ClusterLeakyBucketRatelimitName            = "clusterLeakyBucketRatelimit"
 	BackendRateLimitName                       = "backendRatelimit"
 	LuaName                                    = "lua"
 	CorsOriginName                             = "corsOrigin"

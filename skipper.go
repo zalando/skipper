@@ -1505,6 +1505,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
+	if ratelimitRegistry != nil && redisOptions != nil {
+		o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewLeakyBucket(ratelimitRegistry))
+	}
+
 	// create a filter registry with the available filter specs registered,
 	// and register the custom filters
 	registry := builtin.MakeRegistry()
