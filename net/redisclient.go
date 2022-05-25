@@ -281,6 +281,7 @@ func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
 	res := r.ring.Get(ctx, key)
 	return res.Val(), res.Err()
 }
+
 func (r *RedisRingClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) (string, error) {
 	res := r.ring.Set(ctx, key, value, expiration)
 	return res.Result()

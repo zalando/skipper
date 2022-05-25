@@ -85,9 +85,9 @@ func (b *ClusterLeakyBucket) add(ctx context.Context, label string, increment in
 	r, err := b.ringClient.RunScript(ctx, b.script,
 		[]string{b.getBucketId(label)},
 		b.capacity,
-		b.emission.Nanoseconds(),
+		b.emission.Microseconds(),
 		increment,
-		now.UnixNano(),
+		now.UnixMicro(),
 	)
 
 	if err == nil {
@@ -95,7 +95,7 @@ func (b *ClusterLeakyBucket) add(ctx context.Context, label string, increment in
 		if x >= 0 {
 			added, retry = true, 0
 		} else {
-			added, retry = false, time.Duration(-x)
+			added, retry = false, time.Duration(-x*1000)
 		}
 	}
 	return

@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/zalando/skipper/net/redistest"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type attempt struct {
@@ -112,4 +114,36 @@ func TestLeakyBucketId(t *testing.T) {
 	b2 := newClusterLeakyBucket(nil, 2, time.Minute, time.Now)
 
 	assert.NotEqual(t, b1.getBucketId(label), b2.getBucketId(label))
+}
+
+func TestLeakyBucketRedisStoredNumberPrecision(t *testing.T) {
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
+
+	ringClient := net.NewRedisRingClient(
+		&net.RedisOptions{
+			Addrs: []string{redisAddr},
+		},
+	)
+	defer ringClient.Close()
+
+	const (
+		capacity  = 10
+		emission  = time.Second
+		label     = "alabel"
+		increment = 2
+	)
+
+	now := time.Now()
+	b := newClusterLeakyBucket(ringClient, capacity, emission, func() time.Time { return now })
+
+	_, _, err := b.Add(context.Background(), label, increment)
+	require.NoError(t, err)
+
+	v, err := ringClient.Get(context.Background(), b.getBucketId(label))
+	require.NoError(t, err)
+
+	expected := now.UnixMicro() + (increment * emission).Microseconds()
+
+	assert.Equal(t, fmt.Sprintf("%d", expected), v)
 }
