@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -48,7 +49,7 @@ func (s *leakyBucketSpec) CreateFilter(args []interface{}) (filters.Filter, erro
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	leakVolume, err := getIntArg(args[1])
+	leakVolume, err := natural(args[1])
 	if err != nil {
 		return nil, err
 	}
@@ -57,13 +58,16 @@ func (s *leakyBucketSpec) CreateFilter(args []interface{}) (filters.Filter, erro
 	if err != nil {
 		return nil, err
 	}
+	if leakPeriod <= 0 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
 
-	capacity, err := getIntArg(args[3])
+	capacity, err := natural(args[3])
 	if err != nil {
 		return nil, err
 	}
 
-	increment, err := getIntArg(args[4])
+	increment, err := natural(args[4])
 	if err != nil {
 		return nil, err
 	}
@@ -95,3 +99,11 @@ func (f *leakyBucketFilter) Request(ctx filters.FilterContext) {
 }
 
 func (*leakyBucketFilter) Response(filters.FilterContext) {}
+
+func natural(arg interface{}) (n int, err error) {
+	n, err = getIntArg(arg)
+	if err == nil && n <= 0 {
+		err = fmt.Errorf(`number %d must be positive`, n)
+	}
+	return
+}
