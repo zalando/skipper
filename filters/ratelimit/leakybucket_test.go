@@ -32,7 +32,6 @@ func TestLeakyBucketFilterInvalidArgs(t *testing.T) {
 		{[]interface{}{"alabel", 1, "invalid period", 1, 1}},
 		{[]interface{}{"alabel", 1, "1s", "invalid capacity", 1}},
 		{[]interface{}{"alabel", 1, "1s", 1, "invalid increment"}},
-		{[]interface{}{"negative increment", 1, "1s", 1, -1}},
 	} {
 		t.Run(fmt.Sprintf("test#%d", i), func(t *testing.T) {
 			_, err := spec.CreateFilter(test.args)
