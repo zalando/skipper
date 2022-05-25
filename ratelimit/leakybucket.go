@@ -28,9 +28,10 @@ type ClusterLeakyBucket struct {
 }
 
 const (
-	leakyBucketMetricPrefix  = "leakybucket.redis."
-	leakyBucketMetricLatency = leakyBucketMetricPrefix + "latency"
-	leakyBucketSpanName      = "redis_leakybucket"
+	leakyBucketRedisKeyPrefix = "lkb."
+	leakyBucketMetricPrefix   = "leakybucket.redis."
+	leakyBucketMetricLatency  = leakyBucketMetricPrefix + "latency"
+	leakyBucketSpanName       = "redis_leakybucket"
 )
 
 // Implements leaky bucket algorithm as a Redis lua script.
@@ -102,7 +103,7 @@ func (b *ClusterLeakyBucket) add(ctx context.Context, label string, increment in
 }
 
 func (b *ClusterLeakyBucket) getBucketId(label string) string {
-	return "lkb." + getHashedKey(b.labelPrefix+label)
+	return leakyBucketRedisKeyPrefix + getHashedKey(b.labelPrefix+label)
 }
 
 func (b *ClusterLeakyBucket) startSpan(ctx context.Context) (span opentracing.Span) {
