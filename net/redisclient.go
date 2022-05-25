@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -25,6 +26,11 @@ import (
 type RedisOptions struct {
 	// Addrs are the list of redis shards
 	Addrs []string
+
+	// AddrUpdater is a func that is called with a channel that
+	// will be written to an updated redis address list
+	AddrUpdater func(quit chan struct{}, ch chan<- []string)
+
 	// Password is the password needed to connect to Redis server
 	Password string
 
@@ -80,6 +86,7 @@ type RedisRingClient struct {
 	options       *RedisOptions
 	tracer        opentracing.Tracer
 	quit          chan struct{}
+	ch            chan []string
 }
 
 type RedisScript struct {
@@ -204,9 +211,8 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			ringOptions.NewConsistentHash = NewMultiprobe
 		}
 
-		for idx, addr := range ro.Addrs {
-			ringOptions.Addrs[fmt.Sprintf("redis%d", idx)] = addr
-		}
+		ringOptions.Addrs = createAddressMap(ro.Addrs)
+		ro.Log.Infof("create ring with addresses: %v", ro.Addrs)
 		ringOptions.ReadTimeout = ro.ReadTimeout
 		ringOptions.WriteTimeout = ro.WriteTimeout
 		ringOptions.PoolTimeout = ro.PoolTimeout
@@ -226,9 +232,32 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		r.ring = redis.NewRing(ringOptions)
 		r.log = ro.Log
 		r.metricsPrefix = ro.MetricsPrefix
+
+		ch := make(chan []string)
+		go ro.AddrUpdater(r.quit, ch)
+		go func(quit chan struct{}, rCH <-chan []string) {
+			for {
+				select {
+				case <-quit:
+					return
+				case addrs := <-rCH:
+					r.SetAddrs(context.Background(), createAddressMap(addrs))
+				}
+			}
+		}(r.quit, ch)
+		r.ch = ch
 	}
 
 	return r
+}
+
+func createAddressMap(addrs []string) map[string]string {
+	res := make(map[string]string)
+	for idx, addr := range addrs {
+		addr = strings.TrimLeft(addr, "TCP://")
+		res[fmt.Sprintf("redis%d", idx)] = addr
+	}
+	return res
 }
 
 func (r *RedisRingClient) RingAvailable() bool {
@@ -274,7 +303,13 @@ func (r *RedisRingClient) StartSpan(operationName string, opts ...opentracing.St
 func (r *RedisRingClient) Close() {
 	if r != nil {
 		close(r.quit)
+		close(r.ch)
 	}
+}
+
+func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs map[string]string) {
+	r.log.Infof("SetAddrs: %v", addrs)
+	r.ring.SetAddrs(addrs)
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
