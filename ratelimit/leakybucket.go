@@ -95,7 +95,7 @@ func (b *ClusterLeakyBucket) add(ctx context.Context, label string, increment in
 		if x >= 0 {
 			added, retry = true, 0
 		} else {
-			added, retry = false, time.Duration(-x*1000)
+			added, retry = false, -time.Duration(x)*time.Microsecond
 		}
 	}
 	return
