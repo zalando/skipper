@@ -233,19 +233,22 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		r.log = ro.Log
 		r.metricsPrefix = ro.MetricsPrefix
 
-		ch := make(chan []string)
-		go ro.AddrUpdater(r.quit, ch)
-		go func(quit chan struct{}, rCH <-chan []string) {
-			for {
-				select {
-				case <-quit:
-					return
-				case addrs := <-rCH:
-					r.SetAddrs(context.Background(), createAddressMap(addrs))
+		if ro.AddrUpdater != nil {
+			ch := make(chan []string)
+			go ro.AddrUpdater(r.quit, ch)
+
+			go func(quit chan struct{}, rCH <-chan []string) {
+				for {
+					select {
+					case <-quit:
+						return
+					case addrs := <-rCH:
+						r.SetAddrs(context.Background(), createAddressMap(addrs))
+					}
 				}
-			}
-		}(r.quit, ch)
-		r.ch = ch
+			}(r.quit, ch)
+			r.ch = ch
+		}
 	}
 
 	return r
