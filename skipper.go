@@ -1452,6 +1452,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			ratelimitfilters.NewDisableRatelimit(provider),
 			ratelimitfilters.NewBackendRatelimit(),
 		)
+
+		if redisOptions != nil {
+			o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewClusterLeakyBucket(ratelimitRegistry))
+		}
 	}
 
 	if o.TLSMinVersion == 0 {
@@ -1503,10 +1507,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			return err
 		}
 		o.CustomFilters = append(o.CustomFilters, compress)
-	}
-
-	if ratelimitRegistry != nil && redisOptions != nil {
-		o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewLeakyBucket(ratelimitRegistry))
 	}
 
 	// create a filter registry with the available filter specs registered,

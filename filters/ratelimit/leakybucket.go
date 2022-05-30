@@ -26,7 +26,7 @@ type leakyBucketFilter struct {
 	increment int
 }
 
-func NewLeakyBucket(registry *ratelimit.Registry) filters.Spec {
+func NewClusterLeakyBucket(registry *ratelimit.Registry) filters.Spec {
 	return &leakyBucketSpec{
 		create: func(capacity int, emission time.Duration) leakyBucket {
 			return ratelimit.NewClusterLeakyBucket(registry, capacity, emission)
