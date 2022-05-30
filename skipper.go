@@ -1452,6 +1452,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			ratelimitfilters.NewDisableRatelimit(provider),
 			ratelimitfilters.NewBackendRatelimit(),
 		)
+
+		if redisOptions != nil {
+			o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewClusterLeakyBucketRatelimit(ratelimitRegistry))
+		}
 	}
 
 	if o.TLSMinVersion == 0 {

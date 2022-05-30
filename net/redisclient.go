@@ -82,6 +82,10 @@ type RedisRingClient struct {
 	quit          chan struct{}
 }
 
+type RedisScript struct {
+	script *redis.Script
+}
+
 const (
 	// DefaultReadTimeout is the default socket read timeout
 	DefaultReadTimeout = 25 * time.Millisecond
@@ -277,6 +281,7 @@ func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
 	res := r.ring.Get(ctx, key)
 	return res.Val(), res.Err()
 }
+
 func (r *RedisRingClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) (string, error) {
 	res := r.ring.Set(ctx, key, value, expiration)
 	return res.Result()
@@ -324,4 +329,12 @@ func (r *RedisRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key 
 	}
 
 	return zs[0].Member, nil
+}
+
+func (r *RedisRingClient) NewScript(source string) *RedisScript {
+	return &RedisScript{redis.NewScript(source)}
+}
+
+func (r *RedisRingClient) RunScript(ctx context.Context, s *RedisScript, keys []string, args ...interface{}) (interface{}, error) {
+	return s.script.Run(ctx, r.ring, keys, args...).Result()
 }
