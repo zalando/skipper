@@ -886,6 +886,8 @@ github.com/szuecs/rate-limit-buffer v0.7.1 h1:kpVLwDvpCTFQi8uhiXQrhAKWzNUaEKhArF
 github.com/szuecs/rate-limit-buffer v0.7.1/go.mod h1:BxqrsmnHsCnWcvbtdcaDLEBmjNEvRFU5LQ8edoZ9B0M=
 github.com/szuecs/redis/v8 v8.11.5-1 h1:j4QZXrFaLBZaBDhJSZ7qyUW20i1Cq+EJ3E6DzbgJwt0=
 github.com/szuecs/redis/v8 v8.11.5-1/go.mod h1:25mL1NKxbJhB63ihiK8MnNeTRd+xAizd6bOdydrTLUQ=
+github.com/szuecs/redis/v8 v8.11.5-2 h1:Gx557/fUG9cVcYNVh1UCBZbgRl/XMmmp/PczfW4jaXg=
+github.com/szuecs/redis/v8 v8.11.5-2/go.mod h1:25mL1NKxbJhB63ihiK8MnNeTRd+xAizd6bOdydrTLUQ=
 github.com/szuecs/routegroup-client v0.21.0 h1:XWLxK2OCs4lZeIIHOJVVaFpe7nFmJjM3r+fOsZ2eyWw=
 github.com/szuecs/routegroup-client v0.21.0/go.mod h1:GbR5pqdcJdiFx9aL2hoq1ghAMZ9E1qFKBf88w7vqyK0=
 github.com/tchap/go-patricia v2.2.6+incompatible/go.mod h1:bmLyhP68RS6kStMGxByiQ23RP/odRBOTVjwp2cDyi6I=
