@@ -179,7 +179,7 @@ and detailed information on these topics:
 - [Proxy Packages](https://godoc.org/github.com/zalando/skipper/proxy)
 - [Logging](https://godoc.org/github.com/zalando/skipper/logging) and [Metrics](https://godoc.org/github.com/zalando/skipper/metrics)
 - Performance Considerations
-- [Rate Limiters](https://godoc.org/github.com/zalando/skipper/reference/filters/#ratelimit)
+- [Rate Limiters](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
 - [Opentracing plugin](https://github.com/skipper-plugins/opentracing/) or extend [create your own](https://opensource.zalando.com/skipper/reference/plugins/#opentracing-plugins)
 - [WAF plugin](https://github.com/jptosso/coraza-waf) - Web Application Firewall filter for Skipper routes
 
