@@ -55,10 +55,14 @@ func NewClusterLeakyBucket(r *Registry, capacity int, emission time.Duration) *C
 }
 
 func newClusterLeakyBucket(ringClient *net.RedisRingClient, capacity int, emission time.Duration, now func() time.Time) *ClusterLeakyBucket {
-	labelPrefix := fmt.Sprintf("%d-%v-", capacity, emission)
 	return &ClusterLeakyBucket{
-		capacity, emission, labelPrefix,
-		ringClient.NewScript(leakyBucketScript), ringClient, metrics.Default, now,
+		capacity:    capacity,
+		emission:    emission,
+		labelPrefix: fmt.Sprintf("%d-%v-", capacity, emission),
+		script:      ringClient.NewScript(leakyBucketScript),
+		ringClient:  ringClient,
+		metrics:     metrics.Default,
+		now:         now,
 	}
 }
 
