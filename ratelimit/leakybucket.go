@@ -13,10 +13,6 @@ import (
 	"github.com/zalando/skipper/net"
 )
 
-// The leaky bucket is an algorithm based on an analogy of how a bucket with a constant leak will overflow if either
-// the average rate at which water is poured in exceeds the rate at which the bucket leaks or if more water than
-// the capacity of the bucket is poured in all at once.
-// See https://en.wikipedia.org/wiki/Leaky_bucket
 type ClusterLeakyBucket struct {
 	capacity    int
 	emission    time.Duration
@@ -49,6 +45,11 @@ var leakyBucketScript string
 
 // NewClusterLeakyBucket creates a class of leaky buckets of a given capacity and emission.
 // Emission is the reciprocal of the leak rate and equals the time to leak one unit.
+//
+// The leaky bucket is an algorithm based on an analogy of how a bucket with a constant leak will overflow if either
+// the average rate at which water is poured in exceeds the rate at which the bucket leaks or if more water than
+// the capacity of the bucket is poured in all at once.
+// See https://en.wikipedia.org/wiki/Leaky_bucket
 func NewClusterLeakyBucket(r *Registry, capacity int, emission time.Duration) *ClusterLeakyBucket {
 	return newClusterLeakyBucket(r.redisRing, capacity, emission, time.Now)
 }

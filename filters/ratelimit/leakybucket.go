@@ -26,6 +26,17 @@ type leakyBucketFilter struct {
 	increment int
 }
 
+// NewClusterLeakyBucket creates a filter Spec, whose instances implement rate limiting using leaky bucket algorithm.
+//
+// The leaky bucket is an algorithm based on an analogy of how a bucket with a constant leak will overflow if either
+// the average rate at which water is poured in exceeds the rate at which the bucket leaks or if more water than
+// the capacity of the bucket is poured in all at once.
+// See https://en.wikipedia.org/wiki/Leaky_bucket
+//
+// Example to allow each unique Authorization header once in five seconds:
+//
+//    clusterLeakyBucketRatelimit("auth-${request.header.Authorization}", 1, "5s", 2, 1)
+//
 func NewClusterLeakyBucket(registry *ratelimit.Registry) filters.Spec {
 	return &leakyBucketSpec{
 		create: func(capacity int, emission time.Duration) leakyBucket {
@@ -38,7 +49,6 @@ func (s *leakyBucketSpec) Name() string {
 	return filters.ClusterLeakyBucketRatelimitName
 }
 
-// clusterLeakyBucketRatelimit("a-label-${template}", leakVolume, "leak period", capacity, increment)
 func (s *leakyBucketSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 5 {
 		return nil, filters.ErrInvalidFilterParameters
