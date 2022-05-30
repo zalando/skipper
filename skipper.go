@@ -1454,7 +1454,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 
 		if redisOptions != nil {
-			o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewClusterLeakyBucket(ratelimitRegistry))
+			o.CustomFilters = append(o.CustomFilters, ratelimitfilters.NewClusterLeakyBucketRatelimit(ratelimitRegistry))
 		}
 	}
 

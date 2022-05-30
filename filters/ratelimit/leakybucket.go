@@ -26,7 +26,7 @@ type leakyBucketFilter struct {
 	increment int
 }
 
-// NewClusterLeakyBucket creates a filter Spec, whose instances implement rate limiting using leaky bucket algorithm.
+// NewClusterLeakyBucketRatelimit creates a filter Spec, whose instances implement rate limiting using leaky bucket algorithm.
 //
 // The leaky bucket is an algorithm based on an analogy of how a bucket with a constant leak will overflow if either
 // the average rate at which water is poured in exceeds the rate at which the bucket leaks or if more water than
@@ -37,7 +37,7 @@ type leakyBucketFilter struct {
 //
 //    clusterLeakyBucketRatelimit("auth-${request.header.Authorization}", 1, "5s", 2, 1)
 //
-func NewClusterLeakyBucket(registry *ratelimit.Registry) filters.Spec {
+func NewClusterLeakyBucketRatelimit(registry *ratelimit.Registry) filters.Spec {
 	return &leakyBucketSpec{
 		create: func(capacity int, emission time.Duration) leakyBucket {
 			return ratelimit.NewClusterLeakyBucket(registry, capacity, emission)
