@@ -7,6 +7,7 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/proxy"
 )
 
 type toblockKeys struct{ str []byte }
@@ -120,7 +121,7 @@ func (m *matcher) match(b []byte) (int, error) {
 	for _, s := range m.toblockList {
 		if bytes.Contains(b, s.str) {
 			b = nil
-			return 0, ErrBlocked
+			return 0, proxy.ErrBlocked
 		}
 	}
 	consumed += len(b)
@@ -173,10 +174,10 @@ func (m *matcher) Read(p []byte) (int, error) {
 		return 0, ErrMatcherBufferFull
 	}
 
-	if m.err == ErrBlocked {
+	if m.err == proxy.ErrBlocked {
 		m.metrics.IncCounter("blocked.requests")
-		log.Errorf("Content blocked: %v", ErrBlocked)
-		return 0, ErrBlocked
+		log.Errorf("Content blocked: %v", proxy.ErrBlocked)
+		return 0, proxy.ErrBlocked
 	}
 
 	n, _ := m.ready.Read(p)
@@ -190,9 +191,9 @@ func (m *matcher) Read(p []byte) (int, error) {
 	if err != nil {
 		m.closed = true
 
-		if err == ErrBlocked {
+		if err == proxy.ErrBlocked {
 			m.metrics.IncCounter("blocked.requests")
-			log.Errorf("Content blocked: %v", ErrBlocked)
+			log.Errorf("Content blocked: %v", proxy.ErrBlocked)
 		}
 
 		return 0, err

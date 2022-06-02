@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/zalando/skipper/proxy"
 )
 
 type nonBlockingReader struct {
@@ -29,7 +31,7 @@ func TestBlock(t *testing.T) {
 		{
 			name:    "small string",
 			content: ".class",
-			err:     ErrBlocked,
+			err:     proxy.ErrBlocked,
 		},
 		{
 			name:    "small string without match",
@@ -39,7 +41,7 @@ func TestBlock(t *testing.T) {
 		{
 			name:    "small string with match",
 			content: "fox.class.foo.blah",
-			err:     ErrBlocked,
+			err:     proxy.ErrBlocked,
 		},
 		{
 			name:    "long string",
@@ -56,7 +58,7 @@ func TestBlock(t *testing.T) {
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)
 			if err != nil {
-				if err == ErrBlocked {
+				if err == proxy.ErrBlocked {
 					t.Logf("Stop! Request has some blocked content!")
 				} else {
 					t.Errorf("Failed to read: %v", err)

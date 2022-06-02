@@ -7,8 +7,7 @@ import (
 )
 
 var (
-	ErrClosed  = errors.New("reader closed")
-	ErrBlocked = errors.New("blocked string match found in body")
+	ErrClosed = errors.New("reader closed")
 )
 
 type blockSpec struct {
