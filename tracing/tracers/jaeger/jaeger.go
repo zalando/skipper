@@ -29,69 +29,67 @@ func parseOptions(opts []string) (*config.Configuration, error) {
 	var globalTags []opentracing.Tag
 
 	for _, o := range opts {
-		parts := strings.SplitN(o, "=", 2)
-		switch parts[0] {
+		k, v, _ := strings.Cut(o, "=")
+		switch k {
 		case "service-name":
-			if len(parts) > 1 {
-				serviceName = parts[1]
+			if v != "" {
+				serviceName = v
 			}
 
 		case "use-rpc-metrics":
 			useRPCMetrics = true
 
 		case "sampler-type":
-			if len(parts) == 1 {
-				return nil, missingArg(parts[0])
+			if v == "" {
+				return nil, missingArg(k)
 			}
-			samplerValue := parts[1]
-			parts = strings.SplitN(samplerValue, ":", 2)
-			samplerType = parts[0]
+			samplerType, v, _ = strings.Cut(v, ":")
 			switch samplerType {
 			case "const":
 				samplerParam = 1.0
 			case "probabilistic", "rateLimiting", "remote":
-				if len(parts) == 1 {
-					return nil, missingArg(parts[1])
+				if v == "" {
+					return nil, missingArg(k)
 				}
-				samplerParam, err = strconv.ParseFloat(parts[1], 64)
+				samplerParam, err = strconv.ParseFloat(v, 64)
 				if err != nil {
-					return nil, invalidArg(parts[1], err)
+					return nil, invalidArg(v, err)
 				}
 			default:
-				return nil, invalidArg(parts[0], errors.New("invalid sampler type"))
+				return nil, invalidArg(k, errors.New("invalid sampler type"))
 			}
 		case "sampler-url":
-			if len(parts) == 1 {
-				return nil, missingArg(parts[0])
+			if v == "" {
+				return nil, missingArg(k)
 			}
-			samplerURL = parts[1]
+			samplerURL = v
 
 		case "reporter-queue":
-			if len(parts) == 1 {
-				return nil, missingArg(parts[0])
+			if v == "" {
+				return nil, missingArg(k)
 			}
-			reporterQueue, _ = strconv.Atoi(parts[1])
+			reporterQueue, _ = strconv.Atoi(v)
 		case "reporter-interval":
-			if len(parts) == 1 {
-				return nil, missingArg(parts[0])
+			if v == "" {
+				return nil, missingArg(k)
 			}
-			reporterInterval, err = time.ParseDuration(parts[1])
+			reporterInterval, err = time.ParseDuration(v)
 			if err != nil {
-				return nil, invalidArg(parts[1], err)
+				return nil, invalidArg(v, err)
 			}
 		case "local-agent":
-			if len(parts) == 1 {
-				return nil, missingArg(parts[0])
+			if v == "" {
+				return nil, missingArg(k)
 			}
-			localAgent = parts[1]
+			localAgent = v
 		case "tag":
-			if len(parts) > 1 {
-				kv := strings.SplitN(parts[1], "=", 2)
-				if len(kv) != 2 {
-					return nil, fmt.Errorf("missing value for tag %s", kv[0])
+			if v != "" {
+				k, v, _ := strings.Cut(v, "=")
+				if v == "" {
+					return nil, fmt.Errorf("missing value for tag %s", k)
 				}
 
-				globalTags = append(globalTags, opentracing.Tag{Key: kv[0], Value: kv[1]})
+				globalTags = append(globalTags, opentracing.Tag{Key: k, Value: v})
 			}
 		}
 	}

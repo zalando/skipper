@@ -592,20 +592,20 @@ func TestRequestWithBasicAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 {
+	k, v, found := strings.Cut(authHeader, " ")
+	if !found || k == "" || v == "" {
 		t.Error("invalid auth header sent")
 		t.Log(authHeader)
 		return
 	}
 
-	if parts[0] != "Basic" {
+	if k != "Basic" {
 		t.Error("invalid auth header sent")
 		t.Log(authHeader)
 		return
 	}
 
-	decodedArr, err := base64.StdEncoding.DecodeString(parts[1])
+	decodedArr, err := base64.StdEncoding.DecodeString(v)
 	if err != nil {
 		t.Error(err)
 		t.Log("header sent:", authHeader)

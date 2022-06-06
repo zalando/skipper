@@ -15,11 +15,11 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 	serviceName := defServiceName
 
 	for _, o := range opts {
-		parts := strings.SplitN(o, "=", 2)
-		switch parts[0] {
+		k, v, _ := strings.Cut(o, "=")
+		switch k {
 		case "service-name":
-			if len(parts) > 1 {
-				serviceName = parts[1]
+			if v != "" {
+				serviceName = v
 			}
 		}
 	}

@@ -40,14 +40,14 @@ func (b *breakerFlags) Set(value string) error {
 
 	vs := strings.Split(value, ",")
 	for _, vi := range vs {
-		kv := strings.Split(vi, "=")
-		if len(kv) != 2 {
+		k, v, found := strings.Cut(vi, "=")
+		if !found {
 			return errInvalidBreakerConfig
 		}
 
-		switch kv[0] {
+		switch k {
 		case "type":
-			switch kv[1] {
+			switch v {
 			case "consecutive":
 				s.Type = circuit.ConsecutiveFailures
 			case "rate":
@@ -58,37 +58,37 @@ func (b *breakerFlags) Set(value string) error {
 				return errInvalidBreakerConfig
 			}
 		case "host":
-			s.Host = kv[1]
+			s.Host = v
 		case "window":
-			i, err := strconv.Atoi(kv[1])
+			i, err := strconv.Atoi(v)
 			if err != nil {
 				return err
 			}
 
 			s.Window = i
 		case "failures":
-			i, err := strconv.Atoi(kv[1])
+			i, err := strconv.Atoi(v)
 			if err != nil {
 				return err
 			}
 
 			s.Failures = i
 		case "timeout":
-			d, err := time.ParseDuration(kv[1])
+			d, err := time.ParseDuration(v)
 			if err != nil {
 				return err
 			}
 
 			s.Timeout = d
 		case "half-open-requests":
-			i, err := strconv.Atoi(kv[1])
+			i, err := strconv.Atoi(v)
 			if err != nil {
 				return err
 			}
 
 			s.HalfOpenRequests = i
 		case "idle-ttl":
-			d, err := time.ParseDuration(kv[1])
+			d, err := time.ParseDuration(v)
 			if err != nil {
 				return err
 			}

@@ -38,14 +38,13 @@ func (m *mapFlags) Set(value string) error {
 
 	vs := strings.Split(value, ",")
 	for _, vi := range vs {
-		kv := strings.SplitN(vi, "=", 2)
-
-		if len(kv) != 2 {
+		k, v, found := strings.Cut(vi, "=")
+		if !found {
 			return fmt.Errorf(formatErrorString, vi)
 		}
 
-		k := strings.TrimSpace(kv[0])
-		v := strings.TrimSpace(kv[1])
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
 
 		if k == "" || v == "" {
 			return fmt.Errorf(formatErrorString, vi)

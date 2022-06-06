@@ -868,8 +868,8 @@ func TestOIDCSetup(t *testing.T) {
 			if tc.queries != nil {
 				q := reqURL.Query()
 				for _, rq := range tc.queries {
-					splitRQ := strings.Split(rq, "=")
-					q.Add(splitRQ[0], splitRQ[1])
+					k, v, _ := strings.Cut(rq, "=")
+					q.Add(k, v)
 				}
 				reqURL.RawQuery = q.Encode()
 			}

@@ -33,7 +33,7 @@ func parse(addr string) net.IP {
 //     X-Forwarded-For: client, proxy1, proxy2
 func RemoteHost(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
-	ff := strings.Split(ffs, ",")[0]
+	ff, _, _ := strings.Cut(ffs, ",")
 	if ffh := parse(ff); ffh != nil {
 		return ffh
 	}

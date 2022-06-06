@@ -19,11 +19,12 @@ Examples:
 package forwarded
 
 import (
-	"github.com/zalando/skipper/predicates"
-	"github.com/zalando/skipper/routing"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -134,9 +135,9 @@ func parseForwarded(fh string) *forwarded {
 
 	for _, forwardedFull := range strings.Split(fh, ",") {
 		for _, forwardedPair := range strings.Split(strings.TrimSpace(forwardedFull), ";") {
-			if tv := strings.SplitN(forwardedPair, "=", 2); len(tv) == 2 {
-				token, value := tv[0], tv[1]
-				value = strings.Trim(value, `"`)
+			token, value, found := strings.Cut(forwardedPair, "=")
+			value = strings.Trim(value, `"`)
+			if found && value != "" {
 				switch token {
 				case "proto":
 					f.proto = value

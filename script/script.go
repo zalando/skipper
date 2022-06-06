@@ -216,11 +216,8 @@ func (s *script) runFunc(name string, f filters.FilterContext) {
 
 	pt := L.CreateTable(len(s.routeParams), len(s.routeParams))
 	for i, p := range s.routeParams {
-		parts := strings.SplitN(p, "=", 2)
-		if len(parts) == 1 {
-			parts = append(parts, "")
-		}
-		pt.RawSetString(parts[0], lua.LString(parts[1]))
+		k, v, _ := strings.Cut(p, "=")
+		pt.RawSetString(k, lua.LString(v))
 		pt.RawSetInt(i+1, lua.LString(p))
 	}
 
