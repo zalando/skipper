@@ -799,8 +799,7 @@ type Options struct {
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
 
-	// MaxMatcherBufferSize sets the maximum read size of the body read by the block filter
-	// defaults to 2MiB
+	// MaxMatcherBufferSize sets the maximum read buffer size of blockContent filter defaults to 2MiB
 	MaxMatcherBufferSize uint64
 
 	// EnableSwarm enables skipper fleet communication, required by e.g.

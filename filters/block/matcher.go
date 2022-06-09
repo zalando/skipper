@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 
-	"github.com/prometheus/common/log"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/proxy"
 )
@@ -49,22 +48,17 @@ const (
 // input, too.
 //
 type matcher struct {
-
-	// init:
 	input             io.ReadCloser
 	toblockList       []toblockKeys
 	maxBufferSize     uint64
 	maxBufferHandling maxBufferHandling
 	readBuffer        []byte
 
-	// state:
 	ready   *bytes.Buffer
 	pending *bytes.Buffer
 
-	// metrices:
 	metrics metrics.Metrics
 
-	// final:
 	err    error
 	closed bool
 }
@@ -176,7 +170,6 @@ func (m *matcher) Read(p []byte) (int, error) {
 
 	if m.err == proxy.ErrBlocked {
 		m.metrics.IncCounter("blocked.requests")
-		log.Errorf("Content blocked: %v", proxy.ErrBlocked)
 		return 0, proxy.ErrBlocked
 	}
 
@@ -193,7 +186,6 @@ func (m *matcher) Read(p []byte) (int, error) {
 
 		if err == proxy.ErrBlocked {
 			m.metrics.IncCounter("blocked.requests")
-			log.Errorf("Content blocked: %v", proxy.ErrBlocked)
 		}
 
 		return 0, err
@@ -202,7 +194,8 @@ func (m *matcher) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// Closes closes the undelrying reader if it implements io.Closer.
+// Close closes the undelrying reader if it implements io.Closer.
+// Not safe for concurrent usage and it's reentrant.
 func (m *matcher) Close() error {
 	m.closed = true
 	if c, ok := m.input.(io.Closer); ok {

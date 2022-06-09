@@ -85,16 +85,16 @@ foo3:
 
 Block a request based on it's body content.
 
-The filter max request body is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
+The filter max buffer size is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
 
 Parameters:
 
-* toblockList (List of []bytes)
+* toblockList (List of strings)
 
 Example:
 
 ```
-* -> block("maliciousCotent") -> "http://example.com";
+* -> blockContent("Malicious Cotent") -> "http://example.com";
 ```
 
 ## modRequestHeader
