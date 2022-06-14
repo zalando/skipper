@@ -312,7 +312,7 @@ func (r *RedisRingClient) Close() {
 
 func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs map[string]string) {
 	r.log.Infof("SetAddrs: %v", addrs)
-	r.ring.SetAddrs(addrs)
+	r.ring.SetAddrs(ctx, addrs)
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {

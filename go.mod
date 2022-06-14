@@ -16,7 +16,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-redis/redis/v8 v8.11.4
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt/v4 v4.2.0
 	github.com/google/go-cmp v0.5.6
 	github.com/hashicorp/memberlist v0.3.0
