@@ -207,6 +207,20 @@ func TestTree(t *testing.T) {
 
 }
 
+func TestTreeKatakana(t *testing.T) {
+	const (
+		ma = "/マ"
+		ka = "/カ"
+	)
+	tree := &node{path: "/"}
+
+	addPath(t, tree, ma)
+	addPath(t, tree, ka)
+
+	testPath(t, tree, ma, ma, nil)
+	testPath(t, tree, ka, ka, nil)
+}
+
 func TestPanics(t *testing.T) {
 	sawPanic := false
 

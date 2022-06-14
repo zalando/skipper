@@ -120,7 +120,7 @@ func (n *node) addPath(path string) (*node, error) {
 			return nil, fmt.Errorf("* or : in middle of path component %s", path)
 		}
 
-		// Do we have an existing node that starts with the same letter?
+		// Do we have an existing node that starts with the same byte?
 		for i, index := range n.staticIndices {
 			if c == index {
 				// Yes. Split it based on the common prefix of the existing
@@ -132,7 +132,7 @@ func (n *node) addPath(path string) (*node, error) {
 			}
 		}
 
-		// No existing node starting with this letter, so create it.
+		// No existing node starting with this byte, so create it.
 		child := &node{path: thisToken}
 
 		if n.staticIndices == nil {
@@ -158,16 +158,8 @@ func (n *node) splitCommonPrefix(existingNodeIndex int, path string) (*node, int
 		return childNode, len(childNode.path)
 	}
 
-	var i int
 	// Find the length of the common prefix of the child node and the new path.
-	for i = range childNode.path {
-		if i == len(path) {
-			break
-		}
-		if path[i] != childNode.path[i] {
-			break
-		}
-	}
+	i := commonPrefixLen(childNode.path, path)
 
 	commonPrefix := path[0:i]
 	childNode.path = childNode.path[i:]
@@ -177,13 +169,21 @@ func (n *node) splitCommonPrefix(existingNodeIndex int, path string) (*node, int
 	newNode := &node{
 		path:     commonPrefix,
 		priority: childNode.priority,
-		// Index is the first letter of the non-common part of the path.
+		// Index is the first byte of the non-common part of the path.
 		staticIndices: []byte{childNode.path[0]},
 		staticChild:   []*node{childNode},
 	}
 	n.staticChild[existingNodeIndex] = newNode
 
 	return newNode, i
+}
+
+func commonPrefixLen(x, y string) int {
+	n := 0
+	for n < len(x) && n < len(y) && x[n] == y[n] {
+		n++
+	}
+	return n
 }
 
 func (n *node) search(path string, m Matcher) (found *node, params []string, value interface{}) {
