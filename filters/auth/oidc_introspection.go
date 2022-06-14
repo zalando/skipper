@@ -64,12 +64,12 @@ func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Fil
 	switch filter.typ {
 	case checkOIDCQueryClaims:
 		for _, arg := range sargs {
-			slice := strings.SplitN(arg, ":", 2)
-			if len(slice) != 2 {
+			path, queries, found := strings.Cut(arg, ":")
+			if !found || path == "" {
 				return nil, fmt.Errorf("%v: malformatted filter arg %s", filters.ErrInvalidFilterParameters, arg)
 			}
-			pq := pathQuery{path: slice[0]}
-			for _, query := range splitQueries(slice[1]) {
+			pq := pathQuery{path: path}
+			for _, query := range splitQueries(queries) {
 				if query == "" {
 					return nil, fmt.Errorf("%v: %s", errUnsupportedClaimSpecified, arg)
 				}

@@ -4,7 +4,6 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"errors"
-	"github.com/andybalholm/brotli"
 	"io"
 	"math"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/andybalholm/brotli"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"

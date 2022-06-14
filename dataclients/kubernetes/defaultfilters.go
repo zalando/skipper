@@ -30,8 +30,13 @@ func readDefaultFilters(dir string) (defaultFilters, error) {
 	filters := make(defaultFilters)
 	for _, f := range files {
 		r := strings.Split(f.Name(), ".") // format: {service}.{namespace}
+		if len(r) != 2 {
+			log.WithField("file", f.Name()).Debug("malformed file name")
+			continue
+		}
+
 		info, err := f.Info()
-		if err != nil || len(r) != 2 || !(f.Type().IsRegular() || f.Type()&os.ModeSymlink != 0) || info.Size() > maxFileSize {
+		if err != nil || !(f.Type().IsRegular() || f.Type()&os.ModeSymlink != 0) || info.Size() > maxFileSize {
 			log.WithError(err).WithField("file", f.Name()).Debug("incompatible file")
 			continue
 		}

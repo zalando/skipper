@@ -23,11 +23,10 @@ type pathInfo struct {
 }
 
 func newPathInfo(applicationId, tag, apiId, pathTemplate string, clientTracking *clientTrackingInfo) *pathInfo {
-	if strings.Contains(applicationId, ":") {
-		//can be removed after feature toggle is enabled on monitoring controller
-		split := strings.Split(applicationId, ":")
-		applicationId = split[0]
-		tag = split[1]
+	id, t, found := strings.Cut(applicationId, ":")
+	if found {
+		applicationId = id
+		tag = t
 	}
 
 	if tag == "" {

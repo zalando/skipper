@@ -39,14 +39,14 @@ func (r *ratelimitFlags) Set(value string) error {
 
 	vs := strings.Split(value, ",")
 	for _, vi := range vs {
-		kv := strings.Split(vi, "=")
-		if len(kv) != 2 {
+		k, v, found := strings.Cut(vi, "=")
+		if !found {
 			return errInvalidRatelimitConfig
 		}
 
-		switch kv[0] {
+		switch k {
 		case "type":
-			switch kv[1] {
+			switch v {
 			case "local":
 				log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
 				fallthrough
@@ -64,20 +64,20 @@ func (r *ratelimitFlags) Set(value string) error {
 				return errInvalidRatelimitConfig
 			}
 		case "max-hits":
-			i, err := strconv.Atoi(kv[1])
+			i, err := strconv.Atoi(v)
 			if err != nil {
 				return err
 			}
 			s.MaxHits = i
 		case "time-window":
-			d, err := time.ParseDuration(kv[1])
+			d, err := time.ParseDuration(v)
 			if err != nil {
 				return err
 			}
 			s.TimeWindow = d
 			s.CleanInterval = d * 10
 		case "group":
-			s.Group = kv[1]
+			s.Group = v
 		default:
 			return errInvalidRatelimitConfig
 		}
