@@ -5,15 +5,19 @@ import (
 	"net/http"
 )
 
-// Sets non-standard X-Forwarded-* Headers
-// See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#proxies
+// ForwardedHeaders sets non-standard X-Forwarded-* Headers
+// See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#proxies and https://github.com/authelia/authelia
 type ForwardedHeaders struct {
-	// Sets or appends request remote IP to the X-Forwarded-For header
+	// For sets or appends request remote IP to the X-Forwarded-For header
 	For bool
-	// Sets or prepends request remote IP to the X-Forwarded-For header, overrides For
+	// PrependFor sets or prepends request remote IP to the X-Forwarded-For header, overrides For
 	PrependFor bool
-	// Sets X-Forwarded-Host to the request host
+	// Host sets X-Forwarded-Host to the request host
 	Host bool
+	// Method sets the http method as X-Forwarded-Method to the request header
+	Method bool
+	// Uri sets the path and query as X-Forwarded-Uri header to the request header
+	Uri bool
 	// Sets X-Forwarded-Port value
 	Port string
 	// Sets X-Forwarded-Proto value
@@ -40,6 +44,14 @@ func (h *ForwardedHeaders) Set(req *http.Request) {
 
 	if h.Host {
 		req.Header.Set("X-Forwarded-Host", req.Host)
+	}
+
+	if h.Method {
+		req.Header.Set("X-Forwarded-Method", req.Method)
+	}
+
+	if h.Uri {
+		req.Header.Set("X-Forwarded-Uri", req.RequestURI)
 	}
 
 	if h.Port != "" {

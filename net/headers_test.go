@@ -4,12 +4,16 @@ import (
 	"net/http"
 	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestForwardedHeaders(t *testing.T) {
 	for _, ti := range []struct {
 		name       string
 		remoteAddr string
+		method     string
+		requestURI string
 		header     http.Header
 		forwarded  ForwardedHeaders
 		expected   http.Header
@@ -79,15 +83,35 @@ func TestForwardedHeaders(t *testing.T) {
 			},
 		},
 		{
-			name:       "set xff, host, port, proto",
+			name:       "set xff, host, port, proto, method, uri",
 			remoteAddr: "1.2.3.4:56",
 			header:     http.Header{},
-			forwarded:  ForwardedHeaders{For: true, Host: true, Port: "443", Proto: "https"},
+			forwarded:  ForwardedHeaders{For: true, Host: true, Method: true, Uri: true, Port: "443", Proto: "https"},
+			method:     "POST",
+			requestURI: "/foo?bar=baz",
 			expected: http.Header{
-				"X-Forwarded-For":   []string{"1.2.3.4"},
-				"X-Forwarded-Host":  []string{"example.com"},
-				"X-Forwarded-Port":  []string{"443"},
-				"X-Forwarded-Proto": []string{"https"},
+				"X-Forwarded-For":    []string{"1.2.3.4"},
+				"X-Forwarded-Host":   []string{"example.com"},
+				"X-Forwarded-Method": []string{"POST"},
+				"X-Forwarded-Uri":    []string{"/foo?bar=baz"},
+				"X-Forwarded-Port":   []string{"443"},
+				"X-Forwarded-Proto":  []string{"https"},
+			},
+		},
+		{
+			name:       "set xff, host, port, proto, method, uri with non well known port",
+			remoteAddr: "1.2.3.4:56",
+			header:     http.Header{},
+			forwarded:  ForwardedHeaders{For: true, Host: true, Method: true, Uri: true, Port: "4444", Proto: "https"},
+			method:     "POST",
+			requestURI: "/foo?bar=baz",
+			expected: http.Header{
+				"X-Forwarded-For":    []string{"1.2.3.4"},
+				"X-Forwarded-Host":   []string{"example.com"},
+				"X-Forwarded-Method": []string{"POST"},
+				"X-Forwarded-Uri":    []string{"/foo?bar=baz"},
+				"X-Forwarded-Port":   []string{"4444"},
+				"X-Forwarded-Proto":  []string{"https"},
 			},
 		},
 		{
@@ -108,12 +132,18 @@ func TestForwardedHeaders(t *testing.T) {
 		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			r := &http.Request{Host: "example.com", RemoteAddr: ti.remoteAddr, Header: ti.header}
+			r := &http.Request{
+				Host:       "example.com",
+				RemoteAddr: ti.remoteAddr,
+				Header:     ti.header,
+				Method:     ti.method,
+				RequestURI: ti.requestURI,
+			}
 
 			ti.forwarded.Set(r)
 
 			if !reflect.DeepEqual(ti.expected, r.Header) {
-				t.Errorf("header mismatch, expected: %v, got: %v", ti.expected, r.Header)
+				t.Errorf("header mismatch:\n%v", cmp.Diff(ti.expected, r.Header))
 			}
 		})
 	}

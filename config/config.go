@@ -397,6 +397,8 @@ func NewConfig() *Config {
 	flag.Var(cfg.ForwardedHeadersList, "forwarded-headers", "comma separated list of headers to add to the incoming request before routing\n"+
 		"X-Forwarded-For sets or appends with comma the remote IP of the request to the X-Forwarded-For header value\n"+
 		"X-Forwarded-Host sets X-Forwarded-Host value to the request host\n"+
+		"X-Forwarded-Method sets X-Forwarded-Method value to the request method\n"+
+		"X-Forwarded-Uri sets X-Forwarded-Uri value to the requestURI\n"+
 		"X-Forwarded-Port=<port> sets X-Forwarded-Port value\n"+
 		"X-Forwarded-Proto=<http|https> sets X-Forwarded-Proto value")
 	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs")
@@ -964,6 +966,10 @@ func (c *Config) parseForwardedHeaders() error {
 			c.ForwardedHeaders.For = true
 		case header == "X-Forwarded-Host":
 			c.ForwardedHeaders.Host = true
+		case header == "X-Forwarded-Method":
+			c.ForwardedHeaders.Method = true
+		case header == "X-Forwarded-Uri":
+			c.ForwardedHeaders.Uri = true
 		case strings.HasPrefix(header, "X-Forwarded-Port="):
 			c.ForwardedHeaders.Port = strings.TrimPrefix(header, "X-Forwarded-Port=")
 		case header == "X-Forwarded-Proto=http":
