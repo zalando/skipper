@@ -45,7 +45,13 @@ func New(opts Options) (*RouteServer, error) {
 	handler.Handle("/health", bs)
 	handler.Handle("/routes", b)
 	handler.Handle("/metrics", promhttp.Handler())
-	rs.server = &http.Server{Addr: opts.Address, Handler: handler}
+
+	rs.server = &http.Server{
+		Addr:              opts.Address,
+		Handler:           handler,
+		ReadTimeout:       1 * time.Minute,
+		ReadHeaderTimeout: 1 * time.Minute,
+	}
 
 	dataclient, err := kubernetes.New(kubernetes.Options{
 		AllowedExternalNames:              opts.KubernetesAllowedExternalNames,

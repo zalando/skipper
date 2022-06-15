@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -73,8 +74,10 @@ func healthCheck(writer http.ResponseWriter, _ *http.Request) {
 
 func serve(cfg *config, handler http.Handler) {
 	server := &http.Server{
-		Addr:    cfg.address,
-		Handler: handler,
+		Addr:              cfg.address,
+		Handler:           handler,
+		ReadTimeout:       1 * time.Minute,
+		ReadHeaderTimeout: 1 * time.Minute,
 	}
 
 	log.Infof("Starting server on %s", cfg.address)
