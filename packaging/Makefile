@@ -57,6 +57,13 @@ docker.push.armv7: docker.build.armv7
 	docker push $(ARM_IMAGE)
 
 docker.push.multiarch: clean build.linux docker.build.enable
+	# Install qemu interpreter for arm64 (https://docs.docker.com/buildx/working-with-buildx/#build-multi-platform-images)
+	docker run --rm --privileged container-registry.zalando.net/teapot/tonistiigi-binfmt:qemu-v6.2.0-main-2 --install arm64
+
+	# create a Buildkit builder with CDP specific configuration (https://cloud.docs.zalando.net/howtos/cdp-multiarch/)
+	docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
+
+	# build multi-arch container image using a trusted multi-arch base image
 	docker buildx build --rm -t $(MULTIARCH_IMAGE) --platform linux/amd64,linux/arm64 --push \
 	  --build-arg BASE_IMAGE=container-registry.zalando.net/library/alpine-3.13:latest .
 
