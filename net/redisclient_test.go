@@ -876,3 +876,58 @@ func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
 		})
 	}
 }
+
+func TestRedisClientSetAddr(t *testing.T) {
+	redisAddr1, done1 := redistest.NewTestRedis(t)
+	defer done1()
+	redisAddr2, done2 := redistest.NewTestRedis(t)
+	defer done2()
+
+	for _, tt := range []struct {
+		name        string
+		options     *RedisOptions
+		redisUpdate map[string]string
+		keys        []string
+		vals        []string
+	}{
+		{
+			name: "no redis change",
+			options: &RedisOptions{
+				Addrs: []string{redisAddr1, redisAddr2},
+			},
+			keys: []string{"foo1", "foo2", "foo3", "foo4", "foo5"},
+			vals: []string{"bar1", "bar2", "bar3", "bar4", "bar5"},
+		},
+		{
+			name: "with redis change",
+			options: &RedisOptions{
+				Addrs: []string{redisAddr1},
+			},
+			redisUpdate: map[string]string{
+				"redis1": redisAddr1,
+				"redis2": redisAddr2,
+			},
+			keys: []string{"foo1", "foo2", "foo3", "foo4", "foo5"},
+			vals: []string{"bar1", "bar2", "bar3", "bar4", "bar5"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewRedisRingClient(tt.options)
+			for i := 0; i < len(tt.keys); i++ {
+				r.Set(context.Background(), tt.keys[i], tt.vals[i], time.Second)
+			}
+			if len(tt.redisUpdate) != len(tt.options.Addrs) {
+				r.SetAddrs(context.Background(), tt.redisUpdate)
+			}
+			for i := 0; i < len(tt.keys); i++ {
+				got, err := r.Get(context.Background(), tt.keys[i])
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got != tt.vals[i] {
+					t.Errorf("Failed to get key '%s' wanted '%s', got '%s'", tt.keys[i], tt.vals[i], got)
+				}
+			}
+		})
+	}
+}

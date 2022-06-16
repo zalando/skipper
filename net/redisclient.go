@@ -212,6 +212,9 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		}
 
 		ringOptions.Addrs = createAddressMap(ro.Addrs)
+		if ro.Log == nil {
+			ro.Log = &logging.DefaultLog{}
+		}
 		ro.Log.Infof("create ring with addresses: %v", ro.Addrs)
 		ringOptions.ReadTimeout = ro.ReadTimeout
 		ringOptions.WriteTimeout = ro.WriteTimeout
@@ -306,13 +309,18 @@ func (r *RedisRingClient) StartSpan(operationName string, opts ...opentracing.St
 func (r *RedisRingClient) Close() {
 	if r != nil {
 		close(r.quit)
-		close(r.ch)
+		if r.ch != nil {
+			close(r.ch)
+		}
 	}
 }
 
 func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs map[string]string) {
+	if len(addrs) == 0 {
+		return
+	}
 	r.log.Infof("SetAddrs: %v", addrs)
-	r.ring.SetAddrs(ctx, addrs)
+	r.ring.SetAddrs(addrs)
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
