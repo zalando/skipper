@@ -244,7 +244,7 @@ We use Go modules to build skipper, therefore you need [Go](https://golang.org/d
 To get a local build of skipper for your CPU architecture, you can run
 `make skipper`. To cross compile to non Linux platforms you can use:
 
-- `make build.osx` for Mac OS X (amd64)
+- `make build.darwin` for Mac OS X (amd64)
 - `make build.windows` for Windows (amd64)
 
 The local build will write into `./bin/` directory.

@@ -1,10 +1,10 @@
-FROM --platform=linux/amd64 alpine:3.13 AS build
+FROM --platform=linux/arm/v7 alpine:3.13
 LABEL maintainer="Team Teapot @ Zalando SE <team-teapot@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates
-
-FROM --platform=linux/arm/v7 alpine:3.13
-COPY --from=build /etc/ssl/certs/ /etc/ssl/certs/
-ADD build/linux_arm7/skipper /usr/bin/
+ADD build/linux/arm/v7/skipper \
+    build/linux/arm/v7/eskip \
+    build/linux/arm/v7/webhook \
+    build/linux/arm/v7/routesrv /usr/bin/
 ENV PATH $PATH:/usr/bin
 
 EXPOSE 9090 9911
