@@ -14,6 +14,8 @@ spec:
   - backendName: myapp
   routes:
   - path: /app
+    filters:
+    - setRequestHeader("X-Foo", "bar")
 ---
 apiVersion: v1
 kind: Service

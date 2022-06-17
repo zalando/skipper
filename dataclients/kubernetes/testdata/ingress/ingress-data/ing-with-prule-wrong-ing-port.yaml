@@ -3,6 +3,8 @@ kind: Ingress
 metadata:
   namespace: foo
   name: qux
+  annotations:
+    zalando.org/skipper-filter: setRequestHeader("X-Foo", "bar")
 spec:
   rules:
   - host: www.example.org

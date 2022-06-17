@@ -361,16 +361,16 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 }
 
 func shuntRoute(r *eskip.Route) {
-	r.Filters = []*eskip.Filter{
-		{
+	r.Filters = append(r.Filters,
+		&eskip.Filter{
 			Name: filters.StatusName,
 			Args: []interface{}{502.0},
 		},
-		{
+		&eskip.Filter{
 			Name: filters.InlineContentName,
 			Args: []interface{}{"no endpoints"},
 		},
-	}
+	)
 	r.BackendType = eskip.ShuntBackend
 	r.Backend = ""
 }
