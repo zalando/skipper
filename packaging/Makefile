@@ -58,7 +58,7 @@ docker.push.armv7: docker.build.armv7
 
 docker.push.multiarch: clean build.linux docker.build.enable
 	# Install qemu interpreter for arm64 (https://docs.docker.com/buildx/working-with-buildx/#build-multi-platform-images)
-	docker run --rm --privileged container-registry.zalando.net/teapot/tonistiigi-binfmt:qemu-v6.2.0-main-2 --install arm64
+	docker run --rm --privileged container-registry.zalando.net/teapot/tonistiigi-binfmt:qemu-v6.2.0-main-3 --install arm,arm64
 
 	# create a Buildkit builder with CDP specific configuration (https://cloud.docs.zalando.net/howtos/cdp-multiarch/)
 	docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
