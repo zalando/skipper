@@ -1,1 +1,6 @@
-kube_foo__qux__www_example_org_____bar: Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/") -> status(502) -> inlineContent("no endpoints") -> <shunt>;
+kube_foo__qux__www_example_org_____bar:
+	Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+	-> setResponseHeader("default", "filter")
+	-> status(502)
+	-> inlineContent("no endpoints")
+	-> <shunt>;
