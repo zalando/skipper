@@ -42,11 +42,11 @@ docker.build: clean $(BINARIES)
 
 docker-build: docker.build.amd64 docker.build.arm64 docker.build.armv7
 docker.build.amd64: clean build.linux.amd64 docker.build.enable
-	docker buildx build -t $(IMAGE) --platform linux/amd64 -f Dockerfile .
+	docker buildx build -t $(IMAGE) --platform linux/amd64 -f Dockerfile --load .
 docker.build.arm64: clean build.linux.arm64 docker.build.enable
-	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 .
+	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 --load .
 docker.build.armv7: clean build.linux.armv7 docker.build.enable
-	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.armv7 .
+	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.armv7 --load .
 
 docker-push: docker.push.amd64 docker.push.arm64 docker.push.armv7
 docker.push.amd64:
