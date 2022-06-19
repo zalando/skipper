@@ -48,6 +48,8 @@ type testContext struct {
 	url            string
 	requestHeader  map[string]string
 	responseHeader map[string]string
+	method         string
+	body           []byte
 }
 
 func TestScript(t *testing.T) {
@@ -302,6 +304,31 @@ func TestScript(t *testing.T) {
 			},
 			expectedStateBag: map[string]string{
 				"result": "PHPSESSID=298zf09hf012fh2 csrftoken=u32t4o3tb3gg43 _gat=1 csrftoken=repeat ",
+			},
+		}, {
+			name: "get encoded request body",
+			context: testContext{
+				method: "POST",
+				body:   []byte("{\"Hello\": \"World\"}"),
+				script: `function request(ctx, params)
+					local b64 = require("base64")
+					ctx.state_bag.body, err = b64.decode(ctx.request.encoded_body)
+				end`,
+			},
+			expectedStateBag: map[string]string{
+				"body": "{\"Hello\": \"World\"}",
+			},
+		}, {
+			name: "check request body for GET",
+			context: testContext{
+				script: `function request(ctx, params)
+					if not ctx.request.encoded_body then
+						ctx.state_bag.body = "nil"
+					end
+				end`,
+			},
+			expectedStateBag: map[string]string{
+				"body": "nil",
 			},
 		},
 	} {
@@ -743,7 +770,16 @@ func runFilter(test *testContext) (*luaContext, error) {
 	if test.url != "" {
 		url = test.url
 	}
-	req, _ := http.NewRequest("GET", url, nil)
+
+	method := "GET"
+	if test.method != "" {
+		method = test.method
+	}
+	var reqBody io.Reader = nil
+	if len(test.body) > 0 {
+		reqBody = bytes.NewBuffer(test.body)
+	}
+	req, _ := http.NewRequest(method, url, reqBody)
 	for k, v := range test.requestHeader {
 		req.Header.Add(k, v)
 	}
