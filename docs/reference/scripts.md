@@ -124,6 +124,7 @@ Response headers `ctx.response.header` work the same way - this is of course onl
 * `url_query` - (read/write) request URL query parameter table, similar to header table but returns `nil` for missing keys
 * `url_raw_query` - (read/write) encoded request URL query values, without '?' as string
 * `cookie` - (read only) request cookie table, similar to header table but returns `nil` for missing keys
+* `encoded_body` - (read only) request payload as a base64 decoded string, returns `nil` if there was no request body, e.g. "GET" requests
 
 ## Other response fields
 

@@ -6,11 +6,14 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	b64 "encoding/base64"
 
 	log "github.com/sirupsen/logrus"
 
@@ -430,6 +433,13 @@ func getRequestValue(f filters.FilterContext) func(*lua.LState) int {
 			ret = url_query
 		case "url_raw_query":
 			ret = lua.LString(f.Request().URL.RawQuery)
+		case "encoded_body":
+			encodedBody := encodeRequestBody(f.Request())
+			if encodedBody != "" {
+				ret = lua.LString(encodedBody)
+			} else {
+				ret = lua.LNil
+			}
 		default:
 			return 0
 		}
@@ -588,6 +598,21 @@ func setRequestHeader(f filters.FilterContext) func(*lua.LState) int {
 		}
 		return 0
 	}
+}
+
+func encodeRequestBody(req *http.Request) string {
+	if req.Body == nil {
+		return ""
+	}
+	b, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		log.Errorf("Failed to read request Body: %v", err)
+		return ""
+	}
+	if len(b) == 0 {
+		return ""
+	}
+	return b64.StdEncoding.EncodeToString(b)
 }
 
 func iterateRequestHeader(f filters.FilterContext) func(*lua.LState) int {
