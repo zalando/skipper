@@ -155,11 +155,13 @@ func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *de
 		return fmt.Errorf("error while getting service: %v", err)
 	}
 
-	// safe prepend, see: https://play.golang.org/p/zg5aGKJpRyK
-	filters := make([]*eskip.Filter, len(endpointsRoute.Filters)+len(ic.annotationFilters))
-	copy(filters, ic.annotationFilters)
-	copy(filters[len(ic.annotationFilters):], endpointsRoute.Filters)
-	endpointsRoute.Filters = filters
+	if endpointsRoute.BackendType != eskip.ShuntBackend {
+		// safe prepend, see: https://play.golang.org/p/zg5aGKJpRyK
+		filters := make([]*eskip.Filter, len(endpointsRoute.Filters)+len(ic.annotationFilters))
+		copy(filters, ic.annotationFilters)
+		copy(filters[len(ic.annotationFilters):], endpointsRoute.Filters)
+		endpointsRoute.Filters = filters
+	}
 
 	// add pre-configured default filters
 	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.Service.Name)

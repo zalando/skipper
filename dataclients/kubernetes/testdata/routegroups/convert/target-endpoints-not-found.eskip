@@ -1,6 +1,6 @@
 kube_rg__default__myapp__all__0_0:
-	Host("^(example[.]org[.]?(:[0-9]+)?)$")
-	&& Path("/app")
+	Host("^(example[.]org[.]?(:[0-9]+)?)$") && Path("/app")
+	-> setResponseHeader("default", "filter")
 	-> status(502)
 	-> inlineContent("no endpoints")
 	-> <shunt>;

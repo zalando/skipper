@@ -3,6 +3,9 @@ kind: Ingress
 metadata:
   namespace: foo
   name: qux
+  annotations:
+    # user filters ignored when no endpoints
+    zalando.org/skipper-filter: setRequestHeader("user", "filter")
 spec:
   rules:
   - host: www.example.org

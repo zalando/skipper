@@ -14,6 +14,9 @@ spec:
   - backendName: myapp
   routes:
   - path: /app
+    filters:
+    # user filters ignored when no endpoints
+    - setRequestHeader("user", "filter")
 ---
 apiVersion: v1
 kind: Service
