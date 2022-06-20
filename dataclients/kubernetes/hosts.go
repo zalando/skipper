@@ -18,7 +18,7 @@ func createHostRx(hosts ...string) string {
 		// trailing dots and port are not allowed in kube
 		// ingress spec, so we can append optional setting
 		// without check
-		hrx[i] = strings.Replace(host, ".", "[.]", -1) + "[.]?(:[0-9]+)?"
+		hrx[i] = strings.ReplaceAll(host, ".", "[.]") + "[.]?(:[0-9]+)?"
 	}
 
 	return "^(" + strings.Join(hrx, "|") + ")$"

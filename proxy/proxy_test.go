@@ -1545,9 +1545,9 @@ func TestBranding(t *testing.T) {
 	backendDown.Close()
 
 	routes := routesTpl
-	routes = strings.Replace(routes, "${backend-down}", backendDown.URL, -1)
-	routes = strings.Replace(routes, "${backend-default}", backendDefault.URL, -1)
-	routes = strings.Replace(routes, "${backend-set}", backendSet.URL, -1)
+	routes = strings.ReplaceAll(routes, "${backend-down}", backendDown.URL)
+	routes = strings.ReplaceAll(routes, "${backend-default}", backendDefault.URL)
+	routes = strings.ReplaceAll(routes, "${backend-set}", backendSet.URL)
 
 	p, err := newTestProxy(routes, FlagsNone)
 	if err != nil {

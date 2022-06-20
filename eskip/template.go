@@ -109,7 +109,7 @@ func (t *Template) apply(get TemplateGetter) (string, bool) {
 		if value == "" {
 			missing = true
 		}
-		result = strings.Replace(result, "${"+placeholder+"}", value, -1)
+		result = strings.ReplaceAll(result, "${"+placeholder+"}", value)
 	}
 	return result, !missing
 }

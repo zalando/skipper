@@ -331,7 +331,7 @@ func Test_Filter_PathTemplateMatchesInternalSlashesTooFollowingVarPart(t *testin
 		{"foo/1/2/3/4/5", "foo/{a}/{b}/{c}"},
 		{"bar/1/2-3/4/5", "bar/{a}-{b}/{c}"},
 	} {
-		subTestName := strings.Replace(c.requestPath, "/", "_", -1)
+		subTestName := strings.ReplaceAll(c.requestPath, "/", "_")
 		t.Run(subTestName, func(t *testing.T) {
 			testWithFilter(
 				t,
@@ -379,7 +379,7 @@ func Test_Filter_PathTemplateMatchesPathFromRequestChain(t *testing.T) {
 	}{
 		{"foo/x", "bar/x", "foo/{a}"},
 	} {
-		subTestName := strings.Replace(c.requestPath, "/", "_", -1)
+		subTestName := strings.ReplaceAll(c.requestPath, "/", "_")
 		t.Run(subTestName, func(t *testing.T) {
 			testWithFilterModifyContext(
 				t,

@@ -135,10 +135,10 @@ func createOIDCServer(cb, client, clientsecret string, extraClaims jwt.MapClaims
 		case "/.well-known/openid-configuration":
 			// dynamic config handling
 			// set oidcServer local dynamic listener to us
-			st := strings.Replace(testOpenIDConfig, "https://accounts.google.com", oidcServer.URL, -1)
-			st = strings.Replace(st, "https://oauth2.googleapis.com", oidcServer.URL, -1)
-			st = strings.Replace(st, "https://www.googleapis.com", oidcServer.URL, -1)
-			st = strings.Replace(st, "https://openidconnect.googleapis.com", oidcServer.URL, -1)
+			st := strings.ReplaceAll(testOpenIDConfig, "https://accounts.google.com", oidcServer.URL)
+			st = strings.ReplaceAll(st, "https://oauth2.googleapis.com", oidcServer.URL)
+			st = strings.ReplaceAll(st, "https://www.googleapis.com", oidcServer.URL)
+			st = strings.ReplaceAll(st, "https://openidconnect.googleapis.com", oidcServer.URL)
 			_, _ = w.Write([]byte(st))
 		case "/o/oauth2/v2/auth":
 			// https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowSteps

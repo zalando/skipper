@@ -19,8 +19,8 @@ func createTimer(sample metrics.Sample) metrics.Timer {
 }
 
 func hostForKey(h string) string {
-	h = strings.Replace(h, ".", "_", -1)
-	h = strings.Replace(h, ":", "__", -1)
+	h = strings.ReplaceAll(h, ".", "_")
+	h = strings.ReplaceAll(h, ":", "__")
 	return h
 }
 
