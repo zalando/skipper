@@ -168,6 +168,7 @@ func Test_NewConfig(t *testing.T) {
 				ForwardedHeadersExcludeCIDRList:         commaListFlag(),
 				ClusterRatelimitMaxGroupShards:          1,
 				RefusePayload:                           multiFlag{"foo", "bar", "baz"},
+				ValidateQuery:                           true,
 			},
 			wantErr: false,
 		},

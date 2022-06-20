@@ -142,6 +142,7 @@ type Config struct {
 	NormalizeHost bool          `yaml:"normalize-host"`
 	HostPatch     net.HostPatch `yaml:"-"`
 
+	ValidateQuery bool      `yaml:"validate-query"`
 	RefusePayload multiFlag `yaml:"refuse-payload"`
 
 	// Kubernetes:
@@ -404,6 +405,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.ForwardedHeadersExcludeCIDRList, "forwarded-headers-exclude-cidrs", "disables addition of forwarded headers for the remote host IPs from the comma separated list of CIDRs")
 
 	flag.BoolVar(&cfg.NormalizeHost, "normalize-host", false, "converts request host to lowercase and removes port and trailing dot if any")
+	flag.BoolVar(&cfg.ValidateQuery, "validate-query", true, "Validates the HTTP Query of a request and if invalid responds with status code 400")
 
 	flag.Var(&cfg.RefusePayload, "refuse-payload", "refuse requests that match configured value. Can be set multiple times")
 
@@ -917,6 +919,12 @@ func (c *Config) ToOptions() skipper.Options {
 				Match:   c.RefusePayload,
 				Handler: handler,
 			}
+		})
+	}
+
+	if c.ValidateQuery {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return &net.ValidateQueryHandler{Handler: handler}
 		})
 	}
 
