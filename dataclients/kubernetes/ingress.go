@@ -213,7 +213,7 @@ func addExtraRoutes(ic ingressContext, ruleHost, path, pathType, eastWestDomain 
 			ns,
 			name,
 			route.Id,
-			ruleHost+strings.Replace(path, "/", "_", -1),
+			ruleHost+strings.ReplaceAll(path, "/", "_"),
 			extraIndex)
 		setPathV1(ic.pathMode, &route, pathType, path)
 		if n := countPathRoutes(&route); n <= 1 {
