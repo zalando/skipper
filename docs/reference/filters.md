@@ -372,8 +372,8 @@ no-compression, 1 means best-speed and 11 means best-compression. Example:
 ```
 
 The filter also checks the incoming request, if it accepts the supported encodings,
-explicitly stated in the Accept-Encoding header. 
-The filter currently supports by default `gzip`, `deflate` and `br` (can be overridden with flag `compress-encodings`). 
+explicitly stated in the Accept-Encoding header.
+The filter currently supports by default `gzip`, `deflate` and `br` (can be overridden with flag `compress-encodings`).
 It does not assume that the client accepts any encoding if the
 Accept-Encoding header is not set. It ignores * in the Accept-Encoding header.
 
@@ -1848,6 +1848,78 @@ Path("/cheap")     -> clusterLeakyBucketRatelimit("user-${request.cookie.Authori
 Path("/expensive") -> clusterLeakyBucketRatelimit("user-${request.cookie.Authorization}", 1, "1s", 5, 2) -> ...
 ```
 
+## shedder
+
+The basic idea of load shedding is to reduce errors by early stopping
+some of the ingress requests that create too much load and serving
+the maximum throughput the system can process at a point in time.
+
+There is a great talk by [Acacio Cruz from
+Google](https://www.youtube.com/watch?v=XNEIkivvaV4)
+that explains the basic principles.
+
+### admissionControl
+
+Implements an admission control filter, that rejects traffic by
+observed error rate and probability.
+
+The probability of rejection is calculated by the following equation:
+
+$$ P_{reject} = ( { n_{total} - { n_{success} \over threshold } \over n_{total} + 1} )^{ exponent } $$
+
+Examples:
+
+    admissionControl(metricSuffix, mode, d, windowSize, minRPS, successThreshold, maxRejectProbability, exponent)
+    admissionControl("myapp", "active", "1s", 5, 10, 0.95, 0.9, 0.5)
+
+Parameters:
+
+* metric suffix (string)
+* mode (enum)
+* d (time.Duration)
+* window size (int)
+* minRps (int)
+* success threshold (float64)
+* max reject probability (float64)
+* exponent (float64)
+
+Metric suffix is the chosen suffix key to expose reject counter,
+should be unique by filter instance
+
+Mode has 3 different possible values:
+
+* "active" will reject traffic
+* "inactive" will never reject traffic
+* "logInactive" will not reject traffic, but log to debug filter settings
+
+D the time duration of a single slot for required counters in our
+circular buffer of window size.
+
+Window size is the size of the circular buffer. It is used to snapshot
+counters to calculate total requests and number of success. It is
+within $[1, 100]$.
+
+MinRps is the minimum requests per second that have to pass this filter
+otherwise it will not reject traffic.
+
+Success threshold sets the lowest request success rate at which the
+filter will not reject requests. It is within $(0,1]$. A value of
+0.95 means an error rate of lower than 5% will not trigger
+rejects.
+
+Max reject probability sets the upper bound of reject probability. It
+is within (0,1]. A value of 0.95 means if backend errors with 100% it
+will only reject up to 95%.
+
+exponent is used to dictate the rejection probability. The
+calculation is done by $p = p^{exponent}$
+The exponent value is within $(0,\infty]$, to increase rejection
+probability you have to use values lower than 1:
+
+* 1: linear
+* 1/2: quadratic
+* 1/3: cubic
+
 ## lua
 
 See [the scripts page](scripts.md)
@@ -2557,7 +2629,7 @@ fadeIn("3m", 1.5)
 
 #### Warning on fadeIn and Rolling Restarts
 
-Traffic fade-in has the potential to skew the traffic to your backend pods in case of a rolling restart 
+Traffic fade-in has the potential to skew the traffic to your backend pods in case of a rolling restart
 (`kubectl rollout restart`), because it is very likely that the rolling restart is going faster than the
 fade-in duration. The image below shows an example of a rolling restart for a four-pod deployment (A, B, C, D)
 into (E, F, G, H), and the traffic share of each pod over time. While the ramp-up of the new pods is ongoing,
@@ -2565,7 +2637,7 @@ the remaining old pods will receive a largely increased traffic share (especiall
 example), as well as an over-propotional traffic share for the first pod in the rollout (E).
 
 To make rolling restarts safe, you need to slow them down by setting `spec.minReadySeconds` on the pod spec
-of your deployment or stackset, according to your fadeIn duration. 
+of your deployment or stackset, according to your fadeIn duration.
 
 ![Rolling Restart and Fade-In](../img/fadein_traffic_skew.png)
 

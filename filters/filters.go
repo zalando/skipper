@@ -2,9 +2,10 @@ package filters
 
 import (
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/opentracing/opentracing-go"
 )
@@ -264,6 +265,7 @@ const (
 	ConsecutiveBreakerName                     = "consecutiveBreaker"
 	RateBreakerName                            = "rateBreaker"
 	DisableBreakerName                         = "disableBreaker"
+	AdmissionControlName                       = "admissionControl"
 	ClientRatelimitName                        = "clientRatelimit"
 	RatelimitName                              = "ratelimit"
 	ClusterClientRatelimitName                 = "clusterClientRatelimit"

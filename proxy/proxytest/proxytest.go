@@ -39,7 +39,7 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 
 	routingOptions.FilterRegistry = fr
 	routingOptions.Log = tl
-	routingOptions.PostProcessors = []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()}
+	routingOptions.PostProcessors = append(routingOptions.PostProcessors, loadbalancer.NewAlgorithmProvider())
 
 	rt := routing.New(routingOptions)
 	proxyParams.Routing = rt
