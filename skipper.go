@@ -277,6 +277,10 @@ type Options struct {
 	// will apply changes to all matching routes.
 	EditRoute *eskip.Editor
 
+	// A list of custom routing pre-processor implementations that will
+	// be applied to all routes.
+	CustomRoutingPreProcessors []routing.PreProcessor
+
 	// Deprecated. See ProxyFlags. When used together with ProxyFlags,
 	// the values will be combined with |.
 	ProxyOptions proxy.Options
@@ -1608,6 +1612,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
 		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
+	}
+
+	if o.CustomRoutingPreProcessors != nil {
+		ro.PreProcessors = append(ro.PreProcessors, o.CustomRoutingPreProcessors...)
 	}
 
 	routing := routing.New(ro)
