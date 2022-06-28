@@ -142,8 +142,10 @@ type Config struct {
 	NormalizeHost bool          `yaml:"normalize-host"`
 	HostPatch     net.HostPatch `yaml:"-"`
 
-	ValidateQuery bool      `yaml:"validate-query"`
-	RefusePayload multiFlag `yaml:"refuse-payload"`
+	ValidateQuery         bool      `yaml:"validate-query"`
+	ValidateQueryLog      bool      `yaml:"validate-query-log"`
+	ValidateQueryLogLevel string    `yaml:"validate-query-log-level"`
+	RefusePayload         multiFlag `yaml:"refuse-payload"`
 
 	// Kubernetes:
 	KubernetesIngress                       bool                `yaml:"kubernetes"`
@@ -406,6 +408,8 @@ func NewConfig() *Config {
 
 	flag.BoolVar(&cfg.NormalizeHost, "normalize-host", false, "converts request host to lowercase and removes port and trailing dot if any")
 	flag.BoolVar(&cfg.ValidateQuery, "validate-query", true, "Validates the HTTP Query of a request and if invalid responds with status code 400")
+	flag.BoolVar(&cfg.ValidateQueryLog, "validate-query-log", true, "Enable looging for validate query logs")
+	flag.StringVar(&cfg.ValidateQueryLogLevel, "validate-query-log-level", "DEBUG", "log level for validate query logs, possible values: PANIC, FATAL, ERROR, WARN, INFO, DEBUG")
 
 	flag.Var(&cfg.RefusePayload, "refuse-payload", "refuse requests that match configured value. Can be set multiple times")
 
@@ -924,7 +928,11 @@ func (c *Config) ToOptions() skipper.Options {
 
 	if c.ValidateQuery {
 		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
-			return &net.ValidateQueryHandler{Handler: handler}
+			return &net.ValidateQueryHandler{
+				LogsEnabled: c.ValidateQueryLog,
+				LogLevel:    c.ValidateQueryLogLevel,
+				Handler:     handler,
+			}
 		})
 	}
 
