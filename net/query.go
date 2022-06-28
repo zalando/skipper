@@ -3,6 +3,8 @@ package net
 import (
 	"net/http"
 	"net/url"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type ValidateQueryHandler struct {
@@ -11,6 +13,7 @@ type ValidateQueryHandler struct {
 
 func (q *ValidateQueryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if _, err := url.ParseQuery(r.URL.RawQuery); err != nil {
+		log.Errorf("Invalid query: %s", r.URL.RawFragment)
 		http.Error(w, "Invalid query", http.StatusBadRequest)
 		return
 	}
