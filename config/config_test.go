@@ -169,6 +169,7 @@ func Test_NewConfig(t *testing.T) {
 				ClusterRatelimitMaxGroupShards:          1,
 				RefusePayload:                           multiFlag{"foo", "bar", "baz"},
 				ValidateQuery:                           true,
+				ValidateQueryLog:                        true,
 			},
 			wantErr: false,
 		},
