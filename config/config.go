@@ -927,8 +927,14 @@ func (c *Config) ToOptions() skipper.Options {
 	if c.ValidateQuery {
 		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
 			return &net.ValidateQueryHandler{
-				LogsEnabled: c.ValidateQueryLog,
-				Handler:     handler,
+				Handler: handler,
+			}
+		})
+	}
+	if c.ValidateQueryLog {
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			return &net.ValidateQueryLogHandler{
+				Handler: handler,
 			}
 		})
 	}
