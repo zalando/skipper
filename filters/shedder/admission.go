@@ -97,43 +97,45 @@ type Options struct {
 
 type admissionControlPre struct{}
 
-// Do removes duplcate filters, because we can only handle one in a
+// Do removes duplicate filters, because we can only handle one in a
 // chain. The last one will override the others.
 func (spec *admissionControlPre) Do(routes []*eskip.Route) []*eskip.Route {
 	for _, r := range routes {
 		foundAt := -1
-		toDelete := make([]int, 0)
+		toDelete := make(map[int]struct{})
+
 		for i, f := range r.Filters {
 			if f.Name == filters.AdmissionControlName {
 				if foundAt != -1 {
-					toDelete = append(toDelete, foundAt)
+					toDelete[foundAt] = struct{}{}
 				}
 				foundAt = i
 			}
 		}
 
-		// loop from last to be safe with indexes
-		for i := len(toDelete) - 1; i >= 0; i-- {
-			// drop filter at position i
-			filters := append(r.Filters[i+1 : len(r.Filters)]) // maybe off by one if i is last
-			r.Filters = append(r.Filters[0:i], filters...)
+		if len(toDelete) == 0 {
+			continue
 		}
+
+		rf := make([]*eskip.Filter, 0, len(r.Filters)-len(toDelete))
+		for i, f := range r.Filters {
+			if _, ok := toDelete[i]; !ok {
+				rf = append(rf, f)
+			}
+		}
+		r.Filters = rf
 	}
 
 	return routes
 }
 
 type admissionControlPost struct {
-	mu      sync.Mutex // required for testing
 	filters map[string]*admissionControl
 }
 
 // Do implements routing.PostProcessor and makes it possible to close goroutines.
 func (spec *admissionControlPost) Do(routes []*routing.Route) []*routing.Route {
 	inUse := make(map[string]struct{})
-
-	spec.mu.Lock()
-	defer spec.mu.Unlock()
 
 	for _, r := range routes {
 

@@ -1,15 +1,18 @@
 package shedder
 
 import (
+	"fmt"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -196,7 +199,7 @@ func TestAdmissionControl(t *testing.T) {
 	}
 }
 
-func TestAdmissionControlCleanup(t *testing.T) {
+func TestAdmissionControlCleanupModes(t *testing.T) {
 	for _, ti := range []struct {
 		msg  string
 		mode string
@@ -211,43 +214,10 @@ func TestAdmissionControlCleanup(t *testing.T) {
 		mode: logInactive.String(),
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			// spec := NewAdmissionControl(Options{})
-			// postProcessor, ok := spec.(routing.PostProcessor)
-			// if !ok {
-			// 	t.Fatal("AdmissionControl is not a PostProcessor")
-			// }
-			// args := make([]interface{}, 0, 6)
-			// args = append(args, "testmetric", ti.mode, "10ms", 5, 1, 0.1, 0.95, 0.5)
-			// _, err := spec.CreateFilter(args)
-			// if err != nil {
-			// 	t.Fatalf("error creating filter: %v", err)
-			// 	return
-			// }
-
-			// fr := make(filters.Registry)
-			// fr.Register(spec)
-			// r := &eskip.Route{
-			// 	Id:      "r",
-			// 	Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}},
-			// }
-			// r.BackendType = eskip.ShuntBackend
-
-			// acs, ok := spec.(*admissionControlSpec)
-			// if ok {
-			// 	acs.mu.Lock()
-
-			// 	deleteIDs := []string{}
-
-			// 	for _, id := range deleteIDs {
-			// 		if ac, ok := acs.filters[id]; ok {
-			// 			if !ac.closed {
-			// 			}
-			// 		}
-			// 	}
-			// 	acs.mu.Unlock()
-			// }
-			//postProcessor.Do([]*routing.Route{r})
-
+			ch := make(chan tuple)
+			validationPostProcessor := &validationPostProcessorClosedFilter{
+				ch: ch,
+			}
 			backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 			}))
@@ -288,42 +258,206 @@ func TestAdmissionControlCleanup(t *testing.T) {
 			dc := testdataclient.New([]*eskip.Route{r1})
 			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
 				DataClients:    []routing.DataClient{dc},
-				PostProcessors: []routing.PostProcessor{postProcessor},
+				PostProcessors: []routing.PostProcessor{postProcessor, validationPostProcessor},
 				PreProcessors:  []routing.PreProcessor{preProcessor},
-			}, r1)
+			}, nil)
 			defer proxy.Close()
 
-			dc.Update([]*eskip.Route{r1}, nil)
+			var tuple tuple
+			var deletedIDs []string
 
-			deletedIDs := []string{r1.Id}
-			dc.Update([]*eskip.Route{r2}, deletedIDs)
-			time.Sleep(time.Second)
-			postProcessor.mu.Lock()
-			for _, id := range deletedIDs {
-				if ac, ok := postProcessor.filters[id]; ok {
-					if !ac.closed {
-						t.Errorf("filter should be closed routeID: %s", id)
-					}
-				}
+			// first does not need update, it's the dataclient triggered load that runs the processors
+			tuple = <-ch
+			if tuple.id != r1.Id {
+				t.Fatalf("Failed to get route got: %s", tuple.id)
 			}
-			postProcessor.mu.Unlock()
 
-			// preProcessor will only apply r2 (last wins)
+			// delete route triggers closing filter, add r2 works
+			deletedIDs = []string{r1.Id}
+			dc.Update([]*eskip.Route{r2}, deletedIDs)
+			tuple = <-ch
+			if tuple.id != r2.Id {
+				t.Fatalf("Failed to get route %s, got: %s", r2.Id, tuple.id)
+			}
+			if !tuple.closed {
+				t.Errorf("Deleted filter should be closed routeID: %s", deletedIDs[0])
+			}
+
+			// preProcessor will only apply one filter in r2 (last wins)
+			r2.Filters = append(r2.Filters, r2.Filters...)
 			dc.Update([]*eskip.Route{r1, r2}, nil)
+			tuple = <-ch
+			tuple2 := <-ch
+			if tuple2.id == r2.Id {
+				tuple = tuple2
+			}
+			if tuple.id != r2.Id {
+				t.Fatalf("Failed to cleanup preprocessor %s should be there", r2.Id)
+			}
+			// reset r2
+			r2.Filters = []*eskip.Filter{r2.Filters[0]}
 
+			// delete r2 triggers closing and r1 exists
 			deletedIDs = []string{r2.Id}
 			dc.Update([]*eskip.Route{}, deletedIDs)
-			time.Sleep(time.Second)
-			postProcessor.mu.Lock()
-			for _, id := range deletedIDs {
-				if ac, ok := postProcessor.filters[id]; ok {
-					if !ac.closed {
-						t.Errorf("filter should be closed routeID: %s", id)
-					}
-				}
+			tuple = <-ch
+			if tuple.id != r1.Id {
+				t.Fatalf("Failed to delete route %s, got: '%q'", r2.Id, tuple.id)
 			}
-			postProcessor.mu.Unlock()
+			if !tuple.closed {
+				t.Error("old filter should be closed")
+			}
 
+			// delete r1 triggers closing
+			deletedIDs = []string{r1.Id}
+			dc.Update([]*eskip.Route{}, deletedIDs)
+			tuple = <-ch
+			if !tuple.closed {
+				t.Error("old filter should be closed")
+			}
 		})
 	}
+}
+
+type tuple struct {
+	id     string
+	closed bool
+}
+type validationPostProcessorClosedFilter struct {
+	ch        chan tuple
+	oldFilter *admissionControl
+}
+
+// Do validates if admissioncontrol filter exists in at least one
+// route. It sends a tuple of route ID and closed state of found
+// admissionControl filter through the channel. Empty string if not
+// found. True if closed.
+func (vpp *validationPostProcessorClosedFilter) Do(routes []*routing.Route) []*routing.Route {
+	found := false
+
+	sort.Slice(routes, func(i, j int) bool {
+		return routes[i].Id < routes[j].Id
+	})
+	for _, r := range routes {
+		for _, f := range r.Filters {
+			if ac, ok := f.Filter.(*admissionControl); ok {
+				found = true
+
+				closed := false
+				if vpp.oldFilter != nil {
+					closed = vpp.oldFilter.closed
+				}
+				go func(id string, b bool) {
+					vpp.ch <- tuple{id: id, closed: closed}
+				}(r.Id, closed)
+
+				vpp.oldFilter = ac
+			}
+		}
+	}
+
+	if !found {
+		go func() { vpp.ch <- tuple{id: "", closed: vpp.oldFilter.closed} }()
+	}
+	return routes
+}
+
+func TestAdmissionControlCleanupMultipleFilters(t *testing.T) {
+	for _, ti := range []struct {
+		msg string
+		doc string
+	}{{
+		msg: "no filter",
+		doc: `* -> "%s"`,
+	}, {
+		msg: "one not matching filter",
+		doc: `* -> setRequestHeader("Foo", "bar") -> "%s"`,
+	}, {
+		msg: "one matching filter",
+		doc: `* -> admissionControl("app", "active", "1s", 5, 10, 0.1, 0.95, 0.5) -> "%s"`,
+	}, {
+		msg: "two matching filters",
+		doc: `* -> admissionControl("app", "active", "1s", 5, 10, 0.1, 0.95, 0.5) -> admissionControl("app2", "active", "1s", 5, 10, 0.1, 0.95, 0.5) -> "%s"`,
+	}, {
+		msg: "multi filter with multiple matching filters",
+		doc: `* -> setRequestHeader("Foo", "bar") -> admissionControl("app", "active", "1s", 5, 10, 0.1, 0.95, 0.5) -> status(200) -> admissionControl("app2", "active", "1s", 5, 10, 0.1, 0.95, 0.5) -> setRequestHeader("Foo2", "bar2") -> admissionControl("app3", "active", "1s", 5, 10, 0.1, 0.95, 0.5) -> setRequestHeader("Foo3", "bar3") -> "%s"`,
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			ch := make(chan []*routing.Route)
+			validationProcessor := &validationPostProcessorNumberOfFilters{
+				ch: ch,
+			}
+
+			backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			fspec := NewAdmissionControl(Options{})
+			spec, ok := fspec.(*AdmissionControlSpec)
+			if !ok {
+				t.Fatal("FilterSpec is not a AdmissionControlSpec")
+			}
+			preProcessor := spec.PreProcessor()
+			postProcessor := spec.PostProcessor()
+
+			r, err := eskip.Parse(fmt.Sprintf(ti.doc, backend1.URL))
+			if err != nil {
+				t.Fatalf("Failed to parse doc: %v", err)
+			}
+
+			fr := make(filters.Registry)
+			fr.Register(fspec)
+			fr.Register(builtin.NewSetRequestHeader())
+			fr.Register(builtin.NewStatus())
+
+			dc := testdataclient.New(r)
+			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
+				DataClients:    []routing.DataClient{dc},
+				PostProcessors: []routing.PostProcessor{postProcessor, validationProcessor},
+				PreProcessors:  []routing.PreProcessor{preProcessor},
+			}, r...)
+			defer proxy.Close()
+
+			dc.Update(r, nil)
+
+			result := <-ch
+			if result == nil {
+				t.Error("Failed to cleanup filters correctly, found more than one admissionControl filter in one route")
+			}
+		})
+	}
+}
+
+type validationPostProcessorNumberOfFilters struct {
+	ch chan []*routing.Route
+}
+
+// Do validates if number of admissionControl filters are less than
+// one for each route passed, if so it returns routes as it is
+// if not it returns nil.
+func (vpp *validationPostProcessorNumberOfFilters) Do(routes []*routing.Route) []*routing.Route {
+	i := 0
+	for _, r := range routes {
+		j := 0
+		for _, f := range r.Filters {
+			if _, ok := f.Filter.(*admissionControl); ok {
+				j++
+			}
+		}
+		i = max(i, j)
+	}
+
+	if i > 1 {
+		go func() { vpp.ch <- nil }()
+		return nil
+	}
+	go func() { vpp.ch <- routes }()
+	return routes
+}
+
+func max(i, j int) int {
+	if i > j {
+		return i
+	}
+	return j
 }
