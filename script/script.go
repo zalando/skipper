@@ -24,18 +24,77 @@ import (
 	gjson "layeh.com/gopher-json"
 )
 
-// InitialPoolSize is the number of lua states created initially per route
-var InitialPoolSize int = 3
+const defaultPoolSize int = 10
 
-// MaxPoolSize is the number of lua states stored per route - there may be more parallel
-// requests, but only this number is cached.
-var MaxPoolSize int = 10
+func newState() (*lua.LState, error) {
+	L := lua.NewState(lua.Options{
+		// TODO: can be tuned: https://github.com/yuin/gopher-lua#registry
+		RegistrySize:     1024 * 20, // this is the initial size of the registry
+		RegistryMaxSize:  0,         //1024 * 80, // this is the maximum size that the registry can grow to. If set to `0` (the default) then the registry will not auto grow
+		RegistryGrowStep: 32,        // this is how much to step up the registry by each time it runs out of space. The default is `32`.
+		// TODO: can be tuned: https://github.com/yuin/gopher-lua#callstack
+		CallStackSize: 120, // this is the maximum callstack size of this LState
 
-type luaScript struct{}
+		// set to false because of safety, defaults to false
+		MinimizeStackMemory: false,
+	})
+	L.PreloadModule("base64", base64.Loader)
+	L.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
+	L.PreloadModule("url", gluaurl.Loader)
+	L.PreloadModule("json", gjson.Loader)
+	L.SetGlobal("print", L.NewFunction(printToLog))
+	L.SetGlobal("sleep", L.NewFunction(sleep))
+	return L, nil
+}
 
-// NewLuaScript creates a new filter spec for skipper
-func NewLuaScript() filters.Spec {
-	return &luaScript{}
+type statePool struct {
+	pool chan *lua.LState
+}
+
+func newStatePool(max int) (*statePool, error) {
+	sp := &statePool{
+		pool: make(chan *lua.LState, max),
+	}
+	for i := 0; i < max; i++ {
+		state, err := newState()
+		if err != nil {
+			return nil, err
+		}
+		sp.pool <- state
+	}
+
+	return sp, nil
+}
+
+// GetState acquires a Lua VM from the pool
+func (sp *statePool) GetState() (*lua.LState, error) {
+	select {
+	case L := <-sp.pool:
+		if L == nil {
+			return nil, errors.New("pool closed")
+		}
+		return L, nil
+	default:
+		log.Debug("create new Lua VM")
+		return newState()
+	}
+}
+
+// PutState releases the given Lua VM into the pool
+func (sp *statePool) PutState(L *lua.LState) {
+	if sp.pool == nil { // pool closed
+		L.Close()
+		return
+	}
+	select {
+	case sp.pool <- L:
+	default: // pool full, close state
+		L.Close()
+	}
+}
+
+type luaScript struct {
+	pool *statePool
 }
 
 // Name returns the name of the filter ("lua")
@@ -43,7 +102,7 @@ func (ls *luaScript) Name() string {
 	return filters.LuaName
 }
 
-// CreateFilter creates the filter
+// CreateFilter creates the filter. It initializes and compiles the lua script
 func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) {
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -61,72 +120,116 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 		params = append(params, ps)
 	}
 
-	s := &script{source: src, routeParams: params}
+	s := &script{
+		source:      src,
+		globalPool:  ls.pool,
+		routeParams: params,
+	}
 	if err := s.initScript(); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-func (s *script) getState() (*lua.LState, error) {
-	select {
-	case L := <-s.pool:
-		if L == nil {
-			return nil, errors.New("pool closed")
-		}
-		return L, nil
-	default:
-		return s.newState()
+// NewLuaScript creates a new filter spec for skipper with default pool size
+func NewLuaScript() filters.Spec {
+	return WithPoolSize(defaultPoolSize)
+}
+
+// WithPoolSize creates a new filter spec for skipper with global pool size set
+func WithPoolSize(poolSize int) filters.Spec {
+	log.Debugf("creating Lua pool of %d", poolSize)
+	p, err := newStatePool(poolSize)
+	if err != nil {
+		log.Fatalf("Failed to create Lua pool: %v", err)
+		return nil
+	}
+
+	return &luaScript{
+		pool: p,
 	}
 }
 
-func (s *script) putState(L *lua.LState) {
-	if s.pool == nil { // pool closed
-		L.Close()
-		return
-	}
-	select {
-	case s.pool <- L:
-	default: // pool full, close state
-		L.Close()
-	}
-}
-
-func (s *script) newState() (*lua.LState, error) {
-	L := lua.NewState()
-	L.PreloadModule("base64", base64.Loader)
-	L.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
-	L.PreloadModule("url", gluaurl.Loader)
-	L.PreloadModule("json", gjson.Loader)
-	L.SetGlobal("print", L.NewFunction(printToLog))
-	L.SetGlobal("sleep", L.NewFunction(sleep))
-
-	L.Push(L.NewFunctionFromProto(s.proto))
+func createScript(L *lua.LState, proto *lua.FunctionProto) (*lua.LState, error) {
+	L.Push(L.NewFunctionFromProto(proto))
 
 	err := L.PCall(0, lua.MultRet, nil)
 	if err != nil {
-		L.Close()
 		return nil, err
 	}
 	return L, nil
 }
 
-func printToLog(L *lua.LState) int {
-	top := L.GetTop()
-	args := make([]interface{}, 0, top)
-	for i := 1; i <= top; i++ {
-		args = append(args, L.ToStringMeta(L.Get(i)).String())
+type script struct {
+	source                  string
+	routeParams             []string
+	globalPool              *statePool
+	proto                   *lua.FunctionProto
+	hasRequest, hasResponse bool
+}
+
+func (s *script) newState() (*lua.LState, error) {
+	L, err := s.globalPool.GetState()
+	if err != nil {
+		return nil, err
 	}
-	log.Print(args...)
-	return 0
+
+	// put compiled script into the current LState
+	L.Push(L.NewFunctionFromProto(s.proto))
+
+	err = L.PCall(0, lua.MultRet, nil)
+	if err != nil {
+		s.putState(L) // VM is fine, script is not, release VM to pool
+		return nil, err
+	}
+	return L, err
 }
 
-func sleep(L *lua.LState) int {
-	time.Sleep(time.Duration(L.CheckInt64(1)) * time.Millisecond)
-	return 0
+func (s *script) getState() (*lua.LState, error) {
+	L, err := s.globalPool.GetState()
+	if err != nil {
+		return nil, err
+	}
+	l, err := createScript(L, s.proto)
+	if err != nil {
+		// LState (Lua VM) remains usable https://github.com/yuin/gopher-lua/discussions/377#discussioncomment-2665698
+		// release VM to pool
+		s.putState(L)
+	}
+
+	return l, err
 }
 
+func (s *script) putState(L *lua.LState) {
+	s.globalPool.PutState(L)
+}
+
+// compile, save and test
 func (s *script) initScript() error {
+	if err := s.compileSource(); err != nil {
+		return err
+	}
+
+	// Detect request and response functions
+	L, err := s.newState()
+	if err != nil {
+		return err
+	}
+
+	if fn := L.GetGlobal("request"); fn.Type() == lua.LTFunction {
+		s.hasRequest = true
+	}
+	if fn := L.GetGlobal("response"); fn.Type() == lua.LTFunction {
+		s.hasResponse = true
+	}
+	if !s.hasRequest && !s.hasResponse {
+		return errors.New("at least one of `request` and `response` function must be present")
+	}
+
+	return nil
+}
+
+func (s *script) compileSource() error {
 	// Compile
 	var reader io.Reader
 	var name string
@@ -157,49 +260,17 @@ func (s *script) initScript() error {
 	}
 	s.proto = proto
 
-	// Detect request and response functions
-	L, err := s.newState()
-	if err != nil {
-		return err
-	}
-	defer L.Close()
-
-	if fn := L.GetGlobal("request"); fn.Type() == lua.LTFunction {
-		s.hasRequest = true
-	}
-	if fn := L.GetGlobal("response"); fn.Type() == lua.LTFunction {
-		s.hasResponse = true
-	}
-	if !s.hasRequest && !s.hasResponse {
-		return errors.New("at least one of `request` and `response` function must be present")
-	}
-
-	// Init state pool
-	s.pool = make(chan *lua.LState, MaxPoolSize) // FIXME make configurable
-	for i := 0; i < InitialPoolSize; i++ {
-		L, err := s.newState()
-		if err != nil {
-			return err
-		}
-		s.putState(L)
-	}
 	return nil
 }
 
-type script struct {
-	source                  string
-	routeParams             []string
-	pool                    chan *lua.LState
-	proto                   *lua.FunctionProto
-	hasRequest, hasResponse bool
-}
-
+// Request is running the request() function of the filter in a pooled Lua VM
 func (s *script) Request(f filters.FilterContext) {
 	if s.hasRequest {
 		s.runFunc("request", f)
 	}
 }
 
+// Response is running the response() function of the filter in a pooled Lua VM
 func (s *script) Response(f filters.FilterContext) {
 	if s.hasResponse {
 		s.runFunc("response", f)
@@ -243,6 +314,21 @@ func (s *script) filterContextAsLuaTable(L *lua.LState, f filters.FilterContext)
 	mt.RawSetString("__index", L.NewFunction(getContextValue(f)))
 	L.SetMetatable(t, mt)
 	return t
+}
+
+func printToLog(L *lua.LState) int {
+	top := L.GetTop()
+	args := make([]interface{}, 0, top)
+	for i := 1; i <= top; i++ {
+		args = append(args, L.ToStringMeta(L.Get(i)).String())
+	}
+	log.Print(args...)
+	return 0
+}
+
+func sleep(L *lua.LState) int {
+	time.Sleep(time.Duration(L.CheckInt64(1)) * time.Millisecond)
+	return 0
 }
 
 func serveRequest(f filters.FilterContext) func(*lua.LState) int {

@@ -21,7 +21,6 @@ import (
 	"github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/filters/xforward"
-	"github.com/zalando/skipper/script"
 )
 
 const (
@@ -196,7 +195,6 @@ func MakeRegistry() filters.Registry {
 		circuit.NewConsecutiveBreaker(),
 		circuit.NewRateBreaker(),
 		circuit.NewDisableBreaker(),
-		script.NewLuaScript(),
 		cors.NewOrigin(),
 		logfilter.NewUnverifiedAuditLog(),
 		tracing.NewSpanName(),

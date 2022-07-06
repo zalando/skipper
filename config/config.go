@@ -34,6 +34,7 @@ type Config struct {
 	ExpectedBytesPerRequest         int            `yaml:"expected-bytes-per-request"`
 	MaxTCPListenerConcurrency       int            `yaml:"max-tcp-listener-concurrency"`
 	MaxTCPListenerQueue             int            `yaml:"max-tcp-listener-queue"`
+	LuaStatePoolSize                int            `yaml:"lua-state-pool-size"`
 	IgnoreTrailingSlash             bool           `yaml:"ignore-trailing-slash"`
 	Insecure                        bool           `yaml:"insecure"`
 	ProxyPreserveHost               bool           `yaml:"proxy-preserve-host"`
@@ -299,6 +300,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.ExpectedBytesPerRequest, "expected-bytes-per-request", 50*1024, "bytes per request, that is used to calculate concurrency limits to buffer connection spikes")
 	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", 0, "sets hardcoded max for TCP listener concurrency, normally calculated based on available memory cgroups with max TODO")
 	flag.IntVar(&cfg.MaxTCPListenerQueue, "max-tcp-listener-queue", 0, "sets hardcoded max queue size for TCP listener, normally calculated 10x concurrency with max TODO:50k")
+	flag.IntVar(&cfg.LuaStatePoolSize, "lua-state-pool-size", 0, "sets hardcoded Lua state pool size, if set else based on available memory seen by CGroup v1")
 	flag.BoolVar(&cfg.IgnoreTrailingSlash, "ignore-trailing-slash", false, "flag indicating to ignore trailing slashes in paths when routing")
 	flag.BoolVar(&cfg.Insecure, "insecure", false, "flag indicating to ignore the verification of the TLS certificates of the backend services")
 	flag.BoolVar(&cfg.ProxyPreserveHost, "proxy-preserve-host", false, "flag indicating to preserve the incoming request 'Host' header in the outgoing requests")
@@ -667,6 +669,7 @@ func (c *Config) ToOptions() skipper.Options {
 		ExpectedBytesPerRequest:         c.ExpectedBytesPerRequest,
 		MaxTCPListenerConcurrency:       c.MaxTCPListenerConcurrency,
 		MaxTCPListenerQueue:             c.MaxTCPListenerQueue,
+		LuaStatePoolSize:                c.LuaStatePoolSize,
 		IgnoreTrailingSlash:             c.IgnoreTrailingSlash,
 		DevMode:                         c.DevMode,
 		SupportListener:                 c.SupportListener,
