@@ -35,6 +35,7 @@ import (
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
+	"github.com/zalando/skipper/filters/shedder"
 	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
@@ -1342,6 +1343,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		Tracer:       tracer,
 	}
 
+	admissionControlFilter := shedder.NewAdmissionControl(shedder.Options{
+		Tracer: tracer,
+	})
+	admissionControlSpec, ok := admissionControlFilter.(*shedder.AdmissionControlSpec)
+	if !ok {
+		log.Fatal("Failed to cast admission control filter to spec")
+	}
+
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
 		auth.NewBearerInjector(sp),
@@ -1365,6 +1374,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			o.ApiUsageMonitoringClientKeys,
 			o.ApiUsageMonitoringRealmsTrackingPattern,
 		),
+		admissionControlFilter,
 	)
 
 	var swarmer ratelimit.Swarmer
@@ -1592,6 +1602,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			schedulerRegistry,
 			builtin.NewRouteCreationMetrics(mtr),
 			fadein.NewPostProcessor(),
+			admissionControlSpec.PostProcessor(),
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
@@ -1617,6 +1628,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if o.CustomRoutingPreProcessors != nil {
 		ro.PreProcessors = append(ro.PreProcessors, o.CustomRoutingPreProcessors...)
 	}
+
+	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
 
 	routing := routing.New(ro)
 	defer routing.Close()
