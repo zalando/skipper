@@ -221,7 +221,7 @@ The route matching logic can be summed up as follows:
 
 2. _If_ step #1 matches multiple routes, which means there are multiple
    routes in the same position of the path tree, and all other predicates
-   match the request, too, then the route with the highest 
+   match the request, too, then the route with the highest
    [weight](../reference/predicates.md#weight) is matched.
 
     * this is an O(n) lookup, but only on the same leaf
@@ -234,6 +234,31 @@ The route matching logic can be summed up as follows:
    selected. It is unspecified which one.
 
 See more details about the predicates here: [Predicates](../reference/predicates.md).
+
+### Route creation
+
+Skipper has two kind of routes:
+
+1. [eskip.Route](https://pkg.go.dev/github.com/zalando/skipper/eskip#Route)
+2. [routing.Route](https://pkg.go.dev/github.com/zalando/skipper/routing#Route)
+
+An `eskip.Route` is the parsed representation of user input. This will
+be converted to a `routing.Route`, when the routing table is built. A
+tree of `routing.Route` will be used to match an incoming Request to a route.
+
+Route creation steps:
+
+1. Skipper's route creation starts with the [Dataclient](https://pkg.go.dev/github.com/zalando/skipper/routing#DataClient)
+   to fetch routes (`[]*eskip.Route`).
+2. These will be first processed by
+   `[]routing.PreProcessor`. [PreProcessors](https://pkg.go.dev/github.com/zalando/skipper/routing#PreProcessor) are able to add, remove,
+   modify all `[]*eskip.Route`.
+3. After that `[]*eskip.Route` are converted to `[]*routing.Route`.
+4. `[]routing.PostProcessor` are executed. [PostProcessors](https://pkg.go.dev/github.com/zalando/skipper/routing#PostProcessor) are a ble to
+   add, remove, modify all `[]*routing.Route`.
+5. Last the active routing table is swapped. Now all incoming requests
+   are handled by the new routing table
+
 
 ## Building skipper
 
