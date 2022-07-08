@@ -101,9 +101,13 @@ type Options struct {
 	// It defines the expected average memory required to process an incoming
 	// request. It is used only when MaxTCPListenerConcurrency is not defined.
 	// It is used together with the memory limit defined in:
-	// /sys/fs/cgroup/memory/memory.limit_in_bytes.
+	// cgroup v1 /sys/fs/cgroup/memory/memory.limit_in_bytes
+	// or
+	// cgroup v2 /sys/fs/cgroup/memory.max
 	//
-	// See also: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+	// See also:
+	// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+	// cgroup v2: https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#memory-interface-files
 	ExpectedBytesPerRequest int
 
 	// MaxTCPListenerConcurrency is used by the TCP LIFO listener.
@@ -1057,14 +1061,21 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 	var memoryLimit int
 	if o.MaxTCPListenerConcurrency <= 0 {
 		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
-		// cgroup v2: TODO(sszuecs) has to wait for docker/k8s check path /sys/fs/cgroup/<name>/memory.max
+		// cgroup v2: https://www.kernel.org/doc/Documentation/cgroup-v2.txt
 		// Note that in containers this will be the container limit.
-		// Runtimes without the file will use defaults defined in `queuelistener` package.
-		const memoryLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-		memoryLimitBytes, err := os.ReadFile(memoryLimitFile)
+		// Runtimes without these files will use defaults defined in `queuelistener` package.
+		const (
+			memoryLimitFileV1 = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+			memoryLimitFileV2 = "/sys/fs/cgroup/memory.max"
+		)
+		memoryLimitBytes, err := os.ReadFile(memoryLimitFileV2)
 		if err != nil {
-			log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
-		} else {
+			memoryLimitBytes, err = os.ReadFile(memoryLimitFileV1)
+			if err != nil {
+				log.Errorf("Failed to read memory limits, fallback to defaults: %v", err)
+			}
+		}
+		if err == nil {
 			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
 			memoryLimit, err = strconv.Atoi(memoryLimitString)
 			if err != nil {
