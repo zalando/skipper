@@ -65,6 +65,8 @@ markdown_extensions:
 - pymdownx.superfences
 - pymdownx.details
 - pymdownx.mark
+- pymdownx.arithmatex:
+    generic: true
 
 extra_javascript:
   - javascripts/mathjax.js
