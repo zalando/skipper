@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -320,7 +320,7 @@ func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs map[string]string)
 		return
 	}
 	r.log.Infof("SetAddrs: %v", addrs)
-	r.ring.SetAddrs(addrs)
+	r.ring.SetAddrs(ctx, addrs)
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
@@ -334,7 +334,7 @@ func (r *RedisRingClient) Set(ctx context.Context, key string, value interface{}
 }
 
 func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val int64, score float64) (int64, error) {
-	res := r.ring.ZAdd(ctx, key, &redis.Z{Member: val, Score: score})
+	res := r.ring.ZAdd(ctx, key, redis.Z{Member: val, Score: score})
 	return res.Val(), res.Err()
 }
 
@@ -359,13 +359,13 @@ func (r *RedisRingClient) ZCard(ctx context.Context, key string) (int64, error) 
 }
 
 func (r *RedisRingClient) ZRangeByScoreWithScoresFirst(ctx context.Context, key string, min, max float64, offset, count int64) (interface{}, error) {
-	opt := &redis.ZRangeBy{
+	opt := redis.ZRangeBy{
 		Min:    fmt.Sprint(min),
 		Max:    fmt.Sprint(max),
 		Offset: offset,
 		Count:  count,
 	}
-	res := r.ring.ZRangeByScoreWithScores(ctx, key, opt)
+	res := r.ring.ZRangeByScoreWithScores(ctx, key, &opt)
 	zs, err := res.Result()
 	if err != nil {
 		return nil, err

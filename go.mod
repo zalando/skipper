@@ -16,7 +16,6 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt/v4 v4.2.0
 	github.com/google/go-cmp v0.5.6
 	github.com/hashicorp/memberlist v0.3.0
@@ -75,6 +74,7 @@ require (
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/go-logr/logr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/go-redis/redis/v9 v9.0.0-beta.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -98,6 +98,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
+	github.com/onsi/gomega v1.19.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799 // indirect
 	github.com/opencontainers/runc v1.1.2 // indirect
@@ -115,7 +116,7 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/mod v0.5.1 // indirect
-	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.8 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
@@ -130,3 +131,5 @@ require (
 )
 
 go 1.18
+
+replace github.com/go-redis/redis/v9 => github.com/szuecs/redis/v9 v9.0.0-beta.1.0.20220720205457-d1c17518c5ee
