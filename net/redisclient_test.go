@@ -51,12 +51,12 @@ func TestRedisClient(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cli := NewRedisRingClient(tt.options)
-			defer cli.Close()
 			defer func() {
 				if !cli.closed {
 					t.Error("Failed to close redis ring client")
 				}
 			}()
+			defer cli.Close()
 
 			if !cli.RingAvailable() {
 				t.Error("Failed to have a connected redis client, ring not available")
