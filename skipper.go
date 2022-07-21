@@ -1473,7 +1473,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			log.Infof("%s/%s kdc != nil: %v", o.KubernetesRedisNamespace, o.KubernetesRedisName, kdc != nil)
 			if kdc != nil {
-				redisOptions.GetUpdatedAddrs = func() []string {
+				redisOptions.AddrUpdater = func() []string {
 					// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 					// has polled the data once or kdc.GetEndpointAdresses should be blocking
 					// call to kubernetes API
