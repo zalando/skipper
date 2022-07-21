@@ -32,6 +32,14 @@ func TestRedisClient(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "With AddrUpdater",
+			options: &RedisOptions{
+				AddrUpdater:    func() []string { return []string{redisAddr} },
+				UpdateInterval: 10 * time.Millisecond,
+			},
+			wantErr: false,
+		},
+		{
 			name: "With tracer",
 			options: &RedisOptions{
 				Addrs:  []string{redisAddr},
@@ -60,6 +68,53 @@ func TestRedisClient(t *testing.T) {
 
 			if !cli.RingAvailable() {
 				t.Error("Failed to have a connected redis client, ring not available")
+			}
+
+			if tt.options.AddrUpdater != nil {
+				a := cli.options.AddrUpdater()
+				if !cmp.Equal(a, []string{redisAddr}) {
+					t.Errorf("Failed to get addr: %v", cmp.Diff(a, []string{redisAddr}))
+				}
+				redisAddr2, done2 := redistest.NewTestRedis(t)
+				defer done2()
+
+				// test background update
+				ch := make(chan struct{})
+				cli.options.AddrUpdater = func() []string {
+					ch <- struct{}{}
+					return []string{redisAddr, redisAddr2}
+				}
+				time.Sleep(2 * cli.options.UpdateInterval)
+				select {
+				case <-ch:
+					//ok
+				default:
+					t.Error("Failed to get updater called by goroutine")
+				}
+
+				// test shards available
+				stats := cli.ring.PoolStats()
+				if stats.IdleConns < uint32(2*cli.options.MinIdleConns) {
+					t.Errorf("Failed to have enough idleconns for the new redis instance %d < %d", stats.IdleConns, 2*cli.options.MinIdleConns)
+				}
+
+				// test close will stop background update
+				cli.Close()
+				cli.options.AddrUpdater = func() []string {
+					ch <- struct{}{}
+					return []string{redisAddr}
+				}
+				time.Sleep(2 * cli.options.UpdateInterval)
+				select {
+				case <-ch:
+					t.Error("Failed to close background updater goroutine")
+				default:
+					//ok
+				}
+				if !cli.closed {
+					t.Error("Failed to close")
+				}
+
 			}
 
 			if tt.options.Tracer != nil {

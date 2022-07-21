@@ -33,6 +33,10 @@ type RedisOptions struct {
 	// shards.
 	AddrUpdater func() []string
 
+	// UpdateInterval is the time.Duration that AddrUpdater is
+	// triggered and SetAddrs be used to update the redis shards
+	UpdateInterval time.Duration
+
 	// Password is the password needed to connect to Redis server
 	Password string
 
@@ -111,6 +115,7 @@ const (
 	DefaultMaxConns = 100
 
 	defaultConnMetricsInterval = 60 * time.Second
+	defaultUpdateInterval      = 10 * time.Second
 )
 
 // https://arxiv.org/pdf/1406.2294.pdf
@@ -246,11 +251,13 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		r.metricsPrefix = ro.MetricsPrefix
 
 		if ro.AddrUpdater != nil {
+			if ro.UpdateInterval == 0 {
+				ro.UpdateInterval = defaultUpdateInterval
+			}
 			go func() {
 				old := len(ringOptions.Addrs)
-				d := 10 * time.Second
-				t := time.NewTicker(d)
-				r.log.Info("Start goroutine to update redis instances every %s", d)
+				t := time.NewTicker(ro.UpdateInterval)
+				r.log.Info("Start goroutine to update redis instances every %s", ro.UpdateInterval)
 				for range t.C {
 					select {
 					case <-r.quit:
@@ -260,9 +267,8 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 					addrs := ro.AddrUpdater()
 					if old != len(addrs) && len(addrs) != 0 {
 						r.log.Infof("Redis updater updating %d != %d", old, len(addrs))
+						r.SetAddrs(context.Background(), addrs)
 					}
-
-					r.SetAddrs(context.Background(), addrs)
 				}
 			}()
 		}
