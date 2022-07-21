@@ -52,15 +52,20 @@ func TestRedisClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cli := NewRedisRingClient(tt.options)
 			defer cli.Close()
+			defer func() {
+				if !cli.closed {
+					t.Error("Failed to close redis ring client")
+				}
+			}()
 
 			if !cli.RingAvailable() {
-				t.Errorf("Failed to have a connected redis client, ring not available")
+				t.Error("Failed to have a connected redis client, ring not available")
 			}
 
-			// can't compare these
-			// if tt.options.Tracer != opentracing.Tracer{} { // cli.tracer == opentracing.Tracer{}{
-			// 	t.Errorf("Found an unexpected tracer, want: %v, got: %v", tt.options.Tracer, cli.tracer)
-			// }
+			if tt.options.Tracer != nil {
+				span := cli.StartSpan("test")
+				span.Finish()
+			}
 
 			if tt.options.ConnMetricsInterval != defaultConnMetricsInterval {
 				cli.StartMetricsCollection()
@@ -886,7 +891,7 @@ func TestRedisClientSetAddr(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		options     *RedisOptions
-		redisUpdate map[string]string
+		redisUpdate []string
 		keys        []string
 		vals        []string
 	}{
@@ -903,9 +908,9 @@ func TestRedisClientSetAddr(t *testing.T) {
 			options: &RedisOptions{
 				Addrs: []string{redisAddr1},
 			},
-			redisUpdate: map[string]string{
-				"redis1": redisAddr1,
-				"redis2": redisAddr2,
+			redisUpdate: []string{
+				redisAddr1,
+				redisAddr2,
 			},
 			keys: []string{"foo1", "foo2", "foo3", "foo4", "foo5"},
 			vals: []string{"bar1", "bar2", "bar3", "bar4", "bar5"},

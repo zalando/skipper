@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -27,9 +28,10 @@ type RedisOptions struct {
 	// Addrs are the list of redis shards
 	Addrs []string
 
-	// AddrUpdater is a func that is called with a channel that
-	// will be written to an updated redis address list
-	AddrUpdater func(quit chan struct{}, ch chan<- []string)
+	// AddrUpdater is a func that is regularly called to update
+	// redis address list. This func should return a list of redis
+	// shards.
+	AddrUpdater func() []string
 
 	// Password is the password needed to connect to Redis server
 	Password string
@@ -86,7 +88,8 @@ type RedisRingClient struct {
 	options       *RedisOptions
 	tracer        opentracing.Tracer
 	quit          chan struct{}
-	ch            chan []string
+	once          sync.Once
+	closed        bool
 }
 
 type RedisScript struct {
@@ -191,10 +194,12 @@ func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
 }
 
 func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
-	r := new(RedisRingClient)
-	r.quit = make(chan struct{})
-	r.metrics = metrics.Default
-	r.tracer = &opentracing.NoopTracer{}
+	r := &RedisRingClient{
+		once:    sync.Once{},
+		quit:    make(chan struct{}),
+		metrics: metrics.Default,
+		tracer:  &opentracing.NoopTracer{},
+	}
 
 	ringOptions := &redis.RingOptions{
 		Addrs: map[string]string{},
@@ -211,7 +216,11 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			ringOptions.NewConsistentHash = NewMultiprobe
 		}
 
-		ringOptions.Addrs = createAddressMap(ro.Addrs)
+		if ro.AddrUpdater != nil {
+			ringOptions.Addrs = createAddressMap(ro.AddrUpdater())
+		} else {
+			ringOptions.Addrs = createAddressMap(ro.Addrs)
+		}
 		if ro.Log == nil {
 			ro.Log = &logging.DefaultLog{}
 		}
@@ -237,20 +246,25 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		r.metricsPrefix = ro.MetricsPrefix
 
 		if ro.AddrUpdater != nil {
-			ch := make(chan []string)
-			go ro.AddrUpdater(r.quit, ch)
-
-			go func(quit chan struct{}, rCH <-chan []string) {
-				for {
+			go func() {
+				old := len(ringOptions.Addrs)
+				d := 10 * time.Second
+				t := time.NewTicker(d)
+				r.log.Info("Start goroutine to update redis instances every %s", d)
+				for range t.C {
 					select {
-					case <-quit:
+					case <-r.quit:
 						return
-					case addrs := <-rCH:
-						r.SetAddrs(context.Background(), createAddressMap(addrs))
+					default:
 					}
+					addrs := ro.AddrUpdater()
+					if old != len(addrs) && len(addrs) != 0 {
+						r.log.Infof("Redis updater updating %d != %d", old, len(addrs))
+					}
+
+					r.SetAddrs(context.Background(), addrs)
 				}
-			}(r.quit, ch)
-			r.ch = ch
+			}()
 		}
 	}
 
@@ -260,7 +274,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 func createAddressMap(addrs []string) map[string]string {
 	res := make(map[string]string)
 	for idx, addr := range addrs {
-		addr = strings.TrimLeft(addr, "TCP://")
+		addr = strings.TrimPrefix(addr, "TCP://")
 		res[fmt.Sprintf("redis%d", idx)] = addr
 	}
 	return res
@@ -307,20 +321,19 @@ func (r *RedisRingClient) StartSpan(operationName string, opts ...opentracing.St
 }
 
 func (r *RedisRingClient) Close() {
-	if r != nil {
+	r.once.Do(func() {
+		r.closed = true
 		close(r.quit)
-		if r.ch != nil {
-			close(r.ch)
-		}
-	}
+	})
 }
 
-func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs map[string]string) {
+func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
-	r.log.Infof("SetAddrs: %v", addrs)
-	r.ring.SetAddrs(ctx, addrs)
+	addrsMap := createAddressMap(addrs)
+	r.log.Infof("SetAddrs: %v", addrsMap)
+	r.ring.SetAddrs(ctx, addrsMap)
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {

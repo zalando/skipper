@@ -1401,44 +1401,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		if len(o.SwarmRedisURLs) > 0 {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 
-			var cb func(quit chan struct{}, ch chan<- []string)
-			if o.KubernetesRedisNamespace != "" && o.KubernetesRedisName != "" {
-				log.Infof("Use %s/%s to update redis shards", o.KubernetesRedisNamespace, o.KubernetesRedisName)
-				var kdc *kubernetes.Client
-				for _, dc := range dataClients {
-					if kc, ok := dc.(*kubernetes.Client); ok {
-						kdc = kc
-						break
-					}
-				}
-				log.Infof("%s/%s kdc != nil: %v", o.KubernetesRedisNamespace, o.KubernetesRedisName, kdc != nil)
-
-				old := len(o.SwarmRedisURLs)
-				cb = func(quit chan struct{}, w chan<- []string) {
-					ticker := time.NewTicker(10 * time.Second)
-					old := old
-					kdc := kdc
-					for range ticker.C {
-						select {
-						case <-quit:
-							close(w)
-							return
-						default:
-						}
-						a := kdc.GetEndpointAdresses(o.KubernetesRedisNamespace, o.KubernetesRedisName)
-						log.Infof("Redis updater called and found %d", len(a))
-
-						if old != len(a) && len(a) != 0 {
-							log.Infof("Redis updater updating %d != %d", old, len(a))
-							old = len(a)
-							w <- a
-						}
-					}
-				}
-			}
 			redisOptions = &skpnet.RedisOptions{
 				Addrs:               o.SwarmRedisURLs,
-				AddrUpdater:         cb,
 				Password:            o.SwarmRedisPassword,
 				HashAlgorithm:       o.SwarmRedisHashAlgorithm,
 				DialTimeout:         o.SwarmRedisDialTimeout,
@@ -1495,6 +1459,32 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			defer theSwarm.Leave()
 			swarmer = theSwarm
 		}
+
+		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
+		if redisOptions != nil && o.KubernetesRedisNamespace != "" && o.KubernetesRedisName != "" {
+			log.Infof("Use %s/%s to update redis shards", o.KubernetesRedisNamespace, o.KubernetesRedisName)
+			var kdc *kubernetes.Client
+			for _, dc := range dataClients {
+				if kc, ok := dc.(*kubernetes.Client); ok {
+					kdc = kc
+					break
+				}
+			}
+
+			log.Infof("%s/%s kdc != nil: %v", o.KubernetesRedisNamespace, o.KubernetesRedisName, kdc != nil)
+			if kdc != nil {
+				redisOptions.GetUpdatedAddrs = func() []string {
+					// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
+					// has polled the data once or kdc.GetEndpointAdresses should be blocking
+					// call to kubernetes API
+					a := kdc.GetEndpointAdresses(o.KubernetesRedisNamespace, o.KubernetesRedisName)
+					log.Infof("Redis updater called and found %d redis endpoints", len(a))
+					return a
+
+				}
+			}
+		}
+
 	}
 
 	var ratelimitRegistry *ratelimit.Registry
