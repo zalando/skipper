@@ -268,8 +268,24 @@ func createAddressMap(addrs []string) map[string]string {
 	return res
 }
 
+func hasAll(a []string, set map[string]struct{}) bool {
+	if len(a) != len(set) {
+		return true
+	}
+	for _, w := range a {
+		if _, ok := set[w]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (r *RedisRingClient) startUpdater(ctx context.Context) {
-	old := len(r.options.Addrs)
+	old := make(map[string]struct{})
+	for _, addr := range r.options.Addrs {
+		old[addr] = struct{}{}
+	}
+
 	t := time.NewTicker(r.options.UpdateInterval)
 	defer t.Stop()
 	r.log.Info("Start goroutine to update redis instances every %s", r.options.UpdateInterval)
@@ -282,9 +298,15 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 		}
 
 		addrs := r.options.AddrUpdater()
-		if old != len(addrs) && len(addrs) != 0 {
+		if !hasAll(addrs, old) {
 			r.log.Infof("Redis updater updating %d != %d", old, len(addrs))
 			r.SetAddrs(context.Background(), addrs)
+
+			old = make(map[string]struct{})
+			for _, addr := range addrs {
+				old[addr] = struct{}{}
+			}
+
 		}
 	}
 }
