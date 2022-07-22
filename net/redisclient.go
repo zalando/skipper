@@ -270,7 +270,7 @@ func createAddressMap(addrs []string) map[string]string {
 
 func hasAll(a []string, set map[string]struct{}) bool {
 	if len(a) != len(set) {
-		return true
+		return false
 	}
 	for _, w := range a {
 		if _, ok := set[w]; !ok {

@@ -10,6 +10,80 @@ import (
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
 
+func TestRedisContainer(t *testing.T) {
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
+	if redisAddr == "" {
+		t.Fatal("Failed to create redis 1")
+	}
+	redisAddr2, done2 := redistest.NewTestRedis(t)
+	defer done2()
+	if redisAddr2 == "" {
+		t.Fatal("Failed to create redis 2")
+	}
+}
+
+func Test_hasAll(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		a    []string
+		h    map[string]struct{}
+		want bool
+	}{
+		{
+			name: "both empty",
+			a:    nil,
+			h:    nil,
+			want: true,
+		},
+		{
+			name: "a empty",
+			a:    nil,
+			h: map[string]struct{}{
+				"foo": struct{}{},
+			},
+			want: false,
+		},
+		{
+			name: "h empty",
+			a:    []string{"foo"},
+			h:    nil,
+			want: false,
+		},
+		{
+			name: "both set equal",
+			a:    []string{"foo"},
+			h: map[string]struct{}{
+				"foo": struct{}{},
+			},
+			want: true,
+		},
+		{
+			name: "both set notequal",
+			a:    []string{"fo"},
+			h: map[string]struct{}{
+				"foo": struct{}{},
+			},
+			want: false,
+		},
+		{
+			name: "both set multiple equal",
+			a:    []string{"bar", "foo"},
+			h: map[string]struct{}{
+				"foo": struct{}{},
+				"bar": struct{}{},
+			},
+			want: true,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasAll(tt.a, tt.h)
+			if tt.want != got {
+				t.Fatalf("Failed to get %v for hasall(%v, %v)", tt.want, tt.a, tt.h)
+			}
+		})
+	}
+}
+
 func TestRedisClient(t *testing.T) {
 	tracer, err := basic.InitTracer([]string{"recorder=in-memory"})
 	if err != nil {
@@ -82,6 +156,7 @@ func TestRedisClient(t *testing.T) {
 				}
 			}
 
+			go func() { <-ch }() // create client will block
 			cli := NewRedisRingClient(tt.options)
 			defer func() {
 				if !cli.closed {
