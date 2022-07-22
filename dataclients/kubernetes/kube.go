@@ -494,7 +494,7 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 	return filters
 }
 
-func (c *Client) GetEndpointAdresses(ns, name string) []string {
+func (c *Client) GetEndpointAddresses(ns, name string) []string {
 	if c.state == nil {
 		log.Info("state is nil")
 		return nil

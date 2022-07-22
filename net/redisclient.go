@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
@@ -257,6 +256,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			go func() {
 				old := len(ringOptions.Addrs)
 				t := time.NewTicker(ro.UpdateInterval)
+				defer t.Stop()
 				r.log.Info("Start goroutine to update redis instances every %s", ro.UpdateInterval)
 				for range t.C {
 					select {
@@ -279,9 +279,8 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 
 func createAddressMap(addrs []string) map[string]string {
 	res := make(map[string]string)
-	for idx, addr := range addrs {
-		addr = strings.TrimPrefix(addr, "TCP://")
-		res[fmt.Sprintf("redis%d", idx)] = addr
+	for _, addr := range addrs {
+		res[addr] = addr
 	}
 	return res
 }

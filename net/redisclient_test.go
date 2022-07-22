@@ -18,6 +18,8 @@ func TestRedisClient(t *testing.T) {
 
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
+	redisAddr2, done2 := redistest.NewTestRedis(t)
+	defer done2()
 
 	for _, tt := range []struct {
 		name    string
@@ -34,7 +36,17 @@ func TestRedisClient(t *testing.T) {
 		{
 			name: "With AddrUpdater",
 			options: &RedisOptions{
-				AddrUpdater:    func() []string { return []string{redisAddr} },
+				AddrUpdater: func() []string { return []string{redisAddr} },
+				// 	i := 0
+				// 	return func() []string {
+				// 		i++
+				// 		if i < 2 {
+				// 			return []string{redisAddr}
+				// 		}
+				// 		return []string{redisAddr, redisAddr2}
+				// 	}()
+
+				// },
 				UpdateInterval: 10 * time.Millisecond,
 			},
 			wantErr: false,
@@ -58,6 +70,18 @@ func TestRedisClient(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			var orig []string
+			var ch chan struct{}
+			if tt.options.AddrUpdater != nil {
+				orig = tt.options.AddrUpdater()
+				// test background update
+				ch = make(chan struct{})
+				tt.options.AddrUpdater = func() []string {
+					ch <- struct{}{}
+					return []string{redisAddr, redisAddr2}
+				}
+			}
+
 			cli := NewRedisRingClient(tt.options)
 			defer func() {
 				if !cli.closed {
@@ -71,20 +95,11 @@ func TestRedisClient(t *testing.T) {
 			}
 
 			if tt.options.AddrUpdater != nil {
-				a := cli.options.AddrUpdater()
-				if !cmp.Equal(a, []string{redisAddr}) {
-					t.Errorf("Failed to get addr: %v", cmp.Diff(a, []string{redisAddr}))
+				if !cmp.Equal(orig, []string{redisAddr}) {
+					t.Errorf("Failed to get addr: %v", cmp.Diff(orig, []string{redisAddr}))
 				}
-				redisAddr2, done2 := redistest.NewTestRedis(t)
-				defer done2()
 
-				// test background update
-				ch := make(chan struct{})
-				cli.options.AddrUpdater = func() []string {
-					ch <- struct{}{}
-					return []string{redisAddr, redisAddr2}
-				}
-				time.Sleep(2 * cli.options.UpdateInterval)
+				time.Sleep(2 + cli.options.UpdateInterval)
 				select {
 				case <-ch:
 					//ok
@@ -100,11 +115,7 @@ func TestRedisClient(t *testing.T) {
 
 				// test close will stop background update
 				cli.Close()
-				cli.options.AddrUpdater = func() []string {
-					ch <- struct{}{}
-					return []string{redisAddr}
-				}
-				time.Sleep(2 * cli.options.UpdateInterval)
+				time.Sleep(2 + cli.options.UpdateInterval)
 				select {
 				case <-ch:
 					t.Error("Failed to close background updater goroutine")

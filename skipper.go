@@ -1477,8 +1477,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 					// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 					// has polled the data once or kdc.GetEndpointAdresses should be blocking
 					// call to kubernetes API
-					a := kdc.GetEndpointAdresses(o.KubernetesRedisNamespace, o.KubernetesRedisName)
+					a := kdc.GetEndpointAddresses(o.KubernetesRedisNamespace, o.KubernetesRedisName)
 					log.Infof("Redis updater called and found %d redis endpoints", len(a))
+					for i := 0; i < len(a); i++ {
+						a[i] = strings.TrimPrefix(a[i], "TCP://")
+					}
 					return a
 
 				}

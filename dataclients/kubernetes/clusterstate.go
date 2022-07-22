@@ -43,10 +43,6 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 }
 
 func (state *clusterState) GetEndpointsByService(namespace, name, protocol string, servicePort *servicePort) []string {
-	return state.getEndpointsByService(namespace, name, protocol, servicePort)
-}
-
-func (state *clusterState) getEndpointsByService(namespace, name, protocol string, servicePort *servicePort) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
