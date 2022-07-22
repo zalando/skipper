@@ -253,24 +253,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			if ro.UpdateInterval == 0 {
 				ro.UpdateInterval = defaultUpdateInterval
 			}
-			go func() {
-				old := len(ringOptions.Addrs)
-				t := time.NewTicker(ro.UpdateInterval)
-				defer t.Stop()
-				r.log.Info("Start goroutine to update redis instances every %s", ro.UpdateInterval)
-				for range t.C {
-					select {
-					case <-r.quit:
-						return
-					default:
-					}
-					addrs := ro.AddrUpdater()
-					if old != len(addrs) && len(addrs) != 0 {
-						r.log.Infof("Redis updater updating %d != %d", old, len(addrs))
-						r.SetAddrs(context.Background(), addrs)
-					}
-				}
-			}()
+			go r.startUpdater(context.Background())
 		}
 	}
 
@@ -283,6 +266,27 @@ func createAddressMap(addrs []string) map[string]string {
 		res[addr] = addr
 	}
 	return res
+}
+
+func (r *RedisRingClient) startUpdater(ctx context.Context) {
+	old := len(r.options.Addrs)
+	t := time.NewTicker(r.options.UpdateInterval)
+	defer t.Stop()
+	r.log.Info("Start goroutine to update redis instances every %s", r.options.UpdateInterval)
+
+	for range t.C {
+		select {
+		case <-r.quit:
+			return
+		default:
+		}
+
+		addrs := r.options.AddrUpdater()
+		if old != len(addrs) && len(addrs) != 0 {
+			r.log.Infof("Redis updater updating %d != %d", old, len(addrs))
+			r.SetAddrs(context.Background(), addrs)
+		}
+	}
 }
 
 func (r *RedisRingClient) RingAvailable() bool {
