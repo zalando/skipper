@@ -286,15 +286,13 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 		old[addr] = struct{}{}
 	}
 
-	t := time.NewTicker(r.options.UpdateInterval)
-	defer t.Stop()
 	r.log.Info("Start goroutine to update redis instances every %s", r.options.UpdateInterval)
 
-	for range t.C {
+	for {
 		select {
 		case <-r.quit:
 			return
-		default:
+		case <-time.After(r.options.UpdateInterval):
 		}
 
 		addrs := r.options.AddrUpdater()
