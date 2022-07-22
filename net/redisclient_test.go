@@ -40,7 +40,7 @@ func Test_hasAll(t *testing.T) {
 			name: "a empty",
 			a:    nil,
 			h: map[string]struct{}{
-				"foo": struct{}{},
+				"foo": {},
 			},
 			want: false,
 		},
@@ -54,7 +54,7 @@ func Test_hasAll(t *testing.T) {
 			name: "both set equal",
 			a:    []string{"foo"},
 			h: map[string]struct{}{
-				"foo": struct{}{},
+				"foo": {},
 			},
 			want: true,
 		},
@@ -62,7 +62,7 @@ func Test_hasAll(t *testing.T) {
 			name: "both set notequal",
 			a:    []string{"fo"},
 			h: map[string]struct{}{
-				"foo": struct{}{},
+				"foo": {},
 			},
 			want: false,
 		},
@@ -70,8 +70,8 @@ func Test_hasAll(t *testing.T) {
 			name: "both set multiple equal",
 			a:    []string{"bar", "foo"},
 			h: map[string]struct{}{
-				"foo": struct{}{},
-				"bar": struct{}{},
+				"foo": {},
+				"bar": {},
 			},
 			want: true,
 		}} {
