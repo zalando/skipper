@@ -65,10 +65,6 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 }
 
 func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol string, target *definitions.BackendPort) []string {
-	return state.getEndpointsByTarget(namespace, name, protocol, target)
-}
-
-func (state *clusterState) getEndpointsByTarget(namespace, name, protocol string, target *definitions.BackendPort) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
