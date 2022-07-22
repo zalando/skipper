@@ -84,7 +84,7 @@ func convertPathRule(
 			protocol = p
 		}
 
-		eps = state.getEndpointsByService(ns, svcName, protocol, servicePort)
+		eps = state.GetEndpointsByService(ns, svcName, protocol, servicePort)
 		log.Debugf("convertPathRule: Found %d endpoints %s for %s", len(eps), servicePort, svcName)
 	}
 	if len(eps) == 0 {
@@ -358,7 +358,7 @@ func (ing *ingress) convertDefaultBackend(
 			protocol = p
 		}
 
-		eps = state.getEndpointsByService(
+		eps = state.GetEndpointsByService(
 			ns,
 			svcName,
 			protocol,
