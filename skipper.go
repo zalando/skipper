@@ -227,11 +227,11 @@ type Options struct {
 	// used with external name services (type=ExternalName).
 	KubernetesAllowedExternalNames []*regexp.Regexp
 
-	// KubernetesRedisNamespace to be used to lookup ring shards dynamically
-	KubernetesRedisNamespace string
+	// KubernetesRedisServiceNamespace to be used to lookup ring shards dynamically
+	KubernetesRedisServiceNamespace string
 
-	// KubernetesRedisName to be used to lookup ring shards dynamically
-	KubernetesRedisName string
+	// KubernetesRedisServiceName to be used to lookup ring shards dynamically
+	KubernetesRedisServiceName string
 
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
@@ -1461,8 +1461,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 
 		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
-		if redisOptions != nil && o.KubernetesRedisNamespace != "" && o.KubernetesRedisName != "" {
-			log.Infof("Use %s/%s to update redis shards", o.KubernetesRedisNamespace, o.KubernetesRedisName)
+		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" {
+			log.Infof("Use %s/%s to update redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 			var kdc *kubernetes.Client
 			for _, dc := range dataClients {
 				if kc, ok := dc.(*kubernetes.Client); ok {
@@ -1471,13 +1471,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				}
 			}
 
-			log.Infof("%s/%s kdc != nil: %v", o.KubernetesRedisNamespace, o.KubernetesRedisName, kdc != nil)
+			log.Infof("%s/%s kdc != nil: %v", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, kdc != nil)
 			if kdc != nil {
 				redisOptions.AddrUpdater = func() []string {
 					// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 					// has polled the data once or kdc.GetEndpointAdresses should be blocking
 					// call to kubernetes API
-					a := kdc.GetEndpointAddresses(o.KubernetesRedisNamespace, o.KubernetesRedisName)
+					a := kdc.GetEndpointAddresses(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 					log.Infof("Redis updater called and found %d redis endpoints", len(a))
 					for i := 0; i < len(a); i++ {
 						a[i] = strings.TrimPrefix(a[i], "TCP://")

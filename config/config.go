@@ -432,8 +432,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
 	flag.BoolVar(&cfg.KubernetesOnlyAllowedExternalNames, "kubernetes-only-allowed-external-names", false, "only accept external name services, route group network backends and route group explicit LB endpoints from an allow list defined by zero or more -kubernetes-allowed-external-name flags")
 	flag.Var(&cfg.KubernetesAllowedExternalNames, "kubernetes-allowed-external-name", "set zero or more regular expressions from which at least one should be matched by the external name services, route group network addresses and explicit endpoints domain names")
-	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
-	flag.StringVar(&cfg.KubernetesRedisServiceName, "kubernetes-redis-name", "", "Sets name for redis to be used to lookup endpoints")
+	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-service-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
+	flag.StringVar(&cfg.KubernetesRedisServiceName, "kubernetes-redis-service-name", "", "Sets name for redis to be used to lookup endpoints")
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
@@ -779,8 +779,8 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
 		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
 		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
-		KubernetesRedisNamespace:           c.KubernetesRedisServiceNamespace,
-		KubernetesRedisName:                c.KubernetesRedisServiceName,
+		KubernetesRedisServiceNamespace:    c.KubernetesRedisServiceNamespace,
+		KubernetesRedisServiceName:         c.KubernetesRedisServiceName,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,
