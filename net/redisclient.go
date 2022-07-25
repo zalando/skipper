@@ -286,7 +286,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 		old[addr] = struct{}{}
 	}
 
-	r.log.Info("Start goroutine to update redis instances every %s", r.options.UpdateInterval)
+	r.log.Infof("Start goroutine to update redis instances every %s", r.options.UpdateInterval)
 
 	for {
 		select {
@@ -297,8 +297,8 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 
 		addrs := r.options.AddrUpdater()
 		if !hasAll(addrs, old) {
-			r.log.Infof("Redis updater updating %d != %d", old, len(addrs))
-			r.SetAddrs(context.Background(), addrs)
+			r.log.Infof("Redis updater updating old(%d) != new(%d)", len(old), len(addrs))
+			r.SetAddrs(ctx, addrs)
 
 			old = make(map[string]struct{})
 			for _, addr := range addrs {
@@ -360,9 +360,7 @@ func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
-	addrsMap := createAddressMap(addrs)
-	r.log.Infof("SetAddrs: %v", addrsMap)
-	r.ring.SetAddrs(ctx, addrsMap)
+	r.ring.SetAddrs(ctx, createAddressMap(addrs))
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {

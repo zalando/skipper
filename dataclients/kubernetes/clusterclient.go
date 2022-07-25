@@ -440,10 +440,6 @@ func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, e
 	for _, endpoint := range endpoints.Items {
 		resID := endpoint.Meta.ToResourceID()
 		result[resID] = endpoint
-		// TODO(sszuecs): cleanup hack
-		if endpoint.Meta.Name == "skipper-ingress-redis" && endpoint.Meta.Namespace == "kube-system" {
-			log.Infof("clusterclient found addresses %d", len(endpoint.Subsets[0].Addresses))
-		}
 	}
 
 	return result, nil

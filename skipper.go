@@ -1398,7 +1398,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	var redisOptions *skpnet.RedisOptions
 	log.Infof("enable swarm: %v", o.EnableSwarm)
 	if o.EnableSwarm {
-		if len(o.SwarmRedisURLs) > 0 {
+		if len(o.SwarmRedisURLs) > 0 || o.KubernetesRedisServiceName != "" {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 
 			redisOptions = &skpnet.RedisOptions{
@@ -1462,7 +1462,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
 		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" {
-			log.Infof("Use %s/%s to update redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
+			log.Infof("Use endpoints %s/%s to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 			var kdc *kubernetes.Client
 			for _, dc := range dataClients {
 				if kc, ok := dc.(*kubernetes.Client); ok {
@@ -1471,20 +1471,21 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				}
 			}
 
-			log.Infof("%s/%s kdc != nil: %v", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, kdc != nil)
 			if kdc != nil {
 				redisOptions.AddrUpdater = func() []string {
 					// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 					// has polled the data once or kdc.GetEndpointAdresses should be blocking
 					// call to kubernetes API
 					a := kdc.GetEndpointAddresses(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
-					log.Infof("Redis updater called and found %d redis endpoints", len(a))
+					log.Debugf("Redis updater called and found %d redis endpoints", len(a))
 					for i := 0; i < len(a); i++ {
 						a[i] = strings.TrimPrefix(a[i], "TCP://")
 					}
 					return a
 
 				}
+			} else {
+				log.Errorf("Failed to find kubernetes dataclient, but redis shards should be get by kubernetes svc %s/%s", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 			}
 		}
 
