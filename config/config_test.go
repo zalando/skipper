@@ -121,6 +121,7 @@ func Test_NewConfig(t *testing.T) {
 				KubernetesHTTPSRedirect:                 true,
 				KubernetesHTTPSRedirectCode:             308,
 				KubernetesPathModeString:                "kubernetes-ingress",
+				KubernetesRedisServicePort:              6379,
 				Oauth2TokeninfoTimeout:                  2 * time.Second,
 				Oauth2TokenintrospectionTimeout:         2 * time.Second,
 				Oauth2TokeninfoSubjectKey:               "uid",
