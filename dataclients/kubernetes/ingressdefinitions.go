@@ -160,8 +160,8 @@ func newResourceID(namespace, name string) definitions.ResourceID {
 
 type endpointID struct {
 	definitions.ResourceID
-	targetPort string
-	protocol   string
+	TargetPort string
+	Protocol   string
 }
 
 type ClusterResource struct {

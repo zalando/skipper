@@ -10,6 +10,80 @@ import (
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
 
+func TestRedisContainer(t *testing.T) {
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
+	if redisAddr == "" {
+		t.Fatal("Failed to create redis 1")
+	}
+	redisAddr2, done2 := redistest.NewTestRedis(t)
+	defer done2()
+	if redisAddr2 == "" {
+		t.Fatal("Failed to create redis 2")
+	}
+}
+
+func Test_hasAll(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		a    []string
+		h    map[string]struct{}
+		want bool
+	}{
+		{
+			name: "both empty",
+			a:    nil,
+			h:    nil,
+			want: true,
+		},
+		{
+			name: "a empty",
+			a:    nil,
+			h: map[string]struct{}{
+				"foo": {},
+			},
+			want: false,
+		},
+		{
+			name: "h empty",
+			a:    []string{"foo"},
+			h:    nil,
+			want: false,
+		},
+		{
+			name: "both set equal",
+			a:    []string{"foo"},
+			h: map[string]struct{}{
+				"foo": {},
+			},
+			want: true,
+		},
+		{
+			name: "both set notequal",
+			a:    []string{"fo"},
+			h: map[string]struct{}{
+				"foo": {},
+			},
+			want: false,
+		},
+		{
+			name: "both set multiple equal",
+			a:    []string{"bar", "foo"},
+			h: map[string]struct{}{
+				"foo": {},
+				"bar": {},
+			},
+			want: true,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasAll(tt.a, tt.h)
+			if tt.want != got {
+				t.Fatalf("Failed to get %v for hasall(%v, %v)", tt.want, tt.a, tt.h)
+			}
+		})
+	}
+}
+
 func TestRedisClient(t *testing.T) {
 	tracer, err := basic.InitTracer([]string{"recorder=in-memory"})
 	if err != nil {
@@ -18,6 +92,8 @@ func TestRedisClient(t *testing.T) {
 
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
+	redisAddr2, done2 := redistest.NewTestRedis(t)
+	defer done2()
 
 	for _, tt := range []struct {
 		name    string
@@ -28,6 +104,24 @@ func TestRedisClient(t *testing.T) {
 			name: "All defaults",
 			options: &RedisOptions{
 				Addrs: []string{redisAddr},
+			},
+			wantErr: false,
+		},
+		{
+			name: "With AddrUpdater",
+			options: &RedisOptions{
+				AddrUpdater: func() []string { return []string{redisAddr} },
+				// 	i := 0
+				// 	return func() []string {
+				// 		i++
+				// 		if i < 2 {
+				// 			return []string{redisAddr}
+				// 		}
+				// 		return []string{redisAddr, redisAddr2}
+				// 	}()
+
+				// },
+				UpdateInterval: 10 * time.Millisecond,
 			},
 			wantErr: false,
 		},
@@ -50,17 +144,69 @@ func TestRedisClient(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			var orig []string
+			var ch chan struct{}
+			if tt.options.AddrUpdater != nil {
+				orig = tt.options.AddrUpdater()
+				// test background update
+				ch = make(chan struct{})
+				tt.options.AddrUpdater = func() []string {
+					ch <- struct{}{}
+					return []string{redisAddr, redisAddr2}
+				}
+			}
+
+			go func() { <-ch }() // create client will block
 			cli := NewRedisRingClient(tt.options)
+			defer func() {
+				if !cli.closed {
+					t.Error("Failed to close redis ring client")
+				}
+			}()
 			defer cli.Close()
 
 			if !cli.RingAvailable() {
-				t.Errorf("Failed to have a connected redis client, ring not available")
+				t.Error("Failed to have a connected redis client, ring not available")
 			}
 
-			// can't compare these
-			// if tt.options.Tracer != opentracing.Tracer{} { // cli.tracer == opentracing.Tracer{}{
-			// 	t.Errorf("Found an unexpected tracer, want: %v, got: %v", tt.options.Tracer, cli.tracer)
-			// }
+			if tt.options.AddrUpdater != nil {
+				if !cmp.Equal(orig, []string{redisAddr}) {
+					t.Errorf("Failed to get addr: %v", cmp.Diff(orig, []string{redisAddr}))
+				}
+
+				time.Sleep(2 + cli.options.UpdateInterval)
+				select {
+				case <-ch:
+					//ok
+				default:
+					t.Error("Failed to get updater called by goroutine")
+				}
+
+				// test shards available
+				stats := cli.ring.PoolStats()
+				if stats.IdleConns < uint32(2*cli.options.MinIdleConns) {
+					t.Errorf("Failed to have enough idleconns for the new redis instance %d < %d", stats.IdleConns, 2*cli.options.MinIdleConns)
+				}
+
+				// test close will stop background update
+				cli.Close()
+				time.Sleep(2 + cli.options.UpdateInterval)
+				select {
+				case <-ch:
+					t.Error("Failed to close background updater goroutine")
+				default:
+					//ok
+				}
+				if !cli.closed {
+					t.Error("Failed to close")
+				}
+
+			}
+
+			if tt.options.Tracer != nil {
+				span := cli.StartSpan("test")
+				span.Finish()
+			}
 
 			if tt.options.ConnMetricsInterval != defaultConnMetricsInterval {
 				cli.StartMetricsCollection()
@@ -873,6 +1019,61 @@ func TestRedisClientZRangeByScoreWithScoresFirst(t *testing.T) {
 				}
 			}
 
+		})
+	}
+}
+
+func TestRedisClientSetAddr(t *testing.T) {
+	redisAddr1, done1 := redistest.NewTestRedis(t)
+	defer done1()
+	redisAddr2, done2 := redistest.NewTestRedis(t)
+	defer done2()
+
+	for _, tt := range []struct {
+		name        string
+		options     *RedisOptions
+		redisUpdate []string
+		keys        []string
+		vals        []string
+	}{
+		{
+			name: "no redis change",
+			options: &RedisOptions{
+				Addrs: []string{redisAddr1, redisAddr2},
+			},
+			keys: []string{"foo1", "foo2", "foo3", "foo4", "foo5"},
+			vals: []string{"bar1", "bar2", "bar3", "bar4", "bar5"},
+		},
+		{
+			name: "with redis change",
+			options: &RedisOptions{
+				Addrs: []string{redisAddr1},
+			},
+			redisUpdate: []string{
+				redisAddr1,
+				redisAddr2,
+			},
+			keys: []string{"foo1", "foo2", "foo3", "foo4", "foo5"},
+			vals: []string{"bar1", "bar2", "bar3", "bar4", "bar5"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewRedisRingClient(tt.options)
+			for i := 0; i < len(tt.keys); i++ {
+				r.Set(context.Background(), tt.keys[i], tt.vals[i], time.Second)
+			}
+			if len(tt.redisUpdate) != len(tt.options.Addrs) {
+				r.SetAddrs(context.Background(), tt.redisUpdate)
+			}
+			for i := 0; i < len(tt.keys); i++ {
+				got, err := r.Get(context.Background(), tt.keys[i])
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got != tt.vals[i] {
+					t.Errorf("Failed to get key '%s' wanted '%s', got '%s'", tt.keys[i], tt.vals[i], got)
+				}
+			}
 		})
 	}
 }

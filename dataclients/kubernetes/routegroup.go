@@ -254,7 +254,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 		return targetPortNotFound(backend.ServiceName, backend.ServicePort)
 	}
 
-	eps := ctx.clusterState.getEndpointsByTarget(
+	eps := ctx.clusterState.GetEndpointsByTarget(
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		s.Meta.Name,
 		protocol,

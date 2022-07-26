@@ -227,6 +227,15 @@ type Options struct {
 	// used with external name services (type=ExternalName).
 	KubernetesAllowedExternalNames []*regexp.Regexp
 
+	// KubernetesRedisServiceNamespace to be used to lookup ring shards dynamically
+	KubernetesRedisServiceNamespace string
+
+	// KubernetesRedisServiceName to be used to lookup ring shards dynamically
+	KubernetesRedisServiceName string
+
+	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
+	KubernetesRedisServicePort int
+
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -1193,6 +1202,31 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
 }
 
+func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Client {
+	var kdc *kubernetes.Client
+	for _, dc := range dataClients {
+		if kc, ok := dc.(*kubernetes.Client); ok {
+			kdc = kc
+			break
+		}
+	}
+	return kdc
+}
+
+func getRedisUpdaterFunc(namespace, name string, port int, kdc *kubernetes.Client) func() []string {
+	return func() []string {
+		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
+		// has polled the data once or kdc.GetEndpointAdresses should be blocking
+		// call to kubernetes API
+		a := kdc.GetEndpointAddresses(namespace, name, port)
+		log.Debugf("Redis updater called and found %d redis endpoints", len(a))
+		for i := 0; i < len(a); i++ {
+			a[i] = strings.TrimPrefix(a[i], "TCP://")
+		}
+		return a
+	}
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	err := initLog(o)
@@ -1390,9 +1424,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	var swarmer ratelimit.Swarmer
 	var redisOptions *skpnet.RedisOptions
+	log.Infof("enable swarm: %v", o.EnableSwarm)
 	if o.EnableSwarm {
-		if len(o.SwarmRedisURLs) > 0 {
+		if len(o.SwarmRedisURLs) > 0 || o.KubernetesRedisServiceName != "" {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
+
 			redisOptions = &skpnet.RedisOptions{
 				Addrs:               o.SwarmRedisURLs,
 				Password:            o.SwarmRedisPassword,
@@ -1405,6 +1441,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
 				ConnMetricsInterval: o.redisConnMetricsInterval,
 				Tracer:              tracer,
+				Log:                 log.New(),
 			}
 		} else {
 			log.Infof("Start swim based swarm")
@@ -1450,6 +1487,19 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			defer theSwarm.Leave()
 			swarmer = theSwarm
 		}
+
+		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
+		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" && o.KubernetesRedisServicePort > 0 {
+			log.Infof("Use endpoints %s/%s :%d to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
+
+			kdc := findKubernetesDataclient(dataClients)
+			if kdc != nil {
+				redisOptions.AddrUpdater = getRedisUpdaterFunc(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort, kdc)
+			} else {
+				log.Errorf("Failed to find kubernetes dataclient, but redis shards should be get by kubernetes svc %s/%s", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
+			}
+		}
+
 	}
 
 	var ratelimitRegistry *ratelimit.Registry
@@ -1747,6 +1797,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
+	log.Info("Dataclients are updated once, first load complete")
 
 	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
 }

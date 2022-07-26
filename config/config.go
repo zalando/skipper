@@ -167,6 +167,9 @@ type Config struct {
 	KubernetesEastWestRangePredicates       []*eskip.Predicate  `yaml:"-"`
 	KubernetesOnlyAllowedExternalNames      bool                `yaml:"kubernetes-only-allowed-external-names"`
 	KubernetesAllowedExternalNames          regexpListFlag      `yaml:"kubernetes-allowed-external-names"`
+	KubernetesRedisServiceNamespace         string              `yaml:"kubernetes-redis-service-namespace"`
+	KubernetesRedisServiceName              string              `yaml:"kubernetes-redis-service-name"`
+	KubernetesRedisServicePort              int                 `yaml:"kubernetes-redis-service-port"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -430,6 +433,9 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
 	flag.BoolVar(&cfg.KubernetesOnlyAllowedExternalNames, "kubernetes-only-allowed-external-names", false, "only accept external name services, route group network backends and route group explicit LB endpoints from an allow list defined by zero or more -kubernetes-allowed-external-name flags")
 	flag.Var(&cfg.KubernetesAllowedExternalNames, "kubernetes-allowed-external-name", "set zero or more regular expressions from which at least one should be matched by the external name services, route group network addresses and explicit endpoints domain names")
+	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-service-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
+	flag.StringVar(&cfg.KubernetesRedisServiceName, "kubernetes-redis-service-name", "", "Sets name for redis to be used to lookup endpoints")
+	flag.IntVar(&cfg.KubernetesRedisServicePort, "kubernetes-redis-service-port", 6379, "Sets the port for redis to be used to lookup endpoints")
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
@@ -775,6 +781,9 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
 		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
 		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
+		KubernetesRedisServiceNamespace:    c.KubernetesRedisServiceNamespace,
+		KubernetesRedisServiceName:         c.KubernetesRedisServiceName,
+		KubernetesRedisServicePort:         c.KubernetesRedisServicePort,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,

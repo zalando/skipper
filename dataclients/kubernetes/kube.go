@@ -11,6 +11,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/secrets/certregistry"
@@ -197,6 +198,7 @@ type Client struct {
 	current                map[string]*eskip.Route
 	quit                   chan struct{}
 	defaultFiltersDir      string
+	state                  *clusterState
 }
 
 // New creates and initializes a Kubernetes DataClient.
@@ -334,6 +336,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.state = state
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
@@ -489,6 +492,18 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 
 	log.WithField("#configs", len(filters)).Debug("default filter configurations loaded")
 	return filters
+}
+
+func (c *Client) GetEndpointAddresses(ns, name string, port int) []string {
+	if c.state == nil {
+		return nil
+	}
+
+	addrs := c.state.GetEndpointsByTarget(ns, name, "TCP", &definitions.BackendPort{
+		Value: port,
+	})
+
+	return addrs
 }
 
 func compareStringList(a, b []string) []string {

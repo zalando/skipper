@@ -438,7 +438,8 @@ func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, e
 	log.Debugf("all endpoints received: %d", len(endpoints.Items))
 	result := make(map[definitions.ResourceID]*endpoint)
 	for _, endpoint := range endpoints.Items {
-		result[endpoint.Meta.ToResourceID()] = endpoint
+		resID := endpoint.Meta.ToResourceID()
+		result[resID] = endpoint
 	}
 
 	return result, nil
