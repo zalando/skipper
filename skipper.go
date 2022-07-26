@@ -233,6 +233,9 @@ type Options struct {
 	// KubernetesRedisServiceName to be used to lookup ring shards dynamically
 	KubernetesRedisServiceName string
 
+	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
+	KubernetesRedisServicePort int
+
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -1462,7 +1465,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
 		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" {
-			log.Infof("Use endpoints %s/%s to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
+			log.Infof("Use endpoints %s/%s :%d to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
 			var kdc *kubernetes.Client
 			for _, dc := range dataClients {
 				if kc, ok := dc.(*kubernetes.Client); ok {
@@ -1476,7 +1479,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 					// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 					// has polled the data once or kdc.GetEndpointAdresses should be blocking
 					// call to kubernetes API
-					a := kdc.GetEndpointAddresses(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
+					a := kdc.GetEndpointAddresses(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
 					log.Debugf("Redis updater called and found %d redis endpoints", len(a))
 					for i := 0; i < len(a); i++ {
 						a[i] = strings.TrimPrefix(a[i], "TCP://")

@@ -169,6 +169,7 @@ type Config struct {
 	KubernetesAllowedExternalNames          regexpListFlag      `yaml:"kubernetes-allowed-external-names"`
 	KubernetesRedisServiceNamespace         string              `yaml:"kubernetes-redis-service-namespace"`
 	KubernetesRedisServiceName              string              `yaml:"kubernetes-redis-service-name"`
+	KubernetesRedisServicePort              int                 `yaml:"kubernetes-redis-service-port"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -434,6 +435,7 @@ func NewConfig() *Config {
 	flag.Var(&cfg.KubernetesAllowedExternalNames, "kubernetes-allowed-external-name", "set zero or more regular expressions from which at least one should be matched by the external name services, route group network addresses and explicit endpoints domain names")
 	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-service-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
 	flag.StringVar(&cfg.KubernetesRedisServiceName, "kubernetes-redis-service-name", "", "Sets name for redis to be used to lookup endpoints")
+	flag.IntVar(&cfg.KubernetesRedisServicePort, "kubernetes-redis-service-port", 6379, "Sets the port for redis to be used to lookup endpoints")
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
@@ -781,6 +783,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
 		KubernetesRedisServiceNamespace:    c.KubernetesRedisServiceNamespace,
 		KubernetesRedisServiceName:         c.KubernetesRedisServiceName,
+		KubernetesRedisServicePort:         c.KubernetesRedisServicePort,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,

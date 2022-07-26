@@ -494,13 +494,13 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 	return filters
 }
 
-func (c *Client) GetEndpointAddresses(ns, name string) []string {
+func (c *Client) GetEndpointAddresses(ns, name string, port int) []string {
 	if c.state == nil {
 		return nil
 	}
 
 	addrs := c.state.GetEndpointsByTarget(ns, name, "TCP", &definitions.BackendPort{
-		Value: 6379,
+		Value: port,
 	})
 
 	return addrs
