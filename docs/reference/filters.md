@@ -1701,6 +1701,7 @@ using backend endpoint address instead of incoming request IP address or a HTTP 
 Requires command line flags `-enable-swarm` and `-enable-ratelimits`.
 
 Both _rate limiting_ and _load shedding_ can use the exact same mechanism to protect the backend but the key difference is the semantics:
+
 * _rate limiting_ should adopt 4XX and inform the client that they are exceeding some quota. It doesn't depend on the current capacity of the backend.
 * _load shedding_ should adopt 5XX and inform the client that the backend is not able to provide the service. It depends on the current capacity of the backend.
 
