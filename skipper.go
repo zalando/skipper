@@ -1202,6 +1202,31 @@ func listenAndServe(proxy http.Handler, o *Options) error {
 	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
 }
 
+func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Client {
+	var kdc *kubernetes.Client
+	for _, dc := range dataClients {
+		if kc, ok := dc.(*kubernetes.Client); ok {
+			kdc = kc
+			break
+		}
+	}
+	return kdc
+}
+
+func getRedisUpdaterFunc(namespace, name string, port int, kdc *kubernetes.Client) func() []string {
+	return func() []string {
+		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
+		// has polled the data once or kdc.GetEndpointAdresses should be blocking
+		// call to kubernetes API
+		a := kdc.GetEndpointAddresses(namespace, name, port)
+		log.Debugf("Redis updater called and found %d redis endpoints", len(a))
+		for i := 0; i < len(a); i++ {
+			a[i] = strings.TrimPrefix(a[i], "TCP://")
+		}
+		return a
+	}
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	err := initLog(o)
@@ -1464,29 +1489,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 
 		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
-		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" {
+		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" && o.KubernetesRedisServicePort > 0 {
 			log.Infof("Use endpoints %s/%s :%d to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
-			var kdc *kubernetes.Client
-			for _, dc := range dataClients {
-				if kc, ok := dc.(*kubernetes.Client); ok {
-					kdc = kc
-					break
-				}
-			}
 
+			kdc := findKubernetesDataclient(dataClients)
 			if kdc != nil {
-				redisOptions.AddrUpdater = func() []string {
-					// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
-					// has polled the data once or kdc.GetEndpointAdresses should be blocking
-					// call to kubernetes API
-					a := kdc.GetEndpointAddresses(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
-					log.Debugf("Redis updater called and found %d redis endpoints", len(a))
-					for i := 0; i < len(a); i++ {
-						a[i] = strings.TrimPrefix(a[i], "TCP://")
-					}
-					return a
-
-				}
+				redisOptions.AddrUpdater = getRedisUpdaterFunc(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort, kdc)
 			} else {
 				log.Errorf("Failed to find kubernetes dataclient, but redis shards should be get by kubernetes svc %s/%s", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 			}
