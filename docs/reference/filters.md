@@ -2403,6 +2403,29 @@ E.g.:
 apiUsageMonitoring.custom.my-app.{unknown}.{unknown}.GET.{no-match}.*.*.http_count
 ```
 
+## fifo
+
+This Filter is similar to the [lifo](#lifo) filter in regards to
+parameters and status codes.
+
+It turned out that `lifo()` filter can hurt performance at high load.
+On AWS instance c6g.8xlarge [lifo](#lifo) filter had a limit of 21000
+requests per second on a single instance. The `fifo()` filter had not
+hit a limit at 30000 requests per second.
+If you use TCP-LIFO, then request processing is already in LIFO style.
+
+Parameters:
+
+* MaxConcurrency specifies how many goroutines are allowed to work on this queue (int)
+* MaxQueueSize sets the queue size (int)
+* Timeout sets the timeout to get request scheduled (time)
+
+Example:
+
+```
+fifo(100, 150, "10s")
+```
+
 ## lifo
 
 This Filter changes skipper to handle the route with a bounded last in
@@ -2414,7 +2437,9 @@ idea of a LIFO queue is based on Dropbox bandaid proxy, which is not
 opensource. Dropbox shared their idea in a
 [public blogpost](https://blogs.dropbox.com/tech/2018/03/meet-bandaid-the-dropbox-service-proxy/).
 All bounded scheduler filters will respond requests with server status error
-codes in case of overrun. All scheduler filters return HTTP status code:
+codes in case of overrun.
+
+All scheduler filters return HTTP status code:
 
 - 502, if the specified timeout is reached, because a request could not be scheduled fast enough
 - 503, if the queue is full

@@ -1055,6 +1055,12 @@ func (p *Proxy) do(ctx *context) error {
 	}
 
 	defer func() {
+		// TODO(sszuecs) do we need this? When does it happen?
+		// pendingFIFO, _ := ctx.StateBag()[scheduler.FIFOKey].([]func())
+		// for _, done := range pendingFIFO {
+		// 	done()
+		// }
+
 		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
 		for _, done := range pendingLIFO {
 			done()

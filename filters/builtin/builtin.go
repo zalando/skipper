@@ -208,6 +208,7 @@ func MakeRegistry() filters.Registry {
 		accesslog.NewEnableAccessLog(),
 		auth.NewForwardToken(),
 		auth.NewForwardTokenField(),
+		scheduler.NewFifo(),
 		scheduler.NewLIFO(),
 		scheduler.NewLIFOGroup(),
 		rfc.NewPath(),

@@ -1,0 +1,85 @@
+package scheduler
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/zalando/skipper/metrics"
+)
+
+func TestFifo(t *testing.T) {
+	waitForStatus := func(t *testing.T, fq *FifoQueue, s QueueStatus) {
+		t.Helper()
+		timeout := time.After(120 * time.Millisecond)
+		for {
+			if fq != nil && fq.Status() == s {
+				return
+			}
+
+			select {
+			case <-timeout:
+				t.Fatal("failed to reach status")
+			default:
+			}
+		}
+	}
+
+	t.Run("queue full", func(t *testing.T) {
+		reg := RegistryWith(Options{
+			MetricsUpdateTimeout:   100 * time.Millisecond,
+			EnableRouteFIFOMetrics: true,
+			Metrics:                metrics.Default,
+		})
+		cfg := Config{
+			MaxConcurrency: 1,
+			MaxQueueSize:   2,
+			Timeout:        200 * time.Millisecond,
+			CloseTimeout:   100 * time.Millisecond,
+		}
+		fq := reg.newFifoQueue("", cfg)
+		ctx := context.Background()
+		f, err := fq.Wait(ctx)
+		f()
+		if err != nil {
+			t.Fatalf("Failed to call wait: %v", err)
+		}
+
+		go fq.Wait(ctx)
+		go fq.Wait(ctx)
+		go fq.Wait(ctx)
+		waitForStatus(t, fq, QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
+
+		ch := make(chan struct{})
+		go func() {
+			ch <- struct{}{}
+			fq.Wait(ctx)
+
+		}()
+		<-ch
+
+		f, err = fq.Wait(ctx)
+		f()
+		if err != ErrQueueFull {
+			t.Fatalf("Failed to get ErrQueueFull: %v", err)
+		}
+
+	})
+
+	t.Run("semaphore actions and close", func(t *testing.T) {
+		reg := NewRegistry()
+		cfg := Config{
+			MaxConcurrency: 1,
+			MaxQueueSize:   2,
+			Timeout:        200 * time.Millisecond,
+			CloseTimeout:   100 * time.Millisecond,
+		}
+		fq := reg.newFifoQueue("foo", cfg)
+		ctx := context.Background()
+		fq.Wait(ctx)
+		fq.Release()
+		fq.close()
+		fq.close()
+	})
+
+}

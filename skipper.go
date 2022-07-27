@@ -618,6 +618,9 @@ type Options struct {
 	// RatelimitSettings contain global and host specific settings for the ratelimiters.
 	RatelimitSettings []ratelimit.Settings
 
+	// EnableRouteFIFOMetrics enables metrics for the individual route FIFO queues, if any.
+	EnableRouteFIFOMetrics bool
+
 	// EnableRouteLIFOMetrics enables metrics for the individual route LIFO queues, if any.
 	EnableRouteLIFOMetrics bool
 
@@ -1666,6 +1669,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	schedulerRegistry := scheduler.RegistryWith(scheduler.Options{
 		Metrics:                mtr,
+		EnableRouteFIFOMetrics: o.EnableRouteFIFOMetrics,
 		EnableRouteLIFOMetrics: o.EnableRouteLIFOMetrics,
 	})
 	defer schedulerRegistry.Close()

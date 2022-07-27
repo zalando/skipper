@@ -3,7 +3,10 @@
 package scheduler
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -13,13 +16,23 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
+	"go.uber.org/atomic"
+	"golang.org/x/sync/semaphore"
 )
 
 // note: Config must stay comparable because it is used to detect changes in route specific LIFO config
 
 const (
-	// Key used during routing to pass lifo values from the filters to the proxy.
+	// LIFOKey used during routing to pass lifo values from the filters to the proxy.
 	LIFOKey = "lifo"
+	// FIFOKey used during routing to pass fifo values from the filters to the proxy.
+	FIFOKey = "fifo"
+)
+
+var (
+	ErrQueueFull      = errors.New("queue full")
+	ErrQueueTimeout   = errors.New("queue timeout")
+	ErrClientCanceled = errors.New("client canceled")
 )
 
 // Config can be used to provide configuration of the registry.
@@ -69,17 +82,113 @@ type Queue struct {
 	queuedRequestsMetricsKey string
 }
 
+// FifoQueue objects implement a FIFO queue for handling requests,
+// with a maximum allowed concurrency and queue size. Currently, they
+// can be used from the fifo filters in the filters/scheduler package
+// only.
+type FifoQueue struct {
+	queue                    *fifoQueue
+	config                   Config
+	metrics                  metrics.Metrics
+	activeRequestsMetricsKey string
+	errorFullMetricsKey      string
+	errorOtherMetricsKey     string
+	errorTimeoutMetricsKey   string
+	queuedRequestsMetricsKey string
+}
+
+type fifoQueue struct {
+	mu             sync.RWMutex
+	counter        *atomic.Uint64
+	sem            *semaphore.Weighted
+	timeout        time.Duration
+	maxQueueSize   uint64
+	maxConcurrency uint64
+	closed         bool
+}
+
+func (fq *fifoQueue) Status() QueueStatus {
+	fq.mu.RLock()
+	defer fq.mu.RUnlock()
+	maxConcurrency := fq.maxConcurrency
+	all := fq.counter.Load()
+	queued := float64(0)
+	if all > maxConcurrency {
+		queued = math.Max(float64(all-maxConcurrency), 0)
+	}
+	active := math.Min(float64(all), float64(maxConcurrency))
+	return QueueStatus{
+		ActiveRequests: int(active),
+		QueuedRequests: int(queued),
+		Closed:         fq.closed,
+	}
+}
+
+// Reconfigure does nothing, because it creates a data race that would
+// require more mutex than we want to have
+func (fq *fifoQueue) Reconfigure(c Config) {
+	fq.mu.Lock()
+	defer fq.mu.Unlock()
+	fq.maxConcurrency = uint64(c.MaxConcurrency)
+	fq.maxQueueSize = uint64(c.MaxQueueSize)
+	fq.timeout = c.Timeout
+}
+
+func (fq *fifoQueue) Wait(ctx context.Context) (func(), error) {
+	fq.mu.RLock()
+	maxConcurrency := fq.maxConcurrency
+	maxQueueSize := fq.maxQueueSize
+	timeout := fq.timeout
+	fq.mu.RUnlock()
+
+	// queue full?
+	if fq.counter.Load() > maxConcurrency+maxQueueSize {
+		return func() {}, ErrQueueFull
+	}
+
+	// handle queue
+	fq.counter.Inc()
+	defer func() {
+		fq.counter.Dec()
+	}()
+
+	// limit concurrency
+	c, done := context.WithTimeout(ctx, timeout)
+	if err := fq.sem.Acquire(c, 1); err != nil {
+		cerr := c.Err()
+		if cerr == nil {
+			// should never happen
+			return done, err
+		}
+		switch cerr {
+		case context.DeadlineExceeded:
+			return done, ErrQueueTimeout
+		case context.Canceled:
+			return done, ErrClientCanceled
+		default:
+			// does not exist yet in Go stdlib as of Go1.18.4
+			return done, cerr
+		}
+	}
+	return done, nil
+
+}
+
 // Options provides options for the registry.
 type Options struct {
 
-	// MetricsUpdateTimeout defines the frequency of how often the LIFO metrics
-	// are updated when they are enabled. Defaults to 1s.
+	// MetricsUpdateTimeout defines the frequency of how often the
+	// FIFO and LIFO metrics are updated when they are enabled.
+	// Defaults to 1s.
 	MetricsUpdateTimeout time.Duration
 
 	// EnableRouteLIFOMetrics enables collecting metrics about the LIFO queues.
 	EnableRouteLIFOMetrics bool
 
-	// Metrics must be provided to the registry in order to collect the LIFO metrics.
+	// EnableRouteFIFOMetrics enables collecting metrics about the FIFO queues.
+	EnableRouteFIFOMetrics bool
+
+	// Metrics must be provided to the registry in order to collect the FIFO and LIFO metrics.
 	Metrics metrics.Metrics
 }
 
@@ -98,9 +207,11 @@ type Registry struct {
 	measuring bool
 	quit      chan struct{}
 
-	mu      sync.Mutex
-	queues  map[queueId]*Queue
-	deleted map[*Queue]time.Time
+	mu          sync.Mutex
+	lifoQueues  map[queueId]*Queue
+	lifoDeleted map[*Queue]time.Time
+	fifoQueues  map[queueId]*FifoQueue
+	fifoDeleted map[*FifoQueue]time.Time
 }
 
 type queueId struct {
@@ -110,6 +221,22 @@ type queueId struct {
 
 // Amount of time to wait before closing the deleted queues
 var queueCloseDelay = 1 * time.Minute
+
+// FIFOFilter is the interface that needs to be implemented by the filters that
+// use a FIFO queue maintained by the registry.
+type FIFOFilter interface {
+
+	// SetQueue will be used by the registry to pass in the right queue to
+	// the filter.
+	SetQueue(*FifoQueue)
+
+	// GetQueue is currently used only by tests.
+	GetQueue() *FifoQueue
+
+	// Config will be called by the registry once during processing the
+	// routing to get the right queue settings from the filter.
+	Config() Config
+}
 
 // LIFOFilter is the interface that needs to be implemented by the filters that
 // use a LIFO queue maintained by the registry.
@@ -138,6 +265,49 @@ type GroupedLIFOFilter interface {
 	// HasConfig indicates that the current filter provides the queue
 	// queue settings for the group.
 	HasConfig() bool
+}
+
+// Wait blocks until a request can be processed or needs to be rejected.
+// When it can be processed, calling done indicates that it has finished.
+// It is mandatory to call done() the request was processed. When the
+// request needs to be rejected, an error will be returned.
+func (fq *FifoQueue) Wait(ctx context.Context) (func(), error) {
+	f, err := fq.queue.Wait(ctx)
+	if fq.metrics != nil {
+		switch err {
+		case ErrQueueFull:
+			fq.metrics.IncCounter(fq.errorFullMetricsKey)
+		case ErrQueueTimeout:
+			fq.metrics.IncCounter(fq.errorTimeoutMetricsKey)
+		case ErrClientCanceled:
+		default:
+			fq.metrics.IncCounter(fq.errorOtherMetricsKey)
+		}
+	}
+	return f, err
+}
+
+// Release the underlying semaphore
+func (fq *FifoQueue) Release() {
+	fq.queue.sem.Release(1)
+}
+
+// Status returns the current status of a queue.
+func (fq *FifoQueue) Status() QueueStatus {
+	return fq.queue.Status()
+}
+
+// Config returns the configuration that the queue was created with.
+func (fq *FifoQueue) Config() Config {
+	return fq.config
+}
+
+func (fq *FifoQueue) reconfigure() {
+	fq.queue.Reconfigure(fq.config)
+}
+
+func (fq *FifoQueue) close() {
+	fq.queue.closed = true
 }
 
 // Wait blocks until a request can be processed or needs to be rejected.
@@ -194,10 +364,12 @@ func RegistryWith(o Options) *Registry {
 	}
 
 	return &Registry{
-		options: o,
-		quit:    make(chan struct{}),
-		queues:  make(map[queueId]*Queue),
-		deleted: make(map[*Queue]time.Time),
+		options:     o,
+		quit:        make(chan struct{}),
+		fifoQueues:  make(map[queueId]*FifoQueue),
+		fifoDeleted: make(map[*FifoQueue]time.Time),
+		lifoQueues:  make(map[queueId]*Queue),
+		lifoDeleted: make(map[*Queue]time.Time),
 	}
 }
 
@@ -206,11 +378,57 @@ func NewRegistry() *Registry {
 	return RegistryWith(Options{})
 }
 
+func (r *Registry) getFifoQueue(id queueId, c Config) *FifoQueue {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	fq, ok := r.fifoQueues[id]
+	if ok {
+		if fq.config != c {
+			fq.config = c
+			fq.reconfigure()
+		}
+	} else {
+		fq = r.newFifoQueue(id.name, c)
+		r.fifoQueues[id] = fq
+	}
+	return fq
+}
+
+func (r *Registry) newFifoQueue(name string, c Config) *FifoQueue {
+	q := &FifoQueue{
+		config: c,
+		queue: &fifoQueue{
+			counter:        atomic.NewUint64(0),
+			sem:            semaphore.NewWeighted(int64(c.MaxConcurrency)),
+			maxConcurrency: uint64(c.MaxConcurrency),
+			maxQueueSize:   uint64(c.MaxQueueSize),
+			timeout:        c.Timeout,
+		},
+	}
+
+	if r.options.EnableRouteFIFOMetrics {
+		if name == "" {
+			name = "unknown"
+		}
+
+		q.activeRequestsMetricsKey = fmt.Sprintf("fifo.%s.active", name)
+		q.queuedRequestsMetricsKey = fmt.Sprintf("fifo.%s.queued", name)
+		q.errorFullMetricsKey = fmt.Sprintf("fifo.%s.error.full", name)
+		q.errorOtherMetricsKey = fmt.Sprintf("fifo.%s.error.other", name)
+		q.errorTimeoutMetricsKey = fmt.Sprintf("fifo.%s.error.timeout", name)
+		q.metrics = r.options.Metrics
+		r.measure()
+	}
+
+	return q
+}
+
 func (r *Registry) getQueue(id queueId, c Config) *Queue {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	q, ok := r.queues[id]
+	q, ok := r.lifoQueues[id]
 	if ok {
 		if q.config != c {
 			q.config = c
@@ -218,7 +436,7 @@ func (r *Registry) getQueue(id queueId, c Config) *Queue {
 		}
 	} else {
 		q = r.newQueue(id.name, c)
-		r.queues[id] = q
+		r.lifoQueues[id] = q
 	}
 	return q
 }
@@ -258,17 +476,31 @@ func (r *Registry) deleteUnused(inUse map[queueId]struct{}) {
 	now := time.Now()
 	closeCutoff := now.Add(-queueCloseDelay)
 
-	for q, deleted := range r.deleted {
+	// fifo
+	for q, deleted := range r.fifoDeleted {
 		if deleted.Before(closeCutoff) {
-			delete(r.deleted, q)
+			delete(r.fifoDeleted, q)
 			q.close()
 		}
 	}
-
-	for id, q := range r.queues {
+	for id, q := range r.fifoQueues {
 		if _, ok := inUse[id]; !ok {
-			delete(r.queues, id)
-			r.deleted[q] = now
+			delete(r.fifoQueues, id)
+			r.fifoDeleted[q] = now
+		}
+	}
+
+	// lifo
+	for q, deleted := range r.lifoDeleted {
+		if deleted.Before(closeCutoff) {
+			delete(r.lifoDeleted, q)
+			q.close()
+		}
+	}
+	for id, q := range r.lifoQueues {
+		if _, ok := inUse[id]; !ok {
+			delete(r.lifoQueues, id)
+			r.lifoDeleted[q] = now
 		}
 	}
 }
@@ -285,9 +517,26 @@ type registryPreProcessor struct{}
 func (registryPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 	for _, r := range routes {
 		lifoCount := 0
+		fifoCount := 0
 		for _, f := range r.Filters {
-			if f.Name == filters.LifoName {
+			switch f.Name {
+			case filters.FifoName:
+				fifoCount++
+			case filters.LifoName:
 				lifoCount++
+			}
+		}
+		// remove all but last fifo instances
+		if fifoCount > 1 {
+			old := r.Filters
+			r.Filters = make([]*eskip.Filter, 0, len(old)-fifoCount+1)
+			for _, f := range old {
+				if fifoCount > 1 && f.Name == filters.FifoName {
+					log.Debugf("Removing non-last %v from %s", f, r.Id)
+					fifoCount--
+				} else {
+					r.Filters = append(r.Filters, f)
+				}
 			}
 		}
 		// remove all but last lifo instances
@@ -317,8 +566,15 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 
 	for i, ri := range routes {
 		rr[i] = ri
-		var lifoCount int
 		for _, fi := range ri.Filters {
+			if ff, ok := fi.Filter.(FIFOFilter); ok {
+				id := queueId{ri.Id, false}
+				inUse[id] = struct{}{}
+				fq := r.getFifoQueue(id, ff.Config())
+				ff.SetQueue(fq)
+				continue
+			}
+
 			if glf, ok := fi.Filter.(GroupedLIFOFilter); ok {
 				groupName := glf.Group()
 				groups[groupName] = append(groups[groupName], glf)
@@ -330,18 +586,12 @@ func (r *Registry) Do(routes []*routing.Route) []*routing.Route {
 				continue
 			}
 
-			lifoCount++
-
 			id := queueId{ri.Id, false}
 			inUse[id] = struct{}{}
 
 			q := r.getQueue(id, lf.Config())
 
 			lf.SetQueue(q)
-		}
-
-		if lifoCount > 1 {
-			log.Warnf("Found multiple lifo filters on route: %q", ri.Id)
 		}
 	}
 
@@ -402,7 +652,13 @@ func (r *Registry) updateMetrics() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for _, q := range r.queues {
+	for _, q := range r.fifoQueues {
+		s := q.Status()
+		r.options.Metrics.UpdateGauge(q.activeRequestsMetricsKey, float64(s.ActiveRequests))
+		r.options.Metrics.UpdateGauge(q.queuedRequestsMetricsKey, float64(s.QueuedRequests))
+	}
+
+	for _, q := range r.lifoQueues {
 		s := q.Status()
 		r.options.Metrics.UpdateGauge(q.activeRequestsMetricsKey, float64(s.ActiveRequests))
 		r.options.Metrics.UpdateGauge(q.queuedRequestsMetricsKey, float64(s.QueuedRequests))
@@ -420,13 +676,18 @@ func (r *Registry) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for q := range r.deleted {
-		delete(r.deleted, q)
+	for q := range r.fifoDeleted {
+		delete(r.fifoDeleted, q)
 		q.close()
 	}
 
-	for id, q := range r.queues {
-		delete(r.queues, id)
+	for q := range r.lifoDeleted {
+		delete(r.lifoDeleted, q)
+		q.close()
+	}
+
+	for id, q := range r.lifoQueues {
+		delete(r.lifoQueues, id)
 		q.close()
 	}
 
