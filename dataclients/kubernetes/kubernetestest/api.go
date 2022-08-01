@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 
 	yaml2 "github.com/ghodss/yaml"
 	"gopkg.in/yaml.v2"
@@ -154,21 +155,88 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var b []byte
 	switch parts[3] {
 	case "services":
-		b = ns.services
+		b = filterBySelectors(ns.services, parseSelectors(r))
 	case "ingresses":
-		b = ns.ingresses
+		b = filterBySelectors(ns.ingresses, parseSelectors(r))
 	case "routegroups":
-		b = ns.routeGroups
+		b = filterBySelectors(ns.routeGroups, parseSelectors(r))
 	case "endpoints":
-		b = ns.endpoints
+		b = filterBySelectors(ns.endpoints, parseSelectors(r))
 	case "secrets":
-		b = ns.secrets
+		b = filterBySelectors(ns.secrets, parseSelectors(r))
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	w.Write(b)
+}
+
+// Parses an optional parameter with `label selectors` into a map if present or, if not present, returns nil.
+func parseSelectors(r *http.Request) map[string]string {
+	rawSelectors := r.URL.Query()["labelSelector"]
+	if len(rawSelectors) == 0 || rawSelectors[0] == "" {
+		return nil
+	}
+
+	selectors := map[string]string{}
+	for _, selector := range rawSelectors {
+		kv := strings.Split(selector, "=")
+		selectors[kv[0]] = kv[1]
+	}
+
+	return selectors
+}
+
+// Filters all resources that are already set in k8s namespace using the given selectors map.
+// All resources are initially set to `namespace` as slices of bytes and for most tests it's not needed to make it any more complex.
+// This helper function deserializes resources, finds a metadata with labels in them and check if they have all
+// requested labels. If they do, they are returned.
+func filterBySelectors(resources []byte, selectors map[string]string) []byte {
+	if selectors == nil || len(selectors) == 0 {
+		return resources
+	}
+
+	// temp struct to easier access labels field in the map of maps and avoid casting many times
+	labels := struct {
+		Items []struct {
+			Metadata struct {
+				Labels map[string]string `json:"labels"`
+			} `json:"metadata"`
+		} `json:"items"`
+	}{}
+
+	// every resource but top level is deserialized because we need access to the indexed array
+	allItems := struct {
+		Items []interface{} `json:"items"`
+	}{}
+
+	if json.Unmarshal(resources, &labels) != nil || json.Unmarshal(resources, &allItems) != nil {
+		// if something goes wrong, ignore it and return everything, this should fail the test anyway
+		return resources
+	}
+
+	// go over each item's label and check if all selectors with their values are present
+	var filteredItems []interface{}
+	for idx, item := range labels.Items {
+		allMatch := true
+		for k, v := range selectors {
+			label, ok := item.Metadata.Labels[k]
+			allMatch = allMatch && ok && label == v
+		}
+		// if all found, return it as part of a filtered result
+		if allMatch {
+			filteredItems = append(filteredItems, allItems.Items[idx])
+		}
+	}
+
+	// encode it back to the original form with `items`
+	var result []byte
+	if err := itemsJSON(&result, filteredItems); err != nil {
+		return resources
+	}
+
+	return result
 }
 
 func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
