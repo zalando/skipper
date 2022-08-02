@@ -363,7 +363,7 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 	cps := make([]Predicate, 0, len(defs))
 	var weight int
 	for _, def := range defs {
-		if def.Name == "Weight" {
+		if def.Name == predicates.WeightName {
 			var err error
 			if weight, err = parseWeightPredicateArgs(def.Args); err != nil {
 				return nil, 0, err
