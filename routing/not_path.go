@@ -1,13 +1,11 @@
 package routing
 
 import (
-	"github.com/zalando/skipper/eskip"
+	"net/http"
+
 	"github.com/zalando/skipper/pathmux"
 	"github.com/zalando/skipper/predicates"
-	"net/http"
 )
-
-const magicRouteId = "42"
 
 type notPathSpec struct{}
 
@@ -36,9 +34,7 @@ func (n notPathSpec) Create(args []interface{}) (Predicate, error) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	leaf, err := newLeaf(
-		&Route{Route: eskip.Route{Id: magicRouteId}},
-		nil)
+	leaf, err := newLeaf(&Route{}, nil)
 	if err != nil {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}

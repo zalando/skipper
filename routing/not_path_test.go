@@ -5,20 +5,7 @@ import (
 	"testing"
 )
 
-func TestX(t *testing.T) {
-	pathSpec := NewNotPath()
-	predicate, err := pathSpec.Create([]interface{}{"/some/path"})
-	if err != nil {
-		t.Errorf("failed to create predicate: %v", err)
-	}
-
-	match := predicate.Match(&http.Request{RequestURI: "/other/path"})
-	if match {
-		t.Error("should not match")
-	}
-}
-
-func Test(t *testing.T) {
+func TestNotPathPredicate_Match(t *testing.T) {
 	tests := []struct {
 		name                string
 		predicatePath       string
