@@ -1633,6 +1633,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		forwarded.NewForwardedHost(),
 		forwarded.NewForwardedProto(),
 		host.NewAny(),
+		routing.NewNotPath(),
 	)
 
 	// provide default value for wrapper if not defined

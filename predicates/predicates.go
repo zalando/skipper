@@ -16,6 +16,7 @@ const (
 	// at https://godoc.org/github.com/zalando/skipper/eskip)
 	PathSubtreeName           = "PathSubtree"
 	PathRegexpName            = "PathRegexp"
+	NotPath                   = "NotPath"
 	HostName                  = "Host"
 	HostAnyName               = "HostAny"
 	ForwardedHostName         = "ForwardedHost"
