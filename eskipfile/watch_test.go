@@ -10,6 +10,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
+	"go.uber.org/goleak"
 )
 
 const testWatchFile = "fixtures/watch-test.eskip"
@@ -172,12 +173,16 @@ func (t *watchTest) close() {
 }
 
 func TestWatchInitialFails(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	test := initWatchTest(t)
 	defer test.close()
 	test.timeoutInitial()
 }
 
 func TestWatchInitialRecovers(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	test := initWatchTest(t)
 	defer test.close()
 	test.timeoutInitial()
@@ -187,6 +192,8 @@ func TestWatchInitialRecovers(t *testing.T) {
 }
 
 func TestWatchUpdateFails(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	createFile(t)
 	defer deleteFile(t)
 	test := initWatchTest(t)
@@ -197,6 +204,8 @@ func TestWatchUpdateFails(t *testing.T) {
 }
 
 func TestWatchUpdateRecover(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	createFile(t)
 	defer deleteFile(t)
 	test := initWatchTest(t)
@@ -209,6 +218,8 @@ func TestWatchUpdateRecover(t *testing.T) {
 }
 
 func TestInitialAndUnchanged(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	createFile(t)
 	defer deleteFile(t)
 	test := initWatchTest(t)
@@ -218,6 +229,8 @@ func TestInitialAndUnchanged(t *testing.T) {
 }
 
 func TestInitialAndDeleteFile(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	createFile(t)
 	defer deleteFile(t)
 	test := initWatchTest(t)
@@ -228,6 +241,8 @@ func TestInitialAndDeleteFile(t *testing.T) {
 }
 
 func TestWatchUpdate(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	createFile(t)
 	defer deleteFile(t)
 	test := initWatchTest(t)

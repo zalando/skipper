@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
@@ -579,6 +580,8 @@ func TestIngressClassFilter(t *testing.T) {
 }
 
 func TestIngress(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	api := newTestAPI(t, nil, &definitions.IngressList{})
 	defer api.Close()
 
@@ -741,8 +744,8 @@ func TestIngress(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube_namespace1__default_only______":                      "", //shunted because invalid backend
-			"kube_namespace1__mega__foo_example_org___test1__service1": "", //shunted because invalid backend
+			"kube_namespace1__default_only______":                      "", // shunted because invalid backend
+			"kube_namespace1__mega__foo_example_org___test1__service1": "", // shunted because invalid backend
 		})
 	})
 
@@ -1864,7 +1867,7 @@ func TestBuildHTTPClient(t *testing.T) {
 		t.Errorf("should return invalid certificate")
 	}
 
-	err = os.WriteFile("ca.empty.crt", []byte(""), 0644)
+	err = os.WriteFile("ca.empty.crt", []byte(""), 0o644)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1875,8 +1878,8 @@ func TestBuildHTTPClient(t *testing.T) {
 		t.Error("empty certificate is invalid certificate")
 	}
 
-	//create CA file
-	err = os.WriteFile("ca.temp.crt", generateSSCert(), 0644)
+	// create CA file
+	err = os.WriteFile("ca.temp.crt", generateSSCert(), 0o644)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1899,7 +1902,7 @@ func TestScoping(t *testing.T) {
 
 // generateSSCert only for testing purposes
 func generateSSCert() []byte {
-	//create root CA
+	// create root CA
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
 
@@ -1923,8 +1926,8 @@ func generateSSCert() []byte {
 }
 
 func createCert(template, parent *x509.Certificate, pub interface{}, parentPriv interface{}) (
-	cert *x509.Certificate, certPEM []byte, err error) {
-
+	cert *x509.Certificate, certPEM []byte, err error,
+) {
 	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, parentPriv)
 	if err != nil {
 		return
@@ -2164,7 +2167,8 @@ func TestComputeBackendWeights(t *testing.T) {
 							Backend: &definitions.Backend{
 								ServiceName: "baz",
 							},
-						}, {
+						},
+						{
 							Path: "",
 							Backend: &definitions.Backend{
 								ServiceName: "qux",
@@ -2990,7 +2994,6 @@ func TestSkipperDefaultFilters(t *testing.T) {
 		defer dc.Close()
 
 		r, err := dc.LoadAll()
-
 		if err != nil {
 			t.Error("should not return an error", err)
 			return
@@ -3012,7 +3015,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error(err)
 		}
 		file := filepath.Join(defaultFiltersDir, "service1.namespace1")
-		if err := os.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(file, []byte("consecutiveBreaker(15)"), 0o666); err != nil {
 			t.Error(err)
 		}
 
@@ -3052,7 +3055,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error(err)
 		}
 		file := filepath.Join(dir, "service1.namespace1")
-		if err := os.WriteFile(file, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(file, []byte("consecutiveBreaker(15)"), 0o666); err != nil {
 			t.Error(err)
 		}
 
@@ -3084,7 +3087,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error(err)
 		}
 		invalidFileName := filepath.Join(defaultFiltersDir, "file.name.doesnt.match.our.pattern")
-		if err := os.WriteFile(invalidFileName, []byte("consecutiveBreaker(15)"), 0666); err != nil {
+		if err := os.WriteFile(invalidFileName, []byte("consecutiveBreaker(15)"), 0o666); err != nil {
 			t.Error(err)
 		}
 		err = os.Mkdir(filepath.Join(defaultFiltersDir, "some.directory"), os.ModePerm)
@@ -3092,7 +3095,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error(err)
 		}
 		bigFile := filepath.Join(defaultFiltersDir, "huge.file")
-		if err := os.WriteFile(bigFile, make([]byte, 1024*1024+1), 0666); err != nil {
+		if err := os.WriteFile(bigFile, make([]byte, 1024*1024+1), 0o666); err != nil {
 			t.Error(err)
 		}
 

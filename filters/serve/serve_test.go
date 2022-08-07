@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/filters/filtertest"
+	"go.uber.org/goleak"
 )
 
 const testDelay = 12 * time.Millisecond
@@ -95,6 +96,8 @@ func TestBlock(t *testing.T) {
 }
 
 func TestServe(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	parts := []string{"foo", "bar", "baz"}
 	ctx := &filtertest.Context{FRequest: &http.Request{}}
 	ServeHTTP(ctx, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
