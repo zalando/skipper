@@ -555,6 +555,37 @@ ClientIP("1.2.3.0/24")
 ClientIP("1.2.3.4", "2.2.2.0/24")
 ```
 
+## AnySource
+
+Similar to [Source](#source) and [SourceFromLast](#sourcefromlast) but can
+correctly work with different types of load balancers in front of Skipper.
+The common case is running with AWS Network Load Balancers (NLB) and AWS Application
+Load Balancers (ALB) in front of skipper. Here `SourceFromlast` will work for traffic
+coming through the ALB, but not for traffic coming through the NLB as the
+client could set a custom `X-Forwarded-For` header. For NLB `ClientIP` would
+work, but that would again not work for ALB because the source IP of traffic
+coming through ALB is the private IP of the ALB nodes.
+`AnySource` solves this and allows the users to not care about the details of
+the setup but simply define the list of sources they want to allow and nothing
+else.
+
+Parameters:
+
+* AnySource (string, ..) varargs with IPs or CIDR
+
+Examples:
+
+```
+// only match requests from 1.2.3.4
+AnySource("1.2.3.4")
+
+// only match requests from 1.2.3.0 - 1.2.3.255
+AnySource("1.2.3.0/24")
+
+// only match requests from 1.2.3.4 and the 2.2.2.0/24 network
+AnySource("1.2.3.4", "2.2.2.0/24")
+```
+
 ## Tee
 
 The Tee predicate matches a route when a request is spawn from the
