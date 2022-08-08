@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/predicates"
 )
 
@@ -301,6 +303,148 @@ func TestMatchingClientIP(t *testing.T) {
 				if matches != ti.matches {
 					t.Error(ti.msg, "failed to match as expected")
 				}
+			}
+		})
+	}
+}
+
+func TestMatchingAnySource(t *testing.T) {
+	for _, ti := range []struct {
+		msg     string
+		args    []interface{}
+		lbNets  []string
+		req     *http.Request
+		matches bool
+	}{{
+		"happy case",
+		[]interface{}{"127.0.0.1"},
+		nil,
+		&http.Request{RemoteAddr: "127.0.0.1:1234"},
+		true,
+	}, {
+		"sad case",
+		[]interface{}{"127.0.0.1"},
+		nil,
+		&http.Request{RemoteAddr: "127.0.0.2:51234"},
+		false,
+	}, {
+		"should match on netmask",
+		[]interface{}{"127.0.0.1/30"},
+		nil,
+		&http.Request{RemoteAddr: "127.0.0.2:1234"},
+		true,
+	}, {
+		"should correctly handle netmask",
+		[]interface{}{"127.0.0.0/31"},
+		nil,
+		&http.Request{RemoteAddr: "127.0.0.2:1234"},
+		false,
+	}, {
+		"should correctly handle /30 netmask",
+		[]interface{}{"127.0.0.0/30"},
+		[]string{"172.31.0.0/16"},
+		&http.Request{RemoteAddr: "127.0.0.2:1234"},
+		true,
+	}, {
+		"should consider multiple masks",
+		[]interface{}{"127.0.0.1", "8.8.8.8/24"},
+		[]string{"172.31.0.0/16"},
+		&http.Request{RemoteAddr: "8.8.8.127:1234"},
+		true,
+	}, {
+		"if available, should not use X-Forwarded-For for matching, match",
+		[]interface{}{"127.0.0.1"},
+		[]string{"172.31.0.0/16"},
+		&http.Request{RemoteAddr: "127.0.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8"}}},
+		true,
+	}, {
+		"if available, should only use X-Forwarded-For last value for matching, no match",
+		[]interface{}{"8.8.8.8"},
+		[]string{"172.31.0.0/16"},
+		&http.Request{RemoteAddr: "127.0.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"8.8.8.8, 7.7.7.7"}}},
+		false,
+	}, {
+		"if available, should only use X-Forwarded-For last value for matching and remoteIP match, no match",
+		[]interface{}{"8.8.8.8"},
+		[]string{"172.31.0.0/16"},
+		&http.Request{RemoteAddr: "127.0.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"7.7.7.7, 8.8.8.8"}}},
+		false,
+	}, {
+		"if available, should only use X-Forwarded-For last value for matching and remoteIP match, match",
+		[]interface{}{"8.8.8.8"},
+		[]string{"172.31.0.0/16"},
+		&http.Request{RemoteAddr: "172.31.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"7.7.7.7, 8.8.8.8"}}},
+		true,
+	}, {
+		"don't match X-Forward-For if no LB CIDR range is defined.",
+		[]interface{}{"8.8.8.8"},
+		nil,
+		&http.Request{RemoteAddr: "172.31.0.1:1234", Header: http.Header{"X-Forwarded-For": []string{"7.7.7.7, 8.8.8.8"}}},
+		false,
+	}, {
+		"should work for IPv6",
+		[]interface{}{"C0:FF::EE"},
+		[]string{"172.31.0.0/16"},
+		&http.Request{RemoteAddr: "[C0:FF::EE]:1234"},
+		true,
+	}, {
+		"should work for IPv6 with mask - pass",
+		[]interface{}{"C0:FF::EE/127"},
+		nil,
+		&http.Request{RemoteAddr: "[C0:FF::EF]:1234"},
+		true,
+	}, {
+		"should work for IPv6 with mask - reject",
+		[]interface{}{"C0:FF::EE/127"},
+		nil,
+		&http.Request{RemoteAddr: "[C0:FF::EC]:1234"},
+		false,
+	}, {
+		// 127.0.0.1: 00:00::01
+		// 172.31.0.0/16: C0:FF::EE/64
+		// 172.31.0.1: C0:FF:EC
+		// 8.8.8.8: 00:00::02
+		"ipv6: if available, should not use X-Forwarded-For for matching, match",
+		[]interface{}{"00:00::01/127"},
+		[]string{"C0:FF::EE/64"},
+		&http.Request{RemoteAddr: "[00:00::01]:1234", Header: http.Header{"X-Forwarded-For": []string{"00:00::02"}}},
+		true,
+	}, {
+		"ipv6: if available, should only use X-Forwarded-For last value for matching, no match",
+		[]interface{}{"00:00::02/127"},
+		[]string{"C0:FF::EE/64"},
+		&http.Request{RemoteAddr: "[00:00::01]:1234", Header: http.Header{"X-Forwarded-For": []string{"00:00::02, 00:00::03"}}},
+		false,
+	}, {
+		"ipv6: if available, should only use X-Forwarded-For last value for matching and remoteIP match, no match",
+		[]interface{}{"00:00::02/127"},
+		[]string{"C0:FF::EE/64"},
+		&http.Request{RemoteAddr: "[00:00::01]:1234", Header: http.Header{"X-Forwarded-For": []string{"00:00::03, 00:00::02"}}},
+		false,
+	}, {
+		"ipv6: if available, should only use X-Forwarded-For last value for matching and remoteIP match, match",
+		[]interface{}{"00:00::02/127"},
+		[]string{"C0:FF::EE/64"},
+		&http.Request{RemoteAddr: "[C0:FF::EC]:1234", Header: http.Header{"X-Forwarded-For": []string{"00:00::03, 00:00::02"}}},
+		true,
+	}, {
+		"ipv6: don't match X-Forward-For if no LB CIDR range is defined.",
+		[]interface{}{"00:00::02/127"},
+		nil,
+		&http.Request{RemoteAddr: "[C0:FF::EC]:1234", Header: http.Header{"X-Forwarded-For": []string{"00:00::03, 00:00::02"}}},
+		false,
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			nets, err := snet.ParseCIDRs(ti.lbNets)
+			require.NoError(t, err)
+
+			predicateSpec := NewAnySource(nets)
+			pred, err := predicateSpec.Create(ti.args)
+			require.NoError(t, err)
+
+			matches := pred.Match(ti.req)
+			if matches != ti.matches {
+				t.Error(ti.msg, "failed to match as expected")
 			}
 		})
 	}

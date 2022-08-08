@@ -41,6 +41,7 @@ const (
 	SourceName                = "Source"
 	SourceFromLastName        = "SourceFromLast"
 	ClientIPName              = "ClientIP"
+	AnySource                 = "AnySource"
 	TeeName                   = "Tee"
 	TrafficName               = "Traffic"
 )

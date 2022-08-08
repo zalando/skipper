@@ -138,6 +138,9 @@ type Config struct {
 	ForwardedHeadersExcludeCIDRList *listFlag            `yaml:"forwarded-headers-exclude-cidrs"`
 	ForwardedHeadersExcludeCIDRs    net.IPNets           `yaml:"-"`
 
+	SourceLBCIDRList *listFlag  `yaml:"source-lb-cidrs"`
+	SourceLBCIDRs    net.IPNets `yaml:"-"`
+
 	// host patch:
 	NormalizeHost bool          `yaml:"normalize-host"`
 	HostPatch     net.HostPatch `yaml:"-"`
@@ -292,6 +295,7 @@ func NewConfig() *Config {
 	cfg.RoutesURLs = commaListFlag()
 	cfg.ForwardedHeadersList = commaListFlag()
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
+	cfg.SourceLBCIDRList = commaListFlag()
 	cfg.CompressEncodings = commaListFlag("gzip", "deflate", "br")
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
@@ -413,6 +417,8 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.ValidateQueryLog, "validate-query-log", true, "Enable looging for validate query logs")
 
 	flag.Var(&cfg.RefusePayload, "refuse-payload", "refuse requests that match configured value. Can be set multiple times")
+
+	flag.Var(cfg.SourceLBCIDRList, "source-lb-cidrs", "list of CIDRs expected from Load balancers in front of skipper")
 
 	// Kubernetes:
 	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, "enables skipper to generate routes for ingress resources in kubernetes cluster. Enables -normalize-host")
@@ -603,6 +609,11 @@ func (c *Config) Parse() error {
 	}
 
 	err = c.parseForwardedHeaders()
+	if err != nil {
+		return err
+	}
+
+	err = c.parseSourceLBCIDRs()
 	if err != nil {
 		return err
 	}
@@ -868,6 +879,8 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmStaticOther: c.SwarmStaticOther,
 
 		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
+
+		SourceLBCIDRs: c.SourceLBCIDRs,
 	}
 
 	if c.PluginDir != "" {
@@ -1014,6 +1027,16 @@ func (c *Config) parseForwardedHeaders() error {
 		return fmt.Errorf("invalid forwarded headers exclude CIDRs: %v", err)
 	}
 	c.ForwardedHeadersExcludeCIDRs = cidrs
+
+	return nil
+}
+
+func (c *Config) parseSourceLBCIDRs() error {
+	cidrs, err := net.ParseCIDRs(c.SourceLBCIDRList.values)
+	if err != nil {
+		return fmt.Errorf("invalid source LB CIDRs: %w", err)
+	}
+	c.SourceLBCIDRs = cidrs
 
 	return nil
 }

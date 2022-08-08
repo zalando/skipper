@@ -66,20 +66,26 @@ const (
 	source sourcePred = iota
 	sourceFromLast
 	clientIP
+	anySource
 )
 
 type spec struct {
-	typ sourcePred
+	typ    sourcePred
+	lbNets snet.IPNets
 }
 
 type predicate struct {
-	typ  sourcePred
-	nets snet.IPNets
+	typ    sourcePred
+	nets   snet.IPNets
+	lbNets snet.IPNets
 }
 
 func New() routing.PredicateSpec         { return &spec{typ: source} }
 func NewFromLast() routing.PredicateSpec { return &spec{typ: sourceFromLast} }
 func NewClientIP() routing.PredicateSpec { return &spec{typ: clientIP} }
+func NewAnySource(lbNets snet.IPNets) routing.PredicateSpec {
+	return &spec{typ: anySource, lbNets: lbNets}
+}
 
 func (s *spec) Name() string {
 	switch s.typ {
@@ -87,6 +93,8 @@ func (s *spec) Name() string {
 		return predicates.SourceFromLastName
 	case clientIP:
 		return predicates.ClientIPName
+	case anySource:
+		return predicates.AnySource
 	default:
 		return predicates.SourceName
 	}
@@ -111,7 +119,11 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, err
 	}
 
-	return &predicate{s.typ, nets}, nil
+	return &predicate{
+		typ:    s.typ,
+		nets:   nets,
+		lbNets: s.lbNets,
+	}, nil
 }
 
 func (p *predicate) Match(r *http.Request) bool {
@@ -122,6 +134,15 @@ func (p *predicate) Match(r *http.Request) bool {
 	case clientIP:
 		h, _, _ := net.SplitHostPort(r.RemoteAddr)
 		src = net.ParseIP(h)
+	case anySource:
+		h, _, _ := net.SplitHostPort(r.RemoteAddr)
+		clientSrc := net.ParseIP(h)
+		if p.nets.Contain(clientSrc) {
+			return true
+		}
+
+		xffSrc := snet.RemoteHostFromLast(r)
+		return p.lbNets.Contain(clientSrc) && p.nets.Contain(xffSrc)
 	default:
 		src = snet.RemoteHost(r)
 	}

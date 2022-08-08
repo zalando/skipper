@@ -829,6 +829,10 @@ type Options struct {
 	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
 	KubernetesEnableTLS bool
 
+	// SourceLBCIDRs is a list of CIDRs expected from the load balancers in
+	// front of skipper.
+	SourceLBCIDRs skpnet.IPNets
+
 	testOptions
 }
 
@@ -1614,6 +1618,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		source.New(),
 		source.NewFromLast(),
 		source.NewClientIP(),
+		source.NewAnySource(o.SourceLBCIDRs),
 		interval.NewBetween(),
 		interval.NewBefore(),
 		interval.NewAfter(),
