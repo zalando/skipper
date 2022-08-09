@@ -364,10 +364,14 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 	var weight int
 	for _, def := range defs {
 		if def.Name == predicates.WeightName {
+			var w int
 			var err error
-			if weight, err = parseWeightPredicateArgs(def.Args); err != nil {
+
+			if w, err = parseWeightPredicateArgs(def.Args); err != nil {
 				return nil, 0, err
 			}
+
+			weight += w
 
 			continue
 		}
@@ -385,6 +389,11 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to create predicate %q: %w", spec.Name(), err)
 		}
+
+		if ws, ok := spec.(WeightedPredicateSpec); ok {
+			weight += ws.Weight()
+		}
+
 
 		cps = append(cps, cp)
 	}

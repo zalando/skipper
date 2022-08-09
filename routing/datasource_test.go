@@ -1,6 +1,7 @@
 package routing_test
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -126,6 +127,65 @@ func TestProcessRouteDefErrors(t *testing.T) {
 	}
 }
 
+func TestProcessRouteDefWeight(t *testing.T) {
+
+	wps := weightedPredicateSpec{}
+
+	cpm := make(map[string]routing.PredicateSpec)
+	cpm[wps.Name()] = wps
+
+	for _, ti := range []struct {
+		route  string
+		weight int
+	}{
+		{
+			`Path("/foo") -> <shunt>`,
+			0,
+		}, {
+			`WeightedPredicate10() -> <shunt>`,
+			10,
+		}, {
+			`Weight(20) -> <shunt>`,
+			20,
+		}, {
+			`WeightedPredicate10() && Weight(20) -> <shunt>`,
+			30,
+		},
+	} {
+		func() {
+
+			dc, err := testdataclient.NewDoc(ti.route)
+			if err != nil {
+				t.Error(ti.route, err)
+
+				return
+			}
+
+			defs, err := dc.LoadAll()
+			if err != nil {
+				t.Error(ti.route, err)
+
+				return
+			}
+
+			r := defs[0]
+
+			_, weight, err := routing.ExportProcessPredicates(cpm, r.Predicates)
+			if err != nil {
+				t.Error(ti.route, err)
+
+				return
+			}
+
+			if weight != ti.weight {
+				t.Errorf("expected weight '%d'. Got: '%d' (%s)", ti.weight, weight, ti.route)
+
+				return
+			}
+		}()
+	}
+}
+
 func TestLogging(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
@@ -221,4 +281,27 @@ func TestLogging(t *testing.T) {
 			"route settings, update, delete count:", 1,
 		)
 	})
+}
+
+type weightedPredicateSpec struct{}
+type weightedPredicate struct {
+	Weight int
+}
+
+func (w weightedPredicate) Match(request *http.Request) bool {
+	return true
+}
+
+func (w weightedPredicateSpec) Name() string {
+	return "WeightedPredicate10"
+}
+
+func (w weightedPredicateSpec) Create([]interface{}) (routing.Predicate, error) {
+	return weightedPredicate{
+		Weight: w.Weight(),
+	}, nil
+}
+
+func (w weightedPredicateSpec) Weight() int {
+	return 10
 }

@@ -72,6 +72,13 @@ type PredicateSpec interface {
 	Create([]interface{}) (Predicate, error)
 }
 
+type WeightedPredicateSpec interface {
+	PredicateSpec
+
+	// Extra Weight of the predicate
+	Weight() int
+}
+
 // Options for initialization for routing.
 type Options struct {
 
