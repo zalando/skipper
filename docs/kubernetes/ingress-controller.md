@@ -280,6 +280,10 @@ run:
 kubectl create -f docs/kubernetes/deploy/deployment
 ```
 
+!!! note
+    The `extensions/v1beta1` and `networking.k8s.io/v1beta1` API versions of Ingress is no longer served as of v1.22.
+    In order to use `networking.k8s.io/v1` extension, you need to add `-kubernetes-ingress-v1` to the `skipper-ingress` container's arguments. This feature is added from skipper version v0.13.149
+
 Now, let's see what we have just deployed.
 This will create serviceaccount, PodSecurityPolicy and RBAC rules such that
 skipper-ingress is allowed to listen on the hostnetwork.
