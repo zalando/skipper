@@ -194,7 +194,7 @@ type Options struct {
 	// annotation, or which an empty annotation, will be loaded too.
 	KubernetesRouteGroupClass string
 
-	// IngressLabelSelectors is a map of K8S labels to their values that must be present on a resource to be loaded
+	// KubernetesIngressLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. A label and its value on an Ingress must be match exactly to be loaded by Skipper.
 	// If the value is irrelevant for a given configuration, it can be left empty. The default
 	// value is no labels required.
@@ -205,22 +205,22 @@ type Options struct {
 	// 	Config ["skipper-enabled": "", "foo": "bar"] will load only Ingresses with both labels while label "foo" must have a value "bar".
 	KubernetesIngressLabelSelectors map[string]string
 
-	// ServicesLabelSelectors is a map of K8S labels to their values that must be present on a resource to be loaded
+	// KubernetesServicesLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
 	// Unless this field is explicitly set, it defaults to the same value as in IngressLabelSelectors.
 	KubernetesServicesLabelSelectors map[string]string
 
-	// EndpointsLabelSelectors is a map of K8S labels to their values that must be present on a resource to be loaded
+	// KubernetesEndpointsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
 	// Unless this field is set, it defaults to the same value as in IngressLabelSelectors.
 	KubernetesEndpointsLabelSelectors map[string]string
 
-	// SecretsLabelSelectors is a map of K8S labels to their values that must be present on a resource to be loaded
+	// KubernetesSecretsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
 	// Unless this field is explicitly set, it defaults to the same value as in IngressLabelSelectors.
 	KubernetesSecretsLabelSelectors map[string]string
 
-	// RouteGroupsLabelSelectors is a map of K8S labels to their values that must be present on a resource to be loaded
+	// KubernetesRouteGroupsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
 	// Unless this field is explicitly set, it defaults to the same value as in IngressLabelSelectors.
 	KubernetesRouteGroupsLabelSelectors map[string]string
