@@ -197,7 +197,6 @@ func filterBySelectors(resources []byte, selectors map[string]string) []byte {
 		return resources
 	}
 
-	// temp struct to easier access labels field in the map of maps and avoid casting many times
 	labels := struct {
 		Items []struct {
 			Metadata struct {
@@ -212,7 +211,6 @@ func filterBySelectors(resources []byte, selectors map[string]string) []byte {
 	}{}
 
 	if json.Unmarshal(resources, &labels) != nil || json.Unmarshal(resources, &allItems) != nil {
-		// if something goes wrong, ignore it and return everything, this should fail the test anyway
 		return resources
 	}
 
@@ -224,13 +222,11 @@ func filterBySelectors(resources []byte, selectors map[string]string) []byte {
 			label, ok := item.Metadata.Labels[k]
 			allMatch = allMatch && ok && label == v
 		}
-		// if all found, return it as part of a filtered result
 		if allMatch {
 			filteredItems = append(filteredItems, allItems.Items[idx])
 		}
 	}
 
-	// encode it back to the original form with `items`
 	var result []byte
 	if err := itemsJSON(&result, filteredItems); err != nil {
 		return resources
