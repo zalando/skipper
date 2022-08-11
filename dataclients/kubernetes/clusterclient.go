@@ -159,11 +159,11 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		endpointsURI:              EndpointsClusterURI,
 		secretsURI:                SecretsClusterURI,
 		ingressClass:              ingClsRx,
-		ingressLabelSelectors:     toLabelSelectorQuery(o.IngressLabelSelectors, map[string]string{}),
-		servicesLabelSelectors:    toLabelSelectorQuery(o.ServicesLabelSelectors, o.IngressLabelSelectors),
-		endpointsLabelSelectors:   toLabelSelectorQuery(o.EndpointsLabelSelectors, o.IngressLabelSelectors),
-		secretsLabelSelectors:     toLabelSelectorQuery(o.SecretsLabelSelectors, o.IngressLabelSelectors),
-		routeGroupsLabelSelectors: toLabelSelectorQuery(o.RouteGroupsLabelSelectors, o.IngressLabelSelectors),
+		ingressLabelSelectors:     toLabelSelectorQuery(o.IngressLabelSelectors),
+		servicesLabelSelectors:    toLabelSelectorQuery(o.ServicesLabelSelectors),
+		endpointsLabelSelectors:   toLabelSelectorQuery(o.EndpointsLabelSelectors),
+		secretsLabelSelectors:     toLabelSelectorQuery(o.SecretsLabelSelectors),
+		routeGroupsLabelSelectors: toLabelSelectorQuery(o.RouteGroupsLabelSelectors),
 		routeGroupClass:           rgClsRx,
 		httpClient:                httpClient,
 		apiURL:                    apiURL,
@@ -198,12 +198,8 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 // 	["label": ""] becomes `?labelSelector=label`
 // 	["label": "value"] becomes `?labelSelector=label=value`
 // 	["label": "value", "label2": "value2"] becomes `?labelSelector=label=value&label2=value2`
-func toLabelSelectorQuery(selectors map[string]string, defaultSelectors map[string]string) string {
-	if selectors == nil {
-		selectors = defaultSelectors
-	}
-
-	if len(selectors) == 0 {
+func toLabelSelectorQuery(selectors map[string]string) string {
+	if selectors == nil || len(selectors) == 0 {
 		return ""
 	}
 

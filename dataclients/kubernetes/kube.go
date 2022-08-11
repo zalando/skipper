@@ -146,22 +146,22 @@ type Options struct {
 
 	// ServicesLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
-	// Unless this field is explicitly set, it defaults to the same value as in IngressLabelSelectors.
+	// The default value is no labels required.
 	ServicesLabelSelectors map[string]string
 
 	// EndpointsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
-	// Unless this field is set, it defaults to the same value as in IngressLabelSelectors.
+	// The default value is no labels required.
 	EndpointsLabelSelectors map[string]string
 
 	// SecretsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
-	// Unless this field is explicitly set, it defaults to the same value as in IngressLabelSelectors.
+	// The default value is no labels required.
 	SecretsLabelSelectors map[string]string
 
 	// RouteGroupsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
-	// Unless this field is explicitly set, it defaults to the same value as in IngressLabelSelectors.
+	// The default value is no labels required.
 	RouteGroupsLabelSelectors map[string]string
 
 	// ReverseSourcePredicate set to true will do the Source IP
