@@ -45,7 +45,6 @@ const (
 	unknownRouteID          = "_unknownroute_"
 	unknownRouteBackendType = "<unknown>"
 	unknownRouteBackend     = "<unknown>"
-	backendIsProxyHeader    = "X-Skipper-Proxy"
 
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
@@ -514,19 +513,21 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
 	}
 
-	if _, ok := stateBag[filters.BackendIsProxyKey]; ok {
-		forwardToProxy(r, rr)
-	}
-
 	ctxspan := ot.SpanFromContext(r.Context())
 	if ctxspan != nil {
 		rr = rr.WithContext(ot.ContextWithSpan(rr.Context(), ctxspan))
 	}
 
+	if _, ok := stateBag[filters.BackendIsProxyKey]; ok {
+		rr = forwardToProxy(r, rr)
+	}
+
 	return rr, endpoint, nil
 }
 
-func forwardToProxy(incoming, outgoing *http.Request) {
+type proxyUrlContextKey struct{}
+
+func forwardToProxy(incoming, outgoing *http.Request) *http.Request {
 	proxyURL := &url.URL{
 		Scheme: outgoing.URL.Scheme,
 		Host:   outgoing.URL.Host,
@@ -535,7 +536,15 @@ func forwardToProxy(incoming, outgoing *http.Request) {
 	outgoing.URL.Host = incoming.Host
 	outgoing.URL.Scheme = schemeFromRequest(incoming)
 
-	outgoing.Header.Set(backendIsProxyHeader, proxyURL.String())
+	return outgoing.WithContext(stdlibcontext.WithValue(outgoing.Context(), proxyUrlContextKey{}, proxyURL))
+}
+
+func proxyFromContext(req *http.Request) (*url.URL, error) {
+	proxyURL, _ := req.Context().Value(proxyUrlContextKey{}).(*url.URL)
+	if proxyURL != nil {
+		return proxyURL, nil
+	}
+	return nil, nil
 }
 
 type skipperDialer struct {
@@ -628,7 +637,7 @@ func WithParams(p Params) *Proxy {
 		MaxIdleConnsPerHost:   p.IdleConnectionsPerHost,
 		IdleConnTimeout:       p.CloseIdleConnsPeriod,
 		DisableKeepAlives:     p.DisableHTTPKeepalives,
-		Proxy:                 proxyFromHeader,
+		Proxy:                 proxyFromContext,
 	}
 
 	quit := make(chan struct{})
@@ -726,14 +735,6 @@ func tryCatch(p func(), onErr func(err interface{}, stack string)) {
 	}()
 
 	p()
-}
-
-func proxyFromHeader(req *http.Request) (*url.URL, error) {
-	if u := req.Header.Get(backendIsProxyHeader); u != "" {
-		req.Header.Del(backendIsProxyHeader)
-		return url.Parse(u)
-	}
-	return nil, nil
 }
 
 // applies filters to a request
