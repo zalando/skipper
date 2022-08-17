@@ -8,7 +8,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
-          go-version: '^1.18'
+          go-version: '~1.18'
       - run: go version
       - run: make deps
       - run: make check-race
@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
-          go-version: '^1.18'
+          go-version: '~1.18'
       - run: go version
       - run: make deps
       - run: make check-fmt
