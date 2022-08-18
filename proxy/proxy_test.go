@@ -2213,44 +2213,22 @@ func TestForwardToProxy(t *testing.T) {
 			TLS:  ti.tls,
 		}
 
-		forwardToProxy(incoming, outgoing)
+		outgoing = forwardToProxy(incoming, outgoing)
 
-		if outgoing.URL.String() != ti.expectedRequestURL {
-			t.Errorf("request URLs are not equal, expected %s got %s",
-				ti.expectedRequestURL, outgoing.URL.String())
-		}
+		assert.Equal(t, ti.expectedRequestURL, outgoing.URL.String())
 
-		proxyURL := outgoing.Header.Get(backendIsProxyHeader)
+		proxyURL, err := proxyFromContext(outgoing)
 
-		if proxyURL != ti.expectedProxyURL {
-			t.Errorf("proxy URLs are not equal, expected %s got %s",
-				ti.expectedProxyURL, proxyURL)
-		}
+		assert.NoError(t, err)
+		assert.Equal(t, ti.expectedProxyURL, proxyURL.String())
 	}
 }
 
-func TestProxyFromHeader(t *testing.T) {
-	u1, err := proxyFromHeader(&http.Request{})
-	if err != nil {
-		t.Error(err)
-	}
-	if u1 != nil {
-		t.Errorf("expected nil but got %v", u1)
-	}
+func TestProxyFromEmptyContext(t *testing.T) {
+	proxyUrl, err := proxyFromContext(&http.Request{})
 
-	expectedProxyURL := "http://proxy.example.com"
-
-	u2, err := proxyFromHeader(&http.Request{
-		Header: http.Header{
-			backendIsProxyHeader: []string{expectedProxyURL},
-		},
-	})
-	if err != nil {
-		t.Error(err)
-	}
-	if u2.String() != expectedProxyURL {
-		t.Errorf("expected '%s' but got '%v'", expectedProxyURL, u2)
-	}
+	assert.NoError(t, err)
+	assert.Nil(t, proxyUrl)
 }
 
 func BenchmarkAccessLogNoFilter(b *testing.B) { benchmarkAccessLog(b, "", 200) }
