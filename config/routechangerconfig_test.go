@@ -15,6 +15,11 @@ func Test_routeChangerConfig(t *testing.T) {
 			input: "/Source[(](.*)[)]/ClientIP($1)/",
 			want:  "/Source[(](.*)[)]/ClientIP($1)/",
 		},
+		{
+			name:  "test string with # separator",
+			input: "#Source[(](.*)[)]#ClientIP($1)#",
+			want:  "#Source[(](.*)[)]#ClientIP($1)#",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
