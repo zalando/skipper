@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=registry.opensource.zalan.do/library/alpine-3.13:latest
+ARG BASE_IMAGE=registry.opensource.zalan.do/library/alpine-3:latest
 FROM ${BASE_IMAGE}
 LABEL maintainer="Team Teapot @ Zalando SE <team-teapot@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates

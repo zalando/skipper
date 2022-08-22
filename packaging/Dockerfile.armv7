@@ -1,4 +1,4 @@
-FROM --platform=linux/arm/v7 alpine:3.13
+FROM --platform=linux/arm/v7 alpine:3
 LABEL maintainer="Team Teapot @ Zalando SE <team-teapot@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates
 ADD build/linux/arm/v7/skipper \
