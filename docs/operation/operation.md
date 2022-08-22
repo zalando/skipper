@@ -1063,3 +1063,14 @@ r: SourceFromLast("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
 clone_r: ClientIP("9.0.0.0/8","2001:67c:20a0::/48") -> ...`
 ```
 for migration time.
+
+`/` symbol is not the only option for the separator for `-edit-route` and `-clone-route`, any
+first symbol you will specify in those options could be used as separator. This could be useful
+for IP mask changes, for example, you can use `-edit-route='#/26#/24#`. In this case
+```
+r: SourceFromLast("9.0.0.0/26","2001:67c:20a0::/48") -> ...`
+```
+will be changed to
+```
+r: SourceFromLast("9.0.0.0/24","2001:67c:20a0::/48") -> ...`
+```
