@@ -1731,7 +1731,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		do.Flags |= proxy.Debug
 		dbg := proxy.WithParams(do)
 		log.Infof("debug listener on %v", o.DebugListener)
-		go func() { http.ListenAndServe(o.DebugListener, dbg) }()
+		go func() { http.ListenAndServe(o.DebugListener, dbg) /* #nosec */ }()
 	}
 
 	// init support endpoints
@@ -1755,6 +1755,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 		log.Infof("support listener on %s", supportListener)
 		go func() {
+			/* #nosec */
 			if err := http.ListenAndServe(supportListener, mux); err != nil {
 				log.Errorf("Failed to start supportListener on %s: %v", supportListener, err)
 			}
