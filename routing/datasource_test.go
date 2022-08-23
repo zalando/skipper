@@ -148,6 +148,9 @@ func TestProcessRouteDefWeight(t *testing.T) {
 			`Weight(20) -> <shunt>`,
 			20,
 		}, {
+			`Weight(20) && Weight(10)-> <shunt>`,
+			30,
+		}, {
 			`WeightedPredicate10() && Weight(20) -> <shunt>`,
 			30,
 		},
