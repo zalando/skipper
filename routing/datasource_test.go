@@ -284,9 +284,7 @@ func TestLogging(t *testing.T) {
 }
 
 type weightedPredicateSpec struct{}
-type weightedPredicate struct {
-	Weight int
-}
+type weightedPredicate struct{}
 
 func (w weightedPredicate) Match(request *http.Request) bool {
 	return true
@@ -297,9 +295,7 @@ func (w weightedPredicateSpec) Name() string {
 }
 
 func (w weightedPredicateSpec) Create([]interface{}) (routing.Predicate, error) {
-	return weightedPredicate{
-		Weight: w.Weight(),
-	}, nil
+	return weightedPredicate{}, nil
 }
 
 func (w weightedPredicateSpec) Weight() int {
