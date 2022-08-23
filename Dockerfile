@@ -1,4 +1,4 @@
-FROM registry.opensource.zalan.do/library/alpine-3.13:latest
+FROM registry.opensource.zalan.do/library/alpine-3:latest
 LABEL maintainer="Team Teapot @ Zalando SE <team-teapot@zalando.de>"
 
 ADD skipper /usr/bin/
