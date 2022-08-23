@@ -116,7 +116,7 @@ foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.examp
 
 ```
 // Ratelimit per resource
-Path("/resource/:id") -> setRequestHeader("X-Resource-Id", "${id}") -> clusterClientRateLimit("resource", 10, "1m", "X-Resource-Id") -> "https://backend.example.org";
+Path("/resource/:id") -> setRequestHeader("X-Resource-Id", "${id}") -> clusterClientRatelimit("resource", 10, "1m", "X-Resource-Id") -> "https://backend.example.org";
 ```
 
 ## appendRequestHeader
