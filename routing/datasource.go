@@ -394,7 +394,6 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 			weight += ws.Weight()
 		}
 
-
 		cps = append(cps, cp)
 	}
 
