@@ -18,6 +18,8 @@ import (
 
 	stdlog "log"
 
+	"golang.org/x/net/netutil"
+
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -1064,7 +1066,11 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 	}
 
 	if !o.EnableTCPQueue {
-		return net.Listen("tcp", o.Address)
+		l, err := net.Listen("tcp", o.Address)
+		if err == nil && o.MaxTCPListenerConcurrency > 0 {
+			return netutil.LimitListener(l, o.MaxTCPListenerConcurrency), nil
+		}
+		return l, err
 	}
 
 	var memoryLimit int
