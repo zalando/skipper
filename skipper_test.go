@@ -157,10 +157,16 @@ func TestHTTPSServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	i, err := findAddress()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	o := Options{
-		Address:     a,
-		CertPathTLS: "fixtures/test.crt",
-		KeyPathTLS:  "fixtures/test.key",
+		Address:         a,
+		InsecureAddress: i,
+		CertPathTLS:     "fixtures/test.crt",
+		KeyPathTLS:      "fixtures/test.key",
 	}
 
 	rt := routing.New(routing.Options{
@@ -173,6 +179,21 @@ func TestHTTPSServer(t *testing.T) {
 	go listenAndServe(proxy, &o)
 
 	r, err := waitConnGet("https://" + o.Address)
+	if r != nil {
+		defer r.Body.Close()
+	}
+	if err != nil {
+		t.Fatalf("Cannot connect to the local server for testing: %s ", err.Error())
+	}
+	if r.StatusCode != 404 {
+		t.Fatalf("Status code should be 404, instead got: %d\n", r.StatusCode)
+	}
+	_, err = io.ReadAll(r.Body)
+	if err != nil {
+		t.Fatalf("Failed to stream response body: %v", err)
+	}
+
+	r, err = waitConnGet("http://" + o.InsecureAddress)
 	if r != nil {
 		defer r.Body.Close()
 	}

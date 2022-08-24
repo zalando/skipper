@@ -30,6 +30,7 @@ type Config struct {
 
 	// generic:
 	Address                         string         `yaml:"address"`
+	InsecureAddress                 string         `yaml:"insecure-address"`
 	EnableTCPQueue                  bool           `yaml:"enable-tcp-queue"`
 	ExpectedBytesPerRequest         int            `yaml:"expected-bytes-per-request"`
 	MaxTCPListenerConcurrency       int            `yaml:"max-tcp-listener-concurrency"`
@@ -298,6 +299,7 @@ func NewConfig() *Config {
 
 	// generic:
 	flag.StringVar(&cfg.Address, "address", ":9090", "network address that skipper should listen on")
+	flag.StringVar(&cfg.InsecureAddress, "insecure-address", "", "insecure network address that skipper should listen on when TLS is enabled")
 	flag.BoolVar(&cfg.EnableTCPQueue, "enable-tcp-queue", false, "enable the TCP listener queue")
 	flag.IntVar(&cfg.ExpectedBytesPerRequest, "expected-bytes-per-request", 50*1024, "bytes per request, that is used to calculate concurrency limits to buffer connection spikes")
 	flag.IntVar(&cfg.MaxTCPListenerConcurrency, "max-tcp-listener-concurrency", 0, "sets hardcoded max for TCP listener concurrency, normally calculated based on available memory cgroups with max TODO")
@@ -668,6 +670,7 @@ func (c *Config) ToOptions() skipper.Options {
 	options := skipper.Options{
 		// generic:
 		Address:                         c.Address,
+		InsecureAddress:                 c.InsecureAddress,
 		StatusChecks:                    c.StatusChecks.values,
 		EnableTCPQueue:                  c.EnableTCPQueue,
 		ExpectedBytesPerRequest:         c.ExpectedBytesPerRequest,

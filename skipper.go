@@ -93,6 +93,9 @@ type Options struct {
 	// Network address that skipper should listen on.
 	Address string
 
+	// Insecure network address skipper should listen on when TLS is enabled
+	InsecureAddress string
+
 	// EnableTCPQueue enables controlling the
 	// concurrently processed requests at the TCP listener.
 	EnableTCPQueue bool
@@ -1175,6 +1178,22 @@ func listenAndServeQuit(
 	log.Infof("proxy listener on %v", o.Address)
 
 	if srv.TLSConfig != nil {
+		if o.InsecureAddress != "" {
+			log.Infof("insecure listener on %v", o.InsecureAddress)
+
+			go func() {
+				o.Address = o.InsecureAddress
+				l, err := listen(o, mtr)
+				if err != nil {
+					log.Errorf("Failed to start insecure listener on %s: %v", o.Address, err)
+				}
+
+				if err := srv.Serve(l); err != http.ErrServerClosed {
+					log.Errorf("Insecure listener serve failed: %v", err)
+				}
+			}()
+		}
+
 		if err := srv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
 			log.Errorf("ListenAndServeTLS failed: %v", err)
 			return err
