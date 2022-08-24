@@ -174,13 +174,13 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Parses an optional parameter with `label selectors` into a map if present or, if not present, returns nil.
 func parseSelectors(r *http.Request) map[string]string {
-	rawSelectors := r.URL.Query()["labelSelector"]
-	if len(rawSelectors) == 0 || rawSelectors[0] == "" {
+	rawSelector := r.URL.Query().Get("labelSelector")
+	if rawSelector == "" {
 		return nil
 	}
 
 	selectors := map[string]string{}
-	for _, selector := range rawSelectors {
+	for _, selector := range strings.Split(rawSelector, ",") {
 		kv := strings.Split(selector, "=")
 		selectors[kv[0]] = kv[1]
 	}

@@ -1,0 +1,10 @@
+ingressv1: true
+kubernetes-ingresses-label-selector:
+    skipper-enabled: true
+    special-label: true
+kubernetes-services-label-selector:
+    skipper-enabled: true
+    special-label: true
+kubernetes-endpoints-label-selector:
+    skipper-enabled: true
+    special-label: true

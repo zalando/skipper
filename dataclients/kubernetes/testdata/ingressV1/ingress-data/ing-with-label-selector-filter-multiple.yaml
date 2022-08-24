@@ -5,6 +5,7 @@ metadata:
   name: qux
   labels:
     skipper-enabled: "true"
+    special-label: "true"
   annotations:
     zalando.org/skipper-filter: setPath("/foo")
 spec:
@@ -27,6 +28,7 @@ metadata:
   name: bar
   labels:
     skipper-enabled: "true"
+    special-label: "true"
 spec:
   clusterIP: 10.3.190.97
   ports:
@@ -39,10 +41,11 @@ spec:
 apiVersion: v1
 kind: Endpoints
 metadata:
-  labels:
-    skipper-enabled: "true"
   namespace: foo
   name: bar
+  labels:
+    skipper-enabled: "true"
+    special-label: "true"
 subsets:
   - addresses:
       - ip: 10.2.9.103
