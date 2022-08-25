@@ -93,6 +93,9 @@ type Options struct {
 	// Network address that skipper should listen on.
 	Address string
 
+	// Insecure network address skipper should listen on when TLS is enabled
+	InsecureAddress string
+
 	// EnableTCPQueue enables controlling the
 	// concurrently processed requests at the TCP listener.
 	EnableTCPQueue bool
@@ -1058,13 +1061,13 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	return config, nil
 }
 
-func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
-	if o.Address == "" {
-		o.Address = ":http"
+func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, error) {
+	if address == "" {
+		address = ":http"
 	}
 
 	if !o.EnableTCPQueue {
-		return net.Listen("tcp", o.Address)
+		return net.Listen("tcp", address)
 	}
 
 	var memoryLimit int
@@ -1105,7 +1108,7 @@ func listen(o *Options, mtr metrics.Metrics) (net.Listener, error) {
 
 	return queuelistener.Listen(queuelistener.Options{
 		Network:          "tcp",
-		Address:          o.Address,
+		Address:          address,
 		MaxConcurrency:   o.MaxTCPListenerConcurrency,
 		MaxQueueSize:     o.MaxTCPListenerQueue,
 		MemoryLimitBytes: memoryLimit,
@@ -1175,14 +1178,28 @@ func listenAndServeQuit(
 	log.Infof("proxy listener on %v", o.Address)
 
 	if srv.TLSConfig != nil {
+		if o.InsecureAddress != "" {
+			log.Infof("insecure listener on %v", o.InsecureAddress)
+
+			go func() {
+				l, err := listen(o, o.InsecureAddress, mtr)
+				if err != nil {
+					log.Errorf("Failed to start insecure listener on %s: %v", o.Address, err)
+				}
+
+				if err := srv.Serve(l); err != http.ErrServerClosed {
+					log.Errorf("Insecure listener serve failed: %v", err)
+				}
+			}()
+		}
+
 		if err := srv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
 			log.Errorf("ListenAndServeTLS failed: %v", err)
 			return err
 		}
 	} else {
 		log.Infof("TLS settings not found, defaulting to HTTP")
-
-		l, err := listen(o, mtr)
+		l, err := listen(o, o.Address, mtr)
 		if err != nil {
 			return err
 		}
