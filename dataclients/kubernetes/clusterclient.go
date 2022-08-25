@@ -199,7 +199,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 // 	["label": "value"] becomes `?labelSelector=label=value`
 // 	["label": "value", "label2": "value2"] becomes `?labelSelector=label=value&label2=value2`
 func toLabelSelectorQuery(selectors map[string]string) string {
-	if selectors == nil || len(selectors) == 0 {
+	if len(selectors) == 0 {
 		return ""
 	}
 

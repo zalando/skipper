@@ -193,7 +193,7 @@ func parseSelectors(r *http.Request) map[string]string {
 // This helper function deserializes resources, finds a metadata with labels in them and check if they have all
 // requested labels. If they do, they are returned.
 func filterBySelectors(resources []byte, selectors map[string]string) []byte {
-	if selectors == nil || len(selectors) == 0 {
+	if len(selectors) == 0 {
 		return resources
 	}
 
