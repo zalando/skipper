@@ -144,6 +144,7 @@ func (lb *LB) FilterHealthyMemberRoutes(routes []*routing.Route) []*routing.Rout
 // healthchecks to all backends, which were reported.
 func (lb *LB) startDoHealthChecks() {
 	healthTicker := time.NewTicker(lb.healthcheckInterval)
+	defer healthTicker.Stop()
 	rt := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   3000 * time.Millisecond,
