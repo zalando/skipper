@@ -73,6 +73,9 @@ func (r *Registry) Close() {
 	r.once.Do(func() {
 		r.closed = true
 		r.redisRing.Close()
+		for _, rl := range r.lookup {
+			rl.Close()
+		}
 	})
 }
 
