@@ -330,7 +330,9 @@ func (ac *admissionControl) Close() {
 
 func (ac *admissionControl) tickWindows(d time.Duration) {
 	t := time.NewTicker(d)
+	defer t.Stop()
 	i := 0
+
 	for range t.C {
 		select {
 		case <-ac.quit:

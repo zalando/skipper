@@ -160,6 +160,7 @@ func (e *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 	}
 	go func() {
 		ticker := time.NewTicker(refreshInterval)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-e.closer:
