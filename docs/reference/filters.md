@@ -80,6 +80,23 @@ foo3:
   -> <dynamic>;
 ```
 
+
+## blockContent
+
+Block a request based on it's body content.
+
+The filter max buffer size is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
+
+Parameters:
+
+* toblockList (List of strings)
+
+Example:
+
+```
+* -> blockContent("Malicious Content") -> "http://example.com";
+```
+
 ## modRequestHeader
 
 Replace all matched regex expressions in the given header.

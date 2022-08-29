@@ -31,6 +31,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"github.com/zalando/skipper/filters/auth"
+	block "github.com/zalando/skipper/filters/block"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
@@ -798,6 +799,9 @@ type Options struct {
 	// MaxAuditBody sets the maximum read size of the body read by the audit log filter
 	MaxAuditBody int
 
+	// MaxMatcherBufferSize sets the maximum read buffer size of blockContent filter defaults to 2MiB
+	MaxMatcherBufferSize uint64
+
 	// EnableSwarm enables skipper fleet communication, required by e.g.
 	// the cluster ratelimiter
 	EnableSwarm bool
@@ -1415,6 +1419,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
+		block.NewBlockFilter(o.MaxMatcherBufferSize),
 		auth.NewBearerInjector(sp),
 		auth.NewJwtValidationWithOptions(tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyClaims, tio),

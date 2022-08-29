@@ -214,6 +214,7 @@ const (
 	RandomContentName                          = "randomContent"
 	RepeatContentName                          = "repeatContent"
 	BackendTimeoutName                         = "backendTimeout"
+	BlockName                                  = "blockContent"
 	LatencyName                                = "latency"
 	BandwidthName                              = "bandwidth"
 	ChunksName                                 = "chunks"

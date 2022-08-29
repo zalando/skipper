@@ -53,6 +53,7 @@ type Config struct {
 	RemoveHopHeaders                bool           `yaml:"remove-hop-headers"`
 	RfcPatchPath                    bool           `yaml:"rfc-patch-path"`
 	MaxAuditBody                    int            `yaml:"max-audit-body"`
+	MaxMatcherBufferSize            uint64         `yaml:"max-matcher-buffer-size"`
 	EnableBreakers                  bool           `yaml:"enable-breakers"`
 	Breakers                        breakerFlags   `yaml:"breaker"`
 	EnableRatelimiters              bool           `yaml:"enable-ratelimits"`
@@ -322,6 +323,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.RemoveHopHeaders, "remove-hop-headers", false, "enables removal of Hop-Headers according to RFC-2616")
 	flag.BoolVar(&cfg.RfcPatchPath, "rfc-patch-path", false, "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 3986")
 	flag.IntVar(&cfg.MaxAuditBody, "max-audit-body", 1024, "sets the max body to read to log in the audit log body")
+	flag.Uint64Var(&cfg.MaxMatcherBufferSize, "max-matcher-buffer-size", 2097152, "sets the maximum read size of the body read by the block filter, default is 2MiB")
 	flag.BoolVar(&cfg.EnableBreakers, "enable-breakers", false, enableBreakersUsage)
 	flag.Var(&cfg.Breakers, "breaker", breakerUsage)
 	flag.BoolVar(&cfg.EnableRatelimiters, "enable-ratelimits", false, enableRatelimitsUsage)
@@ -687,6 +689,7 @@ func (c *Config) ToOptions() skipper.Options {
 		LoadBalancerHealthCheckInterval: c.LoadBalancerHealthCheckInterval,
 		ReverseSourcePredicate:          c.ReverseSourcePredicate,
 		MaxAuditBody:                    c.MaxAuditBody,
+		MaxMatcherBufferSize:            c.MaxMatcherBufferSize,
 		EnableBreakers:                  c.EnableBreakers,
 		BreakerSettings:                 c.Breakers,
 		EnableRatelimiters:              c.EnableRatelimiters,

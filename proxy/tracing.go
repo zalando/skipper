@@ -10,6 +10,7 @@ const (
 	ClientRequestStateTag = "client.request"
 	ComponentTag          = "component"
 	ErrorTag              = "error"
+	BlockTag              = "blocked"
 	FlowIDTag             = "flow_id"
 	HostnameTag           = "hostname"
 	HTTPHostTag           = "http.host"
