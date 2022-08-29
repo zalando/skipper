@@ -94,7 +94,7 @@ Parameters:
 Example:
 
 ```
-* -> blockContent("Malicious Cotent") -> "http://example.com";
+* -> blockContent("Malicious Content") -> "http://example.com";
 ```
 
 ## modRequestHeader

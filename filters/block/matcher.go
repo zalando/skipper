@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/proxy"
@@ -48,6 +49,7 @@ const (
 // input, too.
 //
 type matcher struct {
+	once              sync.Once
 	input             io.ReadCloser
 	toblockList       []toblockKeys
 	maxBufferSize     uint64
@@ -80,6 +82,7 @@ func newMatcher(
 	}
 
 	return &matcher{
+		once:              sync.Once{},
 		input:             input,
 		toblockList:       toblockList,
 		maxBufferSize:     maxBufferSize,
@@ -195,12 +198,13 @@ func (m *matcher) Read(p []byte) (int, error) {
 }
 
 // Close closes the undelrying reader if it implements io.Closer.
-// Not safe for concurrent usage and it's reentrant.
 func (m *matcher) Close() error {
-	m.closed = true
-	if c, ok := m.input.(io.Closer); ok {
-		return c.Close()
-	}
-
-	return nil
+	var err error
+	m.once.Do(func() {
+		m.closed = true
+		if c, ok := m.input.(io.Closer); ok {
+			err = c.Close()
+		}
+	})
+	return err
 }
