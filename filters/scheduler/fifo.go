@@ -12,6 +12,10 @@ import (
 	"github.com/zalando/skipper/scheduler"
 )
 
+const (
+	fifoKey string = "fifo"
+)
+
 type (
 	fifoSpec   struct{}
 	fifoFilter struct {
@@ -144,18 +148,13 @@ func (f *fifoFilter) Request(ctx filters.FilterContext) {
 // the concurrency reservation for the request.
 func (f *fifoFilter) Response(ctx filters.FilterContext) {
 	pending, ok := ctx.StateBag()[fifoKey].([]func())
+	if !ok {
+		return
+	}
 	last := len(pending) - 1
 	if last < 0 {
 		return
 	}
 	pending[last]()
 	ctx.StateBag()[fifoKey] = pending[:last]
-
-	if ok {
-		f.queue.Release()
-	}
 }
-
-const (
-	fifoKey string = "fifo"
-)

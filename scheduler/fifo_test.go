@@ -13,6 +13,7 @@ func TestFifo(t *testing.T) {
 		t.Helper()
 		timeout := time.After(120 * time.Millisecond)
 		for {
+			time.Sleep(time.Millisecond)
 			if fq != nil && fq.Status() == s {
 				return
 			}
@@ -34,8 +35,8 @@ func TestFifo(t *testing.T) {
 		cfg := Config{
 			MaxConcurrency: 1,
 			MaxQueueSize:   2,
-			Timeout:        200 * time.Millisecond,
-			CloseTimeout:   100 * time.Millisecond,
+			Timeout:        500 * time.Millisecond,
+			CloseTimeout:   1000 * time.Millisecond,
 		}
 		fq := reg.newFifoQueue("", cfg)
 		ctx := context.Background()
@@ -48,13 +49,12 @@ func TestFifo(t *testing.T) {
 		go fq.Wait(ctx)
 		go fq.Wait(ctx)
 		go fq.Wait(ctx)
-		waitForStatus(t, fq, QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
+		waitForStatus(t, fq, QueueStatus{ActiveRequests: 1, QueuedRequests: 1})
 
 		ch := make(chan struct{})
 		go func() {
 			ch <- struct{}{}
 			fq.Wait(ctx)
-
 		}()
 		<-ch
 
@@ -63,7 +63,7 @@ func TestFifo(t *testing.T) {
 		if err != ErrQueueFull {
 			t.Fatalf("Failed to get ErrQueueFull: %v", err)
 		}
-
+		waitForStatus(t, fq, QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
 	})
 
 	t.Run("semaphore actions and close", func(t *testing.T) {
@@ -76,8 +76,8 @@ func TestFifo(t *testing.T) {
 		}
 		fq := reg.newFifoQueue("foo", cfg)
 		ctx := context.Background()
-		fq.Wait(ctx)
-		fq.Release()
+		f, _ := fq.Wait(ctx)
+		f()
 		fq.close()
 		fq.close()
 	})
