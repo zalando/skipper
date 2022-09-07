@@ -126,6 +126,7 @@ deps:
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
+	@go install golang.org/x/vuln/cmd/govulncheck@latest
 
 vet: $(SOURCES)
 	go vet $(PACKAGES)
@@ -147,6 +148,9 @@ staticcheck: $(SOURCES)
 # G402 See https://github.com/securego/gosec/issues/551 and https://github.com/securego/gosec/issues/528
 gosec: $(SOURCES)
 	gosec -quiet -exclude="G101,G104,G304,G402" ./...
+
+govulncheck: $(SOURCES)
+	govulncheck ./...
 
 fmt: $(SOURCES)
 	@gofmt -w -s $(SOURCES)
