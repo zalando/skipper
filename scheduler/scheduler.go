@@ -148,7 +148,6 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 
 	// handle queue
 	all := fq.counter.Inc()
-	defer fq.counter.Dec()
 	// queue full?
 	if all > maxConcurrency+maxQueueSize {
 		return nil, ErrQueueFull
@@ -169,6 +168,7 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 		}
 	}
 	return func() {
+		fq.counter.Dec()
 		fq.sem.Release(1)
 	}, nil
 
@@ -282,6 +282,8 @@ func (fq *FifoQueue) Wait(ctx context.Context) (func(), error) {
 			fq.metrics.IncCounter(fq.errorTimeoutMetricsKey)
 		case ErrClientCanceled:
 			// This case is handled in the proxy with status code 499
+		case nil:
+			// no error
 		default:
 			fq.metrics.IncCounter(fq.errorOtherMetricsKey)
 		}
