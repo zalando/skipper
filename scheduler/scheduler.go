@@ -151,7 +151,7 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	defer fq.counter.Dec()
 	// queue full?
 	if all > maxConcurrency+maxQueueSize {
-		return func() {}, ErrQueueFull
+		return nil, ErrQueueFull
 	}
 
 	// limit concurrency
@@ -160,12 +160,12 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	if err := fq.sem.Acquire(c, 1); err != nil {
 		switch err {
 		case context.DeadlineExceeded:
-			return func() {}, ErrQueueTimeout
+			return nil, ErrQueueTimeout
 		case context.Canceled:
-			return func() {}, ErrClientCanceled
+			return nil, ErrClientCanceled
 		default:
 			// does not exist yet in Go stdlib as of Go1.18.4
-			return func() {}, err
+			return nil, err
 		}
 	}
 	return func() {
@@ -267,10 +267,12 @@ type GroupedLIFOFilter interface {
 	HasConfig() bool
 }
 
-// Wait blocks until a request can be processed or needs to be rejected.
-// When it can be processed, calling done indicates that it has finished.
-// It is mandatory to call done() the request was processed. When the
-// request needs to be rejected, an error will be returned.
+// Wait blocks until a request can be processed or needs to be
+// rejected.  It returns done() and an error. When it can be
+// processed, calling done indicates that it has finished.  It is
+// mandatory to call done() the request was processed. When the
+// request needs to be rejected, an error will be returned and done
+// will be nil.
 func (fq *FifoQueue) Wait(ctx context.Context) (func(), error) {
 	f, err := fq.queue.wait(ctx)
 	if fq.metrics != nil {

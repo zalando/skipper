@@ -41,10 +41,10 @@ func TestFifo(t *testing.T) {
 		fq := reg.newFifoQueue("", cfg)
 		ctx := context.Background()
 		f, err := fq.Wait(ctx)
-		f()
 		if err != nil {
 			t.Fatalf("Failed to call wait: %v", err)
 		}
+		f()
 
 		go fq.Wait(ctx)
 		go fq.Wait(ctx)
@@ -59,9 +59,11 @@ func TestFifo(t *testing.T) {
 		<-ch
 
 		f, err = fq.Wait(ctx)
-		f()
 		if err != ErrQueueFull {
 			t.Fatalf("Failed to get ErrQueueFull: %v", err)
+		}
+		if err == nil {
+			f()
 		}
 		waitForStatus(t, fq, QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
 	})
@@ -76,8 +78,10 @@ func TestFifo(t *testing.T) {
 		}
 		fq := reg.newFifoQueue("foo", cfg)
 		ctx := context.Background()
-		f, _ := fq.Wait(ctx)
-		f()
+		f, err := fq.Wait(ctx)
+		if err == nil {
+			f()
+		}
 		fq.close()
 		fq.close()
 	})

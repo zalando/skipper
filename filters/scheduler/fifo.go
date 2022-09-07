@@ -97,7 +97,6 @@ func (f *fifoFilter) Request(ctx filters.FilterContext) {
 	c := ctx.Request().Context()
 	done, err := f.queue.Wait(c)
 	if err != nil {
-		done()
 		if span := opentracing.SpanFromContext(c); span != nil {
 			ext.Error.Set(span, true)
 			span.LogKV("fifo error", fmt.Sprintf("Failed to wait for fifo queue: %v", err))
