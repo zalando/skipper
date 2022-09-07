@@ -37,48 +37,41 @@ func (*fifoSpec) Name() string {
 // parameter is maxConcurrency the second maxQueueSize and the third
 // timeout.
 func (s *fifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	var f fifoFilter
-
-	// set defaults
-	f.config.MaxConcurrency = defaultMaxConcurreny
-	f.config.MaxQueueSize = defaultMaxQueueSize
-	f.config.Timeout = defaultTimeout
-
-	if len(args) > 0 {
-		c, err := intArg(args[0])
-		if err != nil {
-			return nil, err
-		}
-		if c >= 1 {
-			f.config.MaxConcurrency = c
-		}
-	}
-
-	if len(args) > 1 {
-		c, err := intArg(args[1])
-		if err != nil {
-			return nil, err
-		}
-		if c >= 0 {
-			f.config.MaxQueueSize = c
-		}
-	}
-
-	if len(args) > 2 {
-		d, err := durationArg(args[2])
-		if err != nil {
-			return nil, err
-		}
-		if d >= 1*time.Millisecond {
-			f.config.Timeout = d
-		}
-	}
-
-	if len(args) > 3 {
+	if len(args) != 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &f, nil
+	cc, err := intArg(args[0])
+	if err != nil {
+		return nil, err
+	}
+	if cc < 1 {
+		return nil, fmt.Errorf("maxconcurrency requires value >0, %w", filters.ErrInvalidFilterParameters)
+	}
+
+	qs, err := intArg(args[1])
+	if err != nil {
+		return nil, err
+	}
+	if qs < 0 {
+		return nil, fmt.Errorf("maxqueuesize requires value >=0, %w", filters.ErrInvalidFilterParameters)
+	}
+
+	d, err := durationArg(args[2])
+	if err != nil {
+		return nil, err
+	}
+	if d < 1*time.Millisecond {
+		return nil, fmt.Errorf("timeout requires value >=1ms, %w", filters.ErrInvalidFilterParameters)
+	}
+
+	return &fifoFilter{
+		config: scheduler.Config{
+			MaxConcurrency: cc,
+			MaxQueueSize:   qs,
+			Timeout:        d,
+		},
+	}, nil
 }
 
 func (f *fifoFilter) Config() scheduler.Config {

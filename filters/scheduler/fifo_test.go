@@ -28,20 +28,23 @@ func TestCreateFifoFilter(t *testing.T) {
 		wantParseErr bool
 	}{
 		{
-			name: "fifo simple ok no args",
+			name:         "fifo no args",
+			wantParseErr: true,
 		},
 		{
-			name: "fifo simple ok 1 arg",
+			name: "fifo 1 arg",
 			args: []interface{}{
 				3,
 			},
+			wantParseErr: true,
 		},
 		{
-			name: "fifo simple ok 2 args",
+			name: "fifo 2 args",
 			args: []interface{}{
 				3,
 				5,
 			},
+			wantParseErr: true,
 		},
 		{
 			name: "fifo simple ok 3 args",
@@ -129,20 +132,9 @@ func TestFifo(t *testing.T) {
 		epsilon       float64
 	}{
 		{
-			name:          "fifo defaults",
-			args:          []interface{}{},
-			freq:          20,
-			per:           100 * time.Millisecond,
-			backendTime:   1 * time.Millisecond,
-			clientTimeout: time.Second,
-			wantConfig: scheduler.Config{
-				MaxConcurrency: defaultMaxConcurreny,
-				MaxQueueSize:   defaultMaxQueueSize,
-				Timeout:        defaultTimeout,
-			},
-			wantParseErr: false,
-			wantOkRate:   1.0,
-			epsilon:      1,
+			name:         "fifo defaults",
+			args:         []interface{}{},
+			wantParseErr: true,
 		},
 		{
 			name: "fifo simple ok",
@@ -215,6 +207,12 @@ func TestFifo(t *testing.T) {
 			ff, err := fs.CreateFilter(tt.args)
 			if err != nil && !tt.wantParseErr {
 				t.Fatalf("Failed to parse filter: %v", err)
+			}
+			if err == nil && tt.wantParseErr {
+				t.Fatalf("want parse error but hav no: %v", err)
+			}
+			if tt.wantParseErr {
+				return
 			}
 
 			// validate config

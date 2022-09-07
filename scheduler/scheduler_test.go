@@ -367,7 +367,7 @@ func TestConfig(t *testing.T) {
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
 
 		// change the configuration, should decrease the queue size:
-		updateDoc(t, dc, `route: * -> fifo(2, 3) -> <shunt>`, nil)
+		updateDoc(t, dc, `route: * -> fifo(2, 3, "3s") -> <shunt>`, nil)
 		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 3})
@@ -437,7 +437,7 @@ func TestConfig(t *testing.T) {
 		const doc = `
 			g1: Path("/one") -> lifo(2, 2) -> <shunt>;
 			g2: Path("/two") -> lifo(2, 2) -> <shunt>;
-			fq: Path("/fifo") -> fifo(2, 2) -> <shunt>;
+			fq: Path("/fifo") -> fifo(2, 2, "3s") -> <shunt>;
 		`
 
 		rt, dc, close := initTest(doc)
@@ -491,8 +491,8 @@ func TestRegistryPreProcessor(t *testing.T) {
 		},
 		{
 			name:   "one fifo",
-			input:  `* -> fifo() -> setPath("/foo") -> <shunt>`,
-			expect: `* -> fifo() -> setPath("/foo") -> <shunt>`,
+			input:  `* -> fifo(2, 2, "3s") -> setPath("/foo") -> <shunt>`,
+			expect: `* -> fifo(2, 2, "3s") -> setPath("/foo") -> <shunt>`,
 		},
 		{
 			name:   "two lifos",
@@ -501,8 +501,8 @@ func TestRegistryPreProcessor(t *testing.T) {
 		},
 		{
 			name:   "two fifos",
-			input:  `* -> fifo(777) -> fifo() -> setPath("/foo") -> <shunt>`,
-			expect: `* -> fifo() -> setPath("/foo") -> <shunt>`,
+			input:  `* -> fifo(2, 2, "3s") -> fifo(20, 2, "3s") -> setPath("/foo") -> <shunt>`,
+			expect: `* -> fifo(20, 2, "3s") -> setPath("/foo") -> <shunt>`,
 		},
 		{
 			name:   "three lifos",

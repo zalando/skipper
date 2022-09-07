@@ -156,20 +156,20 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 
 	// limit concurrency
 	c, done := context.WithTimeout(ctx, timeout)
+	defer done()
 	if err := fq.sem.Acquire(c, 1); err != nil {
 		switch err {
 		case context.DeadlineExceeded:
-			return done, ErrQueueTimeout
+			return func() {}, ErrQueueTimeout
 		case context.Canceled:
-			return done, ErrClientCanceled
+			return func() {}, ErrClientCanceled
 		default:
 			// does not exist yet in Go stdlib as of Go1.18.4
-			return done, err
+			return func() {}, err
 		}
 	}
 	return func() {
 		fq.sem.Release(1)
-		done()
 	}, nil
 
 }
