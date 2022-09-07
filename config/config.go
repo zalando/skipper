@@ -58,6 +58,7 @@ type Config struct {
 	Breakers                        breakerFlags   `yaml:"breaker"`
 	EnableRatelimiters              bool           `yaml:"enable-ratelimits"`
 	Ratelimits                      ratelimitFlags `yaml:"ratelimits"`
+	EnableRouteFIFOMetrics          bool           `yaml:"enable-route-fifo-metrics"`
 	EnableRouteLIFOMetrics          bool           `yaml:"enable-route-lifo-metrics"`
 	MetricsFlavour                  *listFlag      `yaml:"metrics-flavour"`
 	FilterPlugins                   *pluginFlag    `yaml:"filter-plugin"`
@@ -328,6 +329,7 @@ func NewConfig() *Config {
 	flag.Var(&cfg.Breakers, "breaker", breakerUsage)
 	flag.BoolVar(&cfg.EnableRatelimiters, "enable-ratelimits", false, enableRatelimitsUsage)
 	flag.Var(&cfg.Ratelimits, "ratelimits", ratelimitsUsage)
+	flag.BoolVar(&cfg.EnableRouteFIFOMetrics, "enable-route-fifo-metrics", false, "enable metrics for the individual route FIFO queues")
 	flag.BoolVar(&cfg.EnableRouteLIFOMetrics, "enable-route-lifo-metrics", false, "enable metrics for the individual route LIFO queues")
 	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them")
 	flag.Var(cfg.FilterPlugins, "filter-plugin", "set a custom filter plugins to load, a comma separated list of name and arguments")
@@ -694,6 +696,7 @@ func (c *Config) ToOptions() skipper.Options {
 		BreakerSettings:                 c.Breakers,
 		EnableRatelimiters:              c.EnableRatelimiters,
 		RatelimitSettings:               c.Ratelimits,
+		EnableRouteFIFOMetrics:          c.EnableRouteFIFOMetrics,
 		EnableRouteLIFOMetrics:          c.EnableRouteLIFOMetrics,
 		MetricsFlavours:                 c.MetricsFlavour.values,
 		FilterPlugins:                   c.FilterPlugins.values,

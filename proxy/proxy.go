@@ -1054,7 +1054,16 @@ func (p *Proxy) do(ctx *context) error {
 		return errMaxLoopbacksReached
 	}
 
+	// this can be deleted after fixing
+	// https://github.com/zalando/skipper/issues/1238 problem
+	// happens if we get proxy errors, for example connect errors,
+	// which would block responses until fifo() timeouts.
 	defer func() {
+		pendingFIFO, _ := ctx.StateBag()[scheduler.FIFOKey].([]func())
+		for _, done := range pendingFIFO {
+			done()
+		}
+
 		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
 		for _, done := range pendingLIFO {
 			done()
