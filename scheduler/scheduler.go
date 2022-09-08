@@ -109,6 +109,7 @@ type fifoQueue struct {
 func (fq *fifoQueue) status() QueueStatus {
 	fq.mu.RLock()
 	maxConcurrency := fq.maxConcurrency
+	closed := fq.closed
 	fq.mu.RUnlock()
 
 	all := fq.counter.Load()
@@ -125,18 +126,18 @@ func (fq *fifoQueue) status() QueueStatus {
 	return QueueStatus{
 		ActiveRequests: int(active),
 		QueuedRequests: int(queued),
-		Closed:         fq.closed,
+		Closed:         closed,
 	}
 }
 
-// Reconfigure does nothing, because it creates a data race that would
-// require more mutex than we want to have
 func (fq *fifoQueue) reconfigure(c Config) {
 	fq.mu.Lock()
 	defer fq.mu.Unlock()
 	fq.maxConcurrency = uint64(c.MaxConcurrency)
 	fq.maxQueueSize = uint64(c.MaxQueueSize)
 	fq.timeout = c.Timeout
+	fq.sem = semaphore.NewWeighted(int64(c.MaxConcurrency))
+	fq.counter = atomic.NewUint64(0)
 }
 
 func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
@@ -144,19 +145,25 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	maxConcurrency := fq.maxConcurrency
 	maxQueueSize := fq.maxQueueSize
 	timeout := fq.timeout
+	sem := fq.sem
+	cnt := fq.counter
 	fq.mu.RUnlock()
 
 	// handle queue
-	all := fq.counter.Inc()
+	all := cnt.Inc()
 	// queue full?
 	if all > maxConcurrency+maxQueueSize {
+		cnt.Dec()
 		return nil, ErrQueueFull
 	}
 
-	// limit concurrency
+	// set timeout
 	c, done := context.WithTimeout(ctx, timeout)
 	defer done()
-	if err := fq.sem.Acquire(c, 1); err != nil {
+
+	// limit concurrency
+	if err := sem.Acquire(c, 1); err != nil {
+		fq.counter.Dec()
 		switch err {
 		case context.DeadlineExceeded:
 			return nil, ErrQueueTimeout
@@ -167,9 +174,11 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 			return nil, err
 		}
 	}
+
 	return func() {
-		fq.counter.Dec()
-		fq.sem.Release(1)
+		// postpone release to Response() filter
+		cnt.Dec()
+		sem.Release(1)
 	}, nil
 
 }
@@ -273,8 +282,14 @@ type GroupedLIFOFilter interface {
 // request needs to be rejected, an error will be returned and done
 // will be nil.
 func (fq *FifoQueue) Wait(ctx context.Context) (func(), error) {
+	if fq == nil {
+		return nil, errors.New("fq is nil")
+	}
+	if fq.queue == nil {
+		return nil, errors.New("queue is nil")
+	}
 	f, err := fq.queue.wait(ctx)
-	if fq.metrics != nil {
+	if err != nil && fq.metrics != nil {
 		switch err {
 		case ErrQueueFull:
 			fq.metrics.IncCounter(fq.errorFullMetricsKey)
@@ -282,8 +297,6 @@ func (fq *FifoQueue) Wait(ctx context.Context) (func(), error) {
 			fq.metrics.IncCounter(fq.errorTimeoutMetricsKey)
 		case ErrClientCanceled:
 			// This case is handled in the proxy with status code 499
-		case nil:
-			// no error
 		default:
 			fq.metrics.IncCounter(fq.errorOtherMetricsKey)
 		}
@@ -301,12 +314,17 @@ func (fq *FifoQueue) Config() Config {
 	return fq.config
 }
 
-func (fq *FifoQueue) reconfigure() {
-	fq.queue.reconfigure(fq.config)
+// Reconfigure updates the connfiguration of the FifoQueue. It will
+// reset the current state.
+func (fq *FifoQueue) Reconfigure(c Config) {
+	fq.config = c
+	fq.queue.reconfigure(c)
 }
 
 func (fq *FifoQueue) close() {
+	fq.queue.mu.Lock()
 	fq.queue.closed = true
+	fq.queue.mu.Unlock()
 }
 
 // Wait blocks until a request can be processed or needs to be rejected.
@@ -384,8 +402,7 @@ func (r *Registry) getFifoQueue(id queueId, c Config) *FifoQueue {
 	fq, ok := r.fifoQueues[id]
 	if ok {
 		if fq.config != c {
-			fq.config = c
-			fq.reconfigure()
+			fq.Reconfigure(c)
 		}
 	} else {
 		fq = r.newFifoQueue(id.name, c)

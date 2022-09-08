@@ -245,19 +245,26 @@ func TestScheduler(t *testing.T) {
 func TestConfig(t *testing.T) {
 	waitForStatus := func(t *testing.T, fq *scheduler.FifoQueue, q *scheduler.Queue, s scheduler.QueueStatus) {
 		t.Helper()
+		var st scheduler.QueueStatus
 		timeout := time.After(120 * time.Millisecond)
 		for {
-			if q != nil && q.Status() == s {
-				return
+			if q != nil {
+				st = q.Status()
+				if st == s {
+					return
+				}
 			}
 
-			if fq != nil && fq.Status() == s {
-				return
+			if fq != nil {
+				st = fq.Status()
+				if st == s {
+					return
+				}
 			}
 
 			select {
 			case <-timeout:
-				t.Fatal("failed to reach status")
+				t.Fatalf("failed to reach status got %v, want %v", st, s)
 			default:
 			}
 		}
@@ -346,7 +353,7 @@ func TestConfig(t *testing.T) {
 		waitForStatus(t, nil, q1, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
 	})
 
-	t.Run("update fifo config", func(t *testing.T) {
+	t.Run("update fifo config increase concurrency", func(t *testing.T) {
 		const doc = `route: * -> fifo(2, 2, "3s") -> <shunt>`
 		rt, dc, close := initTest(doc)
 		defer close()
@@ -360,17 +367,196 @@ func TestConfig(t *testing.T) {
 		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+
+		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
+
+		// change the configuration
+		updateDoc(t, dc, `route: * -> fifo(3, 2, "3s") -> <shunt>`, nil)
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
+
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 3, QueuedRequests: 2})
+	})
+
+	t.Run("update fifo config increase max queue size", func(t *testing.T) {
+		const doc = `route: * -> fifo(2, 2, "3s") -> <shunt>`
+		rt, dc, close := initTest(doc)
+		defer close()
+
+		req := &http.Request{URL: &url.URL{}}
+		r, _ := rt.Route(req)
+		f := r.Filters[0]
+
+		// fill up the queue:
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 
 		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
 		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
 
-		// change the configuration, should decrease the queue size:
+		// change the configuration
 		updateDoc(t, dc, `route: * -> fifo(2, 3, "3s") -> <shunt>`, nil)
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
+
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 3})
+	})
+
+	t.Run("update fifo config decrease max queue size", func(t *testing.T) {
+		const doc = `route: * -> fifo(2, 2, "3s") -> <shunt>`
+		rt, dc, close := initTest(doc)
+		defer close()
+
+		req := &http.Request{URL: &url.URL{}}
+		r, _ := rt.Route(req)
+		f := r.Filters[0]
+
+		// fill up the queue:
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
 
-		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 3})
+		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
+
+		// change the configuration
+		updateDoc(t, dc, `route: * -> fifo(2, 1, "3s") -> <shunt>`, nil)
+
+		// update resets
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
+		//filling again
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
+
+		// adding requests won't change the state if we have already too many in queue
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
+	})
+
+	t.Run("update fifo config decrease max concurrency", func(t *testing.T) {
+		const doc = `route: * -> fifo(2, 2, "3s") -> <shunt>`
+		rt, dc, close := initTest(doc)
+		defer close()
+
+		req := &http.Request{URL: &url.URL{}}
+		r, _ := rt.Route(req)
+		f := r.Filters[0]
+
+		// fill up the queue minus one:
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+
+		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
+
+		// change the configuration
+		updateDoc(t, dc, `route: * -> fifo(1, 2, "3s") -> <shunt>`, nil)
+
+		// update resets
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
+		// filling again
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
+
+		// adding requests won't change the state if we have already too many in queue
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
+	})
+
+	t.Run("update fifo config decrease max queue size overflow test", func(t *testing.T) {
+		const doc = `route: * -> fifo(2, 2, "3s") -> <shunt>`
+		rt, dc, close := initTest(doc)
+		defer close()
+
+		req := &http.Request{URL: &url.URL{}}
+		r, _ := rt.Route(req)
+		f := r.Filters[0]
+
+		// fill up the queue:
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+
+		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
+
+		// change the configuration
+		updateDoc(t, dc, `route: * -> fifo(2, 1, "3s") -> <shunt>`, nil)
+
+		// update resets
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
+
+		// fill up the queue again
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
+
+		// adding requests won't change the state if we have already too many in queue
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 1})
+	})
+
+	t.Run("update fifo config decrease max concurrency overflow test", func(t *testing.T) {
+		const doc = `route: * -> fifo(2, 2, "3s") -> <shunt>`
+		rt, dc, close := initTest(doc)
+		defer close()
+
+		req := &http.Request{URL: &url.URL{}}
+		r, _ := rt.Route(req)
+		f := r.Filters[0]
+
+		// fill up the queue minus one:
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+
+		q := f.Filter.(scheduler.FIFOFilter).GetQueue()
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 2, QueuedRequests: 2})
+
+		// change the configuration
+		updateDoc(t, dc, `route: * -> fifo(1, 2, "3s") -> <shunt>`, nil)
+
+		// update resets
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 0, QueuedRequests: 0})
+
+		// fill up the queue again:
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
+
+		// adding requests won't change the state if we have already too many in queue
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		go f.Request(&filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})})
+		waitForStatus(t, q, nil, scheduler.QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
 	})
 
 	t.Run("update lifo config", func(t *testing.T) {

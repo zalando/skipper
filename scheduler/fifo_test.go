@@ -11,16 +11,20 @@ import (
 func TestFifo(t *testing.T) {
 	waitForStatus := func(t *testing.T, fq *FifoQueue, s QueueStatus) {
 		t.Helper()
+		if fq == nil {
+			t.Fatal("fq nil")
+		}
 		timeout := time.After(120 * time.Millisecond)
 		for {
 			time.Sleep(time.Millisecond)
-			if fq != nil && fq.Status() == s {
+			cur := fq.Status()
+			if cur == s {
 				return
 			}
 
 			select {
 			case <-timeout:
-				t.Fatal("failed to reach status")
+				t.Fatalf("failed to reach status, want %v, got: %v", s, cur)
 			default:
 			}
 		}
@@ -49,14 +53,7 @@ func TestFifo(t *testing.T) {
 		go fq.Wait(ctx)
 		go fq.Wait(ctx)
 		go fq.Wait(ctx)
-		waitForStatus(t, fq, QueueStatus{ActiveRequests: 1, QueuedRequests: 1})
-
-		ch := make(chan struct{})
-		go func() {
-			ch <- struct{}{}
-			fq.Wait(ctx)
-		}()
-		<-ch
+		waitForStatus(t, fq, QueueStatus{ActiveRequests: 1, QueuedRequests: 2})
 
 		f, err = fq.Wait(ctx)
 		if err != ErrQueueFull {
