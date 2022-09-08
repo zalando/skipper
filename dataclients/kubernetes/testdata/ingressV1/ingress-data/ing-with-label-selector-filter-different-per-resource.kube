@@ -1,0 +1,7 @@
+ingressv1: true
+kubernetes-ingresses-label-selector:
+    ingress-enabled: true
+kubernetes-services-label-selector:
+    service-enabled: true
+kubernetes-endpoints-label-selector:
+    endpoint-enabled: true

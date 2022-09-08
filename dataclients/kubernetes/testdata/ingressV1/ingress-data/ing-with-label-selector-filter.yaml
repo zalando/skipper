@@ -1,0 +1,103 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: foo
+  name: qux
+  labels:
+    skipper-enabled: "true"
+  annotations:
+    zalando.org/skipper-filter: setPath("/foo")
+spec:
+  rules:
+    - host: www.example.org
+      http:
+        paths:
+          - path: "/"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bar
+                port:
+                  name: baz
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: foo
+  name: bar
+  labels:
+    skipper-enabled: "true"
+spec:
+  clusterIP: 10.3.190.97
+  ports:
+    - name: baz
+      port: 8181
+      protocol: TCP
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    skipper-enabled: "true"
+  namespace: foo
+  name: bar
+subsets:
+  - addresses:
+      - ip: 10.2.9.103
+      - ip: 10.2.9.104
+    ports:
+      - name: baz
+        port: 8080
+        protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: foo
+  name: qux-no-label
+  annotations:
+    zalando.org/skipper-filter: setPath("/foo")
+spec:
+  rules:
+    - host: www.example.org
+      http:
+        paths:
+          - path: "/"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bar-no-label
+                port:
+                  name: baz-no-label
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: foo
+  name: bar-no-label
+spec:
+  clusterIP: 10.3.190.97
+  ports:
+    - name: baz-no-label
+      port: 8181
+      protocol: TCP
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    skipper-enabled: "true"
+  namespace: foo
+  name: bar-no-label
+subsets:
+  - addresses:
+      - ip: 10.2.9.105
+      - ip: 10.2.9.106
+    ports:
+      - name: baz-no-label
+        port: 8080
+        protocol: TCP

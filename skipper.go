@@ -198,6 +198,37 @@ type Options struct {
 	// annotation, or which an empty annotation, will be loaded too.
 	KubernetesRouteGroupClass string
 
+	// KubernetesIngressLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. A label and its value on an Ingress must be match exactly to be loaded by Skipper.
+	// If the value is irrelevant for a given configuration, it can be left empty. The default
+	// value is no labels required.
+	// Examples:
+	//  Config [] will load all Ingresses.
+	// 	Config ["skipper-enabled": ""] will load only Ingresses with a label "skipper-enabled", no matter the value.
+	// 	Config ["skipper-enabled": "true"] will load only Ingresses with a label "skipper-enabled: true"
+	// 	Config ["skipper-enabled": "", "foo": "bar"] will load only Ingresses with both labels while label "foo" must have a value "bar".
+	KubernetesIngressLabelSelectors map[string]string
+
+	// KubernetesServicesLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	KubernetesServicesLabelSelectors map[string]string
+
+	// KubernetesEndpointsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	KubernetesEndpointsLabelSelectors map[string]string
+
+	// KubernetesSecretsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	KubernetesSecretsLabelSelectors map[string]string
+
+	// KubernetesRouteGroupsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	KubernetesRouteGroupsLabelSelectors map[string]string
+
 	// PathMode controls the default interpretation of ingress paths in cases
 	// when the ingress doesn't specify it with an annotation.
 	KubernetesPathMode kubernetes.PathMode
@@ -956,6 +987,11 @@ func createDataClients(o Options, auth innkeeper.Authentication, cr *certregistr
 			KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
 			HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
 			IngressClass:                      o.KubernetesIngressClass,
+			IngressLabelSelectors:             o.KubernetesIngressLabelSelectors,
+			ServicesLabelSelectors:            o.KubernetesServicesLabelSelectors,
+			EndpointsLabelSelectors:           o.KubernetesEndpointsLabelSelectors,
+			SecretsLabelSelectors:             o.KubernetesSecretsLabelSelectors,
+			RouteGroupsLabelSelectors:         o.KubernetesRouteGroupsLabelSelectors,
 			OnlyAllowedExternalNames:          o.KubernetesOnlyAllowedExternalNames,
 			OriginMarker:                      o.EnableRouteCreationMetrics,
 			PathMode:                          o.KubernetesPathMode,

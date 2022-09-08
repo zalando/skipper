@@ -44,6 +44,9 @@ type kubeOptionsParser struct {
 	AllowedExternalNames     []string           `yaml:"allowedExternalNames"`
 	IngressClass             string             `yaml:"kubernetes-ingress-class"`
 	KubernetesEnableTLS      bool               `yaml:"kubernetes-enable-tls"`
+	IngressesLabels          map[string]string  `yaml:"kubernetes-ingresses-label-selector"`
+	ServicesLabels           map[string]string  `yaml:"kubernetes-services-label-selector"`
+	EndpointsLabels          map[string]string  `yaml:"kubernetes-endpoints-label-selector"`
 }
 
 func baseNoExt(n string) string {
@@ -225,6 +228,9 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.BackendNameTracingTag = kop.BackendNameTracingTag
 		o.IngressClass = kop.IngressClass
 		o.CertificateRegistry = cr
+		o.IngressLabelSelectors = kop.IngressesLabels
+		o.ServicesLabelSelectors = kop.ServicesLabels
+		o.EndpointsLabelSelectors = kop.EndpointsLabels
 
 		aen, err := compileRegexps(kop.AllowedExternalNames)
 		if err != nil {

@@ -10,9 +10,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -43,6 +45,8 @@ const (
 	serviceAccountDir          = "/var/run/secrets/kubernetes.io/serviceaccount/"
 	serviceAccountTokenKey     = "token"
 	serviceAccountRootCAKey    = "ca.crt"
+	labelSelectorFmt           = "%s=%s"
+	labelSelectorQueryFmt      = "?labelSelector=%s"
 )
 
 const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the cluster.
@@ -62,6 +66,12 @@ type clusterClient struct {
 	ingressClass    *regexp.Regexp
 	httpClient      *http.Client
 	ingressV1       bool
+
+	ingressLabelSelectors     string
+	servicesLabelSelectors    string
+	endpointsLabelSelectors   string
+	secretsLabelSelectors     string
+	routeGroupsLabelSelectors string
 
 	loggedMissingRouteGroups bool
 }
@@ -142,17 +152,22 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		ingressURI = IngressesV1ClusterURI
 	}
 	c := &clusterClient{
-		ingressV1:           o.KubernetesIngressV1,
-		ingressesURI:        ingressURI,
-		routeGroupsURI:      routeGroupsClusterURI,
-		servicesURI:         ServicesClusterURI,
-		endpointsURI:        EndpointsClusterURI,
-		secretsURI:          SecretsClusterURI,
-		ingressClass:        ingClsRx,
-		routeGroupClass:     rgClsRx,
-		httpClient:          httpClient,
-		apiURL:              apiURL,
-		certificateRegistry: o.CertificateRegistry,
+		ingressV1:                 o.KubernetesIngressV1,
+		ingressesURI:              ingressURI,
+		routeGroupsURI:            routeGroupsClusterURI,
+		servicesURI:               ServicesClusterURI,
+		endpointsURI:              EndpointsClusterURI,
+		secretsURI:                SecretsClusterURI,
+		ingressClass:              ingClsRx,
+		ingressLabelSelectors:     toLabelSelectorQuery(o.IngressLabelSelectors),
+		servicesLabelSelectors:    toLabelSelectorQuery(o.ServicesLabelSelectors),
+		endpointsLabelSelectors:   toLabelSelectorQuery(o.EndpointsLabelSelectors),
+		secretsLabelSelectors:     toLabelSelectorQuery(o.SecretsLabelSelectors),
+		routeGroupsLabelSelectors: toLabelSelectorQuery(o.RouteGroupsLabelSelectors),
+		routeGroupClass:           rgClsRx,
+		httpClient:                httpClient,
+		apiURL:                    apiURL,
+		certificateRegistry:       o.CertificateRegistry,
 	}
 
 	if o.KubernetesInCluster {
@@ -175,6 +190,29 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 	}
 
 	return c, nil
+}
+
+// serializes a given map of label selectors to a string that can be appended to a request URI to kubernetes
+// Examples (note that the resulting value in the query is URL escaped, for readability this is not done in examples):
+// 	[] becomes ``
+// 	["label": ""] becomes `?labelSelector=label`
+// 	["label": "value"] becomes `?labelSelector=label=value`
+// 	["label": "value", "label2": "value2"] becomes `?labelSelector=label=value&label2=value2`
+func toLabelSelectorQuery(selectors map[string]string) string {
+	if len(selectors) == 0 {
+		return ""
+	}
+
+	var strs []string
+	for k, v := range selectors {
+		if v == "" {
+			strs = append(strs, k)
+		} else {
+			strs = append(strs, fmt.Sprintf(labelSelectorFmt, k, v))
+		}
+	}
+
+	return fmt.Sprintf(labelSelectorQueryFmt, url.QueryEscape(strings.Join(strs, ",")))
 }
 
 func (c *clusterClient) setNamespace(namespace string) {
@@ -326,7 +364,7 @@ func sortByMetadata(slice interface{}, getMetadata func(int) *definitions.Metada
 
 func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
 	var il definitions.IngressList
-	if err := c.getJSON(c.ingressesURI, &il); err != nil {
+	if err := c.getJSON(c.ingressesURI+c.ingressLabelSelectors, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
 	}
@@ -340,7 +378,7 @@ func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
 
 func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) {
 	var il definitions.IngressV1List
-	if err := c.getJSON(c.ingressesURI, &il); err != nil {
+	if err := c.getJSON(c.ingressesURI+c.ingressLabelSelectors, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
 	}
@@ -354,7 +392,7 @@ func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) 
 
 func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error) {
 	var rgl definitions.RouteGroupList
-	if err := c.getJSON(c.routeGroupsURI, &rgl); err != nil {
+	if err := c.getJSON(c.routeGroupsURI+c.routeGroupsLabelSelectors, &rgl); err != nil {
 		return nil, err
 	}
 
@@ -384,7 +422,8 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 
 func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, error) {
 	var services serviceList
-	if err := c.getJSON(c.servicesURI, &services); err != nil {
+
+	if err := c.getJSON(c.servicesURI+c.servicesLabelSelectors, &services); err != nil {
 		log.Debugf("requesting all services failed: %v", err)
 		return nil, err
 	}
@@ -410,7 +449,8 @@ func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, err
 
 func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error) {
 	var secrets secretList
-	if err := c.getJSON(c.secretsURI, &secrets); err != nil {
+
+	if err := c.getJSON(c.secretsURI+c.secretsLabelSelectors, &secrets); err != nil {
 		log.Debugf("requesting all secrets failed: %v", err)
 		return nil, err
 	}
@@ -430,7 +470,7 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 
 func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
 	var endpoints endpointList
-	if err := c.getJSON(c.endpointsURI, &endpoints); err != nil {
+	if err := c.getJSON(c.endpointsURI+c.endpointsLabelSelectors, &endpoints); err != nil {
 		log.Debugf("requesting all endpoints failed: %v", err)
 		return nil, err
 	}

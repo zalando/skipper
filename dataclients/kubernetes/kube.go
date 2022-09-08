@@ -133,6 +133,37 @@ type Options struct {
 	// skipper will load it. The default value for the RouteGroup class is 'skipper'.
 	RouteGroupClass string
 
+	// IngressLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. A label and its value on an Ingress must be match exactly to be loaded by Skipper.
+	// If the value is irrelevant for a given configuration, it can be left empty. The default
+	// value is no labels required.
+	// Examples:
+	//  Config [] will load all Ingresses.
+	// 	Config ["skipper-enabled": ""] will load only Ingresses with a label "skipper-enabled", no matter the value.
+	// 	Config ["skipper-enabled": "true"] will load only Ingresses with a label "skipper-enabled: true"
+	// 	Config ["skipper-enabled": "", "foo": "bar"] will load only Ingresses with both labels while label "foo" must have a value "bar".
+	IngressLabelSelectors map[string]string
+
+	// ServicesLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	ServicesLabelSelectors map[string]string
+
+	// EndpointsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	EndpointsLabelSelectors map[string]string
+
+	// SecretsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	SecretsLabelSelectors map[string]string
+
+	// RouteGroupsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	RouteGroupsLabelSelectors map[string]string
+
 	// ReverseSourcePredicate set to true will do the Source IP
 	// whitelisting for the heartbeat endpoint correctly in AWS.
 	// Amazon's ALB writes the client IP to the last item of the
