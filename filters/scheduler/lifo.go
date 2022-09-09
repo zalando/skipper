@@ -163,7 +163,6 @@ func (*lifoGroupSpec) Name() string { return filters.LifoGroupName }
 // one of them will be used as the source for the applied settings, if there
 // is accidentally a difference between the settings in the same group, a
 // warning will be logged.
-//
 func (*lifoGroupSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) < 1 || len(args) > 4 {
 		return nil, filters.ErrInvalidFilterParameters

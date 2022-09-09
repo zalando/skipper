@@ -26,7 +26,7 @@ func NewBasicAuth() *basicSpec {
 	return &basicSpec{}
 }
 
-//We do not touch response at all
+// We do not touch response at all
 func (a *basic) Response(filters.FilterContext) {}
 
 // check basic auth

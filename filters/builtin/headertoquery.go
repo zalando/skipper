@@ -17,7 +17,7 @@ type (
 // NewHeaderToQuery creates a filter which converts the headers
 // from the incoming Request to query params
 //
-// 		headerToQuery("X-Foo-Header", "foo-query-param")
+//	headerToQuery("X-Foo-Header", "foo-query-param")
 //
 // The above filter will set the "foo-query-param" query param
 // to the value of "X-Foo-Header" header, to the request

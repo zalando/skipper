@@ -6,8 +6,7 @@ Flow Ids let you correlate router logs for a given request against the upstream 
 If your upstream application makes other requests to other services it can provide the same Flow ID value so that all
 of those logs can be correlated.
 
-
-How It Works
+# How It Works
 
 Skipper generates a unique Flow Id for every HTTP request that it receives. The Flow ID is then passed to your
 upstream application as an HTTP header called X-Flow-Id.
@@ -18,24 +17,24 @@ not a valid flow id it is ignored and a new flow id is generated, overwriting th
 Any other string used for this parameter is ignored and trigger the same, default, behavior - to ignore any existing
 X-Flow-Id header.
 
-Generators
+# Generators
 
 The Flow ID generation can follow any format. Skipper provides two Generator implementations - Standard and ULID. They
 offer different performance and options and you can choose which one you prefer.
 
-Standard Flow IDs
+# Standard Flow IDs
 
 The Standard Generator uses a base 64 alphabet and can be configured to generate flow IDs with length between 8 and
 64 chars. It is very fast for small length FlowIDs and uses a system shared entropy source. It is safe for concurrent
 use.
 
-ULID Flow IDs
+# ULID Flow IDs
 
 The ULID Generator relies on the great work from https://github.com/alizain/ulid and https://github.com/oklog/ulid. It
 generates 26 char long Universally Unique Lexicographically Sortable IDs. It is very fast and it's also safe for
 concurrent use.
 
-Programmatic Usage
+# Programmatic Usage
 
 To create a specification of the FlowID filter you can either create the default specification, which uses the Standard
 Generator with a length of 16 chars as default or provide your own Generator instance.
@@ -54,7 +53,7 @@ Custom spec with your own Generator implementation
 	myCustomGenerator := newCustomGenerator(arg1, arg2)
 	NewWithGenerator(myCustomGenerator)
 
-Routing Usage
+# Routing Usage
 
 The filter can be used with many different combinations of parameters. It can also be used without any parameter, using
 defaults
@@ -72,9 +71,9 @@ Reuse existing flow id
 With a single string parameter with the value "reuse", the filter will accept an existing X-Flow-Id header, if
 it's present in the request. If it's invalid, a new one is generated and the header is overwritten.
 
-Some Benchmarks
+# Some Benchmarks
 
-Built-In Flow ID Generator
+# Built-In Flow ID Generator
 
 To decide upon which hashing mechanism to use we tested some versions of UUID v1 - v4 and some other implementations.
 The results are as follow:
@@ -134,11 +133,9 @@ following results:
 	BenchmarkFlowIdStandardGeneratorInParallel/32-8         	 2000000	       918 ns/op	      64 B/op	       2 allocs/op
 	BenchmarkFlowIdStandardGeneratorInParallel/64-8         	 1000000	      1576 ns/op	     128 B/op	       2 allocs/op
 
-
 ULID Flow ID Generator
 
 	BenchmarkFlowIdULIDGenerator/Std-8                      	10000000	       194 ns/op	      48 B/op	       2 allocs/op
 	BenchmarkFlowIdULIDGeneratorInParallel-8                	 5000000	       380 ns/op	      48 B/op	       2 allocs/op
-
 */
 package flowid

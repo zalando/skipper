@@ -21,7 +21,7 @@ type modQuery struct {
 // Returns a new dropQuery filter Spec, whose instances drop a corresponding
 // query parameter.
 //
-// Instances expect the name string or template parameter, see eskip.Template.ApplyContext
+// # Instances expect the name string or template parameter, see eskip.Template.ApplyContext
 //
 // Name: "dropQuery".
 func NewDropQuery() filters.Spec { return &modQuery{behavior: drop} }

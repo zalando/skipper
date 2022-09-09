@@ -4,10 +4,10 @@ only during some period of time.
 
 Package includes three predicates: Between, Before and After.
 All predicates can be created using the date represented as:
-- a string in RFC3339 format (see https://golang.org/pkg/time/#pkg-constants)
-- a string in RFC3339 format without numeric timezone offset and a location name (see https://golang.org/pkg/time/#LoadLocation)
-- an int64 or float64 number corresponding to the given Unix time in seconds since January 1, 1970 UTC.
-  float64 number will be converted into int64 number.
+  - a string in RFC3339 format (see https://golang.org/pkg/time/#pkg-constants)
+  - a string in RFC3339 format without numeric timezone offset and a location name (see https://golang.org/pkg/time/#LoadLocation)
+  - an int64 or float64 number corresponding to the given Unix time in seconds since January 1, 1970 UTC.
+    float64 number will be converted into int64 number.
 
 Between predicate matches only if current date is inside the specified
 range of dates. Between predicate requires two dates to be constructed.
@@ -34,7 +34,6 @@ Examples:
 	example7: Path("/zalando") && Between("2021-02-18T00:00:00", "2021-02-18T01:00:00", "Europe/Berlin") -> "https://www.zalando.de";
 	example8: Path("/zalando") && Before("2021-02-18T00:00:00", "Europe/Berlin") -> "https://www.zalando.de";
 	example9: Path("/zalando") && After("2021-02-18T00:00:00", "Europe/Berlin") -> "https://www.zalando.de";
-
 */
 package interval
 

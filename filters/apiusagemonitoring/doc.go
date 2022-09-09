@@ -1,7 +1,5 @@
 /*
-
 Package apiusagemonitoring provides filters gathering metrics around API calls
-
 
 Feature switch & Dependencies
 
@@ -14,8 +12,7 @@ flavour. Per instance:
 
 This will enable the API monitoring filter through Prometheus metrics.
 
-
-Configuration
+# Configuration
 
 Due to its structured configuration, the filter accepts one parameter of type string
 containing a JSON object.
@@ -23,8 +20,7 @@ containing a JSON object.
 Details and examples can be found at https://opensource.zalando.com/skipper/reference/filters/#apiUsageMonitoring
 (or in this project, under `docs/reference/filters.md`).
 
-
-Development Helpers
+# Development Helpers
 
 The spec and filter log detailed operation information at `DEBUG` level. The -application-log-level=DEBUG switch
 is desirable for debugging usage of the filter.
@@ -40,6 +36,5 @@ Command line example for executing locally:
 		-metrics-flavour prometheus \
 		-histogram-metric-buckets=".01,.025,.05,.075,.1,.2,.3,.4,.5,.75,1,2,3,4,5,7,10,15,20,30,60,120,300,600" \
 		-application-log-level=DEBUG
-
 */
 package apiusagemonitoring

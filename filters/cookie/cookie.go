@@ -23,14 +23,14 @@ accessible from JS code running in web browsers.
 
 Examples:
 
-    requestCookie("test-session", "abc")
+	requestCookie("test-session", "abc")
 
-    responseCookie("test-session", "abc", 31536000)
+	responseCookie("test-session", "abc", 31536000)
 
-    responseCookie("test-session", "abc", 31536000, "change-only")
+	responseCookie("test-session", "abc", 31536000, "change-only")
 
-    // response cookie without HttpOnly:
-    jsCookie("test-session-info", "abc-debug", 31536000, "change-only")
+	// response cookie without HttpOnly:
+	jsCookie("test-session-info", "abc-debug", 31536000, "change-only")
 */
 package cookie
 

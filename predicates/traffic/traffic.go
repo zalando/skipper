@@ -24,48 +24,47 @@ backend service.
 The below example, shows a possible eskip document used for green-blue
 deployments of APIS, which usually don't require stickiness:
 
-    // hit by 10% percent chance
-    v2:
-        Traffic(.1) ->
-        "https://api-test-green";
+	// hit by 10% percent chance
+	v2:
+	    Traffic(.1) ->
+	    "https://api-test-green";
 
-    // hit by remaining chance
-    v1:
-        "https://api-test-blue";
+	// hit by remaining chance
+	v1:
+	    "https://api-test-blue";
 
 The below example, shows a possible eskip document with two,
 independent traffic controlled route sets, which uses session stickiness:
 
-    // hit by 5% percent chance
-    cartTest:
-        Traffic(.05, "cart-test", "test") && Path("/cart") ->
-        responseCookie("cart-test", "test") ->
-        "https://cart-test";
+	// hit by 5% percent chance
+	cartTest:
+	    Traffic(.05, "cart-test", "test") && Path("/cart") ->
+	    responseCookie("cart-test", "test") ->
+	    "https://cart-test";
 
-    // hit by remaining chance
-    cart:
-        Path("/cart") ->
-        responseCookie("cart-test", "default") ->
-        "https://cart";
+	// hit by remaining chance
+	cart:
+	    Path("/cart") ->
+	    responseCookie("cart-test", "default") ->
+	    "https://cart";
 
-    // hit by 15% percent chance
-    catalogTestA:
-        Traffic(.15, "catalog-test", "A") ->
-        responseCookie("catalog-test", "A") ->
-        "https://catalog-test-a";
+	// hit by 15% percent chance
+	catalogTestA:
+	    Traffic(.15, "catalog-test", "A") ->
+	    responseCookie("catalog-test", "A") ->
+	    "https://catalog-test-a";
 
-    // hit by 30% percent chance
-    catalogTestB:
-        Traffic(.3, "catalog-test", "B") ->
-        responseCookie("catalog-test", "B") ->
-        "https://catalog-test-b";
+	// hit by 30% percent chance
+	catalogTestB:
+	    Traffic(.3, "catalog-test", "B") ->
+	    responseCookie("catalog-test", "B") ->
+	    "https://catalog-test-b";
 
-    // hit by remaining chance
-    catalog:
-        * ->
-        responseCookie("catalog-test", "default") ->
-        "https://catalog";
-
+	// hit by remaining chance
+	catalog:
+	    * ->
+	    responseCookie("catalog-test", "default") ->
+	    "https://catalog";
 */
 package traffic
 

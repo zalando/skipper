@@ -58,12 +58,11 @@ func unescape(seq []byte) (byte, bool) {
 // the stdlib url package, and there is no difference between the parsed and the raw path.
 // This basically means that the following code is correct:
 //
-// 	req.URL.Path = rfc.PatchPath(req.URL.Path, req.URL.RawPath)
+//	req.URL.Path = rfc.PatchPath(req.URL.Path, req.URL.RawPath)
 //
 // Links:
 // - https://tools.ietf.org/html/rfc2616#section-3.2.3 and
 // - https://tools.ietf.org/html/rfc3986#section-2.2
-//
 func PatchPath(parsed, raw string) string {
 	p, r := []byte(parsed), []byte(raw)
 	patched := make([]byte, 0, len(r))

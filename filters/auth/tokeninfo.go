@@ -134,7 +134,6 @@ func NewOAuthTokeninfoAnyKV(OAuthTokeninfoURL string, OAuthTokeninfoTimeout time
 // Use one of the base initializer functions as the first argument:
 // NewOAuthTokeninfoAllScope, NewOAuthTokeninfoAnyScope,
 // NewOAuthTokeninfoAllKV or NewOAuthTokeninfoAnyKV.
-//
 func TokeninfoWithOptions(create func(string, time.Duration) filters.Spec, o TokeninfoOptions) filters.Spec {
 	s := create(o.URL, o.Timeout)
 	ts, ok := s.(*tokeninfoSpec)
@@ -167,8 +166,7 @@ func (s *tokeninfoSpec) Name() string {
 // type. The shown example for checkOAuthTokeninfoAllScopes will grant
 // access only to tokens, that have scopes read-x and write-y:
 //
-//     s.CreateFilter("read-x", "write-y")
-//
+//	s.CreateFilter("read-x", "write-y")
 func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {

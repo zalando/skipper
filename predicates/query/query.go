@@ -7,22 +7,21 @@ query params value match to a given regular exp
 
 Examples:
 
-    // Checking existence of a query param
-    // matches http://example.org?bb=a&query=withvalue
-    example1: QueryParam("query") -> "http://example.org";
+	// Checking existence of a query param
+	// matches http://example.org?bb=a&query=withvalue
+	example1: QueryParam("query") -> "http://example.org";
 
-    // Even a query param without a value
-    // matches http://example.org?bb=a&query=
-    example1: QueryParam("query") -> "http://example.org";
+	// Even a query param without a value
+	// matches http://example.org?bb=a&query=
+	example1: QueryParam("query") -> "http://example.org";
 
-    // matches with regexp
-    // matches http://example.org?bb=a&query=example
-    example1: QueryParam("query", "^example$") -> "http://example.org";
+	// matches with regexp
+	// matches http://example.org?bb=a&query=example
+	example1: QueryParam("query", "^example$") -> "http://example.org";
 
-    // matches with regexp and multiple values of query param
-    // matches http://example.org?bb=a&query=testing&query=example
-    example1: QueryParam("query", "^example$") -> "http://example.org";
-
+	// matches with regexp and multiple values of query param
+	// matches http://example.org?bb=a&query=testing&query=example
+	example1: QueryParam("query", "^example$") -> "http://example.org";
 */
 package query
 

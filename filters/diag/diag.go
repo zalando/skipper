@@ -99,8 +99,7 @@ func kbps2bpms(kbps float64) float64 {
 // the byte length of the random response to be generated as an argument.
 // Eskip example:
 //
-// 	* -> randomContent(2048) -> <shunt>;
-//
+//	r: * -> randomContent(2048) -> <shunt>;
 func NewRandom() filters.Spec { return &random{} }
 
 // NewRepeat creates a filter specification whose filter instances can be used
@@ -108,8 +107,7 @@ func NewRandom() filters.Spec { return &random{} }
 // the byte length of the response body to be generated as arguments.
 // Eskip example:
 //
-// 	* -> repeatContent("x", 100) -> <shunt>;
-//
+//	r: * -> repeatContent("x", 100) -> <shunt>;
 func NewRepeat() filters.Spec { return &repeat{} }
 
 // NewLatency creates a filter specification whose filter instances can be used
@@ -117,73 +115,63 @@ func NewRepeat() filters.Spec { return &repeat{} }
 // as an argument. It always adds this value in addition to the natural latency,
 // and does not do any adjustments. Eskip example:
 //
-// 	* -> latency(120) -> "https://www.example.org";
-//
+//	r: * -> latency(120) -> "https://www.example.org";
 func NewLatency() filters.Spec { return &throttle{typ: latency} }
 
 // NewBandwidth creates a filter specification whose filter instances can be used
 // to maximize the bandwidth of the responses. It expects the bandwidth in
 // kbyte/sec as an argument.
 //
-// 	* -> bandwidth(30) -> "https://www.example.org";
-//
+//	r: * -> bandwidth(30) -> "https://www.example.org";
 func NewBandwidth() filters.Spec { return &throttle{typ: bandwidth} }
 
 // NewChunks creates a filter specification whose filter instances can be used
 // set artificial delays in between response chunks. It expects the byte length
 // of the chunks and the delay milliseconds.
 //
-// 	* -> chunks(1024, "120ms") -> "https://www.example.org";
-//
+//	r: * -> chunks(1024, "120ms") -> "https://www.example.org";
 func NewChunks() filters.Spec { return &throttle{typ: chunks} }
 
 // NewBackendLatency is the equivalent of NewLatency but for outgoing backend
 // requests. Eskip example:
 //
-// 	* -> backendLatency(120) -> "https://www.example.org";
-//
+//	r: * -> backendLatency(120) -> "https://www.example.org";
 func NewBackendLatency() filters.Spec { return &throttle{typ: backendLatency} }
 
 // NewBackendBandwidth is the equivalent of NewBandwidth but for outgoing backend
 // requests. Eskip example:
 //
-// 	* -> backendBandwidth(30) -> "https://www.example.org";
-//
+//	r: * -> backendBandwidth(30) -> "https://www.example.org";
 func NewBackendBandwidth() filters.Spec { return &throttle{typ: backendBandwidth} }
 
 // NewBackendChunks is the equivalent of NewChunks but for outgoing backend
 // requests. Eskip example:
 //
-// 	* -> backendChunks(1024, 120) -> "https://www.example.org";
-//
+//	r: * -> backendChunks(1024, 120) -> "https://www.example.org";
 func NewBackendChunks() filters.Spec { return &throttle{typ: backendChunks} }
 
 // NewUniformRequestLatency creates a latency for requests with uniform
 // distribution. Example delay around 1s with +/-120ms.
 //
-// 	* -> uniformRequestLatency("1s", "120ms") -> "https://www.example.org";
-//
+//	r: * -> uniformRequestLatency("1s", "120ms") -> "https://www.example.org";
 func NewUniformRequestLatency() filters.Spec { return &jitter{typ: uniformRequestDistribution} }
 
 // NewNormalRequestLatency creates a latency for requests with normal
 // distribution. Example delay around 1s with +/-120ms.
 //
-// 	* -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
-//
+//	r: * -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
 func NewNormalRequestLatency() filters.Spec { return &jitter{typ: normalRequestDistribution} }
 
 // NewUniformResponseLatency creates a latency for responses with uniform
 // distribution. Example delay around 1s with +/-120ms.
 //
-// 	* -> uniformRequestLatency("1s", "120ms") -> "https://www.example.org";
-//
+//	r: * -> uniformRequestLatency("1s", "120ms") -> "https://www.example.org";
 func NewUniformResponseLatency() filters.Spec { return &jitter{typ: uniformResponseDistribution} }
 
 // NewNormalResponseLatency creates a latency for responses with normal
 // distribution. Example delay around 1s with +/-120ms.
 //
-// 	* -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
-//
+//	r: * -> normalRequestLatency("1s", "120ms") -> "https://www.example.org";
 func NewNormalResponseLatency() filters.Spec { return &jitter{typ: normalResponseDistribution} }
 
 func (r *random) Name() string { return filters.RandomContentName }

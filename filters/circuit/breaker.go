@@ -57,7 +57,7 @@ func getDurationArg(a interface{}) (time.Duration, error) {
 // These filters set a breaker for the current route that open if the backend failures for the route reach a
 // value of N, where N is a mandatory argument of the filter:
 //
-// 	consecutiveBreaker(15)
+//	consecutiveBreaker(15)
 //
 // The filter accepts the following optional arguments: timeout (milliseconds or duration string),
 // half-open-requests (integer), idle-ttl (milliseconds or duration string).
@@ -70,7 +70,7 @@ func NewConsecutiveBreaker() filters.Spec {
 // These filters set a breaker for the current route that open if the backend failures for the route reach a
 // value of N within a window of the last M requests, where N and M are mandatory arguments of the filter:
 //
-// 	rateBreaker(30, 300)
+//	rateBreaker(30, 300)
 //
 // The filter accepts the following optional arguments: timeout (milliseconds or duration string),
 // half-open-requests (integer), idle-ttl (milliseconds or duration string).

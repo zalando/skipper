@@ -1,7 +1,7 @@
 /*
 Package sed provides stream editor filters for request and response payload.
 
-Filter sed
+# Filter sed
 
 Example:
 
@@ -31,7 +31,7 @@ The filter uses the go regular expression implementation:
 https://github.com/google/re2/wiki/Syntax . Due to the streaming nature, matches
 with zero length are ignored.
 
-Memory handling and limitations
+# Memory handling and limitations
 
 In order to avoid unbound buffering of unprocessed data, the sed* filters need to
 apply some limitations. Some patterns, e.g. `.*` would allow to match the complete
@@ -55,7 +55,7 @@ use the delimited variant of the filters, e.g. for line based editing.
 If the max buffer handling is set to "abort", then the stream editing is stopped
 and the rest of the payload is dropped.
 
-Filter sedDelim
+# Filter sedDelim
 
 Like sed(), but it expects an additional argument, before the optional max buffer
 size argument, that is used to delimit chunks to be processed at once. The pattern
@@ -64,13 +64,13 @@ delimiter, and matches across the chunk boundaries are not considered.
 
 	editorRoute: * -> sedDelim("foo", "bar", "\n") -> "https://www.example.org";
 
-Filter sedRequest
+# Filter sedRequest
 
 Like sed(), but for the request content.
 
 	editorRoute: * -> sedRequest("foo", "bar") -> "https://www.example.org";
 
-Filter sedRequestDelim
+# Filter sedRequestDelim
 
 Like sedDelim(), but for the request content.
 

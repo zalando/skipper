@@ -50,7 +50,6 @@ const (
 // When the editor is closed, it doesn't read anymore from the input or return any
 // buffered data. If the input implements io.Closer, closing the editor closes the
 // input, too.
-//
 type editor struct {
 	// init:
 	input             io.Reader

@@ -194,10 +194,11 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 
 // serializes a given map of label selectors to a string that can be appended to a request URI to kubernetes
 // Examples (note that the resulting value in the query is URL escaped, for readability this is not done in examples):
-// 	[] becomes ``
-// 	["label": ""] becomes `?labelSelector=label`
-// 	["label": "value"] becomes `?labelSelector=label=value`
-// 	["label": "value", "label2": "value2"] becomes `?labelSelector=label=value&label2=value2`
+//
+//	[] becomes ``
+//	["label": ""] becomes `?labelSelector=label`
+//	["label": "value"] becomes `?labelSelector=label=value`
+//	["label": "value", "label2": "value2"] becomes `?labelSelector=label=value&label2=value2`
 func toLabelSelectorQuery(selectors map[string]string) string {
 	if len(selectors) == 0 {
 		return ""

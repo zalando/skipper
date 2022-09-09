@@ -20,8 +20,7 @@ Filters are used to augment both the inbound request's attributes before
 forwarding it to the route endpoint, and the outbound response's
 attributes before returning it to the original client.
 
-
-Filter Specification and Filter Instances
+# Filter Specification and Filter Instances
 
 Filter implementations are based on filter specifications that provide a
 filter name and a 'factory' method to create filter instances. The filter name
@@ -31,8 +30,7 @@ route. Filter instances are created while the route definitions are parsed and
 initialized, based on the specifications stored in the filter registry.
 Different filter instances can be created with different parameters.
 
-
-Filtering and FilterContext
+# Filtering and FilterContext
 
 Once a route is identified during request processing, a context object is
 created that is unique to the request, holding the current request, the
@@ -43,8 +41,7 @@ Each filter in a route is called twice, once for the request in the order of
 their position in the route definition, and once for the response in reverse
 order.
 
-
-Handling Requests with Filters
+# Handling Requests with Filters
 
 Filters can handle the requests themselves, meaning that they can set the
 response status, headers and send any particular response body. In this case,

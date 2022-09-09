@@ -22,11 +22,11 @@ file system under the directory passed in with the credentialsDir argument.
 
 The structure of the client credentials document:
 
-    {"client_id": "testclientid", "client_secret": "testsecret"}
+	{"client_id": "testclientid", "client_secret": "testsecret"}
 
 The structure of the user credentials document:
 
-    {"application_username": "testusername", "application_password": "testpassword"}
+	{"application_username": "testusername", "application_password": "testpassword"}
 
 The GetToken method ignores the expiration date and makes a new request to the
 OAuth2 service on every call, so storing the token, if necessary, is the

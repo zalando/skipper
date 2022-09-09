@@ -31,8 +31,7 @@ type (
 //
 // Eskip example:
 //
-// 	Cookie("tcial", /^enabled$/) -> "https://www.example.org";
-//
+//	Cookie("tcial", /^enabled$/) -> "https://www.example.org";
 func New() routing.PredicateSpec { return &spec{} }
 
 func (s *spec) Name() string { return predicates.CookieName }

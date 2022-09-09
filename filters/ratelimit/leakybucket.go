@@ -35,8 +35,7 @@ type leakyBucketFilter struct {
 //
 // Example to allow each unique Authorization header once in five seconds:
 //
-//    clusterLeakyBucketRatelimit("auth-${request.header.Authorization}", 1, "5s", 2, 1)
-//
+//	clusterLeakyBucketRatelimit("auth-${request.header.Authorization}", 1, "5s", 2, 1)
 func NewClusterLeakyBucketRatelimit(registry *ratelimit.Registry) filters.Spec {
 	return &leakyBucketSpec{
 		create: func(capacity int, emission time.Duration) leakyBucket {

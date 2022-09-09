@@ -23,8 +23,7 @@ forwarding it to the route endpoint. It may also mean to handle the
 request internally if it is a 'shunt' route or to continue routing
 further in case of 'loopback'.
 
-
-Proxy Mechanism
+# Proxy Mechanism
 
 1. route matching:
 
@@ -32,7 +31,6 @@ The incoming request is matched to the current routing tree, implemented
 in skipper/routing. The result may be a route, which will be used for
 forwarding or handling the request, or nil, in which case the proxy
 responds with a configured http status code (defaults to 404).
-
 
 2. upstream request augmentation:
 
@@ -49,14 +47,12 @@ will prevent the request from reaching the route endpoint. The filters
 that are defined in the route after the one that broke the chain
 will never handle the request.
 
-
 3.a upstream request:
 
 The incoming and augmented request is mapped to an outgoing request and
 executed, addressing the endpoint defined by the current route.
 
 If a filter chain was broken by some filter this step is skipped.
-
 
 3.b shunt:
 
@@ -74,7 +70,6 @@ limit is reached.
 
 In case of a `dynamic` route, the final target must be defined in a filter.
 
-
 4. downstream response augmentation:
 
 The response handling method of all the filters processed in step 2
@@ -87,7 +82,6 @@ request latest in this phase. It should set the status and response
 headers and write the response body, if any, to the writer in the
 filter context.
 
-
 5. response:
 
 In case none of the filters handled the request, the response
@@ -95,8 +89,7 @@ properties, including the status and the headers, are mapped to the
 outgoing response writer, and the response body is streamed to it, with
 continuous flushing.
 
-
-Routing Rules
+# Routing Rules
 
 The route matching is implemented in the skipper/routing package. The
 routing rules are not static, but they can be continuously updated by
@@ -106,8 +99,7 @@ The only exceptions are the priority routes, that have not originated
 from the external data sources, and are tested against the requests
 before the general routing tree.
 
-
-Handling the Host header
+# Handling the Host header
 
 The default behavior regarding the 'Host' header of the proxy requests
 is that the proxy ignores the value set in the incoming request. This
@@ -126,8 +118,7 @@ To control the value of the outgoing 'Host' header, the `OutgoingHost()`
 and `SetOutgoingHost()` methods of the `FilterContext` need to be used
 instead of the `Request.Header` map.
 
-
-Circuit Breakers
+# Circuit Breakers
 
 When configured, skipper can use circuit breakers for the backend
 requests. It asks the registry for a matching circuit breaker for
@@ -138,8 +129,7 @@ current breaker, otherwise it reports a success.
 
 For details, see: https://godoc.org/github.com/zalando/skipper/circuit.
 
-
-Proxy Example
+# Proxy Example
 
 The below example demonstrates creating a routing proxy as a standard
 http.Handler interface:

@@ -3,8 +3,7 @@
 //
 // Usage from the command line:
 //
-//     skipper -inline-routes '* -> inlineContent("Hello, world!") -> <shunt>'
-//
+//	skipper -inline-routes '* -> inlineContent("Hello, world!") -> <shunt>'
 package routestring
 
 import (

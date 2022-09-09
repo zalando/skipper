@@ -35,8 +35,7 @@ type TemplateContext interface {
 // New parses a template string and returns a reusable *Template object.
 // The template string can contain named placeholders of the format:
 //
-// 	Hello, ${who}!
-//
+//	Hello, ${who}!
 func NewTemplate(template string) *Template {
 	matches := placeholderRegexp.FindAllStringSubmatch(template, -1)
 	placeholders := make([]string, len(matches))

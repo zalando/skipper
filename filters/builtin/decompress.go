@@ -172,7 +172,6 @@ func (e decodingError) Error() string {
 // decompression may fail after all the filters were processed.
 //
 // The filter does not need any parameters.
-//
 func NewDecompress() filters.Spec {
 	return decompress{}
 }

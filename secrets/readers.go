@@ -15,10 +15,10 @@ type SecretsReader interface {
 
 // StaticSecret implements SecretsReader interface. Example:
 //
-//    sec := []byte("mysecret")
-//    sss := StaticSecret(sec)
-//    b,_ := sss.GetSecret("")
-//    string(b) == sec // true
+//	sec := []byte("mysecret")
+//	sss := StaticSecret(sec)
+//	b,_ := sss.GetSecret("")
+//	string(b) == sec // true
 type StaticSecret []byte
 
 // GetSecret returns the static secret

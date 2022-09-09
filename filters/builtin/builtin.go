@@ -203,6 +203,7 @@ func MakeRegistry() filters.Registry {
 		tracing.NewBaggageToTagFilter(),
 		tracing.NewTag(),
 		tracing.NewStateBagToTag(),
+		//lint:ignore SA1019 due to backward compatibility
 		accesslog.NewAccessLogDisabled(),
 		accesslog.NewDisableAccessLog(),
 		accesslog.NewEnableAccessLog(),

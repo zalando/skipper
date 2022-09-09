@@ -135,7 +135,6 @@ func eq2Lists(left, right []*Route) bool {
 // If there are multiple methods, only the last one is considered, to
 // reproduce the route matching (even if how it works, may not be the
 // most expected in regard of the method predicates).
-//
 func Eq(r ...*Route) bool {
 	for i := 1; i < len(r); i++ {
 		if !eq2(r[i-1], r[i]) {
@@ -150,7 +149,6 @@ func Eq(r ...*Route) bool {
 // by each list are equal by Eq(). Repeated route IDs are considered invalid
 // and EqLists always returns false in this case. The order of the routes in
 // the lists doesn't matter.
-//
 func EqLists(r ...[]*Route) bool {
 	rc := make([][]*Route, len(r))
 	for i := range rc {
@@ -175,7 +173,6 @@ func EqLists(r ...[]*Route) bool {
 // standard, non-legacy representation of the predicates and the backends.
 // Canonical creates a copy of the route, but doesn't necessarily creates a
 // copy of every field. See also Copy().
-//
 func Canonical(r *Route) *Route {
 	if r == nil {
 		return nil
@@ -272,7 +269,6 @@ func Canonical(r *Route) *Route {
 // keeping the order. The returned slice is a new slice of the input
 // slice but the routes in the slice and their fields are not necessarily
 // all copied. See more at CopyRoutes() and Canonical().
-//
 func CanonicalList(l []*Route) []*Route {
 	if len(l) == 0 {
 		return nil

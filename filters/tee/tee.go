@@ -113,7 +113,6 @@ func NewTeeNoFollow() filters.Spec {
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend with given
 // options. Available options are nofollow and Timeout for http client.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
-//
 func WithOptions(o Options) filters.Spec {
 	return &teeSpec{options: o}
 }
@@ -141,7 +140,7 @@ func (tt *teeTie) Read(b []byte) (int, error) {
 
 func (tt *teeTie) Close() error { return nil }
 
-//We do not touch response at all
+// We do not touch response at all
 func (r *tee) Response(filters.FilterContext) {}
 
 // Request is copied and then modified to adopt changes in new backend

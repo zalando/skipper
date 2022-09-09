@@ -111,7 +111,7 @@ func (tb *teeBody) Write(b []byte) (int, error) {
 // maxAuditBody attribute to limit the size of the log. It will use
 // os.Stderr as writer for the output of the log entries.
 //
-//     spec := NewAuditLog(1024)
+//	spec := NewAuditLog(1024)
 func NewAuditLog(maxAuditBody int) filters.Spec {
 	return &auditLog{
 		writer:     os.Stderr,

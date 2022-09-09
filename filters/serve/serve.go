@@ -28,12 +28,11 @@ type pipedResponse struct {
 //
 // Example, a simple file server:
 //
-// 	var handler = http.StripPrefix(webRoot, http.FileServer(http.Dir(root)))
+//	var handler = http.StripPrefix(webRoot, http.FileServer(http.Dir(root)))
 //
-// 	func (f *myFilter) Request(ctx filters.FilterContext) {
-// 		serve.ServeHTTP(ctx, handler)
-// 	}
-//
+//	func (f *myFilter) Request(ctx filters.FilterContext) {
+//		serve.ServeHTTP(ctx, handler)
+//	}
 func ServeHTTP(ctx filters.FilterContext, h http.Handler) {
 	rsp := &http.Response{Header: make(http.Header)}
 	r, w := io.Pipe()

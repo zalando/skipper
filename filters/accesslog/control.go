@@ -58,8 +58,8 @@ type disableAccessLog struct{}
 // Optionally takes in response code prefixes as arguments. When provided, access log is disabled
 // only if response code matches one of the arguments.
 //
-//  	disableAccessLog() or
-//  	disableAccessLog(1, 20, 301)  to disable logs for 1xx, 20x and 301 codes
+//	disableAccessLog() or
+//	disableAccessLog(1, 20, 301)  to disable logs for 1xx, 20x and 301 codes
 func NewDisableAccessLog() filters.Spec {
 	return &disableAccessLog{}
 }
@@ -76,8 +76,8 @@ type enableAccessLog struct{}
 // Optionally takes in response code prefixes as arguments. When provided, access log is enabled
 // only if response code matches one of the arguments.
 //
-// 	enableAccessLog()
-// 	enableAccessLog(1, 20, 301)  to enable logs for 1xx, 20x and 301 codes
+//	enableAccessLog()
+//	enableAccessLog(1, 20, 301)  to enable logs for 1xx, 20x and 301 codes
 func NewEnableAccessLog() filters.Spec {
 	return &enableAccessLog{}
 }

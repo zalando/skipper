@@ -1,18 +1,16 @@
 /*
-
 Package methods implements a custom predicate to match routes
 based on the http method in request
 
-It supports multiple http methods, with case insensitive input
+# It supports multiple http methods, with case insensitive input
 
 Examples:
 
-    // matches GET request
-    example1: Methods("GET") -> "http://example.org";
+	// matches GET request
+	example1: Methods("GET") -> "http://example.org";
 
-    // matches GET or POST request
-    example1: Methods("GET", "post") -> "http://example.org";
-
+	// matches GET or POST request
+	example1: Methods("GET", "post") -> "http://example.org";
 */
 package methods
 

@@ -7,12 +7,12 @@ part of a JWT token, for example based on the issuer.
 
 Examples:
 
-    // one key value pair has to match
-    example1: JWTPayloadAnyKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
-	-> "http://example.org/";
-    // all key value pairs have to match
-    example2: * && JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
-	-> "http://example.org/";
+	    // one key value pair has to match
+	    example1: JWTPayloadAnyKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+		-> "http://example.org/";
+	    // all key value pairs have to match
+	    example2: * && JWTPayloadAllKV("iss", "https://accounts.google.com", "email", "skipper-router@googlegroups.com")
+		-> "http://example.org/";
 */
 package auth
 

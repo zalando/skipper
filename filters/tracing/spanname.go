@@ -23,8 +23,7 @@ type filter struct {
 
 // NewSpanName creates a filter spec for setting the name of the outgoing span. (By default "proxy".)
 //
-// 	tracingSpanName("example-operation")
-//
+//	tracingSpanName("example-operation")
 func NewSpanName() filters.Spec {
 	return &spec{}
 }

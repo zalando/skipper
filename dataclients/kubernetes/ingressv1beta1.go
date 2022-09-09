@@ -213,23 +213,23 @@ func (ing *ingress) addEndpointsRule(ic ingressContext, host string, prule *defi
 // rule backends.
 // The traffic is calculated based on the following rules:
 //
-// * if no weight is defined for a backend it will get weight 0.
-// * if no weights are specified for all backends of a path, then traffic will
-//   be distributed equally.
+//   - if no weight is defined for a backend it will get weight 0.
+//   - if no weights are specified for all backends of a path, then traffic will
+//     be distributed equally.
 //
 // Each traffic weight is relative to the number of backends per path. If there
 // are multiple backends per path the weight will be relative to the number of
 // remaining backends for the path e.g. if the weight is specified as
 //
-//      backend-1: 0.2
-//      backend-2: 0.6
-//      backend-3: 0.2
+//	backend-1: 0.2
+//	backend-2: 0.6
+//	backend-3: 0.2
 //
 // then the weight will be calculated to:
 //
-//      backend-1: 0.2
-//      backend-2: 0.75
-//      backend-3: 1.0
+//	backend-1: 0.2
+//	backend-2: 0.75
+//	backend-3: 1.0
 //
 // where for a weight of 1.0 no Traffic predicate will be generated.
 func computeBackendWeights(backendWeights map[string]float64, rule *definitions.Rule) {

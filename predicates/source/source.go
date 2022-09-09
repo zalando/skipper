@@ -25,17 +25,17 @@ the X-Forwarded-For header and SourceFromLast() as last entry.
 
 Examples:
 
-    // only match requests from 1.2.3.4
-    example1: Source("1.2.3.4") -> "http://example.org";
+	// only match requests from 1.2.3.4
+	example1: Source("1.2.3.4") -> "http://example.org";
 
-    // only match requests from 1.2.3.0 - 1.2.3.255
-    example2: Source("1.2.3.0/24") -> "http://example.org";
+	// only match requests from 1.2.3.0 - 1.2.3.255
+	example2: Source("1.2.3.0/24") -> "http://example.org";
 
-    // only match requests from 1.2.3.4 and the 2.2.2.0/24 network
-    example3: Source("1.2.3.4", "2.2.2.0/24") -> "http://example.org";
+	// only match requests from 1.2.3.4 and the 2.2.2.0/24 network
+	example3: Source("1.2.3.4", "2.2.2.0/24") -> "http://example.org";
 
-    // same as example3, only match requests from 1.2.3.4 and the 2.2.2.0/24 network
-    example4: SourceFromLast("1.2.3.4", "2.2.2.0/24") -> "http://example.org";
+	// same as example3, only match requests from 1.2.3.4 and the 2.2.2.0/24 network
+	example4: SourceFromLast("1.2.3.4", "2.2.2.0/24") -> "http://example.org";
 */
 package source
 

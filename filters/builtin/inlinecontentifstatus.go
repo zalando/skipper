@@ -19,13 +19,12 @@ type inlineContentIfStatus struct {
 
 // Creates a filter spec for the inlineContent() filter.
 //
-//     * -> inlineContentIfStatus(401, "{\"foo\": 42}", "application/json") -> "https://www.example.org"
+//	r: * -> inlineContentIfStatus(401, "{\"foo\": 42}", "application/json") -> "https://www.example.org";
 //
 // It accepts three arguments: the statusCode code to match, the content and the optional content type.
 // When the content type is not set, it tries to detect it using http.DetectContentType.
 //
 // The filter replaces the response coming from the backend or the following filters.
-//
 func NewInlineContentIfStatus() filters.Spec {
 	return &inlineContentIfStatus{}
 }
