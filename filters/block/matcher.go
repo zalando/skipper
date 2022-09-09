@@ -47,7 +47,6 @@ const (
 // When the matcher is closed, it doesn't read anymore from the input or return any
 // buffered data. If the input implements io.Closer, closing the matcher closes the
 // input, too.
-//
 type matcher struct {
 	once              sync.Once
 	input             io.ReadCloser

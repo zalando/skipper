@@ -19,7 +19,7 @@ The collected metrics include detailed information about Skipper's relevant proc
 looking up routes, filters (aggregate and individual), backend communication and forwarding the response to
 the client.
 
-Options
+# Options
 
 To enable metrics, it needs to be initialized with a Listener address. In this case, Skipper will start an additional
 http listener, where the current metrics values can be downloaded.
@@ -30,7 +30,7 @@ metrics and other systems if you aggregate them later in some monitoring system.
 You can also enable some Go garbage collector and runtime metrics using EnableDebugGcMetrics and EnableRuntimeMetrics,
 respectively.
 
-REST API
+# REST API
 
 This listener accepts GET requests on the /metrics endpoint like any other REST api. A request to "/metrics" should
 return a JSON response including all the collected metrics if CodaHale format is used, or in Plain text if Prometheus

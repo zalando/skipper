@@ -9,7 +9,7 @@ The circuit breakers are always assigned to backend hosts, so that the outcome o
 affects the circuit breaker behavior of another host. Besides hosts, individual routes can have separate circuit
 breakers, too.
 
-Breaker Type - Consecutive Failures
+# Breaker Type - Consecutive Failures
 
 This breaker opens when the proxy couldn't connect to a backend or received a >=500 status code at least N times
 in a row. When open, the proxy returns 503 - Service Unavailable response during the breaker timeout. After this
@@ -17,14 +17,14 @@ timeout, the breaker goes into half-open state, in which it expects that M numbe
 requests in the half-open state are accepted concurrently. If any of the requests during the half-open state
 fails, the breaker goes back to open state. If all succeed, it goes to closed state again.
 
-Breaker Type - Failure Rate
+# Breaker Type - Failure Rate
 
 The "rate breaker" works similar to the "consecutive breaker", but instead of considering N consecutive failures
 for going open, it maintains a sliding window of the last M events, both successes and failures, and opens only
 when the number of failures reaches N within the window. This way the sliding window is not time based and
 allows the same breaker characteristics for low and high rate traffic.
 
-Usage
+# Usage
 
 When imported as a package, the Registry can be used to hold the circuit breakers and their settings. On a
 higher level, the circuit breaker settings can be simply passed to skipper as part of the skipper.Options
@@ -63,7 +63,7 @@ Setting global values happens the same way as setting host values, but leaving t
 route based values happens with filters in the route definitions.
 (https://godoc.org/github.com/zalando/skipper/filters/circuit)
 
-Settings - Type
+# Settings - Type
 
 It can be ConsecutiveFailures, FailureRate or Disabled, where the first two values select which breaker to use,
 while the Disabled value can override a global or host configuration disabling the circuit breaker for the
@@ -71,46 +71,46 @@ specific host or route.
 
 Command line name: type. Possible command line values: consecutive, rate, disabled.
 
-Settings - Host
+# Settings - Host
 
 The Host field indicates to which backend host should the current set of settings be applied. Leaving it empty
 indicates global settings.
 
 Command line name: host.
 
-Settings - Window
+# Settings - Window
 
 The window value sets the size of the sliding counter window of the failure rate breaker.
 
 Command line name: window. Possible command line values: any positive integer.
 
-Settings - Failures
+# Settings - Failures
 
 The failures value sets the max failure count for both the "consecutive" and "rate" breakers.
 
 Command line name: failures. Possible command line values: any positive integer.
 
-Settings - Timeout
+# Settings - Timeout
 
 With the timeout we can set how long the breaker should stay open, before becoming half-open.
 
 Command line name: timeout. Possible command line values: any positive integer as milliseconds or a duration
 string, e.g. 15m30s.
 
-Settings - Half-Open Requests
+# Settings - Half-Open Requests
 
 Defines the number of requests expected to succeed while the circuit breaker is in the half-open state.
 
 Command line name: half-open-requests. Possible command line values: any positive integer.
 
-Settings - Idle TTL
+# Settings - Idle TTL
 
 Defines the idle timeout after which a circuit breaker gets recycled, if it hasn't been used.
 
 Command line name: idle-ttl. Possible command line values: any positive integer as milliseconds or a duration
 string, e.g. 15m30s.
 
-Filters
+# Filters
 
 The following circuit breaker filters are supported: consecutiveBreaker(), rateBreaker() and disableBreaker().
 
@@ -129,7 +129,7 @@ route that it appears in.
 
 	disableBreaker()
 
-Proxy Usage
+# Proxy Usage
 
 The proxy, when circuit breakers are configured, uses them for backend connections. It checks the breaker for
 the current backend host if it's closed before making backend requests. It reports the outcome of the request to
@@ -139,7 +139,7 @@ breaker is open, the proxy doesn't try to make backend requests, and returns a r
 
 	X-Circuit-Open: true
 
-Registry
+# Registry
 
 The active circuit breakers are stored in a registry. They are created on-demand, for the requested settings.
 The registry synchronizes access to the shared circuit breakers. When the registry detects that a circuit

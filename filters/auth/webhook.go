@@ -58,9 +58,8 @@ func (*webhookSpec) Name() string {
 // string. The second, optional, argument is a comma separated list of
 // headers to forward from from webhook response.
 //
-//     s.CreateFilter("https://my-auth-service.example.org/auth")
-//     s.CreateFilter("https://my-auth-service.example.org/auth", "X-Auth-User,X-Auth-User-Roles")
-//
+//	s.CreateFilter("https://my-auth-service.example.org/auth")
+//	s.CreateFilter("https://my-auth-service.example.org/auth", "X-Auth-User,X-Auth-User-Roles")
 func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if l := len(args); l == 0 || l > 2 {
 		return nil, filters.ErrInvalidFilterParameters

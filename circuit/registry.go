@@ -96,7 +96,7 @@ func (r *Registry) get(s BreakerSettings) *Breaker {
 // Get returns a circuit breaker for the provided settings. The BreakerSettings object is used here as a key,
 // but typically it is enough to just set its Host field:
 //
-// 	r.Get(BreakerSettings{Host: backendHost})
+//	r.Get(BreakerSettings{Host: backendHost})
 //
 // The key will be filled up with the defaults and the matching circuit breaker will be returned if it exists,
 // or a new one will be created if not.

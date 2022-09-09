@@ -21,7 +21,6 @@ type path struct{}
 // that they are encoded in the raw path.
 //
 // See also the PatchPath documentation in the rfc package.
-//
 func NewPath() filters.Spec { return path{} }
 
 func (p path) Name() string                                       { return filters.RfcPathName }
@@ -39,7 +38,6 @@ type host struct{}
 // removes a trailing dot in the host header.
 //
 // See also the PatchHost documentation in the rfc package.
-//
 func NewHost() filters.Spec { return host{} }
 
 func (host) Name() string                                       { return filters.RfcHostName }

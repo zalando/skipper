@@ -4,7 +4,7 @@ set of filters.
 
 For the list of command line options, run:
 
-    skipper -help
+	skipper -help
 
 For details about the usage and extensibility of skipper, please see the
 documentation of the root skipper package.

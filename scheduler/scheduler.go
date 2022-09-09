@@ -201,7 +201,6 @@ type Options struct {
 // metrics. This goroutine is started when the first lifo filter is detected and returns
 // when the registry is closed. Individual metrics objects (keys) are used for each
 // lifo filter, and one for each lifo group defined by the lifoGroup filter.
-//
 type Registry struct {
 	options   Options
 	measuring bool

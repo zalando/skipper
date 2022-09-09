@@ -7,14 +7,14 @@ https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded
 
 Examples:
 
-    // only match requests to "example.com"
-    example1: ForwardedHost("example.com") -> "http://example.org";
+	// only match requests to "example.com"
+	example1: ForwardedHost("example.com") -> "http://example.org";
 
-    // only match requests to http
-    example2: ForwardedProtocol("http") -> "http://example.org";
+	// only match requests to http
+	example2: ForwardedProtocol("http") -> "http://example.org";
 
-    // only match requests to https
-    example3: ForwardedProtocol("https") -> "http://example.org";
+	// only match requests to https
+	example3: ForwardedProtocol("https") -> "http://example.org";
 */
 package forwarded
 

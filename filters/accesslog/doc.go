@@ -1,7 +1,7 @@
 /*
 Package accesslog provides request filters that give the ability to override AccessLogDisabled setting.
 
-How It Works
+# How It Works
 
 There are two filters that change the state of access log "disableAccessLog" and "enableAccessLog". If "disableAccessLog" is
 present access log entries for this route won't be produced even if global AccessLogDisabled is false. Otherwise, if
@@ -10,8 +10,8 @@ is true.
 
 Usage
 
-    enableAccessLog()
-    disableAccessLog()
+	enableAccessLog()
+	disableAccessLog()
 
 Note: accessLogDisabled("true") filter is deprecated in favor of "disableAccessLog" and "enableAccessLog"
 */

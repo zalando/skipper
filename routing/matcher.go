@@ -211,7 +211,6 @@ func normalizePath(r *Route) (string, error) {
 // Using a set of regular expressions shared in
 // the current generation to preserve the
 // compiled instances.
-//
 func newLeaf(r *Route, rxs map[string]*regexp.Regexp) (*leafMatcher, error) {
 	hostRxs, err := getCompiledRxs(rxs, r.HostRegexps)
 	if err != nil {

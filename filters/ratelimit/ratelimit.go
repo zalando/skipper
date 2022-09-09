@@ -77,15 +77,15 @@ func NewLocalRatelimit(provider RatelimitProvider) filters.Spec {
 //
 // Example:
 //
-//    backendHealthcheck: Path("/healthcheck")
-//    -> clientRatelimit(20, "1m")
-//    -> "https://foo.backend.net";
+//	backendHealthcheck: Path("/healthcheck")
+//	-> clientRatelimit(20, "1m")
+//	-> "https://foo.backend.net";
 //
 // Example rate limit per Authorization Header:
 //
-//    login: Path("/login")
-//    -> clientRatelimit(3, "1m", "Authorization")
-//    -> "https://login.backend.net";
+//	login: Path("/login")
+//	-> clientRatelimit(3, "1m", "Authorization")
+//	-> "https://login.backend.net";
 func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ClientRatelimit, provider: provider, filterName: filters.ClientRatelimitName}
 }
@@ -96,18 +96,17 @@ func NewClientRatelimit(provider RatelimitProvider) filters.Spec {
 //
 // Example:
 //
-//    backendHealthcheck: Path("/healthcheck")
-//    -> ratelimit(20, "1s")
-//    -> "https://foo.backend.net";
-//
+//	backendHealthcheck: Path("/healthcheck")
+//	-> ratelimit(20, "1s")
+//	-> "https://foo.backend.net";
 //
 // Optionally a custom response status code can be provided as an argument (default is 429).
 //
 // Example:
 //
-//    backendHealthcheck: Path("/healthcheck")
-//    -> ratelimit(20, "1s", 503)
-//    -> "https://foo.backend.net";
+//	backendHealthcheck: Path("/healthcheck")
+//	-> ratelimit(20, "1s", 503)
+//	-> "https://foo.backend.net";
 func NewRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: filters.RatelimitName}
 }
@@ -119,18 +118,17 @@ func NewRatelimit(provider RatelimitProvider) filters.Spec {
 //
 // Example:
 //
-//    backendHealthcheck: Path("/healthcheck")
-//    -> clusterRatelimit("groupA", 200, "1m")
-//    -> "https://foo.backend.net";
-//
+//	backendHealthcheck: Path("/healthcheck")
+//	-> clusterRatelimit("groupA", 200, "1m")
+//	-> "https://foo.backend.net";
 //
 // Optionally a custom response status code can be provided as an argument (default is 429).
 //
 // Example:
 //
-//    backendHealthcheck: Path("/healthcheck")
-//    -> clusterRatelimit("groupA", 200, "1m", 503)
-//    -> "https://foo.backend.net";
+//	backendHealthcheck: Path("/healthcheck")
+//	-> clusterRatelimit("groupA", 200, "1m", 503)
+//	-> "https://foo.backend.net";
 func NewClusterRateLimit(provider RatelimitProvider) filters.Spec {
 	return NewShardedClusterRateLimit(provider, 1)
 }
@@ -152,9 +150,9 @@ func NewShardedClusterRateLimit(provider RatelimitProvider, maxGroupShards int) 
 //
 // Example:
 //
-//    backendHealthcheck: Path("/login")
-//    -> clusterClientRatelimit("groupB", 20, "1h")
-//    -> "https://foo.backend.net";
+//	backendHealthcheck: Path("/login")
+//	-> clusterClientRatelimit("groupB", 20, "1h")
+//	-> "https://foo.backend.net";
 //
 // The above example would limit access to "/login" if, the client did
 // more than 20 requests within the last hour to this route across all
@@ -166,10 +164,9 @@ func NewShardedClusterRateLimit(provider RatelimitProvider, maxGroupShards int) 
 //
 // Example:
 //
-//    backendHealthcheck: Path("/login")
-//    -> clusterClientRatelimit("groupC", 20, "1h", "Authorization")
-//    -> "https://foo.backend.net";
-//
+//	backendHealthcheck: Path("/login")
+//	-> clusterClientRatelimit("groupC", 20, "1h", "Authorization")
+//	-> "https://foo.backend.net";
 func NewClusterClientRateLimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ClusterClientRatelimit, provider: provider, filterName: filters.ClusterClientRatelimitName}
 }
@@ -178,9 +175,9 @@ func NewClusterClientRateLimit(provider RatelimitProvider) filters.Spec {
 //
 // Example:
 //
-//    backendHealthcheck: Path("/healthcheck")
-//    -> disableRatelimit()
-//    -> "https://foo.backend.net";
+//	backendHealthcheck: Path("/healthcheck")
+//	-> disableRatelimit()
+//	-> "https://foo.backend.net";
 func NewDisableRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.DisableRatelimit, provider: provider, filterName: filters.DisableRatelimitName}
 }

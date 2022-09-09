@@ -20,35 +20,33 @@ predicates or data sources. For further information read
 Skipper took the core design and inspiration from Vulcand:
 https://github.com/mailgun/vulcand.
 
-
-Quickstart
+# Quickstart
 
 Skipper is 'go get' compatible. If needed, create a 'go workspace' first:
 
-    mkdir ws
-    cd ws
-    export GOPATH=$(pwd)
-    export PATH=$PATH:$GOPATH/bin
+	mkdir ws
+	cd ws
+	export GOPATH=$(pwd)
+	export PATH=$PATH:$GOPATH/bin
 
 Get the Skipper packages:
 
-    go get github.com/zalando/skipper/...
+	go get github.com/zalando/skipper/...
 
 Create a file with a route:
 
-    echo 'hello: Path("/hello") -> "https://www.example.org"' > example.eskip
+	echo 'hello: Path("/hello") -> "https://www.example.org"' > example.eskip
 
 Optionally, verify the syntax of the file:
 
-    eskip check example.eskip
+	eskip check example.eskip
 
 Start Skipper and make an HTTP request:
 
-    skipper -routes-file example.eskip &
-    curl localhost:9090/hello
+	skipper -routes-file example.eskip &
+	curl localhost:9090/hello
 
-
-Routing Mechanism
+# Routing Mechanism
 
 The core of Skipper's request processing is implemented by a reverse
 proxy in the 'proxy' package. The proxy receives the incoming request,
@@ -81,8 +79,7 @@ calculated decision.
 For further details, see the 'proxy' and 'filters' package
 documentation.
 
-
-Matching Requests
+# Matching Requests
 
 Finding a request's route happens by matching the request attributes to
 the conditions in the route's definitions. Such definitions may have the
@@ -108,8 +105,7 @@ meaning, that a request must fulfill each condition to match a route.
 
 For further details, see the 'routing' package documentation.
 
-
-Filters - Augmenting Requests
+# Filters - Augmenting Requests
 
 Filters are applied in order of definition to the request and in reverse
 order to the response. They are used to modify request and response
@@ -120,8 +116,7 @@ parameters, that are set specifically to the route.
 
 For further details, see the 'filters' package documentation.
 
-
-Service Backends
+# Service Backends
 
 Each route has one of the following backends: HTTP endpoint, shunt,
 loopback or dynamic.
@@ -143,8 +138,7 @@ serves as a form of an internal redirect.
 A dynamic route means that the final target will be defined in a filter.
 One of the filters in the chain must set the target backend url explicitly.
 
-
-Route Definitions
+# Route Definitions
 
 Route definitions consist of the following:
 
@@ -164,15 +158,13 @@ parser.)
 
 For further details, see the 'eskip' package documentation
 
-
-Authentication and Authorization
+# Authentication and Authorization
 
 Skipper has filter implementations of basic auth and OAuth2. It can be
 integrated with tokeninfo based OAuth2 providers. For details, see:
 https://godoc.org/github.com/zalando/skipper/filters/auth.
 
-
-Data Sources
+# Data Sources
 
 Skipper's route definitions of Skipper are loaded from one or more data
 sources. It can receive incremental updates from those data sources at
@@ -200,8 +192,7 @@ updates.
 Skipper can use additional data sources, provided by extensions. Sources
 must implement the DataClient interface in the routing package.
 
-
-Circuit Breaker
+# Circuit Breaker
 
 Skipper provides circuit breakers, configured either globally, based on
 backend hosts or based on individual routes. It supports two types of
@@ -209,8 +200,7 @@ circuit breaker behavior: open on N consecutive failures, or open on N
 failures out of M requests. For details, see:
 https://godoc.org/github.com/zalando/skipper/circuit.
 
-
-Running Skipper
+# Running Skipper
 
 Skipper can be started with the default executable command 'skipper', or
 as a library built into an application. The easiest way to start Skipper
@@ -222,23 +212,21 @@ default executable as well, as a command line flag. E.g. EtcdUrls
 becomes -etcd-urls as a comma separated list. For command line help,
 enter:
 
-    skipper -help
+	skipper -help
 
 An additional utility, eskip, can be used to verify, print, update and
 delete routes from/to files or etcd (Innkeeper on the roadmap). See the
 cmd/eskip command package, and/or enter in the command line:
 
-    eskip -help
+	eskip -help
 
-
-Extending Skipper
+# Extending Skipper
 
 Skipper doesn't use dynamically loaded plugins, however, it can be used
 as a library, and it can be extended with custom predicates, filters
 and/or custom data sources.
 
-
-Custom Predicates
+# Custom Predicates
 
 To create a custom predicate, one needs to implement the PredicateSpec
 interface in the routing package. Instances of the PredicateSpec are
@@ -247,45 +235,44 @@ objects as referenced in eskip routes, with concrete arguments.
 
 Example, randompredicate.go:
 
-    package main
+	package main
 
-    import (
-        "github.com/zalando/skipper/routing"
-        "math/rand"
-        "net/http"
-    )
+	import (
+	    "github.com/zalando/skipper/routing"
+	    "math/rand"
+	    "net/http"
+	)
 
-    type randomSpec struct {}
+	type randomSpec struct {}
 
-    type randomPredicate struct {
-        chance float64
-    }
+	type randomPredicate struct {
+	    chance float64
+	}
 
-    func (s *randomSpec) Name() string { return "Random" }
+	func (s *randomSpec) Name() string { return "Random" }
 
-    func (s *randomSpec) Create(args []interface{}) (routing.Predicate, error) {
-        p := &randomPredicate{.5}
-        if len(args) > 0 {
-            if c, ok := args[0].(float64); ok {
-                p.chance = c
-            }
-        }
+	func (s *randomSpec) Create(args []interface{}) (routing.Predicate, error) {
+	    p := &randomPredicate{.5}
+	    if len(args) > 0 {
+	        if c, ok := args[0].(float64); ok {
+	            p.chance = c
+	        }
+	    }
 
-        return p, nil
-    }
+	    return p, nil
+	}
 
-    func (p *randomPredicate) Match(_ *http.Request) bool {
-        return rand.Float64() < p.chance
-    }
+	func (p *randomPredicate) Match(_ *http.Request) bool {
+	    return rand.Float64() < p.chance
+	}
 
 In the above example, a custom predicate is created, that can be
 referenced in eskip definitions with the name 'Random':
 
-    Random(.33) -> "https://test.example.org";
-    * -> "https://www.example.org"
+	Random(.33) -> "https://test.example.org";
+	* -> "https://www.example.org"
 
-
-Custom Filters
+# Custom Filters
 
 To create a custom filter we need to implement the Spec interface of the
 filters package. 'Spec' is the specification of a filter, and it is used
@@ -294,48 +281,47 @@ processed.
 
 Example, hellofilter.go:
 
-    package main
+	package main
 
-    import (
-        "fmt"
-        "github.com/zalando/skipper/filters"
-    )
+	import (
+	    "fmt"
+	    "github.com/zalando/skipper/filters"
+	)
 
-    type helloSpec struct {}
+	type helloSpec struct {}
 
-    type helloFilter struct {
-        who string
-    }
+	type helloFilter struct {
+	    who string
+	}
 
-    func (s *helloSpec) Name() string { return "hello" }
+	func (s *helloSpec) Name() string { return "hello" }
 
-    func (s *helloSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
-        if len(config) == 0 {
-            return nil, filters.ErrInvalidFilterParameters
-        }
+	func (s *helloSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
+	    if len(config) == 0 {
+	        return nil, filters.ErrInvalidFilterParameters
+	    }
 
-        if who, ok := config[0].(string); ok {
-            return &helloFilter{who}, nil
-        } else {
-            return nil, filters.ErrInvalidFilterParameters
-        }
-    }
+	    if who, ok := config[0].(string); ok {
+	        return &helloFilter{who}, nil
+	    } else {
+	        return nil, filters.ErrInvalidFilterParameters
+	    }
+	}
 
-    func (f *helloFilter) Request(ctx filters.FilterContext) {}
+	func (f *helloFilter) Request(ctx filters.FilterContext) {}
 
-    func (f *helloFilter) Response(ctx filters.FilterContext) {
-        ctx.Response().Header.Set("X-Hello", fmt.Sprintf("Hello, %s!", f.who))
-    }
+	func (f *helloFilter) Response(ctx filters.FilterContext) {
+	    ctx.Response().Header.Set("X-Hello", fmt.Sprintf("Hello, %s!", f.who))
+	}
 
 The above example creates a filter specification, and in the routes where
 they are included, the filter instances will set the 'X-Hello' header
 for each and every response. The name of the filter is 'hello', and in a
 route definition it is referenced as:
 
-    * -> hello("world") -> "https://www.example.org"
+	r: * -> hello("world") -> "https://www.example.org";
 
-
-Custom Build
+# Custom Build
 
 The easiest way to create a custom Skipper variant is to implement the
 required filters (as in the example above) by importing the Skipper
@@ -343,45 +329,43 @@ package, and starting it with the 'Run' command.
 
 Example, hello.go:
 
-    package main
+	package main
 
-    import (
-        "log"
+	import (
+	    "log"
 
-        "github.com/zalando/skipper"
-        "github.com/zalando/skipper/filters"
-        "github.com/zalando/skipper/routing"
-    )
+	    "github.com/zalando/skipper"
+	    "github.com/zalando/skipper/filters"
+	    "github.com/zalando/skipper/routing"
+	)
 
-    func main() {
-        log.Fatal(skipper.Run(skipper.Options{
-            Address: ":9090",
-            RoutesFile: "routes.eskip",
-            CustomPredicates: []routing.PredicateSpec{&randomSpec{}},
-            CustomFilters: []filters.Spec{&helloSpec{}}}))
-    }
+	func main() {
+	    log.Fatal(skipper.Run(skipper.Options{
+	        Address: ":9090",
+	        RoutesFile: "routes.eskip",
+	        CustomPredicates: []routing.PredicateSpec{&randomSpec{}},
+	        CustomFilters: []filters.Spec{&helloSpec{}}}))
+	}
 
 A file containing the routes, routes.eskip:
 
-    random:
-        Random(.05) -> hello("fish?") -> "https://fish.example.org";
-    hello:
-        * -> hello("world") -> "https://www.example.org"
+	random:
+	    Random(.05) -> hello("fish?") -> "https://fish.example.org";
+	hello:
+	    * -> hello("world") -> "https://www.example.org"
 
 Start the custom router:
 
-    go run hello.go
+	go run hello.go
 
-
-Proxy Package Used Individually
+# Proxy Package Used Individually
 
 The 'Run' function in the root Skipper package starts its own listener
 but it doesn't provide the best composability. The proxy package,
 however, provides a standard http.Handler, so it is possible to use it
 in a more complex solution as a building block for routing.
 
-
-Logging and Metrics
+# Logging and Metrics
 
 Skipper provides detailed logging of failures, and access logs in Apache
 log format. Skipper also collects detailed performance metrics, and
@@ -389,8 +373,7 @@ exposes them on a separate listener endpoint for pulling snapshots.
 
 For details, see the 'logging' and 'metrics' packages documentation.
 
-
-Performance Considerations
+# Performance Considerations
 
 The router's performance depends on the environment and on the used
 filters. Under ideal circumstances, and without filters, the biggest
@@ -401,7 +384,7 @@ lookup tree in a single structure.
 
 Benchmarks for the tree lookup can be run by:
 
-    go test github.com/zalando/skipper/routing -bench=Tree
+	go test github.com/zalando/skipper/routing -bench=Tree
 
 In case more aggressive scale is needed, it is possible to setup Skipper
 in a cascade model, with multiple Skipper instances for specific route

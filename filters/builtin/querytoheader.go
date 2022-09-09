@@ -20,7 +20,7 @@ type (
 // NewQueryToHeader creates a filter which converts query params
 // from the incoming Request to headers
 //
-//     queryToHeader("foo-query-param", "X-Foo-Header")
+//	queryToHeader("foo-query-param", "X-Foo-Header")
 //
 // The above filter will set the value of "X-Foo-Header" header to the
 // value of "foo-query-param" query param , to the request and will
@@ -28,9 +28,8 @@ type (
 //
 // The header value can be created by a formatstring with an optional third parameter
 //
-//     queryToHeader("foo-query-param", "X-Foo-Header", "prefix %s postfix")
-//     queryToHeader("access_token", "Authorization", "Bearer %s")
-//
+//	queryToHeader("foo-query-param", "X-Foo-Header", "prefix %s postfix")
+//	queryToHeader("access_token", "Authorization", "Bearer %s")
 func NewQueryToHeader() filters.Spec {
 	return &queryToHeaderSpec{}
 }

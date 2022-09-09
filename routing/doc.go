@@ -2,8 +2,7 @@
 Package routing implements matching of http requests to a continuously
 updatable set of skipper routes.
 
-
-Request Evaluation
+# Request Evaluation
 
 1. The path in the http request is used to find one or more matching
 route definitions in a lookup tree.
@@ -21,8 +20,7 @@ expressions, use the go stdlib regexp, which uses re2:
 
 https://github.com/google/re2/wiki/Syntax
 
-
-Matching Conditions
+# Matching Conditions
 
 The following types of conditions are supported in the route definitions.
 
@@ -47,8 +45,7 @@ HeaderRegexp("Key", "^Value$").
 must be present in the request and one of the associated values must
 match the expression.
 
-
-Wildcards
+# Wildcards
 
 Path matching supports two kinds of wildcards:
 
@@ -65,8 +62,7 @@ predicate, the name of this parameter will be "*". This makes the
 PathSubtree("/foo") predicate equivalent to having routes with
 Path("/foo"), Path("/foo/") and Path("/foo/**") predicates.
 
-
-Custom Predicates
+# Custom Predicates
 
 It is possible to define custom route matching rules in the form of
 custom predicates. Custom predicates need to implement the PredicateSpec
@@ -76,8 +72,7 @@ predicate is matched based on the path tree, the predicate receives the
 request object, and it returns true or false meaning that the request is
 a match or not.
 
-
-Data Clients
+# Data Clients
 
 Routing definitions are not directly passed to the routing instance, but
 they are loaded from clients that implement the DataClient interface.

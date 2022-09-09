@@ -22,9 +22,9 @@ http://www.cs.cornell.edu/~asdas/research/dsn02-SWIM.pdf.
 
 Quote from a nice overview https://prakhar.me/articles/swim/
 
-    The SWIM or the Scalable Weakly-consistent Infection-style process
-    group Membership protocol is a protocol used for maintaining
-    membership amongst processes in a distributed system.
+	The SWIM or the Scalable Weakly-consistent Infection-style process
+	group Membership protocol is a protocol used for maintaining
+	membership amongst processes in a distributed system.
 
 While starting, Skipper will find its swarm peers through the
 Kubernetes API server. It will do that using a label selector query

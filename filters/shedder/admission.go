@@ -214,14 +214,16 @@ func (*AdmissionControlSpec) Name() string { return filters.AdmissionControlName
 
 // CreateFilter creates a new admissionControl filter with passed configuration:
 //
-//     admissionControl(metricSuffix, mode, d, windowSize, minRps, successThreshold, maxRejectProbability, exponent)
-//     admissionControl("$app", "active", "1s", 5, 10, 0.1, 0.95, 0.5)
+//	admissionControl(metricSuffix, mode, d, windowSize, minRps, successThreshold, maxRejectProbability, exponent)
+//	admissionControl("$app", "active", "1s", 5, 10, 0.1, 0.95, 0.5)
 //
 // metricSuffix is the suffix key to expose reject counter, should be unique by filter instance
 // mode is one of "active", "inactive", "logInactive"
-//     active will reject traffic
-//     inactive will never reject traffic
-//     logInactive will not reject traffic, but log to debug filter settings
+//
+//	active will reject traffic
+//	inactive will never reject traffic
+//	logInactive will not reject traffic, but log to debug filter settings
+//
 // windowSize is within [minWindowSize, maxWindowSize]
 // minRps threshold that needs to be reached such that the filter will apply
 // successThreshold is within (0,1] and sets the lowest request success rate at which the filter will not reject requests.

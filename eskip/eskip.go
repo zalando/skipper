@@ -28,10 +28,10 @@ var (
 // --edit-route='/Source[(](.*)[)]/ClientIP($1)/', which will change
 // routes as you can see:
 //
-//        # input
-//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
-//        # actual route
-//        edit_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+//	# input
+//	r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>;
+//	# actual route
+//	edit_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>;
 func NewEditor(reg *regexp.Regexp, repl string) *Editor {
 	return &Editor{
 		reg:  reg,
@@ -50,11 +50,11 @@ type Editor struct {
 // --clone-route='/Source[(](.*)[)]/ClientIP($1)/', which will change
 // routes as you can see:
 //
-//        # input
-//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
-//        # actual route
-//        clone_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
-//        r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>
+//	# input
+//	r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>;
+//	# actual route
+//	clone_r0: ClientIP("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>;
+//	r0: Source("127.0.0.1/8", "10.0.0.0/8") -> inlineContent("OK") -> <shunt>;
 func NewClone(reg *regexp.Regexp, repl string) *Clone {
 	return &Clone{
 		reg:  reg,

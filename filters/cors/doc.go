@@ -1,7 +1,7 @@
 /*
 Package cors implements the origin header for CORS.
 
-How It Works
+# How It Works
 
 The filter accepts an optional variadic list of acceptable origin parameters. If the input argument list is empty, the header
 will always be set to '*' which means any origin is acceptable. Otherwise the header is only set if the request contains

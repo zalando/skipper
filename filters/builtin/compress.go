@@ -99,7 +99,7 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 //
 // Example:
 //
-// 	* -> compress() -> "https://www.example.org"
+//	r: * -> compress() -> "https://www.example.org";
 //
 // The filter, when executed on the response path, checks if the response
 // entity can be compressed. To decide, it checks the Content-Encoding, the
@@ -116,12 +116,12 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 // types as filter arguments. When extending the defaults, the first argument needs
 // to be "...". E.g. to compress tiff in addition to the defaults:
 //
-// 	* -> compress("...", "image/tiff") -> "https://www.example.org"
+//	r: * -> compress("...", "image/tiff") -> "https://www.example.org";
 //
 // To reset the supported types, e.g. to compress only HTML, the "..." argument
 // needs to be omitted:
 //
-// 	* -> compress("text/html") -> "https://www.example.org"
+//	r: * -> compress("text/html") -> "https://www.example.org";
 //
 // It is possible to control the compression level, by setting it as the first
 // filter argument, in front of the MIME types. The default compression level is
@@ -129,7 +129,7 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 // 0 means no-compression, 1 means best-speed and 11 means best-compression.
 // Example:
 //
-// 	* -> compress(9, "image/tiff") -> "https://www.example.org"
+//	r: * -> compress(9, "image/tiff") -> "https://www.example.org";
 //
 // The filter also checks the incoming request, if it accepts the supported
 // encodings, explicitly stated in the Accept-Encoding header. The filter currently
@@ -147,7 +147,6 @@ func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 // encoding and sets the Vary: Accept-Encoding header, if missing.
 //
 // The compression happens in a streaming way, using only a small internal buffer.
-//
 func NewCompress() filters.Spec {
 	c, err := NewCompressWithOptions(CompressOptions{supportedEncodings})
 	if err != nil {

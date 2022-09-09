@@ -3,8 +3,7 @@ Package eskip implements an in-memory representation of Skipper routes
 and a DSL for describing Skipper route expressions, route definitions
 and complete routing tables.
 
-
-Grammar Summary
+# Grammar Summary
 
 A routing table is built up from 0 or more route definitions. The
 definitions are separated by ';'. A route definition contains one route
@@ -32,8 +31,7 @@ A route expression example:
 	  modPath("^/api", "") -> requestHeader("X-Type", "external") ->
 	  "https://api.example.org"
 
-
-Match Expressions - Predicates
+# Match Expressions - Predicates
 
 A match expression contains one or more predicates. An incoming
 request must fulfill each of them to match the route. The predicates are
@@ -99,8 +97,7 @@ Catch all predicate.
 
 Former, deprecated form of the catch all predicate.
 
-
-Custom Predicates
+# Custom Predicates
 
 Eskip supports custom route matching predicates, that can be implemented
 in extensions. The notation of custom predicates is the same as of the
@@ -114,8 +111,7 @@ responsibility of the implementation to validate them.
 
 (See the documentation of the routing package.)
 
-
-Filters
+# Filters
 
 Filters are used to augment the incoming requests and the outgoing
 responses, or do other useful or fun stuff. Filters can have different
@@ -176,15 +172,13 @@ extendable primarily by implementing custom filters, for details about
 how to create custom filters, please, refer to the documentation of the
 root skipper package.
 
-
-Naming conventions
+# Naming conventions
 
 Note, that the naming of predicates and filters follows the following
 convention: both predicates and filters are written in camel case, and
 predicates start with upper case, while filters start with lower case.
 
-
-Backend
+# Backend
 
 There are four backend types: network endpoint address, shunt, loopback and dynamic.
 
@@ -223,8 +217,7 @@ dynamic:
 The dynamic backend means that a filter must be present in the filter chain which
 must set the target url explicitly.
 
-
-Comments
+# Comments
 
 An eskip document can contain comments. The rule for comments is simple:
 everything is a comment that starts with '//' and ends with a new-line
@@ -236,22 +229,19 @@ Example with comments:
 	route1: Path("/api") -> "https://api.example.org";
 	route2: * -> <shunt> // everything else 404
 
-
-Regular expressions
+# Regular expressions
 
 The matching predicates and the built-in filters that use regular
 expressions, use the go stdlib regexp, which uses re2:
 
 https://github.com/google/re2/wiki/Syntax
 
-
-Parsing Filters
+# Parsing Filters
 
 The eskip.ParseFilters method can be used to parse a chain of filters,
 without the matcher and backend part of a full route expression.
 
-
-Parsing
+# Parsing
 
 Parsing a routing table or a route expression happens with the
 eskip.Parse function. In case of grammar error, it returns an error with
@@ -262,15 +252,13 @@ The eskip parser does not validate the routes against all semantic rules,
 e.g., whether a filter or a custom predicate implementation is available.
 This validation happens during processing the parsed definitions.
 
-
-Serializing
+# Serializing
 
 Serializing a single route happens by calling its String method.
 Serializing a complete routing table happens by calling the
 eskip.String method.
 
-
-JSON
+# JSON
 
 Both serializing and parsing is possible via the standard json.Marshal and
 json.Unmarshal functions.

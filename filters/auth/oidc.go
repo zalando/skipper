@@ -71,9 +71,9 @@ type azureGraphGroups struct {
 
 // Filter parameter:
 //
-//  oauthOidc...("https://oidc-provider.example.com", "client_id", "client_secret",
-//               "http://target.example.com/subpath/callback", "email profile", "name email picture",
-//               "parameter=value", "X-Auth-Authorization:claims.email")
+//	oauthOidc...("https://oidc-provider.example.com", "client_id", "client_secret",
+//	             "http://target.example.com/subpath/callback", "email profile", "name email picture",
+//	             "parameter=value", "X-Auth-Authorization:claims.email")
 const (
 	paramIdpURL int = iota
 	paramClientID
@@ -170,12 +170,12 @@ func NewOAuthOidcAllClaims(secretsFile string, secretsRegistry secrets.Encrypter
 // CreateFilter creates an OpenID Connect authorization filter.
 //
 // first arg: a provider, for example "https://accounts.google.com",
-//            which has the path /.well-known/openid-configuration
+// which has the path /.well-known/openid-configuration
 //
 // Example:
 //
-//     oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
-//     "http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>", "<optional>") -> "https://internal.example.org";
+//	oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id", "some-client-secret",
+//	"http://callback.com/auth/provider/callback", "scope1 scope2", "claim1 claim2", "<optional>", "<optional>", "<optional>") -> "https://internal.example.org";
 func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	sargs, err := getStrings(args)
 	if err != nil {
@@ -949,17 +949,16 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 // https://openid.net/specs/openid-connect-core-1_0.html#AggregatedDistributedClaims
 // Example:
 //
-// {
-// 	 "_claim_names": {
-// 	   "groups": "src1"
-// 	 },
-// 	 "_claim_sources": {
-// 	   "src1": {
-// 	     "endpoint": "https://graph.windows.net/.../getMemberObjects"
-// 	   }
-//   }
-// }
-//
+//	{
+//		 "_claim_names": {
+//		   "groups": "src1"
+//		 },
+//		 "_claim_sources": {
+//		   "src1": {
+//		     "endpoint": "https://graph.windows.net/.../getMemberObjects"
+//		   }
+//	  }
+//	}
 func (f *tokenOidcFilter) handleDistributedClaims(ctx context.Context, idToken *oidc.IDToken, oauth2Token *oauth2.Token, claimsMap map[string]interface{}) error {
 	// https://github.com/coreos/go-oidc/issues/171#issuecomment-1044286153
 	var distClaims distributedClaims

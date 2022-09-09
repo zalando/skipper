@@ -30,7 +30,7 @@ func parse(addr string) net.IP {
 //
 // Example:
 //
-//     X-Forwarded-For: client, proxy1, proxy2
+//	X-Forwarded-For: client, proxy1, proxy2
 func RemoteHost(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
 	ff, _, _ := strings.Cut(ffs, ",")
@@ -48,7 +48,7 @@ func RemoteHost(r *http.Request) net.IP {
 //
 // Example:
 //
-//     X-Forwarded-For: ip-address-1, ip-address-2, client-ip-address
+//	X-Forwarded-For: ip-address-1, ip-address-2, client-ip-address
 func RemoteHostFromLast(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
 	ffa := strings.Split(ffs, ",")
