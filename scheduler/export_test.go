@@ -4,8 +4,8 @@ var (
 	ExportQueueCloseDelay = &queueCloseDelay
 )
 
-// GetFifoForeTest is only compiled and used in tests
-func (r *Registry) GetFifoForeTest(s string) (*FifoQueue, bool) {
+// GetFifoForTest is only compiled and used in tests
+func (r *Registry) GetFifoForTest(s string) (*FifoQueue, bool) {
 	id := queueId{
 		name:    s,
 		grouped: false,

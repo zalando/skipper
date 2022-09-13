@@ -130,6 +130,12 @@ func (fq *fifoQueue) status() QueueStatus {
 	}
 }
 
+func (fq *fifoQueue) close() {
+	fq.mu.Lock()
+	fq.closed = true
+	fq.mu.Unlock()
+}
+
 func (fq *fifoQueue) reconfigure(c Config) {
 	fq.mu.Lock()
 	defer fq.mu.Unlock()
@@ -163,7 +169,7 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 
 	// limit concurrency
 	if err := sem.Acquire(c, 1); err != nil {
-		fq.counter.Dec()
+		cnt.Dec()
 		switch err {
 		case context.DeadlineExceeded:
 			return nil, ErrQueueTimeout
@@ -282,12 +288,6 @@ type GroupedLIFOFilter interface {
 // request needs to be rejected, an error will be returned and done
 // will be nil.
 func (fq *FifoQueue) Wait(ctx context.Context) (func(), error) {
-	if fq == nil {
-		return nil, errors.New("fq is nil")
-	}
-	if fq.queue == nil {
-		return nil, errors.New("queue is nil")
-	}
 	f, err := fq.queue.wait(ctx)
 	if err != nil && fq.metrics != nil {
 		switch err {
@@ -322,9 +322,7 @@ func (fq *FifoQueue) Reconfigure(c Config) {
 }
 
 func (fq *FifoQueue) close() {
-	fq.queue.mu.Lock()
-	fq.queue.closed = true
-	fq.queue.mu.Unlock()
+	fq.queue.close()
 }
 
 // Wait blocks until a request can be processed or needs to be rejected.
