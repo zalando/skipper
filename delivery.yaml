@@ -1,6 +1,22 @@
 version: "2017-09-20"
+allow_concurrent_steps: true
 pipeline:
+- id: vulncheck
+  depends_on: []
+  vm_config:
+    type: linux
+    image: "cdp-runtime/go-1.18"
+  type: script
+  commands:
+  - desc: Setup BuildKit
+    cmd: |
+      # create a Buildkit builder with CDP specific configuration (https://cloud.docs.zalando.net/howtos/cdp-multiarch/)
+      docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
+  - desc: build-push
+    cmd: |
+      make deps govulncheck
 - id: build
+  depends_on: []
   vm_config:
     type: linux
     image: "cdp-runtime/go-1.18"
@@ -35,7 +51,7 @@ pipeline:
       fi
       export IMAGE ARM_IMAGE ARM64_IMAGE MULTIARCH_IMAGE
 
-      make deps cicheck staticcheck gosec govulncheck
+      make deps cicheck staticcheck gosec
       git status
       git diff
       cd packaging && make docker.build.amd64 && git status && git diff && make docker.push.amd64 && make docker.push.multiarch
@@ -75,6 +91,7 @@ pipeline:
         echo "Not creating a release. No release version defined."
       fi
 - id: docs
+  depends_on: [build]
   type: script
   overlay: ci/python
   commands:
