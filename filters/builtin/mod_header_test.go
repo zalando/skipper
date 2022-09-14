@@ -156,6 +156,77 @@ func TestModRequestHeader(t *testing.T) {
 	}
 }
 
+func TestModResponseHeader(t *testing.T) {
+	for _, tt := range []struct {
+		msg                    string
+		headerName             string
+		expression             string
+		replacement            string
+		responseHeader         http.Header
+		expectedHeader         string
+		expectHeaderToNotExist bool
+	}{{
+		"replace when header is provided and pattern matches",
+		"Accept-Language",
+		`^nl\-NL$`,
+		`en`,
+		http.Header{"Accept-Language": []string{"nl-NL"}},
+		"en",
+		false,
+	}, {
+		"replace when header is provided and pattern matches anything",
+		"Accept-Language",
+		`^.*`,
+		`en`,
+		http.Header{"Accept-Language": []string{"nl-NL"}},
+		"en",
+		false,
+	}, {
+		"replace when header is not provided and pattern matches anything",
+		"Accept-Language",
+		`^.*`,
+		`en`,
+		http.Header{},
+		"",
+		true,
+	}, {
+		"do not replace when header is not provided and pattern does not match",
+		"Accept-Language",
+		`fr`,
+		`en`,
+		http.Header{},
+		"",
+		true,
+	}} {
+		t.Run(tt.msg, func(t *testing.T) {
+			spec := NewModResponseHeader()
+			f, err := spec.CreateFilter([]interface{}{tt.headerName, tt.expression, tt.replacement})
+			if err != nil {
+				t.Error(err)
+			}
+
+			resp := http.Response{}
+			resp.Header = http.Header{}
+
+			for n, vs := range tt.responseHeader {
+				resp.Header[n] = vs
+			}
+
+			ctx := &filtertest.Context{FResponse: &resp}
+			f.Response(ctx)
+
+			hv := resp.Header.Get(tt.headerName)
+			if hv != tt.expectedHeader {
+				t.Errorf(`failed to modify request header %s to "%s". Got: "%s"`, tt.headerName, tt.expectedHeader, hv)
+			}
+
+			if tt.expectHeaderToNotExist && len(resp.Header.Values(tt.headerName)) != 0 {
+				t.Errorf(`expected header %s to not exist, but it does`, tt.headerName)
+			}
+		})
+	}
+}
+
 func TestModifyHostWithInvalidExpression(t *testing.T) {
 	spec := NewModRequestHeader()
 	if f, err := spec.CreateFilter([]interface{}{"Host", "(?=;)", "foo"}); err == nil || f != nil {
