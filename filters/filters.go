@@ -185,6 +185,7 @@ const (
 	SetRequestHeaderName                       = "setRequestHeader"
 	AppendRequestHeaderName                    = "appendRequestHeader"
 	DropRequestHeaderName                      = "dropRequestHeader"
+	ModResponseHeaderName                      = "modResponseHeader"
 	SetResponseHeaderName                      = "setResponseHeader"
 	AppendResponseHeaderName                   = "appendResponseHeader"
 	DropResponseHeaderName                     = "dropResponseHeader"

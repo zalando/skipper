@@ -155,6 +155,22 @@ Example:
 foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
 ```
 
+## modResponseHeader
+
+Same as [modRequestHeader](#modrequestheader), only for responses
+
+Parameters:
+
+* header name (string)
+* the expression to match (regex)
+* the replacement (string)
+
+Example:
+
+```
+do_not_avoid_caching: * -> modResponseHeader("cache-control", "no-cache", "cache") -> "https://zalando.de";
+```
+
 ## setResponseHeader
 
 Same as [setRequestHeader](#setrequestheader), only for responses

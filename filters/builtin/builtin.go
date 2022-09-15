@@ -138,6 +138,7 @@ func MakeRegistry() filters.Registry {
 		NewModPath(),
 		NewSetPath(),
 		NewModRequestHeader(),
+		NewModResponseHeader(),
 		NewDropQuery(),
 		NewSetQuery(),
 		NewHealthCheck(),
