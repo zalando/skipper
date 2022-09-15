@@ -298,10 +298,178 @@ func TestFifo(t *testing.T) {
 			}
 
 			va := newVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
-			// buf := bytes.NewBuffer(make([]byte, 0, 1024))
-			// va.Attack(buf, 3*time.Second, tt.name)
 			va.Attack(io.Discard, 1*time.Second, tt.name)
-			//t.Logf("buf: %v", buf.String())
+
+			t.Logf("Success [0..1]: %0.2f", va.metrics.Success)
+			t.Logf("requests: %d", va.metrics.Requests)
+			got := va.metrics.Success * float64(va.metrics.Requests)
+			want := tt.wantOkRate * float64(va.metrics.Requests)
+			if got < want {
+				t.Fatalf("OK rate too low got<want: %0.0f < %0.0f", got, want)
+			}
+			countOK, ok := va.metrics.StatusCodes["200"]
+			if !ok && tt.wantOkRate > 0 {
+				t.Fatal("no OK")
+			}
+			if !ok && tt.wantOkRate == 0 {
+				count499, ok := va.metrics.StatusCodes["0"]
+				if !ok || va.metrics.Requests != uint64(count499) {
+					t.Fatalf("want all 499 client cancel but %d != %d", va.metrics.Requests, count499)
+				}
+			}
+			if float64(countOK) < want {
+				t.Fatalf("OK too low got<want: %d < %0.0f", countOK, want)
+			}
+		})
+	}
+}
+
+func TestConstantRouteUpdatesFifo(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		args          []interface{}
+		freq          int
+		per           time.Duration
+		updateRate    time.Duration
+		backendTime   time.Duration
+		clientTimeout time.Duration
+		wantConfig    scheduler.Config
+		wantParseErr  bool
+		wantOkRate    float64
+		epsilon       float64
+	}{
+		{
+			name: "fifo simple ok",
+			args: []interface{}{
+				3,
+				5,
+				"1s",
+			},
+			freq:          20,
+			per:           100 * time.Millisecond,
+			updateRate:    25 * time.Millisecond,
+			backendTime:   1 * time.Millisecond,
+			clientTimeout: time.Second,
+			wantConfig: scheduler.Config{
+				MaxConcurrency: 3,
+				MaxQueueSize:   5,
+				Timeout:        time.Second,
+			},
+			wantParseErr: false,
+			wantOkRate:   1.0,
+			epsilon:      1,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := NewFifo()
+			if fs.Name() != filters.FifoName {
+				t.Fatalf("Failed to get name got %s want %s", fs.Name(), filters.FifoName)
+			}
+
+			// no parse error
+			ff, err := fs.CreateFilter(tt.args)
+			if err != nil && !tt.wantParseErr {
+				t.Fatalf("Failed to parse filter: %v", err)
+			}
+			if err == nil && tt.wantParseErr {
+				t.Fatalf("want parse error but hav no: %v", err)
+			}
+			if tt.wantParseErr {
+				return
+			}
+
+			// validate config
+			if f, ok := ff.(*fifoFilter); ok {
+				config := f.Config()
+				if config != tt.wantConfig {
+					t.Fatalf("Failed to get Config, got: %v, want: %v", config, tt.wantConfig)
+				}
+				if f.queue != f.GetQueue() {
+					t.Fatal("Failed to get expected queue")
+				}
+			}
+
+			metrics := &metricstest.MockMetrics{}
+			reg := scheduler.RegistryWith(scheduler.Options{
+				Metrics:                metrics,
+				EnableRouteFIFOMetrics: true,
+			})
+			defer reg.Close()
+
+			fr := make(filters.Registry)
+			fr.Register(fs)
+
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(tt.backendTime)
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("OK"))
+			}))
+
+			args := append(tt.args, backend.URL)
+			doc := fmt.Sprintf(`aroute: * -> fifo(%v, %v, "%v") -> "%s"`, args...)
+
+			dc, err := testdataclient.NewDoc(doc)
+			if err != nil {
+				t.Fatalf("Failed to create testdataclient: %v", err)
+			}
+			ro := routing.Options{
+				SignalFirstLoad: true,
+				FilterRegistry:  fr,
+				DataClients:     []routing.DataClient{dc},
+				PostProcessors:  []routing.PostProcessor{reg},
+			}
+			rt := routing.New(ro)
+			defer rt.Close()
+			<-rt.FirstLoad()
+
+			tracer := &testTracer{MockTracer: mocktracer.New()}
+			pr := proxy.WithParams(proxy.Params{
+				Routing:     rt,
+				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+			})
+			defer pr.Close()
+
+			ts := httptest.NewServer(pr)
+			defer ts.Close()
+
+			reqURL, err := url.Parse(ts.URL)
+			if err != nil {
+				t.Fatalf("Failed to parse url %s: %v", ts.URL, err)
+			}
+
+			rsp, err := http.DefaultClient.Get(reqURL.String())
+			if err != nil {
+				t.Fatalf("Failed to get response from %s: %v", reqURL.String(), err)
+			}
+			if rsp.StatusCode != http.StatusOK {
+				t.Fatalf("Failed to get valid response from endpoint: %d", rsp.StatusCode)
+			}
+
+			// run dataclient updates
+			quit := make(chan struct{})
+			newDoc := fmt.Sprintf(`aroute: * -> fifo(100, 200, "250ms") -> "%s"`, backend.URL)
+			go func(q chan<- struct{}, updateRate time.Duration, doc1, doc2 string) {
+				i := 0
+				for {
+					select {
+					case <-quit:
+						println("number of route updates:", i)
+						return
+					case <-time.After(updateRate):
+					}
+					i++
+					if i%2 == 0 {
+						dc.UpdateDoc(doc2, nil)
+					} else {
+						dc.UpdateDoc(doc1, nil)
+					}
+				}
+
+			}(quit, tt.updateRate, doc, newDoc)
+
+			va := newVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
+			va.Attack(io.Discard, 1*time.Second, tt.name)
+			quit <- struct{}{}
 
 			t.Logf("Success [0..1]: %0.2f", va.metrics.Success)
 			t.Logf("requests: %d", va.metrics.Requests)

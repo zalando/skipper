@@ -94,8 +94,9 @@ func (f *fifoFilter) SetQueue(fq *scheduler.FifoQueue) {
 // - 502 if queue timeout
 // - 500 if error unknown
 func (f *fifoFilter) Request(ctx filters.FilterContext) {
+	q := f.GetQueue()
 	c := ctx.Request().Context()
-	done, err := f.queue.Wait(c)
+	done, err := q.Wait(c)
 	if err != nil {
 		if span := opentracing.SpanFromContext(c); span != nil {
 			ext.Error.Set(span, true)
