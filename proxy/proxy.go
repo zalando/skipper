@@ -1059,15 +1059,22 @@ func (p *Proxy) do(ctx *context) error {
 	// happens if we get proxy errors, for example connect errors,
 	// which would block responses until fifo() timeouts.
 	defer func() {
-		pendingFIFO, _ := ctx.StateBag()[scheduler.FIFOKey].([]func())
+		stateBag := ctx.StateBag()
+
+		pendingFIFO, _ := stateBag[scheduler.FIFOKey].([]func())
 		for _, done := range pendingFIFO {
 			done()
 		}
 
-		pendingLIFO, _ := ctx.StateBag()[scheduler.LIFOKey].([]func())
+		pendingLIFO, _ := stateBag[scheduler.LIFOKey].([]func())
 		for _, done := range pendingLIFO {
 			done()
 		}
+
+		// Cleanup state bag to avoid double call of done()
+		// because do() could be called for loopback backend
+		delete(stateBag, scheduler.FIFOKey)
+		delete(stateBag, scheduler.LIFOKey)
 	}()
 
 	// proxy global setting
