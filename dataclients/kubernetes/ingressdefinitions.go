@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
@@ -74,13 +75,13 @@ func (s service) getTargetPortByValue(p int) (*definitions.BackendPort, bool) {
 	return nil, false
 }
 
-type endpoint struct {
+type Endpoint struct {
 	Meta    *definitions.Metadata `json:"Metadata"`
 	Subsets []*subset             `json:"subsets"`
 }
 
-type endpointList struct {
-	Items []*endpoint `json:"items"`
+type EndpointList struct {
+	Items []*Endpoint `json:"items"`
 }
 
 func formatEndpoint(a *address, p *port, protocol string) string {
@@ -97,7 +98,7 @@ func formatEndpointsForSubsetAddresses(addresses []*address, port *port, protoco
 
 }
 
-func (ep endpoint) targetsByServicePort(protocol string, servicePort *servicePort) []string {
+func (ep Endpoint) targetsByServicePort(protocol string, servicePort *servicePort) []string {
 	for _, s := range ep.Subsets {
 		// If only one port exists in the endpoint, use it
 		if len(s.Ports) == 1 {
@@ -117,7 +118,7 @@ func (ep endpoint) targetsByServicePort(protocol string, servicePort *servicePor
 	return nil
 }
 
-func (ep endpoint) targetsByServiceTarget(protocol string, serviceTarget *definitions.BackendPort) []string {
+func (ep Endpoint) targetsByServiceTarget(protocol string, serviceTarget *definitions.BackendPort) []string {
 	portName, named := serviceTarget.Value.(string)
 	portValue, byValue := serviceTarget.Value.(int)
 	for _, s := range ep.Subsets {
@@ -136,6 +137,20 @@ func (ep endpoint) targetsByServiceTarget(protocol string, serviceTarget *defini
 	}
 
 	return nil
+}
+
+func (ep Endpoint) targets(protocol string) []string {
+	result := make([]string, 0)
+	for _, s := range ep.Subsets {
+		for _, p := range s.Ports {
+			for _, a := range s.Addresses {
+				result = append(result, formatEndpoint(a, p, protocol))
+			}
+		}
+	}
+
+	println("targets:", strings.Join(result, ","))
+	return result
 }
 
 type subset struct {

@@ -38,7 +38,7 @@ import (
 type testAPI struct {
 	test      *testing.T
 	services  *serviceList
-	endpoints *endpointList
+	endpoints *EndpointList
 	ingresses *definitions.IngressList
 	secrets   *secretList
 	server    *httptest.Server
@@ -50,21 +50,21 @@ func init() {
 	// log.SetLevel(log.DebugLevel)
 }
 
-func testEndpointList() *endpointList {
-	eps := make([]*endpoint, 0)
+func testEndpointList() *EndpointList {
+	eps := make([]*Endpoint, 0)
 	eps = append(eps, testEndpoints("namespace1", "service1", map[string]string{}, "1.1.1", 1, map[string]int{"port1": 8080})...)
 	eps = append(eps, testEndpoints("namespace1", "service2", map[string]string{}, "1.1.2", 1, map[string]int{"port2": 8181})...)
 	eps = append(eps, testEndpoints("namespace2", "service3", map[string]string{}, "2.1.3", 1, map[string]int{"port3": 7272})...)
 	eps = append(eps, testEndpoints("namespace2", "service4", map[string]string{}, "2.1.4", 1, map[string]int{"port4": 4444, "port5": 5555})...)
-	return &endpointList{
+	return &EndpointList{
 		Items: eps,
 	}
 }
 
-func testEndpoints(namespace, name string, labels map[string]string, base string, n int, ports map[string]int) []*endpoint {
-	eps := make([]*endpoint, 0, 1)
+func testEndpoints(namespace, name string, labels map[string]string, base string, n int, ports map[string]int) []*Endpoint {
+	eps := make([]*Endpoint, 0, 1)
 
-	eps = append(eps, &endpoint{
+	eps = append(eps, &Endpoint{
 		Meta: &definitions.Metadata{
 			Namespace: namespace,
 			Name:      name,
@@ -352,10 +352,10 @@ func checkHealthcheck(t *testing.T, got []*eskip.Route, expected, reversed bool)
 }
 
 func newTestAPI(t *testing.T, s *serviceList, i *definitions.IngressList) *testAPI {
-	return newTestAPIWithEndpoints(t, s, i, &endpointList{}, &secretList{})
+	return newTestAPIWithEndpoints(t, s, i, &EndpointList{}, &secretList{})
 }
 
-func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *definitions.IngressList, e *endpointList, sec *secretList) *testAPI {
+func newTestAPIWithEndpoints(t *testing.T, s *serviceList, i *definitions.IngressList, e *EndpointList, sec *secretList) *testAPI {
 	api := &testAPI{
 		test:      t,
 		services:  s,
@@ -416,12 +416,12 @@ func filterServicesByLabels(labelSelectors []string, services *serviceList) inte
 	return result
 }
 
-func filterEndpointsByLabels(labelSelectors []string, endpoints *endpointList) interface{} {
+func filterEndpointsByLabels(labelSelectors []string, endpoints *EndpointList) interface{} {
 	if len(labelSelectors) == 0 {
 		return endpoints
 	}
 
-	result := &endpointList{}
+	result := &EndpointList{}
 	for _, item := range endpoints.Items {
 		if labelsMatch(labelSelectors, item.Meta.Labels) {
 			result.Items = append(result.Items, item)
@@ -2757,7 +2757,7 @@ func checkSkipperPredicate(t *testing.T, got []*eskip.Route, expected map[string
 func TestSkipperCustomRoutes(t *testing.T) {
 	for _, ti := range []struct {
 		msg            string
-		endpoints      []*endpoint
+		endpoints      []*Endpoint
 		services       []*service
 		ingresses      []*definitions.IngressItem
 		secrets        []*secret
@@ -2902,7 +2902,7 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			api := newTestAPIWithEndpoints(t, &serviceList{Items: ti.services}, &definitions.IngressList{Items: ti.ingresses}, &endpointList{
+			api := newTestAPIWithEndpoints(t, &serviceList{Items: ti.services}, &definitions.IngressList{Items: ti.ingresses}, &EndpointList{
 				Items: ti.endpoints,
 			}, &secretList{Items: ti.secrets})
 			defer api.Close()

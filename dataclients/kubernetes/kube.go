@@ -11,7 +11,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/secrets/certregistry"
@@ -525,16 +524,11 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 	return filters
 }
 
-func (c *Client) GetEndpointAddresses(ns, name string, port int) []string {
+func (c *Client) GetEndpointAddresses(ns, name string) []string {
 	if c.state == nil {
 		return nil
 	}
-
-	addrs := c.state.GetEndpointsByTarget(ns, name, "TCP", &definitions.BackendPort{
-		Value: port,
-	})
-
-	return addrs
+	return c.state.GetEndpointsByName(ns, name, "TCP")
 }
 
 func compareStringList(a, b []string) []string {

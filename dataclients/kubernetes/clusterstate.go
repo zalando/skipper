@@ -16,7 +16,7 @@ type clusterState struct {
 	ingressesV1     []*definitions.IngressV1Item
 	routeGroups     []*definitions.RouteGroupItem
 	services        map[definitions.ResourceID]*service
-	endpoints       map[definitions.ResourceID]*endpoint
+	endpoints       map[definitions.ResourceID]*Endpoint
 	secrets         map[definitions.ResourceID]*secret
 	cachedEndpoints map[endpointID][]string
 }
@@ -70,6 +70,29 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets
+}
+
+func (state *clusterState) GetEndpointsByName(namespace, name, protocol string) []string {
+	epID := endpointID{
+		ResourceID: newResourceID(namespace, name),
+		Protocol:   protocol,
+	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if cached, ok := state.cachedEndpoints[epID]; ok {
+		return cached
+	}
+
+	ep, ok := state.endpoints[epID.ResourceID]
+	if !ok {
+		return nil
+	}
+
+	targets := ep.targets(protocol)
+	sort.Strings(targets)
+	state.cachedEndpoints[epID] = targets
+	return targets
+
 }
 
 func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol string, target *definitions.BackendPort) []string {

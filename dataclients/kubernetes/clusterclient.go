@@ -469,15 +469,15 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 	return result, nil
 }
 
-func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
-	var endpoints endpointList
+func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*Endpoint, error) {
+	var endpoints EndpointList
 	if err := c.getJSON(c.endpointsURI+c.endpointsLabelSelectors, &endpoints); err != nil {
 		log.Debugf("requesting all endpoints failed: %v", err)
 		return nil, err
 	}
 
 	log.Debugf("all endpoints received: %d", len(endpoints.Items))
-	result := make(map[definitions.ResourceID]*endpoint)
+	result := make(map[definitions.ResourceID]*Endpoint)
 	for _, endpoint := range endpoints.Items {
 		resID := endpoint.Meta.ToResourceID()
 		result[resID] = endpoint
