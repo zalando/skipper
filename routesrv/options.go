@@ -114,6 +114,9 @@ type Options struct {
 	// Default filters directory enables default filters mechanism and sets the directory where the filters are located
 	DefaultFiltersDir string
 
+	// DefaultFilters enables appending/prepending filters to all routes
+	DefaultFilters *eskip.DefaultFilters
+
 	// OriginMarker is *deprecated* and not used anymore. It will be deleted in v1.
 	OriginMarker bool
 

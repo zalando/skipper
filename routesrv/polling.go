@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
@@ -42,10 +43,11 @@ var (
 )
 
 type poller struct {
-	client  routing.DataClient
-	b       *eskipBytes
-	timeout time.Duration
-	quit    chan struct{}
+	client         routing.DataClient
+	b              *eskipBytes
+	timeout        time.Duration
+	quit           chan struct{}
+	defaultFilters *eskip.DefaultFilters
 
 	tracer ot.Tracer
 }
@@ -65,6 +67,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
 		routes, err := p.client.LoadAll()
+		if p.defaultFilters != nil {
+			routes = p.defaultFilters.Do(routes)
+		}
 		routesCount = len(routes)
 
 		switch {

@@ -634,6 +634,7 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 	return routesrv.Options{
 		Address:                            c.Address,
 		DefaultFiltersDir:                  c.DefaultFiltersDir,
+		DefaultFilters:                     &eskip.DefaultFilters{Prepend: c.PrependFilters.filters, Append: c.AppendFilters.filters},
 		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
 		KubernetesInCluster:                c.KubernetesInCluster,
 		KubernetesURL:                      c.KubernetesURL,

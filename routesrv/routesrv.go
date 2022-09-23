@@ -80,11 +80,12 @@ func New(opts Options) (*RouteServer, error) {
 		return nil, err
 	}
 	rs.poller = &poller{
-		client:  dataclient,
-		timeout: opts.SourcePollTimeout,
-		b:       b,
-		quit:    make(chan struct{}),
-		tracer:  tracer,
+		client:         dataclient,
+		timeout:        opts.SourcePollTimeout,
+		b:              b,
+		quit:           make(chan struct{}),
+		tracer:         tracer,
+		defaultFilters: opts.DefaultFilters,
 	}
 
 	rs.wg = &sync.WaitGroup{}
