@@ -429,13 +429,13 @@ func measureStdDev(t *testing.T, endpoints []string, hashesPerEndpoint int) floa
 	ch := newConsistentHashInternal(endpoints, hashesPerEndpoint).(consistentHash)
 	ringOwnership := map[int]uint64{}
 	prevPartitionEndHash := uint64(0)
-	for i := 0; i < len(ch); i++ {
-		endpointIndex := ch[i].index
-		partitionEndHash := uint64(ch[i].hash)
+	for i := 0; i < len(ch.hashRing); i++ {
+		endpointIndex := ch.hashRing[i].index
+		partitionEndHash := uint64(ch.hashRing[i].hash)
 		ringOwnership[endpointIndex] += partitionEndHash - prevPartitionEndHash
 		prevPartitionEndHash = partitionEndHash
 	}
-	ringOwnership[ch[0].index] += math.MaxUint64 - prevPartitionEndHash
+	ringOwnership[ch.hashRing[0].index] += math.MaxUint64 - prevPartitionEndHash
 	return stdDeviation(ringOwnership)
 }
 

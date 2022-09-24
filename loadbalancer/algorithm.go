@@ -201,19 +201,25 @@ type (
 		index int    // index of endpoint in endpoint list
 		hash  uint64 // hash of endpoint
 	}
-	consistentHash []endpointHash // list of endpoints sorted by hash value
+	consistentHash struct {
+		hashRing []endpointHash // list of endpoints sorted by hash value
+	}
 )
 
-func (ch consistentHash) Len() int           { return len(ch) }
-func (ch consistentHash) Less(i, j int) bool { return ch[i].hash < ch[j].hash }
-func (ch consistentHash) Swap(i, j int)      { ch[i], ch[j] = ch[j], ch[i] }
+func (ch consistentHash) Len() int           { return len(ch.hashRing) }
+func (ch consistentHash) Less(i, j int) bool { return ch.hashRing[i].hash < ch.hashRing[j].hash }
+func (ch consistentHash) Swap(i, j int) {
+	ch.hashRing[i], ch.hashRing[j] = ch.hashRing[j], ch.hashRing[i]
+}
 
 func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
-	ch := consistentHash(make([]endpointHash, hashesPerEndpoint*len(endpoints)))
+	ch := consistentHash{
+		hashRing: make([]endpointHash, hashesPerEndpoint*len(endpoints)),
+	}
 	for i, ep := range endpoints {
 		endpointStartIndex := hashesPerEndpoint * i
 		for j := 0; j < hashesPerEndpoint; j++ {
-			ch[endpointStartIndex+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
+			ch.hashRing[endpointStartIndex+j] = endpointHash{i, hash(fmt.Sprintf("%s-%d", ep, j))}
 		}
 	}
 	sort.Sort(ch)
@@ -231,7 +237,7 @@ func hash(s string) uint64 {
 // Returns index in hash ring with the closest hash to key's hash
 func (ch consistentHash) searchRing(key string) int {
 	h := hash(key)
-	i := sort.Search(ch.Len(), func(i int) bool { return ch[i].hash >= h })
+	i := sort.Search(ch.Len(), func(i int) bool { return ch.hashRing[i].hash >= h })
 	if i == ch.Len() { // rollover
 		i = 0
 	}
@@ -241,7 +247,7 @@ func (ch consistentHash) searchRing(key string) int {
 // Returns index of endpoint with closest hash to key's hash
 func (ch consistentHash) search(key string) int {
 	ringIndex := ch.searchRing(key)
-	return ch[ringIndex].index
+	return ch.hashRing[ringIndex].index
 }
 
 func computeLoadAverage(ctx *routing.LBContext) float64 {
@@ -260,7 +266,7 @@ func (ch consistentHash) boundedLoadSearch(key string, balanceFactor float64, ct
 	targetLoad := averageLoad * balanceFactor
 	// Loop round ring, starting at endpoint with closest hash. Stop when we find one whose load is less than targetLoad.
 	for i := 0; i < ch.Len(); i++ {
-		endpointIndex := ch[ringIndex].index
+		endpointIndex := ch.hashRing[ringIndex].index
 		load := ctx.Route.LBEndpoints[endpointIndex].Metrics.GetInflightRequests()
 		// We know there must be an endpoint whose load <= average load.
 		// Since targetLoad >= average load (balancerFactor >= 1), there must also be an endpoint with load <= targetLoad.
@@ -270,7 +276,7 @@ func (ch consistentHash) boundedLoadSearch(key string, balanceFactor float64, ct
 		ringIndex = (ringIndex + 1) % ch.Len()
 	}
 
-	return ch[ringIndex].index
+	return ch.hashRing[ringIndex].index
 }
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
