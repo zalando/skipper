@@ -202,7 +202,10 @@ type (
 		hash  uint64 // hash of endpoint
 	}
 	consistentHash struct {
-		hashRing []endpointHash // list of endpoints sorted by hash value
+		hashRing         []endpointHash // list of endpoints sorted by hash value
+		rand             *rand.Rand
+		notFadingIndexes []int
+		fadingWeights    []float64
 	}
 )
 
@@ -214,7 +217,10 @@ func (ch consistentHash) Swap(i, j int) {
 
 func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
 	ch := consistentHash{
-		hashRing: make([]endpointHash, hashesPerEndpoint*len(endpoints)),
+		hashRing:         make([]endpointHash, hashesPerEndpoint*len(endpoints)),
+		rand:             rand.New(rand.NewSource(time.Now().UnixNano())),
+		notFadingIndexes: make([]int, 0, len(endpoints)),
+		fadingWeights:    make([]float64, 0, len(endpoints)),
 	}
 	for i, ep := range endpoints {
 		endpointStartIndex := hashesPerEndpoint * i
@@ -297,7 +303,11 @@ func (ch consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		choice = ch.boundedLoadSearch(key, balanceFactor, ctx)
 	}
 
-	return ctx.Route.LBEndpoints[choice]
+	if ctx.Route.LBFadeInDuration <= 0 {
+		return ctx.Route.LBEndpoints[choice]
+	}
+
+	return withFadeIn(ch.rand, ctx, ch.notFadingIndexes, ch.fadingWeights, choice)
 }
 
 type powerOfRandomNChoices struct {
