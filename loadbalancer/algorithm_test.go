@@ -278,7 +278,7 @@ func TestApply(t *testing.T) {
 func TestConsistentHashSearch(t *testing.T) {
 	apply := func(key string, endpoints []string) string {
 		ch := newConsistentHash(endpoints).(consistentHash)
-		return endpoints[ch.search(key)]
+		return endpoints[ch.search(key, allowAllEndpoints)]
 	}
 
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
