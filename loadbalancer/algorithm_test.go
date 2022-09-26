@@ -102,7 +102,7 @@ func TestSelectAlgorithm(t *testing.T) {
 			t.Fatal("failed to set the endpoints")
 		}
 
-		if _, ok := rr[0].LBAlgorithm.(consistentHash); !ok {
+		if _, ok := rr[0].LBAlgorithm.(*consistentHash); !ok {
 			t.Fatal("failed to set the right algorithm")
 		}
 	})
@@ -277,7 +277,7 @@ func TestApply(t *testing.T) {
 
 func TestConsistentHashSearch(t *testing.T) {
 	apply := func(key string, endpoints []string) string {
-		ch := newConsistentHash(endpoints).(consistentHash)
+		ch := newConsistentHash(endpoints).(*consistentHash)
 		return endpoints[ch.search(key, allowAllEndpoints)]
 	}
 
@@ -313,7 +313,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 			LBEndpoints: endpoints,
 		},
 	}})[0]
-	ch := route.LBAlgorithm.(consistentHash)
+	ch := route.LBAlgorithm.(*consistentHash)
 	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: 1.25}}
 	noLoad := ch.Apply(ctx)
 	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{}})
@@ -384,7 +384,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 			LBEndpoints: endpoints,
 		},
 	}})[0]
-	ch := route.LBAlgorithm.(consistentHash)
+	ch := route.LBAlgorithm.(*consistentHash)
 	balanceFactor := 1.25
 	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor}}
 
@@ -426,7 +426,7 @@ func addInflightRequests(endpoint routing.LBEndpoint, count int) {
 // Measures how fair the hash ring is to each endpoint.
 // i.e. Of the possible hashes, how many will go to each endpoint. The lower the standard deviation the better.
 func measureStdDev(t *testing.T, endpoints []string, hashesPerEndpoint int) float64 {
-	ch := newConsistentHashInternal(endpoints, hashesPerEndpoint).(consistentHash)
+	ch := newConsistentHashInternal(endpoints, hashesPerEndpoint).(*consistentHash)
 	ringOwnership := map[int]uint64{}
 	prevPartitionEndHash := uint64(0)
 	for i := 0; i < len(ch.hashRing); i++ {

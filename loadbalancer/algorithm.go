@@ -130,7 +130,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, notFadingIndexes []int, 
 		return shiftToRemaining(a.rnd, ctx, notFadingIndexes, a.fadingWeights, now)
 	case *random:
 		return shiftToRemaining(a.rand, ctx, notFadingIndexes, a.fadingWeights, now)
-	case consistentHash:
+	case *consistentHash:
 		// If all endpoints are fading, normal consistent hash result
 		if len(notFadingIndexes) == 0 {
 			return ep[choice]
@@ -223,14 +223,14 @@ type (
 	}
 )
 
-func (ch consistentHash) Len() int           { return len(ch.hashRing) }
-func (ch consistentHash) Less(i, j int) bool { return ch.hashRing[i].hash < ch.hashRing[j].hash }
-func (ch consistentHash) Swap(i, j int) {
+func (ch *consistentHash) Len() int           { return len(ch.hashRing) }
+func (ch *consistentHash) Less(i, j int) bool { return ch.hashRing[i].hash < ch.hashRing[j].hash }
+func (ch *consistentHash) Swap(i, j int) {
 	ch.hashRing[i], ch.hashRing[j] = ch.hashRing[j], ch.hashRing[i]
 }
 
 func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
-	ch := consistentHash{
+	ch := &consistentHash{
 		hashRing:         make([]endpointHash, hashesPerEndpoint*len(endpoints)),
 		rand:             rand.New(rand.NewSource(time.Now().UnixNano())),
 		notFadingIndexes: make([]int, 0, len(endpoints)),
@@ -254,7 +254,7 @@ func hash(s string) uint64 {
 }
 
 // Returns index in hash ring with the closest hash to key's hash
-func (ch consistentHash) searchRing(key string, endpointIsEligible func(int) bool) int {
+func (ch *consistentHash) searchRing(key string, endpointIsEligible func(int) bool) int {
 	h := hash(key)
 	i := sort.Search(ch.Len(), func(i int) bool { return ch.hashRing[i].hash >= h && endpointIsEligible(ch.hashRing[i].index) })
 	if i == ch.Len() { // rollover
@@ -264,7 +264,7 @@ func (ch consistentHash) searchRing(key string, endpointIsEligible func(int) boo
 }
 
 // Returns index of endpoint with closest hash to key's hash
-func (ch consistentHash) search(key string, endpointIsEligible func(int) bool) int {
+func (ch *consistentHash) search(key string, endpointIsEligible func(int) bool) int {
 	ringIndex := ch.searchRing(key, endpointIsEligible)
 	return ch.hashRing[ringIndex].index
 }
@@ -280,7 +280,7 @@ func computeLoadAverage(ctx *routing.LBContext) float64 {
 
 // Returns index of endpoint with closest hash to key's hash, which is also below the target load
 // endpointIsEligible function is used to skip endpoints we don't want, such as fading endpoints
-func (ch consistentHash) boundedLoadSearch(key string, balanceFactor float64, ctx *routing.LBContext, endpointIsEligible func(int) bool) int {
+func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, ctx *routing.LBContext, endpointIsEligible func(int) bool) int {
 	ringIndex := ch.searchRing(key, endpointIsEligible)
 	averageLoad := computeLoadAverage(ctx)
 	targetLoad := averageLoad * balanceFactor
@@ -303,7 +303,7 @@ func (ch consistentHash) boundedLoadSearch(key string, balanceFactor float64, ct
 }
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
-func (ch consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
+func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	if len(ctx.Route.LBEndpoints) == 1 {
 		return ctx.Route.LBEndpoints[0]
 	}
@@ -317,7 +317,7 @@ func (ch consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return withFadeIn(ch.rand, ctx, ch.notFadingIndexes, choice, ch)
 }
 
-func (ch consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext, endpointIsEligible func(int) bool) int {
+func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext, endpointIsEligible func(int) bool) int {
 	key, ok := ctx.Params[ConsistentHashKey].(string)
 	if !ok {
 		key = net.RemoteHost(ctx.Request).String()
