@@ -609,7 +609,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	}
 
 	countLimited, ok := va.CountStatus(http.StatusTooManyRequests)
-	if countLimited < countOK {
+	if !ok || countLimited < countOK {
 		t.Fatalf("count TooMany should be higher than OKs: %d < %d", countLimited, countOK)
 	}
 
