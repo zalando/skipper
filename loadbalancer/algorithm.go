@@ -127,9 +127,9 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, notFadingIndexes []int, 
 
 	switch a := algo.(type) {
 	case *roundRobin:
-		return shiftToRemaining(a.rnd, ctx, a.notFadingIndexes, a.fadingWeights, now)
+		return shiftToRemaining(a.rnd, ctx, notFadingIndexes, a.fadingWeights, now)
 	case *random:
-		return shiftToRemaining(a.rand, ctx, a.notFadingIndexes, a.fadingWeights, now)
+		return shiftToRemaining(a.rand, ctx, notFadingIndexes, a.fadingWeights, now)
 	case consistentHash:
 		// If all endpoints are fading, normal consistent hash result
 		if len(notFadingIndexes) == 0 {

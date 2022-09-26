@@ -2667,7 +2667,7 @@ the traffic in a gradually increasing way, starting from their detection for the
 they receive equal amount traffic as the previously existing routes. The detection time of an load balanced
 backend endpoint is preserved over multiple generations of the route configuration (over route changes). This
 filter can be used to saturate the load of autoscaling applications that require a warm-up time and therefore a
-smooth ramp-up. The fade-in feature can be used together with the round-robin and random LB algorithms.
+smooth ramp-up. The fade-in feature can be used together with the roundRobin, random  or consistentHash LB algorithms.
 
 While the default fade-in curve is linear, the optional exponent parameter can be used to adjust the shape of
 the fade-in curve, based on the following equation:
