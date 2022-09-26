@@ -136,7 +136,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, notFadingIndexes []int, 
 			return ep[choice]
 		}
 		// otherwise calculate consistent hash again using endpoints which are not fading
-		return ep[a.chooseConsistentHashEndpoint(ctx, allowNotFadingEndpoints(notFadingIndexes))]
+		return ep[a.chooseConsistentHashEndpoint(ctx, skipFadingEndpoints(notFadingIndexes))]
 	default:
 		return ep[choice]
 	}
@@ -254,9 +254,9 @@ func hash(s string) uint64 {
 }
 
 // Returns index in hash ring with the closest hash to key's hash
-func (ch *consistentHash) searchRing(key string, endpointIsEligible func(int) bool) int {
+func (ch *consistentHash) searchRing(key string, skipEndpoint func(int) bool) int {
 	h := hash(key)
-	i := sort.Search(ch.Len(), func(i int) bool { return ch.hashRing[i].hash >= h && endpointIsEligible(ch.hashRing[i].index) })
+	i := sort.Search(ch.Len(), func(i int) bool { return ch.hashRing[i].hash >= h && !skipEndpoint(ch.hashRing[i].index) })
 	if i == ch.Len() { // rollover
 		i = 0
 	}
@@ -264,8 +264,8 @@ func (ch *consistentHash) searchRing(key string, endpointIsEligible func(int) bo
 }
 
 // Returns index of endpoint with closest hash to key's hash
-func (ch *consistentHash) search(key string, endpointIsEligible func(int) bool) int {
-	ringIndex := ch.searchRing(key, endpointIsEligible)
+func (ch *consistentHash) search(key string, skipEndpoint func(int) bool) int {
+	ringIndex := ch.searchRing(key, skipEndpoint)
 	return ch.hashRing[ringIndex].index
 }
 
@@ -279,15 +279,15 @@ func computeLoadAverage(ctx *routing.LBContext) float64 {
 }
 
 // Returns index of endpoint with closest hash to key's hash, which is also below the target load
-// endpointIsEligible function is used to skip endpoints we don't want, such as fading endpoints
-func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, ctx *routing.LBContext, endpointIsEligible func(int) bool) int {
-	ringIndex := ch.searchRing(key, endpointIsEligible)
+// skipEndpoint function is used to skip endpoints we don't want, such as fading endpoints
+func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, ctx *routing.LBContext, skipEndpoint func(int) bool) int {
+	ringIndex := ch.searchRing(key, skipEndpoint)
 	averageLoad := computeLoadAverage(ctx)
 	targetLoad := averageLoad * balanceFactor
 	// Loop round ring, starting at endpoint with closest hash. Stop when we find one whose load is less than targetLoad.
 	for i := 0; i < ch.Len(); i++ {
 		endpointIndex := ch.hashRing[ringIndex].index
-		if !endpointIsEligible(endpointIndex) {
+		if skipEndpoint(endpointIndex) {
 			continue
 		}
 		load := ctx.Route.LBEndpoints[endpointIndex].Metrics.GetInflightRequests()
@@ -308,7 +308,7 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[0]
 	}
 
-	choice := ch.chooseConsistentHashEndpoint(ctx, allowAllEndpoints)
+	choice := ch.chooseConsistentHashEndpoint(ctx, noSkippedEndpoints)
 
 	if ctx.Route.LBFadeInDuration <= 0 {
 		return ctx.Route.LBEndpoints[choice]
@@ -317,7 +317,7 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	return withFadeIn(ch.rand, ctx, ch.notFadingIndexes, choice, ch)
 }
 
-func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext, endpointIsEligible func(int) bool) int {
+func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext, skipEndpoint func(int) bool) int {
 	key, ok := ctx.Params[ConsistentHashKey].(string)
 	if !ok {
 		key = net.RemoteHost(ctx.Request).String()
@@ -325,27 +325,27 @@ func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext, e
 	balanceFactor, ok := ctx.Params[ConsistentHashBalanceFactor].(float64)
 	var choice int
 	if !ok {
-		choice = ch.search(key, endpointIsEligible)
+		choice = ch.search(key, skipEndpoint)
 	} else {
-		choice = ch.boundedLoadSearch(key, balanceFactor, ctx, endpointIsEligible)
+		choice = ch.boundedLoadSearch(key, balanceFactor, ctx, skipEndpoint)
 	}
 
 	return choice
 }
 
-func allowNotFadingEndpoints(notFadingEndpoints []int) func(int) bool {
+func skipFadingEndpoints(notFadingEndpoints []int) func(int) bool {
 	return func(i int) bool {
 		for _, notFadingEndpoint := range notFadingEndpoints {
 			if i == notFadingEndpoint {
-				return true
+				return false
 			}
 		}
-		return false
+		return true
 	}
 }
 
-func allowAllEndpoints(_ int) bool {
-	return true
+func noSkippedEndpoints(_ int) bool {
+	return false
 }
 
 type powerOfRandomNChoices struct {
