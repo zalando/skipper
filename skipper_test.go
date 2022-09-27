@@ -459,7 +459,6 @@ spec:
 	defer done1()
 	defer done2()
 	defer done3()
-	t.Logf("redis1: %s, redis2: %s, redis2: %s", redis1, redis2, redis3)
 	host1, port1, err := net.SplitHostPort(redis1)
 	if err != nil {
 		t.Fatalf("Failed to SplitHostPort: %v", err)
@@ -476,7 +475,6 @@ spec:
 	// apiserver1
 	specFmt := redisEpSpecFmt + redisPortFmt
 	redisSpec1 := fmt.Sprintf(specFmt, 0, host1, port1)
-	println("kubeSpec:", kubeSpec+redisSpec1)
 	api1, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(kubeSpec+redisSpec1))
 	if err != nil {
 		t.Fatalf("Failed to start apiserver: %v", err)
@@ -487,12 +485,10 @@ spec:
 	if err != nil {
 		t.Fatalf("Failed to parse url from apiServer1: %v", err)
 	}
-	t.Logf("apiserver1 running on %s", u1)
 
 	// apiserver2
 	specFmt += redisPortFmt
 	redisSpec2 := fmt.Sprintf(specFmt, 0, host1, port1, port2)
-	println("kubeSpec2:", kubeSpec+redisSpec2)
 	api2, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(kubeSpec+redisSpec2))
 	if err != nil {
 		t.Fatalf("Failed to start apiserver: %v", err)
@@ -503,12 +499,10 @@ spec:
 	if err != nil {
 		t.Fatalf("Failed to parse url from apiServer2: %v", err)
 	}
-	t.Logf("apiserver2 running on %s", u2)
 
 	// apiserver3
 	specFmt += redisPortFmt
 	redisSpec3 := fmt.Sprintf(specFmt, 0, host1, port1, port2, port3)
-	println("kubeSpec3:", kubeSpec+redisSpec3)
 	api3, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(kubeSpec+redisSpec3))
 	if err != nil {
 		t.Fatalf("Failed to start apiserver: %v", err)
@@ -519,7 +513,6 @@ spec:
 	if err != nil {
 		t.Fatalf("Failed to parse url from apiServer3: %v", err)
 	}
-	t.Logf("apiserver3 running on %s", u3)
 
 	// create skipper as LB to kube-apiservers
 	fFifo := fscheduler.NewFifo()
@@ -539,7 +532,6 @@ r1: * -> enableAccessLog(4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", 
 r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;
 `
 	docApiserver := fmt.Sprintf(docFmt, u1.String(), u2.String(), u3.String(), u1.String(), u2.String(), u3.String())
-	t.Logf("route: %s", docApiserver)
 	dc, err := testdataclient.NewDoc(docApiserver)
 	if err != nil {
 		t.Fatalf("Failed to create testdataclient: %v", err)
@@ -578,11 +570,13 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		KubernetesRedisServiceNamespace: "skipper",
 		KubernetesRedisServiceName:      "redis",
 		KubernetesIngressV1:             true,
+		KubernetesHealthcheck:           true,
 		SourcePollTimeout:               1500 * time.Millisecond,
 		WaitFirstRouteLoad:              true,
 		ClusterRatelimitMaxGroupShards:  2,
 		SwarmRedisDialTimeout:           100 * time.Millisecond,
 		SuppressRouteUpdateLogs:         false,
+		SupportListener:                 ":9091",
 		testOptions: testOptions{
 			redisUpdateInterval: time.Second,
 		},
@@ -590,6 +584,16 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 
 	sigs := make(chan os.Signal, 1)
 	go run(o, sigs, nil)
+
+	// wait for proxy being ready
+	ready := false
+	for !ready {
+		rsp, _ := http.DefaultClient.Get("http://localhost:9090/kube-system/healthz")
+		if rsp != nil && rsp.StatusCode == 200 {
+			ready = true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 
 	rate := 10
 	sec := 5
@@ -610,7 +614,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 
 	countLimited, ok := va.CountStatus(http.StatusTooManyRequests)
 	if !ok || countLimited < countOK {
-		t.Fatalf("count TooMany should be higher than OKs: %d < %d", countLimited, countOK)
+		t.Fatalf("count TooMany should be higher than OKs: %d < %d: %v", countLimited, countOK, ok)
 	}
 
 	sigs <- syscall.SIGTERM

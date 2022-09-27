@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -218,6 +219,7 @@ type Options struct {
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
+	mu                     sync.Mutex
 	ClusterClient          *clusterClient
 	ingress                *ingress
 	routeGroups            *routeGroups
@@ -362,11 +364,13 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 }
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
+	c.mu.Lock()
 	state, err := c.ClusterClient.fetchClusterState()
 	if err != nil {
 		return nil, err
 	}
 	c.state = state
+	c.mu.Unlock()
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
@@ -525,6 +529,8 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 }
 
 func (c *Client) GetEndpointAddresses(ns, name string) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.state == nil {
 		return nil
 	}
