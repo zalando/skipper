@@ -50,15 +50,16 @@ type ingressContext struct {
 }
 
 type ingress struct {
-	eastWestRangeDomains     []string
-	eastWestRangePredicates  []*eskip.Predicate
-	allowedExternalNames     []*regexp.Regexp
-	kubernetesEastWestDomain string
-	pathMode                 PathMode
-	httpsRedirectCode        int
-	kubernetesEnableEastWest bool
-	ingressV1                bool
-	provideHTTPSRedirect     bool
+	eastWestRangeDomains      []string
+	eastWestRangePredicates   []*eskip.Predicate
+	allowedExternalNames      []*regexp.Regexp
+	kubernetesEastWestDomain  string
+	pathMode                  PathMode
+	httpsRedirectCode         int
+	kubernetesEnableEastWest  bool
+	ingressV1                 bool
+	provideHTTPSRedirect      bool
+	routeTrafficUsingServices bool
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -71,15 +72,16 @@ func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 
 func newIngress(o Options) *ingress {
 	return &ingress{
-		ingressV1:                o.KubernetesIngressV1,
-		provideHTTPSRedirect:     o.ProvideHTTPSRedirect,
-		httpsRedirectCode:        o.HTTPSRedirectCode,
-		pathMode:                 o.PathMode,
-		kubernetesEnableEastWest: o.KubernetesEnableEastWest,
-		kubernetesEastWestDomain: o.KubernetesEastWestDomain,
-		eastWestRangeDomains:     o.KubernetesEastWestRangeDomains,
-		eastWestRangePredicates:  o.KubernetesEastWestRangePredicates,
-		allowedExternalNames:     o.AllowedExternalNames,
+		ingressV1:                 o.KubernetesIngressV1,
+		provideHTTPSRedirect:      o.ProvideHTTPSRedirect,
+		httpsRedirectCode:         o.HTTPSRedirectCode,
+		pathMode:                  o.PathMode,
+		kubernetesEnableEastWest:  o.KubernetesEnableEastWest,
+		kubernetesEastWestDomain:  o.KubernetesEastWestDomain,
+		eastWestRangeDomains:      o.KubernetesEastWestRangeDomains,
+		eastWestRangePredicates:   o.KubernetesEastWestRangePredicates,
+		allowedExternalNames:      o.AllowedExternalNames,
+		routeTrafficUsingServices: o.RouteTrafficUsingServices,
 	}
 }
 
