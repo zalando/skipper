@@ -22,8 +22,6 @@ type clusterState struct {
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {
-	state.mu.Lock()
-	defer state.mu.Unlock()
 	s, ok := state.services[newResourceID(namespace, name)]
 	if !ok {
 		return nil, errServiceNotFound
@@ -38,8 +36,6 @@ func (state *clusterState) getService(namespace, name string) (*service, error) 
 }
 
 func (state *clusterState) getServiceRG(namespace, name string) (*service, error) {
-	state.mu.Lock()
-	defer state.mu.Unlock()
 	s, ok := state.services[newResourceID(namespace, name)]
 	if !ok {
 		return nil, fmt.Errorf("service not found: %s/%s", namespace, name)
@@ -55,8 +51,6 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 		TargetPort: servicePort.TargetPort.String(),
 	}
 
-	state.mu.Lock()
-	defer state.mu.Unlock()
 	if cached, ok := state.cachedEndpoints[epID]; ok {
 		return cached
 	}
