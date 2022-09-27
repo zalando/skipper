@@ -475,51 +475,32 @@ spec:
 	// apiserver1
 	specFmt := redisEpSpecFmt + redisPortFmt
 	redisSpec1 := fmt.Sprintf(specFmt, 0, host1, port1)
-	api1, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(kubeSpec+redisSpec1))
+	apiServer1, u1, err := createApiserver(kubeSpec + redisSpec1)
 	if err != nil {
-		t.Fatalf("Failed to start apiserver: %v", err)
+		t.Fatalf("Failed to start apiserver1: %v", err)
 	}
-	apiServer1 := stdlibhttptest.NewServer(api1)
 	defer apiServer1.Close()
-	u1, err := url.Parse(apiServer1.URL)
-	if err != nil {
-		t.Fatalf("Failed to parse url from apiServer1: %v", err)
-	}
 
 	// apiserver2
 	specFmt += redisPortFmt
 	redisSpec2 := fmt.Sprintf(specFmt, 0, host1, port1, port2)
-	api2, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(kubeSpec+redisSpec2))
+	apiServer2, u2, err := createApiserver(kubeSpec + redisSpec2)
 	if err != nil {
-		t.Fatalf("Failed to start apiserver: %v", err)
+		t.Fatalf("Failed to start apiserver2: %v", err)
 	}
-	apiServer2 := stdlibhttptest.NewServer(api2)
 	defer apiServer2.Close()
-	u2, err := url.Parse(apiServer2.URL)
-	if err != nil {
-		t.Fatalf("Failed to parse url from apiServer2: %v", err)
-	}
 
 	// apiserver3
 	specFmt += redisPortFmt
 	redisSpec3 := fmt.Sprintf(specFmt, 0, host1, port1, port2, port3)
-	api3, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(kubeSpec+redisSpec3))
+	apiServer3, u3, err := createApiserver(kubeSpec + redisSpec3)
 	if err != nil {
-		t.Fatalf("Failed to start apiserver: %v", err)
+		t.Fatalf("Failed to start apiserver3: %v", err)
 	}
-	apiServer3 := stdlibhttptest.NewServer(api3)
 	defer apiServer3.Close()
-	u3, err := url.Parse(apiServer3.URL)
-	if err != nil {
-		t.Fatalf("Failed to parse url from apiServer3: %v", err)
-	}
 
 	// create skipper as LB to kube-apiservers
-	fFifo := fscheduler.NewFifo()
-	fAccessLog := flog.NewEnableAccessLog()
-	fr := make(filters.Registry)
-	fr.Register(fFifo)
-	fr.Register(fAccessLog)
+	fr := createFilterRegistry(fscheduler.NewFifo(), flog.NewEnableAccessLog())
 	metrics := &metricstest.MockMetrics{}
 	reg := scheduler.RegistryWith(scheduler.Options{
 		Metrics:                metrics,
@@ -618,4 +599,22 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	}
 
 	sigs <- syscall.SIGTERM
+}
+
+func createApiserver(spec string) (*stdlibhttptest.Server, *url.URL, error) {
+	api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(spec))
+	if err != nil {
+		return nil, nil, err
+	}
+	apiServer := stdlibhttptest.NewServer(api)
+	u, err := url.Parse(apiServer.URL)
+	return apiServer, u, err
+}
+
+func createFilterRegistry(specs ...filters.Spec) filters.Registry {
+	fr := make(filters.Registry)
+	for _, spec := range specs {
+		fr.Register(spec)
+	}
+	return fr
 }
