@@ -367,6 +367,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	c.mu.Lock()
 	state, err := c.ClusterClient.fetchClusterState()
 	if err != nil {
+		c.mu.Unlock()
 		return nil, err
 	}
 	c.state = state
