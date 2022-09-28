@@ -16,7 +16,7 @@ type clusterState struct {
 	ingressesV1     []*definitions.IngressV1Item
 	routeGroups     []*definitions.RouteGroupItem
 	services        map[definitions.ResourceID]*service
-	endpoints       map[definitions.ResourceID]*Endpoint
+	endpoints       map[definitions.ResourceID]*endpoint
 	secrets         map[definitions.ResourceID]*secret
 	cachedEndpoints map[endpointID][]string
 }
