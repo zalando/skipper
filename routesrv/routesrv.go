@@ -12,6 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -79,13 +81,60 @@ func New(opts Options) (*RouteServer, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if opts.SecretsRegistry == nil {
+		opts.SecretsRegistry = secrets.NewRegistry()
+	}
+	defer opts.SecretsRegistry.Close()
+
+	sp := secrets.NewSecretPaths(opts.CredentialsUpdateInterval)
+	defer sp.Close()
+	for _, p := range opts.CredentialsPaths {
+		if err := sp.Add(p); err != nil {
+			log.Errorf("Failed to add credentials file: %s: %v", p, err)
+		}
+	}
+
+	oauthConfig := &auth.OAuthConfig{}
+	if opts.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
+		grantSecrets := secrets.NewSecretPaths(opts.CredentialsUpdateInterval)
+		defer grantSecrets.Close()
+
+		oauthConfig.AuthURL = opts.OAuth2AuthURL
+		oauthConfig.TokenURL = opts.OAuth2TokenURL
+		oauthConfig.RevokeTokenURL = opts.OAuth2RevokeTokenURL
+		oauthConfig.TokeninfoURL = opts.OAuthTokeninfoURL
+		oauthConfig.SecretFile = opts.OAuth2SecretFile
+		oauthConfig.ClientID = opts.OAuth2ClientID
+		oauthConfig.ClientSecret = opts.OAuth2ClientSecret
+		oauthConfig.ClientIDFile = opts.OAuth2ClientIDFile
+		oauthConfig.ClientSecretFile = opts.OAuth2ClientSecretFile
+		oauthConfig.CallbackPath = opts.OAuth2CallbackPath
+		oauthConfig.AuthURLParameters = opts.OAuth2AuthURLParameters
+		oauthConfig.SecretsProvider = grantSecrets
+		oauthConfig.Secrets = opts.SecretsRegistry
+		oauthConfig.AccessTokenHeaderName = opts.OAuth2AccessTokenHeaderName
+		oauthConfig.TokeninfoSubjectKey = opts.OAuth2TokeninfoSubjectKey
+		oauthConfig.TokenCookieName = opts.OAuth2TokenCookieName
+		oauthConfig.ConnectionTimeout = opts.OAuthTokeninfoTimeout
+		oauthConfig.Tracer = tracer
+
+		if err := oauthConfig.Init(); err != nil {
+			log.Errorf("Failed to initialize oauth grant filter: %v.", err)
+			return nil, err
+		}
+	} else {
+		oauthConfig = nil
+	}
+
 	rs.poller = &poller{
-		client:         dataclient,
-		timeout:        opts.SourcePollTimeout,
-		b:              b,
-		quit:           make(chan struct{}),
-		tracer:         tracer,
-		defaultFilters: opts.DefaultFilters,
+		client:             dataclient,
+		timeout:            opts.SourcePollTimeout,
+		b:                  b,
+		quit:               make(chan struct{}),
+		defaultFilters:     opts.DefaultFilters,
+		oauth2Preprocessor: oauthConfig.NewGrantPreprocessor(),
+		tracer:             tracer,
 	}
 
 	rs.wg = &sync.WaitGroup{}

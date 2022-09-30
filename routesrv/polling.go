@@ -43,12 +43,16 @@ var (
 )
 
 type poller struct {
-	client         routing.DataClient
-	b              *eskipBytes
-	timeout        time.Duration
-	quit           chan struct{}
-	defaultFilters *eskip.DefaultFilters
+	client  routing.DataClient
+	b       *eskipBytes
+	timeout time.Duration
+	quit    chan struct{}
 
+	// Preprocessors
+	defaultFilters     *eskip.DefaultFilters
+	oauth2Preprocessor routing.PreProcessor
+
+	// tracer
 	tracer ot.Tracer
 }
 
@@ -69,6 +73,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		routes, err := p.client.LoadAll()
 		if p.defaultFilters != nil {
 			routes = p.defaultFilters.Do(routes)
+		}
+		if p.oauth2Preprocessor != nil {
+			routes = p.oauth2Preprocessor.Do(routes)
 		}
 		routesCount = len(routes)
 

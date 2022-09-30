@@ -658,6 +658,30 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 		SourcePollTimeout:                  time.Duration(c.SourcePollTimeout) * time.Millisecond,
 		WaitForHealthcheckInterval:         c.WaitForHealthcheckInterval,
 		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
+
+		// Auth:
+		EnableOAuth2GrantFlow:          c.EnableOAuth2GrantFlow,
+		OAuth2AuthURL:                  c.Oauth2AuthURL,
+		OAuth2TokenURL:                 c.Oauth2TokenURL,
+		OAuth2RevokeTokenURL:           c.Oauth2RevokeTokenURL,
+		OAuthTokeninfoURL:              c.Oauth2TokeninfoURL,
+		OAuthTokeninfoTimeout:          c.Oauth2TokeninfoTimeout,
+		OAuth2SecretFile:               c.Oauth2SecretFile,
+		OAuth2ClientID:                 c.Oauth2ClientID,
+		OAuth2ClientSecret:             c.Oauth2ClientSecret,
+		OAuth2ClientIDFile:             c.Oauth2ClientIDFile,
+		OAuth2ClientSecretFile:         c.Oauth2ClientSecretFile,
+		OAuth2CallbackPath:             c.Oauth2CallbackPath,
+		OAuthTokenintrospectionTimeout: c.Oauth2TokenintrospectionTimeout,
+		OAuth2AuthURLParameters:        c.Oauth2AuthURLParameters.values,
+		OAuth2AccessTokenHeaderName:    c.Oauth2AccessTokenHeaderName,
+		OAuth2TokeninfoSubjectKey:      c.Oauth2TokeninfoSubjectKey,
+		OAuth2TokenCookieName:          c.Oauth2TokenCookieName,
+		WebhookTimeout:                 c.WebhookTimeout,
+		OIDCSecretsFile:                c.OidcSecretsFile,
+		OIDCDistributedClaimsTimeout:   c.OidcDistributedClaimsTimeout,
+		CredentialsPaths:               c.CredentialPaths.values,
+		CredentialsUpdateInterval:      c.CredentialsUpdateInterval,
 	}
 }
 
