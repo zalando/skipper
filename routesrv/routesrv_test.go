@@ -291,3 +291,32 @@ func TestRoutesWithDefaultFilters(t *testing.T) {
 	}
 	wantHTTPCode(t, w, http.StatusOK)
 }
+
+func TestRoutesWithOAuth2Callback(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout:     pollInterval,
+		KubernetesURL:         ks.URL,
+		EnableOAuth2GrantFlow: true,
+		OAuth2CallbackPath:    "/.well-known/oauth2-callback",
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Error("routes not initialized")
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/lb-target-multi-with-oauth2-callback.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
+}
