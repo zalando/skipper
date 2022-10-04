@@ -81,21 +81,20 @@ func New(opts Options) (*RouteServer, error) {
 		return nil, err
 	}
 
-	oauthConfig := &auth.OAuthConfig{}
+	var oauthConfig *auth.OAuthConfig
 	if opts.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
+		oauthConfig = &auth.OAuthConfig{}
 		oauthConfig.CallbackPath = opts.OAuth2CallbackPath
-	} else {
-		oauthConfig = nil
 	}
 
 	rs.poller = &poller{
-		client:             dataclient,
-		timeout:            opts.SourcePollTimeout,
-		b:                  b,
-		quit:               make(chan struct{}),
-		defaultFilters:     opts.DefaultFilters,
-		oauth2Preprocessor: oauthConfig.NewGrantPreprocessor(),
-		tracer:             tracer,
+		client:         dataclient,
+		timeout:        opts.SourcePollTimeout,
+		b:              b,
+		quit:           make(chan struct{}),
+		defaultFilters: opts.DefaultFilters,
+		oauth2Config:   oauthConfig,
+		tracer:         tracer,
 	}
 
 	rs.wg = &sync.WaitGroup{}
