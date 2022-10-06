@@ -40,7 +40,7 @@ func convertPathRuleV1(
 	prule *definitions.PathRuleV1,
 	pathMode PathMode,
 	allowedExternalNames []*regexp.Regexp,
-	routeTrafficUsingServices bool,
+	forceKubernetesService bool,
 ) (*eskip.Route, error) {
 
 	ns := metadata.Namespace
@@ -79,7 +79,7 @@ func convertPathRuleV1(
 		}
 	} else if svc.Spec.Type == "ExternalName" {
 		return externalNameRoute(ns, name, host, hostRegexp, svc, servicePort, allowedExternalNames)
-	} else if routeTrafficUsingServices {
+	} else if forceKubernetesService {
 		return &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			BackendType: eskip.NetworkBackend,
@@ -137,7 +137,6 @@ func convertPathRuleV1(
 
 func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *definitions.PathRuleV1) error {
 	meta := ic.ingressV1.Metadata
-
 	endpointsRoute, err := convertPathRuleV1(
 		ic.state,
 		meta,
@@ -145,7 +144,7 @@ func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *de
 		prule,
 		ic.pathMode,
 		ing.allowedExternalNames,
-		ing.routeTrafficUsingServices,
+		ing.forceKubernetesService,
 	)
 	if err != nil {
 		// if the service is not found the route should be removed
@@ -342,7 +341,7 @@ func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.T
 func (ing *ingress) convertDefaultBackendV1(
 	state *clusterState,
 	i *definitions.IngressV1Item,
-	routeTrafficUsingServices bool,
+	forceKubernetesService bool,
 ) (*eskip.Route, bool, error) {
 	// the usage of the default backend depends on what we want
 	// we can generate a hostname out of it based on shared rules
@@ -377,7 +376,7 @@ func (ing *ingress) convertDefaultBackendV1(
 	} else if svc.Spec.Type == "ExternalName" {
 		r, err := externalNameRoute(ns, name, "default", nil, svc, servicePort, ing.allowedExternalNames)
 		return r, err == nil, err
-	} else if routeTrafficUsingServices {
+	} else if forceKubernetesService {
 		return &eskip.Route{
 			Id:          routeID(ns, name, "", "", ""),
 			BackendType: eskip.NetworkBackend,
@@ -463,7 +462,7 @@ func (ing *ingress) ingressV1Route(
 	}
 
 	var route *eskip.Route
-	if r, ok, err := ing.convertDefaultBackendV1(state, i, ing.routeTrafficUsingServices); ok {
+	if r, ok, err := ing.convertDefaultBackendV1(state, i, ing.forceKubernetesService); ok {
 		route = r
 	} else if err != nil {
 		ic.logger.Errorf("error while converting default backend: %v", err)

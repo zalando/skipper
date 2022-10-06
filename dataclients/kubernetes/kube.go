@@ -216,9 +216,9 @@ type Options struct {
 
 	CertificateRegistry *certregistry.CertRegistry
 
-	// RouteTrafficUsingServices overrides the default Skipper functionality to route traffic using
+	// ForceKubernetesService overrides the default Skipper functionality to route traffic using
 	// Kubernetes Endpoint, instead using Kubernetes Services.
-	RouteTrafficUsingServices bool
+	ForceKubernetesService bool
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
