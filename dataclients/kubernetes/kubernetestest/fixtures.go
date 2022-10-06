@@ -47,6 +47,7 @@ type kubeOptionsParser struct {
 	IngressesLabels          map[string]string  `yaml:"kubernetes-ingresses-label-selector"`
 	ServicesLabels           map[string]string  `yaml:"kubernetes-services-label-selector"`
 	EndpointsLabels          map[string]string  `yaml:"kubernetes-endpoints-label-selector"`
+	ForceKubernetesService   bool               `yaml:"force-kubernetes-service"`
 }
 
 func baseNoExt(n string) string {
@@ -231,6 +232,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.IngressLabelSelectors = kop.IngressesLabels
 		o.ServicesLabelSelectors = kop.ServicesLabels
 		o.EndpointsLabelSelectors = kop.EndpointsLabels
+		o.ForceKubernetesService = kop.ForceKubernetesService
 
 		aen, err := compileRegexps(kop.AllowedExternalNames)
 		if err != nil {

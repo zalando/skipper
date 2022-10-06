@@ -80,12 +80,16 @@ func convertPathRuleV1(
 	} else if svc.Spec.Type == "ExternalName" {
 		return externalNameRoute(ns, name, host, hostRegexp, svc, servicePort, allowedExternalNames)
 	} else if forceKubernetesService {
-		return &eskip.Route{
+		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			BackendType: eskip.NetworkBackend,
 			Backend:     serviceNameBackend(svcName, ns, servicePort),
 			HostRegexps: hostRegexp,
-		}, nil
+		}
+
+		setPathV1(pathMode, r, prule.PathType, prule.Path)
+		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
+		return r, nil
 	} else {
 		protocol := "http"
 		if p, ok := metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {

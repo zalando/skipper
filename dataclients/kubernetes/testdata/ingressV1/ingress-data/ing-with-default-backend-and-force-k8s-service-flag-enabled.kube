@@ -1,0 +1,2 @@
+ingressv1: true
+force-kubernetes-service: true
