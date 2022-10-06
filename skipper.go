@@ -271,6 +271,10 @@ type Options struct {
 	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
 	KubernetesRedisServicePort int
 
+	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
+	// instead using Kubernetes Services.
+	KubernetesForceService bool
+
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
 	InnkeeperUrl string
 
@@ -1000,6 +1004,7 @@ func createDataClients(o Options, auth innkeeper.Authentication, cr *certregistr
 			ReverseSourcePredicate:            o.ReverseSourcePredicate,
 			RouteGroupClass:                   o.KubernetesRouteGroupClass,
 			WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
+			ForceKubernetesService:            o.KubernetesForceService,
 			CertificateRegistry:               cr,
 		})
 		if err != nil {

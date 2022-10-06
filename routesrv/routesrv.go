@@ -75,6 +75,7 @@ func New(opts Options) (*RouteServer, error) {
 		ReverseSourcePredicate:            opts.ReverseSourcePredicate,
 		RouteGroupClass:                   opts.KubernetesRouteGroupClass,
 		WhitelistedHealthCheckCIDR:        opts.WhitelistedHealthCheckCIDR,
+		ForceKubernetesService:            opts.KubernetesForceService,
 	})
 	if err != nil {
 		return nil, err
