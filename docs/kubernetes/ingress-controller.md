@@ -163,6 +163,19 @@ TLS handshake error to the endpoint.  Other reasons are future support
 of features like session affinity, different load balancer
 algorithms or distributed loadbalancing also known as service mesh.
 
+### Using services instead of endpoints
+
+While using endpoints is the preferred way of using skipper as an
+ingress controller as described in the section above, there might be
+edge cases that require the use of [Kubernetes
+Services](http://kubernetes.io/docs/user-guide/services) instead.
+
+If you find yourself in this category, you can override the default behaviour
+by setting the `KubernetesForceService` flag to `true` in the `Skipper.Options` struct.
+This will cause skipper to create routes with `BackendType=eskip.NetworkBackend` instead
+of `BackendType=eskip.LBBackend` and use the following address format:
+`http://<service name>.<namespace>.svc.cluster.local:<port>`.
+
 ## AWS deployment
 
 In AWS, this could be an ALB with DNS pointing to the ALB. The ALB can
