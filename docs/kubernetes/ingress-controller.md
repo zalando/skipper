@@ -170,6 +170,10 @@ ingress controller as described in the section above, there might be
 edge cases that require the use of [Kubernetes
 Services](http://kubernetes.io/docs/user-guide/services) instead.
 
+An example of scenario where you might need to use services is when you rely
+on Istio networking features to connect multiple clusters, as the IPs of
+Kubernetes endpoints will not resolve in all cases.
+
 If you find yourself in this category, you can override the default behaviour
 by setting the `KubernetesForceService` flag to `true` in the `Skipper.Options` struct.
 This will cause skipper to create routes with `BackendType=eskip.NetworkBackend` instead
