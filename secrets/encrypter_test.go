@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -13,12 +14,22 @@ import (
 )
 
 type testingSecretSource struct {
-	getCount  int
-	secretKey string
+	getCount          int
+	secretKey         string
+	failingGetSecret  bool
+	changingGetSecret bool
 }
 
 func (s *testingSecretSource) GetSecret() ([][]byte, error) {
+	if s.failingGetSecret {
+		return nil, fmt.Errorf("failed to get secret")
+	}
+
 	s.getCount++
+
+	if s.changingGetSecret {
+		return [][]byte{[]byte(s.secretKey + strconv.Itoa(s.getCount))}, nil
+	}
 	return [][]byte{[]byte(s.secretKey)}, nil
 }
 
@@ -33,18 +44,12 @@ func TestEncryptDecrypt(t *testing.T) {
 		plaintext string
 		secSrc    *testingSecretSource
 		wantErr   bool
+		wantErr2  bool
 	}{
 		{
 			name:      "shorter secret than plaintext",
 			secretKey: "abc",
 			plaintext: "helloworld",
-			secSrc:    &testingSecretSource{},
-			wantErr:   false,
-		},
-		{
-			name:      "longer secret than plaintext",
-			secretKey: "abcdefghijklmn",
-			plaintext: "hello",
 			secSrc:    &testingSecretSource{},
 			wantErr:   false,
 		},
@@ -69,6 +74,25 @@ func TestEncryptDecrypt(t *testing.T) {
 			secSrc:    &testingSecretSource{},
 			wantErr:   false,
 		},
+		{
+			name:      "failing refresh",
+			secretKey: "abcdefghijklmn",
+			plaintext: "hello",
+			secSrc: &testingSecretSource{
+				failingGetSecret: true,
+			},
+			wantErr:  true,
+			wantErr2: true,
+		},
+		{
+			name:      "changing secret",
+			secretKey: "abcdefghijklmn",
+			plaintext: "hello",
+			secSrc: &testingSecretSource{
+				changingGetSecret: true,
+			},
+			wantErr2: true,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.secSrc.SetSecret(tt.secretKey)
@@ -81,20 +105,21 @@ func TestEncryptDecrypt(t *testing.T) {
 			b, err := enc.Encrypt(plain)
 			if err != nil && !tt.wantErr {
 				t.Errorf("failed to encrypt data block: %v", err)
-			}
-			if tt.wantErr && err == nil {
+			} else if tt.wantErr && err == nil {
 				t.Fatal("wantErr while encrypting, but got no error")
 			}
 
+			enc.RefreshCiphers()
+
 			decenc, err := enc.Decrypt(b)
-			if err != nil && !tt.wantErr {
+			if err != nil && !tt.wantErr2 {
 				t.Errorf("failed to decrypt data block: %v", err)
-			}
-			if string(decenc) != tt.plaintext && !tt.wantErr {
-				t.Errorf("decrypted plaintext is not the same as plaintext: %s", string(decenc))
-			}
-			if tt.wantErr && err == nil {
+			} else if tt.wantErr2 && err == nil {
 				t.Fatal("wantErr while decrypting, but got no error")
+			}
+
+			if string(decenc) != tt.plaintext && !tt.wantErr2 {
+				t.Errorf("decrypted plaintext is not the same as plaintext: %s", string(decenc))
 			}
 		})
 	}
