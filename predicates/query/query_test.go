@@ -41,6 +41,21 @@ func TestQueryArgs(t *testing.T) {
 		[]interface{}{"key", "value", `\`},
 		0,
 		true,
+	}, {
+		"invalid type key",
+		[]interface{}{5, "value"},
+		0,
+		true,
+	}, {
+		"invalid type value",
+		[]interface{}{"key", 5},
+		0,
+		true,
+	}, {
+		"invalid regexp string",
+		[]interface{}{"key", `\`},
+		0,
+		true,
 	}} {
 		func() {
 			p, err := New().Create(ti.args)
