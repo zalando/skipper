@@ -156,7 +156,7 @@ func (e *Encrypter) RefreshCiphers() error {
 func (e *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 	err := e.RefreshCiphers()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to refresh ciphers: %w", err)
 	}
 	go func() {
 		ticker := time.NewTicker(refreshInterval)
@@ -173,7 +173,7 @@ func (e *Encrypter) runCipherRefresher(refreshInterval time.Duration) error {
 				log.Debug("started refresh of ciphers")
 				err := e.RefreshCiphers()
 				if err != nil {
-					log.Error("failed to refresh the ciphers")
+					log.Errorf("failed to refresh the ciphers: %v", err)
 				}
 				log.Debug("finished refresh of ciphers")
 			}
