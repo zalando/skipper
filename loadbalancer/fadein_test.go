@@ -2,11 +2,12 @@ package loadbalancer
 
 import (
 	"fmt"
+	"github.com/zalando/skipper/routing"
+	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -60,6 +61,7 @@ func testFadeIn(
 		a := algorithm(ep)
 
 		ctx := &routing.LBContext{
+			Params: map[string]interface{}{},
 			Route: &routing.Route{
 				LBFadeInDuration: fadeInDuration,
 				LBFadeInExponent: 1,
@@ -74,10 +76,12 @@ func testFadeIn(
 		}
 
 		t.Log("test start", time.Now())
+		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		var stats []string
 		stop := time.After(fadeInDuration)
 		func() {
 			for {
+				ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(1000))
 				ep := a.Apply(ctx)
 				stats = append(stats, ep.Host)
 				select {
@@ -165,4 +169,15 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "random, 7", newRandom, old, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "random, 8", newRandom, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "random, 9", newRandom, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+
+	testFadeIn(t, "consistent-hash, 0", newConsistentHash, old, old)
+	testFadeIn(t, "consistent-hash, 1", newConsistentHash, 0, old)
+	testFadeIn(t, "consistent-hash, 2", newConsistentHash, 0, 0)
+	testFadeIn(t, "consistent-hash, 3", newConsistentHash, old, 0)
+	testFadeIn(t, "consistent-hash, 4", newConsistentHash, old, old, old, 0)
+	testFadeIn(t, "consistent-hash, 5", newConsistentHash, old, old, old, 0, 0, 0)
+	testFadeIn(t, "consistent-hash, 6", newConsistentHash, old, 0, 0, 0)
+	testFadeIn(t, "consistent-hash, 7", newConsistentHash, old, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "consistent-hash, 8", newConsistentHash, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "consistent-hash, 9", newConsistentHash, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
 }

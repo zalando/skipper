@@ -102,7 +102,7 @@ func TestSelectAlgorithm(t *testing.T) {
 			t.Fatal("failed to set the endpoints")
 		}
 
-		if _, ok := rr[0].LBAlgorithm.(consistentHash); !ok {
+		if _, ok := rr[0].LBAlgorithm.(*consistentHash); !ok {
 			t.Fatal("failed to set the right algorithm")
 		}
 	})
@@ -277,8 +277,8 @@ func TestApply(t *testing.T) {
 
 func TestConsistentHashSearch(t *testing.T) {
 	apply := func(key string, endpoints []string) string {
-		ch := newConsistentHash(endpoints).(consistentHash)
-		return endpoints[ch.search(key)]
+		ch := newConsistentHash(endpoints).(*consistentHash)
+		return endpoints[ch.search(key, noSkippedEndpoints)]
 	}
 
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
@@ -313,7 +313,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 			LBEndpoints: endpoints,
 		},
 	}})[0]
-	ch := route.LBAlgorithm.(consistentHash)
+	ch := route.LBAlgorithm.(*consistentHash)
 	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: 1.25}}
 	noLoad := ch.Apply(ctx)
 	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{}})
@@ -384,7 +384,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 			LBEndpoints: endpoints,
 		},
 	}})[0]
-	ch := route.LBAlgorithm.(consistentHash)
+	ch := route.LBAlgorithm.(*consistentHash)
 	balanceFactor := 1.25
 	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor}}
 
@@ -405,8 +405,8 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 func TestConsistentHashKeyDistribution(t *testing.T) {
 	endpoints := []string{"http://10.2.0.1:8080", "http://10.2.0.2:8080", "http://10.2.0.3:8080", "http://10.2.0.4:8080", "http://10.2.0.5:8080", "http://10.2.0.6:8080", "http://10.2.0.7:8080", "http://10.2.0.8:8080", "http://10.2.0.9:8080", "http://10.2.0.10:8080"}
 
-	stdDev1hashPerEndpoint := measureStdDev(t, endpoints, 1)
-	stdDev100HashesPerEndpoint := measureStdDev(t, endpoints, 100)
+	stdDev1hashPerEndpoint := measureStdDev(endpoints, 1)
+	stdDev100HashesPerEndpoint := measureStdDev(endpoints, 100)
 
 	if stdDev100HashesPerEndpoint >= stdDev1hashPerEndpoint {
 		t.Errorf("Standard deviation with 100 hashes per endpoint should be lower than with 1 hash per endpoint. 100 hashes: %f, 1 hash: %f", stdDev100HashesPerEndpoint, stdDev1hashPerEndpoint)
@@ -425,17 +425,17 @@ func addInflightRequests(endpoint routing.LBEndpoint, count int) {
 
 // Measures how fair the hash ring is to each endpoint.
 // i.e. Of the possible hashes, how many will go to each endpoint. The lower the standard deviation the better.
-func measureStdDev(t *testing.T, endpoints []string, hashesPerEndpoint int) float64 {
-	ch := newConsistentHashInternal(endpoints, hashesPerEndpoint).(consistentHash)
+func measureStdDev(endpoints []string, hashesPerEndpoint int) float64 {
+	ch := newConsistentHashInternal(endpoints, hashesPerEndpoint).(*consistentHash)
 	ringOwnership := map[int]uint64{}
 	prevPartitionEndHash := uint64(0)
-	for i := 0; i < len(ch); i++ {
-		endpointIndex := ch[i].index
-		partitionEndHash := uint64(ch[i].hash)
+	for i := 0; i < len(ch.hashRing); i++ {
+		endpointIndex := ch.hashRing[i].index
+		partitionEndHash := ch.hashRing[i].hash
 		ringOwnership[endpointIndex] += partitionEndHash - prevPartitionEndHash
 		prevPartitionEndHash = partitionEndHash
 	}
-	ringOwnership[ch[0].index] += math.MaxUint64 - prevPartitionEndHash
+	ringOwnership[ch.hashRing[0].index] += math.MaxUint64 - prevPartitionEndHash
 	return stdDeviation(ringOwnership)
 }
 
