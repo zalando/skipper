@@ -2,8 +2,11 @@ package routesrv
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
@@ -14,20 +17,22 @@ import (
 // provides synchronized r/w access to them. Additionally it can
 // serve as an HTTP handler exposing its content.
 type eskipBytes struct {
-	data        []byte
-	initialized bool
-	mu          sync.RWMutex
+	data         []byte
+	etag         string
+	lastModified time.Time
+	initialized  bool
+	mu           sync.RWMutex
 
 	tracer ot.Tracer
 }
 
 // bytes returns a slice to stored bytes, which are safe for reading,
 // and if there were already initialized.
-func (e *eskipBytes) bytes() ([]byte, bool) {
+func (e *eskipBytes) bytes() ([]byte, string, time.Time, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	return e.data, e.initialized
+	return e.data, e.etag, e.lastModified, e.initialized
 }
 
 // formatAndSet takes a slice of routes and stores them eskip-formatted
@@ -39,7 +44,13 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.data = buf.Bytes()
+	if updated := buf.Bytes(); !bytes.Equal(e.data, updated) {
+		e.lastModified = time.Now()
+		e.data = updated
+		h := sha256.New()
+		h.Write(e.data)
+		e.etag = fmt.Sprintf(`"%x"`, h.Sum(nil))
+	}
 	oldInitialized := e.initialized
 	e.initialized = true
 
@@ -50,8 +61,11 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span := tracing.CreateSpan("serve_routes", r.Context(), e.tracer)
 	defer span.Finish()
 
-	if data, initialized := e.bytes(); initialized {
-		w.Write(data)
+	data, etag, lastModified, initialized := e.bytes()
+	if initialized {
+		w.Header().Add("Etag", etag)
+		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
+		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
@@ -66,7 +80,7 @@ type eskipBytesStatus struct {
 const msgRoutesNotInitialized = "routes were not initialized yet"
 
 func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if _, initialized := s.b.bytes(); initialized {
+	if _, _, _, initialized := s.b.bytes(); initialized {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
 		http.Error(w, msgRoutesNotInitialized, http.StatusServiceUnavailable)

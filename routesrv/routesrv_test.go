@@ -102,6 +102,17 @@ func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	return w
 }
 
+func getRoutesWithRequestHeadersSetting(rs *routesrv.RouteServer, header map[string]string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/routes", nil)
+	for k, v := range header {
+		r.Header.Add(k, v)
+	}
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
 func wantHTTPCode(t *testing.T, w *httptest.ResponseRecorder, want int) {
 	got := w.Code
 	if got != want {
@@ -359,4 +370,115 @@ func TestRoutesWithEastWest(t *testing.T) {
 		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
 	}
 	wantHTTPCode(t, w, http.StatusOK)
+}
+
+func TestESkipBytesHandlerWithCorrectEtag(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServer(t, ks)
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatal("routes not initialized")
+	}
+	w1 := getRoutes(rs)
+
+	etag := w1.Header().Get("Etag")
+	header := map[string]string{"If-None-Match": etag}
+	w2 := getRoutesWithRequestHeadersSetting(rs, header)
+
+	if len(w2.Body.String()) > 0 {
+		t.Errorf("expected empty routes list but got %s", w2.Body.String())
+	}
+	if w2.Code != http.StatusNotModified {
+		t.Errorf("expected 304 status code but received incorrect status code: %d", w2.Code)
+	}
+}
+
+func TestESkipBytesHandlerWithStaleEtag(t *testing.T) {
+	defer tl.Reset()
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServer(t, ks)
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatal("routes not initialized")
+	}
+	w1 := getRoutes(rs)
+	etag := w1.Header().Get("Etag")
+	header := map[string]string{"If-None-Match": etag}
+
+	// update the routes, which also updates e.etag
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
+	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout*2); err != nil {
+		t.Error("routes not updated")
+	}
+
+	w2 := getRoutesWithRequestHeadersSetting(rs, header)
+
+	if len(w2.Body.String()) == 0 {
+		t.Errorf("expected non-empty routes list")
+	}
+	if w2.Code == http.StatusNotModified {
+		t.Errorf("received incorrect 304 status code")
+	}
+}
+
+func TestESkipBytesHandlerWithLastModified(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServer(t, ks)
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatal("routes not initialized")
+	}
+	w1 := getRoutes(rs)
+
+	lastModified := w1.Header().Get("Last-Modified")
+	header := map[string]string{"If-Modified-Since": lastModified}
+	w2 := getRoutesWithRequestHeadersSetting(rs, header)
+
+	if len(w2.Body.String()) > 0 {
+		t.Errorf("expected empty routes list but got %s", w2.Body.String())
+	}
+	if w2.Code != http.StatusNotModified {
+		t.Errorf("expected 304 status code but received incorrect status code: %d", w2.Code)
+	}
+}
+
+func TestESkipBytesHandlerWithOldLastModified(t *testing.T) {
+	defer tl.Reset()
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServer(t, ks)
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatal("routes not initialized")
+	}
+	w1 := getRoutes(rs)
+	lastModified := w1.Header().Get("Last-Modified")
+	header := map[string]string{"If-Modified-Since": lastModified}
+	// update the routes, which also updated the e.lastModified
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
+	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout*2); err != nil {
+		t.Error("routes not updated")
+	}
+
+	w2 := getRoutesWithRequestHeadersSetting(rs, header)
+
+	if len(w2.Body.String()) == 0 {
+		t.Errorf("expected non-empty routes list")
+	}
+	if w2.Code == http.StatusNotModified {
+		t.Errorf("received incorrect 304 status code")
+	}
 }

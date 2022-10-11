@@ -3,6 +3,7 @@ package routesrv
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -98,6 +99,10 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				"message", msg,
 			)
 		case routesCount > 0:
+			// sort the routes, otherwise it will lead to different etag values for the same route list for different orders
+			sort.SliceStable(routes, func(i, j int) bool {
+				return routes[i].Id < routes[j].Id
+			})
 			routesBytes, initialized = p.b.formatAndSet(routes)
 			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes})
 			if initialized {
