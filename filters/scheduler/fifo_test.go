@@ -3,9 +3,8 @@ package scheduler
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"net/http/httptest"
+	stdlibhttptest "net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -13,12 +12,11 @@ import (
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
+	"github.com/zalando/skipper/net/httptest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
-
-	vegeta "github.com/tsenart/vegeta/lib"
 )
 
 func TestCreateFifoFilter(t *testing.T) {
@@ -236,7 +234,7 @@ func TestFifo(t *testing.T) {
 			fr := make(filters.Registry)
 			fr.Register(fs)
 
-			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			backend := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				time.Sleep(tt.backendTime)
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("OK"))
@@ -281,7 +279,7 @@ func TestFifo(t *testing.T) {
 			})
 			defer pr.Close()
 
-			ts := httptest.NewServer(pr)
+			ts := stdlibhttptest.NewServer(pr)
 			defer ts.Close()
 
 			reqURL, err := url.Parse(ts.URL)
@@ -297,24 +295,24 @@ func TestFifo(t *testing.T) {
 				t.Fatalf("Failed to get valid response from endpoint: %d", rsp.StatusCode)
 			}
 
-			va := newVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
+			va := httptest.NewVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
 			va.Attack(io.Discard, 1*time.Second, tt.name)
 
-			t.Logf("Success [0..1]: %0.2f", va.metrics.Success)
-			t.Logf("requests: %d", va.metrics.Requests)
-			got := va.metrics.Success * float64(va.metrics.Requests)
-			want := tt.wantOkRate * float64(va.metrics.Requests)
+			t.Logf("Success [0..1]: %0.2f", va.Success())
+			t.Logf("requests: %d", va.TotalRequests())
+			got := va.TotalSuccess()
+			want := tt.wantOkRate * float64(va.TotalRequests())
 			if got < want {
 				t.Fatalf("OK rate too low got<want: %0.0f < %0.0f", got, want)
 			}
-			countOK, ok := va.metrics.StatusCodes["200"]
+			countOK, ok := va.CountStatus(http.StatusOK)
 			if !ok && tt.wantOkRate > 0 {
 				t.Fatal("no OK")
 			}
 			if !ok && tt.wantOkRate == 0 {
-				count499, ok := va.metrics.StatusCodes["0"]
-				if !ok || va.metrics.Requests != uint64(count499) {
-					t.Fatalf("want all 499 client cancel but %d != %d", va.metrics.Requests, count499)
+				count499, ok := va.CountStatus(0)
+				if !ok || va.TotalRequests() != uint64(count499) {
+					t.Fatalf("want all 499 client cancel but %d != %d", va.TotalRequests(), count499)
 				}
 			}
 			if float64(countOK) < want {
@@ -399,7 +397,7 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 			fr := make(filters.Registry)
 			fr.Register(fs)
 
-			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			backend := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				time.Sleep(tt.backendTime)
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("OK"))
@@ -429,7 +427,7 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 			})
 			defer pr.Close()
 
-			ts := httptest.NewServer(pr)
+			ts := stdlibhttptest.NewServer(pr)
 			defer ts.Close()
 
 			reqURL, err := url.Parse(ts.URL)
@@ -467,25 +465,25 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 
 			}(quit, tt.updateRate, doc, newDoc)
 
-			va := newVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
+			va := httptest.NewVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
 			va.Attack(io.Discard, 1*time.Second, tt.name)
 			quit <- struct{}{}
 
-			t.Logf("Success [0..1]: %0.2f", va.metrics.Success)
-			t.Logf("requests: %d", va.metrics.Requests)
-			got := va.metrics.Success * float64(va.metrics.Requests)
-			want := tt.wantOkRate * float64(va.metrics.Requests)
+			t.Logf("Success [0..1]: %0.2f", va.Success())
+			t.Logf("requests: %d", va.TotalRequests())
+			got := va.TotalSuccess()
+			want := tt.wantOkRate * float64(va.TotalRequests())
 			if got < want {
 				t.Fatalf("OK rate too low got<want: %0.0f < %0.0f", got, want)
 			}
-			countOK, ok := va.metrics.StatusCodes["200"]
+			countOK, ok := va.CountStatus(http.StatusOK)
 			if !ok && tt.wantOkRate > 0 {
-				t.Fatal("no OK")
+				t.Fatalf("no OK")
 			}
 			if !ok && tt.wantOkRate == 0 {
-				count499, ok := va.metrics.StatusCodes["0"]
-				if !ok || va.metrics.Requests != uint64(count499) {
-					t.Fatalf("want all 499 client cancel but %d != %d", va.metrics.Requests, count499)
+				count499, ok := va.CountStatus(0)
+				if !ok || va.TotalRequests() != uint64(count499) {
+					t.Fatalf("want all 499 client cancel but %d != %d", va.TotalRequests(), count499)
 				}
 			}
 			if float64(countOK) < want {
@@ -493,70 +491,4 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 			}
 		})
 	}
-}
-
-type vegetaAttacker struct {
-	attacker *vegeta.Attacker
-	metrics  *vegeta.Metrics
-	rate     *vegeta.Rate
-	targeter vegeta.Targeter
-}
-
-func newVegetaAttacker(url string, freq int, per time.Duration, timeout time.Duration) *vegetaAttacker {
-	atk := vegeta.NewAttacker(
-		vegeta.Connections(10),
-		vegeta.H2C(false),
-		vegeta.HTTP2(false),
-		vegeta.KeepAlive(true),
-		vegeta.MaxWorkers(10),
-		vegeta.Redirects(0),
-		vegeta.Timeout(timeout),
-		vegeta.Workers(5),
-	)
-
-	tr := vegeta.NewStaticTargeter(vegeta.Target{Method: "GET", URL: url})
-	rate := vegeta.Rate{Freq: freq, Per: per}
-
-	m := vegeta.Metrics{
-		Histogram: &vegeta.Histogram{
-			Buckets: []time.Duration{
-				0,
-				10 * time.Microsecond,
-				50 * time.Microsecond,
-				100 * time.Microsecond,
-				500 * time.Microsecond,
-				1 * time.Millisecond,
-				5 * time.Millisecond,
-				10 * time.Millisecond,
-				25 * time.Millisecond,
-				50 * time.Millisecond,
-				100 * time.Millisecond,
-				1000 * time.Millisecond,
-			},
-		},
-	}
-
-	return &vegetaAttacker{
-		attacker: atk,
-		metrics:  &m,
-		rate:     &rate,
-		targeter: tr,
-	}
-}
-
-func (atk *vegetaAttacker) Attack(w io.Writer, d time.Duration, name string) {
-	for res := range atk.attacker.Attack(atk.targeter, atk.rate, d, name) {
-		if res == nil {
-			continue
-		}
-		atk.metrics.Add(res)
-		//metrics.Latencies.Add(res.Latency)
-	}
-	atk.metrics.Close()
-	// logrus.Info("histogram reporter:")
-	// histReporter := vegeta.NewHistogramReporter(atk.metrics.Histogram)
-	// histReporter.Report(os.Stdout)
-	log.Print("text reporter:")
-	reporter := vegeta.NewTextReporter(atk.metrics)
-	reporter.Report(w)
 }

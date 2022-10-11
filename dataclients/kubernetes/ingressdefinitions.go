@@ -138,6 +138,19 @@ func (ep endpoint) targetsByServiceTarget(protocol string, serviceTarget *defini
 	return nil
 }
 
+func (ep endpoint) targets(protocol string) []string {
+	result := make([]string, 0)
+	for _, s := range ep.Subsets {
+		for _, p := range s.Ports {
+			for _, a := range s.Addresses {
+				result = append(result, formatEndpoint(a, p, protocol))
+			}
+		}
+	}
+
+	return result
+}
+
 type subset struct {
 	Addresses []*address `json:"addresses"`
 	Ports     []*port    `json:"ports"`

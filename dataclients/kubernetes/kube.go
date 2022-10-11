@@ -7,11 +7,11 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/secrets/certregistry"
@@ -219,6 +219,7 @@ type Options struct {
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
+	mu                     sync.Mutex
 	ClusterClient          *clusterClient
 	ingress                *ingress
 	routeGroups            *routeGroups
@@ -363,11 +364,14 @@ func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
 }
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
+	c.mu.Lock()
 	state, err := c.ClusterClient.fetchClusterState()
 	if err != nil {
+		c.mu.Unlock()
 		return nil, err
 	}
 	c.state = state
+	c.mu.Unlock()
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
@@ -525,16 +529,13 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 	return filters
 }
 
-func (c *Client) GetEndpointAddresses(ns, name string, port int) []string {
+func (c *Client) GetEndpointAddresses(ns, name string) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.state == nil {
 		return nil
 	}
-
-	addrs := c.state.GetEndpointsByTarget(ns, name, "TCP", &definitions.BackendPort{
-		Value: port,
-	})
-
-	return addrs
+	return c.state.GetEndpointsByName(ns, name, "TCP")
 }
 
 func compareStringList(a, b []string) []string {

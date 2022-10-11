@@ -74,6 +74,7 @@ const DefaultPluginDir = "./plugins"
 
 type testOptions struct {
 	redisConnMetricsInterval time.Duration
+	redisUpdateInterval      time.Duration
 }
 
 // Options to start skipper.
@@ -268,7 +269,7 @@ type Options struct {
 	// KubernetesRedisServiceName to be used to lookup ring shards dynamically
 	KubernetesRedisServiceName string
 
-	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
+	// *DEPRECATED* KubernetesRedisServicePort is not used anymore
 	KubernetesRedisServicePort int
 
 	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
@@ -1273,12 +1274,12 @@ func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Clie
 	return kdc
 }
 
-func getRedisUpdaterFunc(namespace, name string, port int, kdc *kubernetes.Client) func() []string {
+func getRedisUpdaterFunc(namespace, name string, kdc *kubernetes.Client) func() []string {
 	return func() []string {
 		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 		// has polled the data once or kdc.GetEndpointAdresses should be blocking
 		// call to kubernetes API
-		a := kdc.GetEndpointAddresses(namespace, name, port)
+		a := kdc.GetEndpointAddresses(namespace, name)
 		log.Debugf("Redis updater called and found %d redis endpoints", len(a))
 		for i := 0; i < len(a); i++ {
 			a[i] = strings.TrimPrefix(a[i], "TCP://")
@@ -1501,6 +1502,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				MinIdleConns:        o.SwarmRedisMinIdleConns,
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
 				ConnMetricsInterval: o.redisConnMetricsInterval,
+				UpdateInterval:      o.redisUpdateInterval,
 				Tracer:              tracer,
 				Log:                 log.New(),
 			}
@@ -1550,12 +1552,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 
 		// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
-		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" && o.KubernetesRedisServicePort > 0 {
-			log.Infof("Use endpoints %s/%s :%d to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort)
+		if redisOptions != nil && o.KubernetesRedisServiceNamespace != "" && o.KubernetesRedisServiceName != "" {
+			log.Infof("Use endpoints %s/%s to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 
 			kdc := findKubernetesDataclient(dataClients)
 			if kdc != nil {
-				redisOptions.AddrUpdater = getRedisUpdaterFunc(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, o.KubernetesRedisServicePort, kdc)
+				redisOptions.AddrUpdater = getRedisUpdaterFunc(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, kdc)
 			} else {
 				log.Errorf("Failed to find kubernetes dataclient, but redis shards should be get by kubernetes svc %s/%s", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 			}
