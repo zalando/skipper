@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,35 +14,117 @@ import (
 )
 
 type testingSecretSource struct {
-	getCount  int
-	secretKey string
+	getCount          int
+	secretKey         string
+	failingGetSecret  bool
+	changingGetSecret bool
 }
 
 func (s *testingSecretSource) GetSecret() ([][]byte, error) {
+	if s.failingGetSecret {
+		return nil, fmt.Errorf("failed to get secret")
+	}
+
 	s.getCount++
+
+	if s.changingGetSecret {
+		return [][]byte{[]byte(s.secretKey + strconv.Itoa(s.getCount))}, nil
+	}
 	return [][]byte{[]byte(s.secretKey)}, nil
 }
 
-func TestEncryptDecrypt(t *testing.T) {
-	enc := &Encrypter{
-		secretSource: &testingSecretSource{secretKey: "abc"},
-	}
-	enc.RefreshCiphers()
+func (s *testingSecretSource) SetSecret(key string) {
+	s.secretKey = key
+}
 
-	plaintext := "helloworld"
-	plain := []byte(plaintext)
-	b, err := enc.Encrypt(plain)
-	if err != nil {
-		t.Errorf("failed to encrypt data block: %v", err)
-	}
-	decenc, err := enc.Decrypt(b)
-	if err != nil {
-		t.Errorf("failed to decrypt data block: %v", err)
-	}
-	if string(decenc) != plaintext {
-		t.Errorf("decrypted plaintext is not the same as plaintext: %s", string(decenc))
+func TestEncryptDecrypt(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		secretKey string
+		plaintext string
+		secSrc    *testingSecretSource
+		wantErr   bool
+		wantErr2  bool
+	}{
+		{
+			name:      "shorter secret than plaintext",
+			secretKey: "abc",
+			plaintext: "helloworld",
+			secSrc:    &testingSecretSource{},
+			wantErr:   false,
+		},
+		{
+			name:      "long plaintext",
+			secretKey: "mykey",
+			plaintext: strings.Repeat("hello", 2000),
+			secSrc:    &testingSecretSource{},
+			wantErr:   false,
+		},
+		{
+			name:      "long secret",
+			secretKey: strings.Repeat("abcdefghijklmn", 2000),
+			plaintext: "hello",
+			secSrc:    &testingSecretSource{},
+			wantErr:   false,
+		},
+		{
+			name:      "long plaintext and secret",
+			secretKey: strings.Repeat("abcdefghijklmn", 2000),
+			plaintext: strings.Repeat("helloworld", 5000),
+			secSrc:    &testingSecretSource{},
+			wantErr:   false,
+		},
+		{
+			name:      "failing refresh",
+			secretKey: "abcdefghijklmn",
+			plaintext: "hello",
+			secSrc: &testingSecretSource{
+				failingGetSecret: true,
+			},
+			wantErr:  true,
+			wantErr2: true,
+		},
+		{
+			name:      "changing secret",
+			secretKey: "abcdefghijklmn",
+			plaintext: "hello",
+			secSrc: &testingSecretSource{
+				changingGetSecret: true,
+			},
+			wantErr2: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.secSrc.SetSecret(tt.secretKey)
+			enc := &Encrypter{
+				secretSource: tt.secSrc,
+			}
+			enc.RefreshCiphers()
+
+			plain := []byte(tt.plaintext)
+			b, err := enc.Encrypt(plain)
+			if err != nil && !tt.wantErr {
+				t.Errorf("failed to encrypt data block: %v", err)
+			} else if tt.wantErr && err == nil {
+				t.Fatal("wantErr while encrypting, but got no error")
+			}
+
+			enc.RefreshCiphers()
+
+			decenc, err := enc.Decrypt(b)
+			if err != nil && !tt.wantErr2 {
+				t.Errorf("failed to decrypt data block: %v", err)
+			} else if tt.wantErr2 && err == nil {
+				t.Fatal("wantErr while decrypting, but got no error")
+			}
+
+			if string(decenc) != tt.plaintext && !tt.wantErr2 {
+				t.Errorf("decrypted plaintext is not the same as plaintext: %s", string(decenc))
+			}
+		})
 	}
 }
+
 func TestCipherRefreshing(t *testing.T) {
 	d := 1 * time.Second
 	sleepD := 4 * d
