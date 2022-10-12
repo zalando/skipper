@@ -16,7 +16,10 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 )
 
-const defaultStatusCode = http.StatusTooManyRequests
+const (
+	defaultStatusCode = http.StatusTooManyRequests
+	FailClosedKey     = "ratelimit:fail:closed"
+)
 
 type spec struct {
 	typ        ratelimit.RatelimitType
@@ -457,6 +460,12 @@ func getStatusCodeArg(args []interface{}, index int) (int, error) {
 
 // Request checks ratelimit using filter settings and serves `429 Too Many Requests` response if limit is reached
 func (f *filter) Request(ctx filters.FilterContext) {
+	e, ok := ctx.StateBag()[FailClosedKey]
+	if ok {
+		b, ok := e.(bool)
+		f.settings.FailClosed = ok && b
+	}
+
 	rateLimiter := f.provider.get(f.settings)
 	if rateLimiter == nil {
 		log.Errorf("RateLimiter is nil for settings: %s", f.settings)

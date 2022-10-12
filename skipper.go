@@ -1582,6 +1582,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
 		o.CustomFilters = append(o.CustomFilters,
+			ratelimitfilters.NewFailureMode(),
 			ratelimitfilters.NewClientRatelimit(provider),
 			ratelimitfilters.NewLocalRatelimit(provider),
 			ratelimitfilters.NewRatelimit(provider),

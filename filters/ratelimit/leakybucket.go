@@ -87,14 +87,30 @@ func (s *leakyBucketSpec) CreateFilter(args []interface{}) (filters.Filter, erro
 	return &leakyBucketFilter{eskip.NewTemplate(label), s.create(capacity, emission), increment}, nil
 }
 
+func fail(ctx filters.FilterContext, header http.Header) {
+	ctx.Serve(&http.Response{StatusCode: http.StatusTooManyRequests, Header: header})
+}
+
 func (f *leakyBucketFilter) Request(ctx filters.FilterContext) {
+	var failClosed bool
+	e, ok := ctx.StateBag()[FailClosedKey]
+	if ok {
+		b, ok := e.(bool)
+		failClosed = ok && b
+	}
+
 	label, ok := f.label.ApplyContext(ctx)
 	if !ok {
 		return // allow on missing placeholders
 	}
 	added, retry, err := f.bucket.Add(ctx.Request().Context(), label, f.increment)
 	if err != nil {
-		return // allow on error
+		if failClosed {
+			header := http.Header{}
+			header.Set("Retry-After", "60")
+			fail(ctx, header)
+		}
+		return
 	}
 	if added {
 		return // allow if successfully added
@@ -104,7 +120,8 @@ func (f *leakyBucketFilter) Request(ctx filters.FilterContext) {
 	if retry > 0 {
 		header.Set("Retry-After", strconv.Itoa(int(retry/time.Second)))
 	}
-	ctx.Serve(&http.Response{StatusCode: http.StatusTooManyRequests, Header: header})
+
+	fail(ctx, header)
 }
 
 func (*leakyBucketFilter) Response(filters.FilterContext) {}

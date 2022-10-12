@@ -1007,6 +1007,12 @@ func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTrip
 func (p *Proxy) rejectBackend(ctx *context, req *http.Request) (*http.Response, bool) {
 	limit, ok := ctx.StateBag()[filters.BackendRatelimit].(*ratelimitfilters.BackendRatelimit)
 	if ok {
+		e, ok := ctx.StateBag()[ratelimitfilters.FailClosedKey]
+		if ok {
+			b, ok := e.(bool)
+			limit.Settings.FailClosed = ok && b
+		}
+
 		s := req.URL.Scheme + "://" + req.URL.Host
 
 		if !p.limiters.Get(limit.Settings).AllowContext(req.Context(), s) {
