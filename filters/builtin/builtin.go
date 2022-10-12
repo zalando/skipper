@@ -112,12 +112,8 @@ const (
 	BackendTimeoutName = filters.BackendTimeoutName
 )
 
-// Returns a Registry object initialized with the default set of filter
-// specifications found in the filters package. (including the builtin
-// and the flowid subdirectories.)
-func MakeRegistry() filters.Registry {
-	r := make(filters.Registry)
-	for _, s := range []filters.Spec{
+func Filters() []filters.Spec {
+	return []filters.Spec{
 		NewBackendIsProxy(),
 		NewRequestHeader(),
 		NewSetRequestHeader(),
@@ -219,9 +215,16 @@ func MakeRegistry() filters.Registry {
 		fadein.NewEndpointCreated(),
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
-	} {
+	}
+}
+
+// Returns a Registry object initialized with the default set of filter
+// specifications found in the filters package. (including the builtin
+// and the flowid subdirectories.)
+func MakeRegistry() filters.Registry {
+	r := make(filters.Registry)
+	for _, s := range Filters() {
 		r.Register(s)
 	}
-
 	return r
 }

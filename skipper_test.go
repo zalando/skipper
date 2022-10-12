@@ -20,6 +20,7 @@ import (
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters"
 	flog "github.com/zalando/skipper/filters/accesslog"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	fscheduler "github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/loadbalancer"
@@ -34,6 +35,7 @@ import (
 	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/tracing/tracingtest"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -86,6 +88,27 @@ func findAddress() (string, error) {
 
 	defer l.Close()
 	return l.Addr().String(), nil
+}
+
+func TestOptionsFilterRegistry(t *testing.T) {
+	o := &Options{
+		CustomFilters: []filters.Spec{auth.NewBearerInjector(nil)},
+	}
+	fr := o.filterRegistry()
+
+	assert.Contains(t, fr, filters.SetRequestHeaderName)
+	assert.Contains(t, fr, filters.LuaName)
+	assert.Contains(t, fr, filters.BearerInjectorName)
+
+	o = &Options{
+		CustomFilters:   []filters.Spec{auth.NewBearerInjector(nil)},
+		DisabledFilters: []string{filters.LuaName, filters.BearerInjectorName},
+	}
+	fr = o.filterRegistry()
+
+	assert.Contains(t, fr, filters.SetRequestHeaderName)
+	assert.NotContains(t, fr, filters.LuaName)
+	assert.NotContains(t, fr, filters.BearerInjectorName)
 }
 
 func TestOptionsTLSConfig(t *testing.T) {
