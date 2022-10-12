@@ -230,9 +230,10 @@ func (ch *consistentHash) Swap(i, j int) {
 }
 
 func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
 	ch := &consistentHash{
 		hashRing:         make([]endpointHash, hashesPerEndpoint*len(endpoints)),
-		rand:             rand.New(rand.NewSource(time.Now().UnixNano())),
+		rand:             rnd,
 		notFadingIndexes: make([]int, 0, len(endpoints)),
 	}
 	for i, ep := range endpoints {
