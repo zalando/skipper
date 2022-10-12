@@ -114,6 +114,7 @@ func Test_NewConfig(t *testing.T) {
 				EtcdTimeout:                             2 * time.Second,
 				AppendFilters:                           &defaultFiltersFlags{},
 				PrependFilters:                          &defaultFiltersFlags{},
+				DisabledFilters:                         commaListFlag(),
 				CloneRoute:                              &routeChangerConfig{},
 				EditRoute:                               &routeChangerConfig{},
 				SourcePollTimeout:                       3000,

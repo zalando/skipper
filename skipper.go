@@ -318,6 +318,9 @@ type Options struct {
 	// DefaultFilters will be applied to all routes automatically.
 	DefaultFilters *eskip.DefaultFilters
 
+	// DisabledFilters is a list of filters unavailable for use
+	DisabledFilters []string
+
 	// CloneRoute is a PreProcessor, that will be applied to all routes automatically. It
 	// will clone all matching routes and apply changes to the
 	// cloned routes.
@@ -1061,6 +1064,31 @@ func initLog(o Options) error {
 	return nil
 }
 
+// filterRegistry creates a filter registry with the builtin and
+// custom filter specs registered excluding disabled filters
+func (o *Options) filterRegistry() filters.Registry {
+	registry := make(filters.Registry)
+
+	disabledFilters := make(map[string]struct{})
+	for _, name := range o.DisabledFilters {
+		disabledFilters[name] = struct{}{}
+	}
+
+	for _, f := range builtin.Filters() {
+		if _, ok := disabledFilters[f.Name()]; !ok {
+			registry.Register(f)
+		}
+	}
+
+	for _, f := range o.CustomFilters {
+		if _, ok := disabledFilters[f.Name()]; !ok {
+			registry.Register(f)
+		}
+	}
+
+	return registry
+}
+
 func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) {
 
 	if o.ProxyTLS != nil {
@@ -1647,13 +1675,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
-	// create a filter registry with the available filter specs registered,
-	// and register the custom filters
-	registry := builtin.MakeRegistry()
-	for _, f := range o.CustomFilters {
-		registry.Register(f)
-	}
-
 	// create routing
 	// create the proxy instance
 	var mo routing.MatchingOptions
@@ -1714,7 +1735,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// create a routing engine
 	ro := routing.Options{
-		FilterRegistry:  registry,
+		FilterRegistry:  o.filterRegistry(),
 		MatchingOptions: mo,
 		PollTimeout:     o.SourcePollTimeout,
 		DataClients:     dataClients,
