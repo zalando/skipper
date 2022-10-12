@@ -256,3 +256,107 @@ func TestRoutesAreUpdated(t *testing.T) {
 		t.Error("route contents were not updated")
 	}
 }
+
+func TestRoutesWithDefaultFilters(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
+		DefaultFilters: &eskip.DefaultFilters{
+			Prepend: []*eskip.Filter{
+				{
+					Name: "enableAccessLog",
+					Args: []any{4, 5},
+				},
+			},
+			Append: []*eskip.Filter{
+				{
+					Name: "status",
+					Args: []any{200},
+				},
+			},
+		},
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Error("routes not initialized")
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/lb-target-multi-with-default-filters.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
+}
+
+func TestRoutesWithOAuth2Callback(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout:     pollInterval,
+		KubernetesURL:         ks.URL,
+		EnableOAuth2GrantFlow: true,
+		OAuth2CallbackPath:    "/.well-known/oauth2-callback",
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Error("routes not initialized")
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/lb-target-multi-with-oauth2-callback.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
+}
+
+func TestRoutesWithEastWest(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/internal-host-explicit-route-predicate.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout:              pollInterval,
+		KubernetesURL:                  ks.URL,
+		KubernetesEastWestRangeDomains: []string{"ingress.cluster.local"},
+		KubernetesEastWestRangePredicates: []*eskip.Predicate{
+			{
+				Name: "ClientIP",
+				Args: []any{"10.2.0.0/15"},
+			},
+		},
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Error("routes not initialized")
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/internal-host-explicit-route-predicate.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
+}

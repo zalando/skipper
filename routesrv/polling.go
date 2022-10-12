@@ -10,6 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
@@ -47,6 +49,11 @@ type poller struct {
 	timeout time.Duration
 	quit    chan struct{}
 
+	// Preprocessors
+	defaultFilters *eskip.DefaultFilters
+	oauth2Config   *auth.OAuthConfig
+
+	// tracer
 	tracer ot.Tracer
 }
 
@@ -65,6 +72,12 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
 		routes, err := p.client.LoadAll()
+		if p.defaultFilters != nil {
+			routes = p.defaultFilters.Do(routes)
+		}
+		if p.oauth2Config != nil {
+			routes = p.oauth2Config.NewGrantPreprocessor().Do(routes)
+		}
 		routesCount = len(routes)
 
 		switch {

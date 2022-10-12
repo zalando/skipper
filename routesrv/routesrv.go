@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -79,12 +80,21 @@ func New(opts Options) (*RouteServer, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var oauthConfig *auth.OAuthConfig
+	if opts.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
+		oauthConfig = &auth.OAuthConfig{}
+		oauthConfig.CallbackPath = opts.OAuth2CallbackPath
+	}
+
 	rs.poller = &poller{
-		client:  dataclient,
-		timeout: opts.SourcePollTimeout,
-		b:       b,
-		quit:    make(chan struct{}),
-		tracer:  tracer,
+		client:         dataclient,
+		timeout:        opts.SourcePollTimeout,
+		b:              b,
+		quit:           make(chan struct{}),
+		defaultFilters: opts.DefaultFilters,
+		oauth2Config:   oauthConfig,
+		tracer:         tracer,
 	}
 
 	rs.wg = &sync.WaitGroup{}

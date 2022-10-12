@@ -6,6 +6,7 @@ import (
 
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 )
 
 // Options for initializing/running RouteServer
@@ -114,10 +115,23 @@ type Options struct {
 	// Default filters directory enables default filters mechanism and sets the directory where the filters are located
 	DefaultFiltersDir string
 
+	// DefaultFilters enables appending/prepending filters to all routes
+	DefaultFilters *eskip.DefaultFilters
+
 	// OriginMarker is *deprecated* and not used anymore. It will be deleted in v1.
 	OriginMarker bool
+
+	// List of custom filter specifications.
+	CustomFilters []filters.Spec
 
 	// OpenTracingBackendNameTag enables an additional tracing tag containing a backend name
 	// for a route when it's available (e.g. for RouteGroups)
 	OpenTracingBackendNameTag bool
+
+	// EnableOAuth2GrantFlow, enables OAuth2 Grant Flow filter
+	EnableOAuth2GrantFlow bool
+
+	// OAuth2CallbackPath contains the path where the OAuth2 callback requests with the
+	// authorization code should be redirected to. Defaults to /.well-known/oauth2-callback
+	OAuth2CallbackPath string
 }
