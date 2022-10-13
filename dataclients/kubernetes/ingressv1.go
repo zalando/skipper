@@ -80,16 +80,7 @@ func convertPathRuleV1(
 	} else if svc.Spec.Type == "ExternalName" {
 		return externalNameRoute(ns, name, host, hostRegexp, svc, servicePort, allowedExternalNames)
 	} else if forceKubernetesService {
-		r := &eskip.Route{
-			Id:          routeID(ns, name, host, prule.Path, svcName),
-			BackendType: eskip.NetworkBackend,
-			Backend:     serviceNameBackend(svcName, ns, servicePort),
-			HostRegexps: hostRegexp,
-		}
-
-		setPathV1(pathMode, r, prule.PathType, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
-		return r, nil
+		eps = []string{serviceNameBackend(svcName, ns, servicePort)}
 	} else {
 		protocol := "http"
 		if p, ok := metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
@@ -381,11 +372,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		r, err := externalNameRoute(ns, name, "default", nil, svc, servicePort, ing.allowedExternalNames)
 		return r, err == nil, err
 	} else if forceKubernetesService {
-		return &eskip.Route{
-			Id:          routeID(ns, name, "", "", ""),
-			BackendType: eskip.NetworkBackend,
-			Backend:     serviceNameBackend(svcName, ns, servicePort),
-		}, true, nil
+		eps = []string{serviceNameBackend(svcName, ns, servicePort)}
 	} else {
 		log.Debugf("convertDefaultBackendV1: Found target port %v, for service %s", servicePort.TargetPort, svcName)
 		protocol := "http"
