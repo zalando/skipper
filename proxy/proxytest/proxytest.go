@@ -21,6 +21,10 @@ type TestProxy struct {
 	server  *httptest.Server
 }
 
+func WithParamsAndRoutingOptions(fr filters.Registry, proxyParams proxy.Params, o routing.Options, routes ...*eskip.Route) *TestProxy {
+	return newTestProxy(fr, o, proxyParams, routes...)
+}
+
 func WithRoutingOptions(fr filters.Registry, o routing.Options, routes ...*eskip.Route) *TestProxy {
 	return newTestProxy(fr, o, proxy.Params{CloseIdleConnsPeriod: -time.Second}, routes...)
 }

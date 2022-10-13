@@ -14,69 +14,66 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/ratelimit"
+	"github.com/zalando/skipper/routing"
 )
 
 func TestFailureMode(t *testing.T) {
 	for _, tt := range []struct {
 		name                string
 		ratelimitFilterName string
-		arg                 string
+		failClosed          bool
 		wantLimit           bool
 		limitStatusCode     int
 	}{
 		{
 			name:                "test clusterRatelimit fail open",
 			ratelimitFilterName: "clusterRatelimit",
-			arg:                 "false",
 			wantLimit:           false,
 			limitStatusCode:     http.StatusTooManyRequests,
 		},
 		{
 			name:                "test clusterRatelimit fail closed",
 			ratelimitFilterName: "clusterRatelimit",
-			arg:                 "true",
+			failClosed:          true,
 			wantLimit:           true,
 			limitStatusCode:     http.StatusTooManyRequests,
 		},
 		{
 			name:                "test clusterClientRatelimit fail open",
 			ratelimitFilterName: "clusterClientRatelimit",
-			arg:                 "false",
 			wantLimit:           false,
 			limitStatusCode:     http.StatusTooManyRequests,
 		},
 		{
 			name:                "test clusterClientRatelimit fail closed",
 			ratelimitFilterName: "clusterClientRatelimit",
-			arg:                 "true",
+			failClosed:          true,
 			wantLimit:           true,
 			limitStatusCode:     http.StatusTooManyRequests,
 		},
 		{
 			name:                "test backendRatelimit fail open",
 			ratelimitFilterName: "backendRatelimit",
-			arg:                 "false",
 			wantLimit:           false,
 			limitStatusCode:     http.StatusServiceUnavailable,
 		},
 		{
 			name:                "test backendRatelimit fail closed",
 			ratelimitFilterName: "backendRatelimit",
-			arg:                 "true",
+			failClosed:          true,
 			wantLimit:           true,
 			limitStatusCode:     http.StatusServiceUnavailable,
 		},
 		{
 			name:                "test clusterLeakyBucketRatelimit fail open",
 			ratelimitFilterName: "clusterLeakyBucketRatelimit",
-			arg:                 "false",
 			wantLimit:           false,
 			limitStatusCode:     http.StatusTooManyRequests,
 		},
 		{
 			name:                "test clusterLeakyBucketRatelimit fail closed",
 			ratelimitFilterName: "clusterLeakyBucketRatelimit",
-			arg:                 "true",
+			failClosed:          true,
 			wantLimit:           true,
 			limitStatusCode:     http.StatusTooManyRequests,
 		}} {
@@ -88,6 +85,7 @@ func TestFailureMode(t *testing.T) {
 
 			provider := fratelimit.NewRatelimitProvider(reg)
 			spec := fratelimit.NewFailureMode()
+			postProcessor, _ := spec.(*fratelimit.FailureModeSpec)
 			fr.Register(fratelimit.NewClusterRateLimit(provider))
 			fr.Register(fratelimit.NewClusterClientRateLimit(provider))
 			fr.Register(fratelimit.NewClusterLeakyBucketRatelimit(reg))
@@ -109,12 +107,23 @@ func TestFailureMode(t *testing.T) {
 			}
 
 			r := &eskip.Route{Filters: []*eskip.Filter{
-				{Name: spec.Name(), Args: []interface{}{tt.arg}},
 				{Name: tt.ratelimitFilterName, Args: args}}, Backend: backend.URL}
+			if tt.failClosed {
+				r.Filters = append([]*eskip.Filter{{Name: spec.Name()}},
+					r.Filters...)
+			}
 
-			proxy := proxytest.WithParams(fr, proxy.Params{
-				RateLimiters: reg,
-			}, r)
+			proxy := proxytest.WithParamsAndRoutingOptions(
+				fr,
+				proxy.Params{
+					RateLimiters: reg,
+				},
+				routing.Options{
+					PostProcessors: []routing.PostProcessor{
+						postProcessor,
+					},
+				},
+				r)
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
 				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)

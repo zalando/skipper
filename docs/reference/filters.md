@@ -1886,17 +1886,13 @@ Path("/expensive") -> clusterLeakyBucketRatelimit("user-${request.cookie.Authori
 
 ### ratelimitFailClosed
 
-This filter changes the failure mode. If true, infrastructure issues
-will lead to rate limit, else it will fail open.
-
-Parameters:
-
-* fail closed (bool) "true" or "false"
+This filter changes the failure mode for rate limit filters. If the
+filter is present, infrastructure issues will lead to rate limit.
 
 Examples:
 ```
-fail_open: * -> ratelimitFailClosed("false") -> clusterRatelimit("g",10, "1s")
-fail_closed: * -> ratelimitFailClosed("true") -> clusterRatelimit("g", 10, "1s")
+fail_open: * -> clusterRatelimit("g",10, "1s")
+fail_closed: * -> ratelimitFailClosed() -> clusterRatelimit("g", 10, "1s")
 ```
 
 In case `clusterRatelimit` could not reach the swarm (f.e. redis):
