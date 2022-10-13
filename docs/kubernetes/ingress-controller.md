@@ -149,7 +149,7 @@ You would point your DNS entries to the
 load balancer in front of skipper, for example automated using
 [external-dns](https://github.com/kubernetes-incubator/external-dns).
 
-## Why skipper uses endpoints and not services?
+## Why Skipper uses Endpoints and not Services?
 
 Skipper does not use the ClusterIP of [Kubernetes
 Services](http://kubernetes.io/docs/user-guide/services) to route
@@ -163,22 +163,24 @@ TLS handshake error to the endpoint.  Other reasons are future support
 of features like session affinity, different load balancer
 algorithms or distributed loadbalancing also known as service mesh.
 
-### Using services instead of endpoints
+### Using Services instead of Endpoints
 
-While using endpoints is the preferred way of using skipper as an
+While using Endpoints is the preferred way of using Skipper as an
 ingress controller as described in the section above, there might be
 edge cases that require the use of [Kubernetes
 Services](http://kubernetes.io/docs/user-guide/services) instead.
 
-An example of scenario where you might need to use services is when you rely
+An example of scenario where you might need to use Services is when you rely
 on Istio networking features to connect multiple clusters, as the IPs of
-Kubernetes endpoints will not resolve in all cases.
+Kubernetes Endpoints will not resolve in all cases.
 
 If you find yourself in this category, you can override the default behaviour
 by setting the `KubernetesForceService` flag to `true` in the `Skipper.Options` struct.
-This will cause skipper to create routes with `BackendType=eskip.NetworkBackend` instead
+This will cause Skipper to create routes with `BackendType=eskip.NetworkBackend` instead
 of `BackendType=eskip.LBBackend` and use the following address format:
-`http://<service name>.<namespace>.svc.cluster.local:<port>`.
+`http://<service name>.<namespace>.svc.cluster.local:<port>`. See the [Kubernetes Service DNS
+documentation](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#services)
+for more information.
 
 ## AWS deployment
 
