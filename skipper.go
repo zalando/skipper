@@ -1732,9 +1732,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			builtin.NewRouteCreationMetrics(mtr),
 			fadein.NewPostProcessor(),
 			admissionControlSpec.PostProcessor(),
-			failClosedRatelimitPostProcessor,
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
+	}
+	if failClosedRatelimitPostProcessor != nil {
+		ro.PostProcessors = append(ro.PostProcessors, failClosedRatelimitPostProcessor)
 	}
 
 	if o.DefaultFilters != nil {
