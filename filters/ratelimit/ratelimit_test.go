@@ -77,6 +77,7 @@ func (l *testLimit) get(s ratelimit.Settings) limit {
 	}
 	return l
 }
+
 func (l *testLimit) AllowContext(context.Context, string) bool { return false }
 func (l *testLimit) RetryAfter(string) int                     { return 31415 }
 

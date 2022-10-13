@@ -16,6 +16,7 @@ import (
 
 // clusterLimitRedis stores all data required for the cluster ratelimit.
 type clusterLimitRedis struct {
+	failClosed bool
 	typ        string
 	group      string
 	maxHits    int64
@@ -44,6 +45,7 @@ func newClusterRateLimiterRedis(s Settings, r *net.RedisRingClient, group string
 	}
 
 	rl := &clusterLimitRedis{
+		failClosed: s.FailClosed,
 		typ:        s.Type.String(),
 		group:      group,
 		maxHits:    int64(s.MaxHits),
@@ -128,7 +130,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 	c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &failed, now)
 
 	if failed {
-		allow = true // fail open
+		allow = !c.failClosed
 	}
 	if allow {
 		c.metrics.IncCounter(redisMetricsPrefix + "allows")

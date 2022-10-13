@@ -1607,12 +1607,14 @@ See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper
 
 Can be used as [egress](egress.md) feature.
 
-## ~~localRatelimit~~
+## rate limits
+
+### ~~localRatelimit~~
 
 **DEPRECATED** use [clientRatelimit](#clientratelimit) with the same
   settings instead.
 
-## clientRatelimit
+### clientRatelimit
 
 Per skipper instance calculated ratelimit, that allows number of
 requests by client. The definition of the same client is based on data
@@ -1650,7 +1652,7 @@ clientRatelimit(3, "1m", "X-Foo,Authorization,X-Bar")
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
-## ratelimit
+### ratelimit
 
 Per skipper instance calculated ratelimit, that allows forwarding a
 number of requests to the backend group. You need to run skipper with
@@ -1670,7 +1672,7 @@ ratelimit(4000, "1m", 503)
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
-## clusterClientRatelimit
+### clusterClientRatelimit
 
 This ratelimit is calculated across all skipper peers and the same
 rate limit group. The first parameter is a string to select the same
@@ -1698,7 +1700,7 @@ clusterClientRatelimit("groupA", 10, "1h", "X-Forwarded-For,Authorization,User-A
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
-## clusterRatelimit
+### clusterRatelimit
 
 This ratelimit is calculated across all skipper peers and the same
 rate limit group. The first parameter is a string to select the same
@@ -1723,7 +1725,7 @@ clusterRatelimit("groupB", 4000, "1m", 503)
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
-## backendRatelimit
+### backendRatelimit
 
 The filter configures request rate limit for each backend endpoint within rate limit group across all Skipper peers.
 When limit is reached Skipper refuses to forward the request to the backend and
@@ -1782,7 +1784,7 @@ foo: Path("/baz")
 Configures rate limit of 100 requests per second for each `backend1` and `backend2` and responds
 with `429 Too Many Requests` when limit is reached.
 
-## clusterLeakyBucketRatelimit
+### clusterLeakyBucketRatelimit
 
 Implements leaky bucket rate limit algorithm that uses Redis as a storage.
 Requires command line flags `-enable-ratelimits`, `-enable-swarm` and `-swarm-redis-urls` to be set.
@@ -1881,6 +1883,22 @@ clusterLeakyBucketRatelimit("session-${request.cookie.PHPSESSID}", 10, "1m", 5, 
 Path("/cheap")     -> clusterLeakyBucketRatelimit("user-${request.cookie.Authorization}", 1, "1s", 5, 1) -> ...
 Path("/expensive") -> clusterLeakyBucketRatelimit("user-${request.cookie.Authorization}", 1, "1s", 5, 2) -> ...
 ```
+
+### ratelimitFailClosed
+
+This filter changes the failure mode for rate limit filters. If the
+filter is present, infrastructure issues will lead to rate limit.
+
+Examples:
+```
+fail_open: * -> clusterRatelimit("g",10, "1s")
+fail_closed: * -> ratelimitFailClosed() -> clusterRatelimit("g", 10, "1s")
+```
+
+In case `clusterRatelimit` could not reach the swarm (f.e. redis):
+
+* Route `fail_open` will allow the request
+* Route `fail_closed` will deny the request
 
 ## shedder
 

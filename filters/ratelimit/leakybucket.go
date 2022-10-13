@@ -21,9 +21,10 @@ type leakyBucketSpec struct {
 }
 
 type leakyBucketFilter struct {
-	label     *eskip.Template
-	bucket    leakyBucket
-	increment int
+	label      *eskip.Template
+	bucket     leakyBucket
+	increment  int
+	failClosed bool
 }
 
 // NewClusterLeakyBucketRatelimit creates a filter Spec, whose instances implement rate limiting using leaky bucket algorithm.
@@ -84,7 +85,15 @@ func (s *leakyBucketSpec) CreateFilter(args []interface{}) (filters.Filter, erro
 	// emission is the reciprocal of the leak rate
 	emission := leakPeriod / time.Duration(leakVolume)
 
-	return &leakyBucketFilter{eskip.NewTemplate(label), s.create(capacity, emission), increment}, nil
+	return &leakyBucketFilter{
+		label:     eskip.NewTemplate(label),
+		bucket:    s.create(capacity, emission),
+		increment: increment,
+	}, nil
+}
+
+func fail(ctx filters.FilterContext, header http.Header) {
+	ctx.Serve(&http.Response{StatusCode: http.StatusTooManyRequests, Header: header})
 }
 
 func (f *leakyBucketFilter) Request(ctx filters.FilterContext) {
@@ -94,7 +103,12 @@ func (f *leakyBucketFilter) Request(ctx filters.FilterContext) {
 	}
 	added, retry, err := f.bucket.Add(ctx.Request().Context(), label, f.increment)
 	if err != nil {
-		return // allow on error
+		if f.failClosed {
+			header := http.Header{}
+			header.Set("Retry-After", "60")
+			fail(ctx, header)
+		}
+		return
 	}
 	if added {
 		return // allow if successfully added
@@ -104,7 +118,8 @@ func (f *leakyBucketFilter) Request(ctx filters.FilterContext) {
 	if retry > 0 {
 		header.Set("Retry-After", strconv.Itoa(int(retry/time.Second)))
 	}
-	ctx.Serve(&http.Response{StatusCode: http.StatusTooManyRequests, Header: header})
+
+	fail(ctx, header)
 }
 
 func (*leakyBucketFilter) Response(filters.FilterContext) {}

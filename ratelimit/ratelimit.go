@@ -278,6 +278,13 @@ func (rrl *RoundRobinLookuper) String() string {
 
 // Settings configures the chosen rate limiter
 type Settings struct {
+	// FailClosed allows to to decide what happens on failures to
+	// query the ratelimit. For example redis is down, fail open
+	// or fail closed. FailClosed set to true will deny the
+	// request and set to true will allow the request. Default is
+	// to fail open.
+	FailClosed bool `yaml:"fail-closed"`
+
 	// Type of the chosen rate limiter
 	Type RatelimitType `yaml:"type"`
 
