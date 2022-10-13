@@ -5,24 +5,19 @@ import (
 	"github.com/zalando/skipper/routing"
 )
 
-type FailureModeSpec struct{}
-type failureMode struct {
-	failClosed bool
-}
+type failClosedSpec struct{}
+type failClosed struct{}
+type FailClosedPostProcessor struct{}
 
-func NewFailureMode() filters.Spec {
-	return &FailureModeSpec{}
-}
-
-func (*FailureModeSpec) Name() string {
-	return filters.RatelimitFailClosedName
+func NewFailClosedPostProcessor() *FailClosedPostProcessor {
+	return &FailClosedPostProcessor{}
 }
 
 // Do is implementing a PostProcessor interface to change the filter
 // configs at filter processing time. The fail open/closed decision
 // needs to be done once and can be processed before we activate the
 // new routes.
-func (*FailureModeSpec) Do(routes []*routing.Route) []*routing.Route {
+func (*FailClosedPostProcessor) Do(routes []*routing.Route) []*routing.Route {
 	for _, r := range routes {
 		var found bool
 
@@ -37,7 +32,7 @@ func (*FailureModeSpec) Do(routes []*routing.Route) []*routing.Route {
 			}
 
 			switch f.Name {
-			// leacky bucket has no Settings
+			// leaky bucket has no Settings
 			case filters.ClusterLeakyBucketRatelimitName:
 				lf, ok := f.Filter.(*leakyBucketFilter)
 				if ok {
@@ -65,12 +60,18 @@ func (*FailureModeSpec) Do(routes []*routing.Route) []*routing.Route {
 	return routes
 }
 
-func (*FailureModeSpec) CreateFilter([]interface{}) (filters.Filter, error) {
-	return &failureMode{
-		failClosed: true,
-	}, nil
+func NewFailClosed() filters.Spec {
+	return &failClosedSpec{}
 }
 
-func (*failureMode) Request(filters.FilterContext) {}
+func (*failClosedSpec) Name() string {
+	return filters.RatelimitFailClosedName
+}
 
-func (*failureMode) Response(filters.FilterContext) {}
+func (*failClosedSpec) CreateFilter([]interface{}) (filters.Filter, error) {
+	return &failClosed{}, nil
+}
+
+func (*failClosed) Request(filters.FilterContext) {}
+
+func (*failClosed) Response(filters.FilterContext) {}

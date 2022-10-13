@@ -1566,7 +1566,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	var ratelimitRegistry *ratelimit.Registry
-	var failureModeFilterPostProcessor *ratelimitfilters.FailureModeSpec
+	var failClosedRatelimitPostProcessor *ratelimitfilters.FailClosedPostProcessor
 	if o.EnableRatelimiters || len(o.RatelimitSettings) > 0 {
 		log.Infof("enabled ratelimiters %v: %v", o.EnableRatelimiters, o.RatelimitSettings)
 		ratelimitRegistry = ratelimit.NewSwarmRegistry(swarmer, redisOptions, o.RatelimitSettings...)
@@ -1581,12 +1581,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			o.ClusterRatelimitMaxGroupShards = 1
 		}
 
-		failureModeFilter := ratelimitfilters.NewFailureMode()
-		failureModeFilterPostProcessor, _ = failureModeFilter.(*ratelimitfilters.FailureModeSpec)
+		failClosedRatelimitPostProcessor = ratelimitfilters.NewFailClosedPostProcessor()
 
 		provider := ratelimitfilters.NewRatelimitProvider(ratelimitRegistry)
 		o.CustomFilters = append(o.CustomFilters,
-			failureModeFilter,
+			ratelimitfilters.NewFailClosed(),
 			ratelimitfilters.NewClientRatelimit(provider),
 			ratelimitfilters.NewLocalRatelimit(provider),
 			ratelimitfilters.NewRatelimit(provider),
@@ -1733,7 +1732,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			builtin.NewRouteCreationMetrics(mtr),
 			fadein.NewPostProcessor(),
 			admissionControlSpec.PostProcessor(),
-			failureModeFilterPostProcessor,
+			failClosedRatelimitPostProcessor,
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}

@@ -84,13 +84,11 @@ func TestFailureMode(t *testing.T) {
 			defer reg.Close()
 
 			provider := fratelimit.NewRatelimitProvider(reg)
-			spec := fratelimit.NewFailureMode()
-			postProcessor, _ := spec.(*fratelimit.FailureModeSpec)
 			fr.Register(fratelimit.NewClusterRateLimit(provider))
 			fr.Register(fratelimit.NewClusterClientRateLimit(provider))
 			fr.Register(fratelimit.NewClusterLeakyBucketRatelimit(reg))
 			fr.Register(fratelimit.NewBackendRatelimit())
-			fr.Register(spec)
+			fr.Register(fratelimit.NewFailClosed())
 
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
@@ -109,7 +107,7 @@ func TestFailureMode(t *testing.T) {
 			r := &eskip.Route{Filters: []*eskip.Filter{
 				{Name: tt.ratelimitFilterName, Args: args}}, Backend: backend.URL}
 			if tt.failClosed {
-				r.Filters = append([]*eskip.Filter{{Name: spec.Name()}},
+				r.Filters = append([]*eskip.Filter{{Name: fratelimit.NewFailClosed().Name()}},
 					r.Filters...)
 			}
 
@@ -120,7 +118,7 @@ func TestFailureMode(t *testing.T) {
 				},
 				routing.Options{
 					PostProcessors: []routing.PostProcessor{
-						postProcessor,
+						fratelimit.NewFailClosedPostProcessor(),
 					},
 				},
 				r)
