@@ -195,6 +195,19 @@ load balancer virtual IP.
 
 ![ingress-traffic-flow](../img/ingress-traffic-flow-baremetal.svg)
 
+## RouteSRV
+
+In kubernetes skipper-ingress fetches ingress/routegroup configurations every **3s**, with high number of skipper pods *~100* we faced issues with kube-apiserver. At which we introduced RouteSRV, which will serve as a layer between kube-apiserver and skipper ingress, so it will give us more flexiability in scaling skipper-ingress without affecting k8s-apiserver
+
+### Before
+
+![skipper-without-routesrv](../img/skipper_without_routesrv.svg)
+
+### After
+
+![skipper-with-routesrv](../img/skipper_with_routesrv.svg)
+
+
 ## Requirements
 
 In general for one endpoint you need, a DNS A/AAAA record pointing to
