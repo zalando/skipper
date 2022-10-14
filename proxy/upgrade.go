@@ -132,6 +132,13 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Backend sent Connection: close
+	if resp.Close {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(http.StatusText(http.StatusServiceUnavailable)))
+		return
+	}
+
 	requestHijackedConn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		log.Errorf("Error hijacking request connection: %s", err)
