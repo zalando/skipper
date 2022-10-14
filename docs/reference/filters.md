@@ -62,7 +62,7 @@ Example:
 route1: Host(/^all401\.example\.org$/) -> status(401) -> <shunt>;
 ```
 
-## headers
+## HTTP Headers
 ### preserveHost
 
 Sets the incoming `Host: ` header on the outgoing backend connection.
@@ -299,7 +299,7 @@ Same as [xforward](#xforward), but instead of appending the last remote IP, it p
 approach of certain LB implementations.
 
 
-## path
+## HTTP Path
 ### modPath
 
 Replace all matched regex expressions in the path.
@@ -329,7 +329,7 @@ Parameters:
 The replacement may contain [template placeholders](#template-placeholders).
 If a template placeholder can't be resolved then empty value is used for it.
 
-## redirect
+## HTTP Redirect
 ### redirectTo
 
 Creates an HTTP redirect response.
@@ -357,7 +357,7 @@ see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
 Same as [redirectTo](#redirectto), but replaces all strings to lower case.
 
-## query
+## HTTP Query
 ### stripQuery
 
 Removes the query parameter from the request URL, and if the first filter
@@ -433,7 +433,7 @@ The second filter will set `Authorization` header to the
 `access_token` query param with a prefix value `Bearer ` and will
 not override the value if the header exists already.
 
-## diagnostics
+## Diagnostics
 These filters are meant for diagnostic or load testing  purposes
 
 ### randomContent
@@ -634,7 +634,7 @@ Example:
 * -> logHeader("request", "response") -> "https://www.example.org";
 ```
 
-## shadow traffic
+## Shadow Traffic
 ### tee
 
 Provides a unix-like `tee` feature for routing.
@@ -708,7 +708,7 @@ See also:
 * [Tee predicate](predicates.md#tee)
 * [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
 
-## http body
+## HTTP Body
 ### compress
 
 The filter, when executed on the response path, checks if the response entity can
@@ -958,7 +958,7 @@ Example:
 editorRoute: * -> sedRequestDelim("foo", "bar", "\n") -> "https://www.example.org";
 ```
 
-## authentication and authorization
+## Authentication and Authorization
 ### basicAuth
 
 Enable Basic Authentication
@@ -1002,7 +1002,7 @@ webhook("https://custom-webhook.example.org/auth", "X-Copy-Webhook-Header,X-Copy
 The webhook timeout has a default of 2 seconds and can be globally
 changed, if skipper is started with `-webhook-timeout=2s` flag.
 
-### tokeninfo
+### Tokeninfo
 
 Tokeninfo handled by another service.
 The filters just validate the response from the tokeninfo
@@ -1095,7 +1095,7 @@ Examples:
 oauthTokeninfoAllKV("k1", "v1", "k2", "v2")
 ```
 
-### tokenintrospection
+### Tokenintrospection
 
 Tokenintrospection handled by another service.
 The filters just validate the response from the tokenintrospection
@@ -1294,7 +1294,7 @@ Read client-id and client-secret from environment variables
 secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 ```
 
-### jwt
+### JWT
 #### jwtValidation
 
 The filter parses bearer jwt token from Authorization header and validates the signature using public keys
@@ -1309,7 +1309,7 @@ jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 ```
 
 
-### forward
+### Forward Token Data
 #### forwardToken
 
 The filter takes the header name as its first argument and sets header value to the
@@ -1342,7 +1342,7 @@ Examples:
 forwardTokenField("X-Tokeninfo-Forward-Oid", "oid") -> forwardTokenField("X-Tokeninfo-Forward-Sub", "sub")
 ```
 
-### oauth
+### OAuth2
 #### oauthGrant
 
 Enables authentication and authorization with an OAuth2 authorization code grant flow as
@@ -1459,7 +1459,7 @@ Skipper arguments:
 | -------- | --------- | ----------- |
 | `-oauth2-tokeninfo-subject-key` | **yes** | the key of the attribute containing the OAuth2 subject ID in the OAuth2 provider's tokeninfo JSON payload. Default: `uid`. Example: `-oauth2-tokeninfo-subject-key=sub` |
 
-### openid connect
+### OpenID Connect
 #### oauthOidcUserInfo
 
 ```
@@ -1562,7 +1562,7 @@ oidcClaimsQuery("/:name%\"*One\"", "/path:groups.#[%\"*-Test-Users\"] groups.#[=
 
 As of now there is no negative/deny rule possible. The first matching path is evaluated against the defined query/queries and if positive, permitted.
 
-## cookie
+## Cookie Handling
 ### requestCookie
 
 Append a cookie to the request header.
@@ -1607,7 +1607,7 @@ Example:
 jsCookie("test-session-info", "abc-debug", 31536000, "change-only")
 ```
 
-## circuit breakers
+## Circuit Breakers
 ### consecutiveBreaker
 
 This breaker opens when the proxy could not connect to a backend or received
@@ -1667,7 +1667,7 @@ See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper
 
 Can be used as [egress](egress.md) feature.
 
-## rate limits
+## Rate Limit
 
 ### ~~localRatelimit~~
 
@@ -1960,7 +1960,7 @@ In case `clusterRatelimit` could not reach the swarm (f.e. redis):
 * Route `fail_open` will allow the request
 * Route `fail_closed` will deny the request
 
-## shedder
+## Load Shedding
 
 The basic idea of load shedding is to reduce errors by early stopping
 some of the ingress requests that create too much load and serving
@@ -2037,7 +2037,7 @@ probability you have to use values lower than 1:
 See [the scripts page](scripts.md)
 
 
-## logs
+## Logs
 ### ~~accessLogDisabled~~
 
 **Deprecated:** use [disableAccessLog](#disableaccesslog) or [enableAccessLog](#enableaccesslog)
@@ -2122,7 +2122,7 @@ unverifiedAuditLog()
 unverifiedAuditLog("azp")
 ```
 
-## backend
+## Backend
 ### backendIsProxy
 
 Notifies the proxy that the backend handling this request is also a
@@ -2485,7 +2485,7 @@ Example:
 originMarker("apiUsageMonitoring", "deployment1", "2019-08-30T09:55:51Z")
 ```
 
-## scheduler
+## Scheduler
 ### fifo
 
 This Filter is similar to the [lifo](#lifo) filter in regards to
@@ -2575,7 +2575,7 @@ It is possible to use the lifoGroup filter together with the single lifo filter,
 a route belongs to a group, but needs to have additional stricter settings then the whole
 group.
 
-## RFC compliance
+## RFC Compliance
 ### rfcHost
 
 This filter removes the optional trailing dot in the outgoing host
@@ -2621,7 +2621,7 @@ It is also possible to enable this behavior centrally for a Skipper instance wit
 the -rfc-patch-path flag. See
 [URI standards interpretation](../operation/operation.md#uri-standards-interpretation).
 
-## egress
+## Egress
 ### bearerinjector
 
 This filter injects `Bearer` tokens into `Authorization` headers read
@@ -2648,7 +2648,7 @@ have to be filenames `write-token` and `read-token` within the
 specified credential paths `/tmp/secrets/`, resulting in
 `/tmp/secrets/write-token` and `/tmp/secrets/read-token`.
 
-## open tracing
+## Open Tracing
 ### tracingBaggageToTag
 
 This filter adds an opentracing tag for a given baggage item in the trace.
@@ -2712,7 +2712,7 @@ This filter sets the name of the outgoing (client span) in opentracing. The defa
 tracingSpanName("api-operation")
 ```
 
-## load balancing
+## Load Balancing
 
 Some filters influence how load balancing will be done
 
