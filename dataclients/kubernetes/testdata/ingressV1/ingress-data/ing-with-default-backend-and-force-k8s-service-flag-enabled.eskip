@@ -1,0 +1,3 @@
+kube_foo__baz______:
+	*
+	-> "http://bar.foo.svc.cluster.local:8080";

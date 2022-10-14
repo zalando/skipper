@@ -1,0 +1,4 @@
+kube_foo__qux__www_example_org_____bar:
+  Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathRegexp("^/")
+  -> setPath("/foo")
+  -> "http://bar.foo.svc.cluster.local:8080";

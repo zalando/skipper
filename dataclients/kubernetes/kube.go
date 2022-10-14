@@ -215,6 +215,10 @@ type Options struct {
 	AllowedExternalNames []*regexp.Regexp
 
 	CertificateRegistry *certregistry.CertRegistry
+
+	// ForceKubernetesService overrides the default Skipper functionality to route traffic using
+	// Kubernetes Endpoint, instead using Kubernetes Services.
+	ForceKubernetesService bool
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.

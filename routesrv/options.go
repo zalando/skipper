@@ -101,6 +101,10 @@ type Options struct {
 	// used with external name services (type=ExternalName).
 	KubernetesAllowedExternalNames []*regexp.Regexp
 
+	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
+	// instead using Kubernetes Services.
+	KubernetesForceService bool
+
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
