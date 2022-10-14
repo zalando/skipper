@@ -48,56 +48,38 @@ Example route that creates header from query parameter:
 r: Path("/redirect") && QueryParam("to") -> status(303) -> setResponseHeader("Location", "${request.query.to}") -> <shunt>;
 ```
 
-## backendIsProxy
+## status
 
-Notifies the proxy that the backend handling this request is also a
-proxy. The proxy type is based in the URL scheme which can be either
-`http`, `https` or `socks5`.
-
-Keep in mind that Skipper currently cannot handle `CONNECT` requests
-by tunneling the traffic to the target destination, however, the
-`CONNECT` requests can be forwarded to a different proxy using this
-filter.
-
-
-Example:
-
-```
-foo1:
-  *
-  -> backendIsProxy()
-  -> "http://proxy.example.com";
-
-foo2:
-  *
-  -> backendIsProxy()
-  -> <roundRobin, "http://proxy1.example.com", "http://proxy2.example.com">;
-
-foo3:
-  *
-  -> setDynamicBackendUrl("http://proxy.example.com")
-  -> backendIsProxy()
-  -> <dynamic>;
-```
-
-
-## blockContent
-
-Block a request based on it's body content.
-
-The filter max buffer size is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
+Sets the response status code to the given value, with no regards to the backend response.
 
 Parameters:
 
-* toblockList (List of strings)
+* status code (int)
 
 Example:
 
 ```
-* -> blockContent("Malicious Content") -> "http://example.com";
+route1: Host(/^all401\.example\.org$/) -> status(401) -> <shunt>;
 ```
 
-## modRequestHeader
+## HTTP Headers
+### preserveHost
+
+Sets the incoming `Host: ` header on the outgoing backend connection.
+
+It can be used to override the `proxyPreserveHost` behavior for individual routes.
+
+Parameters: "true" or "false"
+
+* "true" - use the Host header from the incoming request
+* "false" - use the host from the backend address
+
+Example:
+```
+route1: * -> preserveHost("true") -> "http://backend.example.org";
+```
+
+### modRequestHeader
 
 Replace all matched regex expressions in the given header.
 
@@ -113,7 +95,7 @@ Example:
 enforce_www: * -> modRequestHeader("Host", "^zalando\.(\w+)$", "www.zalando.$1") -> redirectTo(301);
 ```
 
-## setRequestHeader
+### setRequestHeader
 
 Set headers for requests.
 
@@ -136,12 +118,12 @@ foo: * -> setRequestHeader("X-Passed-Skipper", "true") -> "https://backend.examp
 Path("/resource/:id") -> setRequestHeader("X-Resource-Id", "${id}") -> clusterClientRatelimit("resource", 10, "1m", "X-Resource-Id") -> "https://backend.example.org";
 ```
 
-## appendRequestHeader
+### appendRequestHeader
 
 Same as [setRequestHeader](#setrequestheader),
 but appends the provided value to the already existing ones.
 
-## dropRequestHeader
+### dropRequestHeader
 
 Removes a header from the request
 
@@ -155,7 +137,7 @@ Example:
 foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
 ```
 
-## modResponseHeader
+### modResponseHeader
 
 Same as [modRequestHeader](#modrequestheader), only for responses
 
@@ -171,7 +153,7 @@ Example:
 do_not_avoid_caching: * -> modResponseHeader("cache-control", "no-cache", "cache") -> "https://zalando.de";
 ```
 
-## setResponseHeader
+### setResponseHeader
 
 Same as [setRequestHeader](#setrequestheader), only for responses
 
@@ -185,15 +167,15 @@ set_cookie_with_path_param:
   -> <shunt>
 ```
 
-## appendResponseHeader
+### appendResponseHeader
 
 Same as [appendRequestHeader](#appendrequestheader), only for responses
 
-## dropResponseHeader
+### dropResponseHeader
 
 Same as [dropRequestHeader](#droprequestheader) but for responses from the backend
 
-## setContextRequestHeader
+### setContextRequestHeader
 
 Set headers for requests using values from the filter context (state bag). If the
 provided key (second parameter) cannot be found in the state bag, then it doesn't
@@ -213,20 +195,20 @@ the header of the outgoing request with the X-Uid name:
 foo: * -> oauthTokeninfoAllScope("address_service.all") -> setContextRequestHeader("X-Uid", "auth-user") -> "https://backend.example.org";
 ```
 
-## appendContextRequestHeader
+### appendContextRequestHeader
 
 Same as [setContextRequestHeader](#setcontextrequestheader),
 but appends the provided value to the already existing ones.
 
-## setContextResponseHeader
+### setContextResponseHeader
 
 Same as [setContextRequestHeader](#setcontextrequestheader), except for responses.
 
-## appendContextResponseHeader
+### appendContextResponseHeader
 
 Same as [appendContextRequestHeader](#appendcontextrequestheader), except for responses.
 
-## copyRequestHeader
+### copyRequestHeader
 
 Copies value of a given request header to another header.
 
@@ -241,11 +223,84 @@ Example:
 foo: * -> copyRequestHeader("X-Foo", "X-Bar") -> "https://backend.example.org";
 ```
 
-## copyResponseHeader
+### copyResponseHeader
 
 Same as [copyRequestHeader](#copyrequestheader), except for responses.
 
-## modPath
+### corsOrigin
+
+The filter accepts an optional variadic list of acceptable origin
+parameters. If the input argument list is empty, the header will
+always be set to `*` which means any origin is acceptable. Otherwise
+the header is only set if the request contains an Origin header and
+its value matches one of the elements in the input list. The header is
+only set on the response.
+
+Parameters:
+
+*  url (variadic string)
+
+Examples:
+
+```
+corsOrigin()
+corsOrigin("https://www.example.org")
+corsOrigin("https://www.example.org", "http://localhost:9001")
+```
+
+### headerToQuery
+
+Filter which assigns the value of a given header from the incoming Request to a given query param
+
+Parameters:
+
+* The name of the header to pick from request
+* The name of the query param key to add to request
+
+Examples:
+
+```
+headerToQuery("X-Foo-Header", "foo-query-param")
+```
+
+The above filter will set `foo-query-param` query param respectively to the `X-Foo-Header` header
+and will override the value if the queryparam exists already
+
+### flowId
+
+Sets an X-Flow-Id header, if it's not already in the request.
+This allows you to have a trace in your logs, that traces from
+the incoming request on the edge to all backend services.
+
+Flow IDs must be in a certain format to be reusable in skipper. Valid formats
+depend on the generator used in skipper. Default generator creates IDs of
+length 16 matching the following regex: `^[0-9a-zA-Z+-]+$`
+
+Parameters:
+
+* no parameter: resets always the X-Flow-Id header to a new value
+* `"reuse"`: only create X-Flow-Id header if not already set or if the value is invalid in the request
+
+Example:
+
+```
+* -> flowId() -> "https://some-backend.example.org";
+* -> flowId("reuse") -> "https://some-backend.example.org";
+```
+
+### xforward
+
+Standard proxy headers. Appends the client remote IP to the X-Forwarded-For and sets the X-Forwarded-Host
+header.
+
+### xforwardFirst
+
+Same as [xforward](#xforward), but instead of appending the last remote IP, it prepends it to comply with the
+approach of certain LB implementations.
+
+
+## HTTP Path
+### modPath
 
 Replace all matched regex expressions in the path.
 
@@ -263,7 +318,7 @@ new_base: PathSubtree("/base") -> modPath("/base", "/new/base) -> "https://backe
 rm_api_regex: Path("/api") -> modPath("^/api/(.*)/v2$", "/$1") -> "https://backend.example.org";
 ```
 
-## setPath
+### setPath
 
 Replace the path of the original request to the replacement.
 
@@ -274,7 +329,8 @@ Parameters:
 The replacement may contain [template placeholders](#template-placeholders).
 If a template placeholder can't be resolved then empty value is used for it.
 
-## redirectTo
+## HTTP Redirect
+### redirectTo
 
 Creates an HTTP redirect response.
 
@@ -297,35 +353,12 @@ redirect2: * -> redirectTo(301) -> <shunt>;
 
 see also [redirect-handling](../tutorials/common-use-cases.md#redirect-handling)
 
-## redirectToLower
+### redirectToLower
 
 Same as [redirectTo](#redirectto), but replaces all strings to lower case.
 
-## static
-
-Serves static content from the filesystem.
-
-Parameters:
-
-* Request path to strip (string)
-* Target base path in the filesystem (string)
-
-Example:
-
-This serves files from `/srv/www/dehydrated` when requested via `/.well-known/acme-challenge/`,
-e.g. the request `GET /.well-known/acme-challenge/foo` will serve the file `/srv/www/dehydrated/foo`.
-```
-acme: Host(/./) && Method("GET") && Path("/.well-known/acme-challenge/*")
-    -> static("/.well-known/acme-challenge/", "/srv/www/dehydrated") -> <shunt>;
-```
-
-Notes:
-
-* redirects to the directory when a file `index.html` exists and it is requested, i.e. `GET /foo/index.html` redirects to `/foo/` which serves then the `/foo/index.html`
-* serves the content of the `index.html` when a directory is requested
-* does a simple directory listing of files / directories when no `index.html` is present
-
-## stripQuery
+## HTTP Query
+### stripQuery
 
 Removes the query parameter from the request URL, and if the first filter
 parameter is `"true"`, preserves the query parameter in the form of
@@ -338,37 +371,345 @@ Example:
 * -> stripQuery("true") -> "http://backend.example.org";
 ```
 
-## preserveHost
+### setQuery
 
-Sets the incoming `Host: ` header on the outgoing backend connection.
-
-It can be used to override the `proxyPreserveHost` behavior for individual routes.
-
-Parameters: "true" or "false"
-
-* "true" - use the Host header from the incoming request
-* "false" - use the host from the backend address
-
-Example:
-```
-route1: * -> preserveHost("true") -> "http://backend.example.org";
-```
-
-## status
-
-Sets the response status code to the given value, with no regards to the backend response.
+Set the query string `?k=v` in the request to the backend to a given value.
 
 Parameters:
 
-* status code (int)
+* key (string)
+* value (string)
+
+Key and value may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
 
 Example:
 
 ```
-route1: Host(/^all401\.example\.org$/) -> status(401) -> <shunt>;
+setQuery("k", "v")
 ```
 
-## compress
+### dropQuery
+
+Delete the query string `?k=v` in the request to the backend for a
+given key.
+
+Parameters:
+
+* key (string)
+
+Key may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then empty value is used for it.
+
+Example:
+
+```
+dropQuery("k")
+```
+
+### queryToHeader
+
+Filter which assigns the value of a given query param from the
+incoming Request to a given Header with optional format string value.
+
+Parameters:
+
+* The name of the query param key to pick from request
+* The name of the header to add to request
+* The format string used to create the header value, which gets the
+  value from the query value as before
+
+Examples:
+
+```
+queryToHeader("foo-query-param", "X-Foo-Header")
+queryToHeader("access_token", "Authorization", "Bearer %s")
+```
+
+The first filter will set `X-Foo-Header` header respectively to the `foo-query-param` query param
+and will not override the value if the header exists already.
+
+The second filter will set `Authorization` header to the
+`access_token` query param with a prefix value `Bearer ` and will
+not override the value if the header exists already.
+
+## Diagnostics
+These filters are meant for diagnostic or load testing  purposes
+
+### randomContent
+
+Generate response with random text of specified length.
+
+Parameters:
+
+* length of data (int)
+
+Example:
+
+```
+* -> randomContent(42) -> <shunt>;
+```
+
+### repeatContent
+
+Generate response of specified size from repeated text.
+
+Parameters:
+
+* text to repeat (string)
+* size of response in bytes (int)
+
+Example:
+
+```
+* -> repeatContent("I will not waste chalk. ", 1000) -> <shunt>;
+```
+
+### backendTimeout
+
+Configure backend timeout. Skipper responds with `504 Gateway Timeout` status if obtaining a connection,
+sending the request, and reading the backend response headers and body takes longer than the configured timeout.
+However, if response streaming has already started it will be terminated, i.e. client will receive backend response
+status and truncated response body.
+
+Parameters:
+
+* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+
+Example:
+
+```
+* -> backendTimeout("10ms") -> "https://www.example.org";
+```
+
+### latency
+
+Enable adding artificial latency
+
+Parameters:
+
+* latency in milliseconds (int) or in `time` as a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
+
+Example:
+
+```
+* -> latency(120) -> "https://www.example.org";
+* -> latency("120ms") -> "https://www.example.org";
+```
+
+### bandwidth
+
+Enable bandwidth throttling.
+
+Parameters:
+
+* bandwidth in kb/s (int)
+
+Example:
+
+```
+* -> bandwidth(30) -> "https://www.example.org";
+```
+
+### chunks
+
+Enables adding chunking responses with custom chunk size with
+artificial delays in between response chunks. To disable delays, set
+the second parameter to "0".
+
+Parameters:
+
+* byte length (int)
+* time duration (time.Duration)
+
+Example:
+
+```
+* -> chunks(1024, "120ms") -> "https://www.example.org";
+* -> chunks(1024, "0") -> "https://www.example.org";
+```
+
+### backendLatency
+
+Same as [latency filter](#latency), but on the request path and not on
+the response path.
+
+### backendBandwidth
+
+Same as [bandwidth filter](#bandwidth), but on the request path and not on
+the response path.
+
+### backendChunks
+
+Same as [chunks filter](#chunks), but on the request path and not on
+the response path.
+
+### absorb
+
+The absorb filter reads and discards the payload of the incoming requests.
+It logs with INFO level and a unique ID per request:
+
+- the event of receiving the request
+- partial and final events for consuming request payload and total consumed byte count
+- the finishing event of the request
+- any read errors other than EOF
+
+### absorbSilent
+
+The absorbSilent filter reads and discards the payload of the incoming requests. It only
+logs read errors other than EOF.
+
+### uniformRequestLatency
+
+The uniformRequestLatency filter introduces uniformly distributed
+jitter latency within `[mean-delta, mean+delta]` interval for
+requests. The first parameter is the mean and the second is delta. In
+the example we would sleep for `100ms+/-10ms`.
+
+Example:
+
+```
+* -> uniformRequestLatency("100ms", "10ms") -> "https://www.example.org";
+```
+
+### normalRequestLatency
+
+The normalRequestLatency filter introduces normally distributed jitter
+latency with configured mean value for requests. The first parameter
+is µ (mean) and the second is σ as in
+https://en.wikipedia.org/wiki/Normal_distribution.
+
+Example:
+
+```
+* -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
+```
+
+### uniformResponseLatency
+
+The uniformResponseLatency filter introduces uniformly distributed
+jitter latency within `[mean-delta, mean+delta]` interval for
+responses. The first parameter is the mean and the second is delta. In
+the example we would sleep for `100ms+/-10ms`.
+
+Example:
+
+```
+* -> uniformRequestLatency("100ms", "10ms") -> "https://www.example.org";
+```
+
+### normalResponseLatency
+
+The normalResponseLatency filter introduces normally distributed
+jitter latency with configured mean value for responses. The first
+parameter is µ (mean) and the second is σ as in
+https://en.wikipedia.org/wiki/Normal_distribution.
+
+Example:
+
+```
+* -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
+```
+
+### logHeader
+
+The logHeader filter prints the request line and the header, but not the body, to
+stderr. Note that this filter should be used only in diagnostics setup and with care,
+since the request headers may contain sensitive data, and they also can explode the
+amount of logs. Authorization headers will be truncated in request and
+response header logs. You can log request or response headers, which
+defaults for backwards compatibility to request headers.
+
+Parameters:
+
+* no arg, similar to: "request"
+* "request" or "response" (string varargs)
+
+Example:
+
+```
+* -> logHeader() -> "https://www.example.org";
+* -> logHeader("request") -> "https://www.example.org";
+* -> logHeader("response") -> "https://www.example.org";
+* -> logHeader("request", "response") -> "https://www.example.org";
+```
+
+## Shadow Traffic
+### tee
+
+Provides a unix-like `tee` feature for routing.
+
+Using this filter, the request will be sent to a "shadow" backend in addition
+to the main backend of the route.
+
+Example:
+
+```
+* -> tee("https://audit-logging.example.org") -> "https://foo.example.org";
+```
+
+This will send an identical request for foo.example.org to
+audit-logging.example.org. Another use case could be using it for benchmarking
+a new backend with some real traffic. This we call "shadow traffic".
+
+The above route will forward the request to `https://foo.example.org` as it
+normally would do, but in addition to that, it will send an identical request to
+`https://audit-logging.example.org`. The request sent to
+`https://audit-logging.example.org` will receive the same method and headers,
+and a copy of the body stream. The `tee` response is ignored for this shadow backend.
+
+It is possible to change the path of the tee request, in a similar way to the
+[modPath](#modpath) filter:
+
+```
+Path("/api/v1") -> tee("https://api.example.org", "^/v1", "/v2" ) -> "http://api.example.org";
+```
+
+In the above example, one can test how a new version of an API would behave on
+incoming requests.
+
+### teenf
+
+The same as [tee filter](#tee), but does not follow redirects from the backend.
+
+### teeLoopback
+
+This filter provides a unix-like tee feature for routing, but unlike the [tee](#tee),
+this filter feeds the copied request to the start of the routing, including the
+route lookup and executing the filters on the matched route.
+
+It is recommended to use this solution instead of the tee filter, because the same
+routing facilities are used for the outgoing tee requests as for the normal
+requests, and all the filters and backend types are supported.
+
+To ensure that the right route, or one of the right set of routes, is matched
+after the loopback, use the filter together with the [Tee](predicates.md#tee)
+predicate, however, this is not mandatory if the request is changed via other
+filters, such that other predicates ensure matching the right route. To avoid
+infinite looping, the number of requests spawn from a single incoming request
+is limited similarly as in case of the
+[loopback backend](backends.md#loopback-backend).
+
+Parameters:
+
+* tee group (string): a label identifying which routes should match the loopback
+  request, marked with the [Tee](predicates.md#tee) predicate
+
+Example, generate shadow traffic from 10% of the production traffic:
+
+```
+main: * -> "https://main-backend.example.org;
+main-split: Traffic(.1) -> teeLoopback("test-A") -> "https://main-backend.example.org";
+shadow: Tee("test-A") && True() -> "https://test-backend.example.org";
+```
+
+See also:
+
+* [Tee predicate](predicates.md#tee)
+* [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
+
+## HTTP Body
+### compress
 
 The filter, when executed on the response path, checks if the response entity can
 be compressed. To decide, it checks the Content-Encoding, the Cache-Control and
@@ -422,7 +763,7 @@ transfer encoding, sets the Content-Encoding to the selected encoding and sets t
 
 The compression happens in a streaming way, using only a small internal buffer.
 
-## decompress
+### decompress
 
 The filter, when executed on the response path, checks if the response entity is
 compressed by a supported algorithm (`gzip`, `deflate`, `br`). To decide, it checks the Content-Encoding
@@ -440,43 +781,31 @@ Example:
 * -> decompress() -> "https://www.example.org"
 ```
 
-## setQuery
+### static
 
-Set the query string `?k=v` in the request to the backend to a given value.
-
-Parameters:
-
-* key (string)
-* value (string)
-
-Key and value may contain [template placeholders](#template-placeholders).
-If a template placeholder can't be resolved then empty value is used for it.
-
-Example:
-
-```
-setQuery("k", "v")
-```
-
-## dropQuery
-
-Delete the query string `?k=v` in the request to the backend for a
-given key.
+Serves static content from the filesystem.
 
 Parameters:
 
-* key (string)
-
-Key may contain [template placeholders](#template-placeholders).
-If a template placeholder can't be resolved then empty value is used for it.
+* Request path to strip (string)
+* Target base path in the filesystem (string)
 
 Example:
 
+This serves files from `/srv/www/dehydrated` when requested via `/.well-known/acme-challenge/`,
+e.g. the request `GET /.well-known/acme-challenge/foo` will serve the file `/srv/www/dehydrated/foo`.
 ```
-dropQuery("k")
+acme: Host(/./) && Method("GET") && Path("/.well-known/acme-challenge/*")
+    -> static("/.well-known/acme-challenge/", "/srv/www/dehydrated") -> <shunt>;
 ```
 
-## inlineContent
+Notes:
+
+* redirects to the directory when a file `index.html` exists and it is requested, i.e. `GET /foo/index.html` redirects to `/foo/` which serves then the `/foo/index.html`
+* serves the content of the `index.html` when a directory is requested
+* does a simple directory listing of files / directories when no `index.html` is present
+
+### inlineContent
 
 Returns arbitrary content in the HTTP body.
 
@@ -500,7 +829,7 @@ Note that content detection algorithm does not contain any rules for recognizing
     `inlineContent` filter sets the response on request path and starts the response path immediately.
     The rest of the filter chain and backend are ignored and therefore `inlineContent` filter must be the last in the chain.
 
-## inlineContentIfStatus
+### inlineContentIfStatus
 
 Returns arbitrary content in the HTTP body, if the response has the specified status code.
 
@@ -519,310 +848,23 @@ Example:
 
 The content type will be automatically detected when not provided.
 
-## flowId
+### blockContent
 
-Sets an X-Flow-Id header, if it's not already in the request.
-This allows you to have a trace in your logs, that traces from
-the incoming request on the edge to all backend services.
+Block a request based on it's body content.
 
-Flow IDs must be in a certain format to be reusable in skipper. Valid formats
-depend on the generator used in skipper. Default generator creates IDs of
-length 16 matching the following regex: `^[0-9a-zA-Z+-]+$`
+The filter max buffer size is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
 
 Parameters:
 
-* no parameter: resets always the X-Flow-Id header to a new value
-* `"reuse"`: only create X-Flow-Id header if not already set or if the value is invalid in the request
+* toblockList (List of strings)
 
 Example:
 
 ```
-* -> flowId() -> "https://some-backend.example.org";
-* -> flowId("reuse") -> "https://some-backend.example.org";
+* -> blockContent("Malicious Content") -> "http://example.com";
 ```
 
-## xforward
-
-Standard proxy headers. Appends the client remote IP to the X-Forwarded-For and sets the X-Forwarded-Host
-header.
-
-## xforwardFirst
-
-Same as [xforward](#xforward), but instead of appending the last remote IP, it prepends it to comply with the
-approach of certain LB implementations.
-
-## randomContent
-
-Generate response with random text of specified length.
-
-Parameters:
-
-* length of data (int)
-
-Example:
-
-```
-* -> randomContent(42) -> <shunt>;
-```
-
-## repeatContent
-
-Generate response of specified size from repeated text.
-
-Parameters:
-
-* text to repeat (string)
-* size of response in bytes (int)
-
-Example:
-
-```
-* -> repeatContent("I will not waste chalk. ", 1000) -> <shunt>;
-```
-
-## backendTimeout
-
-Configure backend timeout. Skipper responds with `504 Gateway Timeout` status if obtaining a connection,
-sending the request, and reading the backend response headers and body takes longer than the configured timeout.
-However, if response streaming has already started it will be terminated, i.e. client will receive backend response
-status and truncated response body.
-
-Parameters:
-
-* timeout [(duration string)](https://godoc.org/time#ParseDuration)
-
-Example:
-
-```
-* -> backendTimeout("10ms") -> "https://www.example.org";
-```
-
-## latency
-
-Enable adding artificial latency
-
-Parameters:
-
-* latency in milliseconds (int) or in `time` as a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
-
-Example:
-
-```
-* -> latency(120) -> "https://www.example.org";
-* -> latency("120ms") -> "https://www.example.org";
-```
-
-## bandwidth
-
-Enable bandwidth throttling.
-
-Parameters:
-
-* bandwidth in kb/s (int)
-
-Example:
-
-```
-* -> bandwidth(30) -> "https://www.example.org";
-```
-
-## chunks
-
-Enables adding chunking responses with custom chunk size with
-artificial delays in between response chunks. To disable delays, set
-the second parameter to "0".
-
-Parameters:
-
-* byte length (int)
-* time duration (time.Duration)
-
-Example:
-
-```
-* -> chunks(1024, "120ms") -> "https://www.example.org";
-* -> chunks(1024, "0") -> "https://www.example.org";
-```
-
-## backendLatency
-
-Same as [latency filter](#latency), but on the request path and not on
-the response path.
-
-## backendBandwidth
-
-Same as [bandwidth filter](#bandwidth), but on the request path and not on
-the response path.
-
-## backendChunks
-
-Same as [chunks filter](#chunks), but on the request path and not on
-the response path.
-
-## absorb
-
-The absorb filter reads and discards the payload of the incoming requests.
-It logs with INFO level and a unique ID per request:
-
-- the event of receiving the request
-- partial and final events for consuming request payload and total consumed byte count
-- the finishing event of the request
-- any read errors other than EOF
-
-## absorbSilent
-
-The absorbSilent filter reads and discards the payload of the incoming requests. It only
-logs read errors other than EOF.
-
-## uniformRequestLatency
-
-The uniformRequestLatency filter introduces uniformly distributed
-jitter latency within `[mean-delta, mean+delta]` interval for
-requests. The first parameter is the mean and the second is delta. In
-the example we would sleep for `100ms+/-10ms`.
-
-Example:
-
-```
-* -> uniformRequestLatency("100ms", "10ms") -> "https://www.example.org";
-```
-
-## normalRequestLatency
-
-The normalRequestLatency filter introduces normally distributed jitter
-latency with configured mean value for requests. The first parameter
-is µ (mean) and the second is σ as in
-https://en.wikipedia.org/wiki/Normal_distribution.
-
-Example:
-
-```
-* -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
-```
-
-## uniformResponseLatency
-
-The uniformResponseLatency filter introduces uniformly distributed
-jitter latency within `[mean-delta, mean+delta]` interval for
-responses. The first parameter is the mean and the second is delta. In
-the example we would sleep for `100ms+/-10ms`.
-
-Example:
-
-```
-* -> uniformRequestLatency("100ms", "10ms") -> "https://www.example.org";
-```
-
-## normalResponseLatency
-
-The normalResponseLatency filter introduces normally distributed
-jitter latency with configured mean value for responses. The first
-parameter is µ (mean) and the second is σ as in
-https://en.wikipedia.org/wiki/Normal_distribution.
-
-Example:
-
-```
-* -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
-```
-
-## logHeader
-
-The logHeader filter prints the request line and the header, but not the body, to
-stderr. Note that this filter should be used only in diagnostics setup and with care,
-since the request headers may contain sensitive data, and they also can explode the
-amount of logs. Authorization headers will be truncated in request and
-response header logs. You can log request or response headers, which
-defaults for backwards compatibility to request headers.
-
-Parameters:
-
-* no arg, similar to: "request"
-* "request" or "response" (string varargs)
-
-Example:
-
-```
-* -> logHeader() -> "https://www.example.org";
-* -> logHeader("request") -> "https://www.example.org";
-* -> logHeader("response") -> "https://www.example.org";
-* -> logHeader("request", "response") -> "https://www.example.org";
-```
-
-## tee
-
-Provides a unix-like `tee` feature for routing.
-
-Using this filter, the request will be sent to a "shadow" backend in addition
-to the main backend of the route.
-
-Example:
-
-```
-* -> tee("https://audit-logging.example.org") -> "https://foo.example.org";
-```
-
-This will send an identical request for foo.example.org to
-audit-logging.example.org. Another use case could be using it for benchmarking
-a new backend with some real traffic. This we call "shadow traffic".
-
-The above route will forward the request to `https://foo.example.org` as it
-normally would do, but in addition to that, it will send an identical request to
-`https://audit-logging.example.org`. The request sent to
-`https://audit-logging.example.org` will receive the same method and headers,
-and a copy of the body stream. The `tee` response is ignored for this shadow backend.
-
-It is possible to change the path of the tee request, in a similar way to the
-[modPath](#modpath) filter:
-
-```
-Path("/api/v1") -> tee("https://api.example.org", "^/v1", "/v2" ) -> "http://api.example.org";
-```
-
-In the above example, one can test how a new version of an API would behave on
-incoming requests.
-
-## teenf
-
-The same as [tee filter](#tee), but does not follow redirects from the backend.
-
-## teeLoopback
-
-This filter provides a unix-like tee feature for routing, but unlike the [tee](#tee),
-this filter feeds the copied request to the start of the routing, including the
-route lookup and executing the filters on the matched route.
-
-It is recommended to use this solution instead of the tee filter, because the same
-routing facilities are used for the outgoing tee requests as for the normal
-requests, and all the filters and backend types are supported.
-
-To ensure that the right route, or one of the right set of routes, is matched
-after the loopback, use the filter together with the [Tee](predicates.md#tee)
-predicate, however, this is not mandatory if the request is changed via other
-filters, such that other predicates ensure matching the right route. To avoid
-infinite looping, the number of requests spawn from a single incoming request
-is limited similarly as in case of the
-[loopback backend](backends.md#loopback-backend).
-
-Parameters:
-
-* tee group (string): a label identifying which routes should match the loopback
-  request, marked with the [Tee](predicates.md#tee) predicate
-
-Example, generate shadow traffic from 10% of the production traffic:
-
-```
-main: * -> "https://main-backend.example.org;
-main-split: Traffic(.1) -> teeLoopback("test-A") -> "https://main-backend.example.org";
-shadow: Tee("test-A") && True() -> "https://test-backend.example.org";
-```
-
-See also:
-
-* [Tee predicate](predicates.md#tee)
-* [Shadow Traffic Tutorial](../tutorials/shadow-traffic.md)
-
-## sed
+### sed
 
 The filter sed replaces all occurences of a pattern with a replacement string
 in the response body.
@@ -859,7 +901,7 @@ The filter uses the go regular expression implementation:
 https://github.com/google/re2/wiki/Syntax . Due to the streaming nature, matches
 with zero length are ignored.
 
-### Memory handling and limitations
+#### Memory handling and limitations
 
 In order to avoid unbound buffering of unprocessed data, the sed* filters need to
 apply some limitations. Some patterns, e.g. `.*` would allow to match the complete
@@ -883,7 +925,7 @@ use the delimited variant of the filters, e.g. for line based editing.
 If the max buffer handling is set to "abort", then the stream editing is stopped
 and the rest of the payload is dropped.
 
-## sedDelim
+### sedDelim
 
 Like [sed()](#sed), but it expects an additional argument, before the optional max buffer
 size argument, that is used to delimit chunks to be processed at once. The pattern
@@ -896,7 +938,7 @@ Example:
 editorRoute: * -> sedDelim("foo", "bar", "\n") -> "https://www.example.org";
 ```
 
-## sedRequest
+### sedRequest
 
 Like [sed()](#sed), but for the request content.
 
@@ -906,7 +948,7 @@ Example:
 editorRoute: * -> sedRequest("foo", "bar") -> "https://www.example.org";
 ```
 
-## sedRequestDelim
+### sedRequestDelim
 
 Like [sedDelim()](#seddelim), but for the request content.
 
@@ -916,7 +958,8 @@ Example:
 editorRoute: * -> sedRequestDelim("foo", "bar", "\n") -> "https://www.example.org";
 ```
 
-## basicAuth
+## Authentication and Authorization
+### basicAuth
 
 Enable Basic Authentication
 
@@ -933,7 +976,7 @@ basicAuth("/path/to/htpasswd")
 basicAuth("/path/to/htpasswd", "My Website")
 ```
 
-## webhook
+### webhook
 
 The `webhook` filter makes it possible to have your own authentication and
 authorization endpoint as a filter.
@@ -959,7 +1002,13 @@ webhook("https://custom-webhook.example.org/auth", "X-Copy-Webhook-Header,X-Copy
 The webhook timeout has a default of 2 seconds and can be globally
 changed, if skipper is started with `-webhook-timeout=2s` flag.
 
-## oauthTokeninfoAnyScope
+### Tokeninfo
+
+Tokeninfo handled by another service.
+The filters just validate the response from the tokeninfo
+service to do authorization as defined in the filter.
+
+#### oauthTokeninfoAnyScope
 
 If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
 this filter.
@@ -980,7 +1029,7 @@ Examples:
 oauthTokeninfoAnyScope("s1", "s2", "s3")
 ```
 
-## oauthTokeninfoAllScope
+#### oauthTokeninfoAllScope
 
 If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
 this filter.
@@ -1001,7 +1050,7 @@ Examples:
 oauthTokeninfoAllScope("s1", "s2", "s3")
 ```
 
-## oauthTokeninfoAnyKV
+#### oauthTokeninfoAnyKV
 
 If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
 this filter.
@@ -1024,7 +1073,7 @@ oauthTokeninfoAnyKV("k1", "v1", "k2", "v2")
 oauthTokeninfoAnyKV("k1", "v1", "k1", "v2")
 ```
 
-## oauthTokeninfoAllKV
+#### oauthTokeninfoAllKV
 
 If skipper is started with `-oauth2-tokeninfo-url` flag, you can use
 this filter.
@@ -1046,7 +1095,13 @@ Examples:
 oauthTokeninfoAllKV("k1", "v1", "k2", "v2")
 ```
 
-## oauthTokenintrospectionAnyClaims
+### Tokenintrospection
+
+Tokenintrospection handled by another service.
+The filters just validate the response from the tokenintrospection
+service to do authorization as defined in the filter.
+
+#### oauthTokenintrospectionAnyClaims
 
 The filter accepts variable number of string arguments, which are used
 to validate the incoming token from the `Authorization: Bearer
@@ -1065,7 +1120,7 @@ Examples:
 oauthTokenintrospectionAnyClaims("https://accounts.google.com", "c1", "c2", "c3")
 ```
 
-## oauthTokenintrospectionAllClaims
+#### oauthTokenintrospectionAllClaims
 
 The filter accepts variable number of string arguments, which are used
 to validate the incoming token from the `Authorization: Bearer
@@ -1084,7 +1139,7 @@ Examples:
 oauthTokenintrospectionAllClaims("https://accounts.google.com", "c1", "c2", "c3")
 ```
 
-## oauthTokenintrospectionAnyKV
+#### oauthTokenintrospectionAnyKV
 
 The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
@@ -1105,7 +1160,7 @@ oauthTokenintrospectionAnyKV("https://accounts.google.com", "k1", "v1", "k2", "v
 oauthTokenintrospectionAnyKV("https://accounts.google.com", "k1", "v1", "k1", "v2")
 ```
 
-## oauthTokenintrospectionAllKV
+#### oauthTokenintrospectionAllKV
 
 The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
@@ -1125,7 +1180,7 @@ Examples:
 oauthTokenintrospectionAllKV("https://accounts.google.com", "k1", "v1", "k2", "v2")
 ```
 
-## secureOauthTokenintrospectionAnyClaims
+#### secureOauthTokenintrospectionAnyClaims
 
 The filter accepts variable number of string arguments, which are used
 to validate the incoming token from the `Authorization: Bearer
@@ -1153,7 +1208,7 @@ Read client-id and client-secret from environment variables
 secureOauthTokenintrospectionAnyClaims("issuerURL", "", "", "claim1", "claim2")
 ```
 
-## secureOauthTokenintrospectionAllClaims
+#### secureOauthTokenintrospectionAllClaims
 
 The filter accepts variable number of string arguments, which are used
 to validate the incoming token from the `Authorization: Bearer
@@ -1181,7 +1236,7 @@ Read client-id and client-secret from environment variables
 secureOauthTokenintrospectionAllClaims("issuerURL", "", "", "claim1", "claim2")
 ```
 
-## secureOauthTokenintrospectionAnyKV
+#### secureOauthTokenintrospectionAnyKV
 
 The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
@@ -1210,7 +1265,7 @@ Read client-id and client-secret from environment variables
 secureOauthTokenintrospectionAnyKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 ```
 
-## secureOauthTokenintrospectionAllKV
+#### secureOauthTokenintrospectionAllKV
 
 The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
@@ -1239,7 +1294,8 @@ Read client-id and client-secret from environment variables
 secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 ```
 
-## jwtValidation
+### JWT
+#### jwtValidation
 
 The filter parses bearer jwt token from Authorization header and validates the signature using public keys
 discovered via /.well-known/openid-configuration endpoint. Takes issuer url as single parameter.
@@ -1253,8 +1309,8 @@ jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 ```
 
 
-
-## forwardToken
+### Forward Token Data
+#### forwardToken
 
 The filter takes the header name as its first argument and sets header value to the
 token info or token introspection result serialized as a JSON object.
@@ -1270,7 +1326,7 @@ forwardToken("X-Tokeninfo-Forward")
 forwardToken("X-Tokeninfo-Forward", "access_token", "token_type")
 ```
 
-## forwardTokenField
+#### forwardTokenField
 
 The filter takes a header name and a field as its first and second arguments. The corresponding field from the result of token info, token introspection or oidc user info is added as
 corresponding header when the request is passed to the backend.
@@ -1286,7 +1342,8 @@ Examples:
 forwardTokenField("X-Tokeninfo-Forward-Oid", "oid") -> forwardTokenField("X-Tokeninfo-Forward-Sub", "sub")
 ```
 
-## oauthGrant
+### OAuth2
+#### oauthGrant
 
 Enables authentication and authorization with an OAuth2 authorization code grant flow as
 specified by [RFC 6749 Section 1.3.1](https://tools.ietf.org/html/rfc6749#section-1.3.1).
@@ -1339,7 +1396,7 @@ Skipper arguments:
 | `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
 | `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`.  Example: `-oauth2-token-cookie-name=SESSION` |
 
-## grantCallback
+#### grantCallback
 
 The filter accepts authorization codes as a result of an OAuth2 authorization code grant
 flow triggered by [oauthGrant](#oauthgrant). It uses the code to request access and
@@ -1363,7 +1420,7 @@ Skipper arguments:
 | -------- | --------- | ----------- |
 | `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter. Example: `-oauth2-callback-path=/oauth/callback` |
 
-## grantLogout
+#### grantLogout
 
 The filter revokes the refresh and access tokens in the cookie set by
 [oauthGrant](#oauthgrant). It also deletes the cookie by setting the `Set-Cookie`
@@ -1381,7 +1438,7 @@ Skipper arguments:
 | -------- | --------- | ----------- |
 | `-oauth2-revoke-token-url` | **yes** | URL of the OAuth2 provider's token revocation endpoint. Example: `-oauth2-revoke-token-url=https://identity.example.com/oauth2/revoke` |
 
-## grantClaimsQuery
+#### grantClaimsQuery
 
 The filter allows defining access control rules based on claims in a tokeninfo JSON
 payload.
@@ -1402,7 +1459,8 @@ Skipper arguments:
 | -------- | --------- | ----------- |
 | `-oauth2-tokeninfo-subject-key` | **yes** | the key of the attribute containing the OAuth2 subject ID in the OAuth2 provider's tokeninfo JSON payload. Default: `uid`. Example: `-oauth2-tokeninfo-subject-key=sub` |
 
-## oauthOidcUserInfo
+### OpenID Connect
+#### oauthOidcUserInfo
 
 ```
 oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
@@ -1423,7 +1481,7 @@ The filter needs the following parameters:
 * **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
 * **SubdomainsToRemove** (optional, default "1") Configures number of subdomains to remove from the request hostname to derive OIDC cookie domain. By default one subdomain is removed, e.g. for the www.example.com request hostname the OIDC cookie domain will be example.com (to support SSO for all subdomains of the example.com). Configure "0" to use the same hostname. Note that value is a string.
 
-## oauthOidcAnyClaims
+#### oauthOidcAnyClaims
 
 ```
 oauthOidcAnyClaims("https://oidc-provider.example.com", "client_id", "client_secret",
@@ -1443,7 +1501,7 @@ The filter needs the following parameters:
 * **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
 * **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
 
-## oauthOidcAllClaims
+#### oauthOidcAllClaims
 
 ```
 oauthOidcAllClaims("https://oidc-provider.example.com", "client_id", "client_secret",
@@ -1463,22 +1521,7 @@ The filter needs the following parameters:
 * **Auth Code Options** (optional) Passes key/value parameters to a provider's authorization endpoint. The value can be dynamically set by a query parameter with the same key name if the placeholder `skipper-request-query` is used.
 * **Upstream Headers** (optional) The upstream endpoint will receive these headers which values are parsed from the OIDC information. The header definition can be one or more header-query pairs, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md).
 
-## requestCookie
-
-Append a cookie to the request header.
-
-Parameters:
-
-* cookie name (string)
-* cookie value (string)
-
-Example:
-
-```
-requestCookie("test-session", "abc")
-```
-
-## oidcClaimsQuery
+#### oidcClaimsQuery
 
 ```
 oidcClaimsQuery("<path>:[<query>]", ...)
@@ -1519,7 +1562,23 @@ oidcClaimsQuery("/:name%\"*One\"", "/path:groups.#[%\"*-Test-Users\"] groups.#[=
 
 As of now there is no negative/deny rule possible. The first matching path is evaluated against the defined query/queries and if positive, permitted.
 
-## responseCookie
+## Cookie Handling
+### requestCookie
+
+Append a cookie to the request header.
+
+Parameters:
+
+* cookie name (string)
+* cookie value (string)
+
+Example:
+
+```
+requestCookie("test-session", "abc")
+```
+
+### responseCookie
 
 Appends cookies to responses in the "Set-Cookie" header. The response cookie
 accepts an optional argument to control the max-age property of the cookie,
@@ -1536,7 +1595,7 @@ responseCookie("test-session", "abc", 31536000),
 responseCookie("test-session", "abc", 31536000, "change-only")
 ```
 
-## jsCookie
+### jsCookie
 
 The JS cookie behaves exactly as the response cookie, but it does not set the
 `HttpOnly` directive, so these cookies will be accessible from JS code running
@@ -1548,7 +1607,8 @@ Example:
 jsCookie("test-session-info", "abc-debug", 31536000, "change-only")
 ```
 
-## consecutiveBreaker
+## Circuit Breakers
+### consecutiveBreaker
 
 This breaker opens when the proxy could not connect to a backend or received
 a >=500 status code at least N times in a row. When open, the proxy returns
@@ -1569,7 +1629,7 @@ See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper
 
 Can be used as [egress](egress.md) feature.
 
-## rateBreaker
+### rateBreaker
 
 The "rate breaker" works similar to the [consecutiveBreaker](#consecutivebreaker), but
 instead of considering N consecutive failures for going open, it maintains a sliding
@@ -1589,7 +1649,7 @@ See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper
 
 Can be used as [egress](egress.md) feature.
 
-## disableBreaker
+### disableBreaker
 
 Change (or set) the breaker configurations for an individual route and disable for another, in eskip:
 
@@ -1607,7 +1667,7 @@ See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper
 
 Can be used as [egress](egress.md) feature.
 
-## rate limits
+## Rate Limit
 
 ### ~~localRatelimit~~
 
@@ -1900,7 +1960,7 @@ In case `clusterRatelimit` could not reach the swarm (f.e. redis):
 * Route `fail_open` will allow the request
 * Route `fail_closed` will deny the request
 
-## shedder
+## Load Shedding
 
 The basic idea of load shedding is to reduce errors by early stopping
 some of the ingress requests that create too much load and serving
@@ -1976,72 +2036,9 @@ probability you have to use values lower than 1:
 
 See [the scripts page](scripts.md)
 
-## corsOrigin
 
-The filter accepts an optional variadic list of acceptable origin
-parameters. If the input argument list is empty, the header will
-always be set to `*` which means any origin is acceptable. Otherwise
-the header is only set if the request contains an Origin header and
-its value matches one of the elements in the input list. The header is
-only set on the response.
-
-Parameters:
-
-*  url (variadic string)
-
-Examples:
-
-```
-corsOrigin()
-corsOrigin("https://www.example.org")
-corsOrigin("https://www.example.org", "http://localhost:9001")
-```
-
-## headerToQuery
-
-Filter which assigns the value of a given header from the incoming Request to a given query param
-
-Parameters:
-
-* The name of the header to pick from request
-* The name of the query param key to add to request
-
-Examples:
-
-```
-headerToQuery("X-Foo-Header", "foo-query-param")
-```
-
-The above filter will set `foo-query-param` query param respectively to the `X-Foo-Header` header
-and will override the value if the queryparam exists already
-
-## queryToHeader
-
-Filter which assigns the value of a given query param from the
-incoming Request to a given Header with optional format string value.
-
-Parameters:
-
-* The name of the query param key to pick from request
-* The name of the header to add to request
-* The format string used to create the header value, which gets the
-  value from the query value as before
-
-Examples:
-
-```
-queryToHeader("foo-query-param", "X-Foo-Header")
-queryToHeader("access_token", "Authorization", "Bearer %s")
-```
-
-The first filter will set `X-Foo-Header` header respectively to the `foo-query-param` query param
-and will not override the value if the header exists already.
-
-The second filter will set `Authorization` header to the
-`access_token` query param with a prefix value `Bearer ` and will
-not override the value if the header exists already.
-
-## ~~accessLogDisabled~~
+## Logs
+### ~~accessLogDisabled~~
 
 **Deprecated:** use [disableAccessLog](#disableaccesslog) or [enableAccessLog](#enableaccesslog)
 
@@ -2054,7 +2051,7 @@ Example:
 accessLogDisabled("false")
 ```
 
-## disableAccessLog
+### disableAccessLog
 
 Filter overrides global Skipper `AccessLogDisabled` setting and allows to turn-off the access log for specific route
 while access log, in general, is enabled. It is also possible to disable access logs only for a subset of response codes
@@ -2073,7 +2070,7 @@ disableAccessLog(1, 301, 40)
 
 This disables logs of all requests with status codes `1xxs`, `301` and all `40xs`.
 
-## enableAccessLog
+### enableAccessLog
 
 Filter overrides global Skipper `AccessLogDisabled` setting and allows to turn-on the access log for specific route
 while access log, in general, is disabled. It is also possible to enable access logs only for a subset of response codes
@@ -2092,7 +2089,7 @@ enableAccessLog(1, 301, 20)
 
 This enables logs of all requests with status codes `1xxs`, `301` and all `20xs`.
 
-## auditLog
+### auditLog
 
 Filter `auditLog()` logs the request and N bytes of the body into the
 log file. N defaults to 1024 and can be overidden with
@@ -2104,7 +2101,7 @@ Example:
 auditLog()
 ```
 
-## unverifiedAuditLog
+### unverifiedAuditLog
 
 Filter `unverifiedAuditLog()` adds a Header, `X-Unverified-Audit`, to the request, the content of which, will also
 be written to the log file. By default, the value of the audit header will be equal to the value of the `sub` key, from
@@ -2125,7 +2122,40 @@ unverifiedAuditLog()
 unverifiedAuditLog("azp")
 ```
 
-## setDynamicBackendHostFromHeader
+## Backend
+### backendIsProxy
+
+Notifies the proxy that the backend handling this request is also a
+proxy. The proxy type is based in the URL scheme which can be either
+`http`, `https` or `socks5`.
+
+Keep in mind that Skipper currently cannot handle `CONNECT` requests
+by tunneling the traffic to the target destination, however, the
+`CONNECT` requests can be forwarded to a different proxy using this
+filter.
+
+
+Example:
+
+```
+foo1:
+  *
+  -> backendIsProxy()
+  -> "http://proxy.example.com";
+
+foo2:
+  *
+  -> backendIsProxy()
+  -> <roundRobin, "http://proxy1.example.com", "http://proxy2.example.com">;
+
+foo3:
+  *
+  -> setDynamicBackendUrl("http://proxy.example.com")
+  -> backendIsProxy()
+  -> <dynamic>;
+```
+
+### setDynamicBackendHostFromHeader
 
 Filter sets the backend host for a route, value is taken from the provided header.
 Can be used only with `<dynamic>` backend. Meant to be used together with [setDynamicBackendSchemeFromHeader](#setdynamicbackendschemefromheader)
@@ -2142,7 +2172,7 @@ Example:
 foo: * -> setDynamicBackendHostFromHeader("X-Forwarded-Host") -> <dynamic>;
 ```
 
-## setDynamicBackendSchemeFromHeader
+### setDynamicBackendSchemeFromHeader
 
 Filter sets the backend scheme for a route, value is taken from the provided header.
 Can be used only with `<dynamic>` backend. Meant to be used together with [setDynamicBackendHostFromHeader](#setdynamicbackendhostfromheader)
@@ -2159,7 +2189,7 @@ Example:
 foo: * -> setDynamicBackendSchemeFromHeader("X-Forwarded-Proto") -> <dynamic>;
 ```
 
-## setDynamicBackendUrlFromHeader
+### setDynamicBackendUrlFromHeader
 
 Filter sets the backend url for a route, value is taken from the provided header.
 Can be used only with `<dynamic>` backend.
@@ -2174,7 +2204,7 @@ Example:
 foo: * -> setDynamicBackendUrlFromHeader("X-Custom-Url") -> <dynamic>;
 ```
 
-## setDynamicBackendHost
+### setDynamicBackendHost
 
 Filter sets the backend host for a route. Can be used only with `<dynamic>` backend.
 Meant to be used together with [setDynamicBackendSchemeFromHeader](#setdynamicbackendschemefromheader)
@@ -2191,7 +2221,7 @@ Example:
 foo: * -> setDynamicBackendHost("example.com") -> <dynamic>;
 ```
 
-## setDynamicBackendScheme
+### setDynamicBackendScheme
 
 Filter sets the backend scheme for a route. Can be used only with `<dynamic>` backend.
 Meant to be used together with [setDynamicBackendHostFromHeader](#setdynamicbackendhostfromheader)
@@ -2208,7 +2238,7 @@ Example:
 foo: * -> setDynamicBackendScheme("https") -> <dynamic>;
 ```
 
-## setDynamicBackendUrl
+### setDynamicBackendUrl
 
 Filter sets the backend url for a route. Can be used only with `<dynamic>` backend.
 
@@ -2437,7 +2467,26 @@ E.g.:
 apiUsageMonitoring.custom.my-app.{unknown}.{unknown}.GET.{no-match}.*.*.http_count
 ```
 
-## fifo
+## originMarker
+
+This filter is used to measure the time it took to create a route. Other than that, it's a no-op.
+You can include the same origin marker when you re-create the route. As long as the `origin` and `id` are the same, the route creation time will not be measured again.
+If there are multiple origin markers with the same origin, the earliest timestamp will be used.
+
+Parameters:
+
+* the name of the origin
+* the ID of the object that is the logical source for the route
+* the creation timestamp (rfc3339)
+
+Example:
+
+```
+originMarker("apiUsageMonitoring", "deployment1", "2019-08-30T09:55:51Z")
+```
+
+## Scheduler
+### fifo
 
 This Filter is similar to the [lifo](#lifo) filter in regards to
 parameters and status codes.
@@ -2460,7 +2509,7 @@ Example:
 fifo(100, 150, "10s")
 ```
 
-## lifo
+### lifo
 
 This Filter changes skipper to handle the route with a bounded last in
 first out queue (LIFO), instead of an unbounded first in first out
@@ -2495,7 +2544,7 @@ to 150 and Timeout to 10 seconds.
 
 When there are multiple lifo filters on the route, only the last one will be applied.
 
-## lifoGroup
+### lifoGroup
 
 This filter is similar to the [lifo](#lifo) filter.
 
@@ -2526,7 +2575,8 @@ It is possible to use the lifoGroup filter together with the single lifo filter,
 a route belongs to a group, but needs to have additional stricter settings then the whole
 group.
 
-## rfcHost
+## RFC Compliance
+### rfcHost
 
 This filter removes the optional trailing dot in the outgoing host
 header.
@@ -2539,7 +2589,7 @@ rfcHost()
 ```
 
 
-## rfcPath
+### rfcPath
 
 This filter forces an alternative interpretation of the RFC 2616 and RFC 3986 standards,
 where paths containing reserved characters will have these characters unescaped when the
@@ -2571,7 +2621,8 @@ It is also possible to enable this behavior centrally for a Skipper instance wit
 the -rfc-patch-path flag. See
 [URI standards interpretation](../operation/operation.md#uri-standards-interpretation).
 
-## bearerinjector
+## Egress
+### bearerinjector
 
 This filter injects `Bearer` tokens into `Authorization` headers read
 from file providing the token as content. This is only for use cases
@@ -2597,7 +2648,8 @@ have to be filenames `write-token` and `read-token` within the
 specified credential paths `/tmp/secrets/`, resulting in
 `/tmp/secrets/write-token` and `/tmp/secrets/read-token`.
 
-## tracingBaggageToTag
+## Open Tracing
+### tracingBaggageToTag
 
 This filter adds an opentracing tag for a given baggage item in the trace.
 
@@ -2611,7 +2663,7 @@ Example: If a trace consists of baggage item named `foo` with a value `bar`. Add
 tracingBaggageToTag("foo", "baz")
 ```
 
-## stateBagToTag
+### stateBagToTag
 
 This filter sets an opentracing tag from the filter context (state bag).
 If the provided key (first parameter) cannot be found in the state bag, then it doesn't set the tag.
@@ -2630,7 +2682,7 @@ the opentracing tag "client_id":
 foo: * -> oauthTokeninfoAllScope("address_service.all") -> stateBagToTag("auth-user", "client_id") -> "https://backend.example.org";
 ```
 
-## tracingTag
+### tracingTag
 
 This filter adds an opentracing tag.
 
@@ -2652,7 +2704,7 @@ Example: Set tag from request header
 tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 ```
 
-## tracingSpanName
+### tracingSpanName
 
 This filter sets the name of the outgoing (client span) in opentracing. The default name is "proxy". Example:
 
@@ -2660,25 +2712,11 @@ This filter sets the name of the outgoing (client span) in opentracing. The defa
 tracingSpanName("api-operation")
 ```
 
-## originMarker
+## Load Balancing
 
-This filter is used to measure the time it took to create a route. Other than that, it's a no-op.
-You can include the same origin marker when you re-create the route. As long as the `origin` and `id` are the same, the route creation time will not be measured again.
-If there are multiple origin markers with the same origin, the earliest timestamp will be used.
+Some filters influence how load balancing will be done
 
-Parameters:
-
-* the name of the origin
-* the ID of the object that is the logical source for the route
-* the creation timestamp (rfc3339)
-
-Example:
-
-```
-originMarker("apiUsageMonitoring", "deployment1", "2019-08-30T09:55:51Z")
-```
-
-## fadeIn
+### fadeIn
 
 When this filter is set, and the route has a load balanced backend, then the newly added endpoints will receive
 the traffic in a gradually increasing way, starting from their detection for the specified duration, after which
@@ -2718,7 +2756,7 @@ of your deployment or stackset, according to your fadeIn duration.
 
 ![Rolling Restart and Fade-In](../img/fadein_traffic_skew.png)
 
-## endpointCreated
+### endpointCreated
 
 This filter marks the creation time of a load balanced endpoint. When used together with the fadeIn
 filter, it prevents missing the detection of a new backend instance with the same hostname. This filter is
@@ -2735,7 +2773,7 @@ Example:
 endpointCreated("http://10.0.0.1:8080", "2020-12-18T15:30:00Z01:00")
 ```
 
-## consistentHashKey
+### consistentHashKey
 
 This filter sets the request key used by the [`consistentHash`](backends.md#load-balancer-backend) algorithm to select the backend endpoint.
 
@@ -2759,7 +2797,7 @@ consistentHashKey("${request.header.Authorization}")
 consistentHashKey("${request.source}") // same as the default key
 ```
 
-## consistentHashBalanceFactor
+### consistentHashBalanceFactor
 
 This filter sets the balance factor used by the [`consistentHash`](backends.md#load-balancer-backend) algorithm to prevent a single backend endpoint from being overloaded.
 The number of in-flight requests for an endpoint can be no higher than `(average-in-flight-requests * balanceFactor) + 1`.
