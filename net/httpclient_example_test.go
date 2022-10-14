@@ -1,6 +1,7 @@
 package net_test
 
 import (
+	"fmt"
 	"log"
 	stdlibnet "net"
 	"net/http"
@@ -8,6 +9,8 @@ import (
 	"time"
 
 	"github.com/lightstep/lightstep-tracer-go"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/secrets"
 )
@@ -192,6 +195,35 @@ func ExampleClient_staticSecret() {
 		log.Printf("rsp code: %v", rsp.StatusCode)
 		time.Sleep(1 * time.Second)
 	}
+}
+
+type customTracer struct {
+	opentracing.Tracer
+}
+
+func (t *customTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
+	span := t.Tracer.StartSpan(operationName, opts...)
+	span.SetTag("customtag", "test")
+	return span
+}
+
+func ExampleClient_customTracer() {
+	mockTracer := mocktracer.New()
+	cli := net.NewClient(net.Options{
+		Tracer:              &customTracer{mockTracer},
+		OpentracingSpanName: "clientSpan",
+	})
+	defer cli.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+
+	cli.Get("http://" + srv.Listener.Addr().String() + "/")
+
+	fmt.Printf("customtag: %s", mockTracer.FinishedSpans()[0].Tags()["customtag"])
+
+	// Output:
+	// customtag: test
 }
 
 type testSecretsReader struct {
