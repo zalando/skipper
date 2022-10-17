@@ -136,6 +136,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 )
 
-go 1.18
+go 1.19
 
 replace github.com/go-redis/redis/v9 => github.com/szuecs/redis/v9 v9.0.0-beta.1.0.20220801200609-6f7f800107ba

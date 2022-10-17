@@ -5,7 +5,7 @@ pipeline:
   depends_on: []
   vm_config:
     type: linux
-    image: "cdp-runtime/go-1.18"
+    image: "cdp-runtime/go"
   type: script
   when:
     branch: master
@@ -18,7 +18,7 @@ pipeline:
   depends_on: []
   vm_config:
     type: linux
-    image: "cdp-runtime/go-1.18"
+    image: "cdp-runtime/go"
   type: script
   commands:
   - desc: Setup BuildKit
