@@ -13,7 +13,7 @@ import (
 const (
 	fadeInDuration    = 100 * time.Millisecond
 	bucketCount       = 20
-	monotonyTolerance = 0.3 // we need to use a high tolerance for CI testing
+	monotonyTolerance = 0.4 // we need to use a high tolerance for CI testing
 )
 
 func absint(i int) int {
@@ -53,12 +53,12 @@ func testFadeIn(
 			detectionTimes = append(detectionTimes, now.Add(-ea))
 		}
 
-		var ep []string
+		var eps []string
 		for i := range endpointAges {
-			ep = append(ep, string('a'+rune(i)))
+			eps = append(eps, string('a'+rune(i)))
 		}
 
-		a := algorithm(ep)
+		a := algorithm(eps)
 
 		ctx := &routing.LBContext{
 			Params: map[string]interface{}{},
@@ -68,20 +68,20 @@ func testFadeIn(
 			},
 		}
 
-		for i := range ep {
+		for i := range eps {
 			ctx.Route.LBEndpoints = append(ctx.Route.LBEndpoints, routing.LBEndpoint{
-				Host:     ep[i],
+				Host:     eps[i],
 				Detected: detectionTimes[i],
 			})
 		}
 
+		hashKeys := findHashKeys(a, ctx)
 		t.Log("test start", time.Now())
-		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		var stats []string
 		stop := time.After(fadeInDuration)
 		func() {
 			for {
-				ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(1000))
+				ctx.Params[ConsistentHashKey] = hashKeys[len(stats)%len(hashKeys)]
 				ep := a.Apply(ctx)
 				stats = append(stats, ep.Host)
 				select {
@@ -93,7 +93,7 @@ func testFadeIn(
 		}()
 
 		t.Log("test done", time.Now())
-		t.Log("CSV " + strings.Join(ep, ","))
+		t.Log("CSV " + strings.Join(eps, ","))
 		bucketSize := len(stats) / bucketCount
 		var allBuckets []map[string]int
 		for i := 0; i < bucketCount; i++ {
@@ -106,7 +106,7 @@ func testFadeIn(
 		}
 
 		directions := make(map[string]int)
-		for _, epi := range ep {
+		for _, epi := range eps {
 			first := allBuckets[0][epi]
 			last := allBuckets[len(allBuckets)-1][epi]
 			t := tolerance(first, last)
@@ -124,7 +124,7 @@ func testFadeIn(
 				continue
 			}
 
-			for _, epi := range ep {
+			for _, epi := range eps {
 				if !checkMonotony(
 					directions[epi],
 					allBuckets[i-1][epi],
@@ -137,13 +137,34 @@ func testFadeIn(
 
 		for _, bucketStats := range allBuckets {
 			var showStats []string
-			for _, epi := range ep {
+			for _, epi := range eps {
 				showStats = append(showStats, fmt.Sprintf("%d", bucketStats[epi]))
 			}
 
 			t.Log("CSV " + strings.Join(showStats, ","))
 		}
 	})
+}
+
+// For each endpoint, return a hash key which will make the consistent hash algorithm select it.
+// This allows the test to emulate round robin, useful for showing the increase in requests to each endpoint is monotonic.
+func findHashKeys(a routing.LBAlgorithm, ctx *routing.LBContext) []string {
+	// temporarily disable fadein
+	ctx.Route.LBFadeInDuration = 0
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	var hashKeys []string
+	for _, ep := range ctx.Route.LBEndpoints {
+		for {
+			ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(1000))
+			if ep == a.Apply(ctx) {
+				hashKeys = append(hashKeys, ctx.Params[ConsistentHashKey].(string))
+				break
+			}
+		}
+	}
+	delete(ctx.Params, ConsistentHashKey)
+	ctx.Route.LBFadeInDuration = fadeInDuration
+	return hashKeys
 }
 
 func TestFadeIn(t *testing.T) {
