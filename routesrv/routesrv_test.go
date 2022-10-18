@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routesrv"
+	"github.com/zalando/skipper/routing"
 )
 
 type muxHandler struct {
@@ -97,6 +99,14 @@ func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
 func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/routes", nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
+func headRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("HEAD", "/routes", nil)
 	rs.ServeHTTP(w, r)
 
 	return w
@@ -480,5 +490,32 @@ func TestESkipBytesHandlerWithOldLastModified(t *testing.T) {
 	}
 	if w2.Code == http.StatusNotModified {
 		t.Errorf("received incorrect 304 status code")
+	}
+}
+
+func TestESkipBytesHandlerWithXCount(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Fatal("routes not initialized")
+	}
+	w1 := headRoutes(rs)
+	countStr := w1.Header().Get(routing.RoutesCountName)
+	count, err := strconv.Atoi(countStr)
+	if err != nil {
+		t.Fatalf("Failed to convert response header %s value '%v' to int: %v", routing.RoutesCountName, countStr, err)
+	}
+
+	N := 3
+	if count != N {
+		t.Errorf("Failed to get %d number of routes, got: %d", N, count)
 	}
 }

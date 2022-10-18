@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -21,6 +23,7 @@ type eskipBytes struct {
 	etag         string
 	lastModified time.Time
 	initialized  bool
+	count        int
 	mu           sync.RWMutex
 
 	tracer ot.Tracer
@@ -53,6 +56,7 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
 	}
 	oldInitialized := e.initialized
 	e.initialized = true
+	e.count = len(routes)
 
 	return len(e.data), !oldInitialized
 }
@@ -61,11 +65,23 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span := tracing.CreateSpan("serve_routes", r.Context(), e.tracer)
 	defer span.Finish()
 
+	if r.Method != "GET" && r.Method != "HEAD" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
 	data, etag, lastModified, initialized := e.bytes()
 	if initialized {
 		w.Header().Add("Etag", etag)
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
+		w.Header().Add(routing.RoutesCountName, strconv.Itoa(e.count))
+
+		switch r.Method {
+		case http.MethodHead:
+			w.WriteHeader(http.StatusOK)
+		case http.MethodGet:
+			http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
+		}
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
