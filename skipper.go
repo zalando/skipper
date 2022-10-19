@@ -59,6 +59,7 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/script"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/swarm"
@@ -878,6 +879,8 @@ type Options struct {
 	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
 	KubernetesEnableTLS bool
 
+	LuaModules []string
+
 	testOptions
 }
 
@@ -1682,6 +1685,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			return err
 		}
 		o.CustomFilters = append(o.CustomFilters, compress)
+	}
+
+	if len(o.LuaModules) > 0 {
+		lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{Modules: o.LuaModules})
+		if err != nil {
+			log.Errorf("Failed to create lua filter: %v.", err)
+			return err
+		}
+		o.CustomFilters = append(o.CustomFilters, lua)
 	}
 
 	// create routing

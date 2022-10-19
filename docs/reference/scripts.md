@@ -52,7 +52,7 @@ Lua `print` builtin function writes skipper info log messages.
 ## Available lua modules
 
 Besides the [standard modules](https://www.lua.org/manual/5.1/manual.html#5) - except
-for `debug` - the following modules have been preloaded and can be used with e.g.
+for `debug` - the following additional modules have been preloaded and can be used with e.g.
 `local http = require("http")`, see also the examples below
 
 * `http` [gluahttp](https://github.com/cjoudrey/gluahttp) - TODO: configurable
@@ -67,6 +67,25 @@ check the [gopher-lua documentation](https://github.com/yuin/gopher-lua#differen
 Any other module can be loaded in non-byte code form from the lua path (by default
 for `require("mod")` this is `./mod.lua`, `/usr/local/share/lua/5.1/mod.lua` and
 `/usr/local/share/lua/5.1/mod/init.lua`).
+
+
+You may selectively enable standard and additional Lua modules using `-lua-modules` flag:
+```sh
+-lua-modules=package,base,json
+```
+Note that preloaded additional modules require `package` module.
+
+For standard modules you may enable only a subset of module symbols:
+```sh
+-lua-modules=base.print,base.assert
+```
+
+Use `none` to disable all modules:
+```sh
+-lua-modules=none
+```
+
+See also http://lua-users.org/wiki/SandBoxes
 
 ## Lua states
 

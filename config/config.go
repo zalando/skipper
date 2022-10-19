@@ -268,6 +268,8 @@ type Config struct {
 	SwarmStaticOther                  string        `yaml:"swarm-static-other"`
 
 	ClusterRatelimitMaxGroupShards int `yaml:"cluster-ratelimit-max-group-shards"`
+
+	LuaModules *listFlag `yaml:"lua-modules"`
 }
 
 const (
@@ -298,6 +300,7 @@ func NewConfig() *Config {
 	cfg.ForwardedHeadersList = commaListFlag()
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
 	cfg.CompressEncodings = commaListFlag("gzip", "deflate", "br")
+	cfg.LuaModules = commaListFlag()
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
 
@@ -533,6 +536,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003")
 
 	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
+
+	flag.Var(cfg.LuaModules, "lua-modules", "comma separated list of lua filter modules. Use <module>.<symbol> to selectively enable module symbols, for example: package,base._G,base.print,json")
 
 	return cfg
 }
@@ -886,6 +891,8 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmStaticOther: c.SwarmStaticOther,
 
 		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
+
+		LuaModules: c.LuaModules.values,
 	}
 
 	if c.PluginDir != "" {
