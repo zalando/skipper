@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -21,18 +23,10 @@ type eskipBytes struct {
 	etag         string
 	lastModified time.Time
 	initialized  bool
+	count        int
 	mu           sync.RWMutex
 
 	tracer ot.Tracer
-}
-
-// bytes returns a slice to stored bytes, which are safe for reading,
-// and if there were already initialized.
-func (e *eskipBytes) bytes() ([]byte, string, time.Time, bool) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	return e.data, e.etag, e.lastModified, e.initialized
 }
 
 // formatAndSet takes a slice of routes and stores them eskip-formatted
@@ -53,6 +47,7 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
 	}
 	oldInitialized := e.initialized
 	e.initialized = true
+	e.count = len(routes)
 
 	return len(e.data), !oldInitialized
 }
@@ -61,10 +56,24 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span := tracing.CreateSpan("serve_routes", r.Context(), e.tracer)
 	defer span.Finish()
 
-	data, etag, lastModified, initialized := e.bytes()
+	if r.Method != "GET" && r.Method != "HEAD" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	e.mu.RLock()
+	count := e.count
+	data := e.data
+	etag := e.etag
+	lastModified := e.lastModified
+	initialized := e.initialized
+	e.mu.RUnlock()
+
 	if initialized {
 		w.Header().Add("Etag", etag)
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Add(routing.RoutesCountName, strconv.Itoa(count))
+
 		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
 	} else {
 		w.WriteHeader(http.StatusNotFound)
@@ -80,7 +89,10 @@ type eskipBytesStatus struct {
 const msgRoutesNotInitialized = "routes were not initialized yet"
 
 func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if _, _, _, initialized := s.b.bytes(); initialized {
+	s.b.mu.RLock()
+	initialized := s.b.initialized
+	s.b.mu.RUnlock()
+	if initialized {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
 		http.Error(w, msgRoutesNotInitialized, http.StatusServiceUnavailable)

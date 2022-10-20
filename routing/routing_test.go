@@ -690,7 +690,7 @@ func TestRoutingHandlerPagination(t *testing.T) {
 		req.Header.Set("accept", "application/json")
 		resp, _ := http.DefaultClient.Do(req)
 
-		if resp.Header.Get("X-Count") != "3" {
+		if resp.Header.Get(routing.RoutesCountName) != "3" {
 			t.Error("invalid or missing route count header")
 		}
 
@@ -751,7 +751,7 @@ func TestRoutingHandlerHEAD(t *testing.T) {
 		return
 	}
 
-	if rsp.Header.Get("X-Count") != "3" {
+	if rsp.Header.Get(routing.RoutesCountName) != "3" {
 		t.Error("invalid count header")
 	}
 }

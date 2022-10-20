@@ -26,7 +26,7 @@ const (
 	WeightPredicateName = predicates.WeightName
 
 	routesTimestampName      = "X-Timestamp"
-	routesCountName          = "X-Count"
+	RoutesCountName          = "X-Count"
 	defaultRouteListingLimit = 1024
 )
 
@@ -314,7 +314,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if req.Method == "HEAD" {
 		w.Header().Set(routesTimestampName, createdUnix)
-		w.Header().Set(routesCountName, strconv.Itoa(len(rt.validRoutes)))
+		w.Header().Set(RoutesCountName, strconv.Itoa(len(rt.validRoutes)))
 
 		if strings.Contains(req.Header.Get("Accept"), "application/json") {
 			w.Header().Set("Content-Type", "application/json")
@@ -338,7 +338,7 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set(routesTimestampName, createdUnix)
-	w.Header().Set(routesCountName, strconv.Itoa(len(rt.validRoutes)))
+	w.Header().Set(RoutesCountName, strconv.Itoa(len(rt.validRoutes)))
 
 	routes := slice(rt.validRoutes, offset, limit)
 	if strings.Contains(req.Header.Get("Accept"), "application/json") {
