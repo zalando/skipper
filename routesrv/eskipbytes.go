@@ -76,12 +76,7 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Add(routing.RoutesCountName, strconv.Itoa(e.count))
 
-		switch r.Method {
-		case http.MethodHead:
-			w.WriteHeader(http.StatusOK)
-		case http.MethodGet:
-			http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
-		}
+		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}

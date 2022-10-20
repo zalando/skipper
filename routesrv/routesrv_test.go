@@ -508,6 +508,9 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 		t.Fatal("routes not initialized")
 	}
 	w1 := headRoutes(rs)
+	if n := w1.Body.Len(); n != 0 {
+		t.Fatalf("Failed to HEAD and get a response with body: %v", n)
+	}
 	countStr := w1.Header().Get(routing.RoutesCountName)
 	count, err := strconv.Atoi(countStr)
 	if err != nil {
