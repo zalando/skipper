@@ -29,15 +29,6 @@ type eskipBytes struct {
 	tracer ot.Tracer
 }
 
-// bytes returns a slice to stored bytes, which are safe for reading,
-// and if there were already initialized.
-func (e *eskipBytes) bytes() ([]byte, string, time.Time, bool) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	return e.data, e.etag, e.lastModified, e.initialized
-}
-
 // formatAndSet takes a slice of routes and stores them eskip-formatted
 // in a synchronized way. It returns a number of stored bytes and a boolean,
 // being true, when the stored bytes were set for the first time.
@@ -70,11 +61,18 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, etag, lastModified, initialized := e.bytes()
+	e.mu.RLock()
+	count := e.count
+	data := e.data
+	etag := e.etag
+	lastModified := e.lastModified
+	initialized := e.initialized
+	e.mu.RUnlock()
+
 	if initialized {
 		w.Header().Add("Etag", etag)
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Add(routing.RoutesCountName, strconv.Itoa(e.count))
+		w.Header().Add(routing.RoutesCountName, strconv.Itoa(count))
 
 		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
 	} else {
@@ -91,7 +89,10 @@ type eskipBytesStatus struct {
 const msgRoutesNotInitialized = "routes were not initialized yet"
 
 func (s *eskipBytesStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if _, _, _, initialized := s.b.bytes(); initialized {
+	s.b.mu.RLock()
+	initialized := s.b.initialized
+	s.b.mu.RUnlock()
+	if initialized {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
 		http.Error(w, msgRoutesNotInitialized, http.StatusServiceUnavailable)
