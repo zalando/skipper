@@ -35,7 +35,6 @@ require (
 	github.com/sony/gobreaker v0.5.0
 	github.com/stretchr/testify v1.7.0
 	github.com/szuecs/rate-limit-buffer v0.7.1
-	github.com/szuecs/routegroup-client v0.21.0
 	github.com/testcontainers/testcontainers-go v0.12.0
 	github.com/tidwall/gjson v1.12.1
 	github.com/tsenart/vegeta v12.7.0+incompatible
