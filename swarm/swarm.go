@@ -200,6 +200,9 @@ func Start(o Options) (*Swarm, error) {
 // Join will join given Swarm peers and return an initialiazed Swarm
 // object if successful.
 func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm, error) {
+	if self == nil {
+		return nil, fmt.Errorf("cannot join node to swarm, NodeInfo pointer is nil")
+	}
 	log.Infof("SWARM: %s is going to join swarm of %d nodes (%v)", self, len(nodes), nodes)
 	cfg := memberlist.DefaultLocalConfig()
 	if !o.Debug {

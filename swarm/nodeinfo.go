@@ -18,7 +18,7 @@ type EntryPoint interface {
 	Nodes() []*NodeInfo
 }
 
-// NodeInfo is a value object tat contains information about swarm
+// NodeInfo is a value object that contains information about swarm
 // cluster nodes, that is required to access member nodes.
 type NodeInfo struct {
 	Name string
