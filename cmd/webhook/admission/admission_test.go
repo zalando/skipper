@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	zv1 "github.com/szuecs/routegroup-client/apis/zalando.org/v1"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	admissionsv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,8 +63,8 @@ func TestUnsupportedContentType(t *testing.T) {
 }
 
 func TestRequestDecoding(t *testing.T) {
-	expectedRg := zv1.RouteGroup{
-		ObjectMeta: metav1.ObjectMeta{
+	expectedRg := definitions.RouteGroupItem{
+		Metadata: &definitions.Metadata{
 			Name:      "r1",
 			Namespace: "n1",
 		},
@@ -103,8 +102,8 @@ func TestRequestDecoding(t *testing.T) {
 		err := json.Unmarshal(req.Object.Raw, &rg)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedRg.Name, rg.Metadata.Name)
-		assert.Equal(t, expectedRg.Namespace, rg.Metadata.Namespace)
+		assert.Equal(t, expectedRg.Metadata.Name, rg.Metadata.Name)
+		assert.Equal(t, expectedRg.Metadata.Namespace, rg.Metadata.Namespace)
 
 		return &admissionsv1.AdmissionResponse{
 			Allowed: true,
@@ -163,8 +162,8 @@ func TestResponseEncoding(t *testing.T) {
 
 // Test RouteGroupAdmitter.Admit
 func TestAdmitRouteGroups(t *testing.T) {
-	rg := zv1.RouteGroup{
-		ObjectMeta: metav1.ObjectMeta{
+	rg := definitions.RouteGroupItem{
+		Metadata: &definitions.Metadata{
 			Name:      "r1",
 			Namespace: "n1",
 		},
@@ -210,8 +209,8 @@ func TestAdmitRouteGroups(t *testing.T) {
 }
 
 func TestExtractName(t *testing.T) {
-	rg := zv1.RouteGroup{
-		ObjectMeta: metav1.ObjectMeta{
+	rg := definitions.RouteGroupItem{
+		Metadata: &definitions.Metadata{
 			Name:      "r2",
 			Namespace: "n1",
 		},
@@ -224,5 +223,5 @@ func TestExtractName(t *testing.T) {
 		Object: runtime.RawExtension{Raw: rb},
 	}
 	name := extractName(request)
-	assert.Equal(t, rg.Name, name)
+	assert.Equal(t, rg.Metadata.Name, name)
 }
