@@ -997,7 +997,7 @@ func (c *Config) parseHistogramBuckets() ([]float64, error) {
 	for _, v := range thresholds {
 		bucket, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse histogram-metric-buckets: %v", err)
+			return nil, fmt.Errorf("unable to parse histogram-metric-buckets: %w", err)
 		}
 		result = append(result, bucket)
 	}
@@ -1029,7 +1029,7 @@ func (c *Config) parseForwardedHeaders() error {
 
 	cidrs, err := net.ParseCIDRs(c.ForwardedHeadersExcludeCIDRList.values)
 	if err != nil {
-		return fmt.Errorf("invalid forwarded headers exclude CIDRs: %v", err)
+		return fmt.Errorf("invalid forwarded headers exclude CIDRs: %w", err)
 	}
 	c.ForwardedHeadersExcludeCIDRs = cidrs
 
