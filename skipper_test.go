@@ -23,6 +23,7 @@ import (
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	fscheduler "github.com/zalando/skipper/filters/scheduler"
+	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/httptest"
@@ -640,4 +641,140 @@ func createFilterRegistry(specs ...filters.Spec) filters.Registry {
 		fr.Register(spec)
 	}
 	return fr
+}
+
+func createRoutesFile(route string) (string, error) {
+	fd, err := os.CreateTemp("/tmp", "test_data_clients_")
+	if err != nil {
+		return "", fmt.Errorf("Failed to create tempfile: %w", err)
+	}
+	_, err = fd.WriteString(route)
+	if err != nil {
+		return "", fmt.Errorf("Failed to write tempfile: %w", err)
+	}
+
+	filePath := fd.Name()
+	err = fd.Close()
+
+	return filePath, err
+}
+
+func TestDataClients(t *testing.T) {
+	// routesfile
+	routesFileStatus := 201
+	routeStringFmt := `r%d: Path("/routes-file") -> status(%d) -> inlineContent("Got it") -> <shunt>;`
+	filePath, err := createRoutesFile(fmt.Sprintf(routeStringFmt, routesFileStatus, routesFileStatus))
+	if err != nil {
+		t.Fatalf("Failed to create routes file: %v", err)
+	}
+	defer os.Remove(filePath)
+
+	// application log
+	fdApp, err := os.CreateTemp("/tmp", "app_log_")
+	if err != nil {
+		t.Fatalf("Failed to create tempfile: %v", err)
+	}
+	defer fdApp.Close()
+
+	// access log
+	fdAccess, err := os.CreateTemp("/tmp", "access_log_")
+	if err != nil {
+		t.Fatalf("Failed to create tempfile: %v", err)
+	}
+	defer fdAccess.Close()
+
+	// run skipper proxy that we want to test
+	o := Options{
+		Address:                         ":8090",
+		EnableRatelimiters:              true,
+		SourcePollTimeout:               1500 * time.Millisecond,
+		WaitFirstRouteLoad:              true,
+		SuppressRouteUpdateLogs:         false,
+		MetricsListener:                 ":8091",
+		testOptions:                     testOptions{},
+		RoutesFile:                      filePath,
+		InlineRoutes:                    `healthz: Path("/healthz") -> status(200) -> inlineContent("OK") -> <shunt>;`,
+		ApplicationLogOutput:            fdApp.Name(),
+		AccessLogOutput:                 fdAccess.Name(),
+		AccessLogDisabled:               false,
+		MaxTCPListenerConcurrency:       0,
+		ExpectedBytesPerRequest:         1024,
+		ReadHeaderTimeoutServer:         0,
+		ReadTimeoutServer:               1 * time.Second,
+		MetricsFlavours:                 []string{"codahale"},
+		EnablePrometheusMetrics:         true,
+		LoadBalancerHealthCheckInterval: 3 * time.Second,
+		OAuthTokeninfoURL:               "http://127.0.0.1:12345",
+		CredentialsPaths:                []string{"/does-not-exist"},
+		EnableSwarm:                     true,
+		SwarmPort:                       9001,
+		CompressEncodings:               []string{"gzip"},
+		IgnoreTrailingSlash:             true,
+		EnableBreakers:                  true,
+		DebugListener:                   ":8092",
+		StatusChecks:                    []string{"http://127.0.0.1:8091/metrics", "http://127.0.0.1:8092"},
+	}
+
+	dcs, err := createDataClients(o, innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{}), nil)
+	if err != nil {
+		t.Fatalf("Failed to createDataclients: %v", err)
+	}
+
+	fr := createFilterRegistry(
+		fscheduler.NewFifo(),
+		flog.NewEnableAccessLog(),
+		builtin.NewStatus(),
+		builtin.NewInlineContent(),
+	)
+	metrics := &metricstest.MockMetrics{}
+	reg := scheduler.RegistryWith(scheduler.Options{
+		Metrics:                metrics,
+		EnableRouteFIFOMetrics: true,
+	})
+	defer reg.Close()
+
+	// create LB in front of apiservers to be able to switch the data served by apiserver
+	ro := routing.Options{
+		SignalFirstLoad: true,
+		FilterRegistry:  fr,
+		DataClients:     dcs, //[]routing.DataClient{dc},
+		PostProcessors: []routing.PostProcessor{
+			loadbalancer.NewAlgorithmProvider(),
+			reg,
+		},
+		SuppressLogs: true,
+	}
+	rt := routing.New(ro)
+	defer rt.Close()
+	<-rt.FirstLoad()
+	tracer := &tracingtest.Tracer{}
+	pr := proxy.WithParams(proxy.Params{
+		Routing:     rt,
+		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+	})
+	defer pr.Close()
+	lb := stdlibhttptest.NewServer(pr)
+	defer lb.Close()
+
+	sigs := make(chan os.Signal, 1)
+	go run(o, sigs, nil)
+
+	// wait for proxy being ready
+	ready := false
+	for !ready {
+		rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
+		if rsp != nil && rsp.StatusCode == 200 {
+			ready = true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	rsp, err := http.DefaultClient.Get("http://localhost:8090/routes-file")
+	if err != nil {
+		t.Fatalf("Failed to GET routes file route: %v", err)
+	}
+	if rsp.StatusCode != routesFileStatus {
+		t.Fatalf("Failed to GET the status of routes file route: %d", rsp.StatusCode)
+	}
+
 }
