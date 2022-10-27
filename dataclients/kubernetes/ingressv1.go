@@ -156,7 +156,7 @@ func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *de
 		}
 
 		// Ingress status field does not support errors
-		return fmt.Errorf("error while getting service: %v", err)
+		return fmt.Errorf("error while getting service: %w", err)
 	}
 
 	if endpointsRoute.BackendType != eskip.ShuntBackend {

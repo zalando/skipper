@@ -60,7 +60,7 @@ func newEncrypter(secretsFile string) (*Encrypter, error) {
 	secretSource := newFileSecretSource(secretsFile)
 	_, err := secretSource.GetSecret()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read secrets from secret source: %v", err)
+		return nil, fmt.Errorf("failed to read secrets from secret source: %w", err)
 	}
 	return &Encrypter{
 		secretSource: secretSource,
@@ -134,16 +134,16 @@ func (e *Encrypter) RefreshCiphers() error {
 
 		key, err := scrypt.Key(s, []byte{}, 1<<15, 8, 1, 32)
 		if err != nil {
-			return fmt.Errorf("failed to create key: %v", err)
+			return fmt.Errorf("failed to create key: %w", err)
 		}
 		//key has to be 16 or 32 byte
 		block, err := aes.NewCipher(key)
 		if err != nil {
-			return fmt.Errorf("failed to create new cipher: %v", err)
+			return fmt.Errorf("failed to create new cipher: %w", err)
 		}
 		aesgcm, err := cipher.NewGCM(block)
 		if err != nil {
-			return fmt.Errorf("failed to create new GCM: %v", err)
+			return fmt.Errorf("failed to create new GCM: %w", err)
 		}
 		suites[i] = aesgcm
 	}

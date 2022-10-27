@@ -58,19 +58,19 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		case "grpc-max-msg-size":
 			v, err := strconv.Atoi(val)
 			if err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse %s as int grpc-max-msg-size: %v", val, err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as int grpc-max-msg-size: %w", val, err)
 			}
 			grpcMaxMsgSize = v
 		case "min-period":
 			v, err := time.ParseDuration(val)
 			if err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse %s as time.Duration min-period : %v", val, err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as time.Duration min-period : %w", val, err)
 			}
 			minReportingPeriod = v
 		case "max-period":
 			v, err := time.ParseDuration(val)
 			if err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse %s as time.Duration max-period: %v", val, err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as time.Duration max-period: %w", val, err)
 			}
 			maxReportingPeriod = v
 		case "tag":
@@ -92,13 +92,13 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 
 			port, err = strconv.Atoi(sport)
 			if err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse %s as int: %v", sport, err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as int: %w", sport, err)
 			}
 		case "plaintext":
 			var err error
 			plaintext, err = strconv.ParseBool(val)
 			if err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse %s as bool: %v", val, err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse %s as bool: %w", val, err)
 			}
 		case "cmd-line":
 			cmdLine = val
@@ -117,22 +117,22 @@ func parseOptions(opts []string) (lightstep.Options, error) {
 		case "max-buffered-spans":
 			var err error
 			if maxBufferedSpans, err = strconv.Atoi(val); err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse max buffered spans: %v", err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse max buffered spans: %w", err)
 			}
 		case "max-log-key-len":
 			var err error
 			if maxLogKeyLen, err = strconv.Atoi(val); err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse max log key length: %v", err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse max log key length: %w", err)
 			}
 		case "max-log-value-len":
 			var err error
 			if maxLogValueLen, err = strconv.Atoi(val); err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse max log value length: %v", err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse max log value length: %w", err)
 			}
 		case "max-logs-per-span":
 			var err error
 			if maxLogsPerSpan, err = strconv.Atoi(val); err != nil {
-				return lightstep.Options{}, fmt.Errorf("failed to parse max logs per span: %v", err)
+				return lightstep.Options{}, fmt.Errorf("failed to parse max logs per span: %w", err)
 			}
 		case "propagators":
 			if val != "" {

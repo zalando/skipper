@@ -152,7 +152,7 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 
 	u, err := buildAPIURL(o.KubernetesOptions.KubernetesInCluster, o.KubernetesOptions.KubernetesAPIBaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build kubernetes API url from url %s running in cluster %v: %v", o.KubernetesOptions.KubernetesAPIBaseURL, o.KubernetesOptions.KubernetesInCluster, err)
+		return nil, fmt.Errorf("failed to build kubernetes API url from url %s running in cluster %v: %w", o.KubernetesOptions.KubernetesAPIBaseURL, o.KubernetesOptions.KubernetesInCluster, err)
 	}
 	o.KubernetesOptions.KubernetesAPIBaseURL = u
 

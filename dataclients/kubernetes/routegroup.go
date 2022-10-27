@@ -58,7 +58,7 @@ func eskipError(typ, e string, err error) error {
 		e = e[:48]
 	}
 
-	return fmt.Errorf("[eskip] %s, '%s'; %v", typ, e, err)
+	return fmt.Errorf("[eskip] %s, '%s'; %w", typ, e, err)
 }
 
 func targetPortNotFound(serviceName string, servicePort int) error {
