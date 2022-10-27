@@ -362,6 +362,9 @@ func (s *Swarm) Local() *NodeInfo {
 }
 
 func (s *Swarm) broadcast(m *message) error {
+	if s == nil {
+		return fmt.Errorf("cannot broadcast message, swarm is nil")
+	}
 	m.Source = s.Local().Name
 	b, err := encodeMessage(m)
 	if err != nil {
