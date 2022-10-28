@@ -173,6 +173,7 @@ func Test_NewConfig(t *testing.T) {
 				RefusePayload:                           multiFlag{"foo", "bar", "baz"},
 				ValidateQuery:                           true,
 				ValidateQueryLog:                        true,
+				LuaModules:                              commaListFlag(),
 			},
 			wantErr: false,
 		},

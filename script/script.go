@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -31,11 +30,28 @@ var InitialPoolSize int = 3
 // requests, but only this number is cached.
 var MaxPoolSize int = 10
 
-type luaScript struct{}
+type LuaOptions struct {
+	// Modules configures enabled standard and additional (preloaded) Lua modules.
+	// For standard Lua modules (see https://www.lua.org/manual/5.1/manual.html)
+	// use "<module>.<symbol>" (e.g. "base.print") to selectively enable module symbols.
+	// Additional modules are preloaded with all symbols.
+	// Empty value enables all modules.
+	Modules []string
+}
 
-// NewLuaScript creates a new filter spec for skipper
+type luaScript struct {
+	modules []string
+}
+
+// NewLuaScript creates a new filter spec
 func NewLuaScript() filters.Spec {
-	return &luaScript{}
+	spec, _ := NewLuaScriptWithOptions(LuaOptions{})
+	return spec
+}
+
+// NewLuaScriptWithOptions creates a new filter spec with options
+func NewLuaScriptWithOptions(opts LuaOptions) (filters.Spec, error) {
+	return &luaScript{opts.Modules}, nil
 }
 
 // Name returns the name of the filter ("lua")
@@ -62,10 +78,22 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 	}
 
 	s := &script{source: src, routeParams: params}
-	if err := s.initScript(); err != nil {
+	if err := s.initScript(ls.modules); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+type script struct {
+	source      string
+	routeParams []string
+
+	pool        chan *lua.LState
+	proto       *lua.FunctionProto
+	load        []luaModule
+	preload     []luaModule
+	hasRequest  bool
+	hasResponse bool
 }
 
 func (s *script) getState() (*lua.LState, error) {
@@ -93,13 +121,15 @@ func (s *script) putState(L *lua.LState) {
 }
 
 func (s *script) newState() (*lua.LState, error) {
-	L := lua.NewState()
-	L.PreloadModule("base64", base64.Loader)
-	L.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
-	L.PreloadModule("url", gluaurl.Loader)
-	L.PreloadModule("json", gjson.Loader)
-	L.SetGlobal("print", L.NewFunction(printToLog))
-	L.SetGlobal("sleep", L.NewFunction(sleep))
+	L := lua.NewState(lua.Options{SkipOpenLibs: true})
+
+	for _, m := range s.load {
+		m.load(L)
+	}
+
+	for _, m := range s.preload {
+		m.preload(L)
+	}
 
 	L.Push(L.NewFunctionFromProto(s.proto))
 
@@ -111,22 +141,7 @@ func (s *script) newState() (*lua.LState, error) {
 	return L, nil
 }
 
-func printToLog(L *lua.LState) int {
-	top := L.GetTop()
-	args := make([]interface{}, 0, top)
-	for i := 1; i <= top; i++ {
-		args = append(args, L.ToStringMeta(L.Get(i)).String())
-	}
-	log.Print(args...)
-	return 0
-}
-
-func sleep(L *lua.LState) int {
-	time.Sleep(time.Duration(L.CheckInt64(1)) * time.Millisecond)
-	return 0
-}
-
-func (s *script) initScript() error {
+func (s *script) initScript(modules []string) error {
 	// Compile
 	var reader io.Reader
 	var name string
@@ -157,7 +172,50 @@ func (s *script) initScript() error {
 	}
 	s.proto = proto
 
+	// Configure enabled modules and symbols
+	moduleConfig := moduleConfig(modules)
+
+	if len(moduleConfig) == 0 {
+		s.load = append(s.load, standardModules...)
+	} else {
+		L := lua.NewState(lua.Options{SkipOpenLibs: true})
+		defer L.Close()
+
+		for _, m := range standardModules {
+			name := m.name
+			if m.name == lua.BaseLibName {
+				name = "base" // alias for empty lua.BaseLibName
+			}
+			if symbols, ok := moduleConfig[name]; ok {
+				if len(symbols) > 0 {
+					m = m.withSymbols(L, symbols)
+				}
+				s.load = append(s.load, m)
+			}
+		}
+	}
+
+	// Configure additional modules
+	additionalModules := []luaModule{
+		{"base64", base64.Loader, nil},
+		{"http", gluahttp.NewHttpModule(&http.Client{}).Loader, nil},
+		{"url", gluaurl.Loader, nil},
+		{"json", gjson.Loader, nil},
+	}
+
+	if len(moduleConfig) == 0 {
+		s.preload = append(s.preload, additionalModules...)
+	} else {
+		for _, m := range additionalModules {
+			// TODO: enable selected symbols for preloaded modules
+			if _, ok := moduleConfig[m.name]; ok {
+				s.preload = append(s.preload, m)
+			}
+		}
+	}
+
 	// Detect request and response functions
+	// Note: use s.newState() instead of lua.NewState() to load only enabled modules
 	L, err := s.newState()
 	if err != nil {
 		return err
@@ -184,14 +242,6 @@ func (s *script) initScript() error {
 		s.putState(L)
 	}
 	return nil
-}
-
-type script struct {
-	source                  string
-	routeParams             []string
-	pool                    chan *lua.LState
-	proto                   *lua.FunctionProto
-	hasRequest, hasResponse bool
 }
 
 func (s *script) Request(f filters.FilterContext) {

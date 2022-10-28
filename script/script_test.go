@@ -50,9 +50,14 @@ type testContext struct {
 	responseHeader map[string]string
 }
 
+func testScript(script string) *testContext {
+	return &testContext{script: script}
+}
+
 func TestScript(t *testing.T) {
 	for _, test := range []struct {
 		name                   string
+		opts                   LuaOptions
 		context                testContext
 		expectedStateBag       map[string]string
 		expectedRequestHeader  map[string]string
@@ -304,10 +309,25 @@ func TestScript(t *testing.T) {
 				"result": "PHPSESSID=298zf09hf012fh2 csrftoken=u32t4o3tb3gg43 _gat=1 csrftoken=repeat ",
 			},
 		},
+		{
+			name: "disable all modules",
+			opts: LuaOptions{
+				// use non-existing module
+				Modules: []string{"none"},
+			},
+			context: testContext{
+				script: `
+					function request(ctx, params)
+						ctx.request.header["X-Message"] = "still usable without modules"
+					end
+				`,
+			},
+			expectedRequestHeader: map[string]string{"X-Message": "still usable without modules"},
+		},
 	} {
 		log.Println("Running", test.name, "test")
 
-		fc, err := runFilter(&test.context)
+		fc, err := runFilter(test.opts, &test.context)
 		if err != nil {
 			t.Errorf("failed to run filter: %v", err)
 		}
@@ -359,7 +379,7 @@ func TestSleep(t *testing.T) {
 		script: `function request(ctx, params) sleep(100.1) end`,
 	}
 	t0 := time.Now()
-	_, err := runFilter(ctx)
+	_, err := runFilter(LuaOptions{}, ctx)
 	if err != nil {
 		t.Fatalf("failed to run filter: %v", err)
 	}
@@ -725,8 +745,11 @@ func ExampleSetUnsupportedStateBag() {
 	// ok
 }
 
-func newFilter(script string, params ...string) (filters.Filter, error) {
-	ls := NewLuaScript()
+func newFilter(opts LuaOptions, script string, params ...string) (filters.Filter, error) {
+	ls, err := NewLuaScriptWithOptions(opts)
+	if err != nil {
+		return nil, err
+	}
 	args := []interface{}{script}
 	for _, p := range params {
 		args = append(args, p)
@@ -734,8 +757,8 @@ func newFilter(script string, params ...string) (filters.Filter, error) {
 	return ls.CreateFilter(args)
 }
 
-func runFilter(test *testContext) (*luaContext, error) {
-	scr, err := newFilter(test.script, test.params...)
+func runFilter(opts LuaOptions, test *testContext) (*luaContext, error) {
+	scr, err := newFilter(opts, test.script, test.params...)
 	if err != nil {
 		return nil, err
 	}
@@ -777,6 +800,10 @@ func runFilter(test *testContext) (*luaContext, error) {
 }
 
 func runExample(ctx *testContext) {
+	runExampleWithOptions(LuaOptions{}, ctx)
+}
+
+func runExampleWithOptions(opts LuaOptions, ctx *testContext) {
 	o := log.StandardLogger().Out
 	f := log.StandardLogger().Formatter
 	defer func() {
@@ -787,7 +814,7 @@ func runExample(ctx *testContext) {
 	log.SetOutput(os.Stdout)
 	log.SetFormatter(&exampleLogFormatter{})
 
-	_, err := runFilter(ctx)
+	_, err := runFilter(opts, ctx)
 	if err != nil {
 		log.Errorf("%v", err)
 	}
@@ -803,9 +830,15 @@ func (f *exampleLogFormatter) Format(entry *log.Entry) ([]byte, error) {
 	} else {
 		b = &bytes.Buffer{}
 	}
-	// escape \r to use testable examples
-	b.WriteString(strings.ReplaceAll(entry.Message, "\r", `\r`))
-	b.WriteByte('\n')
+
+	for _, line := range strings.Split(entry.Message, "\n") {
+		// escape \r to use testable examples
+		line = strings.ReplaceAll(line, "\r", `\r`)
+		line = strings.TrimRight(line, " ")
+
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
 	return b.Bytes(), nil
 }
 
@@ -824,7 +857,7 @@ func ExampleSetRequestCookieIsNotSupported() {
 }
 
 func BenchmarkNewState(b *testing.B) {
-	f, _ := newFilter(`function request(ctx, params) end`)
+	f, _ := newFilter(LuaOptions{}, `function request(ctx, params) end`)
 	s := f.(*script)
 
 	b.ResetTimer()
@@ -834,7 +867,7 @@ func BenchmarkNewState(b *testing.B) {
 }
 
 func benchmarkRequest(b *testing.B, script string, params ...string) {
-	f, _ := newFilter(script, params...)
+	f, _ := newFilter(LuaOptions{}, script, params...)
 
 	r, _ := http.NewRequest("GET", "http://example.com/test", nil)
 	r.Header.Add("X-Foo", "Bar")
