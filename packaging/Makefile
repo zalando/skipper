@@ -41,11 +41,11 @@ docker.build: clean $(BINARIES)
 	docker build -t $(IMAGE) --build-arg BUILD_FOLDER=. --build-arg TARGETPLATFORM= .
 
 docker-build: docker.build.amd64 docker.build.arm64 docker.build.armv7
-docker.build.amd64: clean build.linux.amd64 docker.build.enable
+docker.build.amd64: clean build.linux.amd64
 	docker buildx build -t $(IMAGE) --platform linux/amd64 -f Dockerfile --load .
-docker.build.arm64: clean build.linux.arm64 docker.build.enable
+docker.build.arm64: clean build.linux.arm64
 	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 --load .
-docker.build.armv7: clean build.linux.armv7 docker.build.enable
+docker.build.armv7: clean build.linux.armv7
 	docker buildx build -t $(ARM_IMAGE) --platform linux/arm/v7 -f Dockerfile.armv7 --load .
 
 docker-push: docker.push.amd64 docker.push.arm64 docker.push.armv7
@@ -57,17 +57,9 @@ docker.push.armv7: docker.build.armv7
 	docker push $(ARM_IMAGE)
 
 # build multi-arch container image using a trusted multi-arch base image
-docker.push.multiarch: clean build.linux docker.build.enable
+docker.push.multiarch: clean build.linux
 	docker buildx build --rm -t $(MULTIARCH_IMAGE) --platform linux/amd64,linux/arm64 --push \
 	  --build-arg BASE_IMAGE=container-registry.zalando.net/library/alpine-3:latest .
-
-# https://docs.docker.com/build/working-with-build/
-# ~/.docker/config.json add: "experimental": "enabled",
-docker.build.enable:
-	[ $$(which jq) ] || echo "please install jq"
-	[ -d $$HOME/.docker ] || mkdir $$HOME/.docker
-	[ -f $$HOME/.docker/config.json ] || touch $$HOME/.docker/config.json
-	if [ -s $$HOME/.docker/config.json ]; then jq -r '. += {experimental: "enabled"}' $$HOME/.docker/config.json > $$HOME/.docker/config.json.new; mv $$HOME/.docker/config.json.new $$HOME/.docker/config.json; else echo '{"experimental": "enabled"}' >$$HOME/.docker/config.json; fi
 
 build.linux: build.linux.amd64 build.linux.arm64 build.linux.armv7
 build.linux.amd64: $(addprefix build/linux/amd64/,$(BINARIES))
