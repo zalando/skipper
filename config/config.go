@@ -131,8 +131,8 @@ type Config struct {
 	AppendFilters             *defaultFiltersFlags `yaml:"default-filters-append"`
 	PrependFilters            *defaultFiltersFlags `yaml:"default-filters-prepend"`
 	DisabledFilters           *listFlag            `yaml:"disabled-filters"`
-	EditRoute                 *routeChangerConfig  `yaml:"edit-route"`
-	CloneRoute                *routeChangerConfig  `yaml:"clone-route"`
+	EditRoute                 routeChangerConfig   `yaml:"edit-route"`
+	CloneRoute                routeChangerConfig   `yaml:"clone-route"`
 	SourcePollTimeout         int64                `yaml:"source-poll-timeout"`
 	WaitFirstRouteLoad        bool                 `yaml:"wait-first-route-load"`
 
@@ -293,8 +293,8 @@ func NewConfig() *Config {
 	cfg.AppendFilters = &defaultFiltersFlags{}
 	cfg.PrependFilters = &defaultFiltersFlags{}
 	cfg.DisabledFilters = commaListFlag()
-	cfg.CloneRoute = &routeChangerConfig{}
-	cfg.EditRoute = &routeChangerConfig{}
+	cfg.CloneRoute = routeChangerConfig{}
+	cfg.EditRoute = routeChangerConfig{}
 	cfg.KubernetesEastWestRangeDomains = commaListFlag()
 	cfg.RoutesURLs = commaListFlag()
 	cfg.ForwardedHeadersList = commaListFlag()
@@ -406,8 +406,8 @@ func NewConfig() *Config {
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
 	flag.Var(cfg.PrependFilters, "default-filters-prepend", "set of default filters to apply to prepend to all filters of all routes")
 	flag.Var(cfg.DisabledFilters, "disabled-filters", "comma separated list of filters unavailable for use")
-	flag.Var(cfg.EditRoute, "edit-route", "match and edit filters and predicates of all routes")
-	flag.Var(cfg.CloneRoute, "clone-route", "clone all matching routes and replace filters and predicates of all matched routes")
+	flag.Var(&cfg.EditRoute, "edit-route", "match and edit filters and predicates of all routes")
+	flag.Var(&cfg.CloneRoute, "clone-route", "clone all matching routes and replace filters and predicates of all matched routes")
 	flag.BoolVar(&cfg.WaitFirstRouteLoad, "wait-first-route-load", false, "prevent starting the listener before the first batch of routes were loaded")
 
 	// Forwarded headers
@@ -780,8 +780,6 @@ func (c *Config) ToOptions() skipper.Options {
 			Append:  c.AppendFilters.filters,
 		},
 		DisabledFilters:    c.DisabledFilters.values,
-		CloneRoute:         eskip.NewClone(c.CloneRoute.Reg, c.CloneRoute.Repl),
-		EditRoute:          eskip.NewEditor(c.EditRoute.Reg, c.EditRoute.Repl),
 		SourcePollTimeout:  time.Duration(c.SourcePollTimeout) * time.Millisecond,
 		WaitFirstRouteLoad: c.WaitFirstRouteLoad,
 
@@ -893,6 +891,14 @@ func (c *Config) ToOptions() skipper.Options {
 		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
 
 		LuaModules: c.LuaModules.values,
+	}
+	for _, rcci := range c.CloneRoute {
+		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)
+		options.CloneRoute = append(options.CloneRoute, eskipClone)
+	}
+	for _, rcci := range c.EditRoute {
+		eskipEdit := eskip.NewEditor(rcci.Reg, rcci.Repl)
+		options.EditRoute = append(options.EditRoute, eskipEdit)
 	}
 
 	if c.PluginDir != "" {
