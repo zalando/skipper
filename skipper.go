@@ -326,14 +326,14 @@ type Options struct {
 	// DisabledFilters is a list of filters unavailable for use
 	DisabledFilters []string
 
-	// CloneRoute is a PreProcessor, that will be applied to all routes automatically. It
-	// will clone all matching routes and apply changes to the
+	// CloneRoute is a slice of PreProcessors that will be applied to all routes
+	// automatically. They will clone all matching routes and apply changes to the
 	// cloned routes.
-	CloneRoute *eskip.Clone
+	CloneRoute []*eskip.Clone
 
 	// EditRoute will be applied to all routes automatically and
 	// will apply changes to all matching routes.
-	EditRoute *eskip.Editor
+	EditRoute []*eskip.Editor
 
 	// A list of custom routing pre-processor implementations that will
 	// be applied to all routes.
@@ -1782,11 +1782,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if o.CloneRoute != nil {
-		ro.PreProcessors = append(ro.PreProcessors, o.CloneRoute)
+		for _, cr := range o.CloneRoute {
+			ro.PreProcessors = append(ro.PreProcessors, cr)
+		}
 	}
 
 	if o.EditRoute != nil {
-		ro.PreProcessors = append(ro.PreProcessors, o.EditRoute)
+		for _, er := range o.EditRoute {
+			ro.PreProcessors = append(ro.PreProcessors, er)
+		}
 	}
 
 	ro.PreProcessors = append(ro.PreProcessors, schedulerRegistry.PreProcessor())

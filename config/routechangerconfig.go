@@ -6,17 +6,28 @@ import (
 	"strings"
 )
 
-type routeChangerConfig struct {
+type routeChangerConfigItem struct {
 	Reg  *regexp.Regexp
 	Repl string
 	Sep  string
 }
 
+func (rcci routeChangerConfigItem) String() string {
+	return rcci.Sep + rcci.Reg.String() + rcci.Sep + rcci.Repl + rcci.Sep
+}
+
+type routeChangerConfig []routeChangerConfigItem
+
 func (rcc routeChangerConfig) String() string {
-	if rcc.Reg == nil {
-		return ""
+	var b strings.Builder
+	for i, rcci := range rcc {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+
+		b.WriteString(rcci.String())
 	}
-	return fmt.Sprintf("%s%s%s%s%s", rcc.Sep, rcc.Reg, rcc.Sep, rcc.Repl, rcc.Sep)
+	return b.String()
 }
 
 func (rcc *routeChangerConfig) Set(value string) error {
@@ -28,11 +39,21 @@ func (rcc *routeChangerConfig) Set(value string) error {
 	if len(a) != 4 {
 		return fmt.Errorf("unexpected size of string split: %d", len(a))
 	}
+
 	var err error
 	reg, repl := a[1], a[2]
-	rcc.Reg, err = regexp.Compile(reg)
-	rcc.Repl = repl
-	rcc.Sep = firstSym
+
+	regex, err := regexp.Compile(reg)
+	if err != nil {
+		return err
+	}
+
+	rcci := routeChangerConfigItem{
+		Reg:  regex,
+		Repl: repl,
+		Sep:  firstSym,
+	}
+	*rcc = append(*rcc, rcci)
 	return err
 }
 
