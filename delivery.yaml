@@ -27,8 +27,11 @@ pipeline:
       docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
   - desc: build-push
     cmd: |
+      set -euo pipefail
+
       IMAGE_REGISTRY="registry-write.opensource.zalan.do"
       MULTIARCH_REGISTRY="container-registry-test.zalando.net"
+
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         LATEST_VERSION=$(git describe --tags --always | awk -F \- '{print $1}')
         CUR_PART=$(echo $LATEST_VERSION | awk -F . '{print $1"."$2}')
@@ -38,6 +41,7 @@ pipeline:
         if [ "$CUR_PART" != "$VERSION_PART" ]; then NEW_PATCH=0; fi
         RELEASE_VERSION=${VERSION_PART}.${NEW_PATCH}
         export VERSION="${RELEASE_VERSION}"
+
         IMAGE="${IMAGE_REGISTRY}/teapot/skipper:${RELEASE_VERSION}"
         ARM_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-armv7:${RELEASE_VERSION}"
         ARM64_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-arm64:${RELEASE_VERSION}"
@@ -51,21 +55,34 @@ pipeline:
       export IMAGE ARM_IMAGE ARM64_IMAGE MULTIARCH_IMAGE
 
       make deps cicheck staticcheck gosec
-      git status
-      git diff
-      cd packaging && make docker.build.amd64 && git status && git diff && make docker.push.amd64 && make docker.push.multiarch
+
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
-        echo "Created docker image registry.opensource.zalan.do/teapot/skipper:${RELEASE_VERSION}"
-        cdp-promote-image "${MULTIARCH_IMAGE}"
-        echo "Created multi-arch docker image container-registry.zalando.net/teapot/skipper:${RELEASE_VERSION}"
-        echo "Creating docker image registry.opensource.zalan.do/teapot/skipper-arm64:${RELEASE_VERSION}"
-        make docker.build.arm64 && git status && git diff && make docker.push.arm64
-        echo "Creating docker image registry.opensource.zalan.do/teapot/skipper-armv7:${RELEASE_VERSION}"
-        make docker.build.armv7 && git status && git diff && make docker.push.armv7
         echo "Creating git tag: ${RELEASE_VERSION}"
         git gh-tag "${RELEASE_VERSION}"
+      fi
+
+      git status
+      git diff
+
+      cd packaging
+
+      make docker.build.amd64 && git status && git diff && make docker.push.amd64 && make docker.push.multiarch
+
+      if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
+        echo "Created docker image registry.opensource.zalan.do/teapot/skipper:${RELEASE_VERSION}"
+
+        cdp-promote-image "${MULTIARCH_IMAGE}"
+        echo "Created multi-arch docker image container-registry.zalando.net/teapot/skipper:${RELEASE_VERSION}"
+
+        echo "Creating docker image registry.opensource.zalan.do/teapot/skipper-arm64:${RELEASE_VERSION}"
+        make docker.build.arm64 && git status && git diff && make docker.push.arm64
+
+        echo "Creating docker image registry.opensource.zalan.do/teapot/skipper-armv7:${RELEASE_VERSION}"
+        make docker.build.armv7 && git status && git diff && make docker.push.armv7
+
         echo "Creating release for tag: ${RELEASE_VERSION}"
         make build.package
+
         files=(-u sha256sum.txt); for f in *.tar.gz; do files+=(-u "$f"); done
         echo "create release page"
         tf=$(mktemp)
