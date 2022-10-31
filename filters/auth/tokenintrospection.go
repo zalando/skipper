@@ -318,7 +318,7 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	case checkOAuthTokenintrospectionAnyClaims:
 		f.claims = sargs
 		if !all(f.claims, cfg.ClaimsSupported) {
-			return nil, fmt.Errorf("%v: %s, supported Claims: %v", errUnsupportedClaimSpecified, strings.Join(f.claims, ","), cfg.ClaimsSupported)
+			return nil, fmt.Errorf("%w: %s, supported Claims: %v", errUnsupportedClaimSpecified, strings.Join(f.claims, ","), cfg.ClaimsSupported)
 		}
 
 	// key value pairs

@@ -554,12 +554,12 @@ func (c *Config) Parse() error {
 	if c.ConfigFile != "" {
 		yamlFile, err := os.ReadFile(c.ConfigFile)
 		if err != nil {
-			return fmt.Errorf("invalid config file: %v", err)
+			return fmt.Errorf("invalid config file: %w", err)
 		}
 
 		err = yaml.Unmarshal(yamlFile, c)
 		if err != nil {
-			return fmt.Errorf("unmarshalling config file error: %v", err)
+			return fmt.Errorf("unmarshalling config file error: %w", err)
 		}
 
 		_ = yaml.Unmarshal(yamlFile, configKeys)
@@ -607,7 +607,7 @@ func (c *Config) Parse() error {
 		for i := range keyFiles {
 			certificate, err := tls.LoadX509KeyPair(certsFiles[i], keyFiles[i])
 			if err != nil {
-				return fmt.Errorf("invalid key/cert pair: %v", err)
+				return fmt.Errorf("invalid key/cert pair: %w", err)
 			}
 
 			certificates = append(certificates, certificate)
@@ -1010,7 +1010,7 @@ func (c *Config) parseHistogramBuckets() ([]float64, error) {
 	for _, v := range thresholds {
 		bucket, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse histogram-metric-buckets: %v", err)
+			return nil, fmt.Errorf("unable to parse histogram-metric-buckets: %w", err)
 		}
 		result = append(result, bucket)
 	}
@@ -1042,7 +1042,7 @@ func (c *Config) parseForwardedHeaders() error {
 
 	cidrs, err := net.ParseCIDRs(c.ForwardedHeadersExcludeCIDRList.values)
 	if err != nil {
-		return fmt.Errorf("invalid forwarded headers exclude CIDRs: %v", err)
+		return fmt.Errorf("invalid forwarded headers exclude CIDRs: %w", err)
 	}
 	c.ForwardedHeadersExcludeCIDRs = cidrs
 

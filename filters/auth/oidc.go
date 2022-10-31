@@ -212,7 +212,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 	redirectURL, err := url.Parse(sargs[paramCallbackURL])
 	if err != nil || sargs[paramCallbackURL] == "" {
-		return nil, fmt.Errorf("invalid redirect url '%s': %v", sargs[paramCallbackURL], err)
+		return nil, fmt.Errorf("invalid redirect url '%s': %w", sargs[paramCallbackURL], err)
 	}
 
 	encrypter, err := s.secretsRegistry.GetEncrypter(1*time.Minute, s.SecretsFile)

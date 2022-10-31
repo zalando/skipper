@@ -17,7 +17,7 @@ func (dpf defaultFiltersFlags) String() string {
 func (dpf *defaultFiltersFlags) Set(value string) error {
 	fs, err := eskip.ParseFilters(value)
 	if err != nil {
-		return fmt.Errorf("failed to parse default filters: %v", err)
+		return fmt.Errorf("failed to parse default filters: %w", err)
 	}
 
 	dpf.filters = fs

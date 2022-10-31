@@ -42,7 +42,7 @@ type flowId struct {
 func NewFlowId(l int) (string, error) {
 	g, err := NewStandardGenerator(l)
 	if err != nil {
-		return "", fmt.Errorf("deprecated new flowid: %v", err)
+		return "", fmt.Errorf("deprecated new flowid: %w", err)
 	}
 	return g.Generate()
 }

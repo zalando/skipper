@@ -34,7 +34,7 @@ func NewStaticNodeInfo(name, addr string) (*NodeInfo, error) {
 	ip := net.ParseIP(ipString)
 	portInt, err := strconv.ParseUint(portString, 10, 16)
 	if err != nil {
-		return nil, fmt.Errorf("invalid port in addr '%s': %v", portString, err)
+		return nil, fmt.Errorf("invalid port in addr '%s': %w", portString, err)
 	}
 
 	return &NodeInfo{

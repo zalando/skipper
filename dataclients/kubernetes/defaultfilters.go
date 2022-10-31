@@ -61,7 +61,7 @@ func (fs *filterSet) parse() {
 
 	fs.filters, fs.err = eskip.ParseFilters(fs.text)
 	if fs.err != nil {
-		fs.err = fmt.Errorf("[eskip] default filters: %v", fs.err)
+		fs.err = fmt.Errorf("[eskip] default filters: %w", fs.err)
 	}
 
 	fs.parsed = true

@@ -71,17 +71,17 @@ func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Fil
 			pq := pathQuery{path: path}
 			for _, query := range splitQueries(queries) {
 				if query == "" {
-					return nil, fmt.Errorf("%v: %s", errUnsupportedClaimSpecified, arg)
+					return nil, fmt.Errorf("%w: %s", errUnsupportedClaimSpecified, arg)
 				}
 				pq.queries = append(pq.queries, trimQuotes(query))
 			}
 			if len(pq.queries) == 0 {
-				return nil, fmt.Errorf("%v: %s", errUnsupportedClaimSpecified, arg)
+				return nil, fmt.Errorf("%w: %s", errUnsupportedClaimSpecified, arg)
 			}
 			filter.paths = append(filter.paths, pq)
 		}
 		if len(filter.paths) == 0 {
-			return nil, fmt.Errorf("%v: no queries could be parsed", errUnsupportedClaimSpecified)
+			return nil, fmt.Errorf("%w: no queries could be parsed", errUnsupportedClaimSpecified)
 		}
 	default:
 		return nil, filters.ErrInvalidFilterParameters

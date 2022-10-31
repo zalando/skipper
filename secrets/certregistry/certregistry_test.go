@@ -35,7 +35,7 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 	ca.Do(func() {
 		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate CA key: %v", err)
+			ca.err = fmt.Errorf("unable to generate CA key: %w", err)
 			return
 		}
 
@@ -54,12 +54,12 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		}
 		caBody, err := x509.CreateCertificate(rand.Reader, &caCert, &caCert, caKey.Public(), caKey)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate CA certificate: %v", err)
+			ca.err = fmt.Errorf("unable to generate CA certificate: %w", err)
 			return
 		}
 		caReparsed, err := x509.ParseCertificate(caBody)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to parse CA certificate: %v", err)
+			ca.err = fmt.Errorf("unable to parse CA certificate: %w", err)
 			return
 		}
 		roots := x509.NewCertPool()
@@ -67,7 +67,7 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 
 		chainKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate sub-CA key: %v", err)
+			ca.err = fmt.Errorf("unable to generate sub-CA key: %w", err)
 			return
 		}
 		chainCert := x509.Certificate{
@@ -85,12 +85,12 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		}
 		chainBody, err := x509.CreateCertificate(rand.Reader, &chainCert, caReparsed, chainKey.Public(), caKey)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate sub-CA certificate: %v", err)
+			ca.err = fmt.Errorf("unable to generate sub-CA certificate: %w", err)
 			return
 		}
 		chainReparsed, err := x509.ParseCertificate(chainBody)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to parse sub-CA certificate: %v", err)
+			ca.err = fmt.Errorf("unable to parse sub-CA certificate: %w", err)
 			return
 		}
 
