@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: "teapot/${{ github.repository }}"
+  IMAGE_NAME: "${{ github.repository }}"
 
 jobs:
   docker:
@@ -38,6 +38,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
+          file: packaging/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
