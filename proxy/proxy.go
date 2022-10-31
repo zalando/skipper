@@ -1314,7 +1314,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		uri = uri[:i]
 	}
 	logFunc(
-		`%s after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", user agent: "%s"`,
+		`%s after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", host: %s, user agent: "%s"`,
 		msgPrefix,
 		time.Since(ctx.startServe),
 		id,
@@ -1327,6 +1327,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		req.Method,
 		uri,
 		req.Proto,
+		req.Host,
 		req.UserAgent(),
 	)
 
