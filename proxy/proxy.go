@@ -1483,6 +1483,14 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 		setTag(s, HostnameTag, p.hostname).
 		setTag(s, HTTPPathTag, u.Path).
 		setTag(s, HTTPHostTag, r.Host)
+	pathComponents := strings.Split(u.Path, "/")
+	for i, part := range pathComponents {
+		if len(part) < 1 {
+			continue
+		}
+		HTTPPathPartTag := fmt.Sprintf("%s_%d", HTTPPathPartPrefixTag, i)
+		p.tracing.setTag(s, HTTPPathPartTag, part)
+	}
 	if val := r.Header.Get("X-Flow-Id"); val != "" {
 		p.tracing.setTag(s, FlowIDTag, val)
 	}
