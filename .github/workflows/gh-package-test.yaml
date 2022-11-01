@@ -30,9 +30,9 @@ jobs:
           docker pull registry.opensource.zalan.do/teapot/skipper:latest
           docker pull registry.opensource.zalan.do/teapot/skipper-armv7:latest
           docker pull registry.opensource.zalan.do/teapot/skipper-arm64:latest
-          docker tag registry.opensource.zalan.do/teapot/skipper:latest "$REGISTRY/IMAGE:${{ steps.get-latest-tag.outputs.tag }}"
-          docker tag registry.opensource.zalan.do/teapot/skipper-armv7:latest "$REGISTRY/$IMAGE-armv7:${{ steps.get-latest-tag.outputs.tag }}"
-          docker tag registry.opensource.zalan.do/teapot/skipper-arm64:latest "$REGISTRY/$IMAGE-arm64:${{ steps.get-latest-tag.outputs.tag }}"
-          docker push "$REGISTRY/$IMAGE:${{ steps.get-latest-tag.outputs.tag }}"
-          docker push "$REGISTRY/$IMAGE-armv7:${{ steps.get-latest-tag.outputs.tag }}" 
-          docker push "$REGISTRY/$IMAGE-arm64:${{ steps.get-latest-tag.outputs.tag }}"
+          docker tag registry.opensource.zalan.do/teapot/skipper:latest "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get-latest-tag.outputs.tag }}"
+          docker tag registry.opensource.zalan.do/teapot/skipper-armv7:latest "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-armv7:${{ steps.get-latest-tag.outputs.tag }}"
+          docker tag registry.opensource.zalan.do/teapot/skipper-arm64:latest "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-arm64:${{ steps.get-latest-tag.outputs.tag }}"
+          docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get-latest-tag.outputs.tag }}"
+          docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-armv7:${{ steps.get-latest-tag.outputs.tag }}" 
+          docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-arm64:${{ steps.get-latest-tag.outputs.tag }}"
