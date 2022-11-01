@@ -17,6 +17,7 @@ const (
 	HTTPMethodTag         = "http.method"
 	HTTPRemoteIPTag       = "http.remote_ip"
 	HTTPPathTag           = "http.path"
+	HTTPPathPartPrefixTag = "http.path.part"
 	HTTPUrlTag            = "http.url"
 	HTTPStatusCodeTag     = "http.status_code"
 	SkipperRouteIDTag     = "skipper.route_id"
