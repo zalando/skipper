@@ -1,0 +1,38 @@
+name: gh-package-deploy
+on:
+  push:
+    branches:
+      - gh-packages
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: "${{ github.repository }}"
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - uses: actions-ecosystem/action-get-latest-tag@v1
+        id: get-latest-tag
+      
+      - id: pull
+        run: |
+          docker pull registry.opensource.zalan.do/teapot/skipper:latest
+          docker pull registry.opensource.zalan.do/teapot/skipper-armv7:latest
+          docker pull registry.opensource.zalan.do/teapot/skipper-arm64:latest
+          docker tag registry.opensource.zalan.do/teapot/skipper:latest "${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.get-latest-tag.outputs.tag }}"
+          docker tag registry.opensource.zalan.do/teapot/skipper-armv7:latest "${{ env.REGISTRY }}/${{ env.IMAGE }}-armv7:${{ steps.get-latest-tag.outputs.tag }}"
+          docker tag registry.opensource.zalan.do/teapot/skipper-arm64:latest "${{ env.REGISTRY }}/${{ env.IMAGE }}-arm64:${{ steps.get-latest-tag.outputs.tag }}"
+          docker push "${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.get-latest-tag.outputs.tag }}"
+          docker push "${{ env.REGISTRY }}/${{ env.IMAGE }}-armv7:${{ steps.get-latest-tag.outputs.tag }}" 
+          docker push "${{ env.REGISTRY }}/${{ env.IMAGE }}-arm64:${{ steps.get-latest-tag.outputs.tag }}"
