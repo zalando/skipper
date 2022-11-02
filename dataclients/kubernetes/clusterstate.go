@@ -12,6 +12,7 @@ import (
 
 type clusterState struct {
 	mu              sync.Mutex
+	name            string
 	ingresses       []*definitions.IngressItem
 	ingressesV1     []*definitions.IngressV1Item
 	routeGroups     []*definitions.RouteGroupItem

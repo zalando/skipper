@@ -122,12 +122,13 @@ func toSymbol(p string) string {
 	return string(b)
 }
 
-func rgRouteID(namespace, name, subName string, index, subIndex int, internal bool) string {
+func rgRouteID(clusterName, namespace, name, subName string, index, subIndex int, internal bool) string {
 	if internal {
 		namespace = "internal_" + namespace
 	}
 	return fmt.Sprintf(
-		"kube_rg__%s__%s__%s__%d_%d",
+		"kube_rg__%s__%s__%s__%s__%d_%d",
+		clusterName,
 		namespace,
 		name,
 		subName,
@@ -136,8 +137,9 @@ func rgRouteID(namespace, name, subName string, index, subIndex int, internal bo
 	)
 }
 
-func crdRouteID(m *definitions.Metadata, method string, routeIndex, backendIndex int, internal bool) string {
+func crdRouteID(clusterName string, m *definitions.Metadata, method string, routeIndex, backendIndex int, internal bool) string {
 	return rgRouteID(
+		toSymbol(clusterName),
 		toSymbol(namespaceString(m.Namespace)),
 		toSymbol(m.Name),
 		toSymbol(method),
@@ -396,7 +398,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 	var routes []*eskip.Route
 	for backendIndex, beref := range rg.Spec.DefaultBackends {
 		be := ctx.backendsByName[beref.BackendName]
-		rid := crdRouteID(rg.Metadata, "all", 0, backendIndex, ctx.internal)
+		rid := crdRouteID(ctx.clusterState.name, rg.Metadata, "all", 0, backendIndex, ctx.internal)
 		ri := &eskip.Route{Id: rid}
 		if err := applyBackend(ctx, be, ri); err != nil {
 			return nil, err
@@ -507,7 +509,7 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 				r, err := transformExplicitGroupRoute(&routeContext{
 					group:      ctx,
 					groupRoute: rgr,
-					id:         crdRouteID(rg.Metadata, idMethod, routeIndex, backendIndex, ctx.internal),
+					id:         crdRouteID(ctx.clusterState.name, rg.Metadata, idMethod, routeIndex, backendIndex, ctx.internal),
 					method:     strings.ToUpper(method),
 					backend:    be,
 				})
@@ -616,7 +618,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 
 			catchAll := hostCatchAllRoutes(ctx.hostRoutes, func(host string) string {
 				// "catchall" won't conflict with any HTTP method
-				return rgRouteID("", toSymbol(host), "catchall", 0, 0, false)
+				return rgRouteID(s.name, "", toSymbol(host), "catchall", 0, 0, false)
 			})
 			ri = append(ri, catchAll...)
 
@@ -652,7 +654,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 
 			catchAll := hostCatchAllRoutes(internalCtx.hostRoutes, func(host string) string {
 				// "catchall" won't conflict with any HTTP method
-				return rgRouteID("", toSymbol(host), "catchall", 0, 0, true)
+				return rgRouteID(s.name, "", toSymbol(host), "catchall", 0, 0, true)
 			})
 			internalRi = append(internalRi, catchAll...)
 

@@ -53,6 +53,8 @@ const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the 
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
 
 type clusterClient struct {
+	name string
+
 	ingressesURI        string
 	routeGroupsURI      string
 	servicesURI         string
@@ -151,7 +153,13 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 	if o.KubernetesIngressV1 {
 		ingressURI = IngressesV1ClusterURI
 	}
+
+	if o.ClusterName == "" {
+		o.ClusterName = "default"
+	}
+
 	c := &clusterClient{
+		name:                      o.ClusterName,
 		ingressV1:                 o.KubernetesIngressV1,
 		ingressesURI:              ingressURI,
 		routeGroupsURI:            routeGroupsClusterURI,
@@ -541,6 +549,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	}
 
 	return &clusterState{
+		name:            c.name,
 		ingresses:       ingresses,
 		ingressesV1:     ingressesV1,
 		routeGroups:     routeGroups,

@@ -74,6 +74,8 @@ var internalIPs = []interface{}{
 
 // Options is used to initialize the Kubernetes DataClient.
 type Options struct {
+	ClusterName string
+
 	// KubernetesInCluster defines if skipper is deployed and running in the kubernetes cluster
 	// this would make authentication with API server happen through the service account, rather than
 	// running along side kubectl proxy

@@ -58,6 +58,7 @@ func New(opts Options) (*RouteServer, error) {
 		AllowedExternalNames:              opts.KubernetesAllowedExternalNames,
 		BackendNameTracingTag:             opts.OpenTracingBackendNameTag,
 		DefaultFiltersDir:                 opts.DefaultFiltersDir,
+		ClusterName:                       opts.KubernetesClusterName,
 		KubernetesIngressV1:               opts.KubernetesIngressV1,
 		KubernetesInCluster:               opts.KubernetesInCluster,
 		KubernetesURL:                     opts.KubernetesURL,
