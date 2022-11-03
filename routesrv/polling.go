@@ -53,6 +53,8 @@ type poller struct {
 	// Preprocessors
 	defaultFilters *eskip.DefaultFilters
 	oauth2Config   *auth.OAuthConfig
+	editRoute      []*eskip.Editor
+	cloneRoute     []*eskip.Clone
 
 	// tracer
 	tracer ot.Tracer
@@ -78,6 +80,16 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		}
 		if p.oauth2Config != nil {
 			routes = p.oauth2Config.NewGrantPreprocessor().Do(routes)
+		}
+		if p.editRoute != nil {
+			for _, editor := range p.editRoute {
+				routes = editor.Do(routes)
+			}
+		}
+		if p.cloneRoute != nil {
+			for _, cloner := range p.cloneRoute {
+				routes = cloner.Do(routes)
+			}
 		}
 		routesCount = len(routes)
 

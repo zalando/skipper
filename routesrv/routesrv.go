@@ -81,7 +81,6 @@ func New(opts Options) (*RouteServer, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	var oauthConfig *auth.OAuthConfig
 	if opts.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
 		oauthConfig = &auth.OAuthConfig{}
@@ -94,6 +93,8 @@ func New(opts Options) (*RouteServer, error) {
 		b:              b,
 		quit:           make(chan struct{}),
 		defaultFilters: opts.DefaultFilters,
+		editRoute:      opts.EditRoute,
+		cloneRoute:     opts.CloneRoute,
 		oauth2Config:   oauthConfig,
 		tracer:         tracer,
 	}

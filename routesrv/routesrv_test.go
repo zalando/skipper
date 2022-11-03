@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strconv"
 	"sync"
 	"testing"
@@ -521,4 +522,34 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 	if count != N {
 		t.Errorf("Failed to get %d number of routes, got: %d", N, count)
 	}
+}
+
+func TestRoutesWithEditRoute(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
+		EditRoute: []*eskip.Editor{
+			eskip.NewEditor(regexp.MustCompile("Host[(](.*)[)]"), "HostAny($1)"),
+		},
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Error("routes not initialized")
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/lb-target-multi-with-edit-route.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
 }

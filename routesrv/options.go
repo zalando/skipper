@@ -138,4 +138,13 @@ type Options struct {
 	// OAuth2CallbackPath contains the path where the OAuth2 callback requests with the
 	// authorization code should be redirected to. Defaults to /.well-known/oauth2-callback
 	OAuth2CallbackPath string
+
+	// CloneRoute is a slice of PreProcessors that will be applied to all routes
+	// automatically. They will clone all matching routes and apply changes to the
+	// cloned routes.
+	CloneRoute []*eskip.Clone
+
+	// EditRoute will be applied to all routes automatically and
+	// will apply changes to all matching routes.
+	EditRoute []*eskip.Editor
 }

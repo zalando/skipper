@@ -639,7 +639,7 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 		whitelistCIDRS = strings.Split(c.WhitelistedHealthCheckCIDR, ",")
 	}
 
-	return routesrv.Options{
+	options := routesrv.Options{
 		Address:                            c.Address,
 		DefaultFiltersDir:                  c.DefaultFiltersDir,
 		DefaultFilters:                     &eskip.DefaultFilters{Prepend: c.PrependFilters.filters, Append: c.AppendFilters.filters},
@@ -671,6 +671,17 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 		EnableOAuth2GrantFlow: c.EnableOAuth2GrantFlow,
 		OAuth2CallbackPath:    c.Oauth2CallbackPath,
 	}
+
+	for _, rcci := range c.CloneRoute {
+		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)
+		options.CloneRoute = append(options.CloneRoute, eskipClone)
+	}
+	for _, rcci := range c.EditRoute {
+		eskipEdit := eskip.NewEditor(rcci.Reg, rcci.Repl)
+		options.EditRoute = append(options.EditRoute, eskipEdit)
+	}
+
+	return options
 }
 
 func (c *Config) ToOptions() skipper.Options {
