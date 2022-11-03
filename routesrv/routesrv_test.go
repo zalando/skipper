@@ -553,3 +553,33 @@ func TestRoutesWithEditRoute(t *testing.T) {
 	}
 	wantHTTPCode(t, w, http.StatusOK)
 }
+
+func TestRoutesWithCloneRoute(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
+		CloneRoute: []*eskip.Clone{
+			eskip.NewClone(regexp.MustCompile("Host"), "HostAny"),
+		},
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Error("routes not initialized")
+	}
+	w := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/lb-target-multi-with-clone-route.eskip")
+	got, err := eskip.Parse(w.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, w, http.StatusOK)
+}
