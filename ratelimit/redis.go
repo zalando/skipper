@@ -77,8 +77,8 @@ func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool,
 	c.metrics.MeasureSince(key, start)
 }
 
-func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func(bool) {
-	nop := func(bool) {}
+func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func(bool, bool) {
+	nop := func(bool, bool) {}
 	if ctx == nil {
 		return nop
 	}
@@ -96,10 +96,11 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 	span.SetTag("max_hits", c.maxHits)
 	span.SetTag("window", c.window.String())
 
-	return func(failed bool) {
+	return func(allowed, failed bool) {
 		if failed {
 			ext.Error.Set(span, true)
 		}
+		span.SetTag("allowed", allowed)
 
 		span.Finish()
 	}
@@ -126,12 +127,13 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 	allow, err := c.allow(ctx, clearText)
 	failed := err != nil
 
-	finishSpan(failed)
-	c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &failed, now)
-
 	if failed {
 		allow = !c.failClosed
 	}
+
+	finishSpan(allow, failed)
+	c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &failed, now)
+
 	if allow {
 		c.metrics.IncCounter(redisMetricsPrefix + "allows")
 	} else {
@@ -222,28 +224,28 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 	res, err := c.ringClient.ZRangeByScoreWithScoresFirst(ctx, key, 0.0, float64(now.UnixNano()), 0, 1)
 
 	if err != nil {
-		finishSpan(true)
+		finishSpan(true, true)
 		return time.Time{}, err
 	}
 
 	if res == nil {
-		finishSpan(false)
+		finishSpan(true, false)
 		return time.Time{}, nil
 	}
 
 	s, ok := res.(string)
 	if !ok {
-		finishSpan(true)
+		finishSpan(true, true)
 		return time.Time{}, errors.New("failed to evaluate redis data")
 	}
 
 	oldest, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		finishSpan(true)
+		finishSpan(true, true)
 		return time.Time{}, fmt.Errorf("failed to convert value to int64: %w", err)
 	}
 
-	finishSpan(false)
+	finishSpan(true, false)
 	return time.Unix(0, oldest), nil
 }
 
