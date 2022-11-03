@@ -128,7 +128,7 @@ func (rs *RouteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
-	once := &sync.Once{}
+	once := sync.Once{}
 	rs.wg.Add(1)
 
 	return func(delay time.Duration) {

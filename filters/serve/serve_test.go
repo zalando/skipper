@@ -121,6 +121,7 @@ func TestServe(t *testing.T) {
 	if err != nil || string(b) != strings.Join(parts, "") {
 		t.Error("failed to serve body")
 	}
+	ctx.Response().Body.Close()
 }
 
 func TestStreamBody(t *testing.T) {

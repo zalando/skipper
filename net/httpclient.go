@@ -7,6 +7,7 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -24,6 +25,7 @@ const (
 // opentracing to the wrapped http.Client with the same interface as
 // http.Client from the stdlib.
 type Client struct {
+	once   sync.Once
 	client http.Client
 	tr     *Transport
 	log    logging.Logger
@@ -58,6 +60,7 @@ func NewClient(o Options) *Client {
 	}
 
 	c := &Client{
+		once: sync.Once{},
 		client: http.Client{
 			Transport: tr,
 		},
@@ -70,10 +73,14 @@ func NewClient(o Options) *Client {
 }
 
 func (c *Client) Close() {
-	c.tr.Close()
-	if c.sr != nil {
-		c.sr.Close()
-	}
+	c.once.Do(func() {
+		if c.tr != nil {
+			c.tr.Close()
+		}
+		if c.sr != nil {
+			c.sr.Close()
+		}
+	})
 }
 
 func (c *Client) Head(url string) (*http.Response, error) {
@@ -202,8 +209,8 @@ type Options struct {
 // Transport wraps an http.Transport and adds support for tracing and
 // bearerToken injection.
 type Transport struct {
+	once          sync.Once
 	quit          chan struct{}
-	closed        bool
 	tr            *http.Transport
 	tracer        opentracing.Tracer
 	spanName      string
@@ -265,6 +272,7 @@ func NewTransport(options Options) *Transport {
 	}
 
 	t := &Transport{
+		once:   sync.Once{},
 		quit:   make(chan struct{}),
 		tr:     htransport,
 		tracer: options.Tracer,
@@ -320,15 +328,21 @@ func WithBearerToken(t *Transport, bearerToken string) *Transport {
 }
 
 func (t *Transport) shallowCopy() *Transport {
-	tt := *t
-	return &tt
+	return &Transport{
+		once:          sync.Once{},
+		quit:          t.quit,
+		tr:            t.tr,
+		tracer:        t.tracer,
+		spanName:      t.spanName,
+		componentName: t.componentName,
+		bearerToken:   t.bearerToken,
+	}
 }
 
 func (t *Transport) Close() {
-	if !t.closed {
-		t.closed = true
+	t.once.Do(func() {
 		close(t.quit)
-	}
+	})
 }
 
 func (t *Transport) CloseIdleConnections() {

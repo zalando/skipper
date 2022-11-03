@@ -32,7 +32,7 @@ require (
 	github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011
 	github.com/sirupsen/logrus v1.8.1
 	github.com/sony/gobreaker v0.5.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.0
 	github.com/szuecs/rate-limit-buffer v0.7.1
 	github.com/testcontainers/testcontainers-go v0.12.0
 	github.com/tidwall/gjson v1.12.1
@@ -42,6 +42,7 @@ require (
 	github.com/yookoala/gofast v0.6.0
 	github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9
 	go.uber.org/atomic v1.9.0
+	go.uber.org/goleak v1.2.0
 	golang.org/x/crypto v0.0.0-20220817201139-bc19a97f63c8
 	golang.org/x/net v0.0.0-20220909164309-bea034e7d591
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8

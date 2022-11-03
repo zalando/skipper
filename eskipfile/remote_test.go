@@ -90,6 +90,12 @@ func TestLoadAll(t *testing.T) {
 		t.Run(test.title, func(t *testing.T) {
 			options := &RemoteWatchOptions{RemoteFile: s.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
 			client, err := RemoteWatch(options)
+			defer func() {
+				c, ok := client.(*remoteEskipFile)
+				if ok {
+					c.Close()
+				}
+			}()
 			if err == nil && test.fail {
 				t.Error("failed to fail")
 				return

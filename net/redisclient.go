@@ -287,6 +287,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 	}
 
 	r.log.Infof("Start goroutine to update redis instances every %s", r.options.UpdateInterval)
+	defer r.log.Info("Stopped goroutine to update redis")
 
 	for {
 		select {
@@ -353,6 +354,7 @@ func (r *RedisRingClient) Close() {
 	r.once.Do(func() {
 		r.closed = true
 		close(r.quit)
+		r.ring.Close()
 	})
 }
 

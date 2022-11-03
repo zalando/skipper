@@ -4,13 +4,25 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	basic "github.com/opentracing/basictracer-go"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
-func InitTracer(opts []string) (opentracing.Tracer, error) {
+type CloseableTracer interface {
+	opentracing.Tracer
+	Close()
+}
+
+type basicTracer struct {
+	opentracing.Tracer
+	quit chan struct{}
+	once sync.Once
+}
+
+func InitTracer(opts []string) (CloseableTracer, error) {
 	fmt.Printf("DO NOT USE IN PRODUCTION\n")
 	var (
 		dropAllLogs    bool
@@ -56,6 +68,19 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 			}
 		}
 	}
+
+	quit := make(chan struct{})
+	bt := &basicTracer{
+		basic.NewWithOptions(basic.Options{
+			DropAllLogs:    dropAllLogs,
+			ShouldSample:   func(traceID uint64) bool { return traceID%sampleModulo == 0 },
+			MaxLogsPerSpan: maxLogsPerSpan,
+			Recorder:       recorder,
+		}),
+		quit,
+		sync.Once{},
+	}
+
 	go func() {
 		for {
 			rec := recorder.(*basic.InMemorySpanRecorder)
@@ -65,16 +90,17 @@ func InitTracer(opts []string) (opentracing.Tracer, error) {
 			for _, span := range spans {
 				fmt.Printf("SAMPLED=%#v\n", span)
 			}
-			time.Sleep(1 * time.Second)
+
+			select {
+			case <-time.After(1 * time.Second):
+			case <-quit:
+				return
+			}
+
 		}
 	}()
 
-	return basic.NewWithOptions(basic.Options{
-		DropAllLogs:    dropAllLogs,
-		ShouldSample:   func(traceID uint64) bool { return traceID%sampleModulo == 0 },
-		MaxLogsPerSpan: maxLogsPerSpan,
-		Recorder:       recorder,
-	}), nil
+	return bt, nil
 }
 
 func missingArg(opt string) error {
@@ -83,4 +109,10 @@ func missingArg(opt string) error {
 
 func invalidArg(opt string, err error) error {
 	return fmt.Errorf("invalid argument for %s option: %s", opt, err)
+}
+
+func (bt *basicTracer) Close() {
+	bt.once.Do(func() {
+		close(bt.quit)
+	})
 }
