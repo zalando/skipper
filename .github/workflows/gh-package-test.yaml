@@ -63,9 +63,9 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
-          context: .
+          context: ./packaging
           build-args: BASE_IMAGE=golang:alpine
           platforms: linux/amd64,linux/arm64
-          # push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
