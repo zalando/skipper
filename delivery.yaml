@@ -27,7 +27,7 @@ pipeline:
       docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
   - desc: build-push
     cmd: |
-      set -euo pipefail
+      set -eo pipefail
 
       IMAGE_REGISTRY="registry-write.opensource.zalan.do"
       MULTIARCH_REGISTRY="container-registry-test.zalando.net"
