@@ -77,17 +77,12 @@ func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool,
 	c.metrics.MeasureSince(key, start)
 }
 
-func parentSpan(ctx context.Context) (opentracing.Span, bool) {
+func parentSpan(ctx context.Context) opentracing.Span {
 	if ctx == nil {
-		return nil, false
+		return nil
 	}
 
-	parentSpan := opentracing.SpanFromContext(ctx)
-	if parentSpan == nil {
-		return nil, false
-	}
-
-	return parentSpan, true
+	return opentracing.SpanFromContext(ctx)
 }
 
 func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
@@ -120,7 +115,7 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 	now := time.Now()
 
 	var span opentracing.Span
-	if parentSpan, ok := parentSpan(ctx); ok {
+	if parentSpan := parentSpan(ctx); parentSpan != nil {
 		span = c.ringClient.StartSpan(allowSpanName, opentracing.ChildOf(parentSpan.Context()))
 		defer span.Finish()
 	}
@@ -231,7 +226,7 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 	now := time.Now()
 
 	var span opentracing.Span
-	if parentSpan, ok := parentSpan(ctx); ok {
+	if parentSpan := parentSpan(ctx); parentSpan != nil {
 		span = c.ringClient.StartSpan(oldestScoreSpanName, opentracing.ChildOf(parentSpan.Context()))
 		defer span.Finish()
 	}
