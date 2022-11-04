@@ -765,6 +765,14 @@ type Options struct {
 	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
 
+	// OAuthTokeninfoCacheSize configures the size of the tokeninfo cache
+	OAuthTokeninfoCacheSize int
+
+	// OAuthTokeninfoCacheTTL limits the lifetime of a cached tokeninfo.
+	// Tokeninfo is cached for the duration of "expires_in" field value seconds or
+	// for the duration of OAuthTokeninfoCacheTTL if it is not zero and less than "expires_in" value.
+	OAuthTokeninfoCacheTTL time.Duration
+
 	// OAuth2SecretFile contains the filename with the encryption key for the
 	// authentication cookie and grant flow state stored in Secrets.
 	OAuth2SecretFile string
@@ -1444,6 +1452,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			Timeout:      o.OAuthTokeninfoTimeout,
 			MaxIdleConns: o.IdleConnectionsPerHost,
 			Tracer:       tracer,
+			CacheSize:    o.OAuthTokeninfoCacheSize,
+			CacheTTL:     o.OAuthTokeninfoCacheTTL,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
