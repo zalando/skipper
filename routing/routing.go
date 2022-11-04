@@ -249,16 +249,12 @@ type Route struct {
 // PostProcessor is an interface for custom post-processors applying changes
 // to the routes after they were created from their data representation and
 // before they were passed to the proxy.
-//
-// This feature is experimental.
 type PostProcessor interface {
 	Do([]*Route) []*Route
 }
 
 // PreProcessor is an interface for custom pre-processors applying changes
 // to the routes before they were created from eskip.Route representation.
-//
-// This feature is experimental.
 type PreProcessor interface {
 	Do([]*eskip.Route) []*eskip.Route
 }
