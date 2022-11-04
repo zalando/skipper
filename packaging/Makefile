@@ -58,7 +58,7 @@ docker.push.armv7: docker.build.armv7
 
 # build multi-arch container image using a trusted multi-arch base image
 docker.push.multiarch: clean build.linux docker.build.enable
-	docker buildx build -t $(MULTIARCH_IMAGE) --platform linux/amd64,linux/arm64 --push \
+	docker buildx build --rm -t $(MULTIARCH_IMAGE) --platform linux/amd64,linux/arm64 --push \
 	  --build-arg BASE_IMAGE=container-registry.zalando.net/library/alpine-3:latest .
 
 # https://docs.docker.com/build/working-with-build/
