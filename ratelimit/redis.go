@@ -77,31 +77,23 @@ func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool,
 	c.metrics.MeasureSince(key, start)
 }
 
-func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func(bool) {
-	nop := func(bool) {}
+func parentSpan(ctx context.Context) opentracing.Span {
+	// TODO: https://github.com/zalando/skipper/issues/2136
 	if ctx == nil {
-		return nop
+		return nil
 	}
 
-	parentSpan := opentracing.SpanFromContext(ctx)
-	if parentSpan == nil {
-		return nop
-	}
+	return opentracing.SpanFromContext(ctx)
+}
 
-	span := c.ringClient.StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
-	ext.Component.Set(span, "skipper")
-	ext.SpanKind.Set(span, "client")
-	span.SetTag("ratelimit_type", c.typ)
-	span.SetTag("group", c.group)
-	span.SetTag("max_hits", c.maxHits)
-	span.SetTag("window", c.window.String())
-
-	return func(failed bool) {
-		if failed {
-			ext.Error.Set(span, true)
-		}
-
-		span.Finish()
+func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
+	if span != nil {
+		ext.Component.Set(span, "skipper")
+		ext.SpanKind.Set(span, "client")
+		span.SetTag("ratelimit_type", c.typ)
+		span.SetTag("group", c.group)
+		span.SetTag("max_hits", c.maxHits)
+		span.SetTag("window", c.window.String())
 	}
 }
 
@@ -121,17 +113,26 @@ func (c *clusterLimitRedis) startSpan(ctx context.Context, spanName string) func
 func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
 	now := time.Now()
-	finishSpan := c.startSpan(ctx, allowSpanName)
+
+	var span opentracing.Span
+	if parentSpan := parentSpan(ctx); parentSpan != nil {
+		span = c.ringClient.StartSpan(allowSpanName, opentracing.ChildOf(parentSpan.Context()))
+		defer span.Finish()
+	}
+	c.setCommonTags(span)
 
 	allow, err := c.allow(ctx, clearText)
 	failed := err != nil
-
-	finishSpan(failed)
-	c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &failed, now)
-
 	if failed {
 		allow = !c.failClosed
+		setError(span)
 	}
+	if span != nil {
+		span.SetTag("allowed", allow)
+	}
+
+	c.measureQuery(allowMetricsFormat, allowMetricsFormatWithGroup, &failed, now)
+
 	if allow {
 		c.metrics.IncCounter(redisMetricsPrefix + "allows")
 	} else {
@@ -213,37 +214,47 @@ func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 	return d
 }
 
+func setError(span opentracing.Span) {
+	if span != nil {
+		ext.Error.Set(span, true)
+	}
+}
+
 func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.Time, error) {
 	s := getHashedKey(clearText)
 	key := c.prefixKey(s)
 	now := time.Now()
 
-	finishSpan := c.startSpan(ctx, oldestScoreSpanName)
+	var span opentracing.Span
+	if parentSpan := parentSpan(ctx); parentSpan != nil {
+		span = c.ringClient.StartSpan(oldestScoreSpanName, opentracing.ChildOf(parentSpan.Context()))
+		defer span.Finish()
+	}
+	c.setCommonTags(span)
+
 	res, err := c.ringClient.ZRangeByScoreWithScoresFirst(ctx, key, 0.0, float64(now.UnixNano()), 0, 1)
 
 	if err != nil {
-		finishSpan(true)
+		setError(span)
 		return time.Time{}, err
 	}
 
 	if res == nil {
-		finishSpan(false)
 		return time.Time{}, nil
 	}
 
 	s, ok := res.(string)
 	if !ok {
-		finishSpan(true)
+		setError(span)
 		return time.Time{}, errors.New("failed to evaluate redis data")
 	}
 
 	oldest, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		finishSpan(true)
+		setError(span)
 		return time.Time{}, fmt.Errorf("failed to convert value to int64: %w", err)
 	}
 
-	finishSpan(false)
 	return time.Unix(0, oldest), nil
 }
 
