@@ -78,6 +78,7 @@ func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool,
 }
 
 func parentSpan(ctx context.Context) opentracing.Span {
+	// TODO: https://github.com/zalando/skipper/issues/2136
 	if ctx == nil {
 		return nil
 	}
@@ -86,7 +87,6 @@ func parentSpan(ctx context.Context) opentracing.Span {
 }
 
 func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
-	// TODO: https://github.com/zalando/skipper/issues/2136
 	if span != nil {
 		ext.Component.Set(span, "skipper")
 		ext.SpanKind.Set(span, "client")
