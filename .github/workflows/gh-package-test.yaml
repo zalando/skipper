@@ -25,7 +25,7 @@ jobs:
       - uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
       
-      - id: prebuild image
+      - name: Build Skipper Packages
         run: |
           cd packaging
           make build.linux
