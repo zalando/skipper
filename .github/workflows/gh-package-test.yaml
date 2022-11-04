@@ -29,6 +29,11 @@ jobs:
       
       - uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
+      
+      - name: Build Skipper Packages
+        run: |
+          cd packaging
+          make build.linux
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
