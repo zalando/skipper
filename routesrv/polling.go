@@ -75,22 +75,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
 		routes, err := p.client.LoadAll()
-		if p.defaultFilters != nil {
-			routes = p.defaultFilters.Do(routes)
-		}
-		if p.oauth2Config != nil {
-			routes = p.oauth2Config.NewGrantPreprocessor().Do(routes)
-		}
-		if p.editRoute != nil {
-			for _, editor := range p.editRoute {
-				routes = editor.Do(routes)
-			}
-		}
-		if p.cloneRoute != nil {
-			for _, cloner := range p.cloneRoute {
-				routes = cloner.Do(routes)
-			}
-		}
+
+		routes = p.process(routes)
+
 		routesCount = len(routes)
 
 		switch {
@@ -138,4 +125,23 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		case <-time.After(p.timeout):
 		}
 	}
+}
+
+func (p *poller) process(routes []*eskip.Route) []*eskip.Route {
+
+	if p.defaultFilters != nil {
+		routes = p.defaultFilters.Do(routes)
+	}
+	if p.oauth2Config != nil {
+		routes = p.oauth2Config.NewGrantPreprocessor().Do(routes)
+	}
+	for _, editor := range p.editRoute {
+		routes = editor.Do(routes)
+	}
+
+	for _, cloner := range p.cloneRoute {
+		routes = cloner.Do(routes)
+	}
+
+	return routes
 }
