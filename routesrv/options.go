@@ -101,6 +101,28 @@ type Options struct {
 	// used with external name services (type=ExternalName).
 	KubernetesAllowedExternalNames []*regexp.Regexp
 
+	// KubernetesIngressLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. A label and its value on an Ingress must be match exactly to be loaded by Skipper.
+	// If the value is irrelevant for a given configuration, it can be left empty. The default
+	// value is no labels required.
+	KubernetesIngressLabelSelectors map[string]string
+
+	// KubernetesServicesLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client.
+	KubernetesServicesLabelSelectors map[string]string
+
+	// KubernetesEndpointsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client.
+	KubernetesEndpointsLabelSelectors map[string]string
+
+	// KubernetesSecretsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client.
+	KubernetesSecretsLabelSelectors map[string]string
+
+	// KubernetesRouteGroupsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client.
+	KubernetesRouteGroupsLabelSelectors map[string]string
+
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
