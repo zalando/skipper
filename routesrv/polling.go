@@ -53,6 +53,8 @@ type poller struct {
 	// Preprocessors
 	defaultFilters *eskip.DefaultFilters
 	oauth2Config   *auth.OAuthConfig
+	editRoute      []*eskip.Editor
+	cloneRoute     []*eskip.Clone
 
 	// tracer
 	tracer ot.Tracer
@@ -73,12 +75,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
 		routes, err := p.client.LoadAll()
-		if p.defaultFilters != nil {
-			routes = p.defaultFilters.Do(routes)
-		}
-		if p.oauth2Config != nil {
-			routes = p.oauth2Config.NewGrantPreprocessor().Do(routes)
-		}
+
+		routes = p.process(routes)
+
 		routesCount = len(routes)
 
 		switch {
@@ -99,10 +98,6 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				"message", msg,
 			)
 		case routesCount > 0:
-			// sort the routes, otherwise it will lead to different etag values for the same route list for different orders
-			sort.SliceStable(routes, func(i, j int) bool {
-				return routes[i].Id < routes[j].Id
-			})
 			routesBytes, initialized = p.b.formatAndSet(routes)
 			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes})
 			if initialized {
@@ -126,4 +121,28 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		case <-time.After(p.timeout):
 		}
 	}
+}
+
+func (p *poller) process(routes []*eskip.Route) []*eskip.Route {
+
+	if p.defaultFilters != nil {
+		routes = p.defaultFilters.Do(routes)
+	}
+	if p.oauth2Config != nil {
+		routes = p.oauth2Config.NewGrantPreprocessor().Do(routes)
+	}
+	for _, editor := range p.editRoute {
+		routes = editor.Do(routes)
+	}
+
+	for _, cloner := range p.cloneRoute {
+		routes = cloner.Do(routes)
+	}
+
+	// sort the routes, otherwise it will lead to different etag values for the same route list for different orders
+	sort.SliceStable(routes, func(i, j int) bool {
+		return routes[i].Id < routes[j].Id
+	})
+
+	return routes
 }
