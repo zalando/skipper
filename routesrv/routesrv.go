@@ -77,6 +77,11 @@ func New(opts Options) (*RouteServer, error) {
 		RouteGroupClass:                   opts.KubernetesRouteGroupClass,
 		WhitelistedHealthCheckCIDR:        opts.WhitelistedHealthCheckCIDR,
 		ForceKubernetesService:            opts.KubernetesForceService,
+		IngressLabelSelectors:             opts.KubernetesIngressLabelSelectors,
+		ServicesLabelSelectors:            opts.KubernetesServicesLabelSelectors,
+		EndpointsLabelSelectors:           opts.KubernetesEndpointsLabelSelectors,
+		SecretsLabelSelectors:             opts.KubernetesSecretsLabelSelectors,
+		RouteGroupsLabelSelectors:         opts.KubernetesRouteGroupsLabelSelectors,
 	})
 	if err != nil {
 		return nil, err
