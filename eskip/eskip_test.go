@@ -636,6 +636,10 @@ func TestClonePreProcessor(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
 	}
+	r0Changed, err := Parse(`clone_r0: HostAny("www[.]example[.]org") -> status(201) -> <shunt>`)
+	if err != nil {
+		t.Errorf("Failed to parse route: %v", err)
+	}
 	r1, err := Parse(`r1: Source("1.2.3.4/26") -> status(201) -> <shunt>`)
 	if err != nil {
 		t.Errorf("Failed to parse route: %v", err)
@@ -673,6 +677,15 @@ func TestClonePreProcessor(t *testing.T) {
 			rep:    &Clone{},
 			routes: r0,
 			want:   r0,
+		},
+		{
+			name: "test match on builtin predicates",
+			rep: &Clone{
+				reg:  regexp.MustCompile("Host[(](.*)[)]"),
+				repl: "HostAny($1)",
+			},
+			routes: r0,
+			want:   append(r0, r0Changed...),
 		},
 		{
 			name: "test no match should not change the routes",

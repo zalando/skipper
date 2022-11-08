@@ -72,11 +72,11 @@ func (e *Editor) Do(routes []*Route) []*Route {
 		return routes
 	}
 
-	for i, r := range routes {
+	canonicalRoutes := CanonicalList(routes)
+
+	for i, r := range canonicalRoutes {
 		rr := new(Route)
 		*rr = *r
-		rr = Canonical(rr)
-
 		if doOneRoute(e.reg, e.repl, rr) {
 			routes[i] = rr
 		}
@@ -90,12 +90,13 @@ func (c *Clone) Do(routes []*Route) []*Route {
 		return routes
 	}
 
+	canonicalRoutes := CanonicalList(routes)
+
 	result := make([]*Route, len(routes), 2*len(routes))
 	copy(result, routes)
-	for _, r := range routes {
+	for _, r := range canonicalRoutes {
 		rr := new(Route)
 		*rr = *r
-		rr = Canonical(rr)
 
 		rr.Id = "clone_" + rr.Id
 		predicates := make([]*Predicate, len(r.Predicates))
