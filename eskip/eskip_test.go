@@ -632,51 +632,17 @@ func TestEditorPreProcessor(t *testing.T) {
 
 }
 func TestClonePreProcessor(t *testing.T) {
-	r0, err := Parse(`r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r0Changed, err := Parse(`clone_r0: HostAny("www[.]example[.]org") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r1, err := Parse(`r1: Source("1.2.3.4/26") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r1Changed, err := Parse(`clone_r1: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-
-	rn, err := Parse(`rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	rnChanged, err := Parse(`clone_rn: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r1Filter, err := Parse(`r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r1FilterChanged, err := Parse(`clone_r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-
 	for _, tt := range []struct {
 		name   string
 		rep    *Clone
-		routes []*Route
-		want   []*Route
+		routes string
+		want   string
 	}{
 		{
 			name:   "test empty Clone should not change the routes",
 			rep:    &Clone{},
-			routes: r0,
-			want:   r0,
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;`,
+			want:   `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;`,
 		},
 		{
 			name: "test match on builtin predicates",
@@ -684,8 +650,9 @@ func TestClonePreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Host[(](.*)[)]"),
 				repl: "HostAny($1)",
 			},
-			routes: r0,
-			want:   append(r0, r0Changed...),
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;`,
+			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>; 
+			clone_r0: HostAny("www[.]example[.]org") -> status(201) -> <shunt>;`,
 		},
 		{
 			name: "test no match should not change the routes",
@@ -693,8 +660,8 @@ func TestClonePreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: r0,
-			want:   r0,
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;`,
+			want:   `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;`,
 		},
 		{
 			name: "test match should change the routes",
@@ -702,8 +669,9 @@ func TestClonePreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: r1,
-			want:   append(r1, r1Changed...),
+			routes: `r1: Source("1.2.3.4/26") -> status(201) -> <shunt>;`,
+			want: `r1: Source("1.2.3.4/26") -> status(201) -> <shunt>; 
+			clone_r1: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>;`,
 		},
 		{
 			name: "test multiple routes match should change the routes",
@@ -711,8 +679,13 @@ func TestClonePreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: append(r0, r1...),
-			want:   append(r0, append(r1, r1Changed...)...),
+
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>; 
+			r1: Source("1.2.3.4/26") -> status(201) -> <shunt>;`,
+
+			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>; 
+			r1: Source("1.2.3.4/26") -> status(201) -> <shunt>; 
+			clone_r1: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>;`,
 		},
 		{
 			name: "test match should change the routes with multiple params",
@@ -720,8 +693,9 @@ func TestClonePreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: rn,
-			want:   append(rn, rnChanged...),
+			routes: `rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
+			want: `rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>; 
+			clone_rn: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
 		},
 		{
 			name: "test multiple routes match should change the routes with multiple params",
@@ -729,8 +703,11 @@ func TestClonePreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: append(r0, rn...),
-			want:   append(r0, append(rn, rnChanged...)...),
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
+			rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
+			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>; 
+			rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>; 
+			clone_rn: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
 		},
 		{
 			name: "test match should change the filter of a route",
@@ -738,13 +715,22 @@ func TestClonePreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
 				repl: "normalRequestLatency($1)",
 			},
-			routes: r1Filter,
-			want:   append(r1Filter, r1FilterChanged...),
+			routes: `r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>;`,
+			want: `r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>; 
+			clone_r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>;`,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			r := CanonicalList(tt.routes)
-			want := CanonicalList(tt.want)
-			if got := tt.rep.Do(r); !reflect.DeepEqual(got, want) {
+			routes, err := Parse(tt.routes)
+			if err != nil {
+				t.Errorf("Failed to parse route: %v", err)
+			}
+			want, err := Parse(tt.want)
+			if err != nil {
+				t.Errorf("Failed to parse route: %v", err)
+			}
+			got := tt.rep.Do(routes)
+
+			if !EqLists(got, want) {
 				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(want), len(got), want, got, cmp.Diff(want, got))
 			}
 		})
