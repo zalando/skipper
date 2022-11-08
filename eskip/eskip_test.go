@@ -526,46 +526,17 @@ r2: Method("POST") -> inlineContent("r2") -> <shunt>;
 }
 
 func TestEditorPreProcessor(t *testing.T) {
-	r0, err := Parse(`r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r1, err := Parse(`r1_filter: Source("1.2.3.4/26") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r1Changed, err := Parse(`r1_filter: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	rn, err := Parse(`rn_filter: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	rnChanged, err := Parse(`rn_filter: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r1Filter, err := Parse(`r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-	r1FilterChanged, err := Parse(`r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`)
-	if err != nil {
-		t.Errorf("Failed to parse route: %v", err)
-	}
-
 	for _, tt := range []struct {
 		name   string
 		rep    *Editor
-		routes []*Route
-		want   []*Route
+		routes string
+		want   string
 	}{
 		{
 			name:   "test empty Editor should not change the routes",
 			rep:    &Editor{},
-			routes: r0,
-			want:   r0,
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`,
+			want:   `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`,
 		},
 		{
 			name: "test no match should not change the routes",
@@ -573,8 +544,8 @@ func TestEditorPreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("SourceFromLast[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: r0,
-			want:   r0,
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`,
+			want:   `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>`,
 		},
 		{
 			name: "test match should change the routes",
@@ -582,8 +553,8 @@ func TestEditorPreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: r1,
-			want:   r1Changed,
+			routes: `r1_filter: Source("1.2.3.4/26") -> status(201) -> <shunt>`,
+			want:   `r1_filter: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`,
 		},
 		{
 			name: "test multiple routes match should change the routes",
@@ -591,8 +562,10 @@ func TestEditorPreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: append(r0, r1...),
-			want:   append(r0, r1Changed...),
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
+			r1_filter: Source("1.2.3.4/26") -> status(201) -> <shunt>;`,
+			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
+			r1_filter: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>`,
 		},
 		{
 			name: "test match should change the routes with multiple params",
@@ -600,8 +573,8 @@ func TestEditorPreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: rn,
-			want:   rnChanged,
+			routes: `rn_filter: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`,
+			want:   `rn_filter: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>`,
 		},
 		{
 			name: "test multiple routes match should change the routes with multiple params",
@@ -609,8 +582,10 @@ func TestEditorPreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: append(r0, rn...),
-			want:   append(r0, rnChanged...),
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
+			rn_filter: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
+			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
+			rn_filter: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
 		},
 		{
 			name: "test match should change the filter of a route",
@@ -618,13 +593,22 @@ func TestEditorPreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("uniformRequestLatency[(](.*)[)]"),
 				repl: "normalRequestLatency($1)",
 			},
-			routes: r1Filter,
-			want:   r1FilterChanged,
+			routes: `r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`,
+			want:   `r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>`,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
-			r := CanonicalList(tt.routes)
-			want := CanonicalList(tt.want)
-			if got := tt.rep.Do(r); !reflect.DeepEqual(got, want) {
+
+			routes, err := Parse(tt.routes)
+			if err != nil {
+				t.Errorf("Failed to parse route: %v", err)
+			}
+			want, err := Parse(tt.want)
+			if err != nil {
+				t.Errorf("Failed to parse route: %v", err)
+			}
+			got := tt.rep.Do(routes)
+
+			if !EqLists(got, want) {
 				t.Errorf("Failed to get routes %d == %d: \nwant: %v, \ngot: %v\n%s", len(want), len(got), want, got, cmp.Diff(want, got))
 			}
 		})
