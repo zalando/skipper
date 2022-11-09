@@ -1413,9 +1413,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		statusCode := lw.GetCode()
-		authUser, _ := ctx.stateBag[filterslog.AuthUserKey].(string)
 
 		if shouldLog(statusCode, accessLogEnabled) {
+		        authUser, _ := ctx.stateBag[filterslog.AuthUserKey].(string)
 			entry := &logging.AccessEntry{
 				Request:      r,
 				ResponseSize: lw.GetBytes(),
