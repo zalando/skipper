@@ -64,64 +64,74 @@ func (c mockTokeninfoClient) getTokeninfo(token string, _ filters.FilterContext)
 	return c[token], nil
 }
 
-var infoSink map[string]any
+var infoSink atomic.Value
 
 func BenchmarkTokeninfoCache(b *testing.B) {
-	ctx := &filtertest.Context{FRequest: &http.Request{}}
-
 	for _, bi := range []struct {
-		name      string
-		cacheSize int
-		tokens    map[string]map[string]any
+		tokens      int
+		cacheSize   int
+		parallelism int
 	}{
 		{
-			name:      "one token, no eviction",
+			tokens:    1,
 			cacheSize: 1,
-			tokens: map[string]map[string]any{
-				"first": {"first": "foo", "expires_in": float64(600)},
-			},
 		},
 		{
-			name:      "two tokens, no eviction",
+			tokens:    2,
 			cacheSize: 2,
-			tokens: map[string]map[string]any{
-				"first":  {"uid": "first", "expires_in": float64(600)},
-				"second": {"uid": "second", "expires_in": float64(600)},
-			},
 		},
 		{
-			name:      "four tokens, with eviction",
+			tokens:    100,
+			cacheSize: 100,
+		},
+		{
+			tokens:    4,
 			cacheSize: 2,
-			tokens: map[string]map[string]any{
-				"first":  {"uid": "first", "expires_in": float64(600)},
-				"second": {"uid": "second", "expires_in": float64(600)},
-				"third":  {"uid": "third", "expires_in": float64(600)},
-				"fourth": {"uid": "fourth", "expires_in": float64(600)},
-			},
+		},
+		{
+			tokens:    100,
+			cacheSize: 10,
+		},
+		{
+			tokens:      100,
+			cacheSize:   100,
+			parallelism: 10_000,
 		},
 	} {
-		b.Run(bi.name, func(b *testing.B) {
-			mc := mockTokeninfoClient(bi.tokens)
+		name := fmt.Sprintf("tokens=%d,cacheSize=%d,p=%d", bi.tokens, bi.cacheSize, bi.parallelism)
+		b.Run(name, func(b *testing.B) {
+			mc := mockTokeninfoClient(make(map[string]map[string]any, bi.tokens))
 			c := newTokeninfoCache(mc, bi.cacheSize, time.Hour)
 
 			var tokens []string
-			for token := range bi.tokens {
+			for i := 0; i < bi.tokens; i++ {
+				token := fmt.Sprintf("token-%0700d", i)
+
+				mc[token] = map[string]any{"uid": token, "expires_in": float64(600)}
 				tokens = append(tokens, token)
 
-				_, err := c.getTokeninfo(token, ctx)
+				_, err := c.getTokeninfo(token, &filtertest.Context{FRequest: &http.Request{}})
 				require.NoError(b, err)
+			}
+
+			if bi.parallelism != 0 {
+				b.SetParallelism(bi.parallelism)
 			}
 
 			b.ReportAllocs()
 			b.ResetTimer()
 
-			info := infoSink
-			for i := 0; i < b.N; i++ {
-				token := tokens[i%len(tokens)]
+			b.RunParallel(func(pb *testing.PB) {
+				ctx := &filtertest.Context{FRequest: &http.Request{}}
+				var info map[string]any
 
-				info, _ = c.getTokeninfo(token, ctx)
-			}
-			infoSink = info
+				for i := 0; pb.Next(); i++ {
+					token := tokens[i%len(tokens)]
+
+					info, _ = c.getTokeninfo(token, ctx)
+				}
+				infoSink.Store(info)
+			})
 		})
 	}
 }
