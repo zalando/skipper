@@ -27,7 +27,7 @@ import (
 	al "github.com/zalando/skipper/filters/accesslog"
 	circuitfilters "github.com/zalando/skipper/filters/circuit"
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
-	log "github.com/zalando/skipper/filters/log"
+	filterslog "github.com/zalando/skipper/filters/log"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	tracingfilter "github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/loadbalancer"
@@ -1415,7 +1415,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if shouldLog(statusCode, accessLogEnabled) {
 			var authUser *string
-			if v, ok := ctx.stateBag[log.AuthUserKey]; ok {
+			if v, ok := ctx.stateBag[filterslog.AuthUserKey]; ok {
 				s, _ := v.(string)
 				authUser = &s
 			}
