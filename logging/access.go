@@ -15,7 +15,7 @@ import (
 
 const (
 	dateFormat      = "02/Jan/2006:15:04:05 -0700"
-	commonLogFormat = `%s - - [%s] "%s %s %s" %d %d`
+	commonLogFormat = `%s - %s [%s] "%s %s %s" %d %d`
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
@@ -44,6 +44,9 @@ type AccessEntry struct {
 
 	// The time that the request was received.
 	RequestTime time.Time
+
+	// The id of the authenticated user
+	AuthUser *string
 }
 
 // TODO: create individual instances from the access log and
@@ -82,7 +85,7 @@ func omitWhitespace(h string) string {
 
 func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	keys := []string{
-		"host", "timestamp", "method", "uri", "proto",
+		"host", "auth-user", "timestamp", "method", "uri", "proto",
 		"status", "response-size", "referer", "user-agent",
 		"duration", "requested-host", "flow-id", "audit"}
 
@@ -90,6 +93,8 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	for i, key := range keys {
 		if s, ok := e.Data[key].(string); ok {
 			values[i] = omitWhitespace(s)
+		} else if e.Data[key] == nil {
+			values[i] = "-"
 		} else {
 			values[i] = e.Data[key]
 		}
@@ -160,6 +165,10 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		"duration":       duration,
 		"flow-id":        flowId,
 		"audit":          auditHeader,
+	}
+
+	if entry.AuthUser != nil {
+		logData["auth-user"] = *entry.AuthUser
 	}
 
 	for k, v := range additional {

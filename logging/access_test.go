@@ -33,7 +33,8 @@ func testAccessEntry() *AccessEntry {
 		ResponseSize: 2326,
 		StatusCode:   http.StatusTeapot,
 		RequestTime:  testDate(),
-		Duration:     42 * time.Millisecond}
+		Duration:     42 * time.Millisecond,
+		AuthUser:     nil}
 }
 
 func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, o Options) {
@@ -195,6 +196,28 @@ func TestPresentFlowIdJSON(t *testing.T) {
 		t,
 		entry,
 		`{"audit":"","duration":42,"flow-id":"sometestflowid","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		Options{AccessLogJSONEnabled: true},
+	)
+}
+
+func TestPresentAuthUser(t *testing.T) {
+	entry := testAccessEntry()
+	s := "jsmith"
+	entry.AuthUser = &s
+	testAccessLogDefault(
+		t,
+		entry,
+		`127.0.0.1 - jsmith [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`)
+}
+
+func TestPresentAuthUserJSON(t *testing.T) {
+	entry := testAccessEntry()
+	s := "jsmith"
+	entry.AuthUser = &s
+	testAccessLog(
+		t,
+		entry,
+		`{"audit":"","auth-user":"jsmith","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
