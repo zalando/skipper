@@ -1411,7 +1411,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				accessLogEnabled = &enabledAccessLog
 			}
 		}
+
 		statusCode := lw.GetCode()
+		authUser, _ := ctx.stateBag[filterslog.AuthUserKey].(string)
 
 		if shouldLog(statusCode, accessLogEnabled) {
 			entry := &logging.AccessEntry{
@@ -1420,7 +1422,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				StatusCode:   statusCode,
 				RequestTime:  ctx.startServe,
 				Duration:     time.Since(ctx.startServe),
-				AuthUser:     ctx.stateBag[filterslog.AuthUserKey].(string),
+				AuthUser:     authUser,
 			}
 
 			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
