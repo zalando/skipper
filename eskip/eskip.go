@@ -77,7 +77,6 @@ func (e *Editor) Do(routes []*Route) []*Route {
 	for i, r := range canonicalRoutes {
 		rr := new(Route)
 		*rr = *r
-
 		if doOneRoute(e.reg, e.repl, rr) {
 			routes[i] = rr
 		}

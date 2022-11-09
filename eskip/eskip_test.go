@@ -526,7 +526,6 @@ r2: Method("POST") -> inlineContent("r2") -> <shunt>;
 }
 
 func TestEditorPreProcessor(t *testing.T) {
-
 	for _, tt := range []struct {
 		name   string
 		rep    *Editor
@@ -616,7 +615,6 @@ func TestEditorPreProcessor(t *testing.T) {
 
 }
 func TestClonePreProcessor(t *testing.T) {
-
 	for _, tt := range []struct {
 		name   string
 		rep    *Clone
