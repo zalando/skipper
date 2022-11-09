@@ -541,17 +541,17 @@ func TestRoutesWithEditRoute(t *testing.T) {
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
 		t.Error("routes not initialized")
 	}
-	w := getRoutes(rs)
+	responseRecorder := getRoutes(rs)
 
 	want := parseEskipFixture(t, "testdata/lb-target-multi-with-edit-route.eskip")
-	got, err := eskip.Parse(w.Body.String())
+	got, err := eskip.Parse(responseRecorder.Body.String())
 	if err != nil {
-		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+		t.Fatalf("served routes are not valid eskip: %s", responseRecorder.Body)
 	}
 	if !eskip.EqLists(got, want) {
 		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
 	}
-	wantHTTPCode(t, w, http.StatusOK)
+	wantHTTPCode(t, responseRecorder, http.StatusOK)
 }
 
 func TestRoutesWithCloneRoute(t *testing.T) {
@@ -571,15 +571,15 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
 		t.Error("routes not initialized")
 	}
-	w := getRoutes(rs)
+	responseRecorder := getRoutes(rs)
 
 	want := parseEskipFixture(t, "testdata/lb-target-multi-with-clone-route.eskip")
-	got, err := eskip.Parse(w.Body.String())
+	got, err := eskip.Parse(responseRecorder.Body.String())
 	if err != nil {
-		t.Fatalf("served routes are not valid eskip: %s", w.Body)
+		t.Fatalf("served routes are not valid eskip: %s", responseRecorder.Body)
 	}
 	if !eskip.EqLists(got, want) {
 		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
 	}
-	wantHTTPCode(t, w, http.StatusOK)
+	wantHTTPCode(t, responseRecorder, http.StatusOK)
 }
