@@ -39,7 +39,7 @@ Skipper
 - shipped with eskip: a descriptive configuration language designed for routing rules
 
 Skipper provides a default executable command with a few built-in filters. However, its primary use case is to
-be extended with custom filters, predicates or data sources. [Go here for additional documentation](https://godoc.org/github.com/zalando/skipper).
+be extended with custom filters, predicates or data sources. [Go here for additional documentation](https://pkg.go.dev/github.com/zalando/skipper).
 
 A few examples for extending Skipper:
 
@@ -52,22 +52,35 @@ A few examples for extending Skipper:
 
 In order to build and run Skipper, only the latest version of Go needs to be installed. Skipper can use
 Innkeeper or Etcd as data sources for routes, or for the simplest cases, a local configuration file. See more
-details in the documentation: https://godoc.org/github.com/zalando/skipper.
+details in the documentation: https://pkg.go.dev/github.com/zalando/skipper
 
 
 #### Installation
 
-Skipper is 'go get' compatible. If needed, create a Go workspace first:
+##### From Binary
 
-    mkdir ws
-    cd ws
-    export GOPATH=$(pwd)
-    export PATH=$PATH:$GOPATH/bin
+Download binary tgz from https://github.com/zalando/skipper/releases/latest
 
-Get the Skipper packages:
+Example, assumes that you have $GOBIN set to a directory that exists
+and is in your $PATH:
 
-    GO111MODULE=on go get github.com/zalando/skipper/...
+```
+% curl -LO https://github.com/zalando/skipper/releases/download/v0.14.8/skipper-v0.14.8-linux-amd64.tar.gz
+% tar xzf skipper-v0.14.8-linux-amd64.tar.gz
+% mv skipper-v0.14.8-linux-amd64/* $GOBIN/
+% skipper -version
+Skipper version v0.14.8 (commit: 95057948, runtime: go1.19.1)
+```
 
+##### From Source
+
+
+```
+% git clone https://github.com/zalando/skipper.git
+% make
+% ./bin/skipper -version
+Skipper version v0.14.8 (commit: 95057948, runtime: go1.19.3)
+```
 
 #### Running
 
@@ -113,18 +126,18 @@ Skipper will then be available on http://localhost:9090
 Skipper can be used as an authentication proxy, to check incoming
 requests with Basic auth or an OAuth2 provider including audit
 logging. See the documentation at:
-[https://godoc.org/github.com/zalando/skipper/filters/auth](https://godoc.org/github.com/zalando/skipper/filters/auth).
+[https://pkg.go.dev/github.com/zalando/skipper/filters/auth](https://pkg.go.dev/github.com/zalando/skipper/filters/auth).
 
 
 #### Working with the code
 
-Working with the code requires Go1.11 or a higher version. Getting the code with the test dependencies (`-t` switch):
+Getting the code with the test dependencies (`-t` switch):
 
-    GO111MODULE=on go get -t github.com/zalando/skipper/...
+    git clone https://github.com/zalando/skipper.git
+    cd skipper
 
 Build and test all packages:
 
-    cd src/github.com/zalando/skipper
     make deps
     make install
     make shortcheck
@@ -163,23 +176,23 @@ can be found in our Kubernetes configuration https://github.com/zalando-incubato
 ### Documentation
 
 [Skipper's Documentation](https://opensource.zalando.com/skipper) and
-[Godoc developer documentation](https://godoc.org/github.com/zalando/skipper),
+[Godoc developer documentation](https://pkg.go.dev/github.com/zalando/skipper),
 includes information about [deployment use cases](https://opensource.zalando.com/skipper/operation/deployment/)
 and detailed information on these topics:
 
-- The [Routing](https://godoc.org/github.com/zalando/skipper/routing) Mechanism
+- The [Routing](https://pkg.go.dev/github.com/zalando/skipper/routing) Mechanism
 - Matching Requests
 - [Filters](https://opensource.zalando.com/skipper/reference/filters/) - Augmenting Requests and Responses
 - Service Backends
 - Route Definitions
-- Data Sources: [eskip file](https://godoc.org/github.com/zalando/skipper/eskipfile), [etcd](https://godoc.org/github.com/zalando/skipper/etcd), [Kubernetes](https://godoc.org/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://godoc.org/github.com/zalando/skipper/dataclients/routestring)
-- [Circuit Breakers](https://godoc.org/github.com/zalando/skipper/filters/circuit)
+- Data Sources: [eskip file](https://pkg.go.dev/github.com/zalando/skipper/eskipfile), [etcd](https://pkg.go.dev/github.com/zalando/skipper/etcd), [Kubernetes](https://pkg.go.dev/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://pkg.go.dev/github.com/zalando/skipper/dataclients/routestring)
+- [Circuit Breakers](https://pkg.go.dev/github.com/zalando/skipper/filters/circuit)
 - Extending It with Customized [Predicates](https://opensource.zalando.com/skipper/reference/predicates/), [Filters](https://opensource.zalando.com/skipper/reference/filters/), can be done by [Plugins](https://opensource.zalando.com/skipper/reference/plugins/) or [Lua Scripts](https://opensource.zalando.com/skipper/reference/scripts/)
 - [Predicates](https://opensource.zalando.com/skipper/reference/predicates/) - additional predicates to match a route
-- [Proxy Packages](https://godoc.org/github.com/zalando/skipper/proxy)
-- [Logging](https://godoc.org/github.com/zalando/skipper/logging) and [Metrics](https://godoc.org/github.com/zalando/skipper/metrics)
+- [Proxy Packages](https://pkg.go.dev/github.com/zalando/skipper/proxy)
+- [Logging](https://pkg.go.dev/github.com/zalando/skipper/logging) and [Metrics](https://pkg.go.dev/github.com/zalando/skipper/metrics)
 - Performance Considerations
-- [Rate Limiters](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
+- [Rate Limiters](https://pkg.go.dev/github.com/zalando/skipper/filters/ratelimit)
 - [Opentracing plugin](https://github.com/skipper-plugins/opentracing/) or extend [create your own](https://opensource.zalando.com/skipper/reference/plugins/#opentracing-plugins)
 - [WAF plugin](https://github.com/jptosso/coraza-waf) - Web Application Firewall filter for Skipper routes
 
@@ -287,6 +300,8 @@ Sergio Ballesteros from [spotahome](https://www.spotahome.com/)
 
 Blog posts:
 
+- [opensource.com - Try this Kubernetes HTTP router and reverse proxy](https://opensource.com/article/20/4/http-kubernetes-skipper)
+- [opensource.com - An open source HTTP router to increase your network visibility](https://opensource.com/article/20/5/skipper)
 - [Building our own open source http routing
   solution](https://jobs.zalando.com/tech/blog/building-our-own-open-source-http-routing-solution/):
   Giving some context about why Skipper was created in the first place.
