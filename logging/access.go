@@ -46,7 +46,7 @@ type AccessEntry struct {
 	RequestTime time.Time
 
 	// The id of the authenticated user
-	AuthUser *string
+	AuthUser string
 }
 
 // TODO: create individual instances from the access log and
@@ -93,8 +93,6 @@ func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	for i, key := range keys {
 		if s, ok := e.Data[key].(string); ok {
 			values[i] = omitWhitespace(s)
-		} else if e.Data[key] == nil {
-			values[i] = "-"
 		} else {
 			values[i] = e.Data[key]
 		}
@@ -118,9 +116,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		return
 	}
 
-	ts := entry.RequestTime.Format(dateFormat)
-
-	host := "-"
+	host := ""
 	method := ""
 	uri := ""
 	proto := ""
@@ -128,11 +124,13 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 	userAgent := ""
 	requestedHost := ""
 	flowId := ""
-	var auditHeader string
+	auditHeader := ""
 
+	ts := entry.RequestTime.Format(dateFormat)
 	status := entry.StatusCode
 	responseSize := entry.ResponseSize
 	duration := int64(entry.Duration / time.Millisecond)
+	authUser := entry.AuthUser
 
 	if entry.Request != nil {
 		host = remoteHost(entry.Request)
@@ -165,10 +163,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		"duration":       duration,
 		"flow-id":        flowId,
 		"audit":          auditHeader,
-	}
-
-	if entry.AuthUser != nil {
-		logData["auth-user"] = *entry.AuthUser
+		"auth-user":      authUser,
 	}
 
 	for k, v := range additional {

@@ -1414,18 +1414,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		statusCode := lw.GetCode()
 
 		if shouldLog(statusCode, accessLogEnabled) {
-			var authUser *string
-			if v, ok := ctx.stateBag[filterslog.AuthUserKey]; ok {
-				s, _ := v.(string)
-				authUser = &s
-			}
 			entry := &logging.AccessEntry{
 				Request:      r,
 				ResponseSize: lw.GetBytes(),
 				StatusCode:   statusCode,
 				RequestTime:  ctx.startServe,
 				Duration:     time.Since(ctx.startServe),
-				AuthUser:     authUser,
+				AuthUser:     ctx.stateBag[filterslog.AuthUserKey].(string),
 			}
 
 			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
