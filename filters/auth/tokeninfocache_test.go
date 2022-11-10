@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -15,47 +17,114 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTokeninfoCache(t *testing.T) {
-	var authRequests int32
+type testTokeninfoToken string
 
-	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+func newTestTokeninfoToken(issuedAt time.Time) testTokeninfoToken {
+	return testTokeninfoToken(issuedAt.Format(time.RFC3339Nano))
+}
+
+func (t testTokeninfoToken) issuedAt() time.Time {
+	at, _ := time.Parse(time.RFC3339Nano, string(t))
+	return at
+}
+
+func (t testTokeninfoToken) String() string {
+	return string(t)
+}
+
+type testClock struct {
+	mu sync.Mutex
+	time.Time
+}
+
+func (c *testClock) add(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Time = c.Time.Add(d)
+}
+
+func (c *testClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Time
+}
+
+func TestTokeninfoCache(t *testing.T) {
+	const (
+		TokenTTLSeconds = 600
+		CacheTTL        = 300 * time.Second // less than TokenTTLSeconds
+	)
+
+	start, err := time.Parse(time.RFC3339, "2022-11-10T00:36:41+01:00")
+	require.NoError(t, err)
+
+	clock := testClock{Time: start}
+
+	var authRequests int32
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&authRequests, 1)
-		fmt.Fprint(w, `{"uid": "foo", "scope":["uid", "bar"], "expires_in": 600}`)
+
+		token := testTokeninfoToken(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+
+		elapsed := clock.now().Sub(token.issuedAt())
+		expiresIn := (TokenTTLSeconds*time.Second - elapsed).Truncate(time.Second).Seconds()
+
+		fmt.Fprintf(w, `{"uid": "%s", "scope":["foo", "bar"], "expires_in": %.0f}`, token, expiresIn)
 	}))
 	defer authServer.Close()
 
 	o := TokeninfoOptions{
 		URL:       authServer.URL + "/oauth2/tokeninfo",
 		CacheSize: 1,
-		CacheTTL:  300 * time.Second, // less than "expires_in"
+		CacheTTL:  CacheTTL,
 	}
 	c, err := o.newTokeninfoClient()
 	require.NoError(t, err)
 
-	now := time.Now()
-	c.(*tokeninfoCache).now = func() time.Time {
-		return now
-	}
+	c.(*tokeninfoCache).now = clock.now
 
 	ctx := &filtertest.Context{FRequest: &http.Request{}}
 
-	const token = "whatever"
+	token := newTestTokeninfoToken(clock.now()).String()
 
+	// First request
 	info, err := c.getTokeninfo(token, ctx)
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(1), authRequests)
-	assert.Equal(t, map[string]any{"expires_in": float64(600), "uid": "foo", "scope": []any{"uid", "bar"}}, info)
+	assert.Equal(t, info["uid"], token)
+	assert.Equal(t, info["expires_in"], float64(600), "expected TokenTTLSeconds")
 
-	// "sleep" fractional number of seconds
+	// Second request after "sleeping" fractional number of seconds
 	const delay = float64(5.7)
-	now = now.Add(time.Duration(delay * float64(time.Second)))
+	clock.add(time.Duration(delay * float64(time.Second)))
 
-	cachedInfo, err := c.getTokeninfo(token, ctx)
+	info, err = c.getTokeninfo(token, ctx)
 	require.NoError(t, err)
 
-	assert.Equal(t, int32(1), authRequests)
-	assert.Equal(t, map[string]any{"expires_in": float64(595), "uid": "foo", "scope": []any{"uid", "bar"}}, cachedInfo)
+	assert.Equal(t, int32(1), authRequests, "expected no request to auth sever")
+	assert.Equal(t, info["uid"], token)
+	assert.Equal(t, info["expires_in"], float64(595), "expected TokenTTLSeconds - truncate(delay)")
+
+	// Third request after "sleeping" longer than cache TTL
+	clock.add(CacheTTL)
+
+	info, err = c.getTokeninfo(token, ctx)
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(2), authRequests, "expected new request to auth sever")
+	assert.Equal(t, info["uid"], token)
+	assert.Equal(t, info["expires_in"], float64(294), "expected truncate(TokenTTLSeconds - CacheTTL - delay)")
+
+	// Fourth request with a new token evicts cached value
+	token = newTestTokeninfoToken(clock.now()).String()
+
+	info, err = c.getTokeninfo(token, ctx)
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(3), authRequests, "expected new request to auth sever")
+	assert.Equal(t, info["uid"], token)
+	assert.Equal(t, info["expires_in"], float64(600), "expected TokenTTLSeconds")
 }
 
 type mockTokeninfoClient map[string]map[string]any
