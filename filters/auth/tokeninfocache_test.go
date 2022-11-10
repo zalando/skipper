@@ -133,6 +133,75 @@ func TestTokeninfoCache(t *testing.T) {
 	assert.Equal(t, info["expires_in"], float64(600), "expected TokenTTLSeconds")
 }
 
+type turn struct {
+	signalled, done chan struct{}
+}
+
+func newTurn() *turn {
+	return &turn{signalled: make(chan struct{}), done: make(chan struct{})}
+}
+
+func (t *turn) signalAndWait() {
+	close(t.signalled)
+	<-t.done
+}
+
+func (t *turn) waitThenDo(f func()) {
+	<-t.signalled
+	f()
+	close(t.done)
+}
+
+// Tests race between reading and writing cache for the same token
+func TestTokeninfoCacheUpdateRace(t *testing.T) {
+	var authRequests int32
+
+	firstInTokenInfo := newTurn()
+
+	mc := tokeninfoClientFunc(func(token string, _ filters.FilterContext) (map[string]any, error) {
+		requestNumber := atomic.AddInt32(&authRequests, 1)
+		if requestNumber == 1 {
+			firstInTokenInfo.signalAndWait()
+		}
+		return map[string]any{"requestNumber": requestNumber, "uid": token, "expires_in": float64(600)}, nil
+	})
+
+	c := newTokeninfoCache(mc, 1, time.Hour)
+
+	const token = "atoken"
+
+	type result struct {
+		info map[string]any
+		err  error
+	}
+
+	// perform first request
+	firstResult := make(chan result)
+	go func() {
+		info, err := c.getTokeninfo(token, &filtertest.Context{FRequest: &http.Request{}})
+		firstResult <- result{info, err}
+	}()
+
+	// wait until first request is blocked inside tokenInfo client and
+	// perform second request
+	firstInTokenInfo.waitThenDo(func() {
+		info, err := c.getTokeninfo(token, &filtertest.Context{FRequest: &http.Request{}})
+		require.NoError(t, err)
+		assert.Equal(t, int32(2), info["requestNumber"], "expected response to the second auth request")
+	})
+
+	// check first request result
+	r := <-firstResult
+	info, err := r.info, r.err
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), info["requestNumber"], "expected response to the first auth request")
+
+	// check cached value
+	info, err = c.getTokeninfo(token, &filtertest.Context{FRequest: &http.Request{}})
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), info["requestNumber"], "expected to cache response to the first auth request")
+}
+
 var infoSink atomic.Value
 
 func BenchmarkTokeninfoCache(b *testing.B) {
@@ -168,6 +237,7 @@ func BenchmarkTokeninfoCache(b *testing.B) {
 		},
 	} {
 		name := fmt.Sprintf("tokens=%d,cacheSize=%d,p=%d", bi.tokens, bi.cacheSize, bi.parallelism)
+
 		b.Run(name, func(b *testing.B) {
 			tokenValues := make(map[string]map[string]any, bi.tokens)
 			mc := tokeninfoClientFunc(func(token string, _ filters.FilterContext) (map[string]any, error) {
