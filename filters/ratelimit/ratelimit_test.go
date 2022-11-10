@@ -311,7 +311,7 @@ func TestRateLimit(t *testing.T) {
 			MaxHits:    1,
 			TimeWindow: 1 * time.Second,
 			Lookuper:   ratelimit.NewRoundRobinLookuper(3),
-			Group:      "mygroup",
+			Group:      "mygroup.3",
 		},
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
