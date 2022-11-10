@@ -17,6 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type tokeninfoClientFunc func(string, filters.FilterContext) (map[string]any, error)
+
+func (f tokeninfoClientFunc) getTokeninfo(token string, ctx filters.FilterContext) (map[string]any, error) {
+	return f(token, ctx)
+}
+
 type testTokeninfoToken string
 
 func newTestTokeninfoToken(issuedAt time.Time) testTokeninfoToken {
@@ -127,12 +133,6 @@ func TestTokeninfoCache(t *testing.T) {
 	assert.Equal(t, info["expires_in"], float64(600), "expected TokenTTLSeconds")
 }
 
-type mockTokeninfoClient map[string]map[string]any
-
-func (c mockTokeninfoClient) getTokeninfo(token string, _ filters.FilterContext) (map[string]any, error) {
-	return c[token], nil
-}
-
 var infoSink atomic.Value
 
 func BenchmarkTokeninfoCache(b *testing.B) {
@@ -169,14 +169,18 @@ func BenchmarkTokeninfoCache(b *testing.B) {
 	} {
 		name := fmt.Sprintf("tokens=%d,cacheSize=%d,p=%d", bi.tokens, bi.cacheSize, bi.parallelism)
 		b.Run(name, func(b *testing.B) {
-			mc := mockTokeninfoClient(make(map[string]map[string]any, bi.tokens))
+			tokenValues := make(map[string]map[string]any, bi.tokens)
+			mc := tokeninfoClientFunc(func(token string, _ filters.FilterContext) (map[string]any, error) {
+				return tokenValues[token], nil
+			})
+
 			c := newTokeninfoCache(mc, bi.cacheSize, time.Hour)
 
 			var tokens []string
 			for i := 0; i < bi.tokens; i++ {
 				token := fmt.Sprintf("token-%0700d", i)
 
-				mc[token] = map[string]any{"uid": token, "expires_in": float64(600)}
+				tokenValues[token] = map[string]any{"uid": token, "expires_in": float64(600)}
 				tokens = append(tokens, token)
 
 				_, err := c.getTokeninfo(token, &filtertest.Context{FRequest: &http.Request{}})
