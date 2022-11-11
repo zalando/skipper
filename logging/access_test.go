@@ -12,8 +12,8 @@ import (
 )
 
 const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`
-const logJSONOutput = `{"audit":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
-const logExtendedJSONOutput = `{"audit":"","duration":42,"extra":"extra","flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
+const logJSONOutput = `{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
+const logExtendedJSONOutput = `{"audit":"","auth-user":"","duration":42,"extra":"extra","flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
 
 func testRequest() *http.Request {
 	r, _ := http.NewRequest("GET", "http://frank@example.com", nil)
@@ -33,7 +33,8 @@ func testAccessEntry() *AccessEntry {
 		ResponseSize: 2326,
 		StatusCode:   http.StatusTeapot,
 		RequestTime:  testDate(),
-		Duration:     42 * time.Millisecond}
+		Duration:     42 * time.Millisecond,
+		AuthUser:     ""}
 }
 
 func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, o Options) {
@@ -123,7 +124,7 @@ func TestUseXForwardedJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"192.168.3.3","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -143,7 +144,7 @@ func TestPortFwd4JSON(t *testing.T) {
 	entry.Request.Header.Set("X-Forwarded-For", "192.168.3.3:6969")
 	testAccessLog(
 		t, entry,
-		`{"audit":"","duration":42,"flow-id":"","host":"192.168.3.3:6969","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"192.168.3.3:6969","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -174,7 +175,7 @@ func TestMissingHostFallbackJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"","duration":42,"flow-id":"","host":"","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -194,7 +195,27 @@ func TestPresentFlowIdJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"","duration":42,"flow-id":"sometestflowid","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"","auth-user":"","duration":42,"flow-id":"sometestflowid","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		Options{AccessLogJSONEnabled: true},
+	)
+}
+
+func TestPresentAuthUser(t *testing.T) {
+	entry := testAccessEntry()
+	entry.AuthUser = "jsmith"
+	testAccessLogDefault(
+		t,
+		entry,
+		`127.0.0.1 - jsmith [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`)
+}
+
+func TestPresentAuthUserJSON(t *testing.T) {
+	entry := testAccessEntry()
+	entry.AuthUser = "jsmith"
+	testAccessLog(
+		t,
+		entry,
+		`{"audit":"","auth-user":"jsmith","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -215,7 +236,7 @@ func TestPresentAuditJSON(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -232,7 +253,7 @@ func TestPresentAuditJSONWithCustomFormatter(t *testing.T) {
 	testAccessLog(
 		t,
 		entry,
-		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","duration":42,"flow-id":"","host":"127.0.0.1","method":"GET","my_level":"info","my_message":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
+		`{"audit":"c4ddfe9d-a0d3-4afb-bf26-24b9588731a0","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","method":"GET","my_level":"info","my_message":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true, AccessLogJsonFormatter: jsonFormatter},
 	)
 }
