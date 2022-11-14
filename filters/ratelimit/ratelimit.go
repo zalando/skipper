@@ -249,7 +249,7 @@ func clusterRatelimitFilter(maxShards int, args []interface{}) (*filter, error) 
 	if keyShards > 1 {
 		f.settings = ratelimit.Settings{
 			Type:       ratelimit.ClusterServiceRatelimit,
-			Group:      group + "." + strconv.Itoa(maxShards),
+			Group:      group + "." + strconv.Itoa(keyShards),
 			MaxHits:    maxHits / keyShards,
 			TimeWindow: timeWindow,
 			Lookuper:   ratelimit.NewRoundRobinLookuper(uint64(keyShards)),
