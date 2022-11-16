@@ -1,5 +1,7 @@
 name: pr
 on: [ pull_request ]
+permissions:
+  contents: read
 jobs:
   check-race:
     runs-on: ubuntu-latest
