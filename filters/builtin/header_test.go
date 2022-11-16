@@ -28,11 +28,7 @@ func (c testContext) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	value, ok := args[1].(interface{})
-	if !ok {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-
+	value := args[1]
 	return testContext{key, value}, nil
 }
 
