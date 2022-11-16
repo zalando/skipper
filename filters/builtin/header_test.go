@@ -12,7 +12,8 @@ import (
 )
 
 type testContext struct {
-	key, value string
+	key   string
+	value interface{}
 }
 
 func (c testContext) Name() string { return "testContext" }
@@ -27,7 +28,7 @@ func (c testContext) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	value, ok := args[1].(string)
+	value, ok := args[1].(interface{})
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -342,6 +343,89 @@ func TestHeader(t *testing.T) {
 			responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
 			expectedHeader: http.Header{"X-Test-Foo": []string{"bar", "baz"}},
 		}},
+		"setContextJsonRequestHeader": {{
+			msg:            "set request header from context",
+			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"\"bar\""}},
+		}, {
+			msg:            "set complex request header from context",
+			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": map[string]interface{}{"bar": "baz", "foo": 1}},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"{\"bar\":\"baz\",\"foo\":1}"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"\"bar\""}},
+		}},
+		"appendContextJsonRequestHeader": {{
+			msg:            "append request header from context",
+			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": "baz"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar", "\"baz\""}},
+		}, {
+			msg:            "append complex request header from context",
+			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": map[string]interface{}{"bar": "baz", "foo": 1}},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar", "{\"bar\":\"baz\",\"foo\":1}"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "baz"},
+			valid:          true,
+			requestHeader:  http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Request-Foo": []string{"bar", "\"baz\""}},
+		}},
+		"setContextJsonResponseHeader": {{
+			msg:            "set response header from context",
+			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Foo": []string{"\"bar\""}},
+		}, {
+			msg:            "set complex response header from context",
+			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": map[string]interface{}{"bar": "baz", "foo": 1}},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Foo": []string{"{\"bar\":\"baz\",\"foo\":1}"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "bar"},
+			valid:          true,
+			expectedHeader: http.Header{"X-Test-Foo": []string{"\"bar\""}},
+		}},
+		"appendContextJsonResponseHeader": {{
+			msg:            "append response header from context",
+			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": "baz"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Foo": []string{"bar", "\"baz\""}},
+		}, {
+			msg:            "append complex response header from context",
+			args:           []interface{}{"X-Test-Foo", "foo"},
+			context:        map[string]interface{}{"foo": map[string]interface{}{"bar": "baz", "foo": 1}},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Foo": []string{"bar", "{\"bar\":\"baz\",\"foo\":1}"}},
+		}, {
+			msg:            "name parameter is case-insensitive",
+			args:           []interface{}{"x-test-foo", "foo"},
+			context:        map[string]interface{}{"foo": "baz"},
+			valid:          true,
+			responseHeader: http.Header{"X-Test-Foo": []string{"bar"}},
+			expectedHeader: http.Header{"X-Test-Foo": []string{"bar", "\"baz\""}},
+		}},
+
 		"copyRequestHeader": {{
 			msg:  "too few args",
 			args: []interface{}{"X-Test-Foo"},
@@ -476,6 +560,10 @@ func TestHeader(t *testing.T) {
 					fr.Register(NewAppendContextRequestHeader())
 					fr.Register(NewSetContextResponseHeader())
 					fr.Register(NewAppendContextResponseHeader())
+					fr.Register(NewSetContextJsonRequestHeader())
+					fr.Register(NewAppendContextJsonRequestHeader())
+					fr.Register(NewSetContextJsonResponseHeader())
+					fr.Register(NewAppendContextJsonResponseHeader())
 					fr.Register(NewCopyRequestHeader())
 					fr.Register(NewCopyResponseHeader())
 					fr.Register(testContext{})

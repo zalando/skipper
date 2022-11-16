@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -28,6 +29,11 @@ const (
 
 	depRequestHeader
 	depResponseHeader
+
+	setContextJsonRequestHeader
+	appendContextJsonRequestHeader
+	setContextJsonResponseHeader
+	appendContextJsonResponseHeader
 )
 
 const (
@@ -170,6 +176,34 @@ func NewAppendContextResponseHeader() filters.Spec {
 	return &headerFilter{typ: appendContextResponseHeader}
 }
 
+// NewSetContextJsonRequestHeader returns a filter specification used to set
+// request headers with a given name and a value serialized to json taken from the filter
+// context state bag identified by its key.
+func NewSetContextJsonRequestHeader() filters.Spec {
+	return &headerFilter{typ: setContextJsonRequestHeader}
+}
+
+// NewAppendContextJsonRequestHeader returns a filter specification used to append
+// request headers with a given name and a value serialized to json taken from the filter
+// context state bag identified by its key.
+func NewAppendContextJsonRequestHeader() filters.Spec {
+	return &headerFilter{typ: appendContextJsonRequestHeader}
+}
+
+// NewSetContextJsonResponseHeader returns a filter specification used to set
+// response headers with a given name and a value serialized to json taken from the filter
+// context state bag identified by its key.
+func NewSetContextJsonResponseHeader() filters.Spec {
+	return &headerFilter{typ: setContextJsonResponseHeader}
+}
+
+// NewAppendContextJsonResponseHeader returns a filter specification used to append
+// response headers with a given name and a value serialized to json taken from the filter
+// context state bag identified by its key.
+func NewAppendContextJsonResponseHeader() filters.Spec {
+	return &headerFilter{typ: appendContextJsonResponseHeader}
+}
+
 // NewCopyRequestHeader creates a filter specification whose instances
 // copies a specified source Header to a defined destination Header
 // from the request to the proxy request.
@@ -218,6 +252,14 @@ func (spec *headerFilter) Name() string {
 		return filters.SetContextResponseHeaderName
 	case appendContextResponseHeader:
 		return filters.AppendContextResponseHeaderName
+	case setContextJsonRequestHeader:
+		return filters.SetContextJsonRequestHeaderName
+	case appendContextJsonRequestHeader:
+		return filters.AppendContextJsonRequestHeaderName
+	case setContextJsonResponseHeader:
+		return filters.SetContextJsonResponseHeaderName
+	case appendContextJsonResponseHeader:
+		return filters.AppendContextJsonResponseHeaderName
 	case copyRequestHeader:
 		return filters.CopyRequestHeaderName
 	case copyResponseHeader:
@@ -242,6 +284,7 @@ func valueFromContext(
 	headerName,
 	contextKey string,
 	isRequest bool,
+	jsonify bool,
 	apply func(string, string),
 ) {
 	contextValue, ok := ctx.StateBag()[contextKey]
@@ -249,7 +292,18 @@ func valueFromContext(
 		return
 	}
 
-	stringValue := fmt.Sprint(contextValue)
+	var stringValue string
+
+	if jsonify {
+		bytesValue, err := json.Marshal(contextValue)
+		if err != nil {
+			return
+		}
+		stringValue = string(bytesValue)
+	} else {
+		stringValue = fmt.Sprint(contextValue)
+	}
+
 	apply(headerName, stringValue)
 	if isRequest && strings.ToLower(headerName) == "host" {
 		ctx.SetOutgoingHost(stringValue)
@@ -283,9 +337,13 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 	case dropRequestHeader:
 		header.Del(f.key)
 	case setContextRequestHeader:
-		valueFromContext(ctx, f.key, f.value, true, header.Set)
+		valueFromContext(ctx, f.key, f.value, true, false, header.Set)
 	case appendContextRequestHeader:
-		valueFromContext(ctx, f.key, f.value, true, header.Add)
+		valueFromContext(ctx, f.key, f.value, true, false, header.Add)
+	case setContextJsonRequestHeader:
+		valueFromContext(ctx, f.key, f.value, true, true, header.Set)
+	case appendContextJsonRequestHeader:
+		valueFromContext(ctx, f.key, f.value, true, true, header.Add)
 	case copyRequestHeader, copyRequestHeaderDeprecated:
 		headerValue := header.Get(f.key)
 		if headerValue != "" {
@@ -315,9 +373,13 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	case dropResponseHeader:
 		header.Del(f.key)
 	case setContextResponseHeader:
-		valueFromContext(ctx, f.key, f.value, false, header.Set)
+		valueFromContext(ctx, f.key, f.value, false, false, header.Set)
 	case appendContextResponseHeader:
-		valueFromContext(ctx, f.key, f.value, false, header.Add)
+		valueFromContext(ctx, f.key, f.value, false, false, header.Add)
+	case setContextJsonResponseHeader:
+		valueFromContext(ctx, f.key, f.value, false, true, header.Set)
+	case appendContextJsonResponseHeader:
+		valueFromContext(ctx, f.key, f.value, false, true, header.Add)
 	case copyResponseHeader, copyResponseHeaderDeprecated:
 		headerValue := header.Get(f.key)
 		if headerValue != "" {
