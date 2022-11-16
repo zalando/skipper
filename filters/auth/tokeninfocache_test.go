@@ -223,6 +223,11 @@ func BenchmarkTokeninfoCache(b *testing.B) {
 			cacheSize: 100,
 		},
 		{
+			tokens:      100,
+			cacheSize:   100,
+			parallelism: 10_000,
+		},
+		{
 			tokens:    4,
 			cacheSize: 2,
 		},
@@ -230,17 +235,13 @@ func BenchmarkTokeninfoCache(b *testing.B) {
 			tokens:    100,
 			cacheSize: 10,
 		},
-		{
-			tokens:      100,
-			cacheSize:   100,
-			parallelism: 10_000,
-		},
 	} {
 		name := fmt.Sprintf("tokens=%d,cacheSize=%d,p=%d", bi.tokens, bi.cacheSize, bi.parallelism)
 
 		b.Run(name, func(b *testing.B) {
 			tokenValues := make(map[string]map[string]any, bi.tokens)
 			mc := tokeninfoClientFunc(func(token string, _ filters.FilterContext) (map[string]any, error) {
+				time.Sleep(20 * time.Millisecond)
 				return tokenValues[token], nil
 			})
 
