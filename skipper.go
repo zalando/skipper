@@ -765,7 +765,8 @@ type Options struct {
 	// OAuthTokeninfoTimeout sets timeout duration while calling oauth token service
 	OAuthTokeninfoTimeout time.Duration
 
-	// OAuthTokeninfoCacheSize configures the size of the tokeninfo cache
+	// OAuthTokeninfoCacheSize configures the maximum number of cached tokens.
+	// Zero value disables tokeninfo cache.
 	OAuthTokeninfoCacheSize int
 
 	// OAuthTokeninfoCacheTTL limits the lifetime of a cached tokeninfo.

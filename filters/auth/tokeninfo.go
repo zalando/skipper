@@ -29,8 +29,9 @@ type TokeninfoOptions struct {
 	MaxIdleConns int
 	Tracer       opentracing.Tracer
 
-	// CacheSize configures the size of the tokeninfo cache.
+	// CacheSize configures the maximum number of cached tokens.
 	// The cache evicts least recently used items first.
+	// Zero value disables tokeninfo cache.
 	CacheSize int
 
 	// CacheTTL limits the lifetime of a cached tokeninfo.
