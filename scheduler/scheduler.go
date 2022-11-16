@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aryszka/jobqueue"
@@ -15,7 +16,6 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
-	"go.uber.org/atomic"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -143,7 +143,7 @@ func (fq *fifoQueue) reconfigure(c Config) {
 	fq.maxQueueSize = uint64(c.MaxQueueSize)
 	fq.timeout = c.Timeout
 	fq.sem = semaphore.NewWeighted(int64(c.MaxConcurrency))
-	fq.counter = atomic.NewUint64(0)
+	fq.counter = &atomic.Uint64{}
 }
 
 func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
@@ -156,10 +156,11 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	fq.mu.RUnlock()
 
 	// handle queue
-	all := cnt.Inc()
+	all := cnt.Add(1)
 	// queue full?
 	if all > maxConcurrency+maxQueueSize {
-		cnt.Dec()
+		// Decrement counter
+		cnt.Store(cnt.Load() - 1)
 		return nil, ErrQueueFull
 	}
 
@@ -169,7 +170,8 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 
 	// limit concurrency
 	if err := sem.Acquire(c, 1); err != nil {
-		cnt.Dec()
+		// Decrement counter
+		cnt.Store(cnt.Load() - 1)
 		switch err {
 		case context.DeadlineExceeded:
 			return nil, ErrQueueTimeout
@@ -183,7 +185,8 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 
 	return func() {
 		// postpone release to Response() filter
-		cnt.Dec()
+		// Decrement counter
+		cnt.Store(cnt.Load() - 1)
 		sem.Release(1)
 	}, nil
 
@@ -413,7 +416,7 @@ func (r *Registry) newFifoQueue(name string, c Config) *FifoQueue {
 	q := &FifoQueue{
 		config: c,
 		queue: &fifoQueue{
-			counter:        atomic.NewUint64(0),
+			counter:        &atomic.Uint64{},
 			sem:            semaphore.NewWeighted(int64(c.MaxConcurrency)),
 			maxConcurrency: uint64(c.MaxConcurrency),
 			maxQueueSize:   uint64(c.MaxQueueSize),

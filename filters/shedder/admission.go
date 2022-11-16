@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -15,7 +16,6 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
-	"go.uber.org/atomic"
 )
 
 func getIntArg(a interface{}) (int, error) {
@@ -315,8 +315,8 @@ func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filt
 		averageRpsFactor: averageRpsFactor,
 		totals:           make([]int64, windowSize),
 		success:          make([]int64, windowSize),
-		counter:          atomic.NewInt64(0),
-		successCounter:   atomic.NewInt64(0),
+		counter:          &atomic.Int64{},
+		successCounter:   &atomic.Int64{},
 	}
 	go ac.tickWindows(d)
 	return ac, nil
@@ -434,9 +434,9 @@ func (ac *admissionControl) Response(ctx filters.FilterContext) {
 
 	code := ctx.Response().StatusCode
 	if code < 499 {
-		ac.successCounter.Inc()
+		ac.successCounter.Add(1)
 	}
-	ac.counter.Inc()
+	ac.counter.Add(1)
 }
 
 func (ac *admissionControl) startSpan(ctx context.Context) (span opentracing.Span) {
