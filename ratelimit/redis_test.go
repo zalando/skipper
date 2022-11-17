@@ -1,7 +1,6 @@
 package ratelimit
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -377,7 +376,7 @@ func TestFailOpenOnRedisError(t *testing.T) {
 		settings.Group,
 	)
 
-	allow := c.AllowContext(context.Background(), "akey")
+	allow := c.Allow("akey")
 	if !allow {
 		t.Error("expected allow on error")
 	}

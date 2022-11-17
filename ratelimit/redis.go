@@ -78,11 +78,6 @@ func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool,
 }
 
 func parentSpan(ctx context.Context) opentracing.Span {
-	// TODO: https://github.com/zalando/skipper/issues/2136
-	if ctx == nil {
-		return nil
-	}
-
 	return opentracing.SpanFromContext(ctx)
 }
 
