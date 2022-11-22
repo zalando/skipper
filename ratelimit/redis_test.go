@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -79,7 +80,7 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 
 			var got []bool
 			for i := 0; i < tt.iterations; i++ {
-				got = append(got, c.Allow(tt.args))
+				got = append(got, c.AllowContext(context.Background(), tt.args))
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -154,7 +155,7 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 
 			var got []bool
 			for i := 0; i < tt.iterations; i++ {
-				got = append(got, c.Allow(tt.args))
+				got = append(got, c.AllowContext(context.Background(), tt.args))
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -215,7 +216,7 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 			)
 
 			for i := 0; i < tt.iterations; i++ {
-				_ = c.Allow(tt.args)
+				_ = c.AllowContext(context.Background(), tt.args)
 			}
 			got := c.Delta(tt.args)
 			if tt.want-100*time.Millisecond < got && got < tt.want+100*time.Millisecond {
@@ -280,7 +281,7 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 
 			now := time.Now()
 			for i := 0; i < tt.iterations; i++ {
-				_ = c.Allow(tt.args)
+				_ = c.AllowContext(context.Background(), tt.args)
 			}
 			got := c.Oldest(tt.args)
 			if got.Before(now.Add(-tt.want)) && now.Add(tt.want).Before(got) {
@@ -344,7 +345,7 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 			)
 
 			for i := 0; i < tt.iterations; i++ {
-				_ = c.Allow(tt.args)
+				_ = c.AllowContext(context.Background(), tt.args)
 			}
 			if got := c.RetryAfter(tt.args); got != tt.want {
 				t.Errorf("clusterLimitRedis.RetryAfter() = %v, want %v", got, tt.want)
@@ -376,7 +377,7 @@ func TestFailOpenOnRedisError(t *testing.T) {
 		settings.Group,
 	)
 
-	allow := c.Allow("akey")
+	allow := c.AllowContext(context.Background(), "akey")
 	if !allow {
 		t.Error("expected allow on error")
 	}

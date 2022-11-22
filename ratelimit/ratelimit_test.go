@@ -12,13 +12,13 @@ import (
 )
 
 func checkRatelimitted(t *testing.T, rl *Ratelimit, client string) {
-	if rl.Allow(client) {
+	if rl.AllowContext(context.Background(), client) {
 		t.Errorf("request is allowed for %s, but expected to be rate limitted", client)
 	}
 }
 
 func checkNotRatelimitted(t *testing.T, rl *Ratelimit, client string) {
-	if !rl.Allow(client) {
+	if !rl.AllowContext(context.Background(), client) {
 		t.Errorf("request is rate limitted for %s, but expected to be allowed", client)
 	}
 }
@@ -321,7 +321,7 @@ func BenchmarkServiceRatelimit(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow("")
+		rl.AllowContext(context.Background(), "")
 	}
 }
 
@@ -337,7 +337,7 @@ func BenchmarkLocalRatelimit(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow(client)
+		rl.AllowContext(context.Background(), client)
 	}
 }
 
@@ -353,7 +353,7 @@ func BenchmarkLocalRatelimitWithCleaner(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow(client)
+		rl.AllowContext(context.Background(), client)
 	}
 }
 
@@ -373,7 +373,7 @@ func BenchmarkLocalRatelimitClients1000(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow(clients[i%count])
+		rl.AllowContext(context.Background(), clients[i%count])
 	}
 }
 
@@ -394,7 +394,7 @@ func BenchmarkLocalRatelimitWithCleanerClients1000(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow(clients[i%count])
+		rl.AllowContext(context.Background(), clients[i%count])
 	}
 }
 

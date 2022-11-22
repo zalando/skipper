@@ -340,7 +340,13 @@ func (s Settings) String() string {
 type limiter interface {
 	// Allow is used to get a decision if you should allow the
 	// call to pass or to ratelimit
+	//
+	// Depreceated
 	Allow(string) bool
+
+	// AllowContext is used to get a decision if you should allow the
+	// call with context to pass or to ratelimit
+	AllowContext(context.Context, string) bool
 
 	// Close is used to clean up underlying limiter
 	// implementations, if you want to stop a Ratelimiter
@@ -364,6 +370,8 @@ type limiter interface {
 
 // contextLimiter extends limiter with an AllowContext method that accepts an additional
 // context.Context, e.g. to support OpenTracing.
+//
+// Deprecated: In favour of limiter since Allow is also deprecated now.
 type contextLimiter interface {
 	limiter
 	AllowContext(context.Context, string) bool
@@ -378,6 +386,8 @@ type Ratelimit struct {
 
 // Allow returns true if the s is not ratelimited, false if it is
 // ratelimited
+//
+// Deprecated: In favour of AllowContext
 func (l *Ratelimit) Allow(s string) bool {
 	if l == nil {
 		return true
@@ -393,16 +403,7 @@ func (l *Ratelimit) AllowContext(ctx context.Context, s string) bool {
 		return true
 	}
 
-	if ctx == nil {
-		return l.impl.Allow(s)
-	}
-
-	implc, ok := l.impl.(contextLimiter)
-	if !ok {
-		return l.impl.Allow(s)
-	}
-
-	return implc.AllowContext(ctx, s)
+	return l.impl.AllowContext(ctx, s)
 }
 
 // Close will stop any cleanup goroutines in underlying limiter implementation.
@@ -428,12 +429,13 @@ func (l *Ratelimit) Resize(s string, i int) {
 
 type voidRatelimit struct{}
 
-func (voidRatelimit) Allow(string) bool          { return true }
-func (voidRatelimit) Close()                     {}
-func (voidRatelimit) Oldest(string) time.Time    { return time.Time{} }
-func (voidRatelimit) RetryAfter(string) int      { return 0 }
-func (voidRatelimit) Delta(string) time.Duration { return -1 * time.Second }
-func (voidRatelimit) Resize(string, int)         {}
+func (voidRatelimit) Allow(string) bool                         { return true }
+func (voidRatelimit) AllowContext(context.Context, string) bool { return true }
+func (voidRatelimit) Close()                                    {}
+func (voidRatelimit) Oldest(string) time.Time                   { return time.Time{} }
+func (voidRatelimit) RetryAfter(string) int                     { return 0 }
+func (voidRatelimit) Delta(string) time.Duration                { return -1 * time.Second }
+func (voidRatelimit) Resize(string, int)                        {}
 
 type zeroRatelimit struct{}
 
@@ -446,12 +448,13 @@ const (
 	zeroRetry int           = int(zeroDelta / time.Second)
 )
 
-func (zeroRatelimit) Allow(string) bool          { return false }
-func (zeroRatelimit) Close()                     {}
-func (zeroRatelimit) Oldest(string) time.Time    { return time.Time{} }
-func (zeroRatelimit) RetryAfter(string) int      { return zeroRetry }
-func (zeroRatelimit) Delta(string) time.Duration { return zeroDelta }
-func (zeroRatelimit) Resize(string, int)         {}
+func (zeroRatelimit) AllowContext(context.Context, string) bool { return false }
+func (zeroRatelimit) Allow(string) bool                         { return false }
+func (zeroRatelimit) Close()                                    {}
+func (zeroRatelimit) Oldest(string) time.Time                   { return time.Time{} }
+func (zeroRatelimit) RetryAfter(string) int                     { return zeroRetry }
+func (zeroRatelimit) Delta(string) time.Duration                { return zeroDelta }
+func (zeroRatelimit) Resize(string, int)                        {}
 
 func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratelimit {
 	var impl limiter
