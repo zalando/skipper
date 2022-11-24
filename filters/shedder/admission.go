@@ -315,8 +315,8 @@ func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filt
 		averageRpsFactor: averageRpsFactor,
 		totals:           make([]int64, windowSize),
 		success:          make([]int64, windowSize),
-		counter:          &atomic.Int64{},
-		successCounter:   &atomic.Int64{},
+		counter:          new(atomic.Int64),
+		successCounter:   new(atomic.Int64),
 	}
 	go ac.tickWindows(d)
 	return ac, nil

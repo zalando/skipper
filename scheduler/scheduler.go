@@ -98,11 +98,11 @@ type FifoQueue struct {
 
 type fifoQueue struct {
 	mu             sync.RWMutex
-	counter        *atomic.Uint64
+	counter        *atomic.Int64
 	sem            *semaphore.Weighted
 	timeout        time.Duration
-	maxQueueSize   uint64
-	maxConcurrency uint64
+	maxQueueSize   int64
+	maxConcurrency int64
 	closed         bool
 }
 
@@ -114,7 +114,7 @@ func (fq *fifoQueue) status() QueueStatus {
 
 	all := fq.counter.Load()
 
-	var queued, active uint64
+	var queued, active int64
 	if all > maxConcurrency {
 		queued = all - maxConcurrency
 		active = maxConcurrency
@@ -139,11 +139,11 @@ func (fq *fifoQueue) close() {
 func (fq *fifoQueue) reconfigure(c Config) {
 	fq.mu.Lock()
 	defer fq.mu.Unlock()
-	fq.maxConcurrency = uint64(c.MaxConcurrency)
-	fq.maxQueueSize = uint64(c.MaxQueueSize)
+	fq.maxConcurrency = int64(c.MaxConcurrency)
+	fq.maxQueueSize = int64(c.MaxQueueSize)
 	fq.timeout = c.Timeout
 	fq.sem = semaphore.NewWeighted(int64(c.MaxConcurrency))
-	fq.counter = &atomic.Uint64{}
+	fq.counter = &atomic.Int64{}
 }
 
 func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
@@ -160,7 +160,7 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	// queue full?
 	if all > maxConcurrency+maxQueueSize {
 		// Decrement counter
-		cnt.Store(cnt.Load() - 1)
+		cnt.Add(-1)
 		return nil, ErrQueueFull
 	}
 
@@ -171,7 +171,7 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	// limit concurrency
 	if err := sem.Acquire(c, 1); err != nil {
 		// Decrement counter
-		cnt.Store(cnt.Load() - 1)
+		cnt.Add(-1)
 		switch err {
 		case context.DeadlineExceeded:
 			return nil, ErrQueueTimeout
@@ -186,7 +186,7 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	return func() {
 		// postpone release to Response() filter
 		// Decrement counter
-		cnt.Store(cnt.Load() - 1)
+		cnt.Add(-1)
 		sem.Release(1)
 	}, nil
 
@@ -416,10 +416,10 @@ func (r *Registry) newFifoQueue(name string, c Config) *FifoQueue {
 	q := &FifoQueue{
 		config: c,
 		queue: &fifoQueue{
-			counter:        &atomic.Uint64{},
+			counter:        &atomic.Int64{},
 			sem:            semaphore.NewWeighted(int64(c.MaxConcurrency)),
-			maxConcurrency: uint64(c.MaxConcurrency),
-			maxQueueSize:   uint64(c.MaxQueueSize),
+			maxConcurrency: int64(c.MaxConcurrency),
+			maxQueueSize:   int64(c.MaxQueueSize),
 			timeout:        c.Timeout,
 		},
 	}
