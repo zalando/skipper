@@ -966,7 +966,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 				status = http.StatusServiceUnavailable
 			}
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
-			return nil, &proxyError{err: fmt.Errorf("net.Error during backend roundtrip to %s: timeout=%v : %w", req.URL.Host, nerr.Timeout(), err), code: status}
+			return nil, &proxyError{err: fmt.Errorf("%T during backend roundtrip to %s: timeout=%v: %w", nerr, req.URL.Host, nerr.Timeout(), err), code: status}
 		}
 
 		return nil, &proxyError{err: fmt.Errorf("unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
