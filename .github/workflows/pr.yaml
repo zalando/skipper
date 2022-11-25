@@ -3,6 +3,18 @@ on: [ pull_request ]
 permissions:
   contents: read
 jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep
+    steps:
+      # Retrieve the source code for the repository
+      - uses: actions/checkout@v3
+      # Fetch the semgrep rules
+      - run: git clone https://github.com/dgryski/semgrep-go.git
+      # Run the rule checker using the fetched rules
+      - run: semgrep ci -f semgrep-go
+
   check-race:
     runs-on: ubuntu-latest
     steps:
