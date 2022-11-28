@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/go-redis/redis/v9"
 	"github.com/opentracing/opentracing-go"
+	"github.com/redis/go-redis/v9"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 
@@ -387,7 +387,7 @@ func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
-	r.ring.SetAddrs(ctx, createAddressMap(addrs))
+	r.ring.SetAddrs(createAddressMap(addrs))
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {

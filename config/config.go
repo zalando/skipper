@@ -521,7 +521,7 @@ func NewConfig() *Config {
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
 	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits.\nUse "+redisPasswordEnv+" environment variable or 'swarm-redis-password' key in config file to set redis password")
-	flag.StringVar(&cfg.SwarmRedisHashAlgorithm, "swarm-redis-hash-algorithm", "", "sets hash algorithm to be used in redis ring client to find the shard <jump|mpchash|rendezvous|rendezvousVnodes>, defaults to github.com/go-redis/redis default")
+	flag.StringVar(&cfg.SwarmRedisHashAlgorithm, "swarm-redis-hash-algorithm", "", "sets hash algorithm to be used in redis ring client to find the shard <jump|mpchash|rendezvous|rendezvousVnodes>, defaults to github.com/redis/go-redis default")
 	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", net.DefaultDialTimeout, "set redis client dial timeout")
 	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", net.DefaultReadTimeout, "set redis socket read timeout")
 	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", net.DefaultWriteTimeout, "set redis socket write timeout")
