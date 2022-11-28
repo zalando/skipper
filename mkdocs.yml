@@ -40,7 +40,7 @@ nav:
 theme:
   name: material
   favicon: favicon.ico
-  logo: favicon.ico
+  logo: skipper-h180.png
   feature:
     tabs: true
   palette:
