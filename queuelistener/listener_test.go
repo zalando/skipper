@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/metrics/metricstest"
 )
 
@@ -21,11 +22,19 @@ type testConnection struct {
 type testListener struct {
 	sync.Mutex
 	closed          bool
+	failNextTimeout bool
 	fail            bool
 	connsBeforeFail int
 	addr            net.Addr
 	conns           chan *testConnection
 }
+
+type testError struct{}
+
+var errTimeout testError
+
+func (err testError) Error() string { return "test error" }
+func (err testError) Timeout() bool { return false }
 
 func (c *testConnection) Read([]byte) (int, error)         { return 0, nil }
 func (c *testConnection) Write([]byte) (int, error)        { return 0, nil }
@@ -49,6 +58,11 @@ func (c *testConnection) isClosed() bool {
 }
 
 func (l *testListener) Accept() (net.Conn, error) {
+
+	if l.failNextTimeout {
+		l.failNextTimeout = false
+		return nil, errTimeout
+	}
 
 	if l.fail {
 		return nil, errors.New("listener error")
@@ -336,6 +350,25 @@ func TestInterface(t *testing.T) {
 
 		if !conn.(*connection).external.Conn.(*testConnection).isClosed() {
 			t.Error("failed to close underlying connection")
+		}
+	})
+
+	t.Run("wrapped listener returns timeout error, logs and retries", func(t *testing.T) {
+		log := loggingtest.New()
+		l, err := listenWith(&testListener{failNextTimeout: true}, Options{
+			Log: log,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer l.Close()
+		conn, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		if err := log.WaitFor(errTimeout.Error(), 120*time.Millisecond); err != nil {
+			t.Error("failed to log timeout error")
 		}
 	})
 
@@ -946,6 +979,26 @@ func TestTeardown(t *testing.T) {
 }
 
 func TestMonitoring(t *testing.T) {
+
+	t.Run("logs the timeout errors", func(t *testing.T) {
+		log := loggingtest.New()
+		l, err := listenWith(&testListener{failNextTimeout: true}, Options{
+			Log: log,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer l.Close()
+		conn, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		if err := log.WaitFor(errTimeout.Error(), 120*time.Millisecond); err != nil {
+			t.Error("failed to log timeout error")
+		}
+	})
 
 	t.Run("updates the gauges for the concurrency and the queue size, measures accept latency", func(t *testing.T) {
 		m := &metricstest.MockMetrics{}
