@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,121 +33,150 @@ func newOAuthTokeninfoSpec(authType string, options TokeninfoOptions) filters.Sp
 }
 
 func TestOAuth2Tokeninfo(t *testing.T) {
+	const N = 5
+
 	for _, ti := range []struct {
-		msg      string
-		authType string
-		options  TokeninfoOptions
-		args     []interface{}
-		auth     string
-		expected int
+		msg            string
+		authType       string
+		options        TokeninfoOptions
+		args           []interface{}
+		auth           string
+		expected       int
+		expectRequests int32
 	}{{
-		msg:      "invalid token",
-		authType: filters.OAuthTokeninfoAnyScopeName,
-		args:     []interface{}{"not-matching-scope"},
-		auth:     "invalid-token",
-		expected: http.StatusUnauthorized,
+		msg:            "invalid token",
+		authType:       filters.OAuthTokeninfoAnyScopeName,
+		args:           []interface{}{"not-matching-scope"},
+		auth:           "invalid-token",
+		expected:       http.StatusUnauthorized,
+		expectRequests: N,
 	}, {
-		msg:      "invalid scope",
-		authType: filters.OAuthTokeninfoAnyScopeName,
-		args:     []interface{}{"not-matching-scope"},
-		auth:     testToken,
-		expected: http.StatusForbidden,
+		msg:            "invalid scope",
+		authType:       filters.OAuthTokeninfoAnyScopeName,
+		args:           []interface{}{"not-matching-scope"},
+		auth:           testToken,
+		expected:       http.StatusForbidden,
+		expectRequests: N,
 	}, {
-		msg:      "missing token",
-		authType: filters.OAuthTokeninfoAnyScopeName,
-		args:     []interface{}{testScope},
-		auth:     "",
-		expected: http.StatusUnauthorized,
+		msg:            "missing token",
+		authType:       filters.OAuthTokeninfoAnyScopeName,
+		args:           []interface{}{testScope},
+		auth:           "",
+		expected:       http.StatusUnauthorized,
+		expectRequests: 0,
 	}, {
-		msg:      "oauthTokeninfoAnyScope: valid token, one valid scope",
-		authType: filters.OAuthTokeninfoAnyScopeName,
-		args:     []interface{}{testScope},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "oauthTokeninfoAnyScope: valid token, one valid scope",
+		authType:       filters.OAuthTokeninfoAnyScopeName,
+		args:           []interface{}{testScope},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "OAuthTokeninfoAnyScopeName: valid token, one valid scope, one invalid scope",
-		authType: filters.OAuthTokeninfoAnyScopeName,
-		args:     []interface{}{testScope, "other-scope"},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "OAuthTokeninfoAnyScopeName: valid token, one valid scope, one invalid scope",
+		authType:       filters.OAuthTokeninfoAnyScopeName,
+		args:           []interface{}{testScope, "other-scope"},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "oauthTokeninfoAllScope(): valid token, valid scopes",
-		authType: filters.OAuthTokeninfoAllScopeName,
-		args:     []interface{}{testScope, testScope2, testScope3},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "oauthTokeninfoAllScope(): valid token, valid scopes",
+		authType:       filters.OAuthTokeninfoAllScopeName,
+		args:           []interface{}{testScope, testScope2, testScope3},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "oauthTokeninfoAllScope(): valid token, one valid scope, one invalid scope",
-		authType: filters.OAuthTokeninfoAllScopeName,
-		args:     []interface{}{testScope, "other-scope"},
-		auth:     testToken,
-		expected: http.StatusForbidden,
+		msg:            "oauthTokeninfoAllScope(): valid token, one valid scope, one invalid scope",
+		authType:       filters.OAuthTokeninfoAllScopeName,
+		args:           []interface{}{testScope, "other-scope"},
+		auth:           testToken,
+		expected:       http.StatusForbidden,
+		expectRequests: N,
 	}, {
-		msg:      "anyKV(): valid token, one valid key, wrong value",
-		authType: filters.OAuthTokeninfoAnyKVName,
-		args:     []interface{}{testKey, "other-value"},
-		auth:     testToken,
-		expected: http.StatusForbidden,
+		msg:            "anyKV(): valid token, one valid key, wrong value",
+		authType:       filters.OAuthTokeninfoAnyKVName,
+		args:           []interface{}{testKey, "other-value"},
+		auth:           testToken,
+		expected:       http.StatusForbidden,
+		expectRequests: N,
 	}, {
-		msg:      "anyKV(): valid token, one valid key value pair",
-		authType: filters.OAuthTokeninfoAnyKVName,
-		args:     []interface{}{testKey, testValue},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "anyKV(): valid token, one valid key value pair",
+		authType:       filters.OAuthTokeninfoAnyKVName,
+		args:           []interface{}{testKey, testValue},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "anyKV(): valid token, one valid kv, multiple key value pairs1",
-		authType: filters.OAuthTokeninfoAnyKVName,
-		args:     []interface{}{testKey, testValue, "wrongKey", "wrongValue"},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "anyKV(): valid token, one valid kv, multiple key value pairs1",
+		authType:       filters.OAuthTokeninfoAnyKVName,
+		args:           []interface{}{testKey, testValue, "wrongKey", "wrongValue"},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "anyKV(): valid token, one valid kv, multiple key value pairs2",
-		authType: filters.OAuthTokeninfoAnyKVName,
-		args:     []interface{}{"wrongKey", "wrongValue", testKey, testValue},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "anyKV(): valid token, one valid kv, multiple key value pairs2",
+		authType:       filters.OAuthTokeninfoAnyKVName,
+		args:           []interface{}{"wrongKey", "wrongValue", testKey, testValue},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "anyKV(): valid token, one valid kv, same key multiple times should pass",
-		authType: filters.OAuthTokeninfoAnyKVName,
-		args:     []interface{}{testKey, testValue, testKey, "someValue"},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "anyKV(): valid token, one valid kv, same key multiple times should pass",
+		authType:       filters.OAuthTokeninfoAnyKVName,
+		args:           []interface{}{testKey, testValue, testKey, "someValue"},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "allKV(): valid token, one valid key, wrong value",
-		authType: filters.OAuthTokeninfoAllKVName,
-		args:     []interface{}{testKey, "other-value"},
-		auth:     testToken,
-		expected: http.StatusForbidden,
+		msg:            "allKV(): valid token, one valid key, wrong value",
+		authType:       filters.OAuthTokeninfoAllKVName,
+		args:           []interface{}{testKey, "other-value"},
+		auth:           testToken,
+		expected:       http.StatusForbidden,
+		expectRequests: N,
 	}, {
-		msg:      "allKV(): valid token, one valid key value pair",
-		authType: filters.OAuthTokeninfoAllKVName,
-		args:     []interface{}{testKey, testValue},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "allKV(): valid token, one valid key value pair",
+		authType:       filters.OAuthTokeninfoAllKVName,
+		args:           []interface{}{testKey, testValue},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "allKV(): valid token, one valid key value pair, check realm",
-		authType: filters.OAuthTokeninfoAllKVName,
-		args:     []interface{}{testRealmKey, testRealm, testKey, testValue},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "allKV(): valid token, one valid key value pair, check realm",
+		authType:       filters.OAuthTokeninfoAllKVName,
+		args:           []interface{}{testRealmKey, testRealm, testKey, testValue},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "allKV(): valid token, valid key value pairs",
-		authType: filters.OAuthTokeninfoAllKVName,
-		args:     []interface{}{testKey, testValue, testKey, testValue},
-		auth:     testToken,
-		expected: http.StatusOK,
+		msg:            "allKV(): valid token, valid key value pairs",
+		authType:       filters.OAuthTokeninfoAllKVName,
+		args:           []interface{}{testKey, testValue, testKey, testValue},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: N,
 	}, {
-		msg:      "allKV(): valid token, one valid kv, multiple key value pairs1",
-		authType: filters.OAuthTokeninfoAllKVName,
-		args:     []interface{}{testKey, testValue, "wrongKey", "wrongValue"},
-		auth:     testToken,
-		expected: http.StatusForbidden,
+		msg:            "allKV(): valid token, one valid kv, multiple key value pairs1",
+		authType:       filters.OAuthTokeninfoAllKVName,
+		args:           []interface{}{testKey, testValue, "wrongKey", "wrongValue"},
+		auth:           testToken,
+		expected:       http.StatusForbidden,
+		expectRequests: N,
 	}, {
-		msg:      "allKV(): valid token, one valid kv, multiple key value pairs2",
-		authType: filters.OAuthTokeninfoAllKVName,
-		args:     []interface{}{"wrongKey", "wrongValue", testKey, testValue},
-		auth:     testToken,
-		expected: http.StatusForbidden,
+		msg:            "allKV(): valid token, one valid kv, multiple key value pairs2",
+		authType:       filters.OAuthTokeninfoAllKVName,
+		args:           []interface{}{"wrongKey", "wrongValue", testKey, testValue},
+		auth:           testToken,
+		expected:       http.StatusForbidden,
+		expectRequests: N,
+	}, {
+		msg:            "oauthTokeninfoAnyScope: valid token, one valid scope, cache enabled",
+		authType:       filters.OAuthTokeninfoAnyScopeName,
+		options:        TokeninfoOptions{CacheSize: 1},
+		args:           []interface{}{testScope},
+		auth:           testToken,
+		expected:       http.StatusOK,
+		expectRequests: 1,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
@@ -167,20 +197,15 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 					return
 				}
 
-				d := map[string]interface{}{
-					"uid":        testUID,
-					testRealmKey: testRealm,
-					"scope":      []string{testScope, testScope2, testScope3}}
-
-				e := json.NewEncoder(w)
-				if err := e.Encode(&d); err != nil {
-					t.Error(err)
-				}
+				fmt.Fprintf(w, `{"uid": "%s", "%s": "%s", "scope":["%s", "%s", "%s"], "expires_in": 600}`,
+					testUID, testRealmKey, testRealm, testScope, testScope2, testScope3)
 			}))
 			defer authServer.Close()
 
 			ti.options.URL = authServer.URL + testAuthPath
 			ti.options.Timeout = testAuthTimeout
+
+			t.Logf("ti.options: %#v", ti.options)
 
 			spec := newOAuthTokeninfoSpec(ti.authType, ti.options)
 
@@ -209,14 +234,20 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 				req.Header.Set(authHeaderName, authHeaderPrefix+ti.auth)
 			}
 
-			rsp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			rsp.Body.Close()
+			for i := 0; i < N; i++ {
+				rsp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rsp.Body.Close()
 
-			if rsp.StatusCode != ti.expected {
-				t.Errorf("auth filter failed got=%d, expected=%d, route=%s", rsp.StatusCode, ti.expected, r)
+				if rsp.StatusCode != ti.expected {
+					t.Errorf("auth filter failed got=%d, expected=%d, route=%s", rsp.StatusCode, ti.expected, r)
+				}
+			}
+
+			if ti.expectRequests != authRequests {
+				t.Errorf("expected %d auth requests, got: %d", ti.expectRequests, authRequests)
 			}
 		})
 	}
