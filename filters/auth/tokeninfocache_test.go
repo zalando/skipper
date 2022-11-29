@@ -133,35 +133,20 @@ func TestTokeninfoCache(t *testing.T) {
 	assert.Equal(t, info["expires_in"], float64(600), "expected TokenTTLSeconds")
 }
 
-type turn struct {
-	signalled, done chan struct{}
-}
-
-func newTurn() *turn {
-	return &turn{signalled: make(chan struct{}), done: make(chan struct{})}
-}
-
-func (t *turn) signalAndWait() {
-	close(t.signalled)
-	<-t.done
-}
-
-func (t *turn) waitThenDo(f func()) {
-	<-t.signalled
-	f()
-	close(t.done)
-}
-
 // Tests race between reading and writing cache for the same token
 func TestTokeninfoCacheUpdateRace(t *testing.T) {
-	var authRequests int32
+	var (
+		authRequests int32
 
-	firstInTokenInfo := newTurn()
+		firstReceived = make(chan struct{})
+		firstContinue = make(chan struct{})
+	)
 
 	mc := tokeninfoClientFunc(func(token string, _ filters.FilterContext) (map[string]any, error) {
 		requestNumber := atomic.AddInt32(&authRequests, 1)
 		if requestNumber == 1 {
-			firstInTokenInfo.signalAndWait()
+			close(firstReceived)
+			<-firstContinue
 		}
 		return map[string]any{"requestNumber": requestNumber, "uid": token, "expires_in": float64(600)}, nil
 	})
@@ -182,21 +167,24 @@ func TestTokeninfoCacheUpdateRace(t *testing.T) {
 		firstResult <- result{info, err}
 	}()
 
-	// wait until first request is blocked inside tokenInfo client and
+	// wait until first request is blocked inside tokenInfo client
+	<-firstReceived
+
 	// perform second request
-	firstInTokenInfo.waitThenDo(func() {
-		info, err := c.getTokeninfo(token, &filtertest.Context{FRequest: &http.Request{}})
-		require.NoError(t, err)
-		assert.Equal(t, int32(2), info["requestNumber"], "expected response to the second auth request")
-	})
+	info, err := c.getTokeninfo(token, &filtertest.Context{FRequest: &http.Request{}})
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), info["requestNumber"], "expected response to the second auth request")
+
+	// unblock first request
+	close(firstContinue)
 
 	// check first request result
 	r := <-firstResult
-	info, err := r.info, r.err
+	info, err = r.info, r.err
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), info["requestNumber"], "expected response to the first auth request")
 
-	// check cached value
+	// perform third request and check cached value
 	info, err = c.getTokeninfo(token, &filtertest.Context{FRequest: &http.Request{}})
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), info["requestNumber"], "expected to cache response to the first auth request")
