@@ -143,7 +143,7 @@ func (fq *fifoQueue) reconfigure(c Config) {
 	fq.maxQueueSize = int64(c.MaxQueueSize)
 	fq.timeout = c.Timeout
 	fq.sem = semaphore.NewWeighted(int64(c.MaxConcurrency))
-	fq.counter = &atomic.Int64{}
+	fq.counter = new(atomic.Int64)
 }
 
 func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
@@ -159,7 +159,6 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	all := cnt.Add(1)
 	// queue full?
 	if all > maxConcurrency+maxQueueSize {
-		// Decrement counter
 		cnt.Add(-1)
 		return nil, ErrQueueFull
 	}
