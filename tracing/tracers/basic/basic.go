@@ -82,6 +82,9 @@ func InitTracer(opts []string) (CloseableTracer, error) {
 	}
 
 	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
 		for {
 			rec := recorder.(*basic.InMemorySpanRecorder)
 			spans := rec.GetSampledSpans()
@@ -92,7 +95,7 @@ func InitTracer(opts []string) (CloseableTracer, error) {
 			}
 
 			select {
-			case <-time.After(1 * time.Second):
+			case <-ticker.C:
 			case <-quit:
 				return
 			}
