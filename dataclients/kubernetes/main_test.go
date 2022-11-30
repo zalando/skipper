@@ -1,11 +1,12 @@
 package kubernetes_test
 
 import (
+	"os"
 	"testing"
 
-	"go.uber.org/goleak"
+	"github.com/AlexanderYastrebov/noleak"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	os.Exit(noleak.CheckMain(m))
 }

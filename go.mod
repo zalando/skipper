@@ -1,6 +1,7 @@
 module github.com/zalando/skipper
 
 require (
+	github.com/AlexanderYastrebov/noleak v0.0.0-20221129235517-c47a28e9072d
 	github.com/MicahParks/keyfunc v1.0.1
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/andybalholm/brotli v1.0.4
@@ -42,7 +43,6 @@ require (
 	github.com/yookoala/gofast v0.6.0
 	github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9
 	go.uber.org/atomic v1.9.0
-	go.uber.org/goleak v1.2.0
 	golang.org/x/crypto v0.0.0-20220817201139-bc19a97f63c8
 	golang.org/x/net v0.0.0-20220909164309-bea034e7d591
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
