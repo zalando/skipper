@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sanity-io/litter"
 )
 
 func checkItems(t *testing.T, message string, l, lenExpected int, checkItem func(int) bool) bool {
@@ -372,10 +371,8 @@ func TestPredicateParsing(t *testing.T) {
 				return
 			}
 
-			if !reflect.DeepEqual(p, test.expected) {
-				t.Error("invalid parse result")
-				t.Log("got:", litter.Sdump(p))
-				t.Log("expected:", litter.Sdump(test.expected))
+			if !cmp.Equal(p, test.expected) {
+				t.Errorf("invalid parse result:\n%s", cmp.Diff(p, test.expected))
 			}
 		})
 	}
@@ -634,7 +631,7 @@ func TestClonePreProcessor(t *testing.T) {
 				repl: "HostAny($1)",
 			},
 			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;`,
-			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>; 
+			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
 			clone_r0: HostAny("www[.]example[.]org") -> status(201) -> <shunt>;`,
 		},
 		{
@@ -653,7 +650,7 @@ func TestClonePreProcessor(t *testing.T) {
 				repl: "ClientIP($1)",
 			},
 			routes: `r1: Source("1.2.3.4/26") -> status(201) -> <shunt>;`,
-			want: `r1: Source("1.2.3.4/26") -> status(201) -> <shunt>; 
+			want: `r1: Source("1.2.3.4/26") -> status(201) -> <shunt>;
 			clone_r1: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>;`,
 		},
 		{
@@ -662,11 +659,11 @@ func TestClonePreProcessor(t *testing.T) {
 				reg:  regexp.MustCompile("Source[(](.*)[)]"),
 				repl: "ClientIP($1)",
 			},
-			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>; 
+			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
 			r1: Source("1.2.3.4/26") -> status(201) -> <shunt>;`,
 
-			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>; 
-			r1: Source("1.2.3.4/26") -> status(201) -> <shunt>; 
+			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
+			r1: Source("1.2.3.4/26") -> status(201) -> <shunt>;
 			clone_r1: ClientIP("1.2.3.4/26") -> status(201) -> <shunt>;`,
 		},
 		{
@@ -676,7 +673,7 @@ func TestClonePreProcessor(t *testing.T) {
 				repl: "ClientIP($1)",
 			},
 			routes: `rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
-			want: `rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>; 
+			want: `rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;
 			clone_rn: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
 		},
 		{
@@ -687,8 +684,8 @@ func TestClonePreProcessor(t *testing.T) {
 			},
 			routes: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
 			rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
-			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>; 
-			rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>; 
+			want: `r0: Host("www[.]example[.]org") -> status(201) -> <shunt>;
+			rn: Source("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;
 			clone_rn: ClientIP("1.2.3.4/26", "10.5.5.0/24") -> status(201) -> <shunt>;`,
 		},
 		{
@@ -698,7 +695,7 @@ func TestClonePreProcessor(t *testing.T) {
 				repl: "normalRequestLatency($1)",
 			},
 			routes: `r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>;`,
-			want: `r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>; 
+			want: `r1_filter: Source("1.2.3.4/26") -> uniformRequestLatency("100ms", "10ms") -> status(201) -> <shunt>;
 			clone_r1_filter: Source("1.2.3.4/26") -> normalRequestLatency("100ms", "10ms") -> status(201) -> <shunt>;`,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
