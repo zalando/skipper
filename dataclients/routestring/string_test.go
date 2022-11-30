@@ -1,10 +1,9 @@
 package routestring
 
 import (
-	"reflect"
 	"testing"
 
-	"github.com/sanity-io/litter"
+	"github.com/google/go-cmp/cmp"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -101,10 +100,8 @@ func TestRouteString(t *testing.T) {
 				r = nil
 			}
 
-			if !reflect.DeepEqual(r, test.expected) {
-				t.Error("invalid routes received")
-				t.Log("got:     ", litter.Sdump(r))
-				t.Log("expected:", litter.Sdump(test.expected))
+			if !cmp.Equal(r, test.expected) {
+				t.Errorf("invalid routes received\n %s", cmp.Diff(r, test.expected))
 			}
 		})
 	}
