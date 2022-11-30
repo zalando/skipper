@@ -33,8 +33,8 @@ cloud.google.com/go/storage v1.6.0/go.mod h1:N7U0C8pVQ/+NIKOBQyamJIeKQKkZ+mxpohl
 cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RXyy7KQOVs=
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-github.com/AlexanderYastrebov/noleak v0.0.0-20221129235517-c47a28e9072d h1:4QcbulbYsSmS073Nx21mWijdL3iJoAd5HAuYhjf0Heo=
-github.com/AlexanderYastrebov/noleak v0.0.0-20221129235517-c47a28e9072d/go.mod h1:Ac8KyJXsCfx2Gb9h/Eb6SUYk2tQ9At1ICaBm/1mipJQ=
+github.com/AlexanderYastrebov/noleak v0.0.0-20221130200240-b1c4bed70a32 h1:fbuCcKeKtE+xCio25fUN0nNXg7uTsm61mrr00w2p8S0=
+github.com/AlexanderYastrebov/noleak v0.0.0-20221130200240-b1c4bed70a32/go.mod h1:Ac8KyJXsCfx2Gb9h/Eb6SUYk2tQ9At1ICaBm/1mipJQ=
 github.com/Azure/azure-sdk-for-go v16.2.1+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
 github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 h1:w+iIsaOQNcT7OZ575w+acHgRric5iCyQh+xv+KJ4HB8=
 github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78/go.mod h1:LmzpDX56iTiv29bbRTIsUNlaFfuhWRQBWjQdVyAevI8=
