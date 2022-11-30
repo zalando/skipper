@@ -105,7 +105,7 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		}
 
 		select {
-		case <-time.After(to):
+		case <-time.After(to): // TODO: this leaks, use ticker to fix it
 		case <-quit:
 			return
 		}

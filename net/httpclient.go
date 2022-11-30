@@ -74,9 +74,7 @@ func NewClient(o Options) *Client {
 
 func (c *Client) Close() {
 	c.once.Do(func() {
-		if c.tr != nil {
-			c.tr.Close()
-		}
+		c.tr.Close()
 		if c.sr != nil {
 			c.sr.Close()
 		}
