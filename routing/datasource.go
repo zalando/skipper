@@ -66,7 +66,12 @@ func (d *incomingData) log(l logging.Logger, suppress bool) {
 // undeterministic way, but this may change in the future.
 func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}) {
 	initial := true
-	ticker := time.NewTicker(o.PollTimeout)
+	var ticker *time.Ticker
+	if o.PollTimeout != 0 {
+		ticker = time.NewTicker(o.PollTimeout)
+	} else {
+		ticker = time.NewTicker(time.Millisecond)
+	}
 	defer ticker.Stop()
 	retriggerCH := make(chan struct{}, 1)
 	for {
