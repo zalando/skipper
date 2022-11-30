@@ -66,14 +66,15 @@ func (d *incomingData) log(l logging.Logger, suppress bool) {
 // undeterministic way, but this may change in the future.
 func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}) {
 	initial := true
+	ticker := time.NewTicker(o.PollTimeout)
+	defer ticker.Stop()
+	retriggerCH := make(chan struct{}, 1)
 	for {
 		var (
 			routes     []*eskip.Route
 			deletedIDs []string
 			err        error
 		)
-
-		to := o.PollTimeout
 
 		if initial {
 			routes, err = c.LoadAll()
@@ -87,7 +88,7 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		case err != nil:
 			o.Log.Error("error while receiving update;", err)
 			initial = true
-			to = 0
+			retriggerCH <- struct{}{}
 		case initial || len(routes) > 0 || len(deletedIDs) > 0:
 			var incoming *incomingData
 			if initial {
@@ -105,7 +106,8 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		}
 
 		select {
-		case <-time.After(to): // TODO: this leaks, use ticker to fix it
+		case <-retriggerCH:
+		case <-ticker.C:
 		case <-quit:
 			return
 		}
