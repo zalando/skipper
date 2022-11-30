@@ -288,9 +288,11 @@ func NewTransport(options Options) *Transport {
 	}
 
 	go func() {
+		ticker := time.NewTicker(options.IdleConnTimeout)
+		defer ticker.Stop()
 		for {
 			select {
-			case <-time.After(options.IdleConnTimeout):
+			case <-ticker.C:
 				htransport.CloseIdleConnections()
 			case <-t.quit:
 				return

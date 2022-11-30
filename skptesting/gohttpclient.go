@@ -36,9 +36,11 @@ func main() {
 	request.Host = "test.example.org"
 
 	go func(req *http.Request, q chan struct{}) {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
 		for {
 			select {
-			case <-time.After(100 * time.Millisecond):
+			case <-ticker.C:
 				resp, err2 := tr.RoundTrip(req)
 				if err2 != nil {
 					logrus.Errorf("Failed to roundtrip: %v", err2)

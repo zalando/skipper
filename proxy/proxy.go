@@ -648,9 +648,11 @@ func WithParams(p Params) *Proxy {
 	// https://github.com/golang/go/issues/23427
 	if p.CloseIdleConnsPeriod > 0 {
 		go func() {
+			ticker := time.NewTicker(p.CloseIdleConnsPeriod)
+			defer ticker.Stop()
 			for {
 				select {
-				case <-time.After(p.CloseIdleConnsPeriod):
+				case <-ticker.C:
 					tr.CloseIdleConnections()
 				case <-quit:
 					return

@@ -289,11 +289,13 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 	r.log.Infof("Start goroutine to update redis instances every %s", r.options.UpdateInterval)
 	defer r.log.Info("Stopped goroutine to update redis")
 
+	ticker := time.NewTicker(r.options.UpdateInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-r.quit:
 			return
-		case <-time.After(r.options.UpdateInterval):
+		case <-ticker.C:
 		}
 
 		addrs := r.options.AddrUpdater()
@@ -325,9 +327,12 @@ func (r *RedisRingClient) RingAvailable() bool {
 
 func (r *RedisRingClient) StartMetricsCollection() {
 	go func() {
+		ticker := time.NewTicker(r.options.ConnMetricsInterval)
+		defer ticker.Stop()
+
 		for {
 			select {
-			case <-time.After(r.options.ConnMetricsInterval):
+			case <-ticker.C:
 				stats := r.ring.PoolStats()
 				// counter values
 				r.metrics.UpdateGauge(r.metricsPrefix+"hits", float64(stats.Hits))
