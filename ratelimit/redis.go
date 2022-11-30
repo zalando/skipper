@@ -174,19 +174,7 @@ func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, 
 	return true, nil
 }
 
-// Allow returns true if the request calculated across the cluster of
-// skippers should be allowed else false. It will share it's own data
-// and use the current cluster information to calculate global rates
-// to decide to allow or not.
-//
-// Performance considerations:
-//
-// In case of deny it will use ZREMRANGEBYSCORE and ZCARD commands in
-// one pipeline to remove old items in the list of hits.
-// In case of allow it will additionally use ZADD with a second
-// roundtrip.
-//
-// Deprecated: In favour of AllowContext
+// Allow is like AllowContext, but not using a context.
 func (c *clusterLimitRedis) Allow(clearText string) bool {
 	return c.AllowContext(context.Background(), clearText)
 }
