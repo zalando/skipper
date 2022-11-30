@@ -73,7 +73,6 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		ticker = time.NewTicker(time.Millisecond)
 	}
 	defer ticker.Stop()
-	retriggerCH := make(chan struct{}, 1)
 	for {
 		var (
 			routes     []*eskip.Route
@@ -93,7 +92,7 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		case err != nil:
 			o.Log.Error("error while receiving update;", err)
 			initial = true
-			retriggerCH <- struct{}{}
+			continue
 		case initial || len(routes) > 0 || len(deletedIDs) > 0:
 			var incoming *incomingData
 			if initial {
@@ -111,7 +110,6 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 		}
 
 		select {
-		case <-retriggerCH:
 		case <-ticker.C:
 		case <-quit:
 			return
