@@ -118,31 +118,7 @@ func (c *clusterLimitSwim) AllowContext(ctx context.Context, clearText string) b
 //
 // Deprecated: In favour of AllowContext
 func (c *clusterLimitSwim) Allow(clearText string) bool {
-	s := getHashedKey(clearText)
-	key := swarmPrefix + c.group + "." + s
-
-	// t0 is the oldest entry in the local circularbuffer
-	// [ t3, t4, t0, t1, t2]
-	//           ^- current pointer to oldest
-	// now - t0
-	t0 := c.Oldest(s).UTC().UnixNano()
-
-	_ = c.local.Allow(s) // update local rate limit
-
-	if err := c.swarm.ShareValue(key, t0); err != nil {
-		log.Errorf("%s clusterRatelimit failed to share value: %v", c.group, err)
-	}
-
-	swarmValues := c.swarm.Values(key)
-	log.Debugf("%s: clusterRatelimit swarmValues(%d) for '%s': %v", c.group, len(swarmValues), swarmPrefix+s, swarmValues)
-
-	c.resize <- resizeLimit{s: s, n: len(swarmValues)}
-
-	now := time.Now().UTC().UnixNano()
-	rate := c.calcTotalRequestRate(now, swarmValues)
-	result := rate < float64(c.maxHits)
-	log.Debugf("%s clusterRatelimit: Allow=%v, %v < %d", c.group, result, rate, c.maxHits)
-	return result
+	return c.AllowContext(context.Background(), clearText)
 }
 
 func (c *clusterLimitSwim) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {

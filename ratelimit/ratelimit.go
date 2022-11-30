@@ -341,7 +341,7 @@ type limiter interface {
 	// Allow is used to get a decision if you should allow the
 	// call to pass or to ratelimit
 	//
-	// Depreceated
+	// Deprecated
 	Allow(string) bool
 
 	// AllowContext is used to get a decision if you should allow the
@@ -368,15 +368,6 @@ type limiter interface {
 	RetryAfter(string) int
 }
 
-// contextLimiter extends limiter with an AllowContext method that accepts an additional
-// context.Context, e.g. to support OpenTracing.
-//
-// Deprecated: In favour of limiter since Allow is also deprecated now.
-type contextLimiter interface {
-	limiter
-	AllowContext(context.Context, string) bool
-}
-
 // Ratelimit is a proxy object that delegates to limiter
 // implemetations and stores settings for the ratelimiter
 type Ratelimit struct {
@@ -392,7 +383,7 @@ func (l *Ratelimit) Allow(s string) bool {
 	if l == nil {
 		return true
 	}
-	return l.impl.Allow(s)
+	return l.impl.AllowContext(context.Background(), s)
 }
 
 // AllowContext is like Allow but accepts an optional context.Context, e.g. to
