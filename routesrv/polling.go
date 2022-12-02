@@ -70,7 +70,10 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	)
 
 	log.WithField("timeout", p.timeout).Info(LogPollingStarted)
+	ticker := time.NewTicker(p.timeout)
+	defer ticker.Stop()
 	pollingStarted.SetToCurrentTime()
+
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
@@ -118,7 +121,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		case <-p.quit:
 			log.Info(LogPollingStopped)
 			return
-		case <-time.After(p.timeout):
+		case <-ticker.C:
 		}
 	}
 }

@@ -152,9 +152,11 @@ func buildHTTPClient(certFilePath string, inCluster bool, quit chan struct{}) (*
 	}
 	// regularly force closing idle connections
 	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
-			case <-time.After(10 * time.Second):
+			case <-ticker.C:
 				transport.CloseIdleConnections()
 			case <-quit:
 				return

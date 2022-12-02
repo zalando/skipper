@@ -1,6 +1,7 @@
 module github.com/zalando/skipper
 
 require (
+	github.com/AlexanderYastrebov/noleak v0.0.0-20221130200240-b1c4bed70a32
 	github.com/MicahParks/keyfunc v1.0.1
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/andybalholm/brotli v1.0.4
@@ -32,7 +33,7 @@ require (
 	github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011
 	github.com/sirupsen/logrus v1.8.1
 	github.com/sony/gobreaker v0.5.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.0
 	github.com/szuecs/rate-limit-buffer v0.7.1
 	github.com/testcontainers/testcontainers-go v0.12.0
 	github.com/tidwall/gjson v1.12.1

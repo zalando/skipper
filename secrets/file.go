@@ -142,31 +142,37 @@ func (sp *SecretPaths) registerSecretFile(p string) error {
 
 // runRefresher refreshes all secrets, that are registered
 func (sp *SecretPaths) runRefresher() {
-	log.Infof("Run secrets path refresher every %s, but update once first", sp.refreshInterval)
-	var d time.Duration
+	sp.refresh()
+
+	ticker := time.NewTicker(sp.refreshInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-time.After(d):
-			sp.secrets.Range(func(k, _ interface{}) bool {
-				f, ok := k.(string)
-				if !ok {
-					log.Errorf("Failed to convert k '%v' to string", k)
-					return true
-				}
-				sec, err := os.ReadFile(f)
-				if err != nil {
-					log.Errorf("Failed to read file (%s): %v", f, err)
-					return true
-				}
-				sp.updateSecret(f, sec)
-				return true
-			})
+		case <-ticker.C:
+			sp.refresh()
 		case <-sp.quit:
 			log.Infoln("Stop secrets background refresher")
 			return
 		}
-		d = sp.refreshInterval
 	}
+}
+
+func (sp *SecretPaths) refresh() {
+	sp.secrets.Range(func(k, _ interface{}) bool {
+		f, ok := k.(string)
+		if !ok {
+			log.Errorf("Failed to convert k '%v' to string", k)
+			return true
+		}
+		sec, err := os.ReadFile(f)
+		if err != nil {
+			log.Errorf("Failed to read file (%s): %v", f, err)
+			return true
+		}
+		sp.updateSecret(f, sec)
+		return true
+	})
 }
 
 func (sp *SecretPaths) Close() {

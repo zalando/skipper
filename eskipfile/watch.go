@@ -3,6 +3,7 @@ package eskipfile
 import (
 	"os"
 	"reflect"
+	"sync"
 
 	"github.com/zalando/skipper/eskip"
 )
@@ -21,6 +22,7 @@ type WatchClient struct {
 	getAll     chan (chan<- watchResponse)
 	getUpdates chan (chan<- watchResponse)
 	quit       chan struct{}
+	once       sync.Once
 }
 
 // Watch creates a route configuration client with file watching. Watch doesn't follow file system nodes, it
@@ -31,6 +33,7 @@ func Watch(name string) *WatchClient {
 		getAll:     make(chan (chan<- watchResponse)),
 		getUpdates: make(chan (chan<- watchResponse)),
 		quit:       make(chan struct{}),
+		once:       sync.Once{},
 	}
 
 	go c.watch()
@@ -157,5 +160,7 @@ func (c *WatchClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 
 // Close stops watching the configured file and providing updates.
 func (c *WatchClient) Close() {
-	close(c.quit)
+	c.once.Do(func() {
+		close(c.quit)
+	})
 }

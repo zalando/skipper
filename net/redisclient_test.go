@@ -89,6 +89,7 @@ func TestRedisClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get a tracer: %v", err)
 	}
+	defer tracer.Close()
 
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
@@ -110,17 +111,7 @@ func TestRedisClient(t *testing.T) {
 		{
 			name: "With AddrUpdater",
 			options: &RedisOptions{
-				AddrUpdater: func() []string { return []string{redisAddr} },
-				// 	i := 0
-				// 	return func() []string {
-				// 		i++
-				// 		if i < 2 {
-				// 			return []string{redisAddr}
-				// 		}
-				// 		return []string{redisAddr, redisAddr2}
-				// 	}()
-
-				// },
+				AddrUpdater:    func() []string { return []string{redisAddr} },
 				UpdateInterval: 10 * time.Millisecond,
 			},
 			wantErr: false,
@@ -156,7 +147,9 @@ func TestRedisClient(t *testing.T) {
 				}
 			}
 
-			go func() { <-ch }() // create client will block
+			if ch != nil {
+				go func() { <-ch }() // create client will block
+			}
 			cli := NewRedisRingClient(tt.options)
 			defer func() {
 				if !cli.closed {
@@ -1059,6 +1052,7 @@ func TestRedisClientSetAddr(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewRedisRingClient(tt.options)
+			defer r.Close()
 			for i := 0; i < len(tt.keys); i++ {
 				r.Set(context.Background(), tt.keys[i], tt.vals[i], time.Second)
 			}

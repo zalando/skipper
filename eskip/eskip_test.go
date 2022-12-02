@@ -322,13 +322,15 @@ func TestParseFilters(t *testing.T) {
 		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
 		false,
 	}} {
-		fs, err := ParseFilters(ti.expression)
-		if err == nil && ti.err || err != nil && !ti.err {
-			t.Error(ti.msg, "failure case", err, ti.err)
-			return
-		}
+		t.Run(ti.msg, func(t *testing.T) {
+			fs, err := ParseFilters(ti.expression)
+			if err == nil && ti.err || err != nil && !ti.err {
+				t.Error(ti.msg, "failure case", err, ti.err)
+				return
+			}
 
-		checkFilters(t, ti.msg, fs, ti.check)
+			checkFilters(t, ti.msg, fs, ti.check)
+		})
 	}
 }
 

@@ -651,9 +651,11 @@ func (r *Registry) measure() {
 
 	r.measuring = true
 	go func() {
+		ticker := time.NewTicker(r.options.MetricsUpdateTimeout)
+		defer ticker.Stop()
 		for {
 			select {
-			case <-time.After(r.options.MetricsUpdateTimeout):
+			case <-ticker.C:
 				r.updateMetrics()
 			case <-r.quit:
 				return

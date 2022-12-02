@@ -36,6 +36,7 @@ func TestClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get a tracer: %v", err)
 	}
+	defer tracer.Close()
 
 	for _, tt := range []struct {
 		name      string
@@ -157,6 +158,9 @@ func TestClient(t *testing.T) {
 			}
 
 			cli := NewClient(tt.options)
+			if cli == nil {
+				t.Fatal("NewClient returned nil")
+			}
 			defer cli.Close()
 
 			u := "http://" + s.Listener.Addr().String() + "/"
@@ -201,6 +205,7 @@ func TestTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get a tracer: %v", err)
 	}
+	defer tracer.Close()
 
 	for _, tt := range []struct {
 		name        string
