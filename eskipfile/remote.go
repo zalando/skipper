@@ -139,12 +139,10 @@ func (client *remoteEskipFile) LoadUpdate() ([]*eskip.Route, []string, error) {
 }
 
 func (client *remoteEskipFile) Close() {
-	if client != nil {
-		client.once.Do(func() {
-			client.http.Close()
-			client.eskipFileClient.Close()
-		})
-	}
+	client.once.Do(func() {
+		client.http.Close()
+		client.eskipFileClient.Close()
+	})
 }
 
 func isFileRemote(remotePath string) bool {
