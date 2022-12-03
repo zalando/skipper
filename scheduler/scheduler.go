@@ -169,7 +169,6 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 
 	// limit concurrency
 	if err := sem.Acquire(c, 1); err != nil {
-		// Decrement counter
 		cnt.Add(-1)
 		switch err {
 		case context.DeadlineExceeded:
@@ -184,7 +183,6 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 
 	return func() {
 		// postpone release to Response() filter
-		// Decrement counter
 		cnt.Add(-1)
 		sem.Release(1)
 	}, nil
@@ -415,7 +413,7 @@ func (r *Registry) newFifoQueue(name string, c Config) *FifoQueue {
 	q := &FifoQueue{
 		config: c,
 		queue: &fifoQueue{
-			counter:        &atomic.Int64{},
+			counter:        new(atomic.Int64),
 			sem:            semaphore.NewWeighted(int64(c.MaxConcurrency)),
 			maxConcurrency: int64(c.MaxConcurrency),
 			maxQueueSize:   int64(c.MaxQueueSize),
