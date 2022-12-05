@@ -262,8 +262,6 @@ Route creation steps:
 
 ## Building skipper
 
-We use Go modules to build skipper, therefore you need [Go](https://golang.org/dl) version `>= 1.11`.
-
 ### Local build
 
 To get a local build of skipper for your CPU architecture, you can run
