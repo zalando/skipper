@@ -444,6 +444,10 @@ func matchPredicates(cps []Predicate, req *http.Request) bool {
 
 // matches a request to the conditions in a leaf matcher
 func matchLeaf(l *leafMatcher, req *http.Request, path, exactPath string) bool {
+	if inLoop(l, req) {
+		return false
+	}
+
 	if l.exactPath != "" && l.exactPath != path {
 		return false
 	}
