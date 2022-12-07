@@ -268,8 +268,8 @@ var (
 		additionalHeader: http.Header{"X-Circuit-Open": []string{"true"}},
 	}
 
-	disabledAccessLog = al.AccessLogFilter{Enable: false, Prefixes: nil}
-	enabledAccessLog  = al.AccessLogFilter{Enable: true, Prefixes: nil}
+	disabledAccessLog = &al.AccessLogFilter{Enable: false, Prefixes: nil}
+	enabledAccessLog  = &al.AccessLogFilter{Enable: true, Prefixes: nil}
 	hopHeaders        = map[string]bool{
 		"Te":                  true,
 		"Connection":          true,
@@ -1099,6 +1099,8 @@ func (p *Proxy) do(ctx *context) error {
 		}
 
 		p.log.Debugf("could not find a route for %v", ctx.request.URL)
+		ctx.stateBag[al.AccessLogEnabledKey] = disabledAccessLog
+
 		return errRouteLookupFailed
 	}
 
@@ -1408,9 +1410,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if !ok {
 			if p.accessLogDisabled {
-				accessLogEnabled = &disabledAccessLog
+				accessLogEnabled = disabledAccessLog
 			} else {
-				accessLogEnabled = &enabledAccessLog
+				accessLogEnabled = enabledAccessLog
 			}
 		}
 
