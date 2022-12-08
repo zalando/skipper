@@ -1733,6 +1733,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		pauth.NewJWTPayloadAnyKV(),
 		pauth.NewJWTPayloadAllKVRegexp(),
 		pauth.NewJWTPayloadAnyKVRegexp(),
+		pauth.NewHeaderSHA256(),
 		methods.New(),
 		tee.New(),
 		forwarded.NewForwardedHost(),
