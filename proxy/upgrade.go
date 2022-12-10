@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -215,8 +216,7 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 func copyAsync(dir string, src io.Reader, dst io.Writer, done chan<- struct{}) {
 	go func() {
 		_, err := io.Copy(dst, src)
-		// net: errClosing not exported https://github.com/golang/go/issues/4373
-		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+		if err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Errorf("error copying data %s: %v", dir, err)
 		}
 		done <- struct{}{}
