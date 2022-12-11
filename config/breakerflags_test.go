@@ -42,10 +42,11 @@ func Test_breakerFlags_String(t *testing.T) {
 
 func Test_breakerFlags_Set(t *testing.T) {
 	tests := []struct {
-		name    string
-		args    string
-		wantErr bool
-		want    circuit.BreakerSettings
+		name      string
+		args      string
+		wantErr   bool
+		errString string
+		want      circuit.BreakerSettings
 	}{
 		{
 			name:    "test breaker settings",
@@ -73,9 +74,24 @@ func Test_breakerFlags_Set(t *testing.T) {
 			},
 		},
 		{
-			name:    "test breaker settings with wrong window",
-			args:    "type=consecutive,window=4s,host=example.com,timeout=3s,half-open-requests=3,idle-ttl=5s",
-			wantErr: true,
+			name:    "test breaker settings with failures",
+			args:    "type=consecutive,window=4,host=example.com,timeout=3s,half-open-requests=3,idle-ttl=5s,failures=2",
+			wantErr: false,
+			want: circuit.BreakerSettings{
+				Type:             circuit.ConsecutiveFailures,
+				Host:             "example.com",
+				Timeout:          3 * time.Second,
+				HalfOpenRequests: 3,
+				IdleTTL:          5 * time.Second,
+				Window:           4,
+				Failures:         2,
+			},
+		},
+		{
+			name:      "test breaker settings with wrong window",
+			args:      "type=consecutive,window=4s,host=example.com,timeout=3s,half-open-requests=3,idle-ttl=5s",
+			wantErr:   true,
+			errString: `strconv.Atoi: parsing "4s": invalid syntax`,
 		},
 		{
 			name:    "test breaker settings failurerate",
@@ -102,16 +118,48 @@ func Test_breakerFlags_Set(t *testing.T) {
 			},
 		},
 		{
-			name:    "test breaker settings invalid type",
-			args:    "type=invalid,host=example.com,timeout=3s,half-open-requests=3,idle-ttl=5s",
-			wantErr: true,
+			name:      "test breaker settings invalid type",
+			args:      "type=invalid,host=example.com,timeout=3s,half-open-requests=3,idle-ttl=5s",
+			wantErr:   true,
+			errString: errInvalidBreakerConfig.Error(),
+		},
+		{
+			name:      "test breaker settings invalid idle-ttl",
+			args:      "type=consecutive,host=example.com,timeout=3s,half-open-requests=3,idle-ttl=5as",
+			wantErr:   true,
+			errString: `time: unknown unit "as" in duration "5as"`,
+		},
+		{
+			name:      "test breaker settings invalid half-open",
+			args:      "type=consecutive,host=example.com,timeout=3s,half-open-requests=a,idle-ttl=5s",
+			wantErr:   true,
+			errString: `strconv.Atoi: parsing "a": invalid syntax`,
+		},
+		{
+			name:      "test breaker settings invalid timeout",
+			args:      "type=consecutive,host=example.com,timeout=3n,half-open-requests=3,idle-ttl=5s",
+			wantErr:   true,
+			errString: `time: unknown unit "n" in duration "3n"`,
+		},
+		{
+			name:      "test breaker settings invalid failures",
+			args:      "type=consecutive,host=example.com,timeout=3s,half-open-requests=3,idle-ttl=5s,failures=n",
+			wantErr:   true,
+			errString: `strconv.Atoi: parsing "n": invalid syntax`,
+		},
+		{
+			name:      "test breaker settings invalid config",
+			args:      "type=consecutive,foo=bar",
+			wantErr:   true,
+			errString: errInvalidBreakerConfig.Error(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bp := &breakerFlags{}
 
-			if err := bp.Set(tt.args); (err != nil) != tt.wantErr {
+			err := bp.Set(tt.args)
+			if (err != nil) != tt.wantErr {
 				t.Errorf("breakerFlags.Set() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
@@ -124,6 +172,8 @@ func Test_breakerFlags_Set(t *testing.T) {
 				if cmp.Equal(b[0], tt.want) == false {
 					t.Errorf("breakerFlags.Set() got v, want v, %v", cmp.Diff(b[0], tt.want))
 				}
+			} else if tt.errString != err.Error() {
+				t.Errorf("Failed to get error string want: %v, got: %v", tt.errString, err)
 			}
 
 		})

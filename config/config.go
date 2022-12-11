@@ -546,6 +546,26 @@ func NewConfig() *Config {
 	return cfg
 }
 
+func validate(c *Config) error {
+	_, err := log.ParseLevel(c.ApplicationLogLevelString)
+	if err != nil {
+		return err
+	}
+	_, err = kubernetes.ParsePathMode(c.KubernetesPathModeString)
+	if err != nil {
+		return err
+	}
+	_, err = eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
+	if err != nil {
+		return fmt.Errorf("invalid east-west-range-predicates: %w", err)
+	}
+	_, err = c.parseHistogramBuckets()
+	if err != nil {
+		return err
+	}
+	return c.parseForwardedHeaders()
+}
+
 func (c *Config) Parse() error {
 	flag.Parse()
 
@@ -578,30 +598,14 @@ func (c *Config) Parse() error {
 		"kubernetes-east-west-domain",
 	)
 
-	logLevel, err := log.ParseLevel(c.ApplicationLogLevelString)
-	if err != nil {
+	if err := validate(c); err != nil {
 		return err
 	}
 
-	kubernetesPathMode, err := kubernetes.ParsePathMode(c.KubernetesPathModeString)
-	if err != nil {
-		return err
-	}
-
-	kubernetesEastWestRangePredicates, err := eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
-	if err != nil {
-		return fmt.Errorf("invalid east-west-range-predicates: %w", err)
-	}
-
-	histogramBuckets, err := c.parseHistogramBuckets()
-	if err != nil {
-		return err
-	}
-
-	c.ApplicationLogLevel = logLevel
-	c.KubernetesPathMode = kubernetesPathMode
-	c.KubernetesEastWestRangePredicates = kubernetesEastWestRangePredicates
-	c.HistogramMetricBuckets = histogramBuckets
+	c.ApplicationLogLevel, _ = log.ParseLevel(c.ApplicationLogLevelString)
+	c.KubernetesPathMode, _ = kubernetes.ParsePathMode(c.KubernetesPathModeString)
+	c.KubernetesEastWestRangePredicates, _ = eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
+	c.HistogramMetricBuckets, _ = c.parseHistogramBuckets()
 
 	if c.ClientKeyFile != "" && c.ClientCertFile != "" {
 		certsFiles := strings.Split(c.ClientCertFile, ",")
@@ -618,11 +622,6 @@ func (c *Config) Parse() error {
 		}
 
 		c.Certificates = certificates
-	}
-
-	err = c.parseForwardedHeaders()
-	if err != nil {
-		return err
 	}
 
 	if c.NormalizeHost || c.KubernetesIngress {
