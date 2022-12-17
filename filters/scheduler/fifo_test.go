@@ -239,6 +239,7 @@ func TestFifo(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("OK"))
 			}))
+			defer backend.Close()
 
 			var fmtStr string
 			switch len(tt.args) {
@@ -262,6 +263,8 @@ func TestFifo(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create testdataclient: %v", err)
 			}
+			defer dc.Close()
+
 			ro := routing.Options{
 				SignalFirstLoad: true,
 				FilterRegistry:  fr,
@@ -291,6 +294,8 @@ func TestFifo(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to get response from %s: %v", reqURL.String(), err)
 			}
+			defer rsp.Body.Close()
+
 			if rsp.StatusCode != http.StatusOK {
 				t.Fatalf("Failed to get valid response from endpoint: %d", rsp.StatusCode)
 			}
@@ -402,6 +407,7 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("OK"))
 			}))
+			defer backend.Close()
 
 			args := append(tt.args, backend.URL)
 			doc := fmt.Sprintf(`aroute: * -> fifo(%v, %v, "%v") -> "%s"`, args...)
@@ -410,6 +416,8 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create testdataclient: %v", err)
 			}
+			defer dc.Close()
+
 			ro := routing.Options{
 				SignalFirstLoad: true,
 				FilterRegistry:  fr,
@@ -439,6 +447,8 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to get response from %s: %v", reqURL.String(), err)
 			}
+			defer rsp.Body.Close()
+
 			if rsp.StatusCode != http.StatusOK {
 				t.Fatalf("Failed to get valid response from endpoint: %d", rsp.StatusCode)
 			}

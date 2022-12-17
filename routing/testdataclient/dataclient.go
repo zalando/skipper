@@ -25,6 +25,7 @@ type Client struct {
 	deletedIDs   []string
 	failNext     int
 	signalUpdate chan incomingUpdate
+	quit         chan struct{}
 }
 
 // Creates a Client with an initial set of route definitions.
@@ -37,6 +38,7 @@ func New(initial []*eskip.Route) *Client {
 	return &Client{
 		routes:       routes,
 		signalUpdate: make(chan incomingUpdate),
+		quit:         make(chan struct{}),
 	}
 }
 
@@ -70,8 +72,12 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 // Returns the route definitions upserted/deleted since the last call to
 // LoadAll.
 func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
-	update := <-c.signalUpdate
-	c.upsert, c.deletedIDs = update.upsert, update.deletedIDs
+	select {
+	case update := <-c.signalUpdate:
+		c.upsert, c.deletedIDs = update.upsert, update.deletedIDs
+	case <-c.quit:
+		return nil, nil, nil
+	}
 
 	for _, id := range c.deletedIDs {
 		delete(c.routes, id)
@@ -120,4 +126,8 @@ func (c *Client) UpdateDoc(upsertDoc string, deletedIDs []string) error {
 // times as it was called.
 func (c *Client) FailNext() {
 	c.failNext++
+}
+
+func (c *Client) Close() {
+	close(c.quit)
 }

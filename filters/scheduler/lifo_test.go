@@ -344,6 +344,7 @@ func TestNewLIFO(t *testing.T) {
 				w.WriteHeader(tt.wantCode)
 				w.Write([]byte("Hello"))
 			}))
+			defer backend.Close()
 
 			args := append(tt.args, backend.URL)
 			args = append([]interface{}{l.Name()}, args...)
@@ -370,6 +371,7 @@ func TestNewLIFO(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create testdataclient: %v", err)
 			}
+			defer dc.Close()
 
 			metrics := &metricstest.MockMetrics{}
 			reg := scheduler.RegistryWith(scheduler.Options{
@@ -482,6 +484,7 @@ func TestLifoErrors(t *testing.T) {
 
 	dc, err := testdataclient.NewDoc(doc)
 	require.NoError(t, err)
+	defer dc.Close()
 
 	metrics := &metricstest.MockMetrics{}
 	reg := scheduler.RegistryWith(scheduler.Options{

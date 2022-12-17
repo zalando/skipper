@@ -1,14 +1,15 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/filtertest"
-	"github.com/zalando/skipper/proxy/proxytest"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 type testContext struct {
@@ -522,6 +523,7 @@ func TestHeader(t *testing.T) {
 						t.Error(err)
 						return
 					}
+					defer rsp.Body.Close()
 
 					if ti.valid && rsp.StatusCode != http.StatusOK ||
 						!ti.valid && rsp.StatusCode != http.StatusNotFound {

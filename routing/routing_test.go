@@ -135,6 +135,8 @@ func stringsAreSame(xs, ys []string) bool {
 
 func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	defer dc.Close()
+
 	dc.FailNext()
 	dc.FailNext()
 	dc.FailNext()
@@ -154,6 +156,8 @@ func TestKeepsReceivingInitialRouteDataUntilSucceeds(t *testing.T) {
 
 func TestReceivesInitial(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	defer dc.Close()
+
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -168,6 +172,8 @@ func TestReceivesInitial(t *testing.T) {
 
 func TestReceivesFullOnFailedUpdate(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	defer dc.Close()
+
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -192,6 +198,8 @@ func TestReceivesFullOnFailedUpdate(t *testing.T) {
 
 func TestReceivesUpdate(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	defer dc.Close()
+
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -217,6 +225,8 @@ func TestReceivesDelete(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{
 		{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"},
 		{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
+	defer dc.Close()
+
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -240,12 +250,13 @@ func TestReceivesDelete(t *testing.T) {
 
 func TestUpdateDoesNotChangeRouting(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	defer dc.Close()
+
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-
 	defer tr.close()
 
 	tr.log.Reset()
@@ -263,8 +274,14 @@ func TestUpdateDoesNotChangeRouting(t *testing.T) {
 
 func TestMergesMultipleSources(t *testing.T) {
 	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	defer dc1.Close()
+
 	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
+	defer dc2.Close()
+
 	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
+	defer dc3.Close()
+
 	tr, err := newTestRouting(dc1, dc2, dc3)
 	if err != nil {
 		t.Error(err)
@@ -288,8 +305,14 @@ func TestMergesMultipleSources(t *testing.T) {
 
 func TestMergesUpdatesFromMultipleSources(t *testing.T) {
 	dc1 := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "https://www.example.org"}})
+	defer dc1.Close()
+
 	dc2 := testdataclient.New([]*eskip.Route{{Id: "route2", Path: "/some-other", Backend: "https://other.example.org"}})
+	defer dc2.Close()
+
 	dc3 := testdataclient.New([]*eskip.Route{{Id: "route3", Path: "/another", Backend: "https://another.example.org"}})
+	defer dc3.Close()
+
 	tr, err := newTestRouting(dc1, dc2, dc3)
 	if err != nil {
 		t.Error(err)
@@ -336,6 +359,8 @@ func TestMergesUpdatesFromMultipleSources(t *testing.T) {
 
 func TestIgnoresInvalidBackend(t *testing.T) {
 	dc := testdataclient.New([]*eskip.Route{{Id: "route1", Path: "/some-path", Backend: "invalid backend"}})
+	defer dc.Close()
+
 	tr, err := newTestRouting(dc)
 	if err != nil {
 		t.Error(err)
@@ -358,6 +383,7 @@ func TestProcessesFilterDefinitions(t *testing.T) {
 		Path:    "/some-path",
 		Filters: []*eskip.Filter{{Name: "filter1", Args: []interface{}{3.14, "Hello, world!"}}},
 		Backend: "https://www.example.org"}})
+	defer dc.Close()
 
 	tr, err := newTestRoutingWithFilters(fr, dc)
 	if err != nil {
@@ -392,6 +418,7 @@ func TestProcessesPredicates(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	defer dc.Close()
 
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 
@@ -467,8 +494,12 @@ func TestNonMatchedStaticRoute(t *testing.T) {
 }
 
 func TestRoutingHandlerParameterChecking(t *testing.T) {
+	rt := routing.New(routing.Options{})
+	defer rt.Close()
+
 	mux := http.NewServeMux()
-	mux.Handle("/", routing.New(routing.Options{}))
+	mux.Handle("/", rt)
+
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
@@ -522,6 +553,7 @@ func TestRoutingHandlerEskipResponse(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	defer dc.Close()
 
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 
@@ -583,6 +615,8 @@ func TestRoutingHandlerJsonResponse(t *testing.T) {
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: CustomPredicate("custom2") -> "https://route2.example.org";
         catchAll: * -> "https://route.example.org"`)
+	defer dc.Close()
+
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 	tr, _ := newTestRoutingWithPredicates(cps, dc)
 	defer tr.close()
@@ -623,6 +657,8 @@ func TestRoutingHandlerFilterInvalidRoutes(t *testing.T) {
         route1: CustomPredicate("custom1") -> "https://route1.example.org";
         route2: FooBar("custom2") -> "https://route2.example.org";
         catchAll: * -> "https://route.example.org"`)
+	defer dc.Close()
+
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 	tr, _ := newTestRoutingWithPredicates(cps, dc)
 	defer tr.close()
@@ -661,6 +697,7 @@ func TestRoutingHandlerPagination(t *testing.T) {
 		route2: CustomPredicate("custom2") -> "https://route2.example.org";
 		catchAll: * -> "https://route.example.org"
 	`)
+	defer dc.Close()
 
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 	tr, _ := newTestRoutingWithPredicates(cps, dc)
@@ -711,6 +748,7 @@ func TestRoutingHandlerHEAD(t *testing.T) {
 		route2: CustomPredicate("custom2") -> "https://route2.example.org";
 		catchAll: * -> "https://route.example.org"
 	`)
+	defer dc.Close()
 
 	cps := []routing.PredicateSpec{&predicate{}, &predicate{}}
 	tr, err := newTestRoutingWithPredicates(cps, dc)
@@ -768,6 +806,7 @@ func TestUpdateFailsRecovers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer dc.Close()
 
 	rt := routing.New(routing.Options{
 		FilterRegistry: builtin.MakeRegistry(),
@@ -825,6 +864,7 @@ func TestUpdateFailsRecovers(t *testing.T) {
 func TestSignalFirstLoad(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		dc := testdataclient.New([]*eskip.Route{{}})
+		defer dc.Close()
 
 		l := loggingtest.New()
 		defer l.Close()
@@ -835,6 +875,7 @@ func TestSignalFirstLoad(t *testing.T) {
 			PollTimeout:    12 * time.Millisecond,
 			Log:            l,
 		})
+		defer rt.Close()
 
 		select {
 		case <-rt.FirstLoad():
@@ -849,6 +890,7 @@ func TestSignalFirstLoad(t *testing.T) {
 
 	t.Run("enabled", func(t *testing.T) {
 		dc := testdataclient.New([]*eskip.Route{{}})
+		defer dc.Close()
 
 		l := loggingtest.New()
 		defer l.Close()
@@ -860,6 +902,7 @@ func TestSignalFirstLoad(t *testing.T) {
 			PollTimeout:     12 * time.Millisecond,
 			Log:             l,
 		})
+		defer rt.Close()
 
 		select {
 		case <-rt.FirstLoad():
@@ -880,6 +923,7 @@ func TestSignalFirstLoad(t *testing.T) {
 
 	t.Run("enabled, empty", func(t *testing.T) {
 		dc := testdataclient.New(nil)
+		defer dc.Close()
 
 		l := loggingtest.New()
 		defer l.Close()
@@ -891,6 +935,7 @@ func TestSignalFirstLoad(t *testing.T) {
 			PollTimeout:     12 * time.Millisecond,
 			Log:             l,
 		})
+		defer rt.Close()
 
 		select {
 		case <-rt.FirstLoad():
@@ -911,7 +956,10 @@ func TestSignalFirstLoad(t *testing.T) {
 
 	t.Run("multiple data clients", func(t *testing.T) {
 		dc1 := testdataclient.New([]*eskip.Route{{}})
+		defer dc1.Close()
+
 		dc2 := testdataclient.New([]*eskip.Route{{}})
+		defer dc2.Close()
 
 		l := loggingtest.New()
 		defer l.Close()
@@ -923,6 +971,7 @@ func TestSignalFirstLoad(t *testing.T) {
 			PollTimeout:     12 * time.Millisecond,
 			Log:             l,
 		})
+		defer rt.Close()
 
 		select {
 		case <-rt.FirstLoad():

@@ -145,7 +145,11 @@ func (c *WatchClient) watch() {
 // LoadAll returns the parsed route definitions found in the file.
 func (c *WatchClient) LoadAll() ([]*eskip.Route, error) {
 	req := make(chan watchResponse)
-	c.getAll <- req
+	select {
+	case c.getAll <- req:
+	case <-c.quit:
+		return nil, nil
+	}
 	rsp := <-req
 	return rsp.routes, rsp.err
 }
@@ -153,7 +157,11 @@ func (c *WatchClient) LoadAll() ([]*eskip.Route, error) {
 // LoadUpdate returns differential updates when a watched file has changed.
 func (c *WatchClient) LoadUpdate() ([]*eskip.Route, []string, error) {
 	req := make(chan watchResponse)
-	c.getUpdates <- req
+	select {
+	case c.getUpdates <- req:
+	case <-c.quit:
+		return nil, nil, nil
+	}
 	rsp := <-req
 	return rsp.routes, rsp.deletedIDs, rsp.err
 }

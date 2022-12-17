@@ -24,6 +24,7 @@ func TestFifoLoopback(t *testing.T) {
 		loop: Path("/loop") -> fifo(100, 100, "1s") -> inlineContent("ok") -> <shunt>;
 	`)
 	require.NoError(t, err)
+	defer dc.Close()
 
 	filterRegistry := make(filters.Registry)
 	filterRegistry.Register(fifo.NewFifo())
@@ -40,9 +41,13 @@ func TestFifoLoopback(t *testing.T) {
 		PostProcessors:  []routing.PostProcessor{schedulerRegistry},
 		SignalFirstLoad: true,
 	})
+	defer rt.Close()
+
 	<-rt.FirstLoad()
 
 	pr := proxy.WithParams(proxy.Params{Routing: rt})
+	defer pr.Close()
+
 	tsp := httptest.NewServer(pr)
 	defer tsp.Close()
 

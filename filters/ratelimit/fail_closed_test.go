@@ -120,8 +120,9 @@ func TestFailureMode(t *testing.T) {
 					PostProcessors: []routing.PostProcessor{
 						fratelimit.NewFailClosedPostProcessor(),
 					},
-				},
-				r)
+				}, r)
+			defer proxy.Close()
+
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
 				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)

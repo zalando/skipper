@@ -265,6 +265,7 @@ func TestRouteCreationMetricsMarkerDropped(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer dc.Close()
 
 			filtersBefore := make(map[string]bool)
 			er, err := dc.LoadAll()
@@ -284,6 +285,7 @@ func TestRouteCreationMetricsMarkerDropped(t *testing.T) {
 				PostProcessors:  []routing.PostProcessor{NewRouteCreationMetrics(&metricstest.MockMetrics{})},
 				SignalFirstLoad: true,
 			})
+			defer rt.Close()
 
 			<-rt.FirstLoad()
 			r, _ := rt.Route(&http.Request{URL: &url.URL{Path: "/"}})

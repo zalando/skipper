@@ -16,6 +16,7 @@ import (
 type TestProxy struct {
 	URL     string
 	Log     *loggingtest.Logger
+	dc      *testdataclient.Client
 	routing *routing.Routing
 	proxy   *proxy.Proxy
 	server  *httptest.Server
@@ -35,9 +36,10 @@ func WithParams(fr filters.Registry, proxyParams proxy.Params, routes ...*eskip.
 
 func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyParams proxy.Params, routes ...*eskip.Route) *TestProxy {
 	tl := loggingtest.New()
+	var dc *testdataclient.Client
 
 	if len(routingOptions.DataClients) == 0 {
-		dc := testdataclient.New(routes)
+		dc = testdataclient.New(routes)
 		routingOptions.DataClients = []routing.DataClient{dc}
 	}
 
@@ -58,6 +60,7 @@ func newTestProxy(fr filters.Registry, routingOptions routing.Options, proxyPara
 	return &TestProxy{
 		URL:     tsp.URL,
 		Log:     tl,
+		dc:      dc,
 		routing: rt,
 		proxy:   pr,
 		server:  tsp,
@@ -70,13 +73,11 @@ func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 
 func (p *TestProxy) Close() error {
 	p.Log.Close()
-	p.routing.Close()
-
-	err := p.proxy.Close()
-	if err != nil {
-		return err
+	if p.dc != nil {
+		p.dc.Close()
 	}
-
+	p.routing.Close()
 	p.server.Close()
-	return nil
+
+	return p.proxy.Close()
 }

@@ -5,7 +5,6 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"errors"
-	"github.com/andybalholm/brotli"
 	"io"
 	"math/rand"
 	"net/http"
@@ -19,6 +18,8 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
+
+	"github.com/andybalholm/brotli"
 )
 
 const (
@@ -566,6 +567,16 @@ func TestForwardError(t *testing.T) {
 	}
 }
 
+type readCloser struct {
+	io.Reader
+	done chan struct{}
+}
+
+func (h *readCloser) Close() error {
+	close(h.done)
+	return nil
+}
+
 func TestCompressWithEncodings(t *testing.T) {
 	spec, err := NewCompressWithOptions(CompressOptions{Encodings: []string{"br", "gzip"}})
 	if err != nil {
@@ -576,14 +587,20 @@ func TestCompressWithEncodings(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	done := make(chan struct{})
+
 	req := &http.Request{Header: http.Header{"Accept-Encoding": []string{"gzip,br,deflate"}}}
-	body := io.NopCloser(&io.LimitedReader{R: rand.New(rand.NewSource(0)), N: 100})
+	body := &readCloser{Reader: &io.LimitedReader{R: rand.New(rand.NewSource(0)), N: 100}, done: done}
 	rsp := &http.Response{
 		Header: http.Header{"Content-Type": []string{"application/octet-stream"}},
-		Body:   body}
+		Body:   body,
+	}
 
 	ctx := &filtertest.Context{FRequest: req, FResponse: rsp}
 	f.Response(ctx)
+
+	io.Copy(io.Discard, rsp.Body)
+	<-done
 
 	enc := rsp.Header.Get("Content-Encoding")
 	if enc != "br" {

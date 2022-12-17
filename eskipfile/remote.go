@@ -69,6 +69,7 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 		err = dataClient.DownloadRemoteFile()
 
 		if err != nil {
+			dataClient.http.Close()
 			return nil, err
 		}
 	} else {
@@ -78,6 +79,7 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 		}
 
 		if err != nil {
+			dataClient.http.Close()
 			return nil, err
 		}
 		dataClient.preloaded = true

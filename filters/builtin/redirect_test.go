@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -123,54 +124,56 @@ func TestRedirect(t *testing.T) {
 			"not deprecated",
 			filters.RedirectToName,
 		}} {
-			var args []interface{}
-			if ti.skipLocationArg {
-				args = []interface{}{float64(ti.code)}
-			} else {
-				args = []interface{}{float64(ti.code), ti.filterLocation}
-			}
-			dc := testdataclient.New([]*eskip.Route{{
-				Shunt: true,
-				Filters: []*eskip.Filter{{
-					Name: tii.name,
-					Args: args}}}})
-			tl := loggingtest.New()
-			rt := routing.New(routing.Options{
-				FilterRegistry: MakeRegistry(),
-				DataClients:    []routing.DataClient{dc},
-				Log:            tl})
-			p := proxy.WithParams(proxy.Params{
-				Routing: rt,
+			t.Run(fmt.Sprintf("%s/%s", ti.msg, tii.name), func(t *testing.T) {
+				var args []interface{}
+				if ti.skipLocationArg {
+					args = []interface{}{float64(ti.code)}
+				} else {
+					args = []interface{}{float64(ti.code), ti.filterLocation}
+				}
+				dc := testdataclient.New([]*eskip.Route{{
+					Shunt: true,
+					Filters: []*eskip.Filter{{
+						Name: tii.name,
+						Args: args}}},
+				})
+				defer dc.Close()
+
+				tl := loggingtest.New()
+				defer tl.Close()
+
+				rt := routing.New(routing.Options{
+					FilterRegistry: MakeRegistry(),
+					DataClients:    []routing.DataClient{dc},
+					Log:            tl,
+				})
+				defer rt.Close()
+
+				p := proxy.WithParams(proxy.Params{
+					Routing: rt,
+				})
+				defer p.Close()
+
+				// pick up routing
+				if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+					t.Error(err)
+					return
+				}
+
+				req := &http.Request{
+					URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
+					Host: "incoming.example.org"}
+				w := httptest.NewRecorder()
+				p.ServeHTTP(w, req)
+
+				if w.Code != ti.code {
+					t.Error("invalid status code", w.Code)
+				}
+
+				if w.Header().Get("Location") != ti.checkLocation {
+					t.Error("invalid location", w.Header().Get("Location"))
+				}
 			})
-
-			closeAll := func() {
-				p.Close()
-				rt.Close()
-				tl.Close()
-			}
-
-			// pick up routing
-			if err := tl.WaitFor("route settings applied", time.Second); err != nil {
-				t.Error(err)
-				closeAll()
-				continue
-			}
-
-			req := &http.Request{
-				URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
-				Host: "incoming.example.org"}
-			w := httptest.NewRecorder()
-			p.ServeHTTP(w, req)
-
-			if w.Code != ti.code {
-				t.Error(ti.msg, tii.msg, "invalid status code", w.Code)
-			}
-
-			if w.Header().Get("Location") != ti.checkLocation {
-				t.Error(ti.msg, tii.msg, "invalid location", w.Header().Get("Location"))
-			}
-
-			closeAll()
 		}
 	}
 }
@@ -209,47 +212,49 @@ func TestRedirectLower(t *testing.T) {
 			"lowercase",
 			filters.RedirectToLowerName,
 		}} {
-			dc := testdataclient.New([]*eskip.Route{{
-				Shunt: true,
-				Filters: []*eskip.Filter{{
-					Name: tii.name,
-					Args: []interface{}{float64(ti.code), ti.filterLocation}}}}})
-			tl := loggingtest.New()
-			rt := routing.New(routing.Options{
-				FilterRegistry: MakeRegistry(),
-				DataClients:    []routing.DataClient{dc},
-				Log:            tl})
-			p := proxy.WithParams(proxy.Params{
-				Routing: rt,
+			t.Run(fmt.Sprintf("%s/%s", ti.msg, tii.name), func(t *testing.T) {
+				dc := testdataclient.New([]*eskip.Route{{
+					Shunt: true,
+					Filters: []*eskip.Filter{{
+						Name: tii.name,
+						Args: []interface{}{float64(ti.code), ti.filterLocation}}}},
+				})
+				defer dc.Close()
+
+				tl := loggingtest.New()
+				defer tl.Close()
+
+				rt := routing.New(routing.Options{
+					FilterRegistry: MakeRegistry(),
+					DataClients:    []routing.DataClient{dc},
+					Log:            tl,
+				})
+				defer rt.Close()
+
+				p := proxy.WithParams(proxy.Params{
+					Routing: rt,
+				})
+				defer p.Close()
+
+				if err := tl.WaitFor("route settings applied", time.Second); err != nil {
+					t.Error(err)
+					return
+				}
+
+				req := &http.Request{
+					URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
+					Host: "incoming.example.org"}
+				w := httptest.NewRecorder()
+				p.ServeHTTP(w, req)
+
+				if w.Code != ti.code {
+					t.Error("invalid status code", w.Code)
+				}
+
+				if w.Header().Get("Location") != ti.checkLocation {
+					t.Error("invalid location", w.Header().Get("Location"))
+				}
 			})
-
-			closeAll := func() {
-				p.Close()
-				rt.Close()
-				tl.Close()
-			}
-
-			if err := tl.WaitFor("route settings applied", time.Second); err != nil {
-				t.Error(err)
-				closeAll()
-				continue
-			}
-
-			req := &http.Request{
-				URL:  &url.URL{Path: "/some/path", RawQuery: "foo=1&bar=2"},
-				Host: "incoming.example.org"}
-			w := httptest.NewRecorder()
-			p.ServeHTTP(w, req)
-
-			if w.Code != ti.code {
-				t.Error(ti.msg, tii.msg, "invalid status code", w.Code)
-			}
-
-			if w.Header().Get("Location") != ti.checkLocation {
-				t.Error(ti.msg, tii.msg, "invalid location", w.Header().Get("Location"))
-			}
-
-			closeAll()
 		}
 	}
 }
