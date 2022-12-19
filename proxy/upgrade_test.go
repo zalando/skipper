@@ -160,10 +160,7 @@ func TestServeHTTP(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			ti := ti // trick race detector
-			var clientConnClosed atomic.Value
-			clientAlive := func() bool {
-				return clientConnClosed.Load() == nil
-			}
+			var clientConnClosed atomic.Bool
 
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if ti.backendClosesConnection {
@@ -184,12 +181,15 @@ func TestServeHTTP(t *testing.T) {
 				conn, bufrw, err := hj.Hijack()
 				require.NoError(t, err)
 
+				// Closing server does not close hijacked connections so do it explicitly
 				defer conn.Close()
 
 				for {
 					s, err := bufrw.ReadString('\n')
-					if err != nil && clientAlive() {
-						t.Errorf("error reading string: %v", err)
+					if err != nil {
+						if !clientConnClosed.Load() {
+							t.Error(err)
+						}
 						return
 					}
 
@@ -205,13 +205,17 @@ func TestServeHTTP(t *testing.T) {
 					}
 
 					_, err = bufrw.WriteString(resp)
-					if err != nil && clientAlive() {
-						t.Error(err)
+					if err != nil {
+						if !clientConnClosed.Load() {
+							t.Error(err)
+						}
 						return
 					}
 					err = bufrw.Flush()
-					if err != nil && clientAlive() {
-						t.Error(err)
+					if err != nil {
+						if !clientConnClosed.Load() {
+							t.Error(err)
+						}
 						return
 					}
 				}
@@ -349,11 +353,14 @@ func TestAuditLogging(t *testing.T) {
 			// only used as poor man's sync, the audit log in question goes stdout and stderr,
 			// see below
 			tl := loggingtest.New()
+			defer tl.Close()
+
+			dc := testdataclient.New([]*eskip.Route{{Backend: wss.URL}})
+			defer dc.Close()
+
 			rt := routing.New(routing.Options{
-				DataClients: []routing.DataClient{
-					testdataclient.New([]*eskip.Route{{Backend: wss.URL}}),
-				},
-				Log: tl,
+				DataClients: []routing.DataClient{dc},
+				Log:         tl,
 			})
 			defer rt.Close()
 

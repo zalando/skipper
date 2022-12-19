@@ -148,7 +148,6 @@ func expectSuccessfulResponse(t *testing.T, rsp roundTripResponse) {
 	}
 
 	t.Errorf("failed to make request: %v", rsp.err)
-	rsp.response.Body.Close()
 }
 
 func expectErrorResponse(t *testing.T, rsp roundTripResponse) {
@@ -250,6 +249,8 @@ func testCancelDuringStreamingRequestBody(t *testing.T, p initProxy) {
 	cancelRequest()
 	select {
 	case <-backendDetectedRequestCancel:
+		body.Close() // prevent Transport.RoundTrip hang on reading request
+		expectErrorResponse(t, <-responseReceived)
 	case <-time.After(detectionTimeout):
 		t.Error("failed to detect canceled request on time")
 
@@ -377,10 +378,10 @@ func testCancelDuringStreamingResponseBody(t *testing.T, p initProxy) {
 
 func TestNotifyBackendOnClosedClient(t *testing.T) {
 	scenarios := map[string]testScenario{
-		"before response received":      testCancelBeforeResponseReceived,
-		"during streaming request body": testCancelDuringStreamingRequestBody,
-		"after response received":       testCancelAfterResponseReceived,
-		"duing streaming response body": testCancelDuringStreamingResponseBody,
+		"before response received":       testCancelBeforeResponseReceived,
+		"during streaming request body":  testCancelDuringStreamingRequestBody,
+		"after response received":        testCancelAfterResponseReceived,
+		"during streaming response body": testCancelDuringStreamingResponseBody,
 	}
 
 	proxyVariants := map[string]initProxy{

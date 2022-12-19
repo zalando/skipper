@@ -61,6 +61,7 @@ type syncResponseWriter struct {
 
 type testProxy struct {
 	log     *loggingtest.Logger
+	dc      *testdataclient.Client
 	routing *routing.Routing
 	proxy   *Proxy
 }
@@ -162,7 +163,7 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 		return nil, err
 	}
 
-	return &testProxy{tl, rt, p}, nil
+	return &testProxy{tl, dc, rt, p}, nil
 }
 
 func newTestProxyWithFilters(fr filters.Registry, doc string, flags Flags, pr ...PriorityRoute) (*testProxy, error) {
@@ -183,6 +184,7 @@ func newTestProxy(doc string, flags Flags, pr ...PriorityRoute) (*testProxy, err
 
 func (tp *testProxy) close() {
 	tp.log.Close()
+	tp.dc.Close()
 	tp.routing.Close()
 	tp.proxy.Close()
 }
@@ -1073,7 +1075,7 @@ func TestProcessesRequestWithPriorityRouteOverStandard(t *testing.T) {
 	s1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Test-Header", "normal-value")
 	}))
-	defer s0.Close()
+	defer s1.Close()
 
 	req, err := http.NewRequest(
 		"GET",
@@ -1129,6 +1131,7 @@ func TestFlusherImplementation(t *testing.T) {
 
 	a := fmt.Sprintf(":%d", 1<<16-rand.Intn(1<<15))
 	ps := &http.Server{Addr: a, Handler: tp.proxy}
+	defer ps.Close()
 	go ps.ListenAndServe()
 
 	// let the server start listening
@@ -1339,6 +1342,7 @@ func TestHostHeader(t *testing.T) {
 			closeAll()
 			continue
 		}
+		defer rsp.Body.Close()
 
 		if ti.flags.Debug() {
 			closeAll()
@@ -1362,8 +1366,7 @@ func TestBackendServiceUnavailable(t *testing.T) {
 		t.Error(err)
 		return
 	}
-
-	defer p.proxy.Close()
+	defer p.close()
 
 	ps := httptest.NewServer(p.proxy)
 	defer ps.Close()
@@ -1471,7 +1474,7 @@ func TestResponseHeaderTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.proxy.Close()
+	defer p.close()
 
 	ps := httptest.NewServer(p.proxy)
 	defer ps.Close()
@@ -1554,8 +1557,7 @@ func TestBranding(t *testing.T) {
 		t.Error(err)
 		return
 	}
-
-	defer p.proxy.Close()
+	defer p.close()
 
 	ps := httptest.NewServer(p.proxy)
 	defer ps.Close()
@@ -1618,8 +1620,7 @@ func TestFixNoAppLogFor404(t *testing.T) {
 		t.Error(err)
 		return
 	}
-
-	defer p.proxy.Close()
+	defer p.close()
 
 	ps := httptest.NewServer(p.proxy)
 	defer ps.Close()
@@ -1677,14 +1678,14 @@ func TestRequestContentHeaders(t *testing.T) {
 			return
 		}
 	}))
+	defer backend.Close()
 
 	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, backend.URL), FlagsNone)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-
-	defer p.proxy.Close()
+	defer p.close()
 
 	ps := httptest.NewServer(p.proxy)
 	defer ps.Close()
@@ -1727,12 +1728,14 @@ func TestSettingDefaultHTTPStatus(t *testing.T) {
 		DefaultHTTPStatus: http.StatusBadGateway,
 	}
 	p := WithParams(params)
+	p.Close()
 	if p.defaultHTTPStatus != http.StatusBadGateway {
 		t.Errorf("expected default HTTP status %d, got %d", http.StatusBadGateway, p.defaultHTTPStatus)
 	}
 
 	params.DefaultHTTPStatus = http.StatusNetworkAuthenticationRequired + 1
 	p = WithParams(params)
+	p.Close()
 	if p.defaultHTTPStatus != http.StatusNotFound {
 		t.Errorf("expected default HTTP status %d, got %d", http.StatusNotFound, p.defaultHTTPStatus)
 	}
@@ -1989,8 +1992,7 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 		t.Error(err)
 		return
 	}
-
-	defer p.proxy.Close()
+	defer p.close()
 
 	ps := httptest.NewServer(p.proxy)
 	defer ps.Close()

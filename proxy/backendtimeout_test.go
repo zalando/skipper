@@ -34,6 +34,7 @@ func TestSlowService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusGatewayTimeout {
 		t.Errorf("expected 504, got: %v", rsp)
@@ -60,6 +61,7 @@ func TestFastService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got: %v", rsp)
@@ -94,6 +96,7 @@ func TestBackendTimeoutInTheMiddleOfServiceResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got: %v", rsp)
@@ -166,6 +169,7 @@ func TestRetryAndSlowService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusGatewayTimeout {
 		t.Errorf("expected 504, got: %v", rsp)
@@ -196,6 +200,7 @@ func TestRetryAndFastService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got: %v", rsp)

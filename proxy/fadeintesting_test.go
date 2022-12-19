@@ -40,6 +40,7 @@ const (
 
 type fadeInDataClient struct {
 	reset, update chan []*eskip.Route
+	quit          chan struct{}
 }
 
 type fadeInBackendInstance struct {
@@ -56,8 +57,9 @@ type fadeInBackend struct {
 }
 
 type fadeInProxyInstance struct {
-	proxy  *proxy.Proxy
-	server *httptest.Server
+	routing *routing.Routing
+	proxy   *proxy.Proxy
+	server  *httptest.Server
 }
 
 type fadeInProxy struct {
@@ -107,18 +109,33 @@ func createDataClient(r ...*eskip.Route) fadeInDataClient {
 	var c fadeInDataClient
 	c.reset = make(chan []*eskip.Route, 1)
 	c.update = make(chan []*eskip.Route, 1)
+	c.quit = make(chan struct{})
 	c.reset <- r
 	return c
 }
 
 func (c fadeInDataClient) LoadAll() ([]*eskip.Route, error) {
-	r := <-c.reset
-	c.reset <- r
-	return r, nil
+	select {
+	case r := <-c.reset:
+		c.reset <- r
+		return r, nil
+	case <-c.quit:
+		return nil, nil
+	}
 }
 
 func (c fadeInDataClient) LoadUpdate() ([]*eskip.Route, []string, error) {
-	return <-c.update, nil, nil
+	select {
+	// hm, blocking dataclient?
+	case r := <-c.update:
+		return r, nil, nil
+	case <-c.quit:
+		return nil, nil, nil
+	}
+}
+
+func (c fadeInDataClient) close() {
+	close(c.quit)
 }
 
 // startBackend starts a backend representing 0 or more endpoints, added in a separate step.
@@ -219,11 +236,15 @@ func (b *fadeInBackend) close() {
 	for _, i := range b.instances {
 		i.server.Close()
 	}
+	for _, c := range b.clients {
+		c.close()
+	}
 }
 
 func (p *fadeInProxyInstance) close() {
 	p.server.Close()
 	p.proxy.Close()
+	p.routing.Close()
 }
 
 // startProxy starts a proxy representing 0 or more proxy instances, added in a separate step.
@@ -259,8 +280,9 @@ func (p *fadeInProxy) addInstances(n int) {
 
 		s := httptest.NewServer(px)
 		p.instances = append(p.instances, &fadeInProxyInstance{
-			proxy:  px,
-			server: s,
+			routing: rt,
+			proxy:   px,
+			server:  s,
 		})
 	}
 }
