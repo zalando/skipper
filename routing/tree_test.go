@@ -45,6 +45,7 @@ func createPathMatchRouting(routes string, opts MatchingOptions) (*pathTestRouti
 	if err != nil {
 		return nil, err
 	}
+	defer dc.Close()
 
 	logger := loggingtest.New()
 	rt := New(Options{MatchingOptions: opts, DataClients: []DataClient{dc}, Log: logger})

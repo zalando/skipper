@@ -12,6 +12,7 @@ import (
 	"github.com/zalando/skipper/predicates/source"
 	teePredicate "github.com/zalando/skipper/predicates/tee"
 	"github.com/zalando/skipper/predicates/traffic"
+	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/backendtest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -52,6 +53,8 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 			traffic.New(),
 		},
 	}, routes...)
+	defer p.Close()
+
 	_, err := http.Get(p.URL + "/foo")
 	if err != nil {
 		t.Error("teeloopback: failed to execute the request.", err)
@@ -73,18 +76,29 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	`
 	original := backendtest.NewBackendRecorder(listenFor)
 	split := backendtest.NewBackendRecorder(listenFor)
+
+	const responseTimeout = 2 * time.Second
 	shadow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(time.Second * 120)
+		time.Sleep(2 * responseTimeout)
 	}))
+	defer shadow.Close()
+
 	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, split.GetURL(), split.GetURL(), shadow.URL))
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
-	p := proxytest.WithRoutingOptions(registry, routing.Options{
-		Predicates: []routing.PredicateSpec{
-			teePredicate.New(),
-			traffic.New(),
+	p := proxytest.WithParamsAndRoutingOptions(registry,
+		proxy.Params{
+			ResponseHeaderTimeout: responseTimeout,
+			CloseIdleConnsPeriod:  -time.Second,
 		},
-	}, routes...)
+		routing.Options{
+			Predicates: []routing.PredicateSpec{
+				teePredicate.New(),
+				traffic.New(),
+			},
+		}, routes...)
+	defer p.Close()
+
 	_, err := http.Get(p.URL + "/foo")
 	if err != nil {
 		t.Error("teeloopback: failed to execute the request.", err)
@@ -116,6 +130,8 @@ func TestOriginalBackendServeEvenWhenShadowIsDown(t *testing.T) {
 			traffic.New(),
 		},
 	}, routes...)
+	defer p.Close()
+
 	_, err := http.Get(p.URL + "/foo")
 	if err != nil {
 		t.Error("teeloopback: failed to execute the request.", err)
@@ -143,6 +159,8 @@ func TestInfiniteLoopback(t *testing.T) {
 			teePredicate.New(),
 		},
 	}, routes...)
+	defer p.Close()
+
 	_, err := http.Get(p.URL + "/foo")
 	if err != nil {
 		t.Error("teeloopback: failed to execute the request.", err)
@@ -177,6 +195,7 @@ func TestLoopbackWithClientIP(t *testing.T) {
 			source.NewClientIP(),
 		},
 	}, routes...)
+	defer p.Close()
 
 	rsp, err := http.Get(p.URL + "/foo")
 	if err != nil {

@@ -44,6 +44,7 @@ func TestNoMultipleTreePredicates(t *testing.T) {
 
 				return
 			}
+			defer dc.Close()
 
 			defs, err := dc.LoadAll()
 			if err != nil {
@@ -103,6 +104,7 @@ func TestProcessRouteDefErrors(t *testing.T) {
 
 				return
 			}
+			defer dc.Close()
 
 			defs, err := dc.LoadAll()
 			if err != nil {
@@ -163,6 +165,7 @@ func TestProcessRouteDefWeight(t *testing.T) {
 
 				return
 			}
+			defer dc.Close()
 
 			defs, err := dc.LoadAll()
 			if err != nil {
@@ -221,6 +224,7 @@ func TestLogging(t *testing.T) {
 			t.Error(err)
 			return
 		}
+		defer client.Close()
 
 		testLog := loggingtest.New()
 		defer testLog.Close()

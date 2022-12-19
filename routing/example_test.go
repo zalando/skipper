@@ -32,12 +32,14 @@ func Example() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer dataClient.Close()
 
 	// create a router:
 	r := routing.New(routing.Options{
 		FilterRegistry:  builtin.MakeRegistry(),
 		MatchingOptions: routing.IgnoreTrailingSlash,
 		DataClients:     []routing.DataClient{dataClient}})
+	defer r.Close()
 
 	// let the route data get propagated in the background:
 	time.Sleep(36 * time.Millisecond)

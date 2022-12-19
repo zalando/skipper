@@ -141,6 +141,10 @@ func TestLoadAllAndUpdate(t *testing.T) {
 
 			options := &RemoteWatchOptions{RemoteFile: testValidServer.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
 			client, err := RemoteWatch(options)
+			if err == nil {
+				defer client.(*remoteEskipFile).Close()
+			}
+
 			if err == nil && test.fail {
 				t.Error("failed to fail")
 				return
@@ -175,7 +179,11 @@ func TestHTTPTimeout(t *testing.T) {
 		time.Sleep(2 * time.Second)
 	}))
 	defer server.Close()
-	_, err := RemoteWatch(&RemoteWatchOptions{RemoteFile: server.URL, HTTPTimeout: 1 * time.Second, FailOnStartup: true})
+	client, err := RemoteWatch(&RemoteWatchOptions{RemoteFile: server.URL, HTTPTimeout: 1 * time.Second, FailOnStartup: true})
+	if err == nil {
+		defer client.(*remoteEskipFile).Close()
+	}
+
 	if err, ok := err.(net.Error); !ok || !err.Timeout() {
 		t.Errorf("got %v, expected net.Error with timeout", err)
 	}

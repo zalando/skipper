@@ -196,6 +196,7 @@ func TestSubtreeConflict(t *testing.T) {
 						t.Error(err)
 						return
 					}
+					defer dc.Close()
 
 					r := routing.New(routing.Options{
 						FilterRegistry:  builtin.MakeRegistry(),
@@ -203,6 +204,7 @@ func TestSubtreeConflict(t *testing.T) {
 						Log:             log,
 						MatchingOptions: def.options,
 					})
+					defer r.Close()
 
 					if err := log.WaitFor("applied", 12*time.Millisecond); err != nil {
 						t.Error(err)

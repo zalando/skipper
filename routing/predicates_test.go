@@ -1110,6 +1110,7 @@ func TestPredicateList(t *testing.T) {
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			dc := testdataclient.New(test.routes)
+			defer dc.Close()
 
 			l := loggingtest.New()
 			l.Unmute()
