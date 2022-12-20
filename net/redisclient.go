@@ -359,7 +359,9 @@ func (r *RedisRingClient) Close() {
 	r.once.Do(func() {
 		r.closed = true
 		close(r.quit)
-		r.ring.Close()
+		if r.ring != nil {
+			r.ring.Close()
+		}
 	})
 }
 

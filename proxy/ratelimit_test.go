@@ -31,14 +31,17 @@ func TestCheckDisableRateLimit(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer backend.Close()
 	r := []*eskip.Route{{Backend: backend.URL}}
+	reg := ratelimit.NewRegistry(ratelimit.Settings{
+		Type:          ratelimit.DisableRatelimit,
+		MaxHits:       10,
+		TimeWindow:    1 * time.Second,
+		CleanInterval: 2 * time.Second,
+	})
+	defer reg.Close()
+
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters: ratelimit.NewRegistry(ratelimit.Settings{
-			Type:          ratelimit.DisableRatelimit,
-			MaxHits:       10,
-			TimeWindow:    1 * time.Second,
-			CleanInterval: 2 * time.Second,
-		}),
+		RateLimiters:         reg,
 	}, r...)
 	defer p.Close()
 
@@ -57,9 +60,12 @@ func TestCheckLocalRateLimitForShuntRoutes(t *testing.T) {
 		TimeWindow:    timeWindow,
 		CleanInterval: 2 * timeWindow,
 	}
+	reg := ratelimit.NewRegistry(ratelimitSettings)
+	defer reg.Close()
+
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters:         ratelimit.NewRegistry(ratelimitSettings),
+		RateLimiters:         reg,
 	}, r...)
 	defer p.Close()
 
@@ -86,9 +92,12 @@ func TestCheckLocalRateLimit(t *testing.T) {
 		TimeWindow:    timeWindow,
 		CleanInterval: 2 * timeWindow,
 	}
+	reg := ratelimit.NewRegistry(ratelimitSettings)
+	defer reg.Close()
+
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters:         ratelimit.NewRegistry(ratelimitSettings),
+		RateLimiters:         reg,
 	}, r...)
 	defer p.Close()
 
@@ -114,9 +123,12 @@ func TestCheckServiceRateLimit(t *testing.T) {
 		MaxHits:    3,
 		TimeWindow: timeWindow,
 	}
+	reg := ratelimit.NewRegistry(ratelimitSettings)
+	defer reg.Close()
+
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters:         ratelimit.NewRegistry(ratelimitSettings),
+		RateLimiters:         reg,
 	}, r...)
 	defer p.Close()
 
@@ -143,9 +155,12 @@ func TestRetryAfterHeader(t *testing.T) {
 		MaxHits:    1,
 		TimeWindow: timeWindow,
 	}
+	reg := ratelimit.NewRegistry(ratelimitSettings)
+	defer reg.Close()
+
 	p := proxytest.WithParams(fr, proxy.Params{
 		CloseIdleConnsPeriod: -time.Second,
-		RateLimiters:         ratelimit.NewRegistry(ratelimitSettings),
+		RateLimiters:         reg,
 	}, r...)
 	defer p.Close()
 
