@@ -14,9 +14,10 @@ nav:
         - Video - How to build: tutorials/video-howto-build.md
         - Data Clients:
             - Eskip File: data-clients/eskip-file.md
-            - Etcd: data-clients/etcd.md
-            - Kubernetes: data-clients/kubernetes.md
+            - Remote Eskip: data-clients/eskip-remote.md
             - Route String: data-clients/route-string.md
+            - Kubernetes: data-clients/kubernetes.md
+            - Etcd: data-clients/etcd.md
         - Operation:
             - Deployment: operation/deployment.md
             - Operation: operation/operation.md

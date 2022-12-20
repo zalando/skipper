@@ -142,7 +142,8 @@ HTTP->HTTPS redirects if skipper is started with `-kubernetes-https-redirect`.
 
 Dataclients:
 
-- [eskip-file](../data-clients/eskip-file.md)
+- [eskip file](../data-clients/eskip-file.md)
+- [remote eskip](../data-clients/eskip-remote.md)
 - [route string](../data-clients/route-string.md)
 - [kubernetes](../data-clients/kubernetes.md)
 - [etcd](../data-clients/etcd.md)
