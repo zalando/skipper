@@ -120,8 +120,9 @@ func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) 
 		defer span.Finish()
 	}
 	c.setCommonTags(span)
+	spanCtx := context.WithValue(ctx, "span", span)
 
-	allow, err := c.allow(ctx, clearText)
+	allow, err := c.allow(spanCtx, clearText)
 	failed := err != nil
 	if failed {
 		allow = !c.failClosed
