@@ -9,7 +9,6 @@ oauth/user.json
 .idea
 *.iml
 *.xcf
-example.eskip
 Godeps/_workspace
 packaging/skipper
 packaging/eskip

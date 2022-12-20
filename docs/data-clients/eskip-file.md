@@ -6,7 +6,7 @@ shows your route definitions in a clear way:
 
 ```
 % cat example.eskip
-hello: Path("/hello") -> "https://www.example.org"'
+hello: Path("/hello") -> "https://www.example.org"
 ```
 
 The [Skipper project](https://github.com/zalando/skipper) has two
@@ -85,7 +85,7 @@ and in [predicates](https://godoc.org/github.com/zalando/skipper/predicates).
 
 
 Eskip file format is also used if you print your current routes in skipper,
-for example (metrics listener required):
+for example:
 
 ```
 % curl localhost:9911/routes
