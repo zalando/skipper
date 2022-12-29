@@ -369,17 +369,6 @@ type Ratelimit struct {
 	impl     limiter
 }
 
-// Allow returns true if the s is not ratelimited, false if it is
-// ratelimited
-//
-// Deprecated: In favour of AllowContext
-func (l *Ratelimit) Allow(s string) bool {
-	if l == nil {
-		return true
-	}
-	return l.impl.AllowContext(context.Background(), s)
-}
-
 // AllowContext is like Allow but accepts an optional context.Context, e.g. to
 // support OpenTracing. When the context handling is not provided by the
 // implementation, it falls back to the normal Allow method.
