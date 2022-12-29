@@ -338,12 +338,6 @@ func (s Settings) String() string {
 
 // limiter defines the requirement to be used as a ratelimit implmentation.
 type limiter interface {
-	// Allow is used to get a decision if you should allow the
-	// call to pass or to ratelimit
-	//
-	// Deprecated
-	Allow(string) bool
-
 	// AllowContext is used to get a decision if you should allow the
 	// call with context to pass or to ratelimit
 	AllowContext(context.Context, string) bool
@@ -420,7 +414,6 @@ func (l *Ratelimit) Resize(s string, i int) {
 
 type voidRatelimit struct{}
 
-func (voidRatelimit) Allow(string) bool                         { return true }
 func (voidRatelimit) AllowContext(context.Context, string) bool { return true }
 func (voidRatelimit) Close()                                    {}
 func (voidRatelimit) Oldest(string) time.Time                   { return time.Time{} }
@@ -440,7 +433,6 @@ const (
 )
 
 func (zeroRatelimit) AllowContext(context.Context, string) bool { return false }
-func (zeroRatelimit) Allow(string) bool                         { return false }
 func (zeroRatelimit) Close()                                    {}
 func (zeroRatelimit) Oldest(string) time.Time                   { return time.Time{} }
 func (zeroRatelimit) RetryAfter(string) int                     { return zeroRetry }

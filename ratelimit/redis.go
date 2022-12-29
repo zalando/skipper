@@ -174,11 +174,6 @@ func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, 
 	return true, nil
 }
 
-// Allow is like AllowContext, but not using a context.
-func (c *clusterLimitRedis) Allow(clearText string) bool {
-	return c.AllowContext(context.Background(), clearText)
-}
-
 // Close can not decide to teardown redis ring, because it is not the
 // owner of it.
 func (c *clusterLimitRedis) Close() {}
