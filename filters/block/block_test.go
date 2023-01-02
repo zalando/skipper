@@ -1,11 +1,18 @@
 package block
 
 import (
+	"bytes"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 type nonBlockingReader struct {
@@ -22,12 +29,17 @@ func (r *nonBlockingReader) Close() error {
 	return nil
 }
 
-func TestBlock(t *testing.T) {
+func TestMatcher(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		content string
 		err     error
 	}{
+		{
+			name:    "empty string",
+			content: "",
+			err:     nil,
+		},
 		{
 			name:    "small string",
 			content: ".class",
@@ -69,7 +81,145 @@ func TestBlock(t *testing.T) {
 
 		})
 	}
+}
 
+func TestMatcherErrorCases(t *testing.T) {
+	toblockList := []toblockKeys{{str: []byte(".class")}}
+	t.Run("maxBufferAbort", func(t *testing.T) {
+		r := &nonBlockingReader{initialContent: []byte("fppppppppp .class")}
+		bmb := newMatcher(r, toblockList, 5, maxBufferAbort)
+		p := make([]byte, len(r.initialContent))
+		_, err := bmb.Read(p)
+		if err != ErrMatcherBufferFull {
+			t.Errorf("Failed to get expected error %v, got: %v", ErrMatcherBufferFull, err)
+		}
+	})
+
+	t.Run("maxBuffer", func(t *testing.T) {
+		r := &nonBlockingReader{initialContent: []byte("fppppppppp .class")}
+		bmb := newMatcher(r, toblockList, 5, maxBufferBestEffort)
+		p := make([]byte, len(r.initialContent))
+		_, err := bmb.Read(p)
+		if err != nil {
+			t.Errorf("Failed to read: %v", err)
+		}
+	})
+
+	t.Run("maxBuffer read on closed reader", func(t *testing.T) {
+		pipeR, pipeW := io.Pipe()
+		initialContent := []byte("fppppppppp")
+		go pipeW.Write(initialContent)
+		bmb := newMatcher(pipeR, toblockList, 5, maxBufferBestEffort)
+		p := make([]byte, len(initialContent)+10)
+		pipeR.Close()
+		_, err := bmb.Read(p)
+		if err == nil || err != io.ErrClosedPipe {
+			t.Errorf("Failed to get correct read error: %v", err)
+		}
+	})
+
+	t.Run("maxBuffer read on initial closed reader", func(t *testing.T) {
+		pipeR, _ := io.Pipe()
+		initialContent := []byte("fppppppppp")
+		bmb := newMatcher(pipeR, toblockList, 5, maxBufferBestEffort)
+		p := make([]byte, len(initialContent)+10)
+		pipeR.Close()
+		bmb.Close()
+		_, err := bmb.Read(p)
+		if err == nil || err.Error() != "reader closed" {
+			t.Errorf("Failed to get correct read error: %v", err)
+		}
+	})
+}
+
+func TestBlockCreateFilterErrors(t *testing.T) {
+	spec := NewBlockFilter(1024)
+
+	t.Run("empty args", func(t *testing.T) {
+		args := []interface{}{}
+		if _, err := spec.CreateFilter(args); err == nil {
+			t.Error("CreateFilter with empty args should fail")
+		}
+	})
+
+	t.Run("non string args", func(t *testing.T) {
+		args := []interface{}{3}
+		if _, err := spec.CreateFilter(args); err == nil {
+			t.Error("CreateFilter with non string args should fail")
+		}
+	})
+}
+
+func TestBlock(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	}))
+	defer backend.Close()
+
+	spec := NewBlockFilter(1024)
+	args := []interface{}{"foo"}
+	fr := make(filters.Registry)
+	fr.Register(spec)
+	r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+
+	proxy := proxytest.New(fr, r)
+	defer proxy.Close()
+	reqURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
+	}
+
+	t.Run("block request", func(t *testing.T) {
+		buf := bytes.NewBufferString("hello foo world")
+		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+		if rsp.StatusCode != 400 {
+			t.Errorf("Not Blocked response status code %d", rsp.StatusCode)
+		}
+	})
+
+	t.Run("pass request", func(t *testing.T) {
+		buf := bytes.NewBufferString("hello world")
+		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+		if rsp.StatusCode != 200 {
+			t.Errorf("Blocked response status code %d", rsp.StatusCode)
+		}
+	})
+
+	t.Run("pass request on empty body", func(t *testing.T) {
+		buf := bytes.NewBufferString("")
+		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+		if rsp.StatusCode != 200 {
+			t.Errorf("Blocked response status code %d", rsp.StatusCode)
+		}
+	})
 }
 
 func BenchmarkBlock(b *testing.B) {
