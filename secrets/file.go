@@ -90,7 +90,6 @@ func (sp *SecretPaths) Add(p string) error {
 
 	fi, err := os.Lstat(p)
 	if err != nil {
-		log.Errorf("Failed to stat path: %v", err)
 		return err
 	}
 

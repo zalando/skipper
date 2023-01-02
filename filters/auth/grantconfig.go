@@ -15,7 +15,6 @@ import (
 
 type OAuthConfig struct {
 	initialized bool
-	initErr     error
 	flowState   *flowState
 
 	// TokeninfoURL is the URL of the service to validate OAuth2 tokens.
@@ -54,15 +53,15 @@ type OAuthConfig struct {
 
 	// ClientIDFile, the path to the file containing the OAuth2 client id of
 	// the current service, used to exchange the access code. Must be set if
-	// ClientID is not provided.
+	// ClientID is not provided. Requires SecretsProvider and will be added to it.
 	ClientIDFile string
 
 	// ClientSecretFile, the path to the file containing the secret associated
 	// with the ClientID, used to exchange the access code. Must be set if
-	// ClientSecret is not provided.
+	// ClientSecret is not provided. Requires SecretsProvider and will be added to it.
 	ClientSecretFile string
 
-	// SecretsProvider is used to read client ID and secret values from the
+	// SecretsProvider is used to read ClientIDFile and ClientSecretFile from the
 	// file system. Supports secret rotation.
 	SecretsProvider secrets.SecretsProvider
 
@@ -105,6 +104,7 @@ type OAuthConfig struct {
 var (
 	ErrMissingClientID        = errors.New("missing client ID")
 	ErrMissingClientSecret    = errors.New("missing client secret")
+	ErrMissingSecretsProvider = errors.New("missing secrets provider")
 	ErrMissingSecretsRegistry = errors.New("missing secrets registry")
 	ErrMissingSecretFile      = errors.New("missing secret file")
 	ErrMissingTokeninfoURL    = errors.New("missing tokeninfo URL")
@@ -117,33 +117,27 @@ func (c *OAuthConfig) Init() error {
 	}
 
 	if c.TokeninfoURL == "" {
-		c.initErr = ErrMissingTokeninfoURL
-		return c.initErr
+		return ErrMissingTokeninfoURL
 	}
 
 	if c.AuthURL == "" || c.TokenURL == "" {
-		c.initErr = ErrMissingProviderURLs
-		return c.initErr
+		return ErrMissingProviderURLs
 	}
 
 	if c.Secrets == nil {
-		c.initErr = ErrMissingSecretsRegistry
-		return c.initErr
+		return ErrMissingSecretsRegistry
 	}
 
 	if c.SecretFile == "" {
-		c.initErr = ErrMissingSecretFile
-		return c.initErr
+		return ErrMissingSecretFile
 	}
 
 	if c.ClientID == "" && c.ClientIDFile == "" {
-		c.initErr = ErrMissingClientID
-		return c.initErr
+		return ErrMissingClientID
 	}
 
 	if c.ClientSecret == "" && c.ClientSecretFile == "" {
-		c.initErr = ErrMissingClientSecret
-		return c.initErr
+		return ErrMissingClientSecret
 	}
 
 	if c.CallbackPath == "" {
@@ -182,11 +176,21 @@ func (c *OAuthConfig) Init() error {
 	c.flowState = newFlowState(c.Secrets, c.SecretFile)
 
 	if c.ClientIDFile != "" {
-		c.SecretsProvider.Add(c.ClientIDFile)
+		if c.SecretsProvider == nil {
+			return ErrMissingSecretsProvider
+		}
+		if err := c.SecretsProvider.Add(c.ClientIDFile); err != nil {
+			return err
+		}
 	}
 
 	if c.ClientSecretFile != "" {
-		c.SecretsProvider.Add(c.ClientSecretFile)
+		if c.SecretsProvider == nil {
+			return ErrMissingSecretsProvider
+		}
+		if err := c.SecretsProvider.Add(c.ClientSecretFile); err != nil {
+			return err
+		}
 	}
 
 	c.initialized = true
