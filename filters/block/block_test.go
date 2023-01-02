@@ -84,9 +84,9 @@ func TestMatcher(t *testing.T) {
 }
 
 func TestMatcherErrorCases(t *testing.T) {
+	toblockList := []toblockKeys{{str: []byte(".class")}}
 	t.Run("maxBufferAbort", func(t *testing.T) {
 		r := &nonBlockingReader{initialContent: []byte("fppppppppp .class")}
-		toblockList := []toblockKeys{{str: []byte(".class")}}
 		bmb := newMatcher(r, toblockList, 5, maxBufferAbort)
 		p := make([]byte, len(r.initialContent))
 		_, err := bmb.Read(p)
@@ -94,9 +94,9 @@ func TestMatcherErrorCases(t *testing.T) {
 			t.Errorf("Failed to get expected error %v, got: %v", ErrMatcherBufferFull, err)
 		}
 	})
+
 	t.Run("maxBuffer", func(t *testing.T) {
 		r := &nonBlockingReader{initialContent: []byte("fppppppppp .class")}
-		toblockList := []toblockKeys{{str: []byte(".class")}}
 		bmb := newMatcher(r, toblockList, 5, maxBufferBestEffort)
 		p := make([]byte, len(r.initialContent))
 		_, err := bmb.Read(p)
@@ -109,12 +109,11 @@ func TestMatcherErrorCases(t *testing.T) {
 		pipeR, pipeW := io.Pipe()
 		initialContent := []byte("fppppppppp")
 		go pipeW.Write(initialContent)
-		toblockList := []toblockKeys{{str: []byte(".class")}}
 		bmb := newMatcher(pipeR, toblockList, 5, maxBufferBestEffort)
 		p := make([]byte, len(initialContent)+10)
 		pipeR.Close()
 		_, err := bmb.Read(p)
-		if err == nil || err.Error() != "io: read/write on closed pipe" {
+		if err == nil || err != io.ErrClosedPipe {
 			t.Errorf("Failed to get correct read error: %v", err)
 		}
 	})
@@ -122,7 +121,6 @@ func TestMatcherErrorCases(t *testing.T) {
 	t.Run("maxBuffer read on initial closed reader", func(t *testing.T) {
 		pipeR, _ := io.Pipe()
 		initialContent := []byte("fppppppppp")
-		toblockList := []toblockKeys{{str: []byte(".class")}}
 		bmb := newMatcher(pipeR, toblockList, 5, maxBufferBestEffort)
 		p := make([]byte, len(initialContent)+10)
 		pipeR.Close()
@@ -157,6 +155,7 @@ func TestBlock(t *testing.T) {
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	}))
+	defer backend.Close()
 
 	spec := NewBlockFilter(1024)
 	args := []interface{}{"foo"}
@@ -165,6 +164,7 @@ func TestBlock(t *testing.T) {
 	r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
 	proxy := proxytest.New(fr, r)
+	defer proxy.Close()
 	reqURL, err := url.Parse(proxy.URL)
 	if err != nil {
 		t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
