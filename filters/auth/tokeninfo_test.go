@@ -170,13 +170,21 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 		expected:       http.StatusForbidden,
 		expectRequests: N,
 	}, {
-		msg:            "oauthTokeninfoAnyScope: valid token, one valid scope, cache enabled",
+		msg:            "caches valid token",
 		authType:       filters.OAuthTokeninfoAnyScopeName,
 		options:        TokeninfoOptions{CacheSize: 1},
 		args:           []interface{}{testScope},
 		auth:           testToken,
 		expected:       http.StatusOK,
 		expectRequests: 1,
+	}, {
+		msg:            "does not cache invalid token",
+		authType:       filters.OAuthTokeninfoAnyScopeName,
+		options:        TokeninfoOptions{CacheSize: 1},
+		args:           []interface{}{testScope},
+		auth:           "invalid-token",
+		expected:       http.StatusUnauthorized,
+		expectRequests: N,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
