@@ -30,6 +30,12 @@ type authClient struct {
 	cli *net.Client
 }
 
+type tokeninfoClient interface {
+	getTokeninfo(token string, ctx filters.FilterContext) (map[string]any, error)
+}
+
+var _ tokeninfoClient = &authClient{}
+
 func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer) (*authClient, error) {
 	if tracer == nil {
 		tracer = opentracing.NoopTracer{}

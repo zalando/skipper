@@ -28,6 +28,16 @@ type TokeninfoOptions struct {
 	Timeout      time.Duration
 	MaxIdleConns int
 	Tracer       opentracing.Tracer
+
+	// CacheSize configures the maximum number of cached tokens.
+	// The cache evicts least recently used items first.
+	// Zero value disables tokeninfo cache.
+	CacheSize int
+
+	// CacheTTL limits the lifetime of a cached tokeninfo.
+	// Tokeninfo is cached for the duration of "expires_in" field value seconds or
+	// for the duration of CacheTTL if it is not zero and less than "expires_in" value.
+	CacheTTL time.Duration
 }
 
 type (
@@ -37,14 +47,42 @@ type (
 	}
 
 	tokeninfoFilter struct {
-		typ        roleCheckType
-		authClient *authClient
-		scopes     []string
-		kv         kv
+		typ    roleCheckType
+		client tokeninfoClient
+		scopes []string
+		kv     kv
 	}
 )
 
-var tokeninfoAuthClient map[string]*authClient = make(map[string]*authClient)
+var tokeninfoAuthClient map[string]tokeninfoClient = make(map[string]tokeninfoClient)
+
+// getTokeninfoClient creates new or returns a cached instance of tokeninfoClient
+func (o *TokeninfoOptions) getTokeninfoClient() (tokeninfoClient, error) {
+	if c, ok := tokeninfoAuthClient[o.URL]; ok {
+		return c, nil
+	}
+
+	c, err := o.newTokeninfoClient()
+	if err == nil {
+		tokeninfoAuthClient[o.URL] = c
+	}
+	return c, err
+}
+
+// newTokeninfoClient creates new instance of tokeninfoClient
+func (o *TokeninfoOptions) newTokeninfoClient() (tokeninfoClient, error) {
+	var c tokeninfoClient
+
+	c, err := newAuthClient(o.URL, tokenInfoSpanName, o.Timeout, o.MaxIdleConns, o.Tracer)
+	if err != nil {
+		return nil, err
+	}
+
+	if o.CacheSize > 0 {
+		c = newTokeninfoCache(c, o.CacheSize, o.CacheTTL)
+	}
+	return c, nil
+}
 
 func NewOAuthTokeninfoAllScopeWithOptions(to TokeninfoOptions) filters.Spec {
 	return &tokeninfoSpec{
@@ -176,17 +214,12 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	var ac *authClient
-	var ok bool
-	if ac, ok = tokeninfoAuthClient[s.options.URL]; !ok {
-		ac, err = newAuthClient(s.options.URL, tokenInfoSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer)
-		if err != nil {
-			return nil, filters.ErrInvalidFilterParameters
-		}
-		tokeninfoAuthClient[s.options.URL] = ac
+	ac, err := s.options.getTokeninfoClient()
+	if err != nil {
+		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	f := &tokeninfoFilter{typ: s.typ, authClient: ac, kv: make(map[string][]string)}
+	f := &tokeninfoFilter{typ: s.typ, client: ac, kv: make(map[string][]string)}
 	switch f.typ {
 	// all scopes
 	case checkOAuthTokeninfoAllScopes:
@@ -313,12 +346,12 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	if !ok {
 		token, ok := getToken(r)
 		if !ok || token == "" {
-			unauthorized(ctx, "", missingBearerToken, f.authClient.url.Hostname(), "")
+			unauthorized(ctx, "", missingBearerToken, "", "")
 			return
 		}
 
 		var err error
-		authMap, err = f.authClient.getTokeninfo(token, ctx)
+		authMap, err = f.client.getTokeninfo(token, ctx)
 		if err != nil {
 			reason := authServiceAccess
 			if err == errInvalidToken {
@@ -327,7 +360,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 				log.Errorf("Error while calling tokeninfo: %v.", err)
 			}
 
-			unauthorized(ctx, "", reason, f.authClient.url.Hostname(), "")
+			unauthorized(ctx, "", reason, "", "")
 			return
 		}
 	} else {
