@@ -2,6 +2,7 @@ package net
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptrace"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -426,7 +428,7 @@ func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
 		},
 		WroteRequest: func(wri httptrace.WroteRequestInfo) {
 			if wri.Err != nil {
-				span.LogKV("wrote_request", wri.Err.Error())
+				span.LogKV("wrote_request", ensureUTF8(wri.Err.Error()))
 			} else {
 				span.LogKV("wrote_request", "done")
 			}
@@ -436,4 +438,11 @@ func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+}
+
+func ensureUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return fmt.Sprintf("invalid utf-8: %q", s)
 }
