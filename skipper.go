@@ -822,6 +822,9 @@ type Options struct {
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
 
+	// OIDCCookieValidity sets validity time duration for Cookies to calculate expiration time. (default 1h).
+	OIDCCookieValidity time.Duration
+
 	// OIDCDistributedClaimsTimeout sets timeout duration while calling Distributed Claims endpoint.
 	OIDCDistributedClaimsTimeout time.Duration
 
@@ -1485,9 +1488,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	oo := auth.OidcOptions{
-		Timeout:      o.OIDCDistributedClaimsTimeout,
-		MaxIdleConns: o.IdleConnectionsPerHost,
-		Tracer:       tracer,
+		CookieValidity: o.OIDCCookieValidity,
+		Timeout:        o.OIDCDistributedClaimsTimeout,
+		MaxIdleConns:   o.IdleConnectionsPerHost,
+		Tracer:         tracer,
 	}
 
 	who := auth.WebhookOptions{

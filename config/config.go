@@ -203,6 +203,7 @@ type Config struct {
 	Oauth2TokenCookieName           string        `yaml:"oauth2-token-cookie-name"`
 	WebhookTimeout                  time.Duration `yaml:"webhook-timeout"`
 	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
+	OIDCCookieValidity              time.Duration `yaml:"oidc-cookie-validity"`
 	OidcDistributedClaimsTimeout    time.Duration `yaml:"oidc-distributed-claims-timeout"`
 	CredentialPaths                 *listFlag     `yaml:"credentials-paths"`
 	CredentialsUpdateInterval       time.Duration `yaml:"credentials-update-interval"`
@@ -854,6 +855,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuth2TokenCookieName:          c.Oauth2TokenCookieName,
 		WebhookTimeout:                 c.WebhookTimeout,
 		OIDCSecretsFile:                c.OidcSecretsFile,
+		OIDCCookieValidity:             c.OIDCCookieValidity,
 		OIDCDistributedClaimsTimeout:   c.OidcDistributedClaimsTimeout,
 		CredentialsPaths:               c.CredentialPaths.values,
 		CredentialsUpdateInterval:      c.CredentialsUpdateInterval,

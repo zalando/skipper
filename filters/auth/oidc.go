@@ -37,10 +37,11 @@ const (
 	// Deprecated, use filters.OAuthOidcAllClaimsName instead
 	OidcAllClaimsName = filters.OAuthOidcAllClaimsName
 
-	oauthOidcCookieName = "skipperOauthOidc"
-	stateValidity       = 1 * time.Minute
-	oidcInfoHeader      = "Skipper-Oidc-Info"
-	cookieMaxSize       = 4093 // common cookie size limit http://browsercookielimits.squawky.net/
+	oauthOidcCookieName   = "skipperOauthOidc"
+	stateValidity         = 1 * time.Minute
+	defaultCookieValidity = 1 * time.Hour
+	oidcInfoHeader        = "Skipper-Oidc-Info"
+	cookieMaxSize         = 4093 // common cookie size limit http://browsercookielimits.squawky.net/
 
 	// Deprecated: The host of the Azure Active Directory (AAD) graph API
 	azureADGraphHost = "graph.windows.net"
@@ -87,9 +88,10 @@ const (
 )
 
 type OidcOptions struct {
-	MaxIdleConns int
-	Timeout      time.Duration
-	Tracer       opentracing.Tracer
+	MaxIdleConns   int
+	CookieValidity time.Duration
+	Timeout        time.Duration
+	Tracer         opentracing.Tracer
 }
 
 type (
@@ -231,6 +233,11 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		}
 	}
 
+	validity := s.options.CookieValidity
+	if validity == 0 {
+		validity = defaultCookieValidity
+	}
+
 	f := &tokenOidcFilter{
 		typ:          s.typ,
 		redirectPath: redirectURL.Path,
@@ -245,7 +252,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		verifier: provider.Verifier(&oidc.Config{
 			ClientID: sargs[paramClientID],
 		}),
-		validity:           1 * time.Hour,
+		validity:           validity,
 		cookiename:         generatedCookieName,
 		encrypter:          encrypter,
 		compressor:         newDeflatePoolCompressor(flate.BestCompression),
