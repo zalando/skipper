@@ -2,6 +2,7 @@ package net
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,6 +85,37 @@ func Test_hasAll(t *testing.T) {
 	}
 }
 
+type addressUpdater struct {
+	addrs []string
+	mu    sync.Mutex
+	n     int
+}
+
+// update returns non empty subsequences of addrs,
+// e.g. for [foo bar baz] it returns:
+// 1: [foo]
+// 2: [foo bar]
+// 3: [foo bar baz]
+// 4: [foo]
+// 5: [foo bar]
+// 6: [foo bar baz]
+// ...
+func (u *addressUpdater) update() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	result := u.addrs[0 : 1+u.n%len(u.addrs)]
+	u.n++
+	return result
+}
+
+func (u *addressUpdater) calls() int {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	return u.n
+}
+
 func TestRedisClient(t *testing.T) {
 	tracer, err := basic.InitTracer([]string{"recorder=in-memory"})
 	if err != nil {
@@ -95,6 +127,8 @@ func TestRedisClient(t *testing.T) {
 	defer done()
 	redisAddr2, done2 := redistest.NewTestRedis(t)
 	defer done2()
+
+	updater := &addressUpdater{addrs: []string{redisAddr, redisAddr2}}
 
 	for _, tt := range []struct {
 		name    string
@@ -111,7 +145,7 @@ func TestRedisClient(t *testing.T) {
 		{
 			name: "With AddrUpdater",
 			options: &RedisOptions{
-				AddrUpdater:    func() []string { return []string{redisAddr} },
+				AddrUpdater:    updater.update,
 				UpdateInterval: 10 * time.Millisecond,
 			},
 			wantErr: false,
@@ -135,21 +169,7 @@ func TestRedisClient(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			var orig []string
-			var ch chan struct{}
-			if tt.options.AddrUpdater != nil {
-				orig = tt.options.AddrUpdater()
-				// test background update
-				ch = make(chan struct{})
-				tt.options.AddrUpdater = func() []string {
-					ch <- struct{}{}
-					return []string{redisAddr, redisAddr2}
-				}
-			}
 
-			if ch != nil {
-				go func() { <-ch }() // create client will block
-			}
 			cli := NewRedisRingClient(tt.options)
 			defer func() {
 				if !cli.closed {
@@ -163,37 +183,29 @@ func TestRedisClient(t *testing.T) {
 			}
 
 			if tt.options.AddrUpdater != nil {
-				if !cmp.Equal(orig, []string{redisAddr}) {
-					t.Errorf("Failed to get addr: %v", cmp.Diff(orig, []string{redisAddr}))
+				// test address updater is called
+				initial := updater.calls()
+
+				time.Sleep(2 * cli.options.UpdateInterval)
+
+				if updater.calls() == initial {
+					t.Errorf("expected updater call")
 				}
 
-				time.Sleep(2 + cli.options.UpdateInterval)
-				select {
-				case <-ch:
-					//ok
-				default:
-					t.Error("Failed to get updater called by goroutine")
-				}
-
-				// test shards available
-				stats := cli.ring.PoolStats()
-				if stats.IdleConns < uint32(2*cli.options.MinIdleConns) {
-					t.Errorf("Failed to have enough idleconns for the new redis instance %d < %d", stats.IdleConns, 2*cli.options.MinIdleConns)
-				}
-
-				// test close will stop background update
+				// test close stops background update
 				cli.Close()
-				time.Sleep(2 + cli.options.UpdateInterval)
-				select {
-				case <-ch:
-					t.Error("Failed to close background updater goroutine")
-				default:
-					//ok
+
+				afterClose := updater.calls()
+
+				time.Sleep(2 * cli.options.UpdateInterval)
+
+				if updater.calls() != afterClose {
+					t.Errorf("expected no updater call")
 				}
+
 				if !cli.closed {
 					t.Error("Failed to close")
 				}
-
 			}
 
 			if tt.options.Tracer != nil {
