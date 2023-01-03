@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -942,7 +943,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		// - for `Canceled` it could be either the same `context canceled` or `unexpected EOF` (net.OpError)
 		// - for `DeadlineExceeded` it is net.Error(timeout=true, temporary=true) wrapping this `context deadline exceeded`
 		if cerr := req.Context().Err(); cerr != nil {
-			ctx.proxySpan.LogKV("event", "error", "message", cerr.Error())
+			ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(cerr.Error()))
 			if cerr == stdlibcontext.Canceled {
 				return nil, &proxyError{err: cerr, code: 499}
 			} else if cerr == stdlibcontext.DeadlineExceeded {
@@ -950,7 +951,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 			}
 		}
 
-		ctx.proxySpan.LogKV("event", "error", "message", err.Error())
+		ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(err.Error()))
 		if perr, ok := err.(*proxyError); ok {
 			//p.lb.AddHealthcheck(ctx.route.Backend)
 			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
@@ -1488,7 +1489,7 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 		setTag(s, HTTPPathTag, u.Path).
 		setTag(s, HTTPHostTag, r.Host)
 	if val := r.Header.Get("X-Flow-Id"); val != "" {
-		p.tracing.setTag(s, FlowIDTag, val)
+		p.tracing.setTag(s, FlowIDTag, ensureUTF8(val))
 	}
 }
 
@@ -1524,7 +1525,7 @@ func injectClientTrace(req *http.Request, span ot.Span) *http.Request {
 		},
 		WroteRequest: func(wri httptrace.WroteRequestInfo) {
 			if wri.Err != nil {
-				span.LogKV("wrote_request", wri.Err.Error())
+				span.LogKV("wrote_request", ensureUTF8(wri.Err.Error()))
 			} else {
 				span.LogKV("wrote_request", "done")
 			}
@@ -1534,4 +1535,11 @@ func injectClientTrace(req *http.Request, span ot.Span) *http.Request {
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+}
+
+func ensureUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return fmt.Sprintf("invalid utf-8: %q", s)
 }
