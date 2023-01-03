@@ -930,14 +930,12 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
-
 		if errors.Is(err, ErrBlocked) {
 			p.tracing.setTag(ctx.proxySpan, BlockTag, true)
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusBadRequest))
 			return nil, &proxyError{err: err, code: http.StatusBadRequest}
-		} else {
-			p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 		}
+		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 
 		// Check if the request has been cancelled or timed out
 		// The roundtrip error `err` may be different:
@@ -953,7 +951,6 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		}
 
 		ctx.proxySpan.LogKV("event", "error", "message", err.Error())
-
 		if perr, ok := err.(*proxyError); ok {
 			//p.lb.AddHealthcheck(ctx.route.Backend)
 			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
