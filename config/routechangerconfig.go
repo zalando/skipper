@@ -7,9 +7,9 @@ import (
 )
 
 type routeChangerConfigItem struct {
-	Reg  *regexp.Regexp
-	Repl string
-	Sep  string
+	Reg  *regexp.Regexp `yaml:"reg"`
+	Repl string         `yaml:"repl"`
+	Sep  string         `yaml:"sep"`
 }
 
 func (rcci routeChangerConfigItem) String() string {

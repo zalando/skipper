@@ -107,4 +107,13 @@ func TestListFlag(t *testing.T) {
 			t.Error("unexpected string representation from yaml", output, input)
 		}
 	})
+
+	t.Run("unmarshal error", func(t *testing.T) {
+		const input = "invlaid yaml"
+		current := commaListFlag()
+		if err := yaml.Unmarshal([]byte(input), current); err == nil {
+			t.Errorf("Failed to get error from Unmarshal() for invalid input: %q", input)
+		}
+
+	})
 }
