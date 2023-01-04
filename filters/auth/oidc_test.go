@@ -492,32 +492,63 @@ func TestExtractDomainFromHost(t *testing.T) {
 func TestNewOidc(t *testing.T) {
 	reg := secrets.NewRegistry()
 	for _, tt := range []struct {
-		name string
-		args string
-		f    func(string, secrets.EncrypterCreator, OidcOptions) filters.Spec
-		want *tokenOidcSpec
+		name    string
+		args    string
+		f       func(string, secrets.EncrypterCreator, OidcOptions) filters.Spec
+		options OidcOptions
+		want    *tokenOidcSpec
 	}{
 		{
-			name: "test UserInfo",
+			name:    "test UserInfo",
+			args:    "/foo",
+			f:       NewOAuthOidcUserInfosWithOptions,
+			options: OidcOptions{},
+			want:    &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: "/foo", secretsRegistry: reg},
+		},
+		{
+			name:    "test AnyClaims",
+			args:    "/foo",
+			f:       NewOAuthOidcAnyClaimsWithOptions,
+			options: OidcOptions{},
+			want:    &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg},
+		},
+		{
+			name:    "test AllClaims",
+			args:    "/foo",
+			f:       NewOAuthOidcAllClaimsWithOptions,
+			options: OidcOptions{},
+			want:    &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo", secretsRegistry: reg},
+		},
+		{
+			name: "test UserInfo with options",
 			args: "/foo",
 			f:    NewOAuthOidcUserInfosWithOptions,
-			want: &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: "/foo", secretsRegistry: reg},
+			options: OidcOptions{
+				CookieValidity: 6 * time.Hour,
+			},
+			want: &tokenOidcSpec{typ: checkOIDCUserInfo, SecretsFile: "/foo", secretsRegistry: reg, options: OidcOptions{CookieValidity: 6 * time.Hour}},
 		},
 		{
-			name: "test AnyClaims",
+			name: "test AnyClaims with options",
 			args: "/foo",
 			f:    NewOAuthOidcAnyClaimsWithOptions,
-			want: &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg},
+			options: OidcOptions{
+				CookieValidity: 6 * time.Hour,
+			},
+			want: &tokenOidcSpec{typ: checkOIDCAnyClaims, SecretsFile: "/foo", secretsRegistry: reg, options: OidcOptions{CookieValidity: 6 * time.Hour}},
 		},
 		{
-			name: "test AllClaims",
+			name: "test AllClaims with options",
 			args: "/foo",
 			f:    NewOAuthOidcAllClaimsWithOptions,
-			want: &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo", secretsRegistry: reg},
+			options: OidcOptions{
+				CookieValidity: 6 * time.Hour,
+			},
+			want: &tokenOidcSpec{typ: checkOIDCAllClaims, SecretsFile: "/foo", secretsRegistry: reg, options: OidcOptions{CookieValidity: 6 * time.Hour}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.f(tt.args, reg, OidcOptions{}); !reflect.DeepEqual(got, tt.want) {
+			if got := tt.f(tt.args, reg, tt.options); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Failed to create object: Want %v, got %v", tt.want, got)
 			}
 		})
