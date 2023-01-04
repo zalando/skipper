@@ -115,6 +115,7 @@ func defaultConfig() *Config {
 		Oauth2TokenCookieName:                   "oauth2-grant",
 		WebhookTimeout:                          2 * time.Second,
 		OidcDistributedClaimsTimeout:            2 * time.Second,
+		OIDCCookieValidity:                      time.Hour,
 		CredentialPaths:                         commaListFlag(),
 		CredentialsUpdateInterval:               10 * time.Minute,
 		ApiUsageMonitoringClientKeys:            "sub",
