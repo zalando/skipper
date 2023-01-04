@@ -1489,7 +1489,7 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 		setTag(s, HTTPPathTag, u.Path).
 		setTag(s, HTTPHostTag, r.Host)
 	if val := r.Header.Get("X-Flow-Id"); val != "" {
-		p.tracing.setTag(s, FlowIDTag, ensureUTF8(val))
+		p.tracing.setTag(s, FlowIDTag, val)
 	}
 }
 
