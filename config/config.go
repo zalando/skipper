@@ -477,6 +477,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.Oauth2TokenCookieName, "oauth2-token-cookie-name", "oauth2-grant", "sets the name of the cookie where the encrypted token is stored")
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", "file storing the encryption key of the OID Connect token")
+	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, in case no 'exp' claim is found in the JWT token")
 	flag.DurationVar(&cfg.OidcDistributedClaimsTimeout, "oidc-distributed-claims-timeout", 2*time.Second, "sets the default OIDC distributed claims request timeout duration to 2000ms")
 	flag.Var(cfg.CredentialPaths, "credentials-paths", "directories or files to watch for credentials to use by bearerinjector filter")
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", 10*time.Minute, "sets the interval to update secrets")
