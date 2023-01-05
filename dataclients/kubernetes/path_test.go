@@ -345,13 +345,13 @@ func TestIngressSpecificMode(t *testing.T) {
 	defer api.Close()
 
 	ingressWithDefault := testIngress(
-		"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Value: 8080}, 1.0,
-		testRule("www.example.org", testPathRule("^/foo", "service1", definitions.BackendPortV1{Value: 8080})),
+		"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
+		testRule("www.example.org", testPathRule("^/foo", "service1", definitions.BackendPortV1{Number: 8080})),
 	)
 
 	ingressWithCustom := testIngress(
-		"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Value: 8080}, 1.0,
-		testRule("www.example.org", testPathRule("/bar", "service1", definitions.BackendPortV1{Value: 8080})),
+		"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
+		testRule("www.example.org", testPathRule("/bar", "service1", definitions.BackendPortV1{Number: 8080})),
 	)
 	ingressWithCustom.Metadata.Annotations[pathModeAnnotationKey] = pathPrefixString
 

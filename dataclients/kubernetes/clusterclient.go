@@ -147,7 +147,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 	}
 
 	c := &clusterClient{
-		ingressesURI:              ingressURI,
+		ingressesURI:              IngressesV1ClusterURI,
 		routeGroupsURI:            routeGroupsClusterURI,
 		servicesURI:               ServicesClusterURI,
 		endpointsURI:              EndpointsClusterURI,

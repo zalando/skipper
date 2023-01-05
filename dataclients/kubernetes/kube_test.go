@@ -405,12 +405,12 @@ func labelsMatch(labelSelectors []string, labels map[string]string) bool {
 	return true
 }
 
-func filterIngressByLabels(labelSelectors []string, ingresses *definitions.IngressList) interface{} {
+func filterIngressByLabels(labelSelectors []string, ingresses *definitions.IngressV1List) interface{} {
 	if len(labelSelectors) == 0 {
 		return ingresses
 	}
 
-	result := &definitions.IngressList{}
+	result := &definitions.IngressV1List{}
 	for _, item := range ingresses.Items {
 		if labelsMatch(labelSelectors, item.Metadata.Labels) {
 			result.Items = append(result.Items, item)
@@ -1201,7 +1201,7 @@ func TestIngress(t *testing.T) {
 
 		api.ingresses.Items = testIngresses()
 		api.ingresses.Items = append(api.ingresses.Items, testIngress("namespace1", "with-label", "with-label", "", "", "", "", "", "",
-			map[string]string{"skipper-ingress": "true"}, definitions.BackendPort{Value: 8080}, 1.0))
+			map[string]string{"skipper-ingress": "true"}, definitions.BackendPortV1{Number: 8080}, 1.0))
 
 		dc, err := New(Options{KubernetesURL: api.server.URL, IngressLabelSelectors: map[string]string{"skipper-ingress": "true"}})
 		if err != nil {
@@ -1232,7 +1232,7 @@ func TestIngress(t *testing.T) {
 
 		api.ingresses.Items = testIngresses()
 		api.ingresses.Items = append(api.ingresses.Items, testIngress("namespace1", "with-label", "with-label", "", "", "", "", "", "",
-			map[string]string{"skipper-ingress": "true", "team": "avengers"}, definitions.BackendPort{Value: 8080}, 1.0))
+			map[string]string{"skipper-ingress": "true", "team": "avengers"}, definitions.BackendPortV1{Number: 8080}, 1.0))
 
 		dc, err := New(Options{KubernetesURL: api.server.URL, IngressLabelSelectors: map[string]string{"skipper-ingress": "true", "team": "avengers"}})
 		if err != nil {
@@ -1263,7 +1263,7 @@ func TestIngress(t *testing.T) {
 
 		api.ingresses.Items = testIngresses()
 		api.ingresses.Items = append(api.ingresses.Items, testIngress("namespace1", "with-label", "with-label", "", "", "", "", "", "",
-			map[string]string{"skipper-ingress": "true"}, definitions.BackendPort{Value: 8080}, 1.0))
+			map[string]string{"skipper-ingress": "true"}, definitions.BackendPortV1{Number: 8080}, 1.0))
 
 		dc, err := New(Options{KubernetesURL: api.server.URL,
 			IngressLabelSelectors:   map[string]string{"skipper-ingress": "true"},
@@ -1596,6 +1596,7 @@ func TestConvertPathRuleTraffic(t *testing.T) {
 				tc.rule,
 				KubernetesIngressMode,
 				nil,
+				false,
 			)
 			if err != nil {
 				t.Errorf("should not fail: %v", err)
@@ -3428,7 +3429,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 	})
 
 	t.Run("check default filters are applied to the route", func(t *testing.T) {
-		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080})}}
+		api.services = &serviceList{Items: []*service{testService("namespace1", "service1", map[string]string{}, "1.2.3.4", map[string]int{"port1": 8080})}}
 		api.ingresses = &definitions.IngressV1List{Items: []*definitions.IngressV1Item{testIngress("namespace1", "default-only",
 			"service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
 			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPortV1{Number: 8080})))}}
@@ -3467,7 +3468,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 
 	t.Run("check default filters are prepended to the ingress filters", func(t *testing.T) {
 		api.endpoints = testEndpointList()
-		api.services = &serviceList{Items: []*service{testServiceWithTargetPort("namespace1", "service1", "1.2.3.4", map[string]int{"port1": 8080}, map[int]*definitions.BackendPort{8080: {Value: 8080}})}}
+		api.services = &serviceList{Items: []*service{testServiceWithTargetPort("namespace1", "service1", map[string]string{}, "1.2.3.4", map[string]int{"port1": 8080}, map[int]*definitions.BackendPort{8080: {Value: 8080}})}}
 		api.ingresses = &definitions.IngressV1List{Items: []*definitions.IngressV1Item{testIngress("namespace1", "default-only",
 			"service1", "", "localRatelimit(20,\"1m\")", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
 			testRule("www.example.org", testPathRule("/", "service1", definitions.BackendPortV1{Name: "port1"})))}}
