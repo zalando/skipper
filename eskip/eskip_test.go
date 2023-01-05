@@ -790,3 +790,17 @@ func TestFilterString(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkParsePredicates(b *testing.B) {
+	doc := `Foo("bar", "baz")`
+	_, err := ParsePredicates(doc)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = ParsePredicates(doc)
+	}
+}
