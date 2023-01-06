@@ -95,10 +95,9 @@ func (fs fixedScanner) scan(code string) (t token, rest string, err error) {
 	return
 }
 
-func newLexer(code string) *eskipLex {
-	return &eskipLex{
-		code:          code,
-		initialLength: len(code)}
+func (l *eskipLex) init(code string) {
+	l.code = code
+	l.initialLength = len(code)
 }
 
 func isWhitespace(c byte) bool  { return unicode.IsSpace(rune(c)) }

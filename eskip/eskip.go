@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters/flowid"
@@ -591,11 +592,28 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	return rd, err
 }
 
+type eskipLexParser struct {
+	lexer  eskipLex
+	parser eskipParserImpl
+}
+
+var parserPool sync.Pool
+
 // executes the parser.
 func parse(code string) ([]*parsedRoute, error) {
-	l := newLexer(code)
-	eskipParse(l)
-	return l.routes, l.err
+	lp, ok := parserPool.Get().(*eskipLexParser)
+	if !ok {
+		lp = &eskipLexParser{}
+	} else {
+		*lp = eskipLexParser{}
+	}
+	defer parserPool.Put(lp)
+
+	lp.lexer.init(code)
+
+	lp.parser.Parse(&lp.lexer)
+
+	return lp.lexer.routes, lp.lexer.err
 }
 
 func partialRouteToRoute(format, p string) string {
