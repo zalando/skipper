@@ -65,10 +65,41 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	namespaces := make(map[string]map[string][]interface{})
 	all := make(map[string][]interface{})
 
+	addObject := func(o map[interface{}]interface{}) error {
+		kind, ok := o["kind"].(string)
+		if !ok {
+			return errInvalidFixture
+		}
+
+		meta, ok := o["metadata"].(map[interface{}]interface{})
+		if !ok {
+			return errInvalidFixture
+		}
+
+		namespace, ok := meta["namespace"]
+		if !ok || namespace == "" {
+			namespace = "default"
+		} else {
+			if _, ok := namespace.(string); !ok {
+				return errInvalidFixture
+			}
+		}
+
+		ns := namespace.(string)
+		if _, ok := namespaces[ns]; !ok {
+			namespaces[ns] = make(map[string][]interface{})
+		}
+
+		namespaces[ns][kind] = append(namespaces[ns][kind], o)
+		all[kind] = append(all[kind], o)
+
+		return nil
+	}
+
 	for _, spec := range specs {
 		d := yaml.NewDecoder(spec)
 		for {
-			var o map[string]interface{}
+			var o map[interface{}]interface{}
 			if err := d.Decode(&o); err == io.EOF || err == nil && len(o) == 0 {
 				break
 			} else if err != nil {
@@ -80,27 +111,25 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 				return nil, errInvalidFixture
 			}
 
-			meta, ok := o["metadata"].(map[interface{}]interface{})
-			if !ok {
-				return nil, errInvalidFixture
-			}
-
-			namespace, ok := meta["namespace"]
-			if !ok || namespace == "" {
-				namespace = "default"
-			} else {
-				if _, ok := namespace.(string); !ok {
+			if kind == "List" {
+				items, ok := o["items"].([]interface{})
+				if !ok {
 					return nil, errInvalidFixture
 				}
+				for _, item := range items {
+					o, ok := item.(map[interface{}]interface{})
+					if !ok {
+						return nil, errInvalidFixture
+					}
+					if err := addObject(o); err != nil {
+						return nil, err
+					}
+				}
+			} else {
+				if err := addObject(o); err != nil {
+					return nil, err
+				}
 			}
-
-			ns := namespace.(string)
-			if _, ok := namespaces[ns]; !ok {
-				namespaces[ns] = make(map[string][]interface{})
-			}
-
-			namespaces[ns][kind] = append(namespaces[ns][kind], o)
-			all[kind] = append(all[kind], o)
 		}
 	}
 
