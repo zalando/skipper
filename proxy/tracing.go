@@ -81,7 +81,7 @@ func (t *proxyTracing) logEvent(span ot.Span, eventName, eventValue string) {
 		return
 	}
 
-	span.LogKV(eventName, eventValue)
+	span.LogKV(eventName, ensureUTF8(eventValue))
 }
 
 func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *proxyTracing {
@@ -90,7 +90,11 @@ func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *prox
 	}
 
 	if !t.excludeTags[key] {
-		span.SetTag(key, value)
+		if s, ok := value.(string); ok {
+			span.SetTag(key, ensureUTF8(s))
+		} else {
+			span.SetTag(key, value)
+		}
 	}
 
 	return t
@@ -101,7 +105,7 @@ func (t *proxyTracing) logStreamEvent(span ot.Span, eventName, eventValue string
 		return
 	}
 
-	t.logEvent(span, eventName, eventValue)
+	t.logEvent(span, eventName, ensureUTF8(eventValue))
 }
 
 func (t *proxyTracing) startFilterTracing(operation string, ctx *context) *filterTracing {
