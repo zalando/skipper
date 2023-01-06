@@ -1460,6 +1460,9 @@ Skipper arguments:
 | `-oauth2-tokeninfo-subject-key` | **yes** | the key of the attribute containing the OAuth2 subject ID in the OAuth2 provider's tokeninfo JSON payload. Default: `uid`. Example: `-oauth2-tokeninfo-subject-key=sub` |
 
 ### OpenID Connect
+
+To enable OpenID Connect filters use `-oidc-secrets-file` command line flag.
+
 #### oauthOidcUserInfo
 
 ```

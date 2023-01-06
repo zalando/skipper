@@ -1487,13 +1487,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		Tracer:       tracer,
 	}
 
-	oo := auth.OidcOptions{
-		CookieValidity: o.OIDCCookieValidity,
-		Timeout:        o.OIDCDistributedClaimsTimeout,
-		MaxIdleConns:   o.IdleConnectionsPerHost,
-		Tracer:         tracer,
-	}
-
 	who := auth.WebhookOptions{
 		Timeout:      o.WebhookTimeout,
 		MaxIdleConns: o.IdleConnectionsPerHost,
@@ -1522,9 +1515,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAnyKV, tio),
 		auth.TokenintrospectionWithOptions(auth.NewSecureOAuthTokenintrospectionAllKV, tio),
 		auth.WebhookWithOptions(who),
-		auth.NewOAuthOidcUserInfosWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, oo),
-		auth.NewOAuthOidcAnyClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, oo),
-		auth.NewOAuthOidcAllClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, oo),
 		auth.NewOIDCQueryClaimsFilter(),
 		apiusagemonitoring.NewApiUsageMonitoring(
 			o.ApiUsageMonitoringEnable,
@@ -1534,6 +1524,21 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		),
 		admissionControlFilter,
 	)
+
+	if o.OIDCSecretsFile != "" {
+		opts := auth.OidcOptions{
+			CookieValidity: o.OIDCCookieValidity,
+			Timeout:        o.OIDCDistributedClaimsTimeout,
+			MaxIdleConns:   o.IdleConnectionsPerHost,
+			Tracer:         tracer,
+		}
+
+		o.CustomFilters = append(o.CustomFilters,
+			auth.NewOAuthOidcUserInfosWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
+			auth.NewOAuthOidcAnyClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
+			auth.NewOAuthOidcAllClaimsWithOptions(o.OIDCSecretsFile, o.SecretsRegistry, opts),
+		)
+	}
 
 	var swarmer ratelimit.Swarmer
 	var redisOptions *skpnet.RedisOptions
