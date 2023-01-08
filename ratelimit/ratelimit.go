@@ -45,6 +45,8 @@ const (
 
 	// Deprecated, use filters.UnknownRatelimitName instead
 	UknownRatelimitName = filters.UnknownRatelimitName
+
+	sameBucket = "s"
 )
 
 // RatelimitType defines the type of  the used ratelimit
@@ -171,7 +173,7 @@ func NewSameBucketLookuper() SameBucketLookuper {
 
 // Lookup will always return "s" to select the same bucket.
 func (SameBucketLookuper) Lookup(*http.Request) string {
-	return "s"
+	return sameBucket
 }
 
 func (SameBucketLookuper) String() string {
