@@ -275,7 +275,7 @@ func TestTestAPI(t *testing.T) {
 		check(t, s, 1, "Service")
 
 		var i map[string]interface{}
-		if err := get(fmt.Sprintf(kubernetes.IngressesNamespaceFmt, namespace), &i); err != nil {
+		if err := get(fmt.Sprintf(kubernetes.IngressesV1NamespaceFmt, namespace), &i); err != nil {
 			t.Fatal(err)
 		}
 
