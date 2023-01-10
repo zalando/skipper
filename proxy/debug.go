@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -36,19 +35,17 @@ type (
 		ResponseModBody string             `json:"response_mod_body,omitempty"`
 		ResponseModErr  string             `json:"response_mod_error,omitempty"`
 		ProxyError      string             `json:"proxy_error,omitempty"`
-		FilterPanics    []string           `json:"filter_panics,omitempty"`
 		Filters         []*eskip.Filter    `json:"filters,omitempty"`
 		Predicates      []*eskip.Predicate `json:"predicates,omitempty"`
 	}
 )
 
 type debugInfo struct {
-	route        *eskip.Route
-	incoming     *http.Request
-	outgoing     *http.Request
-	response     *http.Response
-	err          error
-	filterPanics []interface{}
+	route    *eskip.Route
+	incoming *http.Request
+	outgoing *http.Request
+	response *http.Response
+	err      error
 }
 
 func convertRequest(r *http.Request) *debugRequest {
@@ -119,10 +116,6 @@ func convertDebugInfo(d *debugInfo) debugDocument {
 
 	if d.err != nil {
 		doc.ProxyError = d.err.Error()
-	}
-
-	for _, fp := range d.filterPanics {
-		doc.FilterPanics = append(doc.FilterPanics, fmt.Sprint(fp))
 	}
 
 	return doc
