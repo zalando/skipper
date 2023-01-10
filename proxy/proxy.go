@@ -1050,6 +1050,12 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 	}
 }
 
+func (p *Proxy) doLoopback(ctx *context) error {
+	ctx.request = routing.WithRoute(ctx.request, ctx.route)
+
+	return p.do(ctx)
+}
+
 func (p *Proxy) do(ctx *context) error {
 	if ctx.executionCounter > p.maxLoops {
 		return errMaxLoopbacksReached
@@ -1117,7 +1123,7 @@ func (p *Proxy) do(ctx *context) error {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
-		if err := p.do(loopCTX); err != nil {
+		if err := p.doLoopback(loopCTX); err != nil {
 			return err
 		}
 
