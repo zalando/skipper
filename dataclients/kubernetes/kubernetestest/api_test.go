@@ -30,7 +30,7 @@ spec:
     application: foo
   type: ClusterIP
 ---
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   labels:
@@ -43,8 +43,10 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: foo
-          servicePort: main
+          service:
+            name: foo
+            port:
+              name: main
 ---
 apiVersion: v1
 kind: Endpoints
@@ -197,7 +199,7 @@ func TestTestAPI(t *testing.T) {
 		check(t, s, 1, "Service")
 
 		var i map[string]interface{}
-		if err := get(fmt.Sprintf(kubernetes.IngressesNamespaceFmt, namespace), &i); err != nil {
+		if err := get(fmt.Sprintf(kubernetes.IngressesV1NamespaceFmt, namespace), &i); err != nil {
 			t.Fatal(err)
 		}
 
@@ -234,7 +236,7 @@ func TestTestAPI(t *testing.T) {
 		check(t, s, 3, "Service")
 
 		var i map[string]interface{}
-		if err := get(kubernetes.IngressesClusterURI, &i); err != nil {
+		if err := get(kubernetes.IngressesV1ClusterURI, &i); err != nil {
 			t.Fatal(err)
 		}
 
@@ -273,7 +275,7 @@ func TestTestAPI(t *testing.T) {
 		check(t, s, 1, "Service")
 
 		var i map[string]interface{}
-		if err := get(fmt.Sprintf(kubernetes.IngressesNamespaceFmt, namespace), &i); err != nil {
+		if err := get(fmt.Sprintf(kubernetes.IngressesV1NamespaceFmt, namespace), &i); err != nil {
 			t.Fatal(err)
 		}
 

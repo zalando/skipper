@@ -26,7 +26,6 @@ import (
 
 const (
 	ingressClassKey            = "kubernetes.io/ingress.class"
-	IngressesClusterURI        = "/apis/extensions/v1beta1/ingresses"
 	IngressesV1ClusterURI      = "/apis/networking.k8s.io/v1/ingresses"
 	ZalandoResourcesClusterURI = "/apis/zalando.org/v1"
 	RouteGroupsName            = "routegroups"
@@ -36,7 +35,6 @@ const (
 	EndpointsClusterURI        = "/api/v1/endpoints"
 	SecretsClusterURI          = "/api/v1/secrets"
 	defaultKubernetesURL       = "http://localhost:8001"
-	IngressesNamespaceFmt      = "/apis/extensions/v1beta1/namespaces/%s/ingresses"
 	IngressesV1NamespaceFmt    = "/apis/networking.k8s.io/v1/namespaces/%s/ingresses"
 	routeGroupsNamespaceFmt    = "/apis/zalando.org/v1/namespaces/%s/routegroups"
 	ServicesNamespaceFmt       = "/api/v1/namespaces/%s/services"
@@ -65,7 +63,6 @@ type clusterClient struct {
 	routeGroupClass *regexp.Regexp
 	ingressClass    *regexp.Regexp
 	httpClient      *http.Client
-	ingressV1       bool
 
 	ingressLabelSelectors     string
 	servicesLabelSelectors    string
@@ -149,13 +146,8 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		return nil, err
 	}
 
-	ingressURI := IngressesClusterURI
-	if o.KubernetesIngressV1 {
-		ingressURI = IngressesV1ClusterURI
-	}
 	c := &clusterClient{
-		ingressV1:                 o.KubernetesIngressV1,
-		ingressesURI:              ingressURI,
+		ingressesURI:              IngressesV1ClusterURI,
 		routeGroupsURI:            routeGroupsClusterURI,
 		servicesURI:               ServicesClusterURI,
 		endpointsURI:              EndpointsClusterURI,
@@ -219,11 +211,7 @@ func toLabelSelectorQuery(selectors map[string]string) string {
 }
 
 func (c *clusterClient) setNamespace(namespace string) {
-	if c.ingressV1 {
-		c.ingressesURI = fmt.Sprintf(IngressesV1NamespaceFmt, namespace)
-	} else {
-		c.ingressesURI = fmt.Sprintf(IngressesNamespaceFmt, namespace)
-	}
+	c.ingressesURI = fmt.Sprintf(IngressesV1NamespaceFmt, namespace)
 	c.routeGroupsURI = fmt.Sprintf(routeGroupsNamespaceFmt, namespace)
 	c.servicesURI = fmt.Sprintf(ServicesNamespaceFmt, namespace)
 	c.endpointsURI = fmt.Sprintf(EndpointsNamespaceFmt, namespace)
@@ -312,21 +300,6 @@ func (c *clusterClient) ingressClassMissmatch(m *definitions.Metadata) bool {
 	return false
 }
 
-// filterIngressesByClass will filter only the ingresses that have the valid class, these are
-// the defined one, empty string class or not class at all
-func (c *clusterClient) filterIngressesByClass(items []*definitions.IngressItem) []*definitions.IngressItem {
-	validIngs := []*definitions.IngressItem{}
-
-	for _, ing := range items {
-		if c.ingressClassMissmatch(ing.Metadata) {
-			continue
-		}
-		validIngs = append(validIngs, ing)
-	}
-
-	return validIngs
-}
-
 // filterIngressesV1ByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
 func (c *clusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1Item) []*definitions.IngressV1Item {
@@ -363,20 +336,6 @@ func sortByMetadata(slice interface{}, getMetadata func(int) *definitions.Metada
 		}
 		return mI.Name < mJ.Name
 	})
-}
-
-func (c *clusterClient) loadIngresses() ([]*definitions.IngressItem, error) {
-	var il definitions.IngressList
-	if err := c.getJSON(c.ingressesURI+c.ingressLabelSelectors, &il); err != nil {
-		log.Debugf("requesting all ingresses failed: %v", err)
-		return nil, err
-	}
-
-	log.Debugf("all ingresses received: %d", len(il.Items))
-	fItems := c.filterIngressesByClass(il.Items)
-	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
-	sortByMetadata(fItems, func(i int) *definitions.Metadata { return fItems[i].Metadata })
-	return fItems, nil
 }
 
 func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) {
@@ -501,14 +460,9 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	var (
 		err         error
 		ingressesV1 []*definitions.IngressV1Item
-		ingresses   []*definitions.IngressItem
 		secrets     map[definitions.ResourceID]*secret
 	)
-	if c.ingressV1 {
-		ingressesV1, err = c.loadIngressesV1()
-	} else {
-		ingresses, err = c.loadIngresses()
-	}
+	ingressesV1, err = c.loadIngressesV1()
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +497,6 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	}
 
 	return &clusterState{
-		ingresses:       ingresses,
 		ingressesV1:     ingressesV1,
 		routeGroups:     routeGroups,
 		services:        services,

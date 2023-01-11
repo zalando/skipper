@@ -89,10 +89,6 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
-	// *DEPRECATED* KubernetesIngressV1 is used to switch between v1beta1 and v1. Kubernetes version 1.22 stopped support
-	// for v1beta1, so we have to provide a migration path and this will someday become the default.
-	KubernetesIngressV1 bool
-
 	// *DEPRECATED* KubernetesEnableEastWest if set adds automatically routes
 	// with "%s.%s.skipper.cluster.local" domain pattern
 	KubernetesEnableEastWest bool
@@ -239,9 +235,6 @@ type Client struct {
 
 // New creates and initializes a Kubernetes DataClient.
 func New(o Options) (*Client, error) {
-	if !o.KubernetesIngressV1 {
-		log.Warning("You are using a deprecated version of ingress. Skipper will remove support in the next couple of weeks. Kubernetes version 1.18 deprecated v1beta1 and 1.22 stopped support v1beta1. We will increase skipper's minor version to highlight the deletion. For more details please check https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#upgrades")
-	}
 	if o.OriginMarker {
 		log.Warning("OriginMarker is deprecated")
 	}

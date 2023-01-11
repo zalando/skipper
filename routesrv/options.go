@@ -52,9 +52,6 @@ type Options struct {
 	// when used together with -kubernetes-https-redirect.
 	KubernetesHTTPSRedirectCode int
 
-	// KubernetesIngressV1 will switch the dataclient to read ingress v1 resources, instead of v1beta1
-	KubernetesIngressV1 bool
-
 	// KubernetesIngressClass is a regular expression, that will make
 	// skipper load only the ingress resources that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,

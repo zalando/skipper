@@ -6,7 +6,7 @@ metadata:
   labels:
     chart: {{ .Chart.Version }}
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: skipper-ingress
@@ -20,7 +20,7 @@ rules:
   resources: ["namespaces", "services", "endpoints", "pods"]
   verbs: ["get", "list"]
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: skipper-ingress
@@ -35,7 +35,7 @@ subjects:
   name: skipper-ingress
   namespace: {{ .Values.namespace }}
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: skipper-ingress-hostnetwork-psp

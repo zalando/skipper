@@ -46,7 +46,6 @@ func benchmarkCachedEndpoints(b *testing.B, n int) {
 	}
 
 	cs := &clusterState{
-		ingresses:       nil,
 		ingressesV1:     nil,
 		routeGroups:     nil,
 		services:        nil,

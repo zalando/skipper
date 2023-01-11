@@ -9,7 +9,7 @@ import (
 )
 
 func TestUpdateOnlyChangedRoutes(t *testing.T) {
-	api := newTestAPIWithEndpoints(t, &serviceList{}, &definitions.IngressList{}, &endpointList{}, &secretList{})
+	api := newTestAPIWithEndpoints(t, &serviceList{}, &definitions.IngressV1List{}, &endpointList{}, &secretList{})
 	defer api.Close()
 
 	k, err := New(Options{

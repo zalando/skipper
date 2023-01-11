@@ -12,6 +12,24 @@ import (
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
+func setPathOld(m PathMode, r *eskip.Route, p string) {
+	switch m {
+	case PathPrefix:
+		r.Predicates = append(r.Predicates, &eskip.Predicate{
+			Name: "PathSubtree",
+			Args: []interface{}{p},
+		})
+	case PathRegexp:
+		r.PathRegexps = []string{p}
+	default:
+		if p == "/" {
+			r.PathRegexps = []string{"^/"}
+		} else {
+			r.PathRegexps = []string{"^(" + p + ")"}
+		}
+	}
+}
+
 func setPathV1(m PathMode, r *eskip.Route, pathType, path string) {
 	if path == "" {
 		return
@@ -29,7 +47,7 @@ func setPathV1(m PathMode, r *eskip.Route, pathType, path string) {
 			Args: []interface{}{path},
 		})
 	default:
-		setPath(m, r, path)
+		setPathOld(m, r, path)
 	}
 }
 

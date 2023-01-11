@@ -219,7 +219,6 @@ func testFixture(t *testing.T, f fixtureSet) {
 			cr = certregistry.NewCertRegistry()
 		}
 
-		o.KubernetesIngressV1 = kop.IngressV1
 		o.KubernetesEnableEastWest = kop.EastWest
 		o.KubernetesEastWestDomain = kop.EastWestDomain
 		o.KubernetesEastWestRangeDomains = kop.EastWestRangeDomains
@@ -252,6 +251,10 @@ func testFixture(t *testing.T, f fixtureSet) {
 	defer c.Close()
 
 	routes, err := c.LoadAll()
+	if f.api == "" && err != nil {
+		t.Fatalf("LoadAll failed: %v", err)
+	}
+
 	if f.eskip != "" {
 		eskp, err := os.Open(f.eskip)
 		if err != nil {

@@ -25,8 +25,12 @@ const ingressDocSucceed = `{
 				"http": {
 					"paths": [{
 						"backend": {
-							"serviceName": "sszuecs-demo-v2",
-							"servicePort": 80
+							"service": {
+								"Name": "sszuecs-demo-v2",
+								"Port": {
+									"number": 80
+								}
+							}
 						}
 					}]
 				}
@@ -43,8 +47,12 @@ const ingressDocSucceed = `{
 				"http": {
 					"paths": [{
 						"backend": {
-							"serviceName": "sszuecs-demo-v1",
-							"servicePort": 80
+							"service": {
+								"name": "sszuecs-demo-v1",
+								"port": {
+									"number": 80
+								}
+							}
 						}
 					}]
 				}
@@ -66,8 +74,12 @@ const ingressDocFail = `{
 				"http": {
 					"paths": [{
 						"backend": {
-							"serviceName": "sszuecs-demo-v1",
-							"servicePort": 80
+							"service": {
+								"name": "sszuecs-demo-v1",
+								"port": {
+									"number": 80
+								}
+							}
 						}
 					}]
 				}
@@ -88,8 +100,12 @@ const ingressDocFail = `{
 				"http": {
 					"paths": [{
 						"backend": {
-							"serviceName": "sszuecs-demo-v2",
-							"servicePort": 80
+							"service": {
+								"name": "sszuecs-demo-v2",
+								"port": {
+									"number": 80
+								}
+							}
 						}
 					}]
 				}
@@ -140,7 +156,7 @@ type apiV1 struct {
 
 func (api apiV1) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case IngressesClusterURI:
+	case IngressesV1ClusterURI:
 		w.Write(api.ingresses)
 		return
 	case ServicesClusterURI:

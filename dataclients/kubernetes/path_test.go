@@ -75,13 +75,13 @@ func findRouteWithExactPath(r []*eskip.Route) (*eskip.Route, error) {
 
 func TestPathMatchingModes(t *testing.T) {
 	s := testServices()
-	api := newTestAPI(t, s, &definitions.IngressList{})
+	api := newTestAPI(t, s, &definitions.IngressV1List{})
 	defer api.Close()
 
 	setIngressWithPath := func(p string, annotations ...string) {
 		i := testIngress(
-			"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0,
-			testRule("www.example.org", testPathRule(p, "service1", definitions.BackendPort{Value: 8080})),
+			"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
+			testRule("www.example.org", testPathRule(p, "service1", definitions.BackendPortV1{Number: 8080})),
 		)
 
 		annotation := strings.Join(annotations, " && ")
@@ -89,7 +89,7 @@ func TestPathMatchingModes(t *testing.T) {
 			i.Metadata.Annotations[skipperpredicateAnnotationKey] = annotation
 		}
 
-		api.ingresses.Items = []*definitions.IngressItem{i}
+		api.ingresses.Items = []*definitions.IngressV1Item{i}
 	}
 
 	loadRoutes := func(m PathMode) ([]*eskip.Route, error) {
@@ -341,21 +341,21 @@ func TestPathModeParsing(t *testing.T) {
 
 func TestIngressSpecificMode(t *testing.T) {
 	s := testServices()
-	api := newTestAPI(t, s, &definitions.IngressList{})
+	api := newTestAPI(t, s, &definitions.IngressV1List{})
 	defer api.Close()
 
 	ingressWithDefault := testIngress(
-		"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0,
-		testRule("www.example.org", testPathRule("^/foo", "service1", definitions.BackendPort{Value: 8080})),
+		"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
+		testRule("www.example.org", testPathRule("^/foo", "service1", definitions.BackendPortV1{Number: 8080})),
 	)
 
 	ingressWithCustom := testIngress(
-		"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPort{Value: 8080}, 1.0,
-		testRule("www.example.org", testPathRule("/bar", "service1", definitions.BackendPort{Value: 8080})),
+		"namespace1", "ingress1", "service1", "", "", "", "", "", "", map[string]string{}, definitions.BackendPortV1{Number: 8080}, 1.0,
+		testRule("www.example.org", testPathRule("/bar", "service1", definitions.BackendPortV1{Number: 8080})),
 	)
 	ingressWithCustom.Metadata.Annotations[pathModeAnnotationKey] = pathPrefixString
 
-	api.ingresses.Items = []*definitions.IngressItem{ingressWithDefault, ingressWithCustom}
+	api.ingresses.Items = []*definitions.IngressV1Item{ingressWithDefault, ingressWithCustom}
 
 	c, err := New(Options{
 		KubernetesURL: api.server.URL,
