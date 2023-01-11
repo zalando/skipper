@@ -566,7 +566,7 @@ func TestVoidRatelimit(t *testing.T) {
 	l.Resize("s", 5) // should do nothing
 	now := time.Now()
 	for i := 0; i < 100; i++ {
-		if l.Allow("s") != true {
+		if l.Allow(context.Background(), "s") != true {
 			t.Error("voidratelimit should always allow")
 		}
 		if l.RetryAfter("s") != 0 {
@@ -586,7 +586,7 @@ func TestZeroRatelimit(t *testing.T) {
 	l.Resize("s", 5) // should do nothing
 	now := time.Now()
 	for i := 0; i < 100; i++ {
-		if l.Allow("s") != false {
+		if l.Allow(context.Background(), "s") != false {
 			t.Error("zerolimit should always deny")
 		}
 		if l.RetryAfter("s") != zeroRetry {
@@ -615,12 +615,12 @@ func TestRatelimitImpl(t *testing.T) {
 	rl.Resize("", 5)
 
 	for i := 0; i < 5; i++ {
-		if rl.AllowContext(context.Background(), "") != true {
+		if rl.Allow(context.Background(), "") != true {
 			t.Error("service ratelimit should allow 5")
 		}
 	}
 
-	if rl.AllowContext(context.Background(), "") == true {
+	if rl.Allow(context.Background(), "") == true {
 		t.Error("After 5 allow we should get a deny")
 	}
 	if rl.RetryAfter("") == 0 {
@@ -631,7 +631,7 @@ func TestRatelimitImpl(t *testing.T) {
 	}
 
 	rl = nil
-	if rl.AllowContext(context.Background(), "") != true {
+	if rl.Allow(context.Background(), "") != true {
 		t.Error("nil ratelimiter should always allow")
 	}
 	if rl.RetryAfter("") != 0 {
