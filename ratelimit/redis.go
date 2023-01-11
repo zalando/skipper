@@ -92,7 +92,7 @@ func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
 	}
 }
 
-// AllowContext returns true if the request calculated across the cluster of
+// Allow returns true if the request calculated across the cluster of
 // skippers should be allowed else false. It will share it's own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
@@ -105,7 +105,7 @@ func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
 // roundtrip.
 //
 // If a context is provided, it uses it for creating an OpenTracing span.
-func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
+func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
 	now := time.Now()
 
@@ -272,7 +272,7 @@ func (*clusterLimitRedis) Resize(string, int) {}
 // done, because if not the ratelimit would be too few ratelimits,
 // because of how it's used in the proxy and the nature of cluster
 // ratelimits being not strongly consistent across calls to Allow()
-// and RetryAfter() (or AllowContext and RetryAfterContext accordingly).
+// and RetryAfter() (or Allow and RetryAfterContext accordingly).
 //
 // If a context is provided, it uses it for creating an OpenTracing span.
 func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText string) int {

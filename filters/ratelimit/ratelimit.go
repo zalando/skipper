@@ -39,8 +39,8 @@ type RatelimitProvider interface {
 }
 
 type limit interface {
-	// AllowContext is used to decide if call is allowed to pass
-	AllowContext(context.Context, string) bool
+	// Allow is used to decide if call is allowed to pass
+	Allow(context.Context, string) bool
 
 	// RetryAfter is used to inform the client how many seconds it
 	// should wait before making a new request
@@ -475,7 +475,7 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if !rateLimiter.AllowContext(ctx.Request().Context(), s) {
+	if !rateLimiter.Allow(ctx.Request().Context(), s) {
 		maxHits := f.settings.MaxHits
 		if f.maxHits != 0 {
 			maxHits = f.maxHits
