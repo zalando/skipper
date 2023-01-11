@@ -1,8 +1,11 @@
 package source
 
 import (
+	"fmt"
+	"math/rand"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/predicates"
 )
@@ -37,7 +40,11 @@ func TestCreate(t *testing.T) {
 		[]interface{}{"127.0.0.1/32", 1},
 		true,
 	}, {
-		"arg 1 not netmask",
+		"one invalid IP",
+		[]interface{}{"1.2.3.4.5/16", "1000.2.3.4"},
+		true,
+	}, {
+		"arg 1 not netmask, silently ignored",
 		[]interface{}{"all the things"},
 		true,
 	}, {
@@ -303,5 +310,69 @@ func TestMatchingClientIP(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+var random = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+func generateIPCidr() string {
+	if random.Int()%10 == 0 {
+		n := random.Intn(16) + 16 // /16 .. /32
+		return fmt.Sprintf("%d.%d.%d.%d/%d", random.Intn(256), random.Intn(256), random.Intn(256), random.Intn(256), n)
+	}
+	return fmt.Sprintf("%d.%d.%d.%d", random.Intn(256), random.Intn(256), random.Intn(256), random.Intn(256))
+}
+
+func generateIPCidrStrings(n int) []string {
+	a := make([]string, 0)
+	for i := 0; i < n; i++ {
+		a = append(a, generateIPCidr())
+	}
+	return a
+}
+
+func BenchmarkSource10(b *testing.B) {
+	benchSource(b, 10)
+}
+func BenchmarkSource100(b *testing.B) {
+	benchSource(b, 100)
+}
+func BenchmarkSource1k(b *testing.B) {
+	benchSource(b, 1_000)
+}
+func BenchmarkSource10k(b *testing.B) {
+	benchSource(b, 10_000)
+}
+func BenchmarkSource100k(b *testing.B) {
+	benchSource(b, 100_000)
+}
+
+func stringsToArgs(a []string) []interface{} {
+	res := make([]interface{}, 0, len(a))
+	for _, s := range a {
+		var e any
+		e = s
+		res = append(res, e)
+	}
+	return res
+}
+
+func benchSource(b *testing.B, k int) {
+	target := "195.5.1.23"
+	a := generateIPCidrStrings(k)
+	spec := NewClientIP()
+	args := stringsToArgs(a)
+	pred, err := spec.Create(args)
+	if err != nil {
+		b.Fatalf("Failed to create %s with args '%v': %v", spec.Name(), args, err)
+	}
+	req := &http.Request{
+		RemoteAddr: target,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		pred.Match(req)
 	}
 }
