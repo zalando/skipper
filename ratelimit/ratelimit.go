@@ -369,7 +369,8 @@ type Ratelimit struct {
 	impl     limiter
 }
 
-// Allow is like Allow but accepts an optional context.Context, e.g. to
+// Allow is used to get a decision if you should allow the call and
+// accepts an optional context.Context, e.g. to
 // support OpenTracing. When the context handling is not provided by the
 // implementation, it falls back to the normal Allow method.
 func (l *Ratelimit) Allow(ctx context.Context, s string) bool {
