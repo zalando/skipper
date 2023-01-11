@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/routing"
 )
 
 func TestName(t *testing.T) {
@@ -331,20 +332,52 @@ func generateIPCidrStrings(n int) []string {
 	return a
 }
 
+func BenchmarkClientIP10(b *testing.B) {
+	benchSource(b, 10, NewClientIP())
+}
+func BenchmarkClientIP100(b *testing.B) {
+	benchSource(b, 100, NewClientIP())
+}
+func BenchmarkClientIP1k(b *testing.B) {
+	benchSource(b, 1_000, NewClientIP())
+}
+func BenchmarkClientIP10k(b *testing.B) {
+	benchSource(b, 10_000, NewClientIP())
+}
+func BenchmarkClientIP100k(b *testing.B) {
+	benchSource(b, 100_000, NewClientIP())
+}
+
 func BenchmarkSource10(b *testing.B) {
-	benchSource(b, 10)
+	benchSource(b, 10, New())
 }
 func BenchmarkSource100(b *testing.B) {
-	benchSource(b, 100)
+	benchSource(b, 100, New())
 }
 func BenchmarkSource1k(b *testing.B) {
-	benchSource(b, 1_000)
+	benchSource(b, 1_000, New())
 }
 func BenchmarkSource10k(b *testing.B) {
-	benchSource(b, 10_000)
+	benchSource(b, 10_000, New())
 }
 func BenchmarkSource100k(b *testing.B) {
-	benchSource(b, 100_000)
+	benchSource(b, 100_000, New())
+}
+
+func BenchmarkSourceFromLast10(b *testing.B) {
+	benchSource(b, 10, NewFromLast())
+}
+func BenchmarkSourceFromLast100(b *testing.B) {
+	benchSource(b, 100, NewFromLast())
+}
+func BenchmarkSourceFromLast1k(b *testing.B) {
+	benchSource(b, 1_000, NewFromLast())
+}
+func BenchmarkSourceFromLast10k(b *testing.B) {
+	benchSource(b, 10_000, NewFromLast())
+}
+func BenchmarkSourceFromLast100k(b *testing.B) {
+	benchSource(b, 100_000, NewFromLast())
 }
 
 func stringsToArgs(a []string) []interface{} {
@@ -357,18 +390,21 @@ func stringsToArgs(a []string) []interface{} {
 	return res
 }
 
-func benchSource(b *testing.B, k int) {
-	target := "195.5.1.23"
+func benchSource(b *testing.B, k int, spec routing.PredicateSpec) {
+	target := "195.5.1.21"
+	xff := "195.5.1.23, 195.5.1.24"
 	a := generateIPCidrStrings(k)
-	spec := NewClientIP()
 	args := stringsToArgs(a)
+
 	pred, err := spec.Create(args)
 	if err != nil {
 		b.Fatalf("Failed to create %s with args '%v': %v", spec.Name(), args, err)
 	}
 	req := &http.Request{
 		RemoteAddr: target,
+		Header:     http.Header{},
 	}
+	req.Header.Set("X-Forwarded-For", xff)
 
 	b.ReportAllocs()
 	b.ResetTimer()
