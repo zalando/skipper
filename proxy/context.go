@@ -35,7 +35,6 @@ type context struct {
 	originalRequest      *http.Request
 	originalResponse     *http.Response
 	outgoingHost         string
-	debugFilterPanics    []interface{}
 	outgoingDebugRequest *http.Request
 	executionCounter     int
 	startServe           time.Time

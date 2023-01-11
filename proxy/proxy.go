@@ -20,6 +20,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"golang.org/x/time/rate"
+
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
@@ -337,6 +339,7 @@ type Proxy struct {
 	auditLogHook             chan struct{}
 	clientTLS                *tls.Config
 	hostname                 string
+	onPanicSometimes         rate.Sometimes
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -717,29 +720,8 @@ func WithParams(p Params) *Proxy {
 		upgradeAuditLogErr:       os.Stderr,
 		clientTLS:                tr.TLSClientConfig,
 		hostname:                 hostname,
+		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 	}
-}
-
-var caughtPanic = false
-
-// tryCatch executes function `p` and `onErr` if `p` panics
-// onErr will receive a stack trace string of the first panic
-// further panics are ignored for efficiency reasons
-func tryCatch(p func(), onErr func(err interface{}, stack string)) {
-	defer func() {
-		if err := recover(); err != nil {
-			s := ""
-			if !caughtPanic {
-				buf := make([]byte, 1024)
-				l := runtime.Stack(buf, false)
-				s = string(buf[:l])
-				caughtPanic = true
-			}
-			onErr(err, s)
-		}
-	}()
-
-	p()
 }
 
 // applies filters to a request
@@ -756,20 +738,11 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 	for _, fi := range f {
 		start := time.Now()
 		filterTracing.logStart(fi.Name)
-		tryCatch(func() {
-			ctx.setMetricsPrefix(fi.Name)
-			fi.Request(ctx)
-			p.metrics.MeasureFilterRequest(fi.Name, start)
-		}, func(err interface{}, stack string) {
-			if p.flags.Debug() {
-				// these errors are collected for the debug mode to be able
-				// to report in the response which filters failed.
-				ctx.debugFilterPanics = append(ctx.debugFilterPanics, err)
-				return
-			}
+		ctx.setMetricsPrefix(fi.Name)
 
-			p.log.Errorf("error while processing filter during request: %s: %v (%s)", fi.Name, err, stack)
-		})
+		fi.Request(ctx)
+
+		p.metrics.MeasureFilterRequest(fi.Name, start)
 		filterTracing.logEnd(fi.Name)
 
 		filters = append(filters, fi)
@@ -793,20 +766,11 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 		fi := filters[last-i]
 		start := time.Now()
 		filterTracing.logStart(fi.Name)
-		tryCatch(func() {
-			ctx.setMetricsPrefix(fi.Name)
-			fi.Response(ctx)
-			p.metrics.MeasureFilterResponse(fi.Name, start)
-		}, func(err interface{}, stack string) {
-			if p.flags.Debug() {
-				// these errors are collected for the debug mode to be able
-				// to report in the response which filters failed.
-				ctx.debugFilterPanics = append(ctx.debugFilterPanics, err)
-				return
-			}
+		ctx.setMetricsPrefix(fi.Name)
 
-			p.log.Errorf("error while processing filters during response: %s: %v (%s)", fi.Name, err, stack)
-		})
+		fi.Response(ctx)
+
+		p.metrics.MeasureFilterResponse(fi.Name, start)
 		filterTracing.logEnd(fi.Name)
 	}
 
@@ -1050,7 +1014,29 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
 	}
 }
 
-func (p *Proxy) do(ctx *context) error {
+// copied from debug.PrintStack
+func stack() []byte {
+	buf := make([]byte, 1024)
+	for {
+		n := runtime.Stack(buf, false)
+		if n < len(buf) {
+			return buf[:n]
+		}
+		buf = make([]byte, 2*len(buf))
+	}
+}
+
+func (p *Proxy) do(ctx *context) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			p.onPanicSometimes.Do(func() {
+				p.log.Errorf("stacktrace of panic caused by: %v:\n%s", r, stack())
+			})
+
+			err = fmt.Errorf("panic caused by: %v", r)
+		}
+	}()
+
 	if ctx.executionCounter > p.maxLoops {
 		return errMaxLoopbacksReached
 	}
@@ -1081,8 +1067,7 @@ func (p *Proxy) do(ctx *context) error {
 	// proxy global setting
 	if !ctx.wasExecuted() {
 		if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
-			rerr := newRatelimitError(settings, retryAfter)
-			return rerr
+			return newRatelimitError(settings, retryAfter)
 		}
 	}
 	// every time the context is used for a request the context executionCounter is incremented
@@ -1204,11 +1189,10 @@ func retryable(ctx *context, perr *proxyError) bool {
 func (p *Proxy) serveResponse(ctx *context) {
 	if p.flags.Debug() {
 		dbgResponse(ctx.responseWriter, &debugInfo{
-			route:        &ctx.route.Route,
-			incoming:     ctx.originalRequest,
-			outgoing:     ctx.outgoingDebugRequest,
-			response:     ctx.response,
-			filterPanics: ctx.debugFilterPanics,
+			route:    &ctx.route.Route,
+			incoming: ctx.originalRequest,
+			outgoing: ctx.outgoingDebugRequest,
+			response: ctx.response,
 		})
 
 		return
@@ -1283,11 +1267,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 
 	if p.flags.Debug() {
 		di := &debugInfo{
-			incoming:     ctx.originalRequest,
-			outgoing:     ctx.outgoingDebugRequest,
-			response:     ctx.response,
-			err:          err,
-			filterPanics: ctx.debugFilterPanics,
+			incoming: ctx.originalRequest,
+			outgoing: ctx.outgoingDebugRequest,
+			response: ctx.response,
+			err:      err,
 		}
 
 		if ctx.route != nil {

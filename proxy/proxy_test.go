@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -939,8 +940,11 @@ type nilFilterSpec struct{}
 func (*nilFilterSpec) Name() string                                              { return "nilFilter" }
 func (*nilFilterSpec) CreateFilter(config []interface{}) (filters.Filter, error) { return nil, nil }
 
-func TestNilFilterIsNotCalledAndDoesNotBreakFilterChain(t *testing.T) {
-	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {})
+func TestFilterPanic(t *testing.T) {
+	var backendRequests int32
+	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {
+		atomic.AddInt32(&backendRequests, 1)
+	})
 	defer s.Close()
 
 	fr := make(filters.Registry)
@@ -956,41 +960,52 @@ func TestNilFilterIsNotCalledAndDoesNotBreakFilterChain(t *testing.T) {
 		appendRequestHeader("X-Expected", "after") ->
 		appendResponseHeader("X-Expected", "after") ->
 		"%s"`, s.URL)
-	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
-	if err != nil {
-		t.Error(err)
-		return
-	}
 
+	tp, err := newTestProxyWithFilters(fr, doc, FlagsNone)
+	require.NoError(t, err)
 	defer tp.close()
 
-	r, _ := http.NewRequest("GET", "https://www.example.org/foo", nil)
+	r := httptest.NewRequest("GET", "/foo", nil)
 	w := httptest.NewRecorder()
 	tp.proxy.ServeHTTP(w, r)
 
-	if requestExpectedHeader, has := r.Header["X-Expected"]; has {
-		assert.Contains(t, requestExpectedHeader, "before",
-			"request header was not added before nil filter")
-		assert.Contains(t, requestExpectedHeader, "after",
-			"request header was not added after nil filter (nil filter broke the filter chain)")
-	} else {
-		t.Error("Request is missing the expected header (added during filter chain winding)")
-		return
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, int32(0), backendRequests, "expected no backend request")
+	assert.Equal(t, []string{"before"}, r.Header["X-Expected"], "panic expected to skip the rest of the request filters")
+	assert.NotContains(t, w.Header(), "X-Expected", "panic expected to skip all of the response filters")
+
+	const msg = "panic caused by: runtime error: invalid memory address or nil pointer dereference"
+	if err = tp.log.WaitFor(msg, 100*time.Millisecond); err != nil {
+		t.Errorf("expected '%s' in logs", msg)
+	}
+}
+
+func TestFilterPanicPrintStackRate(t *testing.T) {
+	fr := make(filters.Registry)
+	fr.Register(new(nilFilterSpec))
+
+	tp, err := newTestProxyWithFilters(fr, `* -> nilFilter() -> <shunt>`, FlagsNone)
+	require.NoError(t, err)
+	defer tp.close()
+
+	const (
+		panicsCaused  = 10
+		stacksPrinted = 3 // see Proxy.onPanicSometimes
+	)
+
+	for i := 0; i < panicsCaused; i++ {
+		r := httptest.NewRequest("GET", "/", nil)
+		w := httptest.NewRecorder()
+
+		tp.proxy.ServeHTTP(w, r)
 	}
 
-	if responseExpectedHeader, has := w.Header()["X-Expected"]; has {
-		assert.Contains(t, responseExpectedHeader, "before",
-			"response header was not added before nil filter")
-		assert.Contains(t, responseExpectedHeader, "after",
-			"response header was not added after nil filter (nil filter broke the filter chain)")
-	} else {
-		t.Error("Response is missing the expected header (added during filter chain unwinding)")
-		return
+	const msg = "error while proxying"
+	if err = tp.log.WaitForN(msg, panicsCaused, 100*time.Millisecond); err != nil {
+		t.Errorf("expected '%s' in logs", msg)
 	}
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Wrong status code. Expected 200 but got %d", w.Code)
-	}
+	assert.Equal(t, stacksPrinted, tp.log.Count("github.com/zalando/skipper/proxy.TestFilterPanicPrintStackRate"))
 }
 
 func TestProcessesRequestWithShuntBackend(t *testing.T) {
@@ -2098,48 +2113,6 @@ func TestUserAgent(t *testing.T) {
 			tp.proxy.ServeHTTP(w, r)
 		})
 	}
-}
-
-func thisOneWillPanic() {
-	panic("oops")
-}
-
-func TestTryCatch(t *testing.T) {
-	caughtPanic = false
-	tryCatch(thisOneWillPanic, func(err interface{}, stack string) {
-		if err == nil {
-			t.Error("should provide error")
-			return
-		}
-
-		if stack == "" {
-			t.Error("should provide stack trace")
-			return
-		}
-
-		if !strings.Contains(stack, "TestTryCatch") ||
-			!strings.Contains(stack, "thisOneWillPanic") ||
-			!strings.Contains(stack, "proxy_test.go") {
-			t.Error("should provide function names and file names in the stack trace")
-			return
-		}
-	})
-}
-
-func TestTryCatchProvidesStackTraceOnlyOnce(t *testing.T) {
-	caughtPanic = false
-	tryCatch(thisOneWillPanic, func(err interface{}, stack string) {
-		if stack == "" {
-			t.Error("should provide stack trace the first time")
-			return
-		}
-	})
-	tryCatch(thisOneWillPanic, func(err interface{}, stack string) {
-		if stack != "" {
-			t.Error("should not provide stack trace the second time")
-			return
-		}
-	})
 }
 
 func benchmarkAccessLog(b *testing.B, filter string, responseCode int) {

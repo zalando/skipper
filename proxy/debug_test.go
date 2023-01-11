@@ -173,12 +173,10 @@ func TestDebug(t *testing.T) {
 		"error",
 		debugInfo{
 			err: errors.New("test error"),
-			filterPanics: []interface{}{
-				errors.New("panic one"),
-				errors.New("panic two")}},
+		},
 		debugDocument{
-			ProxyError:   "test error",
-			FilterPanics: []string{"panic one", "panic two"}},
+			ProxyError: "test error",
+		},
 	}} {
 		compareStrings := func(smsg string, got, expect []string) {
 			if len(got) != len(expect) {
@@ -277,7 +275,5 @@ func TestDebug(t *testing.T) {
 		if got.ProxyError != ti.expect.ProxyError {
 			t.Error(ti.msg, "failed to convert proxy error")
 		}
-
-		compareStrings("filter panics", got.FilterPanics, ti.expect.FilterPanics)
 	}
 }
