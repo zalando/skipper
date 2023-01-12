@@ -104,7 +104,7 @@ func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
 // In case of allow it will additionally use ZADD with a second
 // roundtrip.
 //
-// If a context is provided, it uses it for creating an OpenTracing span.
+// Uses provided context for creating an OpenTracing span.
 func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
 	now := time.Now()
@@ -274,7 +274,7 @@ func (*clusterLimitRedis) Resize(string, int) {}
 // ratelimits being not strongly consistent across calls to Allow()
 // and RetryAfter() (or Allow and RetryAfterContext accordingly).
 //
-// If a context is provided, it uses it for creating an OpenTracing span.
+// Uses context for creating an OpenTracing span.
 func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText string) int {
 	// If less than 1s to wait -> so set to 1
 	const minWait = 1

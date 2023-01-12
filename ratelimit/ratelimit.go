@@ -339,7 +339,7 @@ func (s Settings) String() string {
 // limiter defines the requirement to be used as a ratelimit implmentation.
 type limiter interface {
 	// Allow is used to get a decision if you should allow the
-	// call with context to pass or to ratelimit
+	// call with context, to pass or to ratelimit
 	Allow(context.Context, string) bool
 
 	// Close is used to clean up underlying limiter
@@ -369,10 +369,8 @@ type Ratelimit struct {
 	impl     limiter
 }
 
-// Allow is used to get a decision if you should allow the call and
-// accepts an optional context.Context, e.g. to
-// support OpenTracing. When the context handling is not provided by the
-// implementation, it falls back to the normal Allow method.
+// Allow is used to get a decision if you should allow the call
+// with context, e.g. to support OpenTracing.
 func (l *Ratelimit) Allow(ctx context.Context, s string) bool {
 	if l == nil {
 		return true

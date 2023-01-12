@@ -39,7 +39,7 @@ type RatelimitProvider interface {
 }
 
 type limit interface {
-	// Allow is used to decide if call is allowed to pass
+	// Allow is used to decide if call with context is allowed to pass
 	Allow(context.Context, string) bool
 
 	// RetryAfter is used to inform the client how many seconds it
