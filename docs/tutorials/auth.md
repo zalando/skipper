@@ -135,7 +135,7 @@ following picture:
 
 OpenID Connect is an OAuth2.0 based authentication and authorization mechanism supported by
 several providers. Skipper can act as a proxy for backend server which requires authenticated clients.
-Skipper handles the authentication with the provider and upon sucessful completion of authentication
+Skipper handles the authentication with the provider and upon successful completion of authentication
 passes subsequent requests to the backend server.
 
 Skipper's implementation of OpenID Connect Client works as follows:
@@ -254,12 +254,12 @@ access token for a user. Skipper supports the flow with the `oauthGrant()` filte
 It works as follows:
 
 1. A user makes a request to a route with `oauthGrant()`.
-1. The filter checks whether the request has a cookie called `oauth-grant`<sup>1</sup>. If it does not, or
+1. The filter checks whether the request has a cookie called `oauth-grant`<sup>[1](#grant-note-1)</sup>. If it does not, or
    if the cookie and its tokens are invalid, it redirects the user to the OAuth2 provider's 
-   authorization endpoint.
+   authorization endpoint<sup>[2](#grant-note-2)</sup>.
 1. The user logs into the external OAuth2 provider, e.g. by providing a username and password.
 1. The provider redirects the user back to Skipper with an authorization code, using the 
-   callback URL parameter which was part of the previous redirect. The callback route must
+   `redirect_uri` URL parameter which was part of the previous redirect<sup>[2](#grant-note-2)</sup>. The callback route must
    have a `grantCallback()` filter defined. Skipper automatically adds this callback route for you
    when the OAuth2 authorization grant flow feature is enabled. Note that the automatically added
 	 callback route does not apply [default filters](../operation/operation.md#default-filters).
@@ -267,11 +267,14 @@ It works as follows:
 	 the route manually in your routes files.
 1. Skipper calls the provider's token URL with the authorization code, and receives a response 
    with the access and refresh tokens.
-1. Skipper stores the tokens in an `oauth-grant`<sup>1</sup> cookie which is stored in the user's browser.
+1. Skipper stores the tokens in an `oauth-grant`<sup>[1](#grant-note-1)</sup> cookie which is stored in the user's browser.
 1. Subsequent calls to any route with an `oauthGrant()` filter will now pass as long as the
    access token is valid.
    
-1: The name of this cookie can be changed by providing the `-oauth2-token-cookie-name` parameter.
+<sup><a name="grant-note-1">1</a></sup> The name of this cookie can be changed by providing the `-oauth2-token-cookie-name` parameter.
+
+<sup><a name="grant-note-2">2</a></sup> The value of `redirect_uri` parameter of the authorization flow could be set by providing `-oauth2-auth-url-parameters=redirect_uri=https://example.org/oauth-callback`.
+   If not set Skipper will automatically determine it based on the initial request hostname and `-oauth2-callback-path` flag value.
 
 Please note that it is not currently possible to use multiple OAuth2 providers with Skipper.
 
@@ -296,6 +299,7 @@ To use authorization grant flow, you need to:
 1. [Add the OAuth2 grant filters to routes.](#add-filters-to-your-routes)
 
 #### Configure OAuth2 credentials
+
 Before you start, you need to register your application with the OAuth2 provider.
 If your provider asks you for the callback URL, provide the URL that you set 
 as the `-oauth2-callback-path` parameter. If you did not provide a value, use the default
