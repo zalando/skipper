@@ -974,7 +974,7 @@ func (p *Proxy) rejectBackend(ctx *context, req *http.Request) (*http.Response, 
 	if ok {
 		s := req.URL.Scheme + "://" + req.URL.Host
 
-		if !p.limiters.Get(limit.Settings).AllowContext(req.Context(), s) {
+		if !p.limiters.Get(limit.Settings).Allow(req.Context(), s) {
 			return &http.Response{
 				StatusCode: limit.StatusCode,
 				Header:     http.Header{"Content-Length": []string{"0"}},

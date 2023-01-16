@@ -78,11 +78,6 @@ func (c *clusterLimitRedis) measureQuery(format, groupFormat string, fail *bool,
 }
 
 func parentSpan(ctx context.Context) opentracing.Span {
-	// TODO: https://github.com/zalando/skipper/issues/2136
-	if ctx == nil {
-		return nil
-	}
-
 	return opentracing.SpanFromContext(ctx)
 }
 
@@ -97,7 +92,7 @@ func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
 	}
 }
 
-// AllowContext returns true if the request calculated across the cluster of
+// Allow returns true if the request calculated across the cluster of
 // skippers should be allowed else false. It will share it's own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
@@ -109,8 +104,8 @@ func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
 // In case of allow it will additionally use ZADD with a second
 // roundtrip.
 //
-// If a context is provided, it uses it for creating an OpenTracing span.
-func (c *clusterLimitRedis) AllowContext(ctx context.Context, clearText string) bool {
+// Uses provided context for creating an OpenTracing span.
+func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 	c.metrics.IncCounter(redisMetricsPrefix + "total")
 	now := time.Now()
 
@@ -177,11 +172,6 @@ func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, 
 	}
 
 	return true, nil
-}
-
-// Allow is like AllowContext, but not using a context.
-func (c *clusterLimitRedis) Allow(clearText string) bool {
-	return c.AllowContext(context.Background(), clearText)
 }
 
 // Close can not decide to teardown redis ring, because it is not the
@@ -282,9 +272,9 @@ func (*clusterLimitRedis) Resize(string, int) {}
 // done, because if not the ratelimit would be too few ratelimits,
 // because of how it's used in the proxy and the nature of cluster
 // ratelimits being not strongly consistent across calls to Allow()
-// and RetryAfter() (or AllowContext and RetryAfterContext accordingly).
+// and RetryAfter() (or Allow and RetryAfterContext accordingly).
 //
-// If a context is provided, it uses it for creating an OpenTracing span.
+// Uses context for creating an OpenTracing span.
 func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText string) int {
 	// If less than 1s to wait -> so set to 1
 	const minWait = 1

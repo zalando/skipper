@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"context"
 	"math"
 	"time"
 
@@ -78,11 +79,11 @@ func newClusterRateLimiterSwim(s Settings, sw Swarmer, group string) *clusterLim
 	return rl
 }
 
-// Allow returns true if the request calculated across the cluster of
+// Allow returns true if the request with context calculated across the cluster of
 // skippers should be allowed else false. It will share it's own data
 // and use the current cluster information to calculate global rates
 // to decide to allow or not.
-func (c *clusterLimitSwim) Allow(clearText string) bool {
+func (c *clusterLimitSwim) Allow(ctx context.Context, clearText string) bool {
 	s := getHashedKey(clearText)
 	key := swarmPrefix + c.group + "." + s
 
@@ -92,7 +93,7 @@ func (c *clusterLimitSwim) Allow(clearText string) bool {
 	// now - t0
 	t0 := c.Oldest(s).UTC().UnixNano()
 
-	_ = c.local.Allow(s) // update local rate limit
+	_ = c.local.Allow(ctx, s) // update local rate limit
 
 	if err := c.swarm.ShareValue(key, t0); err != nil {
 		log.Errorf("clusterRatelimit '%s' disabled, failed to share value: %v", c.group, err)

@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -116,7 +117,7 @@ func (r *Registry) Check(req *http.Request) (Settings, int) {
 	case ClusterServiceRatelimit:
 		fallthrough
 	case ServiceRatelimit:
-		if rlimit.Allow("") {
+		if rlimit.Allow(context.Background(), "") {
 			return s, 0
 		}
 		return s, rlimit.RetryAfter("")
@@ -128,7 +129,7 @@ func (r *Registry) Check(req *http.Request) (Settings, int) {
 		fallthrough
 	case ClientRatelimit:
 		ip := net.RemoteHost(req)
-		if !rlimit.Allow(ip.String()) {
+		if !rlimit.Allow(context.Background(), ip.String()) {
 			return s, rlimit.RetryAfter(ip.String())
 		}
 	}

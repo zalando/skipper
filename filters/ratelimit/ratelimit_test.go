@@ -78,8 +78,8 @@ func (l *testLimit) get(s ratelimit.Settings) limit {
 	return l
 }
 
-func (l *testLimit) AllowContext(context.Context, string) bool { return false }
-func (l *testLimit) RetryAfter(string) int                     { return 31415 }
+func (l *testLimit) Allow(context.Context, string) bool { return false }
+func (l *testLimit) RetryAfter(string) int              { return 31415 }
 
 func TestRateLimit(t *testing.T) {
 	test := func(
@@ -412,8 +412,8 @@ func (n *noLimit) get(ratelimit.Settings) limit {
 	}
 	return n
 }
-func (n *noLimit) AllowContext(context.Context, string) bool { return true }
-func (n *noLimit) RetryAfter(string) int                     { panic("unexpected RetryAfter call") }
+func (n *noLimit) Allow(context.Context, string) bool { return true }
+func (n *noLimit) RetryAfter(string) int              { panic("unexpected RetryAfter call") }
 
 func TestNilLimit(t *testing.T) {
 	f := &filter{provider: &noLimit{nilLimit: true}}

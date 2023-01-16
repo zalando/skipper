@@ -12,13 +12,13 @@ import (
 )
 
 func checkRatelimitted(t *testing.T, rl *Ratelimit, client string) {
-	if rl.Allow(client) {
+	if rl.Allow(context.Background(), client) {
 		t.Errorf("request is allowed for %s, but expected to be rate limitted", client)
 	}
 }
 
 func checkNotRatelimitted(t *testing.T, rl *Ratelimit, client string) {
-	if !rl.Allow(client) {
+	if !rl.Allow(context.Background(), client) {
 		t.Errorf("request is rate limitted for %s, but expected to be allowed", client)
 	}
 }
@@ -321,7 +321,7 @@ func BenchmarkServiceRatelimit(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow("")
+		rl.Allow(context.Background(), "")
 	}
 }
 
@@ -337,7 +337,7 @@ func BenchmarkLocalRatelimit(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow(client)
+		rl.Allow(context.Background(), client)
 	}
 }
 
@@ -353,7 +353,7 @@ func BenchmarkLocalRatelimitWithCleaner(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow(client)
+		rl.Allow(context.Background(), client)
 	}
 }
 
@@ -373,7 +373,7 @@ func BenchmarkLocalRatelimitClients1000(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow(clients[i%count])
+		rl.Allow(context.Background(), clients[i%count])
 	}
 }
 
@@ -394,7 +394,7 @@ func BenchmarkLocalRatelimitWithCleanerClients1000(b *testing.B) {
 
 	rl := newRatelimit(s, nil, nil)
 	for i := 0; i < b.N; i++ {
-		rl.Allow(clients[i%count])
+		rl.Allow(context.Background(), clients[i%count])
 	}
 }
 
@@ -566,7 +566,7 @@ func TestVoidRatelimit(t *testing.T) {
 	l.Resize("s", 5) // should do nothing
 	now := time.Now()
 	for i := 0; i < 100; i++ {
-		if l.Allow("s") != true {
+		if l.Allow(context.Background(), "s") != true {
 			t.Error("voidratelimit should always allow")
 		}
 		if l.RetryAfter("s") != 0 {
@@ -586,7 +586,7 @@ func TestZeroRatelimit(t *testing.T) {
 	l.Resize("s", 5) // should do nothing
 	now := time.Now()
 	for i := 0; i < 100; i++ {
-		if l.Allow("s") != false {
+		if l.Allow(context.Background(), "s") != false {
 			t.Error("zerolimit should always deny")
 		}
 		if l.RetryAfter("s") != zeroRetry {
@@ -615,12 +615,12 @@ func TestRatelimitImpl(t *testing.T) {
 	rl.Resize("", 5)
 
 	for i := 0; i < 5; i++ {
-		if rl.AllowContext(context.Background(), "") != true {
+		if rl.Allow(context.Background(), "") != true {
 			t.Error("service ratelimit should allow 5")
 		}
 	}
 
-	if rl.AllowContext(context.Background(), "") == true {
+	if rl.Allow(context.Background(), "") == true {
 		t.Error("After 5 allow we should get a deny")
 	}
 	if rl.RetryAfter("") == 0 {
@@ -631,7 +631,7 @@ func TestRatelimitImpl(t *testing.T) {
 	}
 
 	rl = nil
-	if rl.AllowContext(context.Background(), "") != true {
+	if rl.Allow(context.Background(), "") != true {
 		t.Error("nil ratelimiter should always allow")
 	}
 	if rl.RetryAfter("") != 0 {
