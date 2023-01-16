@@ -95,7 +95,8 @@ func (c *clusterLimitSwim) Allow(clearText string) bool {
 	_ = c.local.Allow(s) // update local rate limit
 
 	if err := c.swarm.ShareValue(key, t0); err != nil {
-		log.Errorf("%s clusterRatelimit failed to share value: %v", c.group, err)
+		log.Errorf("clusterRatelimit '%s' disabled, failed to share value: %v", c.group, err)
+		return true // unsafe to continue otherwise
 	}
 
 	swarmValues := c.swarm.Values(key)
