@@ -373,10 +373,10 @@ func (ac *admissionControl) pReject() float64 {
 
 	total, success := ac.count()
 	avgRps := total * ac.averageRpsFactor
-	if ac.mode == logInactive {
-		log.Infof("avgRps %0.2f does not reach minRps %d", avgRps, ac.minRps)
-	}
 	if avgRps < float64(ac.minRps) {
+		if ac.mode == logInactive {
+			log.Infof("avgRps %0.2f does not reach minRps %d", avgRps, ac.minRps)
+		}
 		return -1
 	}
 
