@@ -477,3 +477,38 @@ func TestGrantTokeninfoSubjectMissing(t *testing.T) {
 
 	checkRedirect(t, rsp, provider.URL+"/auth")
 }
+
+func TestGrantAuthParameterRedirectURI(t *testing.T) {
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+
+	// Configure fixed redirect_uri parameter
+	const redirectUriParamValue = "https://auth.test/a-callback"
+	config.AuthURLParameters["redirect_uri"] = redirectUriParamValue
+
+	proxy := newSimpleGrantAuthProxy(t, config)
+	defer proxy.Close()
+
+	client := newGrantHTTPClient()
+
+	rsp, err := client.Get(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+
+	checkRedirect(t, rsp, provider.URL+"/auth")
+
+	rsp, err = client.Get(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("Failed to make request to provider: %v.", err)
+	}
+	defer rsp.Body.Close()
+
+	checkRedirect(t, rsp, redirectUriParamValue)
+}
