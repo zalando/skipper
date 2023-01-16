@@ -23,6 +23,7 @@ import (
 	"github.com/zalando/skipper/proxy"
 	routesrv "github.com/zalando/skipper/routesrv"
 	"github.com/zalando/skipper/swarm"
+	"github.com/zalando/skipper/waf"
 )
 
 type Config struct {
@@ -66,6 +67,7 @@ type Config struct {
 	DataclientPlugins               *pluginFlag    `yaml:"dataclient-plugin"`
 	MultiPlugins                    *pluginFlag    `yaml:"multi-plugin"`
 	CompressEncodings               *listFlag      `yaml:"compress-encodings"`
+	EnableWAF                       bool           `yaml:"enable-waf"`
 
 	// logging, metrics, profiling, tracing:
 	EnablePrometheusMetrics             bool      `yaml:"enable-prometheus-metrics"`
@@ -344,6 +346,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.MultiPlugins, "multi-plugin", "set a custom multitype plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.CompressEncodings, "compress-encodings", "set encodings supported for compression, the order defines priority when Accept-Header has equal quality values, see RFC 7231 section 5.3.1")
+	flag.BoolVar(&cfg.EnableWAF, "enable-waf", false, "enable WAF")
 
 	// logging, metrics, tracing:
 	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, "*Deprecated*: use metrics-flavour. Switch to Prometheus metrics format to expose metrics")
@@ -731,6 +734,7 @@ func (c *Config) ToOptions() skipper.Options {
 		Plugins:                         c.MultiPlugins.values,
 		PluginDirs:                      []string{skipper.DefaultPluginDir},
 		CompressEncodings:               c.CompressEncodings.values,
+		EnableWAF:                       c.EnableWAF,
 
 		// logging, metrics, profiling, tracing:
 		EnablePrometheusMetrics:             c.EnablePrometheusMetrics,
@@ -991,6 +995,15 @@ func (c *Config) ToOptions() skipper.Options {
 			return &net.ValidateQueryLogHandler{
 				Handler: handler,
 			}
+		})
+	}
+
+	if c.EnableWAF {
+		wf := waf.New()
+		options.Waf = wf
+		wrappers = append(wrappers, func(handler http.Handler) http.Handler {
+			wf.Handler = handler
+			return wf
 		})
 	}
 

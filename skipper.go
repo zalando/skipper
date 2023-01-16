@@ -64,6 +64,7 @@ import (
 	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/waf"
 )
 
 const (
@@ -815,6 +816,10 @@ type Options struct {
 
 	// CompressEncodings, if not empty replace default compression encodings
 	CompressEncodings []string
+
+	// EnableWAF
+	EnableWAF bool
+	Waf       *waf.WAF
 
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
@@ -1824,6 +1829,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	routing := routing.New(ro)
 	defer routing.Close()
+	if o.EnableWAF {
+		o.Waf.AddRoutingOptions(ro)
+		go o.Waf.Run()
+	}
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
