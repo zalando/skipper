@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"strings"
 )
 
 type PrettyPrintInfo struct {
-	Pretty    bool
-	IndentStr string
+	Pretty         bool
+	IndentStr      string
+	SortPredicates bool
 }
 
 func escape(s string, chars string) string {
@@ -78,7 +80,7 @@ func argsString(args []interface{}) string {
 	return strings.Join(sargs, ", ")
 }
 
-func (r *Route) predicateString() string {
+func (r *Route) predicateString(sortPredicates bool) string {
 	var predicates []string
 
 	if r.Path != "" {
@@ -107,7 +109,14 @@ func (r *Route) predicateString() string {
 		}
 	}
 
-	for _, p := range r.Predicates {
+	rp := r.Predicates
+	if sortPredicates {
+		rp = make([]*Predicate, len(r.Predicates))
+		copy(rp, r.Predicates)
+		sort.Slice(rp, func(i, j int) bool { return rp[i].String() < rp[j].String() })
+	}
+
+	for _, p := range rp {
 		if p.Name != "Any" {
 			predicates = appendFmt(predicates, "%s(%s)", p.Name, argsString(p.Args))
 		}
@@ -181,7 +190,7 @@ func (r *Route) String() string {
 }
 
 func (r *Route) Print(prettyPrintInfo PrettyPrintInfo) string {
-	s := []string{r.predicateString()}
+	s := []string{r.predicateString(prettyPrintInfo.SortPredicates)}
 
 	fs := r.filterString(prettyPrintInfo)
 	if fs != "" {
