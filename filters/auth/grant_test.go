@@ -133,7 +133,7 @@ func newGrantTestAuthServer(testToken, testAccessCode string) *httptest.Server {
 }
 
 func newGrantTestConfig(tokeninfoURL, providerURL string) *auth.OAuthConfig {
-	return &auth.OAuthConfig{
+	c := &auth.OAuthConfig{
 		ClientID:          testClientID,
 		ClientSecret:      testClientSecret,
 		Secrets:           secrets.NewRegistry(),
@@ -145,6 +145,11 @@ func newGrantTestConfig(tokeninfoURL, providerURL string) *auth.OAuthConfig {
 		TokenCookieName:   testCookieName,
 		AuthURLParameters: map[string]string{testQueryParamKey: testQueryParamValue},
 	}
+	err := c.Init()
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 func newAuthProxy(config *auth.OAuthConfig, routes ...*eskip.Route) (*proxytest.TestProxy, error) {

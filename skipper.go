@@ -813,6 +813,8 @@ type Options struct {
 	// successful OAuth2 token exchange. Stores the encrypted access token.
 	OAuth2TokenCookieName string
 
+	OAuth2TokenCookieRemoveSubDomains int
+
 	// CompressEncodings, if not empty replace default compression encodings
 	CompressEncodings []string
 
@@ -1677,6 +1679,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
 		oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
 		oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
+		oauthConfig.TokenCookieRemoveSubDomains = &o.OAuth2TokenCookieRemoveSubDomains
 		oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout
 		oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
 		oauthConfig.Tracer = tracer
