@@ -3,6 +3,7 @@ package auth_test
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/net/dnstest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/secrets"
@@ -205,6 +207,7 @@ func newGrantCookie(config auth.OAuthConfig) (*http.Cookie, error) {
 }
 
 func checkStatus(t *testing.T, rsp *http.Response, expectedStatus int) {
+	t.Helper()
 	if rsp.StatusCode != expectedStatus {
 		t.Fatalf(
 			"Unexpected status code, got: %d, expected: %d.",
@@ -214,14 +217,22 @@ func checkStatus(t *testing.T, rsp *http.Response, expectedStatus int) {
 	}
 }
 
-func checkRedirect(t *testing.T, rsp *http.Response, expectedURL string) {
+func checkRedirect(t *testing.T, rsp *http.Response, expectedLocationWithoutQuery string) {
+	t.Helper()
+
 	checkStatus(t, rsp, http.StatusTemporaryRedirect)
-	redirectTo := rsp.Header.Get("Location")
-	if !strings.HasPrefix(redirectTo, expectedURL) {
+
+	location, err := url.Parse(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("Invalid location url: %v", err)
+	}
+	location.RawQuery = ""
+
+	if location.String() != expectedLocationWithoutQuery {
 		t.Fatalf(
 			"Unexpected redirect location, got: '%s', expected: '%s'.",
-			redirectTo,
-			expectedURL,
+			location,
+			expectedLocationWithoutQuery,
 		)
 	}
 }
@@ -236,7 +247,9 @@ func findAuthCookie(rsp *http.Response) (*http.Cookie, bool) {
 	return nil, false
 }
 
-func checkCookie(t *testing.T, rsp *http.Response) {
+func checkCookie(t *testing.T, rsp *http.Response, expectedDomain string) {
+	t.Helper()
+
 	c, ok := findAuthCookie(rsp)
 	if !ok {
 		t.Fatalf("Cookie not found.")
@@ -257,6 +270,10 @@ func checkCookie(t *testing.T, rsp *http.Response) {
 	accessTokenExpiryTime := time.Now().Add(testAccessTokenExpiresIn)
 	if c.Expires.Before(accessTokenExpiryTime) || c.Expires == accessTokenExpiryTime {
 		t.Fatalf("Cookie expires with or before access token.")
+	}
+
+	if c.Domain != expectedDomain {
+		t.Fatalf("Incorrect cookie domain: %s, expected: %s", c.Domain, expectedDomain)
 	}
 }
 
@@ -281,6 +298,13 @@ func grantQueryWithCookie(t *testing.T, client *http.Client, url string, cookies
 }
 
 func TestGrantFlow(t *testing.T) {
+	const (
+		applicationDomain  = "foo.skipper.test"
+		expectCookieDomain = "skipper.test"
+	)
+
+	dnstest.LoopbackNames(t, applicationDomain)
+
 	provider := newGrantTestAuthServer(testToken, testAccessCode)
 	defer provider.Close()
 
@@ -289,13 +313,20 @@ func TestGrantFlow(t *testing.T) {
 
 	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
 
-	proxy := newSimpleGrantAuthProxy(t, config)
-	defer proxy.Close()
+	var proxyUrl string
+	{
+		proxy := newSimpleGrantAuthProxy(t, config)
+		defer proxy.Close()
+
+		u, _ := url.Parse(proxy.URL)
+		u.Host = net.JoinHostPort(applicationDomain, u.Port())
+		proxyUrl = u.String()
+	}
 
 	client := newGrantHTTPClient()
 
 	t.Run("check full grant flow", func(t *testing.T) {
-		rsp, err := client.Get(proxy.URL)
+		rsp, err := client.Get(proxyUrl + "/test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -311,7 +342,7 @@ func TestGrantFlow(t *testing.T) {
 
 		defer rsp.Body.Close()
 
-		checkRedirect(t, rsp, proxy.URL+"/.well-known/oauth2-callback")
+		checkRedirect(t, rsp, proxyUrl+"/.well-known/oauth2-callback")
 
 		rsp, err = client.Get(rsp.Header.Get("Location"))
 		if err != nil {
@@ -320,9 +351,9 @@ func TestGrantFlow(t *testing.T) {
 
 		defer rsp.Body.Close()
 
-		checkRedirect(t, rsp, proxy.URL)
+		checkRedirect(t, rsp, proxyUrl+"/test")
 
-		checkCookie(t, rsp)
+		checkCookie(t, rsp, expectCookieDomain)
 
 		req, err := http.NewRequest("GET", rsp.Header.Get("Location"), nil)
 		if err != nil {
@@ -345,24 +376,22 @@ func TestGrantFlow(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
 
 		checkRedirect(t, rsp, provider.URL+"/auth")
 	})
 
 	t.Run("check login is triggered when cookie is corrupted", func(t *testing.T) {
-		url, _ := url.Parse(proxy.URL)
 		cookie := &http.Cookie{
 			Name:     config.TokenCookieName,
 			Value:    "corruptedcookievalue",
 			Path:     "/",
-			Domain:   url.Hostname(),
 			Expires:  time.Now().Add(time.Duration(1) * time.Hour),
 			Secure:   true,
 			HttpOnly: true,
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
 
 		checkRedirect(t, rsp, provider.URL+"/auth")
 	})
@@ -372,7 +401,7 @@ func TestGrantFlow(t *testing.T) {
 		badCookie.Value = "invalid"
 		goodCookie, _ := newGrantCookie(*config)
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, badCookie, goodCookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, badCookie, goodCookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
@@ -380,7 +409,7 @@ func TestGrantFlow(t *testing.T) {
 	t.Run("check does not send cookie again if token was not refreshed", func(t *testing.T) {
 		goodCookie, _ := newGrantCookie(*config)
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, goodCookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, goodCookie)
 
 		_, ok := findAuthCookie(rsp)
 		if ok {
@@ -511,4 +540,55 @@ func TestGrantAuthParameterRedirectURI(t *testing.T) {
 	defer rsp.Body.Close()
 
 	checkRedirect(t, rsp, redirectUriParamValue)
+}
+
+func TestGrantTokenCookieRemoveSubDomains(t *testing.T) {
+	const (
+		applicationDomain  = "foo.skipper.test"
+		expectCookieDomain = applicationDomain
+	)
+
+	dnstest.LoopbackNames(t, applicationDomain)
+
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	zero := 0
+	config.TokenCookieRemoveSubdomains = &zero
+
+	var proxyUrl string
+	{
+		proxy := newSimpleGrantAuthProxy(t, config)
+		defer proxy.Close()
+
+		u, _ := url.Parse(proxy.URL)
+		u.Host = net.JoinHostPort(applicationDomain, u.Port())
+		proxyUrl = u.String()
+	}
+
+	client := newGrantHTTPClient()
+
+	rsp, err := client.Get(proxyUrl + "/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+
+	rsp, err = client.Get(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("Failed to make request to provider: %v.", err)
+	}
+	defer rsp.Body.Close()
+
+	rsp, err = client.Get(rsp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("Failed to make request to proxy: %v.", err)
+	}
+	defer rsp.Body.Close()
+
+	checkCookie(t, rsp, expectCookieDomain)
 }

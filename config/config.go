@@ -178,34 +178,35 @@ type Config struct {
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
 
 	// Auth:
-	EnableOAuth2GrantFlow           bool          `yaml:"enable-oauth2-grant-flow"`
-	OauthURL                        string        `yaml:"oauth-url"`
-	OauthScope                      string        `yaml:"oauth-scope"`
-	OauthCredentialsDir             string        `yaml:"oauth-credentials-dir"`
-	Oauth2AuthURL                   string        `yaml:"oauth2-auth-url"`
-	Oauth2TokenURL                  string        `yaml:"oauth2-token-url"`
-	Oauth2RevokeTokenURL            string        `yaml:"oauth2-revoke-token-url"`
-	Oauth2TokeninfoURL              string        `yaml:"oauth2-tokeninfo-url"`
-	Oauth2TokeninfoTimeout          time.Duration `yaml:"oauth2-tokeninfo-timeout"`
-	Oauth2TokeninfoCacheSize        int           `yaml:"oauth2-tokeninfo-cache-size"`
-	Oauth2TokeninfoCacheTTL         time.Duration `yaml:"oauth2-tokeninfo-cache-ttl"`
-	Oauth2SecretFile                string        `yaml:"oauth2-secret-file"`
-	Oauth2ClientID                  string        `yaml:"oauth2-client-id"`
-	Oauth2ClientSecret              string        `yaml:"oauth2-client-secret"`
-	Oauth2ClientIDFile              string        `yaml:"oauth2-client-id-file"`
-	Oauth2ClientSecretFile          string        `yaml:"oauth2-client-secret-file"`
-	Oauth2AuthURLParameters         mapFlags      `yaml:"oauth2-auth-url-parameters"`
-	Oauth2CallbackPath              string        `yaml:"oauth2-callback-path"`
-	Oauth2TokenintrospectionTimeout time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
-	Oauth2AccessTokenHeaderName     string        `yaml:"oauth2-access-token-header-name"`
-	Oauth2TokeninfoSubjectKey       string        `yaml:"oauth2-tokeninfo-subject-key"`
-	Oauth2TokenCookieName           string        `yaml:"oauth2-token-cookie-name"`
-	WebhookTimeout                  time.Duration `yaml:"webhook-timeout"`
-	OidcSecretsFile                 string        `yaml:"oidc-secrets-file"`
-	OIDCCookieValidity              time.Duration `yaml:"oidc-cookie-validity"`
-	OidcDistributedClaimsTimeout    time.Duration `yaml:"oidc-distributed-claims-timeout"`
-	CredentialPaths                 *listFlag     `yaml:"credentials-paths"`
-	CredentialsUpdateInterval       time.Duration `yaml:"credentials-update-interval"`
+	EnableOAuth2GrantFlow             bool          `yaml:"enable-oauth2-grant-flow"`
+	OauthURL                          string        `yaml:"oauth-url"`
+	OauthScope                        string        `yaml:"oauth-scope"`
+	OauthCredentialsDir               string        `yaml:"oauth-credentials-dir"`
+	Oauth2AuthURL                     string        `yaml:"oauth2-auth-url"`
+	Oauth2TokenURL                    string        `yaml:"oauth2-token-url"`
+	Oauth2RevokeTokenURL              string        `yaml:"oauth2-revoke-token-url"`
+	Oauth2TokeninfoURL                string        `yaml:"oauth2-tokeninfo-url"`
+	Oauth2TokeninfoTimeout            time.Duration `yaml:"oauth2-tokeninfo-timeout"`
+	Oauth2TokeninfoCacheSize          int           `yaml:"oauth2-tokeninfo-cache-size"`
+	Oauth2TokeninfoCacheTTL           time.Duration `yaml:"oauth2-tokeninfo-cache-ttl"`
+	Oauth2SecretFile                  string        `yaml:"oauth2-secret-file"`
+	Oauth2ClientID                    string        `yaml:"oauth2-client-id"`
+	Oauth2ClientSecret                string        `yaml:"oauth2-client-secret"`
+	Oauth2ClientIDFile                string        `yaml:"oauth2-client-id-file"`
+	Oauth2ClientSecretFile            string        `yaml:"oauth2-client-secret-file"`
+	Oauth2AuthURLParameters           mapFlags      `yaml:"oauth2-auth-url-parameters"`
+	Oauth2CallbackPath                string        `yaml:"oauth2-callback-path"`
+	Oauth2TokenintrospectionTimeout   time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
+	Oauth2AccessTokenHeaderName       string        `yaml:"oauth2-access-token-header-name"`
+	Oauth2TokeninfoSubjectKey         string        `yaml:"oauth2-tokeninfo-subject-key"`
+	Oauth2TokenCookieName             string        `yaml:"oauth2-token-cookie-name"`
+	Oauth2TokenCookieRemoveSubdomains int           `yaml:"oauth2-token-cookie-remove-subdomains"`
+	WebhookTimeout                    time.Duration `yaml:"webhook-timeout"`
+	OidcSecretsFile                   string        `yaml:"oidc-secrets-file"`
+	OIDCCookieValidity                time.Duration `yaml:"oidc-cookie-validity"`
+	OidcDistributedClaimsTimeout      time.Duration `yaml:"oidc-distributed-claims-timeout"`
+	CredentialPaths                   *listFlag     `yaml:"credentials-paths"`
+	CredentialsUpdateInterval         time.Duration `yaml:"credentials-update-interval"`
 
 	// TLS client certs
 	ClientKeyFile  string            `yaml:"client-tls-key"`
@@ -473,6 +474,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", "sets the access token to a header on the request with this name")
 	flag.StringVar(&cfg.Oauth2TokeninfoSubjectKey, "oauth2-tokeninfo-subject-key", "uid", "sets the access token to a header on the request with this name")
 	flag.StringVar(&cfg.Oauth2TokenCookieName, "oauth2-token-cookie-name", "oauth2-grant", "sets the name of the cookie where the encrypted token is stored")
+	flag.IntVar(&cfg.Oauth2TokenCookieRemoveSubdomains, "oauth2-token-cookie-remove-subdomains", 1, "sets the number of subdomains to remove from the callback request hostname to obtain token cookie domain")
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", "file storing the encryption key of the OID Connect token. Enables OIDC filters")
 	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, in case no 'exp' claim is found in the JWT token")
@@ -828,34 +830,35 @@ func (c *Config) ToOptions() skipper.Options {
 		DefaultFiltersDir: c.DefaultFiltersDir,
 
 		// Auth:
-		EnableOAuth2GrantFlow:          c.EnableOAuth2GrantFlow,
-		OAuthUrl:                       c.OauthURL,
-		OAuthScope:                     c.OauthScope,
-		OAuthCredentialsDir:            c.OauthCredentialsDir,
-		OAuth2AuthURL:                  c.Oauth2AuthURL,
-		OAuth2TokenURL:                 c.Oauth2TokenURL,
-		OAuth2RevokeTokenURL:           c.Oauth2RevokeTokenURL,
-		OAuthTokeninfoURL:              c.Oauth2TokeninfoURL,
-		OAuthTokeninfoTimeout:          c.Oauth2TokeninfoTimeout,
-		OAuthTokeninfoCacheSize:        c.Oauth2TokeninfoCacheSize,
-		OAuthTokeninfoCacheTTL:         c.Oauth2TokeninfoCacheTTL,
-		OAuth2SecretFile:               c.Oauth2SecretFile,
-		OAuth2ClientID:                 c.Oauth2ClientID,
-		OAuth2ClientSecret:             c.Oauth2ClientSecret,
-		OAuth2ClientIDFile:             c.Oauth2ClientIDFile,
-		OAuth2ClientSecretFile:         c.Oauth2ClientSecretFile,
-		OAuth2CallbackPath:             c.Oauth2CallbackPath,
-		OAuthTokenintrospectionTimeout: c.Oauth2TokenintrospectionTimeout,
-		OAuth2AuthURLParameters:        c.Oauth2AuthURLParameters.values,
-		OAuth2AccessTokenHeaderName:    c.Oauth2AccessTokenHeaderName,
-		OAuth2TokeninfoSubjectKey:      c.Oauth2TokeninfoSubjectKey,
-		OAuth2TokenCookieName:          c.Oauth2TokenCookieName,
-		WebhookTimeout:                 c.WebhookTimeout,
-		OIDCSecretsFile:                c.OidcSecretsFile,
-		OIDCCookieValidity:             c.OIDCCookieValidity,
-		OIDCDistributedClaimsTimeout:   c.OidcDistributedClaimsTimeout,
-		CredentialsPaths:               c.CredentialPaths.values,
-		CredentialsUpdateInterval:      c.CredentialsUpdateInterval,
+		EnableOAuth2GrantFlow:             c.EnableOAuth2GrantFlow,
+		OAuthUrl:                          c.OauthURL,
+		OAuthScope:                        c.OauthScope,
+		OAuthCredentialsDir:               c.OauthCredentialsDir,
+		OAuth2AuthURL:                     c.Oauth2AuthURL,
+		OAuth2TokenURL:                    c.Oauth2TokenURL,
+		OAuth2RevokeTokenURL:              c.Oauth2RevokeTokenURL,
+		OAuthTokeninfoURL:                 c.Oauth2TokeninfoURL,
+		OAuthTokeninfoTimeout:             c.Oauth2TokeninfoTimeout,
+		OAuthTokeninfoCacheSize:           c.Oauth2TokeninfoCacheSize,
+		OAuthTokeninfoCacheTTL:            c.Oauth2TokeninfoCacheTTL,
+		OAuth2SecretFile:                  c.Oauth2SecretFile,
+		OAuth2ClientID:                    c.Oauth2ClientID,
+		OAuth2ClientSecret:                c.Oauth2ClientSecret,
+		OAuth2ClientIDFile:                c.Oauth2ClientIDFile,
+		OAuth2ClientSecretFile:            c.Oauth2ClientSecretFile,
+		OAuth2CallbackPath:                c.Oauth2CallbackPath,
+		OAuthTokenintrospectionTimeout:    c.Oauth2TokenintrospectionTimeout,
+		OAuth2AuthURLParameters:           c.Oauth2AuthURLParameters.values,
+		OAuth2AccessTokenHeaderName:       c.Oauth2AccessTokenHeaderName,
+		OAuth2TokeninfoSubjectKey:         c.Oauth2TokeninfoSubjectKey,
+		OAuth2TokenCookieName:             c.Oauth2TokenCookieName,
+		OAuth2TokenCookieRemoveSubdomains: c.Oauth2TokenCookieRemoveSubdomains,
+		WebhookTimeout:                    c.WebhookTimeout,
+		OIDCSecretsFile:                   c.OidcSecretsFile,
+		OIDCCookieValidity:                c.OIDCCookieValidity,
+		OIDCDistributedClaimsTimeout:      c.OidcDistributedClaimsTimeout,
+		CredentialsPaths:                  c.CredentialPaths.values,
+		CredentialsUpdateInterval:         c.CredentialsUpdateInterval,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,

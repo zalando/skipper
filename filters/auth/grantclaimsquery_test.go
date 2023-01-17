@@ -19,6 +19,9 @@ func TestGrantClaimsQuery(t *testing.T) {
 	defer tokeninfo.Close()
 
 	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	if err := config.Init(); err != nil {
+		t.Fatal(err)
+	}
 
 	client := newGrantHTTPClient()
 
