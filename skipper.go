@@ -43,6 +43,7 @@ import (
 	"github.com/zalando/skipper/metrics"
 	skpnet "github.com/zalando/skipper/net"
 	pauth "github.com/zalando/skipper/predicates/auth"
+	"github.com/zalando/skipper/predicates/content"
 	"github.com/zalando/skipper/predicates/cookie"
 	"github.com/zalando/skipper/predicates/cron"
 	"github.com/zalando/skipper/predicates/forwarded"
@@ -1755,6 +1756,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		forwarded.NewForwardedHost(),
 		forwarded.NewForwardedProto(),
 		host.NewAny(),
+		content.NewContentLengthBetween(),
 	)
 
 	// provide default value for wrapper if not defined

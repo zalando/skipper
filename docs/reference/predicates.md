@@ -715,3 +715,23 @@ catalog:
     responseCookie("catalog-test", "default") ->
     "https://catalog";
 ```
+
+## ContentLengthBetween
+
+The ContentLengthBetween predicate matches a route when a request content length header value is between min and max provided values.
+In case the client does not specify the content length value then the predicate will not match.
+
+Parameters:
+
+* min (int): the lower bound (inclusive) for the content length check. The value must be greater than or equal to 0.
+* max (int): the upper bound (exclusive) for the content length check. The value must be greater than `min`.
+
+Examples:
+
+```
+// matches the range from 0 to 999
+ContentLengthBetween(0, 1000)
+
+// matches the range from 1000 to 9999
+ContentLengthBetween(1000, 10000)
+```
