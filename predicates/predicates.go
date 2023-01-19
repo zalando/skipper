@@ -44,4 +44,5 @@ const (
 	ClientIPName              = "ClientIP"
 	TeeName                   = "Tee"
 	TrafficName               = "Traffic"
+	ContentLengthBetweenName  = "ContentLengthBetween"
 )
