@@ -6,52 +6,67 @@ import (
 	"testing"
 )
 
+func TestContentLengthCreate(t *testing.T) {
+	s := NewContentLengthBetween()
+
+	_, err := s.Create([]interface{}{1000.0, 1000.0})
+
+	if err == nil {
+		t.Fatal("expected error here, lower bound equals upper bound")
+	}
+}
+
 func TestContentLengthMatch(t *testing.T) {
 	s := NewContentLengthBetween()
 	for _, tc := range []struct {
-		minLength int64
-		maxLength int64
-		args      []interface{}
-		match     bool
+		length int64
+		args   []interface{}
+		match  bool
 	}{
 		{
-			minLength: 0,
-			maxLength: 5000,
-			args:      []interface{}{3000},
-			match:     true,
+			length: 3000,
+			args:   []interface{}{0.0, 5000.0},
+			match:  true,
 		},
 		{
-			minLength: 0,
-			maxLength: 5000,
-			args:      []interface{}{6000},
-			match:     false,
+			length: 6000,
+			args:   []interface{}{0.0, 5000.0},
+			match:  false,
 		},
 		{
-			minLength: 5000,
-			maxLength: 50000,
-			args:      []interface{}{30000},
-			match:     true,
+			length: 30000,
+			args:   []interface{}{5000.0, 50000.0},
+			match:  true,
 		},
 		{
-			minLength: 50000,
-			maxLength: 5000000,
-			args:      []interface{}{300000},
-			match:     true,
+			length: 300000,
+			args:   []interface{}{50000.0, 5000000.0},
+			match:  true,
 		},
 		{
-			minLength: 0,
-			maxLength: 5000,
-			args:      []interface{}{-1},
-			match:     false,
+			length: -1,
+			args:   []interface{}{0.0, 5000.0},
+			match:  false,
+		},
+		{
+			length: 999,
+			args:   []interface{}{0.0, 1000.0},
+			match:  true,
+		},
+		{
+			length: 1000,
+			args:   []interface{}{0.0, 1000.0},
+			match:  false,
 		},
 	} {
-		t.Run(fmt.Sprintf("predicate %v - %v, match %s", tc.minLength, tc.maxLength, tc.args),
+		t.Run(fmt.Sprintf("predicate %v match %v", tc.args, tc.length),
 			func(t *testing.T) {
 				p, err := s.Create(tc.args)
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
-				if p.Match(&http.Request{ContentLength: tc.maxLength}) != tc.match {
+
+				if p.Match(&http.Request{ContentLength: tc.length}) != tc.match {
 					t.Errorf("expected match: %v", tc.match)
 				}
 			})
