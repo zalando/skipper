@@ -178,6 +178,28 @@ func TestPrintNonPretty(t *testing.T) {
 	}
 }
 
+func TestPrintSortedPredicates(t *testing.T) {
+	for i, item := range []struct {
+		route    string
+		expected string
+	}{
+		{
+			`routeWithoutDefaultPredicates: True() && Cookie("alpha", "/^enabled$/") -> "https://www.example.org"`,
+			`Cookie("alpha", "/^enabled$/") && True() -> "https://www.example.org"`,
+		},
+		{
+			`routeWithDefaultPredicates: True() && Cookie("alpha", "/^enabled$/") && Method("GET") -> "https://www.example.org"`,
+			`Method("GET") && Cookie("alpha", "/^enabled$/") && True() -> "https://www.example.org"`,
+		},
+		{
+			`routeWithDefaultPredicatesOnly: Header("Accept", "application/json") && Method("GET") -> "https://www.example.org"`,
+			`Method("GET") && Header("Accept", "application/json") -> "https://www.example.org"`,
+		},
+	} {
+		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: "", SortPredicates: true}, false)
+	}
+}
+
 func TestPrintPretty(t *testing.T) {
 	for i, item := range []struct {
 		route    string
