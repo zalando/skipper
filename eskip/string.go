@@ -10,9 +10,10 @@ import (
 )
 
 type PrettyPrintInfo struct {
-	Pretty         bool
-	IndentStr      string
-	SortPredicates bool
+	Pretty                    bool
+	IndentStr                 string
+	SortPredicates            bool
+	SortHeaderPredicateValues bool
 }
 
 func escape(s string, chars string) string {
@@ -80,7 +81,7 @@ func argsString(args []interface{}) string {
 	return strings.Join(sargs, ", ")
 }
 
-func (r *Route) predicateString(sortPredicates bool) string {
+func (r *Route) predicateString(sortPredicates, sortHeaderPredicateValues bool) string {
 	var predicates []string
 
 	if r.Path != "" {
@@ -99,8 +100,18 @@ func (r *Route) predicateString(sortPredicates bool) string {
 		predicates = appendFmtEscape(predicates, `Method("%s")`, `"`, r.Method)
 	}
 
-	for k, v := range r.Headers {
-		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, k, v)
+	headerKeys := make([]string, 0, len(r.Headers))
+
+	for k := range r.Headers {
+		headerKeys = append(headerKeys, k)
+	}
+
+	if sortHeaderPredicateValues {
+		sort.SliceStable(headerKeys, func(i, j int) bool { return r.Headers[headerKeys[i]] < r.Headers[headerKeys[j]] })
+	}
+
+	for _, key := range headerKeys {
+		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, r.Headers[key])
 	}
 
 	for k, rxs := range r.HeaderRegexps {
@@ -190,7 +201,7 @@ func (r *Route) String() string {
 }
 
 func (r *Route) Print(prettyPrintInfo PrettyPrintInfo) string {
-	s := []string{r.predicateString(prettyPrintInfo.SortPredicates)}
+	s := []string{r.predicateString(prettyPrintInfo.SortPredicates, prettyPrintInfo.SortHeaderPredicateValues)}
 
 	fs := r.filterString(prettyPrintInfo)
 	if fs != "" {
