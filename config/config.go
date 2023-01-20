@@ -114,27 +114,23 @@ type Config struct {
 	SuppressRouteUpdateLogs             bool      `yaml:"suppress-route-update-logs"`
 
 	// route sources:
-	EtcdUrls                  string               `yaml:"etcd-urls"`
-	EtcdPrefix                string               `yaml:"etcd-prefix"`
-	EtcdTimeout               time.Duration        `yaml:"etcd-timeout"`
-	EtcdInsecure              bool                 `yaml:"etcd-insecure"`
-	EtcdOAuthToken            string               `yaml:"etcd-oauth-token"`
-	EtcdUsername              string               `yaml:"etcd-username"`
-	EtcdPassword              string               `yaml:"etcd-password"`
-	InnkeeperURL              string               `yaml:"innkeeper-url"`
-	InnkeeperAuthToken        string               `yaml:"innkeeper-auth-token"`
-	InnkeeperPreRouteFilters  string               `yaml:"innkeeper-pre-route-filters"`
-	InnkeeperPostRouteFilters string               `yaml:"innkeeper-post-route-filters"`
-	RoutesFile                string               `yaml:"routes-file"`
-	RoutesURLs                *listFlag            `yaml:"routes-urls"`
-	InlineRoutes              string               `yaml:"inline-routes"`
-	AppendFilters             *defaultFiltersFlags `yaml:"default-filters-append"`
-	PrependFilters            *defaultFiltersFlags `yaml:"default-filters-prepend"`
-	DisabledFilters           *listFlag            `yaml:"disabled-filters"`
-	EditRoute                 routeChangerConfig   `yaml:"edit-route"`
-	CloneRoute                routeChangerConfig   `yaml:"clone-route"`
-	SourcePollTimeout         int64                `yaml:"source-poll-timeout"`
-	WaitFirstRouteLoad        bool                 `yaml:"wait-first-route-load"`
+	EtcdUrls           string               `yaml:"etcd-urls"`
+	EtcdPrefix         string               `yaml:"etcd-prefix"`
+	EtcdTimeout        time.Duration        `yaml:"etcd-timeout"`
+	EtcdInsecure       bool                 `yaml:"etcd-insecure"`
+	EtcdOAuthToken     string               `yaml:"etcd-oauth-token"`
+	EtcdUsername       string               `yaml:"etcd-username"`
+	EtcdPassword       string               `yaml:"etcd-password"`
+	RoutesFile         string               `yaml:"routes-file"`
+	RoutesURLs         *listFlag            `yaml:"routes-urls"`
+	InlineRoutes       string               `yaml:"inline-routes"`
+	AppendFilters      *defaultFiltersFlags `yaml:"default-filters-append"`
+	PrependFilters     *defaultFiltersFlags `yaml:"default-filters-prepend"`
+	DisabledFilters    *listFlag            `yaml:"disabled-filters"`
+	EditRoute          routeChangerConfig   `yaml:"edit-route"`
+	CloneRoute         routeChangerConfig   `yaml:"clone-route"`
+	SourcePollTimeout  int64                `yaml:"source-poll-timeout"`
+	WaitFirstRouteLoad bool                 `yaml:"wait-first-route-load"`
 
 	// Forwarded headers
 	ForwardedHeadersList            *listFlag            `yaml:"forwarded-headers"`
@@ -179,9 +175,6 @@ type Config struct {
 
 	// Auth:
 	EnableOAuth2GrantFlow             bool          `yaml:"enable-oauth2-grant-flow"`
-	OauthURL                          string        `yaml:"oauth-url"`
-	OauthScope                        string        `yaml:"oauth-scope"`
-	OauthCredentialsDir               string        `yaml:"oauth-credentials-dir"`
 	Oauth2AuthURL                     string        `yaml:"oauth2-auth-url"`
 	Oauth2TokenURL                    string        `yaml:"oauth2-token-url"`
 	Oauth2RevokeTokenURL              string        `yaml:"oauth2-revoke-token-url"`
@@ -398,10 +391,6 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.EtcdOAuthToken, "etcd-oauth-token", "", "optional token for OAuth authentication with etcd")
 	flag.StringVar(&cfg.EtcdUsername, "etcd-username", "", "optional username for basic authentication with etcd")
 	flag.StringVar(&cfg.EtcdPassword, "etcd-password", "", "optional password for basic authentication with etcd")
-	flag.StringVar(&cfg.InnkeeperURL, "innkeeper-url", "", "API endpoint of the Innkeeper service, storing route definitions")
-	flag.StringVar(&cfg.InnkeeperAuthToken, "innkeeper-auth-token", "", "fixed token for innkeeper authentication")
-	flag.StringVar(&cfg.InnkeeperPreRouteFilters, "innkeeper-pre-route-filters", "", "filters to be prepended to each route loaded from Innkeeper")
-	flag.StringVar(&cfg.InnkeeperPostRouteFilters, "innkeeper-post-route-filters", "", "filters to be appended to each route loaded from Innkeeper")
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
 	flag.Var(cfg.RoutesURLs, "routes-urls", "comma separated URLs to route definitions in eskip format")
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
@@ -453,9 +442,6 @@ func NewConfig() *Config {
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
-	flag.StringVar(&cfg.OauthURL, "oauth-url", "", "OAuth2 URL for Innkeeper authentication")
-	flag.StringVar(&cfg.OauthScope, "oauth-scope", "", "the whitespace separated list of oauth scopes")
-	flag.StringVar(&cfg.OauthCredentialsDir, "oauth-credentials-dir", "", "directory where oauth credentials are stored: client.json and user.json")
 	flag.StringVar(&cfg.Oauth2AuthURL, "oauth2-auth-url", "", "sets the OAuth2 Auth URL to redirect the requests to when login is required")
 	flag.StringVar(&cfg.Oauth2TokenURL, "oauth2-token-url", "", "the url where the access code should be exchanged for the access token")
 	flag.StringVar(&cfg.Oauth2RevokeTokenURL, "oauth2-revoke-token-url", "", "the url where the access and refresh tokens can be revoked when logging out")
