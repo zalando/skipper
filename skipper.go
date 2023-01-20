@@ -1264,10 +1264,6 @@ func listenAndServeQuit(
 	return nil
 }
 
-func listenAndServe(proxy http.Handler, o *Options) error {
-	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
-}
-
 func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Client {
 	var kdc *kubernetes.Client
 	for _, dc := range dataClients {

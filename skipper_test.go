@@ -23,7 +23,6 @@ import (
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
 	fscheduler "github.com/zalando/skipper/filters/scheduler"
-	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/httptest"
@@ -44,6 +43,10 @@ const (
 	listenDelay   = 15 * time.Millisecond
 	listenTimeout = 9 * listenDelay
 )
+
+func listenAndServe(proxy http.Handler, o *Options) error {
+	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
+}
 
 func testListener() bool {
 	for _, a := range os.Args {
@@ -714,7 +717,7 @@ func TestDataClients(t *testing.T) {
 		StatusChecks:                    []string{"http://127.0.0.1:8091/metrics", "http://127.0.0.1:8092"},
 	}
 
-	dcs, err := createDataClients(o, innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{}), nil)
+	dcs, err := createDataClients(o, nil)
 	if err != nil {
 		t.Fatalf("Failed to createDataclients: %v", err)
 	}
