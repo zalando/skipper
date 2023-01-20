@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -91,6 +92,11 @@ type OAuthConfig struct {
 	// encrypted access token after a successful token exchange.
 	TokenCookieName string
 
+	// TokenCookieRemoveSubdomains sets the number of subdomains to remove from
+	// the callback request hostname to obtain token cookie domain.
+	// Init converts default nil to 1.
+	TokenCookieRemoveSubdomains *int
+
 	// ConnectionTimeout used for tokeninfo, access-token and refresh-token endpoint.
 	ConnectionTimeout time.Duration
 
@@ -146,6 +152,13 @@ func (c *OAuthConfig) Init() error {
 
 	if c.TokenCookieName == "" {
 		c.TokenCookieName = defaultTokenCookieName
+	}
+
+	if c.TokenCookieRemoveSubdomains == nil {
+		one := 1
+		c.TokenCookieRemoveSubdomains = &one
+	} else if *c.TokenCookieRemoveSubdomains < 0 {
+		return fmt.Errorf("invalid number of cookie subdomains to remove")
 	}
 
 	if c.TokeninfoClient == nil {
