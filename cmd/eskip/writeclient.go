@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+
 	"github.com/zalando/skipper/eskip"
 	etcdclient "github.com/zalando/skipper/etcd"
 )
@@ -21,8 +22,6 @@ func createWriteClient(out *medium) (writeClient, error) {
 	}
 
 	switch out.typ {
-	case innkeeper:
-		return createInnkeeperClient(out)
 	case etcd:
 		return etcdclient.New(etcdclient.Options{
 			Endpoints:  urlsToStrings(out.urls),

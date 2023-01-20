@@ -37,7 +37,6 @@ import (
 	logfilter "github.com/zalando/skipper/filters/log"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
-	"github.com/zalando/skipper/innkeeper"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -274,32 +273,6 @@ type Options struct {
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
-
-	// *DEPRECATED* API endpoint of the Innkeeper service, storing route definitions.
-	InnkeeperUrl string
-
-	// *DEPRECATED* Fixed token for innkeeper authentication. (Used mainly in
-	// development environments.)
-	InnkeeperAuthToken string
-
-	// *DEPRECATED* Filters to be prepended to each route loaded from Innkeeper.
-	InnkeeperPreRouteFilters string
-
-	// *DEPRECATED* Filters to be appended to each route loaded from Innkeeper.
-	InnkeeperPostRouteFilters string
-
-	// *DEPRECATED* Skip TLS certificate check for Innkeeper connections.
-	InnkeeperInsecure bool
-
-	// *DEPRECATED* OAuth2 URL for Innkeeper authentication.
-	OAuthUrl string
-
-	// *DEPRECATED* Directory where oauth credentials are stored, with file names:
-	// client.json and user.json.
-	OAuthCredentialsDir string
-
-	// *DEPRECATED* The whitespace separated list of OAuth2 scopes.
-	OAuthScope string
 
 	// File containing static route definitions. Multiple may be given comma separated.
 	RoutesFile string
@@ -916,7 +889,7 @@ func newServerErrorLog() *stdlog.Logger {
 	return stdlog.New(&serverErrorLogWriter{}, "", 0)
 }
 
-func createDataClients(o Options, auth innkeeper.Authentication, cr *certregistry.CertRegistry) ([]routing.DataClient, error) {
+func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.DataClient, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
@@ -960,23 +933,6 @@ func createDataClients(o Options, auth innkeeper.Authentication, cr *certregistr
 		}
 
 		clients = append(clients, ir)
-	}
-
-	if o.InnkeeperUrl != "" {
-		ic, err := innkeeper.New(innkeeper.Options{
-			Address:          o.InnkeeperUrl,
-			Insecure:         o.InnkeeperInsecure,
-			Authentication:   auth,
-			PreRouteFilters:  o.InnkeeperPreRouteFilters,
-			PostRouteFilters: o.InnkeeperPostRouteFilters,
-		})
-
-		if err != nil {
-			log.Error("error while initializing Innkeeper client", err)
-			return nil, err
-		}
-
-		clients = append(clients, ic)
 	}
 
 	if len(o.EtcdUrls) > 0 {
@@ -1308,10 +1264,6 @@ func listenAndServeQuit(
 	return nil
 }
 
-func listenAndServe(proxy http.Handler, o *Options) error {
-	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
-}
-
 func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Client {
 	var kdc *kubernetes.Client
 	for _, dc := range dataClients {
@@ -1403,13 +1355,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Warn(`"ApiUsageMonitoringDefaultClientTrackingPattern" option is deprecated`)
 	}
 
-	// *DEPRECATED* create authentication for Innkeeper
-	inkeeperAuth := innkeeper.CreateInnkeeperAuthentication(innkeeper.AuthOptions{
-		InnkeeperAuthToken:  o.InnkeeperAuthToken,
-		OAuthCredentialsDir: o.OAuthCredentialsDir,
-		OAuthUrl:            o.OAuthUrl,
-		OAuthScope:          o.OAuthScope})
-
 	var lbInstance *loadbalancer.LB
 	if o.LoadBalancerHealthCheckInterval != 0 {
 		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
@@ -1424,8 +1369,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		cr = certregistry.NewCertRegistry()
 	}
 
-	// *DEPRECATED* innkeeper - create data clients
-	dataClients, err := createDataClients(o, inkeeperAuth, cr)
+	// create data clients
+	dataClients, err := createDataClients(o, cr)
 	if err != nil {
 		return err
 	}
