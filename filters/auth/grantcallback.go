@@ -2,6 +2,7 @@ package auth
 
 import (
 	"net/http"
+	"net/url"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
@@ -60,6 +61,21 @@ func (f *grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 		} else {
 			serverError(ctx)
 		}
+		return
+	}
+
+	// Redirect callback request to the host of the initial request
+	if initial, _ := url.Parse(state.RequestURL); initial.Host != req.Host {
+		location := *req.URL
+		location.Host = initial.Host
+		location.Scheme = initial.Scheme
+
+		ctx.Serve(&http.Response{
+			StatusCode: http.StatusTemporaryRedirect,
+			Header: http.Header{
+				"Location": []string{location.String()},
+			},
+		})
 		return
 	}
 

@@ -297,6 +297,15 @@ func grantQueryWithCookie(t *testing.T, client *http.Client, url string, cookies
 	return rsp
 }
 
+func withHost(u, host string) string {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		panic(err)
+	}
+	parsed.Host = net.JoinHostPort(host, parsed.Port())
+	return parsed.String()
+}
+
 func TestGrantFlow(t *testing.T) {
 	const (
 		applicationDomain  = "foo.skipper.test"
@@ -318,9 +327,7 @@ func TestGrantFlow(t *testing.T) {
 		proxy := newSimpleGrantAuthProxy(t, config)
 		defer proxy.Close()
 
-		u, _ := url.Parse(proxy.URL)
-		u.Host = net.JoinHostPort(applicationDomain, u.Port())
-		proxyUrl = u.String()
+		proxyUrl = withHost(proxy.URL, applicationDomain)
 	}
 
 	client := newGrantHTTPClient()
@@ -565,9 +572,7 @@ func TestGrantTokenCookieRemoveSubDomains(t *testing.T) {
 		proxy := newSimpleGrantAuthProxy(t, config)
 		defer proxy.Close()
 
-		u, _ := url.Parse(proxy.URL)
-		u.Host = net.JoinHostPort(applicationDomain, u.Port())
-		proxyUrl = u.String()
+		proxyUrl = withHost(proxy.URL, applicationDomain)
 	}
 
 	client := newGrantHTTPClient()
@@ -591,4 +596,73 @@ func TestGrantTokenCookieRemoveSubDomains(t *testing.T) {
 	defer rsp.Body.Close()
 
 	checkCookie(t, rsp, expectCookieDomain)
+}
+
+func TestGrantCallbackRedirectsToTheInitialRequestDomain(t *testing.T) {
+	const (
+		applicationDomain = "foo.skipper.test"
+		callbackDomain    = "callback.skipper.test"
+		callbackPath      = "/a-callback"
+	)
+
+	dnstest.LoopbackNames(t, applicationDomain, callbackDomain)
+
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	zero := 0
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.TokenCookieRemoveSubdomains = &zero
+	config.CallbackPath = callbackPath
+
+	var proxyUrl, callbackUri string
+	{
+		proxy := newSimpleGrantAuthProxy(t, config)
+		defer proxy.Close()
+
+		proxyUrl = withHost(proxy.URL, applicationDomain)
+		callbackUri = withHost(proxy.URL, callbackDomain) + callbackPath
+	}
+
+	// note: there is a chicken & egg problem:
+	// this updates AuthURLParameters after proxy and filter specs were created
+	// because callbackUri needs to have proxy port number.
+	// This update works because grant filter specs receive pointer to the config and
+	// evaluate AuthURLParameters in runtime during request
+	config.AuthURLParameters["redirect_uri"] = callbackUri
+
+	client := newGrantHTTPClient()
+	httpGet := func(url string) *http.Response {
+		rsp, err := client.Get(url)
+		if err != nil {
+			t.Fatalf("failed to GET %s: %v", url, err)
+		}
+		rsp.Body.Close()
+		return rsp
+	}
+
+	rsp := httpGet(proxyUrl + "/test")
+
+	checkRedirect(t, rsp, provider.URL+"/auth")
+
+	rsp = httpGet(rsp.Header.Get("Location"))
+
+	checkRedirect(t, rsp, callbackUri)
+
+	rsp = httpGet(rsp.Header.Get("Location"))
+
+	checkRedirect(t, rsp, proxyUrl+callbackPath)
+
+	if len(rsp.Cookies()) > 0 {
+		t.Error("expected no cookies from redirect to the callback")
+	}
+
+	rsp = httpGet(rsp.Header.Get("Location"))
+
+	checkRedirect(t, rsp, proxyUrl+"/test")
+
+	checkCookie(t, rsp, applicationDomain)
 }
