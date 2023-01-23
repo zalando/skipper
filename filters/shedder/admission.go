@@ -411,7 +411,7 @@ func (ac *admissionControl) Request(ctx filters.FilterContext) {
 	defer span.Finish()
 
 	if ac.shouldReject() {
-		ac.metrics.IncCounter(counterPrefix + ac.metricSuffix)
+		ac.metrics.IncCounter(counterPrefix + "deny." + ac.metricSuffix)
 		ext.Error.Set(span, true)
 
 		ctx.StateBag()[admissionControlKey] = admissionControlValue
@@ -423,6 +423,8 @@ func (ac *admissionControl) Request(ctx filters.FilterContext) {
 		ctx.Serve(&http.Response{
 			StatusCode: http.StatusServiceUnavailable,
 		})
+	} else {
+		ac.metrics.IncCounter(counterPrefix + "ok." + ac.metricSuffix)
 	}
 }
 
