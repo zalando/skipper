@@ -195,22 +195,16 @@ func TestPrintSortedPredicates(t *testing.T) {
 			`routeWithDefaultPredicatesOnly: Header("Accept", "application/json") && Method("GET") -> "https://www.example.org"`,
 			`Method("GET") && Header("Accept", "application/json") -> "https://www.example.org"`,
 		},
-	} {
-		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: "", SortPredicates: true}, false)
-	}
-}
-
-func TestPrintSortedHeaderValues(t *testing.T) {
-	for i, item := range []struct {
-		route    string
-		expected string
-	}{
 		{
-			`routeWithoutDefaultPredicates: Header("x-frontend-type", "mobile-app") && Header("X-Forwarded-Proto", "http") -> "https://www.example.org"`,
-			`Header("X-Forwarded-Proto", "http") && Header("x-frontend-type", "mobile-app") -> "https://www.example.org"`,
+			`routeWithMultipleHeaders: Header("x-frontend-type", "mobile-app") && Header("X-Forwarded-Proto", "http") -> "https://www.example.org"`,
+			`Header("x-frontend-type", "mobile-app") && Header("X-Forwarded-Proto", "http") -> "https://www.example.org"`,
+		},
+		{
+			`routeWithMultipleHeadersRegex: HeaderRegexp("User-Agent", /Zelt-(.*)/) && HeaderRegexp("age", /\\d/) -> "https://www.example.org"`,
+			`HeaderRegexp("age", /\\d/) && HeaderRegexp("User-Agent", /Zelt-(.*)/) -> "https://www.example.org"`,
 		},
 	} {
-		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: "", SortPredicates: true, SortHeaderPredicateValues: true}, false)
+		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: "", SortPredicates: true}, false)
 	}
 }
 

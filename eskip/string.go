@@ -10,10 +10,9 @@ import (
 )
 
 type PrettyPrintInfo struct {
-	Pretty                    bool
-	IndentStr                 string
-	SortPredicates            bool
-	SortHeaderPredicateValues bool
+	Pretty         bool
+	IndentStr      string
+	SortPredicates bool
 }
 
 func escape(s string, chars string) string {
@@ -81,7 +80,88 @@ func argsString(args []interface{}) string {
 	return strings.Join(sargs, ", ")
 }
 
-func (r *Route) predicateString(sortPredicates, sortHeaderPredicateValues bool) string {
+func copyAndSortList(list []string) []string {
+	toSort := make([]string, len(list))
+	copy(toSort, list)
+	sort.SliceStable(toSort, func(i, j int) bool {
+		return toSort[i] > toSort[j]
+	})
+	return toSort
+}
+
+func (r *Route) predicateStrinSorted() string {
+	var predicates []string
+
+	if r.Path != "" {
+		predicates = appendFmtEscape(predicates, `Path("%s")`, `"`, r.Path)
+	}
+
+	sorted := copyAndSortList(r.HostRegexps)
+
+	for _, h := range sorted {
+		predicates = appendFmtEscape(predicates, "Host(/%s/)", "/", h)
+	}
+
+	sorted = copyAndSortList(r.PathRegexps)
+
+	for _, p := range sorted {
+		predicates = appendFmtEscape(predicates, "PathRegexp(/%s/)", "/", p)
+	}
+
+	if r.Method != "" {
+		predicates = appendFmtEscape(predicates, `Method("%s")`, `"`, r.Method)
+	}
+
+	headerKeys := make([]string, 0, len(r.Headers))
+
+	for k := range r.Headers {
+		headerKeys = append(headerKeys, k)
+	}
+
+	sort.SliceStable(headerKeys, func(i, j int) bool {
+		return headerKeys[i] > headerKeys[j]
+	},
+	)
+
+	for _, key := range headerKeys {
+		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, r.Headers[key])
+	}
+
+	headerKeys = make([]string, 0, len(r.HeaderRegexps))
+
+	for k := range r.HeaderRegexps {
+		headerKeys = append(headerKeys, k)
+	}
+
+	sort.SliceStable(headerKeys, func(i, j int) bool {
+		return headerKeys[i] > headerKeys[j]
+	},
+	)
+
+	for _, k := range headerKeys {
+		for _, rx := range r.HeaderRegexps[k] {
+			predicates = appendFmt(predicates, `HeaderRegexp("%s", /%s/)`, escape(k, `"`), escape(rx, "/"))
+		}
+	}
+
+	rp := make([]*Predicate, len(r.Predicates))
+	copy(rp, r.Predicates)
+	sort.SliceStable(rp, func(i, j int) bool { return rp[i].String() < rp[j].String() })
+
+	for _, p := range rp {
+		if p.Name != "Any" {
+			predicates = appendFmt(predicates, "%s(%s)", p.Name, argsString(p.Args))
+		}
+	}
+
+	if len(predicates) == 0 {
+		predicates = append(predicates, "*")
+	}
+
+	return strings.Join(predicates, " && ")
+}
+
+func (r *Route) predicateString() string {
 	var predicates []string
 
 	if r.Path != "" {
@@ -100,18 +180,8 @@ func (r *Route) predicateString(sortPredicates, sortHeaderPredicateValues bool) 
 		predicates = appendFmtEscape(predicates, `Method("%s")`, `"`, r.Method)
 	}
 
-	headerKeys := make([]string, 0, len(r.Headers))
-
-	for k := range r.Headers {
-		headerKeys = append(headerKeys, k)
-	}
-
-	if sortHeaderPredicateValues {
-		sort.SliceStable(headerKeys, func(i, j int) bool { return r.Headers[headerKeys[i]] < r.Headers[headerKeys[j]] })
-	}
-
-	for _, key := range headerKeys {
-		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, r.Headers[key])
+	for k, v := range r.Headers {
+		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, k, v)
 	}
 
 	for k, rxs := range r.HeaderRegexps {
@@ -120,14 +190,7 @@ func (r *Route) predicateString(sortPredicates, sortHeaderPredicateValues bool) 
 		}
 	}
 
-	rp := r.Predicates
-	if sortPredicates {
-		rp = make([]*Predicate, len(r.Predicates))
-		copy(rp, r.Predicates)
-		sort.Slice(rp, func(i, j int) bool { return rp[i].String() < rp[j].String() })
-	}
-
-	for _, p := range rp {
+	for _, p := range r.Predicates {
 		if p.Name != "Any" {
 			predicates = appendFmt(predicates, "%s(%s)", p.Name, argsString(p.Args))
 		}
@@ -201,7 +264,13 @@ func (r *Route) String() string {
 }
 
 func (r *Route) Print(prettyPrintInfo PrettyPrintInfo) string {
-	s := []string{r.predicateString(prettyPrintInfo.SortPredicates, prettyPrintInfo.SortHeaderPredicateValues)}
+	var s []string
+
+	if prettyPrintInfo.SortPredicates {
+		s = append(s, r.predicateStrinSorted())
+	} else {
+		s = append(s, r.predicateString())
+	}
 
 	fs := r.filterString(prettyPrintInfo)
 	if fs != "" {
