@@ -26,23 +26,22 @@ import (
 )
 
 const (
-	etcdUrlsFlag                  = "etcd-urls"
-	etcdPrefixFlag                = "etcd-prefix"
-	etcdOAuthTokenFlag            = "etcd-oauth-token"
-	innkeeperUrlFlag              = "innkeeper-url"
-	oauthTokenFlag                = "oauth-token"
-	inlineRoutesFlag              = "routes"
-	inlineIdsFlag                 = "ids"
-	insecureFlag                  = "insecure"
-	prependFiltersFlag            = "prepend"
-	prependFileFlag               = "prepend-file"
-	appendFiltersFlag             = "append"
-	appendFileFlag                = "append-file"
-	prettyFlag                    = "pretty"
-	sortPredicatesFlag            = "sort-predicates"
-	sortHeaderPredicateValuesFlag = "sort-header-predicate-values"
-	indentStrFlag                 = "indent"
-	jsonFlag                      = "json"
+	etcdUrlsFlag       = "etcd-urls"
+	etcdPrefixFlag     = "etcd-prefix"
+	etcdOAuthTokenFlag = "etcd-oauth-token"
+	innkeeperUrlFlag   = "innkeeper-url"
+	oauthTokenFlag     = "oauth-token"
+	inlineRoutesFlag   = "routes"
+	inlineIdsFlag      = "ids"
+	insecureFlag       = "insecure"
+	prependFiltersFlag = "prepend"
+	prependFileFlag    = "prepend-file"
+	appendFiltersFlag  = "append"
+	appendFileFlag     = "append-file"
+	prettyFlag         = "pretty"
+	sortPredicatesFlag = "sort-predicates"
+	indentStrFlag      = "indent"
+	jsonFlag           = "json"
 
 	defaultEtcdUrls     = "http://127.0.0.1:2379,http://127.0.0.1:4001"
 	defaultEtcdPrefix   = "/skipper"
@@ -64,23 +63,22 @@ var (
 
 // parsing vars for flags:
 var (
-	etcdUrls                  string
-	etcdPrefix                string
-	innkeeperUrl              string
-	oauthToken                string
-	etcdOAuthToken            string
-	inlineRoutes              string
-	inlineRouteIds            string
-	insecure                  bool
-	prependFiltersArg         string
-	prependFileArg            string
-	appendFiltersArg          string
-	appendFileArg             string
-	pretty                    bool
-	sortPredicates            bool
-	sortHeaderPredicateValues bool
-	indentStr                 string
-	printJson                 bool
+	etcdUrls          string
+	etcdPrefix        string
+	innkeeperUrl      string
+	oauthToken        string
+	etcdOAuthToken    string
+	inlineRoutes      string
+	inlineRouteIds    string
+	insecure          bool
+	prependFiltersArg string
+	prependFileArg    string
+	appendFiltersArg  string
+	appendFileArg     string
+	pretty            bool
+	sortPredicates    bool
+	indentStr         string
+	printJson         bool
 )
 
 var (
@@ -115,7 +113,6 @@ func initFlags() {
 
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
 	flags.BoolVar(&sortPredicates, sortPredicatesFlag, false, sortPredicateUsage)
-	flags.BoolVar(&sortHeaderPredicateValues, sortHeaderPredicateValuesFlag, false, sortHeaderPredicateValuesUsage)
 	flags.StringVar(&indentStr, indentStrFlag, "  ", indentStrUsage)
 	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
 }
