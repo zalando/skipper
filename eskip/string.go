@@ -89,7 +89,7 @@ func copyAndSortList(list []string) []string {
 	return toSort
 }
 
-func (r *Route) predicateStrinSorted() string {
+func (r *Route) predicateStringSorted() string {
 	var predicates []string
 
 	if r.Path != "" {
@@ -267,7 +267,7 @@ func (r *Route) Print(prettyPrintInfo PrettyPrintInfo) string {
 	var s []string
 
 	if prettyPrintInfo.SortPredicates {
-		s = append(s, r.predicateStrinSorted())
+		s = append(s, r.predicateStringSorted())
 	} else {
 		s = append(s, r.predicateString())
 	}
