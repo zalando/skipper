@@ -80,31 +80,28 @@ func argsString(args []interface{}) string {
 	return strings.Join(sargs, ", ")
 }
 
-func copyAndSortList(list []string) []string {
-	toSort := make([]string, len(list))
-	copy(toSort, list)
-	sort.SliceStable(toSort, func(i, j int) bool {
-		return toSort[i] > toSort[j]
-	})
-	return toSort
-}
-
 func (r *Route) predicateStringSorted() string {
 	var predicates []string
 
-	if r.Path != "" {
+	cr := r.Copy()
+
+	if cr.Path != "" {
 		predicates = appendFmtEscape(predicates, `Path("%s")`, `"`, r.Path)
 	}
 
-	sorted := copyAndSortList(r.HostRegexps)
+	sort.SliceStable(cr.HostRegexps, func(i, j int) bool {
+		return cr.HostRegexps[i] > cr.HostRegexps[j]
+	})
 
-	for _, h := range sorted {
+	for _, h := range cr.HostRegexps {
 		predicates = appendFmtEscape(predicates, "Host(/%s/)", "/", h)
 	}
 
-	sorted = copyAndSortList(r.PathRegexps)
+	sort.SliceStable(cr.PathRegexps, func(i, j int) bool {
+		return cr.PathRegexps[i] > cr.PathRegexps[j]
+	})
 
-	for _, p := range sorted {
+	for _, p := range cr.PathRegexps {
 		predicates = appendFmtEscape(predicates, "PathRegexp(/%s/)", "/", p)
 	}
 
@@ -112,9 +109,9 @@ func (r *Route) predicateStringSorted() string {
 		predicates = appendFmtEscape(predicates, `Method("%s")`, `"`, r.Method)
 	}
 
-	headerKeys := make([]string, 0, len(r.Headers))
+	headerKeys := make([]string, 0, len(cr.Headers))
 
-	for k := range r.Headers {
+	for k := range cr.Headers {
 		headerKeys = append(headerKeys, k)
 	}
 
@@ -124,12 +121,12 @@ func (r *Route) predicateStringSorted() string {
 	)
 
 	for _, key := range headerKeys {
-		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, r.Headers[key])
+		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, cr.Headers[key])
 	}
 
-	headerKeys = make([]string, 0, len(r.HeaderRegexps))
+	headerKeys = make([]string, 0, len(cr.HeaderRegexps))
 
-	for k := range r.HeaderRegexps {
+	for k := range cr.HeaderRegexps {
 		headerKeys = append(headerKeys, k)
 	}
 
@@ -139,16 +136,16 @@ func (r *Route) predicateStringSorted() string {
 	)
 
 	for _, k := range headerKeys {
-		for _, rx := range r.HeaderRegexps[k] {
+		for _, rx := range cr.HeaderRegexps[k] {
 			predicates = appendFmt(predicates, `HeaderRegexp("%s", /%s/)`, escape(k, `"`), escape(rx, "/"))
 		}
 	}
 
-	rp := make([]*Predicate, len(r.Predicates))
-	copy(rp, r.Predicates)
-	sort.SliceStable(rp, func(i, j int) bool { return rp[i].String() < rp[j].String() })
+	sort.SliceStable(cr.Predicates, func(i, j int) bool {
+		return cr.Predicates[i].String() < cr.Predicates[j].String()
+	})
 
-	for _, p := range rp {
+	for _, p := range cr.Predicates {
 		if p.Name != "Any" {
 			predicates = appendFmt(predicates, "%s(%s)", p.Name, argsString(p.Args))
 		}
