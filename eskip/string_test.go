@@ -203,6 +203,10 @@ func TestPrintSortedPredicates(t *testing.T) {
 			`routeWithMultipleHeadersRegex: HeaderRegexp("User-Agent", /Zelt-(.*)/) && HeaderRegexp("age", /\\d/) -> "https://www.example.org"`,
 			`HeaderRegexp("age", /\\d/) && HeaderRegexp("User-Agent", /Zelt-(.*)/) -> "https://www.example.org"`,
 		},
+		{
+			`routeComplex: True() && Cookie("alpha", "/^enabled$/") && Method("GET") && Header("x-frontend-type", "mobile-app") && Header("X-Forwarded-Proto", "http") && HeaderRegexp("User-Agent", /Zelt-(.*)/) && HeaderRegexp("age", /\\d/) -> "https://www.example.org"`,
+			`Method("GET") && Header("x-frontend-type", "mobile-app") && Header("X-Forwarded-Proto", "http") && HeaderRegexp("age", /\\d/) && HeaderRegexp("User-Agent", /Zelt-(.*)/) && Cookie("alpha", "/^enabled$/") && True() -> "https://www.example.org"`,
+		},
 	} {
 		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: "", SortPredicates: true}, false)
 	}

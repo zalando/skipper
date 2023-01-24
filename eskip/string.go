@@ -117,8 +117,7 @@ func (r *Route) predicateStringSorted() string {
 
 	sort.SliceStable(headerKeys, func(i, j int) bool {
 		return headerKeys[i] > headerKeys[j]
-	},
-	)
+	})
 
 	for _, key := range headerKeys {
 		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, cr.Headers[key])
@@ -132,8 +131,7 @@ func (r *Route) predicateStringSorted() string {
 
 	sort.SliceStable(headerKeys, func(i, j int) bool {
 		return headerKeys[i] > headerKeys[j]
-	},
-	)
+	})
 
 	for _, k := range headerKeys {
 		for _, rx := range cr.HeaderRegexps[k] {
