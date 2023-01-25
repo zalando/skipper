@@ -351,13 +351,23 @@ func ParsePathMode(s string) (PathMode, error) {
 	}
 }
 
-func mapRoutes(r []*eskip.Route) map[string]*eskip.Route {
+func mapRoutes(r []*eskip.Route) (map[string]*eskip.Route, []*eskip.Route) {
+	var uniqueRoutes []*eskip.Route
 	m := make(map[string]*eskip.Route)
 	for _, ri := range r {
-		m[ri.Id] = ri
+		if existingRoute, ok := m[ri.Id]; ok {
+			if eskip.Eq(existingRoute, ri) {
+				log.Warnf("Duplicate routeID found: %s", ri.Id)
+			} else {
+				log.Errorf("Failed to map route, duplicate ID with different body found, existing routeID: %s, existing route body: %s, new route body: %s", ri.Id, existingRoute.String(), ri.String())
+			}
+		} else {
+			m[ri.Id] = ri
+			uniqueRoutes = append(uniqueRoutes, ri)
+		}
 	}
 
-	return m
+	return m, uniqueRoutes
 }
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
@@ -455,7 +465,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 		return nil, fmt.Errorf("failed to load cluster state: %w", err)
 	}
 
-	c.current = mapRoutes(r)
+	c.current, r = mapRoutes(r)
+
 	log.Debugf("all routes loaded and mapped")
 
 	return r, nil
@@ -473,7 +484,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		return nil, nil, err
 	}
 
-	next := mapRoutes(r)
+	next, _ := mapRoutes(r)
 	log.Debugf("next version of routes loaded and mapped")
 
 	var (
