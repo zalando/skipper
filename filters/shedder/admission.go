@@ -409,9 +409,10 @@ func (ac *admissionControl) shouldReject() bool {
 func (ac *admissionControl) Request(ctx filters.FilterContext) {
 	span := ac.startSpan(ctx.Request().Context())
 	defer span.Finish()
+	ac.metrics.IncCounter(counterPrefix + "total." + ac.metricSuffix)
 
 	if ac.shouldReject() {
-		ac.metrics.IncCounter(counterPrefix + ac.metricSuffix)
+		ac.metrics.IncCounter(counterPrefix + "reject." + ac.metricSuffix)
 		ext.Error.Set(span, true)
 
 		ctx.StateBag()[admissionControlKey] = admissionControlValue
