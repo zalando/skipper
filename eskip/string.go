@@ -92,9 +92,7 @@ func (r *Route) predicateString(sortPredicates bool) string {
 	if sortPredicates {
 		copyHostRegexps = make([]string, len(r.HostRegexps))
 		copy(copyHostRegexps, r.HostRegexps)
-		sort.SliceStable(copyHostRegexps, func(i, j int) bool {
-			return copyHostRegexps[i] > copyHostRegexps[j]
-		})
+		sort.Strings(copyHostRegexps)
 	}
 
 	for _, h := range copyHostRegexps {
@@ -106,9 +104,7 @@ func (r *Route) predicateString(sortPredicates bool) string {
 	if sortPredicates {
 		copyPathRegexps = make([]string, len(r.PathRegexps))
 		copy(copyPathRegexps, r.PathRegexps)
-		sort.SliceStable(copyPathRegexps, func(i, j int) bool {
-			return copyPathRegexps[i] > copyPathRegexps[j]
-		})
+		sort.Strings(copyPathRegexps)
 	}
 
 	for _, p := range copyPathRegexps {
@@ -126,9 +122,7 @@ func (r *Route) predicateString(sortPredicates bool) string {
 			headerKeys = append(headerKeys, k)
 		}
 
-		sort.SliceStable(headerKeys, func(i, j int) bool {
-			return headerKeys[i] > headerKeys[j]
-		})
+		sort.Strings(headerKeys)
 
 		for _, key := range headerKeys {
 			predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, r.Headers[key])
@@ -147,9 +141,7 @@ func (r *Route) predicateString(sortPredicates bool) string {
 			headerKeys = append(headerKeys, k)
 		}
 
-		sort.SliceStable(headerKeys, func(i, j int) bool {
-			return headerKeys[i] > headerKeys[j]
-		})
+		sort.Strings(headerKeys)
 
 		for _, k := range headerKeys {
 			for _, rx := range r.HeaderRegexps[k] {
