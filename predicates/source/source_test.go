@@ -403,7 +403,7 @@ func benchSource(b *testing.B, k int, spec routing.PredicateSpec) {
 		b.Fatalf("Failed to create %s with args '%v': %v", spec.Name(), args, err)
 	}
 	req := &http.Request{
-		RemoteAddr: target,
+		RemoteAddr: target + ":12345",
 		Header:     http.Header{},
 	}
 	req.Header.Set("X-Forwarded-For", xff)
