@@ -317,9 +317,12 @@ func TestMatchingClientIP(t *testing.T) {
 var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 func generateIPCidr() string {
-	if random.Int()%10 == 0 {
+	if m := random.Int(); m%10 == 0 {
 		n := random.Intn(16) + 16 // /16 .. /32
 		return fmt.Sprintf("%d.%d.%d.%d/%d", random.Intn(256), random.Intn(256), random.Intn(256), random.Intn(256), n)
+	} else if m%2 == 0 {
+		n := random.Intn(16) + 48 // /16 .. /32
+		return fmt.Sprintf("%02x:%02x::af:%02x:%02x/%d", random.Intn(16), random.Intn(16), random.Intn(16), random.Intn(16), n)
 	}
 	return fmt.Sprintf("%d.%d.%d.%d", random.Intn(256), random.Intn(256), random.Intn(256), random.Intn(256))
 }
@@ -383,8 +386,7 @@ func BenchmarkSourceFromLast100k(b *testing.B) {
 func stringsToArgs(a []string) []interface{} {
 	res := make([]interface{}, 0, len(a))
 	for _, s := range a {
-		var e any
-		e = s
+		var e any = s
 		res = append(res, e)
 	}
 	return res
