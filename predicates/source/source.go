@@ -43,10 +43,12 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 
 	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
+	"go4.org/netipx"
 )
 
 const (
@@ -74,7 +76,7 @@ type spec struct {
 
 type predicate struct {
 	typ  sourcePred
-	nets snet.IPNets
+	nets *netipx.IPSet
 }
 
 func New() routing.PredicateSpec         { return &spec{typ: source} }
@@ -106,7 +108,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		}
 	}
 
-	nets, err := snet.ParseCIDRs(cidrs)
+	nets, err := snet.ParseIPCIDRs(cidrs)
 	if err != nil {
 		return nil, err
 	}
@@ -115,15 +117,15 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicate) Match(r *http.Request) bool {
-	var src net.IP
+	var src netip.Addr
 	switch p.typ {
 	case sourceFromLast:
-		src = snet.RemoteHostFromLast(r)
+		src = snet.RemoteAddrFromLast(r)
 	case clientIP:
 		h, _, _ := net.SplitHostPort(r.RemoteAddr)
-		src = net.ParseIP(h)
+		src, _ = netip.ParseAddr(h)
 	default:
-		src = snet.RemoteHost(r)
+		src = snet.RemoteAddr(r)
 	}
-	return p.nets.Contain(src)
+	return p.nets.Contains(src)
 }

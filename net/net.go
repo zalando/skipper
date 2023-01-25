@@ -3,7 +3,10 @@ package net
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
+
+	"go4.org/netipx"
 )
 
 // strip port from addresses with hostname, ipv4 or ipv6
@@ -23,7 +26,7 @@ func parse(addr string) net.IP {
 	return nil
 }
 
-// RemoteHost returns the remote address of the client. When the
+// RemoteAddr returns the remote address of the client. When the
 // 'X-Forwarded-For' header is set, then it is used instead. This is
 // how most often proxies behave. Wikipedia shows the format
 // https://en.wikipedia.org/wiki/X-Forwarded-For#Format
@@ -31,6 +34,19 @@ func parse(addr string) net.IP {
 // Example:
 //
 //	X-Forwarded-For: client, proxy1, proxy2
+func RemoteAddr(r *http.Request) netip.Addr {
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff != "" {
+		s, _, _ := strings.Cut(xff, ",")
+		if addr, err := netip.ParseAddr(stripPort(s)); err == nil {
+			return addr
+		}
+	}
+	addr, _ := netip.ParseAddr(stripPort(r.RemoteAddr))
+	return addr
+}
+
+// RemoteHost is *deprecated* use RemoteAddr
 func RemoteHost(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
 	ff, _, _ := strings.Cut(ffs, ",")
@@ -41,7 +57,7 @@ func RemoteHost(r *http.Request) net.IP {
 	return parse(r.RemoteAddr)
 }
 
-// RemoteHostFromLast returns the remote address of the client. When
+// RemoteAddrFromLast returns the remote address of the client. When
 // the 'X-Forwarded-For' header is set, then it is used instead. This
 // is known to be true for AWS Application LoadBalancer. AWS docs
 // https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/x-forwarded-headers.html
@@ -49,6 +65,31 @@ func RemoteHost(r *http.Request) net.IP {
 // Example:
 //
 //	X-Forwarded-For: ip-address-1, ip-address-2, client-ip-address
+func RemoteAddrFromLast(r *http.Request) netip.Addr {
+	ffs := r.Header.Get("X-Forwarded-For")
+	if ffs == "" {
+		addr, _ := netip.ParseAddr(stripPort(r.RemoteAddr))
+		return addr
+	}
+
+	i := strings.LastIndex(ffs, ",")
+	if i == -1 {
+		addr, err := netip.ParseAddr(strings.TrimSpace(ffs))
+		if err != nil {
+			addr, _ := netip.ParseAddr(stripPort(r.RemoteAddr))
+			return addr
+		}
+		return addr
+	}
+
+	ff := ffs[i+1:]
+	if addr, err := netip.ParseAddr(strings.TrimSpace(ff)); err == nil {
+		return addr
+	}
+	return netip.Addr{}
+}
+
+// RemoteHostFromLast is *deprecated* use RemoteAddrFromLast instead
 func RemoteHostFromLast(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
 	ffa := strings.Split(ffs, ",")
@@ -62,10 +103,10 @@ func RemoteHostFromLast(r *http.Request) net.IP {
 	return parse(r.RemoteAddr)
 }
 
-// A list of IPNets
+// IPNets is *deprecated* use netipx.IPSet instead
 type IPNets []*net.IPNet
 
-// Check if any of IPNets contains the IP
+// Contain is *deprecated* use netipx.IPSet.Contains() instead
 func (nets IPNets) Contain(ip net.IP) bool {
 	for _, net := range nets {
 		if net.Contains(ip) {
@@ -75,7 +116,7 @@ func (nets IPNets) Contain(ip net.IP) bool {
 	return false
 }
 
-// Parses list of CIDR addresses into a list of IPNets
+// ParseCIDRs is *deprecated* use ParseIPCIDRs.
 func ParseCIDRs(cidrs []string) (nets IPNets, err error) {
 	for _, cidr := range cidrs {
 		if !strings.Contains(cidr, "/") {
@@ -88,4 +129,35 @@ func ParseCIDRs(cidrs []string) (nets IPNets, err error) {
 		nets = append(nets, net)
 	}
 	return nets, nil
+}
+
+// ParseIPCIDRs returns a valid IPSet even in case there are parsing
+// errors of some partial provided input cidrs. So recently added
+// bogus values can be logged and ignored at runtime.
+func ParseIPCIDRs(cidrs []string) (*netipx.IPSet, error) {
+	var (
+		b   netipx.IPSetBuilder
+		err error
+	)
+
+	for _, w := range cidrs {
+		if strings.Contains(w, "/") {
+			if pref, e := netip.ParsePrefix(w); e != nil {
+				err = e
+			} else {
+				b.AddPrefix(pref)
+			}
+		} else if addr, e := netip.ParseAddr(w); e != nil {
+			err = e
+		} else {
+			b.Add(addr)
+		}
+	}
+
+	ips, e := b.IPSet()
+	if e != nil {
+		return ips, e
+	}
+
+	return ips, err
 }
