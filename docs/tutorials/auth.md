@@ -351,8 +351,8 @@ skipper -enable-oauth2-grant-flow \
     -oauth2-callback-path=/oauth/callback
 ```
 
-The `-oauth2-revoke-token-url` is optional, and must only be supplied if you plan
-on using the [grantLogout](../reference/filters.md#grantlogout) filter.
+The `-oauth2-revoke-token-url` is optional, and should be supplied if you plan
+to use the [grantLogout](../reference/filters.md#grantlogout) filter to revoke tokens.
 
 You can configure the `oauthGrant()` filter further for your needs. See the
 [oauthGrant](../reference/filters.md#oauthgrant) filter reference for more details.
@@ -366,7 +366,8 @@ Skipper will automatically add a callback route for you with the `grantCallback`
 on it. The path for this route can be configured with the `-oauth2-callback-path` parameter.
 If the parameter is not given, it will be `/.well-known/oauth2-callback`
 
-You can optionally add a `grantLogout()` filter for revoking access and refresh tokens:
+You can optionally add a `grantLogout()` filter to delete token cookie.
+If `-oauth2-revoke-token-url` is set it will revoke access and refresh tokens:
 
 ```
 foo:
@@ -377,6 +378,7 @@ foo:
 logout:
     Path("/logout)
     -> grantLogout()
+    -> redirectTo(302)
     -> <shunt>;
 ```
 

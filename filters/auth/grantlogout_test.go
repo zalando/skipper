@@ -3,12 +3,14 @@ package auth_test
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/auth"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/net/dnstest"
 )
 
 type testRevokeError struct {
@@ -70,29 +72,33 @@ func newGrantLogoutTestServer() *httptest.Server {
 	}))
 }
 
-func checkDeletedCookie(t *testing.T, rsp *http.Response, cookieName string) {
+func checkDeletedCookie(t *testing.T, rsp *http.Response, cookieName, expectedDomain string) {
+	t.Helper()
 	for _, c := range rsp.Cookies() {
 		if c.Name == cookieName {
 			if c.Value != "" {
-				t.Fatalf(
-					"Unexpected cookie value, got: '%s', expected: ''.",
-					c.Value,
-				)
+				t.Errorf("Unexpected cookie value, got: '%s', expected: ''.", c.Value)
 			}
 			if c.MaxAge != -1 {
-				t.Fatalf(
-					"Unexpected cookie MaxAge, got: %d, expected: -1.",
-					c.MaxAge,
-				)
+				t.Errorf("Unexpected cookie MaxAge, got: %d, expected: -1.", c.MaxAge)
+			}
+			if c.Domain != expectedDomain {
+				t.Fatalf("Unexpected cookie domain, got: %s, expected: %s", c.Domain, expectedDomain)
 			}
 			return
 		}
 	}
-
 	t.Fatalf("Cookie not found in response: '%s'", cookieName)
 }
 
 func TestGrantLogout(t *testing.T) {
+	const (
+		applicationDomain  = "foo.skipper.test"
+		expectCookieDomain = "skipper.test"
+	)
+
+	dnstest.LoopbackNames(t, applicationDomain)
+
 	provider := newGrantLogoutTestServer()
 	defer provider.Close()
 
@@ -103,17 +109,22 @@ func TestGrantLogout(t *testing.T) {
 
 	client := newGrantHTTPClient()
 
-	proxy, err := newAuthProxy(config, &eskip.Route{
-		Filters: []*eskip.Filter{
-			{Name: filters.GrantLogoutName},
-			{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
-		},
-		BackendType: eskip.ShuntBackend,
-	})
-	if err != nil {
-		t.Fatal(err)
+	var proxyUrl string
+	{
+		proxy, err := newAuthProxy(config, &eskip.Route{
+			Filters: []*eskip.Filter{
+				{Name: filters.GrantLogoutName},
+				{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
+			},
+			BackendType: eskip.ShuntBackend,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proxy.Close()
+
+		proxyUrl = withHost(proxy.URL, applicationDomain)
 	}
-	defer proxy.Close()
 
 	t.Run("check that logout with both tokens revokes refresh token", func(t *testing.T) {
 		cookie, err := auth.NewGrantCookieWithTokens(*config, testRefreshToken, testToken)
@@ -121,7 +132,7 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
@@ -132,7 +143,7 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
@@ -143,9 +154,9 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
 
-		checkDeletedCookie(t, rsp, config.TokenCookieName)
+		checkDeletedCookie(t, rsp, config.TokenCookieName, expectCookieDomain)
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
 
@@ -155,13 +166,13 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
 
 		checkStatus(t, rsp, http.StatusUnauthorized)
 	})
 
 	t.Run("check that logout with no cookie results in 401", func(t *testing.T) {
-		req, err := http.NewRequest("GET", proxy.URL, nil)
+		req, err := http.NewRequest("GET", proxyUrl, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -181,7 +192,7 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
 
 		checkStatus(t, rsp, http.StatusInternalServerError)
 	})
@@ -192,8 +203,46 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
 
 		checkStatus(t, rsp, http.StatusInternalServerError)
 	})
+}
+
+func TestGrantLogoutNoRevokeTokenURL(t *testing.T) {
+	const applicationDomain = "foo.skipper.test"
+
+	dnstest.LoopbackNames(t, applicationDomain)
+
+	zero := 0
+	config := newGrantTestConfig("http://invalid.test", "http://invalid.test")
+	config.TokenCookieRemoveSubdomains = &zero
+	config.RevokeTokenURL = ""
+
+	client := newGrantHTTPClient()
+
+	var proxyUrl string
+	{
+		routes, err := eskip.Parse(`Path("/logout") -> grantLogout() -> redirectTo(302) -> <shunt>`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		proxy, err := newAuthProxy(config, routes...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proxy.Close()
+
+		proxyUrl = withHost(proxy.URL, applicationDomain)
+	}
+
+	rsp, err := client.Get(proxyUrl + "/logout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+
+	checkDeletedCookie(t, rsp, config.TokenCookieName, applicationDomain)
+	checkStatus(t, rsp, http.StatusFound)
 }

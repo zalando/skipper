@@ -1423,8 +1423,9 @@ Skipper arguments:
 #### grantLogout
 
 The filter revokes the refresh and access tokens in the cookie set by
-[oauthGrant](#oauthgrant). It also deletes the cookie by setting the `Set-Cookie`
-response header to an empty value after a successful token revocation.
+[oauthGrant](#oauthgrant) if `-oauth2-revoke-token-url` is configured.
+It also deletes the cookie by setting the `Set-Cookie` response header
+to an empty value after a successful token revocation.
 
 Examples:
 
@@ -1436,7 +1437,7 @@ Skipper arguments:
 
 | Argument | Required? | Description |
 | -------- | --------- | ----------- |
-| `-oauth2-revoke-token-url` | **yes** | URL of the OAuth2 provider's token revocation endpoint. Example: `-oauth2-revoke-token-url=https://identity.example.com/oauth2/revoke` |
+| `-oauth2-revoke-token-url` | no | URL of the OAuth2 provider's token revocation endpoint. Example: `-oauth2-revoke-token-url=https://identity.example.com/oauth2/revoke` |
 
 #### grantClaimsQuery
 
