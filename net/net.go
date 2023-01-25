@@ -72,21 +72,19 @@ func RemoteAddrFromLast(r *http.Request) netip.Addr {
 		return addr
 	}
 
-	i := strings.LastIndex(ffs, ",")
-	if i == -1 {
-		addr, err := netip.ParseAddr(strings.TrimSpace(ffs))
-		if err != nil {
-			addr, _ := netip.ParseAddr(stripPort(r.RemoteAddr))
+	if i := strings.LastIndex(ffs, ","); i != -1 {
+		last := ffs[i+1:]
+		if addr, err := netip.ParseAddr(strings.TrimSpace(last)); err == nil {
 			return addr
 		}
-		return addr
 	}
 
-	ff := ffs[i+1:]
-	if addr, err := netip.ParseAddr(strings.TrimSpace(ff)); err == nil {
+	addr, err := netip.ParseAddr(strings.TrimSpace(ffs))
+	if err != nil {
+		addr, _ := netip.ParseAddr(stripPort(r.RemoteAddr))
 		return addr
 	}
-	return netip.Addr{}
+	return addr
 }
 
 // RemoteHostFromLast is *deprecated* use RemoteAddrFromLast instead
