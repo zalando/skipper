@@ -80,6 +80,22 @@ func argsString(args []interface{}) string {
 	return strings.Join(sargs, ", ")
 }
 
+func sortedKeys[V string | []string](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedCopy(values []string) []string {
+	toSortValues := make([]string, len(values))
+	copy(toSortValues, values)
+	sort.Strings(toSortValues)
+	return toSortValues
+}
+
 func (r *Route) predicateString(sortPredicates bool) string {
 	var predicates []string
 
@@ -90,9 +106,7 @@ func (r *Route) predicateString(sortPredicates bool) string {
 	copyHostRegexps := r.HostRegexps
 
 	if sortPredicates {
-		copyHostRegexps = make([]string, len(r.HostRegexps))
-		copy(copyHostRegexps, r.HostRegexps)
-		sort.Strings(copyHostRegexps)
+		copyHostRegexps = sortedCopy(r.HostRegexps)
 	}
 
 	for _, h := range copyHostRegexps {
@@ -102,9 +116,7 @@ func (r *Route) predicateString(sortPredicates bool) string {
 	copyPathRegexps := r.PathRegexps
 
 	if sortPredicates {
-		copyPathRegexps = make([]string, len(r.PathRegexps))
-		copy(copyPathRegexps, r.PathRegexps)
-		sort.Strings(copyPathRegexps)
+		copyPathRegexps = sortedCopy(r.PathRegexps)
 	}
 
 	for _, p := range copyPathRegexps {
@@ -116,14 +128,7 @@ func (r *Route) predicateString(sortPredicates bool) string {
 	}
 
 	if sortPredicates {
-
-		headerKeys := make([]string, 0, len(r.Headers))
-		for k := range r.Headers {
-			headerKeys = append(headerKeys, k)
-		}
-
-		sort.Strings(headerKeys)
-
+		headerKeys := sortedKeys(r.Headers)
 		for _, key := range headerKeys {
 			predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, r.Headers[key])
 		}
@@ -135,14 +140,7 @@ func (r *Route) predicateString(sortPredicates bool) string {
 	}
 
 	if sortPredicates {
-		headerKeys := make([]string, 0, len(r.HeaderRegexps))
-
-		for k := range r.HeaderRegexps {
-			headerKeys = append(headerKeys, k)
-		}
-
-		sort.Strings(headerKeys)
-
+		headerKeys := sortedKeys(r.HeaderRegexps)
 		for _, k := range headerKeys {
 			for _, rx := range r.HeaderRegexps[k] {
 				predicates = appendFmt(predicates, `HeaderRegexp("%s", /%s/)`, escape(k, `"`), escape(rx, "/"))
