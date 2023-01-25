@@ -139,6 +139,10 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 }
 
 func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
+	if f.config.RevokeTokenURL == "" {
+		return
+	}
+
 	req := ctx.Request()
 
 	c, err := extractCookie(req, f.config)
