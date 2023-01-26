@@ -80,7 +80,7 @@ func argsString(args []interface{}) string {
 	return strings.Join(sargs, ", ")
 }
 
-func sortedKeys[V string | []string](m map[string]V) []string {
+func sortedKeys[V interface{}](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -103,23 +103,23 @@ func (r *Route) predicateString(sortPredicates bool) string {
 		predicates = appendFmtEscape(predicates, `Path("%s")`, `"`, r.Path)
 	}
 
-	copyHostRegexps := r.HostRegexps
+	hostRegexps := r.HostRegexps
 
 	if sortPredicates {
-		copyHostRegexps = sortedCopy(r.HostRegexps)
+		hostRegexps = sortedCopy(r.HostRegexps)
 	}
 
-	for _, h := range copyHostRegexps {
+	for _, h := range hostRegexps {
 		predicates = appendFmtEscape(predicates, "Host(/%s/)", "/", h)
 	}
 
-	copyPathRegexps := r.PathRegexps
+	pathRegexps := r.PathRegexps
 
 	if sortPredicates {
-		copyPathRegexps = sortedCopy(r.PathRegexps)
+		pathRegexps = sortedCopy(r.PathRegexps)
 	}
 
-	for _, p := range copyPathRegexps {
+	for _, p := range pathRegexps {
 		predicates = appendFmtEscape(predicates, "PathRegexp(/%s/)", "/", p)
 	}
 
@@ -154,17 +154,17 @@ func (r *Route) predicateString(sortPredicates bool) string {
 		}
 	}
 
-	copyPredicates := r.Predicates
+	routePredicates := r.Predicates
 
 	if sortPredicates {
-		copyPredicates = make([]*Predicate, len(r.Predicates))
-		copy(copyPredicates, r.Predicates)
-		sort.SliceStable(copyPredicates, func(i, j int) bool {
-			return copyPredicates[i].String() < copyPredicates[j].String()
+		routePredicates = make([]*Predicate, len(r.Predicates))
+		copy(routePredicates, r.Predicates)
+		sort.SliceStable(routePredicates, func(i, j int) bool {
+			return routePredicates[i].String() < routePredicates[j].String()
 		})
 	}
 
-	for _, p := range copyPredicates {
+	for _, p := range routePredicates {
 		if p.Name != "Any" {
 			predicates = appendFmt(predicates, "%s(%s)", p.Name, argsString(p.Args))
 		}
