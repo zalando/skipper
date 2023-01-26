@@ -72,14 +72,12 @@ func RemoteAddrFromLast(r *http.Request) netip.Addr {
 		return addr
 	}
 
+	last := ffs
 	if i := strings.LastIndex(ffs, ","); i != -1 {
-		last := ffs[i+1:]
-		if addr, err := netip.ParseAddr(strings.TrimSpace(last)); err == nil {
-			return addr
-		}
+		last = ffs[i+1:]
 	}
 
-	addr, err := netip.ParseAddr(strings.TrimSpace(ffs))
+	addr, err := netip.ParseAddr(strings.TrimSpace(last))
 	if err != nil {
 		addr, _ := netip.ParseAddr(stripPort(r.RemoteAddr))
 		return addr
