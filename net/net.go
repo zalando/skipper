@@ -127,33 +127,30 @@ func ParseCIDRs(cidrs []string) (nets IPNets, err error) {
 	return nets, nil
 }
 
-// ParseIPCIDRs returns a valid IPSet even in case there are parsing
-// errors of some partial provided input cidrs. So recently added
-// bogus values can be logged and ignored at runtime.
+// ParseIPCIDRs returns a valid IPSet in case there is no parsing
+// error.
 func ParseIPCIDRs(cidrs []string) (*netipx.IPSet, error) {
-	var (
-		b   netipx.IPSetBuilder
-		err error
-	)
+	var b netipx.IPSetBuilder
 
 	for _, w := range cidrs {
 		if strings.Contains(w, "/") {
-			if pref, e := netip.ParsePrefix(w); e != nil {
-				err = e
-			} else {
-				b.AddPrefix(pref)
+			pref, err := netip.ParsePrefix(w)
+			if err != nil {
+				return nil, err
 			}
-		} else if addr, e := netip.ParseAddr(w); e != nil {
-			err = e
+			b.AddPrefix(pref)
+
+		} else if addr, err := netip.ParseAddr(w); err != nil {
+			return nil, err
 		} else {
 			b.Add(addr)
 		}
 	}
 
-	ips, e := b.IPSet()
-	if e != nil {
-		return ips, e
+	ips, err := b.IPSet()
+	if err != nil {
+		return nil, err
 	}
 
-	return ips, err
+	return ips, nil
 }
