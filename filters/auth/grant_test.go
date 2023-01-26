@@ -291,8 +291,7 @@ func grantQueryWithCookie(t *testing.T, client *http.Client, url string, cookies
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	defer rsp.Body.Close()
+	rsp.Body.Close()
 
 	return rsp
 }
@@ -665,4 +664,112 @@ func TestGrantCallbackRedirectsToTheInitialRequestDomain(t *testing.T) {
 	checkRedirect(t, rsp, proxyUrl+"/test")
 
 	checkCookie(t, rsp, applicationDomain)
+}
+
+func TestGrantTokenCookieDomainZeroRemovedSubdomains(t *testing.T) {
+	const applicationDomain = "foo.skipper.test"
+
+	dnstest.LoopbackNames(t, applicationDomain)
+
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	zero := 0
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.TokenCookieRemoveSubdomains = &zero
+
+	var proxyUrl string
+	{
+		proxy := newSimpleGrantAuthProxy(t, config)
+		defer proxy.Close()
+
+		proxyUrl = withHost(proxy.URL, applicationDomain)
+	}
+
+	client := newGrantHTTPClient()
+
+	for _, tc := range []struct {
+		name    string
+		host    string
+		allowed bool
+	}{
+		{"application domain", "foo.skipper.test", true},
+		{"parent domain", "skipper.test", true},
+		//
+		{"neighbor domain", "bar.skipper.test", false},
+		{"another domain", "foo.other.test", false},
+		{"another parent domain", "other.test", false},
+		{"application subdomain", "baz.foo.skipper.test", false},
+		{"neighbor subdomain", "baz.bar.skipper.test", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cookie, _ := auth.NewGrantCookieWithHost(config, tc.host)
+
+			rsp := grantQueryWithCookie(t, client, proxyUrl+"/test", cookie)
+
+			if tc.allowed {
+				checkStatus(t, rsp, http.StatusNoContent)
+			} else {
+				checkRedirect(t, rsp, provider.URL+"/auth")
+			}
+
+		})
+	}
+}
+
+func TestGrantTokenCookieDomainOneRemovedSubdomains(t *testing.T) {
+	const applicationDomain = "foo.skipper.test"
+
+	dnstest.LoopbackNames(t, applicationDomain)
+
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	one := 1
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.TokenCookieRemoveSubdomains = &one
+
+	var proxyUrl string
+	{
+		proxy := newSimpleGrantAuthProxy(t, config)
+		defer proxy.Close()
+
+		proxyUrl = withHost(proxy.URL, applicationDomain)
+	}
+
+	client := newGrantHTTPClient()
+
+	for _, tc := range []struct {
+		name    string
+		host    string
+		allowed bool
+	}{
+		{"application domain", "foo.skipper.test", true},
+		{"parent domain", "skipper.test", true},
+		{"neighbor domain", "bar.skipper.test", true},
+		{"application subdomain", "baz.foo.skipper.test", true},
+		//
+		{"another domain", "foo.other.test", false},
+		{"another parent domain", "other.test", false},
+		{"neighbor subdomain", "baz.bar.skipper.test", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cookie, _ := auth.NewGrantCookieWithHost(config, tc.host)
+
+			rsp := grantQueryWithCookie(t, client, proxyUrl+"/test", cookie)
+
+			if tc.allowed {
+				checkStatus(t, rsp, http.StatusNoContent)
+			} else {
+				checkRedirect(t, rsp, provider.URL+"/auth")
+			}
+
+		})
+	}
 }

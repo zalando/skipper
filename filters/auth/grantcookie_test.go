@@ -58,3 +58,13 @@ func NewGrantCookieWithTokens(config *OAuthConfig, refreshToken string, accessTo
 	cookie, err := createCookie(config, "", token)
 	return cookie, err
 }
+
+func NewGrantCookieWithHost(config *OAuthConfig, host string) (*http.Cookie, error) {
+	token := &oauth2.Token{
+		AccessToken:  testToken,
+		RefreshToken: testRefreshToken,
+		Expiry:       time.Now().Add(testAccessTokenExpiresIn),
+	}
+
+	return createCookie(config, host, token)
+}

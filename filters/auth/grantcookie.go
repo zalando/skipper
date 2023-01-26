@@ -3,7 +3,9 @@ package auth
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/zalando/skipper/secrets"
@@ -14,6 +16,7 @@ type cookie struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
 	Expiry       time.Time `json:"expiry,omitempty"`
+	Domain       string    `json:"domain,omitempty"`
 }
 
 func decodeCookie(cookieHeader string, config *OAuthConfig) (c *cookie, err error) {
@@ -41,6 +44,16 @@ func (c *cookie) isAccessTokenExpired() bool {
 	return now.After(c.Expiry)
 }
 
+// allowedForHost checks if provided host matches cookie domain
+// according to https://www.rfc-editor.org/rfc/rfc6265#section-5.1.3
+func (c *cookie) allowedForHost(host string) bool {
+	hostWithoutPort, _, err := net.SplitHostPort(host)
+	if err != nil {
+		hostWithoutPort = host
+	}
+	return strings.HasSuffix(hostWithoutPort, c.Domain)
+}
+
 // extractCookie removes and returns the OAuth Grant token cookie from a HTTP request.
 // The function supports multiple cookies with the same name and returns
 // the best match (the one that decodes properly).
@@ -51,11 +64,13 @@ func (c *cookie) isAccessTokenExpired() bool {
 func extractCookie(request *http.Request, config *OAuthConfig) (cookie *cookie, err error) {
 	old := request.Cookies()
 	new := make([]*http.Cookie, 0, len(old))
+	found := false
 
 	for i, c := range old {
 		if c.Name == config.TokenCookieName {
 			cookie, _ = decodeCookie(c.Value, config)
-			if cookie != nil {
+			if cookie != nil && cookie.allowedForHost(request.Host) {
+				found = true
 				new = append(new, old[i+1:]...)
 				break
 			}
@@ -63,7 +78,7 @@ func extractCookie(request *http.Request, config *OAuthConfig) (cookie *cookie, 
 		new = append(new, c)
 	}
 
-	if cookie != nil {
+	if found {
 		request.Header.Del("Cookie")
 		for _, c := range new {
 			request.AddCookie(c)
@@ -88,10 +103,12 @@ func createDeleteCookie(config *OAuthConfig, host string) *http.Cookie {
 }
 
 func createCookie(config *OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
-	c := cookie{
+	domain := extractDomainFromHost(host, *config.TokenCookieRemoveSubdomains)
+	c := &cookie{
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,
 		Expiry:       t.Expiry,
+		Domain:       domain,
 	}
 
 	b, err := json.Marshal(c)
@@ -120,7 +137,7 @@ func createCookie(config *OAuthConfig, host string, t *oauth2.Token) (*http.Cook
 		Name:     config.TokenCookieName,
 		Value:    b64,
 		Path:     "/",
-		Domain:   extractDomainFromHost(host, *config.TokenCookieRemoveSubdomains),
+		Domain:   domain,
 		Expires:  t.Expiry.Add(time.Hour * 24 * 30),
 		Secure:   true,
 		HttpOnly: true,
