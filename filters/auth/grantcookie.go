@@ -61,29 +61,23 @@ func (c *cookie) allowedForHost(host string) bool {
 // cookie of the same name.
 // The grant token cookie is extracted so it does not get exposed to untrusted downstream
 // services.
-func extractCookie(request *http.Request, config *OAuthConfig) (cookie *cookie, err error) {
-	old := request.Cookies()
-	new := make([]*http.Cookie, 0, len(old))
-	found := false
+func extractCookie(request *http.Request, config *OAuthConfig) (*cookie, error) {
+	cookies := request.Cookies()
+	for i, c := range cookies {
+		if c.Name != config.TokenCookieName {
+			continue
+		}
 
-	for i, c := range old {
-		if c.Name == config.TokenCookieName {
-			cookie, _ = decodeCookie(c.Value, config)
-			if cookie != nil && cookie.allowedForHost(request.Host) {
-				found = true
-				new = append(new, old[i+1:]...)
-				break
+		decoded, err := decodeCookie(c.Value, config)
+		if err == nil && decoded.allowedForHost(request.Host) {
+			request.Header.Del("Cookie")
+			for j, c := range cookies {
+				if j != i {
+					request.AddCookie(c)
+				}
 			}
+			return decoded, nil
 		}
-		new = append(new, c)
-	}
-
-	if found {
-		request.Header.Del("Cookie")
-		for _, c := range new {
-			request.AddCookie(c)
-		}
-		return cookie, nil
 	}
 	return nil, http.ErrNoCookie
 }

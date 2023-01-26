@@ -305,6 +305,10 @@ func withHost(u, host string) string {
 	return parsed.String()
 }
 
+func parseCookieHeader(value string) []*http.Cookie {
+	return (&http.Request{Header: http.Header{"Cookie": []string{value}}}).Cookies()
+}
+
 func TestGrantFlow(t *testing.T) {
 	const (
 		applicationDomain  = "foo.skipper.test"
@@ -323,7 +327,19 @@ func TestGrantFlow(t *testing.T) {
 
 	var proxyUrl string
 	{
-		proxy := newSimpleGrantAuthProxy(t, config)
+		routes, err := eskip.Parse(`* -> oauthGrant()
+			-> status(204)
+			-> setResponseHeader("Backend-Request-Cookie", "${request.header.Cookie}")
+			-> <shunt>
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		proxy, err := newAuthProxy(config, routes...)
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer proxy.Close()
 
 		proxyUrl = withHost(proxy.URL, applicationDomain)
@@ -406,10 +422,25 @@ func TestGrantFlow(t *testing.T) {
 		badCookie, _ := newGrantCookie(config)
 		badCookie.Value = "invalid"
 		goodCookie, _ := newGrantCookie(config)
+		otherCookie := &http.Cookie{Name: "foo", Value: "bar", Path: "/", Secure: true, HttpOnly: true}
 
-		rsp := grantQueryWithCookie(t, client, proxyUrl, badCookie, goodCookie)
+		rsp := grantQueryWithCookie(t, client, proxyUrl, badCookie, goodCookie, otherCookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
+
+		// Check all cookies are sent to the backend except goodCookie
+		cookies := parseCookieHeader(rsp.Header.Get("Backend-Request-Cookie"))
+		expected := []*http.Cookie{badCookie, otherCookie}
+
+		if len(cookies) != len(expected) {
+			t.Fatalf("Expected %v, got: %v", expected, cookies)
+		}
+		for i, expected := range expected {
+			got := cookies[i]
+			if got.Name != expected.Name || got.Value != expected.Value {
+				t.Errorf("Unexpected cookie, expected: %v, got: %v", expected, got)
+			}
+		}
 	})
 
 	t.Run("check does not send cookie again if token was not refreshed", func(t *testing.T) {
