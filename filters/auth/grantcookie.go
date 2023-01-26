@@ -16,7 +16,7 @@ type cookie struct {
 	Expiry       time.Time `json:"expiry,omitempty"`
 }
 
-func decodeCookie(cookieHeader string, config OAuthConfig) (c *cookie, err error) {
+func decodeCookie(cookieHeader string, config *OAuthConfig) (c *cookie, err error) {
 	var eb []byte
 	if eb, err = base64.StdEncoding.DecodeString(cookieHeader); err != nil {
 		return
@@ -48,7 +48,7 @@ func (c *cookie) isAccessTokenExpired() bool {
 // cookie of the same name.
 // The grant token cookie is extracted so it does not get exposed to untrusted downstream
 // services.
-func extractCookie(request *http.Request, config OAuthConfig) (cookie *cookie, err error) {
+func extractCookie(request *http.Request, config *OAuthConfig) (cookie *cookie, err error) {
 	old := request.Cookies()
 	new := make([]*http.Cookie, 0, len(old))
 
@@ -75,7 +75,7 @@ func extractCookie(request *http.Request, config OAuthConfig) (cookie *cookie, e
 
 // createDeleteCookie creates a cookie, which instructs the client to clear the grant
 // token cookie when used with a Set-Cookie header.
-func createDeleteCookie(config OAuthConfig, host string) *http.Cookie {
+func createDeleteCookie(config *OAuthConfig, host string) *http.Cookie {
 	return &http.Cookie{
 		Name:     config.TokenCookieName,
 		Value:    "",
@@ -87,7 +87,7 @@ func createDeleteCookie(config OAuthConfig, host string) *http.Cookie {
 	}
 }
 
-func createCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
+func createCookie(config *OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
 	c := cookie{
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,

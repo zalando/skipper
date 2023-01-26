@@ -211,11 +211,11 @@ func (c *OAuthConfig) Init() error {
 }
 
 func (c *OAuthConfig) NewGrant() filters.Spec {
-	return &grantSpec{config: *c}
+	return &grantSpec{config: c}
 }
 
 func (c *OAuthConfig) NewGrantCallback() filters.Spec {
-	return &grantCallbackSpec{config: *c}
+	return &grantCallbackSpec{config: c}
 }
 
 func (c *OAuthConfig) NewGrantClaimsQuery() filters.Spec {
@@ -227,11 +227,11 @@ func (c *OAuthConfig) NewGrantClaimsQuery() filters.Spec {
 }
 
 func (c *OAuthConfig) NewGrantLogout() filters.Spec {
-	return &grantLogoutSpec{config: *c}
+	return &grantLogoutSpec{config: c}
 }
 
 func (c *OAuthConfig) NewGrantPreprocessor() routing.PreProcessor {
-	return &grantPrep{config: *c}
+	return &grantPrep{config: c}
 }
 
 func (c *OAuthConfig) GetConfig() *oauth2.Config {

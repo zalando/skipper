@@ -25,11 +25,11 @@ var (
 )
 
 type grantSpec struct {
-	config OAuthConfig
+	config *OAuthConfig
 }
 
 type grantFilter struct {
-	config OAuthConfig
+	config *OAuthConfig
 }
 
 func (s *grantSpec) Name() string { return filters.OAuthGrantName }
@@ -40,7 +40,7 @@ func (s *grantSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func providerContext(c OAuthConfig) context.Context {
+func providerContext(c *OAuthConfig) context.Context {
 	return context.WithValue(context.Background(), oauth2.HTTPClient, c.AuthClient)
 }
 
@@ -56,11 +56,11 @@ func badRequest(ctx filters.FilterContext) {
 	})
 }
 
-func loginRedirect(ctx filters.FilterContext, config OAuthConfig) {
+func loginRedirect(ctx filters.FilterContext, config *OAuthConfig) {
 	loginRedirectWithOverride(ctx, config, "")
 }
 
-func loginRedirectWithOverride(ctx filters.FilterContext, config OAuthConfig, originalOverride string) {
+func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, originalOverride string) {
 	req := ctx.Request()
 	redirect, original := config.RedirectURLs(req)
 

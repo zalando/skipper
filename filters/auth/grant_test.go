@@ -202,7 +202,7 @@ func newGrantHTTPClient() *http.Client {
 	}
 }
 
-func newGrantCookie(config auth.OAuthConfig) (*http.Cookie, error) {
+func newGrantCookie(config *auth.OAuthConfig) (*http.Cookie, error) {
 	return auth.NewGrantCookieWithExpiration(config, time.Now().Add(testAccessTokenExpiresIn))
 }
 
@@ -378,7 +378,7 @@ func TestGrantFlow(t *testing.T) {
 	})
 
 	t.Run("check login is triggered when access token is invalid", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithInvalidAccessToken(*config)
+		cookie, err := auth.NewGrantCookieWithInvalidAccessToken(config)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -404,9 +404,9 @@ func TestGrantFlow(t *testing.T) {
 	})
 
 	t.Run("check handles multiple cookies with same name and uses the first decodable one", func(t *testing.T) {
-		badCookie, _ := newGrantCookie(*config)
+		badCookie, _ := newGrantCookie(config)
 		badCookie.Value = "invalid"
-		goodCookie, _ := newGrantCookie(*config)
+		goodCookie, _ := newGrantCookie(config)
 
 		rsp := grantQueryWithCookie(t, client, proxyUrl, badCookie, goodCookie)
 
@@ -414,7 +414,7 @@ func TestGrantFlow(t *testing.T) {
 	})
 
 	t.Run("check does not send cookie again if token was not refreshed", func(t *testing.T) {
-		goodCookie, _ := newGrantCookie(*config)
+		goodCookie, _ := newGrantCookie(config)
 
 		rsp := grantQueryWithCookie(t, client, proxyUrl, goodCookie)
 
@@ -442,7 +442,7 @@ func TestGrantRefresh(t *testing.T) {
 	defer proxy.Close()
 
 	t.Run("check token is refreshed if it expired", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithExpiration(*config, time.Now().Add(time.Duration(-1)*time.Minute))
+		cookie, err := auth.NewGrantCookieWithExpiration(config, time.Now().Add(time.Duration(-1)*time.Minute))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -453,7 +453,7 @@ func TestGrantRefresh(t *testing.T) {
 	})
 
 	t.Run("check login is triggered if refresh token is invalid", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithInvalidRefreshToken(*config)
+		cookie, err := auth.NewGrantCookieWithInvalidRefreshToken(config)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -479,7 +479,7 @@ func TestGrantTokeninfoSubjectPresent(t *testing.T) {
 
 	client := newGrantHTTPClient()
 
-	cookie, err := newGrantCookie(*config)
+	cookie, err := newGrantCookie(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -504,7 +504,7 @@ func TestGrantTokeninfoSubjectMissing(t *testing.T) {
 
 	client := newGrantHTTPClient()
 
-	cookie, err := newGrantCookie(*config)
+	cookie, err := newGrantCookie(config)
 	if err != nil {
 		t.Fatal(err)
 	}
