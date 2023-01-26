@@ -1,10 +1,14 @@
 package source
 
 import (
+	"fmt"
+	"math/rand"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/routing"
 )
 
 func TestName(t *testing.T) {
@@ -37,7 +41,11 @@ func TestCreate(t *testing.T) {
 		[]interface{}{"127.0.0.1/32", 1},
 		true,
 	}, {
-		"arg 1 not netmask",
+		"one invalid IP",
+		[]interface{}{"1.2.3.4.5/16", "1000.2.3.4"},
+		true,
+	}, {
+		"arg 1 not netmask, silently ignored",
 		[]interface{}{"all the things"},
 		true,
 	}, {
@@ -303,5 +311,106 @@ func TestMatchingClientIP(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+var random = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+func generateIPCidr() string {
+	if m := random.Int(); m%10 == 0 {
+		n := random.Intn(16) + 16 // /16 .. /32
+		return fmt.Sprintf("%d.%d.%d.%d/%d", random.Intn(256), random.Intn(256), random.Intn(256), random.Intn(256), n)
+	} else if m%2 == 0 {
+		n := random.Intn(16) + 48 // /16 .. /32
+		return fmt.Sprintf("%02x:%02x::af:%02x:%02x/%d", random.Intn(16), random.Intn(16), random.Intn(16), random.Intn(16), n)
+	}
+	return fmt.Sprintf("%d.%d.%d.%d", random.Intn(256), random.Intn(256), random.Intn(256), random.Intn(256))
+}
+
+func generateIPCidrStrings(n int) []string {
+	a := make([]string, 0)
+	for i := 0; i < n; i++ {
+		a = append(a, generateIPCidr())
+	}
+	return a
+}
+
+func BenchmarkClientIP10(b *testing.B) {
+	benchSource(b, 10, NewClientIP())
+}
+func BenchmarkClientIP100(b *testing.B) {
+	benchSource(b, 100, NewClientIP())
+}
+func BenchmarkClientIP1k(b *testing.B) {
+	benchSource(b, 1_000, NewClientIP())
+}
+func BenchmarkClientIP10k(b *testing.B) {
+	benchSource(b, 10_000, NewClientIP())
+}
+func BenchmarkClientIP100k(b *testing.B) {
+	benchSource(b, 100_000, NewClientIP())
+}
+
+func BenchmarkSource10(b *testing.B) {
+	benchSource(b, 10, New())
+}
+func BenchmarkSource100(b *testing.B) {
+	benchSource(b, 100, New())
+}
+func BenchmarkSource1k(b *testing.B) {
+	benchSource(b, 1_000, New())
+}
+func BenchmarkSource10k(b *testing.B) {
+	benchSource(b, 10_000, New())
+}
+func BenchmarkSource100k(b *testing.B) {
+	benchSource(b, 100_000, New())
+}
+
+func BenchmarkSourceFromLast10(b *testing.B) {
+	benchSource(b, 10, NewFromLast())
+}
+func BenchmarkSourceFromLast100(b *testing.B) {
+	benchSource(b, 100, NewFromLast())
+}
+func BenchmarkSourceFromLast1k(b *testing.B) {
+	benchSource(b, 1_000, NewFromLast())
+}
+func BenchmarkSourceFromLast10k(b *testing.B) {
+	benchSource(b, 10_000, NewFromLast())
+}
+func BenchmarkSourceFromLast100k(b *testing.B) {
+	benchSource(b, 100_000, NewFromLast())
+}
+
+func stringsToArgs(a []string) []interface{} {
+	res := make([]interface{}, 0, len(a))
+	for _, s := range a {
+		var e any = s
+		res = append(res, e)
+	}
+	return res
+}
+
+func benchSource(b *testing.B, k int, spec routing.PredicateSpec) {
+	target := "195.5.1.21"
+	xff := "195.5.1.23, 195.5.1.24"
+	a := generateIPCidrStrings(k)
+	args := stringsToArgs(a)
+
+	pred, err := spec.Create(args)
+	if err != nil {
+		b.Fatalf("Failed to create %s with args '%v': %v", spec.Name(), args, err)
+	}
+	req := &http.Request{
+		RemoteAddr: target + ":12345",
+		Header:     http.Header{},
+	}
+	req.Header.Set("X-Forwarded-For", xff)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		pred.Match(req)
 	}
 }
