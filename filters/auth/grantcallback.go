@@ -14,11 +14,11 @@ import (
 const GrantCallbackName = filters.GrantCallbackName
 
 type grantCallbackSpec struct {
-	config OAuthConfig
+	config *OAuthConfig
 }
 
 type grantCallbackFilter struct {
-	config OAuthConfig
+	config *OAuthConfig
 }
 
 func (*grantCallbackSpec) Name() string { return filters.GrantCallbackName }

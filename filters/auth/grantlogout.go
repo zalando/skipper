@@ -25,11 +25,11 @@ const (
 )
 
 type grantLogoutSpec struct {
-	config OAuthConfig
+	config *OAuthConfig
 }
 
 type grantLogoutFilter struct {
-	config OAuthConfig
+	config *OAuthConfig
 }
 
 type revokeErrorResponse struct {

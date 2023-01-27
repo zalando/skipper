@@ -3,7 +3,9 @@ package auth
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/zalando/skipper/secrets"
@@ -14,9 +16,10 @@ type cookie struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
 	Expiry       time.Time `json:"expiry,omitempty"`
+	Domain       string    `json:"domain,omitempty"`
 }
 
-func decodeCookie(cookieHeader string, config OAuthConfig) (c *cookie, err error) {
+func decodeCookie(cookieHeader string, config *OAuthConfig) (c *cookie, err error) {
 	var eb []byte
 	if eb, err = base64.StdEncoding.DecodeString(cookieHeader); err != nil {
 		return
@@ -41,6 +44,16 @@ func (c *cookie) isAccessTokenExpired() bool {
 	return now.After(c.Expiry)
 }
 
+// allowedForHost checks if provided host matches cookie domain
+// according to https://www.rfc-editor.org/rfc/rfc6265#section-5.1.3
+func (c *cookie) allowedForHost(host string) bool {
+	hostWithoutPort, _, err := net.SplitHostPort(host)
+	if err != nil {
+		hostWithoutPort = host
+	}
+	return strings.HasSuffix(hostWithoutPort, c.Domain)
+}
+
 // extractCookie removes and returns the OAuth Grant token cookie from a HTTP request.
 // The function supports multiple cookies with the same name and returns
 // the best match (the one that decodes properly).
@@ -48,34 +61,30 @@ func (c *cookie) isAccessTokenExpired() bool {
 // cookie of the same name.
 // The grant token cookie is extracted so it does not get exposed to untrusted downstream
 // services.
-func extractCookie(request *http.Request, config OAuthConfig) (cookie *cookie, err error) {
-	old := request.Cookies()
-	new := make([]*http.Cookie, 0, len(old))
+func extractCookie(request *http.Request, config *OAuthConfig) (*cookie, error) {
+	cookies := request.Cookies()
+	for i, c := range cookies {
+		if c.Name != config.TokenCookieName {
+			continue
+		}
 
-	for i, c := range old {
-		if c.Name == config.TokenCookieName {
-			cookie, _ = decodeCookie(c.Value, config)
-			if cookie != nil {
-				new = append(new, old[i+1:]...)
-				break
+		decoded, err := decodeCookie(c.Value, config)
+		if err == nil && decoded.allowedForHost(request.Host) {
+			request.Header.Del("Cookie")
+			for j, c := range cookies {
+				if j != i {
+					request.AddCookie(c)
+				}
 			}
+			return decoded, nil
 		}
-		new = append(new, c)
-	}
-
-	if cookie != nil {
-		request.Header.Del("Cookie")
-		for _, c := range new {
-			request.AddCookie(c)
-		}
-		return cookie, nil
 	}
 	return nil, http.ErrNoCookie
 }
 
 // createDeleteCookie creates a cookie, which instructs the client to clear the grant
 // token cookie when used with a Set-Cookie header.
-func createDeleteCookie(config OAuthConfig, host string) *http.Cookie {
+func createDeleteCookie(config *OAuthConfig, host string) *http.Cookie {
 	return &http.Cookie{
 		Name:     config.TokenCookieName,
 		Value:    "",
@@ -87,11 +96,13 @@ func createDeleteCookie(config OAuthConfig, host string) *http.Cookie {
 	}
 }
 
-func createCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
-	c := cookie{
+func createCookie(config *OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
+	domain := extractDomainFromHost(host, *config.TokenCookieRemoveSubdomains)
+	c := &cookie{
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,
 		Expiry:       t.Expiry,
+		Domain:       domain,
 	}
 
 	b, err := json.Marshal(c)
@@ -120,7 +131,7 @@ func createCookie(config OAuthConfig, host string, t *oauth2.Token) (*http.Cooki
 		Name:     config.TokenCookieName,
 		Value:    b64,
 		Path:     "/",
-		Domain:   extractDomainFromHost(host, *config.TokenCookieRemoveSubdomains),
+		Domain:   domain,
 		Expires:  t.Expiry.Add(time.Hour * 24 * 30),
 		Secure:   true,
 		HttpOnly: true,

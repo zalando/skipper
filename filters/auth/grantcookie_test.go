@@ -15,7 +15,7 @@ const (
 	testAccessTokenExpiresIn = time.Hour
 )
 
-func NewGrantCookieWithExpiration(config OAuthConfig, expiry time.Time) (*http.Cookie, error) {
+func NewGrantCookieWithExpiration(config *OAuthConfig, expiry time.Time) (*http.Cookie, error) {
 	token := &oauth2.Token{
 		AccessToken:  testToken,
 		RefreshToken: testRefreshToken,
@@ -26,7 +26,7 @@ func NewGrantCookieWithExpiration(config OAuthConfig, expiry time.Time) (*http.C
 	return cookie, err
 }
 
-func NewGrantCookieWithInvalidAccessToken(config OAuthConfig) (*http.Cookie, error) {
+func NewGrantCookieWithInvalidAccessToken(config *OAuthConfig) (*http.Cookie, error) {
 	token := &oauth2.Token{
 		AccessToken:  "invalid",
 		RefreshToken: testRefreshToken,
@@ -37,7 +37,7 @@ func NewGrantCookieWithInvalidAccessToken(config OAuthConfig) (*http.Cookie, err
 	return cookie, err
 }
 
-func NewGrantCookieWithInvalidRefreshToken(config OAuthConfig) (*http.Cookie, error) {
+func NewGrantCookieWithInvalidRefreshToken(config *OAuthConfig) (*http.Cookie, error) {
 	token := &oauth2.Token{
 		AccessToken:  testToken,
 		RefreshToken: "invalid",
@@ -48,7 +48,7 @@ func NewGrantCookieWithInvalidRefreshToken(config OAuthConfig) (*http.Cookie, er
 	return cookie, err
 }
 
-func NewGrantCookieWithTokens(config OAuthConfig, refreshToken string, accessToken string) (*http.Cookie, error) {
+func NewGrantCookieWithTokens(config *OAuthConfig, refreshToken string, accessToken string) (*http.Cookie, error) {
 	token := &oauth2.Token{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -57,4 +57,14 @@ func NewGrantCookieWithTokens(config OAuthConfig, refreshToken string, accessTok
 
 	cookie, err := createCookie(config, "", token)
 	return cookie, err
+}
+
+func NewGrantCookieWithHost(config *OAuthConfig, host string) (*http.Cookie, error) {
+	token := &oauth2.Token{
+		AccessToken:  testToken,
+		RefreshToken: testRefreshToken,
+		Expiry:       time.Now().Add(testAccessTokenExpiresIn),
+	}
+
+	return createCookie(config, host, token)
 }

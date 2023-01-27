@@ -12,7 +12,7 @@ const (
 )
 
 type grantPrep struct {
-	config OAuthConfig
+	config *OAuthConfig
 }
 
 func (p *grantPrep) Do(r []*eskip.Route) []*eskip.Route {

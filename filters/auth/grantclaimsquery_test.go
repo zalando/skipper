@@ -25,7 +25,7 @@ func TestGrantClaimsQuery(t *testing.T) {
 
 	client := newGrantHTTPClient()
 
-	cookie, err := newGrantCookie(*config)
+	cookie, err := newGrantCookie(config)
 	if err != nil {
 		t.Fatal(err)
 	}

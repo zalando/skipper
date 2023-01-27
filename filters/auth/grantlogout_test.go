@@ -127,7 +127,7 @@ func TestGrantLogout(t *testing.T) {
 	}
 
 	t.Run("check that logout with both tokens revokes refresh token", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithTokens(*config, testRefreshToken, testToken)
+		cookie, err := auth.NewGrantCookieWithTokens(config, testRefreshToken, testToken)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -138,7 +138,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout with no refresh token revokes access token", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithTokens(*config, "", testToken)
+		cookie, err := auth.NewGrantCookieWithTokens(config, "", testToken)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +149,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout deletes grant token cookie", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithTokens(*config, testRefreshToken, testToken)
+		cookie, err := auth.NewGrantCookieWithTokens(config, testRefreshToken, testToken)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -161,7 +161,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout with no tokens results in a 401", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithTokens(*config, "", "")
+		cookie, err := auth.NewGrantCookieWithTokens(config, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -187,7 +187,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout with a refresh token which fails to revoke on the upstream server results in 500", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithTokens(*config, "another_refresh_token", testToken)
+		cookie, err := auth.NewGrantCookieWithTokens(config, "another_refresh_token", testToken)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -198,7 +198,7 @@ func TestGrantLogout(t *testing.T) {
 	})
 
 	t.Run("check that logout with an access token which fails to revoke on the upstream server results in 500", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithTokens(*config, testRefreshToken, "another_access_token")
+		cookie, err := auth.NewGrantCookieWithTokens(config, testRefreshToken, "another_access_token")
 		if err != nil {
 			t.Fatal(err)
 		}
