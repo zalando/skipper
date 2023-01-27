@@ -655,6 +655,16 @@ func Parse(code string) ([]*Route, error) {
 	return routeDefinitions, nil
 }
 
+// MustParse parses a route expression or a routing document to a set of route definitions and
+// panics in case of error
+func MustParse(code string) []*Route {
+	r, err := Parse(code)
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
 func partialParse(f string, partialToRoute func(string) string) (*parsedRoute, error) {
 	rs, err := parse(partialToRoute(f))
 	if err != nil {

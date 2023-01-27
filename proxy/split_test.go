@@ -31,10 +31,7 @@ func TestRequestURIClonedOnSplit(t *testing.T) {
 		shadow: Tee("test") -> dependentFilter() -> <shunt>
 	`
 
-	r, err := eskip.Parse(routes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := eskip.MustParse(routes)
 
 	df := make(dependentFilter)
 	fr := builtin.MakeRegistry()

@@ -327,14 +327,11 @@ func TestGrantFlow(t *testing.T) {
 
 	var proxyUrl string
 	{
-		routes, err := eskip.Parse(`* -> oauthGrant()
+		routes := eskip.MustParse(`* -> oauthGrant()
 			-> status(204)
 			-> setResponseHeader("Backend-Request-Cookie", "${request.header.Cookie}")
 			-> <shunt>
 		`)
-		if err != nil {
-			t.Fatal(err)
-		}
 
 		proxy, err := newAuthProxy(config, routes...)
 		if err != nil {

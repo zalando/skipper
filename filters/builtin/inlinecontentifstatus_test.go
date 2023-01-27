@@ -135,11 +135,7 @@ func TestInlineContentIfStatus(t *testing.T) {
 		expectedContentType: "application/json",
 	}} {
 		t.Run(test.title, func(t *testing.T) {
-			r, err := eskip.Parse(test.routes)
-			if err != nil {
-				t.Error(err)
-				return
-			}
+			r := eskip.MustParse(test.routes)
 
 			p := proxytest.New(MakeRegistry(), r...)
 			defer p.Close()

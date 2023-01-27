@@ -5,12 +5,13 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"fmt"
-	"github.com/andybalholm/brotli"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/andybalholm/brotli"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -34,11 +35,7 @@ func decompressingProxy(t *testing.T, backendURL string) *proxytest.TestProxy {
 	routes := `
 		* -> decompress() -> "%s"
 	`
-	r, err := eskip.Parse(fmt.Sprintf(routes, backendURL))
-	if err != nil {
-		t.Fatal(err)
-		return nil
-	}
+	r := eskip.MustParse(fmt.Sprintf(routes, backendURL))
 
 	fr := make(filters.Registry)
 	fr.Register(NewDecompress())

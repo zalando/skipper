@@ -89,12 +89,7 @@ func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
 	if err != nil {
 		t.Fatalf("failed to open eskip fixture %s: %v", fileName, err)
 	}
-	routes, err := eskip.Parse(string(eskipBytes))
-	if err != nil {
-		t.Fatalf("eskip fixture is not valid eskip %s: %v", fileName, err)
-	}
-
-	return routes
+	return eskip.MustParse(string(eskipBytes))
 }
 
 func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {

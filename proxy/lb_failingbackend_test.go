@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -98,10 +97,7 @@ func setup() (*proxytest.TestProxy, []closer) {
 		groupD_BE2Failing.url,
 	)
 
-	routes, err := eskip.Parse(routesDoc)
-	if err != nil {
-		log.Fatal(err)
-	}
+	routes := eskip.MustParse(routesDoc)
 
 	p := proxytest.New(builtin.MakeRegistry(), routes...)
 

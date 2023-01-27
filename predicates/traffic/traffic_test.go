@@ -178,11 +178,7 @@ func TestTrafficPredicateInRoutes(t *testing.T) {
 			epsilonFactor := 0.1
 			epsilon := float64(N) * epsilonFactor
 
-			r, err := eskip.Parse(tc.routes)
-			if err != nil {
-				t.Error(err)
-				return
-			}
+			r := eskip.MustParse(tc.routes)
 
 			p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
 				Predicates: []routing.PredicateSpec{

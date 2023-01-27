@@ -223,10 +223,7 @@ func TestGrantLogoutNoRevokeTokenURL(t *testing.T) {
 
 	var proxyUrl string
 	{
-		routes, err := eskip.Parse(`Path("/logout") -> grantLogout() -> redirectTo(302) -> <shunt>`)
-		if err != nil {
-			t.Fatal(err)
-		}
+		routes := eskip.MustParse(`Path("/logout") -> grantLogout() -> redirectTo(302) -> <shunt>`)
 
 		proxy, err := newAuthProxy(config, routes...)
 		if err != nil {

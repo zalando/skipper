@@ -1654,8 +1654,7 @@ func TestHealthcheckRoutes(t *testing.T) {
 			defer func() { log.SetLevel(level) }()
 			log.SetLevel(tc.logLevel)
 
-			expected, err := eskip.Parse(tc.expected)
-			require.NoError(t, err)
+			expected := eskip.MustParse(tc.expected)
 
 			assert.EqualValues(t, expected, healthcheckRoutes(tc.reverseSourcePredicate))
 		})
