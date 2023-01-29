@@ -144,7 +144,7 @@ func TestTeeEndToEndBody(t *testing.T) {
 
 	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowUrl, originalUrl)
 
-	route, _ := eskip.Parse(routeStr)
+	route := eskip.MustParse(routeStr)
 	registry := make(filters.Registry)
 	registry.Register(NewTee())
 	p := proxytest.New(registry, route...)
@@ -247,7 +247,7 @@ func TestTeeHeaders(t *testing.T) {
 
 	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowServer.URL, originalServer.URL)
 
-	route, _ := eskip.Parse(routeStr)
+	route := eskip.MustParse(routeStr)
 	registry := make(filters.Registry)
 	registry.Register(NewTee())
 	p := proxytest.New(registry, route...)

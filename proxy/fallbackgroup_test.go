@@ -57,10 +57,7 @@ func TestFallbackGroupLB(t *testing.T) {
 		groupB_BE2.URL,
 	)
 
-	routes, err := eskip.Parse(routesDoc)
-	if err != nil {
-		t.Fatal(err)
-	}
+	routes := eskip.MustParse(routesDoc)
 
 	p := proxytest.New(builtin.MakeRegistry(), routes...)
 	defer p.Close()

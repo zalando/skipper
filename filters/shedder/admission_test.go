@@ -400,10 +400,7 @@ func TestAdmissionControlCleanupMultipleFilters(t *testing.T) {
 			preProcessor := spec.PreProcessor()
 			postProcessor := spec.PostProcessor()
 
-			r, err := eskip.Parse(fmt.Sprintf(ti.doc, backend1.URL))
-			if err != nil {
-				t.Fatalf("Failed to parse doc: %v", err)
-			}
+			r := eskip.MustParse(fmt.Sprintf(ti.doc, backend1.URL))
 
 			fr := make(filters.Registry)
 			fr.Register(fspec)

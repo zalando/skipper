@@ -300,6 +300,31 @@ func TestParseRouteExpression(t *testing.T) {
 	}
 }
 
+func TestMustParse(t *testing.T) {
+	const (
+		valid   = "* -> <shunt>"
+		invalid = "this is an invalid route definition"
+	)
+
+	expected, err := Parse(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := MustParse(valid)
+	if !cmp.Equal(r, expected) {
+		t.Errorf("Invalid parse result: %s", cmp.Diff(r, expected))
+	}
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Expected panic parsing %q", invalid)
+		}
+	}()
+
+	_ = MustParse(invalid)
+}
+
 func TestParseFilters(t *testing.T) {
 	for _, ti := range []struct {
 		msg        string

@@ -94,10 +94,7 @@ func TestBackendRatelimitRoundRobin(t *testing.T) {
 	defer backends.close()
 
 	doc := fmt.Sprintf(`* -> backendRatelimit("testapi", %d, "%s") -> <roundRobin, %v>`, maxHits, timeWindow.String(), backends)
-	r, err := eskip.Parse(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := eskip.MustParse(doc)
 
 	p := proxytest.WithParams(filterRegistry, proxy.Params{RateLimiters: ratelimitRegistry}, r...)
 	defer p.Close()
@@ -195,10 +192,7 @@ func TestBackendRatelimitScenarios(t *testing.T) {
 			backends := newCountingBackends(ti.backends)
 			defer backends.close()
 
-			r, err := eskip.Parse(strings.ReplaceAll(ti.routes, "$backends", backends.String()))
-			if err != nil {
-				t.Fatal(err)
-			}
+			r := eskip.MustParse(strings.ReplaceAll(ti.routes, "$backends", backends.String()))
 
 			p := proxytest.WithParams(filterRegistry, proxy.Params{RateLimiters: ratelimitRegistry}, r...)
 			defer p.Close()

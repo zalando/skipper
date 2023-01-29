@@ -119,10 +119,7 @@ func TestForwardToken(t *testing.T) {
 			fr.Register(NewOAuthTokenintrospectionAllClaims(10 * time.Second))
 			fr.Register(NewForwardToken())
 
-			routes, err := eskip.Parse(fmt.Sprintf(`* -> %s -> "%s"`, ti.filters, backend.URL))
-			if err != nil {
-				t.Fatal(err)
-			}
+			routes := eskip.MustParse(fmt.Sprintf(`* -> %s -> "%s"`, ti.filters, backend.URL))
 
 			proxy := proxytest.New(fr, routes[0])
 			defer proxy.Close()

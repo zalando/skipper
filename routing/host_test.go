@@ -56,10 +56,8 @@ func benchmarkPredicateHost(b *testing.B, predicateFmt string) {
 	var routes []*routing.Route
 	for i := 0; i < R; i++ {
 		p := strings.ReplaceAll(predicateFmt, "{i}", fmt.Sprintf("%d", i))
-		def, err := eskip.Parse(fmt.Sprintf(`r%d: %s -> <shunt>;`, i, p))
-		if err != nil {
-			b.Fatal(err)
-		}
+		def := eskip.MustParse(fmt.Sprintf(`r%d: %s -> <shunt>;`, i, p))
+
 		route, err := routing.ExportProcessRouteDef(pr, fr, def[0])
 		if err != nil {
 			b.Fatal(err)

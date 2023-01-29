@@ -44,7 +44,7 @@ func TestLoopbackAndMatchPredicate(t *testing.T) {
 	split := backendtest.NewBackendRecorder(listenFor)
 	shadow := backendtest.NewBackendRecorder(listenFor)
 
-	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, original.GetURL(), split.GetURL(), shadow.GetURL()))
+	routes := eskip.MustParse(fmt.Sprintf(routeDoc, original.GetURL(), split.GetURL(), shadow.GetURL()))
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
@@ -83,7 +83,7 @@ func TestOriginalBackendServeEvenWhenShadowDoesNotReply(t *testing.T) {
 	}))
 	defer shadow.Close()
 
-	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, split.GetURL(), split.GetURL(), shadow.URL))
+	routes := eskip.MustParse(fmt.Sprintf(routeDoc, split.GetURL(), split.GetURL(), shadow.URL))
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithParamsAndRoutingOptions(registry,
@@ -121,7 +121,7 @@ func TestOriginalBackendServeEvenWhenShadowIsDown(t *testing.T) {
 		shadow: Path("/foo") && Traffic(1) && Tee("A") -> "%v";
 	`
 	split := backendtest.NewBackendRecorder(listenFor)
-	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, split.GetURL(), split.GetURL(), "http://fakeurl"))
+	routes := eskip.MustParse(fmt.Sprintf(routeDoc, split.GetURL(), split.GetURL(), "http://fakeurl"))
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
@@ -151,7 +151,7 @@ func TestInfiniteLoopback(t *testing.T) {
 	split := backendtest.NewBackendRecorder(listenFor)
 	shadow := backendtest.NewBackendRecorder(listenFor)
 
-	routes, _ := eskip.Parse(fmt.Sprintf(routeDoc, split.GetURL(), shadow.GetURL()))
+	routes := eskip.MustParse(fmt.Sprintf(routeDoc, split.GetURL(), shadow.GetURL()))
 	registry := make(filters.Registry)
 	registry.Register(NewTeeLoopback())
 	p := proxytest.WithRoutingOptions(registry, routing.Options{
@@ -182,10 +182,7 @@ func TestLoopbackWithClientIP(t *testing.T) {
 	shadow := backendtest.NewBackendRecorder(listenFor)
 
 	routeDoc := fmt.Sprintf(routeFmt, split.GetURL(), shadow.GetURL())
-	routes, err := eskip.Parse(routeDoc)
-	if err != nil {
-		t.Fatal(err)
-	}
+	routes := eskip.MustParse(routeDoc)
 
 	filterRegistry := make(filters.Registry)
 	filterRegistry.Register(NewTeeLoopback())
