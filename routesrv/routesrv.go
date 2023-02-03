@@ -92,15 +92,16 @@ func New(opts Options) (*RouteServer, error) {
 	}
 
 	rs.poller = &poller{
-		client:         dataclient,
-		timeout:        opts.SourcePollTimeout,
-		b:              b,
-		quit:           make(chan struct{}),
-		defaultFilters: opts.DefaultFilters,
-		editRoute:      opts.EditRoute,
-		cloneRoute:     opts.CloneRoute,
-		oauth2Config:   oauthConfig,
-		tracer:         tracer,
+		client:          dataclient,
+		timeout:         opts.SourcePollTimeout,
+		b:               b,
+		quit:            make(chan struct{}),
+		defaultFilters:  opts.DefaultFilters,
+		editRoute:       opts.EditRoute,
+		cloneRoute:      opts.CloneRoute,
+		disabledFilters: opts.DisabledFilters,
+		oauth2Config:    oauthConfig,
+		tracer:          tracer,
 	}
 
 	rs.wg = &sync.WaitGroup{}

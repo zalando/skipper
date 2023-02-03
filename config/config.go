@@ -656,6 +656,7 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 		SourcePollTimeout:                  time.Duration(c.SourcePollTimeout) * time.Millisecond,
 		WaitForHealthcheckInterval:         c.WaitForHealthcheckInterval,
 		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
+		DisabledFilters:                    c.DisabledFilters.values,
 
 		// Auth:
 		EnableOAuth2GrantFlow: c.EnableOAuth2GrantFlow,

@@ -166,4 +166,8 @@ type Options struct {
 	// EditRoute will be applied to all routes automatically and
 	// will apply changes to all matching routes.
 	EditRoute []*eskip.Editor
+
+	// DisabledFilters is a list of filters unavailable for use, routes with these filters will be ignored
+	// with a logged error message.
+	DisabledFilters []string
 }

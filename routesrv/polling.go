@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
@@ -51,10 +52,11 @@ type poller struct {
 	quit    chan struct{}
 
 	// Preprocessors
-	defaultFilters *eskip.DefaultFilters
-	oauth2Config   *auth.OAuthConfig
-	editRoute      []*eskip.Editor
-	cloneRoute     []*eskip.Clone
+	defaultFilters  *eskip.DefaultFilters
+	oauth2Config    *auth.OAuthConfig
+	editRoute       []*eskip.Editor
+	cloneRoute      []*eskip.Clone
+	disabledFilters []string
 
 	// tracer
 	tracer ot.Tracer
@@ -142,10 +144,57 @@ func (p *poller) process(routes []*eskip.Route) []*eskip.Route {
 		routes = cloner.Do(routes)
 	}
 
+	hasDisabledFilters := len(p.disabledFilters) != 0
+
+	routes = p.validateRoutes(routes, hasDisabledFilters)
+
 	// sort the routes, otherwise it will lead to different etag values for the same route list for different orders
 	sort.SliceStable(routes, func(i, j int) bool {
 		return routes[i].Id < routes[j].Id
 	})
 
 	return routes
+}
+
+func (p *poller) validateRoutes(routes []*eskip.Route, hasDisabledFilters bool) []*eskip.Route {
+	validRoutes := make([]*eskip.Route, 0, len(routes))
+
+	var disabledFiltersMap map[string]struct{}
+
+	if hasDisabledFilters {
+		disabledFiltersMap = toMap(p.disabledFilters)
+	}
+
+	var validRouteFilters bool
+	for _, r := range routes {
+		validRouteFilters = true
+		for _, filter := range r.Filters {
+			if filter.Name == predicates.PathSubtreeName || filter.Name == predicates.PathName || filter.Name == predicates.HostName || filter.Name == predicates.PathRegexpName || filter.Name == predicates.MethodName || filter.Name == predicates.HeaderName || filter.Name == predicates.HeaderRegexpName {
+				validRouteFilters = false
+				log.Errorf("trying to use %q as filter, but it is only available as predicate", filter.Name)
+				break
+			}
+
+			if hasDisabledFilters {
+				if _, ok := disabledFiltersMap[filter.Name]; ok {
+					validRouteFilters = false
+					log.Errorf("trying to use %q filter, which is disabled", filter.Name)
+					break
+				}
+			}
+		}
+		if validRouteFilters {
+			validRoutes = append(validRoutes, r)
+		}
+	}
+
+	return validRoutes
+}
+
+func toMap[C comparable](values []C) map[C]struct{} {
+	casted := make(map[C]struct{}, 0)
+	for _, value := range values {
+		casted[value] = struct{}{}
+	}
+	return casted
 }
