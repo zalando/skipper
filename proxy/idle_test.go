@@ -32,13 +32,14 @@ func hasArg(arg string) bool {
 // This test is unpredicable, and occasionally fails on certain OSes.
 // To run this test, set `-args idle` for the test command.
 func TestIdleConns(t *testing.T) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	if !hasArg("idle") {
 		t.Skip()
 	}
 
 	doc := func(l int) []byte {
 		b := make([]byte, l)
-		n, err := rand.Read(b)
+		n, err := r.Read(b)
 		if err != nil || n != l {
 			t.Fatal("failed to generate doc", err, n, l)
 		}

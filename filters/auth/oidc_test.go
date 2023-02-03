@@ -1002,7 +1002,7 @@ func parseFilter(def, oidcServerURL, redirectURL string) ([]*eskip.Filter, error
 }
 
 func TestChunkAndMergerCookie(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	tinyCookie := http.Cookie{
 		Name:     "skipperOauthOidcHASHHASH-",
 		Value:    "eyJ0eXAiOiJKV1QiLCJhbGciO",
@@ -1016,7 +1016,7 @@ func TestChunkAndMergerCookie(t *testing.T) {
 	emptyCookie.Value = ""
 	largeCookie := tinyCookie
 	for i := 0; i < 5*cookieMaxSize; i++ {
-		largeCookie.Value += string(rune(rand.Intn('Z'-'A') + 'A' + i%2*32))
+		largeCookie.Value += string(rune(r.Intn('Z'-'A') + 'A' + i%2*32))
 	}
 	oneCookie := largeCookie
 	oneCookie.Value = oneCookie.Value[:len(oneCookie.Value)-(len(oneCookie.String())-cookieMaxSize)-1]
@@ -1039,7 +1039,7 @@ func TestChunkAndMergerCookie(t *testing.T) {
 			got := chunkCookie(&ht.given)
 			assert.NotNil(t, got, "it should not be empty")
 			// shuffle the order of response cookies
-			rand.Shuffle(len(got), func(i, j int) {
+			r.Shuffle(len(got), func(i, j int) {
 				got[i], got[j] = got[j], got[i]
 			})
 			assert.Len(got, ht.num, "should result in a different number of chunks")
