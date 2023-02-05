@@ -115,7 +115,7 @@ bench: build $(TEST_PLUGINS)
 lint: build staticcheck
 
 clean:
-	go clean -i -cache -testcache ./...
+	go clean -i -cache -testcache
 	rm -rf .coverprofile-all .cover
 	rm -f ./_test_plugins/*.so
 	rm -f ./_test_plugins_fail/*.so

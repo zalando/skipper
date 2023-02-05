@@ -36,8 +36,9 @@ type errorReader struct {
 var testContent []byte
 
 func init() {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	testContent = make([]byte, maxTestContent)
-	n, err := rand.Read(testContent)
+	n, err := r.Read(testContent)
 
 	if err != nil {
 		panic(err)
