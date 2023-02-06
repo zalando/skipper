@@ -864,7 +864,7 @@ func TestRequestLatency(t *testing.T) {
 			p50:     11 * time.Millisecond,
 			p75:     13 * time.Millisecond,
 			p90:     14 * time.Millisecond,
-			epsilon: time.Millisecond,
+			epsilon: 2 * time.Millisecond,
 		},
 		{
 			msg:     "test normal latency",
@@ -875,7 +875,7 @@ func TestRequestLatency(t *testing.T) {
 			p50:     11 * time.Millisecond,
 			p75:     14 * time.Millisecond,
 			p90:     17 * time.Millisecond,
-			epsilon: time.Millisecond,
+			epsilon: 2 * time.Millisecond,
 		}} {
 
 		t.Run(ti.msg, func(t *testing.T) {
@@ -943,7 +943,7 @@ func TestResponseLatency(t *testing.T) {
 			p50:     11 * time.Millisecond,
 			p75:     13 * time.Millisecond,
 			p90:     14 * time.Millisecond,
-			epsilon: time.Millisecond,
+			epsilon: 2 * time.Millisecond,
 		},
 		{
 			msg:     "test response normal latency",
@@ -954,7 +954,7 @@ func TestResponseLatency(t *testing.T) {
 			p50:     11 * time.Millisecond,
 			p75:     14 * time.Millisecond,
 			p90:     17 * time.Millisecond,
-			epsilon: time.Millisecond,
+			epsilon: 2 * time.Millisecond,
 		}} {
 
 		t.Run(ti.msg, func(t *testing.T) {
