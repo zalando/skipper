@@ -81,7 +81,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte(http.StatusText(http.StatusServiceUnavailable)))
 		return
 	}
-	defer backendConn.Close()
+	defer backendConn.Close() // #nosec G307
 
 	err = req.Write(backendConn)
 	if err != nil {
@@ -113,7 +113,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // #nosec G307
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		log.Debugf("Got unauthorized error from backend for: %s %s", req.Method, req.URL)
@@ -148,7 +148,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	defer requestHijackedConn.Close()
+	defer requestHijackedConn.Close() // #nosec G307
 	// NOTE: from this point forward, we own the connection and we can't use
 	// w.Header(), w.Write(), or w.WriteHeader any more
 

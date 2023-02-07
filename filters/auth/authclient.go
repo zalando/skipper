@@ -89,7 +89,7 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	if err != nil {
 		return nil, err
 	}
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
 
 	if rsp.StatusCode != 200 {
 		io.Copy(io.Discard, rsp.Body)
@@ -123,7 +123,7 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	if err != nil {
 		return doc, err
 	}
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
 
 	if rsp.StatusCode != 200 {
 		io.Copy(io.Discard, rsp.Body)
@@ -148,7 +148,7 @@ func (ac *authClient) getWebhook(ctx filters.FilterContext) (*http.Response, err
 	if err != nil {
 		return nil, err
 	}
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
 
 	return rsp, nil
 }

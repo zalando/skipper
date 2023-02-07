@@ -118,7 +118,7 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 	if err != nil {
 		return err
 	}
-	defer revokeResponse.Body.Close()
+	defer revokeResponse.Body.Close() // #nosec G307
 
 	buf, err := io.ReadAll(revokeResponse.Body)
 	if err != nil {

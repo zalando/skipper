@@ -126,8 +126,7 @@ func (c *nodeInfoClientKubernetes) GetNodeInfo() ([]*NodeInfo, error) {
 		log.Debugf("SWARM: request to %s %s=%s failed: %v", c.namespace, c.labelKey, c.labelVal, err)
 		return nil, err
 	}
-
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
 
 	if rsp.StatusCode > http.StatusBadRequest {
 		log.Debugf("SWARM: request failed, status: %d, %s", rsp.StatusCode, rsp.Status)

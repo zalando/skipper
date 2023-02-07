@@ -158,7 +158,8 @@ func DeleteDataFrom(prefix, key string) error {
 		return err
 	}
 
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
+
 	return nil
 }
 
@@ -183,7 +184,8 @@ func PutDataTo(prefix, key, data string) error {
 		return err
 	}
 
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
+
 	return nil
 }
 
@@ -222,7 +224,7 @@ func GetNodeFrom(prefix, key string) (string, error) {
 		return "", err
 	}
 
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
 
 	if rsp.StatusCode < http.StatusOK || rsp.StatusCode >= http.StatusMultipleChoices {
 		return "", errors.New("unexpected response status")

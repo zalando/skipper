@@ -282,7 +282,7 @@ func (c *Client) etcdRequest(method, path, data string) (*response, error) {
 		return nil, err
 	}
 
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
 
 	if hasErr, err := httpError(rsp.StatusCode); hasErr {
 		return nil, err

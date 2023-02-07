@@ -156,7 +156,7 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 	if err != nil {
 		return err
 	}
-	defer data.Close()
+	defer data.Close() // #nosec G307
 
 	out, err := os.OpenFile(client.localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {

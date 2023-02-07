@@ -250,7 +250,7 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 	}
 
 	log.Debugf("request to %s succeeded", uri)
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
 
 	if rsp.StatusCode == http.StatusNotFound {
 		return errResourceNotFound

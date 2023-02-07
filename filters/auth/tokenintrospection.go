@@ -221,7 +221,7 @@ func getOpenIDConfig(issuerURL string) (*openIDConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() // #nosec G307
 
 	if rsp.StatusCode != 200 {
 		return nil, errInvalidToken
