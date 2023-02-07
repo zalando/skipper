@@ -107,24 +107,14 @@ func TestGrantLogout(t *testing.T) {
 
 	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
 
-	client := newGrantHTTPClient()
-
-	var proxyUrl string
-	{
-		proxy, err := newAuthProxy(config, &eskip.Route{
-			Filters: []*eskip.Filter{
-				{Name: filters.GrantLogoutName},
-				{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
-			},
-			BackendType: eskip.ShuntBackend,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer proxy.Close()
-
-		proxyUrl = withHost(proxy.URL, applicationDomain)
-	}
+	proxy, client := newAuthProxy(t, config, []*eskip.Route{{
+		Filters: []*eskip.Filter{
+			{Name: filters.GrantLogoutName},
+			{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
+		},
+		BackendType: eskip.ShuntBackend,
+	}}, applicationDomain)
+	defer proxy.Close()
 
 	t.Run("check that logout with both tokens revokes refresh token", func(t *testing.T) {
 		cookie, err := auth.NewGrantCookieWithTokens(config, testRefreshToken, testToken)
@@ -132,7 +122,7 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
@@ -143,7 +133,7 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
@@ -154,7 +144,7 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
 		checkDeletedCookie(t, rsp, config.TokenCookieName, expectCookieDomain)
 		checkStatus(t, rsp, http.StatusNoContent)
@@ -166,13 +156,13 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
 		checkStatus(t, rsp, http.StatusUnauthorized)
 	})
 
 	t.Run("check that logout with no cookie results in 401", func(t *testing.T) {
-		req, err := http.NewRequest("GET", proxyUrl, nil)
+		req, err := http.NewRequest("GET", proxy.URL, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,7 +182,7 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
 		checkStatus(t, rsp, http.StatusInternalServerError)
 	})
@@ -203,7 +193,7 @@ func TestGrantLogout(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxyUrl, cookie)
+		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
 
 		checkStatus(t, rsp, http.StatusInternalServerError)
 	})
@@ -219,22 +209,12 @@ func TestGrantLogoutNoRevokeTokenURL(t *testing.T) {
 	config.TokenCookieRemoveSubdomains = &zero
 	config.RevokeTokenURL = ""
 
-	client := newGrantHTTPClient()
+	routes := eskip.MustParse(`Path("/logout") -> grantLogout() -> redirectTo(302) -> <shunt>`)
 
-	var proxyUrl string
-	{
-		routes := eskip.MustParse(`Path("/logout") -> grantLogout() -> redirectTo(302) -> <shunt>`)
+	proxy, client := newAuthProxy(t, config, routes, applicationDomain)
+	defer proxy.Close()
 
-		proxy, err := newAuthProxy(config, routes...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer proxy.Close()
-
-		proxyUrl = withHost(proxy.URL, applicationDomain)
-	}
-
-	rsp, err := client.Get(proxyUrl + "/logout")
+	rsp, err := client.Get(proxy.URL + "/logout")
 	if err != nil {
 		t.Fatal(err)
 	}
