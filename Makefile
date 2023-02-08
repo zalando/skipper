@@ -125,7 +125,6 @@ deps:
 	go env
 	./etcd/install.sh $(TEST_ETCD_VERSION)
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
-	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
 
 vet: $(SOURCES)
@@ -140,14 +139,6 @@ vet: $(SOURCES)
 # -ST1022 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES)
 	staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021" $(PACKAGES)
-
-# TODO(sszuecs) review disabling these checks, f.e.:
-# G101 find by variable name match "oauth" are not hardcoded credentials
-# G104 ignoring errors are in few cases fine
-# G304 reading kubernetes secret filepaths are not a file inclusions
-# G402 See https://github.com/securego/gosec/issues/551 and https://github.com/securego/gosec/issues/528
-gosec: $(SOURCES)
-	gosec -quiet -exclude="G101,G104,G304,G402" ./...
 
 govulncheck: $(SOURCES)
 	govulncheck ./...
