@@ -145,9 +145,10 @@ staticcheck: $(SOURCES)
 # G101 find by variable name match "oauth" are not hardcoded credentials
 # G104 ignoring errors are in few cases fine
 # G304 reading kubernetes secret filepaths are not a file inclusions
+# G307 mostly warns about defer rsp.Body.Close(), see https://github.com/securego/gosec/issues/925
 # G402 See https://github.com/securego/gosec/issues/551 and https://github.com/securego/gosec/issues/528
 gosec: $(SOURCES)
-	gosec -quiet -exclude="G101,G104,G304,G402" ./...
+	gosec -quiet -exclude="G101,G104,G304,G307,G402" ./...
 
 govulncheck: $(SOURCES)
 	govulncheck ./...
