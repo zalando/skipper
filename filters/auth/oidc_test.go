@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/net/dnstest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
@@ -873,9 +872,10 @@ func TestOIDCSetup(t *testing.T) {
 			fr.Register(NewOAuthOidcAllClaimsWithOptions(secretsFile, secretsRegistry, OidcOptions{}))
 
 			dc := testdataclient.New(nil)
+			defer dc.Close()
+
 			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
 				DataClients: []routing.DataClient{dc},
-				Log:         loggingtest.New(),
 			})
 			defer proxy.Close()
 

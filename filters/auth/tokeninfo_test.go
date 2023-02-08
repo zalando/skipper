@@ -227,6 +227,8 @@ func TestOAuth2Tokeninfo(t *testing.T) {
 			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: ti.args}}, Backend: backend.URL}
 
 			proxy := proxytest.New(fr, r)
+			defer proxy.Close()
+
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)

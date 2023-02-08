@@ -122,6 +122,7 @@ func Test_bearerInjectorFilter_Request(t *testing.T) {
 				}
 				w.WriteHeader(http.StatusOK)
 			}))
+			defer backendServer.Close()
 
 			var routeFilters []*eskip.Filter
 			fr := make(filters.Registry)
@@ -138,6 +139,8 @@ func Test_bearerInjectorFilter_Request(t *testing.T) {
 			r := &eskip.Route{Filters: routeFilters, Backend: backendServer.URL}
 
 			proxy := proxytest.New(fr, r)
+			defer proxy.Close()
+
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
@@ -156,7 +159,6 @@ func Test_bearerInjectorFilter_Request(t *testing.T) {
 				t.Errorf("injection did not work as expected: got %d, want %d", rsp.StatusCode, tt.want)
 			}
 			rsp.Body.Close()
-
 		})
 	}
 }
