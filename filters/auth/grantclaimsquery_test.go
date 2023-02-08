@@ -23,30 +23,24 @@ func TestGrantClaimsQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := newGrantHTTPClient()
-
 	cookie, err := newGrantCookie(config)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	createProxyForQuery := func(config *auth.OAuthConfig, query string) *proxytest.TestProxy {
-		proxy, err := newAuthProxy(config, &eskip.Route{
+	createProxyForQuery := func(t *testing.T, config *auth.OAuthConfig, query string) (*proxytest.TestProxy, *http.Client) {
+		return newAuthProxy(t, config, []*eskip.Route{{
 			Filters: []*eskip.Filter{
 				{Name: filters.OAuthGrantName},
 				{Name: filters.GrantClaimsQueryName, Args: []interface{}{query}},
 				{Name: filters.StatusName, Args: []interface{}{http.StatusNoContent}},
 			},
 			BackendType: eskip.ShuntBackend,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return proxy
+		}})
 	}
 
 	t.Run("check that matching tokeninfo properties allows the request", func(t *testing.T) {
-		proxy := createProxyForQuery(config, "/allowed:scope.#[==\"match\"]")
+		proxy, client := createProxyForQuery(t, config, "/allowed:scope.#[==\"match\"]")
 		defer proxy.Close()
 
 		url := fmt.Sprint(proxy.URL, "/allowed")
@@ -56,7 +50,7 @@ func TestGrantClaimsQuery(t *testing.T) {
 	})
 
 	t.Run("check that non-matching tokeninfo properties block the request", func(t *testing.T) {
-		proxy := createProxyForQuery(config, "/forbidden:scope.#[==\"noMatch\"]")
+		proxy, client := createProxyForQuery(t, config, "/forbidden:scope.#[==\"noMatch\"]")
 		defer proxy.Close()
 
 		url := fmt.Sprint(proxy.URL, "/forbidden")
@@ -69,7 +63,7 @@ func TestGrantClaimsQuery(t *testing.T) {
 		newConfig := *config
 		newConfig.TokeninfoSubjectKey = "uid"
 
-		proxy := createProxyForQuery(&newConfig, "/allowed:@_:sub%\"foo\"")
+		proxy, client := createProxyForQuery(t, &newConfig, "/allowed:@_:sub%\"foo\"")
 		defer proxy.Close()
 
 		url := fmt.Sprint(proxy.URL, "/allowed")

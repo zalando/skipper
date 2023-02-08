@@ -103,7 +103,7 @@ type OAuthConfig struct {
 	// MaxIdleConnectionsPerHost used for tokeninfo, access-token and refresh-token endpoint.
 	MaxIdleConnectionsPerHost int
 
-	// Tracer used for tokeninfo , access-token and refresh-token endpoint.
+	// Tracer used for tokeninfo, access-token and refresh-token endpoint.
 	Tracer opentracing.Tracer
 }
 
@@ -286,24 +286,15 @@ func (c *OAuthConfig) GetClientSecret() string {
 func (c *OAuthConfig) RedirectURLs(req *http.Request) (redirect, original string) {
 	u := *req.URL
 
-	if fp := req.Header.Get("X-Forwarded-Proto"); fp != "" {
-		u.Scheme = fp
-	} else if req.TLS != nil {
-		u.Scheme = "https"
-	} else {
-		u.Scheme = "http"
-	}
-
-	if fh := req.Header.Get("X-Forwarded-Host"); fh != "" {
-		u.Host = fh
-	} else {
-		u.Host = req.Host
-	}
+	u.Scheme = "https"
+	u.Host = req.Host
 
 	original = u.String()
 
 	u.Path = c.CallbackPath
 	u.RawQuery = ""
+
 	redirect = u.String()
+
 	return
 }
