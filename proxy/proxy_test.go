@@ -1141,23 +1141,18 @@ func TestFlusherImplementation(t *testing.T) {
 		t.Error(err)
 		return
 	}
-
 	defer tp.close()
 
-	a := fmt.Sprintf(":%d", 1<<16-rand.Intn(1<<15))
-	ps := &http.Server{Addr: a, Handler: tp.proxy}
+	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
-	go ps.ListenAndServe()
 
-	// let the server start listening
-	time.Sleep(15 * time.Millisecond)
-
-	rsp, err := http.Get("http://127.0.0.1" + a)
+	rsp, err := http.Get(ps.URL)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	defer rsp.Body.Close()
+
 	b, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Error(err)
