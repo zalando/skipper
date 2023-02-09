@@ -155,6 +155,20 @@ func newAuthProxy(t *testing.T, config *auth.OAuthConfig, routes []*eskip.Route,
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if config.Secrets != nil {
+			config.Secrets.Close()
+		}
+		if config.SecretsProvider != nil {
+			config.SecretsProvider.Close()
+		}
+		if config.TokeninfoClient != nil {
+			config.TokeninfoClient.Close()
+		}
+		if config.AuthClient != nil {
+			config.AuthClient.Close()
+		}
+	})
 
 	fr := builtin.MakeRegistry()
 	fr.Register(config.NewGrant())

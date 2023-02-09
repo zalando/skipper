@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -18,17 +17,7 @@ func TestGrantClaimsQuery(t *testing.T) {
 	tokeninfo := newGrantTestTokeninfo(testToken, "{\"scope\":[\"match\"], \"uid\":\"foo\"}")
 	defer tokeninfo.Close()
 
-	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
-	if err := config.Init(); err != nil {
-		t.Fatal(err)
-	}
-
-	cookie, err := newGrantCookie(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	createProxyForQuery := func(t *testing.T, config *auth.OAuthConfig, query string) (*proxytest.TestProxy, *http.Client) {
+	newAuthProxyForQuery := func(t *testing.T, config *auth.OAuthConfig, query string) (*proxytest.TestProxy, *http.Client) {
 		return newAuthProxy(t, config, []*eskip.Route{{
 			Filters: []*eskip.Filter{
 				{Name: filters.OAuthGrantName},
@@ -40,34 +29,38 @@ func TestGrantClaimsQuery(t *testing.T) {
 	}
 
 	t.Run("check that matching tokeninfo properties allows the request", func(t *testing.T) {
-		proxy, client := createProxyForQuery(t, config, "/allowed:scope.#[==\"match\"]")
+		config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+
+		proxy, client := newAuthProxyForQuery(t, config, "/allowed:scope.#[==\"match\"]")
 		defer proxy.Close()
 
-		url := fmt.Sprint(proxy.URL, "/allowed")
-		rsp := grantQueryWithCookie(t, client, url, cookie)
+		cookie, _ := newGrantCookie(config)
+		rsp := grantQueryWithCookie(t, client, proxy.URL+"/allowed", cookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
 
 	t.Run("check that non-matching tokeninfo properties block the request", func(t *testing.T) {
-		proxy, client := createProxyForQuery(t, config, "/forbidden:scope.#[==\"noMatch\"]")
+		config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+
+		proxy, client := newAuthProxyForQuery(t, config, "/forbidden:scope.#[==\"noMatch\"]")
 		defer proxy.Close()
 
-		url := fmt.Sprint(proxy.URL, "/forbidden")
-		rsp := grantQueryWithCookie(t, client, url, cookie)
+		cookie, _ := newGrantCookie(config)
+		rsp := grantQueryWithCookie(t, client, proxy.URL+"/forbidden", cookie)
 
 		checkStatus(t, rsp, http.StatusUnauthorized)
 	})
 
 	t.Run("check that the subject claim gets initialized from a configurable tokeninfo property and is queriable", func(t *testing.T) {
-		newConfig := *config
-		newConfig.TokeninfoSubjectKey = "uid"
+		config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+		config.TokeninfoSubjectKey = "uid"
 
-		proxy, client := createProxyForQuery(t, &newConfig, "/allowed:@_:sub%\"foo\"")
+		proxy, client := newAuthProxyForQuery(t, config, "/allowed:@_:sub%\"foo\"")
 		defer proxy.Close()
 
-		url := fmt.Sprint(proxy.URL, "/allowed")
-		rsp := grantQueryWithCookie(t, client, url, cookie)
+		cookie, _ := newGrantCookie(config)
+		rsp := grantQueryWithCookie(t, client, proxy.URL+"/allowed", cookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})

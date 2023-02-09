@@ -83,7 +83,7 @@ func (h *dnsHandler) nameError(w dns.ResponseWriter, r *dns.Msg) {
 }
 
 func startServer(handler dns.Handler) (*dns.Server, error) {
-	ready := make(chan error)
+	ready := make(chan error, 1)
 	server := &dns.Server{
 		Addr:              ":0",
 		Net:               "udp",

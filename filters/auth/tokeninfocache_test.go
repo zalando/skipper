@@ -87,6 +87,7 @@ func TestTokeninfoCache(t *testing.T) {
 	c, err := o.newTokeninfoClient()
 	require.NoError(t, err)
 
+	defer c.(*tokeninfoCache).client.(*authClient).Close()
 	c.(*tokeninfoCache).now = clock.now
 
 	ctx := &filtertest.Context{FRequest: &http.Request{}}
