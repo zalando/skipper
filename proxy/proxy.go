@@ -524,9 +524,15 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 	return hh
 }
 
-type flusher struct {
-	w flushedResponseWriter
-}
+type (
+	flushWriter interface {
+		io.Writer
+		http.Flusher
+	}
+	flusher struct {
+		w flushWriter
+	}
+)
 
 func (f *flusher) Write(p []byte) (n int, err error) {
 	n, err = f.w.Write(p)
@@ -536,7 +542,7 @@ func (f *flusher) Write(p []byte) (n int, err error) {
 	return
 }
 
-func copyStream(to flushedResponseWriter, from io.Reader) (int64, error) {
+func copyStream(to flushWriter, from io.Reader) (int64, error) {
 	b := make([]byte, proxyBufferSize)
 
 	return io.CopyBuffer(&flusher{to}, from, b)
