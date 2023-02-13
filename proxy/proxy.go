@@ -1132,6 +1132,8 @@ func (p *Proxy) do(ctx *context) (err error) {
 		backendStart := time.Now()
 		rsp, perr := p.makeBackendRequest(ctx, backendContext)
 		if perr != nil {
+			p.handleFiltersOnError(ctx, processedFilters)
+
 			if done != nil {
 				done(false)
 			}
@@ -1151,6 +1153,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
 				if perr2 != nil {
 					p.log.Errorf("Failed to retry backend request: %v", perr2)
+					p.handleFiltersOnError(ctx, processedFilters)
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
@@ -1525,4 +1528,36 @@ func ensureUTF8(s string) string {
 		return s
 	}
 	return fmt.Sprintf("invalid utf-8: %q", s)
+}
+
+// Opt-In for filters to get called Response(ctx) in case of errors
+type errorHandlerFilter interface {
+	HandleErrorResponse()
+}
+
+func (p *Proxy) handleFiltersOnError(ctx *context, filters []*routing.RouteFilter) {
+	filtersStart := time.Now()
+	filterTracing := p.tracing.startFilterTracing("response_filters", ctx)
+	defer filterTracing.finish()
+
+	last := len(filters) - 1
+	for i := range filters {
+		fi := filters[last-i]
+
+		if _, ok := fi.Filter.(errorHandlerFilter); !ok {
+			continue
+		}
+		p.log.Debugf("filter %s handles error", fi.Name)
+
+		start := time.Now()
+		filterTracing.logStart(fi.Name)
+		ctx.setMetricsPrefix(fi.Name)
+
+		fi.Response(ctx)
+
+		p.metrics.MeasureFilterResponse(fi.Name, start)
+		filterTracing.logEnd(fi.Name)
+	}
+
+	p.metrics.MeasureAllFiltersResponse(ctx.route.Id, filtersStart)
 }
