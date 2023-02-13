@@ -455,8 +455,4 @@ func (ac *admissionControl) startSpan(ctx context.Context) (span opentracing.Spa
 }
 
 // Opt-In for filters to get called Response(ctx) in case of errors
-type errorHandlerFilter interface {
-	HandleErrorResponse()
-}
-
 func (ac *admissionControl) HandleErrorResponse() {}
