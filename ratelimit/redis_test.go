@@ -2,6 +2,8 @@ package ratelimit
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -83,6 +85,38 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 				got = append(got, c.Allow(context.Background(), tt.args))
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
+	redisAddr, done := redistest.NewTestRedis(b)
+	defer done()
+
+	for i := 0; i < 21; i++ {
+		benchmarkName := fmt.Sprintf("ratelimit with group name of %d symbols", 1<<i)
+		b.Run(benchmarkName, func(b *testing.B) {
+			groupName := strings.Repeat("a", 1<<i)
+			clusterClientlimit := Settings{
+				Type:       ClusterClientRatelimit,
+				Lookuper:   NewHeaderLookuper("X-Test"),
+				MaxHits:    10,
+				TimeWindow: time.Second,
+				Group:      groupName,
+			}
+
+			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer ringClient.Close()
+			c := newClusterRateLimiterRedis(
+				clusterClientlimit,
+				ringClient,
+				clusterClientlimit.Group,
+			)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				c.Allow(context.Background(), "constant")
+			}
 		})
 	}
 }
