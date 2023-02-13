@@ -761,9 +761,8 @@ func (p *Proxy) applyFiltersToResponse(filters []*routing.RouteFilter, ctx *cont
 	filterTracing := p.tracing.startFilterTracing("response_filters", ctx)
 	defer filterTracing.finish()
 
-	last := len(filters) - 1
-	for i := range filters {
-		fi := filters[last-i]
+	for i := len(filters) - 1; i >= 0; i-- {
+		fi := filters[i]
 		start := time.Now()
 		filterTracing.logStart(fi.Name)
 		ctx.setMetricsPrefix(fi.Name)
@@ -793,27 +792,6 @@ func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]
 	}
 
 	return ctx.routeLookup.Do(ctx.request)
-}
-
-// send a premature error response
-func (p *Proxy) sendError(c *context, id string, code int) {
-	addBranding(c.responseWriter.Header())
-
-	text := http.StatusText(code) + "\n"
-
-	c.responseWriter.Header().Set("Content-Length", strconv.Itoa(len(text)))
-	c.responseWriter.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	c.responseWriter.Header().Set("X-Content-Type-Options", "nosniff")
-	c.responseWriter.WriteHeader(code)
-	c.responseWriter.Write([]byte(text))
-
-	p.metrics.MeasureServe(
-		id,
-		c.metricsHost(),
-		c.request.Method,
-		code,
-		c.startServe,
-	)
 }
 
 func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
@@ -1006,7 +984,7 @@ func (p *Proxy) checkBreaker(c *context) (func(bool), bool) {
 	return done, ok
 }
 
-func newRatelimitError(settings ratelimit.Settings, retryAfter int) error {
+func newRatelimitError(settings ratelimit.Settings, retryAfter int) *proxyError {
 	return &proxyError{
 		err:              errRatelimit,
 		code:             http.StatusTooManyRequests,
@@ -1038,6 +1016,8 @@ func (p *Proxy) do(ctx *context) (err error) {
 	}()
 
 	if ctx.executionCounter > p.maxLoops {
+		// TODO(sszuecs): think about setting status code to 465 (AWS redirect loop) or similar
+		p.makeErrorResponse(ctx, &proxyError{err: errMaxLoopbacksReached})
 		return errMaxLoopbacksReached
 	}
 
@@ -1067,7 +1047,9 @@ func (p *Proxy) do(ctx *context) (err error) {
 	// proxy global setting
 	if !ctx.wasExecuted() {
 		if settings, retryAfter := p.limiters.Check(ctx.request); retryAfter > 0 {
-			return newRatelimitError(settings, retryAfter)
+			perr := newRatelimitError(settings, retryAfter)
+			p.makeErrorResponse(ctx, perr)
+			return perr
 		}
 	}
 	// every time the context is used for a request the context executionCounter is incremented
@@ -1082,6 +1064,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		}
 
 		p.log.Debugf("could not find a route for %v", ctx.request.URL)
+		p.makeErrorResponse(ctx, errRouteLookupFailed)
 		return errRouteLookupFailed
 	}
 
@@ -1111,7 +1094,9 @@ func (p *Proxy) do(ctx *context) (err error) {
 	} else if p.flags.Debug() {
 		debugReq, _, err := mapRequest(ctx, ctx.request.Context(), p.flags.HopHeadersRemoval())
 		if err != nil {
-			return &proxyError{err: err}
+			perr := &proxyError{err: err}
+			p.makeErrorResponse(ctx, perr)
+			return perr
 		}
 
 		ctx.outgoingDebugRequest = debugReq
@@ -1121,6 +1106,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
 			tracing.LogKV("circuit_breaker", "open", ctx.request.Context())
+			p.makeErrorResponse(ctx, errCircuitBreakerOpen)
 			return errCircuitBreakerOpen
 		}
 
@@ -1132,6 +1118,8 @@ func (p *Proxy) do(ctx *context) (err error) {
 		backendStart := time.Now()
 		rsp, perr := p.makeBackendRequest(ctx, backendContext)
 		if perr != nil {
+			p.makeErrorResponse(ctx, perr)
+
 			if done != nil {
 				done(false)
 			}
@@ -1151,6 +1139,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
 				if perr2 != nil {
 					p.log.Errorf("Failed to retry backend request: %v", perr2)
+					p.makeErrorResponse(ctx, perr2)
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
@@ -1250,20 +1239,12 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		backend = fmt.Sprintf("%s://%s", ctx.request.URL.Scheme, ctx.request.URL.Host)
 	}
 
-	code := http.StatusInternalServerError
-	switch {
-	case err == errRouteLookupFailed:
-		code = p.defaultHTTPStatus
+	if err == errRouteLookupFailed {
 		ctx.initialSpan.LogKV("event", "error", "message", errRouteLookup.Error())
-	case ok && perr.code == -1:
-		// -1 == dial connection refused
-		code = http.StatusBadGateway
-	case ok && perr.code != 0:
-		code = perr.code
 	}
 
 	p.tracing.setTag(ctx.initialSpan, ErrorTag, true)
-	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, uint16(code))
+	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, ctx.response.StatusCode)
 
 	if p.flags.Debug() {
 		di := &debugInfo{
@@ -1281,13 +1262,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		return
 	}
 
-	if ok && len(perr.additionalHeader) > 0 {
-		copyHeader(ctx.responseWriter.Header(), perr.additionalHeader)
-	}
-
 	msgPrefix := "error while proxying"
 	logFunc := p.log.Errorf
-	if code == 499 {
+	if ctx.response.StatusCode == 499 {
 		msgPrefix = "client canceled"
 		logFunc = p.log.Infof
 	}
@@ -1305,7 +1282,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		backendType,
 		backend,
 		flowIdLog,
-		code,
+		ctx.response.StatusCode,
 		err,
 		remoteAddr,
 		req.Method,
@@ -1315,7 +1292,16 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		req.UserAgent(),
 	)
 
-	p.sendError(ctx, id, code)
+	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
+	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
+
+	p.metrics.MeasureServe(
+		id,
+		ctx.metricsHost(),
+		ctx.request.Method,
+		ctx.response.StatusCode,
+		ctx.startServe,
+	)
 }
 
 // strip port from addresses with hostname, ipv4 or ipv6
@@ -1525,4 +1511,34 @@ func ensureUTF8(s string) string {
 		return s
 	}
 	return fmt.Sprintf("invalid utf-8: %q", s)
+}
+
+func (p *Proxy) makeErrorResponse(ctx *context, perr *proxyError) {
+	ctx.response = &http.Response{
+		Header: http.Header{},
+	}
+
+	if len(perr.additionalHeader) > 0 {
+		copyHeader(ctx.response.Header, perr.additionalHeader)
+	}
+	addBranding(ctx.response.Header)
+	ctx.response.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	ctx.response.Header.Set("X-Content-Type-Options", "nosniff")
+
+	code := http.StatusInternalServerError
+	switch {
+	case perr == errRouteLookupFailed:
+		code = p.defaultHTTPStatus
+	case perr.code == -1:
+		// -1 == dial connection refused
+		code = http.StatusBadGateway
+	case perr.code != 0:
+		code = perr.code
+	}
+
+	text := http.StatusText(code) + "\n"
+	ctx.response.Header.Set("Content-Length", strconv.Itoa(len(text)))
+	ctx.response.StatusCode = code
+
+	ctx.response.Body = io.NopCloser(bytes.NewBufferString(text))
 }
