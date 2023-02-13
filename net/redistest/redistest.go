@@ -10,11 +10,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func NewTestRedis(t *testing.T) (address string, done func()) {
+func NewTestRedis(t testing.TB) (address string, done func()) {
 	return NewTestRedisWithPassword(t, "")
 }
 
-func NewTestRedisWithPassword(t *testing.T, password string) (address string, done func()) {
+func NewTestRedisWithPassword(t testing.TB, password string) (address string, done func()) {
 	var args []string
 	if password != "" {
 		args = append(args, "--requirepass", password)
