@@ -433,8 +433,7 @@ func (ac *admissionControl) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	rsp := ctx.Response()
-	code := rsp.StatusCode
+	code := ctx.Response().StatusCode
 	if code < 499 {
 		ac.successCounter.Add(1)
 	}
