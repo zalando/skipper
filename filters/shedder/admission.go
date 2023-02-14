@@ -434,11 +434,9 @@ func (ac *admissionControl) Response(ctx filters.FilterContext) {
 	}
 
 	rsp := ctx.Response()
-	if rsp != nil {
-		code := rsp.StatusCode
-		if code < 499 {
-			ac.successCounter.Add(1)
-		}
+	code := rsp.StatusCode
+	if code < 499 {
+		ac.successCounter.Add(1)
 	}
 	ac.counter.Add(1)
 }
@@ -453,6 +451,3 @@ func (ac *admissionControl) startSpan(ctx context.Context) (span opentracing.Spa
 	}
 	return
 }
-
-// Opt-In for filters to get called Response(ctx) in case of errors
-func (ac *admissionControl) HandleErrorResponse() {}
