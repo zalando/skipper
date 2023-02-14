@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"time"
 
@@ -65,13 +66,17 @@ func (sp *SecretPaths) GetSecret(s string) ([]byte, bool) {
 	return b, ok
 }
 
-func (sp *SecretPaths) updateSecret(s string, dat []byte) {
+func (sp *SecretPaths) updateSecret(path string, dat []byte) {
 	if len(dat) > 0 && dat[len(dat)-1] == 0xa {
 		dat = dat[:len(dat)-1]
 	}
-	sp.secrets.Store(s, dat)
+	old, existed := sp.secrets.Load(path)
 
-	log.Infof("Updated secret file: %s", s)
+	sp.secrets.Store(path, dat)
+
+	if !existed || !reflect.DeepEqual(dat, old) {
+		log.Infof("Updated secret file: %s", path)
+	}
 }
 
 // Add adds a file or directory to find secrets in all files
