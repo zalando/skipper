@@ -1010,6 +1010,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 			p.onPanicSometimes.Do(func() {
 				p.log.Errorf("stacktrace of panic caused by: %v:\n%s", r, stack())
 			})
+			println("panic recovery")
 
 			err = fmt.Errorf("panic caused by: %v", r)
 		}
@@ -1086,6 +1087,8 @@ func (p *Proxy) do(ctx *context) (err error) {
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
 		if err := p.do(loopCTX); err != nil {
+			// in case of error we have to copy the response in this recursion unwinding
+			ctx.response = loopCTX.response
 			return err
 		}
 
