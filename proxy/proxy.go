@@ -1124,8 +1124,6 @@ func (p *Proxy) do(ctx *context) (err error) {
 		backendStart := time.Now()
 		rsp, perr := p.makeBackendRequest(ctx, backendContext)
 		if perr != nil {
-			p.makeErrorResponse(ctx, perr)
-
 			if done != nil {
 				done(false)
 			}
@@ -1145,13 +1143,14 @@ func (p *Proxy) do(ctx *context) (err error) {
 				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
 				if perr2 != nil {
 					p.log.Errorf("Failed to retry backend request: %v", perr2)
-					p.makeErrorResponse(ctx, perr2)
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
+					p.makeErrorResponse(ctx, perr2)
 					return perr2
 				}
 			} else {
+				p.makeErrorResponse(ctx, perr)
 				return perr
 			}
 		}
