@@ -1297,7 +1297,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		req.UserAgent(),
 	)
 
+	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
+	ctx.responseWriter.Flush()
 	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
 
 	p.metrics.MeasureServe(
