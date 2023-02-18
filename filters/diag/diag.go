@@ -8,6 +8,7 @@ additional filter, randomContent, can be used to generate response with random t
 package diag
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"math/rand"
@@ -67,6 +68,15 @@ type repeatReader struct {
 	offset int
 }
 
+type wrap struct {
+	prefix, suffix []byte
+}
+
+type wrapReadCloser struct {
+	io.Reader
+	io.Closer
+}
+
 type throttle struct {
 	typ       throttleType
 	chunkSize int
@@ -109,6 +119,13 @@ func NewRandom() filters.Spec { return &random{} }
 //
 //	r: * -> repeatContent("x", 100) -> <shunt>;
 func NewRepeat() filters.Spec { return &repeat{} }
+
+// NewWrap creates a filter specification whose filter instances can be used
+// to add prefix and suffix to the response.
+// Eskip example:
+//
+//	r: * -> wrapContent("foo", "baz") -> inlineContent("bar") -> <shunt>;
+func NewWrap() filters.Spec { return &wrap{} }
 
 // NewLatency creates a filter specification whose filter instances can be used
 // to add additional latency to responses. It expects the latency in milliseconds
@@ -258,6 +275,52 @@ func (r *repeatReader) Read(p []byte) (int, error) {
 }
 
 func (r *repeat) Response(ctx filters.FilterContext) {}
+
+func (w *wrap) Name() string { return filters.WrapContentName }
+
+func (w *wrap) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 2 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	prefix, ok := args[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	suffix, ok := args[1].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return &wrap{prefix: []byte(prefix), suffix: []byte(suffix)}, nil
+}
+
+func (w *wrap) Request(ctx filters.FilterContext) {}
+
+func (w *wrap) Response(ctx filters.FilterContext) {
+	rsp := ctx.Response()
+
+	if s := rsp.Header.Get("Content-Length"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+			n += int64(len(w.prefix) + len(w.suffix))
+			rsp.Header["Content-Length"] = []string{strconv.FormatInt(n, 10)}
+		}
+	}
+
+	if rsp.ContentLength != -1 {
+		rsp.ContentLength += int64(len(w.prefix) + len(w.suffix))
+	}
+
+	rsp.Body = &wrapReadCloser{
+		Reader: io.MultiReader(
+			bytes.NewReader(w.prefix),
+			rsp.Body,
+			bytes.NewReader(w.suffix),
+		),
+		Closer: rsp.Body,
+	}
+}
 
 func (t *throttle) Name() string {
 	switch t.typ {

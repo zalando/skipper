@@ -214,6 +214,7 @@ const (
 	XforwardFirstName                          = "xforwardFirst"
 	RandomContentName                          = "randomContent"
 	RepeatContentName                          = "repeatContent"
+	WrapContentName                            = "wrapContent"
 	BackendTimeoutName                         = "backendTimeout"
 	BlockName                                  = "blockContent"
 	LatencyName                                = "latency"
