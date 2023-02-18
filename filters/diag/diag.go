@@ -9,6 +9,7 @@ package diag
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -58,24 +59,32 @@ type random struct {
 	len  int64
 }
 
-type repeat struct {
-	bytes []byte
-	len   int64
-}
+type (
+	repeatSpec struct {
+		hex bool
+	}
+	repeat struct {
+		bytes []byte
+		len   int64
+	}
+	repeatReader struct {
+		bytes  []byte
+		offset int
+	}
+)
 
-type repeatReader struct {
-	bytes  []byte
-	offset int
-}
-
-type wrap struct {
-	prefix, suffix []byte
-}
-
-type wrapReadCloser struct {
-	io.Reader
-	io.Closer
-}
+type (
+	wrapSpec struct {
+		hex bool
+	}
+	wrap struct {
+		prefix, suffix []byte
+	}
+	wrapReadCloser struct {
+		io.Reader
+		io.Closer
+	}
+)
 
 type throttle struct {
 	typ       throttleType
@@ -118,14 +127,30 @@ func NewRandom() filters.Spec { return &random{} }
 // Eskip example:
 //
 //	r: * -> repeatContent("x", 100) -> <shunt>;
-func NewRepeat() filters.Spec { return &repeat{} }
+func NewRepeat() filters.Spec { return &repeatSpec{hex: false} }
+
+// NewRepeatHex creates a filter specification whose filter instances can be used
+// to respond to requests with a repeated bytes.
+// It expects the bytes represented by the hexadecimal string of an even length and
+// the byte length of the response body to be generated as arguments.
+// Eskip example:
+//
+//	r: * -> repeatContentHex("0123456789abcdef", 16) -> <shunt>;
+func NewRepeatHex() filters.Spec { return &repeatSpec{hex: true} }
 
 // NewWrap creates a filter specification whose filter instances can be used
 // to add prefix and suffix to the response.
 // Eskip example:
 //
 //	r: * -> wrapContent("foo", "baz") -> inlineContent("bar") -> <shunt>;
-func NewWrap() filters.Spec { return &wrap{} }
+func NewWrap() filters.Spec { return &wrapSpec{hex: false} }
+
+// NewWrapHex creates a filter specification whose filter instances can be used
+// to add prefix and suffix represented by the hexadecimal strings of an even length to the response.
+// Eskip example:
+//
+//	r: * -> wrapContentHex("68657861", "6d616c") -> inlineContent("deci") -> <shunt>;
+func NewWrapHex() filters.Spec { return &wrapSpec{hex: true} }
 
 // NewLatency creates a filter specification whose filter instances can be used
 // to add additional latency to responses. It expects the latency in milliseconds
@@ -223,9 +248,15 @@ func (r *random) Request(ctx filters.FilterContext) {
 
 func (r *random) Response(ctx filters.FilterContext) {}
 
-func (r *repeat) Name() string { return filters.RepeatContentName }
+func (r *repeatSpec) Name() string {
+	if r.hex {
+		return filters.RepeatContentHexName
+	} else {
+		return filters.RepeatContentName
+	}
+}
 
-func (r *repeat) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (r *repeatSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -235,22 +266,32 @@ func (r *repeat) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	var len int64
+	f := &repeat{}
+	if r.hex {
+		var err error
+		f.bytes, err = hex.DecodeString(text)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		f.bytes = []byte(text)
+	}
+
 	switch v := args[1].(type) {
 	case float64:
-		len = int64(v)
+		f.len = int64(v)
 	case int:
-		len = int64(v)
+		f.len = int64(v)
 	case int64:
-		len = v
+		f.len = v
 	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}
-	if len < 0 {
+	if f.len < 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &repeat{[]byte(text), len}, nil
+	return f, nil
 }
 
 func (r *repeat) Request(ctx filters.FilterContext) {
@@ -276,9 +317,15 @@ func (r *repeatReader) Read(p []byte) (int, error) {
 
 func (r *repeat) Response(ctx filters.FilterContext) {}
 
-func (w *wrap) Name() string { return filters.WrapContentName }
+func (w *wrapSpec) Name() string {
+	if w.hex {
+		return filters.WrapContentHexName
+	} else {
+		return filters.WrapContentName
+	}
+}
 
-func (w *wrap) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (w *wrapSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -293,7 +340,23 @@ func (w *wrap) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &wrap{prefix: []byte(prefix), suffix: []byte(suffix)}, nil
+	f := &wrap{}
+	if w.hex {
+		var err error
+		f.prefix, err = hex.DecodeString(prefix)
+		if err != nil {
+			return nil, err
+		}
+		f.suffix, err = hex.DecodeString(suffix)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		f.prefix = []byte(prefix)
+		f.suffix = []byte(suffix)
+	}
+
+	return f, nil
 }
 
 func (w *wrap) Request(ctx filters.FilterContext) {}

@@ -466,6 +466,26 @@ Example:
 * -> repeatContent("I will not waste chalk. ", 1000) -> <shunt>;
 ```
 
+### repeatContentHex
+
+Generate response of specified size from repeated bytes.
+
+Parameters:
+
+* bytes to repeat (hexadecimal string)
+* size of response in bytes (int)
+
+Example:
+
+```
+* -> repeatContentHex("00", 100) -> <shunt>
+```
+
+```
+// Create binary response using size equal to the number of bytes to repeat, i.e. repeat once
+* -> repeatContentHex("68657861646563696d616c", 11) -> <shunt>
+```
+
 ### wrapContent
 
 Add prefix and suffix to the response.
@@ -485,6 +505,35 @@ Examples:
 // JSON array of 100 zeros
 * -> wrapContent("[", "0]") -> repeatContent("0, ", 297) -> <shunt>
 ```
+
+### wrapContentHex
+
+Add prefix and suffix to the response.
+
+Parameters:
+
+* prefix (hexadecimal string)
+* suffix (hexadecimal string)
+
+Examples:
+
+```
+* -> wrapContentHex("68657861", "6d616c") -> inlineContent("deci") -> <shunt>
+```
+
+```
+// 1G of gzip-compressed text
+*
+-> setResponseHeader("Content-Encoding", "gzip")
+-> wrapContentHex(
+  "1f8b08000000000004ffecd6b10d00200804c05598c5b80a852d0ee422762ce61c2657d212f8bf9915bb6f9f8c51b9c26c1feec13fc80379a80ff4210ff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ffce781070000ffffecd6810c000000c0207feb737c8ba2f8cd6f7ef39bdffce637bf",
+  "7dc0077cc0077cc0077cc0077cc0077cc0077cc0077cc0077cc0077cc0077cc0077ce0ff81000000ffffecd6810000000080207feb418ea278ce739ef39ce73ce739cf7de0f581000000ffff010000ffff5216994600ca9a3b"
+)
+-> repeatContentHex("7dc0077cc0077cc0077cc0077cc0077cc0077cc0077cc0077cc0077cc0077cc0077ce0ff81000000ffffecd6810c000000c0207feb737c8ba278ce739ef39ce73ce739cf", 8300624)
+-> <shunt>
+```
+
+You may use https://github.com/AlexanderYastrebov/unrepeat to decompose binary file into prefix, repeating content and suffix.
 
 ### backendTimeout
 
