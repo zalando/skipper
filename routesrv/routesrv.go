@@ -47,13 +47,6 @@ func New(opts Options) (*RouteServer, error) {
 	handler.Handle("/routes", b)
 	handler.Handle("/metrics", promhttp.Handler())
 
-	rs.server = &http.Server{
-		Addr:              opts.Address,
-		Handler:           handler,
-		ReadTimeout:       1 * time.Minute,
-		ReadHeaderTimeout: 1 * time.Minute,
-	}
-
 	dataclient, err := kubernetes.New(kubernetes.Options{
 		AllowedExternalNames:              opts.KubernetesAllowedExternalNames,
 		BackendNameTracingTag:             opts.OpenTracingBackendNameTag,
@@ -89,6 +82,26 @@ func New(opts Options) (*RouteServer, error) {
 	if opts.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
 		oauthConfig = &auth.OAuthConfig{}
 		oauthConfig.CallbackPath = opts.OAuth2CallbackPath
+	}
+
+	var rh *RedisHandler
+	// in case we have kubernetes dataclient and we can detect redis instances, we patch redisOptions
+	if opts.KubernetesRedisServiceNamespace != "" && opts.KubernetesRedisServiceName != "" {
+		log.Infof("Use endpoints %s/%s to fetch updated redis shards", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+		rh = &RedisHandler{}
+		_, err := dataclient.LoadAll()
+		if err != nil {
+			return nil, err
+		}
+		rh.AddrUpdater = getRedisAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName, dataclient)
+		handler.Handle("/swarm/redis/shards", rh)
+	}
+
+	rs.server = &http.Server{
+		Addr:              opts.Address,
+		Handler:           handler,
+		ReadTimeout:       1 * time.Minute,
+		ReadHeaderTimeout: 1 * time.Minute,
 	}
 
 	rs.poller = &poller{

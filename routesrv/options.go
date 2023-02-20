@@ -124,6 +124,12 @@ type Options struct {
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
 
+	// KubernetesRedisServiceNamespace to be used to lookup ring shards dynamically
+	KubernetesRedisServiceNamespace string
+
+	// KubernetesRedisServiceName to be used to lookup ring shards dynamically
+	KubernetesRedisServiceName string
+
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
 	WhitelistedHealthCheckCIDR []string
 
