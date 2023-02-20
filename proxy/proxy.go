@@ -1273,29 +1273,31 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		msgPrefix = "client canceled"
 		logFunc = p.log.Infof
 	}
-	req := ctx.Request()
-	remoteAddr := remoteHost(req)
-	uri := req.RequestURI
-	if i := strings.IndexRune(uri, '?'); i >= 0 {
-		uri = uri[:i]
+	if id != unknownRouteID {
+		req := ctx.Request()
+		remoteAddr := remoteHost(req)
+		uri := req.RequestURI
+		if i := strings.IndexRune(uri, '?'); i >= 0 {
+			uri = uri[:i]
+		}
+		logFunc(
+			`%s after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", host: %s, user agent: "%s"`,
+			msgPrefix,
+			time.Since(ctx.startServe),
+			id,
+			backendType,
+			backend,
+			flowIdLog,
+			ctx.response.StatusCode,
+			err,
+			remoteAddr,
+			req.Method,
+			uri,
+			req.Proto,
+			req.Host,
+			req.UserAgent(),
+		)
 	}
-	logFunc(
-		`%s after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", host: %s, user agent: "%s"`,
-		msgPrefix,
-		time.Since(ctx.startServe),
-		id,
-		backendType,
-		backend,
-		flowIdLog,
-		ctx.response.StatusCode,
-		err,
-		remoteAddr,
-		req.Method,
-		uri,
-		req.Proto,
-		req.Host,
-		req.UserAgent(),
-	)
 
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
