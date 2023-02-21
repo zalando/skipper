@@ -1990,9 +1990,11 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 }
 
 func TestAccessLogOnFailedRequest(t *testing.T) {
-	var buf bytes.Buffer
+	buf := &LockedBuffer{
+		buf: &bytes.Buffer{},
+	}
 	logging.Init(logging.Options{
-		AccessLogOutput: &buf})
+		AccessLogOutput: buf})
 
 	s := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	s.Close()
