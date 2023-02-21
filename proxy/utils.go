@@ -10,6 +10,12 @@ type LockedBuffer struct {
 	buf *bytes.Buffer
 }
 
+func NewLockedBuffer() *LockedBuffer {
+	return &LockedBuffer{
+		buf: &bytes.Buffer{},
+	}
+}
+
 func (b *LockedBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
