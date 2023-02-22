@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1990,16 +1991,16 @@ func TestEnableAccessLogWithFilter(t *testing.T) {
 }
 
 func TestAccessLogOnFailedRequest(t *testing.T) {
-	var buf bytes.Buffer
+	buf := NewLockedBuffer()
 	logging.Init(logging.Options{
-		AccessLogOutput: &buf})
+		AccessLogOutput: buf})
 
 	s := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	s.Close()
 
 	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, s.URL), 0)
 	if err != nil {
-		t.Error(err)
+		t.Fatalf("Failed to create test proxy: %v", err)
 		return
 	}
 	defer p.close()
@@ -2009,29 +2010,29 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 
 	rsp, err := http.Get(ps.URL)
 	if err != nil {
-		t.Error(err)
+		t.Fatalf("Failed to GET: %v", err)
 		return
 	}
 
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode != http.StatusBadGateway {
-		t.Error("failed to return 502 Bad Gateway on failing backend connection")
+		t.Errorf("failed to return 502 Bad Gateway on failing backend connection: %d", rsp.StatusCode)
 	}
 
+	time.Sleep(time.Millisecond)
 	output := buf.String()
 
 	proxyURL, err := url.Parse(ps.URL)
 	if err != nil {
-		t.Error(err)
+		t.Fatalf("Failed to parse url: %v", err)
 		return
 	}
 
 	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1"`, http.StatusBadGateway, len(http.StatusText(http.StatusBadGateway))+1)
 	if !strings.Contains(output, expected) || !strings.Contains(output, proxyURL.Host) {
-		t.Error("failed to log access", output, expected)
-		t.Log(output)
-		t.Log(expected)
+		t.Errorf("Failed to get accesslog '%v' '%v'", output, expected)
+		t.Logf("%s", cmp.Diff(output, expected))
 	}
 }
 
