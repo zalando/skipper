@@ -1020,7 +1020,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 	}()
 
 	if ctx.executionCounter > p.maxLoops {
-		// TODO(sszuecs): think about setting status code to 465 (AWS redirect loop) or similar
+		// TODO(sszuecs): think about setting status code to 463 or 465 (check what AWS ALB sets for redirect loop) or similar
 		p.makeErrorResponse(ctx, &proxyError{err: errMaxLoopbacksReached})
 		return errMaxLoopbacksReached
 	}

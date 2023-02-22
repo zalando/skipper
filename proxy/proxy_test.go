@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1999,7 +2000,7 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 
 	p, err := newTestProxy(fmt.Sprintf(`* -> "%s"`, s.URL), 0)
 	if err != nil {
-		t.Errorf("Failed to create test proxy: %v", err)
+		t.Fatalf("Failed to create test proxy: %v", err)
 		return
 	}
 	defer p.close()
@@ -2009,7 +2010,7 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 
 	rsp, err := http.Get(ps.URL)
 	if err != nil {
-		t.Errorf("Failed to GET: %v", err)
+		t.Fatalf("Failed to GET: %v", err)
 		return
 	}
 
@@ -2024,15 +2025,14 @@ func TestAccessLogOnFailedRequest(t *testing.T) {
 
 	proxyURL, err := url.Parse(ps.URL)
 	if err != nil {
-		t.Errorf("Failed to parse url: %v", err)
+		t.Fatalf("Failed to parse url: %v", err)
 		return
 	}
 
 	expected := fmt.Sprintf(`"GET / HTTP/1.1" %d %d "-" "Go-http-client/1.1"`, http.StatusBadGateway, len(http.StatusText(http.StatusBadGateway))+1)
 	if !strings.Contains(output, expected) || !strings.Contains(output, proxyURL.Host) {
 		t.Errorf("Failed to get accesslog '%v' '%v'", output, expected)
-		t.Logf("out: '%v'", output)
-		t.Logf("expect: '%v'", expected)
+		t.Logf("%s", cmp.Diff(output, expected))
 	}
 }
 
