@@ -165,6 +165,7 @@ func Filters() []filters.Spec {
 		NewOriginMarkerSpec(),
 		diag.NewRandom(),
 		diag.NewRepeat(),
+		diag.NewWrap(),
 		diag.NewLatency(),
 		diag.NewBandwidth(),
 		diag.NewChunks(),

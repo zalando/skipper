@@ -434,7 +434,8 @@ The second filter will set `Authorization` header to the
 not override the value if the header exists already.
 
 ## Diagnostics
-These filters are meant for diagnostic or load testing  purposes
+
+These filters are meant for diagnostic or load testing purposes.
 
 ### randomContent
 
@@ -463,6 +464,26 @@ Example:
 
 ```
 * -> repeatContent("I will not waste chalk. ", 1000) -> <shunt>;
+```
+
+### wrapContent
+
+Add prefix and suffix to the response.
+
+Parameters:
+
+* prefix (string)
+* suffix (string)
+
+Examples:
+
+```
+* -> wrapContent("foo", "baz") -> inlineContent("bar") -> <shunt>
+```
+
+```
+// JSON array of 100 zeros
+* -> wrapContent("[", "0]") -> repeatContent("0, ", 297) -> <shunt>
 ```
 
 ### backendTimeout
