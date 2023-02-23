@@ -17,7 +17,7 @@ const (
 	OAuthGrantName = filters.OAuthGrantName
 
 	secretsRefreshInternal = time.Minute
-	tokenWasRefreshed      = "oauth-did-refresh"
+	refreshedTokenKey      = "oauth-refreshed-token"
 )
 
 var (
@@ -84,7 +84,7 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 	})
 }
 
-func (f *grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
+func (f *grantFilter) refreshToken(c *cookie) (*oauth2.Token, error) {
 	// Set the expiry of the token to the past to trigger oauth2.TokenSource
 	// to refresh the access token.
 	token := &oauth2.Token{
@@ -101,7 +101,7 @@ func (f *grantFilter) refreshToken(c cookie) (*oauth2.Token, error) {
 	return tokenSource.Token()
 }
 
-func (f *grantFilter) refreshTokenIfRequired(c cookie, ctx filters.FilterContext) (*oauth2.Token, error) {
+func (f *grantFilter) refreshTokenIfRequired(c *cookie, ctx filters.FilterContext) (*oauth2.Token, error) {
 	canRefresh := c.RefreshToken != ""
 
 	if c.isAccessTokenExpired() {
@@ -109,8 +109,8 @@ func (f *grantFilter) refreshTokenIfRequired(c cookie, ctx filters.FilterContext
 			token, err := f.refreshToken(c)
 			if err == nil {
 				// Remember that this token was just successfully refreshed
-				// so that we can send  an updated cookie in the response.
-				ctx.StateBag()[tokenWasRefreshed] = true
+				// so that we can send an updated cookie in the response.
+				ctx.StateBag()[refreshedTokenKey] = token
 			}
 			return token, err
 		} else {
@@ -160,7 +160,7 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	token, err := f.refreshTokenIfRequired(*c, ctx)
+	token, err := f.refreshTokenIfRequired(c, ctx)
 	if err != nil && c.isAccessTokenExpired() {
 		// Refresh failed and we no longer have a valid access token.
 		loginRedirect(ctx, f.config)
@@ -200,23 +200,16 @@ func (f *grantFilter) Response(ctx filters.FilterContext) {
 	// we want to send an updated cookie. If it wasn't, the
 	// users will still have their old cookie and we do not
 	// need to send it again and this function can exit early.
-	didRefresh, ok := ctx.StateBag()[tokenWasRefreshed].(bool)
-	if !didRefresh || !ok {
-		return
-	}
-
-	container, ok := ctx.StateBag()[oidcClaimsCacheKey].(tokenContainer)
+	token, ok := ctx.StateBag()[refreshedTokenKey].(*oauth2.Token)
 	if !ok {
 		return
 	}
 
-	req := ctx.Request()
-	c, err := createCookie(f.config, req.Host, container.OAuth2Token)
+	c, err := createCookie(f.config, ctx.Request().Host, token)
 	if err != nil {
 		log.Errorf("Failed to generate cookie: %v.", err)
 		return
 	}
 
-	rsp := ctx.Response()
-	rsp.Header.Add("Set-Cookie", c.String())
+	ctx.Response().Header.Add("Set-Cookie", c.String())
 }

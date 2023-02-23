@@ -52,7 +52,7 @@ func TestGrantClaimsQuery(t *testing.T) {
 		checkStatus(t, rsp, http.StatusUnauthorized)
 	})
 
-	t.Run("check that the subject claim gets initialized from a configurable tokeninfo property and is queriable", func(t *testing.T) {
+	t.Run("check that the subject claim gets initialized from a configurable tokeninfo property and is queryable", func(t *testing.T) {
 		config := newGrantTestConfig(tokeninfo.URL, provider.URL)
 		config.TokeninfoSubjectKey = "uid"
 
