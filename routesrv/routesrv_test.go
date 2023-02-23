@@ -92,9 +92,26 @@ func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
 	return eskip.MustParse(string(eskipBytes))
 }
 
+func parseRedisIP(t *testing.T, fileName string) []byte {
+	t.Helper()
+	ipbytes, err := os.ReadFile(fileName)
+	if err != nil {
+		t.Fatalf("failed to open eskip fixture %s: %v", fileName, err)
+	}
+	return ipbytes
+}
+
 func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/routes", nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
+func getRedisURLs(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/swarm/redis/shards", nil)
 	rs.ServeHTTP(w, r)
 
 	return w
@@ -193,6 +210,30 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	if !eskip.EqLists(got, want) {
 		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
 	}
+	wantHTTPCode(t, w, http.StatusOK)
+}
+
+func TestRedisIPs(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/redis.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout:               pollInterval,
+		KubernetesURL:                   ks.URL,
+		KubernetesRedisServiceNamespace: "namespace1",
+		KubernetesRedisServiceName:      "service1",
+	})
+
+	w := getRedisURLs(rs)
+
+	want := parseRedisIP(t, "testdata/redis-ip.txt")
+	got := w.Body.Bytes()
+
+	if !bytes.Equal(got, want) {
+		t.Errorf("served IPs doesn't reflect IPs from kubernetes resources: %s", cmp.Diff(string(got), string(want)))
+	}
+
 	wantHTTPCode(t, w, http.StatusOK)
 }
 

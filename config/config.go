@@ -649,6 +649,8 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 		KubernetesEastWestRangeDomains:     c.KubernetesEastWestRangeDomains.values,
 		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
 		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
+		KubernetesRedisServiceNamespace:    c.KubernetesRedisServiceNamespace,
+		KubernetesRedisServiceName:         c.KubernetesRedisServiceName,
 		OpenTracingBackendNameTag:          c.OpentracingBackendNameTag,
 		OpenTracing:                        strings.Split(c.OpenTracing, " "),
 		OriginMarker:                       c.RouteCreationMetrics,
