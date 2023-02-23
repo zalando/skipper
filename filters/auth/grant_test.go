@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +18,8 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/secrets"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -35,25 +36,16 @@ const (
 )
 
 func newGrantTestTokeninfo(validToken string, tokenInfoJSON string) *httptest.Server {
-	const prefix = "Bearer "
-
 	if tokenInfoJSON == "" {
 		tokenInfoJSON = "{}"
 	}
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := func(code int) {
-			w.WriteHeader(code)
-			w.Write([]byte(tokenInfoJSON))
-		}
-
-		token := r.Header.Get("Authorization")
-		if !strings.HasPrefix(token, prefix) || token[len(prefix):] != validToken {
-			response(http.StatusUnauthorized)
+		if r.Header.Get("Authorization") != "Bearer "+validToken {
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-
-		response(http.StatusOK)
+		w.Write([]byte(tokenInfoJSON))
 	}))
 }
 
@@ -762,4 +754,92 @@ func TestGrantTokenCookieDomainOneRemovedSubdomains(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGrantAccessTokenHeaderName(t *testing.T) {
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.AccessTokenHeaderName = "X-Access-Token"
+
+	routes := eskip.MustParse(`* -> oauthGrant()
+		-> status(204)
+		-> setResponseHeader("Backend-X-Access-Token", "${request.header.X-Access-Token}")
+		-> <shunt>
+	`)
+
+	proxy, client := newAuthProxy(t, config, routes)
+	defer proxy.Close()
+
+	cookie, _ := newGrantCookie(config)
+
+	rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+	checkStatus(t, rsp, http.StatusNoContent)
+
+	assert.Equal(t, "Bearer "+testToken, rsp.Header.Get("Backend-X-Access-Token"))
+}
+
+func TestGrantForwardToken(t *testing.T) {
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, `{"token_type":"Bearer", "access_token":"foo", "uid":"bar", "scope":["baz"], "expires_in":1234}`)
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.TokeninfoSubjectKey = "uid"
+
+	routes := eskip.MustParse(`* -> oauthGrant()
+		-> status(204)
+		-> forwardToken("X-Tokeninfo-Forward")
+		-> setResponseHeader("Backend-X-Tokeninfo-Forward", "${request.header.X-Tokeninfo-Forward}")
+		-> <shunt>
+	`)
+
+	proxy, client := newAuthProxy(t, config, routes)
+	defer proxy.Close()
+
+	cookie, _ := newGrantCookie(config)
+
+	rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+	checkStatus(t, rsp, http.StatusNoContent)
+
+	assert.JSONEq(t, `{"token_type":"Bearer", "access_token":"foo", "uid":"bar", "sub":"bar", "scope":["baz"], "expires_in":1234}`, rsp.Header.Get("Backend-X-Tokeninfo-Forward"))
+}
+
+func TestGrantTokeninfoKeys(t *testing.T) {
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	const tokenInfoJson = `{"token_type":"Bearer", "access_token":"foo", "uid":"bar", "scope":["baz"], "expires_in":1234}`
+
+	tokeninfo := newGrantTestTokeninfo(testToken, tokenInfoJson)
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.GrantTokeninfoKeys = []string{"uid", "scope"}
+
+	routes := eskip.MustParse(`* -> oauthGrant()
+		-> status(204)
+		-> forwardToken("X-Tokeninfo-Forward")
+		-> setResponseHeader("Backend-X-Tokeninfo-Forward", "${request.header.X-Tokeninfo-Forward}")
+		-> <shunt>
+	`)
+
+	proxy, client := newAuthProxy(t, config, routes)
+	defer proxy.Close()
+
+	cookie, _ := newGrantCookie(config)
+
+	rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+
+	checkStatus(t, rsp, http.StatusNoContent)
+
+	assert.JSONEq(t, `{"uid":"bar", "scope":["baz"]}`, rsp.Header.Get("Backend-X-Tokeninfo-Forward"))
 }
