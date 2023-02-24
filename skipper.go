@@ -3,6 +3,7 @@ package skipper
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -841,15 +842,16 @@ type Options struct {
 	// the cluster ratelimiter
 	EnableSwarm bool
 	// redis based swarm
-	SwarmRedisURLs          []string
-	SwarmRedisPassword      string
-	SwarmRedisHashAlgorithm string
-	SwarmRedisDialTimeout   time.Duration
-	SwarmRedisReadTimeout   time.Duration
-	SwarmRedisWriteTimeout  time.Duration
-	SwarmRedisPoolTimeout   time.Duration
-	SwarmRedisMinIdleConns  int
-	SwarmRedisMaxIdleConns  int
+	SwarmRedisURLs               []string
+	SwarmRedisPassword           string
+	SwarmRedisHashAlgorithm      string
+	SwarmRedisDialTimeout        time.Duration
+	SwarmRedisReadTimeout        time.Duration
+	SwarmRedisWriteTimeout       time.Duration
+	SwarmRedisPoolTimeout        time.Duration
+	SwarmRedisMinIdleConns       int
+	SwarmRedisMaxIdleConns       int
+	SwarmRedisEndpointsRemoteURL string
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -1294,6 +1296,49 @@ func getRedisUpdaterFunc(namespace, name string, kdc *kubernetes.Client) func() 
 	}
 }
 
+type RedisEndpoint struct {
+	Url string `json:"url"`
+}
+
+type RedisEndpoints struct {
+	Endpoints []RedisEndpoint `json:"endpoints"`
+}
+
+func updateEndpointsFromURL(address string) func() []string {
+	return func() []string {
+		/* #nosec */
+		resp, err := http.Get(address)
+		if err != nil {
+			log.Errorf("failed to connect to redis endpoint %v, due to: %v", address, err)
+			return nil
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Errorf("failed to read to redis response %v", err)
+			return nil
+		}
+
+		target := &RedisEndpoints{}
+
+		err = json.Unmarshal(body, target)
+		if err != nil {
+			log.Errorf("Failed to decode body to json %v", err)
+			return nil
+		}
+
+		a := make([]string, 0, len(target.Endpoints))
+		for _, endpoint := range target.Endpoints {
+			a = append(a, endpoint.Url)
+		}
+
+		log.Infof("Redis updater called and found %d redis endpoints", len(a))
+
+		return a
+	}
+}
+
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// init log
 	err := initLog(o)
@@ -1495,7 +1540,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	var redisOptions *skpnet.RedisOptions
 	log.Infof("enable swarm: %v", o.EnableSwarm)
 	if o.EnableSwarm {
-		if len(o.SwarmRedisURLs) > 0 || o.KubernetesRedisServiceName != "" {
+		if len(o.SwarmRedisURLs) > 0 || o.KubernetesRedisServiceName != "" || o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 
 			redisOptions = &skpnet.RedisOptions{
@@ -1568,6 +1613,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			} else {
 				log.Errorf("Failed to find kubernetes dataclient, but redis shards should be get by kubernetes svc %s/%s", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 			}
+		} else if redisOptions != nil && o.SwarmRedisEndpointsRemoteURL != "" {
+			log.Infof("Use remote address %s to fetch updates redis shards", o.SwarmRedisEndpointsRemoteURL)
+			redisOptions.AddrUpdater = updateEndpointsFromURL(o.SwarmRedisEndpointsRemoteURL)
 		}
 
 	}

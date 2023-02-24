@@ -1,6 +1,7 @@
 package routesrv
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -12,25 +13,40 @@ type RedisHandler struct {
 	AddrUpdater func() []byte
 }
 
+type RedisEndpoint struct {
+	URL string `json:"url"`
+}
+
+type RedisEndpoints struct {
+	Endpoints []RedisEndpoint `json:"endpoints"`
+}
+
 func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Add("Content-Type", "application/json")
 	w.Write(rh.AddrUpdater())
 }
 
 func getRedisAddresses(namespace, name string, kdc *kubernetes.Client) func() []byte {
 	return func() []byte {
-		data := make([]byte, 0)
+		endpoints := make([]RedisEndpoint, 0)
+		RedisEndpoints := RedisEndpoints{Endpoints: endpoints}
 		a := kdc.GetEndpointAddresses(namespace, name)
 		log.Infof("Redis updater called and found %d redis endpoints", len(a))
 		for i := 0; i < len(a); i++ {
 			a[i] = strings.TrimPrefix(a[i], "TCP://")
-			data = append(data, []byte(a[i])...)
-			data = append(data, []byte("\n")...)
+			RedisEndpoints.Endpoints = append(RedisEndpoints.Endpoints, RedisEndpoint{URL: a[i]})
 		}
+		data, err := json.Marshal(RedisEndpoints)
+
+		if err != nil {
+			log.Fatalf("Failed to marshal json data %v", err)
+			return nil
+		}
+
 		return data
 	}
 }

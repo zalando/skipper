@@ -255,6 +255,7 @@ type Config struct {
 	SwarmRedisPoolTimeout   time.Duration `yaml:"swarm-redis-pool-timeout"`
 	SwarmRedisMinConns      int           `yaml:"swarm-redis-min-conns"`
 	SwarmRedisMaxConns      int           `yaml:"swarm-redis-max-conns"`
+	SwarmRedisRemote        string        `yaml:"swarm-redis-remote"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -525,6 +526,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", net.DefaultPoolTimeout, "set redis get connection from pool timeout")
 	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", net.DefaultMinConns, "set min number of connections to redis")
 	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", net.DefaultMaxConns, "set max number of connections to redis")
+	flag.StringVar(&cfg.SwarmRedisRemote, "swarm-redis-remote", "", "Remote URL to pull redis endpoints from.")
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
@@ -896,6 +898,7 @@ func (c *Config) ToOptions() skipper.Options {
 		SwarmRedisPoolTimeout:   c.SwarmRedisPoolTimeout,
 		SwarmRedisMinIdleConns:  c.SwarmRedisMinConns,
 		SwarmRedisMaxIdleConns:  c.SwarmRedisMaxConns,
+		SwarmRedisRemote:        c.SwarmRedisRemote,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,

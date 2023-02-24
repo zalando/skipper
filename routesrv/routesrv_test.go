@@ -95,6 +95,7 @@ func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
 func parseRedisIP(t *testing.T, fileName string) []byte {
 	t.Helper()
 	ipbytes, err := os.ReadFile(fileName)
+	ipbytes = bytes.TrimSuffix(ipbytes, []byte("\n"))
 	if err != nil {
 		t.Fatalf("failed to open eskip fixture %s: %v", fileName, err)
 	}
@@ -227,7 +228,7 @@ func TestRedisIPs(t *testing.T) {
 
 	w := getRedisURLs(rs)
 
-	want := parseRedisIP(t, "testdata/redis-ip.txt")
+	want := parseRedisIP(t, "testdata/redis-ip.json")
 	got := w.Body.Bytes()
 
 	if !bytes.Equal(got, want) {
