@@ -35,6 +35,7 @@ func TestWrap(t *testing.T) {
 			chunked: Path("/chunked") -> wrapContent("foo", "baz") -> "` + backend.URL + `";
 			prefix: Path("/prefix") -> wrapContent("foo", "") -> inlineContent("bar") -> <shunt>;
 			suffix: Path("/suffix") -> wrapContent("", "baz") -> inlineContent("bar") -> <shunt>;
+			hex: Path("/hex") -> wrapContentHex("68657861", "6d616c") -> inlineContent("deci") -> <shunt>;
 		`),
 	}.Create()
 	defer p.Close()
@@ -70,6 +71,38 @@ func TestWrap(t *testing.T) {
 
 	_, body = get(p.URL + "/suffix")
 	assert.Equal(t, "barbaz", body)
+
+	_, body = get(p.URL + "/hex")
+	assert.Equal(t, "hexadecimal", body)
+}
+
+func TestWrapInvalidArgs(t *testing.T) {
+	registry := builtin.MakeRegistry()
+
+	for _, def := range []string{
+		`wrapContent()`,
+		`wrapContent("foo")`,
+		`wrapContent(1, 2)`,
+		`wrapContent("foo", "bar", "baz")`,
+		`wrapContentHex()`,
+		`wrapContentHex("foo", "bar")`,
+		`wrapContentHex("0102")`,
+		`wrapContentHex("012", "ab")`, // odd length
+		`wrapContentHex("01", "abc")`, // odd length
+	} {
+		t.Run(def, func(t *testing.T) {
+			ff, err := eskip.ParseFilters(def)
+			require.NoError(t, err)
+			require.Len(t, ff, 1)
+
+			f := ff[0]
+
+			spec := registry[f.Name]
+			_, err = spec.CreateFilter(f.Args)
+
+			assert.Error(t, err)
+		})
+	}
 }
 
 type testCloser struct {
