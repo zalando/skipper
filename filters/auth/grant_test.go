@@ -3,7 +3,6 @@ package auth_test
 import (
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -365,17 +364,9 @@ func TestGrantFlow(t *testing.T) {
 
 		checkCookie(t, rsp, expectCookieDomain)
 
-		req, err := http.NewRequest("GET", rsp.Header.Get("Location"), nil)
-		if err != nil {
-			t.Fatalf("Failed to create request: %v.", err)
-		}
-
 		c, _ := findAuthCookie(rsp)
-		req.Header.Set("Cookie", fmt.Sprintf("%s=%s", c.Name, c.Value))
-		rsp, err = client.Do(req)
-		if err != nil {
-			t.Fatalf("Failed to make request to proxy: %v.", err)
-		}
+
+		rsp = grantQueryWithCookie(t, client, rsp.Header.Get("Location"), c)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
@@ -436,11 +427,11 @@ func TestGrantFlow(t *testing.T) {
 
 		rsp := grantQueryWithCookie(t, client, proxy.URL, goodCookie)
 
+		checkStatus(t, rsp, http.StatusNoContent)
+
 		_, ok := findAuthCookie(rsp)
 		if ok {
-			t.Fatalf(
-				"The auth cookie should only be added to the response if there was a refresh.",
-			)
+			t.Fatal("The auth cookie should only be added to the response if there was a refresh.")
 		}
 	})
 }
@@ -458,14 +449,28 @@ func TestGrantRefresh(t *testing.T) {
 	defer proxy.Close()
 
 	t.Run("check token is refreshed if it expired", func(t *testing.T) {
-		cookie, err := auth.NewGrantCookieWithExpiration(config, time.Now().Add(time.Duration(-1)*time.Minute))
+		expiredCookie, err := auth.NewGrantCookieWithExpiration(config, time.Now().Add(time.Duration(-1)*time.Minute))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		rsp := grantQueryWithCookie(t, client, proxy.URL, cookie)
+		rsp := grantQueryWithCookie(t, client, proxy.URL, expiredCookie)
 
 		checkStatus(t, rsp, http.StatusNoContent)
+
+		refreshedCookie, ok := findAuthCookie(rsp)
+		if !ok {
+			t.Fatal("Refreshed cookie not found.")
+		}
+
+		rsp = grantQueryWithCookie(t, client, proxy.URL, refreshedCookie)
+
+		checkStatus(t, rsp, http.StatusNoContent)
+
+		_, ok = findAuthCookie(rsp)
+		if ok {
+			t.Fatal("The auth cookie should only be added to the response if there was a refresh.")
+		}
 	})
 
 	t.Run("check login is triggered if refresh token is invalid", func(t *testing.T) {
