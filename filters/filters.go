@@ -151,6 +151,15 @@ type Filter interface {
 	Response(FilterContext)
 }
 
+// FilterCloser are Filters that need to cleanup resources after
+// filter teminiation. For example Filters, that create a goroutine
+// for some reason need to cleanup their goroutine or they would leak
+// goroutines.
+type FilterCloser interface {
+	Filter
+	Close()
+}
+
 // Spec objects are specifications for filters. When initializing the routes,
 // the Filter instances are created using the Spec objects found in the
 // registry.
