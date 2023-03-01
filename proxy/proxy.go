@@ -1093,7 +1093,6 @@ func (p *Proxy) do(ctx *context) (err error) {
 			// in case of error we have to copy the response in this recursion unwinding
 			ctx.response = loopCTX.response
 			if err != nil {
-				// TODO(sszuecs): make sure we have a test case
 				p.applyFiltersOnError(ctx, processedFilters)
 			}
 			return err
@@ -1280,6 +1279,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	if ctx.response.StatusCode == 499 {
 		msgPrefix = "client canceled"
 		logFunc = p.log.Infof
+		if p.accessLogDisabled {
+			logFunc = p.log.Debugf
+		}
 	}
 	if id != unknownRouteID {
 		req := ctx.Request()

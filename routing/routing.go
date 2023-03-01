@@ -371,18 +371,23 @@ func (r *Routing) startReceivingUpdates(o Options) {
 				}
 				r.log.Info("route settings applied")
 			case <-r.quit:
-				rt := r.routeTable.Load().(*routeTable)
-				for _, lfm := range rt.m.rootLeaves {
-					for _, f := range lfm.route.Filters {
-						if fc, ok := f.Filter.(filters.FilterCloser); ok {
-							fc.Close()
-						}
-					}
-				}
+				closeFilters(r)
 				return
 			}
 		}
 	}()
+}
+
+// only finds leaf routes
+func closeFilters(r *Routing) {
+	rt := r.routeTable.Load().(*routeTable)
+	for _, lfm := range rt.m.rootLeaves {
+		for _, f := range lfm.route.Filters {
+			if fc, ok := f.Filter.(filters.FilterCloser); ok {
+				fc.Close()
+			}
+		}
+	}
 }
 
 // Route matches a request in the current routing tree.
