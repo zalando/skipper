@@ -19,37 +19,6 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-type testFilter struct {
-	requestCalled  bool
-	responseCalled bool
-	panic          bool
-}
-
-func (tf *testFilter) Name() string {
-	return "testFilter"
-}
-func (tf *testFilter) CreateFilter(args []interface{}) (filters.Filter, error) {
-	for _, v := range args {
-		s := v.(string)
-		switch s {
-		case "panic":
-			tf.panic = true
-		}
-
-	}
-	return tf, nil
-}
-
-func (tf *testFilter) Request(ctx filters.FilterContext) {
-	tf.requestCalled = true
-	if tf.panic {
-		panic("test filter panic")
-	}
-}
-func (tf *testFilter) Response(ctx filters.FilterContext) {
-	tf.responseCalled = true
-}
-
 func TestResponseFilterOnProxyError(t *testing.T) {
 	counter := int64(1)
 	serverErrN := int64(37)
