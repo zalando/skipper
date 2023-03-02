@@ -2,7 +2,6 @@ package auth
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -45,20 +45,6 @@ func (s *grantLogoutSpec) CreateFilter([]interface{}) (filters.Filter, error) {
 	}, nil
 }
 
-func (f *grantLogoutFilter) getBasicAuthCredentials() (string, string, error) {
-	clientID := f.config.GetClientID()
-	if clientID == "" {
-		return "", "", errors.New("failed to create token revoke auth header: no client ID")
-	}
-
-	clientSecret := f.config.GetClientSecret()
-	if clientSecret == "" {
-		return "", "", errors.New("failed to create token revoke auth header: no client secret")
-	}
-
-	return clientID, clientSecret, nil
-}
-
 func responseToError(responseData []byte, statusCode int, tokenType string) error {
 	var errorResponse revokeErrorResponse
 	err := json.Unmarshal(responseData, &errorResponse)
@@ -81,7 +67,7 @@ func responseToError(responseData []byte, statusCode int, tokenType string) erro
 	)
 }
 
-func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) error {
+func (f *grantLogoutFilter) revokeTokenType(c *oauth2.Config, tokenType string, token string) error {
 	revokeURL, err := url.Parse(f.config.RevokeTokenURL)
 	if err != nil {
 		return err
@@ -106,12 +92,7 @@ func (f *grantLogoutFilter) revokeTokenType(tokenType string, token string) erro
 		return err
 	}
 
-	clientId, clientSecret, err := f.getBasicAuthCredentials()
-	if err != nil {
-		return err
-	}
-
-	revokeRequest.SetBasicAuth(clientId, clientSecret)
+	revokeRequest.SetBasicAuth(c.ClientID, c.ClientSecret)
 	revokeRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	revokeResponse, err := f.config.AuthClient.Do(revokeRequest)
@@ -166,16 +147,22 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
+	authConfig, err := f.config.GetConfig(req)
+	if err != nil {
+		serverError(ctx)
+		return
+	}
+
 	var accessTokenRevokeError, refreshTokenRevokeError error
 	if c.AccessToken != "" {
-		accessTokenRevokeError = f.revokeTokenType(accessTokenType, c.AccessToken)
+		accessTokenRevokeError = f.revokeTokenType(authConfig, accessTokenType, c.AccessToken)
 		if accessTokenRevokeError != nil {
 			log.Error(accessTokenRevokeError)
 		}
 	}
 
 	if c.RefreshToken != "" {
-		refreshTokenRevokeError = f.revokeTokenType(refreshTokenType, c.RefreshToken)
+		refreshTokenRevokeError = f.revokeTokenType(authConfig, refreshTokenType, c.RefreshToken)
 		if refreshTokenRevokeError != nil {
 			log.Error(refreshTokenRevokeError)
 		}

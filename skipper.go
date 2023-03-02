@@ -759,10 +759,12 @@ type Options struct {
 
 	// OAuth2ClientIDFile, the path of the file containing the OAuth2 client id of
 	// the current service, used to exchange the access code.
+	// File name may contain {host} placeholder which will be replaced by the request host.
 	OAuth2ClientIDFile string
 
 	// OAuth2ClientSecretFile, the path of the file containing the secret associated
 	// with the ClientID, used to exchange the access code.
+	// File name may contain {host} placeholder which will be replaced by the request host.
 	OAuth2ClientSecretFile string
 
 	// OAuth2CallbackPath contains the path where the OAuth2 callback requests with the

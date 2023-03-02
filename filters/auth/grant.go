@@ -62,6 +62,16 @@ func loginRedirect(ctx filters.FilterContext, config *OAuthConfig) {
 
 func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, originalOverride string) {
 	req := ctx.Request()
+
+	authConfig, err := config.GetConfig(req)
+	if err != nil {
+		log.Debugf("Failed to obtain auth config: %v", err)
+		ctx.Serve(&http.Response{
+			StatusCode: http.StatusForbidden,
+		})
+		return
+	}
+
 	redirect, original := config.RedirectURLs(req)
 
 	if originalOverride != "" {
@@ -75,7 +85,6 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 		return
 	}
 
-	authConfig := config.GetConfig()
 	ctx.Serve(&http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: http.Header{
@@ -84,7 +93,7 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 	})
 }
 
-func (f *grantFilter) refreshToken(c *cookie) (*oauth2.Token, error) {
+func (f *grantFilter) refreshToken(c *cookie, req *http.Request) (*oauth2.Token, error) {
 	// Set the expiry of the token to the past to trigger oauth2.TokenSource
 	// to refresh the access token.
 	token := &oauth2.Token{
@@ -95,9 +104,14 @@ func (f *grantFilter) refreshToken(c *cookie) (*oauth2.Token, error) {
 
 	ctx := providerContext(f.config)
 
+	authConfig, err := f.config.GetConfig(req)
+	if err != nil {
+		return nil, err
+	}
+
 	// oauth2.TokenSource implements the refresh functionality,
 	// we're hijacking it here.
-	tokenSource := f.config.GetConfig().TokenSource(ctx, token)
+	tokenSource := authConfig.TokenSource(ctx, token)
 	return tokenSource.Token()
 }
 
@@ -106,7 +120,7 @@ func (f *grantFilter) refreshTokenIfRequired(c *cookie, ctx filters.FilterContex
 
 	if c.isAccessTokenExpired() {
 		if canRefresh {
-			token, err := f.refreshToken(c)
+			token, err := f.refreshToken(c, ctx.Request())
 			if err == nil {
 				// Remember that this token was just successfully refreshed
 				// so that we can send an updated cookie in the response.
@@ -175,7 +189,7 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 	}
 
 	token, err := f.refreshTokenIfRequired(c, ctx)
-	if err != nil && c.isAccessTokenExpired() {
+	if err != nil {
 		// Refresh failed and we no longer have a valid access token.
 		loginRedirect(ctx, f.config)
 		return
