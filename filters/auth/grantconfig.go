@@ -18,6 +18,8 @@ type OAuthConfig struct {
 	initialized bool
 	flowState   *flowState
 
+	grantTokeninfoKeysLookup map[string]struct{}
+
 	// TokeninfoURL is the URL of the service to validate OAuth2 tokens.
 	TokeninfoURL string
 
@@ -83,6 +85,9 @@ type OAuthConfig struct {
 	// AccessTokenHeaderName, optional. When set, the access token will be set
 	// on the request to a header with this name.
 	AccessTokenHeaderName string
+
+	// GrantTokeninfoKeys, optional. When not empty, keys not in this list are removed from the tokeninfo map.
+	GrantTokeninfoKeys []string
 
 	// TokeninfoSubjectKey, optional. When set, it is used to look up the subject
 	// ID in the tokeninfo map received from a tokeninfo endpoint request.
@@ -203,6 +208,13 @@ func (c *OAuthConfig) Init() error {
 		}
 		if err := c.SecretsProvider.Add(c.ClientSecretFile); err != nil {
 			return err
+		}
+	}
+
+	if len(c.GrantTokeninfoKeys) > 0 {
+		c.grantTokeninfoKeysLookup = make(map[string]struct{}, len(c.GrantTokeninfoKeys))
+		for _, key := range c.GrantTokeninfoKeys {
+			c.grantTokeninfoKeysLookup[key] = struct{}{}
 		}
 	}
 

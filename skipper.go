@@ -783,6 +783,9 @@ type Options struct {
 	// tokeninfo map. Used for downstream oidcClaimsQuery compatibility.
 	OAuth2TokeninfoSubjectKey string
 
+	// OAuth2GrantTokeninfoKeys, if not empty keys not in this list are removed from the tokeninfo map.
+	OAuth2GrantTokeninfoKeys []string
+
 	// OAuth2TokenCookieName the name of the cookie that Skipper sets after a
 	// successful OAuth2 token exchange. Stores the encrypted access token.
 	OAuth2TokenCookieName string
@@ -1626,6 +1629,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.Secrets = o.SecretsRegistry
 		oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
 		oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
+		oauthConfig.GrantTokeninfoKeys = o.OAuth2GrantTokeninfoKeys
 		oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
 		oauthConfig.TokenCookieRemoveSubdomains = &o.OAuth2TokenCookieRemoveSubdomains
 		oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout

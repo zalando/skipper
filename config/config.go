@@ -192,6 +192,7 @@ type Config struct {
 	Oauth2TokenintrospectionTimeout   time.Duration `yaml:"oauth2-tokenintrospect-timeout"`
 	Oauth2AccessTokenHeaderName       string        `yaml:"oauth2-access-token-header-name"`
 	Oauth2TokeninfoSubjectKey         string        `yaml:"oauth2-tokeninfo-subject-key"`
+	Oauth2GrantTokeninfoKeys          *listFlag     `yaml:"oauth2-grant-tokeninfo-keys"`
 	Oauth2TokenCookieName             string        `yaml:"oauth2-token-cookie-name"`
 	Oauth2TokenCookieRemoveSubdomains int           `yaml:"oauth2-token-cookie-remove-subdomains"`
 	WebhookTimeout                    time.Duration `yaml:"webhook-timeout"`
@@ -297,6 +298,7 @@ func NewConfig() *Config {
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
 	cfg.CompressEncodings = commaListFlag("gzip", "deflate", "br")
 	cfg.LuaModules = commaListFlag()
+	cfg.Oauth2GrantTokeninfoKeys = commaListFlag()
 
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
 
@@ -458,7 +460,8 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.Oauth2TokenintrospectionTimeout, "oauth2-tokenintrospect-timeout", 2*time.Second, "sets the default tokenintrospection request timeout duration to 2000ms")
 	flag.Var(&cfg.Oauth2AuthURLParameters, "oauth2-auth-url-parameters", "sets additional parameters to send when calling the OAuth2 authorize or token endpoints as key-value pairs")
 	flag.StringVar(&cfg.Oauth2AccessTokenHeaderName, "oauth2-access-token-header-name", "", "sets the access token to a header on the request with this name")
-	flag.StringVar(&cfg.Oauth2TokeninfoSubjectKey, "oauth2-tokeninfo-subject-key", "uid", "sets the access token to a header on the request with this name")
+	flag.StringVar(&cfg.Oauth2TokeninfoSubjectKey, "oauth2-tokeninfo-subject-key", "uid", "sets the tokeninfo subject key")
+	flag.Var(cfg.Oauth2GrantTokeninfoKeys, "oauth2-grant-tokeninfo-keys", "non-empty comma separated list configures keys to preserve in OAuth2 Grant Flow tokeninfo")
 	flag.StringVar(&cfg.Oauth2TokenCookieName, "oauth2-token-cookie-name", "oauth2-grant", "sets the name of the cookie where the encrypted token is stored")
 	flag.IntVar(&cfg.Oauth2TokenCookieRemoveSubdomains, "oauth2-token-cookie-remove-subdomains", 1, "sets the number of subdomains to remove from the callback request hostname to obtain token cookie domain")
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
@@ -832,6 +835,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuth2AuthURLParameters:           c.Oauth2AuthURLParameters.values,
 		OAuth2AccessTokenHeaderName:       c.Oauth2AccessTokenHeaderName,
 		OAuth2TokeninfoSubjectKey:         c.Oauth2TokeninfoSubjectKey,
+		OAuth2GrantTokeninfoKeys:          c.Oauth2GrantTokeninfoKeys.values,
 		OAuth2TokenCookieName:             c.Oauth2TokenCookieName,
 		OAuth2TokenCookieRemoveSubdomains: c.Oauth2TokenCookieRemoveSubdomains,
 		WebhookTimeout:                    c.WebhookTimeout,
