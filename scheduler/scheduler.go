@@ -368,7 +368,7 @@ func (q *Queue) reconfigure() {
 	})
 }
 
-func (q *Queue) close() {
+func (q *Queue) Close() {
 	q.queue.Close()
 }
 
@@ -508,7 +508,7 @@ func (r *Registry) deleteUnused(inUse map[queueId]struct{}) {
 	for q, deleted := range r.lifoDeleted {
 		if deleted.Before(closeCutoff) {
 			delete(r.lifoDeleted, q)
-			q.close()
+			q.Close()
 		}
 	}
 	for id, q := range r.lifoQueues {
@@ -699,12 +699,12 @@ func (r *Registry) Close() {
 
 	for q := range r.lifoDeleted {
 		delete(r.lifoDeleted, q)
-		q.close()
+		q.Close()
 	}
 
 	for id, q := range r.lifoQueues {
 		delete(r.lifoQueues, id)
-		q.close()
+		q.Close()
 	}
 
 	close(r.quit)
