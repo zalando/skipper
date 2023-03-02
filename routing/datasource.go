@@ -533,11 +533,12 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		rt           *routeTable
 		outRelay     chan<- *routeTable
 		updatesRelay <-chan []*eskip.Route
+		defs         []*eskip.Route
 	)
 	updatesRelay = updates
 	for {
 		select {
-		case defs := <-updatesRelay:
+		case defs = <-updatesRelay:
 			o.Log.Info("route settings received")
 
 			for i := range o.PreProcessors {
@@ -585,6 +586,23 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			updatesRelay = updates
 			outRelay = nil
 		case <-quit:
+			// cleanup with postprocessors
+			for i := range o.PreProcessors {
+				defs = o.PreProcessors[i].Do(defs)
+			}
+			routes, _ := processRouteDefs(o, o.FilterRegistry, defs)
+			for i := range o.PostProcessors {
+				routes = o.PostProcessors[i].Do(routes)
+			}
+			for _, r := range routes {
+				for _, f := range r.Filters {
+					fc, ok := f.Filter.(filters.FilterCloser)
+					if ok {
+						fc.Close()
+					}
+				}
+			}
+
 			return
 		}
 	}

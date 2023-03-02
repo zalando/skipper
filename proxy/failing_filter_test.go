@@ -227,7 +227,6 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 }
 
 func TestAdmissionControlInLoopback(t *testing.T) {
-	//t.Skip("this route config leaks a goroutine after closing all the things, because admissionControl is not found in rootLeaves in the routeTable.")
 	counter := int64(1)
 	serverErrN := int64(37)
 	timeoutN := int64(5)
