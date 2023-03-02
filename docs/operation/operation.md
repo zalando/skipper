@@ -459,6 +459,16 @@ are exposed from skipper to the metrics endpoint, default listener
 
 ### Redis - Rate limiting metrics
 
+System metrics exposed by the redisclient:
+
+- skipper.swarm.redis.shards: known Redis shards to the skipper ringclient
+- skipper.swarm.redis.hits: number of times free connection was found in the pool
+- skipper.swarm.redis.misses: number of times free connection was NOT found in the pool
+- skipper.swarm.redis.timeouts: number of times a wait timeout occurred
+- skipper.swarm.redis.staleconns: number of stale connections removed from the pool
+- skipper.swarm.redis.idleconns: number of idle connections in the pool
+- skipper.swarm.redis.totalconns: number of total connections in the pool
+
 Timer metrics for the latencies and errors of the communication with the auxiliary Redis instances are enabled
 by the default, and exposed among the timers via the following keys:
 
