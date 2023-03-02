@@ -17,6 +17,7 @@ import (
 	"github.com/zalando/skipper/net/httptest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
 )
 
 func TestResponseFilterOnProxyError(t *testing.T) {
@@ -48,8 +49,21 @@ func TestResponseFilterOnProxyError(t *testing.T) {
 	r := eskip.MustParse(routes)
 
 	fr := make(filters.Registry)
-	fr.Register(shedder.NewAdmissionControl(shedder.Options{}))
-	proxy := proxytest.WithParams(fr, proxy.Params{AccessLogDisabled: true}, r...)
+	spec := shedder.NewAdmissionControl(shedder.Options{})
+	fr.Register(spec)
+	proxy := proxytest.WithParamsAndRoutingOptions(fr,
+		proxy.Params{
+			AccessLogDisabled: true,
+		},
+		routing.Options{
+			PreProcessors: []routing.PreProcessor{
+				spec.(*shedder.AdmissionControlSpec).PreProcessor(),
+			},
+			PostProcessors: []routing.PostProcessor{
+				spec.(*shedder.AdmissionControlSpec).PostProcessor(),
+			},
+		},
+		r...)
 	defer proxy.Close()
 
 	reqURL, err := url.Parse(proxy.URL)
@@ -131,7 +145,8 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 	defer backend.Close()
 
 	fr := make(filters.Registry)
-	fr.Register(shedder.NewAdmissionControl(shedder.Options{}))
+	spec := shedder.NewAdmissionControl(shedder.Options{})
+	fr.Register(spec)
 	fr.Register(builtin.NewSetPath())
 
 	routes := fmt.Sprintf(`
@@ -140,7 +155,19 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 
 	r := eskip.MustParse(routes)
 
-	proxy := proxytest.WithParams(fr, proxy.Params{AccessLogDisabled: true}, r...)
+	proxy := proxytest.WithParamsAndRoutingOptions(fr,
+		proxy.Params{
+			AccessLogDisabled: true,
+		},
+		routing.Options{
+			PreProcessors: []routing.PreProcessor{
+				spec.(*shedder.AdmissionControlSpec).PreProcessor(),
+			},
+			PostProcessors: []routing.PostProcessor{
+				spec.(*shedder.AdmissionControlSpec).PostProcessor(),
+			},
+		},
+		r...)
 	defer proxy.Close()
 
 	reqURL, err := url.Parse(proxy.URL)
@@ -200,7 +227,7 @@ func TestAdmissionControlBeforeLoopback(t *testing.T) {
 }
 
 func TestAdmissionControlInLoopback(t *testing.T) {
-	t.Skip("this route config leaks a goroutine after closing all the things, because admissionControl is not found in rootLeaves in the routeTable.")
+	//t.Skip("this route config leaks a goroutine after closing all the things, because admissionControl is not found in rootLeaves in the routeTable.")
 	counter := int64(1)
 	serverErrN := int64(37)
 	timeoutN := int64(5)
@@ -223,7 +250,8 @@ func TestAdmissionControlInLoopback(t *testing.T) {
 	defer backend.Close()
 
 	fr := make(filters.Registry)
-	fr.Register(shedder.NewAdmissionControl(shedder.Options{}))
+	spec := shedder.NewAdmissionControl(shedder.Options{})
+	fr.Register(spec)
 	fr.Register(builtin.NewSetPath())
 
 	routes := fmt.Sprintf(`
@@ -232,7 +260,19 @@ func TestAdmissionControlInLoopback(t *testing.T) {
 
 	r := eskip.MustParse(routes)
 
-	proxy := proxytest.WithParams(fr, proxy.Params{AccessLogDisabled: true}, r...)
+	proxy := proxytest.WithParamsAndRoutingOptions(fr,
+		proxy.Params{
+			AccessLogDisabled: true,
+		},
+		routing.Options{
+			PreProcessors: []routing.PreProcessor{
+				spec.(*shedder.AdmissionControlSpec).PreProcessor(),
+			},
+			PostProcessors: []routing.PostProcessor{
+				spec.(*shedder.AdmissionControlSpec).PostProcessor(),
+			},
+		},
+		r...)
 	defer proxy.Close()
 
 	reqURL, err := url.Parse(proxy.URL)
