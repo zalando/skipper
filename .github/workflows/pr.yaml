@@ -10,7 +10,8 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
-          go-version: '^1.19'
+          # Fix version to 1.19, see https://github.com/praetorian-inc/gokart/issues/88
+          go-version: '~1.19'
       - run: go install github.com/praetorian-inc/gokart@latest
       - run: gokart scan -s -o gokart-scan-output.sarif
       # Upload the results to the code scanning security tab
