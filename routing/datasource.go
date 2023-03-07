@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/zalando/skipper/eskip"
@@ -520,9 +521,25 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (rout
 
 type routeTable struct {
 	m             *matcher
+	once          sync.Once
+	routes        []*Route // only used for closing
 	validRoutes   []*eskip.Route
 	invalidRoutes []*eskip.Route
 	created       time.Time
+}
+
+// Close routeTable will cleanup all underlying resources, that could
+// leak goroutines.
+func (rt *routeTable) Close() {
+	rt.once.Do(func() {
+		for _, route := range rt.routes {
+			for _, f := range route.Filters {
+				if fc, ok := f.Filter.(filters.FilterCloser); ok {
+					fc.Close()
+				}
+			}
+		}
+	})
 }
 
 // receives the next version of the routing table on the output channel,
@@ -533,12 +550,11 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		rt           *routeTable
 		outRelay     chan<- *routeTable
 		updatesRelay <-chan []*eskip.Route
-		defs         []*eskip.Route
 	)
 	updatesRelay = updates
 	for {
 		select {
-		case defs = <-updatesRelay:
+		case defs := <-updatesRelay:
 			o.Log.Info("route settings received")
 
 			for i := range o.PreProcessors {
@@ -586,23 +602,6 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			updatesRelay = updates
 			outRelay = nil
 		case <-quit:
-			// cleanup with postprocessors
-			for i := range o.PreProcessors {
-				defs = o.PreProcessors[i].Do(defs)
-			}
-			routes, _ := processRouteDefs(o, o.FilterRegistry, defs)
-			for i := range o.PostProcessors {
-				routes = o.PostProcessors[i].Do(routes)
-			}
-			for _, r := range routes {
-				for _, f := range r.Filters {
-					fc, ok := f.Filter.(filters.FilterCloser)
-					if ok {
-						fc.Close()
-					}
-				}
-			}
-
 			return
 		}
 	}

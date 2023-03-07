@@ -422,6 +422,11 @@ func (r *Routing) Get() *RouteLookup {
 
 // Close closes routing, stops receiving routes.
 func (r *Routing) Close() {
+	var rt *routeTable
+	rt, ok := r.routeTable.Load().(*routeTable)
+	if ok {
+		rt.Close()
+	}
 	close(r.quit)
 }
 
