@@ -528,9 +528,9 @@ type routeTable struct {
 	created       time.Time
 }
 
-// Close routeTable will cleanup all underlying resources, that could
+// close routeTable will cleanup all underlying resources, that could
 // leak goroutines.
-func (rt *routeTable) Close() {
+func (rt *routeTable) close() {
 	rt.once.Do(func() {
 		for _, route := range rt.routes {
 			for _, f := range route.Filters {
@@ -591,6 +591,7 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 
 			rt = &routeTable{
 				m:             m,
+				routes:        routes,
 				validRoutes:   validRoutes,
 				invalidRoutes: invalidRoutes,
 				created:       time.Now().UTC(),

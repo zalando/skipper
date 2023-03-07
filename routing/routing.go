@@ -420,12 +420,12 @@ func (r *Routing) Get() *RouteLookup {
 	return &RouteLookup{matcher: rt.m}
 }
 
-// Close closes routing, stops receiving routes.
+// Close closes routing, routeTable and stops statemachine for receiving routes.
 func (r *Routing) Close() {
 	var rt *routeTable
 	rt, ok := r.routeTable.Load().(*routeTable)
 	if ok {
-		rt.Close()
+		rt.close()
 	}
 	close(r.quit)
 }
