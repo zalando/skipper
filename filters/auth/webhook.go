@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -34,7 +35,10 @@ type (
 	}
 )
 
-var webhookAuthClient map[string]*authClient = make(map[string]*authClient)
+var (
+	webhookAuthClientMu sync.Mutex
+	webhookAuthClient   map[string]*authClient = make(map[string]*authClient)
+)
 
 // NewWebhook creates a new auth filter specification
 // to validate authorization for requests via an
@@ -93,6 +97,8 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 
 	var ac *authClient
 	var err error
+	webhookAuthClientMu.Lock()
+	defer webhookAuthClientMu.Unlock()
 	if ac, ok = webhookAuthClient[s]; !ok {
 		ac, err = newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
 		if err != nil {
