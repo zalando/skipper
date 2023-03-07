@@ -1563,9 +1563,9 @@ func (p *Proxy) makeErrorResponse(ctx *context, perr *proxyError) {
 }
 
 // errorHandlerFilter is an opt-in for filters to get called
-// Response(ctx) in case of errors. Filters will get called in case
-// they return with "true".
+// Response(ctx) in case of errors.
 type errorHandlerFilter interface {
+	// HandleErrorResponse returns true in case a filter wants to get called
 	HandleErrorResponse() bool
 }
 
