@@ -1,12 +1,16 @@
 package auth_test
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +24,7 @@ import (
 	"github.com/zalando/skipper/secrets"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -34,6 +39,42 @@ const (
 	testQueryParamKey        = "param_key"
 	testQueryParamValue      = "param_value"
 )
+
+type loggingRoundTripper struct {
+	http.RoundTripper
+	t *testing.T
+}
+
+func (rt *loggingRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+	rt.t.Logf("\n%v", rt.requestString(req))
+
+	resp, err = rt.RoundTripper.RoundTrip(req)
+
+	if err == nil {
+		rt.t.Logf("\n%v", rt.responseString(resp))
+	} else {
+		rt.t.Logf("response err: %v", err)
+	}
+	return
+}
+
+func (rt *loggingRoundTripper) requestString(req *http.Request) string {
+	tmp := req.Clone(context.Background())
+	tmp.Body = nil
+
+	var b strings.Builder
+	_ = tmp.Write(&b)
+	return b.String()
+}
+
+func (rt *loggingRoundTripper) responseString(resp *http.Response) string {
+	tmp := *resp
+	tmp.Body = nil
+
+	var b strings.Builder
+	_ = tmp.Write(&b)
+	return b.String()
+}
 
 func newGrantTestTokeninfo(validToken string, tokenInfoJSON string) *httptest.Server {
 	if tokenInfoJSON == "" {
@@ -131,6 +172,7 @@ func newGrantTestConfig(tokeninfoURL, providerURL string) *auth.OAuthConfig {
 		ClientID:          testClientID,
 		ClientSecret:      testClientSecret,
 		Secrets:           secrets.NewRegistry(),
+		SecretsProvider:   secrets.NewSecretPaths(1 * time.Hour),
 		SecretFile:        testSecretFile,
 		TokeninfoURL:      tokeninfoURL,
 		AuthURL:           providerURL + "/auth",
@@ -842,4 +884,139 @@ func TestGrantTokeninfoKeys(t *testing.T) {
 	checkStatus(t, rsp, http.StatusNoContent)
 
 	assert.JSONEq(t, `{"uid":"bar", "scope":["baz"]}`, rsp.Header.Get("Backend-X-Tokeninfo-Forward"))
+}
+
+func TestGrantCredentialsFile(t *testing.T) {
+	const (
+		fooDomain = "foo.skipper.test"
+		barDomain = "bar.skipper.test"
+	)
+
+	dnstest.LoopbackNames(t, fooDomain, barDomain)
+
+	secretsDir := t.TempDir()
+
+	clientIdFile := secretsDir + "/test-client-id"
+	clientSecretFile := secretsDir + "/test-client-secret"
+
+	require.NoError(t, os.WriteFile(clientIdFile, []byte(testClientID), 0644))
+	require.NoError(t, os.WriteFile(clientSecretFile, []byte(testClientSecret), 0644))
+
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	zero := 0
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.TokenCookieRemoveSubdomains = &zero
+	config.ClientID = ""
+	config.ClientSecret = ""
+	config.ClientIDFile = clientIdFile
+	config.ClientSecretFile = clientSecretFile
+
+	routes := eskip.MustParse(`* -> oauthGrant() -> status(204) -> <shunt>`)
+
+	proxy, client := newAuthProxy(t, config, routes, fooDomain, barDomain)
+	defer proxy.Close()
+
+	// Follow redirects as store cookies
+	client.CheckRedirect = nil
+	client.Jar, _ = cookiejar.New(nil)
+	httpLogger := &loggingRoundTripper{client.Transport, t}
+	client.Transport = httpLogger
+
+	resetClient := func(t *testing.T) {
+		client.Jar, _ = cookiejar.New(nil)
+		httpLogger.t = t
+	}
+
+	t.Run("request to "+fooDomain+" succeeds", func(t *testing.T) {
+		resetClient(t)
+
+		rsp, err := client.Get(proxy.URL + "/test")
+		require.NoError(t, err)
+		rsp.Body.Close()
+
+		checkStatus(t, rsp, http.StatusNoContent)
+	})
+
+	t.Run("request to "+barDomain+" succeeds", func(t *testing.T) {
+		resetClient(t)
+
+		barUrl := "https://" + net.JoinHostPort(barDomain, proxy.Port)
+
+		rsp, err := client.Get(barUrl + "/test")
+		require.NoError(t, err)
+		rsp.Body.Close()
+
+		checkStatus(t, rsp, http.StatusNoContent)
+	})
+}
+
+func TestGrantCredentialsPlaceholder(t *testing.T) {
+	const (
+		fooDomain = "foo.skipper.test"
+		barDomain = "bar.skipper.test"
+	)
+
+	dnstest.LoopbackNames(t, fooDomain, barDomain)
+
+	secretsDir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(secretsDir+"/"+fooDomain+"-client-id", []byte(testClientID), 0644))
+	require.NoError(t, os.WriteFile(secretsDir+"/"+fooDomain+"-client-secret", []byte(testClientSecret), 0644))
+
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	zero := 0
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.TokenCookieRemoveSubdomains = &zero
+	config.ClientID = ""
+	config.ClientSecret = ""
+	config.ClientIDFile = secretsDir + "/{host}-client-id"
+	config.ClientSecretFile = secretsDir + "/{host}-client-secret"
+
+	routes := eskip.MustParse(`* -> oauthGrant() -> status(204) -> <shunt>`)
+
+	proxy, client := newAuthProxy(t, config, routes, fooDomain, barDomain)
+	defer proxy.Close()
+
+	// Follow redirects as store cookies
+	client.CheckRedirect = nil
+	client.Jar, _ = cookiejar.New(nil)
+	httpLogger := &loggingRoundTripper{client.Transport, t}
+	client.Transport = httpLogger
+
+	resetClient := func(t *testing.T) {
+		client.Jar, _ = cookiejar.New(nil)
+		httpLogger.t = t
+	}
+
+	t.Run("request to the hostname with existing client credentials succeeds", func(t *testing.T) {
+		resetClient(t)
+
+		rsp, err := client.Get(proxy.URL + "/test")
+		require.NoError(t, err)
+		rsp.Body.Close()
+
+		checkStatus(t, rsp, http.StatusNoContent)
+	})
+
+	t.Run("request to the hostname without existing client credentials is forbidden", func(t *testing.T) {
+		resetClient(t)
+
+		barUrl := "https://" + net.JoinHostPort(barDomain, proxy.Port)
+
+		rsp, err := client.Get(barUrl + "/test")
+		require.NoError(t, err)
+		rsp.Body.Close()
+
+		checkStatus(t, rsp, http.StatusForbidden)
+	})
 }

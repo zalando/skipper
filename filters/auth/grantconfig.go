@@ -3,22 +3,26 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/net"
+	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/secrets"
 	"golang.org/x/oauth2"
 )
 
 type OAuthConfig struct {
-	initialized bool
-	flowState   *flowState
-
+	initialized              bool
+	flowState                *flowState
 	grantTokeninfoKeysLookup map[string]struct{}
+	getClientId              func(*http.Request) (string, error)
+	getClientSecret          func(*http.Request) (string, error)
 
 	// TokeninfoURL is the URL of the service to validate OAuth2 tokens.
 	TokeninfoURL string
@@ -55,13 +59,17 @@ type OAuthConfig struct {
 	ClientSecret string
 
 	// ClientIDFile, the path to the file containing the OAuth2 client id of
-	// the current service, used to exchange the access code. Must be set if
-	// ClientID is not provided. Requires SecretsProvider and will be added to it.
+	// the current service, used to exchange the access code.
+	// Must be set if ClientID is not provided.
+	// File name may contain {host} placeholder which will be replaced by the request host.
+	// Requires SecretsProvider, the path (or path's directory if placeholder is present) will be added to it.
 	ClientIDFile string
 
 	// ClientSecretFile, the path to the file containing the secret associated
-	// with the ClientID, used to exchange the access code. Must be set if
-	// ClientSecret is not provided. Requires SecretsProvider and will be added to it.
+	// with the ClientID, used to exchange the access code.
+	// Must be set if ClientSecret is not provided.
+	// File name may contain {host} placeholder which will be replaced by the request host.
+	// Requires SecretsProvider, the path (or path's directory if placeholder is present) will be added to it.
 	ClientSecretFile string
 
 	// SecretsProvider is used to read ClientIDFile and ClientSecretFile from the
@@ -76,7 +84,7 @@ type OAuthConfig struct {
 	// AuthClient, optional. When set, it will be used for the
 	// access code exchange requests to TokenURL. When not set, a new default
 	// client is created.
-	AuthClient *net.Client
+	AuthClient *snet.Client
 
 	// AuthURLParameters, optional. Extra URL parameters to add when calling
 	// the OAuth2 authorize or token endpoints.
@@ -143,14 +151,6 @@ func (c *OAuthConfig) Init() error {
 		return ErrMissingSecretFile
 	}
 
-	if c.ClientID == "" && c.ClientIDFile == "" {
-		return ErrMissingClientID
-	}
-
-	if c.ClientSecret == "" && c.ClientSecretFile == "" {
-		return ErrMissingClientSecret
-	}
-
 	if c.CallbackPath == "" {
 		c.CallbackPath = defaultCallbackPath
 	}
@@ -181,7 +181,7 @@ func (c *OAuthConfig) Init() error {
 	}
 
 	if c.AuthClient == nil {
-		c.AuthClient = net.NewClient(net.Options{
+		c.AuthClient = snet.NewClient(snet.Options{
 			ResponseHeaderTimeout:   c.ConnectionTimeout,
 			TLSHandshakeTimeout:     c.ConnectionTimeout,
 			MaxIdleConnsPerHost:     c.MaxIdleConnectionsPerHost,
@@ -193,22 +193,58 @@ func (c *OAuthConfig) Init() error {
 
 	c.flowState = newFlowState(c.Secrets, c.SecretFile)
 
-	if c.ClientIDFile != "" {
+	if c.ClientID != "" {
+		c.getClientId = func(*http.Request) (string, error) {
+			return c.ClientID, nil
+		}
+	} else if c.ClientIDFile != "" {
 		if c.SecretsProvider == nil {
 			return ErrMissingSecretsProvider
 		}
-		if err := c.SecretsProvider.Add(c.ClientIDFile); err != nil {
-			return err
+		if hasPlaceholders(c.ClientIDFile) {
+			c.getClientId = func(req *http.Request) (string, error) {
+				return c.getSecret(resolvePlaceholders(c.ClientIDFile, req))
+			}
+			if err := c.SecretsProvider.Add(filepath.Dir(c.ClientIDFile)); err != nil {
+				return err
+			}
+		} else {
+			c.getClientId = func(*http.Request) (string, error) {
+				return c.getSecret(c.ClientIDFile)
+			}
+			if err := c.SecretsProvider.Add(c.ClientIDFile); err != nil {
+				return err
+			}
 		}
+	} else {
+		return ErrMissingClientID
 	}
 
-	if c.ClientSecretFile != "" {
+	if c.ClientSecret != "" {
+		c.getClientSecret = func(*http.Request) (string, error) {
+			return c.ClientSecret, nil
+		}
+	} else if c.ClientSecretFile != "" {
 		if c.SecretsProvider == nil {
 			return ErrMissingSecretsProvider
 		}
-		if err := c.SecretsProvider.Add(c.ClientSecretFile); err != nil {
-			return err
+		if hasPlaceholders(c.ClientSecretFile) {
+			c.getClientSecret = func(req *http.Request) (string, error) {
+				return c.getSecret(resolvePlaceholders(c.ClientSecretFile, req))
+			}
+			if err := c.SecretsProvider.Add(filepath.Dir(c.ClientSecretFile)); err != nil {
+				return err
+			}
+		} else {
+			c.getClientSecret = func(*http.Request) (string, error) {
+				return c.getSecret(c.ClientSecretFile)
+			}
+			if err := c.SecretsProvider.Add(c.ClientSecretFile); err != nil {
+				return err
+			}
 		}
+	} else {
+		return ErrMissingClientSecret
 	}
 
 	if len(c.GrantTokeninfoKeys) > 0 {
@@ -246,15 +282,46 @@ func (c *OAuthConfig) NewGrantPreprocessor() routing.PreProcessor {
 	return &grantPrep{config: c}
 }
 
-func (c *OAuthConfig) GetConfig() *oauth2.Config {
-	return &oauth2.Config{
+func (c *OAuthConfig) GetConfig(req *http.Request) (*oauth2.Config, error) {
+	var err error
+	authConfig := &oauth2.Config{
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  c.AuthURL,
 			TokenURL: c.TokenURL,
 		},
-		ClientID:     c.GetClientID(),
-		ClientSecret: c.GetClientSecret(),
 	}
+
+	authConfig.ClientID, err = c.getClientId(req)
+	if err != nil {
+		return nil, err
+	}
+
+	authConfig.ClientSecret, err = c.getClientSecret(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return authConfig, nil
+}
+
+func (c *OAuthConfig) getSecret(file string) (string, error) {
+	if secret, ok := c.SecretsProvider.GetSecret(file); ok {
+		return string(secret), nil
+	} else {
+		return "", fmt.Errorf("secret %s does not exist", file)
+	}
+}
+
+func resolvePlaceholders(s string, r *http.Request) string {
+	h, _, err := net.SplitHostPort(r.Host)
+	if err != nil {
+		h = r.Host
+	}
+	return strings.ReplaceAll(s, "{host}", h)
+}
+
+func hasPlaceholders(s string) bool {
+	return resolvePlaceholders(s, &http.Request{Host: "example.org"}) != s
 }
 
 func (c *OAuthConfig) GetAuthURLParameters(redirectURI string) []oauth2.AuthCodeOption {
@@ -267,30 +334,6 @@ func (c *OAuthConfig) GetAuthURLParameters(redirectURI string) []oauth2.AuthCode
 	}
 
 	return params
-}
-
-func (c *OAuthConfig) GetClientID() string {
-	if c.ClientID != "" {
-		return c.ClientID
-	}
-
-	if id, ok := c.SecretsProvider.GetSecret(c.ClientIDFile); ok {
-		return string(id)
-	}
-
-	return ""
-}
-
-func (c *OAuthConfig) GetClientSecret() string {
-	if c.ClientSecret != "" {
-		return c.ClientSecret
-	}
-
-	if secret, ok := c.SecretsProvider.GetSecret(c.ClientSecretFile); ok {
-		return string(secret)
-	}
-
-	return ""
 }
 
 // RedirectURLs constructs the redirect URI based on the request and the

@@ -17,7 +17,6 @@ const (
 )
 
 var (
-	ErrAlreadyExists    = errors.New("secret already exists")
 	ErrWrongFileType    = errors.New("file type not supported")
 	ErrFailedToReadFile = errors.New("failed to read file")
 )
@@ -133,7 +132,7 @@ func (sp *SecretPaths) handleDir(p string) error {
 
 func (sp *SecretPaths) registerSecretFile(p string) error {
 	if _, ok := sp.GetSecret(p); ok {
-		return ErrAlreadyExists
+		return nil
 	}
 	dat, err := os.ReadFile(p)
 	if err != nil {

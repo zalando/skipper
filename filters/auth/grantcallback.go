@@ -29,13 +29,18 @@ func (s *grantCallbackSpec) CreateFilter([]interface{}) (filters.Filter, error) 
 	}, nil
 }
 
-func (f *grantCallbackFilter) exchangeAccessToken(code string, redirectURI string) (*oauth2.Token, error) {
+func (f *grantCallbackFilter) exchangeAccessToken(req *http.Request, code string) (*oauth2.Token, error) {
+	authConfig, err := f.config.GetConfig(req)
+	if err != nil {
+		return nil, err
+	}
+	redirectURI, _ := f.config.RedirectURLs(req)
 	ctx := providerContext(f.config)
 	params := f.config.GetAuthURLParameters(redirectURI)
-	return f.config.GetConfig().Exchange(ctx, code, params...)
+	return authConfig.Exchange(ctx, code, params...)
 }
 
-func (f *grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
+func (f *grantCallbackFilter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	q := req.URL.Query()
 
@@ -79,8 +84,7 @@ func (f *grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 		return
 	}
 
-	redirectURI, _ := f.config.RedirectURLs(req)
-	token, err := f.exchangeAccessToken(code, redirectURI)
+	token, err := f.exchangeAccessToken(req, code)
 	if err != nil {
 		log.Errorf("Failed to exchange access token: %v.", err)
 		serverError(ctx)
@@ -101,10 +105,6 @@ func (f *grantCallbackFilter) loginCallback(ctx filters.FilterContext) {
 			"Set-Cookie": []string{c.String()},
 		},
 	})
-}
-
-func (f *grantCallbackFilter) Request(ctx filters.FilterContext) {
-	f.loginCallback(ctx)
 }
 
 func (f *grantCallbackFilter) Response(ctx filters.FilterContext) {}
