@@ -3,7 +3,6 @@ package auth
 import (
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -55,15 +54,10 @@ type (
 	}
 )
 
-var (
-	tokeninfoAuthClientMu sync.Mutex
-	tokeninfoAuthClient   map[string]tokeninfoClient = make(map[string]tokeninfoClient)
-)
+var tokeninfoAuthClient map[string]tokeninfoClient = make(map[string]tokeninfoClient)
 
 // getTokeninfoClient creates new or returns a cached instance of tokeninfoClient
 func (o *TokeninfoOptions) getTokeninfoClient() (tokeninfoClient, error) {
-	tokeninfoAuthClientMu.Lock()
-	defer tokeninfoAuthClientMu.Unlock()
 	if c, ok := tokeninfoAuthClient[o.URL]; ok {
 		return c, nil
 	}

@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -78,10 +77,7 @@ type (
 	}
 )
 
-var (
-	issuerAuthClientMu sync.Mutex
-	issuerAuthClient   map[string]*authClient = make(map[string]*authClient)
-)
+var issuerAuthClient map[string]*authClient = make(map[string]*authClient)
 
 // Active returns token introspection response, which is true if token
 // is not revoked and in the time frame of
@@ -293,11 +289,9 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 
 	var ac *authClient
 	var ok bool
-	issuerAuthClientMu.Lock()
 	if ac, ok = issuerAuthClient[issuerURL]; !ok {
 		ac, err = newAuthClient(cfg.IntrospectionEndpoint, tokenIntrospectionSpanName, s.options.Timeout, s.options.MaxIdleConns, s.options.Tracer)
 		if err != nil {
-			issuerAuthClientMu.Unlock()
 			return nil, filters.ErrInvalidFilterParameters
 		}
 		issuerAuthClient[issuerURL] = ac
@@ -308,7 +302,6 @@ func (s *tokenIntrospectionSpec) CreateFilter(args []interface{}) (filters.Filte
 	} else {
 		ac.url.User = nil
 	}
-	issuerAuthClientMu.Unlock()
 
 	f := &tokenintrospectFilter{
 		typ:        s.typ,
