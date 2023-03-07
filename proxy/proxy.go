@@ -1577,7 +1577,7 @@ func (p *Proxy) applyFiltersOnError(ctx *context, filters []*routing.RouteFilter
 	for i := len(filters) - 1; i >= 0; i-- {
 		fi := filters[i]
 
-		if _, ok := fi.Filter.(errorHandlerFilter); !ok {
+		if ehf, ok := fi.Filter.(errorHandlerFilter); !ok || !ehf.HandleErrorResponse() {
 			continue
 		}
 		p.log.Debugf("filter %s handles error", fi.Name)
