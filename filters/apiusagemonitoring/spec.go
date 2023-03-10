@@ -6,8 +6,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 
 	"github.com/zalando/skipper/filters"
 )
@@ -100,6 +102,7 @@ func NewApiUsageMonitoring(
 		clientKeys:            clientKeyList,
 		unknownPath:           unknownPath,
 		realmsTrackingMatcher: realmsTrackingMatcher,
+		sometimes:             rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 	}
 	log.Debugf("created filter spec: %+v", spec)
 	return spec
@@ -120,6 +123,31 @@ type apiUsageMonitoringSpec struct {
 	clientKeys            []string
 	realmsTrackingMatcher *regexp.Regexp
 	unknownPath           *pathInfo
+	sometimes             rate.Sometimes
+}
+
+func (s *apiUsageMonitoringSpec) errorf(format string, args ...interface{}) {
+	s.sometimes.Do(func() {
+		log.Errorf(format, args...)
+	})
+}
+
+func (s *apiUsageMonitoringSpec) warnf(format string, args ...interface{}) {
+	s.sometimes.Do(func() {
+		log.Warnf(format, args...)
+	})
+}
+
+func (s *apiUsageMonitoringSpec) infof(format string, args ...interface{}) {
+	s.sometimes.Do(func() {
+		log.Infof(format, args...)
+	})
+}
+
+func (s *apiUsageMonitoringSpec) debugf(format string, args ...interface{}) {
+	s.sometimes.Do(func() {
+		log.Debugf(format, args...)
+	})
 }
 
 func (s *apiUsageMonitoringSpec) Name() string {
@@ -131,7 +159,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 	paths := s.buildPathInfoListFromConfiguration(apis)
 
 	if len(paths) == 0 {
-		log.Error("no valid configurations, creating noop api usage monitoring filter")
+		s.errorf("no valid configurations, creating noop api usage monitoring filter")
 		return noopFilter{}, nil
 	}
 
@@ -149,7 +177,7 @@ func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*a
 	for i, a := range args {
 		rawJsonConfiguration, ok := a.(string)
 		if !ok {
-			log.Errorf("args[%d] ignored: expecting a string, was %t", i, a)
+			s.errorf("args[%d] ignored: expecting a string, was %t", i, a)
 			continue
 		}
 		config := &apiConfig{
@@ -159,7 +187,7 @@ func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*a
 		decoder.DisallowUnknownFields()
 		err := decoder.Decode(config)
 		if err != nil {
-			log.Errorf("args[%d] ignored: error reading JSON configuration: %s", i, err)
+			s.errorf("args[%d] ignored: error reading JSON configuration: %s", i, err)
 			continue
 		}
 		apis = append(apis, config)
@@ -196,18 +224,18 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 		applicationId := api.ApplicationId
 		if applicationId == "" {
-			log.Warnf("args[%d] ignored: does not specify an application_id", apiIndex)
+			s.warnf("args[%d] ignored: does not specify an application_id", apiIndex)
 			continue
 		}
 
 		apiId := api.ApiId
 		if apiId == "" {
-			log.Warnf("args[%d] ignored: does not specify an api_id", apiIndex)
+			s.warnf("args[%d] ignored: does not specify an api_id", apiIndex)
 			continue
 		}
 
 		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
-			log.Warnf("args[%d] ignored: does not specify any path template", apiIndex)
+			s.warnf("args[%d] ignored: does not specify any path template", apiIndex)
 			continue
 		}
 
@@ -217,7 +245,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Path Template validation
 			if template == "" {
-				log.Warnf(
+				s.warnf(
 					"args[%d].path_templates[%d] ignored: empty",
 					apiIndex, templateIndex)
 				continue
@@ -232,7 +260,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Detect path template duplicates
 			if _, ok := existingPathTemplates[info.PathTemplate]; ok {
-				log.Warnf(
+				s.warnf(
 					"args[%d].path_templates[%d] ignored: duplicate path template %q",
 					apiIndex, templateIndex, info.PathTemplate)
 				continue
@@ -241,7 +269,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			// Detect regular expression duplicates
 			if existingMatcher, ok := existingPathPattern[pathPattern]; ok {
-				log.Warnf(
+				s.warnf(
 					"args[%d].path_templates[%d] ignored: two path templates yielded the same regular expression %q (%q and %q)",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, existingMatcher.PathTemplate)
 				continue
@@ -250,7 +278,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 			pathPatternMatcher, err := loadOrCompileRegex(pathPattern)
 			if err != nil {
-				log.Warnf(
+				s.warnf(
 					"args[%d].path_templates[%d] ignored: error compiling regular expression %q for path %q: %v",
 					apiIndex, templateIndex, pathPattern, info.PathTemplate, err)
 				continue
@@ -274,19 +302,19 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 
 func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiConfig, realmsTrackingMatcher *regexp.Regexp) *clientTrackingInfo {
 	if len(s.realmKeys) == 0 {
-		log.Infof(
+		s.infof(
 			`args[%d]: skipper wide configuration "api-usage-monitoring-realm-keys" not provided, not tracking client metrics`,
 			apiIndex)
 		return nil
 	}
 	if len(s.clientKeys) == 0 {
-		log.Infof(
+		s.infof(
 			`args[%d]: skipper wide configuration "api-usage-monitoring-client-keys" not provided, not tracking client metrics`,
 			apiIndex)
 		return nil
 	}
 	if api.ClientTrackingPattern == "" {
-		log.Debugf(
+		s.debugf(
 			`args[%d]: empty client_tracking_pattern disables the client metrics for its endpoints`,
 			apiIndex)
 		return nil
@@ -294,7 +322,7 @@ func (s *apiUsageMonitoringSpec) buildClientTrackingInfo(apiIndex int, api *apiC
 
 	clientTrackingMatcher, err := loadOrCompileRegex(api.ClientTrackingPattern)
 	if err != nil {
-		log.Errorf(
+		s.errorf(
 			"args[%d].client_tracking_pattern ignored (no client tracking): error compiling regular expression %q: %v",
 			apiIndex, api.ClientTrackingPattern, err)
 		return nil

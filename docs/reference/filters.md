@@ -2374,12 +2374,12 @@ Those metrics are not identifying the realm and client. They always have `*` in 
 Example:
 
 ```
-                                                                                     + Realm
-                                                                                     |
+                                                                                      + Realm
+                                                                                      |
 apiUsageMonitoring.custom.orders-backend.staging.orders-api.GET.foo/orders/{order-id}.*.*.http_count
-                                                                                       | |
-                                                                                       | + Metric Name
-                                                                                       + Client
+                                                                                        | |
+                                                                                        | + Metric Name
+                                                                                        + Client
 ```
 
 The available metrics are:
