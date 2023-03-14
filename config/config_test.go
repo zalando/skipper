@@ -15,15 +15,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-// Move configuration init here to avoid race conditions when parsing flags in multiple tests
-var cfg = NewConfig()
-
 func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
-	oldArgs := os.Args
-	t.Cleanup(func() { os.Args = oldArgs })
-
 	for _, tt := range []struct {
 		name string
 		args []string
@@ -50,12 +45,11 @@ func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			// Run test in non-concurrent way to avoid collisions of other test cases that parse config file
-			os.Args = tt.args
 			if tt.env != "" {
 				t.Setenv(redisPasswordEnv, tt.env)
 			}
-			err := cfg.Parse()
+			cfg := NewConfig()
+			err := cfg.ParseArgs(tt.args[0], tt.args[1:])
 			if err != nil {
 				t.Errorf("config.NewConfig() error = %v", err)
 			}
@@ -70,6 +64,7 @@ func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
 func defaultConfig() *Config {
 	return &Config{
 		ConfigFile:                              "testdata/test.yaml",
+		flags:                                   nil,
 		Address:                                 "localhost:8080",
 		StatusChecks:                            nil,
 		ExpectedBytesPerRequest:                 50 * 1024,
@@ -324,8 +319,7 @@ func Test_Validate(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			c := *cfg
-			cfg := &c
+			cfg := NewConfig()
 			tt.change(cfg)
 			err := validate(cfg)
 			if (err != nil) != tt.wantErr {
@@ -363,18 +357,15 @@ func Test_NewConfigWithArgs(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			oldArgs := os.Args
-			defer func() { os.Args = oldArgs }()
-			os.Args = tt.args
-
-			err := cfg.Parse()
+			cfg := NewConfig()
+			err := cfg.ParseArgs(tt.args[0], tt.args[1:])
 			if (err != nil) != tt.wantErr {
 				t.Errorf("config.NewConfig() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			if !tt.wantErr {
-				if cmp.Equal(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{})) == false {
-					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{})))
+				if cmp.Equal(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}), cmpopts.IgnoreUnexported(Config{})) == false {
+					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}), cmpopts.IgnoreUnexported(Config{})))
 				}
 			}
 		})
@@ -442,18 +433,16 @@ func (tf *testFormatter) Format(entry *log.Entry) ([]byte, error) {
 }
 
 func TestDeprecatedFlags(t *testing.T) {
-	a := os.Args
 	o := log.StandardLogger().Out
 	f := log.StandardLogger().Formatter
 	defer func() {
-		os.Args = a
 		log.SetOutput(o)
 		log.SetFormatter(f)
 	}()
 
 	formatter := &testFormatter{messages: make(map[string]log.Level)}
 
-	os.Args = []string{
+	args := []string{
 		"skipper",
 		"-config-file=testdata/deprecated.yaml",
 		"-enable-prometheus-metrics=false", // default value should produce deprecation warning as well
@@ -462,7 +451,8 @@ func TestDeprecatedFlags(t *testing.T) {
 	log.SetOutput(os.Stdout)
 	log.SetFormatter(formatter)
 
-	err := cfg.Parse()
+	cfg := NewConfig()
+	err := cfg.ParseArgs(args[0], args[1:])
 	if err != nil {
 		t.Fatal(err)
 	}
