@@ -10,9 +10,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
-	admissionsv1 "k8s.io/api/admission/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -58,7 +55,7 @@ var (
 
 type Admitter interface {
 	Name() string
-	Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error)
+	Admit(req *AdmissionRequest) (*AdmissionResponse, error)
 }
 
 type RouteGroupAdmitter struct {
@@ -72,16 +69,16 @@ func (r RouteGroupAdmitter) Name() string {
 	return "routegroup"
 }
 
-func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
+func (r RouteGroupAdmitter) Admit(req *AdmissionRequest) (*AdmissionResponse, error) {
 	rgItem := definitions.RouteGroupItem{}
-	err := json.Unmarshal(req.Object.Raw, &rgItem)
+	err := json.Unmarshal(req.Object, &rgItem)
 	if err != nil {
 		emsg := fmt.Sprintf("could not parse RouteGroup, %v", err)
 		log.Error(emsg)
-		return &admissionsv1.AdmissionResponse{
+		return &AdmissionResponse{
 			UID:     req.UID,
 			Allowed: false,
-			Result: &metav1.Status{
+			Result: &Status{
 				Message: emsg,
 			},
 		}, nil
@@ -91,16 +88,16 @@ func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 	if err != nil {
 		emsg := fmt.Sprintf("could not validate RouteGroup, %v", err)
 		log.Error(emsg)
-		return &admissionsv1.AdmissionResponse{
+		return &AdmissionResponse{
 			UID:     req.UID,
 			Allowed: false,
-			Result: &metav1.Status{
+			Result: &Status{
 				Message: emsg,
 			},
 		}, nil
 	}
 
-	return &admissionsv1.AdmissionResponse{
+	return &AdmissionResponse{
 		UID:     req.UID,
 		Allowed: true,
 	}, nil
@@ -125,7 +122,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			return
 		}
 
-		review := admissionsv1.AdmissionReview{}
+		review := AdmissionReview{}
 		err = json.Unmarshal(body, &review)
 		if err != nil {
 			log.Errorf("Failed to parse request: %v", err)
@@ -175,9 +172,9 @@ func Handler(admitter Admitter) http.HandlerFunc {
 	}
 }
 
-func writeResponse(writer http.ResponseWriter, response *admissionsv1.AdmissionResponse) {
-	resp, err := json.Marshal(admissionsv1.AdmissionReview{
-		TypeMeta: metav1.TypeMeta{
+func writeResponse(writer http.ResponseWriter, response *AdmissionResponse) {
+	resp, err := json.Marshal(AdmissionReview{
+		TypeMeta: TypeMeta{
 			Kind:       "AdmissionReview",
 			APIVersion: "admission.k8s.io/v1",
 		},
@@ -193,23 +190,23 @@ func writeResponse(writer http.ResponseWriter, response *admissionsv1.AdmissionR
 	}
 }
 
-func errorResponse(uid types.UID, err error) *admissionsv1.AdmissionResponse {
-	return &admissionsv1.AdmissionResponse{
+func errorResponse(uid string, err error) *AdmissionResponse {
+	return &AdmissionResponse{
 		Allowed: false,
 		UID:     uid,
-		Result: &metav1.Status{
+		Result: &Status{
 			Message: err.Error(),
 		},
 	}
 }
 
-func extractName(request *admissionsv1.AdmissionRequest) string {
+func extractName(request *AdmissionRequest) string {
 	if request.Name != "" {
 		return request.Name
 	}
 
-	obj := metav1.PartialObjectMetadata{}
-	if err := json.Unmarshal(request.Object.Raw, &obj); err != nil {
+	obj := PartialObjectMetadata{}
+	if err := json.Unmarshal(request.Object, &obj); err != nil {
 		log.Warnf("failed to parse object: %v", err)
 		return "<unknown>"
 	}
