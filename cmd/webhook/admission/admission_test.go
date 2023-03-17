@@ -2,17 +2,15 @@ package admission
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	admissionsv1 "k8s.io/api/admission/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testAdmitter struct {
@@ -62,166 +60,96 @@ func TestUnsupportedContentType(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-func TestRequestDecoding(t *testing.T) {
-	expectedRg := definitions.RouteGroupItem{
-		Metadata: &definitions.Metadata{
-			Name:      "r1",
-			Namespace: "n1",
+func TestRouteGroupAdmitter(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		input  string
+		result string
+	}{
+		{
+			name: "allowed",
+			input: `{
+				"request": {
+					"uid": "req-uid",
+					"name": "req1",
+					"namespace": "n1",
+					"object": {
+						"metadata": {
+							"name": "rg1",
+							"namespace": "n1"
+						},
+						"spec": {
+							"backends": [
+								{
+									"name": "backend",
+									"type": "shunt"
+								}
+							],
+							"defaultBackends": [
+								{
+									"backendName": "backend"
+								}
+							]
+						}
+					}
+				}
+			}`,
+			result: `{
+				"kind": "AdmissionReview",
+				"apiVersion": "admission.k8s.io/v1",
+				"response": {
+					"uid": "req-uid",
+					"allowed": true
+				}
+			}`,
 		},
-	}
-
-	expectedBytes, err := json.Marshal(expectedRg)
-	assert.NoError(t, err)
-
-	review := &admissionsv1.AdmissionReview{
-		Request: &admissionsv1.AdmissionRequest{
-			Name:      "r1",
-			Namespace: "n1",
-			// TODO: why doesnt runtime.RawExtension{Object: rg} work here?
-			Object: runtime.RawExtension{Raw: expectedBytes},
+		{
+			name: "not allowed",
+			input: `{
+				"request": {
+					"uid": "req-uid",
+					"name": "req1",
+					"namespace": "n1",
+					"object": {
+						"metadata": {
+							"name": "rg1",
+							"namespace": "n1"
+						}
+					}
+				}
+			}`,
+			result: `{
+				"kind": "AdmissionReview",
+				"apiVersion": "admission.k8s.io/v1",
+				"response": {
+					"uid": "req-uid",
+					"allowed": false,
+					"status": {
+						"metadata": {},
+						"message":
+						"could not validate RouteGroup, error in route group n1/rg1: route group without spec"
+					}
+				}
+			}`,
 		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "http://example.com/foo", bytes.NewBuffer([]byte(tc.input)))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			rgAdm := RouteGroupAdmitter{}
+
+			h := Handler(rgAdm)
+			h(w, req)
+			resp := w.Result()
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			rb, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			resp.Body.Close()
+
+			assert.JSONEq(t, tc.result, string(rb))
+		})
 	}
-
-	bbuffer := bytes.NewBuffer([]byte{})
-	enc := json.NewEncoder(bbuffer)
-	err = enc.Encode(review)
-	assert.NoError(t, err, "could not encode admission review")
-
-	req := httptest.NewRequest("POST", "http://example.com/foo", bbuffer)
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	tadm := NewTestAdmitter()
-
-	tadm.validate = func(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
-		// TODO: add a differ here so the message is more readable
-		assert.Equal(t, review.Request, req, "AdmissionReview.Request is not as expected")
-
-		// decode a RouteGroup from req.Object.Raw and validate it
-		var rg definitions.RouteGroupItem
-		err := json.Unmarshal(req.Object.Raw, &rg)
-		assert.NoError(t, err)
-
-		assert.Equal(t, expectedRg.Metadata.Name, rg.Metadata.Name)
-		assert.Equal(t, expectedRg.Metadata.Namespace, rg.Metadata.Namespace)
-
-		return &admissionsv1.AdmissionResponse{
-			Allowed: true,
-		}, nil
-	}
-
-	h := Handler(tadm)
-	h(w, req)
-
-}
-
-func TestResponseEncoding(t *testing.T) {
-	review := &admissionsv1.AdmissionReview{
-		Request: &admissionsv1.AdmissionRequest{
-			Name:      "r1",
-			Namespace: "n1",
-		},
-	}
-	expectedResp := &admissionsv1.AdmissionResponse{
-		Allowed: false,
-		Result: &metav1.Status{
-			Message: "failed to validate",
-		},
-	}
-	bbuffer := bytes.NewBuffer([]byte{})
-	enc := json.NewEncoder(bbuffer)
-	err := enc.Encode(review)
-	assert.NoError(t, err, "could not encode admission review")
-
-	req := httptest.NewRequest("POST", "http://example.com/foo", bbuffer)
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	tadm := NewTestAdmitter()
-	tadm.validate = func(ar *admissionsv1.AdmissionRequest) (
-		*admissionsv1.AdmissionResponse,
-		error,
-	) {
-		return expectedResp, nil
-	}
-
-	h := Handler(tadm)
-	h(w, req)
-	resp := w.Result()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	reviewResp := admissionsv1.AdmissionReview{}
-	rb, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err, "could not read response")
-
-	err = json.Unmarshal(rb, &reviewResp)
-	if assert.NoError(t, err) {
-		assert.Equal(t, expectedResp, reviewResp.Response)
-	}
-}
-
-// Test RouteGroupAdmitter.Admit
-func TestAdmitRouteGroups(t *testing.T) {
-	rg := definitions.RouteGroupItem{
-		Metadata: &definitions.Metadata{
-			Name:      "r1",
-			Namespace: "n1",
-		},
-	}
-
-	rgB, err := json.Marshal(rg)
-	assert.NoError(t, err)
-
-	review := &admissionsv1.AdmissionReview{
-		Request: &admissionsv1.AdmissionRequest{
-			UID:       "uid",
-			Name:      "r1",
-			Namespace: "n1",
-			Object:    runtime.RawExtension{Raw: rgB},
-		},
-	}
-
-	bbuffer := bytes.NewBuffer([]byte{})
-	enc := json.NewEncoder(bbuffer)
-	err = enc.Encode(review)
-	assert.NoError(t, err, "could not encode admission review")
-
-	req := httptest.NewRequest("POST", "http://example.com/foo", bbuffer)
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	rgAdm := RouteGroupAdmitter{}
-
-	h := Handler(rgAdm)
-	h(w, req)
-	resp := w.Result()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	respReview := &admissionsv1.AdmissionReview{}
-	rb, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err, "could not read response")
-	err = json.Unmarshal(rb, &respReview)
-	assert.NoError(t, err)
-
-	// Request Response UID should match
-	assert.Equal(t, review.Request.UID, respReview.Response.UID)
-
-}
-
-func TestExtractName(t *testing.T) {
-	rg := definitions.RouteGroupItem{
-		Metadata: &definitions.Metadata{
-			Name:      "r2",
-			Namespace: "n1",
-		},
-	}
-
-	rb, err := json.Marshal(rg)
-	assert.NoError(t, err)
-
-	request := &admissionsv1.AdmissionRequest{
-		Object: runtime.RawExtension{Raw: rb},
-	}
-	name := extractName(request)
-	assert.Equal(t, rg.Metadata.Name, name)
 }
