@@ -27,6 +27,7 @@ import (
 
 type Config struct {
 	ConfigFile string
+	flags      *flag.FlagSet
 
 	// generic:
 	Address                         string         `yaml:"address"`
@@ -300,6 +301,7 @@ func NewConfig() *Config {
 	cfg.LuaModules = commaListFlag()
 	cfg.Oauth2GrantTokeninfoKeys = commaListFlag()
 
+	flag := flag.NewFlagSet("", flag.ExitOnError)
 	flag.StringVar(&cfg.ConfigFile, "config-file", "", "if provided the flags will be loaded/overwritten by the values on the file (yaml)")
 
 	// generic:
@@ -536,6 +538,7 @@ func NewConfig() *Config {
 
 	flag.Var(cfg.LuaModules, "lua-modules", "comma separated list of lua filter modules. Use <module>.<symbol> to selectively enable module symbols, for example: package,base._G,base.print,json")
 
+	cfg.flags = flag
 	return cfg
 }
 
@@ -560,11 +563,19 @@ func validate(c *Config) error {
 }
 
 func (c *Config) Parse() error {
-	flag.Parse()
+	return c.ParseArgs(os.Args[0], os.Args[1:])
+}
+
+func (c *Config) ParseArgs(progname string, args []string) error {
+	c.flags.Init(progname, flag.ExitOnError)
+	err := c.flags.Parse(args)
+	if err != nil {
+		return err
+	}
 
 	// check if arguments were correctly parsed.
-	if len(flag.Args()) != 0 {
-		return fmt.Errorf("invalid arguments: %s", flag.Args())
+	if len(c.flags.Args()) != 0 {
+		return fmt.Errorf("invalid arguments: %s", c.flags.Args())
 	}
 
 	configKeys := make(map[string]interface{})
@@ -581,10 +592,13 @@ func (c *Config) Parse() error {
 
 		_ = yaml.Unmarshal(yamlFile, configKeys)
 
-		flag.Parse()
+		err = c.flags.Parse(args)
+		if err != nil {
+			return err
+		}
 	}
 
-	checkDeprecated(configKeys,
+	c.checkDeprecated(configKeys,
 		"enable-prometheus-metrics",
 		"api-usage-monitoring-default-client-tracking-pattern",
 		"enable-kubernetes-east-west",
@@ -1061,15 +1075,15 @@ func (c *Config) parseEnv() {
 	}
 }
 
-func checkDeprecated(configKeys map[string]interface{}, options ...string) {
+func (c *Config) checkDeprecated(configKeys map[string]interface{}, options ...string) {
 	flagKeys := make(map[string]bool)
-	flag.Visit(func(f *flag.Flag) { flagKeys[f.Name] = true })
+	c.flags.Visit(func(f *flag.Flag) { flagKeys[f.Name] = true })
 
 	for _, name := range options {
 		_, ck := configKeys[name]
 		_, fk := flagKeys[name]
 		if ck || fk {
-			f := flag.Lookup(name)
+			f := c.flags.Lookup(name)
 			log.Warnf("%s: %s", f.Name, f.Usage)
 		}
 	}
