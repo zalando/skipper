@@ -13,26 +13,26 @@ import (
 
 type testAdmitter struct {
 	// validate validates & plugs parameters for Admit
-	validate func(response *AdmissionRequest) (*AdmissionResponse, error)
+	validate func(response *admissionRequest) (*admissionResponse, error)
 }
 
-func (t testAdmitter) Name() string {
+func (t testAdmitter) name() string {
 	return "testRouteGroup"
 }
 
-func (t testAdmitter) Admit(req *AdmissionRequest) (*AdmissionResponse, error) {
+func (t testAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
 	return t.validate(req)
 }
 
-func (t testAdmitter) AdmitAll(req *AdmissionRequest) (*AdmissionResponse, error) {
-	return &AdmissionResponse{
+func (t testAdmitter) admitAll(req *admissionRequest) (*admissionResponse, error) {
+	return &admissionResponse{
 		Allowed: true,
 	}, nil
 }
 
 func NewTestAdmitter() *testAdmitter {
 	tadm := &testAdmitter{}
-	tadm.validate = tadm.AdmitAll
+	tadm.validate = tadm.admitAll
 	return tadm
 }
 

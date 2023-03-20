@@ -2,43 +2,43 @@ package admission
 
 import "encoding/json"
 
-type GroupVersionKind struct {
+type groupVersionKind struct {
 	Group   string `json:"group"`
 	Version string `json:"version"`
 	Kind    string `json:"kind"`
 }
 
-type GroupVersionResource struct {
+type groupVersionResource struct {
 	Group    string `json:"group"`
 	Version  string `json:"version"`
 	Resource string `json:"resource"`
 }
 
-type TypeMeta struct {
+type typeMeta struct {
 	Kind       string `json:"kind,omitempty"`
 	APIVersion string `json:"apiVersion,omitempty"`
 }
 
-type ObjectMeta struct {
+type objectMeta struct {
 	Name         string `json:"name,omitempty"`
 	GenerateName string `json:"generateName,omitempty"`
 }
 
-type PartialObjectMetadata struct {
-	TypeMeta   `json:",inline"`
-	ObjectMeta `json:"metadata,omitempty"`
+type partialObjectMetadata struct {
+	typeMeta   `json:",inline"`
+	objectMeta `json:"metadata,omitempty"`
 }
 
-type AdmissionReview struct {
-	TypeMeta `json:",inline"`
-	Request  *AdmissionRequest  `json:"request,omitempty"`
-	Response *AdmissionResponse `json:"response,omitempty"`
+type admissionReview struct {
+	typeMeta `json:",inline"`
+	Request  *admissionRequest  `json:"request,omitempty"`
+	Response *admissionResponse `json:"response,omitempty"`
 }
 
-type AdmissionRequest struct {
+type admissionRequest struct {
 	UID         string               `json:"uid"`
-	Kind        GroupVersionKind     `json:"kind"`
-	Resource    GroupVersionResource `json:"resource"`
+	Kind        groupVersionKind     `json:"kind"`
+	Resource    groupVersionResource `json:"resource"`
 	SubResource string               `json:"subResource,omitempty"`
 	Name        string               `json:"name,omitempty"`
 	Namespace   string               `json:"namespace,omitempty"`
@@ -46,12 +46,12 @@ type AdmissionRequest struct {
 	Object      json.RawMessage      `json:"object,omitempty"`
 }
 
-type AdmissionResponse struct {
+type admissionResponse struct {
 	UID     string  `json:"uid"`
 	Allowed bool    `json:"allowed"`
-	Result  *Status `json:"status,omitempty"`
+	Result  *status `json:"status,omitempty"`
 }
 
-type Status struct {
+type status struct {
 	Message string `json:"message,omitempty"`
 }
