@@ -7,34 +7,32 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	admissionsv1 "k8s.io/api/admission/v1"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type testAdmitter struct {
 	// validate validates & plugs parameters for Admit
-	validate func(response *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error)
+	validate func(response *admissionRequest) (*admissionResponse, error)
 }
 
-func (t testAdmitter) Name() string {
+func (t testAdmitter) name() string {
 	return "testRouteGroup"
 }
 
-func (t testAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
+func (t testAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
 	return t.validate(req)
 }
 
-func (t testAdmitter) AdmitAll(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
-	return &admissionsv1.AdmissionResponse{
+func (t testAdmitter) admitAll(req *admissionRequest) (*admissionResponse, error) {
+	return &admissionResponse{
 		Allowed: true,
 	}, nil
 }
 
 func NewTestAdmitter() *testAdmitter {
 	tadm := &testAdmitter{}
-	tadm.validate = tadm.AdmitAll
+	tadm.validate = tadm.admitAll
 	return tadm
 }
 
@@ -125,7 +123,6 @@ func TestRouteGroupAdmitter(t *testing.T) {
 					"uid": "req-uid",
 					"allowed": false,
 					"status": {
-						"metadata": {},
 						"message":
 						"could not validate RouteGroup, error in route group n1/rg1: route group without spec"
 					}

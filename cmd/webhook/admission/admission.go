@@ -10,13 +10,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
-	admissionsv1 "k8s.io/api/admission/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
-	MetricNamespace = "routegroup_admission"
+	metricNamespace = "routegroup_admission"
 	metricSubsystem = "admitter"
 )
 
@@ -24,31 +21,31 @@ var (
 	labels = []string{"admitter", "operation", "group", "version", "resource", "sub_resource"}
 
 	totalRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: MetricNamespace,
+		Namespace: metricNamespace,
 		Subsystem: metricSubsystem,
 		Name:      "requests",
 		Help:      "Total number of requests to this admitter",
 	}, []string{"admitter"})
 	invalidRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: MetricNamespace,
+		Namespace: metricNamespace,
 		Subsystem: metricSubsystem,
 		Name:      "invalid_requests",
 		Help:      "Total number of requests to this admitter that couldn't be parsed",
 	}, []string{"admitter"})
 	rejectedRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: MetricNamespace,
+		Namespace: metricNamespace,
 		Subsystem: metricSubsystem,
 		Name:      "rejected_admissions",
 		Help:      "Total number of requests rejected by this admitter",
 	}, labels)
 	approvedRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: MetricNamespace,
+		Namespace: metricNamespace,
 		Subsystem: metricSubsystem,
 		Name:      "successful_admissions",
 		Help:      "Total number of requests successfully processed by this admitter",
 	}, labels)
 	admissionDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: MetricNamespace,
+		Namespace: metricNamespace,
 		Subsystem: metricSubsystem,
 		Name:      "admission_duration",
 		Help:      "Duration of admission calls",
@@ -56,9 +53,9 @@ var (
 	}, labels)
 )
 
-type Admitter interface {
-	Name() string
-	Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error)
+type admitter interface {
+	name() string
+	admit(req *admissionRequest) (*admissionResponse, error)
 }
 
 type RouteGroupAdmitter struct {
@@ -68,20 +65,20 @@ func init() {
 	prometheus.MustRegister(totalRequests, invalidRequests, rejectedRequests, approvedRequests, admissionDuration)
 }
 
-func (r RouteGroupAdmitter) Name() string {
+func (RouteGroupAdmitter) name() string {
 	return "routegroup"
 }
 
-func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissionsv1.AdmissionResponse, error) {
+func (RouteGroupAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
 	rgItem := definitions.RouteGroupItem{}
-	err := json.Unmarshal(req.Object.Raw, &rgItem)
+	err := json.Unmarshal(req.Object, &rgItem)
 	if err != nil {
 		emsg := fmt.Sprintf("could not parse RouteGroup, %v", err)
 		log.Error(emsg)
-		return &admissionsv1.AdmissionResponse{
+		return &admissionResponse{
 			UID:     req.UID,
 			Allowed: false,
-			Result: &metav1.Status{
+			Result: &status{
 				Message: emsg,
 			},
 		}, nil
@@ -91,24 +88,24 @@ func (r RouteGroupAdmitter) Admit(req *admissionsv1.AdmissionRequest) (*admissio
 	if err != nil {
 		emsg := fmt.Sprintf("could not validate RouteGroup, %v", err)
 		log.Error(emsg)
-		return &admissionsv1.AdmissionResponse{
+		return &admissionResponse{
 			UID:     req.UID,
 			Allowed: false,
-			Result: &metav1.Status{
+			Result: &status{
 				Message: emsg,
 			},
 		}, nil
 	}
 
-	return &admissionsv1.AdmissionResponse{
+	return &admissionResponse{
 		UID:     req.UID,
 		Allowed: true,
 	}, nil
 }
 
-func Handler(admitter Admitter) http.HandlerFunc {
+func Handler(admitter admitter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		admitterName := admitter.Name()
+		admitterName := admitter.name()
 		totalRequests.WithLabelValues(admitterName).Inc()
 
 		if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" {
@@ -125,7 +122,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 			return
 		}
 
-		review := admissionsv1.AdmissionReview{}
+		review := admissionReview{}
 		err = json.Unmarshal(body, &review)
 		if err != nil {
 			log.Errorf("Failed to parse request: %v", err)
@@ -161,7 +158,7 @@ func Handler(admitter Admitter) http.HandlerFunc {
 		defer admissionDuration.With(labelValues).
 			Observe(float64(time.Since(start)) / float64(time.Second))
 
-		admResp, err := admitter.Admit(review.Request)
+		admResp, err := admitter.admit(review.Request)
 		if err != nil {
 			log.Errorf("Rejected %s: %v", operationInfo, err)
 			writeResponse(w, errorResponse(review.Request.UID, err))
@@ -175,9 +172,9 @@ func Handler(admitter Admitter) http.HandlerFunc {
 	}
 }
 
-func writeResponse(writer http.ResponseWriter, response *admissionsv1.AdmissionResponse) {
-	resp, err := json.Marshal(admissionsv1.AdmissionReview{
-		TypeMeta: metav1.TypeMeta{
+func writeResponse(writer http.ResponseWriter, response *admissionResponse) {
+	resp, err := json.Marshal(admissionReview{
+		typeMeta: typeMeta{
 			Kind:       "AdmissionReview",
 			APIVersion: "admission.k8s.io/v1",
 		},
@@ -193,23 +190,23 @@ func writeResponse(writer http.ResponseWriter, response *admissionsv1.AdmissionR
 	}
 }
 
-func errorResponse(uid types.UID, err error) *admissionsv1.AdmissionResponse {
-	return &admissionsv1.AdmissionResponse{
+func errorResponse(uid string, err error) *admissionResponse {
+	return &admissionResponse{
 		Allowed: false,
 		UID:     uid,
-		Result: &metav1.Status{
+		Result: &status{
 			Message: err.Error(),
 		},
 	}
 }
 
-func extractName(request *admissionsv1.AdmissionRequest) string {
+func extractName(request *admissionRequest) string {
 	if request.Name != "" {
 		return request.Name
 	}
 
-	obj := metav1.PartialObjectMetadata{}
-	if err := json.Unmarshal(request.Object.Raw, &obj); err != nil {
+	obj := partialObjectMetadata{}
+	if err := json.Unmarshal(request.Object, &obj); err != nil {
 		log.Warnf("failed to parse object: %v", err)
 		return "<unknown>"
 	}
