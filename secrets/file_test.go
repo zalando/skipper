@@ -1,217 +1,171 @@
 package secrets
 
 import (
+	"net"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
-	"golang.org/x/sync/syncmap"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func Test_SecretPaths_GetSecret(t *testing.T) {
-	for _, tt := range []struct {
-		name    string
-		secrets map[string][]byte
-		s       string
-		want    []byte
-		wantOk  bool
-	}{
-		{
-			name:   "nothing secrets should not find anything for empty string",
-			s:      "",
-			wantOk: false,
-		},
-		{
-			name:   "nothing secrets should not find anything for non-empty string",
-			s:      "key",
-			wantOk: false,
-		},
-		{
-			name: "something secrets should not find anything for wrong string",
-			secrets: map[string][]byte{
-				"dat": []byte("data"),
-			},
-			s:      "key",
-			wantOk: false,
-		},
-		{
-			name: "something secrets should find for key",
-			secrets: map[string][]byte{
-				"key": []byte("data"),
-			},
-			s:      "key",
-			wantOk: true,
-			want:   []byte("data"),
-		}} {
-		t.Run(tt.name, func(t *testing.T) {
-			smap := &syncmap.Map{}
-			for k, v := range tt.secrets {
-				smap.Store(k, v)
-			}
-			sp := &SecretPaths{secrets: smap}
-			got, ok := sp.GetSecret(tt.s)
-			if ok != tt.wantOk {
-				t.Errorf("SecretPaths.GetSecret() ok = %v, want %v", ok, tt.wantOk)
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("SecretPaths.GetSecret() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
+const refresh = 50 * time.Millisecond
+
+func writeFile(t *testing.T, path string, content string) {
+	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+	time.Sleep(2 * refresh)
 }
 
-func Test_SecretPaths_Add(t *testing.T) {
-	temproot, err := os.MkdirTemp(os.TempDir(), "skipper-secrets")
-	if err != nil {
-		t.Errorf("Failed to create temp dir: %v", err)
-		return
-	}
-	defer func() {
-		t.Logf("remove %s", temproot)
-		//os.RemoveAll(temproot)
-	}()
-
-	watchit := temproot + "/watch"
-	err = os.MkdirAll(watchit+"/subdir", 0777)
-	if err != nil {
-		t.Fatalf("Failed to create %s: %v", watchit+"/subdir", err)
-	}
-
-	dat := []byte("data")
-	filename := "/afile"
-	if err := os.Symlink(watchit+filename, watchit+"/mysymlink"); err != nil {
-		t.Errorf("Failed to create symlink")
-	}
-
-	for _, tt := range []struct {
-		name      string
-		addFile   string
-		writeFile string
-		want      []byte
-		wantOk    bool
-		wantErr   bool
-	}{
-		{
-			name:      "Should GetSecret after write to watched file",
-			addFile:   watchit + filename,
-			writeFile: watchit + filename,
-			want:      dat,
-			wantOk:    true,
-			wantErr:   false,
-		},
-		{
-			name:      "Should GetSecret after write to watched directory",
-			addFile:   watchit,
-			writeFile: watchit + filename + "2",
-			want:      dat,
-			wantOk:    true,
-			wantErr:   false,
-		},
-		{
-			name:      "Should GetSecret after write to watched symlink",
-			addFile:   watchit + "/mysymlink",
-			writeFile: watchit + "/mysymlink",
-			want:      dat,
-			wantOk:    true,
-			wantErr:   false,
-		},
-		{
-			name:      "Should not change secrets by a change in a not watched directory",
-			addFile:   watchit,
-			writeFile: watchit + "/subdir/not-watched-file",
-			want:      []byte{},
-			wantOk:    false,
-			wantErr:   false,
-		},
-		{
-			name:      "Should not add secret on add file that does not exist",
-			addFile:   watchit + "/does-not-exist",
-			writeFile: watchit + filename,
-			want:      []byte{},
-			wantOk:    false,
-			wantErr:   true,
-		}} {
-		t.Run(tt.name, func(t *testing.T) {
-			sp := NewSecretPaths(60 * time.Millisecond)
-			defer sp.Close()
-			err := os.WriteFile(tt.writeFile, []byte(""), 0644)
-			if err != nil {
-				t.Errorf("Failed to create file: %v", err)
-			}
-
-			err = sp.Add(tt.addFile)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("SecretPaths.Add() error = %v, wantErr %v", err, tt.wantErr)
-			}
-
-			err = os.WriteFile(tt.writeFile, dat, 0644)
-			if err != nil {
-				t.Errorf("Failed to write file: %v", err)
-			}
-			time.Sleep(100 * time.Millisecond) // wait for refresher
-
-			got, ok := sp.GetSecret(tt.writeFile)
-			if ok != tt.wantOk {
-				t.Errorf("Failed to get ok: got: %v want: %v", ok, tt.wantOk)
-			}
-			if string(got) != string(tt.want) {
-				t.Errorf("Failed to get secret got: '%s', want: '%s'", string(got), string(tt.want))
-			}
-		})
-	}
+func removeFile(t *testing.T, path string) {
+	require.NoError(t, os.Remove(path))
+	time.Sleep(2 * refresh)
 }
 
-func Test_SecretPaths_Close(t *testing.T) {
-	temproot, err := os.MkdirTemp(os.TempDir(), "skipper-secrets-close")
-	if err != nil {
-		t.Errorf("Failed to create temp dir: %v", err)
-		return
-	}
-	defer func() {
-		t.Logf("remove %s", temproot)
-		os.RemoveAll(temproot)
-	}()
-	watchit := temproot + "/watch"
-	os.MkdirAll(watchit, 0777)
-	dat := []byte("data")
-	afile := watchit + "/afile"
+func TestSecretPaths(t *testing.T) {
+	sp := NewSecretPaths(refresh)
+	defer sp.Close()
 
-	sp := NewSecretPaths(60 * time.Millisecond)
-	err = os.WriteFile(afile, []byte(""), 0644)
-	if err != nil {
-		t.Errorf("Failed to create file: %v", err)
+	checkSecret := func(t *testing.T, path string, expected string) {
+		got, ok := sp.GetSecret(path)
+		if assert.True(t, ok) {
+			assert.Equal(t, []byte(expected), got)
+		}
 	}
-	err = sp.Add(afile)
-	if err != nil {
-		t.Errorf("Failed to Add file to watch list: %v", err)
-	}
-	err = os.WriteFile(afile, dat, 0644)
-	if err != nil {
-		t.Errorf("Failed to write to file: %v", err)
-	}
-	time.Sleep(100 * time.Millisecond) // wait for refresher
 
-	got, ok := sp.GetSecret(afile)
-	if !ok {
-		t.Errorf("Should have secret: %v", ok)
+	t.Run("empty has no secrets", func(t *testing.T) {
+		_, exists := sp.GetSecret("")
+		assert.False(t, exists)
+
+		_, exists = sp.GetSecret("foo")
+		assert.False(t, exists)
+	})
+
+	t.Run("errors when path does not exist", func(t *testing.T) {
+		path := t.TempDir() + "/foo"
+
+		assert.Error(t, sp.Add(path))
+	})
+
+	t.Run("errors when path is not a file or directory", func(t *testing.T) {
+		path := t.TempDir() + "/foo"
+
+		l, err := net.Listen("unix", path)
+		require.NoError(t, err)
+		defer l.Close()
+
+		assert.Equal(t, sp.Add(path), ErrWrongFileType)
+	})
+
+	t.Run("refreshes file path", func(t *testing.T) {
+		path := t.TempDir() + "/foo"
+
+		writeFile(t, path, "created")
+
+		require.NoError(t, sp.Add(path))
+
+		checkSecret(t, path, "created")
+
+		writeFile(t, path, "updated")
+		checkSecret(t, path, "updated")
+
+		removeFile(t, path)
+		_, exists := sp.GetSecret(path)
+		assert.True(t, exists)
+
+		writeFile(t, path, "re-created")
+		checkSecret(t, path, "re-created")
+	})
+
+	t.Run("errors when symlinked file does not exist", func(t *testing.T) {
+		origin := t.TempDir() + "/origin"
+
+		path := t.TempDir() + "/foo"
+		require.NoError(t, os.Symlink(origin, path))
+
+		assert.Error(t, sp.Add(path))
+	})
+
+	t.Run("refreshes symlink to file", func(t *testing.T) {
+		origin := t.TempDir() + "/origin"
+		writeFile(t, origin, "created")
+
+		path := t.TempDir() + "/foo"
+		require.NoError(t, os.Symlink(origin, path))
+
+		require.NoError(t, sp.Add(path))
+
+		_, exists := sp.GetSecret(origin)
+		assert.False(t, exists)
+
+		checkSecret(t, path, "created")
+
+		writeFile(t, origin, "updated")
+		checkSecret(t, path, "updated")
+
+		removeFile(t, origin)
+		_, exists = sp.GetSecret(path)
+		assert.True(t, exists)
+
+		writeFile(t, origin, "re-created")
+		checkSecret(t, path, "re-created")
+	})
+
+	t.Run("ignores subdirectories", func(t *testing.T) {
+		dir := t.TempDir()
+
+		require.NoError(t, os.Mkdir(dir+"/subdir", 0700))
+
+		writeFile(t, dir+"/foo", "created")
+		writeFile(t, dir+"/subdir/bar", "ignored")
+
+		require.NoError(t, sp.Add(dir))
+
+		checkSecret(t, dir+"/foo", "created")
+
+		_, exists := sp.GetSecret(dir + "/subdir")
+		assert.False(t, exists)
+
+		_, exists = sp.GetSecret(dir + "/subdir/")
+		assert.False(t, exists)
+
+		_, exists = sp.GetSecret(dir + "/subdir/bar")
+		assert.False(t, exists)
+	})
+
+	t.Run("trims newline", func(t *testing.T) {
+		path := t.TempDir() + "/foo"
+
+		writeFile(t, path, "created\n")
+
+		require.NoError(t, sp.Add(path))
+
+		checkSecret(t, path, "created")
+	})
+}
+
+func TestSecretPathsDoesNotRefreshAfterClose(t *testing.T) {
+	sp := NewSecretPaths(refresh)
+
+	checkSecret := func(t *testing.T, path string, expected string) {
+		got, ok := sp.GetSecret(path)
+		if assert.True(t, ok) {
+			assert.Equal(t, []byte(expected), got)
+		}
 	}
-	if string(got) != string(dat) {
-		t.Errorf("Secret content, got: %s, want: %s", string(got), string(dat))
-	}
+
+	path := t.TempDir() + "/foo"
+
+	writeFile(t, path, "created")
+
+	require.NoError(t, sp.Add(path))
+
+	checkSecret(t, path, "created")
 
 	sp.Close()
 
-	err = os.WriteFile(afile, []byte("hello"), 0644)
-	if err != nil {
-		t.Errorf("Failed to write to file: %v", err)
-	}
-	time.Sleep(100 * time.Millisecond) // wait for refresher
-	got, ok = sp.GetSecret(afile)
-	if !ok {
-		t.Errorf("Should have former secret: %v", ok)
-	}
-	if string(got) != string(dat) {
-		t.Errorf("Changed content after close, got: %s", string(got))
-	}
+	time.Sleep(2 * refresh)
+
+	writeFile(t, path, "updated")
+	checkSecret(t, path, "created")
 }
