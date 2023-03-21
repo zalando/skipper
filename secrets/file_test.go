@@ -71,7 +71,7 @@ func TestSecretPaths(t *testing.T) {
 
 		removeFile(t, path)
 		_, exists := sp.GetSecret(path)
-		assert.True(t, exists)
+		assert.False(t, exists)
 
 		writeFile(t, path, "re-created")
 		checkSecret(t, path, "re-created")
@@ -105,9 +105,51 @@ func TestSecretPaths(t *testing.T) {
 
 		removeFile(t, origin)
 		_, exists = sp.GetSecret(path)
-		assert.True(t, exists)
+		assert.False(t, exists)
 
 		writeFile(t, origin, "re-created")
+		checkSecret(t, path, "re-created")
+	})
+
+	t.Run("refreshes empty directory path", func(t *testing.T) {
+		dir := t.TempDir()
+
+		require.NoError(t, sp.Add(dir))
+
+		path := dir + "/foo"
+
+		writeFile(t, path, "created")
+		checkSecret(t, path, "created")
+
+		writeFile(t, path, "updated")
+		checkSecret(t, path, "updated")
+
+		removeFile(t, path)
+		_, exists := sp.GetSecret(path)
+		assert.False(t, exists)
+
+		writeFile(t, path, "re-created")
+		checkSecret(t, path, "re-created")
+	})
+
+	t.Run("refreshes non-empty directory path", func(t *testing.T) {
+		dir := t.TempDir()
+
+		path := dir + "/foo"
+		writeFile(t, path, "created")
+
+		require.NoError(t, sp.Add(dir))
+
+		checkSecret(t, path, "created")
+
+		writeFile(t, path, "updated")
+		checkSecret(t, path, "updated")
+
+		removeFile(t, path)
+		_, exists := sp.GetSecret(path)
+		assert.False(t, exists)
+
+		writeFile(t, path, "re-created")
 		checkSecret(t, path, "re-created")
 	})
 
