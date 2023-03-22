@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -167,11 +168,11 @@ func addPath(secrets secretMap, path string) {
 		}
 		for _, match := range matches {
 			data, err := readSecretFile(match)
-			if err != nil {
+			if err == nil {
+				secrets[match] = data
+			} else if !errors.Is(err, syscall.EISDIR) {
 				log.Errorf("Failed to read path %s: %v", match, err)
-				continue
 			}
-			secrets[match] = data
 		}
 	}
 }
