@@ -624,23 +624,28 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	sec := 5
 	va := httptest.NewVegetaAttacker("http://localhost:9090/test", rate, time.Second, time.Second)
 	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
-	t.Logf("Success [0..1]: %0.2f", va.Success())
 
-	if successRate := va.Success(); successRate < 0.1 || successRate > 0.5 {
-		t.Fatalf("Test should have a success rate between %0.2f < %0.2f < %0.2f", 0.1, successRate, 0.5)
-	}
-	if reqCount := va.TotalRequests(); reqCount < uint64(rate*sec) {
-		t.Fatalf("Test should run %d requests got: %d", uint64(rate*sec), reqCount)
-	}
-	countOK, ok := va.CountStatus(http.StatusOK)
-	if countOK == 0 {
-		t.Fatalf("Some requests should have passed: %d %v", countOK, ok)
-	}
+	successRate := va.Success()
+	t.Logf("Success [0..1]: %0.2f", successRate)
 
-	countLimited, ok := va.CountStatus(http.StatusTooManyRequests)
-	if !ok || countLimited < countOK {
-		t.Fatalf("count TooMany should be higher than OKs: %d < %d: %v", countLimited, countOK, ok)
-	}
+	epsilon := 0.2
+	// sec * 1 because 1 is the number of requests allowed per second via clusterRatelimit("foo", 1, "1s")
+	assert.InEpsilon(t, float64(sec*1)/float64(sec*rate), successRate, epsilon, fmt.Sprintf("Test should have a success rate between %0.2f < %0.2f < %0.2f", successRate-epsilon, successRate, successRate+epsilon))
+
+	// reqCount should be between 49 & 51 since we run 10 per second for 5 seconds
+	epsilon = 1
+	reqCount := va.TotalRequests()
+	t.Logf("Total requests: %d", reqCount)
+	assert.InEpsilon(t, uint64(rate*sec), va.TotalRequests(), epsilon, fmt.Sprintf("Test should run %d requests between: %d and %d", uint64(rate*sec), reqCount-uint64(epsilon), reqCount+uint64(epsilon)))
+
+	epsilon = 1
+	countOK, _ := va.CountStatus(http.StatusOK)
+	t.Logf("Number of succeeded requests: %d", countOK)
+	assert.InEpsilon(t, 1*sec, countOK, epsilon, fmt.Sprintf("Test should have accepted requests between %d and %d", countOK-int(epsilon), countOK+int(epsilon)))
+
+	countLimited, _ := va.CountStatus(http.StatusTooManyRequests)
+	t.Logf("Number of limited requests: %d", countLimited)
+	assert.InEpsilon(t, sec*rate-(1*sec), countLimited, epsilon, fmt.Sprintf("Test should have limited requests between %d and %d", countLimited-int(epsilon), countLimited+int(epsilon)))
 
 	sigs <- syscall.SIGTERM
 }

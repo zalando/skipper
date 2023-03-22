@@ -43,7 +43,7 @@ func getRedisAddresses(namespace, name string, kdc *kubernetes.Client) func() []
 		data, err := json.Marshal(RedisEndpoints)
 
 		if err != nil {
-			log.Fatalf("Failed to marshal json data %v", err)
+			log.Errorf("Failed to marshal json data %v", err)
 			return nil
 		}
 
