@@ -166,7 +166,7 @@ func (f *myFilter) Response(ctx filters.FilterContext) {
      // change data in ctx.Response() for example
 }
 
-func (f *myFilter) Close() {
+func (f *myFilter) Close() error {
      // cleanup your filter
 }
 ```

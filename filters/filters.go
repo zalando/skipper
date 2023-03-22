@@ -2,6 +2,7 @@ package filters
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -157,7 +158,7 @@ type Filter interface {
 // goroutines.
 type FilterCloser interface {
 	Filter
-	Close() error
+	io.Closer
 }
 
 // Spec objects are specifications for filters. When initializing the routes,
