@@ -323,11 +323,12 @@ func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filt
 }
 
 // Close stops the background goroutine. The filter keeps working on stale data.
-func (ac *admissionControl) Close() {
+func (ac *admissionControl) Close() error {
 	ac.once.Do(func() {
 		ac.closed = true
 		close(ac.quit)
 	})
+	return nil
 }
 
 func (ac *admissionControl) tickWindows(d time.Duration) {
@@ -433,8 +434,7 @@ func (ac *admissionControl) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	code := ctx.Response().StatusCode
-	if code < 499 {
+	if ctx.Response().StatusCode < 499 {
 		ac.successCounter.Add(1)
 	}
 	ac.counter.Add(1)
@@ -450,3 +450,8 @@ func (ac *admissionControl) startSpan(ctx context.Context) (span opentracing.Spa
 	}
 	return
 }
+
+// HandleErrorResponse is to opt-in for filters to get called
+// Response(ctx) in case of errors via proxy. It has to return true to
+// opt-in.
+func (ac *admissionControl) HandleErrorResponse() bool { return true }

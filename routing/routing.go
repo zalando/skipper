@@ -371,6 +371,11 @@ func (r *Routing) startReceivingUpdates(o Options) {
 				}
 				r.log.Info("route settings applied")
 			case <-r.quit:
+				var rt *routeTable
+				rt, ok := r.routeTable.Load().(*routeTable)
+				if ok {
+					rt.close()
+				}
 				return
 			}
 		}
@@ -420,7 +425,7 @@ func (r *Routing) Get() *RouteLookup {
 	return &RouteLookup{matcher: rt.m}
 }
 
-// Close closes routing, stops receiving routes.
+// Close closes routing, routeTable and stops statemachine for receiving routes.
 func (r *Routing) Close() {
 	close(r.quit)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/zalando/skipper/eskip"
@@ -520,9 +521,25 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (rout
 
 type routeTable struct {
 	m             *matcher
+	once          sync.Once
+	routes        []*Route // only used for closing
 	validRoutes   []*eskip.Route
 	invalidRoutes []*eskip.Route
 	created       time.Time
+}
+
+// close routeTable will cleanup all underlying resources, that could
+// leak goroutines.
+func (rt *routeTable) close() {
+	rt.once.Do(func() {
+		for _, route := range rt.routes {
+			for _, f := range route.Filters {
+				if fc, ok := f.Filter.(filters.FilterCloser); ok {
+					fc.Close()
+				}
+			}
+		}
+	})
 }
 
 // receives the next version of the routing table on the output channel,
@@ -574,6 +591,7 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 
 			rt = &routeTable{
 				m:             m,
+				routes:        routes,
 				validRoutes:   validRoutes,
 				invalidRoutes: invalidRoutes,
 				created:       time.Now().UTC(),

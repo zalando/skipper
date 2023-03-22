@@ -2,6 +2,7 @@ package filters
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -149,6 +150,15 @@ type Filter interface {
 	// The Response method is called while processing the response to be
 	// returned.
 	Response(FilterContext)
+}
+
+// FilterCloser are Filters that need to cleanup resources after
+// filter termination. For example Filters, that create a goroutine
+// for some reason need to cleanup their goroutine or they would leak
+// goroutines.
+type FilterCloser interface {
+	Filter
+	io.Closer
 }
 
 // Spec objects are specifications for filters. When initializing the routes,

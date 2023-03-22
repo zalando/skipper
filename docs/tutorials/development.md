@@ -137,6 +137,86 @@ func (f *myFilter) Response(ctx filters.FilterContext) {
 
 Find a detailed example at [how to develop a filter](../reference/development.md#how-to-develop-a-filter).
 
+### Filters with cleanup
+
+Sometimes your filter needs to cleanup resources on shutdown. In Go
+functions that do this have often the name `Close()`.
+There is the `filters.FilterCloser` interface that if you comply with
+it, the routing.Route will make sure your filters are closed in case
+of `routing.Routing` was closed.
+
+```go
+type myFilter struct{}
+
+func NewMyFilter() filters.Spec {
+	return &myFilter{}
+}
+
+func (spec *myFilter) Name() string { return "myFilter" }
+
+func (spec *myFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
+     return NewMyFilter(), nil
+}
+
+func (f *myFilter) Request(ctx filters.FilterContext) {
+     // change data in ctx.Request() for example
+}
+
+func (f *myFilter) Response(ctx filters.FilterContext) {
+     // change data in ctx.Response() for example
+}
+
+func (f *myFilter) Close() error {
+     // cleanup your filter
+}
+```
+
+### Filters with error handling
+
+Sometimes you want to have a filter that wants to get called
+`Response()` even if the proxy will not send a response from the
+backend, for example you want to count error status codes, like
+the [admissionControl](../reference/filters.md#admissioncontrol)
+filter.
+In this case you need to comply with the following proxy interface:
+
+```go
+// errorHandlerFilter is an opt-in for filters to get called
+// Response(ctx) in case of errors.
+type errorHandlerFilter interface {
+	// HandleErrorResponse returns true in case a filter wants to get called
+	HandleErrorResponse() bool
+}
+```
+
+Example:
+```go
+type myFilter struct{}
+
+func NewMyFilter() filters.Spec {
+	return &myFilter{}
+}
+
+func (spec *myFilter) Name() string { return "myFilter" }
+
+func (spec *myFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
+     return NewMyFilter(), nil
+}
+
+func (f *myFilter) Request(ctx filters.FilterContext) {
+     // change data in ctx.Request() for example
+}
+
+func (f *myFilter) Response(ctx filters.FilterContext) {
+     // change data in ctx.Response() for example
+}
+
+func (f *myFilter) HandleErrorResponse() bool() {
+     return true
+}
+```
+
+
 ## Predicates
 
 Predicates allow to match a condition, that can be based on arbitrary

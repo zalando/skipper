@@ -1092,6 +1092,9 @@ func (p *Proxy) do(ctx *context) (err error) {
 		if err := p.do(loopCTX); err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
 			ctx.response = loopCTX.response
+			if err != nil {
+				p.applyFiltersOnError(ctx, processedFilters)
+			}
 			return err
 		}
 
@@ -1102,6 +1105,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		if err != nil {
 			perr := &proxyError{err: err}
 			p.makeErrorResponse(ctx, perr)
+			p.applyFiltersOnError(ctx, processedFilters)
 			return perr
 		}
 
@@ -1113,6 +1117,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		if !allow {
 			tracing.LogKV("circuit_breaker", "open", ctx.request.Context())
 			p.makeErrorResponse(ctx, errCircuitBreakerOpen)
+			p.applyFiltersOnError(ctx, processedFilters)
 			return errCircuitBreakerOpen
 		}
 
@@ -1147,10 +1152,12 @@ func (p *Proxy) do(ctx *context) (err error) {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
 					p.makeErrorResponse(ctx, perr2)
+					p.applyFiltersOnError(ctx, processedFilters)
 					return perr2
 				}
 			} else {
 				p.makeErrorResponse(ctx, perr)
+				p.applyFiltersOnError(ctx, processedFilters)
 				return perr
 			}
 		}
@@ -1272,6 +1279,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	if ctx.response.StatusCode == 499 {
 		msgPrefix = "client canceled"
 		logFunc = p.log.Infof
+		if p.accessLogDisabled {
+			logFunc = p.log.Debugf
+		}
 	}
 	if id != unknownRouteID {
 		req := ctx.Request()
@@ -1550,4 +1560,37 @@ func (p *Proxy) makeErrorResponse(ctx *context, perr *proxyError) {
 	ctx.response.StatusCode = code
 
 	ctx.response.Body = io.NopCloser(bytes.NewBufferString(text))
+}
+
+// errorHandlerFilter is an opt-in for filters to get called
+// Response(ctx) in case of errors.
+type errorHandlerFilter interface {
+	// HandleErrorResponse returns true in case a filter wants to get called
+	HandleErrorResponse() bool
+}
+
+func (p *Proxy) applyFiltersOnError(ctx *context, filters []*routing.RouteFilter) {
+	filtersStart := time.Now()
+	filterTracing := p.tracing.startFilterTracing("response_filters", ctx)
+	defer filterTracing.finish()
+
+	for i := len(filters) - 1; i >= 0; i-- {
+		fi := filters[i]
+
+		if ehf, ok := fi.Filter.(errorHandlerFilter); !ok || !ehf.HandleErrorResponse() {
+			continue
+		}
+		p.log.Debugf("filter %s handles error", fi.Name)
+
+		start := time.Now()
+		filterTracing.logStart(fi.Name)
+		ctx.setMetricsPrefix(fi.Name)
+
+		fi.Response(ctx)
+
+		p.metrics.MeasureFilterResponse(fi.Name, start)
+		filterTracing.logEnd(fi.Name)
+	}
+
+	p.metrics.MeasureAllFiltersResponse(ctx.route.Id, filtersStart)
 }

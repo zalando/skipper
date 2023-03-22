@@ -234,6 +234,12 @@ func (l *lifoFilter) GetQueue() *scheduler.Queue {
 	return l.queue
 }
 
+// Close will cleanup underlying queues
+func (l *lifoFilter) Close() error {
+	l.queue.Close()
+	return nil
+}
+
 // Request is the filter.Filter interface implementation. Request will
 // increase the number of inflight requests and respond to the caller,
 // if the bounded queue returns an error. Status code by Error:
@@ -271,6 +277,12 @@ func (l *lifoGroupFilter) SetQueue(q *scheduler.Queue) {
 // GetQueue is only used in tests
 func (l *lifoGroupFilter) GetQueue() *scheduler.Queue {
 	return l.queue
+}
+
+// Close will cleanup underlying queues
+func (l *lifoGroupFilter) Close() error {
+	l.queue.Close()
+	return nil
 }
 
 // Request is the filter.Filter interface implementation. Request will
