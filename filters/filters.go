@@ -152,7 +152,7 @@ type Filter interface {
 }
 
 // FilterCloser are Filters that need to cleanup resources after
-// filter teminiation. For example Filters, that create a goroutine
+// filter termination. For example Filters, that create a goroutine
 // for some reason need to cleanup their goroutine or they would leak
 // goroutines.
 type FilterCloser interface {
