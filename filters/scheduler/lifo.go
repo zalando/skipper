@@ -235,8 +235,9 @@ func (l *lifoFilter) GetQueue() *scheduler.Queue {
 }
 
 // Close will cleanup underlying queues
-func (l *lifoFilter) Close() {
+func (l *lifoFilter) Close() error {
 	l.queue.Close()
+	return nil
 }
 
 // Request is the filter.Filter interface implementation. Request will
@@ -279,8 +280,9 @@ func (l *lifoGroupFilter) GetQueue() *scheduler.Queue {
 }
 
 // Close will cleanup underlying queues
-func (l *lifoGroupFilter) Close() {
+func (l *lifoGroupFilter) Close() error {
 	l.queue.Close()
+	return nil
 }
 
 // Request is the filter.Filter interface implementation. Request will

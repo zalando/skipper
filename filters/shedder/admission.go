@@ -323,11 +323,12 @@ func (spec *AdmissionControlSpec) CreateFilter(args []interface{}) (filters.Filt
 }
 
 // Close stops the background goroutine. The filter keeps working on stale data.
-func (ac *admissionControl) Close() {
+func (ac *admissionControl) Close() error {
 	ac.once.Do(func() {
 		ac.closed = true
 		close(ac.quit)
 	})
+	return nil
 }
 
 func (ac *admissionControl) tickWindows(d time.Duration) {

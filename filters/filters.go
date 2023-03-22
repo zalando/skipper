@@ -157,7 +157,7 @@ type Filter interface {
 // goroutines.
 type FilterCloser interface {
 	Filter
-	Close()
+	Close() error
 }
 
 // Spec objects are specifications for filters. When initializing the routes,
