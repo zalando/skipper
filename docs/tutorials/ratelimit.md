@@ -106,7 +106,7 @@ There are 2 different configurations to assign redis instances as a skipper redi
     running skipper in Kubernetes with this. Use this if you don't need to scale your redis instances. 
 
 - Automatic:
-    - Specify `-kubernetes-redis-service-namespace=default` and `-kubernetes-redis-service-name=redis`, this will create k8s dataclient which will take care of collecting redis instances endpoints. This will allow you to scale redis instances as much as you want.
+    - Specify `-kubernetes-redis-service-namespace=default` and `-kubernetes-redis-service-name=redis`, this will create kubernetes dataclient which will take care of collecting redis instances endpoints. This will allow you to scale redis instances as much as you want.
 
     - Specify `-swarm-redis-remote=http://127.0.0.1/redis/endpoints`, this will make skipper pull endpoints from this remote URL and work with them.
 

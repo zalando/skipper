@@ -299,7 +299,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 		}
 
 		addrs := r.options.AddrUpdater()
-		if !hasAll(addrs, old) {
+		if addrs != nil && !hasAll(addrs, old) {
 			r.log.Infof("Redis updater updating old(%d) != new(%d)", len(old), len(addrs))
 			r.SetAddrs(ctx, addrs)
 			r.metrics.UpdateGauge(r.metricsPrefix+"shards", float64(r.ring.Len()))
