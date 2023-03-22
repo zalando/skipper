@@ -3,6 +3,7 @@ package secrets
 import (
 	"net"
 	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -173,6 +174,56 @@ func TestSecretPaths(t *testing.T) {
 
 		_, exists = sp.GetSecret(dir + "/subdir/bar")
 		assert.False(t, exists)
+	})
+
+	t.Run("refreshes mounted k8s secret", func(t *testing.T) {
+		mountPath := t.TempDir()
+		require.NoError(t, sp.Add(mountPath))
+
+		ls := func(path string) {
+			t.Helper()
+			if testing.Verbose() {
+				cmd := exec.Command("ls", "-alR", path)
+				out, err := cmd.CombinedOutput()
+				require.NoError(t, err)
+				t.Logf("\n%s", string(out))
+			}
+		}
+
+		// See https://github.com/kubernetes/kubernetes/blob/d2be69ac11346d2a0fab8c3c168c4255db99c56f/pkg/volume/util/atomic_writer.go#L87-L140
+		writeVersionedFile := func(name, content string) {
+			timestampedDir := time.Now().UTC().Format("..2006_01_02_15_04_05.000000000")
+
+			// ..2006_01_02_15_04_05.000000000
+			require.NoError(t, os.Mkdir(mountPath+"/"+timestampedDir, 0755))
+			// ..2006_01_02_15_04_05.000000000/foo
+			writeFile(t, mountPath+"/"+timestampedDir+"/"+name, content)
+
+			// ..data_tmp -> ..2006_01_02_15_04_05.000000000
+			require.NoError(t, os.Symlink(timestampedDir, mountPath+"/..data_tmp"))
+			// atomically rename ..data_tmp to ..data
+			require.NoError(t, os.Rename(mountPath+"/..data_tmp", mountPath+"/..data"))
+
+			// foo -> ..data/foo
+			_, err := os.Readlink(mountPath + "/" + name)
+			if err != nil && os.IsNotExist(err) {
+				require.NoError(t, os.Symlink("..data/"+name, mountPath+"/"+name))
+			}
+		}
+
+		writeVersionedFile("foo", "created")
+
+		ls(mountPath)
+
+		time.Sleep(2 * refresh)
+		checkSecret(t, mountPath+"/foo", "created")
+
+		writeVersionedFile("foo", "updated")
+
+		ls(mountPath)
+
+		time.Sleep(2 * refresh)
+		checkSecret(t, mountPath+"/foo", "updated")
 	})
 
 	t.Run("trims newline", func(t *testing.T) {
