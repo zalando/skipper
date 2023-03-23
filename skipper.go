@@ -1297,7 +1297,7 @@ func getRedisUpdaterFunc(namespace, name string, kdc *kubernetes.Client) func() 
 }
 
 type RedisEndpoint struct {
-	Url string `json:"url"`
+	Address string `json:"address"`
 }
 
 type RedisEndpoints struct {
@@ -1330,10 +1330,8 @@ func updateEndpointsFromURL(address string) func() []string {
 
 		a := make([]string, 0, len(target.Endpoints))
 		for _, endpoint := range target.Endpoints {
-			a = append(a, endpoint.Url)
+			a = append(a, endpoint.Address)
 		}
-
-		log.Infof("Redis updater called and found %d redis endpoints", len(a))
 
 		return a
 	}

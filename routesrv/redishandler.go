@@ -14,7 +14,7 @@ type RedisHandler struct {
 }
 
 type RedisEndpoint struct {
-	URL string `json:"url"`
+	Address string `json:"address"`
 }
 
 type RedisEndpoints struct {
@@ -38,7 +38,7 @@ func getRedisAddresses(namespace, name string, kdc *kubernetes.Client) func() []
 		log.Infof("Redis updater called and found %d redis endpoints", len(a))
 		for i := 0; i < len(a); i++ {
 			a[i] = strings.TrimPrefix(a[i], "TCP://")
-			RedisEndpoints.Endpoints = append(RedisEndpoints.Endpoints, RedisEndpoint{URL: a[i]})
+			RedisEndpoints.Endpoints = append(RedisEndpoints.Endpoints, RedisEndpoint{Address: a[i]})
 		}
 		data, err := json.Marshal(RedisEndpoints)
 
