@@ -116,4 +116,15 @@ func TestListFlag(t *testing.T) {
 		}
 
 	})
+
+	t.Run("empty value", func(t *testing.T) {
+		f := commaListFlag()
+		if err := f.Set(""); err != nil {
+			t.Fatal(err)
+		}
+
+		if f.value != "" || f.values != nil {
+			t.Errorf("failed to parse flags: %q %v (%d)", f.value, f.values, len(f.values))
+		}
+	})
 }
