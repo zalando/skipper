@@ -34,8 +34,13 @@ func (lf *listFlag) Set(value string) error {
 		return nil
 	}
 
-	lf.value = value
-	lf.values = strings.Split(value, lf.sep)
+	if value == "" {
+		lf.value = ""
+		lf.values = nil
+	} else {
+		lf.value = value
+		lf.values = strings.Split(value, lf.sep)
+	}
 
 	if err := lf.validate(); err != nil {
 		return err
