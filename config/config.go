@@ -246,15 +246,16 @@ type Config struct {
 	// swarm:
 	EnableSwarm bool `yaml:"enable-swarm"`
 	// redis based
-	SwarmRedisURLs          *listFlag     `yaml:"swarm-redis-urls"`
-	SwarmRedisPassword      string        `yaml:"swarm-redis-password"`
-	SwarmRedisHashAlgorithm string        `yaml:"swarm-redis-hash-algorithm"`
-	SwarmRedisDialTimeout   time.Duration `yaml:"swarm-redis-dial-timeout"`
-	SwarmRedisReadTimeout   time.Duration `yaml:"swarm-redis-read-timeout"`
-	SwarmRedisWriteTimeout  time.Duration `yaml:"swarm-redis-write-timeout"`
-	SwarmRedisPoolTimeout   time.Duration `yaml:"swarm-redis-pool-timeout"`
-	SwarmRedisMinConns      int           `yaml:"swarm-redis-min-conns"`
-	SwarmRedisMaxConns      int           `yaml:"swarm-redis-max-conns"`
+	SwarmRedisURLs               *listFlag     `yaml:"swarm-redis-urls"`
+	SwarmRedisPassword           string        `yaml:"swarm-redis-password"`
+	SwarmRedisHashAlgorithm      string        `yaml:"swarm-redis-hash-algorithm"`
+	SwarmRedisDialTimeout        time.Duration `yaml:"swarm-redis-dial-timeout"`
+	SwarmRedisReadTimeout        time.Duration `yaml:"swarm-redis-read-timeout"`
+	SwarmRedisWriteTimeout       time.Duration `yaml:"swarm-redis-write-timeout"`
+	SwarmRedisPoolTimeout        time.Duration `yaml:"swarm-redis-pool-timeout"`
+	SwarmRedisMinConns           int           `yaml:"swarm-redis-min-conns"`
+	SwarmRedisMaxConns           int           `yaml:"swarm-redis-max-conns"`
+	SwarmRedisEndpointsRemoteURL string        `yaml:"swarm-redis-remote"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -525,6 +526,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", net.DefaultPoolTimeout, "set redis get connection from pool timeout")
 	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", net.DefaultMinConns, "set min number of connections to redis")
 	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", net.DefaultMaxConns, "set max number of connections to redis")
+	flag.StringVar(&cfg.SwarmRedisEndpointsRemoteURL, "swarm-redis-remote", "", "Remote URL to pull redis endpoints from.")
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
@@ -887,15 +889,16 @@ func (c *Config) ToOptions() skipper.Options {
 		// swarm:
 		EnableSwarm: c.EnableSwarm,
 		// redis based
-		SwarmRedisURLs:          c.SwarmRedisURLs.values,
-		SwarmRedisPassword:      c.SwarmRedisPassword,
-		SwarmRedisHashAlgorithm: c.SwarmRedisHashAlgorithm,
-		SwarmRedisDialTimeout:   c.SwarmRedisDialTimeout,
-		SwarmRedisReadTimeout:   c.SwarmRedisReadTimeout,
-		SwarmRedisWriteTimeout:  c.SwarmRedisWriteTimeout,
-		SwarmRedisPoolTimeout:   c.SwarmRedisPoolTimeout,
-		SwarmRedisMinIdleConns:  c.SwarmRedisMinConns,
-		SwarmRedisMaxIdleConns:  c.SwarmRedisMaxConns,
+		SwarmRedisURLs:               c.SwarmRedisURLs.values,
+		SwarmRedisPassword:           c.SwarmRedisPassword,
+		SwarmRedisHashAlgorithm:      c.SwarmRedisHashAlgorithm,
+		SwarmRedisDialTimeout:        c.SwarmRedisDialTimeout,
+		SwarmRedisReadTimeout:        c.SwarmRedisReadTimeout,
+		SwarmRedisWriteTimeout:       c.SwarmRedisWriteTimeout,
+		SwarmRedisPoolTimeout:        c.SwarmRedisPoolTimeout,
+		SwarmRedisMinIdleConns:       c.SwarmRedisMinConns,
+		SwarmRedisMaxIdleConns:       c.SwarmRedisMaxConns,
+		SwarmRedisEndpointsRemoteURL: c.SwarmRedisEndpointsRemoteURL,
 		// swim based
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,

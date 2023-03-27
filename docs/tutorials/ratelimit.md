@@ -96,9 +96,21 @@ and your dataclient in use.
 
 This solution is independent of the dataclient being used.  You have
 to run N number of [Redis](https://redis.io) instances, where N is >
-0.  Specify `-swarm-redis-urls`, multiple instances can be separated
-by `,`, for example: `-swarm-redis-urls=redis1:6379,redis2:6379`. For
-running skipper in Kubernetes with this, see also [Running with
+0.
+
+There are 2 different configurations to assign redis instances as a skipper redis swarm.
+
+- Static:
+    - Specify `-swarm-redis-urls`, multiple instances can be separated
+    by `,`, for example: `-swarm-redis-urls=redis1:6379,redis2:6379`. Use this if you don't need to scale your redis instances. 
+
+- Kubernetes Service Selector:
+    - Specify `-kubernetes-redis-service-namespace=default` and `-kubernetes-redis-service-name=redis`, this will create kubernetes dataclient which will take care of collecting redis instances endpoints. This will allow you to scale redis instances as much as you want.
+
+-  HTTP Endpoint
+    - Specify `-swarm-redis-remote=http://127.0.0.1/redis/endpoints`, this will make skipper pull endpoints from this remote URL and work with them.
+
+see also [Running with
 Redis based Cluster Ratelimits](../kubernetes/ingress-controller.md#redis-based)
 
 The implementation use [redis ring](https://godoc.org/github.com/go-redis/redis#Ring)

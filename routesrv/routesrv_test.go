@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -95,6 +96,7 @@ func parseEskipFixture(t *testing.T, fileName string) []*eskip.Route {
 func parseRedisIP(t *testing.T, fileName string) []byte {
 	t.Helper()
 	ipbytes, err := os.ReadFile(fileName)
+	ipbytes = bytes.TrimSuffix(ipbytes, []byte("\n"))
 	if err != nil {
 		t.Fatalf("failed to open eskip fixture %s: %v", fileName, err)
 	}
@@ -227,14 +229,10 @@ func TestRedisIPs(t *testing.T) {
 
 	w := getRedisURLs(rs)
 
-	want := parseRedisIP(t, "testdata/redis-ip.txt")
-	got := w.Body.Bytes()
-
-	if !bytes.Equal(got, want) {
-		t.Errorf("served IPs doesn't reflect IPs from kubernetes resources: %s", cmp.Diff(string(got), string(want)))
-	}
-
 	wantHTTPCode(t, w, http.StatusOK)
+
+	want := parseRedisIP(t, "testdata/redis-ip.json")
+	assert.JSONEq(t, string(want), w.Body.String())
 }
 
 func TestFetchedIngressRoutesAreServedInEskipFormat(t *testing.T) {
