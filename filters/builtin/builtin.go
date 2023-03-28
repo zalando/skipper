@@ -14,6 +14,7 @@ import (
 	"github.com/zalando/skipper/filters/diag"
 	"github.com/zalando/skipper/filters/fadein"
 	"github.com/zalando/skipper/filters/flowid"
+	"github.com/zalando/skipper/filters/gpt"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/rfc"
 	"github.com/zalando/skipper/filters/scheduler"
@@ -218,6 +219,7 @@ func Filters() []filters.Spec {
 		fadein.NewEndpointCreated(),
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
+		gpt.NewWait(),
 	}
 }
 
