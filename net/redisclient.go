@@ -221,9 +221,10 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		}
 
 		if ro.AddrUpdater != nil {
-			ringOptions.Addrs = createAddressMap(ro.AddrUpdater())
+			address, _ := ro.AddrUpdater()
+			ringOptions.Addrs = createAddressMap(address)
 		} else {
-			ringOptions.Addrs = createAddressMap(ro.Addrs, nil)
+			ringOptions.Addrs = createAddressMap(ro.Addrs)
 		}
 		if ro.Log == nil {
 			ro.Log = &logging.DefaultLog{}
@@ -260,7 +261,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 	return r
 }
 
-func createAddressMap(addrs []string, err error) map[string]string {
+func createAddressMap(addrs []string) map[string]string {
 	res := make(map[string]string)
 	for _, addr := range addrs {
 		res[addr] = addr
@@ -370,7 +371,7 @@ func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
-	r.ring.SetAddrs(ctx, createAddressMap(addrs, nil))
+	r.ring.SetAddrs(ctx, createAddressMap(addrs))
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
