@@ -100,13 +100,13 @@ type addressUpdater struct {
 // 5: [foo bar]
 // 6: [foo bar baz]
 // ...
-func (u *addressUpdater) update() []string {
+func (u *addressUpdater) update() ([]string, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	result := u.addrs[0 : 1+u.n%len(u.addrs)]
 	u.n++
-	return result
+	return result, nil
 }
 
 func (u *addressUpdater) calls() int {

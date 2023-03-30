@@ -30,7 +30,7 @@ type RedisOptions struct {
 	// AddrUpdater is a func that is regularly called to update
 	// redis address list. This func should return a list of redis
 	// shards.
-	AddrUpdater []string
+	AddrUpdater func() ([]string, error)
 
 	// UpdateInterval is the time.Duration that AddrUpdater is
 	// triggered and SetAddrs be used to update the redis shards
@@ -221,9 +221,9 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		}
 
 		if ro.AddrUpdater != nil {
-			ringOptions.Addrs = createAddressMap(ro.AddrUpdater)
+			ringOptions.Addrs = createAddressMap(ro.AddrUpdater())
 		} else {
-			ringOptions.Addrs = createAddressMap(ro.Addrs)
+			ringOptions.Addrs = createAddressMap(ro.Addrs, nil)
 		}
 		if ro.Log == nil {
 			ro.Log = &logging.DefaultLog{}
@@ -260,7 +260,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 	return r
 }
 
-func createAddressMap(addrs []string) map[string]string {
+func createAddressMap(addrs []string, err error) map[string]string {
 	res := make(map[string]string)
 	for _, addr := range addrs {
 		res[addr] = addr
@@ -298,7 +298,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		addrs := r.options.AddrUpdater
+		addrs, _ := r.options.AddrUpdater()
 		if !hasAll(addrs, old) {
 			r.log.Infof("Redis updater updating old(%d) != new(%d)", len(old), len(addrs))
 			r.SetAddrs(ctx, addrs)
@@ -370,7 +370,7 @@ func (r *RedisRingClient) SetAddrs(ctx context.Context, addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
-	r.ring.SetAddrs(ctx, createAddressMap(addrs))
+	r.ring.SetAddrs(ctx, createAddressMap(addrs, nil))
 }
 
 func (r *RedisRingClient) Get(ctx context.Context, key string) (string, error) {
