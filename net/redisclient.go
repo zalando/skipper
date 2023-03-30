@@ -30,7 +30,7 @@ type RedisOptions struct {
 	// AddrUpdater is a func that is regularly called to update
 	// redis address list. This func should return a list of redis
 	// shards.
-	AddrUpdater func() []string
+	AddrUpdater []string
 
 	// UpdateInterval is the time.Duration that AddrUpdater is
 	// triggered and SetAddrs be used to update the redis shards
@@ -221,7 +221,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		}
 
 		if ro.AddrUpdater != nil {
-			ringOptions.Addrs = createAddressMap(ro.AddrUpdater())
+			ringOptions.Addrs = createAddressMap(ro.AddrUpdater)
 		} else {
 			ringOptions.Addrs = createAddressMap(ro.Addrs)
 		}
@@ -298,7 +298,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		addrs := r.options.AddrUpdater()
+		addrs := r.options.AddrUpdater
 		if !hasAll(addrs, old) {
 			r.log.Infof("Redis updater updating old(%d) != new(%d)", len(old), len(addrs))
 			r.SetAddrs(ctx, addrs)

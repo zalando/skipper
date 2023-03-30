@@ -1282,18 +1282,16 @@ func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Clie
 	return kdc
 }
 
-func getRedisUpdaterFunc(namespace, name string, kdc *kubernetes.Client) func() []string {
-	return func() []string {
-		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
-		// has polled the data once or kdc.GetEndpointAdresses should be blocking
-		// call to kubernetes API
-		a := kdc.GetEndpointAddresses(namespace, name)
-		log.Debugf("Redis updater called and found %d redis endpoints", len(a))
-		for i := 0; i < len(a); i++ {
-			a[i] = strings.TrimPrefix(a[i], "TCP://")
-		}
-		return a
+func getRedisUpdaterFunc(namespace, name string, kdc *kubernetes.Client) ([]string, error) {
+	// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
+	// has polled the data once or kdc.GetEndpointAdresses should be blocking
+	// call to kubernetes API
+	a := kdc.GetEndpointAddresses(namespace, name)
+	log.Debugf("Redis updater called and found %d redis endpoints", len(a))
+	for i := 0; i < len(a); i++ {
+		a[i] = strings.TrimPrefix(a[i], "TCP://")
 	}
+	return a, nil
 }
 
 type RedisEndpoint struct {
@@ -1304,37 +1302,35 @@ type RedisEndpoints struct {
 	Endpoints []RedisEndpoint `json:"endpoints"`
 }
 
-func updateEndpointsFromURL(address string) func() []string {
-	return func() []string {
-		/* #nosec */
-		resp, err := http.Get(address)
-		if err != nil {
-			log.Errorf("failed to connect to redis endpoint %v, due to: %v", address, err)
-			return nil
-		}
-		defer resp.Body.Close()
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Errorf("failed to read to redis response %v", err)
-			return nil
-		}
-
-		target := &RedisEndpoints{}
-
-		err = json.Unmarshal(body, target)
-		if err != nil {
-			log.Errorf("Failed to decode body to json %v", err)
-			return nil
-		}
-
-		a := make([]string, 0, len(target.Endpoints))
-		for _, endpoint := range target.Endpoints {
-			a = append(a, endpoint.Address)
-		}
-
-		return a
+func updateEndpointsFromURL(address string) ([]string, error) {
+	/* #nosec */
+	resp, err := http.Get(address)
+	if err != nil {
+		log.Errorf("failed to connect to redis endpoint %v, due to: %v", address, err)
+		return nil, err
 	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Errorf("failed to read to redis response %v", err)
+		return nil, err
+	}
+
+	target := &RedisEndpoints{}
+
+	err = json.Unmarshal(body, target)
+	if err != nil {
+		log.Errorf("Failed to decode body to json %v", err)
+		return nil, err
+	}
+
+	a := make([]string, 0, len(target.Endpoints))
+	for _, endpoint := range target.Endpoints {
+		a = append(a, endpoint.Address)
+	}
+
+	return a, nil
 }
 
 func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
@@ -1606,14 +1602,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			log.Infof("Use endpoints %s/%s to fetch updated redis shards", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 
 			kdc := findKubernetesDataclient(dataClients)
+
 			if kdc != nil {
-				redisOptions.AddrUpdater = getRedisUpdaterFunc(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, kdc)
+				redisOptions.AddrUpdater, err = getRedisUpdaterFunc(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, kdc)
 			} else {
 				log.Errorf("Failed to find kubernetes dataclient, but redis shards should be get by kubernetes svc %s/%s", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 			}
 		} else if redisOptions != nil && o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Use remote address %s to fetch updates redis shards", o.SwarmRedisEndpointsRemoteURL)
-			redisOptions.AddrUpdater = updateEndpointsFromURL(o.SwarmRedisEndpointsRemoteURL)
+			redisOptions.AddrUpdater, err = updateEndpointsFromURL(o.SwarmRedisEndpointsRemoteURL)
 		}
 
 	}
