@@ -1609,12 +1609,22 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			if kdc != nil {
 				redisOptions.AddrUpdater = getRedisUpdaterFunc(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, kdc)
+				_, err = redisOptions.AddrUpdater()
+				if err != nil {
+					log.Errorf("Could not update redis address %v", err)
+					return err
+				}
 			} else {
 				log.Errorf("Failed to find kubernetes dataclient, but redis shards should be get by kubernetes svc %s/%s", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
 			}
 		} else if redisOptions != nil && o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Use remote address %s to fetch updates redis shards", o.SwarmRedisEndpointsRemoteURL)
 			redisOptions.AddrUpdater = updateEndpointsFromURL(o.SwarmRedisEndpointsRemoteURL)
+			_, err = redisOptions.AddrUpdater()
+			if err != nil {
+				log.Errorf("Could not update redis endpoints from URL %v", err)
+				return err
+			}
 		}
 
 	}
