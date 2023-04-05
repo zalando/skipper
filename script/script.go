@@ -32,7 +32,7 @@ var (
 	// requests, but only this number is cached.
 	MaxPoolSize int = 10
 
-	errLuaSourcesDisabled = errors.New("Lua Sources are disabled")
+	errLuaSourcesDisabled = errors.New("lua Sources are disabled")
 )
 
 type LuaOptions struct {
