@@ -2,6 +2,7 @@ package script
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -331,6 +332,84 @@ func TestScript(t *testing.T) {
 			expectedRequestHeader: map[string]string{"X-Message": "still usable without modules"},
 		},
 		{
+			name: "enable inline sources and try to reference inline script",
+			opts: LuaOptions{
+				Sources: []string{"inline"},
+			},
+			context: testContext{
+				script: `
+					function request(ctx, params)
+						ctx.request.header["X-Message"] = "test"
+					end
+				`,
+			},
+			expectedRequestHeader: map[string]string{"X-Message": "test"},
+		},
+		{
+			name: "enable file sources and try to reference file",
+			opts: LuaOptions{
+				Sources: []string{"file"},
+			},
+			context: testContext{
+				script: `testdata/query_to_header.lua`,
+				params: []string{"foo-query-param", "X-Foo-Header"},
+				url:    "http://www.example.com/foo/bar?foo-query-param=test",
+			},
+			expectedRequestHeader: map[string]string{"X-Foo-Header": "test"},
+		},
+		{
+			name: "enable file and inline sources and try to reference inline script",
+			opts: LuaOptions{
+				Sources: []string{"file", "inline"},
+			},
+			context: testContext{
+				script: `
+					function request(ctx, params)
+						ctx.request.header["X-Message"] = "test"
+					end
+				`,
+			},
+			expectedRequestHeader: map[string]string{"X-Message": "test"},
+		},
+		{
+			name: "enable file and inline sources and try to reference file",
+			opts: LuaOptions{
+				Sources: []string{"file", "inline"},
+			},
+			context: testContext{
+				script: `testdata/query_to_header.lua`,
+				params: []string{"foo-query-param", "X-Foo-Header"},
+				url:    "http://www.example.com/foo/bar?foo-query-param=test",
+			},
+			expectedRequestHeader: map[string]string{"X-Foo-Header": "test"},
+		},
+		{
+			name: "enable file sources and try to reference inline script",
+			opts: LuaOptions{
+				Sources: []string{"file"},
+			},
+			context: testContext{
+				script: `
+					function request(ctx, params)
+						ctx.request.header["X-Message"] = "test"
+					end
+				`,
+			},
+			expectedError: fmt.Errorf(`invalid lua source referenced "inline", allowed: "[file]"`),
+		},
+		{
+			name: "enable inline sources and try to reference file",
+			opts: LuaOptions{
+				Sources: []string{"inline"},
+			},
+			context: testContext{
+				script: `testdata/query_to_header.lua`,
+				params: []string{"foo-query-param", "X-Foo-Header"},
+				url:    "http://www.example.com/foo/bar?foo-query-param=test",
+			},
+			expectedError: fmt.Errorf(`invalid lua source referenced "file", allowed: "[inline]"`),
+		},
+		{
 			name: "disable all sources and try to reference inline script",
 			opts: LuaOptions{
 				Sources: []string{"none"},
@@ -362,6 +441,9 @@ func TestScript(t *testing.T) {
 			} else if test.expectedError != nil {
 				if err == test.expectedError {
 					// ok, error as expected
+					return
+				} else if err != nil && err.Error() == test.expectedError.Error() {
+					// ok, error string as expected
 					return
 				}
 				t.Fatalf("Should fail to create filter: expected: %v, got: %v", test.expectedError, err)
