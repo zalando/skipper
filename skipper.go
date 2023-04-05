@@ -873,6 +873,10 @@ type Options struct {
 	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
 	KubernetesEnableTLS bool
 
+	// LuaModules that are allowed to be used.
+	//
+	// Use <module>.<symbol> to selectively enable module symbols,
+	// for example: package,base._G,base.print,json
 	LuaModules []string
 
 	testOptions
