@@ -1716,17 +1716,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
-	if len(o.LuaModules) > 0 {
-		lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{
-			Modules: o.LuaModules,
-			Sources: o.LuaSources,
-		})
-		if err != nil {
-			log.Errorf("Failed to create lua filter: %v.", err)
-			return err
-		}
-		o.CustomFilters = append(o.CustomFilters, lua)
+	lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{
+		Modules: o.LuaModules,
+		Sources: o.LuaSources,
+	})
+	if err != nil {
+		log.Errorf("Failed to create lua filter: %v.", err)
+		return err
 	}
+	o.CustomFilters = append(o.CustomFilters, lua)
 
 	// create routing
 	// create the proxy instance

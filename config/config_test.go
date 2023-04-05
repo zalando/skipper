@@ -157,6 +157,7 @@ func defaultConfig() *Config {
 		ValidateQuery:                           true,
 		ValidateQueryLog:                        true,
 		LuaModules:                              commaListFlag(),
+		LuaSources:                              commaListFlag(),
 	}
 }
 

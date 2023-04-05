@@ -301,6 +301,7 @@ func NewConfig() *Config {
 	cfg.ForwardedHeadersExcludeCIDRList = commaListFlag()
 	cfg.CompressEncodings = commaListFlag("gzip", "deflate", "br")
 	cfg.LuaModules = commaListFlag()
+	cfg.LuaSources = commaListFlag()
 	cfg.Oauth2GrantTokeninfoKeys = commaListFlag()
 
 	flag := flag.NewFlagSet("", flag.ExitOnError)
