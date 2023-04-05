@@ -49,6 +49,17 @@ Lua `print` builtin function writes skipper info log messages.
 
 `sleep(number)` function pauses execution for at least `number` milliseconds. A negative or zero duration causes `sleep` to return immediately.
 
+## Enable and Disable lua sources
+
+The flag `-lua-sources` allows to set 5 different values:
+
+* "file": Allows to use reference to file for scripts
+* "inline": Allows to use inline scripts
+* "inline", "file": Allows to use reference to file and inline scripts
+* "none": Disable Lua filters
+* "": the same as "inline", "file", the default value for binary and
+  library users
+
 ## Available lua modules
 
 Besides the [standard modules](https://www.lua.org/manual/5.1/manual.html#5) - except
