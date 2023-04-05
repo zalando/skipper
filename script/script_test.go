@@ -2,6 +2,7 @@ package script
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -65,6 +66,7 @@ func TestScript(t *testing.T) {
 		expectedOutgoingHost   string
 		expectedURL            string
 		expectedStatus         int
+		expectedError          error
 	}{
 		{
 			name: "state bag",
@@ -296,6 +298,10 @@ func TestScript(t *testing.T) {
 		},
 		{
 			name: "iterate request cookies",
+			opts: LuaOptions{
+				// use non-existing module
+				Modules: []string{"none"},
+			},
 			context: testContext{
 				requestHeader: map[string]string{"Cookie": "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1; csrftoken=repeat"},
 				script: `function request(ctx, params)
@@ -314,6 +320,7 @@ func TestScript(t *testing.T) {
 			opts: LuaOptions{
 				// use non-existing module
 				Modules: []string{"none"},
+				Sources: []string{"inline"},
 			},
 			context: testContext{
 				script: `
@@ -324,53 +331,164 @@ func TestScript(t *testing.T) {
 			},
 			expectedRequestHeader: map[string]string{"X-Message": "still usable without modules"},
 		},
+		{
+			name: "enable inline sources and try to reference inline script",
+			opts: LuaOptions{
+				Sources: []string{"inline"},
+			},
+			context: testContext{
+				script: `
+					function request(ctx, params)
+						ctx.request.header["X-Message"] = "test"
+					end
+				`,
+			},
+			expectedRequestHeader: map[string]string{"X-Message": "test"},
+		},
+		{
+			name: "enable file sources and try to reference file",
+			opts: LuaOptions{
+				Sources: []string{"file"},
+			},
+			context: testContext{
+				script: `testdata/query_to_header.lua`,
+				params: []string{"foo-query-param", "X-Foo-Header"},
+				url:    "http://www.example.com/foo/bar?foo-query-param=test",
+			},
+			expectedRequestHeader: map[string]string{"X-Foo-Header": "test"},
+		},
+		{
+			name: "enable file and inline sources and try to reference inline script",
+			opts: LuaOptions{
+				Sources: []string{"file", "inline"},
+			},
+			context: testContext{
+				script: `
+					function request(ctx, params)
+						ctx.request.header["X-Message"] = "test"
+					end
+				`,
+			},
+			expectedRequestHeader: map[string]string{"X-Message": "test"},
+		},
+		{
+			name: "enable file and inline sources and try to reference file",
+			opts: LuaOptions{
+				Sources: []string{"file", "inline"},
+			},
+			context: testContext{
+				script: `testdata/query_to_header.lua`,
+				params: []string{"foo-query-param", "X-Foo-Header"},
+				url:    "http://www.example.com/foo/bar?foo-query-param=test",
+			},
+			expectedRequestHeader: map[string]string{"X-Foo-Header": "test"},
+		},
+		{
+			name: "enable file sources and try to reference inline script",
+			opts: LuaOptions{
+				Sources: []string{"file"},
+			},
+			context: testContext{
+				script: `
+					function request(ctx, params)
+						ctx.request.header["X-Message"] = "test"
+					end
+				`,
+			},
+			expectedError: fmt.Errorf(`invalid lua source referenced "inline", allowed: "[file]"`),
+		},
+		{
+			name: "enable inline sources and try to reference file",
+			opts: LuaOptions{
+				Sources: []string{"inline"},
+			},
+			context: testContext{
+				script: `testdata/query_to_header.lua`,
+				params: []string{"foo-query-param", "X-Foo-Header"},
+				url:    "http://www.example.com/foo/bar?foo-query-param=test",
+			},
+			expectedError: fmt.Errorf(`invalid lua source referenced "file", allowed: "[inline]"`),
+		},
+		{
+			name: "disable all sources and try to reference inline script",
+			opts: LuaOptions{
+				Sources: []string{"none"},
+			},
+			context: testContext{
+				script: `
+					function request(ctx, params)
+						ctx.request.header["X-Message"] = "still usable without modules"
+					end
+				`,
+			},
+			expectedError: errLuaSourcesDisabled,
+		},
+		{
+			name: "disable all sources and try to reference file source",
+			opts: LuaOptions{
+				Sources: []string{"none"},
+			},
+			context: testContext{
+				script: "foo.lua",
+			},
+			expectedError: errLuaSourcesDisabled,
+		},
 	} {
-		log.Println("Running", test.name, "test")
-
-		fc, err := runFilter(test.opts, &test.context)
-		if err != nil {
-			t.Errorf("failed to run filter: %v", err)
-		}
-
-		exp := len(test.expectedRequestHeader)
-		if exp > 0 && exp != len(fc.Request().Header) {
-			t.Errorf("[%s] request header mismatch: expected %v, got: %v", test.name, test.expectedRequestHeader, fc.Request().Header)
-		}
-		for k, v := range test.expectedRequestHeader {
-			if fc.Request().Header.Get(k) != v {
-				t.Errorf("[%s] %s request header: expected %s, got: %s", test.name, k, v, fc.Request().Header.Get(k))
+		t.Run(test.name, func(t *testing.T) {
+			fc, err := runFilter(test.opts, &test.context)
+			if err != nil && test.expectedError == nil {
+				t.Fatalf("Failed to run filter: %v", err)
+			} else if test.expectedError != nil {
+				if err == test.expectedError {
+					// ok, error as expected
+					return
+				} else if err != nil && err.Error() == test.expectedError.Error() {
+					// ok, error string as expected
+					return
+				}
+				t.Fatalf("Should fail to create filter: expected: %v, got: %v", test.expectedError, err)
 			}
-		}
 
-		exp = len(test.expectedResponseHeader)
-		if exp > 0 && exp != len(fc.Response().Header) {
-			t.Errorf("[%s] response header mismatch: expected %v, got: %v", test.name, test.expectedResponseHeader, fc.Response().Header)
-		}
-		for k, v := range test.expectedResponseHeader {
-			if fc.Response().Header.Get(k) != v {
-				t.Errorf("[%s] %s response header: expected %s, got: %s", test.name, k, v, fc.Response().Header.Get(k))
+			exp := len(test.expectedRequestHeader)
+			if exp > 0 && exp != len(fc.Request().Header) {
+				t.Errorf("[%s] request header mismatch: expected %v, got: %v", test.name, test.expectedRequestHeader, fc.Request().Header)
 			}
-		}
-
-		if len(fc.StateBag()) != len(test.expectedStateBag) {
-			t.Errorf("[%s] state bag mismatch: expected %v, got: %v", test.name, test.expectedStateBag, fc.StateBag())
-		}
-		for k, v := range test.expectedStateBag {
-			bv, ok := fc.StateBag()[k]
-			if !ok || v != bv {
-				t.Errorf("[%s] %s state bag: expected %s, got: %s", test.name, k, v, bv)
+			for k, v := range test.expectedRequestHeader {
+				if fc.Request().Header.Get(k) != v {
+					t.Errorf("[%s] %s request header: expected %s, got: %s", test.name, k, v, fc.Request().Header.Get(k))
+				}
 			}
-		}
 
-		if test.expectedOutgoingHost != "" && fc.OutgoingHost() != test.expectedOutgoingHost {
-			t.Errorf("[%s] outgoing host: expected %s, got: %s", test.name, test.expectedOutgoingHost, fc.OutgoingHost())
-		}
-		if test.expectedURL != "" && fc.Request().URL.String() != test.expectedURL {
-			t.Errorf("[%s] request path: expected %s, got: %v", test.name, test.expectedURL, fc.Request().URL)
-		}
-		if test.expectedStatus != 0 && test.expectedStatus != fc.Response().StatusCode {
-			t.Errorf("[%s] response status: expected %d, got: %d", test.name, test.expectedStatus, fc.Response().StatusCode)
-		}
+			exp = len(test.expectedResponseHeader)
+			if exp > 0 && exp != len(fc.Response().Header) {
+				t.Errorf("[%s] response header mismatch: expected %v, got: %v", test.name, test.expectedResponseHeader, fc.Response().Header)
+			}
+			for k, v := range test.expectedResponseHeader {
+				if fc.Response().Header.Get(k) != v {
+					t.Errorf("[%s] %s response header: expected %s, got: %s", test.name, k, v, fc.Response().Header.Get(k))
+				}
+			}
+
+			if len(fc.StateBag()) != len(test.expectedStateBag) {
+				t.Errorf("[%s] state bag mismatch: expected %v, got: %v", test.name, test.expectedStateBag, fc.StateBag())
+			}
+			for k, v := range test.expectedStateBag {
+				bv, ok := fc.StateBag()[k]
+				if !ok || v != bv {
+					t.Errorf("[%s] %s state bag: expected %s, got: %s", test.name, k, v, bv)
+				}
+			}
+
+			if test.expectedOutgoingHost != "" && fc.OutgoingHost() != test.expectedOutgoingHost {
+				t.Errorf("[%s] outgoing host: expected %s, got: %s", test.name, test.expectedOutgoingHost, fc.OutgoingHost())
+			}
+			if test.expectedURL != "" && fc.Request().URL.String() != test.expectedURL {
+				t.Errorf("[%s] request path: expected %s, got: %v", test.name, test.expectedURL, fc.Request().URL)
+			}
+			if test.expectedStatus != 0 && test.expectedStatus != fc.Response().StatusCode {
+				t.Errorf("[%s] response status: expected %d, got: %d", test.name, test.expectedStatus, fc.Response().StatusCode)
+			}
+		})
 	}
 }
 

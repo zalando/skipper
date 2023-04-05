@@ -873,7 +873,17 @@ type Options struct {
 	// KubernetesEnableTLS enables kubernetes to use resources to terminate tls
 	KubernetesEnableTLS bool
 
+	// LuaModules that are allowed to be used.
+	//
+	// Use <module>.<symbol> to selectively enable module symbols,
+	// for example: package,base._G,base.print,json
 	LuaModules []string
+
+	// LuaSources that are allowed as input sources. Valid sources
+	// are "", "file", "inline", "file","inline". Empty list
+	// defaults to "file","inline" and "none" disables lua
+	// filters.
+	LuaSources []string
 
 	testOptions
 }
@@ -1706,14 +1716,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
-	if len(o.LuaModules) > 0 {
-		lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{Modules: o.LuaModules})
-		if err != nil {
-			log.Errorf("Failed to create lua filter: %v.", err)
-			return err
-		}
-		o.CustomFilters = append(o.CustomFilters, lua)
+	lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{
+		Modules: o.LuaModules,
+		Sources: o.LuaSources,
+	})
+	if err != nil {
+		log.Errorf("Failed to create lua filter: %v.", err)
+		return err
 	}
+	o.CustomFilters = append(o.CustomFilters, lua)
 
 	// create routing
 	// create the proxy instance
