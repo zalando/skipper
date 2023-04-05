@@ -540,7 +540,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
 
 	flag.Var(cfg.LuaModules, "lua-modules", "comma separated list of lua filter modules. Use <module>.<symbol> to selectively enable module symbols, for example: package,base._G,base.print,json")
-	flag.StringVar(&cfg.LuaSources, "lua-sources", "", `comma separated list of lua input types for the lua() filter. Valid sources <""|"file"|"inline"|"file,inline"|"none">. Use "file" to only allow lua file references in lua filter. It defaults to "", that allows is the same as "file,inline". "none" disable lua filters.`)
+	flag.StringVar(&cfg.LuaSources, "lua-sources", "", `comma separated list of lua input types for the lua() filter. Valid sources <""|"file"|"inline"|"file,inline"|"none">. Use "file" to only allow lua file references in lua filter. Default "" is the same as "file,inline". Use "none" to disable lua filters.`)
 
 	cfg.flags = flag
 	return cfg
