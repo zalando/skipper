@@ -269,6 +269,7 @@ type Config struct {
 	ClusterRatelimitMaxGroupShards int `yaml:"cluster-ratelimit-max-group-shards"`
 
 	LuaModules *listFlag `yaml:"lua-modules"`
+	LuaSources string    `yaml:"lua-sources"`
 }
 
 const (
@@ -539,6 +540,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
 
 	flag.Var(cfg.LuaModules, "lua-modules", "comma separated list of lua filter modules. Use <module>.<symbol> to selectively enable module symbols, for example: package,base._G,base.print,json")
+	flag.StringVar(&cfg.LuaSources, "lua-sources", "", `comma separated list of lua input types for the lua() filter. Valid sources <""|"file"|"inline"|"file,inline"|"none">. Use "file" to only allow lua file references in lua filter. It defaults to "", that allows is the same as "file,inline". "none" disable lua filters.`)
 
 	cfg.flags = flag
 	return cfg
@@ -913,6 +915,7 @@ func (c *Config) ToOptions() skipper.Options {
 		ClusterRatelimitMaxGroupShards: c.ClusterRatelimitMaxGroupShards,
 
 		LuaModules: c.LuaModules.values,
+		LuaSources: c.LuaSources,
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)

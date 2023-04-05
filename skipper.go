@@ -879,6 +879,11 @@ type Options struct {
 	// for example: package,base._G,base.print,json
 	LuaModules []string
 
+	// LuaSources that are allowed as input sources. Valid sources
+	// are "", "file", "inline", "file,inline". Empty string will
+	// disable the use of lua filters.
+	LuaSources string
+
 	testOptions
 }
 
@@ -1710,8 +1715,12 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters, compress)
 	}
 
-	if len(o.LuaModules) > 0 {
-		lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{Modules: o.LuaModules})
+	if len(o.LuaModules) > 0 && len(o.LuaSources) > 0 {
+		luaSources := strings.Split(o.LuaSources, ",")
+		lua, err := script.NewLuaScriptWithOptions(script.LuaOptions{
+			Modules: o.LuaModules,
+			Sources: luaSources,
+		})
 		if err != nil {
 			log.Errorf("Failed to create lua filter: %v.", err)
 			return err

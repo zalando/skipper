@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -23,12 +24,16 @@ import (
 	gjson "layeh.com/gopher-json"
 )
 
-// InitialPoolSize is the number of lua states created initially per route
-var InitialPoolSize int = 3
+var (
+	// InitialPoolSize is the number of lua states created initially per route
+	InitialPoolSize int = 3
 
-// MaxPoolSize is the number of lua states stored per route - there may be more parallel
-// requests, but only this number is cached.
-var MaxPoolSize int = 10
+	// MaxPoolSize is the number of lua states stored per route - there may be more parallel
+	// requests, but only this number is cached.
+	MaxPoolSize int = 10
+
+	errLuaSourcesDisabled = errors.New("Lua Sources are disabled")
+)
 
 type LuaOptions struct {
 	// Modules configures enabled standard and additional (preloaded) Lua modules.
@@ -37,10 +42,16 @@ type LuaOptions struct {
 	// Additional modules are preloaded with all symbols.
 	// Empty value enables all modules.
 	Modules []string
+	// Sources that are allowed as input sources. Valid sources
+	// are "none", "file" and "inline". Empty slice will enable
+	// both as default. To disable the use of lua filters use
+	// "none".
+	Sources []string
 }
 
 type luaScript struct {
 	modules []string
+	sources []string
 }
 
 // NewLuaScript creates a new filter spec
@@ -51,7 +62,17 @@ func NewLuaScript() filters.Spec {
 
 // NewLuaScriptWithOptions creates a new filter spec with options
 func NewLuaScriptWithOptions(opts LuaOptions) (filters.Spec, error) {
-	return &luaScript{opts.Modules}, nil
+	sources := opts.Sources
+	if len(sources) == 0 {
+		// backwards compatible default, allow all
+		sources = append(sources, "file", "inline")
+	} else if contains("none", opts.Sources) {
+		sources = nil
+	}
+	return &luaScript{
+		modules: opts.Modules,
+		sources: sources,
+	}, nil
 }
 
 // Name returns the name of the filter ("lua")
@@ -59,8 +80,11 @@ func (ls *luaScript) Name() string {
 	return filters.LuaName
 }
 
-// CreateFilter creates the filter
+// CreateFilter creates the lua script filter.
 func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) {
+	if len(ls.sources) == 0 {
+		return nil, errLuaSourcesDisabled
+	}
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -78,7 +102,7 @@ func (ls *luaScript) CreateFilter(config []interface{}) (filters.Filter, error) 
 	}
 
 	s := &script{source: src, routeParams: params}
-	if err := s.initScript(ls.modules); err != nil {
+	if err := s.initScript(ls.modules, ls.sources); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -141,24 +165,33 @@ func (s *script) newState() (*lua.LState, error) {
 	return L, nil
 }
 
-func (s *script) initScript(modules []string) error {
+func (s *script) initScript(modules, validSources []string) error {
 	// Compile
 	var reader io.Reader
 	var name string
 
 	if strings.HasSuffix(s.source, ".lua") {
+		if !contains("file", validSources) {
+			return fmt.Errorf(`invalid lua source referenced "file", allowed: "%v"`, validSources)
+		}
+
 		file, err := os.Open(s.source)
 		if err != nil {
 			return err
 		}
+
 		defer func() {
 			if err = file.Close(); err != nil {
 				log.Errorf("Failed to close lua file %s: %v", s.source, err)
 			}
 		}()
+
 		reader = bufio.NewReader(file)
 		name = s.source
 	} else {
+		if !contains("inline", validSources) {
+			return fmt.Errorf(`invalid lua source referenced "inline", allowed: "%v"`, validSources)
+		}
 		reader = strings.NewReader(s.source)
 		name = "<script>"
 	}
@@ -821,4 +854,13 @@ func unsupported(message string) func(*lua.LState) int {
 		s.RaiseError(message)
 		return 0
 	}
+}
+
+func contains(s string, a []string) bool {
+	for _, w := range a {
+		if s == w {
+			return true
+		}
+	}
+	return false
 }
