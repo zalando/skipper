@@ -2,6 +2,7 @@ package routesrv
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -27,9 +28,9 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Add("Content-Type", "application/json")
-	address, error := rh.AddrUpdater()
-	if error != nil {
-		log.Errorf("Could not update address for redis handler %v", error)
+	address, err := rh.AddrUpdater()
+	if err != nil {
+		log.Errorf("Could not update address for redis handler %w", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -48,7 +49,7 @@ func getRedisAddresses(namespace, name string, kdc *kubernetes.Client) func() ([
 		data, err := json.Marshal(result)
 
 		if err != nil {
-			log.Errorf("Failed to marshal json data %v", err)
+			err = fmt.Errorf("failed to marshal json data %w", err)
 			return nil, err
 		}
 

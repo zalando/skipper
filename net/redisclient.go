@@ -198,6 +198,8 @@ func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
 }
 
 func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
+	const backOffTime = 2 * time.Second
+	const retryCount = 5
 	r := &RedisRingClient{
 		once:    sync.Once{},
 		quit:    make(chan struct{}),
@@ -221,7 +223,17 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		}
 
 		if ro.AddrUpdater != nil {
-			address, _ := ro.AddrUpdater()
+			address, err := ro.AddrUpdater()
+			for i := 0; i < retryCount; i++ {
+				if err == nil {
+					break
+				}
+				time.Sleep(backOffTime)
+				address, err = ro.AddrUpdater()
+			}
+			if err != nil {
+				log.Fatal("Failed at redisclient startup")
+			}
 			ringOptions.Addrs = createAddressMap(address)
 		} else {
 			ringOptions.Addrs = createAddressMap(ro.Addrs)
@@ -299,7 +311,11 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		addrs, _ := r.options.AddrUpdater()
+		addrs, err := r.options.AddrUpdater()
+		if err != nil {
+			r.log.Error("Could not initiate redis updater %v", err)
+			continue
+		}
 		if !hasAll(addrs, old) {
 			r.log.Infof("Redis updater updating old(%d) != new(%d)", len(old), len(addrs))
 			r.SetAddrs(ctx, addrs)
