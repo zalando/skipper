@@ -30,7 +30,7 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	address, err := rh.AddrUpdater()
 	if err != nil {
-		log.Errorf("Could not update address for redis handler %w", err)
+		log.Errorf("Could not update address for redis handler %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -49,8 +49,7 @@ func getRedisAddresses(namespace, name string, kdc *kubernetes.Client) func() ([
 		data, err := json.Marshal(result)
 
 		if err != nil {
-			err = fmt.Errorf("failed to marshal json data %w", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal json data %w", err)
 		}
 
 		return data, nil
