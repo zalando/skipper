@@ -5,7 +5,8 @@
 [![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
 [![codecov](https://codecov.io/gh/zalando/skipper/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando/skipper)
 [![GitHub release](https://img.shields.io/github/release/zalando/skipper.svg)](https://github.com/zalando/skipper/releases)
-[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/2461/badge)](https://bestpractices.coreinfrastructure.org/en/projects/2461)
+[![OpenSSF Best Practices](https://bestpractices.coreinfrastructure.org/projects/2461/badge)](https://bestpractices.coreinfrastructure.org/en/projects/2461)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/zalando/skipper/badge)](https://api.securityscorecards.dev/projects/github.com/zalando/skipper)
 [![Slack](https://img.shields.io/badge/Gopher%20Slack-%23skipper-green.svg)](https://invite.slack.golangbridge.org/)
 ![CodeQL](https://github.com/zalando/skipper/actions/workflows/codeql-analysis.yml/badge.svg)
 
