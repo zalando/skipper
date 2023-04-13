@@ -30,7 +30,7 @@ type RedisOptions struct {
 	// AddrUpdater is a func that is regularly called to update
 	// redis address list. This func should return a list of redis
 	// shards.
-	AddrUpdater func() []string
+	AddrUpdater func() ([]string, error)
 
 	// UpdateInterval is the time.Duration that AddrUpdater is
 	// triggered and SetAddrs be used to update the redis shards
@@ -198,6 +198,8 @@ func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
 }
 
 func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
+	const backOffTime = 2 * time.Second
+	const retryCount = 5
 	r := &RedisRingClient{
 		once:    sync.Once{},
 		quit:    make(chan struct{}),
@@ -221,7 +223,18 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		}
 
 		if ro.AddrUpdater != nil {
-			ringOptions.Addrs = createAddressMap(ro.AddrUpdater())
+			address, err := ro.AddrUpdater()
+			for i := 0; i < retryCount; i++ {
+				if err == nil {
+					break
+				}
+				time.Sleep(backOffTime)
+				address, err = ro.AddrUpdater()
+			}
+			if err != nil {
+				r.log.Errorf("Failed at redisclient startup %v", err)
+			}
+			ringOptions.Addrs = createAddressMap(address)
 		} else {
 			ringOptions.Addrs = createAddressMap(ro.Addrs)
 		}
@@ -298,7 +311,11 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		addrs := r.options.AddrUpdater()
+		addrs, err := r.options.AddrUpdater()
+		if err != nil {
+			r.log.Errorf("Failed to start redis updater: %v", err)
+			continue
+		}
 		if !hasAll(addrs, old) {
 			r.log.Infof("Redis updater updating old(%d) != new(%d)", len(old), len(addrs))
 			r.SetAddrs(ctx, addrs)
