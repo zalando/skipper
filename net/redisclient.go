@@ -232,7 +232,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 				address, err = ro.AddrUpdater()
 			}
 			if err != nil {
-				log.Fatal("Failed at redisclient startup")
+				r.log.Errorf("Failed at redisclient startup %v", err)
 			}
 			ringOptions.Addrs = createAddressMap(address)
 		} else {
@@ -313,7 +313,7 @@ func (r *RedisRingClient) startUpdater(ctx context.Context) {
 
 		addrs, err := r.options.AddrUpdater()
 		if err != nil {
-			r.log.Error("Could not initiate redis updater %v", err)
+			r.log.Errorf("Failed to start redis updater: %v", err)
 			continue
 		}
 		if !hasAll(addrs, old) {

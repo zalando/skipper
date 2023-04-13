@@ -30,7 +30,7 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	address, err := rh.AddrUpdater()
 	if err != nil {
-		log.Errorf("Could not update address for redis handler %v", err)
+		log.Errorf("Failed to update address for redis handler %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
