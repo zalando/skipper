@@ -46,6 +46,11 @@ type apiUsageMonitoringStateBag struct {
 	begin time.Time
 }
 
+// HandleErrorResponse is to opt-in for filters to get called
+// Response(ctx) in case of errors via proxy. It has to return true to
+// opt-in.
+func (f *apiUsageMonitoringFilter) HandleErrorResponse() bool { return true }
+
 func (f *apiUsageMonitoringFilter) Request(c filters.FilterContext) {
 	u := *c.Request().URL
 	c.StateBag()[stateBagKey] = apiUsageMonitoringStateBag{
