@@ -1127,6 +1127,12 @@ func (p *Proxy) do(ctx *context) (err error) {
 		}
 
 		backendStart := time.Now()
+		if d, ok := ctx.StateBag()[filters.ReadTimeout].(time.Duration); ok {
+			e := ctx.ResponseController().SetReadDeadline(backendStart.Add(d))
+			if e != nil {
+				p.log.Errorf("Failed to set read deadline: %v", e)
+			}
+		}
 		rsp, perr := p.makeBackendRequest(ctx, backendContext)
 		if perr != nil {
 			if done != nil {
@@ -1449,6 +1455,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	err := p.do(ctx)
+
+	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
+		e := ctx.ResponseController().SetWriteDeadline(time.Now().Add(d))
+		if e != nil {
+			p.log.Errorf("Failed to set write deadline: %v", e)
+		}
+	}
 
 	if err != nil {
 		p.errorResponse(ctx, err)

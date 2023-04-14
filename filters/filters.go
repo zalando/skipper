@@ -27,11 +27,17 @@ const (
 	// BackendTimeout is the key used in the state bag to configure backend timeout in proxy
 	BackendTimeout = "backend:timeout"
 
+	// ReadTimeout is the key used in the state bag to configure read request body timeout in proxy
+	ReadTimeout = "read:timeout"
+
+	// WriteTimeout is the key used in the state bag to configure write response body timeout in proxy
+	WriteTimeout = "write:timeout"
+
 	// BackendRatelimit is the key used in the state bag to configure backend ratelimit in proxy
 	BackendRatelimit = "backend:ratelimit"
 )
 
-// Context object providing state and information that is unique to a request.
+// FilterContext object providing state and information that is unique to a request.
 type FilterContext interface {
 	// The response writer object belonging to the incoming request. Used by
 	// filters that handle the requests themselves.
@@ -238,6 +244,8 @@ const (
 	WrapContentName                            = "wrapContent"
 	WrapContentHexName                         = "wrapContentHex"
 	BackendTimeoutName                         = "backendTimeout"
+	ReadTimeoutName                            = "readTimeout"
+	WriteTimeoutName                           = "writeTimeout"
 	BlockName                                  = "blockContent"
 	LatencyName                                = "latency"
 	BandwidthName                              = "bandwidth"

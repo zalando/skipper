@@ -536,23 +536,6 @@ Examples:
 
 You may use https://github.com/AlexanderYastrebov/unrepeat to decompose binary file into prefix, repeating content and suffix.
 
-### backendTimeout
-
-Configure backend timeout. Skipper responds with `504 Gateway Timeout` status if obtaining a connection,
-sending the request, and reading the backend response headers and body takes longer than the configured timeout.
-However, if response streaming has already started it will be terminated, i.e. client will receive backend response
-status and truncated response body.
-
-Parameters:
-
-* timeout [(duration string)](https://godoc.org/time#ParseDuration)
-
-Example:
-
-```
-* -> backendTimeout("10ms") -> "https://www.example.org";
-```
-
 ### latency
 
 Enable adding artificial latency
@@ -704,6 +687,64 @@ Example:
 * -> logHeader("response") -> "https://www.example.org";
 * -> logHeader("request", "response") -> "https://www.example.org";
 ```
+
+## Timeout
+
+### backendTimeout
+
+Configure backend timeout. Skipper responds with `504 Gateway Timeout` status if obtaining a connection,
+sending the request, and reading the backend response headers and body takes longer than the configured timeout.
+However, if response streaming has already started it will be terminated, i.e. client will receive backend response
+status and truncated response body.
+
+Parameters:
+
+* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+
+Example:
+
+```
+* -> backendTimeout("10ms") -> "https://www.example.org";
+```
+
+### readTimeout
+
+Configure read timeout will set a read deadline on the server socket
+connected to the client connecting to the proxy. Skipper will log 499
+client timeout with context canceled. We are not able to differentiate
+between client hang up and read timeout.
+
+Parameters:
+
+* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+
+Example:
+
+```
+* -> readTimeout("10ms") -> "https://www.example.org";
+```
+
+### writeTimeout
+
+Configure write timeout will set a write deadline on the server socket
+connected to the client connecting to the proxy. Skipper will show
+access logs as if the response was served as expected, but the client can
+show an error. You can observe an increase in streaming errors via
+metrics or a in opentracing proxy span you can see Tag
+`streamBody.byte` with value `streamBody error` or in debug logs
+something like
+`error while copying the response stream: write tcp 127.0.0.1:9090->127.0.0.1:38574: i/o timeout`.
+
+Parameters:
+
+* timeout [(duration string)](https://godoc.org/time#ParseDuration)
+
+Example:
+
+```
+* -> writeTimeout("10ms") -> "https://www.example.org";
+```
+
 
 ## Shadow Traffic
 ### tee
