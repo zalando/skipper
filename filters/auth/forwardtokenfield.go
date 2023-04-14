@@ -3,7 +3,6 @@ package auth
 import (
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/net/http/httpguts"
 )
@@ -71,7 +70,7 @@ func (f *forwardTokenFieldFilter) Request(ctx filters.FilterContext) {
 	}, ctx, payload)
 
 	if err != nil {
-		log.Error(err)
+		ctx.Logger().Errorf("%v", err)
 		return
 	}
 }

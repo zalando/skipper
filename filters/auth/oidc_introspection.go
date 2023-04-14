@@ -115,7 +115,7 @@ func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
 
 	token, ok := ctx.StateBag()[oidcClaimsCacheKey].(tokenContainer)
 	if !ok || &token == (&tokenContainer{}) || len(token.Claims) == 0 {
-		log.Errorf("Error retrieving %s for OIDC token introspection", oidcClaimsCacheKey)
+		ctx.Logger().Errorf("Error retrieving %s for OIDC token introspection", oidcClaimsCacheKey)
 		unauthorized(ctx, "", missingToken, r.Host, oidcClaimsCacheKey+" is unavailable in StateBag")
 		return
 	}

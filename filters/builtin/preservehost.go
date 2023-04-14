@@ -15,9 +15,9 @@
 package builtin
 
 import (
-	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/filters"
 	"net/url"
+
+	"github.com/zalando/skipper/filters"
 )
 
 type spec struct{}
@@ -55,7 +55,7 @@ func (preserve filter) Response(_ filters.FilterContext) {}
 func (preserve filter) Request(ctx filters.FilterContext) {
 	u, err := url.Parse(ctx.BackendUrl())
 	if err != nil {
-		log.Error("failed to parse backend host in preserveHost filter", err)
+		ctx.Logger().Errorf("failed to parse backend host in preserveHost filter %v", err)
 		return
 	}
 

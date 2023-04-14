@@ -148,7 +148,7 @@ func (r *tee) Request(fc filters.FilterContext) {
 	req := fc.Request()
 	copyOfRequest, tr, err := cloneRequest(r, req)
 	if err != nil {
-		log.Warn("tee: error while cloning the tee request", err)
+		fc.Logger().Warnf("tee: error while cloning the tee request %v", err)
 		return
 	}
 
@@ -163,7 +163,7 @@ func (r *tee) Request(fc filters.FilterContext) {
 
 		rsp, err := r.client.Do(copyOfRequest)
 		if err != nil {
-			log.Warn("tee: error while tee request", err)
+			fc.Logger().Warnf("tee: error while tee request %v", err)
 			return
 		}
 

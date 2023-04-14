@@ -61,6 +61,11 @@ import (
 	"github.com/zalando/skipper/tracing/tracers/instana"
 	"github.com/zalando/skipper/tracing/tracers/jaeger"
 	"github.com/zalando/skipper/tracing/tracers/lightstep"
+
+	originstana "github.com/instana/go-sensor"
+	origlightstep "github.com/lightstep/lightstep-tracer-go"
+	origbasic "github.com/opentracing/basictracer-go"
+	origjaeger "github.com/uber/jaeger-client-go"
 )
 
 // InitTracer initializes an opentracing tracer. The first option item is the
@@ -145,4 +150,30 @@ func LogKV(k, v string, ctx context.Context) {
 	if span := ot.SpanFromContext(ctx); span != nil {
 		span.LogKV(k, v)
 	}
+}
+
+// GetTraceID retrieves TraceID from HTTP request, for example to search for this trace
+// in the UI of your tracing solution and to get more context about it
+func GetTraceID(span ot.Span) string {
+	if span == nil {
+		return ""
+	}
+
+	spanContext := span.Context()
+	if spanContext == nil {
+		return ""
+	}
+
+	switch spanContextType := spanContext.(type) {
+	case origbasic.SpanContext:
+		return fmt.Sprintf("%x", spanContextType.TraceID)
+	case originstana.SpanContext:
+		return fmt.Sprintf("%x", spanContextType.TraceID)
+	case origjaeger.SpanContext:
+		return spanContextType.TraceID().String()
+	case origlightstep.SpanContext:
+		return fmt.Sprintf("%x", spanContextType.TraceID)
+	}
+
+	return ""
 }

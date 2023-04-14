@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -357,7 +356,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 			if err == errInvalidToken {
 				reason = invalidToken
 			} else {
-				log.Errorf("Error while calling tokeninfo: %v.", err)
+				ctx.Logger().Errorf("Error while calling tokeninfo: %v", err)
 			}
 
 			unauthorized(ctx, "", reason, "", "")
@@ -380,7 +379,7 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 	case checkOAuthTokeninfoAllKV:
 		allowed = f.validateAllKV(authMap)
 	default:
-		log.Errorf("Wrong tokeninfoFilter type: %s.", f)
+		ctx.Logger().Errorf("Wrong tokeninfoFilter type: %s.", f)
 	}
 
 	if !allowed {

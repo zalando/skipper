@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -433,7 +432,7 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 			if err == errInvalidToken {
 				reason = invalidToken
 			} else {
-				log.Errorf("Error while calling token introspection: %v.", err)
+				ctx.Logger().Errorf("Error while calling token introspection: %v", err)
 			}
 
 			unauthorized(ctx, "", reason, f.authClient.url.Hostname(), "")
@@ -446,7 +445,7 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 	sub, err := info.Sub()
 	if err != nil {
 		if err != errInvalidTokenintrospectionData {
-			log.Errorf("Error while reading token: %v.", err)
+			ctx.Logger().Errorf("Error while reading token: %v", err)
 		}
 
 		unauthorized(ctx, sub, invalidSub, f.authClient.url.Hostname(), "")
@@ -469,7 +468,7 @@ func (f *tokenintrospectFilter) Request(ctx filters.FilterContext) {
 	case checkOAuthTokenintrospectionAllKV, checkSecureOAuthTokenintrospectionAllKV:
 		allowed = f.validateAllKV(info)
 	default:
-		log.Errorf("Wrong tokenintrospectionFilter type: %s.", f)
+		ctx.Logger().Errorf("Wrong tokenintrospectionFilter type: %s", f)
 	}
 
 	if !allowed {

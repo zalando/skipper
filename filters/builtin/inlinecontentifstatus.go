@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper/filters"
 )
 
@@ -81,7 +79,7 @@ func (c *inlineContentIfStatus) Response(ctx filters.FilterContext) {
 
 	err := rsp.Body.Close()
 	if err != nil {
-		log.Error(err)
+		ctx.Logger().Errorf("%v", err)
 	}
 
 	contentLength := len(c.text)

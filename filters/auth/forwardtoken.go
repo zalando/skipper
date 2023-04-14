@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/net/http/httpguts"
 )
@@ -82,13 +81,13 @@ func (f *forwardTokenFilter) Request(ctx filters.FilterContext) {
 		case tokenIntrospectionInfo:
 			tiMap = retainKeys(typedTiMap, f.RetainJsonKeys)
 		default:
-			log.Errorf("Unexpected input type[%T] for `forwardToken` filter. Unable to apply mask", typedTiMap)
+			ctx.Logger().Errorf("Unexpected input type[%T] for `forwardToken` filter. Unable to apply mask", typedTiMap)
 		}
 	}
 
 	payload, err := json.Marshal(tiMap)
 	if err != nil {
-		log.Errorf("Error while marshaling token: %v.", err)
+		ctx.Logger().Errorf("Error while marshaling token: %v.", err)
 		return
 	}
 	request := ctx.Request()
