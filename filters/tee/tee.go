@@ -10,6 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/net"
 )
 
 const (
@@ -46,7 +47,7 @@ const (
 )
 
 type tee struct {
-	client            *http.Client
+	client            *net.Client
 	typ               teeType
 	host              string
 	scheme            string
@@ -171,6 +172,11 @@ func (r *tee) Request(fc filters.FilterContext) {
 	}()
 }
 
+func (r *tee) Close() error {
+	r.client.Close()
+	return nil
+}
+
 // copies requests changes URL and Host in request.
 // If 2nd and 3rd params are given path is also modified by applying regexp
 // Returns the cloned request and the tee body to be used on the main request.
@@ -218,15 +224,12 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 // If only one parameter is given shadow backend is used as it is specified
 // If second and third parameters are also set, then path is modified
 func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
-	client := &http.Client{Timeout: spec.options.Timeout}
-
+	var checkRedirect func(req *http.Request, via []*http.Request) error
 	if spec.options.NoFollow {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		checkRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 	}
-
-	tee := tee{client: client}
 
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -236,11 +239,24 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	if u, err := url.Parse(backend); err == nil {
-		tee.host = u.Host
-		tee.scheme = u.Scheme
-	} else {
+	u, err := url.Parse(backend)
+	if err != nil {
 		return nil, err
+	}
+
+	client := net.NewClient(net.Options{
+		Timeout:               spec.options.Timeout,
+		ResponseHeaderTimeout: spec.options.Timeout,
+		CheckRedirect:         checkRedirect,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   50,
+		IdleConnTimeout:       30 * time.Second,
+	})
+
+	tee := tee{
+		client: client,
+		host:   u.Host,
+		scheme: u.Scheme,
 	}
 
 	if len(config) == 1 {
@@ -252,17 +268,20 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 	if len(config) == 3 {
 		expr, ok := config[1].(string)
 		if !ok {
+			client.Close()
 			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
 		}
 
 		replacement, ok := config[2].(string)
 		if !ok {
+			client.Close()
 			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
 		}
 
 		rx, err := regexp.Compile(expr)
 
 		if err != nil {
+			client.Close()
 			return nil, err
 		}
 		tee.typ = pathModified
@@ -272,6 +291,7 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return &tee, nil
 	}
 
+	client.Close()
 	return nil, filters.ErrInvalidFilterParameters
 }
 
