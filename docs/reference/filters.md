@@ -25,6 +25,7 @@ Template placeholder is replaced by the value that is looked up in the following
 * request method (`${request.method}`)
 * request host (`${request.host}`)
 * request url path (`${request.path}`)
+* request url rawquery (`${request.rawQuery}`, encoded request URL query without `?`, e.g. `q=foo&r=bar`)
 * request url query (if starts with `request.query.` prefix, e.g `${request.query.q}` is replaced by `q` query parameter value)
 * request headers (if starts with `request.header.` prefix, e.g `${request.header.Content-Type}` is replaced by `Content-Type` request header value)
 * request cookies (if starts with `request.cookie.` prefix, e.g `${request.cookie.PHPSESSID}` is replaced by `PHPSESSID` request cookie value)
