@@ -460,18 +460,18 @@ func getStatusCodeArg(args []interface{}, index int) (int, error) {
 func (f *filter) Request(ctx filters.FilterContext) {
 	rateLimiter := f.provider.get(f.settings)
 	if rateLimiter == nil {
-		log.Errorf("RateLimiter is nil for settings: %s", f.settings)
+		ctx.Logger().Errorf("RateLimiter is nil for settings: %s", f.settings)
 		return
 	}
 
 	if f.settings.Lookuper == nil {
-		log.Errorf("Lookuper is nil for settings: %s", f.settings)
+		ctx.Logger().Errorf("Lookuper is nil for settings: %s", f.settings)
 		return
 	}
 
 	s := f.settings.Lookuper.Lookup(ctx.Request())
 	if s == "" {
-		log.Debugf("Lookuper found no data in request for settings: %s and request: %v", f.settings, ctx.Request())
+		ctx.Logger().Debugf("Lookuper found no data in request for settings: %s and request: %v", f.settings, ctx.Request())
 		return
 	}
 

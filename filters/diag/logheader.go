@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 )
 
@@ -83,7 +82,7 @@ func (lh logHeader) Response(ctx filters.FilterContext) {
 	}
 	buf.WriteString("\r\n")
 
-	log.Println("Response for", buf.String())
+	ctx.Logger().Infof("Response for %s", buf.String())
 }
 
 func (lh logHeader) Request(ctx filters.FilterContext) {
@@ -116,5 +115,5 @@ func (lh logHeader) Request(ctx filters.FilterContext) {
 	}
 	buf.WriteString("\r\n")
 
-	log.Println(buf.String())
+	ctx.Logger().Infof("%s", buf.String())
 }

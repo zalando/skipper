@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	logfilter "github.com/zalando/skipper/filters/log"
 )
@@ -107,12 +106,12 @@ func reject(
 	debuginfo string,
 ) {
 	if debuginfo == "" {
-		log.Debugf(
+		ctx.Logger().Debugf(
 			"Rejected: status: %d, username: %s, reason: %s.",
 			status, username, reason,
 		)
 	} else {
-		log.Debugf(
+		ctx.Logger().Debugf(
 			"Rejected: status: %d, username: %s, reason: %s, info: %s.",
 			status, username, reason, debuginfo,
 		)

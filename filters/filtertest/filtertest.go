@@ -9,6 +9,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Noop filter, used to verify the filter name and the args in the route.
@@ -58,6 +60,10 @@ func (fc *Context) Tracer() opentracing.Tracer {
 }
 func (fc *Context) ParentSpan() opentracing.Span {
 	return opentracing.StartSpan("test_span")
+}
+
+func (fc *Context) Logger() filters.FilterContextLogger {
+	return log.StandardLogger()
 }
 
 func (fc *Context) Serve(resp *http.Response) {

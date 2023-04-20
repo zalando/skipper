@@ -4,14 +4,14 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"fmt"
-	"github.com/andybalholm/brotli"
 	"io"
 	"net/http"
 	"runtime"
 	"strings"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/andybalholm/brotli"
+
 	"github.com/zalando/skipper/filters"
 )
 
@@ -235,7 +235,7 @@ func (d decompress) Response(ctx filters.FilterContext) {
 		sb[DecompressionNotPossible] = true
 		sb[DecompressionError] = err
 
-		log.Errorf("Error while initializing decompression: %v", err)
+		ctx.Logger().Errorf("Error while initializing decompression: %v", err)
 		return
 	}
 

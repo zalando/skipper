@@ -13,8 +13,6 @@ import (
 	"regexp"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/jwt"
 )
@@ -172,7 +170,7 @@ func (al *auditLog) Response(ctx filters.FilterContext) {
 	enc := json.NewEncoder(al.writer)
 	err := enc.Encode(&doc)
 	if err != nil {
-		log.Errorf("Failed to json encode auditDoc: %v", err)
+		ctx.Logger().Errorf("Failed to json encode auditDoc: %v", err)
 	}
 }
 

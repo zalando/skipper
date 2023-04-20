@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/oauth2"
 )
@@ -65,7 +64,7 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 
 	authConfig, err := config.GetConfig(req)
 	if err != nil {
-		log.Debugf("Failed to obtain auth config: %v", err)
+		ctx.Logger().Debugf("Failed to obtain auth config: %v", err)
 		ctx.Serve(&http.Response{
 			StatusCode: http.StatusForbidden,
 		})
@@ -80,7 +79,7 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 
 	state, err := config.flowState.createState(original)
 	if err != nil {
-		log.Errorf("Failed to create login redirect: %v", err)
+		ctx.Logger().Errorf("Failed to create login redirect: %v", err)
 		serverError(ctx)
 		return
 	}
@@ -198,7 +197,7 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 	tokeninfo, err := f.config.TokeninfoClient.getTokeninfo(token.AccessToken, ctx)
 	if err != nil {
 		if err != errInvalidToken {
-			log.Errorf("Failed to call tokeninfo: %v.", err)
+			ctx.Logger().Errorf("Failed to call tokeninfo: %v.", err)
 		}
 		loginRedirect(ctx, f.config)
 		return
@@ -206,7 +205,7 @@ func (f *grantFilter) Request(ctx filters.FilterContext) {
 
 	err = f.setupToken(token, tokeninfo, ctx)
 	if err != nil {
-		log.Errorf("Failed to create token container: %v.", err)
+		ctx.Logger().Errorf("Failed to create token container: %v.", err)
 		loginRedirect(ctx, f.config)
 		return
 	}
@@ -224,7 +223,7 @@ func (f *grantFilter) Response(ctx filters.FilterContext) {
 
 	c, err := createCookie(f.config, ctx.Request().Host, token)
 	if err != nil {
-		log.Errorf("Failed to generate cookie: %v.", err)
+		ctx.Logger().Errorf("Failed to generate cookie: %v.", err)
 		return
 	}
 

@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/url"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/oauth2"
 )
@@ -86,14 +85,14 @@ func (f *grantCallbackFilter) Request(ctx filters.FilterContext) {
 
 	token, err := f.exchangeAccessToken(req, code)
 	if err != nil {
-		log.Errorf("Failed to exchange access token: %v.", err)
+		ctx.Logger().Errorf("Failed to exchange access token: %v.", err)
 		serverError(ctx)
 		return
 	}
 
 	c, err := createCookie(f.config, req.Host, token)
 	if err != nil {
-		log.Errorf("Failed to create OAuth grant cookie: %v.", err)
+		ctx.Logger().Errorf("Failed to create OAuth grant cookie: %v.", err)
 		serverError(ctx)
 		return
 	}

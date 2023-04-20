@@ -7,7 +7,6 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/scheduler"
 )
@@ -102,7 +101,7 @@ func (f *fifoFilter) Request(ctx filters.FilterContext) {
 			ext.Error.Set(span, true)
 			span.LogKV("fifo error", fmt.Sprintf("Failed to wait for fifo queue: %v", err))
 		}
-		log.Debugf("Failed to wait for fifo queue: %v", err)
+		ctx.Logger().Debugf("Failed to wait for fifo queue: %v", err)
 
 		switch err {
 		case scheduler.ErrQueueFull:
@@ -122,7 +121,7 @@ func (f *fifoFilter) Request(ctx filters.FilterContext) {
 			return
 
 		default:
-			log.Errorf("Unknown error in fifo() please create an issue https://github.com/zalando/skipper/issues/new/choose: %v", err)
+			ctx.Logger().Errorf("Unknown error in fifo() please create an issue https://github.com/zalando/skipper/issues/new/choose: %v", err)
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Status:     "Unknown error in fifo https://opensource.zalando.com/skipper/operation/operation/#scheduler, please create an issue https://github.com/zalando/skipper/issues/new/choose",

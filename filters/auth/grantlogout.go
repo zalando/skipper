@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"golang.org/x/oauth2"
 )
@@ -157,14 +156,14 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 	if c.AccessToken != "" {
 		accessTokenRevokeError = f.revokeTokenType(authConfig, accessTokenType, c.AccessToken)
 		if accessTokenRevokeError != nil {
-			log.Error(accessTokenRevokeError)
+			ctx.Logger().Errorf("%v", accessTokenRevokeError)
 		}
 	}
 
 	if c.RefreshToken != "" {
 		refreshTokenRevokeError = f.revokeTokenType(authConfig, refreshTokenType, c.RefreshToken)
 		if refreshTokenRevokeError != nil {
-			log.Error(refreshTokenRevokeError)
+			ctx.Logger().Errorf("%v", refreshTokenRevokeError)
 		}
 	}
 

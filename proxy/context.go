@@ -13,6 +13,9 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const unknownHost = "_unknownhost_"
@@ -205,6 +208,15 @@ func (c *context) SetOutgoingHost(h string)            { c.outgoingHost = h }
 func (c *context) Metrics() filters.Metrics            { return c.metrics }
 func (c *context) Tracer() opentracing.Tracer          { return c.tracer }
 func (c *context) ParentSpan() opentracing.Span        { return c.parentSpan }
+
+func (c *context) Logger() filters.FilterContextLogger {
+	traceId := tracing.GetTraceID(opentracing.SpanFromContext(c.request.Context()))
+	if traceId == "" {
+		return log.StandardLogger()
+	} else {
+		return log.WithFields(log.Fields{"trace_id": traceId})
+	}
+}
 
 func (c *context) Serve(r *http.Response) {
 	r.Request = c.Request()

@@ -117,6 +117,16 @@ type FilterContext interface {
 
 	// Performs a new route lookup and executes the matched route if any
 	Loopback()
+
+	Logger() FilterContextLogger
+}
+
+// FilterContextLogger is the logger which logs messages with additional context information.
+type FilterContextLogger interface {
+	Debugf(format string, args ...interface{})
+	Infof(format string, args ...interface{})
+	Warnf(format string, args ...interface{})
+	Errorf(format string, args ...interface{})
 }
 
 // Metrics provides possibility to use custom metrics from filter implementations. The custom metrics will

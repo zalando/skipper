@@ -1,7 +1,6 @@
 package tee
 
 import (
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	teepredicate "github.com/zalando/skipper/predicates/tee"
 )
@@ -40,7 +39,7 @@ func NewTeeLoopback() filters.Spec {
 func (f *teeLoopbackFilter) Request(ctx filters.FilterContext) {
 	cc, err := ctx.Split()
 	if err != nil {
-		log.Errorf("teeloopback: failed to split the context request: %v", err)
+		ctx.Logger().Errorf("teeloopback: failed to split the context request: %v", err)
 		return
 	}
 	cc.Request().Header.Set(teepredicate.HeaderKey, f.teeKey)

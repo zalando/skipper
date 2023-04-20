@@ -7,7 +7,6 @@ import (
 	"github.com/aryszka/jobqueue"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/scheduler"
 )
@@ -303,7 +302,7 @@ func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
 
 func request(q *scheduler.Queue, key string, ctx filters.FilterContext) {
 	if q == nil {
-		log.Warningf("Unexpected scheduler.Queue is nil for key %s", key)
+		ctx.Logger().Warnf("Unexpected scheduler.Queue is nil for key %s", key)
 		return
 	}
 
@@ -314,19 +313,19 @@ func request(q *scheduler.Queue, key string, ctx filters.FilterContext) {
 		}
 		switch err {
 		case jobqueue.ErrStackFull:
-			log.Debugf("Failed to get an entry on to the queue to process QueueFull: %v for host %s", err, ctx.Request().Host)
+			ctx.Logger().Debugf("Failed to get an entry on to the queue to process QueueFull: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusServiceUnavailable,
 				Status:     "Queue Full - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
 			})
 		case jobqueue.ErrTimeout:
-			log.Debugf("Failed to get an entry on to the queue to process Timeout: %v for host %s", err, ctx.Request().Host)
+			ctx.Logger().Debugf("Failed to get an entry on to the queue to process Timeout: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{
 				StatusCode: http.StatusBadGateway,
 				Status:     "Queue timeout - https://opensource.zalando.com/skipper/operation/operation/#scheduler",
 			})
 		default:
-			log.Errorf("Unknown error for route based LIFO: %v for host %s", err, ctx.Request().Host)
+			ctx.Logger().Errorf("Unknown error for route based LIFO: %v for host %s", err, ctx.Request().Host)
 			ctx.Serve(&http.Response{StatusCode: http.StatusInternalServerError})
 		}
 		return

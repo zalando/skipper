@@ -134,7 +134,7 @@ func (f *jwtValidationFilter) Request(ctx filters.FilterContext) {
 
 		claims, err := parseToken(token, f.jwksUri)
 		if err != nil {
-			log.Errorf("Error while parsing jwt token : %v.", err)
+			ctx.Logger().Errorf("Error while parsing jwt token : %v.", err)
 			unauthorized(ctx, "", invalidToken, "", "")
 			return
 		}

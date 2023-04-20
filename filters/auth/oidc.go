@@ -390,7 +390,7 @@ func (f *tokenOidcFilter) internalServerError(ctx filters.FilterContext) {
 func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*http.Cookie) {
 	nonce, err := f.encrypter.CreateNonce()
 	if err != nil {
-		log.Errorf("Failed to create nonce: %v.", err)
+		ctx.Logger().Errorf("Failed to create nonce: %v.", err)
 		f.internalServerError(ctx)
 		return
 	}
@@ -398,13 +398,13 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*
 	redirectUrl := ctx.Request().URL.String()
 	statePlain, err := createState(nonce, redirectUrl)
 	if err != nil {
-		log.Errorf("Failed to create oauth2 state: %v.", err)
+		ctx.Logger().Errorf("Failed to create oauth2 state: %v.", err)
 		f.internalServerError(ctx)
 		return
 	}
 	stateEnc, err := f.encrypter.Encrypt(statePlain)
 	if err != nil {
-		log.Errorf("Failed to encrypt data block: %v.", err)
+		ctx.Logger().Errorf("Failed to encrypt data block: %v.", err)
 		f.internalServerError(ctx)
 		return
 	}
@@ -431,7 +431,7 @@ func (f *tokenOidcFilter) doOauthRedirect(ctx filters.FilterContext, cookies []*
 	for _, cookie := range cookies {
 		rsp.Header.Add("Set-Cookie", cookie.String())
 	}
-	log.Debugf("serve redirect: plaintextState:%s to Location: %s", statePlain, rsp.Header.Get("Location"))
+	ctx.Logger().Debugf("serve redirect: plaintextState:%s to Location: %s", statePlain, rsp.Header.Get("Location"))
 	ctx.Serve(rsp)
 }
 
@@ -520,7 +520,7 @@ func mergerCookies(cookies []*http.Cookie) *http.Cookie {
 }
 
 func (f *tokenOidcFilter) doDownstreamRedirect(ctx filters.FilterContext, oidcState []byte, maxAge time.Duration, redirectUrl string) {
-	log.Debugf("Doing Downstream Redirect to :%s", redirectUrl)
+	ctx.Logger().Debugf("Doing Downstream Redirect to :%s", redirectUrl)
 	r := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: http.Header{
@@ -582,7 +582,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 	oauthState, err := f.getCallbackState(ctx)
 	if err != nil {
 		if _, ok := err.(*requestError); !ok {
-			log.Errorf("Error while retrieving callback state: %v.", err)
+			ctx.Logger().Errorf("Error while retrieving callback state: %v.", err)
 		}
 
 		unauthorized(
@@ -599,7 +599,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 	oauth2Token, err = f.getTokenWithExchange(oauthState, ctx)
 	if err != nil {
 		if _, ok := err.(*requestError); !ok {
-			log.Errorf("Error while getting token in callback: %v.", err)
+			ctx.Logger().Errorf("Error while getting token in callback: %v.", err)
 		}
 
 		unauthorized(
@@ -634,7 +634,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
-				log.Errorf("Error while getting id token: %v", err)
+				ctx.Logger().Errorf("Error while getting id token: %v", err)
 			}
 
 			unauthorized(
@@ -663,7 +663,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
-				log.Errorf("Error while getting id token: %v", err)
+				ctx.Logger().Errorf("Error while getting id token: %v", err)
 			}
 
 			unauthorized(
@@ -679,7 +679,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 		claimsMap, sub, err = f.tokenClaims(ctx, oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
-				log.Errorf("Failed to get claims with error: %v", err)
+				ctx.Logger().Errorf("Failed to get claims with error: %v", err)
 			}
 
 			unauthorized(
@@ -825,7 +825,7 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	// adding upstream headers
 	err = setHeaders(f.upstreamHeaders, ctx, container)
 	if err != nil {
-		log.Error(err)
+		ctx.Logger().Errorf("%v", err)
 		f.internalServerError(ctx)
 		return
 	}
@@ -916,7 +916,7 @@ func (f *tokenOidcFilter) getCallbackState(ctx filters.FilterContext) (*OauthSta
 		return nil, requestErrorf("token from state query is invalid: %v", err)
 	}
 
-	log.Debugf("len(stateQueryPlain): %d, stateQueryEnc: %d, stateQueryEncHex: %d", len(stateQueryPlain), len(stateQueryEnc), len(stateQueryEncHex))
+	ctx.Logger().Debugf("len(stateQueryPlain): %d, stateQueryEnc: %d, stateQueryEncHex: %d", len(stateQueryPlain), len(stateQueryEnc), len(stateQueryEncHex))
 
 	state, err := extractState(stateQueryPlain)
 	if err != nil {

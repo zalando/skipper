@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpguts"
 
 	"github.com/zalando/skipper/filters"
@@ -113,7 +112,7 @@ func copyHeader(to, from http.Header) {
 func (f *webhookFilter) Request(ctx filters.FilterContext) {
 	resp, err := f.authClient.getWebhook(ctx)
 	if err != nil {
-		log.Errorf("Failed to make authentication webhook request: %v.", err)
+		ctx.Logger().Errorf("Failed to make authentication webhook request: %v.", err)
 	}
 
 	// forbidden
