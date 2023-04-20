@@ -49,6 +49,7 @@ type context struct {
 	proxy                *Proxy
 	routeLookup          *routing.RouteLookup
 	cancelBackendContext stdlibcontext.CancelFunc
+	logger               filters.FilterContextLogger
 }
 
 type filterMetrics struct {
@@ -210,12 +211,15 @@ func (c *context) Tracer() opentracing.Tracer          { return c.tracer }
 func (c *context) ParentSpan() opentracing.Span        { return c.parentSpan }
 
 func (c *context) Logger() filters.FilterContextLogger {
-	traceId := tracing.GetTraceID(opentracing.SpanFromContext(c.request.Context()))
-	if traceId == "" {
-		return log.StandardLogger()
-	} else {
-		return log.WithFields(log.Fields{"trace_id": traceId})
+	if c.logger == nil {
+		traceId := tracing.GetTraceID(c.initialSpan)
+		if traceId != "" {
+			c.logger = log.WithFields(log.Fields{"trace_id": traceId})
+		} else {
+			c.logger = log.StandardLogger()
+		}
 	}
+	return c.logger
 }
 
 func (c *context) Serve(r *http.Response) {
