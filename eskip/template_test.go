@@ -254,6 +254,26 @@ func TestTemplateApplyContext(t *testing.T) {
 		false, // path is empty
 
 	}, {
+		"request rawquery",
+		"hello ${request.rawQuery}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				URL: parseUrl("http://example.com/path?q-Q=foo&P_p=bar&r=baz%20qux&s"),
+			},
+		},
+		"hello q-Q=foo&P_p=bar&r=baz%20qux&s",
+		true,
+	}, {
+		"request rawquery is empty",
+		"hello ${request.rawQuery}",
+		&filtertest.Context{
+			FRequest: &http.Request{
+				URL: parseUrl("http://example.com/path"),
+			},
+		},
+		"hello ",
+		false,
+	}, {
 		"all in one",
 		"Hello ${name} ${request.header.name} ${request.query.name} ${request.cookie.name} ${response.header.name}",
 		&filtertest.Context{

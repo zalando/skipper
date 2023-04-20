@@ -80,6 +80,8 @@ func (t *Template) ApplyContext(ctx TemplateContext) (string, bool) {
 			return ctx.Request().Host
 		case "request.path":
 			return ctx.Request().URL.Path
+		case "request.rawQuery":
+			return ctx.Request().URL.RawQuery
 		case "request.source":
 			return snet.RemoteHost(ctx.Request()).String()
 		case "request.sourceFromLast":
