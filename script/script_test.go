@@ -10,37 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 )
-
-type luaContext struct {
-	request      *http.Request
-	response     *http.Response
-	pathParams   map[string]string
-	bag          map[string]interface{}
-	outgoingHost string
-}
-
-func (l *luaContext) ResponseWriter() http.ResponseWriter   { return nil }
-func (l *luaContext) Request() *http.Request                { return l.request }
-func (l *luaContext) Response() *http.Response              { return l.response }
-func (l *luaContext) OriginalRequest() *http.Request        { return nil }
-func (l *luaContext) OriginalResponse() *http.Response      { return nil }
-func (l *luaContext) Served() bool                          { return false }
-func (l *luaContext) MarkServed()                           {}
-func (l *luaContext) Serve(_ *http.Response)                {}
-func (l *luaContext) PathParam(n string) string             { return l.pathParams[n] }
-func (l *luaContext) StateBag() map[string]interface{}      { return l.bag }
-func (l *luaContext) BackendUrl() string                    { return "" }
-func (l *luaContext) OutgoingHost() string                  { return l.outgoingHost }
-func (l *luaContext) SetOutgoingHost(h string)              { l.outgoingHost = h }
-func (l *luaContext) Metrics() filters.Metrics              { return nil }
-func (l *luaContext) Tracer() opentracing.Tracer            { return nil }
-func (l *luaContext) ParentSpan() opentracing.Span          { return nil }
-func (l *luaContext) Split() (filters.FilterContext, error) { return nil, nil }
-func (l *luaContext) Loopback()                             {}
 
 type testContext struct {
 	script         string
@@ -875,7 +848,7 @@ func newFilter(opts LuaOptions, script string, params ...string) (filters.Filter
 	return ls.CreateFilter(args)
 }
 
-func runFilter(opts LuaOptions, test *testContext) (*luaContext, error) {
+func runFilter(opts LuaOptions, test *testContext) (filters.FilterContext, error) {
 	scr, err := newFilter(opts, test.script, test.params...)
 	if err != nil {
 		return nil, err
@@ -888,16 +861,16 @@ func runFilter(opts LuaOptions, test *testContext) (*luaContext, error) {
 	for k, v := range test.requestHeader {
 		req.Header.Add(k, v)
 	}
-	fc := &luaContext{
-		pathParams:   test.pathParams,
-		bag:          make(map[string]interface{}),
-		request:      req,
-		outgoingHost: "www.example.com",
+	fc := &filtertest.Context{
+		FParams:       test.pathParams,
+		FStateBag:     make(map[string]interface{}),
+		FRequest:      req,
+		FOutgoingHost: "www.example.com",
 	}
 	scr.Request(fc)
 
 	body := "Hello world"
-	fc.response = &http.Response{
+	fc.FResponse = &http.Response{
 		Status:        "200 OK",
 		StatusCode:    200,
 		Proto:         "HTTP/1.1",
@@ -989,7 +962,7 @@ func benchmarkRequest(b *testing.B, script string, params ...string) {
 
 	r, _ := http.NewRequest("GET", "http://example.com/test", nil)
 	r.Header.Add("X-Foo", "Bar")
-	fc := &luaContext{request: r}
+	fc := &filtertest.Context{FRequest: r}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
