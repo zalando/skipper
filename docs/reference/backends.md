@@ -21,7 +21,7 @@ r0: Method("GET")
 ```
 
 Proxy example with request in access log
-```
+```sh
 ./bin/skipper -inline-routes 'r0: Method("GET") -> setRequestHeader("X-Passed-Skipper", "true") -> "https://www.zalando.de/";'
 [APP]INFO[0000] Expose metrics in codahale format
 [APP]INFO[0000] support listener on :9911
@@ -35,7 +35,7 @@ Proxy example with request in access log
 ```
 
 Client example with request and response headers:
-```
+```sh
 $ curl -v localhost:9090 >/dev/null
 * Rebuilt URL to: localhost:9090/
 *   Trying ::1...
@@ -80,7 +80,7 @@ rest: *
 ```
 
 Proxy configured as defined above with access log showing 404:
-```
+```sh
 $ ./bin/skipper -inline-routes 'r0: Host("zalando") -> "https://www.zalando.de/"; rest: * -> status(404) -> inlineContent("no matching route")  -> "http://localhost:9999/";'
 [APP]INFO[0000] Expose metrics in codahale format
 [APP]INFO[0000] support listener on :9911
@@ -95,7 +95,7 @@ $ ./bin/skipper -inline-routes 'r0: Host("zalando") -> "https://www.zalando.de/"
 ```
 
 Client example with request and response headers:
-```
+```sh
 $ curl -sv localhost:9090
 * Rebuilt URL to: localhost:9090/
 *   Trying ::1...
@@ -135,7 +135,7 @@ r1: * -> "https://www.zalando.de/";
 ```
 
 Proxy configured as defined above with access logs showing 404 for the first call and 200 for the second:
-```
+```sh
 $ ./bin/skipper -inline-routes 'r0: PathSubtree("/api") -> setRequestHeader("X-Passed-Skipper", "true") -> modPath(/^\/api/, "") -> <loopback>;
 r1: * -> "https://www.zalando.de/";'
 [APP]INFO[0000] Expose metrics in codahale format
@@ -151,7 +151,7 @@ r1: * -> "https://www.zalando.de/";'
 ```
 
 Client example with request and response headers:
-```
+```sh
 $ curl -sv localhost:9090/api/foo >/dev/null
 *   Trying ::1...
 * Connected to localhost (::1) port 9090 (#0)
@@ -206,7 +206,7 @@ r0: * -> setDynamicBackendUrl("https://www.zalando.de") -> <dynamic>;
 ```
 
 Proxy configured as defined above with access logs showing 200 for the  call:
-```
+```sh
 $ ./bin/skipper -inline-routes 'r0: * -> setDynamicBackendUrl("https://www.zalando.de") -> <dynamic>;'
 [APP]INFO[0000] Expose metrics in codahale format
 [APP]INFO[0000] support listener on :9911
@@ -282,7 +282,7 @@ r0: * -> <powerOfRandomNChoices, "http://127.0.0.1:9998", "http://127.0.0.1:9997
 ```
 
 Proxy with `roundRobin` loadbalancer and two backends:
-```
+```sh
 $ ./bin/skipper -inline-routes 'r0: *  -> <roundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">;'
 [APP]INFO[0000] Expose metrics in codahale format
 [APP]INFO[0000] route settings, reset, route: r0: * -> <roundRobin, "http://127.0.0.1:9998", "http://127.0.0.1:9997">
@@ -298,7 +298,7 @@ $ ./bin/skipper -inline-routes 'r0: *  -> <roundRobin, "http://127.0.0.1:9998", 
 ```
 
 Backend1 returns "A" in the body:
-```
+```sh
 $ ./bin/skipper -address=":9998" -inline-routes 'r0: * -> inlineContent("A") -> <shunt>;'
 [APP]INFO[0000] Expose metrics in codahale format
 [APP]INFO[0000] support listener on :9911
@@ -312,7 +312,7 @@ $ ./bin/skipper -address=":9998" -inline-routes 'r0: * -> inlineContent("A") -> 
 ```
 
 Backend2 returns "B" in the body:
-```
+```sh
 $ ./bin/skipper -address=":9997" -inline-routes 'r0: * -> inlineContent("B") -> <shunt>;'
 [APP]INFO[0000] Expose metrics in codahale format
 [APP]INFO[0000] support listener on :9911
@@ -326,7 +326,7 @@ $ ./bin/skipper -address=":9997" -inline-routes 'r0: * -> inlineContent("B") -> 
 ```
 
 Client:
-```
+```sh
 $ curl -s http://localhost:9090/
 A
 $ curl -s http://localhost:9090/

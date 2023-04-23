@@ -18,7 +18,7 @@ docker container as `skipper`.
 
 ### Synopsis
 
-```
+```sh
 % docker run registry.opensource.zalan.do/teapot/skipper:latest webhook --help
 usage: webhook [<flags>]
 

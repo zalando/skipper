@@ -18,7 +18,7 @@ list happens only in the Kubernetes Ingress mode of Skipper.
 
 For compatibility reasons, the validation needs to be enabled with an explitic toggle:
 
-```
+```sh
 skipper -kubernetes \
 -kubernetes-only-allowed-external-names \
 -kubernetes-allowed-external-name "^one[.]example[.]org$" \
@@ -29,7 +29,7 @@ skipper -kubernetes \
 
 For compatibility reasons, the validation needs to be enabled with an explitic toggle:
 
-```
+```yaml
 kubernetes-only-allowed-external-names: true
 kubernetes-allowed-external-names:
 - ^one[.]example[.]org$
