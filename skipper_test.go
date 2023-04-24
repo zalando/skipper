@@ -99,7 +99,7 @@ func TestOptionsFilterRegistry(t *testing.T) {
 	o := &Options{
 		CustomFilters: []filters.Spec{auth.NewBearerInjector(nil)},
 	}
-	fr := o.filterRegistry()
+	fr := o.filterRegistry(nil)
 
 	assert.Contains(t, fr, filters.SetRequestHeaderName)
 	assert.Contains(t, fr, filters.LuaName)
@@ -109,7 +109,7 @@ func TestOptionsFilterRegistry(t *testing.T) {
 		CustomFilters:   []filters.Spec{auth.NewBearerInjector(nil)},
 		DisabledFilters: []string{filters.LuaName, filters.BearerInjectorName},
 	}
-	fr = o.filterRegistry()
+	fr = o.filterRegistry(nil)
 
 	assert.Contains(t, fr, filters.SetRequestHeaderName)
 	assert.NotContains(t, fr, filters.LuaName)

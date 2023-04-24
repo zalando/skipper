@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	testTeeSpec        = NewTee()
+	testTeeSpec        = NewTee(nil)
 	teeArgsAsBackend   = []interface{}{"https://api.example.com"}
 	teeArgsWithModPath = []interface{}{"https://api.example.com", ".*", "/v1/"}
 )
@@ -150,7 +150,7 @@ func TestTeeEndToEndBody(t *testing.T) {
 
 	route := eskip.MustParse(routeStr)
 	registry := make(filters.Registry)
-	registry.Register(NewTee())
+	registry.Register(NewTee(nil))
 	p := proxytest.New(registry, route...)
 	defer p.Close()
 
@@ -194,9 +194,9 @@ func TestTeeFollowOrNot(t *testing.T) {
 
 		var fspec filters.Spec
 		if follow {
-			fspec = NewTee()
+			fspec = NewTee(nil)
 		} else {
-			fspec = NewTeeNoFollow()
+			fspec = NewTeeNoFollow(nil)
 		}
 
 		f, err := fspec.CreateFilter([]interface{}{redirectorServer.URL})
@@ -254,7 +254,7 @@ func TestTeeHeaders(t *testing.T) {
 
 	route := eskip.MustParse(routeStr)
 	registry := make(filters.Registry)
-	registry.Register(NewTee())
+	registry.Register(NewTee(nil))
 	p := proxytest.New(registry, route...)
 	defer p.Close()
 
@@ -347,7 +347,7 @@ func TestTeeArgsForFailure(t *testing.T) {
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			f, err := NewTee().CreateFilter(ti.args)
+			f, err := NewTee(nil).CreateFilter(ti.args)
 			if f != nil {
 				f.(filters.FilterCloser).Close()
 			}
@@ -368,9 +368,9 @@ func TestName(t *testing.T) {
 		spec filters.Spec
 		name string
 	}{
-		{NewTee(), "tee"},
-		{NewTeeDeprecated(), "Tee"},
-		{NewTeeNoFollow(), "teenf"},
+		{NewTee(nil), "tee"},
+		{NewTeeDeprecated(nil), "Tee"},
+		{NewTeeNoFollow(nil), "teenf"},
 	} {
 		n := ti.spec.Name()
 		if n != ti.name {

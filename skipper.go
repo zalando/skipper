@@ -1060,7 +1060,7 @@ func initLog(o Options) error {
 
 // filterRegistry creates a filter registry with the builtin and
 // custom filter specs registered excluding disabled filters
-func (o *Options) filterRegistry() filters.Registry {
+func (o *Options) filterRegistry(tracer ot.Tracer) filters.Registry {
 	registry := make(filters.Registry)
 
 	disabledFilters := make(map[string]struct{})
@@ -1068,7 +1068,7 @@ func (o *Options) filterRegistry() filters.Registry {
 		disabledFilters[name] = struct{}{}
 	}
 
-	for _, f := range builtin.Filters() {
+	for _, f := range builtin.Filters(tracer) {
 		if _, ok := disabledFilters[f.Name()]; !ok {
 			registry.Register(f)
 		}
@@ -1798,7 +1798,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// create a routing engine
 	ro := routing.Options{
-		FilterRegistry:  o.filterRegistry(),
+		FilterRegistry:  o.filterRegistry(tracer),
 		MatchingOptions: mo,
 		PollTimeout:     o.SourcePollTimeout,
 		DataClients:     dataClients,

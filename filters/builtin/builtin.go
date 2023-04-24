@@ -4,6 +4,8 @@ Package builtin provides a small, generic set of filters.
 package builtin
 
 import (
+	ot "github.com/opentracing/opentracing-go"
+
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/accesslog"
 	"github.com/zalando/skipper/filters/auth"
@@ -112,7 +114,7 @@ const (
 	BackendTimeoutName = filters.BackendTimeoutName
 )
 
-func Filters() []filters.Spec {
+func Filters(tracer ot.Tracer) []filters.Spec {
 	return []filters.Spec{
 		NewBackendIsProxy(),
 		NewRequestHeader(),
@@ -181,9 +183,9 @@ func Filters() []filters.Spec {
 		diag.NewNormalRequestLatency(),
 		diag.NewUniformResponseLatency(),
 		diag.NewNormalResponseLatency(),
-		tee.NewTee(),
-		tee.NewTeeDeprecated(),
-		tee.NewTeeNoFollow(),
+		tee.NewTee(tracer),
+		tee.NewTeeDeprecated(tracer),
+		tee.NewTeeNoFollow(tracer),
 		tee.NewTeeLoopback(),
 		sed.New(),
 		sed.NewDelimited(),
@@ -226,7 +228,7 @@ func Filters() []filters.Spec {
 // and the flowid subdirectories.)
 func MakeRegistry() filters.Registry {
 	r := make(filters.Registry)
-	for _, s := range Filters() {
+	for _, s := range Filters(nil) {
 		r.Register(s)
 	}
 	return r
