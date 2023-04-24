@@ -6,26 +6,26 @@ Install htpasswd command line tool, we assume Debian based
 system. Please refer the documentation of your Operating System or
 package management vendor how to install `htpasswd`:
 
-```
+```sh
 apt-get install apache2-utils
 ```
 
 Create a htpasswd file `foo.passwd` and use `captain` with password `apassword`:
 
-```
+```sh
 htpasswd -bcB foo.passwd captain apassword
 ```
 
 Start skipper with a `basicAuth` filter referencing the just created
 htpasswd file:
 
-```
+```sh
 ./bin/skipper -address :8080 -inline-routes 'r: * -> basicAuth("foo.passwd") -> status(200) -> <shunt>'
 ```
 
 A client request without login credentials or wrong credentials:
 
-```
+```sh
 % curl localhost:8080/ -v
 *   Trying ::1...
 * Connected to localhost (::1) port 8080 (#0)
@@ -46,7 +46,7 @@ A client request without login credentials or wrong credentials:
 
 A client request with the correct credentials:
 
-```
+```sh
 % curl captain:apassword@localhost:8080/ -v
 *   Trying ::1...
 * Connected to localhost (::1) port 8080 (#0)
@@ -90,7 +90,7 @@ tokeninfo endpoint.
 Example route:
 
 
-```
+```sh
 all: Path("/")
      -> oauthTokeninfoAnyScope("read-X", "readwrite-X")
      -> "http://localhost:9090/"
@@ -115,7 +115,7 @@ to find the `introspection_endpoint`.
 Example route:
 
 
-```
+```sh
 all: *
         -> oauthTokenintrospectionAnyKV("https://identity.example.com/managed-id", "jdoe")
         -> "http://localhost:9090/";
@@ -162,7 +162,7 @@ Skipper's implementation of OpenID Connect Client works as follows:
     
 To use OpenID define a filter for a backend which needs to be covered by OpenID Connection authentication.
 
-```
+```sh
 oauthOidcAllClaims("https://accounts.identity-provider.com", "some-client-id",
     "some-client-secret", "http://callback.com/auth/provider/callback", "scope1 scope2",
     "claim1 claim2") -> "https://internal.example.org";
@@ -175,7 +175,7 @@ which need to be specified are the URL of the provider which in the above exampl
 while generating the client id and client secret. Then the scopes and finally the claims which should be present along
 with the return id token.
 
-```
+```sh
 oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
     "http://target.example.com/subpath/callback", "email profile", 
     "name email picture") -> "https://internal.example.org";
@@ -369,7 +369,7 @@ If the parameter is not given, it will be `/.well-known/oauth2-callback`
 You can optionally add a `grantLogout()` filter to delete token cookie.
 If `-oauth2-revoke-token-url` is set it will revoke access and refresh tokens:
 
-```
+```sh
 foo:
     Path("/foo")
     -> oauthGrant()
@@ -404,7 +404,7 @@ scope by doing the following:
 
 1. Append a `grantClaimsQuery` filter to the `oauthGrant` filter with the following
    query:
-    ```
+    ```sh
     -> oauthGrant() -> grantClaimsQuery("/path:scope.#[==\"email\"]")
     ```
 2. Provide the name of the claim that corresponds to the OAuth2 subject in the

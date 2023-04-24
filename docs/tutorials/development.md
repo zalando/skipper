@@ -19,19 +19,19 @@ backend skippers.
 
 Start the proxy that listens on port 9999 and serves all requests with a single route, that
 proxies to two backends using the round robin algorithm:
-```
+```sh
 ./bin/skipper -inline-routes='r1: * -> <roundRobin, "http://127.0.0.1:9001", "http://127.0.0.1:9002">' --address :9999
 ```
 
 Start two backends, with similar routes, one responds with "1" and the
 other with "2" in the HTTP response body:
-```
+```sh
 ./bin/skipper -inline-routes='r1: * -> inlineContent("1") -> <shunt>' --address :9001 &
 ./bin/skipper -inline-routes='r1: * -> inlineContent("2") -> <shunt>' --address :9002
 ```
 
 Test the proxy with curl as a client:
-```
+```sh
 curl -s http://localhost:9999/foo
 1
 curl -s http://localhost:9999/foo

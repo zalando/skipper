@@ -226,23 +226,25 @@ uses a counter to collect
 
 It will expose them in /metrics, for example json structure looks like this example:
 
-    {
-      "counters": {
-        "skipper.lb-conn-active": {
-          "count": 6
-        },
-        "skipper.lb-conn-closed": {
-          "count": 6
-        },
-        "skipper.lb-conn-idle": {
-          "count": 6
-        },
-        "skipper.lb-conn-new": {
-          "count": 6
-        }
-      },
-      /* stripped a lot of metrics here */
+```json
+{
+  "counters": {
+    "skipper.lb-conn-active": {
+      "count": 6
+    },
+    "skipper.lb-conn-closed": {
+      "count": 6
+    },
+    "skipper.lb-conn-idle": {
+      "count": 6
+    },
+    "skipper.lb-conn-new": {
+      "count": 6
     }
+  },
+  /* stripped a lot of metrics here */
+}
+```
 
 ### LIFO metrics
 
@@ -256,16 +258,18 @@ filters, use the command line option:
 
 When queried, it will return metrics like:
 
-    {
-      "gauges": {
-        "skipper.lifo.routeXYZ.active": {
-          "value": 245
-        },
-        "skipper.lifo.routeXYZ.queued": {
-          "value": 27
-        }
-      }
+```json
+{
+  "gauges": {
+    "skipper.lifo.routeXYZ.active": {
+      "value": 245
+    },
+    "skipper.lifo.routeXYZ.queued": {
+      "value": 27
     }
+  }
+}
+```
 
 ### Application metrics
 
@@ -280,56 +284,58 @@ This will make sure you will get stats for each "Host" header or the
 route name as "timers". The following is an example for
 `-serve-host-metrics`:
 
-    "timers": {
-      "skipper.servehost.app1_example_com.GET.200": {
-        "15m.rate": 0.06830666203045982,
-        "1m.rate": 2.162612637718806e-06,
-        "5m.rate": 0.008312609284452856,
-        "75%": 236603815,
-        "95%": 236603815,
-        "99%": 236603815,
-        "99.9%": 236603815,
-        "count": 3,
-        "max": 236603815,
-        "mean": 116515451.66666667,
-        "mean.rate": 0.0030589345776699827,
-        "median": 91273391,
-        "min": 21669149,
-        "stddev": 89543653.71950394
-      },
-      "skipper.servehost.app1_example_com.GET.304": {
-        "15m.rate": 0.3503336738177459,
-        "1m.rate": 0.07923086447313292,
-        "5m.rate": 0.27019839341602214,
-        "75%": 99351895.25,
-        "95%": 105381847,
-        "99%": 105381847,
-        "99.9%": 105381847,
-        "count": 4,
-        "max": 105381847,
-        "mean": 47621612,
-        "mean.rate": 0.03087161486272533,
-        "median": 41676170.5,
-        "min": 1752260,
-        "stddev": 46489302.203724876
-      },
-      "skipper.servehost.app1_example_com.GET.401": {
-        "15m.rate": 0.16838468990057648,
-        "1m.rate": 0.01572861413072501,
-        "5m.rate": 0.1194724817779537,
-        "75%": 91094832,
-        "95%": 91094832,
-        "99%": 91094832,
-        "99.9%": 91094832,
-        "count": 2,
-        "max": 91094832,
-        "mean": 58090623,
-        "mean.rate": 0.012304914018033056,
-        "median": 58090623,
-        "min": 25086414,
-        "stddev": 33004209
-      }
-    },
+```json
+"timers": {
+  "skipper.servehost.app1_example_com.GET.200": {
+    "15m.rate": 0.06830666203045982,
+    "1m.rate": 2.162612637718806e-06,
+    "5m.rate": 0.008312609284452856,
+    "75%": 236603815,
+    "95%": 236603815,
+    "99%": 236603815,
+    "99.9%": 236603815,
+    "count": 3,
+    "max": 236603815,
+    "mean": 116515451.66666667,
+    "mean.rate": 0.0030589345776699827,
+    "median": 91273391,
+    "min": 21669149,
+    "stddev": 89543653.71950394
+  },
+  "skipper.servehost.app1_example_com.GET.304": {
+    "15m.rate": 0.3503336738177459,
+    "1m.rate": 0.07923086447313292,
+    "5m.rate": 0.27019839341602214,
+    "75%": 99351895.25,
+    "95%": 105381847,
+    "99%": 105381847,
+    "99.9%": 105381847,
+    "count": 4,
+    "max": 105381847,
+    "mean": 47621612,
+    "mean.rate": 0.03087161486272533,
+    "median": 41676170.5,
+    "min": 1752260,
+    "stddev": 46489302.203724876
+  },
+  "skipper.servehost.app1_example_com.GET.401": {
+    "15m.rate": 0.16838468990057648,
+    "1m.rate": 0.01572861413072501,
+    "5m.rate": 0.1194724817779537,
+    "75%": 91094832,
+    "95%": 91094832,
+    "99%": 91094832,
+    "99.9%": 91094832,
+    "count": 2,
+    "max": 91094832,
+    "mean": 58090623,
+    "mean.rate": 0.012304914018033056,
+    "median": 58090623,
+    "min": 25086414,
+    "stddev": 33004209
+  }
+},
+```
 
 Note you can reduce the dimension of the metrics by removing the HTTP
 status code and method from it. Use the `-serve-method-metric=false`
@@ -355,107 +361,108 @@ Metrics from the
 are exposed from skipper to the metrics endpoint, default listener
 :9911, on path /metrics :
 
-    "gauges": {
-      "skipper.runtime.MemStats.Alloc": {
-        "value": 3083680
-      },
-      "skipper.runtime.MemStats.BuckHashSys": {
-        "value": 1452675
-      },
-      "skipper.runtime.MemStats.DebugGC": {
-        "value": 0
-      },
-      "skipper.runtime.MemStats.EnableGC": {
-        "value": 1
-      },
-      "skipper.runtime.MemStats.Frees": {
-        "value": 121
-      },
-      "skipper.runtime.MemStats.HeapAlloc": {
-        "value": 3083680
-      },
-      "skipper.runtime.MemStats.HeapIdle": {
-        "value": 778240
-      },
-      "skipper.runtime.MemStats.HeapInuse": {
-        "value": 4988928
-      },
-      "skipper.runtime.MemStats.HeapObjects": {
-        "value": 24005
-      },
-      "skipper.runtime.MemStats.HeapReleased": {
-        "value": 0
-      },
-      "skipper.runtime.MemStats.HeapSys": {
-        "value": 5767168
-      },
-      "skipper.runtime.MemStats.LastGC": {
-        "value": 1516098381155094500
-      },
-      "skipper.runtime.MemStats.Lookups": {
-        "value": 2
-      },
-      "skipper.runtime.MemStats.MCacheInuse": {
-        "value": 6944
-      },
-      "skipper.runtime.MemStats.MCacheSys": {
-        "value": 16384
-      },
-      "skipper.runtime.MemStats.MSpanInuse": {
-        "value": 77368
-      },
-      "skipper.runtime.MemStats.MSpanSys": {
-        "value": 81920
-      },
-      "skipper.runtime.MemStats.Mallocs": {
-        "value": 1459
-      },
-      "skipper.runtime.MemStats.NextGC": {
-        "value": 4194304
-      },
-      "skipper.runtime.MemStats.NumGC": {
-        "value": 0
-      },
-      "skipper.runtime.MemStats.PauseTotalNs": {
-        "value": 683352
-      },
-      "skipper.runtime.MemStats.StackInuse": {
-        "value": 524288
-      },
-      "skipper.runtime.MemStats.StackSys": {
-        "value": 524288
-      },
-      "skipper.runtime.MemStats.Sys": {
-        "value": 9246968
-      },
-      "skipper.runtime.MemStats.TotalAlloc": {
-        "value": 35127624
-      },
-      "skipper.runtime.NumCgoCall": {
-        "value": 0
-      },
-      "skipper.runtime.NumGoroutine": {
-        "value": 11
-      },
-      "skipper.runtime.NumThread": {
-        "value": 9
-      }
-    },
-    "histograms": {
-      "skipper.runtime.MemStats.PauseNs": {
-        "75%": 82509.25,
-        "95%": 132609,
-        "99%": 132609,
-        "99.9%": 132609,
-        "count": 12,
-        "max": 132609,
-        "mean": 56946,
-        "median": 39302.5,
-        "min": 28749,
-        "stddev": 31567.015005117817
-      }
-   }
-
+```json
+"gauges": {
+  "skipper.runtime.MemStats.Alloc": {
+    "value": 3083680
+  },
+  "skipper.runtime.MemStats.BuckHashSys": {
+    "value": 1452675
+  },
+  "skipper.runtime.MemStats.DebugGC": {
+    "value": 0
+  },
+  "skipper.runtime.MemStats.EnableGC": {
+    "value": 1
+  },
+  "skipper.runtime.MemStats.Frees": {
+    "value": 121
+  },
+  "skipper.runtime.MemStats.HeapAlloc": {
+    "value": 3083680
+  },
+  "skipper.runtime.MemStats.HeapIdle": {
+    "value": 778240
+  },
+  "skipper.runtime.MemStats.HeapInuse": {
+    "value": 4988928
+  },
+  "skipper.runtime.MemStats.HeapObjects": {
+    "value": 24005
+  },
+  "skipper.runtime.MemStats.HeapReleased": {
+    "value": 0
+  },
+  "skipper.runtime.MemStats.HeapSys": {
+    "value": 5767168
+  },
+  "skipper.runtime.MemStats.LastGC": {
+    "value": 1516098381155094500
+  },
+  "skipper.runtime.MemStats.Lookups": {
+    "value": 2
+  },
+  "skipper.runtime.MemStats.MCacheInuse": {
+    "value": 6944
+  },
+  "skipper.runtime.MemStats.MCacheSys": {
+    "value": 16384
+  },
+  "skipper.runtime.MemStats.MSpanInuse": {
+    "value": 77368
+  },
+  "skipper.runtime.MemStats.MSpanSys": {
+    "value": 81920
+  },
+  "skipper.runtime.MemStats.Mallocs": {
+    "value": 1459
+  },
+  "skipper.runtime.MemStats.NextGC": {
+    "value": 4194304
+  },
+  "skipper.runtime.MemStats.NumGC": {
+    "value": 0
+  },
+  "skipper.runtime.MemStats.PauseTotalNs": {
+    "value": 683352
+  },
+  "skipper.runtime.MemStats.StackInuse": {
+    "value": 524288
+  },
+  "skipper.runtime.MemStats.StackSys": {
+    "value": 524288
+  },
+  "skipper.runtime.MemStats.Sys": {
+    "value": 9246968
+  },
+  "skipper.runtime.MemStats.TotalAlloc": {
+    "value": 35127624
+  },
+  "skipper.runtime.NumCgoCall": {
+    "value": 0
+  },
+  "skipper.runtime.NumGoroutine": {
+    "value": 11
+  },
+  "skipper.runtime.NumThread": {
+    "value": 9
+  }
+},
+"histograms": {
+  "skipper.runtime.MemStats.PauseNs": {
+    "75%": 82509.25,
+    "95%": 132609,
+    "99%": 132609,
+    "99.9%": 132609,
+    "count": 12,
+    "max": 132609,
+    "mean": 56946,
+    "median": 39302.5,
+    "min": 28749,
+    "stddev": 31567.015005117817
+  }
+}
+```
 
 ### Redis - Rate limiting metrics
 
@@ -638,7 +645,7 @@ Skipper allows you to get some runtime insights. You can get the
 current routing table from skipper with in the
 [eskip file format](https://godoc.org/github.com/zalando/skipper/eskip):
 
-```
+```sh
 curl localhost:9911/routes
 *
 -> "http://localhost:12345/"
@@ -647,7 +654,7 @@ curl localhost:9911/routes
 You also can get the number of routes `X-Count` and the UNIX timestamp
 of the last route table update `X-Timestamp`, using a HEAD request:
 
-```
+```sh
 curl -I localhost:9911/routes
 HTTP/1.1 200 OK
 Content-Type: text/plain
@@ -662,7 +669,7 @@ In order to control this limits, there are two parameters: `limit` and
 `offset` where to start the list. Thanks to this, it's possible
 to get the results paginated or getting all of them at the same time.
 
-```
+```sh
 curl localhost:9911/routes?offset=200&limit=100
 ```
 
@@ -698,7 +705,7 @@ If you enable route based `-route-backend-metrics`
 it can count up. Please check the support listener endpoint (default
 9911) to understand the usage:
 
-```
+```sh
 % curl localhost:9911/metrics
 ```
 
@@ -865,7 +872,7 @@ by the route, Skipper will respond with information that show you the
 matched route, the incoming request, the transformed request and all
 predicates and filters involved in the route processing:
 
-```
+```json
 % curl -s http://127.0.0.1:9922/ -H"Host: foo.teapot.example.org" | jq .
 {
   "route_id": "kube_default__foo__foo_teapot_example_org_____foo",
@@ -948,8 +955,8 @@ skipper -inline-routes='r1: * -> inlineContent("hello") -> <shunt>' -enable-prof
 
 Use Go tool pprof to download profiling sample to analyze (sample is not from the example):
 
-```
-go tool pprof http://127.0.0.1:9911
+```sh
+% go tool pprof http://127.0.0.1:9911
 Fetching profile over HTTP from http://127.0.0.1:9911/debug/pprof/profile
 Saved profile in /$HOME/pprof/pprof.skipper.samples.cpu.004.pb.gz
 File: skipper
@@ -1015,7 +1022,7 @@ copy.
 Example:
 
 A route with `edit-route`
-```
+```sh
 % skipper -inline-routes='Path("/foo") -> setResponseHeader("X-Foo","bar") -> inlineContent("hi") -> <shunt>' \
 -edit-route='/inlineContent[(]["](.*)["][)]/inlineContent("modified \"$1\" response")/'
 [APP]INFO[0000] Expose metrics in codahale format
@@ -1028,7 +1035,7 @@ A route with `edit-route`
 ```
 
 Modified route:
-```
+```sh
 curl localhost:9911/routes
 Path("/foo")
   -> setResponseHeader("X-Foo", "bar")
@@ -1037,7 +1044,7 @@ Path("/foo")
 ```
 
 Modified response body:
-```
+```sh
 % curl -v http://localhost:9090/foo
 *   Trying ::1...
 * Connected to localhost (::1) port 9090 (#0)

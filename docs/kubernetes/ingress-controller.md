@@ -379,7 +379,7 @@ cluster service on TCP port 80. Besides skipper-ingress, deployment
 and service can not be reached from outside the cluster. Now we expose
 the application with Ingress to the external network:
 
-```bash
+```yaml
 # cat demo-ing.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -583,7 +583,7 @@ Corefile example:
 If the setup is correct, skipper will protect the following ingress
 example with the `ClientIP` predicate:
 
-```
+```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -606,7 +606,7 @@ Your clients inside the cluster should call this example with
 `demo.skipper.cluster.local` in their host header. Example
 from inside a container:
 
-```
+```sh
 curl demo.skipper.cluster.local
 ```
 
@@ -723,7 +723,7 @@ production, yet.
 Additionally you have to add the following command line flags to
 skipper's container spec `args:`:
 
-```
+```sh
 -swarm-port=9990
 -swarm-label-selector-key=application
 -swarm-label-selector-value=skipper-ingress

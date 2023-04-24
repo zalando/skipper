@@ -18,7 +18,7 @@ traffic, while a shadowing backend (test) will receive only a certain percentage
 
 Before the shadow traffic, we are sending all traffic to the main backend.
 
-```
+```sh
 main: * -> "https://main.example.org";
 ```
 
@@ -27,7 +27,7 @@ main: * -> "https://main.example.org";
 Before generating the shadow traffic, we create an identical clone of the main route that will handle only 10%
 of the traffic, while the rest stays being handled by the main route.
 
-```
+```sh
 main: * -> "https://main.example.org";
 split: Traffic(.1) -> "https://main.example.org";
 ```
@@ -38,7 +38,7 @@ The route introduced next won't handle directly any incoming requests, because t
 [Tee](../reference/predicates.md#tee) predicate, but it is prepared to send tee requests to the alternative,
 'shadow' backend.
 
-```
+```sh
 main: * -> "https://main.example.org";
 split: Traffic(.1) -> "https://main.example.org";
 shadow: Tee("shadow-test-1") && True() -> "https://shadow.example.org";
@@ -49,7 +49,7 @@ shadow: Tee("shadow-test-1") && True() -> "https://shadow.example.org";
 Now we can apply the [teeLoopback](../reference/filters.md#teeloopback) filter to the 'split' route, using the
 same label as we did in the [Tee](../reference/predicates.md#tee) predicate.
 
-```
+```sh
 main: * -> "https://main.example.org";
 split: Traffic(.1) -> teeLoopback("shadow-test-1") -> "https://main.example.org";
 shadow: Tee("shadow-test-1") && True() -> "https://shadow.example.org";

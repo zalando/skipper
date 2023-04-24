@@ -11,7 +11,7 @@ client will be passed further and not modified by the redirect.
 
 Example:
 
-```
+```sh
 % ./bin/skipper -address :8080 -inline-routes 'r: * -> redirectTo(308, "http://127.0.0.1:9999") -> <shunt>'
 ::1 - - [01/Nov/2018:18:42:02 +0100] "GET / HTTP/1.1" 308 0 "-" "curl/7.49.0" 0 localhost:8080 - -
 ::1 - - [01/Nov/2018:18:42:08 +0100] "GET /foo HTTP/1.1" 308 0 "-" "curl/7.49.0" 0 localhost:8080 - -
@@ -56,7 +56,7 @@ If you set a path, in this example **/**, in your redirect definition, then the 
 the chosen value. The Location header is set in the response to `/`,
 but the client sent `/foo`.
 
-```
+```sh
 % ./bin/skipper -address :8080 -inline-routes 'r: * -> redirectTo(308, "http://127.0.0.1:9999/") -> <shunt>'
 
 % curl localhost:8080/foo -v
@@ -86,7 +86,7 @@ the base path as you like.
 Route Example shows, that calls to `/a/base/foo/bar` would be
 redirected to `https://another-example.com/my/new/base/foo/bar`:
 
-```
+```sh
 redirect: Path("/a/base/")
           -> modPath("/a/base/", "/my/new/base/")
           -> redirectTo(308, "https://another-example.com")
@@ -96,7 +96,7 @@ redirect: Path("/a/base/")
 The next example shows how to test a redirect with changed base path
 on your computer:
 
-```
+```sh
 % ./bin/skipper -address :8080 -inline-routes 'r: * -> modPath("/", "/my/new/base/") -> redirectTo(308, "http://127.0.0.1:9999") -> <shunt>'
 ::1 - - [01/Nov/2018:18:49:45 +0100] "GET /foo HTTP/1.1" 308 0 "-" "curl/7.49.0" 0 localhost:8080 - -
 

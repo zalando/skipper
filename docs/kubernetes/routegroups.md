@@ -618,7 +618,7 @@ the Endpoints represented by the Service, and balances the load between them wit
 algorithm choice can be overridden by this annotation. In case of the RouteGroups, the algorithm is simply an
 attribute of the backend definition, and it can be set individually for each backend. E.g:
 
-```
+```yaml
   backends:
   - name: my-backend
     type: service

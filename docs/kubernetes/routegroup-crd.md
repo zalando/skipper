@@ -118,7 +118,7 @@ The `methods` field defines which methods an incoming request can have in order 
 The items in the `predicates` and `filter` fields take lists of predicates and filters, respectively, defined in
 their eskip format. Example:
 
-```
+```yaml
   predicates:
   - Cookie("alpha", "enabled")
   - Header("X-Test", "true")

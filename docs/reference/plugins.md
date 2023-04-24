@@ -31,7 +31,9 @@ argument, this must be explicitly loaded and the arguments passed, e.g. with
 Each plugin should be built with Go version >= 1.11, enabled Go
 modules support similar to the following build command line:
 
-    GO111MODULE=on go build -buildmode=plugin -o example.so example.go
+```sh
+GO111MODULE=on go build -buildmode=plugin -o example.so example.go
+```
 
 There are some pitfalls:
 
@@ -52,13 +54,13 @@ entered the directory.
 
 Build skipper:
 
-```
+```sh
 % make skipper
 ```
 
 Install filter plugins:
 
-```
+```sh
 % mkdir plugins
 % git clone git@github.com:skipper-plugins/filters.git plugins/filters
 % ls plugins/filters
@@ -71,14 +73,14 @@ geoip/  glide.lock  glide.yaml  ldapauth/  Makefile  noop/  plugin_test.go
 
 Start a pseudo backend that shows all headers in plain:
 
-```
+```sh
 % nc -l 9000
 
 ```
 
 Run the proxy with geoip database:
 
-```
+```sh
 % ./bin/skipper -filter-plugin geoip,db=$HOME/Downloads/GeoLite2-City_20181127/GeoLite2-City.mmdb -inline-routes '* -> geoip() -> "http://127.0.0.1:9000"'
 [APP]INFO[0000] found plugin geoip at plugins/filters/geoip/geoip.so
 [APP]INFO[0000] loaded plugin geoip (geoip) from plugins/filters/geoip/geoip.so
@@ -104,7 +106,7 @@ filter-plugin:
 
 Use a client to lookup geoip:
 
-```
+```sh
 % curl -H"X-Forwarded-For: 107.12.53.5" localhost:9090/
 ^C
 ```
@@ -112,7 +114,7 @@ Use a client to lookup geoip:
 
 pseudo backend should show X-Geoip-Country header:
 
-```
+```sh
 # nc -l 9000
 GET / HTTP/1.1
 Host: 127.0.0.1:9000
@@ -126,7 +128,7 @@ Accept-Encoding: gzip
 
 skipper should show additional log lines, because of the CTRL-C:
 
-```
+```sh
 [APP]ERRO[0082] error while proxying, route  with backend http://127.0.0.1:9000, status code 500: dialing failed false: EOF
 107.12.53.5 - - [28/Nov/2018:14:39:40 +0100] "GET / HTTP/1.1" 500 22 "-" "curl/7.49.0" 2753 localhost:9090 - -
 ```

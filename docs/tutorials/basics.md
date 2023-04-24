@@ -55,7 +55,7 @@ ID:
 
 An example routing configuration:
 
-```
+```sh
 baidu:
         Path("/baidu")
         -> setRequestHeader("Host", "www.baidu.com")
@@ -294,7 +294,7 @@ use a local `eskip` file on disk and use `-routes-file=<filepath>`.
 
 Example:
 
-```
+```sh
 ./bin/skipper -address :9999 -inline-routes 'r: * -> setQuery("lang", "pt") -> "http://127.0.0.1:8080/"'
 ```
 
@@ -306,7 +306,7 @@ local browser.
 
 Local backend example:
 
-```
+```sh
 ./bin/skipper -address :8080 -inline-routes 'r: * -> inlineContent("Hello world!") -> status(200) -> <shunt>'
 ```
 
@@ -316,7 +316,7 @@ Mac OS X computers.
 
 Example client call to our defined proxy:
 
-```
+```sh
 % curl localhost:8080 -v
 * Rebuilt URL to: localhost:8080/
 *   Trying ::1...
@@ -363,7 +363,7 @@ inline-routes: 'r: * -> inlineContent("Hello world!") -> status(200) -> <shunt>'
 Considering that this file would be named `config.yaml` you can use it to populate
 the flags using the `config-file` flag:
 
-```
+```sh
 ./bin/skipper -config-file=config.yaml
 ```
 
@@ -378,7 +378,7 @@ memory, you can use the `-support-listener`, which defaults to port
 
 Example:
 
-```
+```sh
 % curl localhost:9911/routes
 r: *
   -> setQuery("lang", "pt")
@@ -417,7 +417,7 @@ curl locahost:9911/routes?offset=2048&limit=512
 
 In the following example **rid** is the route ID:
 
-```
+```sh
 % curl localhost:9911/routes
 rid: *
   -> setQuery("lang", "pt")
