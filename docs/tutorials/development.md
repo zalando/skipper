@@ -85,7 +85,7 @@ For *Visual Studion Code* users, a simple setup could be to create following *la
 
 We have user documentation and developer documentation separated.
 In `docs/` you find the user documentation in [mkdocs](https://www.mkdocs.org/) format and
-rendered at [https://opensource.zalando.com/skipper](https://opensource.zalando.com/skipper).
+rendered at [https://opensource.zalando.com/skipper](https://opensource.zalando.com/skipper) which is updated automatically with each `docs/` change merged to `master` branch.
 Developer documentation for skipper as library users
 [godoc format](https://blog.golang.org/godoc-documenting-go-code) is used and rendered at [https://godoc.org/github.com/zalando/skipper](https://godoc.org/github.com/zalando/skipper).
 
