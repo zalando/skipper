@@ -13,6 +13,9 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
+	"github.com/zalando/skipper/tracing/tracers/basic"
 )
 
 var (
@@ -173,6 +176,112 @@ func TestTeeEndToEndBody(t *testing.T) {
 	if shadowHandler.body != testingStr || originalHandler.body != testingStr {
 		t.Error("Bodies are not equal")
 	}
+}
+
+func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
+	tracer, err := basic.InitTracer([]string{"recorder=in-memory"})
+	if err != nil {
+		t.Fatalf("Failed to get a tracer: %v", err)
+	}
+	defer tracer.Close()
+
+	shadowHandler := newTestHandler(t, "shadow")
+	shadowServer := httptest.NewServer(shadowHandler)
+	shadowUrl := shadowServer.URL
+	defer shadowServer.Close()
+
+	originalHandler := newTestHandler(t, "original")
+	originalServer := httptest.NewServer(originalHandler)
+	originalUrl := originalServer.URL
+	defer originalServer.Close()
+
+	routeStrNoShadow := fmt.Sprintf(`route1: * -> "%v";`, originalUrl)
+	routeStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";`, shadowUrl, originalUrl)
+	routesStr := fmt.Sprintf(`route1: * -> tee("%v") -> "%v";route2: Path("/") -> tee("%v") -> "%v";`, shadowUrl, originalUrl, shadowUrl, originalUrl)
+
+	routeNoShadow := eskip.MustParse(routeStrNoShadow)
+	route := eskip.MustParse(routeStr)
+	routes := eskip.MustParse(routesStr)
+
+	registry := make(filters.Registry)
+	registry.Register(WithOptions(Options{
+		Tracer:   tracer,
+		NoFollow: false,
+	}))
+
+	dc := testdataclient.New(routes)
+	defer dc.Close()
+	p := proxytest.WithRoutingOptions(registry, routing.Options{
+		DataClients: []routing.DataClient{dc},
+	}, nil)
+	defer p.Close()
+
+	testFunc := func() {
+		testingStr := "TESTEST"
+		req, err := http.NewRequest("GET", p.URL, strings.NewReader(testingStr))
+		if err != nil {
+			t.Error(err)
+		}
+
+		req.Host = "www.example.org"
+		req.Close = true
+		rsp, err := (&http.Client{}).Do(req)
+		if err != nil {
+			t.Error(err)
+		}
+
+		<-shadowHandler.served
+
+		rsp.Body.Close()
+		if shadowHandler.body != testingStr || originalHandler.body != testingStr {
+			t.Error("Bodies are not equal")
+		}
+	}
+
+	testFunc()
+	dc.Update(route, []string{"route2"})
+
+	shadowHandler.served = make(chan struct{})
+	originalHandler.served = make(chan struct{})
+	testFunc()
+
+	dc.Update(routeNoShadow, nil)
+	originalHandler.served = make(chan struct{})
+	shadowHandler.served = make(chan struct{})
+	defer close(shadowHandler.served)
+
+	// test shadow do not get anything
+	testingStr := "TESTEST"
+	req, err := http.NewRequest("GET", p.URL, strings.NewReader(testingStr))
+	if err != nil {
+		t.Error(err)
+	}
+
+	req.Host = "www.example.org"
+	req.Close = true
+	rsp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	select {
+	case <-shadowHandler.served:
+		t.Fatal("shadow handler got a request, but should not")
+	default:
+	}
+
+	rsp.Body.Close()
+	if originalHandler.body != testingStr {
+		t.Error("Bodies are not equal")
+	}
+
+	// cleanup
+	teeClients.mu.Lock()
+	for _, cc := range teeClients.store {
+		cc.count--
+		cc.client.Close()
+	}
+	teeClients.mu.Unlock()
 }
 
 func TestTeeFollowOrNot(t *testing.T) {
