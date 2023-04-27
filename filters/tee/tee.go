@@ -110,10 +110,9 @@ var hopHeaders = []string{
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 //
 // Name: "tee".
-func NewTee(tracer opentracing.Tracer) filters.Spec {
+func NewTee() filters.Spec {
 	return WithOptions(Options{
 		Timeout:             defaultTeeTimeout,
-		Tracer:              tracer,
 		NoFollow:            false,
 		MaxIdleConns:        defaultMaxIdleConns,
 		MaxIdleConnsPerHost: defaultMaxIdleConnsPerHost,
@@ -128,10 +127,9 @@ func NewTee(tracer opentracing.Tracer) filters.Spec {
 // and NewTee() (providing the name "tee") should be used instead.
 //
 // Name: "Tee".
-func NewTeeDeprecated(tracer opentracing.Tracer) filters.Spec {
+func NewTeeDeprecated() filters.Spec {
 	sp := WithOptions(Options{
 		NoFollow:            false,
-		Tracer:              tracer,
 		Timeout:             defaultTeeTimeout,
 		MaxIdleConns:        defaultMaxIdleConns,
 		MaxIdleConnsPerHost: defaultMaxIdleConnsPerHost,
@@ -147,10 +145,9 @@ func NewTeeDeprecated(tracer opentracing.Tracer) filters.Spec {
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 //
 // Name: "teenf".
-func NewTeeNoFollow(tracer opentracing.Tracer) filters.Spec {
+func NewTeeNoFollow() filters.Spec {
 	return WithOptions(Options{
 		NoFollow:            true,
-		Tracer:              tracer,
 		Timeout:             defaultTeeTimeout,
 		MaxIdleConns:        defaultMaxIdleConns,
 		MaxIdleConnsPerHost: defaultMaxIdleConnsPerHost,
@@ -159,9 +156,21 @@ func NewTeeNoFollow(tracer opentracing.Tracer) filters.Spec {
 }
 
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend with given
-// options. Available options are nofollow and Timeout for http client.
+// options. Available options are nofollow and Timeout for http client. For more available options see Options type.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 func WithOptions(o Options) filters.Spec {
+	if o.Timeout == 0 {
+		o.Timeout = defaultIdleConnTimeout
+	}
+	if o.MaxIdleConns == 0 {
+		o.MaxIdleConns = defaultMaxIdleConns
+	}
+	if o.MaxIdleConnsPerHost == 0 {
+		o.MaxIdleConnsPerHost = defaultMaxIdleConnsPerHost
+	}
+	if o.IdleConnTimeout == 0 {
+		o.IdleConnTimeout = defaultIdleConnTimeout
+	}
 	return &teeSpec{options: o}
 }
 
