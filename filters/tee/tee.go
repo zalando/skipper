@@ -66,16 +66,22 @@ const (
 	pathModified
 )
 
+type clientCounter struct {
+	client *net.Client
+	count  int
+}
+
 type teeClient struct {
 	mu    sync.Mutex
-	store map[string]*net.Client
+	store map[string]*clientCounter
 }
 
 var teeClients *teeClient = &teeClient{
-	store: make(map[string]*net.Client),
+	store: make(map[string]*clientCounter),
 }
 
 type tee struct {
+	once              sync.Once
 	client            *net.Client
 	typ               teeType
 	host              string
@@ -229,7 +235,18 @@ func (r *tee) Request(fc filters.FilterContext) {
 }
 
 func (r *tee) Close() error {
-	r.client.Close()
+	r.once.Do(func() {
+		teeClients.mu.Lock()
+		if cc, ok := teeClients.store[r.host]; ok {
+			cc.count--
+			// no other tee filter is using the same client
+			if cc.count <= 0 {
+				delete(teeClients.store, r.host)
+				r.client.Close()
+			}
+		}
+		teeClients.mu.Unlock()
+	})
 	return nil
 }
 
@@ -302,7 +319,7 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 
 	var client *net.Client
 	teeClients.mu.Lock()
-	if client, ok = teeClients.store[u.Host]; !ok {
+	if cc, ok := teeClients.store[u.Host]; !ok {
 		client = net.NewClient(net.Options{
 			Timeout:                 spec.options.Timeout,
 			TLSHandshakeTimeout:     spec.options.Timeout,
@@ -315,6 +332,10 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 			OpentracingComponentTag: "skipper",
 			OpentracingSpanName:     spec.Name(),
 		})
+		teeClients.store[u.Host] = &clientCounter{client: client, count: 1}
+	} else {
+		cc.count++
+		client = cc.client
 	}
 	teeClients.mu.Unlock()
 
@@ -332,13 +353,11 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		// modpath
 		expr, ok := config[1].(string)
 		if !ok {
-			client.Close()
 			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
 		}
 
 		replacement, ok := config[2].(string)
 		if !ok {
-			client.Close()
 			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
 		}
 
