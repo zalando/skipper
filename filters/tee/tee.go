@@ -341,7 +341,6 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		rx, err := regexp.Compile(expr)
 
 		if err != nil {
-			client.Close()
 			return nil, err
 		}
 		tee.typ = pathModified
