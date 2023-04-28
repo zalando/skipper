@@ -52,7 +52,7 @@ type Options struct {
 	// MaxIdleConns defaults to 100
 	MaxIdleConns int
 
-	// MaxIdleConnsPerHost defaults to 50
+	// MaxIdleConnsPerHost defaults to 100
 	MaxIdleConnsPerHost int
 
 	// IdleConnTimeout defaults to 30s
