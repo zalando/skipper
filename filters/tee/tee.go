@@ -28,7 +28,7 @@ const (
 const (
 	defaultTeeTimeout          = time.Second
 	defaultMaxIdleConns        = 100
-	defaultMaxIdleConnsPerHost = 50
+	defaultMaxIdleConnsPerHost = 100
 	defaultIdleConnTimeout     = 30 * time.Second
 )
 
