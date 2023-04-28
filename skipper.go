@@ -38,6 +38,7 @@ import (
 	logfilter "github.com/zalando/skipper/filters/log"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
+	teefilters "github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -1452,6 +1453,22 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
 		tracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	}
+
+	// tee filters override if we have a tracer
+	if len(o.OpenTracing) > 0 {
+		o.CustomFilters = append(o.CustomFilters,
+			// tee()
+			teefilters.WithOptions(teefilters.Options{
+				Tracer:   tracer,
+				NoFollow: false,
+			}),
+			// teenf()
+			teefilters.WithOptions(teefilters.Options{
+				NoFollow: true,
+				Tracer:   tracer,
+			}),
+		)
 	}
 
 	if o.OAuthTokeninfoURL != "" {

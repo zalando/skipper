@@ -6,10 +6,14 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sync"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/net"
 )
 
 const (
@@ -21,7 +25,12 @@ const (
 	NoFollowName = filters.TeenfName
 )
 
-const defaultTeeTimeout = time.Second
+const (
+	defaultTeeTimeout          = time.Second
+	defaultMaxIdleConns        = 100
+	defaultMaxIdleConnsPerHost = 100
+	defaultIdleConnTimeout     = 30 * time.Second
+)
 
 type teeSpec struct {
 	deprecated bool
@@ -36,6 +45,18 @@ type Options struct {
 
 	// Timeout specifies a time limit for requests made by tee filter.
 	Timeout time.Duration
+
+	// Tracer is the opentracing tracer to use in the client
+	Tracer opentracing.Tracer
+
+	// MaxIdleConns defaults to 100
+	MaxIdleConns int
+
+	// MaxIdleConnsPerHost defaults to 100
+	MaxIdleConnsPerHost int
+
+	// IdleConnTimeout defaults to 30s
+	IdleConnTimeout time.Duration
 }
 
 type teeType int
@@ -45,8 +66,17 @@ const (
 	pathModified
 )
 
+type teeClient struct {
+	mu    sync.Mutex
+	store map[string]*net.Client
+}
+
+var teeClients *teeClient = &teeClient{
+	store: make(map[string]*net.Client),
+}
+
 type tee struct {
-	client            *http.Client
+	client            *net.Client
 	typ               teeType
 	host              string
 	scheme            string
@@ -82,8 +112,11 @@ var hopHeaders = []string{
 // Name: "tee".
 func NewTee() filters.Spec {
 	return WithOptions(Options{
-		Timeout:  defaultTeeTimeout,
-		NoFollow: false,
+		Timeout:             defaultTeeTimeout,
+		NoFollow:            false,
+		MaxIdleConns:        defaultMaxIdleConns,
+		MaxIdleConnsPerHost: defaultMaxIdleConnsPerHost,
+		IdleConnTimeout:     defaultIdleConnTimeout,
 	})
 }
 
@@ -95,10 +128,16 @@ func NewTee() filters.Spec {
 //
 // Name: "Tee".
 func NewTeeDeprecated() filters.Spec {
-	return &teeSpec{deprecated: true, options: Options{
-		NoFollow: false,
-		Timeout:  defaultTeeTimeout,
-	}}
+	sp := WithOptions(Options{
+		NoFollow:            false,
+		Timeout:             defaultTeeTimeout,
+		MaxIdleConns:        defaultMaxIdleConns,
+		MaxIdleConnsPerHost: defaultMaxIdleConnsPerHost,
+		IdleConnTimeout:     defaultIdleConnTimeout,
+	})
+	ts := sp.(*teeSpec)
+	ts.deprecated = true
+	return ts
 }
 
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
@@ -107,13 +146,31 @@ func NewTeeDeprecated() filters.Spec {
 //
 // Name: "teenf".
 func NewTeeNoFollow() filters.Spec {
-	return WithOptions(Options{NoFollow: true, Timeout: defaultTeeTimeout})
+	return WithOptions(Options{
+		NoFollow:            true,
+		Timeout:             defaultTeeTimeout,
+		MaxIdleConns:        defaultMaxIdleConns,
+		MaxIdleConnsPerHost: defaultMaxIdleConnsPerHost,
+		IdleConnTimeout:     defaultIdleConnTimeout,
+	})
 }
 
 // Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend with given
-// options. Available options are nofollow and Timeout for http client.
+// options. Available options are nofollow and Timeout for http client. For more available options see Options type.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 func WithOptions(o Options) filters.Spec {
+	if o.Timeout == 0 {
+		o.Timeout = defaultIdleConnTimeout
+	}
+	if o.MaxIdleConns == 0 {
+		o.MaxIdleConns = defaultMaxIdleConns
+	}
+	if o.MaxIdleConnsPerHost == 0 {
+		o.MaxIdleConnsPerHost = defaultMaxIdleConnsPerHost
+	}
+	if o.IdleConnTimeout == 0 {
+		o.IdleConnTimeout = defaultIdleConnTimeout
+	}
 	return &teeSpec{options: o}
 }
 
@@ -218,15 +275,12 @@ func cloneRequest(t *tee, req *http.Request) (*http.Request, io.ReadCloser, erro
 // If only one parameter is given shadow backend is used as it is specified
 // If second and third parameters are also set, then path is modified
 func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) {
-	client := &http.Client{Timeout: spec.options.Timeout}
-
+	var checkRedirect func(req *http.Request, via []*http.Request) error
 	if spec.options.NoFollow {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		checkRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 	}
-
-	tee := tee{client: client}
 
 	if len(config) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
@@ -236,20 +290,44 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	if u, err := url.Parse(backend); err == nil {
-		tee.host = u.Host
-		tee.scheme = u.Scheme
-	} else {
+	u, err := url.Parse(backend)
+	if err != nil {
 		return nil, err
 	}
 
-	if len(config) == 1 {
-		tee.typ = asBackend
-		return &tee, nil
+	var client *net.Client
+	teeClients.mu.Lock()
+	if cc, ok := teeClients.store[u.Host]; !ok {
+		client = net.NewClient(net.Options{
+			Timeout:                 spec.options.Timeout,
+			TLSHandshakeTimeout:     spec.options.Timeout,
+			ResponseHeaderTimeout:   spec.options.Timeout,
+			CheckRedirect:           checkRedirect,
+			MaxIdleConns:            spec.options.MaxIdleConns,
+			MaxIdleConnsPerHost:     spec.options.MaxIdleConnsPerHost,
+			IdleConnTimeout:         spec.options.IdleConnTimeout,
+			Tracer:                  spec.options.Tracer,
+			OpentracingComponentTag: "skipper",
+			OpentracingSpanName:     spec.Name(),
+		})
+		teeClients.store[u.Host] = client
+	} else {
+		client = cc
+	}
+	teeClients.mu.Unlock()
+
+	tee := tee{
+		client: client,
+		host:   u.Host,
+		scheme: u.Scheme,
 	}
 
-	//modpath
-	if len(config) == 3 {
+	switch len(config) {
+	case 1:
+		tee.typ = asBackend
+		return &tee, nil
+	case 3:
+		// modpath
 		expr, ok := config[1].(string)
 		if !ok {
 			return nil, fmt.Errorf("invalid filter config in %s, expecting regexp and string, got: %v", filters.TeeName, config)
@@ -270,9 +348,9 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 		tee.replacement = replacement
 
 		return &tee, nil
+	default:
+		return nil, filters.ErrInvalidFilterParameters
 	}
-
-	return nil, filters.ErrInvalidFilterParameters
 }
 
 func (spec *teeSpec) Name() string {

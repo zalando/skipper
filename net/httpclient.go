@@ -64,7 +64,8 @@ func NewClient(o Options) *Client {
 	c := &Client{
 		once: sync.Once{},
 		client: http.Client{
-			Transport: tr,
+			Transport:     tr,
+			CheckRedirect: o.CheckRedirect,
 		},
 		tr:  tr,
 		log: o.Log,
@@ -143,6 +144,8 @@ type Options struct {
 	// Transport see https://golang.org/pkg/net/http/#Transport
 	// In case Transport is not nil, the Transport arguments are used below.
 	Transport *http.Transport
+	// CheckRedirect see https://golang.org/pkg/net/http/#Client
+	CheckRedirect func(req *http.Request, via []*http.Request) error
 	// Proxy see https://golang.org/pkg/net/http/#Transport.Proxy
 	Proxy func(req *http.Request) (*url.URL, error)
 	// DisableKeepAlives see https://golang.org/pkg/net/http/#Transport.DisableKeepAlives
