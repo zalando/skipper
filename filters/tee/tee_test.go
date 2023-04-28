@@ -34,7 +34,6 @@ type myHandler struct {
 
 func TestTeeHostHeaderChanges(t *testing.T) {
 	f, _ := testTeeSpec.CreateFilter(teeArgsAsBackend)
-	defer f.(filters.FilterCloser).Close()
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
@@ -56,7 +55,6 @@ func TestTeeHostHeaderChanges(t *testing.T) {
 
 func TestTeeSchemeChanges(t *testing.T) {
 	f, _ := testTeeSpec.CreateFilter(teeArgsAsBackend)
-	defer f.(filters.FilterCloser).Close()
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
@@ -78,7 +76,6 @@ func TestTeeSchemeChanges(t *testing.T) {
 
 func TestTeeUrlHostChanges(t *testing.T) {
 	f, _ := testTeeSpec.CreateFilter(teeArgsAsBackend)
-	defer f.(filters.FilterCloser).Close()
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
@@ -100,7 +97,6 @@ func TestTeeUrlHostChanges(t *testing.T) {
 
 func TestTeeWithPathChanges(t *testing.T) {
 	f, _ := testTeeSpec.CreateFilter(teeArgsWithModPath)
-	defer f.(filters.FilterCloser).Close()
 	fc := buildfilterContext()
 
 	rep, _ := f.(*tee)
@@ -274,14 +270,6 @@ func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
 	if originalHandler.body != testingStr {
 		t.Error("Bodies are not equal")
 	}
-
-	// cleanup
-	teeClients.mu.Lock()
-	for _, cc := range teeClients.store {
-		cc.count--
-		cc.client.Close()
-	}
-	teeClients.mu.Unlock()
 }
 
 func TestTeeFollowOrNot(t *testing.T) {
@@ -312,7 +300,6 @@ func TestTeeFollowOrNot(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer f.(filters.FilterCloser).Close()
 
 		done := make(chan struct{})
 
@@ -456,10 +443,7 @@ func TestTeeArgsForFailure(t *testing.T) {
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			f, err := NewTee().CreateFilter(ti.args)
-			if f != nil {
-				f.(filters.FilterCloser).Close()
-			}
+			_, err := NewTee().CreateFilter(ti.args)
 
 			if ti.err && err == nil {
 				t.Error(ti.msg, "was expecting error")

@@ -66,22 +66,16 @@ const (
 	pathModified
 )
 
-type clientCounter struct {
-	client *net.Client
-	count  int
-}
-
 type teeClient struct {
 	mu    sync.Mutex
-	store map[string]*clientCounter
+	store map[string]*net.Client
 }
 
 var teeClients *teeClient = &teeClient{
-	store: make(map[string]*clientCounter),
+	store: make(map[string]*net.Client),
 }
 
 type tee struct {
-	once              sync.Once
 	client            *net.Client
 	typ               teeType
 	host              string
@@ -234,22 +228,6 @@ func (r *tee) Request(fc filters.FilterContext) {
 	}()
 }
 
-func (r *tee) Close() error {
-	r.once.Do(func() {
-		teeClients.mu.Lock()
-		if cc, ok := teeClients.store[r.host]; ok {
-			cc.count--
-			// no other tee filter is using the same client
-			if cc.count <= 0 {
-				delete(teeClients.store, r.host)
-				r.client.Close()
-			}
-		}
-		teeClients.mu.Unlock()
-	})
-	return nil
-}
-
 // copies requests changes URL and Host in request.
 // If 2nd and 3rd params are given path is also modified by applying regexp
 // Returns the cloned request and the tee body to be used on the main request.
@@ -332,10 +310,9 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 			OpentracingComponentTag: "skipper",
 			OpentracingSpanName:     spec.Name(),
 		})
-		teeClients.store[u.Host] = &clientCounter{client: client, count: 1}
+		teeClients.store[u.Host] = client
 	} else {
-		cc.count++
-		client = cc.client
+		client = cc
 	}
 	teeClients.mu.Unlock()
 
@@ -373,10 +350,6 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 
 		return &tee, nil
 	default:
-		teeClients.mu.Lock()
-		delete(teeClients.store, u.Host)
-		teeClients.mu.Unlock()
-		client.Close()
 		return nil, filters.ErrInvalidFilterParameters
 	}
 }

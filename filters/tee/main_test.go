@@ -8,5 +8,17 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	os.Exit(noleak.CheckMain(m))
+	os.Exit(noleak.CheckMainFunc(func() int {
+		code := m.Run()
+		cleanupClients()
+		return code
+	}))
+}
+
+func cleanupClients() {
+	teeClients.mu.Lock()
+	for _, c := range teeClients.store {
+		c.Close()
+	}
+	teeClients.mu.Unlock()
 }
