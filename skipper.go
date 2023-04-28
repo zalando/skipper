@@ -1784,6 +1784,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		cookie.New(),
 		query.New(),
 		traffic.New(),
+		traffic.NewSegment(),
 		primitive.NewTrue(),
 		primitive.NewFalse(),
 		primitive.NewShutdown(),

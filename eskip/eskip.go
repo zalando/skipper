@@ -665,6 +665,16 @@ func MustParse(code string) []*Route {
 	return r
 }
 
+// MustParsePredicates parses a set of predicates (combined by '&&') into
+// a list of parsed predicate definitions and panics in case of error
+func MustParsePredicates(s string) []*Predicate {
+	p, err := ParsePredicates(s)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
 func partialParse(f string, partialToRoute func(string) string) (*parsedRoute, error) {
 	rs, err := parse(partialToRoute(f))
 	if err != nil {

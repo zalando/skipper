@@ -289,6 +289,7 @@ func (c *context) Split() (filters.FilterContext, error) {
 	}
 	serverSpan := opentracing.SpanFromContext(originalRequest.Context())
 	cr = cr.WithContext(opentracing.ContextWithSpan(cr.Context(), serverSpan))
+	cr = cr.WithContext(routing.NewContext(cr.Context()))
 	originalRequest.Body = body
 	cc.request = cr
 	return cc, nil

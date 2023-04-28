@@ -1442,6 +1442,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
+	r = r.WithContext(routing.NewContext(r.Context()))
 
 	ctx = newContext(lw, r, p)
 	ctx.startServe = time.Now()
