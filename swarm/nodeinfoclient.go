@@ -3,6 +3,7 @@ package swarm
 import (
 	"net"
 	"net/url"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -21,7 +22,7 @@ func NewNodeInfoClient(o Options) (nodeInfoClient, func()) {
 	switch o.swarm {
 	case swarmKubernetes:
 		cli := NewNodeInfoClientKubernetes(o)
-		return cli, cli.client.Stop
+		return cli, cli.client.Close
 	case swarmStatic:
 		return o.StaticSwarm, func() {
 			log.Infof("%s left swarm", o.StaticSwarm.Self())
@@ -82,7 +83,7 @@ func NewNodeInfoClientKubernetes(o Options) *nodeInfoClientKubernetes {
 	log.Debug("SWARM: NewnodeInfoClient")
 
 	return &nodeInfoClientKubernetes{
-		client:    o.KubernetesOptions.KubernetesClientcli,
+		client:    o.KubernetesOptions.KubernetesClient,
 		namespace: o.KubernetesOptions.Namespace,
 		name:      o.KubernetesOptions.Name,
 		port:      o.SwarmPort,
@@ -111,8 +112,12 @@ func (c *nodeInfoClientKubernetes) GetNodeInfo() ([]*NodeInfo, error) {
 			continue
 		}
 		addr := net.ParseIP(u.Hostname())
-		port := u.Port()
-		n := &NodeInfo{Name: s, Addr: addr, Port: port}
+		port, err := strconv.Atoi(u.Port())
+		if err != nil {
+			log.Errorf("SWARM: failed to parse port to int: %v", err)
+			continue
+		}
+		n := &NodeInfo{Name: s, Addr: addr, Port: uint16(port)}
 		log.Debugf("SWARM: got nodeinfo %v", n)
 		nodes = append(nodes, n)
 	}

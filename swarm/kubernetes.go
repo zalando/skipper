@@ -3,7 +3,7 @@ package swarm
 import "github.com/zalando/skipper/dataclients/kubernetes"
 
 const (
-	// defaultNamespace isused  to find other peer endpoints
+	// defaultNamespace is used  to find other peer endpoints
 	defaultNamespace = "kube-system"
 	// defaultName is used to find other peer endpoints
 	defaultName = "skipper-ingress"
