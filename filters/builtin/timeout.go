@@ -65,8 +65,6 @@ func (t *timeout) CreateFilter(args []interface{}) (filters.Filter, error) {
 		tf.timeout = d
 	case time.Duration:
 		tf.timeout = v
-	case int:
-		tf.timeout = time.Duration(v) * time.Millisecond
 	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}

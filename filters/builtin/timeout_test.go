@@ -24,12 +24,7 @@ func TestTimeoutCreateFilterEdgeCases(t *testing.T) {
 	}
 
 	ti.typ = readTimeout
-	_, err := ti.CreateFilter([]interface{}{2})
-	if err != nil {
-		t.Errorf("Failed to create filter: %v", err)
-	}
-
-	_, err = ti.CreateFilter([]interface{}{3 * time.Microsecond})
+	_, err := ti.CreateFilter([]interface{}{3 * time.Microsecond})
 	if err != nil {
 		t.Errorf("Failed to create filter: %v", err)
 	}
