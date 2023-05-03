@@ -156,6 +156,8 @@ func Filters() []filters.Spec {
 		NewHeaderToQuery(),
 		NewQueryToHeader(),
 		NewBackendTimeout(),
+		NewReadTimeout(),
+		NewWriteTimeout(),
 		NewSetDynamicBackendHostFromHeader(),
 		NewSetDynamicBackendSchemeFromHeader(),
 		NewSetDynamicBackendUrlFromHeader(),

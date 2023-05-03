@@ -23,6 +23,7 @@ const unknownHost = "_unknownhost_"
 type flushedResponseWriter interface {
 	http.ResponseWriter
 	http.Flusher
+	Unwrap() http.ResponseWriter
 }
 
 type context struct {
@@ -151,6 +152,10 @@ func newContext(
 	}
 
 	return c
+}
+
+func (c *context) ResponseController() *http.ResponseController {
+	return http.NewResponseController(c.responseWriter)
 }
 
 func (c *context) applyRoute(route *routing.Route, params map[string]string, preserveHost bool) {
@@ -341,5 +346,6 @@ func (w noopFlushedResponseWriter) Header() http.Header {
 func (w noopFlushedResponseWriter) Write([]byte) (int, error) {
 	return 0, nil
 }
-func (w noopFlushedResponseWriter) WriteHeader(_ int) {}
-func (w noopFlushedResponseWriter) Flush()            {}
+func (w noopFlushedResponseWriter) WriteHeader(_ int)           {}
+func (w noopFlushedResponseWriter) Flush()                      {}
+func (w noopFlushedResponseWriter) Unwrap() http.ResponseWriter { return nil }
