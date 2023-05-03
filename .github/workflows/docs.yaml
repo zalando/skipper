@@ -12,11 +12,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
+      - uses: actions/setup-python@57ded4d7d5e986d7296eab16560982c6dd7c923b
         with:
           python-version: 3.x
-      - uses: actions/cache@v2
+      - uses: actions/cache@2b250bc32ad02700b996b496c14ac8c2840a2991
         with:
           key: ${{ github.ref }}
           path: .cache
