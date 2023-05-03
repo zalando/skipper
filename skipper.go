@@ -1065,7 +1065,7 @@ func newServerErrorLog() *stdlog.Logger {
 	return stdlog.New(&serverErrorLogWriter{}, "", 0)
 }
 
-func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.DataClient, error) {
+func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.DataClient, *kubernetes.Client, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
@@ -1126,6 +1126,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 		clients = append(clients, etcdClient)
 	}
 
+	var kubernetesClient *kubernetes.Client
 	if o.Kubernetes {
 		kops := o.KubernetesDataClientOptions()
 		kops.CertificateRegistry = cr
@@ -1137,7 +1138,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 		clients = append(clients, kubernetesClient)
 	}
 
-	return clients, nil
+	return clients, kubernetesClient, nil
 }
 
 func getLogOutput(name string) (io.Writer, error) {
@@ -1611,7 +1612,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	// create data clients
-	dataClients, err := createDataClients(o, cr)
+	dataClients, kubernetesClient, err := createDataClients(o, cr)
 	if err != nil {
 		return err
 	}
@@ -1777,11 +1778,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			if o.Kubernetes {
 				swops.KubernetesOptions = &swarm.KubernetesOptions{
-					KubernetesInCluster:  o.KubernetesInCluster,
-					KubernetesAPIBaseURL: o.KubernetesURL,
-					Namespace:            o.SwarmKubernetesNamespace,
-					LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
-					LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
+					// TODO(sszuecs): create options
+					Name:             "skipper-ingress",
+					Namespace:        o.SwarmKubernetesNamespace,
+					KubernetesClient: kubernetesClient,
 				}
 			}
 
