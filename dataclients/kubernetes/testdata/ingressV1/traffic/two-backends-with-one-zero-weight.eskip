@@ -1,0 +1,7 @@
+kube_namespace1__ingress1______:
+  *
+  -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
+
+kube_namespace1__ingress1__test_example_org____service1v1:
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
+  -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
