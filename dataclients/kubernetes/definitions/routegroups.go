@@ -130,6 +130,11 @@ type BackendReference struct {
 
 type BackendReferences []*BackendReference
 
+var _ WeightedBackend = &BackendReference{}
+
+func (br *BackendReference) GetName() string    { return br.BackendName }
+func (br *BackendReference) GetWeight() float64 { return float64(br.Weight) }
+
 type RouteSpec struct {
 	// Path specifies Path predicate, only one of Path or PathSubtree is allowed
 	Path string `json:"path,omitempty"`

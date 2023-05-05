@@ -38,3 +38,8 @@ func namespaceString(ns string) string {
 
 	return ns
 }
+
+type WeightedBackend interface {
+	GetName() string
+	GetWeight() float64
+}

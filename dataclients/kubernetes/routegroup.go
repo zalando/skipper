@@ -28,7 +28,7 @@ type routeGroupContext struct {
 	eastWestDomain        string
 	routeGroup            *definitions.RouteGroupItem
 	hostRoutes            map[string][]*eskip.Route
-	defaultBackendTraffic map[string]*calculatedTraffic
+	defaultBackendTraffic map[string]backendTraffic
 	defaultFilters        defaultFilters
 	clusterState          *clusterState
 	httpsRedirectCode     int
@@ -38,6 +38,7 @@ type routeGroupContext struct {
 	backendNameTracingTag bool
 	internal              bool
 	provideHTTPSRedirect  bool
+	calculateTraffic      func([]*definitions.BackendReference) map[string]backendTraffic
 }
 
 type routeContext struct {
@@ -46,11 +47,6 @@ type routeContext struct {
 	id         string
 	method     string
 	backend    *definitions.SkipperBackend
-}
-
-type calculatedTraffic struct {
-	value   float64
-	balance int
 }
 
 func eskipError(typ, e string, err error) error {
@@ -154,72 +150,6 @@ func mapBackends(backends []*definitions.SkipperBackend) map[string]*definitions
 	}
 
 	return m
-}
-
-// calculateTraffic calculates the traffic values for the skipper Traffic() predicates
-// based on the weight values in the backend references. It represents the remainder
-// traffic as 1, where no Traffic predicate is meant to be set.
-func calculateTraffic(b []*definitions.BackendReference) map[string]*calculatedTraffic {
-	var sum int
-	weights := make([]int, len(b))
-	for i, bi := range b {
-		sum += bi.Weight
-		weights[i] = bi.Weight
-	}
-
-	if sum == 0 {
-		sum = len(weights)
-		for i := range weights {
-			weights[i] = 1
-		}
-	}
-
-	var lastWithWeight int
-	for i, w := range weights {
-		if w > 0 {
-			lastWithWeight = i
-		}
-	}
-
-	t := make(map[string]*calculatedTraffic)
-	for i, bi := range b {
-		switch {
-		case i == lastWithWeight:
-			t[bi.BackendName] = &calculatedTraffic{value: 1}
-		case weights[i] == 0:
-			t[bi.BackendName] = &calculatedTraffic{value: 0}
-		default:
-			t[bi.BackendName] = &calculatedTraffic{value: float64(weights[i]) / float64(sum)}
-		}
-
-		sum -= weights[i]
-		t[bi.BackendName].balance = len(b) - i - 2
-	}
-
-	return t
-}
-
-func trafficBalance(t *calculatedTraffic) []*eskip.Predicate {
-	if t.balance <= 0 {
-		return nil
-	}
-
-	p := eskip.Predicate{Name: "True"}
-	balance := make([]*eskip.Predicate, t.balance)
-	for i := range balance {
-		balance[i] = eskip.CopyPredicate(&p)
-	}
-
-	return balance
-}
-
-func configureTraffic(r *eskip.Route, t *calculatedTraffic) {
-	if t.value == 1 {
-		return
-	}
-
-	r.Predicates = appendPredicate(r.Predicates, "Traffic", t.value)
-	r.Predicates = append(r.Predicates, trafficBalance(t)...)
 }
 
 func getBackendService(ctx *routeGroupContext, backend *definitions.SkipperBackend) (*service, error) {
@@ -406,7 +336,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 			ri.Predicates = appendPredicate(ri.Predicates, "Host", ctx.hostRx)
 		}
 
-		configureTraffic(ri, ctx.defaultBackendTraffic[beref.BackendName])
+		ctx.defaultBackendTraffic[beref.BackendName].apply(ri)
 		if be.Type == definitions.ServiceBackend {
 			if err := applyDefaultFilters(ctx, be.ServiceName, ri); err != nil {
 				log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
@@ -493,7 +423,7 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		backendTraffic := ctx.defaultBackendTraffic
 		if len(rgr.Backends) != 0 {
 			backendRefs = rgr.Backends
-			backendTraffic = calculateTraffic(rgr.Backends)
+			backendTraffic = ctx.calculateTraffic(rgr.Backends)
 		}
 
 		for _, method := range rgr.UniqueMethods() {
@@ -515,7 +445,7 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 					return nil, err
 				}
 
-				configureTraffic(r, backendTraffic[bref.BackendName])
+				backendTraffic[bref.BackendName].apply(r)
 				storeHostRoute(ctx, r)
 				routes = append(routes, r)
 				routes = appendEastWest(ctx, routes, r)
@@ -528,7 +458,7 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 }
 
 func transformRouteGroup(ctx *routeGroupContext) ([]*eskip.Route, error) {
-	ctx.defaultBackendTraffic = calculateTraffic(ctx.routeGroup.Spec.DefaultBackends)
+	ctx.defaultBackendTraffic = ctx.calculateTraffic(ctx.routeGroup.Spec.DefaultBackends)
 	if len(ctx.routeGroup.Spec.Routes) == 0 {
 		return implicitGroupRoutes(ctx)
 	}
@@ -600,6 +530,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				backendNameTracingTag: r.options.BackendNameTracingTag,
 				internal:              false,
 				allowedExternalNames:  r.options.AllowedExternalNames,
+				calculateTraffic:      GetBackendTrafficCalculator[*definitions.BackendReference]("traffic-predicate"),
 			}
 
 			ri, err := transformRouteGroup(ctx)
@@ -636,6 +567,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				backendNameTracingTag: r.options.BackendNameTracingTag,
 				internal:              true,
 				allowedExternalNames:  r.options.AllowedExternalNames,
+				calculateTraffic:      GetBackendTrafficCalculator[*definitions.BackendReference]("traffic-predicate"),
 			}
 
 			internalRi, err := transformRouteGroup(internalCtx)
