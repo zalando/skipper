@@ -1,5 +1,7 @@
-name: docs-ci 
-on: 
+name: docs-ci
+permissions: {}
+
+on:
   workflow_dispatch:
   push:
     branches:
