@@ -1,4 +1,7 @@
 name: master
+
+permissions: {}
+
 on:
   push:
     branches:
