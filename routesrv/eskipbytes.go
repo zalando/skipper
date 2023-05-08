@@ -72,6 +72,7 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if initialized {
 		w.Header().Add("Etag", etag)
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Add("Content-Encoding", "gzip")
 		w.Header().Add(routing.RoutesCountName, strconv.Itoa(count))
 
 		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
