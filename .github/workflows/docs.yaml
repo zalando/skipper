@@ -1,5 +1,4 @@
 name: docs-ci
-permissions: {}
 
 on:
   workflow_dispatch:
