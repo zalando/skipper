@@ -1,5 +1,7 @@
 name: docs-ci
 
+permissions: {}
+
 on:
   workflow_dispatch:
   push:
@@ -7,10 +9,11 @@ on:
       - 'master'
     paths:
       - 'docs/**'
-permissions:
-  contents: write
+
 jobs:
   deploy:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
