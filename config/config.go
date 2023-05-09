@@ -115,23 +115,24 @@ type Config struct {
 	SuppressRouteUpdateLogs             bool      `yaml:"suppress-route-update-logs"`
 
 	// route sources:
-	EtcdUrls           string               `yaml:"etcd-urls"`
-	EtcdPrefix         string               `yaml:"etcd-prefix"`
-	EtcdTimeout        time.Duration        `yaml:"etcd-timeout"`
-	EtcdInsecure       bool                 `yaml:"etcd-insecure"`
-	EtcdOAuthToken     string               `yaml:"etcd-oauth-token"`
-	EtcdUsername       string               `yaml:"etcd-username"`
-	EtcdPassword       string               `yaml:"etcd-password"`
-	RoutesFile         string               `yaml:"routes-file"`
-	RoutesURLs         *listFlag            `yaml:"routes-urls"`
-	InlineRoutes       string               `yaml:"inline-routes"`
-	AppendFilters      *defaultFiltersFlags `yaml:"default-filters-append"`
-	PrependFilters     *defaultFiltersFlags `yaml:"default-filters-prepend"`
-	DisabledFilters    *listFlag            `yaml:"disabled-filters"`
-	EditRoute          routeChangerConfig   `yaml:"edit-route"`
-	CloneRoute         routeChangerConfig   `yaml:"clone-route"`
-	SourcePollTimeout  int64                `yaml:"source-poll-timeout"`
-	WaitFirstRouteLoad bool                 `yaml:"wait-first-route-load"`
+	EtcdUrls            string               `yaml:"etcd-urls"`
+	EtcdPrefix          string               `yaml:"etcd-prefix"`
+	EtcdTimeout         time.Duration        `yaml:"etcd-timeout"`
+	EtcdInsecure        bool                 `yaml:"etcd-insecure"`
+	EtcdOAuthToken      string               `yaml:"etcd-oauth-token"`
+	EtcdUsername        string               `yaml:"etcd-username"`
+	EtcdPassword        string               `yaml:"etcd-password"`
+	RoutesFile          string               `yaml:"routes-file"`
+	RoutesURLs          *listFlag            `yaml:"routes-urls"`
+	EnableRoutesCaching bool                 `yaml:"enable-routes-cache"`
+	InlineRoutes        string               `yaml:"inline-routes"`
+	AppendFilters       *defaultFiltersFlags `yaml:"default-filters-append"`
+	PrependFilters      *defaultFiltersFlags `yaml:"default-filters-prepend"`
+	DisabledFilters     *listFlag            `yaml:"disabled-filters"`
+	EditRoute           routeChangerConfig   `yaml:"edit-route"`
+	CloneRoute          routeChangerConfig   `yaml:"clone-route"`
+	SourcePollTimeout   int64                `yaml:"source-poll-timeout"`
+	WaitFirstRouteLoad  bool                 `yaml:"wait-first-route-load"`
 
 	// Forwarded headers
 	ForwardedHeadersList            *listFlag            `yaml:"forwarded-headers"`
@@ -400,6 +401,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.EtcdPassword, "etcd-password", "", "optional password for basic authentication with etcd")
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
 	flag.Var(cfg.RoutesURLs, "routes-urls", "comma separated URLs to route definitions in eskip format")
+	flag.BoolVar(&cfg.EnableRoutesCaching, "enable-routes-cache", false, "use lasted fetched routes if not modified.")
 	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
@@ -788,16 +790,17 @@ func (c *Config) ToOptions() skipper.Options {
 		SuppressRouteUpdateLogs:             c.SuppressRouteUpdateLogs,
 
 		// route sources:
-		EtcdUrls:        eus,
-		EtcdPrefix:      c.EtcdPrefix,
-		EtcdWaitTimeout: c.EtcdTimeout,
-		EtcdInsecure:    c.EtcdInsecure,
-		EtcdOAuthToken:  c.EtcdOAuthToken,
-		EtcdUsername:    c.EtcdUsername,
-		EtcdPassword:    c.EtcdPassword,
-		WatchRoutesFile: c.RoutesFile,
-		RoutesURLs:      c.RoutesURLs.values,
-		InlineRoutes:    c.InlineRoutes,
+		EtcdUrls:            eus,
+		EtcdPrefix:          c.EtcdPrefix,
+		EtcdWaitTimeout:     c.EtcdTimeout,
+		EtcdInsecure:        c.EtcdInsecure,
+		EtcdOAuthToken:      c.EtcdOAuthToken,
+		EtcdUsername:        c.EtcdUsername,
+		EtcdPassword:        c.EtcdPassword,
+		WatchRoutesFile:     c.RoutesFile,
+		RoutesURLs:          c.RoutesURLs.values,
+		EnableRoutesCaching: c.EnableRoutesCaching,
+		InlineRoutes:        c.InlineRoutes,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: c.PrependFilters.filters,
 			Append:  c.AppendFilters.filters,

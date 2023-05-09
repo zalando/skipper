@@ -16,19 +16,24 @@ import (
 )
 
 type remoteEskipFile struct {
-	once            sync.Once
-	preloaded       bool
-	remotePath      string
-	localPath       string
-	eskipFileClient *WatchClient
-	threshold       int
-	verbose         bool
-	http            *net.Client
+	once                sync.Once
+	preloaded           bool
+	remotePath          string
+	localPath           string
+	eskipFileClient     *WatchClient
+	threshold           int
+	verbose             bool
+	http                *net.Client
+	enableRoutesCaching bool
+	isCached            bool
 }
 
 type RemoteWatchOptions struct {
 	// URL of the route file
 	RemoteFile string
+
+	// EnableRoutesCaching allow skipper to use latest pulled routes if not modified.
+	EnableRoutesCaching bool
 
 	// Verbose mode for the dataClient
 	Verbose bool
@@ -57,12 +62,13 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 	}
 
 	dataClient := &remoteEskipFile{
-		once:       sync.Once{},
-		remotePath: o.RemoteFile,
-		localPath:  tempFilename.Name(),
-		threshold:  o.Threshold,
-		verbose:    o.Verbose,
-		http:       net.NewClient(net.Options{Timeout: o.HTTPTimeout}),
+		once:                sync.Once{},
+		remotePath:          o.RemoteFile,
+		localPath:           tempFilename.Name(),
+		threshold:           o.Threshold,
+		verbose:             o.Verbose,
+		http:                net.NewClient(net.Options{Timeout: o.HTTPTimeout}),
+		enableRoutesCaching: o.EnableRoutesCaching,
 	}
 
 	if o.FailOnStartup {
@@ -154,6 +160,9 @@ func isFileRemote(remotePath string) bool {
 func (client *remoteEskipFile) DownloadRemoteFile() error {
 	data, err := client.getRemoteData()
 	if err != nil {
+		if client.isCached {
+			return nil
+		}
 		return err
 	}
 	defer data.Close()
@@ -172,12 +181,23 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 }
 
 func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
+
+	client.isCached = false
+
 	resp, err := client.http.Get(client.remotePath)
 	if err != nil {
 		return nil, err
 	}
+
 	if resp.StatusCode != 200 {
+		if resp.StatusCode == 304 {
+			client.isCached = true
+		}
 		return nil, errors.New("download file failed")
+	}
+
+	if client.enableRoutesCaching {
+		client.http.Etag = resp.Header.Get("ETag")
 	}
 
 	return resp.Body, nil

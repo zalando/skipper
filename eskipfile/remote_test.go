@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -60,6 +61,7 @@ func TestLoadAll(t *testing.T) {
 		routeStatusCode int
 		expected        []*eskip.Route
 		fail            bool
+		cached          bool
 	}{{
 		title:           "Download not existing remote file fails in NewRemoteEskipFile",
 		routeContent:    "",
@@ -82,16 +84,52 @@ func TestLoadAll(t *testing.T) {
 			Shunt:       false,
 			Backend:     "https://example.com/",
 		}},
+	}, {
+		title:           "Cached valid remote file",
+		routeContent:    "",
+		routeStatusCode: 304,
+		expected: []*eskip.Route{{
+			Id:   "VALID",
+			Path: "/",
+			Filters: []*eskip.Filter{{
+				Name: "setPath",
+				Args: []interface{}{
+					"/homepage/",
+				},
+			}},
+			BackendType: eskip.NetworkBackend,
+			Shunt:       false,
+			Backend:     "https://example.com/",
+		}},
+		cached: true,
 	},
 	} {
 		s := createTestServer(test.routeContent, test.routeStatusCode)
 		defer s.Close()
 
 		t.Run(test.title, func(t *testing.T) {
-			options := &RemoteWatchOptions{RemoteFile: s.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
+			options := &RemoteWatchOptions{RemoteFile: s.URL, Threshold: 10, Verbose: true, FailOnStartup: true, EnableRoutesCaching: test.cached}
 			client, err := RemoteWatch(options)
 			if err == nil {
 				defer client.(*remoteEskipFile).Close()
+			}
+
+			if test.cached {
+				f, err := os.OpenFile(client.(*remoteEskipFile).localPath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				_, err = f.WriteString(fmt.Sprintf("VALID: %v;", routeBody))
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				err = f.Sync()
+				if err != nil {
+					t.Error(err)
+					return
+				}
 			}
 
 			if err == nil && test.fail {

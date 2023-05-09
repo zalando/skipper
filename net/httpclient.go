@@ -32,6 +32,7 @@ type Client struct {
 	tr     *Transport
 	log    logging.Logger
 	sr     secrets.SecretsReader
+	Etag   string
 }
 
 // NewClient creates a wrapped http.Client and uses Transport to
@@ -98,6 +99,11 @@ func (c *Client) Get(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if c.Etag != "" {
+		req.Header.Set("If-None-Match", c.Etag)
+	}
+
 	return c.Do(req)
 }
 
