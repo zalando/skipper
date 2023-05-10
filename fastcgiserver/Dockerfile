@@ -1,4 +1,4 @@
-FROM php:7.4.3-fpm-alpine3.11
+FROM php:7.4.3-fpm-alpine3.11@sha256:a748390f2d9f006a0bed261f751656ea49c8f040f664038fe7a47bab44f61212
 
 RUN echo $'[www] \n\
 user = www-data \n\
