@@ -17,7 +17,7 @@ func TestGrantClaimsQuery(t *testing.T) {
 	tokeninfo := newGrantTestTokeninfo(testToken, "{\"scope\":[\"match\"], \"uid\":\"foo\"}")
 	defer tokeninfo.Close()
 
-	newAuthProxyForQuery := func(t *testing.T, config *auth.OAuthConfig, query string) (*proxytest.TestProxy, *http.Client) {
+	newAuthProxyForQuery := func(t *testing.T, config *auth.OAuthConfig, query string) (*proxytest.TestProxy, *proxytest.TestClient) {
 		return newAuthProxy(t, config, []*eskip.Route{{
 			Filters: []*eskip.Filter{
 				{Name: filters.OAuthGrantName},

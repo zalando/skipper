@@ -183,7 +183,7 @@ func newGrantTestConfig(tokeninfoURL, providerURL string) *auth.OAuthConfig {
 	}
 }
 
-func newAuthProxy(t *testing.T, config *auth.OAuthConfig, routes []*eskip.Route, hosts ...string) (*proxytest.TestProxy, *http.Client) {
+func newAuthProxy(t *testing.T, config *auth.OAuthConfig, routes []*eskip.Route, hosts ...string) (*proxytest.TestProxy, *proxytest.TestClient) {
 	err := config.Init()
 	if err != nil {
 		t.Fatal(err)
@@ -235,7 +235,7 @@ func newAuthProxy(t *testing.T, config *auth.OAuthConfig, routes []*eskip.Route,
 	return proxy, client
 }
 
-func newSimpleGrantAuthProxy(t *testing.T, config *auth.OAuthConfig, hosts ...string) (*proxytest.TestProxy, *http.Client) {
+func newSimpleGrantAuthProxy(t *testing.T, config *auth.OAuthConfig, hosts ...string) (*proxytest.TestProxy, *proxytest.TestClient) {
 	return newAuthProxy(t, config, []*eskip.Route{{
 		Filters: []*eskip.Filter{
 			{Name: filters.OAuthGrantName},
@@ -320,7 +320,7 @@ func checkCookie(t *testing.T, rsp *http.Response, expectedDomain string) {
 	}
 }
 
-func grantQueryWithCookie(t *testing.T, client *http.Client, url string, cookies ...*http.Cookie) *http.Response {
+func grantQueryWithCookie(t *testing.T, client *proxytest.TestClient, url string, cookies ...*http.Cookie) *http.Response {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		t.Fatal(err)

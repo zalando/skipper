@@ -915,6 +915,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		return nil, &proxyError{err: fmt.Errorf("unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
 	}
 	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
+	if response.Uncompressed {
+		p.metrics.IncCounter("experimental.uncompressed")
+	}
 	return response, nil
 }
 
