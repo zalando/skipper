@@ -12,7 +12,7 @@ jobs:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
           # Fix version to 1.19, see https://github.com/praetorian-inc/gokart/issues/88
           go-version: '~1.19'
-      - run: go install github.com/praetorian-inc/gokart@latest
+      - run: go install github.com/praetorian-inc/gokart@3d38a9ae72f7d67d5c13f83ec5669630868e409e
       - run: gokart scan -s -o gokart-scan-output.sarif
       # Upload the results to the code scanning security tab
       - uses: github/codeql-action/upload-sarif@9a866ed4524fc3422c3af1e446dab8efa3503411
