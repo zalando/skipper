@@ -115,17 +115,20 @@ func TestLoadAll(t *testing.T) {
 			}
 
 			if test.cached {
-				f, err := os.OpenFile(client.(*remoteEskipFile).localPath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+				fd, err := os.OpenFile(client.(*remoteEskipFile).localPath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 				if err != nil {
 					t.Error(err)
 					return
 				}
-				_, err = f.WriteString(fmt.Sprintf("VALID: %v;", routeBody))
+
+				defer fd.Close()
+
+				_, err = fd.WriteString(fmt.Sprintf("VALID: %v;", routeBody))
 				if err != nil {
 					t.Error(err)
 					return
 				}
-				err = f.Sync()
+				err = fd.Sync()
 				if err != nil {
 					t.Error(err)
 					return

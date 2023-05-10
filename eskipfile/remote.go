@@ -197,7 +197,7 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 	}
 
 	if client.enableRoutesCaching {
-		client.http.Etag = resp.Header.Get("ETag")
+		client.http.SetEtag(resp.Header.Get("ETag"))
 	}
 
 	return resp.Body, nil
