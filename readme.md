@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/zalando/skipper/actions/workflows/master.yaml/badge.svg)]
+[![Build Status](https://github.com/zalando/skipper/actions/workflows/master.yaml/badge.svg)](https://github.com/zalando/skipper/actions/workflows/master.yaml)
 [![Doc](https://img.shields.io/badge/user-documentation-darkblue.svg)](https://opensource.zalando.com/skipper)
 [![Go Reference](https://pkg.go.dev/badge/github.com/zalando/skipper.svg)](https://pkg.go.dev/github.com/zalando/skipper)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
