@@ -108,60 +108,60 @@ func (m *MockMetrics) IncFloatCounterBy(key string, value float64) {
 	})
 }
 
-func (*MockMetrics) MeasureRouteLookup(start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureRouteLookup(start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureFilterRequest(filterName string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureFilterRequest(filterName string, start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureAllFiltersRequest(routeId string, start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureBackend(routeId string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureBackend(routeId string, start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureBackendHost(routeBackendHost string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureBackendHost(routeBackendHost string, start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureFilterResponse(filterName string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureFilterResponse(filterName string, start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureAllFiltersResponse(routeId string, start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) IncRoutingFailures() {
-	panic("implement me")
+func (m *MockMetrics) IncRoutingFailures() {
+	// implement me
 }
 
-func (*MockMetrics) IncErrorsBackend(routeId string) {
-	panic("implement me")
+func (m *MockMetrics) IncErrorsBackend(routeId string) {
+	// implement me
 }
 
-func (*MockMetrics) MeasureBackend5xx(t time.Time) {
-	panic("implement me")
+func (m *MockMetrics) MeasureBackend5xx(t time.Time) {
+	// implement me
 }
 
-func (*MockMetrics) IncErrorsStreaming(routeId string) {
-	panic("implement me")
+func (m *MockMetrics) IncErrorsStreaming(routeId string) {
+	// implement me
 }
 
-func (*MockMetrics) RegisterHandler(path string, handler *http.ServeMux) {
-	panic("implement me")
+func (m *MockMetrics) RegisterHandler(path string, handler *http.ServeMux) {
+	// implement me
 }
 
 func (m *MockMetrics) UpdateGauge(key string, value float64) {

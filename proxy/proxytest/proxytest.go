@@ -2,6 +2,7 @@ package proxytest
 
 import (
 	"crypto/tls"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,10 @@ type TestProxy struct {
 	routing *routing.Routing
 	proxy   *proxy.Proxy
 	server  *httptest.Server
+}
+
+type TestClient struct {
+	*http.Client
 }
 
 type Config struct {
@@ -112,8 +117,8 @@ func (c Config) Create() *TestProxy {
 	}
 }
 
-func (p *TestProxy) Client() *http.Client {
-	return p.server.Client()
+func (p *TestProxy) Client() *TestClient {
+	return &TestClient{p.server.Client()}
 }
 
 func (p *TestProxy) Close() error {
@@ -125,4 +130,17 @@ func (p *TestProxy) Close() error {
 	p.server.Close()
 
 	return p.proxy.Close()
+}
+
+// GetBody issues a GET to the specified URL, reads and closes response body and
+// returns response, response body bytes and error if any.
+func (c *TestClient) GetBody(url string) (rsp *http.Response, body []byte, err error) {
+	rsp, err = c.Get(url)
+	if err != nil {
+		return
+	}
+	defer rsp.Body.Close()
+
+	body, err = io.ReadAll(rsp.Body)
+	return
 }
