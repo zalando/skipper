@@ -15,6 +15,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var ErrContentNotChanged = errors.New("content in cache did not change")
+
 type remoteEskipFile struct {
 	once                sync.Once
 	preloaded           bool
@@ -25,7 +27,6 @@ type remoteEskipFile struct {
 	verbose             bool
 	http                *net.Client
 	enableRoutesCaching bool
-	isCached            bool
 }
 
 type RemoteWatchOptions struct {
@@ -160,7 +161,7 @@ func isFileRemote(remotePath string) bool {
 func (client *remoteEskipFile) DownloadRemoteFile() error {
 	data, err := client.getRemoteData()
 	if err != nil {
-		if client.isCached {
+		if errors.Is(err, ErrContentNotChanged) {
 			return nil
 		}
 		return err
@@ -182,8 +183,6 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 
 func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 
-	client.isCached = false
-
 	resp, err := client.http.Get(client.remotePath)
 	if err != nil {
 		return nil, err
@@ -191,7 +190,7 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 304 {
-			client.isCached = true
+			return nil, ErrContentNotChanged
 		}
 		return nil, errors.New("download file failed")
 	}
