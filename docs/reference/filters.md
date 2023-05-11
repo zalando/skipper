@@ -976,7 +976,7 @@ Example:
 * -> blockContent("Malicious Content") -> "http://example.com";
 ```
 
-### blockHexContent
+### blockContentHex
 
 Block a request based on it's body content.
 
@@ -989,8 +989,8 @@ Parameters:
 Example:
 
 ```
-* -> blockHexContent(`000a`) -> "http://example.com";
-* -> blockHexContent("deadbeef", "000a") -> "http://example.com";
+* -> blockContentHex(`000a`) -> "http://example.com";
+* -> blockContentHex("deadbeef", "000a") -> "http://example.com";
 ```
 
 ### sed

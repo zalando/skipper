@@ -247,7 +247,7 @@ const (
 	ReadTimeoutName                            = "readTimeout"
 	WriteTimeoutName                           = "writeTimeout"
 	BlockName                                  = "blockContent"
-	BlockHexName                               = "blockHexContent"
+	BlockHexName                               = "blockContentHex"
 	LatencyName                                = "latency"
 	BandwidthName                              = "bandwidth"
 	ChunksName                                 = "chunks"
