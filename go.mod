@@ -4,7 +4,7 @@ require (
 	github.com/AlexanderYastrebov/noleak v0.0.0-20230209115903-84c4012720c8
 	github.com/MicahParks/keyfunc v1.0.1
 	github.com/abbot/go-http-auth v0.4.0
-	github.com/andybalholm/brotli v1.0.4
+	github.com/andybalholm/brotli v1.0.5
 	github.com/aryszka/jobqueue v0.0.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cespare/xxhash/v2 v2.2.0
