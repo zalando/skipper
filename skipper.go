@@ -1524,7 +1524,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.CustomFilters = append(o.CustomFilters,
 		logfilter.NewAuditLog(o.MaxAuditBody),
-		block.NewBlockFilter(o.MaxMatcherBufferSize),
+		block.NewBlock(o.MaxMatcherBufferSize),
+		block.NewBlockHex(o.MaxMatcherBufferSize),
 		auth.NewBearerInjector(sp),
 		auth.NewJwtValidationWithOptions(tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyClaims, tio),
