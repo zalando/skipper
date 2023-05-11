@@ -976,6 +976,23 @@ Example:
 * -> blockContent("Malicious Content") -> "http://example.com";
 ```
 
+### blockContentHex
+
+Block a request based on it's body content.
+
+The filter max buffer size is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
+
+Parameters:
+
+* toblockList (List of hex string)
+
+Example:
+
+```
+* -> blockContentHex(`000a`) -> "http://example.com";
+* -> blockContentHex("deadbeef", "000a") -> "http://example.com";
+```
+
 ### sed
 
 The filter sed replaces all occurences of a pattern with a replacement string

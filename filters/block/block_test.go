@@ -33,6 +33,7 @@ func TestMatcher(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		content string
+		block   []byte
 		err     error
 	}{
 		{
@@ -56,19 +57,48 @@ func TestMatcher(t *testing.T) {
 			err:     proxy.ErrBlocked,
 		},
 		{
+			name:    "hex string 0x00 without match",
+			content: "fox.c0.foo.blah",
+			block:   []byte("\x00"),
+		},
+		{
+			name:    "hex string 0x00 with match",
+			content: "fox.c\x00.foo.blah",
+			block:   []byte("\x00"),
+			err:     proxy.ErrBlocked,
+		},
+		{
+			name:    "hex string with uppercase match content string with lowercase",
+			content: "fox.c\x0A.foo.blah",
+			block:   []byte("\x0a"),
+			err:     proxy.ErrBlocked,
+		},
+		{
+			name:    "hex string 0x00 0x0a with match",
+			content: "fox.c\x00\x0a.foo.blah",
+			block:   []byte{0, 10},
+			err:     proxy.ErrBlocked,
+		},
+		{
 			name:    "long string",
 			content: strings.Repeat("A", 8192),
-			err:     nil,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
+			block := []byte(".class")
+			if len(tt.block) != 0 {
+				block = tt.block
+			}
 			r := &nonBlockingReader{initialContent: []byte(tt.content)}
-			toblockList := []toblockKeys{{str: []byte(".class")}}
+			toblockList := []toblockKeys{{str: block}}
 
 			bmb := newMatcher(r, toblockList, 2097152, maxBufferBestEffort)
 
 			t.Logf("Content: %s", r.initialContent)
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)
+			if err != tt.err {
+				t.Fatalf("Failed to get expected err %v, got: %v", tt.err, err)
+			}
 			if err != nil {
 				if err == proxy.ErrBlocked {
 					t.Logf("Stop! Request has some blocked content!")
@@ -133,7 +163,7 @@ func TestMatcherErrorCases(t *testing.T) {
 }
 
 func TestBlockCreateFilterErrors(t *testing.T) {
-	spec := NewBlockFilter(1024)
+	spec := NewBlock(1024)
 
 	t.Run("empty args", func(t *testing.T) {
 		args := []interface{}{}
@@ -157,7 +187,7 @@ func TestBlock(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	spec := NewBlockFilter(1024)
+	spec := NewBlock(1024)
 	args := []interface{}{"foo"}
 	fr := make(filters.Registry)
 	fr.Register(spec)
@@ -206,6 +236,94 @@ func TestBlock(t *testing.T) {
 
 	t.Run("pass request on empty body", func(t *testing.T) {
 		buf := bytes.NewBufferString("")
+		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+		if rsp.StatusCode != 200 {
+			t.Errorf("Blocked response status code %d", rsp.StatusCode)
+		}
+	})
+}
+func TestBlockHex(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	}))
+	defer backend.Close()
+
+	spec := NewBlockHex(1024)
+	args := []interface{}{`000a`}
+	fr := make(filters.Registry)
+	fr.Register(spec)
+	r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+
+	proxy := proxytest.New(fr, r)
+	defer proxy.Close()
+	reqURL, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
+	}
+
+	t.Run("block request", func(t *testing.T) {
+		buf := bytes.NewBufferString("hello \x00\x0afoo world")
+		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+		if rsp.StatusCode != 400 {
+			t.Errorf("Not Blocked response status code %d", rsp.StatusCode)
+		}
+	})
+
+	t.Run("block request binary data in request", func(t *testing.T) {
+		buf := bytes.NewBuffer([]byte{65, 65, 31, 0, 10, 102, 111, 111, 31})
+		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+		if rsp.StatusCode != 400 {
+			t.Errorf("Not Blocked response status code %d", rsp.StatusCode)
+		}
+	})
+
+	t.Run("pass request", func(t *testing.T) {
+		buf := bytes.NewBufferString("hello \x00a\x0a world")
+		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rsp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rsp.Body.Close()
+		if rsp.StatusCode != 200 {
+			t.Errorf("Blocked response status code %d", rsp.StatusCode)
+		}
+	})
+
+	t.Run("pass request binary data in request", func(t *testing.T) {
+		buf := bytes.NewBuffer([]byte{65, 65, 31, 0, 11, 102, 111, 111, 31})
 		req, err := http.NewRequest("POST", reqURL.String(), buf)
 		if err != nil {
 			t.Fatal(err)
