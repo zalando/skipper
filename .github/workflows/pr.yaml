@@ -3,9 +3,8 @@ on: [ pull_request ]
 permissions:
   contents: read
 jobs:
-  if: ${{ github.actor != 'dependabot[bot]' }}
-
   gokart:
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab
@@ -21,6 +20,7 @@ jobs:
         with:
           sarif_file: gokart-scan-output.sarif
   semgrep:
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     container:
       image: returntocorp/semgrep
