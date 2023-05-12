@@ -3,6 +3,7 @@ package eskipfile
 import (
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -15,26 +16,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var ErrContentNotChanged = errors.New("content in cache did not change")
+var ErrContentNotChanged = errors.New("content in cache did not change, 304 reponse status code")
 
 type remoteEskipFile struct {
-	once                sync.Once
-	preloaded           bool
-	remotePath          string
-	localPath           string
-	eskipFileClient     *WatchClient
-	threshold           int
-	verbose             bool
-	http                *net.Client
-	enableRoutesCaching bool
+	once            sync.Once
+	preloaded       bool
+	remotePath      string
+	localPath       string
+	eskipFileClient *WatchClient
+	threshold       int
+	verbose         bool
+	http            *net.Client
+	etag            string
 }
 
 type RemoteWatchOptions struct {
 	// URL of the route file
 	RemoteFile string
-
-	// EnableRoutesCaching allow skipper to use latest pulled routes if not modified.
-	EnableRoutesCaching bool
 
 	// Verbose mode for the dataClient
 	Verbose bool
@@ -63,13 +61,12 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 	}
 
 	dataClient := &remoteEskipFile{
-		once:                sync.Once{},
-		remotePath:          o.RemoteFile,
-		localPath:           tempFilename.Name(),
-		threshold:           o.Threshold,
-		verbose:             o.Verbose,
-		http:                net.NewClient(net.Options{Timeout: o.HTTPTimeout}),
-		enableRoutesCaching: o.EnableRoutesCaching,
+		once:       sync.Once{},
+		remotePath: o.RemoteFile,
+		localPath:  tempFilename.Name(),
+		threshold:  o.Threshold,
+		verbose:    o.Verbose,
+		http:       net.NewClient(net.Options{Timeout: o.HTTPTimeout}),
 	}
 
 	if o.FailOnStartup {
@@ -182,8 +179,17 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 }
 
 func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
+	req, err := http.NewRequest("GET", client.remotePath, nil)
 
-	resp, err := client.http.Get(client.remotePath)
+	if err != nil {
+		return nil, errors.New("failed to create request")
+	}
+
+	if len(client.etag) != 0 {
+		req.Header.Set("If-None-Match", client.etag)
+	}
+
+	resp, err := client.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -195,9 +201,7 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 		return nil, errors.New("download file failed")
 	}
 
-	if client.enableRoutesCaching {
-		client.http.SetEtag(resp.Header.Get("ETag"))
-	}
+	client.etag = resp.Header.Get("ETag")
 
 	return resp.Body, nil
 }

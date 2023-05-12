@@ -108,13 +108,13 @@ func TestLoadAll(t *testing.T) {
 		defer s.Close()
 
 		t.Run(test.title, func(t *testing.T) {
-			options := &RemoteWatchOptions{RemoteFile: s.URL, Threshold: 10, Verbose: true, FailOnStartup: true, EnableRoutesCaching: test.cached}
+			options := &RemoteWatchOptions{RemoteFile: s.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
 			client, err := RemoteWatch(options)
 			if err == nil {
 				defer client.(*remoteEskipFile).Close()
 			}
 
-			if test.cached {
+			if test.routeStatusCode == 304 {
 				fd, err := os.OpenFile(client.(*remoteEskipFile).localPath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 				if err != nil {
 					t.Error(err)

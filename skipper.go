@@ -287,9 +287,6 @@ type Options struct {
 	// RouteURLs are URLs pointing to route definitions, in eskip format, with change watching enabled.
 	RoutesURLs []string
 
-	// EnableRoutesCaching allow skipper to use latest pulled routes if not modified.
-	EnableRoutesCaching bool
-
 	// InlineRoutes can define routes as eskip text.
 	InlineRoutes string
 
@@ -934,10 +931,9 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	if len(o.RoutesURLs) > 0 {
 		for _, url := range o.RoutesURLs {
 			client, err := eskipfile.RemoteWatch(&eskipfile.RemoteWatchOptions{
-				RemoteFile:          url,
-				FailOnStartup:       true,
-				HTTPTimeout:         o.SourcePollTimeout,
-				EnableRoutesCaching: o.EnableRoutesCaching,
+				RemoteFile:    url,
+				FailOnStartup: true,
+				HTTPTimeout:   o.SourcePollTimeout,
 			})
 			if err != nil {
 				log.Errorf("error while loading routes from url %s: %s", url, err)

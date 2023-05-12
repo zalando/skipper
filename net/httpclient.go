@@ -32,7 +32,6 @@ type Client struct {
 	tr     *Transport
 	log    logging.Logger
 	sr     secrets.SecretsReader
-	etag   string
 }
 
 // NewClient creates a wrapped http.Client and uses Transport to
@@ -76,10 +75,6 @@ func NewClient(o Options) *Client {
 	return c
 }
 
-func (c *Client) SetEtag(etag string) {
-	c.etag = etag
-}
-
 func (c *Client) Close() {
 	c.once.Do(func() {
 		c.tr.Close()
@@ -102,10 +97,6 @@ func (c *Client) Get(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
-	}
-
-	if c.etag != "" {
-		req.Header.Set("If-None-Match", c.etag)
 	}
 
 	return c.Do(req)
