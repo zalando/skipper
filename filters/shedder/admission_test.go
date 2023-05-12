@@ -20,6 +20,9 @@ import (
 )
 
 func TestAdmissionControl(t *testing.T) {
+	// fixed rand to have non flaky tests
+	rand := rand.New(rand.NewSource(5))
+
 	for _, ti := range []struct {
 		msg                        string
 		mode                       string
