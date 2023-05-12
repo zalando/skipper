@@ -18,6 +18,8 @@ on:
 permissions: read-all
 
 jobs:
+  if: ${{ github.actor != 'dependabot[bot]' }}
+
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest

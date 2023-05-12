@@ -3,6 +3,8 @@ on: [ pull_request ]
 permissions:
   contents: read
 jobs:
+  if: ${{ github.actor != 'dependabot[bot]' }}
+
   gokart:
     runs-on: ubuntu-latest
     steps:
