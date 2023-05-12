@@ -16,9 +16,9 @@ on:
     - cron: '0 11 * * 1'
 
 jobs:
-  if: ${{ github.actor != 'dependabot[bot]' }}
-
   analyze:
+    if: ${{ github.actor != 'dependabot[bot]' }}
+
     name: Analyze
     runs-on: ubuntu-latest
     # Adding this block will overridw default values to None if not specified in the block
