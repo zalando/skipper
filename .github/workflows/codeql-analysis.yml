@@ -16,6 +16,8 @@ on:
     - cron: '0 11 * * 1'
 
 jobs:
+  if: ${{ github.actor != 'dependabot[bot]' }}
+
   analyze:
     name: Analyze
     runs-on: ubuntu-latest

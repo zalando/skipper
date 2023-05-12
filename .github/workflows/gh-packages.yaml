@@ -11,6 +11,8 @@ env:
   IMAGE_NAME: "${{ github.repository }}"
 
 jobs:
+  if: ${{ github.actor != 'dependabot[bot]' }}
+
   docker:
     runs-on: ubuntu-latest
     # Adding this block will overridw default values to None if not specified in the block

@@ -11,6 +11,8 @@ on:
       - 'docs/**'
 
 jobs:
+  if: ${{ github.actor != 'dependabot[bot]' }}
+
   deploy:
     permissions:
       contents: write
