@@ -112,6 +112,9 @@ bench: build $(TEST_PLUGINS)
 	#
 	for p in $(PACKAGES); do go test -bench . $$p; done
 
+fuzz:
+	for p in $(PACKAGES); do go test -run=NONE -fuzz=Fuzz -fuzztime 30s $$p; done
+
 lint: build staticcheck
 
 clean:
