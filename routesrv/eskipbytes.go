@@ -63,8 +63,8 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	e.mu.RLock()
 	count := e.count
-	etag := e.etag
 	data := e.data
+	etag := e.etag
 	lastModified := e.lastModified
 	initialized := e.initialized
 	e.mu.RUnlock()
