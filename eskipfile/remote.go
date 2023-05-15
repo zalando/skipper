@@ -12,7 +12,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
-	"golang.org/x/time/rate"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,16 +19,15 @@ import (
 var ErrContentNotChanged = errors.New("content in cache did not change, 304 reponse status code")
 
 type remoteEskipFile struct {
-	once              sync.Once
-	preloaded         bool
-	remotePath        string
-	localPath         string
-	eskipFileClient   *WatchClient
-	threshold         int
-	verbose           bool
-	http              *net.Client
-	etag              string
-	onCachedSometimes rate.Sometimes
+	once            sync.Once
+	preloaded       bool
+	remotePath      string
+	localPath       string
+	eskipFileClient *WatchClient
+	threshold       int
+	verbose         bool
+	http            *net.Client
+	etag            string
 }
 
 type RemoteWatchOptions struct {
@@ -63,13 +61,12 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 	}
 
 	dataClient := &remoteEskipFile{
-		once:              sync.Once{},
-		remotePath:        o.RemoteFile,
-		localPath:         tempFilename.Name(),
-		threshold:         o.Threshold,
-		verbose:           o.Verbose,
-		http:              net.NewClient(net.Options{Timeout: o.HTTPTimeout}),
-		onCachedSometimes: rate.Sometimes{First: 2, Interval: 1 * time.Minute},
+		once:       sync.Once{},
+		remotePath: o.RemoteFile,
+		localPath:  tempFilename.Name(),
+		threshold:  o.Threshold,
+		verbose:    o.Verbose,
+		http:       net.NewClient(net.Options{Timeout: o.HTTPTimeout}),
 	}
 
 	if o.FailOnStartup {
@@ -198,7 +195,6 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 	}
 
 	if resp.StatusCode == 304 {
-		client.onCachedSometimes.Do(func() { log.Info("remote routes are cached") })
 		return nil, ErrContentNotChanged
 	}
 
