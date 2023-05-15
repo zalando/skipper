@@ -98,7 +98,6 @@ func (c *Client) Get(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return c.Do(req)
 }
 
