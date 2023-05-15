@@ -62,17 +62,8 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	e.mu.RLock()
-	etag := e.etag
-	e.mu.RUnlock()
-
-	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch != "" && ifNoneMatch == etag {
-		// Client has a matching ETag, return a 304 Not Modified response
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-
-	e.mu.RLock()
 	count := e.count
+	etag := e.etag
 	data := e.data
 	lastModified := e.lastModified
 	initialized := e.initialized
