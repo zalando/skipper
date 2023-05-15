@@ -340,7 +340,7 @@ func TestInvalidHTTPDialBackend(t *testing.T) {
 
 func TestAuditLogging(t *testing.T) {
 	message := strconv.Itoa(rand.Int())
-	test := func(enabled bool, check func(*testing.T, *bytes.Buffer, *bytes.Buffer)) func(t *testing.T) {
+	test := func(enabled bool, check func(*testing.T, string, string)) func(t *testing.T) {
 		return func(t *testing.T) {
 			wss := httptest.NewServer(websocket.Handler(func(ws *websocket.Conn) {
 				if _, err := io.Copy(ws, ws); err != nil {
@@ -412,18 +412,18 @@ func TestAuditLogging(t *testing.T) {
 				<-p.auditLogHook
 			}
 
-			check(t, sout, serr)
+			check(t, sout.String(), serr.String())
 		}
 	}
 
-	t.Run("off", test(false, func(t *testing.T, sout, serr *bytes.Buffer) {
-		if sout.Len() != 0 || serr.Len() != 0 {
-			t.Error("failed to disable audit log")
+	t.Run("off", test(false, func(t *testing.T, sout, serr string) {
+		if sout != "" || len(serr) != 0 {
+			t.Errorf("failed to disable audit log: %s", sout)
 		}
 	}))
 
-	t.Run("on", test(true, func(t *testing.T, sout, serr *bytes.Buffer) {
-		if !strings.Contains(sout.String(), message) || serr.Len() == 0 {
+	t.Run("on", test(true, func(t *testing.T, sout, serr string) {
+		if !strings.Contains(sout, message) || len(serr) == 0 {
 			t.Error("failed to enable audit log")
 		}
 	}))
