@@ -154,6 +154,7 @@ deps: ## install dependencies to run everything
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
+	@go install github.com/google/osv-scanner/cmd/osv-scanner@v1
 
 .PHONY: vet
 vet: $(SOURCES) ## run Go vet
@@ -183,6 +184,10 @@ gosec: $(SOURCES)
 .PHONY: govulncheck
 govulncheck: $(SOURCES) ## run govulncheck
 	govulncheck ./...
+
+.PHONY: osv-scanner
+osv-scanner: $(SOURCES) ## run osv-scanner see https://osv.dev/
+	osv-scanner -r ./
 
 .PHONY: fmt
 fmt: $(SOURCES) ## format code
