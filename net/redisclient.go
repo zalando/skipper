@@ -3,13 +3,14 @@ package net
 import (
 	"context"
 	"fmt"
-	"log"
+	"net"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"github.com/go-redis/redis/v9"
 	"github.com/opentracing/opentracing-go"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 
@@ -195,6 +196,85 @@ func NewRendezvousVnodes(shards []string) redis.ConsistentHash {
 		}
 	}
 	return rendezvousVnodes{rendezvous.New(vshards, xxhash.Sum64String), table}
+}
+
+type RedisDialer struct {
+	d *net.Dialer
+}
+
+func NewRedisDialer(d *net.Dialer) *RedisDialer {
+	return &RedisDialer{
+		d: d,
+	}
+}
+
+func foo() {
+	NewRedisDialer(&net.Dialer{
+		Timeout:   250 * time.Millisecond,
+		KeepAlive: 30 * time.Second,
+		DualStack: false,
+	})
+}
+
+func (rd *RedisDialer) Dialer(ctx context.Context, network, addr string) (net.Conn, error) {
+	return rd.DialContext(ctx, network, addr)
+}
+
+func (rd *RedisDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		span.LogKV("dial_context", "start")
+	}
+
+	conn, err := rd.d.DialContext(ctx, network, addr)
+
+	if span != nil {
+		span.LogKV("dial_context", "done")
+		if err != nil {
+			span.SetTag("error", true)
+			span.LogKV("event", "error", "message", err.Error())
+		}
+
+	}
+	log.Errorf("Failed to Dial: %v", err)
+
+	return conn, err
+}
+
+func (rd *RedisDialer) OnConnect(ctx context.Context, cn *redis.Conn) error {
+	return nil
+}
+
+type RedisHook struct {
+	tracer *opentracing.Tracer
+}
+
+func (rh *RedisHook) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
+	now := time.Now()
+	c := context.WithValue(ctx, "start", now)
+	return c, nil
+}
+
+func (rh *RedisHook) AfterProcess(ctx context.Context, cmd redis.Cmder) error {
+	var ts time.Time
+	var ok bool
+
+	ts, ok = ctx.Value("start").(time.Time)
+	if !ok {
+		return nil
+	}
+	d := time.Now().Sub(ts)
+	span := opentracing.SpanFromContext(ctx)
+	span.LogKV("command processing took", d.String())
+	return nil
+}
+
+func (rh *RedisHook) BeforeProcessPipeline(ctx context.Context, cmds []redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (rh *RedisHook) AfterProcessPipeline(ctx context.Context, cmds []redis.Cmder) error {
+	return nil
 }
 
 func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
