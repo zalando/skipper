@@ -130,11 +130,10 @@ func TestProcessRouteDefErrors(t *testing.T) {
 }
 
 func TestProcessRouteDefWeight(t *testing.T) {
-
-	wps := weightedPredicateSpec{}
-
-	cpm := make(map[string]routing.PredicateSpec)
-	cpm[wps.Name()] = wps
+	cpm := map[string]routing.PredicateSpec{
+		"WeightedPredicate10":      weightedPredicateSpec{name: "WeightedPredicate10", weight: 10},
+		"WeightedPredicateMinus10": weightedPredicateSpec{name: "WeightedPredicateMinus10", weight: -10},
+	}
 
 	for _, ti := range []struct {
 		route  string
@@ -155,6 +154,15 @@ func TestProcessRouteDefWeight(t *testing.T) {
 		}, {
 			`WeightedPredicate10() && Weight(20) -> <shunt>`,
 			30,
+		}, {
+			`WeightedPredicateMinus10() -> <shunt>`,
+			-10,
+		}, {
+			`WeightedPredicateMinus10() && Weight(10) -> <shunt>`,
+			0,
+		}, {
+			`WeightedPredicateMinus10() && Weight(20) -> <shunt>`,
+			10,
 		},
 	} {
 		func() {
@@ -290,7 +298,10 @@ func TestLogging(t *testing.T) {
 	})
 }
 
-type weightedPredicateSpec struct{}
+type weightedPredicateSpec struct {
+	name   string
+	weight int
+}
 type weightedPredicate struct{}
 
 func (w weightedPredicate) Match(request *http.Request) bool {
@@ -298,7 +309,7 @@ func (w weightedPredicate) Match(request *http.Request) bool {
 }
 
 func (w weightedPredicateSpec) Name() string {
-	return "WeightedPredicate10"
+	return w.name
 }
 
 func (w weightedPredicateSpec) Create([]interface{}) (routing.Predicate, error) {
@@ -306,5 +317,5 @@ func (w weightedPredicateSpec) Create([]interface{}) (routing.Predicate, error) 
 }
 
 func (w weightedPredicateSpec) Weight() int {
-	return 10
+	return w.weight
 }

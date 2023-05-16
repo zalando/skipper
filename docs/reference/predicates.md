@@ -716,6 +716,32 @@ catalog:
     "https://catalog";
 ```
 
+## TrafficSegment
+
+TrafficSegment predicate requires two number arguments $min$ and $max$
+from an interval $[0, 1]$ (from zero included to one included) and $min <= max$.
+
+Let $r$ be one-per-request uniform random number value from $[0, 1)$.
+TrafficSegment matches if $r$ belongs to an interval from $[min, max)$.
+Upper interval boundary $max$ is excluded to simplify definition of
+adjacent intervals - the upper boundary of the first interval
+then equals lower boundary of the next and so on, e.g. $[0, 0.25)$ and $[0.25, 1)$.
+
+This predicate has weight of -1 and therefore does not affect route weight.
+
+Parameters:
+
+* min (decimal) from an interval [0, 1]
+* max (decimal) from an interval [0, 1], min <= max
+
+Example of routes splitting traffic in 50%+30%+20% proportion:
+
+```
+r50: Path("/test") && TrafficSegment(0.0, 0.5) -> <shunt>;
+r30: Path("/test") && TrafficSegment(0.5, 0.8) -> <shunt>;
+r20: Path("/test") && TrafficSegment(0.8, 1.0) -> <shunt>;
+```
+
 ## ContentLengthBetween
 
 The ContentLengthBetween predicate matches a route when a request content length header value is between min and max provided values.
