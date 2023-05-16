@@ -16,7 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var ErrContentNotChanged = errors.New("content in cache did not change, 304 reponse status code")
+var errContentNotChanged = errors.New("content in cache did not change, 304 reponse status code")
 
 type remoteEskipFile struct {
 	once            sync.Once
@@ -158,7 +158,7 @@ func isFileRemote(remotePath string) bool {
 func (client *remoteEskipFile) DownloadRemoteFile() error {
 	data, err := client.getRemoteData()
 	if err != nil {
-		if errors.Is(err, ErrContentNotChanged) {
+		if errors.Is(err, errContentNotChanged) {
 			return nil
 		}
 		return err
@@ -185,7 +185,7 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	if len(client.etag) != 0 {
+	if client.etag != "" {
 		req.Header.Set("If-None-Match", client.etag)
 	}
 
@@ -195,7 +195,7 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 	}
 
 	if resp.StatusCode == 304 {
-		return nil, ErrContentNotChanged
+		return nil, errContentNotChanged
 	}
 
 	if resp.StatusCode != 200 {

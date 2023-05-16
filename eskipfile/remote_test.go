@@ -61,7 +61,6 @@ func TestLoadAll(t *testing.T) {
 		routeStatusCode int
 		expected        []*eskip.Route
 		fail            bool
-		cached          bool
 	}{{
 		title:           "Download not existing remote file fails in NewRemoteEskipFile",
 		routeContent:    "",
@@ -101,7 +100,6 @@ func TestLoadAll(t *testing.T) {
 			Shunt:       false,
 			Backend:     "https://example.com/",
 		}},
-		cached: true,
 	},
 	} {
 		s := createTestServer(test.routeContent, test.routeStatusCode)
