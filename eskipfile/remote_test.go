@@ -1,12 +1,12 @@
 package eskipfile
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -83,23 +83,6 @@ func TestLoadAll(t *testing.T) {
 			Shunt:       false,
 			Backend:     "https://example.com/",
 		}},
-	}, {
-		title:           "Cached valid remote file",
-		routeContent:    "",
-		routeStatusCode: 304,
-		expected: []*eskip.Route{{
-			Id:   "VALID",
-			Path: "/",
-			Filters: []*eskip.Filter{{
-				Name: "setPath",
-				Args: []interface{}{
-					"/homepage/",
-				},
-			}},
-			BackendType: eskip.NetworkBackend,
-			Shunt:       false,
-			Backend:     "https://example.com/",
-		}},
 	},
 	} {
 		s := createTestServer(test.routeContent, test.routeStatusCode)
@@ -110,27 +93,6 @@ func TestLoadAll(t *testing.T) {
 			client, err := RemoteWatch(options)
 			if err == nil {
 				defer client.(*remoteEskipFile).Close()
-			}
-
-			if test.routeStatusCode == 304 {
-				fd, err := os.OpenFile(client.(*remoteEskipFile).localPath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
-				if err != nil {
-					t.Error(err)
-					return
-				}
-
-				defer fd.Close()
-
-				_, err = fd.WriteString(fmt.Sprintf("VALID: %v;", routeBody))
-				if err != nil {
-					t.Error(err)
-					return
-				}
-				err = fd.Sync()
-				if err != nil {
-					t.Error(err)
-					return
-				}
 			}
 
 			if err == nil && test.fail {
@@ -233,4 +195,121 @@ func createTestServer(c string, sc int) *httptest.Server {
 		w.WriteHeader(sc)
 		io.WriteString(w, c)
 	}))
+}
+
+func TestRoutesCaching(t *testing.T) {
+	var expected = []*eskip.Route{{
+		Id:   "VALID",
+		Path: "/",
+		Filters: []*eskip.Filter{{
+			Name: "setPath",
+			Args: []interface{}{
+				"/homepage/",
+			},
+		}},
+		BackendType: eskip.NetworkBackend,
+		Shunt:       false,
+		Backend:     "https://example.com/",
+	}}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", "test-etag")
+		if noneMatch := r.Header.Get("If-None-Match"); noneMatch == "test-etag" {
+			print("\n============= I'm matched here =============\n")
+			// w.Header().Set("ETag", "test-etag")
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		io.WriteString(w, fmt.Sprintf("VALID: %v;", routeBody))
+	}))
+	defer server.Close()
+
+	options := &RemoteWatchOptions{RemoteFile: server.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
+	client, err := RemoteWatch(options) // first call
+	if err == nil {
+		defer client.(*remoteEskipFile).Close()
+	}
+
+	_, err = client.(*remoteEskipFile).getRemoteData() // cached, to make sure it returns the right status code
+
+	if !errors.Is(err, errContentNotChanged) {
+		t.Error(err)
+		return
+	}
+
+	r, err := client.LoadAll() // cached, to make sure it returns the right content
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if !eskip.EqLists(r, expected) {
+		t.Errorf("invalid cached routes received\n%s", cmp.Diff(r, expected))
+		return
+	}
+
+}
+
+func TestRoutesCachingWrongEtag(t *testing.T) {
+	var flushCache = false
+	var expected = []*eskip.Route{{
+		Id:   "VALID",
+		Path: "/",
+		Filters: []*eskip.Filter{{
+			Name: "setPath",
+			Args: []interface{}{
+				"/homepage/",
+			},
+		}},
+		BackendType: eskip.NetworkBackend,
+		Shunt:       false,
+		Backend:     "https://example.com/",
+	}}
+
+	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", "test-etag")
+		if noneMatch := r.Header.Get("If-None-Match"); noneMatch == "test-etag" {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+
+		if !flushCache {
+			io.WriteString(w, fmt.Sprintf("VALID: %v;", routeBody))
+		} else {
+			io.WriteString(w, fmt.Sprintf("different: %v;", routeBody))
+		}
+	}))
+	defer server1.Close()
+
+	options := &RemoteWatchOptions{RemoteFile: server1.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
+	client, err := RemoteWatch(options) // First call
+	if err == nil {
+		defer client.(*remoteEskipFile).Close()
+	}
+
+	_, err = client.(*remoteEskipFile).getRemoteData() // Cached
+
+	if !errors.Is(err, errContentNotChanged) {
+		t.Error(err)
+		return
+	}
+
+	client.(*remoteEskipFile).etag = "different-etag"
+	flushCache = true
+
+	r, err := client.LoadAll() // Not cached
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	t.Logf("routes returned: %s", r[0].Id)
+	t.Logf("routes expected: %s", expected[0].Id)
+
+	if eskip.EqLists(r, expected) {
+		t.Error("routes shoudn't match with different etags")
+		return
+	}
 }
