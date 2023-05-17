@@ -131,9 +131,9 @@ func TestTrafficSegmentSplit(t *testing.T) {
 }
 
 func TestTrafficSegmentTeeLoopback(t *testing.T) {
-	var loopRequests int32
+	loopRequestsPtr := new(int32)
 	loopBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&loopRequests, 1)
+		atomic.AddInt32(loopRequestsPtr, 1)
 	}))
 	defer loopBackend.Close()
 
@@ -164,11 +164,13 @@ func TestTrafficSegmentTeeLoopback(t *testing.T) {
 	// wait for loopback requests to complete
 	time.Sleep(100 * time.Millisecond)
 
+	loopRequests := int(atomic.LoadInt32(loopRequestsPtr))
+
 	t.Logf("Response codes: %v, loopRequests: %d", codes, loopRequests)
 
 	assert.InDelta(t, N*0.5, codes[200], delta)
 	assert.InDelta(t, N*0.5, codes[201], delta)
-	assert.Equal(t, codes[201], int(loopRequests))
+	assert.Equal(t, codes[201], loopRequests)
 }
 
 func TestTrafficSegmentLoopbackBackend(t *testing.T) {
