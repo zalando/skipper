@@ -6,7 +6,6 @@ OAuth2 provider returns a "uid" key and value.
 package log
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -50,13 +49,6 @@ type auditLog struct {
 	maxBodyLog int
 }
 
-type teeBody struct {
-	body      io.ReadCloser
-	buffer    *bytes.Buffer
-	teeReader io.Reader
-	maxTee    int
-}
-
 type auditDoc struct {
 	Method      string         `json:"method"`
 	Path        string         `json:"path"`
@@ -69,40 +61,6 @@ type authStatusDoc struct {
 	User     string `json:"user,omitempty"`
 	Rejected bool   `json:"rejected"`
 	Reason   string `json:"reason,omitempty"`
-}
-
-func newTeeBody(rc io.ReadCloser, maxTee int) io.ReadCloser {
-	b := bytes.NewBuffer(nil)
-	tb := &teeBody{
-		body:   rc,
-		buffer: b,
-		maxTee: maxTee}
-	tb.teeReader = io.TeeReader(rc, tb)
-	return tb
-}
-
-func (tb *teeBody) Read(b []byte) (int, error) { return tb.teeReader.Read(b) }
-func (tb *teeBody) Close() error               { return tb.body.Close() }
-
-func (tb *teeBody) Write(b []byte) (int, error) {
-	if tb.maxTee < 0 {
-		return tb.buffer.Write(b)
-	}
-
-	wl := len(b)
-	if wl >= tb.maxTee {
-		wl = tb.maxTee
-	}
-
-	n, err := tb.buffer.Write(b[:wl])
-	if err != nil {
-		return n, err
-	}
-
-	tb.maxTee -= n
-
-	// lie to avoid short write
-	return len(b), nil
 }
 
 // NewAuditLog creates an auditLog filter specification. It expects a
