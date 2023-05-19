@@ -36,6 +36,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	skpnet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/fastcgi"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/rfc"
@@ -267,7 +268,6 @@ const (
 )
 
 var (
-	ErrBlocked            = errors.New("blocked string match found in body")
 	errRouteLookupFailed  = &proxyError{err: errRouteLookup}
 	errCircuitBreakerOpen = &proxyError{
 		err:              errors.New("circuit breaker open"),
@@ -890,7 +890,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
-		if errors.Is(err, ErrBlocked) {
+		if errors.Is(err, skpnet.ErrBlocked) {
 			p.tracing.setTag(ctx.proxySpan, BlockTag, true)
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusBadRequest))
 			return nil, &proxyError{err: err, code: http.StatusBadRequest}
