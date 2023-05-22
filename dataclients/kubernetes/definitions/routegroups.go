@@ -57,7 +57,7 @@ type RouteGroupSpec struct {
 	// backend which is applied to all routes, if no override was
 	// added to a route. A special case is Traffic Switching which
 	// will have more than one default backend definition.
-	DefaultBackends []*BackendReference `json:"defaultBackends,omitempty"`
+	DefaultBackends BackendReferences `json:"defaultBackends,omitempty"`
 
 	// Routes specifies the list of route based on path, method
 	// and predicates. It defaults to catchall, if there are no
@@ -128,6 +128,8 @@ type BackendReference struct {
 	Weight int `json:"weight"`
 }
 
+type BackendReferences []*BackendReference
+
 type RouteSpec struct {
 	// Path specifies Path predicate, only one of Path or PathSubtree is allowed
 	Path string `json:"path,omitempty"`
@@ -140,7 +142,7 @@ type RouteSpec struct {
 
 	// Backends specifies the list of backendReference that should
 	// be applied to override the defaultBackends
-	Backends []*BackendReference `json:"backends,omitempty"`
+	Backends BackendReferences `json:"backends,omitempty"`
 
 	// Filters specifies the list of filters applied to the RouteSpec
 	Filters []string `json:"filters,omitempty"`
@@ -162,6 +164,10 @@ func invalidBackend(name string, err error) error {
 
 func invalidBackendReference(name string) error {
 	return fmt.Errorf("invalid backend reference: %s", name)
+}
+
+func duplicateBackendReference(name string) error {
+	return fmt.Errorf("duplicate backend reference: %s", name)
 }
 
 func invalidBackendWeight(name string, w int) error {
@@ -300,6 +306,24 @@ func hasEmpty(s []string) bool {
 	return false
 }
 
+func (brs BackendReferences) validate(backends map[string]bool) error {
+	if brs == nil {
+		return nil
+	}
+	names := make(map[string]struct{}, len(brs))
+	for _, br := range brs {
+		if _, ok := names[br.BackendName]; ok {
+			return duplicateBackendReference(br.BackendName)
+		}
+		names[br.BackendName] = struct{}{}
+
+		if err := br.validate(backends); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (br *BackendReference) validate(backends map[string]bool) error {
 	if br == nil || br.BackendName == "" {
 		return errUnnamedBackendReference
@@ -341,10 +365,8 @@ func (rg *RouteGroupSpec) validate() error {
 	}
 
 	hasDefault := len(rg.DefaultBackends) > 0
-	for _, br := range rg.DefaultBackends {
-		if err := br.validate(backends); err != nil {
-			return err
-		}
+	if err := rg.DefaultBackends.validate(backends); err != nil {
+		return err
 	}
 
 	if !hasDefault && len(rg.Routes) == 0 {
@@ -370,10 +392,8 @@ func (r *RouteSpec) validate(hasDefault bool, backends map[string]bool) error {
 		return errMissingBackendReference
 	}
 
-	for _, br := range r.Backends {
-		if err := br.validate(backends); err != nil {
-			return err
-		}
+	if err := r.Backends.validate(backends); err != nil {
+		return err
 	}
 
 	if r.Path != "" && r.PathSubtree != "" {
