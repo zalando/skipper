@@ -22,7 +22,7 @@ require (
 	github.com/hashicorp/memberlist v0.5.0
 	github.com/instana/go-sensor v1.38.3
 	github.com/lightstep/lightstep-tracer-go v0.25.0
-	github.com/miekg/dns v1.1.45
+	github.com/miekg/dns v1.1.54
 	github.com/oklog/ulid v1.3.1
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
