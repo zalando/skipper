@@ -200,19 +200,19 @@ func createTestServer(c string, sc int) *httptest.Server {
 }
 
 func TestRoutesCaching(t *testing.T) {
-	counte200s := atomic.Int32{}
-	counte304s := atomic.Int32{}
+	count200s := atomic.Int32{}
+	count304s := atomic.Int32{}
 	expected := eskip.MustParse(fmt.Sprintf("VALID: %v;", routeBody))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if noneMatch := r.Header.Get("If-None-Match"); noneMatch == "test-etag" {
 			t.Logf("request matches etag: %s", noneMatch)
 			w.WriteHeader(http.StatusNotModified)
-			counte304s.Add(1)
+			count304s.Add(1)
 		} else {
 			w.Header().Set("ETag", "test-etag")
 			io.WriteString(w, fmt.Sprintf("VALID: %v;", routeBody))
-			counte200s.Add(1)
+			count200s.Add(1)
 		}
 	}))
 	defer server.Close()
@@ -226,10 +226,10 @@ func TestRoutesCaching(t *testing.T) {
 
 	r, err := client.LoadAll()
 
-	t.Logf("uncached responses received: %d", counte200s.Load())
-	assert.Equal(t, int32(1), counte200s.Load())
-	t.Logf("cached responses received: %d", counte304s.Load())
-	assert.Equal(t, int32(1), counte304s.Load())
+	t.Logf("uncached responses received: %d", count200s.Load())
+	assert.Equal(t, int32(1), count200s.Load())
+	t.Logf("cached responses received: %d", count304s.Load())
+	assert.Equal(t, int32(1), count304s.Load())
 
 	require.NoError(t, err)
 
@@ -239,13 +239,13 @@ func TestRoutesCaching(t *testing.T) {
 
 func TestRoutesCachingWrongEtag(t *testing.T) {
 	alterante := atomic.Int32{}
-	counter200s := atomic.Int32{}
-	counter304s := atomic.Int32{}
+	count200s := atomic.Int32{}
+	count304s := atomic.Int32{}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if noneMatch := r.Header.Get("If-None-Match"); (alterante.Load()%2 != 0 && noneMatch == "test-etag") || (alterante.Load()%2 == 0 && noneMatch == "different-etag") {
 			w.WriteHeader(http.StatusNotModified)
-			counter304s.Add(1)
+			count304s.Add(1)
 		} else {
 			if alterante.Load()%2 == 0 {
 				w.Header().Set("ETag", "different-etag")
@@ -254,7 +254,7 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 				w.Header().Set("ETag", "test-etag")
 				io.WriteString(w, fmt.Sprintf("VALID: %v;", routeBody))
 			}
-			counter200s.Add(1)
+			count200s.Add(1)
 		}
 		alterante.Add(1)
 	}))
@@ -270,10 +270,10 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 
 	require.NoError(t, err)
 
-	t.Logf("uncached responses received: %d", counter200s.Load())
-	assert.Equal(t, int32(2), counter200s.Load())
-	t.Logf("cached responses received: %d", counter304s.Load())
-	assert.Equal(t, int32(0), counter304s.Load())
+	t.Logf("uncached responses received: %d", count200s.Load())
+	assert.Equal(t, int32(2), count200s.Load())
+	t.Logf("cached responses received: %d", count304s.Load())
+	assert.Equal(t, int32(0), count304s.Load())
 
 	expected := getExpectedRoutes(alterante)
 
@@ -286,10 +286,10 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 
 	require.NoError(t, err)
 
-	t.Logf("uncached responses received: %d", counter200s.Load())
-	assert.Equal(t, int32(3), counter200s.Load())
-	t.Logf("cached responses received: %d", counter304s.Load())
-	assert.Equal(t, int32(0), counter304s.Load())
+	t.Logf("uncached responses received: %d", count200s.Load())
+	assert.Equal(t, int32(3), count200s.Load())
+	t.Logf("cached responses received: %d", count304s.Load())
+	assert.Equal(t, int32(0), count304s.Load())
 
 	expected = getExpectedRoutes(alterante)
 
