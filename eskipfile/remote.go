@@ -2,6 +2,7 @@ package eskipfile
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -191,15 +192,18 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 
 	resp, err := client.http.Do(req)
 	if err != nil {
+		resp.Body.Close()
 		return nil, err
 	}
 
-	if resp.StatusCode == 304 {
+	if client.etag != "" && resp.StatusCode == 304 {
+		resp.Body.Close()
 		return nil, errContentNotChanged
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, errors.New("download file failed")
+		resp.Body.Close()
+		return nil, fmt.Errorf("failed to download remote file %s, status code: %d", client.remotePath, resp.StatusCode)
 	}
 
 	client.etag = resp.Header.Get("ETag")

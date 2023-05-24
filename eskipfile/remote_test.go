@@ -1,16 +1,18 @@
 package eskipfile
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -198,118 +200,110 @@ func createTestServer(c string, sc int) *httptest.Server {
 }
 
 func TestRoutesCaching(t *testing.T) {
-	var expected = []*eskip.Route{{
-		Id:   "VALID",
-		Path: "/",
-		Filters: []*eskip.Filter{{
-			Name: "setPath",
-			Args: []interface{}{
-				"/homepage/",
-			},
-		}},
-		BackendType: eskip.NetworkBackend,
-		Shunt:       false,
-		Backend:     "https://example.com/",
-	}}
+	counte200s := atomic.Int32{}
+	counte304s := atomic.Int32{}
+	expected := eskip.MustParse(fmt.Sprintf("VALID: %v;", routeBody))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("ETag", "test-etag")
 		if noneMatch := r.Header.Get("If-None-Match"); noneMatch == "test-etag" {
-			print("\n============= I'm matched here =============\n")
-			// w.Header().Set("ETag", "test-etag")
+			t.Logf("request matches etag: %s", noneMatch)
 			w.WriteHeader(http.StatusNotModified)
-			return
+			counte304s.Add(1)
+		} else {
+			w.Header().Set("ETag", "test-etag")
+			io.WriteString(w, fmt.Sprintf("VALID: %v;", routeBody))
+			counte200s.Add(1)
 		}
-		io.WriteString(w, fmt.Sprintf("VALID: %v;", routeBody))
 	}))
 	defer server.Close()
 
 	options := &RemoteWatchOptions{RemoteFile: server.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
-	client, err := RemoteWatch(options) // first call
-	if err == nil {
-		defer client.(*remoteEskipFile).Close()
-	}
+	client, err := RemoteWatch(options) // First load done with initialization because of FailOnStartup
 
-	_, err = client.(*remoteEskipFile).getRemoteData() // cached, to make sure it returns the right status code
+	require.NoError(t, err)
 
-	if !errors.Is(err, errContentNotChanged) {
-		t.Error(err)
-		return
-	}
+	defer client.(*remoteEskipFile).Close()
 
-	r, err := client.LoadAll() // cached, to make sure it returns the right content
+	r, err := client.LoadAll()
 
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	t.Logf("uncached responses received: %d", counte200s.Load())
+	assert.Equal(t, int32(1), counte200s.Load())
+	t.Logf("cached responses received: %d", counte304s.Load())
+	assert.Equal(t, int32(1), counte304s.Load())
 
-	if !eskip.EqLists(r, expected) {
-		t.Errorf("invalid cached routes received\n%s", cmp.Diff(r, expected))
-		return
-	}
+	require.NoError(t, err)
+
+	assert.Equal(t, r, expected)
 
 }
 
 func TestRoutesCachingWrongEtag(t *testing.T) {
-	var flushCache = false
-	var expected = []*eskip.Route{{
-		Id:   "VALID",
-		Path: "/",
-		Filters: []*eskip.Filter{{
-			Name: "setPath",
-			Args: []interface{}{
-				"/homepage/",
-			},
-		}},
-		BackendType: eskip.NetworkBackend,
-		Shunt:       false,
-		Backend:     "https://example.com/",
-	}}
+	alterante := atomic.Int32{}
+	counter200s := atomic.Int32{}
+	counter304s := atomic.Int32{}
 
-	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("ETag", "test-etag")
-		if noneMatch := r.Header.Get("If-None-Match"); noneMatch == "test-etag" {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if noneMatch := r.Header.Get("If-None-Match"); (alterante.Load()%2 != 0 && noneMatch == "test-etag") || (alterante.Load()%2 == 0 && noneMatch == "different-etag") {
 			w.WriteHeader(http.StatusNotModified)
-			return
-		}
-
-		if !flushCache {
-			io.WriteString(w, fmt.Sprintf("VALID: %v;", routeBody))
+			counter304s.Add(1)
 		} else {
-			io.WriteString(w, fmt.Sprintf("different: %v;", routeBody))
+			if alterante.Load()%2 == 0 {
+				w.Header().Set("ETag", "different-etag")
+				io.WriteString(w, fmt.Sprintf("different: %v;", routeBody))
+			} else {
+				w.Header().Set("ETag", "test-etag")
+				io.WriteString(w, fmt.Sprintf("VALID: %v;", routeBody))
+			}
+			counter200s.Add(1)
 		}
+		alterante.Add(1)
 	}))
-	defer server1.Close()
+	defer ts.Close()
 
-	options := &RemoteWatchOptions{RemoteFile: server1.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
-	client, err := RemoteWatch(options) // First call
-	if err == nil {
-		defer client.(*remoteEskipFile).Close()
-	}
+	options := &RemoteWatchOptions{RemoteFile: ts.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
+	client, err := RemoteWatch(options)
+	require.NoError(t, err)
 
-	_, err = client.(*remoteEskipFile).getRemoteData() // Cached
+	defer client.(*remoteEskipFile).Close()
 
-	if !errors.Is(err, errContentNotChanged) {
-		t.Error(err)
-		return
-	}
+	r, err := client.LoadAll()
 
-	client.(*remoteEskipFile).etag = "different-etag"
-	flushCache = true
+	require.NoError(t, err)
 
-	r, err := client.LoadAll() // Not cached
+	t.Logf("uncached responses received: %d", counter200s.Load())
+	assert.Equal(t, int32(2), counter200s.Load())
+	t.Logf("cached responses received: %d", counter304s.Load())
+	assert.Equal(t, int32(0), counter304s.Load())
 
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	expected := getExpectedRoutes(alterante)
 
 	t.Logf("routes returned: %s", r[0].Id)
 	t.Logf("routes expected: %s", expected[0].Id)
 
-	if eskip.EqLists(r, expected) {
-		t.Error("routes shoudn't match with different etags")
-		return
+	assert.NotEqual(t, r, expected)
+
+	r, err = client.LoadAll()
+
+	require.NoError(t, err)
+
+	t.Logf("uncached responses received: %d", counter200s.Load())
+	assert.Equal(t, int32(3), counter200s.Load())
+	t.Logf("cached responses received: %d", counter304s.Load())
+	assert.Equal(t, int32(0), counter304s.Load())
+
+	expected = getExpectedRoutes(alterante)
+
+	t.Logf("routes returned: %s", r[0].Id)
+	t.Logf("routes expected: %s", expected[0].Id)
+
+	assert.NotEqual(t, r, expected)
+
+}
+
+func getExpectedRoutes(alterante atomic.Int32) []*eskip.Route {
+	if alterante.Load()%2 == 0 {
+		return eskip.MustParse(fmt.Sprintf("different: %v;", routeBody))
+	} else {
+		return eskip.MustParse(fmt.Sprintf("VALID: %v;", routeBody))
 	}
 }
