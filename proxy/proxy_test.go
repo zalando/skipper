@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,6 +73,68 @@ type testProxy struct {
 type listener struct {
 	inner    net.Listener
 	lastConn chan net.Conn
+}
+
+type testLog struct {
+	m sync.Mutex
+
+	buf      bytes.Buffer
+	oldOut   io.Writer
+	oldLevel log.Level
+}
+
+func NewTestLog() *testLog {
+	oldOut := log.StandardLogger().Out
+	oldLevel := log.GetLevel()
+	log.SetLevel(log.DebugLevel)
+
+	tl := &testLog{oldOut: oldOut, oldLevel: oldLevel}
+	log.SetOutput(tl)
+	return tl
+}
+
+func (l *testLog) Write(p []byte) (int, error) {
+	l.m.Lock()
+	defer l.m.Unlock()
+
+	return l.buf.Write(p)
+}
+
+func (l *testLog) String() string {
+	l.m.Lock()
+	defer l.m.Unlock()
+
+	return l.buf.String()
+}
+
+func (l *testLog) Close() {
+	log.SetOutput(l.oldOut)
+	log.SetLevel(l.oldLevel)
+}
+
+func (l *testLog) WaitForN(exp string, n int, to time.Duration) error {
+	timeout := time.After(to)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout waiting for log entry: %s", exp)
+		case <-ticker.C:
+			if l.Count(exp) >= n {
+				return nil
+			}
+		}
+	}
+}
+
+func (l *testLog) WaitFor(exp string, to time.Duration) error {
+	return l.WaitForN(exp, 1, to)
+}
+
+func (l *testLog) Count(exp string) int {
+	return strings.Count(l.String(), exp)
 }
 
 func (cors *preserveOriginalSpec) Name() string { return "preserveOriginal" }
@@ -942,6 +1006,9 @@ func (*nilFilterSpec) Name() string                                             
 func (*nilFilterSpec) CreateFilter(config []interface{}) (filters.Filter, error) { return nil, nil }
 
 func TestFilterPanic(t *testing.T) {
+	testLog := NewTestLog()
+	defer testLog.Close()
+
 	var backendRequests int32
 	s := startTestServer([]byte("Hello World!"), 0, func(r *http.Request) {
 		atomic.AddInt32(&backendRequests, 1)
@@ -976,12 +1043,15 @@ func TestFilterPanic(t *testing.T) {
 	assert.NotContains(t, w.Header(), "X-Expected", "panic expected to skip all of the response filters")
 
 	const msg = "panic caused by: runtime error: invalid memory address or nil pointer dereference"
-	if err = tp.log.WaitFor(msg, 100*time.Millisecond); err != nil {
+	if err = testLog.WaitFor(msg, 100*time.Millisecond); err != nil {
 		t.Errorf("expected '%s' in logs", msg)
 	}
 }
 
 func TestFilterPanicPrintStackRate(t *testing.T) {
+	testLog := NewTestLog()
+	defer testLog.Close()
+
 	fr := make(filters.Registry)
 	fr.Register(new(nilFilterSpec))
 
@@ -1001,12 +1071,15 @@ func TestFilterPanicPrintStackRate(t *testing.T) {
 		tp.proxy.ServeHTTP(w, r)
 	}
 
-	const msg = "error while proxying"
-	if err = tp.log.WaitForN(msg, panicsCaused, 100*time.Millisecond); err != nil {
-		t.Errorf("expected '%s' in logs", msg)
+	const errorMsg = "error while proxying"
+	if err = testLog.WaitForN(errorMsg, 10, 100*time.Millisecond); err != nil {
+		t.Errorf(`expected "%s" to be logged exactly %d times`, errorMsg, panicsCaused)
 	}
 
-	assert.Equal(t, stacksPrinted, tp.log.Count("github.com/zalando/skipper/proxy.TestFilterPanicPrintStackRate"))
+	const stackMsg = "github.com/zalando/skipper/proxy.TestFilterPanicPrintStackRate"
+	if err = testLog.WaitForN(stackMsg, 3, 100*time.Millisecond); err != nil {
+		t.Errorf(`expected "%s" to be logged exactly %d times`, stackMsg, stacksPrinted)
+	}
 }
 
 func TestProcessesRequestWithShuntBackend(t *testing.T) {
