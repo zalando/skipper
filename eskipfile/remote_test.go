@@ -275,7 +275,7 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 	t.Logf("cached responses received: %d", count304s.Load())
 	assert.Equal(t, int32(0), count304s.Load())
 
-	expected := getExpectedRoutes(alterante)
+	expected := getExpectedRoutes(&alterante)
 
 	t.Logf("routes returned: %s", r[0].Id)
 	t.Logf("routes expected: %s", expected[0].Id)
@@ -291,7 +291,7 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 	t.Logf("cached responses received: %d", count304s.Load())
 	assert.Equal(t, int32(0), count304s.Load())
 
-	expected = getExpectedRoutes(alterante)
+	expected = getExpectedRoutes(&alterante)
 
 	t.Logf("routes returned: %s", r[0].Id)
 	t.Logf("routes expected: %s", expected[0].Id)
@@ -300,7 +300,7 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 
 }
 
-func getExpectedRoutes(alterante atomic.Int32) []*eskip.Route {
+func getExpectedRoutes(alterante *atomic.Int32) []*eskip.Route {
 	if alterante.Load()%2 == 0 {
 		return eskip.MustParse(fmt.Sprintf("different: %v;", routeBody))
 	} else {
