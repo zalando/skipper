@@ -28,7 +28,7 @@ type absorb struct {
 
 func withLogger(silent bool, l logging.Logger) filters.Spec {
 	if l == nil {
-		l = &logging.DefaultLog{}
+		l = logging.New()
 	}
 
 	id, err := flowid.NewStandardGenerator(flowid.MinLength)

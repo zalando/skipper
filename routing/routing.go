@@ -273,7 +273,7 @@ type Routing struct {
 // definition updates.
 func New(o Options) *Routing {
 	if o.Log == nil {
-		o.Log = &logging.DefaultLog{}
+		o.Log = logging.New()
 	}
 
 	r := &Routing{log: o.Log, firstLoad: make(chan struct{}), quit: make(chan struct{})}

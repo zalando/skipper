@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/logging"
 )
 
 type logSubscription struct {
@@ -36,6 +37,7 @@ type Logger struct {
 	clear  chan chan struct{}
 	mute   chan bool
 	quit   chan struct{}
+	fields map[string]interface{}
 }
 
 // ErrWaitTimeout is returned when a logging event doesn't happen
@@ -137,16 +139,27 @@ func New() *Logger {
 	return tl
 }
 
+func mapToString(m map[string]interface{}) string {
+	var s string
+	for k, v := range m {
+		s += fmt.Sprintf("%s=%v ", k, v)
+	}
+
+	return s
+}
+
 func (tl *Logger) logf(f string, a ...interface{}) {
+	args := append([]interface{}{mapToString(tl.fields)}, a...)
 	select {
-	case tl.logc <- fmt.Sprintf(f, a...):
+	case tl.logc <- fmt.Sprintf("%s "+f, args...):
 	case <-tl.quit:
 	}
 }
 
 func (tl *Logger) log(a ...interface{}) {
+	args := append([]interface{}{mapToString(tl.fields)}, a...)
 	select {
-	case tl.logc <- fmt.Sprint(a...):
+	case tl.logc <- fmt.Sprint(args...):
 	case <-tl.quit:
 	}
 }
@@ -211,6 +224,10 @@ func (tl *Logger) Info(a ...interface{})             { tl.log(a...) }
 func (tl *Logger) Infof(f string, a ...interface{})  { tl.logf(f, a...) }
 func (tl *Logger) Debug(a ...interface{})            { tl.log(a...) }
 func (tl *Logger) Debugf(f string, a ...interface{}) { tl.logf(f, a...) }
+func (tl *Logger) WithFields(fields map[string]interface{}) logging.Logger {
+	tl.fields = fields
+	return tl
+}
 
 func (tl *Logger) Fire(entry *logrus.Entry) error {
 	line, err := entry.String()

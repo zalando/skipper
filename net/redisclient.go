@@ -239,7 +239,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			ringOptions.Addrs = createAddressMap(ro.Addrs)
 		}
 		if ro.Log == nil {
-			ro.Log = &logging.DefaultLog{}
+			ro.Log = logging.New()
 		}
 		ro.Log.Infof("create ring with addresses: %v", ro.Addrs)
 		ringOptions.ReadTimeout = ro.ReadTimeout

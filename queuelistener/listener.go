@@ -142,7 +142,7 @@ func (o Options) maxQueueSize() int {
 
 func listenWith(nl net.Listener, o Options) (net.Listener, error) {
 	if o.Log == nil {
-		o.Log = &logging.DefaultLog{}
+		o.Log = logging.New()
 	}
 
 	if o.MemoryLimitBytes <= 0 {

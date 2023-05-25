@@ -39,7 +39,7 @@ func TestFastCgi(t *testing.T) {
 
 	u, _ := url.ParseRequestURI("http://www.example.org/hello")
 
-	rt, err := NewRoundTripper(&logging.DefaultLog{}, l.Addr().String(), "index.php")
+	rt, err := NewRoundTripper(logging.New(), l.Addr().String(), "index.php")
 	if err != nil {
 		t.Errorf("could not create roundtripper: %v", err)
 

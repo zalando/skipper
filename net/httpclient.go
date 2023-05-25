@@ -44,7 +44,7 @@ type Client struct {
 // read from the secret an automatically updated Bearer token.
 func NewClient(o Options) *Client {
 	if o.Log == nil {
-		o.Log = &logging.DefaultLog{}
+		o.Log = logging.New()
 	}
 
 	tr := NewTransport(o)

@@ -1582,7 +1582,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				ConnMetricsInterval: o.redisConnMetricsInterval,
 				UpdateInterval:      o.redisUpdateInterval,
 				Tracer:              tracer,
-				Log:                 log.New(),
+				Log:                 logging.New(),
 			}
 		} else {
 			log.Infof("Start swim based swarm")
