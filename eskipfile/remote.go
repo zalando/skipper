@@ -127,19 +127,21 @@ func (client *remoteEskipFile) LoadUpdate() ([]*eskip.Route, []string, error) {
 	}
 
 	newRoutes, deletedRoutes, err := client.eskipFileClient.LoadUpdate()
-	if err == nil {
-		if client.verbose {
-			log.Infof("New routes were loaded. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
 
-			if client.threshold > 0 {
-				if len(newRoutes)+len(deletedRoutes) > client.threshold {
-					log.Warnf("Significant amount of routes was updated. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
-				}
-			}
-		}
-	} else {
+	if err != nil {
 		log.Errorf("RemoteEskipFile LoadUpdate %s failed. Skipper continues to serve the last successfully updated routes. Error: %s",
 			client.remotePath, err)
+		return newRoutes, deletedRoutes, err
+	}
+
+	if client.verbose {
+		log.Infof("New routes were loaded. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
+
+		if client.threshold > 0 {
+			if len(newRoutes)+len(deletedRoutes) > client.threshold {
+				log.Warnf("Significant amount of routes was updated. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
+			}
+		}
 	}
 
 	return newRoutes, deletedRoutes, err
@@ -164,22 +166,12 @@ func (client *remoteEskipFile) DownloadRemoteFile() error {
 		}
 		return err
 	}
-	defer data.Close()
 
-	out, err := os.OpenFile(client.localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-
-	if _, err = io.Copy(out, data); err != nil {
-		_ = out.Close()
-		return err
-	}
-
-	return out.Close()
+	err = os.WriteFile(client.localPath, data, 0600)
+	return err
 }
 
-func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
+func (client *remoteEskipFile) getRemoteData() ([]byte, error) {
 	req, err := http.NewRequest("GET", client.remotePath, nil)
 
 	if err != nil {
@@ -192,21 +184,19 @@ func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 
 	resp, err := client.http.Do(req)
 	if err != nil {
-		resp.Body.Close()
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if client.etag != "" && resp.StatusCode == 304 {
-		resp.Body.Close()
 		return nil, errContentNotChanged
 	}
 
 	if resp.StatusCode != 200 {
-		resp.Body.Close()
 		return nil, fmt.Errorf("failed to download remote file %s, status code: %d", client.remotePath, resp.StatusCode)
 	}
 
 	client.etag = resp.Header.Get("ETag")
 
-	return resp.Body, nil
+	return io.ReadAll(resp.Body)
 }

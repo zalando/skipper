@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
@@ -47,11 +46,7 @@ func TestIsRemoteFile(t *testing.T) {
 	} {
 		t.Run(test.title, func(t *testing.T) {
 			result := isFileRemote(test.file)
-
-			if result != test.expected {
-				t.Error("isRemoteFile failed")
-				t.Log(test)
-			}
+			assert.Equal(t, result, test.expected)
 		})
 	}
 }
@@ -72,107 +67,100 @@ func TestLoadAll(t *testing.T) {
 		title:           "Download valid remote file",
 		routeContent:    fmt.Sprintf("VALID: %v;", routeBody),
 		routeStatusCode: 200,
-		expected: []*eskip.Route{{
-			Id:   "VALID",
-			Path: "/",
-			Filters: []*eskip.Filter{{
-				Name: "setPath",
-				Args: []interface{}{
-					"/homepage/",
-				},
-			}},
-			BackendType: eskip.NetworkBackend,
-			Shunt:       false,
-			Backend:     "https://example.com/",
-		}},
+		expected:        eskip.MustParse(fmt.Sprintf("VALID: %v;", routeBody)),
 	},
 	} {
-		s := createTestServer(test.routeContent, test.routeStatusCode)
-		defer s.Close()
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(test.routeStatusCode)
+			io.WriteString(w, test.routeContent)
+		}))
+		defer ts.Close()
 
 		t.Run(test.title, func(t *testing.T) {
-			options := &RemoteWatchOptions{RemoteFile: s.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
+			options := &RemoteWatchOptions{RemoteFile: ts.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
 			client, err := RemoteWatch(options)
-			if err == nil {
-				defer client.(*remoteEskipFile).Close()
+
+			if test.fail {
+				assert.Condition(t, func() bool { return err != nil }, "expected error")
+				return
 			}
 
-			if err == nil && test.fail {
-				t.Error("failed to fail")
-				return
-			} else if err != nil && !test.fail {
-				t.Error(err)
-				return
-			} else if test.fail {
-				return
-			}
+			require.NoError(t, err)
+
+			defer client.(*remoteEskipFile).Close()
 
 			r, err := client.LoadAll()
-			if err != nil {
-				t.Error(err)
-				return
-			}
+			require.NoError(t, err)
 
-			if len(r) == 0 {
-				r = nil
-			}
-
-			if !cmp.Equal(r, test.expected) {
-				t.Errorf("invalid routes received\n%s", cmp.Diff(r, test.expected))
-			}
+			assert.Equal(t, r, test.expected)
 		})
 	}
 }
 
 func TestLoadAllAndUpdate(t *testing.T) {
 	for _, test := range []struct {
-		title               string
-		validRouteContent   string
-		invalidRouteContent string
-		expectedToFail      bool
-		fail                bool
+		title          string
+		content        string
+		contentUpdated string
+		expectedToFail bool
+		fail           bool
 	}{{
-		title:               "Download invalid update and all routes returns routes nil",
-		validRouteContent:   fmt.Sprintf("VALID: %v;", routeBody),
-		invalidRouteContent: fmt.Sprintf("MISSING_SEMICOLON: %v\nVALID: %v;", routeBody, routeBody),
-		expectedToFail:      true,
+		title:          "Download invalid update and all routes returns routes nil",
+		content:        fmt.Sprintf("VALID: %v;", routeBody),
+		contentUpdated: fmt.Sprintf("MISSING_SEMICOLON: %v\nVALID: %v;", routeBody, routeBody),
+		expectedToFail: true,
+	}, {
+		title:          "Download valid update and all routes returns routes",
+		content:        fmt.Sprintf("VALID: %v;", routeBody),
+		contentUpdated: fmt.Sprintf("DIFFERENT_ID: %v;\nVALID: %v;", routeBody, routeBody),
+		expectedToFail: false,
 	},
 	} {
 		t.Run(test.title, func(t *testing.T) {
-			testValidServer := createTestServer(test.validRouteContent, 200)
-			defer testValidServer.Close()
+			ch := make(chan string, 1)
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				routeString := <-ch
+				t.Logf("server routes: %v", routeString)
+				io.WriteString(w, routeString)
+			}))
 
-			options := &RemoteWatchOptions{RemoteFile: testValidServer.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
+			defer ts.Close()
+
+			options := &RemoteWatchOptions{RemoteFile: ts.URL, Threshold: 10, Verbose: true, FailOnStartup: true}
+			ch <- test.content
 			client, err := RemoteWatch(options)
-			if err == nil {
-				defer client.(*remoteEskipFile).Close()
-			}
-
-			if err == nil && test.fail {
-				t.Error("failed to fail")
-				return
-			} else if err != nil && !test.fail {
-				t.Error(err)
-				return
-			} else if test.fail {
+			if test.fail {
+				assert.Condition(t, func() bool { return err != nil }, "expected error")
 				return
 			}
 
-			testInvalidServer := createTestServer(test.invalidRouteContent, 200)
-			defer testInvalidServer.Close()
+			require.NoError(t, err)
 
-			client.(*remoteEskipFile).remotePath = testInvalidServer.URL
-			_, _, err = client.LoadUpdate()
-			if test.expectedToFail && err == nil {
-				t.Error(err)
+			defer client.(*remoteEskipFile).Close()
+
+			t.Logf("local path is: %s", client.(*remoteEskipFile).localPath)
+
+			ch <- test.content
+			r, err := client.LoadAll()
+			require.NoError(t, err)
+
+			expected := eskip.MustParse(test.content)
+
+			assert.Equal(t, r, expected)
+
+			ch <- test.contentUpdated
+			r, _, err = client.LoadUpdate()
+			t.Logf("routes returned: %+v", r)
+
+			if test.expectedToFail {
+				assert.Condition(t, func() bool { return err != nil }, "expected error")
 				return
 			}
+			require.NoError(t, err)
 
-			_, err = client.LoadAll()
-			if test.expectedToFail && err == nil {
-				t.Error(err)
-				return
-			}
+			expected = eskip.MustParse(fmt.Sprintf("DIFFERENT_ID: %v;", routeBody))
+
+			assert.Equal(t, r, expected)
 		})
 	}
 }
@@ -190,13 +178,6 @@ func TestHTTPTimeout(t *testing.T) {
 	if err, ok := err.(net.Error); !ok || !err.Timeout() {
 		t.Errorf("got %v, expected net.Error with timeout", err)
 	}
-}
-
-func createTestServer(c string, sc int) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(sc)
-		io.WriteString(w, c)
-	}))
 }
 
 func TestRoutesCaching(t *testing.T) {
