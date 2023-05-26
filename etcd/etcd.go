@@ -441,7 +441,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		}
 
 		id := path.Base(response.Node.Key)
-		if response.Action == "delete" {
+		if response.Action == "delete" || response.Action == "expire" {
 			deletes[id] = true
 			delete(updates, id)
 		} else {
