@@ -219,20 +219,20 @@ func TestRoutesCaching(t *testing.T) {
 }
 
 func TestRoutesCachingWrongEtag(t *testing.T) {
-	alterante := atomic.Int32{}
+	alternate := atomic.Int32{}
 	count200s := atomic.Int32{}
 	count304s := atomic.Int32{}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		expectedEtag := "test-etag"
-		if alterante.Load()%2 == 0 {
+		if alternate.Load()%2 == 0 {
 			expectedEtag = "different-etag"
 		}
 		if noneMatch := r.Header.Get("If-None-Match"); noneMatch == expectedEtag {
 			w.WriteHeader(http.StatusNotModified)
 			count304s.Add(1)
 		} else {
-			if alterante.Load()%2 == 0 {
+			if alternate.Load()%2 == 0 {
 				w.Header().Set("ETag", "different-etag")
 				io.WriteString(w, fmt.Sprintf("different: %v;", routeBody))
 			} else {
@@ -241,7 +241,7 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 			}
 			count200s.Add(1)
 		}
-		alterante.Add(1)
+		alternate.Add(1)
 	}))
 	defer ts.Close()
 
