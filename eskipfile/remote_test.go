@@ -81,7 +81,7 @@ func TestLoadAll(t *testing.T) {
 			client, err := RemoteWatch(options)
 
 			if test.fail {
-				assert.Condition(t, func() bool { return err != nil }, "expected error")
+				assert.Error(t, err)
 				return
 			}
 
@@ -130,7 +130,7 @@ func TestLoadAllAndUpdate(t *testing.T) {
 			ch <- test.content
 			client, err := RemoteWatch(options)
 			if test.fail {
-				assert.Condition(t, func() bool { return err != nil }, "expected error")
+				assert.Error(t, err)
 				return
 			}
 
@@ -153,7 +153,7 @@ func TestLoadAllAndUpdate(t *testing.T) {
 			t.Logf("routes returned: %+v", r)
 
 			if test.expectedToFail {
-				assert.Condition(t, func() bool { return err != nil }, "expected error")
+				assert.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
@@ -224,7 +224,11 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 	count304s := atomic.Int32{}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if noneMatch := r.Header.Get("If-None-Match"); (alterante.Load()%2 != 0 && noneMatch == "test-etag") || (alterante.Load()%2 == 0 && noneMatch == "different-etag") {
+		expectedEtag := "test-etag"
+		if alterante.Load()%2 == 0 {
+			expectedEtag = "different-etag"
+		}
+		if noneMatch := r.Header.Get("If-None-Match"); noneMatch == expectedEtag {
 			w.WriteHeader(http.StatusNotModified)
 			count304s.Add(1)
 		} else {
@@ -256,7 +260,7 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 	t.Logf("cached responses received: %d", count304s.Load())
 	assert.Equal(t, int32(0), count304s.Load())
 
-	expected := getExpectedRoutes(&alterante)
+	expected := eskip.MustParse(fmt.Sprintf("different: %v;", routeBody))
 
 	t.Logf("routes returned: %s", r[0].Id)
 	t.Logf("routes expected: %s", expected[0].Id)
@@ -272,19 +276,11 @@ func TestRoutesCachingWrongEtag(t *testing.T) {
 	t.Logf("cached responses received: %d", count304s.Load())
 	assert.Equal(t, int32(0), count304s.Load())
 
-	expected = getExpectedRoutes(&alterante)
+	expected = eskip.MustParse(fmt.Sprintf("VALID: %v;", routeBody))
 
 	t.Logf("routes returned: %s", r[0].Id)
 	t.Logf("routes expected: %s", expected[0].Id)
 
 	assert.NotEqual(t, r, expected)
 
-}
-
-func getExpectedRoutes(alterante *atomic.Int32) []*eskip.Route {
-	if alterante.Load()%2 == 0 {
-		return eskip.MustParse(fmt.Sprintf("different: %v;", routeBody))
-	} else {
-		return eskip.MustParse(fmt.Sprintf("VALID: %v;", routeBody))
-	}
 }
