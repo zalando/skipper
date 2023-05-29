@@ -11,7 +11,7 @@ require (
 	github.com/cjoudrey/gluahttp v0.0.0-20201111170219-25003d9adfa9
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
 	github.com/coreos/go-oidc v2.2.1+incompatible
-	github.com/dchest/siphash v1.2.2
+	github.com/dchest/siphash v1.2.3
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0
 	github.com/dgryski/go-mpchash v0.0.0-20200819201138-7382f34c4cd1
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
