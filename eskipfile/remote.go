@@ -159,19 +159,30 @@ func isFileRemote(remotePath string) bool {
 }
 
 func (client *remoteEskipFile) DownloadRemoteFile() error {
-	data, err := client.getRemoteData()
+	resBody, err := client.getRemoteData()
 	if err != nil {
 		if errors.Is(err, errContentNotChanged) {
 			return nil
 		}
 		return err
 	}
+	defer resBody.Close()
 
-	err = os.WriteFile(client.localPath, data, 0600)
-	return err
+	outFile, err := os.OpenFile(client.localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	if _, err = io.Copy(outFile, resBody); err != nil {
+		_ = outFile.Close()
+		return err
+	}
+
+	return outFile.Close()
 }
 
-func (client *remoteEskipFile) getRemoteData() ([]byte, error) {
+func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", client.remotePath, nil)
 
 	if err != nil {
@@ -186,17 +197,18 @@ func (client *remoteEskipFile) getRemoteData() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	if client.etag != "" && resp.StatusCode == 304 {
+		resp.Body.Close()
 		return nil, errContentNotChanged
 	}
 
 	if resp.StatusCode != 200 {
+		resp.Body.Close()
 		return nil, fmt.Errorf("failed to download remote file %s, status code: %d", client.remotePath, resp.StatusCode)
 	}
 
 	client.etag = resp.Header.Get("ETag")
 
-	return io.ReadAll(resp.Body)
+	return resp.Body, err
 }
