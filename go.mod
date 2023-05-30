@@ -20,7 +20,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/go-cmp v0.5.9
 	github.com/hashicorp/memberlist v0.5.0
-	github.com/instana/go-sensor v1.38.3
+	github.com/instana/go-sensor v1.55.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.54
 	github.com/oklog/ulid v1.3.1
@@ -88,7 +88,7 @@ require (
 	github.com/influxdata/tdigest v0.0.1 // indirect
 	github.com/klauspost/compress v1.11.13 // indirect
 	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20210210170715-a8dfcb80d3a7 // indirect
-	github.com/looplab/fsm v0.3.0 // indirect
+	github.com/looplab/fsm v1.0.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
