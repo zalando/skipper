@@ -2,7 +2,9 @@ package eskipfile
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -15,6 +17,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var errContentNotChanged = errors.New("content in cache did not change, 304 reponse status code")
+
 type remoteEskipFile struct {
 	once            sync.Once
 	preloaded       bool
@@ -24,6 +28,7 @@ type remoteEskipFile struct {
 	threshold       int
 	verbose         bool
 	http            *net.Client
+	etag            string
 }
 
 type RemoteWatchOptions struct {
@@ -122,19 +127,21 @@ func (client *remoteEskipFile) LoadUpdate() ([]*eskip.Route, []string, error) {
 	}
 
 	newRoutes, deletedRoutes, err := client.eskipFileClient.LoadUpdate()
-	if err == nil {
-		if client.verbose {
-			log.Infof("New routes were loaded. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
 
-			if client.threshold > 0 {
-				if len(newRoutes)+len(deletedRoutes) > client.threshold {
-					log.Warnf("Significant amount of routes was updated. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
-				}
-			}
-		}
-	} else {
+	if err != nil {
 		log.Errorf("RemoteEskipFile LoadUpdate %s failed. Skipper continues to serve the last successfully updated routes. Error: %s",
 			client.remotePath, err)
+		return newRoutes, deletedRoutes, err
+	}
+
+	if client.verbose {
+		log.Infof("New routes were loaded. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
+
+		if client.threshold > 0 {
+			if len(newRoutes)+len(deletedRoutes) > client.threshold {
+				log.Warnf("Significant amount of routes was updated. New: %d; deleted: %d", len(newRoutes), len(deletedRoutes))
+			}
+		}
 	}
 
 	return newRoutes, deletedRoutes, err
@@ -152,33 +159,56 @@ func isFileRemote(remotePath string) bool {
 }
 
 func (client *remoteEskipFile) DownloadRemoteFile() error {
-	data, err := client.getRemoteData()
+	resBody, err := client.getRemoteData()
+	if err != nil {
+		if errors.Is(err, errContentNotChanged) {
+			return nil
+		}
+		return err
+	}
+	defer resBody.Close()
+
+	outFile, err := os.OpenFile(client.localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
-	defer data.Close()
+	defer outFile.Close()
 
-	out, err := os.OpenFile(client.localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
+	if _, err = io.Copy(outFile, resBody); err != nil {
+		_ = outFile.Close()
 		return err
 	}
 
-	if _, err = io.Copy(out, data); err != nil {
-		_ = out.Close()
-		return err
-	}
-
-	return out.Close()
+	return outFile.Close()
 }
 
 func (client *remoteEskipFile) getRemoteData() (io.ReadCloser, error) {
-	resp, err := client.http.Get(client.remotePath)
+	req, err := http.NewRequest("GET", client.remotePath, nil)
+
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != 200 {
-		return nil, errors.New("download file failed")
+
+	if client.etag != "" {
+		req.Header.Set("If-None-Match", client.etag)
 	}
 
-	return resp.Body, nil
+	resp, err := client.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if client.etag != "" && resp.StatusCode == 304 {
+		resp.Body.Close()
+		return nil, errContentNotChanged
+	}
+
+	if resp.StatusCode != 200 {
+		resp.Body.Close()
+		return nil, fmt.Errorf("failed to download remote file %s, status code: %d", client.remotePath, resp.StatusCode)
+	}
+
+	client.etag = resp.Header.Get("ETag")
+
+	return resp.Body, err
 }
