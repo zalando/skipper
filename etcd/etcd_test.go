@@ -26,14 +26,14 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 
-	defer func() {
-		err := etcdtest.Stop()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}()
+	exitCode := m.Run()
 
-	os.Exit(m.Run())
+	err = etcdtest.Stop()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	os.Exit(exitCode)
 }
 
 func checkInitial(d []*eskip.Route) bool {
