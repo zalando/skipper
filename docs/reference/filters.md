@@ -1802,7 +1802,7 @@ Can be used as [egress](egress.md) feature.
 
 ## Rate Limit
 
-### ~~localRatelimit~~
+### <del>localRatelimit</del>
 
 **DEPRECATED** use [clientRatelimit](#clientratelimit) with the same
   settings instead.
@@ -2171,7 +2171,7 @@ See [the scripts page](scripts.md)
 
 
 ## Logs
-### ~~accessLogDisabled~~
+### <del>accessLogDisabled</del>
 
 **Deprecated:** use [disableAccessLog](#disableaccesslog) or [enableAccessLog](#enableaccesslog)
 
