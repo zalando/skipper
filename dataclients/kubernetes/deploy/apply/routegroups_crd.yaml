@@ -1,10 +1,11 @@
-
+# This is a copy of https://github.com/szuecs/routegroup-client/blob/master/zalando.org_routegroups.yaml
+# DO NOT EDIT.
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.4.0
+    controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
   name: routegroups.zalando.org
 spec:
@@ -35,10 +36,14 @@ spec:
       openAPIV3Schema:
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -66,7 +71,8 @@ spec:
                       minItems: 1
                       type: array
                     name:
-                      description: Name is the BackendName that can be referenced as RouteGroupBackendReference
+                      description: Name is the BackendName that can be referenced
+                        as RouteGroupBackendReference
                       type: string
                     serviceName:
                       description: ServiceName is required for Type service
@@ -90,14 +96,16 @@ spec:
                   type: object
                 type: array
               defaultBackends:
-                description: DefaultBackends is a list of default backends defined if no explicit backend is defined for a route.
+                description: DefaultBackends is a list of default backends defined
+                  if no explicit backend is defined for a route.
                 items:
                   properties:
                     backendName:
                       description: BackendName references the skipperBackend by name
                       type: string
                     weight:
-                      description: Weight defines the traffic weight, if there are 2 or more default backends
+                      description: Weight defines the traffic weight, if there are
+                        2 or more default backends
                       minimum: 0
                       type: integer
                   required:
@@ -107,21 +115,24 @@ spec:
               hosts:
                 description: List of hostnames for the RouteGroup.
                 items:
-                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
                   type: string
                 type: array
               routes:
                 items:
                   properties:
                     backends:
-                      description: RouteGroupBackendReference specifies the list of backendReference that should be applied to override the defaultBackends
+                      description: RouteGroupBackendReference specifies the list of
+                        backendReference that should be applied to override the defaultBackends
                       items:
                         properties:
                           backendName:
-                            description: BackendName references the skipperBackend by name
+                            description: BackendName references the skipperBackend
+                              by name
                             type: string
                           weight:
-                            description: Weight defines the traffic weight, if there are 2 or more default backends
+                            description: Weight defines the traffic weight, if there
+                              are 2 or more default backends
                             minimum: 0
                             type: integer
                         required:
@@ -129,12 +140,14 @@ spec:
                         type: object
                       type: array
                     filters:
-                      description: Filters specifies the list of filters applied to the routeSpec
+                      description: Filters specifies the list of filters applied to
+                        the routeSpec
                       items:
                         type: string
                       type: array
                     methods:
-                      description: Methods defines valid HTTP methods for the specified routeSpec
+                      description: Methods defines valid HTTP methods for the specified
+                        routeSpec
                       items:
                         description: HTTPMethod is a valid HTTP method in uppercase.
                         enum:
@@ -150,16 +163,19 @@ spec:
                         type: string
                       type: array
                     path:
-                      description: Path specifies Path predicate, only one of Path or PathSubtree is allowed
+                      description: Path specifies Path predicate, only one of Path
+                        or PathSubtree is allowed
                       type: string
                     pathRegexp:
                       description: PathRegexp can be added additionally
                       type: string
                     pathSubtree:
-                      description: PathSubtree specifies PathSubtree predicate, only one of Path or PathSubtree is allowed
+                      description: PathSubtree specifies PathSubtree predicate, only
+                        one of Path or PathSubtree is allowed
                       type: string
                     predicates:
-                      description: Predicates specifies the list of predicates applied to the routeSpec
+                      description: Predicates specifies the list of predicates applied
+                        to the routeSpec
                       items:
                         type: string
                       type: array
@@ -172,17 +188,20 @@ spec:
           status:
             properties:
               loadBalancer:
-                description: LoadBalancer is similar to ingress status, such that external-dns has the same style as in ingress
+                description: LoadBalancer is similar to ingress status, such that
+                  external-dns has the same style as in ingress
                 properties:
                   routegroup:
                     description: RouteGroup is similar to Ingress in ingress status.LoadBalancer.
                     items:
                       properties:
                         hostname:
-                          description: Hostname is the hostname of the load balancer and is empty if IP is set
+                          description: Hostname is the hostname of the load balancer
+                            and is empty if IP is set
                           type: string
                         ip:
-                          description: IP is the IP address of the load balancer and is empty if Hostname is set
+                          description: IP is the IP address of the load balancer and
+                            is empty if Hostname is set
                           type: string
                       type: object
                     type: array
