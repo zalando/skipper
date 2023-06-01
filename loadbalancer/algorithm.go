@@ -77,7 +77,13 @@ func goodEndpoint(rnd *rand.Rand, ep *routing.LBEndpoint, ctx *routing.LBContext
 	)
 	goodFadeIn := f == 1 || rnd.Float64() < f
 
-	return goodFadeIn
+	failedReqs, totalReqs := (int64)(0), (int64)(0)
+	if ep.Metrics != nil {
+		failedReqs, totalReqs = ep.Metrics.GetFailedRequests()
+	}
+	goodHealthyEp := totalReqs <= 10 || float64(failedReqs)/float64(totalReqs) < 0.95 || rnd.Float64() < 0.05
+
+	return goodFadeIn && goodHealthyEp
 }
 
 type roundRobin struct {

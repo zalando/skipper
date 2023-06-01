@@ -148,6 +148,9 @@ type RouteFilter struct {
 // LBMetrics contains metrics used by LB algorithms
 type LBMetrics struct {
 	inflightRequests int64
+
+	failedRequests int64
+	totalRequests  int64
 }
 
 // IncInflightRequest increments the number of outstanding requests from the proxy to a given backend.
@@ -160,9 +163,36 @@ func (m *LBMetrics) DecInflightRequest() {
 	atomic.AddInt64(&m.inflightRequests, -1)
 }
 
-// GetInflightRequests decrements the number of outstanding requests from the proxy to a given backend.
+// GetInflightRequests loads the number of outstanding requests from the proxy to a given backend.
 func (m *LBMetrics) GetInflightRequests() int {
 	return int(atomic.LoadInt64(&m.inflightRequests))
+}
+
+// AddFailedRequest increments the counters related to failed requests and total requests from the proxy to a given backend.
+func (m *LBMetrics) AddFailedRequest() {
+	atomic.AddInt64(&m.totalRequests, 1)
+	atomic.AddInt64(&m.failedRequests, 1)
+}
+
+func (m *LBMetrics) AddSucceededRequest() {
+	atomic.AddInt64(&m.totalRequests, 1)
+}
+
+func (m *LBMetrics) GetFailedRequests() (int64, int64) {
+	failedReqs := atomic.LoadInt64(&m.failedRequests)
+	totalReqs := atomic.LoadInt64(&m.totalRequests)
+
+	return failedReqs, totalReqs
+}
+
+// DecTotalRequest decrements the number of total requests from the proxy to a given backend.
+func (m *LBMetrics) DecTotalRequest() {
+	atomic.AddInt64(&m.totalRequests, -1)
+}
+
+// GetTotalRequests loads the number of total requests from the proxy to a given backend.
+func (m *LBMetrics) GetTotalRequests() int {
+	return int(atomic.LoadInt64(&m.totalRequests))
 }
 
 // LBEndpoint represents the scheme and the host of load balanced
