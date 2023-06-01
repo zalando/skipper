@@ -328,6 +328,11 @@ func benchmarkFadeIn(
 				Detected: detectionTimes[i],
 			})
 		}
+		route.HealthyEndpoints = route.LBEndpoints
+		route.HealthyEndpointsSet = make(map[routing.LBEndpoint]struct{})
+		for i := range route.LBEndpoints {
+			route.HealthyEndpointsSet[route.LBEndpoints[i]] = struct{}{}
+		}
 
 		var wg sync.WaitGroup
 

@@ -300,6 +300,11 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		LBAlgorithm: ConsistentHash.String(),
 		LBEndpoints: endpoints,
 	})})[0]
+	route.HealthyEndpointsSet = map[routing.LBEndpoint]struct{}{}
+	for _, ep := range route.LBEndpoints {
+		route.HealthyEndpointsSet[ep] = struct{}{}
+	}
+	route.HealthyEndpoints = route.LBEndpoints
 	ch := route.LBAlgorithm.(*consistentHash)
 	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: 1.25}}
 	noLoad := ch.Apply(ctx)
@@ -344,6 +349,11 @@ func TestConsistentHashKey(t *testing.T) {
 			LBEndpoints: endpoints,
 		}),
 	})[0]
+	rt.HealthyEndpointsSet = map[routing.LBEndpoint]struct{}{}
+	for _, ep := range rt.LBEndpoints {
+		rt.HealthyEndpointsSet[ep] = struct{}{}
+	}
+	rt.HealthyEndpoints = rt.LBEndpoints
 
 	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: make(map[string]interface{})})
 	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: map[string]interface{}{ConsistentHashKey: net.RemoteHost(r).String()}})
@@ -364,11 +374,18 @@ func TestConsistentHashKey(t *testing.T) {
 func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
+
 	route := NewAlgorithmProvider().Do([]*routing.Route{routing.NewRoute(eskip.Route{
 		BackendType: eskip.LBBackend,
 		LBAlgorithm: ConsistentHash.String(),
 		LBEndpoints: endpoints,
 	})})[0]
+	route.HealthyEndpoints = route.LBEndpoints
+	route.HealthyEndpointsSet = map[routing.LBEndpoint]struct{}{}
+	for _, ep := range route.LBEndpoints {
+		route.HealthyEndpointsSet[ep] = struct{}{}
+	}
+
 	ch := route.LBAlgorithm.(*consistentHash)
 	balanceFactor := 1.25
 	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor}}
