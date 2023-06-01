@@ -1825,7 +1825,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		UpdateBuffer:    updateBuffer,
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
 		PostProcessors: []routing.PostProcessor{
-			loadbalancer.HealthcheckPostProcessor{LB: lbInstance},
 			loadbalancer.NewAlgorithmProvider(),
 			schedulerRegistry,
 			builtin.NewRouteCreationMetrics(mtr),
@@ -1834,6 +1833,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
+
+	if lbInstance != nil {
+		ro.PostProcessors = append(ro.PostProcessors, loadbalancer.HealthcheckPostProcessor{LB: lbInstance})
+	}
+
 	if failClosedRatelimitPostProcessor != nil {
 		ro.PostProcessors = append(ro.PostProcessors, failClosedRatelimitPostProcessor)
 	}
