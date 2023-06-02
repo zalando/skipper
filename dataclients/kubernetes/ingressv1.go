@@ -257,10 +257,9 @@ func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *de
 // where for a weight of 1.0 no Traffic predicate will be generated.
 func computeBackendWeightsV1(backendWeights map[string]float64, rule *definitions.RuleV1) {
 	type pathInfo struct {
-		sum          float64
-		lastActive   *definitions.BackendV1
-		count        int
-		weightsCount int
+		sum        float64
+		lastActive *definitions.BackendV1
+		count      int
 	}
 
 	// get backend weight sum and count of backends for all paths
@@ -276,42 +275,36 @@ func computeBackendWeightsV1(backendWeights map[string]float64, rule *definition
 			sc.sum += weight
 			if weight > 0 {
 				sc.lastActive = path.Backend
-				sc.weightsCount++
 			}
-		} else {
-			sc.count++
 		}
+		sc.count++
 	}
 
 	// calculate traffic weight for each backend
 	for _, path := range rule.Http.Paths {
-		if sc, ok := pathInfos[path.Path]; ok {
-			if weight, ok := backendWeights[path.Backend.Service.Name]; ok {
-				// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
-				if sc.lastActive == path.Backend {
-					path.Backend.Traffic = 1.0
-					continue
-				}
-
-				path.Backend.Traffic = weight / sc.sum
-				// subtract weight from the sum in order to
-				// give subsequent backends a higher relative
-				// weight.
-				sc.sum -= weight
-
-				// noops are required to make sure that routes are in order selected by
-				// routing tree
-				if sc.weightsCount > 2 {
-					path.Backend.NoopCount = sc.weightsCount - 2
-				}
-				sc.weightsCount--
-			} else if sc.sum == 0 && sc.count > 0 {
-				path.Backend.Traffic = 1.0 / float64(sc.count)
+		sc := pathInfos[path.Path]
+		if weight, ok := backendWeights[path.Backend.Service.Name]; ok {
+			// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
+			if sc.lastActive == path.Backend {
+				path.Backend.Traffic = 1.0
+				continue
 			}
-			// reduce count by one in order to give subsequent
-			// backends for the path a higher relative weight.
-			sc.count--
+
+			path.Backend.Traffic = weight / sc.sum
+			// subtract weight from the sum in order to
+			// give subsequent backends a higher relative
+			// weight.
+			sc.sum -= weight
+		} else if sc.sum == 0 && sc.count > 0 {
+			path.Backend.Traffic = 1.0 / float64(sc.count)
 		}
+
+		if sc.count > 2 {
+			path.Backend.NoopCount = sc.count - 2
+		}
+		// reduce count by one in order to give subsequent
+		// backends for the path a higher relative weight.
+		sc.count--
 	}
 }
 

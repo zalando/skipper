@@ -1,0 +1,20 @@
+kube_namespace1__ingress1__test1_example_org____service1v1: Host("^(test1[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.25) && True() && True() -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
+kube_namespace1__ingress1__test1_example_org____service1v2: Host("^(test1[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.3333333333333333) && True() -> <roundRobin, "http://42.0.1.4:8080", "http://42.0.1.5:8080">;
+kube_namespace1__ingress1__test1_example_org____service1v3: Host("^(test1[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.5) -> <roundRobin, "http://42.0.1.6:8080", "http://42.0.1.7:8080">;
+kube_namespace1__ingress1__test1_example_org____service1v4: Host("^(test1[.]example[.]org[.]?(:[0-9]+)?)$") -> <roundRobin, "http://42.0.1.8:8080", "http://42.0.1.9:8080">;
+
+kube_namespace1__ingress2__test2_example_org____service1v1: Host("^(test2[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.3333333333333333) && True() && True() -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
+kube_namespace1__ingress2__test2_example_org____service1v3: Host("^(test2[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.5) -> <roundRobin, "http://42.0.1.6:8080", "http://42.0.1.7:8080">;
+kube_namespace1__ingress2__test2_example_org____service1v4: Host("^(test2[.]example[.]org[.]?(:[0-9]+)?)$") -> <roundRobin, "http://42.0.1.8:8080", "http://42.0.1.9:8080">;
+
+kube_namespace1__ingress3__test3_example_org____service1v1: Host("^(test3[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.3333333333333333) && True() && True() -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
+kube_namespace1__ingress3__test3_example_org____service1v3: Host("^(test3[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.5) -> <roundRobin, "http://42.0.1.6:8080", "http://42.0.1.7:8080">;
+kube_namespace1__ingress3__test3_example_org____service1v4: Host("^(test3[.]example[.]org[.]?(:[0-9]+)?)$") -> <roundRobin, "http://42.0.1.8:8080", "http://42.0.1.9:8080">;
+
+kube_namespace1__ingress4__test4_example_org____service1v1: Host("^(test4[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.5) && True() && True() -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
+kube_namespace1__ingress4__test4_example_org____service1v4: Host("^(test4[.]example[.]org[.]?(:[0-9]+)?)$") -> <roundRobin, "http://42.0.1.8:8080", "http://42.0.1.9:8080">;
+
+kube_namespace1__ingress5__test5_example_org____service1v1: Host("^(test5[.]example[.]org[.]?(:[0-9]+)?)$") && Traffic(0.5) && True() && True() -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
+kube_namespace1__ingress5__test5_example_org____service1v4: Host("^(test5[.]example[.]org[.]?(:[0-9]+)?)$") -> <roundRobin, "http://42.0.1.8:8080", "http://42.0.1.9:8080">;
+
+kube_namespace1__ingress6__test6_example_org____service1v1: Host("^(test6[.]example[.]org[.]?(:[0-9]+)?)$") -> <roundRobin, "http://42.0.1.2:8080", "http://42.0.1.3:8080">;
