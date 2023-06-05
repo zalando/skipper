@@ -31,7 +31,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
 	github.com/redis/go-redis/v9 v9.0.4
 	github.com/sarslanhan/cronmask v0.0.0-20190709075623-766eca24d011
-	github.com/sirupsen/logrus v1.9.2
+	github.com/sirupsen/logrus v1.9.3
 	github.com/sony/gobreaker v0.5.0
 	github.com/stretchr/testify v1.8.3
 	github.com/szuecs/rate-limit-buffer v0.9.0
