@@ -8,7 +8,10 @@ import (
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	"github.com/open-policy-agent/opa-envoy-plugin/opa/decisionlog"
 	"github.com/open-policy-agent/opa/ast"
+	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/server"
+	"github.com/open-policy-agent/opa/tracing"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 )
 
@@ -27,6 +30,10 @@ func (opa *OpenPolicyAgentInstance) eval(ctx context.Context, req *ext_authz_v3.
 	var err error
 
 	result, stopeval, err := envoyauth.NewEvalResult()
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		span.SetTag("decision_id", result.DecisionID)
+	}
 
 	if err != nil {
 		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate decision ID.")
@@ -59,7 +66,7 @@ func (opa *OpenPolicyAgentInstance) eval(ctx context.Context, req *ext_authz_v3.
 		return nil, stop, err
 	}
 
-	err = envoyauth.Eval(ctx, opa, inputValue, result)
+	err = envoyauth.Eval(ctx, opa, inputValue, result, rego.DistributedTracingOpts(tracing.Options{opa}))
 	if err != nil {
 		return nil, stop, err
 	}
