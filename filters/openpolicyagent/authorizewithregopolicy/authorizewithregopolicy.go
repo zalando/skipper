@@ -85,12 +85,16 @@ type authorizeWithRegoPolicyFilter struct {
 func (f authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	start := time.Now()
 
-	req := envoy.AdaptToEnvoyExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetPolicyType(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+	req := fc.Request()
+	span, ctx := f.opa.StartSpanFromContext(req.Context())
+	defer span.Finish()
 
-	result, err := f.opa.Eval(fc.Request().Context(), req)
+	authzreq := envoy.AdaptToEnvoyExtAuthRequest(req, f.opa.InstanceConfig().GetPolicyType(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+
+	result, err := f.opa.Eval(ctx, authzreq)
 
 	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, result, err)
+		f.opa.RejectInvalidDecisionError(fc, span, result, err)
 		return
 	}
 
@@ -108,19 +112,19 @@ func (f authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 		allowed, err := result.IsAllowed()
 
 		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, result, err)
+			f.opa.RejectInvalidDecisionError(fc, span, result, err)
 			return
 		}
 
 		if !allowed {
-			f.opa.ServeResponse(fc, result)
+			f.opa.ServeResponse(fc, span, result)
 			return
 		}
 
 		if result.HasResponseBody() {
 			body, err := result.GetResponseBody()
 			if err != nil {
-				f.opa.RejectInvalidDecisionError(fc, result, err)
+				f.opa.RejectInvalidDecisionError(fc, span, result, err)
 				return
 			}
 			fc.StateBag()[openpolicyagent.OpenPolicyAgentDecisionBodyKey] = body
@@ -128,14 +132,14 @@ func (f authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 
 		headers, err := result.GetResponseHTTPHeaders()
 		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, result, err)
+			f.opa.RejectInvalidDecisionError(fc, span, result, err)
 			return
 		}
 		addRequestHeaders(fc, headers)
 
 		headersToRemove, err := result.GetRequestHTTPHeadersToRemove()
 		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, result, err)
+			f.opa.RejectInvalidDecisionError(fc, span, result, err)
 			return
 		}
 		removeHeaders(fc, headersToRemove)

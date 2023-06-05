@@ -20,6 +20,7 @@ import (
 	"github.com/open-policy-agent/opa/storage/inmem"
 	iCache "github.com/open-policy-agent/opa/topdown/cache"
 	opautil "github.com/open-policy-agent/opa/util"
+	"github.com/opentracing/opentracing-go"
 
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
@@ -138,7 +139,7 @@ func (factory *OpenPolicyAgentFactory) NewOpenPolicyAgentEnvoyInstance(bundleNam
 		return nil, err
 	}
 
-	engine, err := New(factory.BundleStorage(), configBytes, config, filterName)
+	engine, err := New(factory.BundleStorage(), configBytes, config, filterName, bundleName)
 
 	if err != nil {
 		return nil, err
@@ -163,6 +164,7 @@ type OpenPolicyAgentInstance struct {
 	manager        *plugins.Manager
 	instanceConfig OpenPolicyAgentInstanceConfig
 	opaConfig      *config.Config
+	bundleName     string
 
 	preparedQuery          *rego.PreparedEvalQuery
 	preparedQueryDoOnce    *sync.Once
@@ -203,7 +205,7 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 }
 
 // New returns a new OPA object.
-func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
+func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string) (*OpenPolicyAgentInstance, error) {
 	id, err := util.Uuid4()
 	if err != nil {
 		return nil, err
@@ -231,6 +233,7 @@ func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgent
 		instanceConfig: instanceConfig,
 		manager:        manager,
 		opaConfig:      opaConfig,
+		bundleName:     bundleName,
 
 		preparedQueryDoOnce:    new(sync.Once),
 		interQueryBuiltinCache: iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
@@ -286,6 +289,12 @@ func (opa *OpenPolicyAgentInstance) EnvoyPluginConfig() envoy.PluginConfig {
 	}
 	defaultConfig.ParseQuery()
 	return defaultConfig
+}
+
+func (opa *OpenPolicyAgentInstance) StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Context) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "open-policy-agent")
+	span.SetTag("bundle_name", opa.bundleName)
+	return span, ctx
 }
 
 func (opa *OpenPolicyAgentInstance) ParsedQuery() ast.Body {

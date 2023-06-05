@@ -84,12 +84,16 @@ type serveResponseWithRegoPolicyFilter struct {
 func (f serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	start := time.Now()
 
-	req := envoy.AdaptToEnvoyExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetPolicyType(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+	req := fc.Request()
+	span, ctx := f.opa.StartSpanFromContext(req.Context())
+	defer span.Finish()
 
-	result, err := f.opa.Eval(fc.Request().Context(), req)
+	authzreq := envoy.AdaptToEnvoyExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetPolicyType(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+
+	result, err := f.opa.Eval(ctx, authzreq)
 
 	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, result, err)
+		f.opa.RejectInvalidDecisionError(fc, span, result, err)
 		return
 	}
 
@@ -105,9 +109,9 @@ func (f serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 
 	if !f.opa.EnvoyPluginConfig().DryRun {
 		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, result, err)
+			f.opa.RejectInvalidDecisionError(fc, span, result, err)
 		} else {
-			f.opa.ServeResponse(fc, result)
+			f.opa.ServeResponse(fc, span, result)
 		}
 	}
 }
