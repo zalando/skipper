@@ -24,6 +24,7 @@ import (
 var Urls []string
 
 var etcd *exec.Cmd
+var etcdDataDir string
 
 func makeLocalUrls(ports ...int) []string {
 	urls := make([]string, len(ports))
@@ -55,6 +56,12 @@ func StartProjectRoot(projectRoot string) error {
 	Urls = makeLocalUrls(randPort(), randPort())
 	clientUrlsString := strings.Join(Urls, ",")
 
+	dir, err := os.MkdirTemp("", "etcdtest")
+	if err != nil {
+		return err
+	}
+	etcdDataDir = dir
+
 	var binary string
 	if projectRoot != "" {
 		binary = filepath.Join(projectRoot, ".bin/etcd")
@@ -70,6 +77,7 @@ func StartProjectRoot(projectRoot string) error {
 
 	/* #nosec */
 	e := exec.Command(binary,
+		"-data-dir", etcdDataDir,
 		"-listen-client-urls", clientUrlsString,
 		"-advertise-client-urls", clientUrlsString)
 	stderr, err := e.StderrPipe()
@@ -116,6 +124,11 @@ func Stop() error {
 	if etcd == nil {
 		return nil
 	}
+
+	defer func() {
+		os.RemoveAll(etcdDataDir)
+		etcdDataDir = ""
+	}()
 
 	return etcd.Process.Kill()
 }
