@@ -516,26 +516,3 @@ func TestCodaHaleServeMetrics(t *testing.T) {
 		})
 	}
 }
-
-func BenchmarkMeasureSince(b *testing.B) {
-	c := NewCodaHale(Options{})
-	now := time.Now()
-
-	b.Run("measureSince", func(b *testing.B) {
-		b.ResetTimer()
-		for n := 0; n < b.N; n++ {
-			c.measureSince("BenchmarkMeasureSince", now)
-		}
-	})
-}
-
-func BenchmarkIncCounter(b *testing.B) {
-	c := NewCodaHale(Options{})
-
-	b.Run("incCounter", func(b *testing.B) {
-		b.ResetTimer()
-		for n := 0; n < b.N; n++ {
-			c.incCounter("BenchmarkIncCounter", 1)
-		}
-	})
-}
