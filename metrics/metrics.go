@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"runtime"
@@ -273,12 +272,8 @@ func NewHandler(o Options, m Metrics) http.Handler {
 
 	Default = m
 
-	// Fix trailing slashes and register routes.
-	mPath := defaultMetricsPath
-	mPath = strings.TrimRight(mPath, "/")
-	m.RegisterHandler(mPath, mux)
-	mPath = fmt.Sprintf("%s/", mPath)
-	m.RegisterHandler(mPath, mux)
+	m.RegisterHandler(defaultMetricsPath, mux)
+	m.RegisterHandler(defaultMetricsPath+"/", mux)
 
 	return mux
 }
