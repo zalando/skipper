@@ -124,10 +124,6 @@ func (c *CodaHale) measureSince(key string, start time.Time) {
 	c.updateTimer(key, time.Since(start))
 }
 
-func (c *CodaHale) measureSinceGoroutine(key string, start time.Time) {
-	go c.updateTimer(key, time.Since(start))
-}
-
 func (c *CodaHale) MeasureRouteLookup(start time.Time) {
 	c.measureSince(KeyRouteLookup, start)
 }
@@ -216,10 +212,6 @@ func (c *CodaHale) getCounter(key string) metrics.Counter {
 
 func (c *CodaHale) incCounter(key string, value int64) {
 	c.getCounter(key).Inc(value)
-}
-
-func (c *CodaHale) incCounterGoroutine(key string, value int64) {
-	go c.getCounter(key).Inc(value)
 }
 
 func (c *CodaHale) IncRoutingFailures() {

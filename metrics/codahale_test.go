@@ -527,12 +527,6 @@ func BenchmarkMeasureSince(b *testing.B) {
 			c.measureSince("BenchmarkMeasureSince", now)
 		}
 	})
-	b.Run("measureSince go", func(b *testing.B) {
-		b.ResetTimer()
-		for n := 0; n < b.N; n++ {
-			c.measureSinceGoroutine("BenchmarkMeasureSince goroutine", now)
-		}
-	})
 }
 
 func BenchmarkIncCounter(b *testing.B) {
@@ -542,12 +536,6 @@ func BenchmarkIncCounter(b *testing.B) {
 		b.ResetTimer()
 		for n := 0; n < b.N; n++ {
 			c.incCounter("BenchmarkIncCounter", 1)
-		}
-	})
-	b.Run("incCounter go", func(b *testing.B) {
-		b.ResetTimer()
-		for n := 0; n < b.N; n++ {
-			c.incCounterGoroutine("BenchmarkIncCounter goroutine", 1)
 		}
 	})
 }
