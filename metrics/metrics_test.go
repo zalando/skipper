@@ -77,21 +77,22 @@ func TestHandlerCodaHaleAllMetricsRequest(t *testing.T) {
 	}
 	m := metrics.NewCodaHale(o)
 	mh := metrics.NewHandler(o, m)
+	m.IncCounter("TestHandlerCodaHaleAllMetricsRequest")
 
 	r, _ := http.NewRequest("GET", "/metrics", nil)
 	rw := httptest.NewRecorder()
 	mh.ServeHTTP(rw, r)
 
 	if rw.Code != http.StatusOK {
-		t.Error("Metrics endpoint should provide a valid response")
+		t.Fatalf("Metrics endpoint should provide a valid response, got: %d", rw.Code)
 	}
 
 	var data map[string]map[string]interface{}
 	if err := json.Unmarshal(rw.Body.Bytes(), &data); err != nil {
-		t.Error("Unable to unmarshal metrics response")
+		t.Fatalf("Unable to unmarshal metrics response: %v", err)
 	}
 
-	if _, ok := data["gauges"]["runtime.MemStats.NumGC"]; !ok {
+	if _, ok := data["counters"]["TestHandlerCodaHaleAllMetricsRequest"]; !ok {
 		t.Error("Metrics endpoint should've returned some runtime metrics in it")
 	}
 }
@@ -103,8 +104,9 @@ func TestHandlerCodaHaleSingleMetricsRequest(t *testing.T) {
 	}
 	m := metrics.NewCodaHale(o)
 	mh := metrics.NewHandler(o, m)
+	m.IncCounter("TestHandlerCodaHaleSingleMetricsRequest")
 
-	r, _ := http.NewRequest("GET", "/metrics/runtime.MemStats.NumGC", nil)
+	r, _ := http.NewRequest("GET", "/metrics/TestHandlerCodaHaleSingleMetricsRequest", nil)
 	rw := httptest.NewRecorder()
 	mh.ServeHTTP(rw, r)
 	if rw.Code != http.StatusOK {
@@ -120,7 +122,7 @@ func TestHandlerCodaHaleSingleMetricsRequest(t *testing.T) {
 		t.Error("Metrics endpoint for exact match should've returned exactly te requested item")
 	}
 
-	if _, ok := data["gauges"]["runtime.MemStats.NumGC"]; !ok {
+	if _, ok := data["counters"]["TestHandlerCodaHaleSingleMetricsRequest"]; !ok {
 		t.Error("Metrics endpoint should've returned some runtime metrics in it")
 	}
 }
@@ -133,8 +135,9 @@ func TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 	}
 	m := metrics.NewCodaHale(o)
 	mh := metrics.NewHandler(o, m)
+	m.IncCounter("TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix")
 
-	r, _ := http.NewRequest("GET", "/metrics/zmon.runtime.MemStats.NumGC", nil)
+	r, _ := http.NewRequest("GET", "/metrics/zmon.TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix", nil)
 	rw := httptest.NewRecorder()
 	mh.ServeHTTP(rw, r)
 	if rw.Code != http.StatusOK {
@@ -150,7 +153,7 @@ func TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 		t.Error("Metrics endpoint for exact match using prefix should've returned exactly te requested item")
 	}
 
-	if _, ok := data["gauges"]["zmon.runtime.MemStats.NumGC"]; !ok {
+	if _, ok := data["counters"]["zmon.TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix"]; !ok {
 		t.Error("Metrics endpoint for exact match using prefix should've returned some runtime metrics in it")
 	}
 }
@@ -162,6 +165,7 @@ func TestHandlerCodaHaleMetricsRequestWithPattern(t *testing.T) {
 	}
 	m := metrics.NewCodaHale(o)
 	mh := metrics.NewHandler(o, m)
+	m.UpdateGauge("runtime.Num", 5.0)
 
 	r, _ := http.NewRequest("GET", "/metrics/runtime.Num", nil)
 	rw := httptest.NewRecorder()
