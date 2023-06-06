@@ -1,4 +1,4 @@
-FROM registry.opensource.zalan.do/library/alpine-3:latest@sha256:29c534fa01c053db96fc84b34162187d42e55f73728ca6f875fd59fd929633c5
+FROM registry.opensource.zalan.do/library/alpine-3:latest@sha256:3a5ed584d25bc240f33f6ba7fe61f50c05172f89b03a8764ea1a41937f04f727
 LABEL maintainer="Team Gateway&Proxy @ Zalando SE <team-gwproxy@zalando.de>"
 
 ADD skipper /usr/bin/
