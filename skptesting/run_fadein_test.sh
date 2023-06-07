@@ -1,7 +1,8 @@
 #!/bin/bash
+set -x
 
 function run_test() {
-  GO111MODULE=on go test ./loadbalancer -run="$1" -count=1 -v | awk '/fadein_test.go:[0-9]+: CSV/ {print substr($0, index($0,$4)) }'
+  GO111MODULE=on go test ./loadbalancer -run="$1" -count=1 -v | awk '/fadein_test.go:[0-9]+: CSV/ {print $3}'
 }
 
 cwd=$( dirname "${BASH_SOURCE[0]}" )
@@ -10,7 +11,7 @@ if [ -z "${1+x}" ]
 then
   echo "$0 <test> [<test>...]"
   echo "Example:"
-  echo "$0 TestFadeIn/4th TestFadeIn/3rd"
+  echo "$0 TestFadeIn/round-robin,_4 TestFadeIn/round-robin,_3"
 else
   d=$(mktemp -d)
   for t in "$@"
