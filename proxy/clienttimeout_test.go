@@ -10,6 +10,9 @@ import (
 )
 
 func TestClientTimeout(t *testing.T) {
+	testLog := NewTestLog()
+	defer testLog.Close()
+
 	d := 200 * time.Millisecond
 
 	payload := []byte("backend reply")
@@ -49,16 +52,19 @@ func TestClientTimeout(t *testing.T) {
 	}
 
 	const msgErrClientTimeout = "context canceled"
-	if err = tp.log.WaitFor(msgErrClientTimeout, 3*d); err != nil {
+	if err = testLog.WaitFor(msgErrClientTimeout, 3*d); err != nil {
 		t.Errorf("log should contain '%s'", msgErrClientTimeout)
 	}
 	const msgErrClientCanceledAfter = "client canceled after"
-	if err = tp.log.WaitFor(msgErrClientCanceledAfter, 3*d); err != nil {
+	if err = testLog.WaitFor(msgErrClientCanceledAfter, 3*d); err != nil {
 		t.Errorf("log should contain '%s'", msgErrClientCanceledAfter)
 	}
 }
 
 func TestClientCancellation(t *testing.T) {
+	testLog := NewTestLog()
+	defer testLog.Close()
+
 	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 	}))
@@ -84,14 +90,14 @@ func TestClientCancellation(t *testing.T) {
 	}
 
 	const msg = "POST / HTTP/1.1"
-	if err = tp.log.WaitForN(msg, N, 500*time.Millisecond); err != nil {
+	if err = testLog.WaitForN(msg, N, 500*time.Millisecond); err != nil {
 		t.Fatalf("expected %d requests, got %d", N, tp.log.Count(msg))
 	}
 
 	// Look for N messages like
 	// 2020/12/05 17:24:00 client canceled after 1.090638ms, route  with backend network http://127.0.0.1:39687, status code 499: dialing failed false: context canceled, remote host: 127.0.0.1, request: "POST / HTTP/1.1", user agent: ""
 	for _, m := range []string{"client canceled after", "status code 499", "context canceled"} {
-		count := tp.log.Count(m)
+		count := testLog.Count(m)
 		if count != N {
 			t.Errorf("expected '%s' %d times, got %d", m, N, tp.log.Count(m))
 		}
@@ -111,6 +117,9 @@ func postTruncated(addr string) (err error) {
 }
 
 func TestClientTimeoutBeforeStreaming(t *testing.T) {
+	testLog := NewTestLog()
+	defer testLog.Close()
+
 	backend := startTestServer([]byte("backend reply"), 0, func(*http.Request) {})
 	defer backend.Close()
 
@@ -137,7 +146,7 @@ func TestClientTimeoutBeforeStreaming(t *testing.T) {
 	}
 
 	const msg = "Client request: context canceled"
-	if err = tp.log.WaitFor(msg, 200*time.Millisecond); err != nil {
+	if err = testLog.WaitFor(msg, 200*time.Millisecond); err != nil {
 		t.Errorf("log should contain '%s'", msg)
 	}
 }

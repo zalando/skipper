@@ -812,7 +812,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 
 	upgradeProxy.serveHTTP(ctx.responseWriter, req)
 	ctx.successfulUpgrade = true
-	p.log.Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
+	ctx.Logger().Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
 	return nil
 }
 
@@ -1011,7 +1011,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			p.onPanicSometimes.Do(func() {
-				p.log.Errorf("stacktrace of panic caused by: %v:\n%s", r, stack())
+				ctx.Logger().Errorf("stacktrace of panic caused by: %v:\n%s", r, stack())
 			})
 
 			perr := &proxyError{
@@ -1070,7 +1070,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 			p.metrics.IncRoutingFailures()
 		}
 
-		p.log.Debugf("could not find a route for %v", ctx.request.URL)
+		ctx.Logger().Debugf("could not find a route for %v", ctx.request.URL)
 		p.makeErrorResponse(ctx, errRouteLookupFailed)
 		return errRouteLookupFailed
 	}
@@ -1080,13 +1080,13 @@ func (p *Proxy) do(ctx *context) (err error) {
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
 
 	if ctx.deprecatedShunted() {
-		p.log.Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
+		ctx.Logger().Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
 	} else if ctx.shunted() || ctx.route.Shunt || ctx.route.BackendType == eskip.ShuntBackend {
 		// consume the body to prevent goroutine leaks
 		if ctx.request.Body != nil {
 			if _, err := io.Copy(io.Discard, ctx.request.Body); err != nil {
-				p.log.Errorf("error while discarding remainder request body: %v.", err)
+				ctx.Logger().Errorf("error while discarding remainder request body: %v.", err)
 			}
 		}
 		ctx.ensureDefaultResponse()
@@ -1133,7 +1133,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		if d, ok := ctx.StateBag()[filters.ReadTimeout].(time.Duration); ok {
 			e := ctx.ResponseController().SetReadDeadline(backendStart.Add(d))
 			if e != nil {
-				p.log.Errorf("Failed to set read deadline: %v", e)
+				ctx.Logger().Errorf("Failed to set read deadline: %v", e)
 			}
 		}
 		rsp, perr := p.makeBackendRequest(ctx, backendContext)
@@ -1156,7 +1156,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 				var perr2 *proxyError
 				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
 				if perr2 != nil {
-					p.log.Errorf("Failed to retry backend request: %v", perr2)
+					ctx.Logger().Errorf("Failed to retry backend request: %v", perr2)
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
@@ -1215,7 +1215,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
 		// see https://github.com/zalando/skipper/pull/864
-		p.log.Debugf("Client request: %v", err)
+		ctx.Logger().Debugf("Client request: %v", err)
 		ctx.response.StatusCode = 499
 		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
 	}
@@ -1230,7 +1230,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
-		p.log.Debugf("error while copying the response stream: %v", err)
+		ctx.Logger().Debugf("error while copying the response stream: %v", err)
 		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
@@ -1284,12 +1284,12 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	msgPrefix := "error while proxying"
-	logFunc := p.log.Errorf
+	logFunc := ctx.Logger().Errorf
 	if ctx.response.StatusCode == 499 {
 		msgPrefix = "client canceled"
-		logFunc = p.log.Infof
+		logFunc = ctx.Logger().Infof
 		if p.accessLogDisabled {
-			logFunc = p.log.Debugf
+			logFunc = ctx.Logger().Debugf
 		}
 	}
 	if id != unknownRouteID {
@@ -1453,7 +1453,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if ctx.response != nil && ctx.response.Body != nil {
 			err := ctx.response.Body.Close()
 			if err != nil {
-				p.log.Errorf("error during closing the response body: %v", err)
+				ctx.Logger().Errorf("error during closing the response body: %v", err)
 			}
 		}
 	}()
@@ -1463,7 +1463,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
 		e := ctx.ResponseController().SetWriteDeadline(time.Now().Add(d))
 		if e != nil {
-			p.log.Errorf("Failed to set write deadline: %v", e)
+			ctx.Logger().Errorf("Failed to set write deadline: %v", e)
 		}
 	}
 
@@ -1597,7 +1597,7 @@ func (p *Proxy) applyFiltersOnError(ctx *context, filters []*routing.RouteFilter
 		if ehf, ok := fi.Filter.(errorHandlerFilter); !ok || !ehf.HandleErrorResponse() {
 			continue
 		}
-		p.log.Debugf("filter %s handles error", fi.Name)
+		ctx.Logger().Debugf("filter %s handles error", fi.Name)
 
 		start := time.Now()
 		filterTracing.logStart(fi.Name)

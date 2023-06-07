@@ -69,6 +69,9 @@ func TestFastService(t *testing.T) {
 }
 
 func TestBackendTimeoutInTheMiddleOfServiceResponse(t *testing.T) {
+	testLog := NewTestLog()
+	defer testLog.Close()
+
 	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("Wish You"))
@@ -113,7 +116,7 @@ func TestBackendTimeoutInTheMiddleOfServiceResponse(t *testing.T) {
 	}
 
 	const msg = "error while copying the response stream: context deadline exceeded"
-	if err = tp.log.WaitFor(msg, 100*time.Millisecond); err != nil {
+	if err = testLog.WaitFor(msg, 100*time.Millisecond); err != nil {
 		t.Errorf("expected '%s' in logs", msg)
 	}
 }
