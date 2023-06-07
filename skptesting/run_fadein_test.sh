@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 
 function run_test() {
   GO111MODULE=on go test ./loadbalancer -run="$1" -count=1 -v | awk '/fadein_test.go:[0-9]+: CSV/ {print $3}'
