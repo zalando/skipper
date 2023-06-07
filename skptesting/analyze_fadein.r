@@ -46,7 +46,8 @@ if (is.null(opt$title)) {
 ## set that we write to png file
 png(out)
 
-dat <- read.csv(con, sep=opt$sep)
+datWithT <- read.csv(con, sep=opt$sep)
+dat <- datWithT[,-1]
 
 ## hack to parameterize formula
 ## we have to create c(a,b,c,d,e,f) where a,b,..,f depend on the read CSV we don't know yet
@@ -60,6 +61,6 @@ f <- eval(parse(text=strFactor)) ~ c(1:length(dat$a))
 
 xyplot(f,
        data=dat,
-       xlab="iterations", ylab="hits", ylim=c(0:max(dat$a)+200), between=list(x=0,y=100),
+       xlab="iterations", ylab="hits", ylim=c(0, max(dat)+200), between=list(x=0,y=100),
        auto.key=TRUE,
        main=title)

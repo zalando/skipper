@@ -2,12 +2,13 @@ package loadbalancer
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/routing"
 	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/routing"
 )
 
 const (
@@ -79,6 +80,8 @@ func testFadeIn(
 		t.Log("test start", time.Now())
 		var stats []string
 		stop := time.After(fadeInDuration)
+		// Emulate the load balancer loop, sending requests to it with iterative hash keys
+		// of every endpoint over and over again till fadeIn period is over.
 		func() {
 			for {
 				ctx.Params[ConsistentHashKey] = hashKeys[len(stats)%len(hashKeys)]
@@ -92,8 +95,9 @@ func testFadeIn(
 			}
 		}()
 
+		// Split fade-in period into buckets and count how many times each endpoint was selected.
 		t.Log("test done", time.Now())
-		t.Log("CSV " + strings.Join(eps, ","))
+		t.Log("CSV timestamp," + strings.Join(eps, ","))
 		bucketSize := len(stats) / bucketCount
 		var allBuckets []map[string]int
 		for i := 0; i < bucketCount; i++ {
@@ -130,18 +134,20 @@ func testFadeIn(
 					allBuckets[i-1][epi],
 					allBuckets[i][epi],
 				) {
-					t.Error("non-monotonic change", epi)
+					t.Error("non-monotonic change", epi, i)
 				}
 			}
 		}
 
-		for _, bucketStats := range allBuckets {
+		for i, bucketStats := range allBuckets {
 			var showStats []string
 			for _, epi := range eps {
 				showStats = append(showStats, fmt.Sprintf("%d", bucketStats[epi]))
 			}
 
-			t.Log("CSV " + strings.Join(showStats, ","))
+			// Print CSV-like output for, where row number represents time and
+			// column represents endpoint.
+			t.Log("CSV " + fmt.Sprintf("%d,", i) + strings.Join(showStats, ","))
 		}
 	})
 }
