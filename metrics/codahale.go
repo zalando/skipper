@@ -121,8 +121,7 @@ func (c *CodaHale) IncFloatCounterBy(key string, value float64) {
 }
 
 func (c *CodaHale) measureSince(key string, start time.Time) {
-	d := time.Since(start)
-	go c.updateTimer(key, d)
+	c.updateTimer(key, time.Since(start))
 }
 
 func (c *CodaHale) MeasureRouteLookup(start time.Time) {
@@ -212,7 +211,7 @@ func (c *CodaHale) getCounter(key string) metrics.Counter {
 }
 
 func (c *CodaHale) incCounter(key string, value int64) {
-	go c.getCounter(key).Inc(value)
+	c.getCounter(key).Inc(value)
 }
 
 func (c *CodaHale) IncRoutingFailures() {
