@@ -51,16 +51,24 @@ func requestWithR(r float64) *http.Request {
 	return req
 }
 
-func getN(t *testing.T, client *proxytest.TestClient, url string, n int) map[int]int {
+func doN(t *testing.T, n int, client *proxytest.TestClient, request func() *http.Request) map[int]int {
 	codes := make(map[int]int)
 	for i := 0; i < n; i++ {
-		rsp, err := client.Get(url)
+		rsp, err := client.Do(request())
 		require.NoError(t, err)
 		rsp.Body.Close()
 
 		codes[rsp.StatusCode]++
 	}
 	return codes
+}
+
+func getN(t *testing.T, n int, client *proxytest.TestClient, url string) map[int]int {
+	return doN(t, n, client, func() *http.Request {
+		req, err := http.NewRequest("GET", url, nil)
+		require.NoError(t, err)
+		return req
+	})
 }
 
 func TestTrafficSegmentMatch(t *testing.T) {
@@ -121,13 +129,42 @@ func TestTrafficSegmentSplit(t *testing.T) {
 		delta = 0.05 * N
 	)
 
-	codes := getN(t, p.Client(), p.URL+"/test", N)
+	codes := getN(t, N, p.Client(), p.URL+"/test")
 
 	t.Logf("Response codes: %v", codes)
 
 	assert.InDelta(t, N*0.5, codes[200], delta)
 	assert.InDelta(t, N*0.3, codes[201], delta)
 	assert.InDelta(t, N*0.2, codes[202], delta)
+}
+
+func TestTrafficSegmentRouteWeight(t *testing.T) {
+	p := proxytest.Config{
+		RoutingOptions: routing.Options{
+			FilterRegistry: builtin.MakeRegistry(),
+			Predicates: []routing.PredicateSpec{
+				traffic.NewSegment(),
+			},
+		},
+		Routes: eskip.MustParse(`
+			segment90: Path("/test") && TrafficSegment(0.0, 0.9) -> status(200) -> <shunt>;
+			segment10: Path("/test") && TrafficSegment(0.9, 1.0) -> status(200) -> <shunt>;
+			cookie:    Path("/test") && Header("X-Foo", "bar")   -> status(201) -> <shunt>;
+		`),
+	}.Create()
+	defer p.Close()
+
+	const N = 1_000
+
+	codes := getN(t, N, p.Client(), p.URL+"/test")
+	assert.Equal(t, N, codes[200])
+
+	codes = doN(t, N, p.Client(), func() *http.Request {
+		req, _ := http.NewRequest("GET", p.URL+"/test", nil)
+		req.Header.Set("X-Foo", "bar")
+		return req
+	})
+	assert.Equal(t, N, codes[201])
 }
 
 func TestTrafficSegmentTeeLoopback(t *testing.T) {
@@ -159,7 +196,7 @@ func TestTrafficSegmentTeeLoopback(t *testing.T) {
 		delta = 0.05 * N
 	)
 
-	codes := getN(t, p.Client(), p.URL+"/test", N)
+	codes := getN(t, N, p.Client(), p.URL+"/test")
 
 	// wait for loopback requests to complete
 	time.Sleep(100 * time.Millisecond)
@@ -196,7 +233,7 @@ func TestTrafficSegmentLoopbackBackend(t *testing.T) {
 		delta = 0.05 * N
 	)
 
-	codes := getN(t, p.Client(), p.URL+"/test", N)
+	codes := getN(t, N, p.Client(), p.URL+"/test")
 
 	t.Logf("Response codes: %v", codes)
 
