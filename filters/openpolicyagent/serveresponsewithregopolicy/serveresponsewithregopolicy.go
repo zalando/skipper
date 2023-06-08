@@ -12,14 +12,14 @@ import (
 )
 
 type Spec struct {
-	factory    openpolicyagent.OpenPolicyAgentFactory
-	configOpts []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
+	factory openpolicyagent.OpenPolicyAgentFactory
+	opts    []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 }
 
 func NewServeResponseWithRegoPolicySpec(factory openpolicyagent.OpenPolicyAgentFactory, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) Spec {
 	return Spec{
-		factory:    factory,
-		configOpts: opts,
+		factory: factory,
+		opts:    opts,
 	}
 }
 
@@ -45,7 +45,7 @@ func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 	bundleName := sargs[0]
 
-	configOptions := s.configOpts
+	configOptions := s.opts
 
 	if len(sargs) > 1 {
 		envoyContextExtensions := map[string]string{}
@@ -77,37 +77,29 @@ type serveResponseWithRegoPolicyFilter struct {
 }
 
 func (f serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
-	start := time.Now()
-
 	req := fc.Request()
 	span, ctx := f.opa.StartSpanFromContext(req.Context())
 	defer span.Finish()
 
 	authzreq := envoy.AdaptToEnvoyExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
 
+	start := time.Now()
 	result, err := f.opa.Eval(ctx, authzreq)
+	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
 
 	if err != nil {
 		f.opa.RejectInvalidDecisionError(fc, span, result, err)
 		return
 	}
 
-	f.opa.Logger().WithFields(map[string]interface{}{
-		"query":               f.opa.EnvoyPluginConfig().ParsedQuery.String(),
-		"dry-run":             f.opa.EnvoyPluginConfig().DryRun,
-		"decision":            result.Decision,
-		"err":                 err,
-		"txn":                 result.TxnID,
-		"metrics":             result.Metrics.All(),
-		"total_decision_time": time.Since(start),
-	}).Debug("Authorizing request with decision.")
+	if f.opa.EnvoyPluginConfig().DryRun {
+		return
+	}
 
-	if !f.opa.EnvoyPluginConfig().DryRun {
-		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, span, result, err)
-		} else {
-			f.opa.ServeResponse(fc, span, result)
-		}
+	if err != nil {
+		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+	} else {
+		f.opa.ServeResponse(fc, span, result)
 	}
 }
 

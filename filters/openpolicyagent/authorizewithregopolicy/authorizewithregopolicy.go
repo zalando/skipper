@@ -13,14 +13,14 @@ import (
 )
 
 type Spec struct {
-	factory    openpolicyagent.OpenPolicyAgentFactory
-	configOpts []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
+	factory openpolicyagent.OpenPolicyAgentFactory
+	opts    []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 }
 
 func NewAuthorizeWithRegoPolicySpec(factory openpolicyagent.OpenPolicyAgentFactory, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) Spec {
 	return Spec{
-		factory:    factory,
-		configOpts: opts,
+		factory: factory,
+		opts:    opts,
 	}
 }
 
@@ -46,7 +46,7 @@ func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 	bundleName := sargs[0]
 
-	configOptions := s.configOpts
+	configOptions := s.opts
 
 	if len(sargs) > 1 {
 		envoyContextExtensions := map[string]string{}
