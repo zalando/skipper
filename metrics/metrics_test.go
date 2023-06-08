@@ -223,10 +223,27 @@ func BenchmarkMeasureSinceCodaHale(b *testing.B) {
 	benchmarkMeasureSince(b, m)
 }
 
+func BenchmarkIncCounterPrometheus(b *testing.B) {
+	m := metrics.NewMetrics(metrics.Options{Format: metrics.PrometheusKind})
+	benchmarkIncCounter(b, m)
+}
+
+func BenchmarkIncCounterCodaHale(b *testing.B) {
+	m := metrics.NewMetrics(metrics.Options{Format: metrics.CodaHaleKind})
+	benchmarkIncCounter(b, m)
+}
+
 func benchmarkMeasureSince(b *testing.B, m metrics.Metrics) {
 	start := time.Now()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.MeasureSince("a.metrics.key", start)
+		m.MeasureSince("MeasureSince", start)
+	}
+}
+
+func benchmarkIncCounter(b *testing.B, m metrics.Metrics) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.IncCounter("IncCounter")
 	}
 }
