@@ -25,13 +25,8 @@ func NewAuthorizeWithRegoPolicySpec(factory openpolicyagent.OpenPolicyAgentFacto
 }
 
 func (s Spec) Name() string {
-	return "authorizeWithRegoPolicy"
+	return filters.AuthorizeWithRegoPolicyName
 }
-
-const (
-	paramBundleName int = iota
-	paramEnvoyContextExtensions
-)
 
 func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 	var err error
@@ -49,13 +44,13 @@ func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	bundleName := sargs[paramBundleName]
+	bundleName := sargs[0]
 
 	configOptions := s.configOpts
 
 	if len(sargs) > 1 {
 		envoyContextExtensions := map[string]string{}
-		err = yaml.Unmarshal([]byte(sargs[paramEnvoyContextExtensions]), &envoyContextExtensions)
+		err = yaml.Unmarshal([]byte(sargs[1]), &envoyContextExtensions)
 		if err != nil {
 			return nil, err
 		}
@@ -83,67 +78,62 @@ type authorizeWithRegoPolicyFilter struct {
 }
 
 func (f authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
-	start := time.Now()
-
 	req := fc.Request()
 	span, ctx := f.opa.StartSpanFromContext(req.Context())
 	defer span.Finish()
 
-	authzreq := envoy.AdaptToEnvoyExtAuthRequest(req, f.opa.InstanceConfig().GetPolicyType(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+	authzreq := envoy.AdaptToEnvoyExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
 
+	start := time.Now()
 	result, err := f.opa.Eval(ctx, authzreq)
+	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
 
 	if err != nil {
 		f.opa.RejectInvalidDecisionError(fc, span, result, err)
 		return
 	}
 
-	f.opa.Logger().WithFields(map[string]interface{}{
-		"query":               f.opa.EnvoyPluginConfig().ParsedQuery.String(),
-		"dry-run":             f.opa.EnvoyPluginConfig().DryRun,
-		"decision":            result.Decision,
-		"err":                 err,
-		"txn":                 result.TxnID,
-		"metrics":             result.Metrics.All(),
-		"total_decision_time": time.Since(start),
-	}).Debug("Authorizing request with decision.")
-
-	if !f.opa.EnvoyPluginConfig().DryRun {
-		allowed, err := result.IsAllowed()
-
-		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, span, result, err)
-			return
-		}
-
-		if !allowed {
-			f.opa.ServeResponse(fc, span, result)
-			return
-		}
-
-		if result.HasResponseBody() {
-			body, err := result.GetResponseBody()
-			if err != nil {
-				f.opa.RejectInvalidDecisionError(fc, span, result, err)
-				return
-			}
-			fc.StateBag()[openpolicyagent.OpenPolicyAgentDecisionBodyKey] = body
-		}
-
-		headers, err := result.GetResponseHTTPHeaders()
-		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, span, result, err)
-			return
-		}
-		addRequestHeaders(fc, headers)
-
-		headersToRemove, err := result.GetRequestHTTPHeadersToRemove()
-		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, span, result, err)
-			return
-		}
-		removeHeaders(fc, headersToRemove)
+	if f.opa.EnvoyPluginConfig().DryRun {
+		return
 	}
+
+	allowed, err := result.IsAllowed()
+
+	if err != nil {
+		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		return
+	}
+
+	if !allowed {
+		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.deny"))
+		f.opa.ServeResponse(fc, span, result)
+		return
+	}
+
+	fc.Metrics().IncCounter(f.opa.MetricsKey("decision.allow"))
+
+	if result.HasResponseBody() {
+		body, err := result.GetResponseBody()
+		if err != nil {
+			f.opa.RejectInvalidDecisionError(fc, span, result, err)
+			return
+		}
+		fc.StateBag()[openpolicyagent.OpenPolicyAgentDecisionBodyKey] = body
+	}
+
+	headers, err := result.GetResponseHTTPHeaders()
+	if err != nil {
+		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		return
+	}
+	addRequestHeaders(fc, headers)
+
+	headersToRemove, err := result.GetRequestHTTPHeadersToRemove()
+	if err != nil {
+		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		return
+	}
+	removeHeaders(fc, headersToRemove)
 }
 
 func removeHeaders(fc filters.FilterContext, headersToRemove []string) {

@@ -24,13 +24,8 @@ func NewServeResponseWithRegoPolicySpec(factory openpolicyagent.OpenPolicyAgentF
 }
 
 func (s Spec) Name() string {
-	return "serveResponseWithRegoPolicy"
+	return filters.ServeResponseWithRegoPolicyName
 }
-
-const (
-	paramBundleName int = iota
-	paramEnvoyContextExtensions
-)
 
 func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 	var err error
@@ -48,13 +43,13 @@ func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	bundleName := sargs[paramBundleName]
+	bundleName := sargs[0]
 
 	configOptions := s.configOpts
 
 	if len(sargs) > 1 {
 		envoyContextExtensions := map[string]string{}
-		err = yaml.Unmarshal([]byte(sargs[paramEnvoyContextExtensions]), &envoyContextExtensions)
+		err = yaml.Unmarshal([]byte(sargs[1]), &envoyContextExtensions)
 		if err != nil {
 			return nil, err
 		}
@@ -88,7 +83,7 @@ func (f serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromContext(req.Context())
 	defer span.Finish()
 
-	authzreq := envoy.AdaptToEnvoyExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetPolicyType(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+	authzreq := envoy.AdaptToEnvoyExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
 
 	result, err := f.opa.Eval(ctx, authzreq)
 

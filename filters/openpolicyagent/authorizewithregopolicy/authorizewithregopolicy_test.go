@@ -222,7 +222,7 @@ func areHeaderValuesEqual(expectedValues, actualValues []string) bool {
 
 func isHeadersAbsent(unwantedHeaders http.Header, headers http.Header) bool {
 	for headerName := range unwantedHeaders {
-		if _, headerFound := headers[headerName]; headerFound {
+		if _, ok := headers[headerName]; ok {
 			return false
 		}
 	}

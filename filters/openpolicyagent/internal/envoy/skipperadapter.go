@@ -6,10 +6,9 @@ import (
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
-	_struct "github.com/golang/protobuf/ptypes/struct"
 )
 
-func AdaptToEnvoyExtAuthRequest(req *http.Request, pt PolicyType, contextExtensions map[string]string) *ext_authz_v3.CheckRequest {
+func AdaptToEnvoyExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metadata, contextExtensions map[string]string) *ext_authz_v3.CheckRequest {
 
 	headers := make(map[string]string)
 	for h, vv := range req.Header {
@@ -29,17 +28,7 @@ func AdaptToEnvoyExtAuthRequest(req *http.Request, pt PolicyType, contextExtensi
 				},
 			},
 			ContextExtensions: contextExtensions,
-			MetadataContext: &ext_authz_v3_core.Metadata{
-				FilterMetadata: map[string]*_struct.Struct{
-					"envoy.filters.http.header_to_metadata": {
-						Fields: map[string]*_struct.Value{
-							"policy_type": {
-								Kind: &_struct.Value_StringValue{StringValue: string(pt)},
-							},
-						},
-					},
-				},
-			},
+			MetadataContext:   metadata,
 		},
 	}
 }

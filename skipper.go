@@ -891,6 +891,7 @@ type Options struct {
 
 	EnableOpenPolicyAgent         bool
 	OpenPolicyAgentConfigTemplate string
+	OpenPolicyAgentEnvoyMetadata  string
 
 	testOptions
 }
@@ -1746,9 +1747,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 		o.CustomFilters = append(o.CustomFilters,
 			authorizewithregopolicy.NewAuthorizeWithRegoPolicySpec(factory,
-				openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate)),
+				openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate),
+				openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata)),
 			serveresponsewithregopolicy.NewServeResponseWithRegoPolicySpec(factory,
-				openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate)),
+				openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate),
+				openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata)),
 		)
 	}
 

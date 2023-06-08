@@ -16,17 +16,6 @@ import (
 )
 
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
-	resp, finalFunc, err := opa.eval(ctx, req)
-
-	logErr := finalFunc()
-	if logErr != nil {
-		opa.Logger().WithFields(map[string]interface{}{"err": logErr}).Error("Unable to log decision to control plane.")
-	}
-
-	return resp, err
-}
-
-func (opa *OpenPolicyAgentInstance) eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, func() error, error) {
 	var err error
 
 	result, stopeval, err := envoyauth.NewEvalResult()
@@ -37,41 +26,40 @@ func (opa *OpenPolicyAgentInstance) eval(ctx context.Context, req *ext_authz_v3.
 
 	if err != nil {
 		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate decision ID.")
-		return nil, func() error { return nil }, err
+		return nil, err
 	}
 
 	var input map[string]interface{}
-	stop := func() error {
+	defer func() {
 		stopeval()
-		logErr := opa.logDecision(ctx, input, result, err)
-		if logErr != nil {
-			return logErr
+		err := opa.logDecision(ctx, input, result, err)
+		if err != nil {
+			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")
 		}
-		return nil
-	}
+	}()
 
 	if ctx.Err() != nil {
 		err = errors.Wrap(ctx.Err(), "check request timed out before query execution")
-		return nil, stop, err
+		return nil, err
 	}
 
 	logger := opa.manager.Logger().WithFields(map[string]interface{}{"decision-id": result.DecisionID})
 	input, err = envoyauth.RequestToInput(req, logger, nil, true)
 	if err != nil {
-		return nil, stop, err
+		return nil, err
 	}
 
 	inputValue, err := ast.InterfaceToValue(input)
 	if err != nil {
-		return nil, stop, err
+		return nil, err
 	}
 
 	err = envoyauth.Eval(ctx, opa, inputValue, result, rego.DistributedTracingOpts(tracing.Options{opa}))
 	if err != nil {
-		return nil, stop, err
+		return nil, err
 	}
 
-	return result, stop, nil
+	return result, nil
 }
 
 func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
