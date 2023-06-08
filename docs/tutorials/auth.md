@@ -415,3 +415,90 @@ scope by doing the following:
 
 > The subject is the field that identifies the user and is often called `sub`, 
 > especially in the context of OpenID Connect. In the example above, it is `username`.
+
+## Open Policy Agent
+
+To enable [Open Policy Agent](https://www.openpolicyagent.org/) filter, use the `-enable-open-policy-agent` command line flag. 
+
+Open Policy Agent is integrated as a Go library so no extra setup is needed to run. Every filter creates a virtual OPA instance in memory that is configured using a configuration file in the same [configuration format](https://www.openpolicyagent.org/docs/latest/configuration/) that a standalone OPA would use. To allow for configurability, the configuration file is interpolated using Go Templates to allow every virtual instance to pull different bundles. This template file is passed using the `-open-policy-agent-config-template` flag. 
+
+### Configuration File
+
+As an example the following initial config can be used
+
+```yaml
+services:
+  - name: bundle-service
+    url: https://my-example-opa-bucket.s3.eu-central-1.amazonaws.com
+    credentials:
+      s3_signing:
+        environment_credentials: {}
+labels:
+  environment: production
+discovery:
+  name: discovery
+  prefix: "/applications/{{ .bundlename }}"
+```
+
+The variable `.bundlename` is the first argument in the following filters and can be in any format that OPA can understand, so for example application IDs from a registry, uuids, ...
+
+### Envoy Structures
+
+While Envoy is an alternative OSS product similar to Skipper, it has already defined structures for how external authorization should be done and also how  authorization decisions can influence the Envoy response. Open Policy Agent already has direct support for this and also commercial control planes support this. On top of this [examples and documentation](https://www.openpolicyagent.org/docs/latest/envoy-primer/) already exist.
+Instead of re-inventing these structures (for example how http headers and so on are represented), this implementation maps Skipper objects onto their Envoy representation. This also allows to reuse a fair bit of the [opa-envoy-plugin](https://github.com/open-policy-agent/opa-envoy-plugin), which does the heavy lifting of evaluating decisions against the OPA Go library.
+
+### Passing context to the policy
+
+Generally there are two ways to pass context to a policy:
+
+1. as part of the labels on Open Policy Agent (configured in the configuration file, see below) that should be used for deployment level taxonomy,
+2. as part of so called context extensions that are part of the Envoy external auth specification. 
+
+This context can be passed as second argument to filters: 
+
+`authorizeWithRegoPolicy("my-app-id", "com.mycompany.myprop: myvalue")` 
+or `authorizeWithRegoPolicy("my-app-id", "{'com.mycompany.myprop': 'my value'}")` 
+
+The second argument is parsed as YAML, cannot be nested and values need to be strings. 
+
+In Rego this can be used like this `input.attributes.contextExtensions["com.mycompany.myprop"] == "my value"`
+
+### Quick Start Rego Playground
+
+A quick way without setting up Backend APIs is to use the [Rego Playground](https://play.openpolicyagent.org/).
+
+To get started pick from examples Envoy > Hello World. Click on "Publish" and note the random ID in the section "Run OPA with playground policy". 
+
+Place the following file in your local directory with the name `opaconfig.yaml`
+
+```yaml
+bundles:
+  play:
+    resource: bundles/{{ .bundlename }}
+    polling:
+      long_polling_timeout_seconds: 45
+services:
+  - name: play
+    url: https://play.openpolicyagent.org
+plugins:
+  envoy_ext_authz_grpc:
+    # This needs to match the package, defaulting to envoy/authz/allow
+    path: envoy/http/public/allow
+    dry-run: false
+decision_logs:
+  console: true
+```
+
+Start Skipper with 
+
+```
+skipper --enable-open-policy-agent --open-policy-agent-config-template opaconfig.yaml \
+  --inline-routes 'notfound: * -> authorizeWithRegoPolicy("<playground-bundle-id>") -> inlineContent("<h1>Authorized Hello</h1>") -> <shunt>'
+```
+
+You can test the policy with
+
+- Authorized: `curl http://localhost:9090/ -i`
+- Authorized: `curl http://localhost:9090/foobar -H "Authorization: Basic charlie" -i`
+- Forbidden: `curl http://localhost:9090/foobar -i`
+

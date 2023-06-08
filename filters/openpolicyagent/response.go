@@ -14,6 +14,8 @@ import (
 func (opa *OpenPolicyAgentInstance) RejectInvalidDecisionError(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult, err error) {
 	resp := http.Response{}
 
+	fc.Metrics().IncCounter(opa.MetricsKey("decision.err"))
+
 	resp.StatusCode = http.StatusInternalServerError
 
 	if result != nil {
@@ -45,19 +47,18 @@ func (opa *OpenPolicyAgentInstance) RejectInvalidDecisionError(fc filters.Filter
 func (opa *OpenPolicyAgentInstance) ServeResponse(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult) {
 	resp := http.Response{}
 
-	status, err := result.GetResponseHTTPStatus()
+	var err error
+	resp.StatusCode, err = result.GetResponseHTTPStatus()
 	if err != nil {
 		opa.RejectInvalidDecisionError(fc, span, result, err)
 		return
 	}
-	resp.StatusCode = status
 
-	headers, err := result.GetResponseHTTPHeaders()
+	resp.Header, err = result.GetResponseHTTPHeaders()
 	if err != nil {
 		opa.RejectInvalidDecisionError(fc, span, result, err)
 		return
 	}
-	resp.Header = headers
 
 	hasbody := result.HasResponseBody()
 

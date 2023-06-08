@@ -43,7 +43,7 @@ func (Factory) Validate(m *plugins.Manager, bs []byte) (interface{}, error) {
 }
 
 func (p *Plugin) Reconfigure(ctx context.Context, config interface{}) {
-
+	p.cfg = *config.(*PluginConfig)
 }
 
 // PluginConfig represents the plugin configuration.

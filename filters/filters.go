@@ -341,6 +341,8 @@ const (
 	EndpointCreatedName                        = "endpointCreated"
 	ConsistentHashKeyName                      = "consistentHashKey"
 	ConsistentHashBalanceFactorName            = "consistentHashBalanceFactor"
+	AuthorizeWithRegoPolicyName                = "authorizeWithRegoPolicy"
+	ServeResponseWithRegoPolicyName            = "serveResponseWithRegoPolicy"
 
 	// Undocumented filters
 	HealthCheckName        = "healthcheck"

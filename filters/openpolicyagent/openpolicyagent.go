@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/config"
 	"github.com/open-policy-agent/opa/logging"
@@ -21,37 +22,34 @@ import (
 	iCache "github.com/open-policy-agent/opa/topdown/cache"
 	opautil "github.com/open-policy-agent/opa/util"
 	"github.com/opentracing/opentracing-go"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
 )
 
+const (
+	OpenPolicyAgentDecisionKey        = "open-policy-agent:decision"
+	OpenPolicyAgentDecisionBodyKey    = "open-policy-agent:decision-body"
+	OpenPolicyAgentDecisionHeadersKey = "open-policy-agent:decision-headers"
+)
+
 type OpenPolicyAgentFactory struct {
-	// Ideally share one Bundle storage across many OPA "instances".
+	// Ideally share one Bundle storage across many OPA "instances" using this factory.
 	// This allows to save memory on bundles that are shared
 	// between different policies (i.e. global team memberships)
 	// This not possible due to some limitations in OPA
 	// See https://github.com/open-policy-agent/opa/issues/5707
-	bundleStorage storage.Store
 }
 
 func NewOpenPolicyAgentFactory() OpenPolicyAgentFactory {
-	return OpenPolicyAgentFactory{
-		//BundleStorage: inmem.New(),
-	}
+	return OpenPolicyAgentFactory{}
 }
 
 type OpenPolicyAgentInstanceConfig struct {
-	policyType             envoy.PolicyType
+	envoyMetadata          *ext_authz_v3_core.Metadata
 	configTemplate         []byte
 	envoyContextExtensions map[string]string
-}
-
-func WithPolicyType(policyType envoy.PolicyType) func(*OpenPolicyAgentInstanceConfig) error {
-	return func(cfg *OpenPolicyAgentInstanceConfig) error {
-		cfg.policyType = policyType
-		return nil
-	}
 }
 
 func WithConfigTemplate(configTemplate []byte) func(*OpenPolicyAgentInstanceConfig) error {
@@ -76,8 +74,34 @@ func WithEnvoyContextExtensions(envoyContextExtensions map[string]string) func(*
 	}
 }
 
-func (cfg *OpenPolicyAgentInstanceConfig) GetPolicyType() envoy.PolicyType {
-	return cfg.policyType
+func WithEnvoyMetadata(metadata *ext_authz_v3_core.Metadata) func(*OpenPolicyAgentInstanceConfig) error {
+	return func(cfg *OpenPolicyAgentInstanceConfig) error {
+		cfg.envoyMetadata = metadata
+		return nil
+	}
+}
+
+func WithEnvoyMetadataBytes(content []byte) func(*OpenPolicyAgentInstanceConfig) error {
+	return func(cfg *OpenPolicyAgentInstanceConfig) error {
+		cfg.envoyMetadata = &ext_authz_v3_core.Metadata{}
+		protojson.Unmarshal(content, cfg.envoyMetadata)
+		return nil
+	}
+}
+
+func WithEnvoyMetadataFile(file string) func(*OpenPolicyAgentInstanceConfig) error {
+
+	return func(cfg *OpenPolicyAgentInstanceConfig) error {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		return WithEnvoyMetadataBytes(content)(cfg)
+	}
+}
+
+func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.Metadata {
+	return cfg.envoyMetadata
 }
 
 func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyContextExtensions() map[string]string {
@@ -87,23 +111,14 @@ func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyContextExtensions() map[string
 func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) (*OpenPolicyAgentInstanceConfig, error) {
 	cfg := OpenPolicyAgentInstanceConfig{}
 
-	cfg.policyType = envoy.IngressPolicyType
-	if val, found := os.LookupEnv("OPA_ENVOY_POLICY_TYPE"); found {
-		cfg.policyType = envoy.PolicyType(val)
-	}
-
 	for _, opt := range opts {
 		if err := opt(&cfg); err != nil {
 			return nil, err
 		}
 	}
 
-	err := cfg.policyType.IsValid()
-	if err != nil {
-		return nil, err
-	}
-
 	if cfg.configTemplate == nil {
+		var err error
 		cfg.configTemplate, err = os.ReadFile(configTemplate())
 		if err != nil {
 			return nil, err
@@ -114,21 +129,10 @@ func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error
 }
 
 func configTemplate() string {
-	var configTemplate string
-	var found bool
-	if configTemplate, found = os.LookupEnv("OPA_CONFIG_TEMPLATE_FILE"); !found {
-		configTemplate = "opaconfig.yaml"
+	if s, ok := os.LookupEnv("OPA_CONFIG_TEMPLATE_FILE"); ok {
+		return s
 	}
-
-	return configTemplate
-}
-
-func (factory *OpenPolicyAgentFactory) BundleStorage() storage.Store {
-	if factory.bundleStorage == nil {
-		return inmem.New()
-	} else {
-		return factory.bundleStorage
-	}
+	return "opaconfig.yaml"
 }
 
 func (factory *OpenPolicyAgentFactory) NewOpenPolicyAgentEnvoyInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
@@ -139,7 +143,7 @@ func (factory *OpenPolicyAgentFactory) NewOpenPolicyAgentEnvoyInstance(bundleNam
 		return nil, err
 	}
 
-	engine, err := New(factory.BundleStorage(), configBytes, config, filterName, bundleName)
+	engine, err := New(inmem.New(), configBytes, config, filterName, bundleName)
 
 	if err != nil {
 		return nil, err
@@ -150,9 +154,8 @@ func (factory *OpenPolicyAgentFactory) NewOpenPolicyAgentEnvoyInstance(bundleNam
 		return nil, err
 	}
 
-	if err := engine.waitPluginsReady(
-		100*time.Millisecond,
-		time.Second*time.Duration(30)); err != nil {
+	err = engine.waitPluginsReady(100*time.Millisecond, 30*time.Second)
+	if err != nil {
 		engine.Logger().WithFields(map[string]interface{}{"err": err}).Error("Failed to wait for plugins activation.")
 		return nil, err
 	}
@@ -295,6 +298,10 @@ func (opa *OpenPolicyAgentInstance) StartSpanFromContext(ctx context.Context) (o
 	span, ctx := opentracing.StartSpanFromContext(ctx, "open-policy-agent")
 	span.SetTag("bundle_name", opa.bundleName)
 	return span, ctx
+}
+
+func (opa *OpenPolicyAgentInstance) MetricsKey(key string) string {
+	return key + "." + opa.bundleName
 }
 
 func (opa *OpenPolicyAgentInstance) ParsedQuery() ast.Body {
