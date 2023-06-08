@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	fadeInDuration    = 100 * time.Millisecond
+	fadeInDuration    = 500 * time.Millisecond
 	bucketCount       = 20
 	monotonyTolerance = 0.4 // we need to use a high tolerance for CI testing
 )
@@ -76,15 +76,15 @@ func testFadeIn(
 			})
 		}
 
-		hashKeys := findHashKeys(a, ctx)
+		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		t.Log("test start", time.Now())
 		var stats []string
 		stop := time.After(fadeInDuration)
-		// Emulate the load balancer loop, sending requests to it with iterative hash keys
-		// of every endpoint over and over again till fadeIn period is over.
+		// Emulate the load balancer loop, sending requests to it with random hash keys
+		// over and over again till fadeIn period is over.
 		func() {
 			for {
-				ctx.Params[ConsistentHashKey] = hashKeys[len(stats)%len(hashKeys)]
+				ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(100000))
 				ep := a.Apply(ctx)
 				stats = append(stats, ep.Host)
 				select {
@@ -146,31 +146,11 @@ func testFadeIn(
 			}
 
 			// Print CSV-like output for, where row number represents time and
-			// column represents endpoint.
+			// column represents endpoint. You can vizualize it using
+			// ./skptesting/run_fadein_test.sh from the skipper repo root.
 			t.Log("CSV " + fmt.Sprintf("%d,", i) + strings.Join(showStats, ","))
 		}
 	})
-}
-
-// For each endpoint, return a hash key which will make the consistent hash algorithm select it.
-// This allows the test to emulate round robin, useful for showing the increase in requests to each endpoint is monotonic.
-func findHashKeys(a routing.LBAlgorithm, ctx *routing.LBContext) []string {
-	// temporarily disable fadein
-	ctx.Route.LBFadeInDuration = 0
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	var hashKeys []string
-	for _, ep := range ctx.Route.LBEndpoints {
-		for {
-			ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(1000))
-			if ep == a.Apply(ctx) {
-				hashKeys = append(hashKeys, ctx.Params[ConsistentHashKey].(string))
-				break
-			}
-		}
-	}
-	delete(ctx.Params, ConsistentHashKey)
-	ctx.Route.LBFadeInDuration = fadeInDuration
-	return hashKeys
 }
 
 func TestFadeIn(t *testing.T) {
