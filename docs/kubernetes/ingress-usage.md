@@ -1095,7 +1095,7 @@ spec:
       paths:
       - backend:
           service:
-            name: my-app
+            name: my-app-1
             port:
               name: http
         pathType: Prefix
