@@ -1,0 +1,5 @@
+// Custom route has the same number of predicates as the service_1 route
+// which causes undefined behavior: a request with foo cookie might be routed to any of them.
+kube_ns__issue2268_custom_0__test_example_org_____: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/") && Cookie("foo", "^") -> status(500) -> <shunt>;
+kube_ns__issue2268__test_example_org_____service_1: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/") && Traffic(0.8)       -> "http://42.0.0.1:8080";
+kube_ns__issue2268__test_example_org_____service_2: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/")                       -> "http://42.0.0.2:8080";
