@@ -50,14 +50,26 @@ spec:
           spec:
             properties:
               backends:
-                description: List of backends that can be referenced in the routes.
+                description: List of backends that can be referenced in the routes
                 items:
                   properties:
                     address:
-                      description: Address is required for Type network
+                      description: Address is required for type `network`
                       type: string
                     algorithm:
-                      description: Algorithm is required for Type lb
+                      description: Algorithm is required for type `lb`. `roundRobin`
+                        - backend is chosen by the round robin algorithm, starting
+                        with a random selected backend to spread across all backends
+                        from the beginning. `random` - backend is chosen at random.
+                        `consistentHash` - backend is chosen by [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing)
+                        algorithm based on the request key. The request key is derived
+                        from `X-Forwarded-For` header or request remote IP address
+                        as the fallback. Use [`consistentHashKey`](filters.md#consistenthashkey)
+                        filter to set the request key. Use [`consistentHashBalanceFactor`](filters.md#consistenthashbalancefactor)
+                        to prevent popular keys from overloading a single backend
+                        endpoint. `powerOfRandomNChoices` - backend is chosen by selecting
+                        N random endpoints and picking the one with least outstanding
+                        requests from them (see http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf).
                       enum:
                       - roundRobin
                       - random
@@ -65,7 +77,7 @@ spec:
                       - powerOfRandomNChoices
                       type: string
                     endpoints:
-                      description: Endpoints is required for Type lb
+                      description: Endpoints is required for type `lb`
                       items:
                         type: string
                       minItems: 1
@@ -75,13 +87,29 @@ spec:
                         as RouteGroupBackendReference
                       type: string
                     serviceName:
-                      description: ServiceName is required for Type service
+                      description: ServiceName is required for type `service`
                       type: string
                     servicePort:
-                      description: ServicePort is required for Type service
+                      description: ServicePort is required for type `service`
                       type: integer
                     type:
-                      description: Type is one of "service|shunt|loopback|dynamic|lb|network"
+                      description: Type of the backend. `service`- resolve Kubernetes
+                        service to the available Endpoints belonging to the Service,
+                        and generate load balanced routes using them. `shunt` - reply
+                        directly from the proxy itself. This can be used to shortcut,
+                        for example have a default that replies with 404 or use skipper
+                        as a backend serving static content in demos. `loopback` -
+                        lookup again the routing table to a better matching route
+                        after processing the current route. Like this you can add
+                        some headers or change the request path for some specific
+                        matching requests. `dynamic` - use the backend provided by
+                        filters. This allows skipper as library users to do proxy
+                        calls to a certain target from their own implementation dynamically
+                        looked up by their filters. `lb` - balance the load across
+                        multiple network endpoints using specified algorithm. If algorithm
+                        is not specified it will use the default algorithm set by
+                        Skipper at start. `network` - use arbitrary HTTP or HTTPS
+                        URL.
                       enum:
                       - service
                       - shunt
@@ -97,15 +125,17 @@ spec:
                 type: array
               defaultBackends:
                 description: DefaultBackends is a list of default backends defined
-                  if no explicit backend is defined for a route.
+                  if no explicit backend is defined for a route
                 items:
                   properties:
                     backendName:
-                      description: BackendName references the skipperBackend by name
+                      description: BackendName references backend by name
                       type: string
                     weight:
-                      description: Weight defines the traffic weight, if there are
-                        2 or more default backends
+                      description: Weight defines a portion of traffic for the referenced
+                        backend. It equals to weight divided by the sum of all backend
+                        weights. When all references have zero (or unspecified) weight
+                        then traffic is split equally between them.
                       minimum: 0
                       type: integer
                   required:
@@ -113,12 +143,14 @@ spec:
                   type: object
                 type: array
               hosts:
-                description: List of hostnames for the RouteGroup.
+                description: List of hostnames for the RouteGroup
                 items:
                   pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
                   type: string
                 type: array
               routes:
+                description: Routes describe how a matching HTTP request is handled
+                  and where it is forwarded to
                 items:
                   properties:
                     backends:
@@ -127,12 +159,14 @@ spec:
                       items:
                         properties:
                           backendName:
-                            description: BackendName references the skipperBackend
-                              by name
+                            description: BackendName references backend by name
                             type: string
                           weight:
-                            description: Weight defines the traffic weight, if there
-                              are 2 or more default backends
+                            description: Weight defines a portion of traffic for the
+                              referenced backend. It equals to weight divided by the
+                              sum of all backend weights. When all references have
+                              zero (or unspecified) weight then traffic is split equally
+                              between them.
                             minimum: 0
                             type: integer
                         required:
