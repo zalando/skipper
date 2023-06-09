@@ -1,0 +1,81 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: ns
+  name: issue2268
+  annotations:
+    zalando.org/backend-weights: |
+      {"service-1": 80, "service-2": 20}
+    zalando.org/skipper-routes: |
+      custom: Cookie("foo", "^") -> status(500) -> <shunt>;
+spec:
+  rules:
+    - host: test.example.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: service-1
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: service-2
+                port:
+                  name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: ns
+  name: service-1
+spec:
+  clusterIP: 1.2.3.4
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: ns
+  name: service-2
+spec:
+  clusterIP: 1.2.3.5
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: ns
+  name: service-1
+subsets:
+  - addresses:
+      - ip: 42.0.0.1
+    ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: ns
+  name: service-2
+subsets:
+  - addresses:
+      - ip: 42.0.0.2
+    ports:
+      - name: http
+        port: 8080
+        protocol: TCP

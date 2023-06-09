@@ -1,0 +1,7 @@
+// Custom route kube_rg__ns__issue2268__all__0_0 has the same number of predicates as the kube_rg__ns__issue2268__all__1_0 route
+// which causes undefined behavior: a request with foo cookie might be routed to any of them.
+kube_rg__ns__issue2268__all__0_0: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/") && Cookie("foo", "^") -> status(500) -> <shunt>;
+kube_rg__ns__issue2268__all__1_0: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/") && Traffic(0.8)       -> "http://42.0.0.1:8080";
+kube_rg__ns__issue2268__all__1_1: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/")                       -> "http://42.0.0.2:8080";
+
+kube_rg____test_example_org__catchall__0_0: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") -> <shunt>;
