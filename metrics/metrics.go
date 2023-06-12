@@ -120,12 +120,12 @@ type Options struct {
 
 	// If set, the detailed total response time metrics will contain the
 	// HTTP method as a domain of the metric. It affects both route and
-	// host splitted metrics.
+	// host split metrics.
 	EnableServeMethodMetric bool
 
 	// If set, the detailed total response time metrics will contain the
 	// HTTP Response status code as a domain of the metric. It affects
-	// both route and host splitted metrics.
+	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
 
 	// If set, detailed response time metrics will be collected

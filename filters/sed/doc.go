@@ -12,7 +12,7 @@ Example with larger max buffer:
 	editorRoute: * -> sed("foo", "bar", 64000000) -> "https://www.example.org";
 
 This filter expects a regexp pattern and a replacement string as arguments.
-During the streaming of the response body, every occurence of the pattern will
+During the streaming of the response body, every occurrence of the pattern will
 be replaced with the replacement string. The editing doesn't happen right when
 the filter is executed, only later when the streaming normally happens, after
 all response filters were called.

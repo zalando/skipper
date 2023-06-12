@@ -29,7 +29,7 @@ func hasArg(arg string) bool {
 // simple crash test only, use utilities in skptesting
 // for benchmarking.
 //
-// This test is unpredicable, and occasionally fails on certain OSes.
+// This test is unpredictable, and occasionally fails on certain OSes.
 // To run this test, set `-args idle` for the test command.
 func TestIdleConns(t *testing.T) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))

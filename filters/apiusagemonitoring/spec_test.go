@@ -572,7 +572,7 @@ func Test_CreatePathPattern(t *testing.T) {
 			originalPath:        "//bas//customers///:customer-id//",
 			expectedPathPattern: "^/*bas/+customers/+.+/*$",
 		},
-		"with escape caracters": {
+		"with escape characters": {
 			originalPath:        "/bas/*(cust\\omers)?.id+/",
 			expectedPathPattern: "^/*bas/+\\*\\(cust\\\\omers\\)\\?\\.id\\+/*$",
 		},

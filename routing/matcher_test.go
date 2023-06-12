@@ -88,7 +88,7 @@ var (
 	testMatcher3 *matcher
 	testMatcher4 *matcher
 
-	// flag inidicating if the test routes and matcher were already initialized
+	// flag indicating if the test routes and matcher were already initialized
 	benchmarkMatchersInitialzed bool
 
 	// a matcher with a generic set of routes

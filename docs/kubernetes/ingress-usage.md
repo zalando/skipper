@@ -254,7 +254,7 @@ Custom routes specified in ingress will always add the `Host()`
 [predicate](../reference/predicates.md#host) to match the host header specified in
 the ingress `rules:`. If there is a `path:` definition in your
 ingress, then it will be based on the skipper command line parameter
-`-kubernetes-path-mode` set one of theses predicates:
+`-kubernetes-path-mode` set one of these predicates:
 
 - [Path()](../reference/predicates.md#path)
 - [PathSubtree()](../reference/predicates.md#pathsubtree)
@@ -672,7 +672,7 @@ and in our [ratelimit tutorial](../tutorials/ratelimit.md).
 #### Client Ratelimits
 
 The example shows 20 calls per hour per client, based on
-X-Forwarded-For header or IP incase there is no X-Forwarded-For header
+X-Forwarded-For header or IP in case there is no X-Forwarded-For header
 set, are allowed to each skipper instance for the given ingress.
 
 ```yaml

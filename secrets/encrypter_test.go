@@ -215,7 +215,7 @@ func TestGetEncrypter(t *testing.T) {
 				t.Errorf("Failed to create nonce: %v", err)
 			}
 			if len(nonce) == 0 {
-				t.Error("Failed to create vaild nonce")
+				t.Error("Failed to create valid nonce")
 			}
 
 			clearText := "hello"

@@ -1,6 +1,6 @@
 ## How to develop a Filter
 
-A filter is part of a route and can change arbitary http data in the
+A filter is part of a route and can change arbitrary http data in the
 `http.Request` and `http.Response` path of a proxy.
 
 The filter example shows a non trivial diff of a filter

@@ -17,7 +17,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var errContentNotChanged = errors.New("content in cache did not change, 304 reponse status code")
+var errContentNotChanged = errors.New("content in cache did not change, 304 response status code")
 
 type remoteEskipFile struct {
 	once            sync.Once

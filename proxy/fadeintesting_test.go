@@ -308,7 +308,7 @@ func (p *fadeInProxy) close() {
 	}
 }
 
-// startClient starts a client continously polling the available proxy instances.
+// startClient starts a client continuously polling the available proxy instances.
 // The distribution of the requests across the available backend endpoints and in
 // time is measured the by the client.
 func startClient(test *testing.T, p *fadeInProxy) *fadeInClient {

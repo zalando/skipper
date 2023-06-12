@@ -255,7 +255,7 @@ type Options struct {
 	KubernetesEastWestRangePredicates []*eskip.Predicate
 
 	// KubernetesOnlyAllowedExternalNames will enable validation of ingress external names and route groups network
-	// backend addresses, explicit LB endpoints validation agains the list of patterns in
+	// backend addresses, explicit LB endpoints validation against the list of patterns in
 	// AllowedExternalNames.
 	KubernetesOnlyAllowedExternalNames bool
 
@@ -471,12 +471,12 @@ type Options struct {
 
 	// If set, the detailed total response time metrics will contain the
 	// HTTP method as a domain of the metric. It affects both route and
-	// host splitted metrics.
+	// host split metrics.
 	EnableServeMethodMetric bool
 
 	// If set, the detailed total response time metrics will contain the
 	// HTTP Response status code as a domain of the metric. It affects
-	// both route and host splitted metrics.
+	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
 
 	// If set, detailed response time metrics will be collected
@@ -582,7 +582,7 @@ type Options struct {
 
 	DebugListener string
 
-	// Path of certificate(s) when using TLS, mutiple may be given comma separated
+	// Path of certificate(s) when using TLS, multiple may be given comma separated
 	CertPathTLS string
 	// Path of key(s) when using TLS, multiple may be given comma separated. For
 	// multiple keys, the order must match the one given in CertPathTLS

@@ -19,13 +19,13 @@ const (
 	maxBufferAbort
 )
 
-// editor provides a reader that wraps an input reader, and replaces each occurence of
+// editor provides a reader that wraps an input reader, and replaces each occurrence of
 // the provided search pattern with the provided replacement. It can be used with a
 // delimiter or without.
 //
 // When using it with a delimiter, it reads enough data from the input until meeting
 // a delimiter or reaching maxBufferSize. The chunk includes the delimiter if any. Then
-// every occurence of the pattern is replaced, and the entire edited chunk is returned
+// every occurrence of the pattern is replaced, and the entire edited chunk is returned
 // to the caller.
 //
 // When not using a delimiter, it reads enough data until at least a complete match of the

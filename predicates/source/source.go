@@ -3,8 +3,8 @@ Package source implements a custom predicate to match routes
 based on the source IP of a request.
 
 It is similar in function and usage to the header predicate but
-has explicit support for IP adresses and netmasks to conveniently
-create routes based on a whole network of adresses, like a company
+has explicit support for IP addresses and netmasks to conveniently
+create routes based on a whole network of addresses, like a company
 network or something similar.
 
 It is important to note, that this predicate should not be used as

@@ -104,6 +104,6 @@ func TestForwardFieldFieldEmpty(t *testing.T) {
 	f.Request(c)
 
 	if c.FRequest.Header.Get("Header1") != "blbabla" {
-		t.Fatalf("Header1 should not be overriden")
+		t.Fatalf("Header1 should not be overridden")
 	}
 }

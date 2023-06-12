@@ -10,7 +10,7 @@ import (
 )
 
 // CertRegistry object holds TLS certificates to be used to terminate TLS connections
-// ensuring syncronized access to them.
+// ensuring synchronized access to them.
 type CertRegistry struct {
 	lookup map[string]*tls.Certificate
 	mx     *sync.Mutex

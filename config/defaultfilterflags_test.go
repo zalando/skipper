@@ -73,7 +73,7 @@ func Test_defaultFiltersFlags_Set(t *testing.T) {
 			}
 			if !tt.wantErr {
 				if len(tt.want) != len(dpf.filters) {
-					t.Errorf("defaultFiltersFlags size missmatch got %d want %d", len(dpf.filters), len(tt.want))
+					t.Errorf("defaultFiltersFlags size mismatch got %d want %d", len(dpf.filters), len(tt.want))
 				}
 
 				if err := yaml.Unmarshal([]byte(tt.args), dpf); err != nil {
@@ -81,7 +81,7 @@ func Test_defaultFiltersFlags_Set(t *testing.T) {
 				}
 
 				if len(tt.want) != len(dpf.filters) {
-					t.Errorf("defaultFiltersFlags from yaml size missmatch got %d want %d", len(dpf.filters), len(tt.want))
+					t.Errorf("defaultFiltersFlags from yaml size mismatch got %d want %d", len(dpf.filters), len(tt.want))
 				}
 			}
 		})

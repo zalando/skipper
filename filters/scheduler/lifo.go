@@ -85,7 +85,7 @@ func (s *lifoSpec) Name() string { return filters.LifoName }
 // MaxConcurrency and MaxQueueSize: total max = MaxConcurrency + MaxQueueSize
 //
 // Min values are 1 for MaxConcurrency and MaxQueueSize, and 1ms for
-// Timeout. All configration that is below will be set to these min
+// Timeout. All configuration that is below will be set to these min
 // values.
 func (s *lifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var l lifoFilter
@@ -153,7 +153,7 @@ func (*lifoGroupSpec) Name() string { return filters.LifoGroupName }
 // MaxConcurrency and MaxQueueSize: total max = MaxConcurrency + MaxQueueSize
 //
 // Min values are 1 for MaxConcurrency and MaxQueueSize, and 1ms for
-// Timeout. All configration that is below will be set to these min
+// Timeout. All configuration that is below will be set to these min
 // values.
 //
 // It is enough to set the concurrency, queue size and timeout parameters for

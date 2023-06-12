@@ -514,7 +514,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
-			name: "Measuring all serves by the hosts splitted by route, only should measure served latency by route.",
+			name: "Measuring all serves by the hosts split by route, only should measure served latency by route.",
 			opts: metrics.Options{
 				EnableServeRouteMetrics:     true,
 				EnableServeRouteCounter:     true,
@@ -560,7 +560,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
-			name: "Measuring all serves by the hosts splitted by route, only should measure served latency by route without method.",
+			name: "Measuring all serves by the hosts split by route, only should measure served latency by route without method.",
 			opts: metrics.Options{
 				EnableServeRouteMetrics:     true,
 				EnableServeRouteCounter:     true,
@@ -608,7 +608,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
-			name: "Measuring all serves by the hosts splitted by route, only should measure served latency by route without code.",
+			name: "Measuring all serves by the hosts split by route, only should measure served latency by route without code.",
 			opts: metrics.Options{
 				EnableServeRouteMetrics:     true,
 				EnableServeRouteCounter:     true,
@@ -656,7 +656,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
-			name: "Measuring all serves by the hosts splitted by route, only should measure served latency by route without method and code.",
+			name: "Measuring all serves by the hosts split by route, only should measure served latency by route without method and code.",
 			opts: metrics.Options{
 				EnableServeRouteMetrics:     true,
 				EnableServeRouteCounter:     true,
@@ -704,7 +704,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
-			name: "Measuring all serves by the hosts splitted by route, should measure served latency by host.",
+			name: "Measuring all serves by the hosts split by route, should measure served latency by host.",
 			opts: metrics.Options{
 				EnableServeRouteMetrics:     false,
 				EnableServeRouteCounter:     false,
@@ -750,7 +750,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
-			name: "Measuring all serves by the hosts splitted by hosts, only should measure served latency by route without method.",
+			name: "Measuring all serves by the hosts split by hosts, only should measure served latency by route without method.",
 			opts: metrics.Options{
 				EnableServeRouteMetrics:     false,
 				EnableServeRouteCounter:     false,
@@ -798,7 +798,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
-			name: "Measuring all serves by the hosts splitted by hosts, only should measure served latency by route without code.",
+			name: "Measuring all serves by the hosts split by hosts, only should measure served latency by route without code.",
 			opts: metrics.Options{
 				EnableServeRouteMetrics:     false,
 				EnableServeRouteCounter:     false,
@@ -846,7 +846,7 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
-			name: "Measuring all serves by the hosts splitted by hosts, only should measure served latency by route without method and code.",
+			name: "Measuring all serves by the hosts split by hosts, only should measure served latency by route without method and code.",
 			opts: metrics.Options{
 				EnableServeRouteMetrics:     false,
 				EnableServeRouteCounter:     false,
