@@ -146,7 +146,7 @@ func testFadeIn(
 			}
 
 			// Print CSV-like output for, where row number represents time and
-			// column represents endpoint. You can vizualize it using
+			// column represents endpoint. You can visualize it using
 			// ./skptesting/run_fadein_test.sh from the skipper repo root.
 			t.Log("CSV " + fmt.Sprintf("%d,", i) + strings.Join(showStats, ","))
 		}

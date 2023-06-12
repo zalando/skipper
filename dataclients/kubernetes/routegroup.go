@@ -426,7 +426,7 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 	gr := ctx.groupRoute
 	r := &eskip.Route{Id: ctx.id}
 
-	// Path or PathSubtree, prefer Path if we have, because it is more specifc
+	// Path or PathSubtree, prefer Path if we have, because it is more specific
 	if gr.Path != "" {
 		r.Predicates = appendPredicate(r.Predicates, "Path", gr.Path)
 	} else if gr.PathSubtree != "" {

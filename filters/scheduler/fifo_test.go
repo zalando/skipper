@@ -207,7 +207,7 @@ func TestFifo(t *testing.T) {
 				t.Fatalf("Failed to parse filter: %v", err)
 			}
 			if err == nil && tt.wantParseErr {
-				t.Fatalf("want parse error but hav no: %v", err)
+				t.Fatalf("want parse error but have no: %v", err)
 			}
 			if tt.wantParseErr {
 				return
@@ -375,7 +375,7 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 				t.Fatalf("Failed to parse filter: %v", err)
 			}
 			if err == nil && tt.wantParseErr {
-				t.Fatalf("want parse error but hav no: %v", err)
+				t.Fatalf("want parse error but have no: %v", err)
 			}
 			if tt.wantParseErr {
 				return

@@ -119,7 +119,7 @@ func TestHandlerCodaHaleSingleMetricsRequest(t *testing.T) {
 	}
 
 	if len(data) != 1 {
-		t.Error("Metrics endpoint for exact match should've returned exactly te requested item")
+		t.Error("Metrics endpoint for exact match should've returned exactly the requested item")
 	}
 
 	if _, ok := data["counters"]["TestHandlerCodaHaleSingleMetricsRequest"]; !ok {
@@ -150,7 +150,7 @@ func TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 	}
 
 	if len(data) != 1 {
-		t.Error("Metrics endpoint for exact match using prefix should've returned exactly te requested item")
+		t.Error("Metrics endpoint for exact match using prefix should've returned exactly the requested item")
 	}
 
 	if _, ok := data["counters"]["zmon.TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix"]; !ok {

@@ -140,7 +140,7 @@ fuzz: ## run all fuzz tests
 lint: build staticcheck ## run all linters
 
 .PHONY: clean
-clean: ## clean temorary files and driectories
+clean: ## clean temporary files and directories
 	go clean -i -cache -testcache
 	rm -rf .coverprofile-all .cover
 	rm -f ./_test_plugins/*.so

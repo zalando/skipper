@@ -964,7 +964,7 @@ The content type will be automatically detected when not provided.
 
 Block a request based on it's body content.
 
-The filter max buffer size is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
+The filter max buffer size is 2MiB by default and can be overridden with `-max-matcher-buffer-size=<int>`.
 
 Parameters:
 
@@ -980,7 +980,7 @@ Example:
 
 Block a request based on it's body content.
 
-The filter max buffer size is 2MiB by default and can be overidden with `-max-matcher-buffer-size=<int>`.
+The filter max buffer size is 2MiB by default and can be overridden with `-max-matcher-buffer-size=<int>`.
 
 Parameters:
 
@@ -995,7 +995,7 @@ Example:
 
 ### sed
 
-The filter sed replaces all occurences of a pattern with a replacement string
+The filter sed replaces all occurrences of a pattern with a replacement string
 in the response body.
 
 Example:
@@ -1011,7 +1011,7 @@ editorRoute: * -> sed("foo", "bar", 64000000) -> "https://www.example.org";
 ```
 
 This filter expects a regexp pattern and a replacement string as arguments.
-During the streaming of the response body, every occurence of the pattern will
+During the streaming of the response body, every occurrence of the pattern will
 be replaced with the replacement string. The editing doesn't happen right when
 the filter is executed, only later when the streaming normally happens, after
 all response filters were called.
@@ -1661,7 +1661,7 @@ oidcClaimsQuery("<path>:[<query>]", ...)
 ```
 
 The filter is chained after `oauthOidc*` authentication as it parses the ID token that has been saved in the internal `StateBag` for this request. It validates access control of the requested path against the defined query.
-It accepts one or more arguments, thats is a path prefix which is granted access to when the query definition evaluates positive.
+It accepts one or more arguments, that is a path prefix which is granted access to when the query definition evaluates positive.
 It supports exact matches of keys, key-value pairs, introspecting of arrays or exact and wildcard matching of nested structures.
 The query definition can be one or more queries per path, space delimited. The query syntax is [GJSON](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) with a convenience modifier of `@_` which unfolds to `[@this].#("+arg+")`
 
@@ -2225,7 +2225,7 @@ This enables logs of all requests with status codes `1xxs`, `301` and all `20xs`
 ### auditLog
 
 Filter `auditLog()` logs the request and N bytes of the body into the
-log file. N defaults to 1024 and can be overidden with
+log file. N defaults to 1024 and can be overridden with
 `-max-audit-body=<int>`. `N=0` omits logging the body.
 
 Example:

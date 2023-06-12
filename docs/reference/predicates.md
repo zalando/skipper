@@ -530,7 +530,7 @@ Examples:
 Cron("* * * * *")
 // match only when the hour is between 5-7 (inclusive)
 Cron("* 5-7, * * *")
-// match only when the hour is between 5-7, equal to 8, or betweeen 12-15
+// match only when the hour is between 5-7, equal to 8, or between 12-15
 Cron("* 5-7,8,12-15 * * *")
 // match only when it is weekdays
 Cron("* * * * 1-5")
@@ -664,7 +664,7 @@ ignoring the chance argument.
 Parameters:
 
 * Traffic (decimal) valid values [0.0, 1.0]
-* Traffic (decimal, string, string) session stickyness
+* Traffic (decimal, string, string) session stickiness
 
 Examples:
 
@@ -682,7 +682,7 @@ v1:
     "https://api-test-blue";
 ```
 
-stickyness:
+stickiness:
 
 ```
 // hit by 5% percent chance

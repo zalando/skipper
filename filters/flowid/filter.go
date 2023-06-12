@@ -99,7 +99,7 @@ func (spec *flowIdSpec) CreateFilter(fc []interface{}) (filters.Filter, error) {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 		if len(fc) > 1 {
-			log.Println("flow id filter warning: this syntaxt is deprecated and will be removed soon. " +
+			log.Println("flow id filter warning: this syntax is deprecated and will be removed soon. " +
 				"please check updated docs")
 		}
 	}

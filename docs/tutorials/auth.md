@@ -182,12 +182,12 @@ oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secr
 ```
 
 This filter is similar but it verifies that the token has certain user information
-information fields accesible with the token return by the provider. The fields can
+information fields accessible with the token return by the provider. The fields can
 be specified at the end like in the example above where the fields `name`, `email`
 and `picture` are requested.
 
-Upon sucessful authentication Skipper will start allowing the user requests through
-to the backend. Along with the orginal request to the backend Skipper will include
+Upon successful authentication Skipper will start allowing the user requests through
+to the backend. Along with the original request to the backend Skipper will include
 information which it obtained from the provider. The information is in `JSON` format
 with the header name `Skipper-Oidc-Info`. In the case of the claims container the
 header value is in the format.
@@ -310,7 +310,7 @@ Skipper must be configured with the following credentials and secrets:
 1. OAuth2 client secret for authenticating with the OAuth2 provider.
 1. Cookie encryption secret for encrypting and decrypting token cookies.
 
-You can load all of theses secrets from separate files, in which case they get automatically
+You can load all of these secrets from separate files, in which case they get automatically
 reloaded to support secret rotation. You can provide the paths to the files containing each 
 secret as follows:
 

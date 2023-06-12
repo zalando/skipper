@@ -13,13 +13,13 @@ import (
 
 func checkRatelimitted(t *testing.T, rl *Ratelimit, client string) {
 	if rl.Allow(context.Background(), client) {
-		t.Errorf("request is allowed for %s, but expected to be rate limitted", client)
+		t.Errorf("request is allowed for %s, but expected to be rate limited", client)
 	}
 }
 
 func checkNotRatelimitted(t *testing.T, rl *Ratelimit, client string) {
 	if !rl.Allow(context.Background(), client) {
-		t.Errorf("request is rate limitted for %s, but expected to be allowed", client)
+		t.Errorf("request is rate limited for %s, but expected to be allowed", client)
 	}
 }
 

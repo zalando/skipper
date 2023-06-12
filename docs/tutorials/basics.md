@@ -410,7 +410,7 @@ If there is more than 1024 routes used, then the paging the results is
 possible with the `offset` and `limit` query parameters:
 
 ```
-curl locahost:9911/routes?offset=2048&limit=512
+curl localhost:9911/routes?offset=2048&limit=512
 ```
 
 ### Route IDs

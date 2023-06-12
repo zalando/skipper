@@ -713,7 +713,7 @@ func TestIngress(t *testing.T) {
 
 		r, d, err := dc.LoadUpdate()
 		if err != nil || len(d) != 0 {
-			t.Error("udpate failed")
+			t.Error("update failed")
 		}
 
 		checkRoutes(t, r, map[string]string{

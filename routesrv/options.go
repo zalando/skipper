@@ -90,7 +90,7 @@ type Options struct {
 	KubernetesEastWestRangePredicates []*eskip.Predicate
 
 	// KubernetesOnlyAllowedExternalNames will enable validation of ingress external names and route groups network
-	// backend addresses, explicit LB endpoints validation agains the list of patterns in
+	// backend addresses, explicit LB endpoints validation against the list of patterns in
 	// AllowedExternalNames.
 	KubernetesOnlyAllowedExternalNames bool
 

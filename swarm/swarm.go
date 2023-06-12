@@ -31,7 +31,7 @@ func (st swarmType) String() string {
 	case swarmFake:
 		return "fake Swarm"
 	}
-	return "unkwown Swarm"
+	return "unknown Swarm"
 }
 
 func getSwarmType(o Options) swarmType {
@@ -197,7 +197,7 @@ func Start(o Options) (*Swarm, error) {
 	return Join(o, knownEntryPoint.Node(), knownEntryPoint.Nodes(), cleanupF)
 }
 
-// Join will join given Swarm peers and return an initialiazed Swarm
+// Join will join given Swarm peers and return an initialized Swarm
 // object if successful.
 func Join(o Options, self *NodeInfo, nodes []*NodeInfo, cleanupF func()) (*Swarm, error) {
 	if self == nil {

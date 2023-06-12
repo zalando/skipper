@@ -337,7 +337,7 @@ func TestNewLIFO(t *testing.T) {
 					t.Errorf("Queue should not be nil, got: %v", q)
 				}
 			} else {
-				t.Fatalf("Failed to get lifoFilter ot lifoGroupFilter from filter: %v, ok: %v", f, ok)
+				t.Fatalf("Failed to get lifoFilter or lifoGroupFilter from filter: %v, ok: %v", f, ok)
 			}
 
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

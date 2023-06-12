@@ -77,7 +77,7 @@ func TestCreate(t *testing.T) {
 		predicate{chance: .3},
 		true,
 	}, {
-		"chance and stickyness",
+		"chance and stickiness",
 		[]interface{}{.3, "testname", "group"},
 		predicate{chance: .3, trafficGroup: "group", trafficGroupCookie: "testname"},
 		false,

@@ -81,7 +81,7 @@ single proxy, without sync
 
 single proxy, with sync
 	no endpoitns, with/without fade-in, with/without created time
-		start single/mutliple -> no fade-in
+		start single/multiple -> no fade-in
 	single endpoint
 		with fade-in
 			with/without created time

@@ -105,7 +105,7 @@ func TestMatchArgs(t *testing.T) {
 		[]string{"value"},
 		false,
 	}, {
-		"find existin params with multiple values",
+		"find existing params with multiple values",
 		[]interface{}{"key"},
 		"key",
 		[]string{"value1", "value2"},
@@ -140,7 +140,7 @@ func TestMatchArgs(t *testing.T) {
 				t.Error(ti.msg, "failed to create predicate")
 			}
 
-			req, _ := http.NewRequest("GET", "http://examlpe.com", nil)
+			req, _ := http.NewRequest("GET", "http://example.com", nil)
 
 			q := req.URL.Query()
 			for _, v := range ti.values {

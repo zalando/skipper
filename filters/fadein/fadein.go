@@ -174,7 +174,7 @@ func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	// mitigate potential flakyness caused by clock skew. When the created time is in the future based on
+	// mitigate potential flakiness caused by clock skew. When the created time is in the future based on
 	// the local clock, we ignore it.
 	now := time.Now()
 	if ec.when.After(now) {

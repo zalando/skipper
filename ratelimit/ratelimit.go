@@ -336,7 +336,7 @@ func (s Settings) String() string {
 	}
 }
 
-// limiter defines the requirement to be used as a ratelimit implmentation.
+// limiter defines the requirement to be used as a ratelimit implementation.
 type limiter interface {
 	// Allow is used to get a decision if you should allow the
 	// call with context, to pass or to ratelimit
@@ -363,7 +363,7 @@ type limiter interface {
 }
 
 // Ratelimit is a proxy object that delegates to limiter
-// implemetations and stores settings for the ratelimiter
+// implementations and stores settings for the ratelimiter
 type Ratelimit struct {
 	settings Settings
 	impl     limiter

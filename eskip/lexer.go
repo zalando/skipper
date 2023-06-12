@@ -191,7 +191,7 @@ func scanRegexp(code string) ([]byte, string) {
 		}
 
 		if escaped {
-			//delimeter / is escaped in PathRegexp so that it means no end PathRegexp(/\//)
+			//delimiter / is escaped in PathRegexp so that it means no end PathRegexp(/\//)
 			if !isDelimiter && !isEscapeChar {
 				b = append(b, escapeChar)
 			}

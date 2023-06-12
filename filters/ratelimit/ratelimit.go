@@ -1,5 +1,5 @@
 /*
-Package ratelimit provides filters to control the rate limitter settings on the route level.
+Package ratelimit provides filters to control the rate limiter settings on the route level.
 
 For detailed documentation of the ratelimit, see https://godoc.org/github.com/zalando/skipper/ratelimit.
 */
