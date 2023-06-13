@@ -12,6 +12,16 @@ import (
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
+type weightedIngressBackend struct {
+	name   string
+	weight float64
+}
+
+var _ definitions.WeightedBackend = &weightedIngressBackend{}
+
+func (b *weightedIngressBackend) GetName() string    { return b.name }
+func (b *weightedIngressBackend) GetWeight() float64 { return b.weight }
+
 func setPathOld(m PathMode, r *eskip.Route, p string) {
 	switch m {
 	case PathPrefix:
@@ -56,6 +66,7 @@ func convertPathRuleV1(
 	metadata *definitions.Metadata,
 	host string,
 	prule *definitions.PathRuleV1,
+	traffic backendTraffic,
 	pathMode PathMode,
 	allowedExternalNames []*regexp.Regexp,
 	forceKubernetesService bool,
@@ -117,7 +128,7 @@ func convertPathRuleV1(
 		}
 
 		setPathV1(pathMode, r, prule.PathType, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
+		traffic.apply(r)
 		shuntRoute(r)
 		return r, nil
 	}
@@ -132,7 +143,7 @@ func convertPathRuleV1(
 		}
 
 		setPathV1(pathMode, r, prule.PathType, prule.Path)
-		setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
+		traffic.apply(r)
 		return r, nil
 	}
 
@@ -144,17 +155,18 @@ func convertPathRuleV1(
 		HostRegexps: hostRegexp,
 	}
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
-	setTraffic(r, svcName, prule.Backend.Traffic, prule.Backend.NoopCount)
+	traffic.apply(r)
 	return r, nil
 }
 
-func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *definitions.PathRuleV1) error {
+func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *definitions.PathRuleV1, traffic backendTraffic) error {
 	meta := ic.ingressV1.Metadata
 	endpointsRoute, err := convertPathRuleV1(
 		ic.state,
 		meta,
 		host,
 		prule,
+		traffic,
 		ic.pathMode,
 		ing.allowedExternalNames,
 		ing.forceKubernetesService,
@@ -232,95 +244,44 @@ func (ing *ingress) addEndpointsRuleV1(ic ingressContext, host string, prule *de
 	return nil
 }
 
-// computeBackendWeightsV1 computes and sets the backend traffic weights on the
-// rule backends.
-// The traffic is calculated based on the following rules:
-//
-//   - if no weight is defined for a backend it will get weight 0.
-//   - if no weights are specified for all backends of a path, then traffic will
-//     be distributed equally.
-//
-// Each traffic weight is relative to the number of backends per path. If there
-// are multiple backends per path the weight will be relative to the number of
-// remaining backends for the path e.g. if the weight is specified as
-//
-//	backend-1: 0.2
-//	backend-2: 0.6
-//	backend-3: 0.2
-//
-// then the weight will be calculated to:
-//
-//	backend-1: 0.2
-//	backend-2: 0.75
-//	backend-3: 1.0
-//
-// where for a weight of 1.0 no Traffic predicate will be generated.
-func computeBackendWeightsV1(backendWeights map[string]float64, rule *definitions.RuleV1) {
-	type pathInfo struct {
-		sum        float64
-		lastActive *definitions.BackendV1
-		count      int
+// computeBackendWeightsV1 computes backend traffic weights for the rule backends grouped by path rule.
+func computeBackendWeightsV1(calculateTraffic func([]*weightedIngressBackend) map[string]backendTraffic, backendWeights map[string]float64, rule *definitions.RuleV1) map[*definitions.PathRuleV1]backendTraffic {
+	backendsPerPath := make(map[string][]*weightedIngressBackend)
+	for _, prule := range rule.Http.Paths {
+		b := &weightedIngressBackend{
+			name:   prule.Backend.Service.Name,
+			weight: backendWeights[prule.Backend.Service.Name],
+		}
+		backendsPerPath[prule.Path] = append(backendsPerPath[prule.Path], b)
 	}
 
-	// get backend weight sum and count of backends for all paths
-	pathInfos := make(map[string]*pathInfo)
-	for _, path := range rule.Http.Paths {
-		sc, ok := pathInfos[path.Path]
-		if !ok {
-			sc = &pathInfo{}
-			pathInfos[path.Path] = sc
-		}
-
-		if weight, ok := backendWeights[path.Backend.Service.Name]; ok {
-			sc.sum += weight
-			if weight > 0 {
-				sc.lastActive = path.Backend
-			}
-		}
-		sc.count++
+	trafficPerPath := make(map[string]map[string]backendTraffic, len(backendsPerPath))
+	for path, b := range backendsPerPath {
+		trafficPerPath[path] = calculateTraffic(b)
 	}
 
-	// calculate traffic weight for each backend
-	for _, path := range rule.Http.Paths {
-		sc := pathInfos[path.Path]
-		if weight, ok := backendWeights[path.Backend.Service.Name]; ok {
-			// force a weight of 1.0 for the last backend with a non-zero weight to avoid rounding issues
-			if sc.lastActive == path.Backend {
-				path.Backend.Traffic = 1.0
-				continue
-			}
-
-			path.Backend.Traffic = weight / sc.sum
-			// subtract weight from the sum in order to
-			// give subsequent backends a higher relative
-			// weight.
-			sc.sum -= weight
-		} else if sc.sum == 0 && sc.count > 0 {
-			path.Backend.Traffic = 1.0 / float64(sc.count)
-		}
-
-		if sc.count > 2 {
-			path.Backend.NoopCount = sc.count - 2
-		}
-		// reduce count by one in order to give subsequent
-		// backends for the path a higher relative weight.
-		sc.count--
+	trafficPerPathRule := make(map[*definitions.PathRuleV1]backendTraffic)
+	for _, prule := range rule.Http.Paths {
+		trafficPerPathRule[prule] = trafficPerPath[prule.Path][prule.Backend.Service.Name]
 	}
+
+	return trafficPerPathRule
 }
 
 // TODO: default filters not applied to 'extra' routes from the custom route annotations. Is it on purpose?
 // https://github.com/zalando/skipper/issues/1287
-func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) error {
+func (ing *ingress) addSpecRuleV1(ic *ingressContext, ru *definitions.RuleV1) error {
 	if ru.Http == nil {
 		ic.logger.Warn("invalid ingress item: rule missing http definitions")
 		return nil
 	}
-	// update Traffic field for each backend
-	computeBackendWeightsV1(ic.backendWeights, ru)
+
+	trafficPerPathRule := computeBackendWeightsV1(ic.calculateTraffic, ic.backendWeights, ru)
+
 	for _, prule := range ru.Http.Paths {
 		addExtraRoutes(ic, ru.Host, prule.Path, prule.PathType, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
-		if prule.Backend.Traffic > 0 {
-			err := ing.addEndpointsRuleV1(ic, ru.Host, prule)
+		if trafficPerPathRule[prule].allowed() {
+			err := ing.addEndpointsRuleV1(ic, ru.Host, prule, trafficPerPathRule[prule])
 			if err != nil {
 				return err
 			}
@@ -331,7 +292,7 @@ func (ing *ingress) addSpecRuleV1(ic ingressContext, ru *definitions.RuleV1) err
 
 // addSpecIngressTLSV1 is used to add TLS Certificates from Ingress resources. Certificates will be added
 // only if the Ingress rule host matches a host in TLS config
-func (ing *ingress) addSpecIngressTLSV1(ic ingressContext, ingtls *definitions.TLSV1) {
+func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.TLSV1) {
 	// Hosts in the tls section need to explicitly match the host in the rules section.
 	hostlist := compareStringList(ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
 	if len(hostlist) == 0 {
@@ -448,7 +409,7 @@ func (ing *ingress) ingressV1Route(
 		"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
 	})
 	redirect.initCurrent(i.Metadata)
-	ic := ingressContext{
+	ic := &ingressContext{
 		state:               state,
 		ingressV1:           i,
 		logger:              logger,
@@ -461,6 +422,7 @@ func (ing *ingress) ingressV1Route(
 		hostRoutes:          hostRoutes,
 		defaultFilters:      df,
 		certificateRegistry: r,
+		calculateTraffic:    GetBackendTrafficCalculator[*weightedIngressBackend]("traffic-predicate"),
 	}
 
 	var route *eskip.Route

@@ -13,7 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
@@ -46,6 +45,7 @@ type ingressContext struct {
 	hostRoutes          map[string][]*eskip.Route
 	defaultFilters      defaultFilters
 	certificateRegistry *certregistry.CertRegistry
+	calculateTraffic    func([]*weightedIngressBackend) map[string]backendTraffic
 }
 
 type ingress struct {
@@ -139,23 +139,6 @@ func externalNameRoute(
 	}, nil
 }
 
-func setTraffic(r *eskip.Route, svcName string, weight float64, noopCount int) {
-	// add traffic predicate if traffic weight is between 0.0 and 1.0
-	if 0.0 < weight && weight < 1.0 {
-		r.Predicates = append([]*eskip.Predicate{{
-			Name: predicates.TrafficName,
-			Args: []interface{}{weight},
-		}}, r.Predicates...)
-		log.Debugf("Traffic weight %.2f for backend '%s'", weight, svcName)
-	}
-	for i := 0; i < noopCount; i++ {
-		r.Predicates = append([]*eskip.Predicate{{
-			Name: predicates.TrueName,
-			Args: []interface{}{},
-		}}, r.Predicates...)
-	}
-}
-
 func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) error {
 	if annotation == "" {
 		return nil
@@ -192,7 +175,7 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 	return nil
 }
 
-func addExtraRoutes(ic ingressContext, ruleHost, path, pathType, eastWestDomain string, enableEastWest bool) {
+func addExtraRoutes(ic *ingressContext, ruleHost, path, pathType, eastWestDomain string, enableEastWest bool) {
 	hosts := []string{createHostRx(ruleHost)}
 	var ns, name string
 	name = ic.ingressV1.Metadata.Name
@@ -353,7 +336,7 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 
 // addHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
 // secret is found and is a valid TLS secret.
-func addHostTLSCert(ic ingressContext, hosts []string, secretID *definitions.ResourceID) {
+func addHostTLSCert(ic *ingressContext, hosts []string, secretID *definitions.ResourceID) {
 	secret, ok := ic.state.secrets[*secretID]
 	if !ok {
 		log.Errorf("failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)

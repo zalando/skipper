@@ -30,11 +30,6 @@ type IngressV1Spec struct {
 type BackendV1 struct {
 	Service Service `json:"service,omitempty"` // can be nil, because of TypedLocalObjectReference
 	// Resource TypedLocalObjectReference is not supported https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#typedlocalobjectreference-v1-core
-
-	// Traffic field used for custom traffic weights, but not part of the ingress spec.
-	Traffic float64
-	// number of True predicates to add to support multi color traffic switching
-	NoopCount int
 }
 
 // Service https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressservicebackend-v1-networking-k8s-io
