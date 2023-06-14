@@ -1,0 +1,15 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: app
+spec:
+  hosts:
+    - example.org
+  backends:
+    - name: b1
+      type: network
+      address: https://b1.example.org
+  routes:
+    - path: /app
+      backends:
+        - backendName: b1

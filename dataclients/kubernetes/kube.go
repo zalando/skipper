@@ -215,6 +215,9 @@ type Options struct {
 	// ForceKubernetesService overrides the default Skipper functionality to route traffic using
 	// Kubernetes Endpoint, instead using Kubernetes Services.
 	ForceKubernetesService bool
+
+	// BackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic.
+	BackendTrafficAlgorithm string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.

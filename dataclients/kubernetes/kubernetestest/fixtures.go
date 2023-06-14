@@ -48,6 +48,7 @@ type kubeOptionsParser struct {
 	ServicesLabels           map[string]string  `yaml:"kubernetes-services-label-selector"`
 	EndpointsLabels          map[string]string  `yaml:"kubernetes-endpoints-label-selector"`
 	ForceKubernetesService   bool               `yaml:"force-kubernetes-service"`
+	BackendTrafficAlgorithm  string             `yaml:"backend-traffic-algorithm"`
 }
 
 func baseNoExt(n string) string {
@@ -232,6 +233,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.ServicesLabelSelectors = kop.ServicesLabels
 		o.EndpointsLabelSelectors = kop.EndpointsLabels
 		o.ForceKubernetesService = kop.ForceKubernetesService
+		o.BackendTrafficAlgorithm = kop.BackendTrafficAlgorithm
 
 		aen, err := compileRegexps(kop.AllowedExternalNames)
 		if err != nil {

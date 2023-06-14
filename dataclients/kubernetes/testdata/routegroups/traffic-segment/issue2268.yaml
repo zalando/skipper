@@ -1,0 +1,87 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  namespace: ns
+  name: issue2268
+spec:
+  hosts:
+    - test.example.org
+  backends:
+    - name: service-1
+      type: service
+      serviceName: service-1
+      servicePort: 8080
+    - name: service-2
+      type: service
+      serviceName: service-2
+      servicePort: 8080
+    - name: shunt
+      type: shunt
+  routes:
+    # custom route
+    - pathSubtree: /
+      predicates:
+        - Cookie("foo", "^")
+      filters:
+        - status(500)
+      backends:
+        - backendName: shunt
+    # service route
+    - pathSubtree: /
+      backends:
+        - backendName: service-1
+          weight: 80
+        - backendName: service-2
+          weight: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: ns
+  name: service-1
+spec:
+  clusterIP: 1.2.3.4
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: ns
+  name: service-2
+spec:
+  clusterIP: 1.2.3.5
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: ns
+  name: service-1
+subsets:
+  - addresses:
+      - ip: 42.0.0.1
+    ports:
+      - name: http
+        port: 8080
+        protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: ns
+  name: service-2
+subsets:
+  - addresses:
+      - ip: 42.0.0.2
+    ports:
+      - name: http
+        port: 8080
+        protocol: TCP

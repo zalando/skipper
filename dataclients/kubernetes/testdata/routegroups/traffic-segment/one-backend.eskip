@@ -1,0 +1,2 @@
+kube_rg__default__app__all__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") && Path("/app") -> "https://b1.example.org";
+kube_rg____example_org__catchall__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") -> <shunt>;

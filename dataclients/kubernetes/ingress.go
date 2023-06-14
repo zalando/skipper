@@ -58,6 +58,7 @@ type ingress struct {
 	kubernetesEnableEastWest bool
 	provideHTTPSRedirect     bool
 	forceKubernetesService   bool
+	backendTrafficAlgorithm  string
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -79,6 +80,7 @@ func newIngress(o Options) *ingress {
 		eastWestRangePredicates:  o.KubernetesEastWestRangePredicates,
 		allowedExternalNames:     o.AllowedExternalNames,
 		forceKubernetesService:   o.ForceKubernetesService,
+		backendTrafficAlgorithm:  o.BackendTrafficAlgorithm,
 	}
 }
 
