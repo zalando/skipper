@@ -73,5 +73,6 @@ func (*segmentSpec) Weight() int {
 
 func (p *segmentPredicate) Match(req *http.Request) bool {
 	r := routing.FromContext(req.Context(), randomValue, rand.Float64)
+	// min == max defines a never-matching interval and always yields false
 	return p.min <= r && r < p.max
 }
