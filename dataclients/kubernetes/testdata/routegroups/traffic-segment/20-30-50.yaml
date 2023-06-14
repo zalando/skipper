@@ -1,0 +1,26 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: app
+spec:
+  hosts:
+    - example.org
+  backends:
+    - name: b1
+      type: network
+      address: https://b1.example.org
+    - name: b2
+      type: network
+      address: https://b2.example.org
+    - name: b3
+      type: network
+      address: https://b3.example.org
+  routes:
+    - path: /app
+      backends:
+        - backendName: b1
+          weight: 20
+        - backendName: b2
+          weight: 30
+        - backendName: b3
+          weight: 50

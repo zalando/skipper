@@ -22,6 +22,10 @@ func TestRouteGroupTraffic(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/traffic")
 }
 
+func TestRouteGroupTrafficSegment(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/traffic-segment")
+}
+
 func TestRouteGroupEastWest(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/east-west")
 }

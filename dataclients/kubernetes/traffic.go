@@ -15,8 +15,12 @@ type backendTraffic interface {
 
 // GetBackendTrafficCalculator returns a function that calculates backendTraffic for each backend using specified algorithm
 func GetBackendTrafficCalculator[T definitions.WeightedBackend](algorithm string) func(b []T) map[string]backendTraffic {
-	// WIP: only traffic predicate calculator is supported for now
-	return trafficPredicateCalculator[T]
+	switch algorithm {
+	case "traffic-segment-predicate":
+		return trafficSegmentPredicateCalculator[T]
+	default:
+		return trafficPredicateCalculator[T]
+	}
 }
 
 // trafficPredicate implements backendTraffic using Traffic() and True() predicates
