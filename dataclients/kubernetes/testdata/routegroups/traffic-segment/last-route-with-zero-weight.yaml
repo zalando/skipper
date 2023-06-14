@@ -13,15 +13,21 @@ spec:
   - name: external
     type: network
     address: https://www.example.org
-  - name: test
+  - name: test1
     type: network
-    address: https://test.example.org
+    address: https://test1.example.org
+  - name: test2
+    type: network
+    address: https://test2.example.org
   routes:
   - path: /app
     backends:
     - backendName: myapp
+      weight: 84
     - backendName: external
-    - backendName: test
+      weight: 42
+    - backendName: test1
+    - backendName: test2
 ---
 apiVersion: v1
 kind: Service

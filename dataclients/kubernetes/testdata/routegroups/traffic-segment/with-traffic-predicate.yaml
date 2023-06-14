@@ -1,0 +1,133 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-routes
+spec:
+  hosts:
+  - api.example.org
+  backends:
+  - name: service-a-v1
+    type: service
+    serviceName: service-a-v1
+    servicePort: 80
+  - name: service-a-v2
+    type: service
+    serviceName: service-a-v2
+    servicePort: 80
+  - name: service-b-v1
+    type: service
+    serviceName: service-b-v1
+    servicePort: 80
+  - name: service-b-v2
+    type: service
+    serviceName: service-b-v2
+    servicePort: 80
+  routes:
+  - backends:
+    - backendName: service-a-v1
+      weight: 80
+    - backendName: service-a-v2
+      weight: 20
+  - backends:
+    - backendName: service-b-v1
+      weight: 60
+    - backendName: service-b-v2
+      weight: 40
+    predicates:
+    - Traffic(.1)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a-v1
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp-a-v1
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: service-a-v1
+subsets:
+- addresses:
+  - ip: 10.2.1.8
+  - ip: 10.2.1.16
+  ports:
+  - port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a-v2
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp-a-v2
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: service-a-v2
+subsets:
+- addresses:
+  - ip: 10.2.2.8
+  - ip: 10.2.2.16
+  ports:
+  - port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b-v1
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp-b-v1
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: service-b-v1
+subsets:
+- addresses:
+  - ip: 10.2.3.8
+  - ip: 10.2.3.16
+  ports:
+  - port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b-v2
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: myapp-b-v2
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: service-b-v2
+subsets:
+- addresses:
+  - ip: 10.2.4.8
+  - ip: 10.2.4.16
+  ports:
+  - port: 80

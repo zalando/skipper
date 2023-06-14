@@ -1,0 +1,6 @@
+kube_rg__ns__issue2268__all__0_0: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/") && Cookie("foo", "^") && TrafficSegment(0, 0.6) -> "http://42.0.0.1:8080";
+kube_rg__ns__issue2268__all__0_1: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/") && Cookie("foo", "^") && TrafficSegment(0.6, 1) -> "http://42.0.0.2:8080";
+kube_rg__ns__issue2268__all__1_0: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/") && TrafficSegment(0, 0.8) -> "http://42.0.0.3:8080";
+kube_rg__ns__issue2268__all__1_1: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/") && TrafficSegment(0.8, 1) -> "http://42.0.0.4:8080";
+
+kube_rg____test_example_org__catchall__0_0: Host("^(test[.]example[.]org[.]?(:[0-9]+)?)$") -> <shunt>;

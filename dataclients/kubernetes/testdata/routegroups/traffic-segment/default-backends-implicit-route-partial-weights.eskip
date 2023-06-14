@@ -1,0 +1,4 @@
+kube_rg____example_org__catchall__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") -> <shunt>;
+kube_rg__default__myapp__all__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") && TrafficSegment(0, 0.6666666666666666) -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
+kube_rg__default__myapp__all__0_1: Host("^(example[.]org[.]?(:[0-9]+)?)$") && TrafficSegment(0.6666666666666666, 0.6666666666666666) -> "https://www.example.org";
+kube_rg__default__myapp__all__0_2: Host("^(example[.]org[.]?(:[0-9]+)?)$") && TrafficSegment(0.6666666666666666, 1) -> "https://test.example.org";

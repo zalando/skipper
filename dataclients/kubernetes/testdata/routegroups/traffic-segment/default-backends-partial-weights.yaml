@@ -16,12 +16,14 @@ spec:
   - name: test
     type: network
     address: https://test.example.org
+  defaultBackends:
+  - backendName: myapp
+    weight: 84
+  - backendName: external
+  - backendName: test
+    weight: 42
   routes:
   - path: /app
-    backends:
-    - backendName: myapp
-    - backendName: external
-    - backendName: test
 ---
 apiVersion: v1
 kind: Service

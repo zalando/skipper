@@ -20,8 +20,10 @@ spec:
   - path: /app
     backends:
     - backendName: myapp
+      weight: 84
     - backendName: external
     - backendName: test
+      weight: 42
 ---
 apiVersion: v1
 kind: Service
