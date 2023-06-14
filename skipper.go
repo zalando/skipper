@@ -1763,13 +1763,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if o.EnableOpenPolicyAgent {
 		factory := openpolicyagent.NewOpenPolicyAgentFactory()
 
+		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
+		opts = append(opts, openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
+		if o.OpenPolicyAgentEnvoyMetadata != "" {
+			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
+		}
+
 		o.CustomFilters = append(o.CustomFilters,
-			authorizewithregopolicy.NewAuthorizeWithRegoPolicySpec(factory,
-				openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate),
-				openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata)),
-			serveresponsewithregopolicy.NewServeResponseWithRegoPolicySpec(factory,
-				openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate),
-				openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata)),
+			authorizewithregopolicy.NewAuthorizeWithRegoPolicySpec(factory, opts...),
+			serveresponsewithregopolicy.NewServeResponseWithRegoPolicySpec(factory, opts...),
 		)
 	}
 

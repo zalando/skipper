@@ -17,6 +17,7 @@ func (opa *OpenPolicyAgentInstance) RejectInvalidDecisionError(fc filters.Filter
 	fc.Metrics().IncCounter(opa.MetricsKey("decision.err"))
 
 	resp.StatusCode = http.StatusInternalServerError
+	span.SetTag("error", true)
 
 	if result != nil {
 		span.LogKV(

@@ -2,6 +2,7 @@ package openpolicyagent
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
@@ -12,12 +13,9 @@ import (
 	"github.com/open-policy-agent/opa/server"
 	"github.com/open-policy-agent/opa/tracing"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 )
 
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
-	var err error
-
 	result, stopeval, err := envoyauth.NewEvalResult()
 	span := opentracing.SpanFromContext(ctx)
 	if span != nil {
@@ -39,8 +37,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	}()
 
 	if ctx.Err() != nil {
-		err = errors.Wrap(ctx.Err(), "check request timed out before query execution")
-		return nil, err
+		return nil, fmt.Errorf("check request timed out before query execution: %w", ctx.Err())
 	}
 
 	logger := opa.manager.Logger().WithFields(map[string]interface{}{"decision-id": result.DecisionID})
