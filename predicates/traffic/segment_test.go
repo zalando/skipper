@@ -89,16 +89,21 @@ func TestTrafficSegmentMatch(t *testing.T) {
 }
 
 func TestTrafficSegmentMinEqualsMax(t *testing.T) {
-	pp := eskip.MustParsePredicates(`TrafficSegment(0.5, 0.5)`)
-	require.Len(t, pp, 1)
+	for _, minMax := range []float64{
+		0.0,
+		1.0 / 10.0, // can not be represented exactly as float64
+		0.5,
+		2.0 / 3.0, // can not be represented exactly as float64
+		1.0,
+	} {
+		t.Run(fmt.Sprintf("minMax=%v", minMax), func(t *testing.T) {
+			spec := traffic.NewSegment()
+			p, err := spec.Create([]any{minMax, minMax})
+			require.NoError(t, err)
 
-	spec := traffic.NewSegment()
-	p, err := spec.Create(pp[0].Args)
-	require.NoError(t, err)
-
-	assert.False(t, p.Match(requestWithR(0.0)))
-	assert.False(t, p.Match(requestWithR(0.5)))
-	assert.False(t, p.Match(requestWithR(1.0)))
+			assert.False(t, p.Match(requestWithR(minMax)))
+		})
+	}
 }
 
 func TestTrafficSegmentSpec(t *testing.T) {
