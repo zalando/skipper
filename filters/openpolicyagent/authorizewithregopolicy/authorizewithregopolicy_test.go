@@ -154,7 +154,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			proxy := proxytest.New(fr, r)
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
-				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
+				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
 			}
 			reqURL.Path = path.Join(reqURL.Path, ti.requestPath)
 			req, err := http.NewRequest("GET", reqURL.String(), nil)
@@ -163,13 +163,13 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			}
 
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 				return
 			}
 
 			rsp, err := http.DefaultClient.Do(req)
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
 
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
@@ -179,9 +179,9 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			defer rsp.Body.Close()
 			body, err := io.ReadAll(rsp.Body)
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
-			assert.Equal(t, ti.expectedBody, string(body), "HTTP Headers do not match")
+			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 		})
 	}
 }

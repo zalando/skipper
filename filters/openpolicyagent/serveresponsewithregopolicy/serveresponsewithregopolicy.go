@@ -61,7 +61,7 @@ func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 		return nil, err
 	}
 
-	opa, err := s.factory.NewOpenPolicyAgentEnvoyInstance(bundleName, *opaConfig, s.Name())
+	opa, err := s.factory.NewOpenPolicyAgentInstance(bundleName, *opaConfig, s.Name())
 
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (f serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromContext(req.Context())
 	defer span.Finish()
 
-	authzreq := envoy.AdaptToEnvoyExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+	authzreq := envoy.AdaptToExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
 
 	start := time.Now()
 	result, err := f.opa.Eval(ctx, authzreq)

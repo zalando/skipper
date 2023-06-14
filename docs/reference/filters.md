@@ -1714,7 +1714,7 @@ Example (passing context):
 authorizeWithRegoPolicy("my-app-id", "com.mydomain.xxx.myprop: myvalue")
 ```
 
-#### Data Flows
+*Data Flows*
 
 The data flow in case the policy allows the request looks like this
 
@@ -1768,7 +1768,7 @@ The data flow in case the policy disallows the request looks like this
 
 The difference is that if the decision in (3) is equivalent to false, the response is handled directly from the filter. If the decision contains response body, status or headers those are used to build the response in (6) otherwise a 403 Forbidden with a generic body is returned.
 
-##### Manipulating Request Headers
+*Manipulating Request Headers*
 
 Headers both to the upstream and the downstream service can be manipulated the same way this works for [Envoy external authorization](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-policy-with-additional-controls)
 
@@ -1791,9 +1791,7 @@ Example (passing context):
 serveResponseWithRegoPolicy("my-app-id", "com.mydomain.xxx.myprop: myvalue")
 ```
 
-#### Data Flows
-
-## Diagram
+*Data Flows*
 
 For this filter, the data flow looks like this independent of an allow/deny decision
 

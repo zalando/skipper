@@ -442,10 +442,9 @@ discovery:
 
 The variable `.bundlename` is the first argument in the following filters and can be in any format that OPA can understand, so for example application IDs from a registry, uuids, ...
 
-### Envoy Structures
+### Input Structures
 
-While Envoy is an alternative OSS product similar to Skipper, it has already defined structures for how external authorization should be done and also how  authorization decisions can influence the Envoy response. Open Policy Agent already has direct support for this and also commercial control planes support this. On top of this [examples and documentation](https://www.openpolicyagent.org/docs/latest/envoy-primer/) already exist.
-Instead of re-inventing these structures (for example how http headers and so on are represented), this implementation maps Skipper objects onto their Envoy representation. This also allows to reuse a fair bit of the [opa-envoy-plugin](https://github.com/open-policy-agent/opa-envoy-plugin), which does the heavy lifting of evaluating decisions against the OPA Go library.
+Input structures to policies follow those that are used by the [opa-envoy-plugin](https://github.com/open-policy-agent/opa-envoy-plugin), the existing [examples and documentation](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-input) apply also to Skipper. 
 
 ### Passing context to the policy
 

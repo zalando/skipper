@@ -3,6 +3,7 @@ package openpolicyagent
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -84,19 +85,24 @@ func WithEnvoyMetadata(metadata *ext_authz_v3_core.Metadata) func(*OpenPolicyAge
 func WithEnvoyMetadataBytes(content []byte) func(*OpenPolicyAgentInstanceConfig) error {
 	return func(cfg *OpenPolicyAgentInstanceConfig) error {
 		cfg.envoyMetadata = &ext_authz_v3_core.Metadata{}
-		protojson.Unmarshal(content, cfg.envoyMetadata)
-		return nil
+
+		return protojson.Unmarshal(content, cfg.envoyMetadata)
 	}
 }
 
 func WithEnvoyMetadataFile(file string) func(*OpenPolicyAgentInstanceConfig) error {
-
 	return func(cfg *OpenPolicyAgentInstanceConfig) error {
 		content, err := os.ReadFile(file)
 		if err != nil {
 			return err
 		}
-		return WithEnvoyMetadataBytes(content)(cfg)
+
+		err = WithEnvoyMetadataBytes(content)(cfg)
+		if err != nil {
+			return fmt.Errorf("cannot parse '%v': %w", file, err)
+		}
+
+		return nil
 	}
 }
 
@@ -135,7 +141,7 @@ func configTemplate() string {
 	return "opaconfig.yaml"
 }
 
-func (factory *OpenPolicyAgentFactory) NewOpenPolicyAgentEnvoyInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
+func (factory *OpenPolicyAgentFactory) NewOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
 	configBytes, err := interpolateConfigTemplate(config.configTemplate, bundleName)
@@ -220,7 +226,10 @@ func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgent
 	}
 
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
-	manager, err := plugins.New(configBytes, id, store, plugins.Logger(logging.New().WithFields(map[string]interface{}{"skipper-filter": filterName})))
+
+	var logger logging.Logger = &QuietLogger{target: logging.Get()}
+	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName})
+	manager, err := plugins.New(configBytes, id, store, plugins.Logger(logger))
 	if err != nil {
 		return nil, err
 	}
@@ -304,6 +313,7 @@ func (opa *OpenPolicyAgentInstance) MetricsKey(key string) string {
 	return key + "." + opa.bundleName
 }
 
+// Implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) ParsedQuery() ast.Body {
 	return opa.EnvoyPluginConfig().ParsedQuery
 }
@@ -322,4 +332,37 @@ func (opa *OpenPolicyAgentInstance) SetPreparedQuery(q *rego.PreparedEvalQuery) 
 }
 func (opa *OpenPolicyAgentInstance) Config() *config.Config {
 	return opa.opaConfig
+}
+
+// logging.Logger that does not pollute info with debug logs
+type QuietLogger struct {
+	target logging.Logger
+}
+
+func (l *QuietLogger) WithFields(fields map[string]interface{}) logging.Logger {
+	return &QuietLogger{target: l.target.WithFields(fields)}
+}
+
+func (l *QuietLogger) SetLevel(level logging.Level) {
+	l.target.SetLevel(level)
+}
+
+func (l *QuietLogger) GetLevel() logging.Level {
+	return l.target.GetLevel()
+}
+
+func (l *QuietLogger) Debug(fmt string, a ...interface{}) {
+	l.target.Debug(fmt, a)
+}
+
+func (l *QuietLogger) Info(fmt string, a ...interface{}) {
+	l.target.Debug(fmt, a)
+}
+
+func (l *QuietLogger) Error(fmt string, a ...interface{}) {
+	l.target.Error(fmt, a)
+}
+
+func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
+	l.target.Warn(fmt, a)
 }
