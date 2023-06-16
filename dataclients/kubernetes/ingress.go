@@ -58,7 +58,7 @@ type ingress struct {
 	kubernetesEnableEastWest bool
 	provideHTTPSRedirect     bool
 	forceKubernetesService   bool
-	backendTrafficAlgorithm  string
+	backendTrafficAlgorithm  BackendTrafficAlgorithm
 }
 
 var nonWord = regexp.MustCompile(`\W`)

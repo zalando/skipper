@@ -1,10 +1,47 @@
 package kubernetes
 
 import (
+	"fmt"
+
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/predicates"
 )
+
+// BackendTrafficAlgorithm specifies the algorithm for backend traffic calculation
+type BackendTrafficAlgorithm int
+
+const (
+	// TrafficPredicateAlgorithm is the default algorithm for backend traffic calculation.
+	// It uses Traffic and True predicates to distribute traffic between backends.
+	TrafficPredicateAlgorithm BackendTrafficAlgorithm = iota
+
+	// TrafficSegmentPredicateAlgorithm uses TrafficSegment predicate to distribute traffic between backends
+	TrafficSegmentPredicateAlgorithm
+)
+
+func (a BackendTrafficAlgorithm) String() string {
+	switch a {
+	case TrafficPredicateAlgorithm:
+		return "traffic-predicate"
+	case TrafficSegmentPredicateAlgorithm:
+		return "traffic-segment-predicate"
+	default:
+		return "unknown" // should never happen
+	}
+}
+
+// ParseBackendTrafficAlgorithm parses a string into a BackendTrafficAlgorithm
+func ParseBackendTrafficAlgorithm(name string) (BackendTrafficAlgorithm, error) {
+	switch name {
+	case "traffic-predicate":
+		return TrafficPredicateAlgorithm, nil
+	case "traffic-segment-predicate":
+		return TrafficSegmentPredicateAlgorithm, nil
+	default:
+		return -1, fmt.Errorf("invalid backend traffic algorithm: %s", name)
+	}
+}
 
 // backendTraffic specifies whether a given backend is allowed to receive any traffic and
 // modifies route to receive the desired traffic portion
@@ -13,14 +50,15 @@ type backendTraffic interface {
 	apply(*eskip.Route)
 }
 
-// GetBackendTrafficCalculator returns a function that calculates backendTraffic for each backend using specified algorithm
-func GetBackendTrafficCalculator[T definitions.WeightedBackend](algorithm string) func(b []T) map[string]backendTraffic {
+// getBackendTrafficCalculator returns a function that calculates backendTraffic for each backend using specified algorithm
+func getBackendTrafficCalculator[T definitions.WeightedBackend](algorithm BackendTrafficAlgorithm) func(b []T) map[string]backendTraffic {
 	switch algorithm {
-	case "traffic-segment-predicate":
+	case TrafficSegmentPredicateAlgorithm:
 		return trafficSegmentPredicateCalculator[T]
-	default:
+	case TrafficPredicateAlgorithm:
 		return trafficPredicateCalculator[T]
 	}
+	return nil // should never happen
 }
 
 // trafficPredicate implements backendTraffic using Traffic() and True() predicates

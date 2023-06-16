@@ -530,7 +530,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				backendNameTracingTag: r.options.BackendNameTracingTag,
 				internal:              false,
 				allowedExternalNames:  r.options.AllowedExternalNames,
-				calculateTraffic:      GetBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
+				calculateTraffic:      getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 			}
 
 			ri, err := transformRouteGroup(ctx)
@@ -567,7 +567,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				backendNameTracingTag: r.options.BackendNameTracingTag,
 				internal:              true,
 				allowedExternalNames:  r.options.AllowedExternalNames,
-				calculateTraffic:      GetBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
+				calculateTraffic:      getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 			}
 
 			internalRi, err := transformRouteGroup(internalCtx)

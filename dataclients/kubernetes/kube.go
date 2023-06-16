@@ -217,7 +217,7 @@ type Options struct {
 	ForceKubernetesService bool
 
 	// BackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic.
-	BackendTrafficAlgorithm string
+	BackendTrafficAlgorithm BackendTrafficAlgorithm
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.

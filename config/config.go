@@ -148,28 +148,30 @@ type Config struct {
 	RefusePayload    multiFlag `yaml:"refuse-payload"`
 
 	// Kubernetes:
-	KubernetesIngress                       bool                `yaml:"kubernetes"`
-	KubernetesInCluster                     bool                `yaml:"kubernetes-in-cluster"`
-	KubernetesURL                           string              `yaml:"kubernetes-url"`
-	KubernetesHealthcheck                   bool                `yaml:"kubernetes-healthcheck"`
-	KubernetesHTTPSRedirect                 bool                `yaml:"kubernetes-https-redirect"`
-	KubernetesHTTPSRedirectCode             int                 `yaml:"kubernetes-https-redirect-code"`
-	KubernetesIngressClass                  string              `yaml:"kubernetes-ingress-class"`
-	KubernetesRouteGroupClass               string              `yaml:"kubernetes-routegroup-class"`
-	WhitelistedHealthCheckCIDR              string              `yaml:"whitelisted-healthcheck-cidr"`
-	KubernetesPathModeString                string              `yaml:"kubernetes-path-mode"`
-	KubernetesPathMode                      kubernetes.PathMode `yaml:"-"`
-	KubernetesNamespace                     string              `yaml:"kubernetes-namespace"`
-	KubernetesEnableEastWest                bool                `yaml:"enable-kubernetes-east-west"`
-	KubernetesEastWestDomain                string              `yaml:"kubernetes-east-west-domain"`
-	KubernetesEastWestRangeDomains          *listFlag           `yaml:"kubernetes-east-west-range-domains"`
-	KubernetesEastWestRangePredicatesString string              `yaml:"kubernetes-east-west-range-predicates"`
-	KubernetesEastWestRangePredicates       []*eskip.Predicate  `yaml:"-"`
-	KubernetesOnlyAllowedExternalNames      bool                `yaml:"kubernetes-only-allowed-external-names"`
-	KubernetesAllowedExternalNames          regexpListFlag      `yaml:"kubernetes-allowed-external-names"`
-	KubernetesRedisServiceNamespace         string              `yaml:"kubernetes-redis-service-namespace"`
-	KubernetesRedisServiceName              string              `yaml:"kubernetes-redis-service-name"`
-	KubernetesRedisServicePort              int                 `yaml:"kubernetes-redis-service-port"`
+	KubernetesIngress                       bool                               `yaml:"kubernetes"`
+	KubernetesInCluster                     bool                               `yaml:"kubernetes-in-cluster"`
+	KubernetesURL                           string                             `yaml:"kubernetes-url"`
+	KubernetesHealthcheck                   bool                               `yaml:"kubernetes-healthcheck"`
+	KubernetesHTTPSRedirect                 bool                               `yaml:"kubernetes-https-redirect"`
+	KubernetesHTTPSRedirectCode             int                                `yaml:"kubernetes-https-redirect-code"`
+	KubernetesIngressClass                  string                             `yaml:"kubernetes-ingress-class"`
+	KubernetesRouteGroupClass               string                             `yaml:"kubernetes-routegroup-class"`
+	WhitelistedHealthCheckCIDR              string                             `yaml:"whitelisted-healthcheck-cidr"`
+	KubernetesPathModeString                string                             `yaml:"kubernetes-path-mode"`
+	KubernetesPathMode                      kubernetes.PathMode                `yaml:"-"`
+	KubernetesNamespace                     string                             `yaml:"kubernetes-namespace"`
+	KubernetesEnableEastWest                bool                               `yaml:"enable-kubernetes-east-west"`
+	KubernetesEastWestDomain                string                             `yaml:"kubernetes-east-west-domain"`
+	KubernetesEastWestRangeDomains          *listFlag                          `yaml:"kubernetes-east-west-range-domains"`
+	KubernetesEastWestRangePredicatesString string                             `yaml:"kubernetes-east-west-range-predicates"`
+	KubernetesEastWestRangePredicates       []*eskip.Predicate                 `yaml:"-"`
+	KubernetesOnlyAllowedExternalNames      bool                               `yaml:"kubernetes-only-allowed-external-names"`
+	KubernetesAllowedExternalNames          regexpListFlag                     `yaml:"kubernetes-allowed-external-names"`
+	KubernetesRedisServiceNamespace         string                             `yaml:"kubernetes-redis-service-namespace"`
+	KubernetesRedisServiceName              string                             `yaml:"kubernetes-redis-service-name"`
+	KubernetesRedisServicePort              int                                `yaml:"kubernetes-redis-service-port"`
+	KubernetesBackendTrafficAlgorithmString string                             `yaml:"kubernetes-backend-traffic-algorithm"`
+	KubernetesBackendTrafficAlgorithm       kubernetes.BackendTrafficAlgorithm `yaml:"-"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -446,6 +448,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-service-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
 	flag.StringVar(&cfg.KubernetesRedisServiceName, "kubernetes-redis-service-name", "", "Sets name for redis to be used to lookup endpoints")
 	flag.IntVar(&cfg.KubernetesRedisServicePort, "kubernetes-redis-service-port", 6379, "Sets the port for redis to be used to lookup endpoints")
+	flag.StringVar(&cfg.KubernetesBackendTrafficAlgorithmString, "kubernetes-backend-traffic-algorithm", kubernetes.TrafficPredicateAlgorithm.String(), "sets the algorithm to be used for traffic splitting between backends: traffic-predicate or traffic-segment-predicate")
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
@@ -560,6 +563,10 @@ func validate(c *Config) error {
 	if err != nil {
 		return fmt.Errorf("invalid east-west-range-predicates: %w", err)
 	}
+	_, err = kubernetes.ParseBackendTrafficAlgorithm(c.KubernetesBackendTrafficAlgorithmString)
+	if err != nil {
+		return err
+	}
 	_, err = c.parseHistogramBuckets()
 	if err != nil {
 		return err
@@ -617,6 +624,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	c.ApplicationLogLevel, _ = log.ParseLevel(c.ApplicationLogLevelString)
 	c.KubernetesPathMode, _ = kubernetes.ParsePathMode(c.KubernetesPathModeString)
 	c.KubernetesEastWestRangePredicates, _ = eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
+	c.KubernetesBackendTrafficAlgorithm, _ = kubernetes.ParseBackendTrafficAlgorithm(c.KubernetesBackendTrafficAlgorithmString)
 	c.HistogramMetricBuckets, _ = c.parseHistogramBuckets()
 
 	if c.ClientKeyFile != "" && c.ClientCertFile != "" {
@@ -827,6 +835,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesRedisServiceNamespace:    c.KubernetesRedisServiceNamespace,
 		KubernetesRedisServiceName:         c.KubernetesRedisServiceName,
 		KubernetesRedisServicePort:         c.KubernetesRedisServicePort,
+		KubernetesBackendTrafficAlgorithm:  c.KubernetesBackendTrafficAlgorithm,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,

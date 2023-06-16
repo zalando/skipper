@@ -276,6 +276,9 @@ type Options struct {
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
 
+	// KubernetesBackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic
+	KubernetesBackendTrafficAlgorithm kubernetes.BackendTrafficAlgorithm
+
 	// File containing static route definitions. Multiple may be given comma separated.
 	RoutesFile string
 
@@ -999,6 +1002,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 			RouteGroupClass:                   o.KubernetesRouteGroupClass,
 			WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
 			ForceKubernetesService:            o.KubernetesForceService,
+			BackendTrafficAlgorithm:           o.KubernetesBackendTrafficAlgorithm,
 			CertificateRegistry:               cr,
 		})
 		if err != nil {

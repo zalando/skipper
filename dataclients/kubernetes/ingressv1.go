@@ -422,7 +422,7 @@ func (ing *ingress) ingressV1Route(
 		hostRoutes:          hostRoutes,
 		defaultFilters:      df,
 		certificateRegistry: r,
-		calculateTraffic:    GetBackendTrafficCalculator[*weightedIngressBackend](ing.backendTrafficAlgorithm),
+		calculateTraffic:    getBackendTrafficCalculator[*weightedIngressBackend](ing.backendTrafficAlgorithm),
 	}
 
 	var route *eskip.Route
