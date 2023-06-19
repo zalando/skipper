@@ -1,11 +1,12 @@
 package cookie
 
 import (
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 )
 
 func TestCreateFilter(t *testing.T) {
@@ -381,4 +382,102 @@ func TestSetCookie(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestDropCookie(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		arg         string
+		cookies     http.Header
+		wantCookies map[string]string
+		wantErr     bool
+	}{
+		{
+			name:        "test no cookies",
+			arg:         "no-cookie",
+			cookies:     nil,
+			wantCookies: nil,
+			wantErr:     false,
+		},
+		{
+			name: "test one cookie not match",
+			arg:  "no-match",
+			cookies: http.Header{
+				"Cookie": []string{
+					"foo=foo1",
+				},
+			},
+			wantCookies: map[string]string{"foo": "foo1"},
+			wantErr:     false,
+		},
+		{
+			name: "test one cookie with match",
+			arg:  "foo",
+			cookies: http.Header{
+				"Cookie": []string{
+					"foo=foo1",
+				},
+			},
+			wantCookies: nil,
+			wantErr:     false,
+		},
+		{
+			name: "test two cookies and one cookie with match",
+			arg:  "foo",
+			cookies: http.Header{
+				"Cookie": []string{
+					"foo=foo1",
+					"bar=baz",
+				},
+			},
+			wantCookies: map[string]string{"bar": "baz"},
+			wantErr:     false,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := NewDropRequestCookie()
+			f, err := spec.CreateFilter([]interface{}{tt.arg})
+			if err != nil {
+				t.Fatalf("Failed to create filter: %v", err)
+			}
+
+			if f == nil {
+				t.Fatal("Failed to create filter: filter nil")
+			}
+
+			ctx := &filtertest.Context{
+				FRequest: &http.Request{
+					Header: tt.cookies,
+					Host:   "foo"},
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{Header: http.Header{}},
+			}
+
+			f.Request(ctx)
+
+			if c, err := ctx.Request().Cookie(tt.arg); err != http.ErrNoCookie {
+				t.Fatalf("Failed to delete cookie %s: %q", tt.arg, c)
+			}
+			if len(tt.wantCookies) != len(ctx.Request().Cookies()) {
+				t.Fatalf("Failed to get right len of cookies %d != %d", len(tt.wantCookies), len(ctx.Request().Cookies()))
+			}
+
+			for k, v := range tt.wantCookies {
+				cookie, err := ctx.Request().Cookie(k)
+				if err != nil {
+					t.Fatalf("Failed to get cookie %q: %v", k, err)
+				}
+
+				if cookie.Value != v {
+					t.Fatalf("Failed to get cookie value %q, got: %q", v, cookie.Value)
+				}
+			}
+
+			for _, cookie := range ctx.Request().Cookies() {
+				if _, ok := tt.wantCookies[cookie.Name]; !ok {
+					t.Fatalf("Failed to delete cookie: %s", cookie.Name)
+				}
+			}
+		})
+	}
+
 }

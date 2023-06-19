@@ -37,6 +37,7 @@ package cookie
 import (
 	"net"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"time"
 
@@ -75,6 +76,76 @@ type filter struct {
 	ttl        time.Duration
 	changeOnly bool
 }
+
+type dropRequestCookie struct {
+	name string
+}
+
+func NewDropRequestCookie() filters.Spec {
+	return &dropRequestCookie{}
+}
+
+func (*dropRequestCookie) Name() string {
+	return filters.DropRequestCookieName
+}
+func (*dropRequestCookie) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 1 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	s, ok := args[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return &dropRequestCookie{
+		name: s,
+	}, nil
+}
+func (d *dropRequestCookie) Request(ctx filters.FilterContext) {
+	req := ctx.Request()
+
+	toDelete, err := req.Cookie(d.name)
+	if err != nil {
+		return // not found, done
+	}
+
+	lines := req.Header["Cookie"]
+	if len(lines) == 0 {
+		return
+	}
+
+	var result []string
+
+	// modified version of readCookies
+	// https://github.com/golang/go/blob/master/src/net/http/cookie.go#L277
+	for _, line := range lines {
+		line = textproto.TrimString(line)
+		var part string
+
+		for len(line) > 0 { // continue since we have rest
+			part, line, _ = strings.Cut(line, ";")
+			part = textproto.TrimString(part)
+			if part == "" {
+				continue
+			}
+			name, _, _ := strings.Cut(part, "=")
+			if toDelete.Name == textproto.TrimString(name) {
+				continue
+			}
+
+			result = append(result, part)
+		}
+	}
+
+	if len(result) == 0 {
+		delete(req.Header, "Cookie")
+	} else {
+		req.Header["Cookie"] = result
+	}
+}
+
+func (*dropRequestCookie) Response(filters.FilterContext) {}
 
 // Creates a filter spec for appending cookies to requests.
 // Name: requestCookie
