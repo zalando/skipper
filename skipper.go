@@ -1161,9 +1161,9 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
 			}
 
-			// 1GB, temporarily, as a tested magic number until a better mechanism is in place:
-			if memoryLimit > 1<<30 {
-				memoryLimit = 1 << 30
+			// 4GB, temporarily, as a tested magic number until a better mechanism is in place:
+			if memoryLimit > 1<<32 {
+				memoryLimit = 1 << 32
 			}
 		}
 	}
