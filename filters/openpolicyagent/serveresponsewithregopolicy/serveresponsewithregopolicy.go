@@ -77,8 +77,7 @@ type serveResponseWithRegoPolicyFilter struct {
 }
 
 func (f serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
-	req := fc.Request()
-	span, ctx := f.opa.StartSpanFromContext(req.Context())
+	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
 
 	authzreq := envoy.AdaptToExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
