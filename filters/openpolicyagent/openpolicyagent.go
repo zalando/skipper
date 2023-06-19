@@ -25,6 +25,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
 )
@@ -303,10 +304,24 @@ func (opa *OpenPolicyAgentInstance) EnvoyPluginConfig() envoy.PluginConfig {
 	return defaultConfig
 }
 
-func (opa *OpenPolicyAgentInstance) StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Context) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "open-policy-agent")
+func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracing.Tracer, parent opentracing.Span, ctx context.Context) (opentracing.Span, context.Context) {
+	span := tr.StartSpan("open-policy-agent", opentracing.ChildOf(parent.Context()))
+
 	span.SetTag("bundle_name", opa.bundleName)
-	return span, ctx
+	return span, opentracing.ContextWithSpan(ctx, span)
+}
+
+func (opa *OpenPolicyAgentInstance) StartSpanFromFilterContext(fc filters.FilterContext) (opentracing.Span, context.Context) {
+	return opa.startSpanFromContextWithTracer(fc.Tracer(), fc.ParentSpan(), fc.Request().Context())
+}
+
+func (opa *OpenPolicyAgentInstance) StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Context) {
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		return opa.startSpanFromContextWithTracer(span.Tracer(), span, ctx)
+	}
+
+	return opa.startSpanFromContextWithTracer(opentracing.GlobalTracer(), span, ctx)
 }
 
 func (opa *OpenPolicyAgentInstance) MetricsKey(key string) string {
