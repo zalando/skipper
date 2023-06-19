@@ -36,6 +36,9 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/filters/openpolicyagent"
+	"github.com/zalando/skipper/filters/openpolicyagent/authorizewithregopolicy"
+	"github.com/zalando/skipper/filters/openpolicyagent/serveresponsewithregopolicy"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
 	teefilters "github.com/zalando/skipper/filters/tee"
@@ -886,6 +889,9 @@ type Options struct {
 	// filters.
 	LuaSources []string
 
+	EnableOpenPolicyAgent         bool
+	OpenPolicyAgentConfigTemplate string
+
 	testOptions
 }
 
@@ -1732,6 +1738,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			oauthConfig.NewGrantCallback(),
 			oauthConfig.NewGrantClaimsQuery(),
 			oauthConfig.NewGrantLogout(),
+		)
+	}
+
+	if o.EnableOpenPolicyAgent {
+		factory := openpolicyagent.NewOpenPolicyAgentFactory()
+
+		o.CustomFilters = append(o.CustomFilters,
+			authorizewithregopolicy.NewAuthorizeWithRegoPolicySpec(factory,
+				openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate)),
+			serveresponsewithregopolicy.NewServeResponseWithRegoPolicySpec(factory,
+				openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate)),
 		)
 	}
 

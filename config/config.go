@@ -270,6 +270,10 @@ type Config struct {
 
 	LuaModules *listFlag `yaml:"lua-modules"`
 	LuaSources *listFlag `yaml:"lua-sources"`
+
+	// Open Policy Agent
+	EnableOpenPolicyAgent         bool   `yaml:"enable-open-policy-agent"`
+	OpenPolicyAgentConfigTemplate string `yaml:"open-policy-agent-config-template"`
 }
 
 const (
@@ -477,6 +481,10 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.OidcDistributedClaimsTimeout, "oidc-distributed-claims-timeout", 2*time.Second, "sets the default OIDC distributed claims request timeout duration to 2000ms")
 	flag.Var(cfg.CredentialPaths, "credentials-paths", "directories or files to watch for credentials to use by bearerinjector filter")
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", 10*time.Minute, "sets the interval to update secrets")
+
+	// Open Policy Agent
+	flag.BoolVar(&cfg.EnableOpenPolicyAgent, "enable-open-policy-agent", false, "enables Open Policy Agent filters")
+	flag.StringVar(&cfg.OpenPolicyAgentConfigTemplate, "open-policy-agent-config-template", "", "file containing a template for an Open Policy Agent configuration file that is interpolated for each OPA filter instance")
 
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs")
@@ -917,6 +925,9 @@ func (c *Config) ToOptions() skipper.Options {
 
 		LuaModules: c.LuaModules.values,
 		LuaSources: c.LuaSources.values,
+
+		EnableOpenPolicyAgent:         c.EnableOpenPolicyAgent,
+		OpenPolicyAgentConfigTemplate: c.OpenPolicyAgentConfigTemplate,
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)
