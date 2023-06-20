@@ -37,7 +37,6 @@ package cookie
 import (
 	"net"
 	"net/http"
-	"net/textproto"
 	"strings"
 	"time"
 
@@ -77,18 +76,33 @@ type filter struct {
 	changeOnly bool
 }
 
-type dropRequestCookie struct {
+type dropCookie struct {
+	typ  direction
 	name string
 }
 
 func NewDropRequestCookie() filters.Spec {
-	return &dropRequestCookie{}
+	return &dropCookie{
+		typ: request,
+	}
+}
+func NewDropResponseCookie() filters.Spec {
+	return &dropCookie{
+		typ: response,
+	}
 }
 
-func (*dropRequestCookie) Name() string {
-	return filters.DropRequestCookieName
+func (d *dropCookie) Name() string {
+	switch d.typ {
+	case request:
+		return filters.DropRequestCookieName
+	case response:
+		return filters.DropResponseCookieName
+	}
+	return "unknown"
 }
-func (*dropRequestCookie) CreateFilter(args []interface{}) (filters.Filter, error) {
+
+func (*dropCookie) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -98,54 +112,66 @@ func (*dropRequestCookie) CreateFilter(args []interface{}) (filters.Filter, erro
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &dropRequestCookie{
+	return &dropCookie{
 		name: s,
 	}, nil
 }
-func (d *dropRequestCookie) Request(ctx filters.FilterContext) {
-	req := ctx.Request()
 
-	toDelete, err := req.Cookie(d.name)
-	if err != nil {
-		return // not found, done
-	}
-
-	lines := req.Header["Cookie"]
-	if len(lines) == 0 {
-		return
-	}
-
-	var result []string
-
-	// modified version of readCookies
-	// https://github.com/golang/go/blob/master/src/net/http/cookie.go#L277
-	for _, line := range lines {
-		line = textproto.TrimString(line)
-		var part string
-
-		for len(line) > 0 { // continue since we have rest
-			part, line, _ = strings.Cut(line, ";")
-			part = textproto.TrimString(part)
-			if part == "" {
-				continue
-			}
-			name, _, _ := strings.Cut(part, "=")
-			if toDelete.Name == textproto.TrimString(name) {
-				continue
-			}
-
-			result = append(result, part)
+func removeCookie(request *http.Request, name string) bool {
+	cookies := request.Cookies()
+	hasCookie := false
+	for _, c := range cookies {
+		if c.Name == name {
+			hasCookie = true
+			break
 		}
 	}
 
-	if len(result) == 0 {
-		delete(req.Header, "Cookie")
-	} else {
-		req.Header["Cookie"] = result
+	if hasCookie {
+		request.Header.Del("Cookie")
+		for _, c := range cookies {
+			if c.Name != name {
+				request.AddCookie(c)
+			}
+		}
 	}
+	return hasCookie
 }
 
-func (*dropRequestCookie) Response(filters.FilterContext) {}
+func removeCookieResponse(rsp *http.Response, name string) bool {
+	cookies := rsp.Cookies()
+	hasCookie := false
+	for _, c := range cookies {
+		if c.Name == name {
+			hasCookie = true
+			break
+		}
+	}
+
+	if hasCookie {
+		rsp.Header.Del("Set-Cookie")
+		for _, c := range cookies {
+			if c.Name != name {
+				rsp.Header.Add("Set-Cookie", c.String())
+			}
+		}
+	}
+	return hasCookie
+}
+
+func (d *dropCookie) Request(ctx filters.FilterContext) {
+	if d.typ != request {
+		return
+	}
+	removeCookie(ctx.Request(), d.name)
+}
+
+func (d *dropCookie) Response(ctx filters.FilterContext) {
+	if d.typ != response {
+		return
+	}
+	removeCookieResponse(ctx.Response(), d.name)
+}
 
 // Creates a filter spec for appending cookies to requests.
 // Name: requestCookie

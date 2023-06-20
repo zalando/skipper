@@ -294,6 +294,7 @@ const (
 	OAuthOidcAllClaimsName                     = "oauthOidcAllClaims"
 	OidcClaimsQueryName                        = "oidcClaimsQuery"
 	DropRequestCookieName                      = "dropRequestCookie"
+	DropResponseCookieName                     = "dropResponseCookie"
 	RequestCookieName                          = "requestCookie"
 	ResponseCookieName                         = "responseCookie"
 	JsCookieName                               = "jsCookie"
