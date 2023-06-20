@@ -308,6 +308,11 @@ func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracin
 	span := tr.StartSpan("open-policy-agent", opentracing.ChildOf(parent.Context()))
 
 	span.SetTag("bundle_name", opa.bundleName)
+
+	for label, value := range opa.manager.Labels() {
+		span.SetTag("label."+label, value)
+	}
+
 	return span, opentracing.ContextWithSpan(ctx, span)
 }
 
