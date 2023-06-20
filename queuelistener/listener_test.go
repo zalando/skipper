@@ -685,7 +685,7 @@ func TestOptions(t *testing.T) {
 		defer got.Close()
 		l := got.(*listener)
 
-		if l.maxConcurrency != o.MaxConcurrency || l.maxQueueSize != o.MaxQueueSize {
+		if l.maxConcurrency != int64(o.MaxConcurrency) || l.maxQueueSize != int64(o.MaxQueueSize) {
 			t.Errorf("Failed to overwrite calculated settings: %d != %d || %d != %d", l.maxConcurrency, o.MaxConcurrency, l.maxQueueSize, o.MaxQueueSize)
 		}
 	})
@@ -703,11 +703,11 @@ func TestOptions(t *testing.T) {
 		defer got.Close()
 		l := got.(*listener)
 
-		if o.MaxConcurrency != 0 && l.maxConcurrency == o.MaxConcurrency {
+		if o.MaxConcurrency != 0 && l.maxConcurrency == int64(o.MaxConcurrency) {
 			t.Errorf("Failed to use calculate maxConcurrency settings: %d == %d", l.maxConcurrency, o.MaxConcurrency)
 		}
-		if l.maxConcurrency != o.MemoryLimitBytes/o.ConnectionBytes {
-			t.Errorf("Calculated is not: %d != %d", l.maxConcurrency, o.MemoryLimitBytes/o.ConnectionBytes)
+		if l.maxConcurrency != o.MemoryLimitBytes/int64(o.ConnectionBytes) {
+			t.Errorf("Calculated is not: %d != %d", l.maxConcurrency, o.MemoryLimitBytes/int64(o.ConnectionBytes))
 		}
 	})
 	t.Run("when max queue size is not set, it is calculated from max concurrency", func(t *testing.T) {
@@ -722,13 +722,13 @@ func TestOptions(t *testing.T) {
 		defer got.Close()
 		l := got.(*listener)
 
-		if o.MaxQueueSize != 0 && l.maxQueueSize == o.MaxQueueSize {
+		if o.MaxQueueSize != 0 && l.maxQueueSize == int64(o.MaxQueueSize) {
 			t.Errorf("Failed to use calculated maxQueueSize setting: %d == %d", l.maxConcurrency, o.MaxConcurrency)
 		}
 		if l.maxQueueSize == 0 || l.maxQueueSize > maxCalculatedQueueSize {
 			t.Errorf("Calculated maxQueueSize not in bounds: %d", l.maxQueueSize)
 		}
-		if l.maxQueueSize != 10*o.MaxConcurrency {
+		if l.maxQueueSize != 10*int64(o.MaxConcurrency) {
 			t.Errorf("Calculated maxQueueSize is wrong: %d != %d", l.maxQueueSize, 10*o.MaxConcurrency)
 		}
 	})
@@ -1094,7 +1094,7 @@ func TestMonitoring(t *testing.T) {
 func TestListen(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
-		memoryLimit      int
+		memoryLimit      int64
 		bytesPerRequest  int
 		network, address string
 		wantErr          bool
@@ -1184,7 +1184,7 @@ func TestListen(t *testing.T) {
 func TestQueue1(t *testing.T) {
 	for _, tt := range []struct {
 		name            string
-		memoryLimit     int
+		memoryLimit     int64
 		bytesPerRequest int
 		allow           int
 	}{
