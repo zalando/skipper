@@ -103,7 +103,7 @@ func (d *dropCookie) Name() string {
 	return "unknown"
 }
 
-func (*dropCookie) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (d *dropCookie) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -114,6 +114,7 @@ func (*dropCookie) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	return &dropCookie{
+		typ:  d.typ,
 		name: s,
 	}, nil
 }
