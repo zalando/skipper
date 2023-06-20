@@ -19,7 +19,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	result, stopeval, err := envoyauth.NewEvalResult()
 	span := opentracing.SpanFromContext(ctx)
 	if span != nil {
-		span.SetTag("decision_id", result.DecisionID)
+		span.SetTag("opa.decision_id", result.DecisionID)
 	}
 
 	if err != nil {
