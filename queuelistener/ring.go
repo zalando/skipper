@@ -8,7 +8,7 @@ type ring struct {
 	size        int
 }
 
-func newRing(maxSize int) *ring {
+func newRing(maxSize int64) *ring {
 	return &ring{connections: make([]net.Conn, maxSize)}
 }
 
