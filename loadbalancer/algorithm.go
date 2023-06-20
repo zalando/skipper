@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -143,17 +144,16 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, notFadingIndexes []int, 
 }
 
 type roundRobin struct {
-	mx               sync.Mutex
-	index            int
+	index            int64
 	rnd              *rand.Rand
 	notFadingIndexes []int
 	fadingWeights    []float64
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
+	rnd := rand.New(newLockedSource()) // #nosec
 	return &roundRobin{
-		index: rnd.Intn(len(endpoints)),
+		index: int64(rnd.Intn(len(endpoints))),
 		rnd:   rnd,
 
 		// preallocating frequently used slice
@@ -168,15 +168,13 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[0]
 	}
 
-	r.mx.Lock()
-	defer r.mx.Unlock()
-	r.index = (r.index + 1) % len(ctx.Route.LBEndpoints)
+	index := int(atomic.AddInt64(&r.index, 1) % int64(len(ctx.Route.LBEndpoints)))
 
 	if ctx.Route.LBFadeInDuration <= 0 {
-		return ctx.Route.LBEndpoints[r.index]
+		return ctx.Route.LBEndpoints[index]
 	}
 
-	return withFadeIn(r.rnd, ctx, r.notFadingIndexes, r.index, r)
+	return withFadeIn(r.rnd, ctx, r.notFadingIndexes, index, r)
 }
 
 type random struct {
@@ -186,10 +184,9 @@ type random struct {
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
-	t := time.Now().UnixNano()
 	// #nosec
 	return &random{
-		rand: rand.New(rand.NewSource(t)),
+		rand: rand.New(newLockedSource()),
 
 		// preallocating frequently used slice
 		notFadingIndexes: make([]int, 0, len(endpoints)),
@@ -230,7 +227,7 @@ func (ch *consistentHash) Swap(i, j int) {
 }
 
 func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
+	rnd := rand.New(newLockedSource()) // #nosec
 	ch := &consistentHash{
 		hashRing:         make([]endpointHash, hashesPerEndpoint*len(endpoints)),
 		rand:             rnd,
@@ -357,7 +354,7 @@ type powerOfRandomNChoices struct {
 
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
+	rnd := rand.New(newLockedSource()) // #nosec
 	return &powerOfRandomNChoices{
 		rand:            rnd,
 		numberOfChoices: powerOfRandomNChoicesDefaultN,
