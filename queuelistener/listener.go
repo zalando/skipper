@@ -58,7 +58,7 @@ type Options struct {
 	// 150MB.
 	//
 	// When MaxConcurrency is set, this field is ignored.
-	MemoryLimitBytes int
+	MemoryLimitBytes int64
 
 	// ConnectionBytes is used to calculate the MaxConcurrency when MaxConcurrency is
 	// not set explicitly but calculated from MemoryLimitBytes.
@@ -80,8 +80,8 @@ type Options struct {
 
 type listener struct {
 	options           Options
-	maxConcurrency    int
-	maxQueueSize      int
+	maxConcurrency    int64
+	maxQueueSize      int64
 	externalListener  net.Listener
 	acceptExternal    chan *external
 	externalError     chan error
@@ -111,12 +111,12 @@ func (c *connection) Close() error {
 	return c.closeErr
 }
 
-func (o Options) maxConcurrency() int {
+func (o Options) maxConcurrency() int64 {
 	if o.MaxConcurrency > 0 {
-		return o.MaxConcurrency
+		return int64(o.MaxConcurrency)
 	}
 
-	maxConcurrency := o.MemoryLimitBytes / o.ConnectionBytes
+	maxConcurrency := o.MemoryLimitBytes / int64(o.ConnectionBytes)
 
 	// theoretical minimum, but rather only for testing. When the max concurrency is not set, then the
 	// TCP-LIFO should not be used, at all.
@@ -127,9 +127,9 @@ func (o Options) maxConcurrency() int {
 	return maxConcurrency
 }
 
-func (o Options) maxQueueSize() int {
+func (o Options) maxQueueSize() int64 {
 	if o.MaxQueueSize > 0 {
-		return o.MaxQueueSize
+		return int64(o.MaxQueueSize)
 	}
 
 	maxQueueSize := 10 * o.maxConcurrency()
@@ -275,7 +275,7 @@ func (l *listener) listenExternal() {
 
 func (l *listener) listenInternal() {
 	var (
-		concurrency    int
+		concurrency    int64
 		queue          *ring
 		err            error
 		acceptInternal chan<- *connection

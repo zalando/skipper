@@ -1141,7 +1141,7 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 		return net.Listen("tcp", address)
 	}
 
-	var memoryLimit int
+	var memoryLimit int64
 	if o.MaxTCPListenerConcurrency <= 0 {
 		// cgroup v1: https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
 		// cgroup v2: https://www.kernel.org/doc/Documentation/cgroup-v2.txt
@@ -1160,14 +1160,14 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 		}
 		if err == nil {
 			memoryLimitString := strings.TrimSpace(string(memoryLimitBytes))
-			memoryLimit, err = strconv.Atoi(memoryLimitString)
+			memoryLimit, err = strconv.ParseInt(memoryLimitString, 10, 64)
 			if err != nil {
 				log.Errorf("Failed to convert memory limits, fallback to defaults: %v", err)
 			}
 
-			// 1GB, temporarily, as a tested magic number until a better mechanism is in place:
-			if memoryLimit > 1<<30 {
-				memoryLimit = 1 << 30
+			// 4GB, temporarily, as a tested magic number until a better mechanism is in place:
+			if memoryLimit > 1<<32 {
+				memoryLimit = 1 << 32
 			}
 		}
 	}
