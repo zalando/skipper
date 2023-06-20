@@ -305,12 +305,12 @@ func (opa *OpenPolicyAgentInstance) EnvoyPluginConfig() envoy.PluginConfig {
 }
 
 func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracing.Tracer, parent opentracing.Span, ctx context.Context) (opentracing.Span, context.Context) {
-	span := tr.StartSpan("open-policy-agent", opentracing.ChildOf(parent.Context()))
+	span := tr.StartSpan("openpolicyagent", opentracing.ChildOf(parent.Context()))
 
-	span.SetTag("bundle_name", opa.bundleName)
+	span.SetTag("opa.bundle_name", opa.bundleName)
 
 	for label, value := range opa.manager.Labels() {
-		span.SetTag("label."+label, value)
+		span.SetTag("opa.label."+label, value)
 	}
 
 	return span, opentracing.ContextWithSpan(ctx, span)

@@ -22,7 +22,7 @@ func (opa *OpenPolicyAgentInstance) RejectInvalidDecisionError(fc filters.Filter
 	if result != nil {
 		span.LogKV(
 			"event", "error",
-			"decision_id", result.DecisionID,
+			"opa.decision_id", result.DecisionID,
 			"message", err.Error(),
 		)
 
