@@ -1,0 +1,4 @@
+# All fixtures symlink to this common kube yaml configuration
+# It uses special file extension to avoid being picked up by the test runner
+
+backend-traffic-algorithm: traffic-segment-predicate

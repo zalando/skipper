@@ -17,5 +17,6 @@ func TestIngressV1Fixtures(t *testing.T) {
 		"testdata/ingressV1/external-name",
 		"testdata/ingressV1/tls",
 		"testdata/ingressV1/traffic",
+		"testdata/ingressV1/traffic-segment",
 	)
 }
