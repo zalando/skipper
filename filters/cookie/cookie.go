@@ -86,6 +86,7 @@ func NewDropRequestCookie() filters.Spec {
 		typ: request,
 	}
 }
+
 func NewDropResponseCookie() filters.Spec {
 	return &dropCookie{
 		typ: response,
