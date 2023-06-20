@@ -1710,6 +1710,20 @@ Example:
 dropRequestCookie("test-session")
 ```
 
+### dropResponseCookie
+
+Deletes given cookie from the response header.
+
+Parameters:
+
+* cookie name (string)
+
+Example:
+
+```
+dropResponseCookie("test-session")
+```
+
 ### requestCookie
 
 Append a cookie to the request header.
