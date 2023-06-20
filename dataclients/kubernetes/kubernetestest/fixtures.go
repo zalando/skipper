@@ -233,7 +233,13 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.ServicesLabelSelectors = kop.ServicesLabels
 		o.EndpointsLabelSelectors = kop.EndpointsLabels
 		o.ForceKubernetesService = kop.ForceKubernetesService
-		o.BackendTrafficAlgorithm = kop.BackendTrafficAlgorithm
+
+		if kop.BackendTrafficAlgorithm != "" {
+			o.BackendTrafficAlgorithm, err = kubernetes.ParseBackendTrafficAlgorithm(kop.BackendTrafficAlgorithm)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 
 		aen, err := compileRegexps(kop.AllowedExternalNames)
 		if err != nil {
