@@ -235,42 +235,6 @@ func TestToOptions(t *testing.T) {
 	}
 }
 
-func TestToRouteSrvOptions(t *testing.T) {
-	c := defaultConfigWithoutNil()
-
-	// config
-	c.WhitelistedHealthCheckCIDR = "127.0.0.0/8,10.0.0.0/8"
-	c.CloneRoute = routeChangerConfig{}
-	if err := c.CloneRoute.Set("/foo/bar/"); err != nil {
-		t.Fatalf("Failed to set: %v", err)
-	}
-	c.EditRoute = routeChangerConfig{}
-	if err := c.EditRoute.Set("/foo/bar/"); err != nil {
-		t.Fatalf("Failed to set: %v", err)
-	}
-
-	if err := validate(c); err != nil {
-		t.Fatalf("Failed to validate config: %v", err)
-	}
-
-	opt := c.ToRouteSrvOptions()
-
-	// validate
-	if opt.Address != "localhost:8080" {
-		t.Errorf("Failed to get options Address: %v", opt.Address)
-	}
-	if len(opt.WhitelistedHealthCheckCIDR) != 2 {
-		t.Errorf("Failed to get WhitelistedHealthCheckCIDR: %v", opt.WhitelistedHealthCheckCIDR)
-	}
-	if len(opt.CloneRoute) != 1 {
-		t.Errorf("Failed to get expected clone route: %s", c.CloneRoute)
-	}
-	if len(opt.EditRoute) != 1 {
-		t.Errorf("Failed to get expected edit route: %s", c.EditRoute)
-	}
-
-}
-
 func Test_Validate(t *testing.T) {
 	for _, tt := range []struct {
 		name    string

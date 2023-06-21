@@ -216,7 +216,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	lb := stdlibhttptest.NewServer(pr)
 	defer lb.Close()
 
-	rsvo := routesrv.Options{
+	rsvo := skipper.Options{
 		Address:                         ":8082",
 		KubernetesURL:                   lb.URL,
 		KubernetesRedisServiceNamespace: "skipper",

@@ -891,6 +891,39 @@ type Options struct {
 	LuaSources []string
 }
 
+func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
+	return kubernetes.Options{
+		AllowedExternalNames:              o.KubernetesAllowedExternalNames,
+		BackendNameTracingTag:             o.OpenTracingBackendNameTag,
+		DefaultFiltersDir:                 o.DefaultFiltersDir,
+		KubernetesInCluster:               o.KubernetesInCluster,
+		KubernetesURL:                     o.KubernetesURL,
+		KubernetesNamespace:               o.KubernetesNamespace,
+		KubernetesEnableEastWest:          o.KubernetesEnableEastWest,
+		KubernetesEastWestDomain:          o.KubernetesEastWestDomain,
+		KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
+		KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
+		HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
+		IngressClass:                      o.KubernetesIngressClass,
+		IngressLabelSelectors:             o.KubernetesIngressLabelSelectors,
+		ServicesLabelSelectors:            o.KubernetesServicesLabelSelectors,
+		EndpointsLabelSelectors:           o.KubernetesEndpointsLabelSelectors,
+		SecretsLabelSelectors:             o.KubernetesSecretsLabelSelectors,
+		RouteGroupsLabelSelectors:         o.KubernetesRouteGroupsLabelSelectors,
+		OnlyAllowedExternalNames:          o.KubernetesOnlyAllowedExternalNames,
+		OriginMarker:                      o.EnableRouteCreationMetrics,
+		PathMode:                          o.KubernetesPathMode,
+		ProvideHealthcheck:                o.KubernetesHealthcheck,
+		ProvideHTTPSRedirect:              o.KubernetesHTTPSRedirect,
+		ReverseSourcePredicate:            o.ReverseSourcePredicate,
+		RouteGroupClass:                   o.KubernetesRouteGroupClass,
+		WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
+		ForceKubernetesService:            o.KubernetesForceService,
+		BackendTrafficAlgorithm:           o.KubernetesBackendTrafficAlgorithm,
+		DefaultLoadBalancerAlgorithm:      o.KubernetesDefaultLoadBalancerAlgorithm,
+	}
+}
+
 type serverErrorLogWriter struct{}
 
 func (*serverErrorLogWriter) Write(p []byte) (int, error) {
@@ -974,37 +1007,10 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	}
 
 	if o.Kubernetes {
-		kubernetesClient, err := kubernetes.New(kubernetes.Options{
-			AllowedExternalNames:              o.KubernetesAllowedExternalNames,
-			BackendNameTracingTag:             o.OpenTracingBackendNameTag,
-			DefaultFiltersDir:                 o.DefaultFiltersDir,
-			KubernetesInCluster:               o.KubernetesInCluster,
-			KubernetesURL:                     o.KubernetesURL,
-			KubernetesNamespace:               o.KubernetesNamespace,
-			KubernetesEnableEastWest:          o.KubernetesEnableEastWest,
-			KubernetesEastWestDomain:          o.KubernetesEastWestDomain,
-			KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
-			KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
-			DefaultLoadBalancerAlgorithm:      o.KubernetesDefaultLoadBalancerAlgorithm,
-			HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
-			IngressClass:                      o.KubernetesIngressClass,
-			IngressLabelSelectors:             o.KubernetesIngressLabelSelectors,
-			ServicesLabelSelectors:            o.KubernetesServicesLabelSelectors,
-			EndpointsLabelSelectors:           o.KubernetesEndpointsLabelSelectors,
-			SecretsLabelSelectors:             o.KubernetesSecretsLabelSelectors,
-			RouteGroupsLabelSelectors:         o.KubernetesRouteGroupsLabelSelectors,
-			OnlyAllowedExternalNames:          o.KubernetesOnlyAllowedExternalNames,
-			OriginMarker:                      o.EnableRouteCreationMetrics,
-			PathMode:                          o.KubernetesPathMode,
-			ProvideHealthcheck:                o.KubernetesHealthcheck,
-			ProvideHTTPSRedirect:              o.KubernetesHTTPSRedirect,
-			ReverseSourcePredicate:            o.ReverseSourcePredicate,
-			RouteGroupClass:                   o.KubernetesRouteGroupClass,
-			WhitelistedHealthCheckCIDR:        o.WhitelistedHealthCheckCIDR,
-			ForceKubernetesService:            o.KubernetesForceService,
-			BackendTrafficAlgorithm:           o.KubernetesBackendTrafficAlgorithm,
-			CertificateRegistry:               cr,
-		})
+		kops := o.KubernetesDataClientOptions()
+		kops.CertificateRegistry = cr
+
+		kubernetesClient, err := kubernetes.New(kops)
 		if err != nil {
 			return nil, err
 		}
