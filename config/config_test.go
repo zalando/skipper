@@ -105,6 +105,7 @@ func defaultConfig() *Config {
 		KubernetesPathModeString:                "kubernetes-ingress",
 		KubernetesRedisServicePort:              6379,
 		KubernetesBackendTrafficAlgorithmString: "traffic-predicate",
+		KubernetesDefaultLoadBalancerAlgorithm:  "roundRobin",
 		Oauth2TokeninfoTimeout:                  2 * time.Second,
 		Oauth2TokenintrospectionTimeout:         2 * time.Second,
 		Oauth2TokeninfoSubjectKey:               "uid",
