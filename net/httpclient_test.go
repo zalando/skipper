@@ -247,11 +247,16 @@ func TestTransport(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name:        "context deadline error should occur when the request is timedout",
-			bearerToken: string(testToken),
-			req:         httptest.NewRequest("GET", "http://example.com/", nil),
-			wantErr:     true,
-			reqTimeout:  10 * time.Millisecond,
+			name:       "context deadline error should occur when the request is timedout",
+			req:        httptest.NewRequest("GET", "http://example.com/", nil),
+			wantErr:    true,
+			reqTimeout: 10 * time.Millisecond,
+		},
+		{
+			name:       "no context deadline error should occur when the request is processed within the requested timeout",
+			req:        httptest.NewRequest("GET", "http://example.com/", nil),
+			wantErr:    false,
+			reqTimeout: 5 * time.Millisecond,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -260,7 +265,7 @@ func TestTransport(t *testing.T) {
 					t.Errorf("wrong request method got: %s, want: %s", r.Method, tt.req.Method)
 				}
 
-				if tt.reqTimeout != 0 {
+				if tt.reqTimeout != 0 && tt.wantErr {
 					time.Sleep(tt.reqTimeout + 10*time.Millisecond)
 				}
 
