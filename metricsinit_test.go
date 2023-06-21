@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -42,26 +40,23 @@ func TestInitOrderAndDefault(t *testing.T) {
 	port := mustAvailablePort(t)
 	supportPort := mustAvailablePort(t)
 	redisPort := mustAvailablePort(t)
-	sig := make(chan os.Signal, 1)
-	done := make(chan struct{})
-	go func() {
-		options := Options{
-			Address:              fmt.Sprintf(":%d", port),
-			SupportListener:      fmt.Sprintf(":%d", supportPort),
-			EnableRuntimeMetrics: true,
-			EnableSwarm:          true,
-			SwarmRedisURLs:       []string{fmt.Sprintf("localhost:%d", redisPort)},
-			EnableRatelimiters:   true,
-			testOptions:          testOptions{redisConnMetricsInterval: ringMetricsUpdatePeriod},
-		}
 
-		tornDown := make(chan struct{})
-		if err := run(options, sig, tornDown); err != nil {
+	options := Options{
+		Address:                       fmt.Sprintf(":%d", port),
+		SupportListener:               fmt.Sprintf(":%d", supportPort),
+		EnableRuntimeMetrics:          true,
+		EnableSwarm:                   true,
+		SwarmRedisURLs:                []string{fmt.Sprintf("localhost:%d", redisPort)},
+		EnableRatelimiters:            true,
+		SwarmRedisConnMetricsInterval: ringMetricsUpdatePeriod,
+		Shutdown:                      make(chan struct{}),
+		ShutdownComplete:              make(chan struct{}),
+	}
+
+	go func() {
+		if err := Run(options); err != nil {
 			t.Error(err)
 		}
-
-		<-tornDown
-		close(done)
 	}()
 
 	to := time.After(testTimeout)
@@ -86,6 +81,6 @@ func TestInitOrderAndDefault(t *testing.T) {
 		}
 	}()
 
-	sig <- syscall.SIGTERM
-	<-done
+	close(options.Shutdown)
+	<-options.ShutdownComplete
 }

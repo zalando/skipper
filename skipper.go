@@ -75,11 +75,6 @@ const (
 
 const DefaultPluginDir = "./plugins"
 
-type testOptions struct {
-	redisConnMetricsInterval time.Duration
-	redisUpdateInterval      time.Duration
-}
-
 // Options to start skipper.
 type Options struct {
 	// WaitForHealthcheckInterval sets the time that skipper waits
@@ -849,16 +844,19 @@ type Options struct {
 	// the cluster ratelimiter
 	EnableSwarm bool
 	// redis based swarm
-	SwarmRedisURLs               []string
-	SwarmRedisPassword           string
-	SwarmRedisHashAlgorithm      string
-	SwarmRedisDialTimeout        time.Duration
-	SwarmRedisReadTimeout        time.Duration
-	SwarmRedisWriteTimeout       time.Duration
-	SwarmRedisPoolTimeout        time.Duration
-	SwarmRedisMinIdleConns       int
-	SwarmRedisMaxIdleConns       int
-	SwarmRedisEndpointsRemoteURL string
+	SwarmRedisURLs                []string
+	SwarmRedisPassword            string
+	SwarmRedisHashAlgorithm       string
+	SwarmRedisDialTimeout         time.Duration
+	SwarmRedisReadTimeout         time.Duration
+	SwarmRedisWriteTimeout        time.Duration
+	SwarmRedisPoolTimeout         time.Duration
+	SwarmRedisMinIdleConns        int
+	SwarmRedisMaxIdleConns        int
+	SwarmRedisEndpointsRemoteURL  string
+	SwarmRedisConnMetricsInterval time.Duration
+	SwarmRedisUpdateInterval      time.Duration
+
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -892,7 +890,12 @@ type Options struct {
 	// filters.
 	LuaSources []string
 
-	testOptions
+	// Shutdown is used to start graceful shutdown of Skipper by closing it.
+	// If not set Skipper will start graceful shutdown after receiving SIGTERM.
+	Shutdown chan struct{}
+
+	// ShutdownComplete is closed when Skipper is done shutting down.
+	ShutdownComplete chan struct{}
 }
 
 type serverErrorLogWriter struct{}
@@ -1196,8 +1199,6 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 func listenAndServeQuit(
 	proxy http.Handler,
 	o *Options,
-	sigs chan os.Signal,
-	idleConnsCH chan struct{},
 	mtr metrics.Metrics,
 	cr *certregistry.CertRegistry,
 ) error {
@@ -1225,20 +1226,19 @@ func listenAndServeQuit(
 		}
 	}
 
-	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
-	// from the tests
-	if idleConnsCH == nil {
-		idleConnsCH = make(chan struct{})
-	}
-
-	if sigs == nil {
-		sigs = make(chan os.Signal, 1)
+	startShutdown, shutdownComplete := o.Shutdown, o.ShutdownComplete
+	if shutdownComplete == nil {
+		shutdownComplete = make(chan struct{})
 	}
 
 	go func() {
-		signal.Notify(sigs, syscall.SIGTERM)
-
-		<-sigs
+		if startShutdown != nil {
+			<-o.Shutdown
+		} else {
+			sigs := make(chan os.Signal, 1)
+			signal.Notify(sigs, syscall.SIGTERM)
+			<-sigs
+		}
 
 		log.Infof("Got shutdown signal, wait %v for health check", o.WaitForHealthcheckInterval)
 		time.Sleep(o.WaitForHealthcheckInterval)
@@ -1247,7 +1247,7 @@ func listenAndServeQuit(
 		if err := srv.Shutdown(context.Background()); err != nil {
 			log.Errorf("Failed to graceful shutdown: %v", err)
 		}
-		close(idleConnsCH)
+		close(shutdownComplete)
 	}()
 
 	log.Infof("proxy listener on %v", o.Address)
@@ -1285,7 +1285,7 @@ func listenAndServeQuit(
 		}
 	}
 
-	<-idleConnsCH
+	<-shutdownComplete
 	log.Infof("done.")
 	return nil
 }
@@ -1356,7 +1356,8 @@ func updateEndpointsFromURL(address string) func() ([]string, error) {
 	}
 }
 
-func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
+// Run skipper.
+func Run(o Options) error {
 	// init log
 	err := initLog(o)
 	if err != nil {
@@ -1587,8 +1588,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				PoolTimeout:         o.SwarmRedisPoolTimeout,
 				MinIdleConns:        o.SwarmRedisMinIdleConns,
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
-				ConnMetricsInterval: o.redisConnMetricsInterval,
-				UpdateInterval:      o.redisUpdateInterval,
+				ConnMetricsInterval: o.SwarmRedisConnMetricsInterval,
+				UpdateInterval:      o.SwarmRedisUpdateInterval,
 				Tracer:              tracer,
 				Log:                 log.New(),
 			}
@@ -1986,10 +1987,5 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	<-routing.FirstLoad()
 	log.Info("Dataclients are updated once, first load complete")
 
-	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
-}
-
-// Run skipper.
-func Run(o Options) error {
-	return run(o, nil, nil)
+	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, mtr, cr)
 }

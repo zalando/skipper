@@ -10,7 +10,6 @@ import (
 	stdlibhttptest "net/http/httptest"
 	"net/url"
 	"os"
-	"syscall"
 	"testing"
 	"time"
 
@@ -46,7 +45,7 @@ const (
 )
 
 func listenAndServe(proxy http.Handler, o *Options) error {
-	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
+	return listenAndServeQuit(proxy, o, nil, nil)
 }
 
 func testListener() bool {
@@ -324,14 +323,14 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
 
-	sigs := make(chan os.Signal, 1)
+	o.Shutdown = make(chan struct{})
 	go func() {
-		err := listenAndServeQuit(proxy, o, sigs, nil, nil, nil)
+		err := listenAndServeQuit(proxy, o, nil, nil)
 		require.NoError(t, err)
 	}()
 
 	// initiate shutdown
-	sigs <- syscall.SIGTERM
+	close(o.Shutdown)
 
 	time.Sleep(shutdownDelay / 2)
 
@@ -603,13 +602,12 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		SwarmRedisDialTimeout:          100 * time.Millisecond,
 		SuppressRouteUpdateLogs:        false,
 		SupportListener:                ":9091",
-		testOptions: testOptions{
-			redisUpdateInterval: time.Second,
-		},
+		SwarmRedisUpdateInterval:       time.Second,
+		Shutdown:                       make(chan struct{}),
+		ShutdownComplete:               make(chan struct{}),
 	}
 
-	sigs := make(chan os.Signal, 1)
-	go run(o, sigs, nil)
+	go Run(o)
 
 	for i := 0; i < 10; i++ {
 		t.Logf("Waiting for proxy being ready")
@@ -648,7 +646,8 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	t.Logf("Number of limited requests: %d", countLimited)
 	assert.InEpsilon(t, sec*rate-(1*sec), countLimited, epsilon, fmt.Sprintf("Test should have limited requests between %d and %d", countLimited-int(epsilon), countLimited+int(epsilon)))
 
-	sigs <- syscall.SIGTERM
+	close(o.Shutdown)
+	<-o.ShutdownComplete
 }
 
 func TestConcurrentKubernetesClusterStateAccess(t *testing.T) {
@@ -851,13 +850,12 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		SwarmRedisDialTimeout:           100 * time.Millisecond,
 		SuppressRouteUpdateLogs:         false,
 		SupportListener:                 ":9091",
-		testOptions: testOptions{
-			redisUpdateInterval: time.Second,
-		},
+		SwarmRedisUpdateInterval:        time.Second,
+		Shutdown:                        make(chan struct{}),
+		ShutdownComplete:                make(chan struct{}),
 	}
 
-	sigs := make(chan os.Signal, 1)
-	go run(o, sigs, nil)
+	go Run(o)
 
 	for i := 0; i < 10; i++ {
 		t.Logf("Waiting for proxy being ready")
@@ -891,7 +889,8 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		t.Fatalf("count TooMany should be higher than OKs: %d < %d: %v", countLimited, countOK, ok)
 	}
 
-	sigs <- syscall.SIGTERM
+	close(o.Shutdown)
+	<-o.ShutdownComplete
 }
 
 func createApiserver(spec string) (*stdlibhttptest.Server, *url.URL, error) {
@@ -960,7 +959,6 @@ func TestDataClients(t *testing.T) {
 		WaitFirstRouteLoad:              true,
 		SuppressRouteUpdateLogs:         false,
 		MetricsListener:                 ":8091",
-		testOptions:                     testOptions{},
 		RoutesFile:                      filePath,
 		InlineRoutes:                    `healthz: Path("/healthz") -> status(200) -> inlineContent("OK") -> <shunt>;`,
 		ApplicationLogOutput:            fdApp.Name(),
@@ -980,6 +978,8 @@ func TestDataClients(t *testing.T) {
 		EnableBreakers:                  true,
 		DebugListener:                   ":8092",
 		StatusChecks:                    []string{"http://127.0.0.1:8091/metrics", "http://127.0.0.1:8092"},
+		Shutdown:                        make(chan struct{}),
+		ShutdownComplete:                make(chan struct{}),
 	}
 
 	dcs, err := createDataClients(o, nil)
@@ -1023,8 +1023,7 @@ func TestDataClients(t *testing.T) {
 	lb := stdlibhttptest.NewServer(pr)
 	defer lb.Close()
 
-	sigs := make(chan os.Signal, 1)
-	go run(o, sigs, nil)
+	go Run(o)
 
 	for i := 0; i < 10; i++ {
 		t.Logf("Waiting for proxy being ready")
@@ -1045,5 +1044,6 @@ func TestDataClients(t *testing.T) {
 		t.Fatalf("Failed to GET the status of routes file route: %d", rsp.StatusCode)
 	}
 
-	sigs <- syscall.SIGTERM
+	close(o.Shutdown)
+	<-o.ShutdownComplete
 }
