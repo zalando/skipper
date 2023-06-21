@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
@@ -296,7 +297,7 @@ func New(o Options) (*Client, error) {
 		o.AllowedExternalNames = []*regexp.Regexp{regexp.MustCompile(".*")}
 	}
 
-	if o.DefaultLoadBalancerAlgorithm == "" {
+	if algo, err := loadbalancer.AlgorithmFromString(DefaultLoadBalancerAlgorithm); err != nil || algo == loadbalancer.None {
 		o.DefaultLoadBalancerAlgorithm = DefaultLoadBalancerAlgorithm
 	}
 
