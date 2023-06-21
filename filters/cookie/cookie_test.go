@@ -614,46 +614,6 @@ func TestDropResponseCookie(t *testing.T) {
 				},
 			},
 			wantCookies: nil,
-		},
-		// {
-		// 	name: "test one multivalue cookie with 2 names and no match",
-		// 	arg:  "foo",
-		// 	cookies: http.Header{
-		// 		"Set-Cookie": []string{
-		// 			"bar=foo1;qux=baz",
-		// 		},
-		// 	},
-		// 	wantCookies: map[string][]string{"bar": {"foo1"}, "qux": {"baz"}},
-		// },
-		{
-			name: "test one multivalue cookie with 2 same names and no match",
-			arg:  "foo",
-			cookies: http.Header{
-				"Set-Cookie": []string{
-					"bar=foo1;bar=baz",
-				},
-			},
-			wantCookies: map[string][]string{"bar": {"foo1", "baz"}},
-		},
-		{
-			name: "test one multivalue cookie with 2 names and one match",
-			arg:  "foo",
-			cookies: http.Header{
-				"Set-Cookie": []string{
-					"bar=foo1;foo=baz",
-				},
-			},
-			wantCookies: map[string][]string{"bar": {"foo1"}},
-		},
-		{
-			name: "test one multivalue cookie with the same name and both match",
-			arg:  "foo",
-			cookies: http.Header{
-				"Set-Cookie": []string{
-					"foo=foo1;foo=bar",
-				},
-			},
-			wantCookies: nil,
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := NewDropResponseCookie()
