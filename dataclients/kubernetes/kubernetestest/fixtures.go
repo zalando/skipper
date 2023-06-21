@@ -253,7 +253,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 	}
 
 	if o.DefaultLoadBalancerAlgorithm == "" {
-		o.DefaultLoadBalancerAlgorithm = "roundRobin"
+		o.DefaultLoadBalancerAlgorithm = kubernetes.DefaultLoadBalancerAlgorithm
 	}
 
 	o.KubernetesURL = s.URL

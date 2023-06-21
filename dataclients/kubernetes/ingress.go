@@ -86,8 +86,8 @@ func newIngress(o Options) *ingress {
 	}
 }
 
-func getLoadBalancerAlgorithm(m *definitions.Metadata, defaultLoadBalancerAlgorithm string) string {
-	algorithm := defaultLoadBalancerAlgorithm
+func getLoadBalancerAlgorithm(m *definitions.Metadata, defaultAlgorithm string) string {
+	algorithm := defaultAlgorithm
 	if algorithmAnnotationValue, ok := m.Annotations[skipperLoadBalancerAnnotationKey]; ok {
 		algorithm = algorithmAnnotationValue
 	}

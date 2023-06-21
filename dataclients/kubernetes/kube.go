@@ -18,12 +18,13 @@ import (
 )
 
 const (
-	defaultIngressClass    = "skipper"
-	defaultRouteGroupClass = "skipper"
-	serviceHostEnvVar      = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar      = "KUBERNETES_SERVICE_PORT"
-	httpRedirectRouteID    = "kube__redirect"
-	defaultEastWestDomain  = "skipper.cluster.local"
+	defaultIngressClass          = "skipper"
+	defaultRouteGroupClass       = "skipper"
+	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
+	httpRedirectRouteID          = "kube__redirect"
+	DefaultLoadBalancerAlgorithm = "roundRobin"
+	defaultEastWestDomain        = "skipper.cluster.local"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -293,6 +294,10 @@ func New(o Options) (*Client, error) {
 
 	if !o.OnlyAllowedExternalNames {
 		o.AllowedExternalNames = []*regexp.Regexp{regexp.MustCompile(".*")}
+	}
+
+	if o.DefaultLoadBalancerAlgorithm == "" {
+		o.DefaultLoadBalancerAlgorithm = DefaultLoadBalancerAlgorithm
 	}
 
 	ing := newIngress(o)

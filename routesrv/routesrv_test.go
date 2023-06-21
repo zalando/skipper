@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -71,7 +72,7 @@ func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteSe
 	return newRouteServerWithOptions(t, routesrv.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          kubeServer.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 	})
 }
 
@@ -226,7 +227,7 @@ func TestRedisIPs(t *testing.T) {
 		KubernetesURL:                          ks.URL,
 		KubernetesRedisServiceNamespace:        "namespace1",
 		KubernetesRedisServiceName:             "service1",
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 	})
 
 	w := getRedisURLs(rs)
@@ -245,7 +246,7 @@ func TestFetchedIngressRoutesAreServedInEskipFormat(t *testing.T) {
 	rs := newRouteServerWithOptions(t, routesrv.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 	})
 
 	rs.StartUpdates()
@@ -323,7 +324,7 @@ func TestRoutesWithDefaultFilters(t *testing.T) {
 	rs := newRouteServerWithOptions(t, routesrv.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: []*eskip.Filter{
 				{
@@ -365,7 +366,7 @@ func TestRoutesWithOAuth2Callback(t *testing.T) {
 	rs := newRouteServerWithOptions(t, routesrv.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 		EnableOAuth2GrantFlow:                  true,
 		OAuth2CallbackPath:                     "/.well-known/oauth2-callback",
 	})
@@ -395,7 +396,7 @@ func TestRoutesWithEastWest(t *testing.T) {
 	rs := newRouteServerWithOptions(t, routesrv.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 		KubernetesEastWestRangeDomains:         []string{"ingress.cluster.local"},
 		KubernetesEastWestRangePredicates: []*eskip.Predicate{
 			{
@@ -541,7 +542,7 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 	rs := newRouteServerWithOptions(t, routesrv.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 	})
 
 	rs.StartUpdates()
@@ -572,7 +573,7 @@ func TestRoutesWithEditRoute(t *testing.T) {
 	rs := newRouteServerWithOptions(t, routesrv.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 		EditRoute: []*eskip.Editor{
 			eskip.NewEditor(regexp.MustCompile("Host[(](.*)[)]"), "HostAny($1)"),
 		},
@@ -603,7 +604,7 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 	rs := newRouteServerWithOptions(t, routesrv.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
 		CloneRoute: []*eskip.Clone{
 			eskip.NewClone(regexp.MustCompile("Host"), "HostAny"),
 		},
