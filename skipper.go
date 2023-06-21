@@ -1614,14 +1614,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			if o.SwarmStaticSelf != "" {
 				self, err := swarm.NewStaticNodeInfo(o.SwarmStaticSelf, o.SwarmStaticSelf)
 				if err != nil {
-					log.Fatalf("Failed to get static NodeInfo: %v", err)
+					return fmt.Errorf("failed to get static NodeInfo: %w", err)
 				}
 				other := []*swarm.NodeInfo{self}
 
 				for _, addr := range strings.Split(o.SwarmStaticOther, ",") {
 					ni, err := swarm.NewStaticNodeInfo(addr, addr)
 					if err != nil {
-						log.Fatalf("Failed to get static NodeInfo: %v", err)
+						return fmt.Errorf("failed to get static NodeInfo: %w", err)
 					}
 					other = append(other, ni)
 				}
@@ -1631,7 +1631,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			theSwarm, err := swarm.NewSwarm(swops)
 			if err != nil {
-				log.Errorf("failed to init swarm with options %+v: %v", swops, err)
+				return fmt.Errorf("failed to init swarm with options %+v: %w", swops, err)
 			}
 			defer theSwarm.Leave()
 			swarmer = theSwarm

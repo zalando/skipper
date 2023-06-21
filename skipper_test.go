@@ -611,8 +611,9 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	sigs := make(chan os.Signal, 1)
 	go run(o, sigs, nil)
 
-	// wait for proxy being ready
-	for {
+	for i := 0; i < 10; i++ {
+		t.Logf("Waiting for proxy being ready")
+
 		rsp, _ := http.DefaultClient.Get("http://localhost:9090/kube-system/healthz")
 		if rsp != nil && rsp.StatusCode == 200 {
 			break
@@ -858,8 +859,9 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	sigs := make(chan os.Signal, 1)
 	go run(o, sigs, nil)
 
-	// wait for proxy being ready
-	for {
+	for i := 0; i < 10; i++ {
+		t.Logf("Waiting for proxy being ready")
+
 		rsp, _ := http.DefaultClient.Get("http://localhost:9090/kube-system/healthz")
 		if rsp != nil && rsp.StatusCode == 200 {
 			break
@@ -973,8 +975,6 @@ func TestDataClients(t *testing.T) {
 		LoadBalancerHealthCheckInterval: 3 * time.Second,
 		OAuthTokeninfoURL:               "http://127.0.0.1:12345",
 		CredentialsPaths:                []string{"/does-not-exist"},
-		EnableSwarm:                     true,
-		SwarmPort:                       9001,
 		CompressEncodings:               []string{"gzip"},
 		IgnoreTrailingSlash:             true,
 		EnableBreakers:                  true,
@@ -1026,8 +1026,9 @@ func TestDataClients(t *testing.T) {
 	sigs := make(chan os.Signal, 1)
 	go run(o, sigs, nil)
 
-	// wait for proxy being ready
-	for {
+	for i := 0; i < 10; i++ {
+		t.Logf("Waiting for proxy being ready")
+
 		rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
 		if rsp != nil && rsp.StatusCode == 200 {
 			break
@@ -1039,8 +1040,10 @@ func TestDataClients(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to GET routes file route: %v", err)
 	}
+
 	if rsp.StatusCode != routesFileStatus {
 		t.Fatalf("Failed to GET the status of routes file route: %d", rsp.StatusCode)
 	}
 
+	sigs <- syscall.SIGTERM
 }
