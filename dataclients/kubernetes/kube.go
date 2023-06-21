@@ -297,7 +297,7 @@ func New(o Options) (*Client, error) {
 		o.AllowedExternalNames = []*regexp.Regexp{regexp.MustCompile(".*")}
 	}
 
-	if algo, err := loadbalancer.AlgorithmFromString(DefaultLoadBalancerAlgorithm); err != nil || algo == loadbalancer.None {
+	if algo, err := loadbalancer.AlgorithmFromString(o.DefaultLoadBalancerAlgorithm); err != nil || algo == loadbalancer.None {
 		o.DefaultLoadBalancerAlgorithm = DefaultLoadBalancerAlgorithm
 	}
 
