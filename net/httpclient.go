@@ -1,6 +1,7 @@
 package net
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -212,13 +213,14 @@ type Options struct {
 // Transport wraps an http.Transport and adds support for tracing and
 // bearerToken injection.
 type Transport struct {
-	once          sync.Once
-	quit          chan struct{}
-	tr            *http.Transport
-	tracer        opentracing.Tracer
-	spanName      string
-	componentName string
-	bearerToken   string
+	once           sync.Once
+	quit           chan struct{}
+	tr             *http.Transport
+	tracer         opentracing.Tracer
+	spanName       string
+	componentName  string
+	bearerToken    string
+	requestTimeout time.Duration
 }
 
 // NewTransport creates a wrapped http.Transport, with regular DNS
@@ -332,6 +334,12 @@ func WithBearerToken(t *Transport, bearerToken string) *Transport {
 	return tt
 }
 
+func WithRequestTimeout(t *Transport, timeout time.Duration) *Transport {
+	tt := t.shallowCopy()
+	tt.requestTimeout = timeout
+	return tt
+}
+
 func (t *Transport) shallowCopy() *Transport {
 	return &Transport{
 		once:          sync.Once{},
@@ -367,6 +375,11 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	if t.bearerToken != "" {
 		req.Header.Set("Authorization", "Bearer "+t.bearerToken)
+	}
+	if t.requestTimeout != 0 {
+		reqWithTimeoutCtx, cancelReqContext := context.WithTimeout(req.Context(), t.requestTimeout)
+		req = req.WithContext(reqWithTimeoutCtx)
+		defer cancelReqContext()
 	}
 	rsp, err := t.tr.RoundTrip(req)
 	if span != nil {

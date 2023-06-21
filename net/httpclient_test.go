@@ -214,6 +214,7 @@ func TestTransport(t *testing.T) {
 		bearerToken string
 		req         *http.Request
 		wantErr     bool
+		reqTimeout  time.Duration
 	}{
 		{
 			name:    "All defaults, with request should have a response",
@@ -245,11 +246,22 @@ func TestTransport(t *testing.T) {
 			req:         httptest.NewRequest("GET", "http://example.com/", nil),
 			wantErr:     false,
 		},
+		{
+			name:        "context deadline error should occur when the request is timedout",
+			bearerToken: string(testToken),
+			req:         httptest.NewRequest("GET", "http://example.com/", nil),
+			wantErr:     true,
+			reqTimeout:  10 * time.Millisecond,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := startTestServer(func(r *http.Request) {
 				if r.Method != tt.req.Method {
 					t.Errorf("wrong request method got: %s, want: %s", r.Method, tt.req.Method)
+				}
+
+				if tt.reqTimeout != 0 {
+					time.Sleep(tt.reqTimeout + 10*time.Millisecond)
 				}
 
 				if tt.wantErr {
@@ -285,6 +297,10 @@ func TestTransport(t *testing.T) {
 
 			if tt.req != nil {
 				tt.req.URL.Host = s.Listener.Addr().String()
+			}
+
+			if tt.reqTimeout != 0 {
+				rt = WithRequestTimeout(rt, tt.reqTimeout)
 			}
 			_, err := rt.RoundTrip(tt.req)
 			if (err != nil) != tt.wantErr {
