@@ -69,8 +69,9 @@ func loadKubeYAML(t *testing.T, path string) io.Reader {
 
 func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteServer {
 	return newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout: pollInterval,
-		KubernetesURL:     kubeServer.URL,
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          kubeServer.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
 	})
 }
 
@@ -221,10 +222,11 @@ func TestRedisIPs(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:               pollInterval,
-		KubernetesURL:                   ks.URL,
-		KubernetesRedisServiceNamespace: "namespace1",
-		KubernetesRedisServiceName:      "service1",
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesRedisServiceNamespace:        "namespace1",
+		KubernetesRedisServiceName:             "service1",
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
 	})
 
 	w := getRedisURLs(rs)
@@ -241,8 +243,9 @@ func TestFetchedIngressRoutesAreServedInEskipFormat(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout: pollInterval,
-		KubernetesURL:     ks.URL,
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
 	})
 
 	rs.StartUpdates()
@@ -318,8 +321,9 @@ func TestRoutesWithDefaultFilters(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout: pollInterval,
-		KubernetesURL:     ks.URL,
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: []*eskip.Filter{
 				{
@@ -359,10 +363,11 @@ func TestRoutesWithOAuth2Callback(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:     pollInterval,
-		KubernetesURL:         ks.URL,
-		EnableOAuth2GrantFlow: true,
-		OAuth2CallbackPath:    "/.well-known/oauth2-callback",
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		EnableOAuth2GrantFlow:                  true,
+		OAuth2CallbackPath:                     "/.well-known/oauth2-callback",
 	})
 
 	rs.StartUpdates()
@@ -388,9 +393,10 @@ func TestRoutesWithEastWest(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:              pollInterval,
-		KubernetesURL:                  ks.URL,
-		KubernetesEastWestRangeDomains: []string{"ingress.cluster.local"},
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
+		KubernetesEastWestRangeDomains:         []string{"ingress.cluster.local"},
 		KubernetesEastWestRangePredicates: []*eskip.Predicate{
 			{
 				Name: "ClientIP",
@@ -533,8 +539,9 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout: pollInterval,
-		KubernetesURL:     ks.URL,
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
 	})
 
 	rs.StartUpdates()
@@ -563,8 +570,9 @@ func TestRoutesWithEditRoute(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout: pollInterval,
-		KubernetesURL:     ks.URL,
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
 		EditRoute: []*eskip.Editor{
 			eskip.NewEditor(regexp.MustCompile("Host[(](.*)[)]"), "HostAny($1)"),
 		},
@@ -593,8 +601,9 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout: pollInterval,
-		KubernetesURL:     ks.URL,
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "roundRobin",
 		CloneRoute: []*eskip.Clone{
 			eskip.NewClone(regexp.MustCompile("Host"), "HostAny"),
 		},
@@ -607,6 +616,34 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 	responseRecorder := getRoutes(rs)
 
 	want := parseEskipFixture(t, "testdata/lb-target-multi-with-clone-route.eskip")
+	got, err := eskip.Parse(responseRecorder.Body.String())
+	if err != nil {
+		t.Fatalf("served routes are not valid eskip: %s", responseRecorder.Body)
+	}
+	if !eskip.EqLists(got, want) {
+		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
+	}
+	wantHTTPCode(t, responseRecorder, http.StatusOK)
+}
+
+func TestRoutesWithExplicitLBAlgorithm(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/ing-v1-lb-target-multi-excplicit-lb-algo.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, routesrv.Options{
+		SourcePollTimeout:                      pollInterval,
+		KubernetesURL:                          ks.URL,
+		KubernetesDefaultLoadBalancerAlgorithm: "powerOfRandomNChoices",
+	})
+
+	rs.StartUpdates()
+	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
+		t.Error("routes not initialized")
+	}
+	responseRecorder := getRoutes(rs)
+
+	want := parseEskipFixture(t, "testdata/ing-v1-lb-target-multi-excplicit-lb-algo.eskip")
 	got, err := eskip.Parse(responseRecorder.Body.String())
 	if err != nil {
 		t.Fatalf("served routes are not valid eskip: %s", responseRecorder.Body)

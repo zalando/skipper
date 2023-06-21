@@ -1,0 +1,4 @@
+kube_namespace1__ingress1__test_example_org___test1__service1: Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
+	&& PathSubtree("/test1")
+	-> <powerOfRandomNChoices,"http://42.0.1.2:8080", "http://42.0.1.3:8080">;
+
