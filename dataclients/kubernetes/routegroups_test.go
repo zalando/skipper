@@ -53,3 +53,7 @@ func TestRouteGroupTracingTag(t *testing.T) {
 func TestRouteGroupExternalName(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/external-name")
 }
+
+func TestRouteGroupDefaultLoadBalancerAlgorithm(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/loadbalancer-algorithm")
+}

@@ -18,5 +18,6 @@ func TestIngressV1Fixtures(t *testing.T) {
 		"testdata/ingressV1/tls",
 		"testdata/ingressV1/traffic",
 		"testdata/ingressV1/traffic-segment",
+		"testdata/ingressV1/loadbalancer-algorithm",
 	)
 }

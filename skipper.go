@@ -279,6 +279,9 @@ type Options struct {
 	// KubernetesBackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic
 	KubernetesBackendTrafficAlgorithm kubernetes.BackendTrafficAlgorithm
 
+	// KubernetesDefaultLoadBalancerAlgorithm specifies the default algorithm to calculate the load balancer
+	KubernetesDefaultLoadBalancerAlgorithm string
+
 	// File containing static route definitions. Multiple may be given comma separated.
 	RoutesFile string
 
@@ -986,6 +989,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 			KubernetesEastWestDomain:          o.KubernetesEastWestDomain,
 			KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
 			KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
+			DefaultLoadBalancerAlgorithm:      o.KubernetesDefaultLoadBalancerAlgorithm,
 			HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
 			IngressClass:                      o.KubernetesIngressClass,
 			IngressLabelSelectors:             o.KubernetesIngressLabelSelectors,

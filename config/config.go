@@ -172,6 +172,7 @@ type Config struct {
 	KubernetesRedisServicePort              int                                `yaml:"kubernetes-redis-service-port"`
 	KubernetesBackendTrafficAlgorithmString string                             `yaml:"kubernetes-backend-traffic-algorithm"`
 	KubernetesBackendTrafficAlgorithm       kubernetes.BackendTrafficAlgorithm `yaml:"-"`
+	KubernetesDefaultLoadBalancerAlgorithm  string                             `yaml:"kubernetes-default-lb-algorithm"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -449,6 +450,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.KubernetesRedisServiceName, "kubernetes-redis-service-name", "", "Sets name for redis to be used to lookup endpoints")
 	flag.IntVar(&cfg.KubernetesRedisServicePort, "kubernetes-redis-service-port", 6379, "Sets the port for redis to be used to lookup endpoints")
 	flag.StringVar(&cfg.KubernetesBackendTrafficAlgorithmString, "kubernetes-backend-traffic-algorithm", kubernetes.TrafficPredicateAlgorithm.String(), "sets the algorithm to be used for traffic splitting between backends: traffic-predicate or traffic-segment-predicate")
+	flag.StringVar(&cfg.KubernetesDefaultLoadBalancerAlgorithm, "kubernetes-default-lb-algorithm", "roundRobin", "sets the default loadbalancer algorithm to be used for traffic splitting between backends: roundrobin, random, consistentHash, powerOfRandomNChoices. default: roundRobin")
 
 	// Auth:
 	flag.BoolVar(&cfg.EnableOAuth2GrantFlow, "enable-oauth2-grant-flow", false, "enables OAuth2 Grant Flow filter")
@@ -663,33 +665,34 @@ func (c *Config) ToRouteSrvOptions() routesrv.Options {
 	}
 
 	options := routesrv.Options{
-		Address:                            c.Address,
-		DefaultFiltersDir:                  c.DefaultFiltersDir,
-		DefaultFilters:                     &eskip.DefaultFilters{Prepend: c.PrependFilters.filters, Append: c.AppendFilters.filters},
-		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
-		KubernetesInCluster:                c.KubernetesInCluster,
-		KubernetesURL:                      c.KubernetesURL,
-		KubernetesHealthcheck:              c.KubernetesHealthcheck,
-		KubernetesHTTPSRedirect:            c.KubernetesHTTPSRedirect,
-		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
-		KubernetesIngressClass:             c.KubernetesIngressClass,
-		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
-		KubernetesPathMode:                 c.KubernetesPathMode,
-		KubernetesNamespace:                c.KubernetesNamespace,
-		KubernetesEnableEastWest:           c.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:           c.KubernetesEastWestDomain,
-		KubernetesEastWestRangeDomains:     c.KubernetesEastWestRangeDomains.values,
-		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
-		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
-		KubernetesRedisServiceNamespace:    c.KubernetesRedisServiceNamespace,
-		KubernetesRedisServiceName:         c.KubernetesRedisServiceName,
-		OpenTracingBackendNameTag:          c.OpentracingBackendNameTag,
-		OpenTracing:                        strings.Split(c.OpenTracing, " "),
-		OriginMarker:                       c.RouteCreationMetrics,
-		ReverseSourcePredicate:             c.ReverseSourcePredicate,
-		SourcePollTimeout:                  time.Duration(c.SourcePollTimeout) * time.Millisecond,
-		WaitForHealthcheckInterval:         c.WaitForHealthcheckInterval,
-		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
+		Address:                                c.Address,
+		DefaultFiltersDir:                      c.DefaultFiltersDir,
+		DefaultFilters:                         &eskip.DefaultFilters{Prepend: c.PrependFilters.filters, Append: c.AppendFilters.filters},
+		KubernetesAllowedExternalNames:         c.KubernetesAllowedExternalNames,
+		KubernetesInCluster:                    c.KubernetesInCluster,
+		KubernetesURL:                          c.KubernetesURL,
+		KubernetesHealthcheck:                  c.KubernetesHealthcheck,
+		KubernetesHTTPSRedirect:                c.KubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode:            c.KubernetesHTTPSRedirectCode,
+		KubernetesIngressClass:                 c.KubernetesIngressClass,
+		KubernetesRouteGroupClass:              c.KubernetesRouteGroupClass,
+		KubernetesPathMode:                     c.KubernetesPathMode,
+		KubernetesNamespace:                    c.KubernetesNamespace,
+		KubernetesEnableEastWest:               c.KubernetesEnableEastWest,
+		KubernetesEastWestDomain:               c.KubernetesEastWestDomain,
+		KubernetesEastWestRangeDomains:         c.KubernetesEastWestRangeDomains.values,
+		KubernetesEastWestRangePredicates:      c.KubernetesEastWestRangePredicates,
+		KubernetesOnlyAllowedExternalNames:     c.KubernetesOnlyAllowedExternalNames,
+		KubernetesRedisServiceNamespace:        c.KubernetesRedisServiceNamespace,
+		KubernetesRedisServiceName:             c.KubernetesRedisServiceName,
+		KubernetesDefaultLoadBalancerAlgorithm: c.KubernetesDefaultLoadBalancerAlgorithm,
+		OpenTracingBackendNameTag:              c.OpentracingBackendNameTag,
+		OpenTracing:                            strings.Split(c.OpenTracing, " "),
+		OriginMarker:                           c.RouteCreationMetrics,
+		ReverseSourcePredicate:                 c.ReverseSourcePredicate,
+		SourcePollTimeout:                      time.Duration(c.SourcePollTimeout) * time.Millisecond,
+		WaitForHealthcheckInterval:             c.WaitForHealthcheckInterval,
+		WhitelistedHealthCheckCIDR:             whitelistCIDRS,
 
 		// Auth:
 		EnableOAuth2GrantFlow: c.EnableOAuth2GrantFlow,
@@ -815,27 +818,28 @@ func (c *Config) ToOptions() skipper.Options {
 		WaitFirstRouteLoad: c.WaitFirstRouteLoad,
 
 		// Kubernetes:
-		Kubernetes:                         c.KubernetesIngress,
-		KubernetesInCluster:                c.KubernetesInCluster,
-		KubernetesURL:                      c.KubernetesURL,
-		KubernetesHealthcheck:              c.KubernetesHealthcheck,
-		KubernetesHTTPSRedirect:            c.KubernetesHTTPSRedirect,
-		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
-		KubernetesIngressClass:             c.KubernetesIngressClass,
-		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
-		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
-		KubernetesPathMode:                 c.KubernetesPathMode,
-		KubernetesNamespace:                c.KubernetesNamespace,
-		KubernetesEnableEastWest:           c.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:           c.KubernetesEastWestDomain,
-		KubernetesEastWestRangeDomains:     c.KubernetesEastWestRangeDomains.values,
-		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
-		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
-		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
-		KubernetesRedisServiceNamespace:    c.KubernetesRedisServiceNamespace,
-		KubernetesRedisServiceName:         c.KubernetesRedisServiceName,
-		KubernetesRedisServicePort:         c.KubernetesRedisServicePort,
-		KubernetesBackendTrafficAlgorithm:  c.KubernetesBackendTrafficAlgorithm,
+		Kubernetes:                             c.KubernetesIngress,
+		KubernetesInCluster:                    c.KubernetesInCluster,
+		KubernetesURL:                          c.KubernetesURL,
+		KubernetesHealthcheck:                  c.KubernetesHealthcheck,
+		KubernetesHTTPSRedirect:                c.KubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode:            c.KubernetesHTTPSRedirectCode,
+		KubernetesIngressClass:                 c.KubernetesIngressClass,
+		KubernetesRouteGroupClass:              c.KubernetesRouteGroupClass,
+		WhitelistedHealthCheckCIDR:             whitelistCIDRS,
+		KubernetesPathMode:                     c.KubernetesPathMode,
+		KubernetesNamespace:                    c.KubernetesNamespace,
+		KubernetesEnableEastWest:               c.KubernetesEnableEastWest,
+		KubernetesEastWestDomain:               c.KubernetesEastWestDomain,
+		KubernetesEastWestRangeDomains:         c.KubernetesEastWestRangeDomains.values,
+		KubernetesEastWestRangePredicates:      c.KubernetesEastWestRangePredicates,
+		KubernetesOnlyAllowedExternalNames:     c.KubernetesOnlyAllowedExternalNames,
+		KubernetesAllowedExternalNames:         c.KubernetesAllowedExternalNames,
+		KubernetesRedisServiceNamespace:        c.KubernetesRedisServiceNamespace,
+		KubernetesRedisServiceName:             c.KubernetesRedisServiceName,
+		KubernetesRedisServicePort:             c.KubernetesRedisServicePort,
+		KubernetesBackendTrafficAlgorithm:      c.KubernetesBackendTrafficAlgorithm,
+		KubernetesDefaultLoadBalancerAlgorithm: c.KubernetesDefaultLoadBalancerAlgorithm,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,

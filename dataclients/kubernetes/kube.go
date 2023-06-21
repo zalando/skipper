@@ -18,13 +18,12 @@ import (
 )
 
 const (
-	defaultIngressClass          = "skipper"
-	defaultRouteGroupClass       = "skipper"
-	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
-	httpRedirectRouteID          = "kube__redirect"
-	defaultLoadBalancerAlgorithm = "roundRobin"
-	defaultEastWestDomain        = "skipper.cluster.local"
+	defaultIngressClass    = "skipper"
+	defaultRouteGroupClass = "skipper"
+	serviceHostEnvVar      = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar      = "KUBERNETES_SERVICE_PORT"
+	httpRedirectRouteID    = "kube__redirect"
+	defaultEastWestDomain  = "skipper.cluster.local"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -218,6 +217,9 @@ type Options struct {
 
 	// BackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic.
 	BackendTrafficAlgorithm BackendTrafficAlgorithm
+
+	// DefaultLoadBalancerAlgorithm specifies the default algorithm to calculate the load balancer.
+	DefaultLoadBalancerAlgorithm string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.

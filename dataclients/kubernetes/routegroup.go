@@ -22,23 +22,24 @@ type routeGroups struct {
 }
 
 type routeGroupContext struct {
-	hosts                 []string
-	allowedExternalNames  []*regexp.Regexp
-	hostRx                string
-	eastWestDomain        string
-	routeGroup            *definitions.RouteGroupItem
-	hostRoutes            map[string][]*eskip.Route
-	defaultBackendTraffic map[string]backendTraffic
-	defaultFilters        defaultFilters
-	clusterState          *clusterState
-	httpsRedirectCode     int
-	backendsByName        map[string]*definitions.SkipperBackend
-	eastWestEnabled       bool
-	hasEastWestHost       bool
-	backendNameTracingTag bool
-	internal              bool
-	provideHTTPSRedirect  bool
-	calculateTraffic      func([]*definitions.BackendReference) map[string]backendTraffic
+	hosts                        []string
+	allowedExternalNames         []*regexp.Regexp
+	hostRx                       string
+	eastWestDomain               string
+	routeGroup                   *definitions.RouteGroupItem
+	hostRoutes                   map[string][]*eskip.Route
+	defaultBackendTraffic        map[string]backendTraffic
+	defaultFilters               defaultFilters
+	clusterState                 *clusterState
+	httpsRedirectCode            int
+	backendsByName               map[string]*definitions.SkipperBackend
+	eastWestEnabled              bool
+	hasEastWestHost              bool
+	backendNameTracingTag        bool
+	internal                     bool
+	provideHTTPSRedirect         bool
+	calculateTraffic             func([]*definitions.BackendReference) map[string]backendTraffic
+	defaultLoadBalancerAlgorithm string
 }
 
 type routeContext struct {
@@ -212,7 +213,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 
 	r.BackendType = eskip.LBBackend
 	r.LBEndpoints = eps
-	r.LBAlgorithm = defaultLoadBalancerAlgorithm
+	r.LBAlgorithm = ctx.defaultLoadBalancerAlgorithm
 	if backend.Algorithm != loadbalancer.None {
 		r.LBAlgorithm = backend.Algorithm.String()
 	}
@@ -265,7 +266,7 @@ func applyBackend(ctx *routeGroupContext, backend *definitions.SkipperBackend, r
 		}
 
 		r.LBEndpoints = backend.Endpoints
-		r.LBAlgorithm = defaultLoadBalancerAlgorithm
+		r.LBAlgorithm = ctx.defaultLoadBalancerAlgorithm
 		if backend.Algorithm != loadbalancer.None {
 			r.LBAlgorithm = backend.Algorithm.String()
 		}
@@ -515,22 +516,23 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				provideRedirect = true
 			}
 			ctx := &routeGroupContext{
-				clusterState:          s,
-				defaultFilters:        df,
-				routeGroup:            rg,
-				hosts:                 externalHosts,
-				hostRx:                createHostRx(externalHosts...),
-				hostRoutes:            make(map[string][]*eskip.Route),
-				hasEastWestHost:       hasEastWestHost(r.options.KubernetesEastWestDomain, externalHosts),
-				eastWestEnabled:       r.options.KubernetesEnableEastWest,
-				eastWestDomain:        r.options.KubernetesEastWestDomain,
-				provideHTTPSRedirect:  provideRedirect,
-				httpsRedirectCode:     r.options.HTTPSRedirectCode,
-				backendsByName:        backends,
-				backendNameTracingTag: r.options.BackendNameTracingTag,
-				internal:              false,
-				allowedExternalNames:  r.options.AllowedExternalNames,
-				calculateTraffic:      getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
+				clusterState:                 s,
+				defaultFilters:               df,
+				routeGroup:                   rg,
+				hosts:                        externalHosts,
+				hostRx:                       createHostRx(externalHosts...),
+				hostRoutes:                   make(map[string][]*eskip.Route),
+				hasEastWestHost:              hasEastWestHost(r.options.KubernetesEastWestDomain, externalHosts),
+				eastWestEnabled:              r.options.KubernetesEnableEastWest,
+				eastWestDomain:               r.options.KubernetesEastWestDomain,
+				provideHTTPSRedirect:         provideRedirect,
+				httpsRedirectCode:            r.options.HTTPSRedirectCode,
+				backendsByName:               backends,
+				backendNameTracingTag:        r.options.BackendNameTracingTag,
+				internal:                     false,
+				allowedExternalNames:         r.options.AllowedExternalNames,
+				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
+				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
 			}
 
 			ri, err := transformRouteGroup(ctx)
@@ -557,17 +559,18 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 		// Internal hosts
 		if len(internalHosts) > 0 {
 			internalCtx := &routeGroupContext{
-				clusterState:          s,
-				defaultFilters:        df,
-				routeGroup:            rg,
-				hosts:                 internalHosts,
-				hostRx:                createHostRx(internalHosts...),
-				hostRoutes:            make(map[string][]*eskip.Route),
-				backendsByName:        backends,
-				backendNameTracingTag: r.options.BackendNameTracingTag,
-				internal:              true,
-				allowedExternalNames:  r.options.AllowedExternalNames,
-				calculateTraffic:      getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
+				clusterState:                 s,
+				defaultFilters:               df,
+				routeGroup:                   rg,
+				hosts:                        internalHosts,
+				hostRx:                       createHostRx(internalHosts...),
+				hostRoutes:                   make(map[string][]*eskip.Route),
+				backendsByName:               backends,
+				backendNameTracingTag:        r.options.BackendNameTracingTag,
+				internal:                     true,
+				allowedExternalNames:         r.options.AllowedExternalNames,
+				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
+				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
 			}
 
 			internalRi, err := transformRouteGroup(internalCtx)
