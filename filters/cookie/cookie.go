@@ -76,6 +76,105 @@ type filter struct {
 	changeOnly bool
 }
 
+type dropCookie struct {
+	typ  direction
+	name string
+}
+
+func NewDropRequestCookie() filters.Spec {
+	return &dropCookie{
+		typ: request,
+	}
+}
+
+func NewDropResponseCookie() filters.Spec {
+	return &dropCookie{
+		typ: response,
+	}
+}
+
+func (d *dropCookie) Name() string {
+	switch d.typ {
+	case request:
+		return filters.DropRequestCookieName
+	case response:
+		return filters.DropResponseCookieName
+	}
+	return "unknown"
+}
+
+func (d *dropCookie) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) != 1 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	s, ok := args[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	return &dropCookie{
+		typ:  d.typ,
+		name: s,
+	}, nil
+}
+
+func removeCookie(request *http.Request, name string) bool {
+	cookies := request.Cookies()
+	hasCookie := false
+	for _, c := range cookies {
+		if c.Name == name {
+			hasCookie = true
+			break
+		}
+	}
+
+	if hasCookie {
+		request.Header.Del("Cookie")
+		for _, c := range cookies {
+			if c.Name != name {
+				request.AddCookie(c)
+			}
+		}
+	}
+	return hasCookie
+}
+
+func removeCookieResponse(rsp *http.Response, name string) bool {
+	cookies := rsp.Cookies()
+	hasCookie := false
+	for _, c := range cookies {
+		if c.Name == name {
+			hasCookie = true
+			break
+		}
+	}
+
+	if hasCookie {
+		rsp.Header.Del("Set-Cookie")
+		for _, c := range cookies {
+			if c.Name != name {
+				rsp.Header.Add("Set-Cookie", c.String())
+			}
+		}
+	}
+	return hasCookie
+}
+
+func (d *dropCookie) Request(ctx filters.FilterContext) {
+	if d.typ != request {
+		return
+	}
+	removeCookie(ctx.Request(), d.name)
+}
+
+func (d *dropCookie) Response(ctx filters.FilterContext) {
+	if d.typ != response {
+		return
+	}
+	removeCookieResponse(ctx.Response(), d.name)
+}
+
 // Creates a filter spec for appending cookies to requests.
 // Name: requestCookie
 func NewRequestCookie() filters.Spec {

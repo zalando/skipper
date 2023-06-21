@@ -192,6 +192,7 @@ func Filters() []filters.Spec {
 		sed.NewRequest(),
 		sed.NewDelimitedRequest(),
 		auth.NewBasicAuth(),
+		cookie.NewDropRequestCookie(),
 		cookie.NewRequestCookie(),
 		cookie.NewResponseCookie(),
 		cookie.NewJSCookie(),

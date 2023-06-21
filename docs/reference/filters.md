@@ -1696,6 +1696,34 @@ oidcClaimsQuery("/:name%\"*One\"", "/path:groups.#[%\"*-Test-Users\"] groups.#[=
 As of now there is no negative/deny rule possible. The first matching path is evaluated against the defined query/queries and if positive, permitted.
 
 ## Cookie Handling
+### dropRequestCookie
+
+Deletes given cookie from the request header.
+
+Parameters:
+
+* cookie name (string)
+
+Example:
+
+```
+dropRequestCookie("test-session")
+```
+
+### dropResponseCookie
+
+Deletes given cookie from the response header.
+
+Parameters:
+
+* cookie name (string)
+
+Example:
+
+```
+dropResponseCookie("test-session")
+```
+
 ### requestCookie
 
 Append a cookie to the request header.
