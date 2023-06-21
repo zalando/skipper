@@ -21,7 +21,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
-	routesrv "github.com/zalando/skipper/routesrv"
 	"github.com/zalando/skipper/swarm"
 )
 
@@ -654,58 +653,6 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 
 	c.parseEnv()
 	return nil
-}
-
-func (c *Config) ToRouteSrvOptions() routesrv.Options {
-	var whitelistCIDRS []string
-	if len(c.WhitelistedHealthCheckCIDR) > 0 {
-		whitelistCIDRS = strings.Split(c.WhitelistedHealthCheckCIDR, ",")
-	}
-
-	options := routesrv.Options{
-		Address:                            c.Address,
-		DefaultFiltersDir:                  c.DefaultFiltersDir,
-		DefaultFilters:                     &eskip.DefaultFilters{Prepend: c.PrependFilters.filters, Append: c.AppendFilters.filters},
-		KubernetesAllowedExternalNames:     c.KubernetesAllowedExternalNames,
-		KubernetesInCluster:                c.KubernetesInCluster,
-		KubernetesURL:                      c.KubernetesURL,
-		KubernetesHealthcheck:              c.KubernetesHealthcheck,
-		KubernetesHTTPSRedirect:            c.KubernetesHTTPSRedirect,
-		KubernetesHTTPSRedirectCode:        c.KubernetesHTTPSRedirectCode,
-		KubernetesIngressClass:             c.KubernetesIngressClass,
-		KubernetesRouteGroupClass:          c.KubernetesRouteGroupClass,
-		KubernetesPathMode:                 c.KubernetesPathMode,
-		KubernetesNamespace:                c.KubernetesNamespace,
-		KubernetesEnableEastWest:           c.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:           c.KubernetesEastWestDomain,
-		KubernetesEastWestRangeDomains:     c.KubernetesEastWestRangeDomains.values,
-		KubernetesEastWestRangePredicates:  c.KubernetesEastWestRangePredicates,
-		KubernetesOnlyAllowedExternalNames: c.KubernetesOnlyAllowedExternalNames,
-		KubernetesRedisServiceNamespace:    c.KubernetesRedisServiceNamespace,
-		KubernetesRedisServiceName:         c.KubernetesRedisServiceName,
-		OpenTracingBackendNameTag:          c.OpentracingBackendNameTag,
-		OpenTracing:                        strings.Split(c.OpenTracing, " "),
-		OriginMarker:                       c.RouteCreationMetrics,
-		ReverseSourcePredicate:             c.ReverseSourcePredicate,
-		SourcePollTimeout:                  time.Duration(c.SourcePollTimeout) * time.Millisecond,
-		WaitForHealthcheckInterval:         c.WaitForHealthcheckInterval,
-		WhitelistedHealthCheckCIDR:         whitelistCIDRS,
-
-		// Auth:
-		EnableOAuth2GrantFlow: c.EnableOAuth2GrantFlow,
-		OAuth2CallbackPath:    c.Oauth2CallbackPath,
-	}
-
-	for _, rcci := range c.CloneRoute {
-		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)
-		options.CloneRoute = append(options.CloneRoute, eskipClone)
-	}
-	for _, rcci := range c.EditRoute {
-		eskipEdit := eskip.NewEditor(rcci.Reg, rcci.Repl)
-		options.EditRoute = append(options.EditRoute, eskipEdit)
-	}
-
-	return options
 }
 
 func (c *Config) ToOptions() skipper.Options {

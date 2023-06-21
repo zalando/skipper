@@ -11,6 +11,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/tracing"
@@ -28,7 +30,7 @@ type RouteServer struct {
 // This call does not start data source updates automatically. Kept routes
 // will stay in an uninitialized state, till StartUpdates is called and
 // in effect data source is queried and routes initialized/updated.
-func New(opts Options) (*RouteServer, error) {
+func New(opts skipper.Options) (*RouteServer, error) {
 	rs := &RouteServer{}
 
 	opentracingOpts := opts.OpenTracing
@@ -47,34 +49,7 @@ func New(opts Options) (*RouteServer, error) {
 	handler.Handle("/routes", b)
 	handler.Handle("/metrics", promhttp.Handler())
 
-	dataclient, err := kubernetes.New(kubernetes.Options{
-		AllowedExternalNames:              opts.KubernetesAllowedExternalNames,
-		BackendNameTracingTag:             opts.OpenTracingBackendNameTag,
-		DefaultFiltersDir:                 opts.DefaultFiltersDir,
-		KubernetesInCluster:               opts.KubernetesInCluster,
-		KubernetesURL:                     opts.KubernetesURL,
-		KubernetesNamespace:               opts.KubernetesNamespace,
-		KubernetesEnableEastWest:          opts.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:          opts.KubernetesEastWestDomain,
-		KubernetesEastWestRangeDomains:    opts.KubernetesEastWestRangeDomains,
-		KubernetesEastWestRangePredicates: opts.KubernetesEastWestRangePredicates,
-		HTTPSRedirectCode:                 opts.KubernetesHTTPSRedirectCode,
-		IngressClass:                      opts.KubernetesIngressClass,
-		OnlyAllowedExternalNames:          opts.KubernetesOnlyAllowedExternalNames,
-		OriginMarker:                      opts.OriginMarker,
-		PathMode:                          opts.KubernetesPathMode,
-		ProvideHealthcheck:                opts.KubernetesHealthcheck,
-		ProvideHTTPSRedirect:              opts.KubernetesHTTPSRedirect,
-		ReverseSourcePredicate:            opts.ReverseSourcePredicate,
-		RouteGroupClass:                   opts.KubernetesRouteGroupClass,
-		WhitelistedHealthCheckCIDR:        opts.WhitelistedHealthCheckCIDR,
-		ForceKubernetesService:            opts.KubernetesForceService,
-		IngressLabelSelectors:             opts.KubernetesIngressLabelSelectors,
-		ServicesLabelSelectors:            opts.KubernetesServicesLabelSelectors,
-		EndpointsLabelSelectors:           opts.KubernetesEndpointsLabelSelectors,
-		SecretsLabelSelectors:             opts.KubernetesSecretsLabelSelectors,
-		RouteGroupsLabelSelectors:         opts.KubernetesRouteGroupsLabelSelectors,
-	})
+	dataclient, err := kubernetes.New(opts.KubernetesDataClientOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +139,7 @@ func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 // the server is closed, which can happen due to server startup errors or
 // gracefully handled SIGTERM signal. In case of a server startup error,
 // the error is returned as is.
-func Run(opts Options) error {
+func Run(opts skipper.Options) error {
 	rs, err := New(opts)
 	if err != nil {
 		return err
