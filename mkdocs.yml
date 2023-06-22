@@ -38,6 +38,7 @@ nav:
         - Shadow Traffic: tutorials/shadow-traffic.md
         - Operations: tutorials/operations.md
         - Development: tutorials/development.md
+        - Built Your Own Proxy: tutorials/built-your-own.md
 theme:
   name: material
   favicon: favicon.ico
