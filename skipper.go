@@ -75,11 +75,6 @@ const (
 
 const DefaultPluginDir = "./plugins"
 
-type testOptions struct {
-	redisConnMetricsInterval time.Duration
-	redisUpdateInterval      time.Duration
-}
-
 // Options to start skipper.
 type Options struct {
 	// WaitForHealthcheckInterval sets the time that skipper waits
@@ -849,16 +844,18 @@ type Options struct {
 	// the cluster ratelimiter
 	EnableSwarm bool
 	// redis based swarm
-	SwarmRedisURLs               []string
-	SwarmRedisPassword           string
-	SwarmRedisHashAlgorithm      string
-	SwarmRedisDialTimeout        time.Duration
-	SwarmRedisReadTimeout        time.Duration
-	SwarmRedisWriteTimeout       time.Duration
-	SwarmRedisPoolTimeout        time.Duration
-	SwarmRedisMinIdleConns       int
-	SwarmRedisMaxIdleConns       int
-	SwarmRedisEndpointsRemoteURL string
+	SwarmRedisURLs                []string
+	SwarmRedisPassword            string
+	SwarmRedisHashAlgorithm       string
+	SwarmRedisDialTimeout         time.Duration
+	SwarmRedisReadTimeout         time.Duration
+	SwarmRedisWriteTimeout        time.Duration
+	SwarmRedisPoolTimeout         time.Duration
+	SwarmRedisMinIdleConns        int
+	SwarmRedisMaxIdleConns        int
+	SwarmRedisEndpointsRemoteURL  string
+	SwarmRedisConnMetricsInterval time.Duration
+	SwarmRedisUpdateInterval      time.Duration
 	// swim based swarm
 	SwarmKubernetesNamespace          string
 	SwarmKubernetesLabelSelectorKey   string
@@ -891,8 +888,6 @@ type Options struct {
 	// defaults to "file","inline" and "none" disables lua
 	// filters.
 	LuaSources []string
-
-	testOptions
 }
 
 type serverErrorLogWriter struct{}
@@ -1587,8 +1582,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				PoolTimeout:         o.SwarmRedisPoolTimeout,
 				MinIdleConns:        o.SwarmRedisMinIdleConns,
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
-				ConnMetricsInterval: o.redisConnMetricsInterval,
-				UpdateInterval:      o.redisUpdateInterval,
+				ConnMetricsInterval: o.SwarmRedisConnMetricsInterval,
+				UpdateInterval:      o.SwarmRedisUpdateInterval,
 				Tracer:              tracer,
 				Log:                 log.New(),
 			}
