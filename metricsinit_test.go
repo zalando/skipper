@@ -46,13 +46,13 @@ func TestInitOrderAndDefault(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		options := Options{
-			Address:              fmt.Sprintf(":%d", port),
-			SupportListener:      fmt.Sprintf(":%d", supportPort),
-			EnableRuntimeMetrics: true,
-			EnableSwarm:          true,
-			SwarmRedisURLs:       []string{fmt.Sprintf("localhost:%d", redisPort)},
-			EnableRatelimiters:   true,
-			testOptions:          testOptions{redisConnMetricsInterval: ringMetricsUpdatePeriod},
+			Address:                       fmt.Sprintf(":%d", port),
+			SupportListener:               fmt.Sprintf(":%d", supportPort),
+			EnableRuntimeMetrics:          true,
+			EnableSwarm:                   true,
+			SwarmRedisURLs:                []string{fmt.Sprintf("localhost:%d", redisPort)},
+			EnableRatelimiters:            true,
+			SwarmRedisConnMetricsInterval: ringMetricsUpdatePeriod,
 		}
 
 		tornDown := make(chan struct{})
