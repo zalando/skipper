@@ -120,7 +120,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing
 	if rnd.Float64() < f {
 		return ep[choice]
 	}
-	notFadingIndexes := []int{}
+	notFadingIndexes := make([]int, 0, len(ep))
 	for i := 0; i < len(ep); i++ {
 		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, ep[i].Detected); !fadingIn {
 			notFadingIndexes = append(notFadingIndexes, i)
