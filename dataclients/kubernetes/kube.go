@@ -18,14 +18,15 @@ import (
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
+const DefaultLoadBalancerAlgorithm = "roundRobin"
+
 const (
-	defaultIngressClass          = "skipper"
-	defaultRouteGroupClass       = "skipper"
-	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
-	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
-	httpRedirectRouteID          = "kube__redirect"
-	DefaultLoadBalancerAlgorithm = "roundRobin"
-	defaultEastWestDomain        = "skipper.cluster.local"
+	defaultIngressClass    = "skipper"
+	defaultRouteGroupClass = "skipper"
+	serviceHostEnvVar      = "KUBERNETES_SERVICE_HOST"
+	servicePortEnvVar      = "KUBERNETES_SERVICE_PORT"
+	httpRedirectRouteID    = "kube__redirect"
+	defaultEastWestDomain  = "skipper.cluster.local"
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -220,7 +221,8 @@ type Options struct {
 	// BackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic.
 	BackendTrafficAlgorithm BackendTrafficAlgorithm
 
-	// DefaultLoadBalancerAlgorithm specifies the default algorithm to calculate the load balancer.
+	// DefaultLoadBalancerAlgorithm sets the default algorithm to be used for load balancing between backend endpoints,
+	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices
 	DefaultLoadBalancerAlgorithm string
 }
 

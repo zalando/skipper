@@ -16,7 +16,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -70,9 +69,8 @@ func loadKubeYAML(t *testing.T, path string) io.Reader {
 
 func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteServer {
 	return newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          kubeServer.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     kubeServer.URL,
 	})
 }
 
@@ -223,11 +221,10 @@ func TestRedisIPs(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          ks.URL,
-		KubernetesRedisServiceNamespace:        "namespace1",
-		KubernetesRedisServiceName:             "service1",
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
+		SourcePollTimeout:               pollInterval,
+		KubernetesURL:                   ks.URL,
+		KubernetesRedisServiceNamespace: "namespace1",
+		KubernetesRedisServiceName:      "service1",
 	})
 
 	w := getRedisURLs(rs)
@@ -244,9 +241,8 @@ func TestFetchedIngressRoutesAreServedInEskipFormat(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
 	})
 
 	rs.StartUpdates()
@@ -322,9 +318,8 @@ func TestRoutesWithDefaultFilters(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: []*eskip.Filter{
 				{
@@ -364,11 +359,10 @@ func TestRoutesWithOAuth2Callback(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
-		EnableOAuth2GrantFlow:                  true,
-		OAuth2CallbackPath:                     "/.well-known/oauth2-callback",
+		SourcePollTimeout:     pollInterval,
+		KubernetesURL:         ks.URL,
+		EnableOAuth2GrantFlow: true,
+		OAuth2CallbackPath:    "/.well-known/oauth2-callback",
 	})
 
 	rs.StartUpdates()
@@ -394,10 +388,9 @@ func TestRoutesWithEastWest(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
-		KubernetesEastWestRangeDomains:         []string{"ingress.cluster.local"},
+		SourcePollTimeout:              pollInterval,
+		KubernetesURL:                  ks.URL,
+		KubernetesEastWestRangeDomains: []string{"ingress.cluster.local"},
 		KubernetesEastWestRangePredicates: []*eskip.Predicate{
 			{
 				Name: "ClientIP",
@@ -540,9 +533,8 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
 	})
 
 	rs.StartUpdates()
@@ -571,9 +563,8 @@ func TestRoutesWithEditRoute(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
 		EditRoute: []*eskip.Editor{
 			eskip.NewEditor(regexp.MustCompile("Host[(](.*)[)]"), "HostAny($1)"),
 		},
@@ -602,9 +593,8 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
-		SourcePollTimeout:                      pollInterval,
-		KubernetesURL:                          ks.URL,
-		KubernetesDefaultLoadBalancerAlgorithm: kubernetes.DefaultLoadBalancerAlgorithm,
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
 		CloneRoute: []*eskip.Clone{
 			eskip.NewClone(regexp.MustCompile("Host"), "HostAny"),
 		},
@@ -629,7 +619,7 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 
 func TestRoutesWithExplicitLBAlgorithm(t *testing.T) {
 	defer tl.Reset()
-	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/ing-v1-lb-target-multi-excplicit-lb-algo.yaml"))
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/ing-v1-lb-target-multi-explicit-lb-algo.yaml"))
 	ks.Start()
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, routesrv.Options{
@@ -644,7 +634,7 @@ func TestRoutesWithExplicitLBAlgorithm(t *testing.T) {
 	}
 	responseRecorder := getRoutes(rs)
 
-	want := parseEskipFixture(t, "testdata/ing-v1-lb-target-multi-excplicit-lb-algo.eskip")
+	want := parseEskipFixture(t, "testdata/ing-v1-lb-target-multi-explicit-lb-algo.eskip")
 	got, err := eskip.Parse(responseRecorder.Body.String())
 	if err != nil {
 		t.Fatalf("served routes are not valid eskip: %s", responseRecorder.Body)

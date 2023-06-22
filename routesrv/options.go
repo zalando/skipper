@@ -130,7 +130,8 @@ type Options struct {
 	// KubernetesRedisServiceName to be used to lookup ring shards dynamically
 	KubernetesRedisServiceName string
 
-	// KubernetesDefaultLoadBalancerAlgorithm sets the default load balancer algorithm for Kubernetes services
+	// KubernetesDefaultLoadBalancerAlgorithm sets the default algorithm to be used for load balancing between backend endpoints,
+	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices
 	KubernetesDefaultLoadBalancerAlgorithm string
 
 	// WhitelistedHealthcheckCIDR appends the whitelisted IP Range to the inernalIPS range for healthcheck purposes
