@@ -1100,15 +1100,19 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return o.ProxyTLS, nil
 	}
 
-	if o.CertPathTLS == "" && o.KeyPathTLS == "" && !o.KubernetesEnableTLS {
+	if o.CertPathTLS == "" && o.KeyPathTLS == "" && cr == nil {
 		return nil, nil
 	}
 
+	config := &tls.Config{
+		MinVersion: o.TLSMinVersion,
+	}
+
+	if cr != nil {
+		config.GetCertificate = cr.GetCertFromHello
+	}
+
 	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
-		config := &tls.Config{
-			MinVersion:     o.TLSMinVersion,
-			GetCertificate: cr.GetCertFromHello,
-		}
 		return config, nil
 	}
 
@@ -1117,14 +1121,6 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 
 	if len(crts) != len(keys) {
 		return nil, fmt.Errorf("number of certificates does not match number of keys")
-	}
-
-	config := &tls.Config{
-		MinVersion: o.TLSMinVersion,
-	}
-
-	if o.KubernetesEnableTLS {
-		config.GetCertificate = cr.GetCertFromHello
 	}
 
 	for i := 0; i < len(crts); i++ {
