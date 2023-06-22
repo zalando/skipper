@@ -74,6 +74,7 @@ func New(opts Options) (*RouteServer, error) {
 		EndpointsLabelSelectors:           opts.KubernetesEndpointsLabelSelectors,
 		SecretsLabelSelectors:             opts.KubernetesSecretsLabelSelectors,
 		RouteGroupsLabelSelectors:         opts.KubernetesRouteGroupsLabelSelectors,
+		DefaultLoadBalancerAlgorithm:      opts.KubernetesDefaultLoadBalancerAlgorithm,
 	})
 	if err != nil {
 		return nil, err

@@ -70,6 +70,7 @@ func convertPathRuleV1(
 	pathMode PathMode,
 	allowedExternalNames []*regexp.Regexp,
 	forceKubernetesService bool,
+	defaultLoadBalancerAlgorithm string,
 ) (*eskip.Route, error) {
 
 	ns := metadata.Namespace
@@ -151,7 +152,7 @@ func convertPathRuleV1(
 		Id:          routeID(ns, name, host, prule.Path, svcName),
 		BackendType: eskip.LBBackend,
 		LBEndpoints: eps,
-		LBAlgorithm: getLoadBalancerAlgorithm(metadata),
+		LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
 		HostRegexps: hostRegexp,
 	}
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
@@ -170,6 +171,7 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 		ic.pathMode,
 		ing.allowedExternalNames,
 		ing.forceKubernetesService,
+		ing.defaultLoadBalancerAlgorithm,
 	)
 	if err != nil {
 		// if the service is not found the route should be removed
@@ -381,7 +383,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		Id:          routeID(ns, name, "", "", ""),
 		BackendType: eskip.LBBackend,
 		LBEndpoints: eps,
-		LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata),
+		LBAlgorithm: getLoadBalancerAlgorithm(i.Metadata, ing.defaultLoadBalancerAlgorithm),
 	}, true, nil
 }
 

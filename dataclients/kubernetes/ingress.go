@@ -49,16 +49,17 @@ type ingressContext struct {
 }
 
 type ingress struct {
-	eastWestRangeDomains     []string
-	eastWestRangePredicates  []*eskip.Predicate
-	allowedExternalNames     []*regexp.Regexp
-	kubernetesEastWestDomain string
-	pathMode                 PathMode
-	httpsRedirectCode        int
-	kubernetesEnableEastWest bool
-	provideHTTPSRedirect     bool
-	forceKubernetesService   bool
-	backendTrafficAlgorithm  BackendTrafficAlgorithm
+	eastWestRangeDomains         []string
+	eastWestRangePredicates      []*eskip.Predicate
+	allowedExternalNames         []*regexp.Regexp
+	kubernetesEastWestDomain     string
+	pathMode                     PathMode
+	httpsRedirectCode            int
+	kubernetesEnableEastWest     bool
+	provideHTTPSRedirect         bool
+	forceKubernetesService       bool
+	backendTrafficAlgorithm      BackendTrafficAlgorithm
+	defaultLoadBalancerAlgorithm string
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -71,21 +72,22 @@ func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 
 func newIngress(o Options) *ingress {
 	return &ingress{
-		provideHTTPSRedirect:     o.ProvideHTTPSRedirect,
-		httpsRedirectCode:        o.HTTPSRedirectCode,
-		pathMode:                 o.PathMode,
-		kubernetesEnableEastWest: o.KubernetesEnableEastWest,
-		kubernetesEastWestDomain: o.KubernetesEastWestDomain,
-		eastWestRangeDomains:     o.KubernetesEastWestRangeDomains,
-		eastWestRangePredicates:  o.KubernetesEastWestRangePredicates,
-		allowedExternalNames:     o.AllowedExternalNames,
-		forceKubernetesService:   o.ForceKubernetesService,
-		backendTrafficAlgorithm:  o.BackendTrafficAlgorithm,
+		provideHTTPSRedirect:         o.ProvideHTTPSRedirect,
+		httpsRedirectCode:            o.HTTPSRedirectCode,
+		pathMode:                     o.PathMode,
+		kubernetesEnableEastWest:     o.KubernetesEnableEastWest,
+		kubernetesEastWestDomain:     o.KubernetesEastWestDomain,
+		eastWestRangeDomains:         o.KubernetesEastWestRangeDomains,
+		eastWestRangePredicates:      o.KubernetesEastWestRangePredicates,
+		allowedExternalNames:         o.AllowedExternalNames,
+		forceKubernetesService:       o.ForceKubernetesService,
+		backendTrafficAlgorithm:      o.BackendTrafficAlgorithm,
+		defaultLoadBalancerAlgorithm: o.DefaultLoadBalancerAlgorithm,
 	}
 }
 
-func getLoadBalancerAlgorithm(m *definitions.Metadata) string {
-	algorithm := defaultLoadBalancerAlgorithm
+func getLoadBalancerAlgorithm(m *definitions.Metadata, defaultAlgorithm string) string {
+	algorithm := defaultAlgorithm
 	if algorithmAnnotationValue, ok := m.Annotations[skipperLoadBalancerAnnotationKey]; ok {
 		algorithm = algorithmAnnotationValue
 	}

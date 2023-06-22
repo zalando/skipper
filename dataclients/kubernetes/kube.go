@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
@@ -23,7 +24,7 @@ const (
 	serviceHostEnvVar            = "KUBERNETES_SERVICE_HOST"
 	servicePortEnvVar            = "KUBERNETES_SERVICE_PORT"
 	httpRedirectRouteID          = "kube__redirect"
-	defaultLoadBalancerAlgorithm = "roundRobin"
+	DefaultLoadBalancerAlgorithm = "roundRobin"
 	defaultEastWestDomain        = "skipper.cluster.local"
 )
 
@@ -218,6 +219,9 @@ type Options struct {
 
 	// BackendTrafficAlgorithm specifies the algorithm to calculate the backend traffic.
 	BackendTrafficAlgorithm BackendTrafficAlgorithm
+
+	// DefaultLoadBalancerAlgorithm specifies the default algorithm to calculate the load balancer.
+	DefaultLoadBalancerAlgorithm string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -291,6 +295,10 @@ func New(o Options) (*Client, error) {
 
 	if !o.OnlyAllowedExternalNames {
 		o.AllowedExternalNames = []*regexp.Regexp{regexp.MustCompile(".*")}
+	}
+
+	if algo, err := loadbalancer.AlgorithmFromString(o.DefaultLoadBalancerAlgorithm); err != nil || algo == loadbalancer.None {
+		o.DefaultLoadBalancerAlgorithm = DefaultLoadBalancerAlgorithm
 	}
 
 	ing := newIngress(o)
