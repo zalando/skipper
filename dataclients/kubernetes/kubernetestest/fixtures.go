@@ -252,10 +252,6 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.AllowedExternalNames = aen
 	}
 
-	if o.DefaultLoadBalancerAlgorithm == "" {
-		o.DefaultLoadBalancerAlgorithm = kubernetes.DefaultLoadBalancerAlgorithm
-	}
-
 	o.KubernetesURL = s.URL
 	o.DefaultFiltersDir = f.defaultFilters
 	c, err := kubernetes.New(o)
