@@ -70,7 +70,7 @@ func fadeIn(now time.Time, duration time.Duration, exponent float64, detected ti
 
 func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routing.LBEndpoint {
 	var sum float64
-	weightSums := []float64{}
+	weightSums := make([]float64, 0, len(ctx.Route.LBEndpoints))
 	rt := ctx.Route
 	ep := ctx.Route.LBEndpoints
 	for _, epi := range ep {
