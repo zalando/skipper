@@ -10,7 +10,7 @@ func main() {
 	cfg := config.NewConfig()
 	cfg.Parse()
 	log.SetLevel(cfg.ApplicationLogLevel)
-	err := routesrv.Run(cfg.ToRouteSrvOptions())
+	err := routesrv.Run(cfg.ToOptions())
 	if err != nil {
 		log.Fatal(err)
 	}

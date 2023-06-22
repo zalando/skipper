@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/logging/loggingtest"
@@ -68,13 +69,13 @@ func loadKubeYAML(t *testing.T, path string) io.Reader {
 }
 
 func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteServer {
-	return newRouteServerWithOptions(t, routesrv.Options{
+	return newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
 		KubernetesURL:     kubeServer.URL,
 	})
 }
 
-func newRouteServerWithOptions(t *testing.T, o routesrv.Options) *routesrv.RouteServer {
+func newRouteServerWithOptions(t *testing.T, o skipper.Options) *routesrv.RouteServer {
 	t.Helper()
 	rs, err := routesrv.New(o)
 	if err != nil {
@@ -220,7 +221,7 @@ func TestRedisIPs(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/redis.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout:               pollInterval,
 		KubernetesURL:                   ks.URL,
 		KubernetesRedisServiceNamespace: "namespace1",
@@ -240,7 +241,7 @@ func TestFetchedIngressRoutesAreServedInEskipFormat(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/ing-v1-lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
 		KubernetesURL:     ks.URL,
 	})
@@ -317,7 +318,7 @@ func TestRoutesWithDefaultFilters(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
 		KubernetesURL:     ks.URL,
 		DefaultFilters: &eskip.DefaultFilters{
@@ -358,7 +359,7 @@ func TestRoutesWithOAuth2Callback(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout:     pollInterval,
 		KubernetesURL:         ks.URL,
 		EnableOAuth2GrantFlow: true,
@@ -387,7 +388,7 @@ func TestRoutesWithEastWest(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/internal-host-explicit-route-predicate.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout:              pollInterval,
 		KubernetesURL:                  ks.URL,
 		KubernetesEastWestRangeDomains: []string{"ingress.cluster.local"},
@@ -532,7 +533,7 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
 		KubernetesURL:     ks.URL,
 	})
@@ -562,7 +563,7 @@ func TestRoutesWithEditRoute(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
 		KubernetesURL:     ks.URL,
 		EditRoute: []*eskip.Editor{
@@ -592,7 +593,7 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
 		KubernetesURL:     ks.URL,
 		CloneRoute: []*eskip.Clone{
@@ -622,7 +623,7 @@ func TestRoutesWithExplicitLBAlgorithm(t *testing.T) {
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/ing-v1-lb-target-multi-explicit-lb-algo.yaml"))
 	ks.Start()
 	defer ks.Close()
-	rs := newRouteServerWithOptions(t, routesrv.Options{
+	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout:                      pollInterval,
 		KubernetesURL:                          ks.URL,
 		KubernetesDefaultLoadBalancerAlgorithm: "powerOfRandomNChoices",
