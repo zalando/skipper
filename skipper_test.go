@@ -111,6 +111,7 @@ func TestOptionsFilterRegistry(t *testing.T) {
 
 func TestOptionsTLSConfig(t *testing.T) {
 	cr := certregistry.NewCertRegistry()
+	proxyTLS := &tls.Config{}
 
 	cert, err := tls.LoadX509KeyPair("fixtures/test.crt", "fixtures/test.key")
 	require.NoError(t, err)
@@ -118,29 +119,29 @@ func TestOptionsTLSConfig(t *testing.T) {
 	cert2, err := tls.LoadX509KeyPair("fixtures/test2.crt", "fixtures/test2.key")
 	require.NoError(t, err)
 
-	// empty
+	// empty without registry
 	o := &Options{}
-	c, err := o.tlsConfig(cr)
+	c, err := o.tlsConfig(nil)
 	require.NoError(t, err)
 	require.Nil(t, c)
 
-	// enable kubernetes tls
-	o = &Options{KubernetesEnableTLS: true}
+	// empty with registry
+	o = &Options{}
 	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
 	require.NotNil(t, c.GetCertificate)
 
 	// proxy tls config
-	o = &Options{ProxyTLS: &tls.Config{}}
+	o = &Options{ProxyTLS: proxyTLS}
 	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
-	require.Equal(t, &tls.Config{}, c)
+	require.Same(t, proxyTLS, c)
 
 	// proxy tls config priority
-	o = &Options{ProxyTLS: &tls.Config{}, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
+	o = &Options{ProxyTLS: proxyTLS, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
 	c, err = o.tlsConfig(cr)
 	require.NoError(t, err)
-	require.Equal(t, &tls.Config{}, c)
+	require.Same(t, proxyTLS, c)
 
 	// cert key path
 	o = &Options{TLSMinVersion: tls.VersionTLS12, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}
