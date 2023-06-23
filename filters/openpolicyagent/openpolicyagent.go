@@ -305,7 +305,12 @@ func (opa *OpenPolicyAgentInstance) EnvoyPluginConfig() envoy.PluginConfig {
 }
 
 func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracing.Tracer, parent opentracing.Span, ctx context.Context) (opentracing.Span, context.Context) {
-	span := tr.StartSpan("openpolicyagent", opentracing.ChildOf(parent.Context()))
+	var span opentracing.Span
+	if parent != nil {
+		span = tr.StartSpan("openpolicyagent", opentracing.ChildOf(parent.Context()))
+	} else {
+		span = tr.StartSpan("openpolicyagent")
+	}
 
 	span.SetTag("opa.bundle_name", opa.bundleName)
 
@@ -326,7 +331,7 @@ func (opa *OpenPolicyAgentInstance) StartSpanFromContext(ctx context.Context) (o
 		return opa.startSpanFromContextWithTracer(span.Tracer(), span, ctx)
 	}
 
-	return opa.startSpanFromContextWithTracer(opentracing.GlobalTracer(), span, ctx)
+	return opa.startSpanFromContextWithTracer(opentracing.GlobalTracer(), nil, ctx)
 }
 
 func (opa *OpenPolicyAgentInstance) MetricsKey(key string) string {
