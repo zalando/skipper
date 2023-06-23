@@ -12,23 +12,23 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
 )
 
-type Spec struct {
+type spec struct {
 	factory openpolicyagent.OpenPolicyAgentFactory
 	opts    []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 }
 
-func NewAuthorizeWithRegoPolicySpec(factory openpolicyagent.OpenPolicyAgentFactory, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) Spec {
-	return Spec{
+func NewAuthorizeWithRegoPolicySpec(factory openpolicyagent.OpenPolicyAgentFactory, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+	return &spec{
 		factory: factory,
 		opts:    opts,
 	}
 }
 
-func (s Spec) Name() string {
+func (s *spec) Name() string {
 	return filters.AuthorizeWithRegoPolicyName
 }
 
-func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 	var err error
 
 	sargs, err := util.GetStrings(config)
@@ -68,7 +68,7 @@ func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 		return nil, err
 	}
 
-	return authorizeWithRegoPolicyFilter{
+	return &authorizeWithRegoPolicyFilter{
 		opa: opa,
 	}, nil
 }
@@ -77,7 +77,7 @@ type authorizeWithRegoPolicyFilter struct {
 	opa *openpolicyagent.OpenPolicyAgentInstance
 }
 
-func (f authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
+func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	req := fc.Request()
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
@@ -150,4 +150,4 @@ func addRequestHeaders(fc filters.FilterContext, headers http.Header) {
 	}
 }
 
-func (f authorizeWithRegoPolicyFilter) Response(fc filters.FilterContext) {}
+func (*authorizeWithRegoPolicyFilter) Response(filters.FilterContext) {}
