@@ -51,8 +51,12 @@ func requestWithR(r float64) *http.Request {
 	return req
 }
 
-func doN(t *testing.T, n int, client *proxytest.TestClient, request func() *http.Request) map[int]int {
-	codes := make(map[int]int)
+// doN performs a number of requests and returns the number of responses for each status code and
+// a total number of requests performed.
+// Results use float64 type to simplify fractional comparisons.
+func doN(t *testing.T, client *proxytest.TestClient, request func() *http.Request) (map[int]float64, float64) {
+	const n = 10_000
+	codes := make(map[int]float64)
 	for i := 0; i < n; i++ {
 		rsp, err := client.Do(request())
 		require.NoError(t, err)
@@ -60,11 +64,17 @@ func doN(t *testing.T, n int, client *proxytest.TestClient, request func() *http
 
 		codes[rsp.StatusCode]++
 	}
-	return codes
+	return codes, n
 }
 
-func getN(t *testing.T, n int, client *proxytest.TestClient, url string) map[int]int {
-	return doN(t, n, client, func() *http.Request {
+// assertEqualWithTolerance verifies that actual value is within predefined delta of the expected value.
+func assertEqualWithTolerance(t *testing.T, expected, actual float64) {
+	t.Helper()
+	assert.InDelta(t, expected, actual, 0.06*expected)
+}
+
+func getN(t *testing.T, client *proxytest.TestClient, url string) (map[int]float64, float64) {
+	return doN(t, client, func() *http.Request {
 		req, err := http.NewRequest("GET", url, nil)
 		require.NoError(t, err)
 		return req
@@ -129,18 +139,13 @@ func TestTrafficSegmentSplit(t *testing.T) {
 	}.Create()
 	defer p.Close()
 
-	const (
-		N     = 1_000
-		delta = 0.05 * N
-	)
-
-	codes := getN(t, N, p.Client(), p.URL+"/test")
+	codes, n := getN(t, p.Client(), p.URL+"/test")
 
 	t.Logf("Response codes: %v", codes)
 
-	assert.InDelta(t, N*0.5, codes[200], delta)
-	assert.InDelta(t, N*0.3, codes[201], delta)
-	assert.InDelta(t, N*0.2, codes[202], delta)
+	assertEqualWithTolerance(t, n*0.5, codes[200])
+	assertEqualWithTolerance(t, n*0.3, codes[201])
+	assertEqualWithTolerance(t, n*0.2, codes[202])
 }
 
 func TestTrafficSegmentRouteWeight(t *testing.T) {
@@ -159,17 +164,15 @@ func TestTrafficSegmentRouteWeight(t *testing.T) {
 	}.Create()
 	defer p.Close()
 
-	const N = 1_000
+	codes, n := getN(t, p.Client(), p.URL+"/test")
+	assert.Equal(t, n, codes[200])
 
-	codes := getN(t, N, p.Client(), p.URL+"/test")
-	assert.Equal(t, N, codes[200])
-
-	codes = doN(t, N, p.Client(), func() *http.Request {
+	codes, n = doN(t, p.Client(), func() *http.Request {
 		req, _ := http.NewRequest("GET", p.URL+"/test", nil)
 		req.Header.Set("X-Foo", "bar")
 		return req
 	})
-	assert.Equal(t, N, codes[201])
+	assert.Equal(t, n, codes[201])
 }
 
 func TestTrafficSegmentTeeLoopback(t *testing.T) {
@@ -196,22 +199,17 @@ func TestTrafficSegmentTeeLoopback(t *testing.T) {
 	}.Create()
 	defer p.Close()
 
-	const (
-		N     = 1_000
-		delta = 0.05 * N
-	)
-
-	codes := getN(t, N, p.Client(), p.URL+"/test")
+	codes, n := getN(t, p.Client(), p.URL+"/test")
 
 	// wait for loopback requests to complete
 	time.Sleep(100 * time.Millisecond)
 
-	loopRequests := int(atomic.LoadInt32(loopRequestsPtr))
+	loopRequests := float64(atomic.LoadInt32(loopRequestsPtr))
 
-	t.Logf("Response codes: %v, loopRequests: %d", codes, loopRequests)
+	t.Logf("Response codes: %v, loopRequests: %f", codes, loopRequests)
 
-	assert.InDelta(t, N*0.5, codes[200], delta)
-	assert.InDelta(t, N*0.5, codes[201], delta)
+	assertEqualWithTolerance(t, n*0.5, codes[200])
+	assertEqualWithTolerance(t, n*0.5, codes[201])
 	assert.Equal(t, codes[201], loopRequests)
 }
 
@@ -233,15 +231,10 @@ func TestTrafficSegmentLoopbackBackend(t *testing.T) {
 	}.Create()
 	defer p.Close()
 
-	const (
-		N     = 1_000
-		delta = 0.05 * N
-	)
-
-	codes := getN(t, N, p.Client(), p.URL+"/test")
+	codes, n := getN(t, p.Client(), p.URL+"/test")
 
 	t.Logf("Response codes: %v", codes)
 
-	assert.InDelta(t, N*0.5, codes[200], delta)
-	assert.InDelta(t, N*0.5, codes[201], delta)
+	assertEqualWithTolerance(t, n*0.5, codes[200])
+	assertEqualWithTolerance(t, n*0.5, codes[201])
 }
