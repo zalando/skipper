@@ -870,6 +870,13 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	req = injectClientTrace(req, ctx.proxySpan)
 
 	response, err := roundTripper.RoundTrip(req)
+	if endpoint != nil {
+		if err != nil {
+			endpoint.Metrics.AddFailedRequest()
+		} else {
+			endpoint.Metrics.AddSucceededRequest()
+		}
+	}
 
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
