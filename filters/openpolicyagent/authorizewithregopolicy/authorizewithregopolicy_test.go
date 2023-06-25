@@ -139,7 +139,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				}
 			}`, opaControlPlane.URL(), ti.regoQuery))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentFactory()
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 			ftSpec := NewAuthorizeWithRegoPolicySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 			filterArgs := []interface{}{ti.bundleName}
 			_, err := ftSpec.CreateFilter(filterArgs)

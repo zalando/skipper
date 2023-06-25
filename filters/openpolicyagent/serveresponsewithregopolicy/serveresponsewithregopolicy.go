@@ -11,23 +11,23 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
 )
 
-type Spec struct {
-	factory openpolicyagent.OpenPolicyAgentFactory
-	opts    []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
+type spec struct {
+	registry *openpolicyagent.OpenPolicyAgentRegistry
+	opts     []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 }
 
-func NewServeResponseWithRegoPolicySpec(factory openpolicyagent.OpenPolicyAgentFactory, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) Spec {
-	return Spec{
-		factory: factory,
-		opts:    opts,
+func NewServeResponseWithRegoPolicySpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+	return &spec{
+		registry: registry,
+		opts:     opts,
 	}
 }
 
-func (s Spec) Name() string {
+func (s *spec) Name() string {
 	return filters.ServeResponseWithRegoPolicyName
 }
 
-func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 	var err error
 
 	sargs, err := util.GetStrings(config)
@@ -47,13 +47,12 @@ func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 	configOptions := s.opts
 
+	envoyContextExtensions := map[string]string{}
 	if len(sargs) > 1 {
-		envoyContextExtensions := map[string]string{}
 		err = yaml.Unmarshal([]byte(sargs[1]), &envoyContextExtensions)
 		if err != nil {
 			return nil, err
 		}
-		configOptions = append(configOptions, openpolicyagent.WithEnvoyContextExtensions(envoyContextExtensions))
 	}
 
 	opaConfig, err := openpolicyagent.NewOpenPolicyAgentConfig(configOptions...)
@@ -61,26 +60,30 @@ func (s Spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 		return nil, err
 	}
 
-	opa, err := s.factory.NewOpenPolicyAgentInstance(bundleName, *opaConfig, s.Name())
+	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, *opaConfig, s.Name())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return serveResponseWithRegoPolicyFilter{
-		opa: opa,
+	return &serveResponseWithRegoPolicyFilter{
+		opa:                    opa,
+		registry:               s.registry,
+		envoyContextExtensions: envoyContextExtensions,
 	}, nil
 }
 
 type serveResponseWithRegoPolicyFilter struct {
-	opa *openpolicyagent.OpenPolicyAgentInstance
+	opa                    *openpolicyagent.OpenPolicyAgentInstance
+	registry               *openpolicyagent.OpenPolicyAgentRegistry
+	envoyContextExtensions map[string]string
 }
 
-func (f serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
+func (f *serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
 
-	authzreq := envoy.AdaptToExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+	authzreq := envoy.AdaptToExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions)
 
 	start := time.Now()
 	result, err := f.opa.Eval(ctx, authzreq)
@@ -102,4 +105,8 @@ func (f serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	}
 }
 
-func (f serveResponseWithRegoPolicyFilter) Response(fc filters.FilterContext) {}
+func (f *serveResponseWithRegoPolicyFilter) Response(fc filters.FilterContext) {}
+
+func (f *serveResponseWithRegoPolicyFilter) Close() error {
+	return f.registry.ReleaseInstance(f.opa)
+}

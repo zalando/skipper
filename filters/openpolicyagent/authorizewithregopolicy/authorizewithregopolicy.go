@@ -13,14 +13,14 @@ import (
 )
 
 type spec struct {
-	factory openpolicyagent.OpenPolicyAgentFactory
-	opts    []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
+	registry *openpolicyagent.OpenPolicyAgentRegistry
+	opts     []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 }
 
-func NewAuthorizeWithRegoPolicySpec(factory openpolicyagent.OpenPolicyAgentFactory, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+func NewAuthorizeWithRegoPolicySpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
 	return &spec{
-		factory: factory,
-		opts:    opts,
+		registry: registry,
+		opts:     opts,
 	}
 }
 
@@ -48,13 +48,12 @@ func (s *spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 	configOptions := s.opts
 
+	envoyContextExtensions := map[string]string{}
 	if len(sargs) > 1 {
-		envoyContextExtensions := map[string]string{}
 		err = yaml.Unmarshal([]byte(sargs[1]), &envoyContextExtensions)
 		if err != nil {
 			return nil, err
 		}
-		configOptions = append(configOptions, openpolicyagent.WithEnvoyContextExtensions(envoyContextExtensions))
 	}
 
 	opaConfig, err := openpolicyagent.NewOpenPolicyAgentConfig(configOptions...)
@@ -62,19 +61,23 @@ func (s *spec) CreateFilter(config []interface{}) (filters.Filter, error) {
 		return nil, err
 	}
 
-	opa, err := s.factory.NewOpenPolicyAgentInstance(bundleName, *opaConfig, s.Name())
+	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, *opaConfig, s.Name())
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &authorizeWithRegoPolicyFilter{
-		opa: opa,
+		opa:                    opa,
+		registry:               s.registry,
+		envoyContextExtensions: envoyContextExtensions,
 	}, nil
 }
 
 type authorizeWithRegoPolicyFilter struct {
-	opa *openpolicyagent.OpenPolicyAgentInstance
+	opa                    *openpolicyagent.OpenPolicyAgentInstance
+	registry               *openpolicyagent.OpenPolicyAgentRegistry
+	envoyContextExtensions map[string]string
 }
 
 func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
@@ -82,7 +85,7 @@ func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
 
-	authzreq := envoy.AdaptToExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.opa.InstanceConfig().GetEnvoyContextExtensions())
+	authzreq := envoy.AdaptToExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions)
 
 	start := time.Now()
 	result, err := f.opa.Eval(ctx, authzreq)
@@ -151,3 +154,7 @@ func addRequestHeaders(fc filters.FilterContext, headers http.Header) {
 }
 
 func (*authorizeWithRegoPolicyFilter) Response(filters.FilterContext) {}
+
+func (f *authorizeWithRegoPolicyFilter) Close() error {
+	return f.registry.ReleaseInstance(f.opa)
+}

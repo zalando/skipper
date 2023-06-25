@@ -36,22 +36,54 @@ const (
 	OpenPolicyAgentDecisionHeadersKey = "open-policy-agent:decision-headers"
 )
 
-type OpenPolicyAgentFactory struct {
-	// Ideally share one Bundle storage across many OPA "instances" using this factory.
+type OpenPolicyAgentRegistry struct {
+	// Ideally share one Bundle storage across many OPA "instances" using this registry.
 	// This allows to save memory on bundles that are shared
 	// between different policies (i.e. global team memberships)
 	// This not possible due to some limitations in OPA
 	// See https://github.com/open-policy-agent/opa/issues/5707
+
+	instances     map[string]*OpenPolicyAgentInstance
+	refcounts     map[*OpenPolicyAgentInstance]int
+	lastused      map[*OpenPolicyAgentInstance]time.Time
+	mtx           sync.Mutex
+	once          sync.Once
+	closed        bool
+	quit          chan struct{}
+	reuseDuration time.Duration
 }
 
-func NewOpenPolicyAgentFactory() OpenPolicyAgentFactory {
-	return OpenPolicyAgentFactory{}
+func WithReuseDuration(duration time.Duration) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.reuseDuration = duration
+		return nil
+	}
+}
+
+const defaultReuseDuration = 30 * time.Second
+const defaultShutdownGracePeriod = 30 * time.Second
+
+func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
+	registry := &OpenPolicyAgentRegistry{
+		reuseDuration: defaultReuseDuration,
+		instances:     make(map[string]*OpenPolicyAgentInstance),
+		refcounts:     make(map[*OpenPolicyAgentInstance]int),
+		lastused:      make(map[*OpenPolicyAgentInstance]time.Time),
+		quit:          make(chan struct{}),
+	}
+
+	for _, opt := range opts {
+		opt(registry)
+	}
+
+	go registry.startCleanerDaemon()
+
+	return registry
 }
 
 type OpenPolicyAgentInstanceConfig struct {
-	envoyMetadata          *ext_authz_v3_core.Metadata
-	configTemplate         []byte
-	envoyContextExtensions map[string]string
+	envoyMetadata  *ext_authz_v3_core.Metadata
+	configTemplate []byte
 }
 
 func WithConfigTemplate(configTemplate []byte) func(*OpenPolicyAgentInstanceConfig) error {
@@ -66,13 +98,6 @@ func WithConfigTemplateFile(configTemplateFile string) func(*OpenPolicyAgentInst
 		var err error
 		cfg.configTemplate, err = os.ReadFile(configTemplateFile)
 		return err
-	}
-}
-
-func WithEnvoyContextExtensions(envoyContextExtensions map[string]string) func(*OpenPolicyAgentInstanceConfig) error {
-	return func(cfg *OpenPolicyAgentInstanceConfig) error {
-		cfg.envoyContextExtensions = envoyContextExtensions
-		return nil
 	}
 }
 
@@ -111,10 +136,6 @@ func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.
 	return cfg.envoyMetadata
 }
 
-func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyContextExtensions() map[string]string {
-	return cfg.envoyContextExtensions
-}
-
 func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) (*OpenPolicyAgentInstanceConfig, error) {
 	cfg := OpenPolicyAgentInstanceConfig{}
 
@@ -142,7 +163,103 @@ func configTemplate() string {
 	return "opaconfig.yaml"
 }
 
-func (factory *OpenPolicyAgentFactory) NewOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) Close() {
+	registry.once.Do(func() {
+		registry.mtx.Lock()
+		defer registry.mtx.Unlock()
+
+		ctx, cancel := context.WithTimeout(context.Background(), defaultShutdownGracePeriod)
+		defer cancel()
+
+		for _, instance := range registry.instances {
+			instance.Close(ctx)
+		}
+
+		registry.closed = true
+		close(registry.quit)
+	})
+}
+
+func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
+	registry.mtx.Lock()
+	defer registry.mtx.Unlock()
+
+	if registry.closed {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultShutdownGracePeriod)
+	defer cancel()
+
+	for key, inst := range registry.instances {
+		lastused, ok := registry.lastused[inst]
+
+		if ok && lastused.Add(registry.reuseDuration).Before(t) {
+			inst.Close(ctx)
+
+			delete(registry.instances, key)
+			delete(registry.lastused, inst)
+			delete(registry.refcounts, inst)
+		}
+	}
+}
+
+func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-registry.quit:
+			return
+		case t := <-ticker.C:
+			registry.cleanUnusedInstances(t)
+		}
+	}
+}
+
+func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
+	registry.mtx.Lock()
+	defer registry.mtx.Unlock()
+
+	if registry.closed {
+		return nil, fmt.Errorf("open policy agent registry is already closed")
+	}
+
+	if instance, ok := registry.instances[bundleName]; ok {
+		registry.refcounts[instance]++
+
+		delete(registry.lastused, instance)
+
+		return instance, nil
+	}
+
+	instance, err := registry.newOpenPolicyAgentInstance(bundleName, config, filterName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	registry.instances[bundleName] = instance
+	registry.refcounts[instance] = 1
+
+	return instance, nil
+}
+
+func (registry *OpenPolicyAgentRegistry) ReleaseInstance(instance *OpenPolicyAgentInstance) error {
+	registry.mtx.Lock()
+	defer registry.mtx.Unlock()
+
+	registry.refcounts[instance]--
+
+	if (registry.refcounts[instance]) == 0 {
+		registry.lastused[instance] = time.Now()
+	}
+
+	return nil
+}
+
+func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
 	configBytes, err := interpolateConfigTemplate(config.configTemplate, bundleName)
@@ -179,6 +296,7 @@ type OpenPolicyAgentInstance struct {
 	preparedQuery          *rego.PreparedEvalQuery
 	preparedQueryDoOnce    *sync.Once
 	interQueryBuiltinCache iCache.InterQueryCache
+	once                   sync.Once
 }
 
 func envVariablesMap() map[string]string {
@@ -261,6 +379,12 @@ func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgent
 // policies, report status, etc.
 func (opa *OpenPolicyAgentInstance) Start(ctx context.Context) error {
 	return opa.manager.Start(ctx)
+}
+
+func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
+	opa.once.Do(func() {
+		opa.manager.Stop(ctx)
+	})
 }
 
 func (opa *OpenPolicyAgentInstance) waitPluginsReady(checkInterval, timeout time.Duration) error {

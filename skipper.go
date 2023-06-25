@@ -1761,7 +1761,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	if o.EnableOpenPolicyAgent {
-		factory := openpolicyagent.NewOpenPolicyAgentFactory()
+		opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry()
+		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
 		opts = append(opts, openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
@@ -1770,8 +1771,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
-			authorizewithregopolicy.NewAuthorizeWithRegoPolicySpec(factory, opts...),
-			serveresponsewithregopolicy.NewServeResponseWithRegoPolicySpec(factory, opts...),
+			authorizewithregopolicy.NewAuthorizeWithRegoPolicySpec(opaRegistry, opts...),
+			serveresponsewithregopolicy.NewServeResponseWithRegoPolicySpec(opaRegistry, opts...),
 		)
 	}
 
