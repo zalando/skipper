@@ -97,38 +97,8 @@ go: finding module for package github.com/kr/text
 go: finding module for package github.com/rogpeppe/go-internal/fmtsort
 go: found github.com/kr/text in github.com/kr/text v0.2.0
 go: found github.com/rogpeppe/go-internal/fmtsort in github.com/rogpeppe/go-internal v1.10.0
-go: found github.com/nxadm/tail in github.com/nxadm/tail v1.4.8
-myproject imports
-        github.com/zalando/skipper imports
-        github.com/zalando/skipper/filters/auth tested by
-        github.com/zalando/skipper/filters/auth.test imports
-        golang.org/x/oauth2/google imports
-        cloud.google.com/go/compute/metadata: ambiguous import: found package cloud.google.com/go/compute/metadata in multiple modules:
-        cloud.google.com/go v0.65.0 (/home/sszuecs/go/pkg/mod/cloud.google.com/go@v0.65.0/compute/metadata)
-        cloud.google.com/go/compute/metadata v0.2.0 (/home/sszuecs/go/pkg/mod/cloud.google.com/go/compute/metadata@v0.2.0)
-zsh: exit 1     go mod tidy
+...
 
-[:/tmp/go/skipper]% go build -o skipper .
-main.go:4:2: no required module provides package github.com/sirupsen/logrus; to add it:
-        go get github.com/sirupsen/logrus
-main.go:5:2: no required module provides package github.com/szuecs/skipper-example-proxy/filters; to add it:
-        go get github.com/szuecs/skipper-example-proxy/filters
-main.go:6:2: no required module provides package github.com/zalando/skipper; to add it:
-        go get github.com/zalando/skipper
-main.go:7:2: no required module provides package github.com/zalando/skipper/config; to add it:
-        go get github.com/zalando/skipper/config
-zsh: exit 1     go build -o skipper .
-
-[:/tmp/go/skipper]% go get github.com/sirupsen/logrus
-go: added github.com/sirupsen/logrus v1.9.3
-go: added golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
-[:/tmp/go/skipper]% go get github.com/szuecs/skipper-example-proxy/filters
-go: added github.com/opentracing/opentracing-go v1.2.0
-go: added github.com/szuecs/skipper-example-proxy v0.0.0-20230622190245-63163cbaabc8
-go: added github.com/zalando/skipper v0.16.117
-go: upgraded golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 => v0.9.0
-[:/tmp/go/skipper]% go get github.com/zalando/skipper
-[:/tmp/go/skipper]% go get github.com/zalando/skipper/config
 [:/tmp/go/skipper]% go build -o skipper .
 [:/tmp/go/skipper]%
 ```
