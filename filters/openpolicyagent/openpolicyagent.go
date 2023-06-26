@@ -28,6 +28,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -429,11 +430,12 @@ func (opa *OpenPolicyAgentInstance) EnvoyPluginConfig() envoy.PluginConfig {
 }
 
 func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracing.Tracer, parent opentracing.Span, ctx context.Context) (opentracing.Span, context.Context) {
+
 	var span opentracing.Span
 	if parent != nil {
 		span = tr.StartSpan("openpolicyagent", opentracing.ChildOf(parent.Context()))
 	} else {
-		span = tr.StartSpan("openpolicyagent")
+		span = tracing.CreateSpan("open-policy-agent", ctx, tr)
 	}
 
 	span.SetTag("opa.bundle_name", opa.bundleName)
