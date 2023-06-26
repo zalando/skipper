@@ -1,1 +1,1 @@
-convertPathRuleV1: Failed to get service foo, bar, baz
+level=error msg="Failed to get service bar, baz" kind=Ingress name=qux ns=foo

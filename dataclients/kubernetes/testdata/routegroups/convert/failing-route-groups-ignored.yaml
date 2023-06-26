@@ -1,6 +1,7 @@
 apiVersion: zalando.org/v1
 kind: RouteGroup
 metadata:
+  namespace: foo
   name: myapp
 spec:
   hosts:
@@ -18,6 +19,7 @@ spec:
 apiVersion: zalando.org/v1
 kind: RouteGroup
 metadata:
+  namespace: foo
   name: myapp-no-service
 spec:
   hosts:
@@ -35,6 +37,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: foo
   name: myapp
 spec:
   ports:
@@ -48,6 +51,7 @@ spec:
 apiVersion: v1
 kind: Endpoints
 metadata:
+  namespace: foo
   name: myapp
 subsets:
 - addresses:

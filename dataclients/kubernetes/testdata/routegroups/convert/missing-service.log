@@ -1,2 +1,2 @@
-[[]routegroup[]]
+kind=RouteGroup name=myapp
 service not found

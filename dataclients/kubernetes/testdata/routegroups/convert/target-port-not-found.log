@@ -1,2 +1,2 @@
-[[]routegroup[]]
+kind=RouteGroup name=myapp
 target port not found

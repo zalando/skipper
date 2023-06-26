@@ -200,7 +200,7 @@ func addExtraRoutes(ic *ingressContext, ruleHost, path, pathType, eastWestDomain
 			ic.addHostRoute(ruleHost, &route)
 			ic.redirect.updateHost(ruleHost)
 		} else {
-			log.Errorf("Failed to add route having %d path routes: %v", n, r)
+			ic.logger.Errorf("Failed to add route having %d path routes: %v", n, r)
 		}
 		if enableEastWest {
 			ewRoute := createEastWestRouteIng(eastWestDomain, name, ns, &route)
@@ -263,7 +263,7 @@ func extraRoutes(m *definitions.Metadata, logger *log.Entry) []*eskip.Route {
 		var err error
 		extraRoutes, err = eskip.Parse(annotationRoutes)
 		if err != nil {
-			logger.Errorf("failed to parse routes from %s, skipping: %v", skipperRoutesAnnotationKey, err)
+			logger.Errorf("Failed to parse routes from %s, skipping: %v", skipperRoutesAnnotationKey, err)
 		}
 	}
 	return extraRoutes
@@ -275,21 +275,21 @@ func backendWeights(m *definitions.Metadata, logger *log.Entry) map[string]float
 	if backends, ok := m.Annotations[backendWeightsAnnotationKey]; ok {
 		err := json.Unmarshal([]byte(backends), &backendWeights)
 		if err != nil {
-			logger.Errorf("error while parsing backend-weights annotation: %v", err)
+			logger.Errorf("Error while parsing backend-weights annotation: %v", err)
 		}
 	}
 	return backendWeights
 }
 
 // parse pathmode from annotation or fallback to global default
-func pathMode(m *definitions.Metadata, globalDefault PathMode) PathMode {
+func pathMode(m *definitions.Metadata, globalDefault PathMode, logger *log.Entry) PathMode {
 	pathMode := globalDefault
 
 	if pathModeString, ok := m.Annotations[pathModeAnnotationKey]; ok {
 		if p, err := ParsePathMode(pathModeString); err != nil {
-			log.Errorf("Failed to get path mode for ingress %s/%s: %v", m.Namespace, m.Name, err)
+			logger.Errorf("Failed to get path mode: %v", err)
 		} else {
-			log.Debugf("Set pathMode to %s", p)
+			logger.Debugf("Set pathMode to %s", p)
 			pathMode = p
 		}
 	}
@@ -343,18 +343,18 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 func addHostTLSCert(ic *ingressContext, hosts []string, secretID *definitions.ResourceID) {
 	secret, ok := ic.state.secrets[*secretID]
 	if !ok {
-		log.Errorf("failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
+		ic.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
 		return
 	}
 	cert, err := generateTLSCertFromSecret(secret)
 	if err != nil {
-		log.Error(err)
+		ic.logger.Errorf("Failed to generate TLS certificate from secret: %v", err)
 		return
 	}
 	for _, host := range hosts {
 		err := ic.certificateRegistry.ConfigureCertificate(host, cert)
 		if err != nil {
-			log.Error(err)
+			ic.logger.Errorf("Failed to configure certificate: %v", err)
 		}
 	}
 }
@@ -407,7 +407,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregis
 		}
 		l := len(routes)
 		routes = append(routes, ewroutes...)
-		log.Infof("enabled east west routes: %d %d %d %d", l, len(routes), len(ewroutes), len(hostRoutes))
+		log.Infof("Enabled east west routes: %d %d %d %d", l, len(routes), len(ewroutes), len(hostRoutes))
 	}
 
 	return routes, nil

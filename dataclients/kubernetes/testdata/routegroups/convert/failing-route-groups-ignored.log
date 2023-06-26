@@ -1,1 +1,2 @@
-[[]routegroup[]] error transforming
+Error transforming external hosts: service not found: foo/non-existent
+kind=RouteGroup name=myapp-no-service ns=foo

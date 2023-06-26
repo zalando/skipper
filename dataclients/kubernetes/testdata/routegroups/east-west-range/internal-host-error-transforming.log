@@ -1,3 +1,2 @@
-[[]routegroup[]]
-error transforming internal hosts for default/myapp: service not found:
-default/myapp.
+Error transforming internal hosts: service not found: default/myapp
+kind=RouteGroup name=myapp
