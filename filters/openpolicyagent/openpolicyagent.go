@@ -433,7 +433,7 @@ func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracin
 
 	var span opentracing.Span
 	if parent != nil {
-		span = tr.StartSpan("openpolicyagent", opentracing.ChildOf(parent.Context()))
+		span = tr.StartSpan("open-policy-agent", opentracing.ChildOf(parent.Context()))
 	} else {
 		span = tracing.CreateSpan("open-policy-agent", ctx, tr)
 	}
