@@ -1,4 +1,4 @@
-kube_rg__default__myapp__all__0_0:
+kube_rg__foo__myapp__all__0_0:
 	Host("^(example[.]org[.]?(:[0-9]+)?)$") && Path("/app")
 	-> <roundRobin, "http://10.2.4.8:80", "http://10.2.4.16:80">;
 

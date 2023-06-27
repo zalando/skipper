@@ -62,17 +62,18 @@ func setPathV1(m PathMode, r *eskip.Route, pathType, path string) {
 }
 
 func convertPathRuleV1(
-	state *clusterState,
-	metadata *definitions.Metadata,
+	ic *ingressContext,
 	host string,
 	prule *definitions.PathRuleV1,
 	traffic backendTraffic,
-	pathMode PathMode,
 	allowedExternalNames []*regexp.Regexp,
 	forceKubernetesService bool,
 	defaultLoadBalancerAlgorithm string,
 ) (*eskip.Route, error) {
 
+	state := ic.state
+	metadata := ic.ingressV1.Metadata
+	pathMode := ic.pathMode
 	ns := metadata.Namespace
 	name := metadata.Name
 
@@ -95,7 +96,7 @@ func convertPathRuleV1(
 
 	svc, err = state.getService(ns, svcName)
 	if err != nil {
-		log.Errorf("convertPathRuleV1: Failed to get service %s, %s, %s", ns, svcName, svcPort)
+		ic.logger.Errorf("Failed to get service %s, %s", svcName, svcPort)
 		return nil, err
 	}
 
@@ -105,7 +106,7 @@ func convertPathRuleV1(
 		err = nil
 		if len(eps) > 0 {
 			// should never happen
-			log.Errorf("convertPathRuleV1: Failed to find target port for service %s, but %d endpoints exist. Kubernetes has inconsistent data", svcName, len(eps))
+			ic.logger.Errorf("Failed to find target port for service %s, but %d endpoints exist", svcName, len(eps))
 		}
 	} else if svc.Spec.Type == "ExternalName" {
 		return externalNameRoute(ns, name, host, hostRegexp, svc, servicePort, allowedExternalNames)
@@ -118,11 +119,11 @@ func convertPathRuleV1(
 		}
 
 		eps = state.GetEndpointsByService(ns, svcName, protocol, servicePort)
-		log.Debugf("convertPathRuleV1: Found %d endpoints %s for %s", len(eps), servicePort, svcName)
+		ic.logger.Debugf("Found %d endpoints for %s, %s", len(eps), svcName, servicePort)
 	}
 	if len(eps) == 0 {
 		// add shunt route https://github.com/zalando/skipper/issues/1525
-		log.Debugf("convertPathRuleV1: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints", ns, name, svcName, len(eps))
+		ic.logger.Debugf("Adding shuntroute to return 502 for service %s with %d endpoints", svcName, len(eps))
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			HostRegexps: hostRegexp,
@@ -134,7 +135,7 @@ func convertPathRuleV1(
 		return r, nil
 	}
 
-	log.Debugf("convertPathRuleV1: %d routes for %s/%s/%s", len(eps), ns, svcName, svcPort)
+	ic.logger.Debugf("%d routes for %s/%s", len(eps), svcName, svcPort)
 	if len(eps) == 1 {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
@@ -163,12 +164,10 @@ func convertPathRuleV1(
 func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *definitions.PathRuleV1, traffic backendTraffic) error {
 	meta := ic.ingressV1.Metadata
 	endpointsRoute, err := convertPathRuleV1(
-		ic.state,
-		meta,
+		ic,
 		host,
 		prule,
 		traffic,
-		ic.pathMode,
 		ing.allowedExternalNames,
 		ing.forceKubernetesService,
 		ing.defaultLoadBalancerAlgorithm,
@@ -183,7 +182,7 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 		// problems should be refactored such that a single ingress's error doesn't block the
 		// processing of the independent ingresses.
 		if errors.Is(err, errNotAllowedExternalName) {
-			log.Infof("Not allowed external name: %v", err)
+			ic.logger.Infof("Not allowed external name: %v", err)
 			return nil
 		}
 
@@ -202,7 +201,7 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 	// add pre-configured default filters
 	df, err := ic.defaultFilters.getNamed(meta.Namespace, prule.Backend.Service.Name)
 	if err != nil {
-		ic.logger.Errorf("Failed to retrieve default filters: %v.", err)
+		ic.logger.Errorf("Failed to retrieve default filters: %v", err)
 	} else {
 		// it's safe to prepend, because type defaultFilters copies the slice during get()
 		endpointsRoute.Filters = append(df, endpointsRoute.Filters...)
@@ -210,7 +209,7 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 
 	err = applyAnnotationPredicates(ic.pathMode, endpointsRoute, ic.annotationPredicate)
 	if err != nil {
-		ic.logger.Errorf("failed to apply annotation predicates: %v", err)
+		ic.logger.Errorf("Failed to apply annotation predicates: %v", err)
 	}
 	ic.addHostRoute(host, endpointsRoute)
 
@@ -274,7 +273,7 @@ func computeBackendWeightsV1(calculateTraffic func([]*weightedIngressBackend) ma
 // https://github.com/zalando/skipper/issues/1287
 func (ing *ingress) addSpecRuleV1(ic *ingressContext, ru *definitions.RuleV1) error {
 	if ru.Http == nil {
-		ic.logger.Warn("invalid ingress item: rule missing http definitions")
+		ic.logger.Infof("Skipping rule without http definition")
 		return nil
 	}
 
@@ -298,7 +297,7 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 	// Hosts in the tls section need to explicitly match the host in the rules section.
 	hostlist := compareStringList(ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
 	if len(hostlist) == 0 {
-		log.Infof("no matching tls hosts found for ingress %s", ic.ingressV1.Metadata.Name)
+		ic.logger.Infof("No matching tls hosts found")
 		return
 	}
 	// Secrets should always reside in same namespace as the Ingress
@@ -308,10 +307,11 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 
 // converts the default backend if any
 func (ing *ingress) convertDefaultBackendV1(
-	state *clusterState,
-	i *definitions.IngressV1Item,
+	ic *ingressContext,
 	forceKubernetesService bool,
 ) (*eskip.Route, bool, error) {
+	state := ic.state
+	i := ic.ingressV1
 	// the usage of the default backend depends on what we want
 	// we can generate a hostname out of it based on shared rules
 	// and instructions in annotations, if there are no rules defined
@@ -334,13 +334,13 @@ func (ing *ingress) convertDefaultBackendV1(
 
 	svc, err := state.getService(ns, svcName)
 	if err != nil {
-		log.Errorf("convertDefaultBackendV1: Failed to get service %s, %s, %s", ns, svcName, svcPort)
+		ic.logger.Errorf("Failed to get service %s, %s", svcName, svcPort)
 		return nil, false, err
 	}
 
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
-		log.Errorf("convertDefaultBackendV1: Failed to find target port %v, %s, for ingress %s/%s and service %s add shuntroute: %v", svc.Spec.Ports, svcPort, ns, name, svcName, err)
+		ic.logger.Errorf("Failed to find target port %v, %s, for service %s add shuntroute: %v", svc.Spec.Ports, svcPort, svcName, err)
 		err = nil
 	} else if svc.Spec.Type == "ExternalName" {
 		r, err := externalNameRoute(ns, name, "default", nil, svc, servicePort, ing.allowedExternalNames)
@@ -348,7 +348,7 @@ func (ing *ingress) convertDefaultBackendV1(
 	} else if forceKubernetesService {
 		eps = []string{serviceNameBackend(svcName, ns, servicePort)}
 	} else {
-		log.Debugf("convertDefaultBackendV1: Found target port %v, for service %s", servicePort.TargetPort, svcName)
+		ic.logger.Debugf("Found target port %v, for service %s", servicePort.TargetPort, svcName)
 		protocol := "http"
 		if p, ok := i.Metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
 			protocol = p
@@ -360,12 +360,12 @@ func (ing *ingress) convertDefaultBackendV1(
 			protocol,
 			servicePort,
 		)
-		log.Debugf("convertDefaultBackendV1: Found %d endpoints for %s: %v", len(eps), svcName, err)
+		ic.logger.Debugf("Found %d endpoints for %s: %v", len(eps), svcName, err)
 	}
 
 	if len(eps) == 0 {
 		// add shunt route https://github.com/zalando/skipper/issues/1525
-		log.Debugf("convertDefaultBackendV1: add shuntroute to return 502 for ingress %s/%s service %s with %d endpoints", ns, name, svcName, len(eps))
+		ic.logger.Debugf("Adding shuntroute to return 502 for service %s with %d endpoints", svcName, len(eps))
 		r := &eskip.Route{
 			Id: routeID(ns, name, "", "", ""),
 		}
@@ -408,7 +408,9 @@ func (ing *ingress) ingressV1Route(
 		return nil, nil
 	}
 	logger := log.WithFields(log.Fields{
-		"ingress": fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name),
+		"kind": "Ingress",
+		"ns":   i.Metadata.Namespace,
+		"name": i.Metadata.Name,
 	})
 	redirect.initCurrent(i.Metadata)
 	ic := &ingressContext{
@@ -419,7 +421,7 @@ func (ing *ingress) ingressV1Route(
 		annotationPredicate: annotationPredicate(i.Metadata),
 		extraRoutes:         extraRoutes(i.Metadata, logger),
 		backendWeights:      backendWeights(i.Metadata, logger),
-		pathMode:            pathMode(i.Metadata, ing.pathMode),
+		pathMode:            pathMode(i.Metadata, ing.pathMode, logger),
 		redirect:            redirect,
 		hostRoutes:          hostRoutes,
 		defaultFilters:      df,
@@ -428,10 +430,10 @@ func (ing *ingress) ingressV1Route(
 	}
 
 	var route *eskip.Route
-	if r, ok, err := ing.convertDefaultBackendV1(state, i, ing.forceKubernetesService); ok {
+	if r, ok, err := ing.convertDefaultBackendV1(ic, ing.forceKubernetesService); ok {
 		route = r
 	} else if err != nil {
-		ic.logger.Errorf("error while converting default backend: %v", err)
+		ic.logger.Errorf("Failed to convert default backend: %v", err)
 	}
 	for _, rule := range i.Spec.Rules {
 		err := ing.addSpecRuleV1(ic, rule)

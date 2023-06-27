@@ -22,15 +22,16 @@ type routeGroups struct {
 }
 
 type routeGroupContext struct {
+	state                        *clusterState
+	routeGroup                   *definitions.RouteGroupItem
+	logger                       *log.Entry
 	hosts                        []string
 	allowedExternalNames         []*regexp.Regexp
 	hostRx                       string
 	eastWestDomain               string
-	routeGroup                   *definitions.RouteGroupItem
 	hostRoutes                   map[string][]*eskip.Route
 	defaultBackendTraffic        map[string]backendTraffic
 	defaultFilters               defaultFilters
-	clusterState                 *clusterState
 	httpsRedirectCode            int
 	backendsByName               map[string]*definitions.SkipperBackend
 	eastWestEnabled              bool
@@ -154,7 +155,7 @@ func mapBackends(backends []*definitions.SkipperBackend) map[string]*definitions
 }
 
 func getBackendService(ctx *routeGroupContext, backend *definitions.SkipperBackend) (*service, error) {
-	s, err := ctx.clusterState.getServiceRG(
+	s, err := ctx.state.getServiceRG(
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		backend.ServiceName,
 	)
@@ -185,7 +186,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 		return targetPortNotFound(backend.ServiceName, backend.ServicePort)
 	}
 
-	eps := ctx.clusterState.GetEndpointsByTarget(
+	eps := ctx.state.GetEndpointsByTarget(
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		s.Meta.Name,
 		protocol,
@@ -193,10 +194,8 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	)
 
 	if len(eps) == 0 {
-		log.Debugf(
-			"[routegroup] Target endpoints not found, shuntroute for %s/%s %s:%d",
-			namespaceString(ctx.routeGroup.Metadata.Namespace),
-			ctx.routeGroup.Metadata.Name,
+		ctx.logger.Debugf(
+			"Target endpoints not found, shuntroute for %s:%d",
 			backend.ServiceName,
 			backend.ServicePort,
 		)
@@ -340,7 +339,7 @@ func implicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 		ctx.defaultBackendTraffic[beref.BackendName].apply(ri)
 		if be.Type == definitions.ServiceBackend {
 			if err := applyDefaultFilters(ctx, be.ServiceName, ri); err != nil {
-				log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
+				ctx.logger.Errorf("Failed to retrieve default filters: %v", err)
 			}
 		}
 
@@ -403,7 +402,7 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 
 	if ctx.backend.Type == definitions.ServiceBackend {
 		if err := applyDefaultFilters(ctx.group, ctx.backend.ServiceName, r); err != nil {
-			log.Errorf("[routegroup]: failed to retrieve default filters: %v.", err)
+			ctx.group.logger.Errorf("Failed to retrieve default filters: %v", err)
 		}
 	}
 
@@ -489,6 +488,12 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 	redirect := createRedirectInfo(r.options.ProvideHTTPSRedirect, r.options.HTTPSRedirectCode)
 
 	for _, rg := range s.routeGroups {
+		logger := log.WithFields(log.Fields{
+			"kind": "RouteGroup",
+			"ns":   rg.Metadata.Namespace,
+			"name": rg.Metadata.Name,
+		})
+
 		redirect.initCurrent(rg.Metadata)
 
 		var internalHosts []string
@@ -516,9 +521,10 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 				provideRedirect = true
 			}
 			ctx := &routeGroupContext{
-				clusterState:                 s,
-				defaultFilters:               df,
+				state:                        s,
 				routeGroup:                   rg,
+				logger:                       logger,
+				defaultFilters:               df,
 				hosts:                        externalHosts,
 				hostRx:                       createHostRx(externalHosts...),
 				hostRoutes:                   make(map[string][]*eskip.Route),
@@ -537,13 +543,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 
 			ri, err := transformRouteGroup(ctx)
 			if err != nil {
-				log.Errorf(
-					"[routegroup] error transforming external hosts for %s/%s: %v.",
-					namespaceString(rg.Metadata.Namespace),
-					rg.Metadata.Name,
-					err,
-				)
-
+				ctx.logger.Errorf("Error transforming external hosts: %v", err)
 				continue
 			}
 
@@ -559,9 +559,10 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 		// Internal hosts
 		if len(internalHosts) > 0 {
 			internalCtx := &routeGroupContext{
-				clusterState:                 s,
-				defaultFilters:               df,
+				state:                        s,
 				routeGroup:                   rg,
+				logger:                       logger,
+				defaultFilters:               df,
 				hosts:                        internalHosts,
 				hostRx:                       createHostRx(internalHosts...),
 				hostRoutes:                   make(map[string][]*eskip.Route),
@@ -575,12 +576,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Rout
 
 			internalRi, err := transformRouteGroup(internalCtx)
 			if err != nil {
-				log.Errorf(
-					"[routegroup] error transforming internal hosts for %s/%s: %v.",
-					namespaceString(rg.Metadata.Namespace),
-					rg.Metadata.Name,
-					err,
-				)
+				internalCtx.logger.Errorf("Error transforming internal hosts: %v", err)
 
 				continue
 			}
