@@ -116,15 +116,11 @@ The simplest filter possible is, if `filters.Spec` and
 ```go
 type myFilter struct{}
 
-func NewMyFilter() filters.Spec {
+func NewMyFilter() *myFilter {
 	return &myFilter{}
 }
 
 func (spec *myFilter) Name() string { return "myFilter" }
-
-func (spec *myFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
-     return NewMyFilter(), nil
-}
 
 func (f *myFilter) Request(ctx filters.FilterContext) {
      // change data in ctx.Request() for example
@@ -148,15 +144,11 @@ of `routing.Routing` was closed.
 ```go
 type myFilter struct{}
 
-func NewMyFilter() filters.Spec {
+func NewMyFilter() *myFilter {
 	return &myFilter{}
 }
 
 func (spec *myFilter) Name() string { return "myFilter" }
-
-func (spec *myFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
-     return NewMyFilter(), nil
-}
 
 func (f *myFilter) Request(ctx filters.FilterContext) {
      // change data in ctx.Request() for example
@@ -193,15 +185,11 @@ Example:
 ```go
 type myFilter struct{}
 
-func NewMyFilter() filters.Spec {
+func NewMyFilter() *myFilter {
 	return &myFilter{}
 }
 
 func (spec *myFilter) Name() string { return "myFilter" }
-
-func (spec *myFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
-     return NewMyFilter(), nil
-}
 
 func (f *myFilter) Request(ctx filters.FilterContext) {
      // change data in ctx.Request() for example
