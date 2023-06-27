@@ -402,16 +402,14 @@ func (ing *ingress) ingressV1Route(
 	hostRoutes map[string][]*eskip.Route,
 	df defaultFilters,
 	r *certregistry.CertRegistry,
+	enableLogging bool,
 ) (*eskip.Route, error) {
 	if i.Metadata == nil || i.Metadata.Namespace == "" || i.Metadata.Name == "" || i.Spec == nil {
 		log.Error("invalid ingress item: missing Metadata or Spec")
 		return nil, nil
 	}
-	logger := log.WithFields(log.Fields{
-		"kind": "Ingress",
-		"ns":   i.Metadata.Namespace,
-		"name": i.Metadata.Name,
-	})
+	logger := newLogger("Ingress", i.Metadata.Namespace, i.Metadata.Name, enableLogging)
+
 	redirect.initCurrent(i.Metadata)
 	ic := &ingressContext{
 		state:               state,
