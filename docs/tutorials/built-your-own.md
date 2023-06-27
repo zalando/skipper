@@ -81,7 +81,7 @@ CTRL-D
 ```
 
 ## Build
-I had some import failures because of a transitive dependency.
+Fetch dependencies and build your skipper binary.
 ```
 [:/tmp/go/skipper]% go mod tidy
 go: finding module for package github.com/zalando/skipper/config
