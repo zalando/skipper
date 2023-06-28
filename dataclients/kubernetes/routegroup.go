@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
@@ -24,7 +22,7 @@ type routeGroups struct {
 type routeGroupContext struct {
 	state                        *clusterState
 	routeGroup                   *definitions.RouteGroupItem
-	logger                       *log.Entry
+	logger                       *logger
 	hosts                        []string
 	allowedExternalNames         []*regexp.Regexp
 	hostRx                       string
@@ -483,16 +481,12 @@ func splitHosts(hosts []string, domains []string) ([]string, []string) {
 	return internalHosts, externalHosts
 }
 
-func (r *routeGroups) convert(s *clusterState, df defaultFilters) ([]*eskip.Route, error) {
+func (r *routeGroups) convert(s *clusterState, df defaultFilters, enableLogging bool) ([]*eskip.Route, error) {
 	var rs []*eskip.Route
 	redirect := createRedirectInfo(r.options.ProvideHTTPSRedirect, r.options.HTTPSRedirectCode)
 
 	for _, rg := range s.routeGroups {
-		logger := log.WithFields(log.Fields{
-			"kind": "RouteGroup",
-			"ns":   rg.Metadata.Namespace,
-			"name": rg.Metadata.Name,
-		})
+		logger := newLogger("RouteGroup", rg.Metadata.Namespace, rg.Metadata.Name, enableLogging)
 
 		redirect.initCurrent(rg.Metadata)
 
