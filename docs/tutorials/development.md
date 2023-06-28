@@ -122,6 +122,10 @@ func NewMyFilter() *myFilter {
 
 func (spec *myFilter) Name() string { return "myFilter" }
 
+func (spec *myFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
+     return NewMyFilter(), nil
+}
+
 func (f *myFilter) Request(ctx filters.FilterContext) {
      // change data in ctx.Request() for example
 }
@@ -149,6 +153,10 @@ func NewMyFilter() *myFilter {
 }
 
 func (spec *myFilter) Name() string { return "myFilter" }
+
+func (spec *myFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
+     return NewMyFilter(), nil
+}
 
 func (f *myFilter) Request(ctx filters.FilterContext) {
      // change data in ctx.Request() for example
@@ -190,6 +198,10 @@ func NewMyFilter() *myFilter {
 }
 
 func (spec *myFilter) Name() string { return "myFilter" }
+
+func (spec *myFilter) CreateFilter(config []interface{}) (filters.Filter, error) {
+     return NewMyFilter(), nil
+}
 
 func (f *myFilter) Request(ctx filters.FilterContext) {
      // change data in ctx.Request() for example
