@@ -630,7 +630,7 @@ connect, TLS handshake and connection pool:
 
 ### Open Policy Agent span
 
-When one of the Open Policy Agent filters is used, child spans with the operation name `openpolicyagent` are added to the Trace.
+When one of the Open Policy Agent filters is used, child spans with the operation name `open-policy-agent` are added to the Trace.
 
 The following tags are added to the Span, labels are taken from the OPA configuration YAML file as is and are not interpreted:
 - `opa.decision_id=<decision id that was recorded>`
