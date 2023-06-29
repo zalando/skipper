@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -67,21 +68,21 @@ func fadeIn(now time.Time, duration time.Duration, exponent float64, detected ti
 	return math.Pow(float64(rel)/float64(duration), exponent)
 }
 
-func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, w []float64, now time.Time) routing.LBEndpoint {
+func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routing.LBEndpoint {
 	var sum float64
-	weightSums := w
 	rt := ctx.Route
 	ep := ctx.Route.LBEndpoints
 	for _, epi := range ep {
 		wi := fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Detected)
 		sum += wi
-		weightSums = append(weightSums, sum)
 	}
 
-	choice := ep[len(weightSums)-1]
+	choice := ep[len(ep)-1]
 	r := rnd.Float64() * sum
-	for i := range weightSums {
-		if weightSums[i] > r {
+	var upto float64
+	for i, epi := range ep {
+		upto += fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Detected)
+		if upto > r {
 			choice = ep[i]
 			break
 		}
@@ -90,7 +91,7 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, w []float64, now time
 	return choice
 }
 
-func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, wi []int, wf []float64, now time.Time) routing.LBEndpoint {
+func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, wi []int, now time.Time) routing.LBEndpoint {
 	notFadingIndexes := wi
 	ep := ctx.Route.LBEndpoints
 
@@ -99,14 +100,14 @@ func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, wi []int, wf []flo
 	// the perspective of the oldest endpoint, this is temporarily the same as if
 	// there was no fade-in.
 	if len(notFadingIndexes) == 0 {
-		return shiftWeighted(rnd, ctx, wf, now)
+		return shiftWeighted(rnd, ctx, now)
 	}
 
 	// otherwise equally distribute between the old endpoints
 	return ep[notFadingIndexes[rnd.Intn(len(notFadingIndexes))]]
 }
 
-func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, notFadingIndexes []int, choice int, algo routing.LBAlgorithm) routing.LBEndpoint {
+func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing.LBAlgorithm) routing.LBEndpoint {
 	ep := ctx.Route.LBEndpoints
 	now := time.Now()
 	f := fadeIn(
@@ -119,6 +120,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, notFadingIndexes []int, 
 	if rnd.Float64() < f {
 		return ep[choice]
 	}
+	notFadingIndexes := make([]int, 0, len(ep))
 	for i := 0; i < len(ep); i++ {
 		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, ep[i].Detected); !fadingIn {
 			notFadingIndexes = append(notFadingIndexes, i)
@@ -127,9 +129,9 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, notFadingIndexes []int, 
 
 	switch a := algo.(type) {
 	case *roundRobin:
-		return shiftToRemaining(a.rnd, ctx, notFadingIndexes, a.fadingWeights, now)
+		return shiftToRemaining(a.rnd, ctx, notFadingIndexes, now)
 	case *random:
-		return shiftToRemaining(a.rand, ctx, notFadingIndexes, a.fadingWeights, now)
+		return shiftToRemaining(a.rnd, ctx, notFadingIndexes, now)
 	case *consistentHash:
 		// If all endpoints are fading, normal consistent hash result
 		if len(notFadingIndexes) == 0 {
@@ -143,22 +145,15 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, notFadingIndexes []int, 
 }
 
 type roundRobin struct {
-	mx               sync.Mutex
-	index            int
-	rnd              *rand.Rand
-	notFadingIndexes []int
-	fadingWeights    []float64
+	index int64
+	rnd   *rand.Rand
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
+	rnd := rand.New(newLockedSource()) // #nosec
 	return &roundRobin{
-		index: rnd.Intn(len(endpoints)),
+		index: int64(rnd.Intn(len(endpoints))),
 		rnd:   rnd,
-
-		// preallocating frequently used slice
-		notFadingIndexes: make([]int, 0, len(endpoints)),
-		fadingWeights:    make([]float64, 0, len(endpoints)),
 	}
 }
 
@@ -168,32 +163,23 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[0]
 	}
 
-	r.mx.Lock()
-	defer r.mx.Unlock()
-	r.index = (r.index + 1) % len(ctx.Route.LBEndpoints)
+	index := int(atomic.AddInt64(&r.index, 1) % int64(len(ctx.Route.LBEndpoints)))
 
 	if ctx.Route.LBFadeInDuration <= 0 {
-		return ctx.Route.LBEndpoints[r.index]
+		return ctx.Route.LBEndpoints[index]
 	}
 
-	return withFadeIn(r.rnd, ctx, r.notFadingIndexes, r.index, r)
+	return withFadeIn(r.rnd, ctx, index, r)
 }
 
 type random struct {
-	rand             *rand.Rand
-	notFadingIndexes []int
-	fadingWeights    []float64
+	rnd *rand.Rand
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
-	t := time.Now().UnixNano()
 	// #nosec
 	return &random{
-		rand: rand.New(rand.NewSource(t)),
-
-		// preallocating frequently used slice
-		notFadingIndexes: make([]int, 0, len(endpoints)),
-		fadingWeights:    make([]float64, 0, len(endpoints)),
+		rnd: rand.New(newLockedSource()),
 	}
 }
 
@@ -203,12 +189,12 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[0]
 	}
 
-	i := r.rand.Intn(len(ctx.Route.LBEndpoints))
+	i := r.rnd.Intn(len(ctx.Route.LBEndpoints))
 	if ctx.Route.LBFadeInDuration <= 0 {
 		return ctx.Route.LBEndpoints[i]
 	}
 
-	return withFadeIn(r.rand, ctx, r.notFadingIndexes, i, r)
+	return withFadeIn(r.rnd, ctx, i, r)
 }
 
 type (
@@ -217,9 +203,8 @@ type (
 		hash  uint64 // hash of endpoint
 	}
 	consistentHash struct {
-		hashRing         []endpointHash // list of endpoints sorted by hash value
-		rand             *rand.Rand
-		notFadingIndexes []int
+		hashRing []endpointHash // list of endpoints sorted by hash value
+		rnd      *rand.Rand
 	}
 )
 
@@ -230,11 +215,10 @@ func (ch *consistentHash) Swap(i, j int) {
 }
 
 func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
+	rnd := rand.New(newLockedSource()) // #nosec
 	ch := &consistentHash{
-		hashRing:         make([]endpointHash, hashesPerEndpoint*len(endpoints)),
-		rand:             rnd,
-		notFadingIndexes: make([]int, 0, len(endpoints)),
+		hashRing: make([]endpointHash, hashesPerEndpoint*len(endpoints)),
+		rnd:      rnd,
 	}
 	for i, ep := range endpoints {
 		endpointStartIndex := hashesPerEndpoint * i
@@ -315,7 +299,7 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[choice]
 	}
 
-	return withFadeIn(ch.rand, ctx, ch.notFadingIndexes, choice, ch)
+	return withFadeIn(ch.rnd, ctx, choice, ch)
 }
 
 func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext, skipEndpoint func(int) bool) int {
@@ -351,15 +335,15 @@ func noSkippedEndpoints(_ int) bool {
 
 type powerOfRandomNChoices struct {
 	mx              sync.Mutex
-	rand            *rand.Rand
+	rnd             *rand.Rand
 	numberOfChoices int
 }
 
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
+	rnd := rand.New(newLockedSource()) // #nosec
 	return &powerOfRandomNChoices{
-		rand:            rnd,
+		rnd:             rnd,
 		numberOfChoices: powerOfRandomNChoicesDefaultN,
 	}
 }
@@ -371,10 +355,10 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	p.mx.Lock()
 	defer p.mx.Unlock()
 
-	best := ctx.Route.LBEndpoints[p.rand.Intn(ne)]
+	best := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		ce := ctx.Route.LBEndpoints[p.rand.Intn(ne)]
+		ce := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
 
 		if p.getScore(ce) > p.getScore(best) {
 			best = ce

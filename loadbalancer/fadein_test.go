@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -187,4 +188,87 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "consistent-hash, 7", newConsistentHash, old, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "consistent-hash, 8", newConsistentHash, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "consistent-hash, 9", newConsistentHash, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+}
+
+func benchmarkFadeIn(
+	b *testing.B,
+	name string,
+	algorithm func([]string) routing.LBAlgorithm,
+	clients int,
+	endpointAges ...time.Duration,
+) {
+	b.Run(name, func(b *testing.B) {
+		var detectionTimes []time.Time
+		now := time.Now()
+		for _, ea := range endpointAges {
+			detectionTimes = append(detectionTimes, now.Add(-ea))
+		}
+
+		var eps []string
+		for i := range endpointAges {
+			eps = append(eps, string('a'+rune(i)))
+		}
+
+		a := algorithm(eps)
+
+		route := &routing.Route{
+			LBFadeInDuration: fadeInDuration,
+			LBFadeInExponent: 1,
+		}
+		for i := range eps {
+			route.LBEndpoints = append(route.LBEndpoints, routing.LBEndpoint{
+				Host:     eps[i],
+				Detected: detectionTimes[i],
+			})
+		}
+
+		var wg sync.WaitGroup
+
+		// Emulate the load balancer loop, sending requests to it with random hash keys
+		// over and over again till fadeIn period is over.
+		b.ResetTimer()
+		for i := 0; i < clients; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+
+				rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+				ctx := &routing.LBContext{
+					Params: map[string]interface{}{},
+					Route:  route,
+				}
+
+				for j := 0; j < b.N/clients; j++ {
+					ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(100000))
+					_ = a.Apply(ctx)
+				}
+			}(i)
+		}
+
+		wg.Wait()
+	})
+}
+
+func repeatedSlice(v time.Duration, n int) []time.Duration {
+	var s []time.Duration
+	for i := 0; i < n; i++ {
+		s = append(s, v)
+	}
+	return s
+}
+
+func BenchmarkFadeIn(b *testing.B) {
+	old := 2 * fadeInDuration
+	clients := []int{1, 4, 16, 64, 256}
+	for _, c := range clients {
+		benchmarkFadeIn(b, fmt.Sprintf("random, 11, %d clients", c), newRandom, c, repeatedSlice(old, 200)...)
+	}
+
+	for _, c := range clients {
+		benchmarkFadeIn(b, fmt.Sprintf("round-robin, 11, %d clients", c), newRoundRobin, c, repeatedSlice(old, 200)...)
+	}
+
+	for _, c := range clients {
+		benchmarkFadeIn(b, fmt.Sprintf("consistent-hash, 11, %d clients", c), newConsistentHash, c, repeatedSlice(old, 200)...)
+	}
 }
