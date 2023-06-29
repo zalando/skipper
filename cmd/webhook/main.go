@@ -33,10 +33,10 @@ func (c *config) parse() {
 	flag.StringVar(&c.address, "address", defaultHTTPSAddress, "The address to listen on")
 	flag.Parse()
 
-	// if (c.certFile != "" || c.keyFile != "") && !(c.certFile != "" && c.keyFile != "") {
-	// 	log.Fatal("Config parse error: both of TLS cert & key must be provided or neither (for testing )")
-	// 	return
-	// }
+	if (c.certFile != "" || c.keyFile != "") && !(c.certFile != "" && c.keyFile != "") {
+		log.Fatal("Config parse error: both of TLS cert & key must be provided or neither (for testing )")
+		return
+	}
 
 	// support non-HTTPS for local testing
 	if (c.certFile == "" && c.keyFile == "") && c.address == defaultHTTPSAddress {
