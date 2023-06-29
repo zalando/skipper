@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/cmd/webhook/admission"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 const (
@@ -27,17 +27,16 @@ type config struct {
 }
 
 func (c *config) parse() {
-	kingpin.Flag("debug", "Enable debug logging").BoolVar(&c.debug)
-	kingpin.Flag("tls-cert-file", "File containing the certificate for HTTPS").Envar("CERT_FILE").StringVar(&c.certFile)
-	kingpin.Flag("tls-key-file", "File containing the private key for HTTPS").Envar("KEY_FILE").StringVar(&c.keyFile)
-	kingpin.Flag("address", "The address to listen on").Default(defaultHTTPSAddress).StringVar(&c.address)
+	flag.BoolVar(&c.debug, "debug", false, "Enable debug logging")
+	flag.StringVar(&c.certFile, "tls-cert-file", os.Getenv("CERT_FILE"), "File containing the certificate for HTTPS")
+	flag.StringVar(&c.keyFile, "tls-key-file", os.Getenv("KEY_FILE"), "File containing the private key for HTTPS")
+	flag.StringVar(&c.address, "address", defaultHTTPSAddress, "The address to listen on")
+	flag.Parse()
 
-	kingpin.Parse()
-
-	if (c.certFile != "" || c.keyFile != "") && !(c.certFile != "" && c.keyFile != "") {
-		log.Fatal("Config parse error: both of TLS cert & key must be provided or neither (for testing )")
-		return
-	}
+	// if (c.certFile != "" || c.keyFile != "") && !(c.certFile != "" && c.keyFile != "") {
+	// 	log.Fatal("Config parse error: both of TLS cert & key must be provided or neither (for testing )")
+	// 	return
+	// }
 
 	// support non-HTTPS for local testing
 	if (c.certFile == "" && c.keyFile == "") && c.address == defaultHTTPSAddress {
