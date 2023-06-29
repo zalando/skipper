@@ -131,7 +131,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing
 	case *roundRobin:
 		return shiftToRemaining(a.rnd, ctx, notFadingIndexes, now)
 	case *random:
-		return shiftToRemaining(a.rand, ctx, notFadingIndexes, now)
+		return shiftToRemaining(a.rnd, ctx, notFadingIndexes, now)
 	case *consistentHash:
 		// If all endpoints are fading, normal consistent hash result
 		if len(notFadingIndexes) == 0 {
@@ -173,13 +173,13 @@ func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 }
 
 type random struct {
-	rand *rand.Rand
+	rnd *rand.Rand
 }
 
 func newRandom(endpoints []string) routing.LBAlgorithm {
 	// #nosec
 	return &random{
-		rand: rand.New(newLockedSource()),
+		rnd: rand.New(newLockedSource()),
 	}
 }
 
@@ -189,12 +189,12 @@ func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[0]
 	}
 
-	i := r.rand.Intn(len(ctx.Route.LBEndpoints))
+	i := r.rnd.Intn(len(ctx.Route.LBEndpoints))
 	if ctx.Route.LBFadeInDuration <= 0 {
 		return ctx.Route.LBEndpoints[i]
 	}
 
-	return withFadeIn(r.rand, ctx, i, r)
+	return withFadeIn(r.rnd, ctx, i, r)
 }
 
 type (
@@ -204,7 +204,7 @@ type (
 	}
 	consistentHash struct {
 		hashRing []endpointHash // list of endpoints sorted by hash value
-		rand     *rand.Rand
+		rnd      *rand.Rand
 	}
 )
 
@@ -218,7 +218,7 @@ func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routin
 	rnd := rand.New(newLockedSource()) // #nosec
 	ch := &consistentHash{
 		hashRing: make([]endpointHash, hashesPerEndpoint*len(endpoints)),
-		rand:     rnd,
+		rnd:      rnd,
 	}
 	for i, ep := range endpoints {
 		endpointStartIndex := hashesPerEndpoint * i
@@ -299,7 +299,7 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.Route.LBEndpoints[choice]
 	}
 
-	return withFadeIn(ch.rand, ctx, choice, ch)
+	return withFadeIn(ch.rnd, ctx, choice, ch)
 }
 
 func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext, skipEndpoint func(int) bool) int {
@@ -335,7 +335,7 @@ func noSkippedEndpoints(_ int) bool {
 
 type powerOfRandomNChoices struct {
 	mx              sync.Mutex
-	rand            *rand.Rand
+	rnd             *rand.Rand
 	numberOfChoices int
 }
 
@@ -343,7 +343,7 @@ type powerOfRandomNChoices struct {
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
 	rnd := rand.New(newLockedSource()) // #nosec
 	return &powerOfRandomNChoices{
-		rand:            rnd,
+		rnd:             rnd,
 		numberOfChoices: powerOfRandomNChoicesDefaultN,
 	}
 }
@@ -355,10 +355,10 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	p.mx.Lock()
 	defer p.mx.Unlock()
 
-	best := ctx.Route.LBEndpoints[p.rand.Intn(ne)]
+	best := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		ce := ctx.Route.LBEndpoints[p.rand.Intn(ne)]
+		ce := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
 
 		if p.getScore(ce) > p.getScore(best) {
 			best = ce
