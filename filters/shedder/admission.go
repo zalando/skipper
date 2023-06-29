@@ -83,12 +83,14 @@ func (m mode) String() string {
 }
 
 const (
-	counterPrefix            = "shedder.admission_control."
-	admissionControlSpanName = "admission_control"
-	admissionControlKey      = "shedder:admission_control"
-	admissionControlValue    = "reject"
-	minWindowSize            = 1
-	maxWindowSize            = 100
+	counterPrefix              = "shedder.admission_control."
+	admissionControlSpanName   = "admission_control"
+	admissionSignalHeaderKey   = "Admission-Control"
+	admissionSignalHeaderValue = "true"
+	admissionControlKey        = "shedder:admission_control"
+	admissionControlValue      = "reject"
+	minWindowSize              = 1
+	maxWindowSize              = 100
 )
 
 type Options struct {
@@ -422,15 +424,24 @@ func (ac *admissionControl) Request(ctx filters.FilterContext) {
 		if ac.mode != active {
 			return
 		}
+
+		header := make(http.Header)
+		header.Set(admissionSignalHeaderKey, admissionSignalHeaderValue)
 		ctx.Serve(&http.Response{
+			Header:     header,
 			StatusCode: http.StatusServiceUnavailable,
 		})
 	}
 }
 
 func (ac *admissionControl) Response(ctx filters.FilterContext) {
-	// we don't want to count ourselves
+	// we don't want to count our short cutted responses as errors
 	if ctx.StateBag()[admissionControlKey] == admissionControlValue {
+		return
+	}
+
+	// we don't want to count other shedders in the call path as errors
+	if ctx.Response().Header.Get(admissionSignalHeaderKey) == admissionSignalHeaderValue {
 		return
 	}
 
