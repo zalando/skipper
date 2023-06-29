@@ -481,12 +481,12 @@ func splitHosts(hosts []string, domains []string) ([]string, []string) {
 	return internalHosts, externalHosts
 }
 
-func (r *routeGroups) convert(s *clusterState, df defaultFilters, enableLogging bool) ([]*eskip.Route, error) {
+func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled bool) ([]*eskip.Route, error) {
 	var rs []*eskip.Route
 	redirect := createRedirectInfo(r.options.ProvideHTTPSRedirect, r.options.HTTPSRedirectCode)
 
 	for _, rg := range s.routeGroups {
-		logger := newLogger("RouteGroup", rg.Metadata.Namespace, rg.Metadata.Name, enableLogging)
+		logger := newLogger("RouteGroup", rg.Metadata.Namespace, rg.Metadata.Name, loggingEnabled)
 
 		redirect.initCurrent(rg.Metadata)
 

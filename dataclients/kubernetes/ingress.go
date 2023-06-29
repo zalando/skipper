@@ -362,7 +362,7 @@ func addHostTLSCert(ic *ingressContext, hosts []string, secretID *definitions.Re
 // convert logs if an invalid found, but proceeds with the valid ones.
 // Reporting failures in Ingress status is not possible, because
 // Ingress status field only supports IP and Hostname as string.
-func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregistry.CertRegistry, enableLogging bool) ([]*eskip.Route, error) {
+func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregistry.CertRegistry, loggingEnabled bool) ([]*eskip.Route, error) {
 	var ewIngInfo map[string][]string // r.Id -> {namespace, name}
 	if ing.kubernetesEnableEastWest {
 		ewIngInfo = make(map[string][]string)
@@ -371,7 +371,7 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregis
 	hostRoutes := make(map[string][]*eskip.Route)
 	redirect := createRedirectInfo(ing.provideHTTPSRedirect, ing.httpsRedirectCode)
 	for _, i := range state.ingressesV1 {
-		r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df, r, enableLogging)
+		r, err := ing.ingressV1Route(i, redirect, state, hostRoutes, df, r, loggingEnabled)
 		if err != nil {
 			return nil, err
 		}

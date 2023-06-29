@@ -38,39 +38,38 @@ func TestLogger(t *testing.T) {
 	require.NoError(t, err)
 	defer c.Close()
 
-	const testLoggingInterval = 1 * time.Second
-	c.SetLoggingInterval(testLoggingInterval)
+	const loggingInterval = 100 * time.Millisecond
+	c.SetLoggingInterval(loggingInterval)
 
 	_, err = c.LoadAll()
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, countMessages(), "one message expected after initial load")
 
-	for i := 0; i < 10; i++ {
+	const (
+		n              = 2
+		updateDuration = time.Duration(n)*loggingInterval + loggingInterval/2
+	)
+
+	start := time.Now()
+	for time.Since(start) < updateDuration {
 		_, _, err := c.LoadUpdate()
 		require.NoError(t, err)
 
-		assert.Equal(t, 1, countMessages(), "one message expected on subsequent updates before logging interval elapsed")
+		time.Sleep(loggingInterval / 10)
 	}
 
-	time.Sleep(2 * testLoggingInterval)
-
-	for i := 0; i < 10; i++ {
-		_, _, err := c.LoadUpdate()
-		require.NoError(t, err)
-
-		assert.Equal(t, 2, countMessages(), "two messages expected on subsequent updates after logging interval elapsed")
-	}
+	assert.Equal(t, 1+n, countMessages(), "%d additional messages expected", n)
 
 	oldLevel := log.GetLevel()
 	defer log.SetLevel(oldLevel)
 
 	log.SetLevel(log.DebugLevel)
 
-	for i := 0; i < 10; i++ {
+	for i := 1; i <= 10; i++ {
 		_, _, err := c.LoadUpdate()
 		require.NoError(t, err)
 
-		assert.Equal(t, 3+i, countMessages(), "a new message expected for each subsequent update when log level is debug")
+		assert.Equal(t, 1+n+i, countMessages(), "a new message expected for each subsequent update when log level is debug")
 	}
 }

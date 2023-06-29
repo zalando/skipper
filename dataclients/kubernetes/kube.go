@@ -240,8 +240,8 @@ type Client struct {
 	quit                   chan struct{}
 	defaultFiltersDir      string
 	state                  *clusterState
-	lastUpdate             time.Time
 	loggingInterval        time.Duration
+	loggingLastEnabled     time.Time
 }
 
 // New creates and initializes a Kubernetes DataClient.
@@ -394,20 +394,21 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 	c.state = state
-	previousUpdate := c.lastUpdate
-	c.lastUpdate = time.Now()
-	c.mu.Unlock()
 
-	enableLogging := log.GetLevel() >= log.DebugLevel || time.Since(previousUpdate) >= c.loggingInterval
+	loggingEnabled := log.GetLevel() >= log.DebugLevel || time.Since(c.loggingLastEnabled) >= c.loggingInterval
+	if loggingEnabled {
+		c.loggingLastEnabled = time.Now()
+	}
+	c.mu.Unlock()
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
-	ri, err := c.ingress.convert(state, defaultFilters, c.ClusterClient.certificateRegistry, enableLogging)
+	ri, err := c.ingress.convert(state, defaultFilters, c.ClusterClient.certificateRegistry, loggingEnabled)
 	if err != nil {
 		return nil, err
 	}
 
-	rg, err := c.routeGroups.convert(state, defaultFilters, enableLogging)
+	rg, err := c.routeGroups.convert(state, defaultFilters, loggingEnabled)
 	if err != nil {
 		return nil, err
 	}
