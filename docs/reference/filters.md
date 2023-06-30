@@ -639,6 +639,26 @@ Example:
 * -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
 ```
 
+### histogramRequestLatency
+
+The histogramRequestLatency adds latency to requests according to the histogram distribution.
+It expects a list of interleaved duration strings and numbers that defines a histogram.
+Duration strings define boundaries of consecutive buckets and numbers define bucket weights.
+The filter randomly selects a bucket with probability equal to its weight divided by the sum of all bucket weights
+(which must be non-zero) and then sleeps for a random duration in between bucket boundaries.
+
+Example:
+
+```
+r: * -> histogramRequestLatency("0ms", 50, "5ms", 0, "10ms", 30, "15ms", 20, "20ms") -> "https://www.example.org";
+```
+
+The example above adds a latency
+* between 0ms and 5ms to 50% of the requests
+* between 5ms and 10ms to 0% of the requests
+* between 10ms and 15ms to 30% of the requests
+* and between 15ms and 20ms to 20% of the requests.
+
 ### uniformResponseLatency
 
 The uniformResponseLatency filter introduces uniformly distributed
@@ -664,6 +684,10 @@ Example:
 ```
 * -> normalRequestLatency("10ms", "5ms") -> "https://www.example.org";
 ```
+
+### histogramResponseLatency
+
+The histogramResponseLatency adds latency to responses according to the histogram distribution, similar to [histogramRequestLatency](#histogramrequestlatency).
 
 ### logHeader
 

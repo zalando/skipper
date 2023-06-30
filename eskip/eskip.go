@@ -675,6 +675,16 @@ func MustParsePredicates(s string) []*Predicate {
 	return p
 }
 
+// MustParseFilters parses a set of filters (combined by '->') into
+// a list of parsed filter definitions and panics in case of error
+func MustParseFilters(s string) []*Filter {
+	p, err := ParseFilters(s)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
 func partialParse(f string, partialToRoute func(string) string) (*parsedRoute, error) {
 	rs, err := parse(partialToRoute(f))
 	if err != nil {
