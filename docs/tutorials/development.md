@@ -116,7 +116,7 @@ The simplest filter possible is, if `filters.Spec` and
 ```go
 type myFilter struct{}
 
-func NewMyFilter() filters.Spec {
+func NewMyFilter() *myFilter {
 	return &myFilter{}
 }
 
@@ -148,7 +148,7 @@ of `routing.Routing` was closed.
 ```go
 type myFilter struct{}
 
-func NewMyFilter() filters.Spec {
+func NewMyFilter() *myFilter {
 	return &myFilter{}
 }
 
@@ -193,7 +193,7 @@ Example:
 ```go
 type myFilter struct{}
 
-func NewMyFilter() filters.Spec {
+func NewMyFilter() *myFilter {
 	return &myFilter{}
 }
 
