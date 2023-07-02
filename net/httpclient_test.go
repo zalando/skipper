@@ -9,11 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AlexanderYastrebov/noleak"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
 
 var testToken = []byte("mytoken1")
+
+var globalServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 
 type testSecretsReader struct {
 	h map[string][]byte
@@ -291,8 +294,6 @@ func TestTransport(t *testing.T) {
 				t.Errorf("Transport.RoundTrip() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			rt.CloseIdleConnections()
-
 		})
 	}
 }
@@ -306,4 +307,20 @@ func startTestServer(check requestCheck) *httptest.Server {
 		w.Header().Set("X-Test-Response-Header", "response header value")
 		w.WriteHeader(http.StatusOK)
 	}))
+}
+
+func TestClientClosesIdleConnections(t *testing.T) {
+	noleak.Check(t)
+
+	cli := NewClient(Options{})
+	defer cli.Close()
+
+	rsp, err := cli.Get(globalServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rsp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: %s", rsp.Status)
+	}
+	rsp.Body.Close()
 }

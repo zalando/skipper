@@ -1,7 +1,7 @@
 module github.com/zalando/skipper
 
 require (
-	github.com/AlexanderYastrebov/noleak v0.0.0-20230209115903-84c4012720c8
+	github.com/AlexanderYastrebov/noleak v0.0.0-20230702113125-d13f4619f090
 	github.com/MicahParks/keyfunc v1.9.0
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/andybalholm/brotli v1.0.5

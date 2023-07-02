@@ -298,6 +298,7 @@ func NewTransport(options Options) *Transport {
 			case <-ticker.C:
 				htransport.CloseIdleConnections()
 			case <-t.quit:
+				htransport.CloseIdleConnections()
 				return
 			}
 		}
