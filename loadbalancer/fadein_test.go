@@ -77,7 +77,7 @@ func testFadeIn(
 			})
 		}
 
-		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+		rnd := rand.New(rand.NewSource(rand.Int63()))
 		t.Log("test start", time.Now())
 		var stats []string
 		stop := time.After(fadeInDuration)
@@ -232,7 +232,7 @@ func benchmarkFadeIn(
 			go func(i int) {
 				defer wg.Done()
 
-				rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+				rnd := rand.New(rand.NewSource(rand.Int63()))
 				ctx := &routing.LBContext{
 					Params: map[string]interface{}{},
 					Route:  route,

@@ -3,7 +3,6 @@ package loadbalancer
 import (
 	"math/rand"
 	"sync"
-	"time"
 )
 
 type lockedSource struct {
@@ -12,7 +11,7 @@ type lockedSource struct {
 }
 
 func newLockedSource() *lockedSource {
-	return &lockedSource{r: rand.NewSource(time.Now().UnixNano())}
+	return &lockedSource{r: rand.NewSource(rand.Int63())} // #nosec
 }
 
 func (s *lockedSource) Int63() int64 {

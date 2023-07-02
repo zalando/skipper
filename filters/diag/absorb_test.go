@@ -38,7 +38,7 @@ func testAbsorb(t *testing.T, silent bool) {
 		"POST",
 		p.URL,
 		io.LimitReader(
-			rand.New(rand.NewSource(time.Now().UnixNano())),
+			rand.New(rand.NewSource(rand.Int63())),
 			bodySize,
 		),
 	)

@@ -224,7 +224,7 @@ func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if l, ok := args[0].(float64); ok {
-		return &random{rand: rand.New(rand.NewSource(time.Now().UnixNano())), len: int64(l)}, nil // #nosec
+		return &random{rand: rand.New(rand.NewSource(rand.Int63())), len: int64(l)}, nil // #nosec
 	} else {
 		return nil, filters.ErrInvalidFilterParameters
 	}

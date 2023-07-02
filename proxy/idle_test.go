@@ -32,7 +32,7 @@ func hasArg(arg string) bool {
 // This test is unpredictable, and occasionally fails on certain OSes.
 // To run this test, set `-args idle` for the test command.
 func TestIdleConns(t *testing.T) {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r := rand.New(rand.NewSource(rand.Int63()))
 	if !hasArg("idle") {
 		t.Skip()
 	}

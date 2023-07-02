@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
@@ -314,7 +313,7 @@ func TestMatchingClientIP(t *testing.T) {
 	}
 }
 
-var random = rand.New(rand.NewSource(time.Now().UnixNano()))
+var random = rand.New(rand.NewSource(rand.Int63()))
 
 func generateIPCidr() string {
 	if m := random.Int(); m%10 == 0 {

@@ -1002,7 +1002,7 @@ func parseFilter(def, oidcServerURL, redirectURL string) ([]*eskip.Filter, error
 }
 
 func TestChunkAndMergerCookie(t *testing.T) {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r := rand.New(rand.NewSource(rand.Int63()))
 	tinyCookie := http.Cookie{
 		Name:     "skipperOauthOidcHASHHASH-",
 		Value:    "eyJ0eXAiOiJKV1QiLCJhbGciO",
