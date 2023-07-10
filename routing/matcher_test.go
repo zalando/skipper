@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
@@ -655,7 +656,7 @@ func TestMatchPathTreeNoMatch(t *testing.T) {
 
 func TestMatchPathTree(t *testing.T) {
 	tree := &pathmux.Tree{}
-	pm0 := &pathMatcher{leaves: []*leafMatcher{{route: &Route{Route: eskip.Route{Id: "1"}}}}}
+	pm0 := &pathMatcher{leaves: []*leafMatcher{{route: NewRoute(eskip.Route{Id: "1"})}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{{}}}
 	err := tree.Add("/some/path", pm0)
 	if err != nil {
@@ -680,7 +681,7 @@ func TestMatchPathTree(t *testing.T) {
 func TestMatchPathTreeWithWildcards(t *testing.T) {
 	tree := &pathmux.Tree{}
 	pm0 := &pathMatcher{leaves: []*leafMatcher{{
-		route:              &Route{Route: eskip.Route{Id: "1"}},
+		route:              NewRoute(eskip.Route{Id: "1"}),
 		wildcardParamNames: []string{"param1", "param0"},
 	}}}
 	pm1 := &pathMatcher{leaves: []*leafMatcher{{}}}
@@ -1130,7 +1131,7 @@ func TestExtractWildcardParamNames(t *testing.T) {
 		}
 
 		t.Run(title, func(t *testing.T) {
-			route := &Route{path: scenario.path, pathSubtree: scenario.pathSubtree}
+			route := &Route{mx: &sync.Mutex{}, path: scenario.path, pathSubtree: scenario.pathSubtree}
 			actual := extractWildcardParamNames(route)
 			expected := scenario.expected
 
@@ -1185,7 +1186,7 @@ func TestNormalizePath(t *testing.T) {
 	},
 	} {
 		t.Run(scenario.path, func(t *testing.T) {
-			route := &Route{path: scenario.path}
+			route := &Route{mx: &sync.Mutex{}, path: scenario.path}
 			actual, err := normalizePath(route)
 			if err != nil {
 				t.Fatal(err)
@@ -1197,7 +1198,7 @@ func TestNormalizePath(t *testing.T) {
 				return
 			}
 
-			route = &Route{pathSubtree: scenario.path}
+			route = &Route{mx: &sync.Mutex{}, pathSubtree: scenario.path}
 			actual, err = normalizePath(route)
 			if err != nil {
 				t.Fatal(err)
