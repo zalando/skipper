@@ -5,8 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"path"
 	"testing"
 
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
@@ -34,7 +32,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			msg:             "Allow Requests",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow",
-			requestPath:     "allow",
+			requestPath:     "/allow",
 			expectedStatus:  http.StatusOK,
 			expectedBody:    "Welcome!",
 			expectedHeaders: make(http.Header),
@@ -45,7 +43,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			msg:             "Simple Forbidden",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow",
-			requestPath:     "forbidden",
+			requestPath:     "/forbidden",
 			expectedStatus:  http.StatusForbidden,
 			expectedHeaders: make(http.Header),
 			backendHeaders:  make(http.Header),
@@ -55,7 +53,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			msg:             "Allow With Structured Rules",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
-			requestPath:     "allow/structured",
+			requestPath:     "/allow/structured",
 			expectedStatus:  http.StatusOK,
 			expectedBody:    "Welcome!",
 			expectedHeaders: make(http.Header),
@@ -66,7 +64,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			msg:             "Forbidden With Body",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
-			requestPath:     "forbidden",
+			requestPath:     "/forbidden",
 			expectedStatus:  http.StatusUnauthorized,
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"no"}},
 			expectedBody:    "Unauthorized Request",
@@ -78,8 +76,8 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			t.Logf("Running test for %v", ti)
 			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("Welcome!"))
-				assert.True(t, isHeadersPresent(ti.backendHeaders, r.Header), "Enriched request header is absent.")
-				assert.True(t, isHeadersAbsent(ti.removeHeaders, r.Header), "Unwanted HTTP Headers present.")
+				assert.True(t, isHeadersPresent(t, ti.backendHeaders, r.Header), "Enriched request header is absent.")
+				assert.True(t, isHeadersAbsent(t, ti.removeHeaders, r.Header), "Unwanted HTTP Headers present.")
 			}))
 
 			opaControlPlane := opasdktest.MustNewServer(
@@ -117,7 +115,6 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				}),
 			)
 
-			var routeFilters []*eskip.Filter
 			fr := make(filters.Registry)
 
 			config := []byte(fmt.Sprintf(`{
@@ -141,25 +138,17 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 			ftSpec := NewAuthorizeWithRegoPolicySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
-			filterArgs := []interface{}{ti.bundleName}
-			_, err := ftSpec.CreateFilter(filterArgs)
-			if err != nil {
-				t.Fatalf("error in creating filter: %v", err)
-			}
 			fr.Register(ftSpec)
-			routeFilters = append(routeFilters, &eskip.Filter{Name: ftSpec.Name(), Args: filterArgs})
 
-			r := &eskip.Route{Filters: routeFilters, Backend: clientServer.URL}
+			r := eskip.MustParse(fmt.Sprintf(`* -> authorizeWithRegoPolicy("%s") -> "%s"`, ti.bundleName, clientServer.URL))
 
-			proxy := proxytest.New(fr, r)
-			reqURL, err := url.Parse(proxy.URL)
-			if err != nil {
-				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
-			}
-			reqURL.Path = path.Join(reqURL.Path, ti.requestPath)
-			req, err := http.NewRequest("GET", reqURL.String(), nil)
+			proxy := proxytest.New(fr, r...)
+
+			req, err := http.NewRequest("GET", proxy.URL+ti.requestPath, nil)
 			for name, values := range ti.removeHeaders {
-				req.Header.Add(name, values[0]) //adding the headers to validate removal.
+				for _, value := range values {
+					req.Header.Add(name, value) //adding the headers to validate removal.
+				}
 			}
 
 			if err != nil {
@@ -167,14 +156,14 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				return
 			}
 
-			rsp, err := http.DefaultClient.Do(req)
+			rsp, err := proxy.Client().Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
 
-			assert.True(t, isHeadersPresent(ti.expectedHeaders, rsp.Header), "HTTP Headers do not match")
+			assert.True(t, isHeadersPresent(t, ti.expectedHeaders, rsp.Header), "HTTP Headers do not match")
 
 			defer rsp.Body.Close()
 			body, err := io.ReadAll(rsp.Body)
@@ -186,41 +175,19 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 	}
 }
 
-func isHeadersPresent(expectedHeaders http.Header, headers http.Header) bool {
+func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.Header) bool {
 	for headerName, expectedValues := range expectedHeaders {
 		actualValues, headerFound := headers[headerName]
 		if !headerFound {
 			return false
 		}
 
-		if !areHeaderValuesEqual(expectedValues, actualValues) {
-			return false
-		}
+		assert.ElementsMatch(t, expectedValues, actualValues)
 	}
 	return true
 }
 
-func areHeaderValuesEqual(expectedValues, actualValues []string) bool {
-	if len(expectedValues) != len(actualValues) {
-		return false
-	}
-
-	actualValueSet := make(map[string]struct{})
-	for _, val := range actualValues {
-		actualValueSet[val] = struct{}{}
-	}
-
-	for _, val := range expectedValues {
-		if _, ok := actualValueSet[val]; !ok {
-			return false
-		}
-		delete(actualValueSet, val)
-	}
-
-	return len(actualValueSet) == 0
-}
-
-func isHeadersAbsent(unwantedHeaders http.Header, headers http.Header) bool {
+func isHeadersAbsent(t *testing.T, unwantedHeaders http.Header, headers http.Header) bool {
 	for headerName := range unwantedHeaders {
 		if _, ok := headers[headerName]; ok {
 			return false

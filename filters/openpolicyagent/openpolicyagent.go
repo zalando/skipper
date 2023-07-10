@@ -11,6 +11,7 @@ import (
 	"time"
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/config"
 	"github.com/open-policy-agent/opa/logging"
@@ -27,14 +28,12 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
-	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
 	"github.com/zalando/skipper/tracing"
 )
 
 const (
-	OpenPolicyAgentDecisionKey        = "open-policy-agent:decision"
-	OpenPolicyAgentDecisionBodyKey    = "open-policy-agent:decision-body"
-	OpenPolicyAgentDecisionHeadersKey = "open-policy-agent:decision-headers"
+	defaultReuseDuration       = 30 * time.Second
+	defaultShutdownGracePeriod = 30 * time.Second
 )
 
 type OpenPolicyAgentRegistry struct {
@@ -44,10 +43,11 @@ type OpenPolicyAgentRegistry struct {
 	// This not possible due to some limitations in OPA
 	// See https://github.com/open-policy-agent/opa/issues/5707
 
-	instances     map[string]*OpenPolicyAgentInstance
-	refcounts     map[*OpenPolicyAgentInstance]int
-	lastused      map[*OpenPolicyAgentInstance]time.Time
-	mtx           sync.Mutex
+	mu        sync.Mutex
+	instances map[string]*OpenPolicyAgentInstance
+	refcounts map[*OpenPolicyAgentInstance]int
+	lastused  map[*OpenPolicyAgentInstance]time.Time
+
 	once          sync.Once
 	closed        bool
 	quit          chan struct{}
@@ -60,9 +60,6 @@ func WithReuseDuration(duration time.Duration) func(*OpenPolicyAgentRegistry) er
 		return nil
 	}
 }
-
-const defaultReuseDuration = 30 * time.Second
-const defaultShutdownGracePeriod = 30 * time.Second
 
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
 	registry := &OpenPolicyAgentRegistry{
@@ -148,7 +145,7 @@ func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error
 
 	if cfg.configTemplate == nil {
 		var err error
-		cfg.configTemplate, err = os.ReadFile(configTemplate())
+		cfg.configTemplate, err = os.ReadFile("opaconfig.yaml")
 		if err != nil {
 			return nil, err
 		}
@@ -157,17 +154,10 @@ func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error
 	return &cfg, nil
 }
 
-func configTemplate() string {
-	if s, ok := os.LookupEnv("OPA_CONFIG_TEMPLATE_FILE"); ok {
-		return s
-	}
-	return "opaconfig.yaml"
-}
-
 func (registry *OpenPolicyAgentRegistry) Close() {
 	registry.once.Do(func() {
-		registry.mtx.Lock()
-		defer registry.mtx.Unlock()
+		registry.mu.Lock()
+		defer registry.mu.Unlock()
 
 		ctx, cancel := context.WithTimeout(context.Background(), defaultShutdownGracePeriod)
 		defer cancel()
@@ -182,8 +172,8 @@ func (registry *OpenPolicyAgentRegistry) Close() {
 }
 
 func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
-	registry.mtx.Lock()
-	defer registry.mtx.Unlock()
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
 
 	if registry.closed {
 		return
@@ -195,7 +185,7 @@ func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 	for key, inst := range registry.instances {
 		lastused, ok := registry.lastused[inst]
 
-		if ok && lastused.Add(registry.reuseDuration).Before(t) {
+		if ok && t.Sub(lastused) > registry.reuseDuration {
 			inst.Close(ctx)
 
 			delete(registry.instances, key)
@@ -220,8 +210,8 @@ func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
 }
 
 func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
-	registry.mtx.Lock()
-	defer registry.mtx.Unlock()
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
 
 	if registry.closed {
 		return nil, fmt.Errorf("open policy agent registry is already closed")
@@ -248,8 +238,8 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 }
 
 func (registry *OpenPolicyAgentRegistry) ReleaseInstance(instance *OpenPolicyAgentInstance) error {
-	registry.mtx.Lock()
-	defer registry.mtx.Unlock()
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
 
 	registry.refcounts[instance]--
 
@@ -335,10 +325,7 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 
 // New returns a new OPA object.
 func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string) (*OpenPolicyAgentInstance, error) {
-	id, err := util.Uuid4()
-	if err != nil {
-		return nil, err
-	}
+	id := uuid.New().String()
 
 	opaConfig, err := config.ParseConfig(configBytes, id)
 	if err != nil {

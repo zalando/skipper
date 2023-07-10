@@ -134,7 +134,6 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				}),
 			)
 
-			var routeFilters []*eskip.Filter
 			fr := make(filters.Registry)
 
 			config := []byte(fmt.Sprintf(`{
@@ -169,11 +168,10 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				t.Fatalf("error in creating filter: %v", err)
 			}
 			fr.Register(ftSpec)
-			routeFilters = append(routeFilters, &eskip.Filter{Name: ftSpec.Name(), Args: filterArgs})
 
-			r := &eskip.Route{Filters: routeFilters, Backend: clientServer.URL}
+			r := eskip.MustParse(fmt.Sprintf(`* -> serveResponseWithRegoPolicy("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
 
-			proxy := proxytest.New(fr, r)
+			proxy := proxytest.New(fr, r...)
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
 				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
@@ -185,7 +183,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				return
 			}
 
-			rsp, err := http.DefaultClient.Do(req)
+			rsp, err := proxy.Client().Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}

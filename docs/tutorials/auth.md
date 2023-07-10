@@ -444,7 +444,7 @@ The variable `.bundlename` is the first argument in the following filters and ca
 
 ### Input Structures
 
-Input structures to policies follow those that are used by the [opa-envoy-plugin](https://github.com/open-policy-agent/opa-envoy-plugin), the existing [examples and documentation](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-input) apply also to Skipper. 
+Input structures to policies follow those that are used by the [opa-envoy-plugin](https://github.com/open-policy-agent/opa-envoy-plugin), the existing [examples and documentation](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-input) apply also to Skipper. Please note that the filters in Skipper always generate v3 input structures.
 
 ### Passing context to the policy
 
@@ -491,8 +491,8 @@ decision_logs:
 Start Skipper with 
 
 ```
-skipper --enable-open-policy-agent --open-policy-agent-config-template opaconfig.yaml \
-  --inline-routes 'notfound: * -> authorizeWithRegoPolicy("<playground-bundle-id>") -> inlineContent("<h1>Authorized Hello</h1>") -> <shunt>'
+skipper -enable-open-policy-agent -open-policy-agent-config-template opaconfig.yaml \
+  -inline-routes 'notfound: * -> authorizeWithRegoPolicy("<playground-bundle-id>") -> inlineContent("<h1>Authorized Hello</h1>") -> <shunt>'
 ```
 
 You can test the policy with

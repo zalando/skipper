@@ -8,7 +8,6 @@ import (
 
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
-	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
 )
 
 type spec struct {
@@ -27,33 +26,35 @@ func (s *spec) Name() string {
 	return filters.ServeResponseWithRegoPolicyName
 }
 
-func (s *spec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var err error
 
-	sargs, err := util.GetStrings(config)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(sargs) < 1 {
+	if len(args) < 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	if len(sargs) > 2 {
+	if len(args) > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	bundleName := sargs[0]
-
-	configOptions := s.opts
+	bundleName, ok := args[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
 
 	envoyContextExtensions := map[string]string{}
-	if len(sargs) > 1 {
-		err = yaml.Unmarshal([]byte(sargs[1]), &envoyContextExtensions)
+	if len(args) > 1 {
+		_, ok := args[1].(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		err = yaml.Unmarshal([]byte(args[1].(string)), &envoyContextExtensions)
 		if err != nil {
 			return nil, err
 		}
 	}
+
+	configOptions := s.opts
 
 	opaConfig, err := openpolicyagent.NewOpenPolicyAgentConfig(configOptions...)
 	if err != nil {

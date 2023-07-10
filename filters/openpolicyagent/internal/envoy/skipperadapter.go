@@ -10,7 +10,7 @@ import (
 
 func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metadata, contextExtensions map[string]string) *ext_authz_v3.CheckRequest {
 
-	headers := make(map[string]string)
+	headers := make(map[string]string, len(req.Header))
 	for h, vv := range req.Header {
 		// This makes headers in the input compatible with what Envoy does, i.e. allows to use policy fragments designed for envoy
 		// See: https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/header_casing#http-1-1-header-casing

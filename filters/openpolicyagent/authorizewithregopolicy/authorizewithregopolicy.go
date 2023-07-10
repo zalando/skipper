@@ -9,7 +9,6 @@ import (
 
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
-	"github.com/zalando/skipper/filters/openpolicyagent/internal/util"
 )
 
 type spec struct {
@@ -28,33 +27,35 @@ func (s *spec) Name() string {
 	return filters.AuthorizeWithRegoPolicyName
 }
 
-func (s *spec) CreateFilter(config []interface{}) (filters.Filter, error) {
+func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	var err error
 
-	sargs, err := util.GetStrings(config)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(sargs) < 1 {
+	if len(args) < 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	if len(sargs) > 2 {
+	if len(args) > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	bundleName := sargs[0]
-
-	configOptions := s.opts
+	bundleName, ok := args[0].(string)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
 
 	envoyContextExtensions := map[string]string{}
-	if len(sargs) > 1 {
-		err = yaml.Unmarshal([]byte(sargs[1]), &envoyContextExtensions)
+	if len(args) > 1 {
+		_, ok := args[1].(string)
+		if !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		err = yaml.Unmarshal([]byte(args[1].(string)), &envoyContextExtensions)
 		if err != nil {
 			return nil, err
 		}
 	}
+
+	configOptions := s.opts
 
 	opaConfig, err := openpolicyagent.NewOpenPolicyAgentConfig(configOptions...)
 	if err != nil {
@@ -115,14 +116,12 @@ func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 
 	fc.Metrics().IncCounter(f.opa.MetricsKey("decision.allow"))
 
-	if result.HasResponseBody() {
-		body, err := result.GetResponseBody()
-		if err != nil {
-			f.opa.RejectInvalidDecisionError(fc, span, result, err)
-			return
-		}
-		fc.StateBag()[openpolicyagent.OpenPolicyAgentDecisionBodyKey] = body
+	headersToRemove, err := result.GetRequestHTTPHeadersToRemove()
+	if err != nil {
+		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		return
 	}
+	removeRequestHeaders(fc, headersToRemove)
 
 	headers, err := result.GetResponseHTTPHeaders()
 	if err != nil {
@@ -130,16 +129,9 @@ func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 		return
 	}
 	addRequestHeaders(fc, headers)
-
-	headersToRemove, err := result.GetRequestHTTPHeadersToRemove()
-	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, span, result, err)
-		return
-	}
-	removeHeaders(fc, headersToRemove)
 }
 
-func removeHeaders(fc filters.FilterContext, headersToRemove []string) {
+func removeRequestHeaders(fc filters.FilterContext, headersToRemove []string) {
 	for _, header := range headersToRemove {
 		fc.Request().Header.Del(header)
 	}
@@ -148,6 +140,7 @@ func removeHeaders(fc filters.FilterContext, headersToRemove []string) {
 func addRequestHeaders(fc filters.FilterContext, headers http.Header) {
 	for key, values := range headers {
 		for _, value := range values {
+			// This is the default behavior from https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/core/v3/base.proto#config-core-v3-headervalueoption
 			fc.Request().Header.Add(key, value)
 		}
 	}
