@@ -133,6 +133,8 @@ type Options struct {
 	// SignalFirstLoad enables signaling on the first load
 	// of the routing configuration during the startup.
 	SignalFirstLoad bool
+
+	UpdateHealthyEndpointsChan <-chan time.Time
 }
 
 // RouteFilter contains extensions to generic filter
@@ -230,6 +232,10 @@ type Route struct {
 	// balanced route.
 	LBEndpoints []LBEndpoint
 
+	// LBEndpoints which are checked for not being unhealthy or fading-in
+	HealthyEndpoints    []LBEndpoint
+	HealthyEndpointsSet map[LBEndpoint]struct{}
+
 	// LBAlgorithm is the selected load balancing algorithm
 	// of a load balanced route.
 	LBAlgorithm LBAlgorithm
@@ -246,6 +252,30 @@ type Route struct {
 	// configured by the post-processor found in the filters/fadein
 	// package.
 	LBFadeInExponent float64
+}
+
+func (r *Route) GetHealthyEndpoints() []LBEndpoint {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
+	if len(r.HealthyEndpoints) == 0 {
+		return r.LBEndpoints
+	}
+	return r.HealthyEndpoints
+}
+
+func (r *Route) GetHealthyEndpointsSet() map[LBEndpoint]struct{} {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
+	if len(r.HealthyEndpointsSet) == 0 {
+		endpointsSet := make(map[LBEndpoint]struct{}, len(r.LBEndpoints))
+		for i := range r.LBEndpoints {
+			endpointsSet[r.LBEndpoints[i]] = struct{}{}
+		}
+		return endpointsSet
+	}
+	return r.HealthyEndpointsSet
 }
 
 // PostProcessor is an interface for custom post-processors applying changes
@@ -359,6 +389,8 @@ func (r *Routing) startReceivingUpdates(o Options) {
 	dc := len(o.DataClients)
 	c := make(chan *routeTable)
 	go receiveRouteMatcher(o, c, r.quit)
+	go updateHealthyEndpoints(r, o.UpdateHealthyEndpointsChan)
+
 	go func() {
 		for {
 			select {

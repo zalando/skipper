@@ -3,11 +3,13 @@ package routing
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"sort"
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
@@ -526,6 +528,66 @@ type routeTable struct {
 	validRoutes   []*eskip.Route
 	invalidRoutes []*eskip.Route
 	created       time.Time
+}
+
+func healthyEndpoint(rnd *rand.Rand, ep LBEndpoint, route *Route) bool {
+	return true
+}
+
+func updateHealthyEndpoints(r *Routing, updateCh <-chan time.Time) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
+	var ticker *time.Ticker
+	if updateCh == nil {
+		ticker = time.NewTicker(500 * time.Millisecond)
+		updateCh = ticker.C
+	}
+
+	for {
+		select {
+		case <-r.quit:
+			if ticker != nil {
+				ticker.Stop()
+			}
+			return
+		case <-updateCh:
+			var rt *routeTable
+			rt, ok := r.routeTable.Load().(*routeTable)
+			if !ok {
+				continue
+			}
+
+			for _, ri := range rt.routes {
+				if ri.Route.BackendType != eskip.LBBackend {
+					continue
+				}
+
+				if len(ri.Route.LBEndpoints) == 0 {
+					log.Debugf("failed to post-process LB route: %s, no endpoints defined", ri.Id)
+					continue
+				}
+
+				newHealthyEndpoints := make([]LBEndpoint, 0, len(ri.LBEndpoints))
+				newHealthyEndpointsSet := make(map[LBEndpoint]struct{}, len(ri.LBEndpoints))
+				for i := range ri.LBEndpoints {
+					if healthyEndpoint(rnd, ri.LBEndpoints[i], ri) {
+						newHealthyEndpoints = append(newHealthyEndpoints, ri.LBEndpoints[i])
+						newHealthyEndpointsSet[ri.LBEndpoints[i]] = struct{}{}
+					}
+				}
+				if len(newHealthyEndpoints) == 0 {
+					newHealthyEndpoints = ri.LBEndpoints
+					for i := range ri.LBEndpoints {
+						newHealthyEndpointsSet[ri.LBEndpoints[i]] = struct{}{}
+					}
+				}
+
+				ri.mx.Lock()
+				ri.HealthyEndpoints = newHealthyEndpoints
+				ri.HealthyEndpointsSet = newHealthyEndpointsSet
+				ri.mx.Unlock()
+			}
+		}
+	}
 }
 
 // close routeTable will cleanup all underlying resources, that could
