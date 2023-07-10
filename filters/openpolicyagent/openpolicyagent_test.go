@@ -113,7 +113,7 @@ func TestRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	registry.ReleaseInstance(inst1)
+	registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
 
 	inst2, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 
@@ -131,8 +131,7 @@ func TestRegistry(t *testing.T) {
 
 	assert.Equal(t, inst2, inst3, "same instance is reused multiple times")
 
-	registry.ReleaseInstance(inst2)
-	registry.ReleaseInstance(inst3)
+	registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
 
 	//Allow clean up
 	time.Sleep(15 * time.Second)

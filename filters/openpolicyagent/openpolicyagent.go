@@ -28,6 +28,7 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -45,13 +46,16 @@ type OpenPolicyAgentRegistry struct {
 
 	mu        sync.Mutex
 	instances map[string]*OpenPolicyAgentInstance
-	refcounts map[*OpenPolicyAgentInstance]int
 	lastused  map[*OpenPolicyAgentInstance]time.Time
 
 	once          sync.Once
 	closed        bool
 	quit          chan struct{}
 	reuseDuration time.Duration
+}
+
+type OpenPolicyAgentFilter interface {
+	OpenPolicyAgent() *OpenPolicyAgentInstance
 }
 
 func WithReuseDuration(duration time.Duration) func(*OpenPolicyAgentRegistry) error {
@@ -65,7 +69,6 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration: defaultReuseDuration,
 		instances:     make(map[string]*OpenPolicyAgentInstance),
-		refcounts:     make(map[*OpenPolicyAgentInstance]int),
 		lastused:      make(map[*OpenPolicyAgentInstance]time.Time),
 		quit:          make(chan struct{}),
 	}
@@ -190,7 +193,6 @@ func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 
 			delete(registry.instances, key)
 			delete(registry.lastused, inst)
-			delete(registry.refcounts, inst)
 		}
 	}
 }
@@ -209,6 +211,25 @@ func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
 	}
 }
 
+// Do implements routing.PostProcessor and cleans unused OPA instances
+func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.Route {
+	rr := make([]*routing.Route, len(routes))
+	inUse := make(map[*OpenPolicyAgentInstance]struct{})
+
+	for i, ri := range routes {
+		rr[i] = ri
+		for _, fi := range ri.Filters {
+			if ff, ok := fi.Filter.(OpenPolicyAgentFilter); ok {
+				inUse[ff.OpenPolicyAgent()] = struct{}{}
+			}
+		}
+	}
+
+	registry.markUnused(inUse)
+
+	return rr
+}
+
 func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
@@ -218,8 +239,6 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 	}
 
 	if instance, ok := registry.instances[bundleName]; ok {
-		registry.refcounts[instance]++
-
 		delete(registry.lastused, instance)
 
 		return instance, nil
@@ -232,19 +251,18 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 	}
 
 	registry.instances[bundleName] = instance
-	registry.refcounts[instance] = 1
 
 	return instance, nil
 }
 
-func (registry *OpenPolicyAgentRegistry) ReleaseInstance(instance *OpenPolicyAgentInstance) error {
+func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentInstance]struct{}) error {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 
-	registry.refcounts[instance]--
-
-	if (registry.refcounts[instance]) == 0 {
-		registry.lastused[instance] = time.Now()
+	for _, instance := range registry.instances {
+		if _, ok := inUse[instance]; !ok {
+			registry.lastused[instance] = time.Now()
+		}
 	}
 
 	return nil

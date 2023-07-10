@@ -148,6 +148,6 @@ func addRequestHeaders(fc filters.FilterContext, headers http.Header) {
 
 func (*authorizeWithRegoPolicyFilter) Response(filters.FilterContext) {}
 
-func (f *authorizeWithRegoPolicyFilter) Close() error {
-	return f.registry.ReleaseInstance(f.opa)
+func (f *authorizeWithRegoPolicyFilter) OpenPolicyAgent() *openpolicyagent.OpenPolicyAgentInstance {
+	return f.opa
 }

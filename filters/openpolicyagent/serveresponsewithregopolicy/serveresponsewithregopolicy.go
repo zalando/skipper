@@ -108,6 +108,6 @@ func (f *serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 
 func (f *serveResponseWithRegoPolicyFilter) Response(fc filters.FilterContext) {}
 
-func (f *serveResponseWithRegoPolicyFilter) Close() error {
-	return f.registry.ReleaseInstance(f.opa)
+func (f *serveResponseWithRegoPolicyFilter) OpenPolicyAgent() *openpolicyagent.OpenPolicyAgentInstance {
+	return f.opa
 }

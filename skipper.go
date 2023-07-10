@@ -1760,8 +1760,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
+	var opaRegistry *openpolicyagent.OpenPolicyAgentRegistry
 	if o.EnableOpenPolicyAgent {
-		opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry()
+		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry()
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
@@ -1903,6 +1904,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
 		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
+	}
+
+	if o.EnableOpenPolicyAgent {
+		ro.PostProcessors = append(ro.PostProcessors, opaRegistry)
 	}
 
 	if o.CustomRoutingPreProcessors != nil {
