@@ -531,7 +531,14 @@ type routeTable struct {
 }
 
 func healthyEndpoint(rnd *rand.Rand, ep LBEndpoint, route *Route) bool {
-	return true
+	now := time.Now()
+	f := fadeIn(
+		now,
+		route.LBFadeInDuration,
+		route.LBFadeInExponent,
+		ep.Detected,
+	)
+	return f == 1 || rnd.Float64() < f
 }
 
 func updateHealthyEndpoints(r *Routing, updateCh <-chan time.Time) {

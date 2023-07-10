@@ -256,12 +256,21 @@ func TestApply(t *testing.T) {
 }
 
 func TestConsistentHashSearch(t *testing.T) {
-	apply := func(key string, endpoints []string) string {
-		ch := newConsistentHash(endpoints).(*consistentHash)
-		return endpoints[ch.search(key, noSkippedEndpoints)]
-	}
-
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
+	apply := func(key string, endpoints []string) string {
+		route := NewAlgorithmProvider().Do([]*routing.Route{routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: ConsistentHash.String(),
+			LBEndpoints: endpoints,
+		})})[0]
+		healthyEndpoints := map[routing.LBEndpoint]struct{}{}
+		for _, ep := range route.LBEndpoints {
+			healthyEndpoints[ep] = struct{}{}
+		}
+
+		ch := newConsistentHash(endpoints).(*consistentHash)
+		return endpoints[ch.search(key, &routing.LBContext{Route: route}, healthyEndpoints)]
+	}
 	const key = "192.168.0.1"
 
 	ep := apply(key, endpoints)
