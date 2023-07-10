@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -56,12 +57,12 @@ func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Durat
 		eps = append(eps, fmt.Sprintf("ep-%d-%s.test", i, endpointAges[i]))
 	}
 
+	route := routing.NewRoute(eskip.Route{})
+	route.LBFadeInDuration = fadeInDuration
+	route.LBFadeInExponent = 1
 	ctx := &routing.LBContext{
 		Params: map[string]interface{}{},
-		Route: &routing.Route{
-			LBFadeInDuration: fadeInDuration,
-			LBFadeInExponent: 1,
-		},
+		Route:  route,
 	}
 
 	for i := range eps {
@@ -319,10 +320,9 @@ func benchmarkFadeIn(
 
 		a := algorithm(eps)
 
-		route := &routing.Route{
-			LBFadeInDuration: fadeInDuration,
-			LBFadeInExponent: 1,
-		}
+		route := routing.NewRoute(eskip.Route{})
+		route.LBFadeInDuration = fadeInDuration
+		route.LBFadeInExponent = 1
 		for i := range eps {
 			route.LBEndpoints = append(route.LBEndpoints, routing.LBEndpoint{
 				Host:     eps[i],

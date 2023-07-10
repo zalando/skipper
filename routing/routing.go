@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -202,6 +203,7 @@ func NewLBContext(r *http.Request, rt *Route) *LBContext {
 
 // Route object with preprocessed filter instances.
 type Route struct {
+	mx *sync.Mutex
 
 	// Fields from the static route definition.
 	eskip.Route
@@ -380,6 +382,10 @@ func (r *Routing) startReceivingUpdates(o Options) {
 			}
 		}
 	}()
+}
+
+func NewRoute(route eskip.Route) *Route {
+	return &Route{mx: &sync.Mutex{}, Route: route}
 }
 
 // Route matches a request in the current routing tree.

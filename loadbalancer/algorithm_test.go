@@ -14,12 +14,10 @@ import (
 func TestSelectAlgorithm(t *testing.T) {
 	t.Run("not an LB route", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.NetworkBackend,
-				Backend:     "https://www.example.org",
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.NetworkBackend,
+			Backend:     "https://www.example.org",
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 1 || len(rr[0].LBEndpoints) != 0 || rr[0].LBAlgorithm != nil {
@@ -29,12 +27,10 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with default algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.LBBackend,
-				LBEndpoints: []string{"https://www.example.org"},
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBEndpoints: []string{"https://www.example.org"},
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 1 {
@@ -55,13 +51,11 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with explicit round-robin algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.LBBackend,
-				LBAlgorithm: "roundRobin",
-				LBEndpoints: []string{"https://www.example.org"},
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "roundRobin",
+			LBEndpoints: []string{"https://www.example.org"},
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 1 {
@@ -82,13 +76,11 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with explicit consistentHash algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.LBBackend,
-				LBAlgorithm: "consistentHash",
-				LBEndpoints: []string{"https://www.example.org"},
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "consistentHash",
+			LBEndpoints: []string{"https://www.example.org"},
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 1 {
@@ -109,13 +101,11 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with explicit random algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.LBBackend,
-				LBAlgorithm: "random",
-				LBEndpoints: []string{"https://www.example.org"},
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "random",
+			LBEndpoints: []string{"https://www.example.org"},
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 1 {
@@ -136,13 +126,11 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with explicit powerOfRandomNChoices algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.LBBackend,
-				LBAlgorithm: "powerOfRandomNChoices",
-				LBEndpoints: []string{"https://www.example.org"},
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "powerOfRandomNChoices",
+			LBEndpoints: []string{"https://www.example.org"},
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 1 {
@@ -163,13 +151,11 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with invalid algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.LBBackend,
-				LBAlgorithm: "fooBar",
-				LBEndpoints: []string{"https://www.example.org"},
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "fooBar",
+			LBEndpoints: []string{"https://www.example.org"},
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 0 {
@@ -179,12 +165,10 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with no LB endpoints", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.LBBackend,
-				LBAlgorithm: "roundRobin",
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "roundRobin",
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 0 {
@@ -194,13 +178,11 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with invalid LB endpoints", func(t *testing.T) {
 		p := NewAlgorithmProvider()
-		r := &routing.Route{
-			Route: eskip.Route{
-				BackendType: eskip.LBBackend,
-				LBAlgorithm: "roundRobin",
-				LBEndpoints: []string{"://www.example.org"},
-			},
-		}
+		r := routing.NewRoute(eskip.Route{
+			BackendType: eskip.LBBackend,
+			LBAlgorithm: "roundRobin",
+			LBEndpoints: []string{"://www.example.org"},
+		})
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 0 {
@@ -248,13 +230,11 @@ func TestApply(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
 			p := NewAlgorithmProvider()
-			r := &routing.Route{
-				Route: eskip.Route{
-					BackendType: eskip.LBBackend,
-					LBAlgorithm: tt.algorithmName,
-					LBEndpoints: eps,
-				},
-			}
+			r := routing.NewRoute(eskip.Route{
+				BackendType: eskip.LBBackend,
+				LBAlgorithm: tt.algorithmName,
+				LBEndpoints: eps,
+			})
 			rt := p.Do([]*routing.Route{r})
 
 			lbctx := &routing.LBContext{
@@ -306,13 +286,11 @@ func TestConsistentHashSearch(t *testing.T) {
 func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
-	route := NewAlgorithmProvider().Do([]*routing.Route{{
-		Route: eskip.Route{
-			BackendType: eskip.LBBackend,
-			LBAlgorithm: ConsistentHash.String(),
-			LBEndpoints: endpoints,
-		},
-	}})[0]
+	route := NewAlgorithmProvider().Do([]*routing.Route{routing.NewRoute(eskip.Route{
+		BackendType: eskip.LBBackend,
+		LBAlgorithm: ConsistentHash.String(),
+		LBEndpoints: endpoints,
+	})})[0]
 	ch := route.LBAlgorithm.(*consistentHash)
 	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: 1.25}}
 	noLoad := ch.Apply(ctx)
@@ -350,13 +328,13 @@ func TestConsistentHashKey(t *testing.T) {
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
 	r.RemoteAddr = "192.168.0.1:8765"
 
-	rt := NewAlgorithmProvider().Do([]*routing.Route{{
-		Route: eskip.Route{
+	rt := NewAlgorithmProvider().Do([]*routing.Route{
+		routing.NewRoute(eskip.Route{
 			BackendType: eskip.LBBackend,
 			LBAlgorithm: ConsistentHash.String(),
 			LBEndpoints: endpoints,
-		},
-	}})[0]
+		}),
+	})[0]
 
 	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: make(map[string]interface{})})
 	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: map[string]interface{}{ConsistentHashKey: net.RemoteHost(r).String()}})
@@ -377,13 +355,11 @@ func TestConsistentHashKey(t *testing.T) {
 func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
-	route := NewAlgorithmProvider().Do([]*routing.Route{{
-		Route: eskip.Route{
-			BackendType: eskip.LBBackend,
-			LBAlgorithm: ConsistentHash.String(),
-			LBEndpoints: endpoints,
-		},
-	}})[0]
+	route := NewAlgorithmProvider().Do([]*routing.Route{routing.NewRoute(eskip.Route{
+		BackendType: eskip.LBBackend,
+		LBAlgorithm: ConsistentHash.String(),
+		LBEndpoints: endpoints,
+	})})[0]
 	ch := route.LBAlgorithm.(*consistentHash)
 	balanceFactor := 1.25
 	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor}}

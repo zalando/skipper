@@ -486,7 +486,7 @@ func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *esk
 		return nil, err
 	}
 
-	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs, weight: weight}
+	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs, weight: weight, mx: &sync.Mutex{}}
 	if err := processTreePredicates(r, def.Predicates); err != nil {
 		return nil, err
 	}
