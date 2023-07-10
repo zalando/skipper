@@ -31,20 +31,16 @@ func (*tracingFactory) NewHandler(f http.Handler, label string, opts opatracing.
 
 func (tr *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-	span := opentracing.SpanFromContext(ctx)
+	parentSpan := opentracing.SpanFromContext(ctx)
 
-	if span == nil {
-		span, ctx = tr.opa.StartSpanFromContext(ctx)
+	if parentSpan != nil {
+		span := opentracing.StartSpan("http.send", opentracing.ChildOf(parentSpan.Context()))
 		defer span.Finish()
-		req = req.WithContext(ctx)
-	} else {
-		span, ctx = opentracing.StartSpanFromContext(ctx, "http.send")
-		defer span.Finish()
-		req = req.WithContext(ctx)
+		req = req.WithContext(opentracing.ContextWithSpan(ctx, span))
+
+		carrier := opentracing.HTTPHeadersCarrier(req.Header)
+		span.Tracer().Inject(span.Context(), opentracing.HTTPHeaders, carrier)
 	}
-
-	carrier := opentracing.HTTPHeadersCarrier(req.Header)
-	span.Tracer().Inject(span.Context(), opentracing.HTTPHeaders, carrier)
 
 	return tr.wrapped.RoundTrip(req)
 }
