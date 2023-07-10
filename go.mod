@@ -21,6 +21,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.5.9
+	github.com/google/uuid v1.3.0
 	github.com/hashicorp/memberlist v0.5.0
 	github.com/instana/go-sensor v1.55.2
 	github.com/lightstep/lightstep-tracer-go v0.26.0
@@ -30,7 +31,6 @@ require (
 	github.com/open-policy-agent/opa-envoy-plugin v0.55.0-envoy
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
 	github.com/redis/go-redis/v9 v9.0.5
@@ -53,6 +53,7 @@ require (
 	golang.org/x/sync v0.3.0
 	golang.org/x/term v0.11.0
 	golang.org/x/time v0.3.0
+	google.golang.org/protobuf v1.31.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	gopkg.in/yaml.v2 v2.4.0
 	layeh.com/gopher-json v0.0.0-20201124131017-552bb3c4c3bf
@@ -101,7 +102,6 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -130,6 +130,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0-rc4 // indirect
 	github.com/opencontainers/runc v1.1.5 // indirect
 	github.com/peterh/liner v1.2.2 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20171018203845-0dec1b30a021 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
@@ -167,7 +168,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.57.0 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	oras.land/oras-go/v2 v2.2.1 // indirect
 )
