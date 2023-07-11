@@ -1,6 +1,6 @@
 package eskip
 
-//go:generate goyacc -o parser.go -p eskip parser.y
+//go:generate goyacc -l -v "" -o parser.go -p eskip parser.y
 
 import (
 	"errors"
