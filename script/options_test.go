@@ -121,6 +121,7 @@ func ExampleLuaOptions_enableModules() {
 	// table
 	// table.insert
 	// table.sort
+	// package.config
 	// package.cpath
 	// package.loaded
 	// package.loaders

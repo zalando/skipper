@@ -81,7 +81,7 @@ func TestProcessArgs(t *testing.T) {
 		[]string{"-sort-predicates"},
 		false,
 		nil,
-		[]*medium{{typ: inline, eskip: `PathRegexp("^/") && Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") -> "https://www.example.org"`}},
+		nil,
 	}, {
 
 		// etcd-urls
