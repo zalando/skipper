@@ -113,7 +113,7 @@ lint: build staticcheck ## run all linters
 .PHONY: clean
 clean: ## clean temporary files and directories
 	go clean -i -cache -testcache
-	rm -rf .coverprofile-all .cover
+	rm -rf .coverprofile-all
 	rm -f ./_test_plugins/*.so
 	rm -f ./_test_plugins_fail/*.so
 	rm -rf .bin
@@ -171,22 +171,8 @@ check-fmt: $(SOURCES) ## check format code
 .PHONY: precommit
 precommit: fmt build vet staticcheck check-race shortcheck ## precommit hook
 
-.PHONY: .coverprofile-all
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
-	# go list -f \
-	# 	'{{if len .TestGoFiles}}"go test -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
-	# 	$(PACKAGES) | xargs -i sh -c {}
-	#
-	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
-	# probably can be reverted once etcd is fully mocked away for tests
-	#
-	for p in $(PACKAGES); do \
-		go list -f \
-			'{{if len .TestGoFiles}}"go test -tags=redis -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' \
-			$$p | xargs -i sh -c {}; \
-	done
-	go install github.com/modocache/gover@latest
-	gover . .coverprofile-all
+	go test -tags=redis -coverprofile=.coverprofile-all ./...
 
 .PHONY: cover
 cover: .coverprofile-all ## coverage test and show it in your browser
