@@ -1135,9 +1135,6 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 }
 
 func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, error) {
-	if address == "" {
-		address = ":http"
-	}
 
 	if !o.EnableTCPQueue {
 		return net.Listen("tcp", address)
@@ -1203,9 +1200,19 @@ func listenAndServeQuit(
 	if err != nil {
 		return err
 	}
+	serveTLS := tlsConfig != nil
+
+	address := o.Address
+	if address == "" {
+		if serveTLS {
+			address = ":https"
+		} else {
+			address = ":http"
+		}
+	}
 
 	srv := &http.Server{
-		Addr:              o.Address,
+		Addr:              address,
 		TLSConfig:         tlsConfig,
 		Handler:           proxy,
 		ReadTimeout:       o.ReadTimeoutServer,
@@ -1221,6 +1228,13 @@ func listenAndServeQuit(
 		srv.ConnState = func(conn net.Conn, state http.ConnState) {
 			m.IncCounter(fmt.Sprintf("lb-conn-%s", state))
 		}
+	}
+
+	log.Infof("Listen on %v", address)
+
+	l, err := listen(o, address, mtr)
+	if err != nil {
+		return err
 	}
 
 	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
@@ -1248,16 +1262,14 @@ func listenAndServeQuit(
 		close(idleConnsCH)
 	}()
 
-	log.Infof("proxy listener on %v", o.Address)
-
-	if srv.TLSConfig != nil {
+	if serveTLS {
 		if o.InsecureAddress != "" {
-			log.Infof("insecure listener on %v", o.InsecureAddress)
+			log.Infof("Insecure listener on %v", o.InsecureAddress)
 
 			go func() {
 				l, err := listen(o, o.InsecureAddress, mtr)
 				if err != nil {
-					log.Errorf("Failed to start insecure listener on %s: %v", o.Address, err)
+					log.Errorf("Failed to start insecure listener on %s: %v", o.InsecureAddress, err)
 				}
 
 				if err := srv.Serve(l); err != http.ErrServerClosed {
@@ -1266,16 +1278,12 @@ func listenAndServeQuit(
 			}()
 		}
 
-		if err := srv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
-			log.Errorf("ListenAndServeTLS failed: %v", err)
+		if err := srv.ServeTLS(l, "", ""); err != http.ErrServerClosed {
+			log.Errorf("ServeTLS failed: %v", err)
 			return err
 		}
 	} else {
 		log.Infof("TLS settings not found, defaulting to HTTP")
-		l, err := listen(o, o.Address, mtr)
-		if err != nil {
-			return err
-		}
 
 		if err := srv.Serve(l); err != http.ErrServerClosed {
 			log.Errorf("Serve failed: %v", err)
