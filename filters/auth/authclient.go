@@ -91,14 +91,11 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	}
 	defer rsp.Body.Close()
 
-	// check 5xx status codes
-	if rsp.StatusCode >= 500 && rsp.StatusCode < 600 {
-		io.Copy(io.Discard, rsp.Body)
-		return nil, fmt.Errorf("token introspection failed with status code: %d", rsp.StatusCode)
-	}
-
 	if rsp.StatusCode != 200 {
 		io.Copy(io.Discard, rsp.Body)
+		if rsp.StatusCode >= 500 && rsp.StatusCode < 600 {
+			return nil, fmt.Errorf("token introspection failed with status code: %d", rsp.StatusCode)
+		}
 		return nil, errInvalidToken
 	}
 
@@ -131,14 +128,11 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	}
 	defer rsp.Body.Close()
 
-	// check 5xx status codes
-	if rsp.StatusCode >= 500 && rsp.StatusCode < 600 {
-		io.Copy(io.Discard, rsp.Body)
-		return nil, fmt.Errorf("token info failed with status code: %d", rsp.StatusCode)
-	}
-
 	if rsp.StatusCode != 200 {
 		io.Copy(io.Discard, rsp.Body)
+		if rsp.StatusCode >= 500 && rsp.StatusCode < 600 {
+			return nil, fmt.Errorf("token info failed with status code: %d", rsp.StatusCode)
+		}
 		return doc, errInvalidToken
 	}
 
