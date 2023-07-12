@@ -28,7 +28,7 @@ func Example() {
 			CustomDataClients: []routing.DataClient{rs},
 		})
 	}()
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 
 	rsp, err := http.Get("http://localhost:9999")
 	if err != nil {
