@@ -39,7 +39,7 @@ func NewTestRedisWithPassword(t testing.TB, password string) (address string, do
 		t.Fatalf("Failed to start redis server: %v", err)
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	address, err = container.Endpoint(ctx, "")
@@ -56,7 +56,7 @@ func NewTestRedisWithPassword(t testing.TB, password string) (address string, do
 	done = func() {
 		t.Logf("Stopping redis server at %s", address)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		if err := container.Terminate(ctx); err != nil {

@@ -1,4 +1,4 @@
-SOURCES            = $(shell find . -name '*.go' -not -path "./vendor/*" -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
+SOURCES            = $(shell find . -name '*.go' -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
 PACKAGES           = $(shell go list ./...)
 CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
 VERSION           ?= $(CURRENT_VERSION)
@@ -20,7 +20,7 @@ help: ## Display this help
 
 .PHONY: lib
 lib: $(SOURCES) ## build skipper library
-	go build $(PACKAGES)
+	go build ./...
 
 .PHONY: bindir
 bindir:
@@ -79,39 +79,19 @@ install: $(SOURCES) ## install skipper and eskip binaries into your system
 
 .PHONY: check
 check: build check-plugins ## run all tests
-	# go test $(PACKAGES)
-	#
-	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
-	# probably can be reverted once etcd is fully mocked away for tests
-	#
-	for p in $(PACKAGES); do go test $$p || break; done
+	go test ./...
 
 .PHONY: shortcheck
 shortcheck: build check-plugins fixlimits  ## run all short tests
-	# go test -test.short -run ^Test $(PACKAGES)
-	#
-	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
-	# probably can be reverted once etcd is fully mocked away for tests
-	#
-	for p in $(PACKAGES); do go test -test.short -run ^Test $$p || break -1; done
+	go test -test.short ./...
 
 .PHONY: cicheck
 cicheck: build check-plugins ## run all short and redis tests
-	# go test -test.short -run ^Test $(PACKAGES)
-	#
-	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
-	# probably can be reverted once etcd is fully mocked away for tests
-	#
-	for p in $(PACKAGES); do go test -tags=redis -test.short -run ^Test $$p || break -1; done
+	go test -tags=redis -test.short ./...
 
 .PHONY: check-race
-check-race: build ## run all tests with race checker
-	# go test -race -test.short -run ^Test $(PACKAGES)
-	#
-	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
-	# probably can be reverted once etcd is fully mocked away for tests
-	#
-	for p in $(PACKAGES); do go test -race -test.short -run ^Test $$p || break -1; done
+check-race: build ## run all short tests with race checker
+	go test -race -test.short ./...
 
 .PHONY: check-plugins
 check-plugins: $(TEST_PLUGINS)
@@ -122,15 +102,6 @@ _test_plugins/%.so: _test_plugins/%.go
 
 _test_plugins_fail/%.so: _test_plugins_fail/%.go
 	go build -buildmode=plugin -o $@ $<
-
-.PHONY: bench
-bench: build $(TEST_PLUGINS) ## run all benchmark tests
-	# go test -bench . $(PACKAGES)
-	#
-	# due to vendoring and how go test ./... is not the same as go test ./a/... ./b/...
-	# probably can be reverted once etcd is fully mocked away for tests
-	#
-	for p in $(PACKAGES); do go test -bench . $$p; done
 
 .PHONY: fuzz
 fuzz: ## run all fuzz tests
@@ -158,7 +129,7 @@ deps: ## install dependencies to run everything
 
 .PHONY: vet
 vet: $(SOURCES) ## run Go vet
-	go vet $(PACKAGES)
+	go vet ./...
 
 .PHONY: staticcheck
 # TODO(sszuecs) review disabling these checks, f.e.:
@@ -169,7 +140,7 @@ vet: $(SOURCES) ## run Go vet
 # -ST1021 too many wrong comments on exported functions to fix right away
 # -ST1022 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES) ## run staticcheck
-	staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021" $(PACKAGES)
+	staticcheck -checks "all,-ST1000,-ST1003,-ST1012,-ST1020,-ST1021" ./...
 
 .PHONY: gosec
 # TODO(sszuecs) review disabling these checks, f.e.:

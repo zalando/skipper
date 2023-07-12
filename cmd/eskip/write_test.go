@@ -37,13 +37,6 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 
-	defer func() {
-		err := etcdtest.Stop()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}()
-
 	urls, err := stringsToUrls(etcdtest.Urls...)
 	if err != nil {
 		log.Fatal(err)
@@ -51,7 +44,14 @@ func TestMain(m *testing.M) {
 
 	testEtcdUrls = urls
 
-	os.Exit(m.Run())
+	exitCode := m.Run()
+
+	err = etcdtest.Stop()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	os.Exit(exitCode)
 }
 
 func TestUpsertLoadFail(t *testing.T) {
