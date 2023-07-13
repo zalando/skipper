@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -395,6 +396,51 @@ func TestOAuth2TokenTimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOAuth2Tokeninfo5xx(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {}))
+	defer backend.Close()
+
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer authServer.Close()
+
+	opts := TokeninfoOptions{
+		URL:     authServer.URL + testAuthPath,
+		Timeout: testAuthTimeout,
+	}
+	args := []interface{}{testScope}
+
+	t.Logf("ti.options: %#v", opts)
+
+	spec := newOAuthTokeninfoSpec(filters.OAuthTokeninfoAnyScopeName, opts)
+
+	_, err := spec.CreateFilter(args)
+	require.NoError(t, err, "error creating filter")
+
+	fr := make(filters.Registry)
+	fr.Register(spec)
+	r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+
+	proxy := proxytest.New(fr, r)
+	defer proxy.Close()
+
+	reqURL, err := url.Parse(proxy.URL)
+	require.NoError(t, err, "Failed to parse url %s: %v", proxy.URL, err)
+
+	req, err := http.NewRequest("GET", reqURL.String(), nil)
+	require.NoError(t, err)
+
+	req.Header.Set(authHeaderName, authHeaderPrefix+testToken)
+
+	rsp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	rsp.Body.Close()
+
+	// We return 401 for 5xx responses from the auth server, but log the error for visibility.
+	require.Equal(t, http.StatusUnauthorized, rsp.StatusCode, "auth filter failed got=%d, expected=%d, route=%s", rsp.StatusCode, http.StatusUnauthorized, r)
 }
 
 func BenchmarkOAuthTokeninfoFilter(b *testing.B) {
