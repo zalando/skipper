@@ -798,12 +798,12 @@ func TestRequestLatency(t *testing.T) {
 			}
 
 			N := 1000
-			res := make([]time.Duration, N)
+
+			res := make([]time.Duration, 0, N)
+			SetSleep(f, func(d time.Duration) { res = append(res, d) })
+
 			for i := 0; i < N; i++ {
-				start := time.Now()
 				f.Request(nil)
-				d := time.Since(start)
-				res[i] = d
 			}
 
 			sort.Slice(res, func(i, j int) bool {
@@ -877,12 +877,12 @@ func TestResponseLatency(t *testing.T) {
 			}
 
 			N := 1000
-			res := make([]time.Duration, N)
+
+			res := make([]time.Duration, 0, N)
+			SetSleep(f, func(d time.Duration) { res = append(res, d) })
+
 			for i := 0; i < N; i++ {
-				start := time.Now()
 				f.Response(nil)
-				d := time.Since(start)
-				res[i] = d
 			}
 
 			sort.Slice(res, func(i, j int) bool {

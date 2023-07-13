@@ -105,6 +105,7 @@ type jitter struct {
 	mean  time.Duration
 	delta time.Duration
 	typ   distribution
+	sleep func(time.Duration)
 }
 
 var randomChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
@@ -619,6 +620,7 @@ func (j *jitter) CreateFilter(args []interface{}) (filters.Filter, error) {
 		typ:   j.typ,
 		mean:  mean,
 		delta: delta,
+		sleep: time.Sleep,
 	}, nil
 }
 
@@ -635,7 +637,7 @@ func (j *jitter) Request(filters.FilterContext) {
 		return
 	}
 	f := r * float64(j.delta)
-	time.Sleep(j.mean + time.Duration(int64(f)))
+	j.sleep(j.mean + time.Duration(int64(f)))
 }
 
 func (j *jitter) Response(filters.FilterContext) {
@@ -651,5 +653,5 @@ func (j *jitter) Response(filters.FilterContext) {
 		return
 	}
 	f := r * float64(j.delta)
-	time.Sleep(j.mean + time.Duration(int64(f)))
+	j.sleep(j.mean + time.Duration(int64(f)))
 }
