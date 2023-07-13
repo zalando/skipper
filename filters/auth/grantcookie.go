@@ -91,7 +91,7 @@ func createDeleteCookie(config *OAuthConfig, host string) *http.Cookie {
 		Path:     "/",
 		Domain:   extractDomainFromHost(host, *config.TokenCookieRemoveSubdomains),
 		MaxAge:   -1,
-		Secure:   true,
+		Secure:   !config.Insecure,
 		HttpOnly: true,
 	}
 }
@@ -133,7 +133,7 @@ func createCookie(config *OAuthConfig, host string, t *oauth2.Token) (*http.Cook
 		Path:     "/",
 		Domain:   domain,
 		Expires:  t.Expiry.Add(time.Hour * 24 * 30),
-		Secure:   true,
+		Secure:   !config.Insecure,
 		HttpOnly: true,
 	}, nil
 }

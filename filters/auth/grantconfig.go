@@ -110,6 +110,9 @@ type OAuthConfig struct {
 	// Init converts default nil to 1.
 	TokenCookieRemoveSubdomains *int
 
+	// Insecure omits Secure attribute of the token cookie and uses http scheme for callback url.
+	Insecure bool
+
 	// ConnectionTimeout used for tokeninfo, access-token and refresh-token endpoint.
 	ConnectionTimeout time.Duration
 
@@ -341,7 +344,12 @@ func (c *OAuthConfig) GetAuthURLParameters(redirectURI string) []oauth2.AuthCode
 func (c *OAuthConfig) RedirectURLs(req *http.Request) (redirect, original string) {
 	u := *req.URL
 
-	u.Scheme = "https"
+	if c.Insecure {
+		u.Scheme = "http"
+	} else {
+		u.Scheme = "https"
+	}
+
 	u.Host = req.Host
 
 	original = u.String()

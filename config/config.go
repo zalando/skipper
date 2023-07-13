@@ -198,6 +198,7 @@ type Config struct {
 	Oauth2GrantTokeninfoKeys          *listFlag     `yaml:"oauth2-grant-tokeninfo-keys"`
 	Oauth2TokenCookieName             string        `yaml:"oauth2-token-cookie-name"`
 	Oauth2TokenCookieRemoveSubdomains int           `yaml:"oauth2-token-cookie-remove-subdomains"`
+	Oauth2GrantInsecure               bool          `yaml:"oauth2-grant-insecure"`
 	WebhookTimeout                    time.Duration `yaml:"webhook-timeout"`
 	OidcSecretsFile                   string        `yaml:"oidc-secrets-file"`
 	OIDCCookieValidity                time.Duration `yaml:"oidc-cookie-validity"`
@@ -475,6 +476,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.Oauth2GrantTokeninfoKeys, "oauth2-grant-tokeninfo-keys", "non-empty comma separated list configures keys to preserve in OAuth2 Grant Flow tokeninfo")
 	flag.StringVar(&cfg.Oauth2TokenCookieName, "oauth2-token-cookie-name", "oauth2-grant", "sets the name of the cookie where the encrypted token is stored")
 	flag.IntVar(&cfg.Oauth2TokenCookieRemoveSubdomains, "oauth2-token-cookie-remove-subdomains", 1, "sets the number of subdomains to remove from the callback request hostname to obtain token cookie domain")
+	flag.BoolVar(&cfg.Oauth2GrantInsecure, "oauth2-grant-insecure", false, "omits Secure attribute of the token cookie and uses http scheme for callback url")
 	flag.DurationVar(&cfg.WebhookTimeout, "webhook-timeout", 2*time.Second, "sets the webhook request timeout duration")
 	flag.StringVar(&cfg.OidcSecretsFile, "oidc-secrets-file", "", "file storing the encryption key of the OID Connect token. Enables OIDC filters")
 	flag.DurationVar(&cfg.OIDCCookieValidity, "oidc-cookie-validity", time.Hour, "sets the cookie expiry time to +1h for OIDC filters, in case no 'exp' claim is found in the JWT token")
@@ -818,6 +820,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OAuth2GrantTokeninfoKeys:          c.Oauth2GrantTokeninfoKeys.values,
 		OAuth2TokenCookieName:             c.Oauth2TokenCookieName,
 		OAuth2TokenCookieRemoveSubdomains: c.Oauth2TokenCookieRemoveSubdomains,
+		OAuth2GrantInsecure:               c.Oauth2GrantInsecure,
 		WebhookTimeout:                    c.WebhookTimeout,
 		OIDCSecretsFile:                   c.OidcSecretsFile,
 		OIDCCookieValidity:                c.OIDCCookieValidity,
