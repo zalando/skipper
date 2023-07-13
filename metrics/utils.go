@@ -31,6 +31,7 @@ func measuredMethod(m string) string {
 		"HEAD",
 		"POST",
 		"PUT",
+		"PATCH",
 		"DELETE",
 		"TRACE",
 		"CONNECT":
