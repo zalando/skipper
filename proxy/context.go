@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bytes"
 	stdlibcontext "context"
 	"errors"
 	"io"
@@ -62,15 +61,15 @@ type noopFlushedResponseWriter struct {
 	ignoredHeader http.Header
 }
 
-func defaultBody() io.ReadCloser {
-	return io.NopCloser(&bytes.Buffer{})
+func noBody() io.ReadCloser {
+	return http.NoBody
 }
 
 func defaultResponse(r *http.Request) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusNotFound,
 		Header:     make(http.Header),
-		Body:       defaultBody(),
+		Body:       noBody(),
 		Request:    r,
 	}
 }
@@ -89,7 +88,7 @@ func cloneRequestMetadata(r *http.Request) *http.Request {
 		ProtoMinor:       r.ProtoMinor,
 		Header:           cloneHeader(r.Header),
 		Trailer:          cloneHeader(r.Trailer),
-		Body:             defaultBody(),
+		Body:             noBody(),
 		ContentLength:    r.ContentLength,
 		TransferEncoding: r.TransferEncoding,
 		Close:            r.Close,
@@ -109,7 +108,7 @@ func cloneResponseMetadata(r *http.Response) *http.Response {
 		ProtoMinor:       r.ProtoMinor,
 		Header:           cloneHeader(r.Header),
 		Trailer:          cloneHeader(r.Trailer),
-		Body:             defaultBody(),
+		Body:             noBody(),
 		ContentLength:    r.ContentLength,
 		TransferEncoding: r.TransferEncoding,
 		Close:            r.Close,
@@ -180,7 +179,7 @@ func (c *context) ensureDefaultResponse() {
 	}
 
 	if c.response.Body == nil {
-		c.response.Body = defaultBody()
+		c.response.Body = noBody()
 	}
 }
 
@@ -235,7 +234,7 @@ func (c *context) Serve(r *http.Response) {
 	}
 
 	if r.Body == nil {
-		r.Body = defaultBody()
+		r.Body = noBody()
 	}
 
 	c.servedWithResponse = true

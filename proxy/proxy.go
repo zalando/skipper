@@ -958,8 +958,7 @@ func (p *Proxy) rejectBackend(ctx *context, req *http.Request) (*http.Response, 
 		if !p.limiters.Get(limit.Settings).Allow(req.Context(), s) {
 			return &http.Response{
 				StatusCode: limit.StatusCode,
-				Header:     http.Header{"Content-Length": []string{"0"}},
-				Body:       io.NopCloser(&bytes.Buffer{}),
+				Body:       noBody(),
 			}, true
 		}
 	}
@@ -1211,6 +1210,9 @@ func (p *Proxy) serveResponse(ctx *context) {
 	start := time.Now()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
+	if ctx.response.Body == noBody() {
+		ctx.responseWriter.Header()["Content-Length"] = []string{"0"}
+	}
 
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
