@@ -9,11 +9,23 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/" # Location of package manifests https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#directory
     schedule:
       interval: "weekly"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: "docker" # Keep Docker dependencies up to date
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*"
