@@ -1020,3 +1020,38 @@ func TestGrantCredentialsPlaceholder(t *testing.T) {
 		checkStatus(t, rsp, http.StatusForbidden)
 	})
 }
+
+func TestGrantInsecure(t *testing.T) {
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.Insecure = true
+
+	proxy, client := newSimpleGrantAuthProxy(t, config)
+	defer proxy.Close()
+
+	rsp, err := client.Get(proxy.URL + "/test")
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+
+	rsp, err = client.Get(rsp.Header.Get("Location"))
+	require.NoError(t, err, "Failed to make request to provider")
+	defer rsp.Body.Close()
+
+	callbackUrl := rsp.Header.Get("Location")
+
+	assert.True(t, strings.HasPrefix(callbackUrl, "http://"), "Callback URL should be insecure")
+
+	rsp, err = client.Get(callbackUrl)
+	require.NoError(t, err, "Failed to make callback request to proxy")
+	defer rsp.Body.Close()
+
+	c, ok := findAuthCookie(rsp)
+	require.True(t, ok, "Cookie not found")
+
+	assert.False(t, c.Secure, "Cookie should be insecure")
+}

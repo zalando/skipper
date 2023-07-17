@@ -800,6 +800,9 @@ type Options struct {
 	// the callback request hostname to obtain token cookie domain.
 	OAuth2TokenCookieRemoveSubdomains int
 
+	// OAuth2GrantInsecure omits Secure attribute of the token cookie and uses http scheme for callback url.
+	OAuth2GrantInsecure bool
+
 	// CompressEncodings, if not empty replace default compression encodings
 	CompressEncodings []string
 
@@ -1724,6 +1727,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.GrantTokeninfoKeys = o.OAuth2GrantTokeninfoKeys
 		oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
 		oauthConfig.TokenCookieRemoveSubdomains = &o.OAuth2TokenCookieRemoveSubdomains
+		oauthConfig.Insecure = o.OAuth2GrantInsecure
 		oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout
 		oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
 		oauthConfig.Tracer = tracer
