@@ -427,10 +427,7 @@ func TestOAuth2Tokeninfo5xx(t *testing.T) {
 	proxy := proxytest.New(fr, r)
 	defer proxy.Close()
 
-	reqURL, err := url.Parse(proxy.URL)
-	require.NoError(t, err, "Failed to parse url %s: %v", proxy.URL, err)
-
-	req, err := http.NewRequest("GET", reqURL.String(), nil)
+	req, err := http.NewRequest("GET", proxy.URL, nil)
 	require.NoError(t, err)
 
 	req.Header.Set(authHeaderName, authHeaderPrefix+testToken)
