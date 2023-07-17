@@ -22,25 +22,21 @@ help: ## Display this help
 lib: $(SOURCES) ## build skipper library
 	go build ./...
 
-.PHONY: bindir
-bindir:
-	mkdir -p bin
-
 .PHONY: skipper
-skipper: $(SOURCES) bindir ## build skipper binary
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper/*.go
+skipper: $(SOURCES) ## build skipper binary
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper
 
 .PHONY: eskip
-eskip: $(SOURCES) bindir ## build eskip binary
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip/*.go
+eskip: $(SOURCES) ## build eskip binary
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
 
 .PHONY: webhook
-webhook: $(SOURCES) bindir
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook/*.go
+webhook: $(SOURCES) ## build webhook binary
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook
 
 .PHONY: routesrv
-routesrv: $(SOURCES) bindir
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/routesrv ./cmd/routesrv/*.go
+routesrv: $(SOURCES) ## build routesrv binary
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/routesrv ./cmd/routesrv
 
 .PHONY: fixlimits
 fixlimits:
@@ -49,7 +45,7 @@ ifeq (LIMIT_FDS, 256)
 endif
 
 .PHONY: build
-build: $(SOURCES) lib skipper eskip webhook routesrv ## build libe and all binaries
+build: $(SOURCES) lib skipper eskip webhook routesrv ## build library and all binaries
 
 build.linux.static: ## build static linux binary for amd64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-extldflags=-static -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
@@ -112,11 +108,12 @@ lint: build staticcheck ## run all linters
 
 .PHONY: clean
 clean: ## clean temporary files and directories
-	go clean -i -cache -testcache
-	rm -rf .coverprofile-all
-	rm -f ./_test_plugins/*.so
-	rm -f ./_test_plugins_fail/*.so
+	go clean -i ./...
+	rm -rf bin
 	rm -rf .bin
+	rm -f _test_plugins/*.so
+	rm -f _test_plugins_fail/*.so
+	rm -f .coverprofile-all
 
 .PHONY: deps
 deps: ## install dependencies to run everything
