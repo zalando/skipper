@@ -2903,7 +2903,8 @@ Some filters influence how load balancing will be done
 
 ### fadeIn
 
-When this filter is set, and the route has a load balanced backend, then the newly added endpoints will receive
+When this filter is set, and the route has a load balanced backend using [supported algorithm](backends.md#load-balancer-backend),
+then the newly added endpoints will receive
 the traffic in a gradually increasing way, starting from their detection for the specified duration, after which
 they receive equal amount traffic as the previously existing routes. The detection time of an load balanced
 backend endpoint is preserved over multiple generations of the route configuration (over route changes). This
