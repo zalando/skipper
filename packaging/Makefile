@@ -6,7 +6,6 @@ BINARIES           ?= skipper webhook eskip routesrv
 IMAGE              ?= $(REGISTRY)/skipper:$(VERSION)
 ARM64_IMAGE        ?= $(REGISTRY)/skipper-arm64:$(VERSION)
 ARM_IMAGE          ?= $(REGISTRY)/skipper-armv7:$(VERSION)
-ALPINE_BUILD_IMAGE ?= $(REGISTRY)/skipper-alpine-build:latest
 PACKAGE            ?= github.com/zalando/skipper
 CGO_ENABLED        ?= 0
 GOOS               ?= linux
