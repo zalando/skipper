@@ -94,7 +94,7 @@ func (ac *authClient) getTokenintrospect(token string, ctx filters.FilterContext
 	if rsp.StatusCode != 200 {
 		io.Copy(io.Discard, rsp.Body)
 		if rsp.StatusCode != 403 && rsp.StatusCode != 401 {
-			return nil, fmt.Errorf("token introspection failed with status code: %d", rsp.StatusCode)
+			return nil, fmt.Errorf("failed with status code: %d", rsp.StatusCode)
 		}
 		return nil, errInvalidToken
 	}
@@ -131,7 +131,7 @@ func (ac *authClient) getTokeninfo(token string, ctx filters.FilterContext) (map
 	if rsp.StatusCode != 200 {
 		io.Copy(io.Discard, rsp.Body)
 		if rsp.StatusCode != 403 && rsp.StatusCode != 401 {
-			return nil, fmt.Errorf("token info failed with status code: %d", rsp.StatusCode)
+			return nil, fmt.Errorf("failed with status code: %d", rsp.StatusCode)
 		}
 		return doc, errInvalidToken
 	}

@@ -411,20 +411,15 @@ func TestOAuth2Tokeninfo5xx(t *testing.T) {
 		URL:     authServer.URL + testAuthPath,
 		Timeout: testAuthTimeout,
 	}
-	args := []interface{}{testScope}
-
 	t.Logf("ti.options: %#v", opts)
 
 	spec := newOAuthTokeninfoSpec(filters.OAuthTokeninfoAnyScopeName, opts)
 
-	_, err := spec.CreateFilter(args)
-	require.NoError(t, err, "error creating filter")
-
 	fr := make(filters.Registry)
 	fr.Register(spec)
-	r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+	r := eskip.MustParse(fmt.Sprintf(`* -> oauthTokeninfoAnyScope("%s") -> "%s"`, testScope, backend.URL))
 
-	proxy := proxytest.New(fr, r)
+	proxy := proxytest.New(fr, r...)
 	defer proxy.Close()
 
 	req, err := http.NewRequest("GET", proxy.URL, nil)
@@ -432,7 +427,7 @@ func TestOAuth2Tokeninfo5xx(t *testing.T) {
 
 	req.Header.Set(authHeaderName, authHeaderPrefix+testToken)
 
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := proxy.Client().Do(req)
 	require.NoError(t, err)
 	rsp.Body.Close()
 
