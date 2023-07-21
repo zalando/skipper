@@ -6,9 +6,12 @@ import (
 	"net/url"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 )
 
-type RouteGroupValidator struct{}
+type RouteGroupValidator struct {
+	FiltersRegistry filters.Registry
+}
 
 var (
 	errSingleFilterExpected    = errors.New("single filter expected")
@@ -72,11 +75,22 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 				errs = append(errs, err)
 			} else if len(filters) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSingleFilterExpected, f))
+			} else if rgv.FiltersRegistry != nil {
+				errs = append(errs, rgv.validateFiltersNames(filters))
 			}
 		}
 	}
 
 	return errors.Join(errs...)
+}
+
+func (rgv *RouteGroupValidator) validateFiltersNames(filters []*eskip.Filter) error {
+	for _, f := range filters {
+		if _, ok := rgv.FiltersRegistry[f.Name]; !ok {
+			return fmt.Errorf("filter \"%s\" is not supported", f.Name)
+		}
+	}
+	return nil
 }
 
 func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {

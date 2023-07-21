@@ -164,6 +164,8 @@ func defaultConfig(with func(*Config)) *Config {
 		OpenPolicyAgentMaxRequestBodySize:       openpolicyagent.DefaultMaxRequestBodySize,
 		OpenPolicyAgentMaxMemoryBodyParsing:     openpolicyagent.DefaultMaxMemoryBodyParsing,
 		OpenPolicyAgentRequestBodyBufferSize:    openpolicyagent.DefaultRequestBodyBufferSize,
+		ValidationWebhookAddr:                   ":9443",
+		ValidationWebhookLogLevel:               "info",
 	}
 	with(cfg)
 	return cfg

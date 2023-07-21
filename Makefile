@@ -31,10 +31,6 @@ skipper: $(SOURCES) ## build skipper binary
 eskip: $(SOURCES) ## build eskip binary
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
 
-.PHONY: webhook
-webhook: $(SOURCES) ## build webhook binary
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook
-
 .PHONY: routesrv
 routesrv: $(SOURCES) ## build routesrv binary
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/routesrv ./cmd/routesrv
@@ -46,7 +42,7 @@ ifeq (LIMIT_FDS, 256)
 endif
 
 .PHONY: build
-build: $(SOURCES) lib skipper eskip webhook routesrv ## build library and all binaries
+build: $(SOURCES) lib skipper eskip routesrv ## build library and all binaries
 
 build.linux.static: ## build static linux binary for amd64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-extldflags=-static -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper

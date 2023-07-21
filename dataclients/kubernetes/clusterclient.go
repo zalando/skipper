@@ -173,8 +173,8 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		httpClient:                   httpClient,
 		apiURL:                       apiURL,
 		certificateRegistry:          o.CertificateRegistry,
-		routeGroupValidator:          &definitions.RouteGroupValidator{},
-		ingressValidator:             &definitions.IngressV1Validator{},
+		ingressValidator:             &definitions.IngressV1Validator{FiltersRegistry: o.FiltersRegistry},
+		routeGroupValidator:          &definitions.RouteGroupValidator{FiltersRegistry: o.FiltersRegistry},
 		enableEndpointSlices:         o.KubernetesEnableEndpointslices,
 	}
 

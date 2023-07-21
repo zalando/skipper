@@ -23,6 +23,7 @@ import (
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/swarm"
+	"github.com/zalando/skipper/webhook"
 )
 
 type Config struct {
@@ -294,7 +295,19 @@ type Config struct {
 	OpenPolicyAgentMaxRequestBodySize    int64         `yaml:"open-policy-agent-max-request-body-size"`
 	OpenPolicyAgentMaxMemoryBodyParsing  int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
 
-	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
+	PassiveHealthCheck             mapFlags      `yaml:"passive-health-check"`
+	EnableOpenPolicyAgent          bool          `yaml:"enable-open-policy-agent"`
+	OpenPolicyAgentConfigTemplate  string        `yaml:"open-policy-agent-config-template"`
+	OpenPolicyAgentEnvoyMetadata   string        `yaml:"open-policy-agent-envoy-metadata"`
+	OpenPolicyAgentCleanerInterval time.Duration `yaml:"open-policy-agent-cleaner-interval"`
+	OpenPolicyAgentStartupTimeout  time.Duration `yaml:"open-policy-agent-startup-timeout"`
+	// admission webhook
+	// validation addmission webhook
+	EnableValidationWebhook      bool   `yaml:"enable-validation-webhook"`
+	ValidationWebhookTLSCertFile string `yaml:"validation-webhook-tls-cert-file"`
+	ValidationWebhookTLSKeyFile  string `yaml:"validation-webhook-tls-key-file"`
+	ValidationWebhookAddr        string `yaml:"validation-webhook-address"`
+	ValidationWebhookLogLevel    string `yaml:"validation-webhook-log-level"`
 }
 
 const (
@@ -595,6 +608,13 @@ func NewConfig() *Config {
 	flag.Var(&cfg.PassiveHealthCheck, "passive-health-check", "sets the parameters for passive health check feature")
 
 	cfg.Flags = flag
+	flag.BoolVar(&cfg.EnableValidationWebhook, "enable-validation-webhook", false, "enables the validation admission webhook for RouteGroup CRD, *IMPORTANT* This mode runs only the validation webhook server and does not start the proxy")
+	flag.StringVar(&cfg.ValidationWebhookTLSCertFile, "validation-webhook-tls-cert-file", os.Getenv("CERT_FILE"), "File containing the certificate for HTTPS")
+	flag.StringVar(&cfg.ValidationWebhookTLSKeyFile, "validation-webhook-tls-key-file", os.Getenv("KEY_FILE"), "File containing the private key for HTTPS")
+	flag.StringVar(&cfg.ValidationWebhookAddr, "validation-webhook-address", webhook.DefaultHTTPSAddress, "The address to listen on")
+	flag.StringVar(&cfg.ValidationWebhookLogLevel, "validation-webhook-log-level", webhook.DefaultLogLevel, "Log level for validation webhook server")
+
+	cfg.flags = flag
 	return cfg
 }
 
@@ -944,6 +964,12 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenPolicyAgentMaxMemoryBodyParsing:  c.OpenPolicyAgentMaxMemoryBodyParsing,
 
 		PassiveHealthCheck: c.PassiveHealthCheck.values,
+		// Admission Webhook:
+		EnableValidationWebhook:      c.EnableValidationWebhook,
+		ValidationWebhookTLSCertFile: c.ValidationWebhookTLSCertFile,
+		ValidationWebhookTLSKeyFile:  c.ValidationWebhookTLSKeyFile,
+		ValidationWebhookAddr:        c.ValidationWebhookAddr,
+		ValidationWebhookLogLevel:    c.ValidationWebhookLogLevel,
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)

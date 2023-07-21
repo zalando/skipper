@@ -69,6 +69,7 @@ import (
 	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/webhook"
 )
 
 const (
@@ -947,6 +948,21 @@ type Options struct {
 	OpenPolicyAgentMaxMemoryBodyParsing  int64
 
 	PassiveHealthCheck map[string]string
+	// EnableValidationWebhook runs skipper in admission webhook mode
+	//  *IMPORTANT* This mode runs only the validation webhook server and does not start the proxy
+	EnableValidationWebhook bool
+
+	// ValidationWebhookTLSCertFile is the path to the certificate file for the admission webhook server
+	ValidationWebhookTLSCertFile string
+
+	// ValidationWebhookTLSKeyFile is the path to the private key file for the admission webhook server
+	ValidationWebhookTLSKeyFile string
+
+	// ValidationWebhookAddr is the address to listen on for the admission webhook server
+	ValidationWebhookAddr string
+
+	// ValidationWebhookLogLevel is the log level for the admission webhook server
+	ValidationWebhookLogLevel string
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
@@ -2057,6 +2073,16 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	routing := routing.New(ro)
 	defer routing.Close()
+
+	if o.EnableValidationWebhook {
+		webhook.Run(
+			o.ValidationWebhookLogLevel,
+			o.ValidationWebhookAddr,
+			o.ValidationWebhookTLSCertFile,
+			o.ValidationWebhookTLSKeyFile,
+			o.filterRegistry(),
+		)
+	}
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
