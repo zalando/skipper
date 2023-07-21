@@ -23,6 +23,7 @@ import (
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/swarm"
+	"github.com/zalando/skipper/webhook"
 )
 
 type Config struct {
@@ -283,6 +284,13 @@ type Config struct {
 	OpenPolicyAgentEnvoyMetadata   string        `yaml:"open-policy-agent-envoy-metadata"`
 	OpenPolicyAgentCleanerInterval time.Duration `yaml:"open-policy-agent-cleaner-interval"`
 	OpenPolicyAgentStartupTimeout  time.Duration `yaml:"open-policy-agent-startup-timeout"`
+	// admission webhook
+	// validation addmission webhook
+	EnableValidationWebhook      bool   `yaml:"enable-validation-webhook"`
+	ValidationWebhookTLSCertFile string `yaml:"validation-webhook-tls-cert-file"`
+	ValidationWebhookTLSKeyFile  string `yaml:"validation-webhook-tls-key-file"`
+	ValidationWebhookAddr        string `yaml:"validation-webhook-address"`
+	ValidationWebhookLogLevel    string `yaml:"validation-webhook-log-level"`
 }
 
 const (
@@ -566,6 +574,12 @@ func NewConfig() *Config {
 
 	flag.Var(cfg.LuaModules, "lua-modules", "comma separated list of lua filter modules. Use <module>.<symbol> to selectively enable module symbols, for example: package,base._G,base.print,json")
 	flag.Var(cfg.LuaSources, "lua-sources", `comma separated list of lua input types for the lua() filter. Valid sources "", "file", "inline", "file,inline" and "none". Use "file" to only allow lua file references in lua filter. Default "" is the same as "file","inline". Use "none" to disable lua filters.`)
+
+	flag.BoolVar(&cfg.EnableValidationWebhook, "enable-validation-webhook", false, "enables the validation admission webhook for RouteGroup CRD, *IMPORTANT* This mode runs only the validation webhook server and does not start the proxy")
+	flag.StringVar(&cfg.ValidationWebhookTLSCertFile, "validation-webhook-tls-cert-file", os.Getenv("CERT_FILE"), "File containing the certificate for HTTPS")
+	flag.StringVar(&cfg.ValidationWebhookTLSKeyFile, "validation-webhook-tls-key-file", os.Getenv("KEY_FILE"), "File containing the private key for HTTPS")
+	flag.StringVar(&cfg.ValidationWebhookAddr, "validation-webhook-address", webhook.DefaultHTTPSAddress, "The address to listen on")
+	flag.StringVar(&cfg.ValidationWebhookLogLevel, "validation-webhook-log-level", webhook.DefaultLogLevel, "Log level for validation webhook server")
 
 	cfg.flags = flag
 	return cfg
@@ -906,6 +920,12 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenPolicyAgentEnvoyMetadata:   c.OpenPolicyAgentEnvoyMetadata,
 		OpenPolicyAgentCleanerInterval: c.OpenPolicyAgentCleanerInterval,
 		OpenPolicyAgentStartupTimeout:  c.OpenPolicyAgentStartupTimeout,
+		// Admission Webhook:
+		EnableValidationWebhook:      c.EnableValidationWebhook,
+		ValidationWebhookTLSCertFile: c.ValidationWebhookTLSCertFile,
+		ValidationWebhookTLSKeyFile:  c.ValidationWebhookTLSKeyFile,
+		ValidationWebhookAddr:        c.ValidationWebhookAddr,
+		ValidationWebhookLogLevel:    c.ValidationWebhookLogLevel,
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)

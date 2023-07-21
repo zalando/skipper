@@ -162,6 +162,8 @@ func defaultConfig() *Config {
 		LuaSources:                              commaListFlag(),
 		OpenPolicyAgentCleanerInterval:          10 * time.Second,
 		OpenPolicyAgentStartupTimeout:           30 * time.Second,
+		ValidationWebhookAddr:                   ":9443",
+		ValidationWebhookLogLevel:               "info",
 	}
 }
 
