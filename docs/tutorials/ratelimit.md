@@ -182,7 +182,7 @@ clusterClientRatelimit("groupB", 10, "1m")
 The same for Authorization Header you would use:
 
 ```
-clusterClientRatelimit("groupC", 10, "1m", "Authorization)
+clusterClientRatelimit("groupC", 10, "1m", "Authorization")
 ```
 
 The optional fourth argument can create an AND combined Header
