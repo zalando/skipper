@@ -283,17 +283,22 @@ func TestHTTPServer(t *testing.T) {
 	}
 }
 
-func TestHTTPServerShutdown(t *testing.T) {
+func TestServerShutdownHTTP(t *testing.T) {
 	o := &Options{}
 	testServerShutdown(t, o, "http")
 }
 
-func TestHTTPSServerShutdown(t *testing.T) {
+func TestServerShutdownHTTPS(t *testing.T) {
 	o := &Options{
 		CertPathTLS: "fixtures/test.crt",
 		KeyPathTLS:  "fixtures/test.key",
 	}
 	testServerShutdown(t, o, "https")
+}
+
+type responseOrError struct {
+	rsp *http.Response
+	err error
 }
 
 func testServerShutdown(t *testing.T, o *Options, scheme string) {
@@ -319,8 +324,9 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	defer proxy.Close()
 
 	sigs := make(chan os.Signal, 1)
+	done := make(chan struct{})
 	go func() {
-		err := listenAndServeQuit(proxy, o, sigs, nil, nil, nil)
+		err := listenAndServeQuit(proxy, o, sigs, done, nil, nil)
 		require.NoError(t, err)
 	}()
 
@@ -329,22 +335,39 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 
 	time.Sleep(shutdownDelay / 2)
 
-	t.Logf("ongoing request passing in before shutdown")
-	r, err := waitConnGet(testUrl)
+	t.Logf("Make request in parallel before shutdown started")
+
+	roeCh := make(chan responseOrError)
+	go func() {
+		rsp, err := waitConnGet(testUrl)
+		roeCh <- responseOrError{rsp, err}
+	}()
+
+	time.Sleep(shutdownDelay)
+
+	t.Logf("We are 1.5x past the shutdown delay, so shutdown should have been started")
+
+	select {
+	case <-roeCh:
+		t.Fatalf("Request should still be in progress after shutdown started")
+	default:
+		_, err = waitConnGet(testUrl)
+		assert.ErrorContains(t, err, "connection refused", "Another request should fail after shutdown started")
+	}
+
+	roe := <-roeCh
+	require.NoError(t, roe.err, "Request must succeed")
+	defer roe.rsp.Body.Close()
+
+	body, err := io.ReadAll(roe.rsp.Body)
 	require.NoError(t, err)
-	require.Equal(t, 200, r.StatusCode)
+	assert.Equal(t, "OK", string(body))
 
-	defer r.Body.Close()
-
-	body, err := io.ReadAll(r.Body)
-	require.NoError(t, err)
-	require.Equal(t, "OK", string(body))
-
-	time.Sleep(shutdownDelay / 2)
-
-	t.Logf("request after shutdown should fail")
-	_, err = waitConnGet(testUrl)
-	require.Error(t, err)
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Errorf("Shutdown takes too long after request is finished")
+	}
 }
 
 type (
