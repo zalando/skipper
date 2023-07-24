@@ -806,6 +806,9 @@ type Options struct {
 	// CompressEncodings, if not empty replace default compression encodings
 	CompressEncodings []string
 
+	// ConfigPredicateValues sets name-value pairs for Config predicate
+	ConfigPredicateValues map[string]string
+
 	// OIDCSecretsFile path to the file containing key to encrypt OpenID token
 	OIDCSecretsFile string
 
@@ -1798,6 +1801,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		primitive.NewTrue(),
 		primitive.NewFalse(),
 		primitive.NewShutdown(),
+		primitive.NewConfig(o.ConfigPredicateValues),
 		pauth.NewJWTPayloadAllKV(),
 		pauth.NewJWTPayloadAnyKV(),
 		pauth.NewJWTPayloadAllKVRegexp(),

@@ -66,6 +66,7 @@ type Config struct {
 	DataclientPlugins               *pluginFlag    `yaml:"dataclient-plugin"`
 	MultiPlugins                    *pluginFlag    `yaml:"multi-plugin"`
 	CompressEncodings               *listFlag      `yaml:"compress-encodings"`
+	ConfigPredicateValues           mapFlags       `yaml:"config-predicate-values"`
 
 	// logging, metrics, profiling, tracing:
 	EnablePrometheusMetrics             bool      `yaml:"enable-prometheus-metrics"`
@@ -348,6 +349,7 @@ func NewConfig() *Config {
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.MultiPlugins, "multi-plugin", "set a custom multitype plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.CompressEncodings, "compress-encodings", "set encodings supported for compression, the order defines priority when Accept-Header has equal quality values, see RFC 7231 section 5.3.1")
+	flag.Var(&cfg.ConfigPredicateValues, "config-predicate-values", "sets name-value pairs for Config predicate")
 
 	// logging, metrics, tracing:
 	flag.BoolVar(&cfg.EnablePrometheusMetrics, "enable-prometheus-metrics", false, "*Deprecated*: use metrics-flavour. Switch to Prometheus metrics format to expose metrics")
@@ -704,6 +706,7 @@ func (c *Config) ToOptions() skipper.Options {
 		Plugins:                         c.MultiPlugins.values,
 		PluginDirs:                      []string{skipper.DefaultPluginDir},
 		CompressEncodings:               c.CompressEncodings.values,
+		ConfigPredicateValues:           c.ConfigPredicateValues.values,
 
 		// logging, metrics, profiling, tracing:
 		EnablePrometheusMetrics:             c.EnablePrometheusMetrics,

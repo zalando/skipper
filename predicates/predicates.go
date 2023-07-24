@@ -24,6 +24,7 @@ const (
 	TrueName                  = "True"
 	FalseName                 = "False"
 	ShutdownName              = "Shutdown"
+	ConfigName                = "Config"
 	MethodName                = "Method"
 	MethodsName               = "Methods"
 	HeaderName                = "Header"
