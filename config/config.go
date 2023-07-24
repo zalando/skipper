@@ -245,6 +245,7 @@ type Config struct {
 	ExpectContinueTimeoutBackend time.Duration `yaml:"expect-continue-timeout-backend"`
 	MaxIdleConnsBackend          int           `yaml:"max-idle-connection-backend"`
 	DisableHTTPKeepalives        bool          `yaml:"disable-http-keepalives"`
+	EnableHttp2Cleartext         bool          `yaml:"enable-http2-cleartext"`
 
 	// swarm:
 	EnableSwarm bool `yaml:"enable-swarm"`
@@ -523,6 +524,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.MaxIdleConnsBackend, "max-idle-connection-backend", 0, "sets the maximum idle connections for all backend connections")
 	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
 	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubnernetes resources to terminate tls")
+	flag.BoolVar(&cfg.EnableHttp2Cleartext, "enable-http2-cleartext", false, "enables HTTP/2 connections over cleartext TCP")
 
 	// Swarm:
 	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
@@ -850,6 +852,7 @@ func (c *Config) ToOptions() skipper.Options {
 		MaxIdleConnsBackend:          c.MaxIdleConnsBackend,
 		DisableHTTPKeepalives:        c.DisableHTTPKeepalives,
 		KubernetesEnableTLS:          c.KubernetesEnableTLS,
+		EnableHttp2Cleartext:         c.EnableHttp2Cleartext,
 
 		// swarm:
 		EnableSwarm: c.EnableSwarm,

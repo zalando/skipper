@@ -22,6 +22,8 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -42,7 +44,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
-	skpnet "github.com/zalando/skipper/net"
+	snet "github.com/zalando/skipper/net"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/content"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -380,6 +382,9 @@ type Options struct {
 	// DisableHTTPKeepalives sets DisableKeepAlives, which forces
 	// a backend to always create a new connection.
 	DisableHTTPKeepalives bool
+
+	// EnableHttp2Cleartext enables HTTP/2 connections over cleartext TCP.
+	EnableHttp2Cleartext bool
 
 	// Flag indicating to ignore trailing slashes in paths during route
 	// lookup.
@@ -1107,6 +1112,10 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 		return nil, nil
 	}
 
+	if o.EnableHttp2Cleartext {
+		return nil, fmt.Errorf("HTTP/2 connections over cleartext TCP are not supported when TLS is enabled")
+	}
+
 	config := &tls.Config{
 		MinVersion: o.TLSMinVersion,
 	}
@@ -1233,11 +1242,27 @@ func listenAndServeQuit(
 		}
 	}
 
+	if o.EnableHttp2Cleartext {
+		h2srv := &http2.Server{}
+		srv.Handler = h2c.NewHandler(srv.Handler, h2srv)
+
+		// Work around https://github.com/golang/go/issues/26682
+		// http2.ConfigureServer registers unexported h2srv graceful shutdown handler on srv shutdown -
+		// it calls srv.RegisterOnShutdown(h2srv.state.startGracefulShutdown).
+		// h2srv graceful shutdown handler sends GOAWAY frame to all connections and closes them after predefined delay.
+		//
+		// srv.Shutdown() runs h2srv shutdown handler in a goroutine so a special snet.ShutdownListener
+		// waits until all connections are closed.
+		http2.ConfigureServer(srv, h2srv)
+	}
+
 	log.Infof("Listen on %v", address)
 
-	l, err := listen(o, address, mtr)
-	if err != nil {
+	var listener *snet.ShutdownListener
+	if l, err := listen(o, address, mtr); err != nil {
 		return err
+	} else {
+		listener = snet.NewShutdownListener(l)
 	}
 
 	// making idleConnsCH and sigs optional parameters is required to be able to tear down a server
@@ -1258,10 +1283,16 @@ func listenAndServeQuit(
 		log.Infof("Got shutdown signal, wait %v for health check", o.WaitForHealthcheckInterval)
 		time.Sleep(o.WaitForHealthcheckInterval)
 
-		log.Info("Start shutdown")
+		log.Info("Start server shutdown")
 		if err := srv.Shutdown(context.Background()); err != nil {
-			log.Errorf("Failed to graceful shutdown: %v", err)
+			log.Errorf("Failed to gracefully shutdown: %v", err)
 		}
+
+		log.Info("Start listener shutdown")
+		if err := listener.Shutdown(context.Background()); err != nil {
+			log.Errorf("Failed to gracefully shutdown listener: %v", err)
+		}
+
 		close(idleConnsCH)
 	}()
 
@@ -1281,20 +1312,21 @@ func listenAndServeQuit(
 			}()
 		}
 
-		if err := srv.ServeTLS(l, "", ""); err != http.ErrServerClosed {
+		if err := srv.ServeTLS(listener, "", ""); err != http.ErrServerClosed {
 			log.Errorf("ServeTLS failed: %v", err)
 			return err
 		}
 	} else {
 		log.Infof("TLS settings not found, defaulting to HTTP")
 
-		if err := srv.Serve(l); err != http.ErrServerClosed {
+		if err := srv.Serve(listener); err != http.ErrServerClosed {
 			log.Errorf("Serve failed: %v", err)
 			return err
 		}
 	}
 
 	<-idleConnsCH
+
 	log.Infof("done.")
 	return nil
 }
@@ -1580,13 +1612,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	var swarmer ratelimit.Swarmer
-	var redisOptions *skpnet.RedisOptions
+	var redisOptions *snet.RedisOptions
 	log.Infof("enable swarm: %v", o.EnableSwarm)
 	if o.EnableSwarm {
 		if len(o.SwarmRedisURLs) > 0 || o.KubernetesRedisServiceName != "" || o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Redis based swarm with %d shards", len(o.SwarmRedisURLs))
 
-			redisOptions = &skpnet.RedisOptions{
+			redisOptions = &snet.RedisOptions{
 				Addrs:               o.SwarmRedisURLs,
 				Password:            o.SwarmRedisPassword,
 				HashAlgorithm:       o.SwarmRedisHashAlgorithm,

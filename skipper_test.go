@@ -13,6 +13,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
 
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/filters"
@@ -37,6 +38,45 @@ const (
 	listenDelay   = 15 * time.Millisecond
 	listenTimeout = 9 * listenDelay
 )
+
+type protocol int
+
+const (
+	protoHTTP protocol = iota
+	protoHTTPS
+	protoH2C
+)
+
+func (p protocol) scheme() string {
+	return [...]string{"http", "https", "http"}[p]
+}
+
+func (p protocol) newClient() *http.Client {
+	switch p {
+	case protoHTTP:
+		return &http.Client{}
+	case protoHTTPS:
+		return &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+	case protoH2C:
+		return &http.Client{
+			Transport: &http2.Transport{
+				// allow http scheme
+				AllowHTTP: true,
+				// ignore tls.Config and dial unencrypted TCP
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return net.Dial(network, addr)
+				},
+			},
+		}
+	}
+	return nil
+}
 
 func listenAndServe(proxy http.Handler, o *Options) error {
 	return listenAndServeQuit(proxy, o, nil, nil, nil, nil)
@@ -69,12 +109,9 @@ func waitConn(req func() (*http.Response, error)) (*http.Response, error) {
 	}
 }
 
-func waitConnGet(url string) (*http.Response, error) {
+func waitConnGet(proto protocol, address string) (*http.Response, error) {
 	return waitConn(func() (*http.Response, error) {
-		return (&http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true}}}).Get(url)
+		return proto.newClient().Get(proto.scheme() + "://" + address)
 	})
 }
 
@@ -172,6 +209,7 @@ func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
 		{"cert key mismatch", &Options{CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test2.key"}},
 		{"multiple cert key count mismatch", &Options{CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test.key"}},
 		{"multiple cert key mismatch", &Options{CertPathTLS: "fixtures/test.crt,fixtures/test2.crt", KeyPathTLS: "fixtures/test2.key,fixtures/test.key"}},
+		{"htt2 cleartext conflicts with tls", &Options{EnableHttp2Cleartext: true, CertPathTLS: "fixtures/test.crt", KeyPathTLS: "fixtures/test.key"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := tt.options.tlsConfig(cr)
@@ -214,7 +252,7 @@ func TestHTTPSServer(t *testing.T) {
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
 
-	r, err := waitConnGet("https://" + o.Address)
+	r, err := waitConnGet(protoHTTPS, o.Address)
 	if r != nil {
 		defer r.Body.Close()
 	}
@@ -229,7 +267,7 @@ func TestHTTPSServer(t *testing.T) {
 		t.Fatalf("Failed to stream response body: %v", err)
 	}
 
-	r, err = waitConnGet("http://" + o.InsecureAddress)
+	r, err = waitConnGet(protoHTTP, o.InsecureAddress)
 	if r != nil {
 		defer r.Body.Close()
 	}
@@ -267,7 +305,7 @@ func TestHTTPServer(t *testing.T) {
 	proxy := proxy.New(rt, proxy.OptionsNone)
 	defer proxy.Close()
 	go listenAndServe(proxy, &o)
-	r, err := waitConnGet("http://" + o.Address)
+	r, err := waitConnGet(protoHTTP, o.Address)
 	if r != nil {
 		defer r.Body.Close()
 	}
@@ -285,7 +323,7 @@ func TestHTTPServer(t *testing.T) {
 
 func TestServerShutdownHTTP(t *testing.T) {
 	o := &Options{}
-	testServerShutdown(t, o, "http")
+	testServerShutdown(t, o, protoHTTP, nil)
 }
 
 func TestServerShutdownHTTPS(t *testing.T) {
@@ -293,7 +331,62 @@ func TestServerShutdownHTTPS(t *testing.T) {
 		CertPathTLS: "fixtures/test.crt",
 		KeyPathTLS:  "fixtures/test.key",
 	}
-	testServerShutdown(t, o, "https")
+	testServerShutdown(t, o, protoHTTPS, nil)
+}
+
+func TestServerShutdownH2C(t *testing.T) {
+	const connectionShutdownChecks = 2
+	errc := make(chan error, connectionShutdownChecks)
+
+	testGracefulConnectionShutdown := func(address string) {
+		for i := 0; i < connectionShutdownChecks; i++ {
+			go func() {
+				errc <- h2cConnectAndWaitForGoAwayFrame(address)
+			}()
+		}
+	}
+
+	o := &Options{
+		EnableHttp2Cleartext: true,
+	}
+	testServerShutdown(t, o, protoH2C, testGracefulConnectionShutdown)
+
+	for i := 0; i < connectionShutdownChecks; i++ {
+		require.NoError(t, <-errc, "Expected to receive GOAWAY frame on shutdown")
+	}
+}
+
+// h2cConnectAndWaitForGoAwayFrame connects to address using http2 over cleartext protocol and waits for GOAWAY frame.
+// See https://httpwg.org/specs/rfc7540.html#rfc.section.6.8
+func h2cConnectAndWaitForGoAwayFrame(address string) error {
+	var conn net.Conn
+	var err error
+
+	for i := 0; i < 3; i++ {
+		if conn, err = net.Dial("tcp", address); err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if _, err := io.WriteString(conn, http2.ClientPreface); err != nil {
+		return err
+	}
+
+	framer := http2.NewFramer(conn, conn)
+	for {
+		f, err := framer.ReadFrame()
+		if err != nil {
+			return fmt.Errorf("ReadFrame: %w", err)
+		}
+		if _, ok := f.(*http2.GoAwayFrame); ok {
+			return nil
+		}
+	}
 }
 
 type responseOrError struct {
@@ -301,14 +394,13 @@ type responseOrError struct {
 	err error
 }
 
-func testServerShutdown(t *testing.T, o *Options, scheme string) {
+func testServerShutdown(t *testing.T, o *Options, proto protocol, beforeShutdown func(string)) {
 	const shutdownDelay = 1 * time.Second
 
 	address, err := findAddress()
 	require.NoError(t, err)
 
 	o.Address, o.WaitForHealthcheckInterval = address, shutdownDelay
-	testUrl := scheme + "://" + address
 
 	// simulate a backend that got a request and should be handled correctly
 	dc, err := routestring.New(`r0: * -> latency("3s") -> inlineContent("OK") -> status(200) -> <shunt>`)
@@ -330,6 +422,10 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 		require.NoError(t, err)
 	}()
 
+	if beforeShutdown != nil {
+		beforeShutdown(address)
+	}
+
 	// initiate shutdown
 	sigs <- syscall.SIGTERM
 
@@ -339,10 +435,9 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 
 	roeCh := make(chan responseOrError)
 	go func() {
-		rsp, err := waitConnGet(testUrl)
+		rsp, err := waitConnGet(proto, address)
 		roeCh <- responseOrError{rsp, err}
 	}()
-
 	time.Sleep(shutdownDelay)
 
 	t.Logf("We are 1.5x past the shutdown delay, so shutdown should have been started")
@@ -351,7 +446,7 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	case <-roeCh:
 		t.Fatalf("Request should still be in progress after shutdown started")
 	default:
-		_, err = waitConnGet(testUrl)
+		_, err = waitConnGet(proto, address)
 		assert.ErrorContains(t, err, "connection refused", "Another request should fail after shutdown started")
 	}
 
@@ -366,7 +461,7 @@ func testServerShutdown(t *testing.T, o *Options, scheme string) {
 	select {
 	case <-done:
 	case <-time.After(1 * time.Second):
-		t.Errorf("Shutdown takes too long after request is finished")
+		t.Errorf("Shutdown takes too long after all requests are finished")
 	}
 }
 
