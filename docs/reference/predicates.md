@@ -250,7 +250,7 @@ health_down: Path("/health") && Shutdown() -> status(503) -> inlineContent("shut
 ## Method
 
 The HTTP method that the request must match. HTTP methods are one of
-GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT.
+GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS, CONNECT, TRACE.
 
 Parameters:
 
