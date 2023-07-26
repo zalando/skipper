@@ -83,8 +83,8 @@ func (RouteGroupAdmitter) admit(req *admissionRequest) (*admissionResponse, erro
 			},
 		}, nil
 	}
-
-	err = definitions.ValidateRouteGroup(&rgItem)
+	rgValidator := definitions.RouteGroupValidator{}
+	err = rgValidator.Validate(&rgItem)
 	if err != nil {
 		emsg := fmt.Sprintf("could not validate RouteGroup, %v", err)
 		log.Error(emsg)

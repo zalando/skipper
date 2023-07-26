@@ -358,10 +358,11 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 		return nil, err
 	}
 
+	rgValidator := definitions.RouteGroupValidator{}
 	rgs := make([]*definitions.RouteGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
 		// Validate RouteGroup item.
-		if err := definitions.ValidateRouteGroup(i); err != nil {
+		if err := rgValidator.Validate(i); err != nil {
 			log.Errorf("[routegroup] %v", err)
 			continue
 		}
