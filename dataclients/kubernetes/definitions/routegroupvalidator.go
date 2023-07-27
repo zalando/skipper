@@ -28,8 +28,11 @@ func ValidateRouteGroupList(rgl RouteGroupList) error {
 
 func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 	err := rgv.basicValidation(item)
-	err = errors.Join(err, rgv.filtersValidation(item))
-	return err
+	// if basic validation fails we don't need to run other validations, otherwise join errors.
+	if err != nil {
+		return err
+	}
+	return rgv.filtersValidation(item)
 }
 
 func (rgv *RouteGroupValidator) basicValidation(item *RouteGroupItem) error {
