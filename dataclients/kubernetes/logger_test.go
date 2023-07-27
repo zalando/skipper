@@ -16,7 +16,7 @@ import (
 )
 
 func TestLogger(t *testing.T) {
-	manifest, err := os.Open("testdata/routegroups/convert/failing-filter.yaml")
+	manifest, err := os.Open("testdata/routegroups/convert/failing-predicate.yaml")
 	require.NoError(t, err)
 	defer manifest.Close()
 

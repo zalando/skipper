@@ -1,12 +1,14 @@
 package definitions
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"errors"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
+	"gopkg.in/yaml.v2"
 )
 
 // adding Kubernetes specific backend types here. To be discussed.
@@ -200,4 +202,106 @@ func missingEndpoints(backendName string) error {
 
 func routeGroupError(m *Metadata, err error) error {
 	return fmt.Errorf("error in route group %s/%s: %w", namespaceString(m.Namespace), m.Name, err)
+}
+
+// UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
+func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
+	if sb == nil {
+		return nil
+	}
+
+	var p skipperBackendParser
+	if err := json.Unmarshal(value, &p); err != nil {
+		return err
+	}
+
+	var perr error
+	bt, err := backendTypeFromString(p.Type)
+	if err != nil {
+		// we cannot return an error here, because then the parsing of
+		// all route groups would fail. We'll report the error in the
+		// validation phase, only for the containing route group
+		perr = err
+	}
+
+	a, err := loadbalancer.AlgorithmFromString(p.Algorithm)
+	if err != nil {
+		// we cannot return an error here, because then the parsing of
+		// all route groups would fail. We'll report the error in the
+		// validation phase, only for the containing route group
+		perr = err
+	}
+
+	if a == loadbalancer.None {
+		a = loadbalancer.RoundRobin
+	}
+
+	var b SkipperBackend
+	b.Name = p.Name
+	b.Type = bt
+	b.Address = p.Address
+	b.ServiceName = p.ServiceName
+	b.ServicePort = p.ServicePort
+	b.Algorithm = a
+	b.Endpoints = p.Endpoints
+	b.parseError = perr
+
+	*sb = b
+	return nil
+}
+
+func (rg *RouteGroupSpec) UniqueHosts() []string {
+	return uniqueStrings(rg.Hosts)
+}
+
+func (r *RouteSpec) UniqueMethods() []string {
+	return uniqueStrings(r.Methods)
+}
+
+// ParseRouteGroupsJSON parses a json list of RouteGroups into RouteGroupList
+func ParseRouteGroupsJSON(d []byte) (RouteGroupList, error) {
+	var rl RouteGroupList
+	err := json.Unmarshal(d, &rl)
+	return rl, err
+}
+
+// ParseRouteGroupsYAML parses a YAML list of RouteGroups into RouteGroupList
+func ParseRouteGroupsYAML(d []byte) (RouteGroupList, error) {
+	var rl RouteGroupList
+	err := yaml.Unmarshal(d, &rl)
+	return rl, err
+}
+
+func uniqueStrings(s []string) []string {
+	u := make([]string, 0, len(s))
+	m := make(map[string]bool)
+	for _, si := range s {
+		if m[si] {
+			continue
+		}
+
+		m[si] = true
+		u = append(u, si)
+	}
+
+	return u
+}
+
+func backendTypeFromString(s string) (eskip.BackendType, error) {
+	switch s {
+	case "", "service":
+		return ServiceBackend, nil
+	default:
+		return eskip.BackendTypeFromString(s)
+	}
+}
+
+func hasEmpty(s []string) bool {
+	for _, si := range s {
+		if si == "" {
+			return true
+		}
+	}
+
+	return false
 }

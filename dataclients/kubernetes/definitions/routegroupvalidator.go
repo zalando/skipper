@@ -1,154 +1,51 @@
 package definitions
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"errors"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/loadbalancer"
-	"gopkg.in/yaml.v2"
 )
 
 type RouteGroupValidator struct {
 	FilterRegistry filters.Registry
 }
 
-var rgv = &RouteGroupValidator{}
-
-func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
-	err := rgv.BasicValidation(item)
-	if rgv.FilterRegistry != nil {
-		err = errors.Join(err, rgv.FiltersValidation(item))
-	}
-	return err
-}
-
-func (rgv *RouteGroupValidator) BasicValidation(item *RouteGroupItem) error {
-	return item.validate()
-}
-
-func (rgv *RouteGroupValidator) FiltersValidation(item *RouteGroupItem) error {
-	return validateRouteGroupFilters(item, rgv.FilterRegistry)
-}
-
-func (rgv *RouteGroupValidator) ValidateList(rl *RouteGroupList) error {
-	err := rgv.BasicValidationList(rl)
-
-	if rgv.FilterRegistry != nil {
-		err = errors.Join(err, rgv.FiltersValidationList(rl))
-	}
-	return err
-}
-
-func (rgv *RouteGroupValidator) BasicValidationList(rl *RouteGroupList) error {
-	var err error
-	// avoid the user having to repeatedly validate to discover all errors
-	for _, i := range rl.Items {
-		err = errors.Join(err, rgv.BasicValidation(i))
-	}
-	return err
-}
-
-func (rgv *RouteGroupValidator) FiltersValidationList(rl *RouteGroupList) error {
-	var err error
-	// avoid the user having to repeatedly validate to discover all errors
-	for _, i := range rl.Items {
-		err = errors.Join(err, rgv.FiltersValidation(i))
-	}
-	return err
-}
-
-// ParseRouteGroupsJSON parses a json list of RouteGroups into RouteGroupList
-func ParseRouteGroupsJSON(d []byte) (RouteGroupList, error) {
-	var rl RouteGroupList
-	err := json.Unmarshal(d, &rl)
-	return rl, err
-}
-
-// ParseRouteGroupsYAML parses a YAML list of RouteGroups into RouteGroupList
-func ParseRouteGroupsYAML(d []byte) (RouteGroupList, error) {
-	var rl RouteGroupList
-	err := yaml.Unmarshal(d, &rl)
-	return rl, err
-}
-
-// UnmarshalJSON creates a new skipperBackend, safe to be called on nil pointer
-func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
-	if sb == nil {
-		return nil
-	}
-
-	var p skipperBackendParser
-	if err := json.Unmarshal(value, &p); err != nil {
-		return err
-	}
-
-	var perr error
-	bt, err := backendTypeFromString(p.Type)
-	if err != nil {
-		// we cannot return an error here, because then the parsing of
-		// all route groups would fail. We'll report the error in the
-		// validation phase, only for the containing route group
-		perr = err
-	}
-
-	a, err := loadbalancer.AlgorithmFromString(p.Algorithm)
-	if err != nil {
-		// we cannot return an error here, because then the parsing of
-		// all route groups would fail. We'll report the error in the
-		// validation phase, only for the containing route group
-		perr = err
-	}
-
-	if a == loadbalancer.None {
-		a = loadbalancer.RoundRobin
-	}
-
-	var b SkipperBackend
-	b.Name = p.Name
-	b.Type = bt
-	b.Address = p.Address
-	b.ServiceName = p.ServiceName
-	b.ServicePort = p.ServicePort
-	b.Algorithm = a
-	b.Endpoints = p.Endpoints
-	b.parseError = perr
-
-	*sb = b
-	return nil
-}
-
-func (rg *RouteGroupSpec) UniqueHosts() []string {
-	return uniqueStrings(rg.Hosts)
-}
-
-func (r *RouteSpec) UniqueMethods() []string {
-	return uniqueStrings(r.Methods)
-}
+var defaultRouteGroupValidator = &RouteGroupValidator{}
 
 // validateRouteGroup validates a RouteGroupItem
 func ValidateRouteGroup(rg *RouteGroupItem) error {
-	return rgv.Validate(rg)
+	return defaultRouteGroupValidator.Validate(rg)
 }
 
-// ValidateRouteGroups validates a RouteGroupList
-func ValidateRouteGroups(rl *RouteGroupList) error {
-	return rgv.ValidateList(rl)
+func ValidateRouteGroupList(rgl RouteGroupList) error {
+	var err error
+	for _, rg := range rgl.Items {
+		err = errors.Join(err, defaultRouteGroupValidator.Validate(rg))
+	}
+	return err
 }
 
-func validateRouteGroupFilters(rg *RouteGroupItem, fr filters.Registry) error {
-	// basic for now
+func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
+	err := rgv.basicValidation(item)
+	err = errors.Join(err, rgv.filtersValidation(item))
+	return err
+}
+
+func (rgv *RouteGroupValidator) basicValidation(item *RouteGroupItem) error {
+	return item.validate()
+}
+
+func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
+	return validateRouteGroupFilters(item)
+}
+
+func validateRouteGroupFilters(rg *RouteGroupItem) error {
 	for _, r := range rg.Spec.Routes {
 		for _, f := range r.Filters {
-			parsedFilter, err := eskip.ParseFilters(f)
+			_, err := eskip.ParseFilters(f)
 			if err != nil {
 				return err
-			}
-			if _, ok := fr[parsedFilter[0].Name]; !ok {
-				return fmt.Errorf("filter %q not found", parsedFilter[0].Name)
 			}
 		}
 	}
@@ -302,38 +199,4 @@ func (sb *SkipperBackend) validate() error {
 	}
 
 	return nil
-}
-
-func uniqueStrings(s []string) []string {
-	u := make([]string, 0, len(s))
-	m := make(map[string]bool)
-	for _, si := range s {
-		if m[si] {
-			continue
-		}
-
-		m[si] = true
-		u = append(u, si)
-	}
-
-	return u
-}
-
-func backendTypeFromString(s string) (eskip.BackendType, error) {
-	switch s {
-	case "", "service":
-		return ServiceBackend, nil
-	default:
-		return eskip.BackendTypeFromString(s)
-	}
-}
-
-func hasEmpty(s []string) bool {
-	for _, si := range s {
-		if si == "" {
-			return true
-		}
-	}
-
-	return false
 }

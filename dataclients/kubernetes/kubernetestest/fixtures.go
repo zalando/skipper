@@ -321,6 +321,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			}
 
 			t.Errorf("Failed to match log: %v.", err)
+			t.Logf("Got: %s", logBuf.String())
 			t.Logf("Expected: %s", string(b))
 		}
 	}
