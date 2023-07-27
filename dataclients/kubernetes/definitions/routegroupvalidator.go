@@ -41,16 +41,15 @@ func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
 }
 
 func validateRouteGroupFilters(rg *RouteGroupItem) error {
+	var err error
 	for _, r := range rg.Spec.Routes {
 		for _, f := range r.Filters {
-			_, err := eskip.ParseFilters(f)
-			if err != nil {
-				return err
-			}
+			_, e := eskip.ParseFilters(f)
+			err = errors.Join(err, e)
 		}
 	}
 
-	return nil
+	return err
 }
 
 // TODO: we need to pass namespace/name in all errors
