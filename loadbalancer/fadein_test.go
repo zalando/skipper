@@ -275,6 +275,69 @@ func TestFadeInLoadBetweenOldEps(t *testing.T) {
 	}
 }
 
+func testApplyEndsWhenAllEndpointsAreFading(
+	t *testing.T,
+	name string,
+	algorithm func([]string) routing.LBAlgorithm,
+	nEndpoints int,
+) {
+	t.Run(name, func(t *testing.T) {
+		// Initialize every endpoint with zero: every endpoint is new
+		endpointAges := make([]time.Duration, nEndpoints)
+
+		var detectionTimes []time.Time
+		now := time.Now()
+		for _, ea := range endpointAges {
+			detectionTimes = append(detectionTimes, now.Add(-ea))
+		}
+
+		var eps []string
+		for i := range endpointAges {
+			eps = append(eps, string('a'+rune(i)))
+		}
+
+		a := algorithm(eps)
+
+		ctx := &routing.LBContext{
+			Params: map[string]interface{}{},
+			Route: &routing.Route{
+				LBFadeInDuration: fadeInDurationHuge,
+				LBFadeInExponent: 1,
+			},
+		}
+
+		for i := range eps {
+			ctx.Route.LBEndpoints = append(ctx.Route.LBEndpoints, routing.LBEndpoint{
+				Host:     eps[i],
+				Detected: detectionTimes[i],
+			})
+		}
+
+		ctx.Params[ConsistentHashKey] = "someConstantString"
+		applied := make(chan struct{})
+
+		go func() {
+			a.Apply(ctx)
+			close(applied)
+		}()
+
+		select {
+		case <-time.After(time.Second):
+			t.Errorf("a.Apply has not finished in a reasonable time")
+		case <-applied:
+			break
+		}
+	})
+}
+
+func TestApplyEndsWhenAllEndpointsAreFading(t *testing.T) {
+	for nEndpoints := 1; nEndpoints < 10; nEndpoints++ {
+		testApplyEndsWhenAllEndpointsAreFading(t, "consistent-hash", newConsistentHash, nEndpoints)
+		testApplyEndsWhenAllEndpointsAreFading(t, "random", newRandom, nEndpoints)
+		testApplyEndsWhenAllEndpointsAreFading(t, "round-robin", newRoundRobin, nEndpoints)
+	}
+}
+
 func benchmarkFadeIn(
 	b *testing.B,
 	name string,
