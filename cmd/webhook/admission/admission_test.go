@@ -2,13 +2,38 @@ package admission
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	responseAllowedFmt = `{
+		"kind": "AdmissionReview",
+		"apiVersion": "admission.k8s.io/v1",
+		"response": {
+			"uid": "req-uid",
+			"allowed": true
+		}
+	}`
+
+	responseNotAllowedFmt = `{
+		"kind": "AdmissionReview",
+		"apiVersion": "admission.k8s.io/v1",
+		"response": {
+			"uid": "req-uid",
+			"allowed": false,
+			"status": {
+				"message": "%s"
+			}
+		}
+	}`
 )
 
 type testAdmitter struct {
@@ -60,78 +85,39 @@ func TestUnsupportedContentType(t *testing.T) {
 
 func TestRouteGroupAdmitter(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		input  string
-		result string
+		name      string
+		inputFile string
+		message   string
 	}{
 		{
-			name: "allowed",
-			input: `{
-				"request": {
-					"uid": "req-uid",
-					"name": "req1",
-					"namespace": "n1",
-					"object": {
-						"metadata": {
-							"name": "rg1",
-							"namespace": "n1"
-						},
-						"spec": {
-							"backends": [
-								{
-									"name": "backend",
-									"type": "shunt"
-								}
-							],
-							"defaultBackends": [
-								{
-									"backendName": "backend"
-								}
-							]
-						}
-					}
-				}
-			}`,
-			result: `{
-				"kind": "AdmissionReview",
-				"apiVersion": "admission.k8s.io/v1",
-				"response": {
-					"uid": "req-uid",
-					"allowed": true
-				}
-			}`,
+			name:      "allowed",
+			inputFile: "valid-rg.json",
 		},
 		{
-			name: "not allowed",
-			input: `{
-				"request": {
-					"uid": "req-uid",
-					"name": "req1",
-					"namespace": "n1",
-					"object": {
-						"metadata": {
-							"name": "rg1",
-							"namespace": "n1"
-						}
-					}
-				}
-			}`,
-			result: `{
-				"kind": "AdmissionReview",
-				"apiVersion": "admission.k8s.io/v1",
-				"response": {
-					"uid": "req-uid",
-					"allowed": false,
-					"status": {
-						"message":
-						"could not validate RouteGroup, error in route group n1/rg1: route group without spec"
-					}
-				}
-			}`,
+			name:      "not allowed",
+			inputFile: "invalid-rg.json",
+			message:   "could not validate RouteGroup, error in route group n1/rg1: route group without spec",
+		},
+		{
+			name:      "valid eskip filters",
+			inputFile: "rg-with-valid-eskip-filters.json",
+		},
+		{
+			name:      "invalid eskip filters", // This means that eskip parser failed but doesn't mean filters exist
+			inputFile: "rg-with-invalid-eskip-filters.json",
+			message:   "could not validate RouteGroup, parse failed after token status, last route id: , position 11: syntax error",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "http://example.com/foo", bytes.NewBuffer([]byte(tc.input)))
+			result := responseAllowedFmt
+			if len(tc.message) > 0 {
+				result = fmt.Sprintf(responseNotAllowedFmt, tc.message)
+			}
+
+			input, err := os.ReadFile("testdata/" + tc.inputFile)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("POST", "http://example.com/foo", bytes.NewBuffer(input))
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
@@ -146,7 +132,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			require.NoError(t, err)
 			resp.Body.Close()
 
-			assert.JSONEq(t, tc.result, string(rb))
+			assert.JSONEq(t, result, string(rb))
 		})
 	}
 }
