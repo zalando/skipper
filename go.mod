@@ -20,7 +20,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/go-cmp v0.5.9
 	github.com/hashicorp/memberlist v0.5.0
-	github.com/instana/go-sensor v1.55.0
+	github.com/instana/go-sensor v1.55.2
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.55
 	github.com/oklog/ulid v1.3.1
@@ -36,7 +36,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/szuecs/rate-limit-buffer v0.9.0
 	github.com/testcontainers/testcontainers-go v0.20.1
-	github.com/tidwall/gjson v1.14.4
+	github.com/tidwall/gjson v1.15.0
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
