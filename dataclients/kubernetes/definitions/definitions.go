@@ -45,6 +45,7 @@ type WeightedBackend interface {
 	GetWeight() float64
 }
 
+// TODO: use https://pkg.go.dev/errors#Join with go1.21
 func errorsJoin(errs ...error) error {
 	var errVals []string
 	for _, err := range errs {

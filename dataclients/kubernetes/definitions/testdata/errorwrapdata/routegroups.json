@@ -1,0 +1,41 @@
+{
+    "items": [
+        {
+            "apiVersion": "zalando.org/v1",
+            "kind": "RouteGroup",
+            "spec": {
+                "hosts": [
+                    "test.example.com"
+                ],
+                "routes": [
+                    {
+                        "filters": [
+                            "inlineContent(\"/foo\")"
+                        ],
+                        "path": "/foo"
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "zalando.org/v1",
+            "metadata": {
+                "name": "rg1"
+            },
+            "kind": "RouteGroup",
+            "spec": {
+                "hosts": [
+                    "test.example.com"
+                ],
+                "routes": [
+                    {
+                        "filters": [
+                            "inlineContent(\"/foo\")"
+                        ],
+                        "path": "/foo"
+                    }
+                ]
+            }
+        }
+    ]
+}

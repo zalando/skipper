@@ -461,10 +461,10 @@ func ValidateRouteGroup(rg *RouteGroupItem) error {
 
 // ValidateRouteGroups validates a RouteGroupList
 func ValidateRouteGroups(rl *RouteGroupList) error {
-	var err error
+	var errs []error
 	// avoid the user having to repeatedly validate to discover all errors
 	for _, i := range rl.Items {
-		err = errorsJoin(err, ValidateRouteGroup(i))
+		errs = append(errs, ValidateRouteGroup(i))
 	}
-	return err
+	return errorsJoin(errs...)
 }
