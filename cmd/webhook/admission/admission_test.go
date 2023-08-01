@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
+const (
 	responseAllowedFmt = `{
 		"kind": "AdmissionReview",
 		"apiVersion": "admission.k8s.io/v1",
@@ -103,9 +103,23 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			inputFile: "rg-with-valid-eskip-filters.json",
 		},
 		{
-			name:      "invalid eskip filters", // This means that eskip parser failed but doesn't mean filters exist
+			name:      "invalid eskip filters",
 			inputFile: "rg-with-invalid-eskip-filters.json",
 			message:   "could not validate RouteGroup, parse failed after token status, last route id: , position 11: syntax error",
+		},
+		{
+			name:      "valid eskip predicates",
+			inputFile: "rg-with-valid-eskip-predicates.json",
+		},
+		{
+			name:      "invalid eskip predicates",
+			inputFile: "rg-with-invalid-eskip-predicates.json",
+			message:   "could not validate RouteGroup, parse failed after token Method, last route id: Method, position 6: syntax error",
+		},
+		{
+			name:      "invalid eskip filters and predicates",
+			inputFile: "rg-with-invalid-eskip-filters-and-predicates.json",
+			message:   "could not validate RouteGroup, parse failed after token status, last route id: , position 11: syntax error\\nparse failed after token Method, last route id: Method, position 6: syntax error",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

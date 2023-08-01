@@ -4,16 +4,13 @@ import (
 	"errors"
 
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters"
 )
 
-type RouteGroupValidator struct {
-	FilterRegistry filters.Registry
-}
+type RouteGroupValidator struct{}
 
 var defaultRouteGroupValidator = &RouteGroupValidator{}
 
-// validateRouteGroup validates a RouteGroupItem
+// ValidateRouteGroup validates a RouteGroupItem
 func ValidateRouteGroup(rg *RouteGroupItem) error {
 	return defaultRouteGroupValidator.Validate(rg)
 }
@@ -28,35 +25,18 @@ func ValidateRouteGroupList(rgl RouteGroupList) error {
 
 func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 	err := rgv.basicValidation(item)
-	// if basic validation fails we don't need to run other validations, otherwise join errors.
 	if err != nil {
 		return err
 	}
-	return rgv.filtersValidation(item)
-}
+	err = errors.Join(err, rgv.filtersValidation(item))
 
-func (rgv *RouteGroupValidator) basicValidation(item *RouteGroupItem) error {
-	return item.validate()
-}
-
-func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
-	return validateRouteGroupFilters(item)
-}
-
-func validateRouteGroupFilters(rg *RouteGroupItem) error {
-	var err error
-	for _, r := range rg.Spec.Routes {
-		for _, f := range r.Filters {
-			_, e := eskip.ParseFilters(f)
-			err = errors.Join(err, e)
-		}
-	}
+	err = errors.Join(err, rgv.predicatesValidation(item))
 
 	return err
 }
 
 // TODO: we need to pass namespace/name in all errors
-func (r *RouteGroupItem) validate() error {
+func (rgv *RouteGroupValidator) basicValidation(r *RouteGroupItem) error {
 	// has metadata and name:
 	if r == nil || validate(r.Metadata) != nil {
 		return errRouteGroupWithoutName
@@ -72,6 +52,29 @@ func (r *RouteGroupItem) validate() error {
 	}
 
 	return nil
+}
+
+func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
+	var err error
+	for _, r := range item.Spec.Routes {
+		for _, f := range r.Filters {
+			_, e := eskip.ParseFilters(f)
+			err = errors.Join(err, e)
+		}
+	}
+
+	return err
+}
+
+func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error {
+	var err error
+	for _, r := range item.Spec.Routes {
+		for _, p := range r.Predicates {
+			_, e := eskip.ParsePredicates(p)
+			err = errors.Join(err, e)
+		}
+	}
+	return err
 }
 
 // TODO: we need to pass namespace/name in all errors
