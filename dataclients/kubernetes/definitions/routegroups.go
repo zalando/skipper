@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pkg/errors"
+	"errors"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
 	"gopkg.in/yaml.v2"
@@ -463,15 +464,7 @@ func ValidateRouteGroups(rl *RouteGroupList) error {
 	var err error
 	// avoid the user having to repeatedly validate to discover all errors
 	for _, i := range rl.Items {
-		nerr := ValidateRouteGroup(i)
-		if nerr != nil {
-			err = errors.Wrap(err, nerr.Error())
-		}
+		err = errorsJoin(err, ValidateRouteGroup(i))
 	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

@@ -2,10 +2,10 @@ package definitions
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -101,15 +101,10 @@ func ValidateIngressesV1(ingressList IngressV1List) error {
 			name := i.Metadata.Name
 			namespace := i.Metadata.Namespace
 			nerr = fmt.Errorf("%s/%s: %w", name, namespace, nerr)
-			err = errors.Wrap(err, nerr.Error())
+			err = errorsJoin(err, nerr)
 		}
 	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {

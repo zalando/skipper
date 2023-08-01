@@ -1,6 +1,7 @@
 package definitions
 
 import (
+	"strings"
 	"time"
 
 	"errors"
@@ -42,4 +43,17 @@ func namespaceString(ns string) string {
 type WeightedBackend interface {
 	GetName() string
 	GetWeight() float64
+}
+
+func errorsJoin(errs ...error) error {
+	var errVals []string
+	for _, err := range errs {
+		if err != nil {
+			errVals = append(errVals, err.Error())
+		}
+	}
+	if len(errVals) > 0 {
+		return errors.New(strings.Join(errVals, "\n"))
+	}
+	return nil
 }
