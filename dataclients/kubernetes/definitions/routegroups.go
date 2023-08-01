@@ -122,7 +122,7 @@ type skipperBackendParser struct {
 
 type BackendReference struct {
 	// BackendName references the skipperBackend by name
-	BackendName string `json:"backendName"`
+	BackendName string `json:"backendName" yaml:"backendName"`
 
 	// Weight defines the traffic weight, if there are 2 or more
 	// default backends
@@ -260,6 +260,52 @@ func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
 
 	var p skipperBackendParser
 	if err := json.Unmarshal(value, &p); err != nil {
+		return err
+	}
+
+	var perr error
+	bt, err := backendTypeFromString(p.Type)
+	if err != nil {
+		// we cannot return an error here, because then the parsing of
+		// all route groups would fail. We'll report the error in the
+		// validation phase, only for the containing route group
+		perr = err
+	}
+
+	a, err := loadbalancer.AlgorithmFromString(p.Algorithm)
+	if err != nil {
+		// we cannot return an error here, because then the parsing of
+		// all route groups would fail. We'll report the error in the
+		// validation phase, only for the containing route group
+		perr = err
+	}
+
+	if a == loadbalancer.None {
+		a = loadbalancer.RoundRobin
+	}
+
+	var b SkipperBackend
+	b.Name = p.Name
+	b.Type = bt
+	b.Address = p.Address
+	b.ServiceName = p.ServiceName
+	b.ServicePort = p.ServicePort
+	b.Algorithm = a
+	b.Endpoints = p.Endpoints
+	b.parseError = perr
+
+	*sb = b
+	return nil
+}
+
+// UnmarshalYAML creates a new skipperBackend, safe to be called on nil pointer
+func (sb *SkipperBackend) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	if sb == nil {
+		return nil
+	}
+
+	var p skipperBackendParser
+	if err := unmarshal(&p); err != nil {
 		return err
 	}
 

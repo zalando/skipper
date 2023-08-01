@@ -1,4 +1,5 @@
 items:
+    # RouteGroup with no metadata 
   - apiVersion: zalando.org/v1
     kind: RouteGroup
     spec:
@@ -8,6 +9,8 @@ items:
         - filters:
             - inlineContent("/foo")
         - path: /foo
+
+    # RouteGroup with no backends
   - apiVersion: zalando.org/v1
     kind: RouteGroup
     metadata:
@@ -18,4 +21,23 @@ items:
         routes:
         - filters:
             - inlineContent("/foo")
-        - path: /foo 
+        - path: /foo
+ 
+    # valid
+  - apiVersion: zalando.org/v1
+    kind: RouteGroup
+    metadata:
+        name: rg1
+    spec:
+        backends:
+          - name: "shunt"
+            type: "shunt"
+        hosts:
+        - test.example.com
+        routes:
+        - backends:
+            - backendName: "shunt"
+              weight: 10
+          filters:
+          - inlineContent("/foo")
+          path: /foo

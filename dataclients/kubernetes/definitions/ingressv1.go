@@ -91,20 +91,18 @@ func ValidateIngressV1(_ *IngressV1Item) error {
 	return nil
 }
 
-// ValidateIngresses is a no-op
 func ValidateIngressesV1(ingressList IngressV1List) error {
-	var err error
+	var errs []error
 	// discover all errors to avoid the user having to repeatedly validate
 	for _, i := range ingressList.Items {
 		nerr := ValidateIngressV1(i)
 		if nerr != nil {
 			name := i.Metadata.Name
 			namespace := i.Metadata.Namespace
-			nerr = fmt.Errorf("%s/%s: %w", name, namespace, nerr)
-			err = errorsJoin(err, nerr)
+			errs = append(errs, fmt.Errorf("%s/%s: %w", name, namespace, nerr))
 		}
 	}
-	return err
+	return errorsJoin(errs...)
 }
 
 func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {
