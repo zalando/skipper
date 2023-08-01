@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=default
-FROM registry.opensource.zalan.do/library/alpine-3:latest@sha256:462214f352333771339bc11412cd7ae48ddeeeca0034f902c30b6aedb781b0fe AS default
+FROM registry.opensource.zalan.do/library/alpine-3:latest@sha256:ac3a6db04df95d849533ced3ce5cb697dc042e53613866e27066cc471ed63070 AS default
 FROM ${BASE_IMAGE}
 LABEL maintainer="Team Gateway&Proxy @ Zalando SE <team-gwproxy@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates
