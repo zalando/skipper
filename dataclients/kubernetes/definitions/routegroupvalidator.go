@@ -1,7 +1,7 @@
 package definitions
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/zalando/skipper/eskip"
 )
@@ -18,9 +18,22 @@ func ValidateRouteGroup(rg *RouteGroupItem) error {
 func ValidateRouteGroupList(rgl RouteGroupList) error {
 	var err error
 	for _, rg := range rgl.Items {
-		err = errors.Join(err, defaultRouteGroupValidator.Validate(rg))
+		// TODO: Use errors.Join
+		err = wrapError(err, defaultRouteGroupValidator.Validate(rg))
 	}
 	return err
+}
+
+func wrapError(err1 error, err2 error) error {
+	if err1 == nil && err2 == nil {
+		return nil
+	} else if err1 == nil {
+		return err2
+	} else if err2 == nil {
+		return err1
+	} else {
+		return fmt.Errorf("%w\n%w", err1, err2)
+	}
 }
 
 func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
@@ -28,9 +41,9 @@ func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 	if err != nil {
 		return err
 	}
-	err = errors.Join(err, rgv.filtersValidation(item))
-
-	err = errors.Join(err, rgv.predicatesValidation(item))
+	err = wrapError(err, rgv.filtersValidation(item))
+	// TODO: Use errors.Join
+	err = wrapError(err, rgv.predicatesValidation(item))
 
 	return err
 }
@@ -59,7 +72,8 @@ func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
 			_, e := eskip.ParseFilters(f)
-			err = errors.Join(err, e)
+			// TODO: Use errors.Join
+			err = wrapError(err, e)
 		}
 	}
 
@@ -71,7 +85,8 @@ func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error
 	for _, r := range item.Spec.Routes {
 		for _, p := range r.Predicates {
 			_, e := eskip.ParsePredicates(p)
-			err = errors.Join(err, e)
+			// TODO: Use errors.Join
+			err = wrapError(err, e)
 		}
 	}
 	return err
