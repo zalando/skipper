@@ -14,11 +14,11 @@ func TestRouteGroupValidation(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/validation")
 }
 
-func TestRouteGroupsValidationErrorWrapping(t *testing.T) {
-	data, err := os.ReadFile("testdata/errorwrapdata/routegroups.json")
+func TestValidateRouteGroups(t *testing.T) {
+	data, err := os.ReadFile("testdata/errorwrapdata/routegroups.yaml")
 	require.NoError(t, err)
 
-	rgl, err := definitions.ParseRouteGroupsJSON(data)
+	rgl, err := definitions.ParseRouteGroupsYAML(data)
 	require.NoError(t, err)
 
 	err = definitions.ValidateRouteGroups(&rgl)
