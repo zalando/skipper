@@ -14,8 +14,12 @@ spec:
   defaultBackends:
   - backendName: myapp
   routes:
-  - predicates:
-    - Header#
+  - pathSubtree: /app
+    predicates:
+      - Header#
+  - pathSubtree: /app2
+    predicates:
+      - Header("test")
 ---
 apiVersion: v1
 kind: Service

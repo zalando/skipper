@@ -14,8 +14,12 @@ spec:
   defaultBackends:
   - backendName: myapp
   routes:
-  - filters:
+  - pathSubtree: /app
+    filters:
     - foo#
+  - pathSubtree: /app2
+    filters:
+    - status(201) 
 ---
 apiVersion: v1
 kind: Service
