@@ -15,8 +15,9 @@ func NewTestRedis(t testing.TB) (address string, done func()) {
 }
 
 func NewTestRedisWithPassword(t testing.TB, password string) (address string, done func()) {
+	const dateFormat = "2006-01-02"
 
-	if fixDeadline, _ := time.Parse("2006-01-02", "2023-08-01"); time.Now().Before(fixDeadline) {
+	if fixDeadline, _ := time.Parse(dateFormat, "2023-08-08"); time.Now().Before(fixDeadline) {
 		t.Skip("https://github.com/testcontainers/testcontainers-go/issues/1359")
 	}
 
