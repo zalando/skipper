@@ -1,3 +1,1 @@
-\[eskip\] filter
-parse failed
-kind=RouteGroup name=myapp ns=foo
+\[routegroup\] parse failed after token foo, last route id: , position 8: syntax error

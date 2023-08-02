@@ -2,13 +2,38 @@ package admission
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	responseAllowedFmt = `{
+		"kind": "AdmissionReview",
+		"apiVersion": "admission.k8s.io/v1",
+		"response": {
+			"uid": "req-uid",
+			"allowed": true
+		}
+	}`
+
+	responseNotAllowedFmt = `{
+		"kind": "AdmissionReview",
+		"apiVersion": "admission.k8s.io/v1",
+		"response": {
+			"uid": "req-uid",
+			"allowed": false,
+			"status": {
+				"message": "%s"
+			}
+		}
+	}`
 )
 
 type testAdmitter struct {
@@ -60,78 +85,53 @@ func TestUnsupportedContentType(t *testing.T) {
 
 func TestRouteGroupAdmitter(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		input  string
-		result string
+		name      string
+		inputFile string
+		message   string
 	}{
 		{
-			name: "allowed",
-			input: `{
-				"request": {
-					"uid": "req-uid",
-					"name": "req1",
-					"namespace": "n1",
-					"object": {
-						"metadata": {
-							"name": "rg1",
-							"namespace": "n1"
-						},
-						"spec": {
-							"backends": [
-								{
-									"name": "backend",
-									"type": "shunt"
-								}
-							],
-							"defaultBackends": [
-								{
-									"backendName": "backend"
-								}
-							]
-						}
-					}
-				}
-			}`,
-			result: `{
-				"kind": "AdmissionReview",
-				"apiVersion": "admission.k8s.io/v1",
-				"response": {
-					"uid": "req-uid",
-					"allowed": true
-				}
-			}`,
+			name:      "allowed",
+			inputFile: "valid-rg.json",
 		},
 		{
-			name: "not allowed",
-			input: `{
-				"request": {
-					"uid": "req-uid",
-					"name": "req1",
-					"namespace": "n1",
-					"object": {
-						"metadata": {
-							"name": "rg1",
-							"namespace": "n1"
-						}
-					}
-				}
-			}`,
-			result: `{
-				"kind": "AdmissionReview",
-				"apiVersion": "admission.k8s.io/v1",
-				"response": {
-					"uid": "req-uid",
-					"allowed": false,
-					"status": {
-						"message":
-						"could not validate RouteGroup, error in route group n1/rg1: route group without spec"
-					}
-				}
-			}`,
+			name:      "not allowed",
+			inputFile: "invalid-rg.json",
+			message:   "could not validate RouteGroup, error in route group n1/rg1: route group without spec",
+		},
+		{
+			name:      "valid eskip filters",
+			inputFile: "rg-with-valid-eskip-filters.json",
+		},
+		{
+			name:      "invalid eskip filters",
+			inputFile: "rg-with-invalid-eskip-filters.json",
+			message:   "could not validate RouteGroup, parse failed after token status, last route id: , position 11: syntax error",
+		},
+		{
+			name:      "valid eskip predicates",
+			inputFile: "rg-with-valid-eskip-predicates.json",
+		},
+		{
+			name:      "invalid eskip predicates",
+			inputFile: "rg-with-invalid-eskip-predicates.json",
+			message:   "could not validate RouteGroup, parse failed after token Method, last route id: Method, position 6: syntax error",
+		},
+		{
+			name:      "invalid eskip filters and predicates",
+			inputFile: "rg-with-invalid-eskip-filters-and-predicates.json",
+			message:   "could not validate RouteGroup, parse failed after token status, last route id: , position 11: syntax error\\nparse failed after token Method, last route id: Method, position 6: syntax error",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "http://example.com/foo", bytes.NewBuffer([]byte(tc.input)))
+			expectedResponse := responseAllowedFmt
+			if len(tc.message) > 0 {
+				expectedResponse = fmt.Sprintf(responseNotAllowedFmt, tc.message)
+			}
+
+			input, err := os.ReadFile("testdata/" + tc.inputFile)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("POST", "http://example.com/foo", bytes.NewBuffer(input))
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
@@ -146,7 +146,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			require.NoError(t, err)
 			resp.Body.Close()
 
-			assert.JSONEq(t, tc.result, string(rb))
+			assert.JSONEq(t, expectedResponse, string(rb))
 		})
 	}
 }

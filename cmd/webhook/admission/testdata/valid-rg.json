@@ -1,0 +1,26 @@
+{
+  "request": {
+    "uid": "req-uid",
+    "name": "req1",
+    "namespace": "n1",
+    "object": {
+      "metadata": {
+        "name": "rg1",
+        "namespace": "n1"
+      },
+      "spec": {
+        "backends": [
+          {
+            "name": "backend",
+            "type": "shunt"
+          }
+        ],
+        "defaultBackends": [
+          {
+            "backendName": "backend"
+          }
+        ]
+      }
+    }
+  }
+}

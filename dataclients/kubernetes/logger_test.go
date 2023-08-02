@@ -16,7 +16,8 @@ import (
 )
 
 func TestLogger(t *testing.T) {
-	manifest, err := os.Open("testdata/routegroups/convert/failing-filter.yaml")
+	// TODO: with validation changes we need to update/refactor this test
+	manifest, err := os.Open("testdata/routegroups/convert/missing-service.yaml")
 	require.NoError(t, err)
 	defer manifest.Close()
 
