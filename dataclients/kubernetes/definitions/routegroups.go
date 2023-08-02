@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pkg/errors"
+	"errors"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
-	"gopkg.in/yaml.v2"
 )
 
 // adding Kubernetes specific backend types here. To be discussed.
@@ -446,13 +446,6 @@ func ParseRouteGroupsJSON(d []byte) (RouteGroupList, error) {
 	return rl, err
 }
 
-// ParseRouteGroupsYAML parses a YAML list of RouteGroups into RouteGroupList
-func ParseRouteGroupsYAML(d []byte) (RouteGroupList, error) {
-	var rl RouteGroupList
-	err := yaml.Unmarshal(d, &rl)
-	return rl, err
-}
-
 // ValidateRouteGroup validates a RouteGroupItem
 func ValidateRouteGroup(rg *RouteGroupItem) error {
 	return rg.validate()
@@ -460,18 +453,10 @@ func ValidateRouteGroup(rg *RouteGroupItem) error {
 
 // ValidateRouteGroups validates a RouteGroupList
 func ValidateRouteGroups(rl *RouteGroupList) error {
-	var err error
+	var errs []error
 	// avoid the user having to repeatedly validate to discover all errors
 	for _, i := range rl.Items {
-		nerr := ValidateRouteGroup(i)
-		if nerr != nil {
-			err = errors.Wrap(err, nerr.Error())
-		}
+		errs = append(errs, ValidateRouteGroup(i))
 	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return errorsJoin(errs...)
 }

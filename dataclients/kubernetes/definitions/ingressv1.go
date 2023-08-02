@@ -2,11 +2,9 @@ package definitions
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
-
-	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
 )
 
 type IngressV1List struct {
@@ -78,38 +76,24 @@ func ParseIngressV1JSON(d []byte) (IngressV1List, error) {
 	return il, err
 }
 
-// ParseIngressV1YAML parse YAML into an IngressV1List
-func ParseIngressV1YAML(d []byte) (IngressV1List, error) {
-	var il IngressV1List
-	err := yaml.Unmarshal(d, &il)
-	return il, err
-}
-
 // TODO: implement once IngressItem has a validate method
 // ValidateIngressV1 is a no-op
 func ValidateIngressV1(_ *IngressV1Item) error {
 	return nil
 }
 
-// ValidateIngresses is a no-op
 func ValidateIngressesV1(ingressList IngressV1List) error {
-	var err error
+	var errs []error
 	// discover all errors to avoid the user having to repeatedly validate
 	for _, i := range ingressList.Items {
 		nerr := ValidateIngressV1(i)
 		if nerr != nil {
 			name := i.Metadata.Name
 			namespace := i.Metadata.Namespace
-			nerr = fmt.Errorf("%s/%s: %w", name, namespace, nerr)
-			err = errors.Wrap(err, nerr.Error())
+			errs = append(errs, fmt.Errorf("%s/%s: %w", name, namespace, nerr))
 		}
 	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return errorsJoin(errs...)
 }
 
 func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {
