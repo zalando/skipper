@@ -9,13 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/routing"
 )
 
 const (
-	fadeInDuration    = 500 * time.Millisecond
-	bucketCount       = 20
-	monotonyTolerance = 0.4 // we need to use a high tolerance for CI testing
+	fadeInDuration     = 500 * time.Millisecond
+	fadeInDurationHuge = 24 * time.Hour // we need this to be sure we're at the very beginning of fading in
+	bucketCount        = 20
+	monotonyTolerance  = 0.4 // we need to use a high tolerance for CI testing
 )
 
 func absint(i int) int {
@@ -42,6 +44,36 @@ func checkMonotony(direction, prev, next int) bool {
 	}
 }
 
+func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Duration) (*routing.LBContext, []string) {
+	var detectionTimes []time.Time
+	now := time.Now()
+	for _, ea := range endpointAges {
+		detectionTimes = append(detectionTimes, now.Add(-ea))
+	}
+
+	var eps []string
+	for i := range endpointAges {
+		eps = append(eps, fmt.Sprintf("ep-%d-%s.test", i, endpointAges[i]))
+	}
+
+	ctx := &routing.LBContext{
+		Params: map[string]interface{}{},
+		Route: &routing.Route{
+			LBFadeInDuration: fadeInDuration,
+			LBFadeInExponent: 1,
+		},
+	}
+
+	for i := range eps {
+		ctx.Route.LBEndpoints = append(ctx.Route.LBEndpoints, routing.LBEndpoint{
+			Host:     eps[i],
+			Detected: detectionTimes[i],
+		})
+	}
+
+	return ctx, eps
+}
+
 func testFadeIn(
 	t *testing.T,
 	name string,
@@ -49,34 +81,9 @@ func testFadeIn(
 	endpointAges ...time.Duration,
 ) {
 	t.Run(name, func(t *testing.T) {
-		var detectionTimes []time.Time
-		now := time.Now()
-		for _, ea := range endpointAges {
-			detectionTimes = append(detectionTimes, now.Add(-ea))
-		}
-
-		var eps []string
-		for i := range endpointAges {
-			eps = append(eps, string('a'+rune(i)))
-		}
+		ctx, eps := initializeEndpoints(endpointAges, fadeInDuration)
 
 		a := algorithm(eps)
-
-		ctx := &routing.LBContext{
-			Params: map[string]interface{}{},
-			Route: &routing.Route{
-				LBFadeInDuration: fadeInDuration,
-				LBFadeInExponent: 1,
-			},
-		}
-
-		for i := range eps {
-			ctx.Route.LBEndpoints = append(ctx.Route.LBEndpoints, routing.LBEndpoint{
-				Host:     eps[i],
-				Detected: detectionTimes[i],
-			})
-		}
-
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		t.Log("test start", time.Now())
 		var stats []string
@@ -154,6 +161,11 @@ func testFadeIn(
 	})
 }
 
+func newConsistentHashForTest(endpoints []string) routing.LBAlgorithm {
+	// The default parameter 100 is too small to get even distribution
+	return newConsistentHashInternal(endpoints, 1000)
+}
+
 func TestFadeIn(t *testing.T) {
 	old := 2 * fadeInDuration
 	testFadeIn(t, "round-robin, 0", newRoundRobin, old, old)
@@ -178,16 +190,112 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "random, 8", newRandom, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "random, 9", newRandom, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
 
-	testFadeIn(t, "consistent-hash, 0", newConsistentHash, old, old)
-	testFadeIn(t, "consistent-hash, 1", newConsistentHash, 0, old)
-	testFadeIn(t, "consistent-hash, 2", newConsistentHash, 0, 0)
-	testFadeIn(t, "consistent-hash, 3", newConsistentHash, old, 0)
-	testFadeIn(t, "consistent-hash, 4", newConsistentHash, old, old, old, 0)
-	testFadeIn(t, "consistent-hash, 5", newConsistentHash, old, old, old, 0, 0, 0)
-	testFadeIn(t, "consistent-hash, 6", newConsistentHash, old, 0, 0, 0)
-	testFadeIn(t, "consistent-hash, 7", newConsistentHash, old, 0, 0, 0, 0, 0, 0)
-	testFadeIn(t, "consistent-hash, 8", newConsistentHash, 0, 0, 0, 0, 0, 0)
-	testFadeIn(t, "consistent-hash, 9", newConsistentHash, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+	testFadeIn(t, "consistent-hash, 0", newConsistentHashForTest, old, old)
+	testFadeIn(t, "consistent-hash, 1", newConsistentHashForTest, 0, old)
+	testFadeIn(t, "consistent-hash, 2", newConsistentHashForTest, 0, 0)
+	testFadeIn(t, "consistent-hash, 3", newConsistentHashForTest, old, 0)
+	testFadeIn(t, "consistent-hash, 4", newConsistentHashForTest, old, old, old, 0)
+	testFadeIn(t, "consistent-hash, 5", newConsistentHashForTest, old, old, old, 0, 0, 0)
+	testFadeIn(t, "consistent-hash, 6", newConsistentHashForTest, old, 0, 0, 0)
+	testFadeIn(t, "consistent-hash, 7", newConsistentHashForTest, old, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "consistent-hash, 8", newConsistentHashForTest, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "consistent-hash, 9", newConsistentHashForTest, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+}
+
+func testFadeInLoadBetweenOldEps(
+	t *testing.T,
+	name string,
+	algorithm func([]string) routing.LBAlgorithm,
+	nOld int, nNew int,
+) {
+	t.Run(name, func(t *testing.T) {
+		const (
+			numberOfReqs            = 100000
+			acceptableErrorNearZero = 10
+			old                     = fadeInDurationHuge
+			new                     = time.Duration(0)
+		)
+		endpointAges := []time.Duration{}
+		for i := 0; i < nOld; i++ {
+			endpointAges = append(endpointAges, old)
+		}
+		for i := 0; i < nNew; i++ {
+			endpointAges = append(endpointAges, new)
+		}
+
+		ctx, eps := initializeEndpoints(endpointAges, fadeInDurationHuge)
+
+		a := algorithm(eps)
+		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+		nReqs := map[string]int{}
+
+		t.Log("test start", time.Now())
+		// Emulate the load balancer loop, sending requests to it with random hash keys
+		// over and over again till fadeIn period is over.
+		for i := 0; i < numberOfReqs; i++ {
+			ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(100000))
+			ep := a.Apply(ctx)
+			nReqs[ep.Host]++
+		}
+
+		expectedReqsPerOldEndpoint := numberOfReqs / nOld
+		for idx, ep := range eps {
+			if endpointAges[idx] == old {
+				assert.InEpsilon(t, expectedReqsPerOldEndpoint, nReqs[ep], 0.2)
+			}
+			if endpointAges[idx] == new {
+				assert.InDelta(t, 0, nReqs[ep], acceptableErrorNearZero)
+			}
+		}
+	})
+}
+
+func TestFadeInLoadBetweenOldEps(t *testing.T) {
+	for nOld := 1; nOld < 6; nOld++ {
+		for nNew := 0; nNew < 6; nNew++ {
+			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("consistent-hash, %d old, %d new", nOld, nNew), newConsistentHash, nOld, nNew)
+			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("random, %d old, %d new", nOld, nNew), newRandom, nOld, nNew)
+			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("round-robin, %d old, %d new", nOld, nNew), newRoundRobin, nOld, nNew)
+		}
+	}
+}
+
+func testApplyEndsWhenAllEndpointsAreFading(
+	t *testing.T,
+	name string,
+	algorithm func([]string) routing.LBAlgorithm,
+	nEndpoints int,
+) {
+	t.Run(name, func(t *testing.T) {
+		// Initialize every endpoint with zero: every endpoint is new
+		endpointAges := make([]time.Duration, nEndpoints)
+
+		ctx, eps := initializeEndpoints(endpointAges, fadeInDurationHuge)
+
+		a := algorithm(eps)
+		ctx.Params[ConsistentHashKey] = "someConstantString"
+		applied := make(chan struct{})
+
+		go func() {
+			a.Apply(ctx)
+			close(applied)
+		}()
+
+		select {
+		case <-time.After(time.Second):
+			t.Errorf("a.Apply has not finished in a reasonable time")
+		case <-applied:
+			break
+		}
+	})
+}
+
+func TestApplyEndsWhenAllEndpointsAreFading(t *testing.T) {
+	for nEndpoints := 1; nEndpoints < 10; nEndpoints++ {
+		testApplyEndsWhenAllEndpointsAreFading(t, "consistent-hash", newConsistentHash, nEndpoints)
+		testApplyEndsWhenAllEndpointsAreFading(t, "random", newRandom, nEndpoints)
+		testApplyEndsWhenAllEndpointsAreFading(t, "round-robin", newRoundRobin, nEndpoints)
+	}
 }
 
 func benchmarkFadeIn(

@@ -241,9 +241,12 @@ func hash(s string) uint64 {
 // Returns index in hash ring with the closest hash to key's hash
 func (ch *consistentHash) searchRing(key string, skipEndpoint func(int) bool) int {
 	h := hash(key)
-	i := sort.Search(ch.Len(), func(i int) bool { return ch.hashRing[i].hash >= h && !skipEndpoint(ch.hashRing[i].index) })
+	i := sort.Search(ch.Len(), func(i int) bool { return ch.hashRing[i].hash >= h })
 	if i == ch.Len() { // rollover
 		i = 0
+	}
+	for skipEndpoint(ch.hashRing[i].index) {
+		i = (i + 1) % ch.Len()
 	}
 	return i
 }
