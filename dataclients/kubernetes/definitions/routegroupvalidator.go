@@ -14,24 +14,23 @@ func ValidateRouteGroup(rg *RouteGroupItem) error {
 }
 
 func ValidateRouteGroups(rgl *RouteGroupList) error {
-	var err []error
+	var errs []error
 	for _, rg := range rgl.Items {
-		// TODO: Use errors.Join
-		err = append(err, defaultRouteGroupValidator.Validate(rg))
+		errs = append(errs, defaultRouteGroupValidator.Validate(rg))
 	}
-	return errorsJoin(err...)
+	return errorsJoin(errs...)
 }
 
 func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
-	e := rgv.basicValidation(item)
-	if e != nil {
-		return e
+	err := rgv.basicValidation(item)
+	if err != nil {
+		return err
 	}
-	var err []error
-	err = append(err, rgv.filtersValidation(item))
-	err = append(err, rgv.predicatesValidation(item))
+	var errs []error
+	errs = append(errs, rgv.filtersValidation(item))
+	errs = append(errs, rgv.predicatesValidation(item))
 
-	return errorsJoin(err...)
+	return errorsJoin(errs...)
 }
 
 // TODO: we need to pass namespace/name in all errors
@@ -54,28 +53,26 @@ func (rgv *RouteGroupValidator) basicValidation(r *RouteGroupItem) error {
 }
 
 func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
-	var err []error
+	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
-			_, e := eskip.ParseFilters(f)
-			// TODO: Use errors.Join
-			err = append(err, e)
+			_, err := eskip.ParseFilters(f)
+			errs = append(errs, err)
 		}
 	}
 
-	return errorsJoin(err...)
+	return errorsJoin(errs...)
 }
 
 func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error {
-	var err []error
+	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, p := range r.Predicates {
-			_, e := eskip.ParsePredicates(p)
-			// TODO: Use errors.Join
-			err = append(err, e)
+			_, err := eskip.ParsePredicates(p)
+			errs = append(errs, err)
 		}
 	}
-	return errorsJoin(err...)
+	return errorsJoin(errs...)
 }
 
 // TODO: we need to pass namespace/name in all errors

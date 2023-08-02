@@ -123,9 +123,9 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			result := responseAllowedFmt
+			expectedResponse := responseAllowedFmt
 			if len(tc.message) > 0 {
-				result = fmt.Sprintf(responseNotAllowedFmt, tc.message)
+				expectedResponse = fmt.Sprintf(responseNotAllowedFmt, tc.message)
 			}
 
 			input, err := os.ReadFile("testdata/" + tc.inputFile)
@@ -146,7 +146,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			require.NoError(t, err)
 			resp.Body.Close()
 
-			assert.JSONEq(t, result, string(rb))
+			assert.JSONEq(t, expectedResponse, string(rb))
 		})
 	}
 }
