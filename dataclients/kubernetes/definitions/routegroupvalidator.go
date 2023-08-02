@@ -1,8 +1,6 @@
 package definitions
 
 import (
-	"fmt"
-
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -15,37 +13,25 @@ func ValidateRouteGroup(rg *RouteGroupItem) error {
 	return defaultRouteGroupValidator.Validate(rg)
 }
 
-func ValidateRouteGroupList(rgl RouteGroupList) error {
-	var err error
+func ValidateRouteGroups(rgl *RouteGroupList) error {
+	var err []error
 	for _, rg := range rgl.Items {
 		// TODO: Use errors.Join
-		err = wrapError(err, defaultRouteGroupValidator.Validate(rg))
+		err = append(err, defaultRouteGroupValidator.Validate(rg))
 	}
-	return err
-}
-
-func wrapError(err1 error, err2 error) error {
-	if err1 == nil && err2 == nil {
-		return nil
-	} else if err1 == nil {
-		return err2
-	} else if err2 == nil {
-		return err1
-	} else {
-		return fmt.Errorf("%w\n%w", err1, err2)
-	}
+	return errorsJoin(err...)
 }
 
 func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
-	err := rgv.basicValidation(item)
-	if err != nil {
-		return err
+	e := rgv.basicValidation(item)
+	if e != nil {
+		return e
 	}
-	err = wrapError(err, rgv.filtersValidation(item))
-	// TODO: Use errors.Join
-	err = wrapError(err, rgv.predicatesValidation(item))
+	var err []error
+	err = append(err, rgv.filtersValidation(item))
+	err = append(err, rgv.predicatesValidation(item))
 
-	return err
+	return errorsJoin(err...)
 }
 
 // TODO: we need to pass namespace/name in all errors
@@ -68,28 +54,28 @@ func (rgv *RouteGroupValidator) basicValidation(r *RouteGroupItem) error {
 }
 
 func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
-	var err error
+	var err []error
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
 			_, e := eskip.ParseFilters(f)
 			// TODO: Use errors.Join
-			err = wrapError(err, e)
+			err = append(err, e)
 		}
 	}
 
-	return err
+	return errorsJoin(err...)
 }
 
 func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error {
-	var err error
+	var err []error
 	for _, r := range item.Spec.Routes {
 		for _, p := range r.Predicates {
 			_, e := eskip.ParsePredicates(p)
 			// TODO: Use errors.Join
-			err = wrapError(err, e)
+			err = append(err, e)
 		}
 	}
-	return err
+	return errorsJoin(err...)
 }
 
 // TODO: we need to pass namespace/name in all errors
