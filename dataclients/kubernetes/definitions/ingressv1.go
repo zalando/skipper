@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-
-	"gopkg.in/yaml.v2"
 )
 
 type IngressV1List struct {
@@ -75,13 +73,6 @@ type TLSV1 struct {
 func ParseIngressV1JSON(d []byte) (IngressV1List, error) {
 	var il IngressV1List
 	err := json.Unmarshal(d, &il)
-	return il, err
-}
-
-// ParseIngressV1YAML parse YAML into an IngressV1List
-func ParseIngressV1YAML(d []byte) (IngressV1List, error) {
-	var il IngressV1List
-	err := yaml.Unmarshal(d, &il)
 	return il, err
 }
 
