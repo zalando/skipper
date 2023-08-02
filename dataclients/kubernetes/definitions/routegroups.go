@@ -8,7 +8,6 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
-	"gopkg.in/yaml.v2"
 )
 
 // adding Kubernetes specific backend types here. To be discussed.
@@ -262,13 +261,6 @@ func (r *RouteSpec) UniqueMethods() []string {
 func ParseRouteGroupsJSON(d []byte) (RouteGroupList, error) {
 	var rl RouteGroupList
 	err := json.Unmarshal(d, &rl)
-	return rl, err
-}
-
-// ParseRouteGroupsYAML parses a YAML list of RouteGroups into RouteGroupList
-func ParseRouteGroupsYAML(d []byte) (RouteGroupList, error) {
-	var rl RouteGroupList
-	err := yaml.Unmarshal(d, &rl)
 	return rl, err
 }
 
