@@ -128,7 +128,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 				expectedResponse = fmt.Sprintf(responseNotAllowedFmt, tc.message)
 			}
 
-			input, err := os.ReadFile("testdata/" + tc.inputFile)
+			input, err := os.ReadFile("testdata/rg/" + tc.inputFile)
 			require.NoError(t, err)
 
 			req := httptest.NewRequest("POST", "http://example.com/foo", bytes.NewBuffer(input))
@@ -138,6 +138,70 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			rgAdm := RouteGroupAdmitter{}
 
 			h := Handler(rgAdm)
+			h(w, req)
+			resp := w.Result()
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			rb, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			resp.Body.Close()
+
+			assert.JSONEq(t, expectedResponse, string(rb))
+		})
+	}
+}
+
+func TestIngressAdmitter(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		inputFile string
+		message   string
+	}{
+		{
+			name:      "allowed without annotations",
+			inputFile: "valid-ingress-without-annotations.json",
+		},
+		{
+			name:      "allowed with valid annotations",
+			inputFile: "valid-ingress-with-annotations.json",
+		},
+		{
+			name:      "invalid eskip filters",
+			inputFile: "invalid-filters.json",
+			message:   "Ingress validation failed, parse failed after token status, last route id: , position 11: syntax error",
+		},
+		{
+			name:      "invalid eskip predicates",
+			inputFile: "invalid-predicates.json",
+			message:   "Ingress validation failed, parse failed after token ), last route id: , position 15: syntax error",
+		},
+		{
+			name:      "invalid eskip routes",
+			inputFile: "invalid-routes.json",
+			message:   "Ingress validation failed, invalid predicate count arg",
+		},
+		{
+			name:      "invalid eskip filters and predicates",
+			inputFile: "invalid-filters-and-predicates.json",
+			message:   "Ingress validation failed, parse failed after token status, last route id: , position 11: syntax error\\nparse failed after token ), last route id: , position 15: syntax error",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			expectedResponse := responseAllowedFmt
+			if len(tc.message) > 0 {
+				expectedResponse = fmt.Sprintf(responseNotAllowedFmt, tc.message)
+			}
+
+			input, err := os.ReadFile("testdata/ingress/" + tc.inputFile)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("POST", "http://example.com/foo", bytes.NewBuffer(input))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			ingressAdm := IngressAdmitter{}
+
+			h := Handler(ingressAdm)
 			h(w, req)
 			resp := w.Result()
 			assert.Equal(t, http.StatusOK, resp.StatusCode)

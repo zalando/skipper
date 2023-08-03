@@ -53,8 +53,10 @@ func main() {
 	cfg.parse()
 
 	rgAdmitter := admission.RouteGroupAdmitter{}
+	ingressAdmitter := admission.IngressAdmitter{}
 	handler := http.NewServeMux()
 	handler.Handle("/routegroups", admission.Handler(rgAdmitter))
+	handler.Handle("/ingresses", admission.Handler(ingressAdmitter))
 	handler.Handle("/metrics", promhttp.Handler())
 	handler.HandleFunc("/healthz", healthCheck)
 
