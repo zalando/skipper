@@ -1765,10 +1765,11 @@ requestCookie("test-session", "abc")
 
 ### responseCookie
 
-Appends cookies to responses in the "Set-Cookie" header. The response cookie
-accepts an optional argument to control the max-age property of the cookie,
-of type `int`, in seconds. The response cookie accepts an optional fourth
-argument, "change-only", to control if the cookie should be set on every
+Appends a cookie to the response via "Set-Cookie" header.
+It derives cookie domain by removing one subdomain from the request hostname domain.
+The filter accepts an optional argument to set the `Max-Age` attribute of the cookie, of type `int`, in seconds.
+Use zero to expire the cookie immediately.
+An optional fourth argument, "change-only", controls if the cookie should be set on every
 response, or only if the request does not contain a cookie with the provided
 name and value.
 
@@ -1778,6 +1779,7 @@ Example:
 responseCookie("test-session", "abc")
 responseCookie("test-session", "abc", 31536000),
 responseCookie("test-session", "abc", 31536000, "change-only")
+responseCookie("test-session", "deleted", 0),
 ```
 
 ### jsCookie
