@@ -355,6 +355,8 @@ func TestInterface(t *testing.T) {
 
 	t.Run("wrapped listener returns temporary error, logs and retries", func(t *testing.T) {
 		log := loggingtest.New()
+		defer log.Close()
+
 		l, err := listenWith(&testListener{failNextTemporary: true}, Options{
 			Log: log,
 		})
@@ -404,6 +406,7 @@ func TestInterface(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer l.Close()
 
 		if l.Addr() != addr {
 			t.Error("failed to return the right address")
@@ -984,6 +987,8 @@ func TestTeardown(t *testing.T) {
 func TestMonitoring(t *testing.T) {
 	t.Run("logs the temporary errors", func(t *testing.T) {
 		log := loggingtest.New()
+		defer log.Close()
+
 		l, err := listenWith(&testListener{failNextTemporary: true}, Options{
 			Log: log,
 		})
@@ -1062,6 +1067,7 @@ func TestMonitoring(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer l.Close()
 
 		done := make(chan struct{})
 		defer func() { close(done) }()
