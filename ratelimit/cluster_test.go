@@ -21,6 +21,8 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			Addrs: []string{redisAddr},
 		},
 	)
+	defer myring.Close()
+
 	fake, err := newFakeSwarm("foo01", 3*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to create fake swarm to test: %v", err)
@@ -73,7 +75,11 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			want:     newClusterRateLimiterSwim(settings, fake, "mygroup"),
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
+			defer tt.want.Close()
+
 			got := newClusterRateLimiter(tt.settings, tt.swarm, tt.ring, tt.group)
+			defer got.Close()
+
 			// internals in swim are created and won't be equal with reflect.Deepequal
 			gotT := fmt.Sprintf("%T", got)
 			wantT := fmt.Sprintf("%T", tt.want)
