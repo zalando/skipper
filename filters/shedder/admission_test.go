@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"sort"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -129,29 +127,37 @@ func TestAdmissionControl(t *testing.T) {
 					w.WriteHeader(http.StatusOK)
 				}
 			}))
+			defer backend.Close()
 
-			spec := NewAdmissionControl(Options{})
+			spec := NewAdmissionControl(Options{}).(*AdmissionControlSpec)
+
 			args := make([]interface{}, 0, 6)
 			args = append(args, "testmetric", ti.mode, ti.d.String(), ti.windowsize, ti.minRequests, ti.successThreshold, ti.maxrejectprobability, ti.exponent)
-			_, err := spec.CreateFilter(args)
+
+			f, err := spec.CreateFilter(args)
 			if err != nil {
 				t.Logf("args: %+v", args...)
 				t.Fatalf("error creating filter: %v", err)
 				return
 			}
+			defer f.(*admissionControl).Close()
 
 			fr := make(filters.Registry)
 			fr.Register(spec)
 			r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 
-			proxy := proxytest.New(fr, r)
-			reqURL, err := url.Parse(proxy.URL)
-			if err != nil {
-				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
-			}
+			dc := testdataclient.New([]*eskip.Route{r})
+			defer dc.Close()
 
-			client := net.NewClient(net.Options{})
-			req, err := http.NewRequest("GET", reqURL.String(), nil)
+			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
+				DataClients:    []routing.DataClient{dc},
+				PostProcessors: []routing.PostProcessor{spec.PostProcessor()},
+				PreProcessors:  []routing.PreProcessor{spec.PreProcessor()},
+			})
+			defer proxy.Close()
+
+			client := proxy.Client()
+			req, err := http.NewRequest("GET", proxy.URL, nil)
 			if err != nil {
 				t.Error(err)
 				return
@@ -224,9 +230,12 @@ func TestAdmissionControlCleanupModes(t *testing.T) {
 			backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 			}))
+			defer backend1.Close()
+
 			backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
+			defer backend2.Close()
 
 			fspec := NewAdmissionControl(Options{})
 			spec, ok := fspec.(*AdmissionControlSpec)
@@ -238,11 +247,12 @@ func TestAdmissionControlCleanupModes(t *testing.T) {
 
 			args := make([]interface{}, 0, 6)
 			args = append(args, "testmetric", ti.mode, "10ms", 5, 1, 0.1, 0.95, 0.5)
-			_, err := spec.CreateFilter(args)
+			f, err := spec.CreateFilter(args)
 			if err != nil {
 				t.Fatalf("error creating filter: %v", err)
 				return
 			}
+			f.(*admissionControl).Close()
 
 			fr := make(filters.Registry)
 			fr.Register(spec)
@@ -259,11 +269,13 @@ func TestAdmissionControlCleanupModes(t *testing.T) {
 			}
 
 			dc := testdataclient.New([]*eskip.Route{r1})
+			defer dc.Close()
+
 			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
 				DataClients:    []routing.DataClient{dc},
 				PostProcessors: []routing.PostProcessor{postProcessor, validationPostProcessor},
 				PreProcessors:  []routing.PreProcessor{preProcessor},
-			}, nil)
+			})
 			defer proxy.Close()
 
 			var tuple tuple
@@ -391,9 +403,10 @@ func TestAdmissionControlCleanupMultipleFilters(t *testing.T) {
 				ch: ch,
 			}
 
-			backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
+			defer backend.Close()
 
 			fspec := NewAdmissionControl(Options{})
 			spec, ok := fspec.(*AdmissionControlSpec)
@@ -403,7 +416,7 @@ func TestAdmissionControlCleanupMultipleFilters(t *testing.T) {
 			preProcessor := spec.PreProcessor()
 			postProcessor := spec.PostProcessor()
 
-			r := eskip.MustParse(fmt.Sprintf(ti.doc, backend1.URL))
+			r := eskip.MustParse(fmt.Sprintf(ti.doc, backend.URL))
 
 			fr := make(filters.Registry)
 			fr.Register(fspec)
@@ -411,14 +424,14 @@ func TestAdmissionControlCleanupMultipleFilters(t *testing.T) {
 			fr.Register(builtin.NewStatus())
 
 			dc := testdataclient.New(r)
+			defer dc.Close()
+
 			proxy := proxytest.WithRoutingOptions(fr, routing.Options{
 				DataClients:    []routing.DataClient{dc},
 				PostProcessors: []routing.PostProcessor{postProcessor, validationProcessor},
 				PreProcessors:  []routing.PreProcessor{preProcessor},
-			}, r...)
+			})
 			defer proxy.Close()
-
-			dc.Update(r, nil)
 
 			result := <-ch
 			if result == nil {
