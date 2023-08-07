@@ -45,6 +45,8 @@ func TestSingleSwarmSingleRatelimit(t *testing.T) {
 	defer sw1.Leave()
 
 	crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
+	defer crl1sw1.Close()
+
 	backend := "TestSingleSwarmSingleRatelimit backend"
 
 	t.Run("single swarm peer, single ratelimit", func(t *testing.T) {
@@ -85,6 +87,7 @@ func TestSingleSwarm(t *testing.T) {
 		}
 		defer sw1.Leave()
 		crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
+		defer crl1sw1.Close()
 
 		for i := 1; i <= s.MaxHits; i++ {
 			if !crl1sw1.Allow(context.Background(), backend) {
@@ -104,7 +107,10 @@ func TestSingleSwarm(t *testing.T) {
 		}
 		defer sw1.Leave()
 		crl1sw1 := newClusterRateLimiterSwim(s, sw1, "cr1")
+		defer crl1sw1.Close()
+
 		crl2sw1 := newClusterRateLimiterSwim(s, sw1, "cr2")
+		defer crl2sw1.Close()
 
 		for i := 0; i < s.MaxHits; i++ {
 			if !crl1sw1.Allow(context.Background(), backend) {
@@ -131,7 +137,6 @@ func TestSingleSwarm(t *testing.T) {
 			t.Errorf("%s allowed but should not", backend)
 		}
 	})
-
 }
 
 func Test_calcTotalRequestRate_ManyHitsSmallTimeWindow(t *testing.T) {
@@ -327,7 +332,6 @@ func Test_calcTotalRequestRate_LowTrafficLongTimeFrame(t *testing.T) {
 				t.Errorf("Failed to drop below maxhits calcTotalRequestRate: rate=%v but should be less than %v", rate, s.MaxHits)
 			}
 		})
-
 	}
 }
 
@@ -446,7 +450,6 @@ func TestTwoSwarms(t *testing.T) {
 		if crl1sw2.Allow(context.Background(), backend) {
 			t.Errorf("2 %s allowed but should not", backend)
 		}
-
 	})
 
 	t.Run("two swarms, maze, with 2 other ratelimiters", func(t *testing.T) {
@@ -508,6 +511,5 @@ func TestTwoSwarms(t *testing.T) {
 		if crl1sw2.Allow(context.Background(), backend) {
 			t.Errorf("2 %s allowed but should not", backend)
 		}
-
 	})
 }

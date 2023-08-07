@@ -82,11 +82,15 @@ func TestLocalRatelimit(t *testing.T) {
 
 	t.Run("new local ratelimitter", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
+		defer rl.Close()
+
 		checkNotRatelimitted(t, rl, client1)
 	})
 
 	t.Run("does not rate limit unless we have enough calls", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
+		defer rl.Close()
+
 		for i := 0; i < s.MaxHits; i++ {
 			checkNotRatelimitted(t, rl, client1)
 		}
@@ -97,6 +101,8 @@ func TestLocalRatelimit(t *testing.T) {
 
 	t.Run("does not rate limit if TimeWindow is over", func(t *testing.T) {
 		rl := newRatelimit(s, nil, nil)
+		defer rl.Close()
+
 		for i := 0; i < s.MaxHits-1; i++ {
 			checkNotRatelimitted(t, rl, client1)
 		}
@@ -108,6 +114,8 @@ func TestLocalRatelimit(t *testing.T) {
 		s := s
 		s.MaxHits = 0
 		rl := newRatelimit(s, nil, nil)
+		defer rl.Close()
+
 		checkRatelimitted(t, rl, client1)
 	})
 }
