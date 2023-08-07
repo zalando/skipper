@@ -52,7 +52,10 @@ func TestHandlerCodaHaleBadRequests(t *testing.T) {
 		Format:               metrics.CodaHaleKind,
 		EnableRuntimeMetrics: true,
 	}
-	mh := metrics.NewDefaultHandler(o)
+	m := metrics.NewMetrics(o)
+	defer m.Close()
+
+	mh := metrics.NewHandler(o, m)
 
 	r1, _ := http.NewRequest("GET", "/", nil)
 	rw1 := httptest.NewRecorder()
@@ -76,6 +79,8 @@ func TestHandlerCodaHaleAllMetricsRequest(t *testing.T) {
 		EnableRuntimeMetrics: true,
 	}
 	m := metrics.NewCodaHale(o)
+	defer m.Close()
+
 	mh := metrics.NewHandler(o, m)
 	m.IncCounter("TestHandlerCodaHaleAllMetricsRequest")
 
@@ -103,6 +108,8 @@ func TestHandlerCodaHaleSingleMetricsRequest(t *testing.T) {
 		EnableRuntimeMetrics: true,
 	}
 	m := metrics.NewCodaHale(o)
+	defer m.Close()
+
 	mh := metrics.NewHandler(o, m)
 	m.IncCounter("TestHandlerCodaHaleSingleMetricsRequest")
 
@@ -134,6 +141,8 @@ func TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix(t *testing.T) {
 		EnableRuntimeMetrics: true,
 	}
 	m := metrics.NewCodaHale(o)
+	defer m.Close()
+
 	mh := metrics.NewHandler(o, m)
 	m.IncCounter("TestHandlerCodaHaleSingleMetricsRequestWhenUsingPrefix")
 
@@ -164,6 +173,8 @@ func TestHandlerCodaHaleMetricsRequestWithPattern(t *testing.T) {
 		EnableRuntimeMetrics: true,
 	}
 	m := metrics.NewCodaHale(o)
+	defer m.Close()
+
 	mh := metrics.NewHandler(o, m)
 	m.UpdateGauge("runtime.Num", 5.0)
 
@@ -202,6 +213,8 @@ func TestHandlerCodaHaleUnknownMetricRequest(t *testing.T) {
 		EnableRuntimeMetrics: true,
 	}
 	m := metrics.NewCodaHale(o)
+	defer m.Close()
+
 	mh := metrics.NewHandler(o, m)
 
 	r, _ := http.NewRequest("GET", "/metrics/DOES-NOT-EXIST", nil)

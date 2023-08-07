@@ -177,3 +177,5 @@ func (m *MockMetrics) Gauge(key string) (v float64, ok bool) {
 
 	return
 }
+
+func (m *MockMetrics) Close() {}

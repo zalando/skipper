@@ -45,6 +45,7 @@ type CodaHale struct {
 	createGauge   func() metrics.GaugeFloat64
 	options       Options
 	handler       http.Handler
+	quit          chan struct{}
 }
 
 // NewCodaHale returns a new CodaHale backend of metrics.
@@ -52,6 +53,8 @@ func NewCodaHale(o Options) *CodaHale {
 	o = applyCompatibilityDefaults(o)
 
 	c := &CodaHale{}
+
+	c.quit = make(chan struct{})
 	c.reg = metrics.NewRegistry()
 
 	var createSample func() metrics.Sample
@@ -68,12 +71,12 @@ func NewCodaHale(o Options) *CodaHale {
 
 	if o.EnableDebugGcMetrics {
 		metrics.RegisterDebugGCStats(c.reg)
-		go metrics.CaptureDebugGCStats(c.reg, statsRefreshDuration)
+		go c.collectStats(metrics.CaptureDebugGCStatsOnce)
 	}
 
 	if o.EnableRuntimeMetrics {
 		metrics.RegisterRuntimeMemStats(c.reg)
-		go metrics.CaptureRuntimeMemStats(c.reg, statsRefreshDuration)
+		go c.collectStats(metrics.CaptureRuntimeMemStatsOnce)
 	}
 
 	return c
@@ -231,6 +234,23 @@ func (c *CodaHale) MeasureBackend5xx(t time.Time) {
 func (c *CodaHale) IncErrorsStreaming(routeId string) {
 	if c.options.EnableRouteStreamingErrorsCounters {
 		c.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId), 1)
+	}
+}
+
+func (c *CodaHale) Close() {
+	close(c.quit)
+}
+
+func (c *CodaHale) collectStats(capture func(r metrics.Registry)) {
+	ticker := time.NewTicker(statsRefreshDuration)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			capture(c.reg)
+		case <-c.quit:
+			return
+		}
 	}
 }
 
