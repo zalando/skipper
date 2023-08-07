@@ -80,8 +80,13 @@ func (l *testListener) Accept() (net.Conn, error) {
 		select {
 		case l.conns <- c:
 		default:
-			// drop one if cannot store the latest
-			<-l.conns
+			// Drop one if cannot store the latest.
+			// The test might have received a connection in the meantime so do not block.
+			// Sending is safe as Accept is called from a single goroutine.
+			select {
+			case <-l.conns:
+			default:
+			}
 			l.conns <- c
 		}
 	}
