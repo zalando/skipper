@@ -3,7 +3,6 @@ package cookie
 import (
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -65,7 +64,7 @@ func TestCreateFilter(t *testing.T) {
 		filter{},
 		true,
 	}, {
-		"wrong ttl type",
+		"wrong Max-Age type",
 		response,
 		[]interface{}{"test-cookie", "A", "42"},
 		filter{},
@@ -89,7 +88,7 @@ func TestCreateFilter(t *testing.T) {
 		filter{},
 		true,
 	}, {
-		"wrong ttl type, JS",
+		"wrong Max-Age type, JS",
 		responseJS,
 		[]interface{}{"test-cookie", "A", "42"},
 		filter{},
@@ -110,19 +109,19 @@ func TestCreateFilter(t *testing.T) {
 		"response persistent cookie",
 		response,
 		[]interface{}{"test-cookie", "A", 42.0},
-		filter{typ: response, name: "test-cookie", value: "A", ttl: 42 * time.Second},
+		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42},
 		false,
 	}, {
 		"response persistent cookie, not change only, explicit",
 		response,
 		[]interface{}{"test-cookie", "A", 42.0, "always"},
-		filter{typ: response, name: "test-cookie", value: "A", ttl: 42 * time.Second},
+		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42},
 		false,
 	}, {
 		"response persistent cookie, change only",
 		response,
 		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
-		filter{typ: response, name: "test-cookie", value: "A", ttl: 42 * time.Second, changeOnly: true},
+		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42, changeOnly: true},
 		false,
 	}, {
 		"response session cookie, JS",
@@ -134,19 +133,19 @@ func TestCreateFilter(t *testing.T) {
 		"response persistent cookie, JS",
 		responseJS,
 		[]interface{}{"test-cookie", "A", 42.0},
-		filter{typ: response, name: "test-cookie", value: "A", ttl: 42 * time.Second},
+		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42},
 		false,
 	}, {
 		"response persistent cookie, not change only, explicit, JS",
 		responseJS,
 		[]interface{}{"test-cookie", "A", 42.0, "always"},
-		filter{typ: response, name: "test-cookie", value: "A", ttl: 42 * time.Second},
+		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42},
 		false,
 	}, {
 		"response persistent cookie, change only, JS",
 		responseJS,
 		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
-		filter{typ: response, name: "test-cookie", value: "A", ttl: 42 * time.Second, changeOnly: true},
+		filter{typ: response, name: "test-cookie", value: "A", maxAge: 42, changeOnly: true},
 		false,
 	}} {
 		var s filters.Spec
@@ -177,8 +176,8 @@ func TestCreateFilter(t *testing.T) {
 				t.Error(ti.msg, "value", ff.value, ti.check.value)
 			}
 
-			if ff.ttl != ti.check.ttl {
-				t.Error(ti.msg, "ttl", ff.ttl, ti.check.ttl)
+			if ff.maxAge != ti.check.maxAge {
+				t.Error(ti.msg, "Max-Age", ff.maxAge, ti.check.maxAge)
 			}
 		}
 	}
@@ -214,7 +213,7 @@ func TestSetCookie(t *testing.T) {
 			Domain:   domain,
 			Path:     "/"},
 	}, {
-		"response cookie, with ttl",
+		"response cookie, with Max-Age",
 		response,
 		[]interface{}{"test-cookie", "A", 42.0},
 		"",
@@ -226,7 +225,20 @@ func TestSetCookie(t *testing.T) {
 			Path:     "/",
 			MaxAge:   42},
 	}, {
-		"response cookie, with non-sliding ttl",
+		"delete response cookie",
+		response,
+		[]interface{}{"test-cookie", "deleted", 0.0},
+		"",
+		&http.Cookie{
+			Name:     "test-cookie",
+			Value:    "deleted",
+			HttpOnly: true,
+			Domain:   domain,
+			Path:     "/",
+			MaxAge:   -1,
+		},
+	}, {
+		"response cookie, with non-sliding Max-Age",
 		response,
 		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"",
@@ -238,7 +250,7 @@ func TestSetCookie(t *testing.T) {
 			Path:     "/",
 			MaxAge:   42},
 	}, {
-		"response cookie, with non-sliding ttl, request contains different value",
+		"response cookie, with non-sliding Max-Age, request contains different value",
 		response,
 		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"B",
@@ -250,7 +262,7 @@ func TestSetCookie(t *testing.T) {
 			Path:     "/",
 			MaxAge:   42},
 	}, {
-		"response cookie, with non-sliding ttl, request contains the same value",
+		"response cookie, with non-sliding Max-Age, request contains the same value",
 		response,
 		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"A",
@@ -266,7 +278,7 @@ func TestSetCookie(t *testing.T) {
 			Domain: domain,
 			Path:   "/"},
 	}, {
-		"response cookie, with ttl, JS",
+		"response cookie, with Max-Age, JS",
 		responseJS,
 		[]interface{}{"test-cookie", "A", 42.0},
 		"",
@@ -277,7 +289,19 @@ func TestSetCookie(t *testing.T) {
 			Path:   "/",
 			MaxAge: 42},
 	}, {
-		"response cookie, with non-sliding ttl, JS",
+		"delete response js cookie",
+		responseJS,
+		[]interface{}{"test-cookie", "deleted", 0.0},
+		"",
+		&http.Cookie{
+			Name:   "test-cookie",
+			Value:  "deleted",
+			Domain: domain,
+			Path:   "/",
+			MaxAge: -1,
+		},
+	}, {
+		"response cookie, with non-sliding Max-Age, JS",
 		responseJS,
 		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"",
@@ -288,7 +312,7 @@ func TestSetCookie(t *testing.T) {
 			Path:   "/",
 			MaxAge: 42},
 	}, {
-		"response cookie, with non-sliding ttl, request contains different value, JS",
+		"response cookie, with non-sliding Max-Age, request contains different value, JS",
 		responseJS,
 		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"B",
@@ -299,7 +323,7 @@ func TestSetCookie(t *testing.T) {
 			Path:   "/",
 			MaxAge: 42},
 	}, {
-		"response cookie, with non-sliding ttl, request contains the same value, JS",
+		"response cookie, with non-sliding Max-Age, request contains the same value, JS",
 		responseJS,
 		[]interface{}{"test-cookie", "A", 42.0, ChangeOnlyArg},
 		"A",
