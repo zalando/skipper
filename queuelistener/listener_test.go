@@ -21,21 +21,20 @@ type testConnection struct {
 
 type testListener struct {
 	sync.Mutex
-	closed            bool
-	failNextTemporary bool
-	fail              bool
-	connsBeforeFail   int
-	addr              net.Addr
-	conns             chan *testConnection
+	closed          bool
+	failNextTimeout bool
+	fail            bool
+	connsBeforeFail int
+	addr            net.Addr
+	conns           chan *testConnection
 }
 
 type testError struct{}
 
-var errTemporary testError
+var errTimeout testError
 
-func (err testError) Error() string   { return "test error" }
-func (err testError) Timeout() bool   { return false }
-func (err testError) Temporary() bool { return true }
+func (err testError) Error() string { return "test error" }
+func (err testError) Timeout() bool { return false }
 
 func (c *testConnection) Read([]byte) (int, error)         { return 0, nil }
 func (c *testConnection) Write([]byte) (int, error)        { return 0, nil }
@@ -59,9 +58,10 @@ func (c *testConnection) isClosed() bool {
 }
 
 func (l *testListener) Accept() (net.Conn, error) {
-	if l.failNextTemporary {
-		l.failNextTemporary = false
-		return nil, errTemporary
+
+	if l.failNextTimeout {
+		l.failNextTimeout = false
+		return nil, errTimeout
 	}
 
 	if l.fail {
@@ -353,25 +353,22 @@ func TestInterface(t *testing.T) {
 		}
 	})
 
-	t.Run("wrapped listener returns temporary error, logs and retries", func(t *testing.T) {
+	t.Run("wrapped listener returns timeout error, logs and retries", func(t *testing.T) {
 		log := loggingtest.New()
-		l, err := listenWith(&testListener{failNextTemporary: true}, Options{
+		l, err := listenWith(&testListener{failNextTimeout: true}, Options{
 			Log: log,
 		})
-
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		defer l.Close()
 		conn, err := l.Accept()
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		defer conn.Close()
-		if err := log.WaitFor(errTemporary.Error(), 120*time.Millisecond); err != nil {
-			t.Error("failed to log temporary error")
+		if err := log.WaitFor(errTimeout.Error(), 120*time.Millisecond); err != nil {
+			t.Error("failed to log timeout error")
 		}
 	})
 
@@ -982,25 +979,24 @@ func TestTeardown(t *testing.T) {
 }
 
 func TestMonitoring(t *testing.T) {
-	t.Run("logs the temporary errors", func(t *testing.T) {
+
+	t.Run("logs the timeout errors", func(t *testing.T) {
 		log := loggingtest.New()
-		l, err := listenWith(&testListener{failNextTemporary: true}, Options{
+		l, err := listenWith(&testListener{failNextTimeout: true}, Options{
 			Log: log,
 		})
 
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		defer l.Close()
 		conn, err := l.Accept()
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		defer conn.Close()
-		if err := log.WaitFor(errTemporary.Error(), 120*time.Millisecond); err != nil {
-			t.Error("failed to log temporary error")
+		if err := log.WaitFor(errTimeout.Error(), 120*time.Millisecond); err != nil {
+			t.Error("failed to log timeout error")
 		}
 	})
 

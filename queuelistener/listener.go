@@ -230,8 +230,7 @@ func (l *listener) listenExternal() {
 		c, err = l.externalListener.Accept()
 		if err != nil {
 			// based on net/http.Server.Serve():
-			//lint:ignore SA1019 Temporary is deprecated in Go 1.18, but keep it for now (https://github.com/zalando/skipper/issues/1992)
-			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
+			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
 				delay = bounce(delay)
 				l.options.Log.Errorf(
 					"queue listener: accept error: %v, retrying in %v",

@@ -215,8 +215,7 @@ func doActiveHealthCheck(rt http.RoundTripper, backend string) state {
 	resp, err := rt.RoundTrip(req)
 	if err != nil {
 		perr, ok := err.(net.Error)
-		//lint:ignore SA1019 Temporary is deprecated in Go 1.18, but keep it for now (https://github.com/zalando/skipper/issues/1992)
-		if ok && !perr.Temporary() {
+		if ok && !perr.Timeout() {
 			log.Infof("Backend %v connection refused -> mark as dead", backend)
 			return dead
 		} else if ok {
