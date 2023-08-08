@@ -22,6 +22,7 @@ import (
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
 	iCache "github.com/open-policy-agent/opa/topdown/cache"
+	opatracing "github.com/open-policy-agent/opa/tracing"
 	opautil "github.com/open-policy-agent/opa/util"
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -486,8 +487,9 @@ func (opa *OpenPolicyAgentInstance) PreparedQuery() *rego.PreparedEvalQuery { re
 func (opa *OpenPolicyAgentInstance) SetPreparedQuery(q *rego.PreparedEvalQuery) {
 	opa.preparedQuery = q
 }
-func (opa *OpenPolicyAgentInstance) Config() *config.Config {
-	return opa.opaConfig
+func (opa *OpenPolicyAgentInstance) Config() *config.Config { return opa.opaConfig }
+func (opa *OpenPolicyAgentInstance) DistributedTracing() opatracing.Options {
+	return opatracing.NewOptions(opa)
 }
 
 // logging.Logger that does not pollute info with debug logs
