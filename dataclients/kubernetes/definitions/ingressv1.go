@@ -76,8 +76,6 @@ type ResourceID struct {
 	Name      string
 }
 
-/* required from v1beta1 */
-
 // BackendPort is used for TargetPort similar to Kubernetes intOrString type
 type BackendPort struct {
 	Value interface{}
