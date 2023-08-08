@@ -168,22 +168,22 @@ func TestIngressAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip filters",
 			inputFile: "invalid-filters.json",
-			message:   "Ingress validation failed: parsing zalando.org/skipper-filter annotation failed: parse failed after token this, last route id: , position 9: syntax error",
+			message:   `Ingress validation failed: parsing \"zalando.org/skipper-filter\" annotation failed: parse failed after token this, last route id: , position 9: syntax error`,
 		},
 		{
 			name:      "invalid eskip predicates",
 			inputFile: "invalid-predicates.json",
-			message:   "Ingress validation failed: parsing zalando.org/skipper-predicate annotation failed: parse failed after token ), last route id: , position 15: syntax error",
+			message:   `Ingress validation failed: parsing \"zalando.org/skipper-predicate\" annotation failed: parse failed after token ), last route id: , position 15: syntax error`,
 		},
 		{
 			name:      "invalid eskip routes",
 			inputFile: "invalid-routes.json",
-			message:   "Ingress validation failed: parsing zalando.org/skipper-routes annotation failed: invalid predicate count arg",
+			message:   `Ingress validation failed: parsing \"zalando.org/skipper-routes\" annotation failed: invalid predicate count arg`,
 		},
 		{
 			name:      "invalid eskip filters and predicates",
 			inputFile: "invalid-filters-and-predicates.json",
-			message:   "Ingress validation failed: parsing zalando.org/skipper-filter annotation failed: parse failed after token this, last route id: , position 9: syntax error\\nparsing zalando.org/skipper-predicate annotation failed: parse failed after token ), last route id: , position 15: syntax error",
+			message:   `Ingress validation failed: parsing \"zalando.org/skipper-filter\" annotation failed: parse failed after token this, last route id: , position 9: syntax error\nparsing \"zalando.org/skipper-predicate\" annotation failed: parse failed after token ), last route id: , position 15: syntax error`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
