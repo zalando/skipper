@@ -14,36 +14,17 @@ const (
 
 type IngressV1Validator struct{}
 
-var defaultIngressV1Validator = IngressV1Validator{}
-
-func ValidateIngressV1(item *IngressV1Item) error {
-	return defaultIngressV1Validator.validate(item)
-}
-
-func ValidateIngressesV1(ingressList IngressV1List) error {
-	var errs []error
-	for _, i := range ingressList.Items {
-		err := ValidateIngressV1(i)
-		if err != nil {
-			name := i.Metadata.Name
-			namespace := i.Metadata.Namespace
-			errs = append(errs, fmt.Errorf("%s/%s: %w", name, namespace, err))
-		}
-	}
-	return errorsJoin(errs...)
-}
-
-func (IngressV1Validator) validate(item *IngressV1Item) error {
+func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 	var errs []error
 
-	errs = append(errs, defaultIngressV1Validator.validateFilterAnnotation(item.Metadata.Annotations))
-	errs = append(errs, defaultIngressV1Validator.validatePredicateAnnotation(item.Metadata.Annotations))
-	errs = append(errs, defaultIngressV1Validator.validateRoutesAnnotation(item.Metadata.Annotations))
+	errs = append(errs, igv.validateFilterAnnotation(item.Metadata.Annotations))
+	errs = append(errs, igv.validatePredicateAnnotation(item.Metadata.Annotations))
+	errs = append(errs, igv.validateRoutesAnnotation(item.Metadata.Annotations))
 
 	return errorsJoin(errs...)
 }
 
-func (IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
+func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
 	if filters, ok := annotations[skipperfilterAnnotationKey]; ok {
 		_, err := eskip.ParseFilters(filters)
 		if err != nil {
@@ -54,7 +35,7 @@ func (IngressV1Validator) validateFilterAnnotation(annotations map[string]string
 	return nil
 }
 
-func (IngressV1Validator) validatePredicateAnnotation(annotations map[string]string) error {
+func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[string]string) error {
 	if predicates, ok := annotations[skipperpredicateAnnotationKey]; ok {
 		_, err := eskip.ParsePredicates(predicates)
 		if err != nil {
@@ -65,7 +46,7 @@ func (IngressV1Validator) validatePredicateAnnotation(annotations map[string]str
 	return nil
 }
 
-func (IngressV1Validator) validateRoutesAnnotation(annotations map[string]string) error {
+func (igv *IngressV1Validator) validateRoutesAnnotation(annotations map[string]string) error {
 	if routes, ok := annotations[skipperRoutesAnnotationKey]; ok {
 		_, err := eskip.Parse(routes)
 		if err != nil {

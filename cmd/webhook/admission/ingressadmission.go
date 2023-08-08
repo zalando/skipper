@@ -8,8 +8,7 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
-type IngressAdmitter struct {
-}
+type IngressAdmitter struct{}
 
 func (IngressAdmitter) name() string {
 	return "ingress"
@@ -30,7 +29,8 @@ func (IngressAdmitter) admit(req *admissionRequest) (*admissionResponse, error) 
 		}, nil
 	}
 
-	err = definitions.ValidateIngressV1(&ingressItem)
+	ingressValidatore := definitions.IngressV1Validator{}
+	err = ingressValidatore.Validate(&ingressItem)
 	if err != nil {
 		emsg := fmt.Sprintf("Ingress validation failed: %v", err)
 		log.Error(emsg)
