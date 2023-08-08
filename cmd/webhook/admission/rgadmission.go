@@ -19,7 +19,7 @@ func (RouteGroupAdmitter) admit(req *admissionRequest) (*admissionResponse, erro
 	rgItem := definitions.RouteGroupItem{}
 	err := json.Unmarshal(req.Object, &rgItem)
 	if err != nil {
-		emsg := fmt.Sprintf("could not parse RouteGroup, %v", err)
+		emsg := fmt.Sprintf("Could not parse RouteGroup: %v", err)
 		log.Error(emsg)
 		return &admissionResponse{
 			UID:     req.UID,
@@ -32,7 +32,7 @@ func (RouteGroupAdmitter) admit(req *admissionRequest) (*admissionResponse, erro
 
 	err = definitions.ValidateRouteGroup(&rgItem)
 	if err != nil {
-		emsg := fmt.Sprintf("could not validate RouteGroup, %v", err)
+		emsg := fmt.Sprintf("Could not validate RouteGroup: %v", err)
 		log.Error(emsg)
 		return &admissionResponse{
 			UID:     req.UID,

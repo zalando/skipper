@@ -46,6 +46,9 @@ func (IngressV1Validator) validate(item *IngressV1Item) error {
 func (IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
 	if filters, ok := annotations[skipperfilterAnnotationKey]; ok {
 		_, err := eskip.ParseFilters(filters)
+		if err != nil {
+			err = fmt.Errorf("parsing %s annotation failed: %w", skipperfilterAnnotationKey, err)
+		}
 		return err
 	}
 	return nil
@@ -54,6 +57,9 @@ func (IngressV1Validator) validateFilterAnnotation(annotations map[string]string
 func (IngressV1Validator) validatePredicateAnnotation(annotations map[string]string) error {
 	if predicates, ok := annotations[skipperpredicateAnnotationKey]; ok {
 		_, err := eskip.ParsePredicates(predicates)
+		if err != nil {
+			err = fmt.Errorf("parsing %s annotation failed: %w", skipperpredicateAnnotationKey, err)
+		}
 		return err
 	}
 	return nil
@@ -62,6 +68,9 @@ func (IngressV1Validator) validatePredicateAnnotation(annotations map[string]str
 func (IngressV1Validator) validateRoutesAnnotation(annotations map[string]string) error {
 	if routes, ok := annotations[skipperRoutesAnnotationKey]; ok {
 		_, err := eskip.Parse(routes)
+		if err != nil {
+			err = fmt.Errorf("parsing %s annotation failed: %w", skipperRoutesAnnotationKey, err)
+		}
 		return err
 	}
 	return nil

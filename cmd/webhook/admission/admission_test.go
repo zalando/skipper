@@ -96,7 +96,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "not allowed",
 			inputFile: "invalid-rg.json",
-			message:   "could not validate RouteGroup, error in route group n1/rg1: route group without spec",
+			message:   "Could not validate RouteGroup: error in route group n1/rg1: route group without spec",
 		},
 		{
 			name:      "valid eskip filters",
@@ -105,7 +105,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip filters",
 			inputFile: "rg-with-invalid-eskip-filters.json",
-			message:   "could not validate RouteGroup, parse failed after token status, last route id: , position 11: syntax error",
+			message:   "Could not validate RouteGroup: parse failed after token status, last route id: , position 11: syntax error",
 		},
 		{
 			name:      "valid eskip predicates",
@@ -114,12 +114,12 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip predicates",
 			inputFile: "rg-with-invalid-eskip-predicates.json",
-			message:   "could not validate RouteGroup, parse failed after token Method, last route id: Method, position 6: syntax error",
+			message:   "Could not validate RouteGroup: parse failed after token Method, last route id: Method, position 6: syntax error",
 		},
 		{
 			name:      "invalid eskip filters and predicates",
 			inputFile: "rg-with-invalid-eskip-filters-and-predicates.json",
-			message:   "could not validate RouteGroup, parse failed after token status, last route id: , position 11: syntax error\\nparse failed after token Method, last route id: Method, position 6: syntax error",
+			message:   "Could not validate RouteGroup: parse failed after token status, last route id: , position 11: syntax error\\nparse failed after token Method, last route id: Method, position 6: syntax error",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -168,22 +168,22 @@ func TestIngressAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip filters",
 			inputFile: "invalid-filters.json",
-			message:   "Ingress validation failed, parse failed after token status, last route id: , position 11: syntax error",
+			message:   "Ingress validation failed: parsing zalando.org/skipper-filter annotation failed: parse failed after token this, last route id: , position 9: syntax error",
 		},
 		{
 			name:      "invalid eskip predicates",
 			inputFile: "invalid-predicates.json",
-			message:   "Ingress validation failed, parse failed after token ), last route id: , position 15: syntax error",
+			message:   "Ingress validation failed: parsing zalando.org/skipper-predicate annotation failed: parse failed after token ), last route id: , position 15: syntax error",
 		},
 		{
 			name:      "invalid eskip routes",
 			inputFile: "invalid-routes.json",
-			message:   "Ingress validation failed, invalid predicate count arg",
+			message:   "Ingress validation failed: parsing zalando.org/skipper-routes annotation failed: invalid predicate count arg",
 		},
 		{
 			name:      "invalid eskip filters and predicates",
 			inputFile: "invalid-filters-and-predicates.json",
-			message:   "Ingress validation failed, parse failed after token status, last route id: , position 11: syntax error\\nparse failed after token ), last route id: , position 15: syntax error",
+			message:   "Ingress validation failed: parsing zalando.org/skipper-filter annotation failed: parse failed after token this, last route id: , position 9: syntax error\\nparsing zalando.org/skipper-predicate annotation failed: parse failed after token ), last route id: , position 15: syntax error",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

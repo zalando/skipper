@@ -19,7 +19,7 @@ func (IngressAdmitter) admit(req *admissionRequest) (*admissionResponse, error) 
 	ingressItem := definitions.IngressV1Item{}
 	err := json.Unmarshal(req.Object, &ingressItem)
 	if err != nil {
-		emsg := fmt.Sprintf("could not parse Ingress, %v", err)
+		emsg := fmt.Sprintf("Could not parse Ingress: %v", err)
 		log.Error(emsg)
 		return &admissionResponse{
 			UID:     req.UID,
@@ -32,7 +32,7 @@ func (IngressAdmitter) admit(req *admissionRequest) (*admissionResponse, error) 
 
 	err = definitions.ValidateIngressV1(&ingressItem)
 	if err != nil {
-		emsg := fmt.Sprintf("Ingress validation failed, %v", err)
+		emsg := fmt.Sprintf("Ingress validation failed: %v", err)
 		log.Error(emsg)
 		return &admissionResponse{
 			UID:     req.UID,
