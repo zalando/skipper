@@ -214,11 +214,9 @@ func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
 
 // Do implements routing.PostProcessor and cleans unused OPA instances
 func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.Route {
-	rr := make([]*routing.Route, len(routes))
 	inUse := make(map[*OpenPolicyAgentInstance]struct{})
 
-	for i, ri := range routes {
-		rr[i] = ri
+	for _, ri := range routes {
 		for _, fi := range ri.Filters {
 			if ff, ok := fi.Filter.(OpenPolicyAgentFilter); ok {
 				inUse[ff.OpenPolicyAgent()] = struct{}{}
@@ -228,7 +226,7 @@ func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.
 
 	registry.markUnused(inUse)
 
-	return rr
+	return routes
 }
 
 func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
