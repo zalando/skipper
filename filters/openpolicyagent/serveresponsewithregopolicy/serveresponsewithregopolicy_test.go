@@ -164,29 +164,22 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			}
 
 			_, err := ftSpec.CreateFilter(filterArgs)
-			if err != nil {
-				t.Fatalf("error in creating filter: %v", err)
-			}
+			assert.NoErrorf(t, err, "error in creating filter: %v", err)
+
 			fr.Register(ftSpec)
 
 			r := eskip.MustParse(fmt.Sprintf(`* -> serveResponseWithRegoPolicy("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 			reqURL, err := url.Parse(proxy.URL)
-			if err != nil {
-				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
-			}
+			assert.NoErrorf(t, err, "Failed to parse url %s: %v", proxy.URL, err)
+
 			reqURL.Path = path.Join(reqURL.Path, ti.requestPath)
 			req, err := http.NewRequest("GET", reqURL.String(), nil)
-			if err != nil {
-				t.Fatal(err)
-				return
-			}
+			assert.NoError(t, err)
 
 			rsp, err := proxy.Client().Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			assert.NoError(t, err)
 
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
 
@@ -199,9 +192,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 			defer rsp.Body.Close()
 			body, err := io.ReadAll(rsp.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
+			assert.NoError(t, err)
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Headers do not match")
 		})
 	}

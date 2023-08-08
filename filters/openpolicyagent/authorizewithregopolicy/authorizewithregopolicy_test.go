@@ -151,15 +151,10 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				}
 			}
 
-			if err != nil {
-				t.Fatal(err)
-				return
-			}
+			assert.NoError(t, err)
 
 			rsp, err := proxy.Client().Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			assert.NoError(t, err)
 
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
 
@@ -167,9 +162,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 			defer rsp.Body.Close()
 			body, err := io.ReadAll(rsp.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
+			assert.NoError(t, err)
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 		})
 	}

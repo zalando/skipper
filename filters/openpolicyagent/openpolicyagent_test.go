@@ -21,9 +21,7 @@ func TestInterpolateTemplate(t *testing.T) {
 		`),
 		"helloBundle")
 
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	assert.Equal(t, `
 		token: testtoken
@@ -56,18 +54,13 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 		},
 	})
 
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	expected := &ext_authz_v3_core.Metadata{}
 	err = protojson.Unmarshal(expectedBytes, expected)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	assert.Equal(t, expected, cfg.envoyMetadata)
-
 }
 
 func TestRegistry(t *testing.T) {
@@ -103,31 +96,23 @@ func TestRegistry(t *testing.T) {
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(2 * time.Second))
 
 	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
 
 	inst2, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	assert.Equal(t, inst1, inst2, "same instance is reused after release")
 
 	inst3, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	assert.Equal(t, inst2, inst3, "same instance is reused multiple times")
 
@@ -138,9 +123,7 @@ func TestRegistry(t *testing.T) {
 
 	inst4, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	assert.NotEqual(t, inst1, inst4, "after cleanup a new instance should be created")
 
