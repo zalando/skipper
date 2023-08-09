@@ -8,7 +8,7 @@
                 "name": "ing1",
                 "namespace": "ing1",
                 "annotations": {
-                    "zalando.org/skipper-routes": "r1: Header(\"test\") && Path(\"/login\") -> status(200) -> \"shunt\""
+                    "zalando.org/skipper-routes": "r1: Header(\"test\") && Path(\"/login\") -> status(200) -> \"http://foo.test\""
                 }
             },
             "spec": {
