@@ -201,13 +201,13 @@ func testIngress(ns, name, defaultService, ratelimitCfg, filterString, predicate
 		setAnnotation(i, ratelimitAnnotationKey, ratelimitCfg)
 	}
 	if filterString != "" {
-		setAnnotation(i, definitions.SkipperfilterAnnotationKey, filterString)
+		setAnnotation(i, definitions.IngressFilterAnnotation, filterString)
 	}
 	if predicateString != "" {
-		setAnnotation(i, definitions.SkipperpredicateAnnotationKey, predicateString)
+		setAnnotation(i, definitions.IngressPredicateAnnotation, predicateString)
 	}
 	if routesString != "" {
-		setAnnotation(i, definitions.SkipperRoutesAnnotationKey, routesString)
+		setAnnotation(i, definitions.IngressRoutesAnnotation, routesString)
 	}
 	if pathModeString != "" {
 		setAnnotation(i, pathModeAnnotationKey, pathModeString)

@@ -71,6 +71,7 @@ type clusterClient struct {
 	routeGroupsLabelSelectors string
 
 	loggedMissingRouteGroups bool
+	routeGroupValidator      *definitions.RouteGroupValidator
 }
 
 var (
@@ -162,6 +163,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		httpClient:                httpClient,
 		apiURL:                    apiURL,
 		certificateRegistry:       o.CertificateRegistry,
+		routeGroupValidator:       &definitions.RouteGroupValidator{},
 	}
 
 	if o.KubernetesInCluster {
@@ -358,11 +360,10 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 		return nil, err
 	}
 
-	routeGroupValidator := &definitions.RouteGroupValidator{}
 	rgs := make([]*definitions.RouteGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
 		// Validate RouteGroup item.
-		if err := routeGroupValidator.Validate(i); err != nil {
+		if err := c.routeGroupValidator.Validate(i); err != nil {
 			log.Errorf("[routegroup] %v", err)
 			continue
 		}

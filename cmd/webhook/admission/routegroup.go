@@ -16,32 +16,15 @@ func (rga *RouteGroupAdmitter) name() string {
 
 func (rga *RouteGroupAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
 
-	// Serve as default validator if not set
-	if rga.RouteGroupValidator == nil {
-		rga.RouteGroupValidator = &definitions.RouteGroupValidator{}
-	}
-
 	rgItem := definitions.RouteGroupItem{}
 	err := json.Unmarshal(req.Object, &rgItem)
 	if err != nil {
-		return &admissionResponse{
-			UID:     req.UID,
-			Allowed: false,
-			Result: &status{
-				Message: err.Error(),
-			},
-		}, err
+		return nil, err
 	}
 
 	err = rga.RouteGroupValidator.Validate(&rgItem)
 	if err != nil {
-		return &admissionResponse{
-			UID:     req.UID,
-			Allowed: false,
-			Result: &status{
-				Message: err.Error(),
-			},
-		}, err
+		return nil, err
 	}
 
 	return &admissionResponse{

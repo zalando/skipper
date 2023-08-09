@@ -19,10 +19,10 @@ func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 }
 
 func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
-	if filters, ok := annotations[SkipperfilterAnnotationKey]; ok {
+	if filters, ok := annotations[IngressFilterAnnotation]; ok {
 		_, err := eskip.ParseFilters(filters)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", SkipperfilterAnnotationKey, err)
+			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err)
 		}
 		return err
 	}
@@ -30,10 +30,10 @@ func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]s
 }
 
 func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[string]string) error {
-	if predicates, ok := annotations[SkipperpredicateAnnotationKey]; ok {
+	if predicates, ok := annotations[IngressPredicateAnnotation]; ok {
 		_, err := eskip.ParsePredicates(predicates)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", SkipperpredicateAnnotationKey, err)
+			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressPredicateAnnotation, err)
 		}
 		return err
 	}
@@ -41,10 +41,10 @@ func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[strin
 }
 
 func (igv *IngressV1Validator) validateRoutesAnnotation(annotations map[string]string) error {
-	if routes, ok := annotations[SkipperRoutesAnnotationKey]; ok {
+	if routes, ok := annotations[IngressRoutesAnnotation]; ok {
 		_, err := eskip.Parse(routes)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", SkipperRoutesAnnotationKey, err)
+			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err)
 		}
 		return err
 	}

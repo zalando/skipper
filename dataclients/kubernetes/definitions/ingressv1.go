@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	SkipperfilterAnnotationKey    = "zalando.org/skipper-filter"
-	SkipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
-	SkipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
+	IngressFilterAnnotation    = "zalando.org/skipper-filter"
+	IngressPredicateAnnotation = "zalando.org/skipper-predicate"
+	IngressRoutesAnnotation    = "zalando.org/skipper-routes"
 )
 
 var errInvalidPortType = errors.New("invalid port type")

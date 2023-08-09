@@ -86,7 +86,7 @@ func TestPathMatchingModes(t *testing.T) {
 
 		annotation := strings.Join(annotations, " && ")
 		if len(annotations) > 0 {
-			i.Metadata.Annotations[definitions.SkipperpredicateAnnotationKey] = annotation
+			i.Metadata.Annotations[definitions.IngressPredicateAnnotation] = annotation
 		}
 
 		api.ingresses.Items = []*definitions.IngressV1Item{i}

@@ -226,7 +226,7 @@ func annotationFilter(m *definitions.Metadata, logger *logger) []*eskip.Filter {
 	if ratelimitAnnotationValue, ok := m.Annotations[ratelimitAnnotationKey]; ok {
 		annotationFilter = ratelimitAnnotationValue
 	}
-	if val, ok := m.Annotations[definitions.SkipperfilterAnnotationKey]; ok {
+	if val, ok := m.Annotations[definitions.IngressFilterAnnotation]; ok {
 		if annotationFilter != "" {
 			annotationFilter += " -> "
 		}
@@ -246,7 +246,7 @@ func annotationFilter(m *definitions.Metadata, logger *logger) []*eskip.Filter {
 // parse predicate annotation
 func annotationPredicate(m *definitions.Metadata) string {
 	var annotationPredicate string
-	if val, ok := m.Annotations[definitions.SkipperpredicateAnnotationKey]; ok {
+	if val, ok := m.Annotations[definitions.IngressPredicateAnnotation]; ok {
 		annotationPredicate = val
 	}
 	return annotationPredicate
@@ -255,12 +255,12 @@ func annotationPredicate(m *definitions.Metadata) string {
 // parse routes annotation
 func extraRoutes(m *definitions.Metadata, logger *logger) []*eskip.Route {
 	var extraRoutes []*eskip.Route
-	annotationRoutes := m.Annotations[definitions.SkipperRoutesAnnotationKey]
+	annotationRoutes := m.Annotations[definitions.IngressRoutesAnnotation]
 	if annotationRoutes != "" {
 		var err error
 		extraRoutes, err = eskip.Parse(annotationRoutes)
 		if err != nil {
-			logger.Errorf("Failed to parse routes from %s, skipping: %v", definitions.SkipperRoutesAnnotationKey, err)
+			logger.Errorf("Failed to parse routes from %s, skipping: %v", definitions.IngressRoutesAnnotation, err)
 		}
 	}
 	return extraRoutes
