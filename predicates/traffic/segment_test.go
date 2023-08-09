@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
@@ -56,14 +60,30 @@ func requestWithR(r float64) *http.Request {
 // Results use float64 type to simplify fractional comparisons.
 func doN(t *testing.T, client *proxytest.TestClient, request func() *http.Request) (map[int]float64, float64) {
 	const n = 10_000
-	codes := make(map[int]float64)
-	for i := 0; i < n; i++ {
-		rsp, err := client.Do(request())
-		require.NoError(t, err)
-		rsp.Body.Close()
 
-		codes[rsp.StatusCode]++
+	var mu sync.Mutex
+	codes := make(map[int]float64)
+
+	var g errgroup.Group
+	g.SetLimit(runtime.NumCPU())
+
+	for i := 0; i < n; i++ {
+		g.Go(func() error {
+			rsp, err := client.Do(request())
+			if err != nil {
+				return err
+			}
+			rsp.Body.Close()
+
+			mu.Lock()
+			codes[rsp.StatusCode]++
+			mu.Unlock()
+
+			return nil
+		})
 	}
+	require.NoError(t, g.Wait())
+
 	return codes, n
 }
 
@@ -132,9 +152,9 @@ func TestTrafficSegmentSplit(t *testing.T) {
 			},
 		},
 		Routes: eskip.MustParse(`
-			r50: Path("/test") && TrafficSegment(0.0, 0.5) -> status(200) -> <shunt>;
-			r30: Path("/test") && TrafficSegment(0.5, 0.8) -> status(201) -> <shunt>;
-			r20: Path("/test") && TrafficSegment(0.8, 1.0) -> status(202) -> <shunt>;
+			r50: Path("/test") && TrafficSegment(0.0, 0.5) -> status(200) -> inlineContent("") -> <shunt>;
+			r30: Path("/test") && TrafficSegment(0.5, 0.8) -> status(201) -> inlineContent("") -> <shunt>;
+			r20: Path("/test") && TrafficSegment(0.8, 1.0) -> status(202) -> inlineContent("") -> <shunt>;
 		`),
 	}.Create()
 	defer p.Close()
@@ -157,9 +177,9 @@ func TestTrafficSegmentRouteWeight(t *testing.T) {
 			},
 		},
 		Routes: eskip.MustParse(`
-			segment90: Path("/test") && TrafficSegment(0.0, 0.9) -> status(200) -> <shunt>;
-			segment10: Path("/test") && TrafficSegment(0.9, 1.0) -> status(200) -> <shunt>;
-			cookie:    Path("/test") && Header("X-Foo", "bar")   -> status(201) -> <shunt>;
+			segment90: Path("/test") && TrafficSegment(0.0, 0.9) -> status(200) -> inlineContent("") -> <shunt>;
+			segment10: Path("/test") && TrafficSegment(0.9, 1.0) -> status(200) -> inlineContent("") -> <shunt>;
+			cookie:    Path("/test") && Header("X-Foo", "bar")   -> status(201) -> inlineContent("") -> <shunt>;
 		`),
 	}.Create()
 	defer p.Close()
@@ -192,8 +212,8 @@ func TestTrafficSegmentTeeLoopback(t *testing.T) {
 			},
 		},
 		Routes: eskip.MustParse(fmt.Sprintf(`
-			r0: * -> status(200) -> <shunt>;
-			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> teeLoopback("a-loop") -> status(201) -> <shunt>;
+			r0: * -> status(200) -> inlineContent("") -> <shunt>;
+			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> teeLoopback("a-loop") -> status(201) -> inlineContent("") -> <shunt>;
 			r2: Path("/test") && Tee("a-loop") && True() -> "%s";
 		`, loopBackend.URL)),
 	}.Create()
@@ -224,9 +244,9 @@ func TestTrafficSegmentLoopbackBackend(t *testing.T) {
 			},
 		},
 		Routes: eskip.MustParse(`
-			r0: * -> status(200) -> <shunt>;
+			r0: * -> status(200) -> inlineContent("") -> <shunt>;
 			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> setPath("a-loop") -> <loopback>;
-			r2: Path("/a-loop") -> status(201) -> <shunt>;
+			r2: Path("/a-loop") -> status(201) -> inlineContent("") -> <shunt>;
 		`),
 	}.Create()
 	defer p.Close()
