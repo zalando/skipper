@@ -6,12 +6,6 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-const (
-	skipperfilterAnnotationKey    = "zalando.org/skipper-filter"
-	skipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
-	skipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
-)
-
 type IngressV1Validator struct{}
 
 func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
@@ -25,10 +19,10 @@ func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 }
 
 func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
-	if filters, ok := annotations[skipperfilterAnnotationKey]; ok {
+	if filters, ok := annotations[SkipperfilterAnnotationKey]; ok {
 		_, err := eskip.ParseFilters(filters)
 		if err != nil {
-			err = fmt.Errorf("parsing \"%s\" annotation failed: %w", skipperfilterAnnotationKey, err)
+			err = fmt.Errorf("invalid \"%s\" annotation: %w", SkipperfilterAnnotationKey, err)
 		}
 		return err
 	}
@@ -36,10 +30,10 @@ func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]s
 }
 
 func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[string]string) error {
-	if predicates, ok := annotations[skipperpredicateAnnotationKey]; ok {
+	if predicates, ok := annotations[SkipperpredicateAnnotationKey]; ok {
 		_, err := eskip.ParsePredicates(predicates)
 		if err != nil {
-			err = fmt.Errorf("parsing \"%s\" annotation failed: %w", skipperpredicateAnnotationKey, err)
+			err = fmt.Errorf("invalid \"%s\" annotation: %w", SkipperpredicateAnnotationKey, err)
 		}
 		return err
 	}
@@ -47,10 +41,10 @@ func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[strin
 }
 
 func (igv *IngressV1Validator) validateRoutesAnnotation(annotations map[string]string) error {
-	if routes, ok := annotations[skipperRoutesAnnotationKey]; ok {
+	if routes, ok := annotations[SkipperRoutesAnnotationKey]; ok {
 		_, err := eskip.Parse(routes)
 		if err != nil {
-			err = fmt.Errorf("parsing \"%s\" annotation failed: %w", skipperRoutesAnnotationKey, err)
+			err = fmt.Errorf("invalid \"%s\" annotation: %w", SkipperRoutesAnnotationKey, err)
 		}
 		return err
 	}

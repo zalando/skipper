@@ -6,6 +6,12 @@ import (
 	"strconv"
 )
 
+const (
+	SkipperfilterAnnotationKey    = "zalando.org/skipper-filter"
+	SkipperpredicateAnnotationKey = "zalando.org/skipper-predicate"
+	SkipperRoutesAnnotationKey    = "zalando.org/skipper-routes"
+)
+
 var errInvalidPortType = errors.New("invalid port type")
 
 type IngressV1List struct {

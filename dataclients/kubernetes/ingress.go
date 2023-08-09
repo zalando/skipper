@@ -20,9 +20,6 @@ const (
 	ingressRouteIDPrefix                = "kube"
 	backendWeightsAnnotationKey         = "zalando.org/backend-weights"
 	ratelimitAnnotationKey              = "zalando.org/ratelimit"
-	skipperfilterAnnotationKey          = "zalando.org/skipper-filter"
-	skipperpredicateAnnotationKey       = "zalando.org/skipper-predicate"
-	skipperRoutesAnnotationKey          = "zalando.org/skipper-routes"
 	skipperLoadBalancerAnnotationKey    = "zalando.org/skipper-loadbalancer"
 	skipperBackendProtocolAnnotationKey = "zalando.org/skipper-backend-protocol"
 	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
@@ -229,7 +226,7 @@ func annotationFilter(m *definitions.Metadata, logger *logger) []*eskip.Filter {
 	if ratelimitAnnotationValue, ok := m.Annotations[ratelimitAnnotationKey]; ok {
 		annotationFilter = ratelimitAnnotationValue
 	}
-	if val, ok := m.Annotations[skipperfilterAnnotationKey]; ok {
+	if val, ok := m.Annotations[definitions.SkipperfilterAnnotationKey]; ok {
 		if annotationFilter != "" {
 			annotationFilter += " -> "
 		}
@@ -249,7 +246,7 @@ func annotationFilter(m *definitions.Metadata, logger *logger) []*eskip.Filter {
 // parse predicate annotation
 func annotationPredicate(m *definitions.Metadata) string {
 	var annotationPredicate string
-	if val, ok := m.Annotations[skipperpredicateAnnotationKey]; ok {
+	if val, ok := m.Annotations[definitions.SkipperpredicateAnnotationKey]; ok {
 		annotationPredicate = val
 	}
 	return annotationPredicate
@@ -258,12 +255,12 @@ func annotationPredicate(m *definitions.Metadata) string {
 // parse routes annotation
 func extraRoutes(m *definitions.Metadata, logger *logger) []*eskip.Route {
 	var extraRoutes []*eskip.Route
-	annotationRoutes := m.Annotations[skipperRoutesAnnotationKey]
+	annotationRoutes := m.Annotations[definitions.SkipperRoutesAnnotationKey]
 	if annotationRoutes != "" {
 		var err error
 		extraRoutes, err = eskip.Parse(annotationRoutes)
 		if err != nil {
-			logger.Errorf("Failed to parse routes from %s, skipping: %v", skipperRoutesAnnotationKey, err)
+			logger.Errorf("Failed to parse routes from %s, skipping: %v", definitions.SkipperRoutesAnnotationKey, err)
 		}
 	}
 	return extraRoutes

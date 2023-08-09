@@ -2,45 +2,46 @@ package admission
 
 import (
 	"encoding/json"
-	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 type RouteGroupAdmitter struct {
+	RouteGroupValidator *definitions.RouteGroupValidator
 }
 
-func (RouteGroupAdmitter) name() string {
+func (rga *RouteGroupAdmitter) name() string {
 	return "routegroup"
 }
 
-func (RouteGroupAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
+func (rga *RouteGroupAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
+
+	// Serve as default validator if not set
+	if rga.RouteGroupValidator == nil {
+		rga.RouteGroupValidator = &definitions.RouteGroupValidator{}
+	}
+
 	rgItem := definitions.RouteGroupItem{}
 	err := json.Unmarshal(req.Object, &rgItem)
 	if err != nil {
-		emsg := fmt.Sprintf("Could not parse RouteGroup: %v", err)
-		log.Error(emsg)
 		return &admissionResponse{
 			UID:     req.UID,
 			Allowed: false,
 			Result: &status{
-				Message: emsg,
+				Message: err.Error(),
 			},
-		}, nil
+		}, err
 	}
 
-	err = definitions.ValidateRouteGroup(&rgItem)
+	err = rga.RouteGroupValidator.Validate(&rgItem)
 	if err != nil {
-		emsg := fmt.Sprintf("Could not validate RouteGroup: %v", err)
-		log.Error(emsg)
 		return &admissionResponse{
 			UID:     req.UID,
 			Allowed: false,
 			Result: &status{
-				Message: emsg,
+				Message: err.Error(),
 			},
-		}, nil
+		}, err
 	}
 
 	return &admissionResponse{

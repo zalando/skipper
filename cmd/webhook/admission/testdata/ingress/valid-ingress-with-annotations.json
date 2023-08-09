@@ -8,9 +8,9 @@
                 "name": "ing1",
                 "namespace": "ing1",
                 "annotations": {
-                    "zalando.org/skipper-filter": "status(10) -> inlineContent(\"This should work\")",
+                    "zalando.org/skipper-filter": "status(200) -> inlineContent(\"This should work\")",
                     "zalando.org/skipper-predicate": "Header(\"test\", \"test\") && Path(\"/login\")",
-                    "zalando.org/skipper-routes": "r1: Header(\"test2\", \"test2\") && Path(\"/login\") -> status(200) -> \"shunt\""
+                    "zalando.org/skipper-routes": "r1: Header(\"test2\", \"test2\") && Path(\"/login\") -> status(200) -> \"http://foo.test\""
                 }
             },
             "spec": {

@@ -2,45 +2,46 @@ package admission
 
 import (
 	"encoding/json"
-	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
-type IngressAdmitter struct{}
+type IngressAdmitter struct {
+	IngressValidator *definitions.IngressV1Validator
+}
 
-func (IngressAdmitter) name() string {
+func (iga *IngressAdmitter) name() string {
 	return "ingress"
 }
 
-func (IngressAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
+func (iga *IngressAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
+
+	// Serve as default validator if not set
+	if iga.IngressValidator == nil {
+		iga.IngressValidator = &definitions.IngressV1Validator{}
+	}
+
 	ingressItem := definitions.IngressV1Item{}
 	err := json.Unmarshal(req.Object, &ingressItem)
 	if err != nil {
-		emsg := fmt.Sprintf("Could not parse Ingress: %v", err)
-		log.Error(emsg)
 		return &admissionResponse{
 			UID:     req.UID,
 			Allowed: false,
 			Result: &status{
-				Message: emsg,
+				Message: err.Error(),
 			},
-		}, nil
+		}, err
 	}
 
-	ingressValidatore := definitions.IngressV1Validator{}
-	err = ingressValidatore.Validate(&ingressItem)
+	err = iga.IngressValidator.Validate(&ingressItem)
 	if err != nil {
-		emsg := fmt.Sprintf("Ingress validation failed: %v", err)
-		log.Error(emsg)
 		return &admissionResponse{
 			UID:     req.UID,
 			Allowed: false,
 			Result: &status{
-				Message: emsg,
+				Message: err.Error(),
 			},
-		}, nil
+		}, err
 	}
 
 	return &admissionResponse{
