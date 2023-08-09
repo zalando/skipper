@@ -93,6 +93,12 @@ func (a *All) IncErrorsStreaming(routeId string) {
 	a.codaHale.IncErrorsStreaming(routeId)
 
 }
+
+func (a *All) Close() {
+	a.codaHale.Close()
+	a.prometheus.Close()
+}
+
 func (a *All) RegisterHandler(path string, handler *http.ServeMux) {
 	a.prometheusHandler = a.prometheus.getHandler()
 	a.codaHaleHandler = a.codaHale.getHandler(path)

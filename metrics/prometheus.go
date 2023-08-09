@@ -455,3 +455,5 @@ func (p *Prometheus) MeasureBackend5xx(start time.Time) {
 func (p *Prometheus) IncErrorsStreaming(routeID string) {
 	p.proxyStreamingErrorsM.WithLabelValues(routeID).Inc()
 }
+
+func (p *Prometheus) Close() {}
