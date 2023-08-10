@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/cmd/webhook/admission"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 const (
@@ -52,9 +53,11 @@ func main() {
 	var cfg = &config{}
 	cfg.parse()
 
-	rgAdmitter := admission.RouteGroupAdmitter{}
+	rgAdmitter := &admission.RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}}
+	ingressAdmitter := &admission.IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}}
 	handler := http.NewServeMux()
 	handler.Handle("/routegroups", admission.Handler(rgAdmitter))
+	handler.Handle("/ingresses", admission.Handler(ingressAdmitter))
 	handler.Handle("/metrics", promhttp.Handler())
 	handler.HandleFunc("/healthz", healthCheck)
 

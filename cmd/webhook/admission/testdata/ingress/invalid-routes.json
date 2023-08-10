@@ -1,0 +1,39 @@
+{
+    "request": {
+        "uid": "req-uid",
+        "name": "req1",
+        "namespace": "n1",
+        "object": {
+            "metadata": {
+                "name": "ing1",
+                "namespace": "ing1",
+                "annotations": {
+                    "zalando.org/skipper-routes": "r1: Header(\"test\") && Path(\"/login\") -> status(200) -> \"http://foo.test\""
+                }
+            },
+            "spec": {
+                "rules": [
+                    {
+                        "host": "example.com",
+                        "http": {
+                            "paths": [
+                                {
+                                    "backend": {
+                                        "service": {
+                                            "name": "example-service",
+                                            "port": {
+                                                "number": 80
+                                            }
+                                        }
+                                    },
+                                    "path": "/",
+                                    "pathType": "Prefix"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

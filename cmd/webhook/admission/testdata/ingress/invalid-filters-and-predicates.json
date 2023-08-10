@@ -1,0 +1,40 @@
+{
+    "request": {
+        "uid": "req-uid",
+        "name": "req1",
+        "namespace": "n1",
+        "object": {
+            "metadata": {
+                "name": "ing1",
+                "namespace": "ing1",
+                "annotations": {
+                    "zalando.org/skipper-filter": "this-is-invalid(10) -> inlineContent(\"This should work\")",
+                    "zalando.org/skipper-predicate": "Header(\"test\") & Path(\"/login\")"
+                }
+            },
+            "spec": {
+                "rules": [
+                    {
+                        "host": "example.com",
+                        "http": {
+                            "paths": [
+                                {
+                                    "backend": {
+                                        "service": {
+                                            "name": "example-service",
+                                            "port": {
+                                                "number": 80
+                                            }
+                                        }
+                                    },
+                                    "path": "/",
+                                    "pathType": "Prefix"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

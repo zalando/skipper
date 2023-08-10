@@ -37,7 +37,7 @@ func createRedirectInfo(defaultEnabled bool, defaultCode int) *redirectInfo {
 func (r *redirectInfo) initCurrent(m *definitions.Metadata) {
 	r.enable = m.Annotations[redirectAnnotationKey] == "true"
 	r.disable = m.Annotations[redirectAnnotationKey] == "false"
-	r.ignore = strings.Contains(m.Annotations[skipperpredicateAnnotationKey], `Header("X-Forwarded-Proto"`) || strings.Contains(m.Annotations[skipperRoutesAnnotationKey], `Header("X-Forwarded-Proto"`)
+	r.ignore = strings.Contains(m.Annotations[definitions.IngressPredicateAnnotation], `Header("X-Forwarded-Proto"`) || strings.Contains(m.Annotations[definitions.IngressRoutesAnnotation], `Header("X-Forwarded-Proto"`)
 
 	r.code = r.defaultCode
 	if annotationCode, ok := m.Annotations[redirectCodeAnnotationKey]; ok {

@@ -3,9 +3,16 @@ package definitions
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 )
+
+const (
+	IngressFilterAnnotation    = "zalando.org/skipper-filter"
+	IngressPredicateAnnotation = "zalando.org/skipper-predicate"
+	IngressRoutesAnnotation    = "zalando.org/skipper-routes"
+)
+
+var errInvalidPortType = errors.New("invalid port type")
 
 type IngressV1List struct {
 	Items []*IngressV1Item `json:"items"`
@@ -69,31 +76,22 @@ type TLSV1 struct {
 	SecretName string   `json:"secretName"`
 }
 
+// ResourceID is a stripped down version of Metadata used to identify resources in a cache map
+type ResourceID struct {
+	Namespace string
+	Name      string
+}
+
+// BackendPort is used for TargetPort similar to Kubernetes intOrString type
+type BackendPort struct {
+	Value interface{}
+}
+
 // ParseIngressV1JSON parse JSON into an IngressV1List
 func ParseIngressV1JSON(d []byte) (IngressV1List, error) {
 	var il IngressV1List
 	err := json.Unmarshal(d, &il)
 	return il, err
-}
-
-// TODO: implement once IngressItem has a validate method
-// ValidateIngressV1 is a no-op
-func ValidateIngressV1(_ *IngressV1Item) error {
-	return nil
-}
-
-func ValidateIngressesV1(ingressList IngressV1List) error {
-	var errs []error
-	// discover all errors to avoid the user having to repeatedly validate
-	for _, i := range ingressList.Items {
-		nerr := ValidateIngressV1(i)
-		if nerr != nil {
-			name := i.Metadata.Name
-			namespace := i.Metadata.Namespace
-			errs = append(errs, fmt.Errorf("%s/%s: %w", name, namespace, nerr))
-		}
-	}
-	return errorsJoin(errs...)
 }
 
 func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {
@@ -102,19 +100,6 @@ func GetHostsFromIngressRulesV1(ing *IngressV1Item) []string {
 		hostList = append(hostList, i.Host)
 	}
 	return hostList
-}
-
-// ResourceID is a stripped down version of Metadata used to identify resources in a cache map
-type ResourceID struct {
-	Namespace string
-	Name      string
-}
-
-/* required from v1beta1 */
-
-// BackendPort is used for TargetPort similar to Kubernetes intOrString type
-type BackendPort struct {
-	Value interface{}
 }
 
 // String converts BackendPort to string
@@ -162,5 +147,3 @@ func (p BackendPort) MarshalJSON() ([]byte, error) {
 		return nil, errInvalidPortType
 	}
 }
-
-var errInvalidPortType = errors.New("invalid port type")
