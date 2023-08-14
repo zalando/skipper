@@ -43,13 +43,9 @@ pipeline:
         export VERSION="${RELEASE_VERSION}"
 
         IMAGE="${IMAGE_REGISTRY}/teapot/skipper:${RELEASE_VERSION}"
-        ARM_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-armv7:${RELEASE_VERSION}"
-        ARM64_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-arm64:${RELEASE_VERSION}"
         MULTIARCH_IMAGE="${MULTIARCH_REGISTRY}/teapot/skipper:${RELEASE_VERSION}"
       else
         IMAGE="${IMAGE_REGISTRY}/teapot/skipper-test:${CDP_BUILD_VERSION}"
-        ARM_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-armv7-test:${CDP_BUILD_VERSION}"
-        ARM64_IMAGE="${IMAGE_REGISTRY}/teapot/skipper-arm64-test:${CDP_BUILD_VERSION}"
         MULTIARCH_IMAGE="${MULTIARCH_REGISTRY}/teapot/skipper-test:${CDP_BUILD_VERSION}"
       fi
       export IMAGE ARM_IMAGE ARM64_IMAGE MULTIARCH_IMAGE
@@ -74,12 +70,6 @@ pipeline:
         cdp-promote-image "${MULTIARCH_IMAGE}"
         echo "Created multi-arch docker image container-registry.zalando.net/teapot/skipper:${RELEASE_VERSION}"
 
-        echo "Creating docker image registry.opensource.zalan.do/teapot/skipper-arm64:${RELEASE_VERSION}"
-        make docker.build.arm64 && git status && git diff && make docker.push.arm64
-
-        echo "Creating docker image registry.opensource.zalan.do/teapot/skipper-armv7:${RELEASE_VERSION}"
-        make docker.build.armv7 && git status && git diff && make docker.push.armv7
-
         echo "Creating release for tag: ${RELEASE_VERSION}"
         make build.package
 
@@ -88,14 +78,15 @@ pipeline:
         tf=$(mktemp)
         echo -e "### Changes\n" >$tf
         git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*' >>$tf
+        echo -e "\n### Multiarch Docker image\n" >>$tf
+        echo -e "Multiarch Docker image is available in Github's docker registry:\n" >>$tf
+        echo -e '```' >>$tf
+        echo -e "docker run -it ghcr.io/zalando/skipper:${RELEASE_VERSION} skipper --help" >>$tf
+        echo -e '```' >>$tf
         echo -e "\n### Docker image\n" >>$tf
         echo -e "Docker image is available in Zalando's Open Source registry:\n" >>$tf
         echo -e '```' >>$tf
         echo -e "docker run -it registry.opensource.zalan.do/teapot/skipper:${RELEASE_VERSION} skipper --help" >>$tf
-        echo -e "# arm64" >>$tf
-        echo -e "docker run -it registry.opensource.zalan.do/teapot/skipper-arm64:${RELEASE_VERSION} skipper --help" >>$tf
-        echo -e "# arm v7 32bit" >>$tf
-        echo -e "docker run -it registry.opensource.zalan.do/teapot/skipper-armv7:${RELEASE_VERSION} skipper --help" >>$tf
         echo -e '```' >>$tf
         echo "################################"
         cat $tf
