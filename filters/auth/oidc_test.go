@@ -316,15 +316,15 @@ func createOIDCServer(cb, client, clientsecret string, extraClaims jwt.MapClaims
 			}
 		case "/v1.0/users/me/transitiveMemberOf":
 			if r.Header.Get(authHeaderName) == authHeaderPrefix+validAccessToken &&
-				r.URL.Query().Get("$select") == "displayName,id" {
+				r.URL.Query().Get("$select") == "onPremisesSamAccountName,id" {
 				body, err := json.Marshal(azureGraphGroups{
 					OdataNextLink: fmt.Sprintf("http://%s/v1.0/users/paginatedresponse", r.Host),
 					Value: []struct {
-						DisplayName string `json:"displayName"`
-						ID          string `json:"id"`
+						OnPremisesSamAccountName string `json:"onPremisesSamAccountName"`
+						ID                       string `json:"id"`
 					}{
-						{DisplayName: "CD-Administrators", ID: "1"},
-						{DisplayName: "Purchasing-Department", ID: "2"},
+						{OnPremisesSamAccountName: "CD-Administrators", ID: "1"},
+						{OnPremisesSamAccountName: "Purchasing-Department", ID: "2"},
 					}})
 				if err != nil {
 					log.Fatalf("Failed to marshal to json: %v", err)
@@ -338,11 +338,12 @@ func createOIDCServer(cb, client, clientsecret string, extraClaims jwt.MapClaims
 				body, err := json.Marshal(azureGraphGroups{
 					OdataNextLink: "",
 					Value: []struct {
-						DisplayName string `json:"displayName"`
-						ID          string `json:"id"`
+						OnPremisesSamAccountName string `json:"onPremisesSamAccountName"`
+						ID                       string `json:"id"`
 					}{
-						{DisplayName: "AppX-Test-Users", ID: "3"},
-						{DisplayName: "white space", ID: "4"},
+						{OnPremisesSamAccountName: "AppX-Test-Users", ID: "3"},
+						{OnPremisesSamAccountName: "white space", ID: "4"},
+						{ID: "5"}, // null value
 					}})
 				if err != nil {
 					log.Fatalf("Failed to marshal to json: %v", err)

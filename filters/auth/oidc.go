@@ -65,8 +65,8 @@ type claimSource struct {
 type azureGraphGroups struct {
 	OdataNextLink string `json:"@odata.nextLink,omitempty"`
 	Value         []struct {
-		DisplayName string `json:"displayName"`
-		ID          string `json:"id"`
+		OnPremisesSamAccountName string `json:"onPremisesSamAccountName"`
+		ID                       string `json:"id"`
 	} `json:"value"`
 }
 
@@ -1017,7 +1017,7 @@ func (f *tokenOidcFilter) handleDistributedClaimsAzure(url *url.URL, oauth2Token
 	}
 	url.Path = fmt.Sprintf("/v1.0/users/%s/transitiveMemberOf", userID)
 	q := url.Query()
-	q.Set("$select", "displayName,id")
+	q.Set("$select", "onPremisesSamAccountName,id")
 	url.RawQuery = q.Encode()
 	return f.resolveDistributedClaimAzure(url, oauth2Token)
 }
@@ -1075,7 +1075,9 @@ func (f *tokenOidcFilter) resolveDistributedClaimAzure(url *url.URL, oauth2Token
 		return nil, fmt.Errorf("unabled to decode response: %w", err)
 	}
 	for _, v := range target.Value {
-		values = append(values, v.DisplayName)
+		if v.OnPremisesSamAccountName != "" {
+			values = append(values, v.OnPremisesSamAccountName)
+		}
 	}
 	// recursive pagination
 	if target.OdataNextLink != "" {
@@ -1089,6 +1091,7 @@ func (f *tokenOidcFilter) resolveDistributedClaimAzure(url *url.URL, oauth2Token
 		}
 		values = append(values, vs...)
 	}
+	log.Debugf("Distributed claim is :%v", values)
 	return
 }
 
