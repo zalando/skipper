@@ -12,6 +12,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
@@ -255,7 +256,9 @@ func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
 
 	req.Host = "www.example.org"
 	req.Close = true
-	rsp, err := (&http.Client{}).Do(req)
+	rt := net.NewTransport(net.Options{})
+	defer rt.Close()
+	rsp, err := rt.RoundTrip(req)
 	if err != nil {
 		t.Error(err)
 	}
