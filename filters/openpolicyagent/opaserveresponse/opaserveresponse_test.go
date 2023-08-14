@@ -1,4 +1,4 @@
-package serveresponsewithregopolicy
+package opaserveresponse
 
 import (
 	"fmt"
@@ -165,7 +165,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			}`, opaControlPlane.URL(), ti.regoQuery))
 
 			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
-			ftSpec := NewServeResponseWithRegoPolicySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			ftSpec := NewOpaServeResponseSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 
 			filterArgs := []interface{}{ti.bundleName}
 			if ti.contextExtensions != "" {
@@ -177,7 +177,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 			fr.Register(ftSpec)
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> serveResponseWithRegoPolicy("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> opaServeResponse("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 			reqURL, err := url.Parse(proxy.URL)
@@ -209,7 +209,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 func TestCreateFilterArguments(t *testing.T) {
 	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry()
-	ftSpec := NewServeResponseWithRegoPolicySpec(opaRegistry, openpolicyagent.WithConfigTemplate([]byte("")))
+	ftSpec := NewOpaServeResponseSpec(opaRegistry, openpolicyagent.WithConfigTemplate([]byte("")))
 
 	_, err := ftSpec.CreateFilter([]interface{}{})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)

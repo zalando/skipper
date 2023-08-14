@@ -1723,19 +1723,19 @@ As of now there is no negative/deny rule possible. The first matching path is ev
 
 To get started with [Open Policy Agent](https://www.openpolicyagent.org/), also have a look at the [tutorial](../tutorials/auth.md#open-policy-agent). This section is only a reference for the implemented filters. 
 
-#### authorizeWithRegoPolicy
+#### opaAuthorizeRequest
 
 The canonical use case that is also implemented with [Envoy External Authorization](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter): Use the http request to evaluate if Skipper should deny the request (with customizable response) or let the request pass to the downstream service
 
 Example:
 
 ```
-authorizeWithRegoPolicy("my-app-id")
+opaAuthorizeRequest("my-app-id")
 ```
 
 Example (passing context):
 ```
-authorizeWithRegoPolicy("my-app-id", "com.mydomain.xxx.myprop: myvalue")
+opaAuthorizeRequest("my-app-id", "com.mydomain.xxx.myprop: myvalue")
 ```
 
 *Data Flows*
@@ -1798,7 +1798,7 @@ Headers both to the upstream and the downstream service can be manipulated the s
 
 This allows both to add and remove unwanted headers in allow/deny cases. 
 
-#### serveResponseWithRegoPolicy
+#### opaServeResponse
 
 Always serves the response even if the policy allows the request and can customize the response completely. Can be used to re-implement legacy authorization services by already using data in Open Policy Agent but implementing an old REST API. This can also be useful to support Single Page Applications to return the calling users' permissions.
 
@@ -1807,12 +1807,12 @@ Always serves the response even if the policy allows the request and can customi
 Example:
 
 ```
-serveResponseWithRegoPolicy("my-app-id")
+opaServeResponse("my-app-id")
 ```
 
 Example (passing context):
 ```
-serveResponseWithRegoPolicy("my-app-id", "com.mydomain.xxx.myprop: myvalue")
+opaServeResponse("my-app-id", "com.mydomain.xxx.myprop: myvalue")
 ```
 
 *Data Flows*

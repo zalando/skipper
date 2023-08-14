@@ -1,4 +1,4 @@
-package authorizewithregopolicy
+package opaauthorizerequest
 
 import (
 	"net/http"
@@ -16,7 +16,7 @@ type spec struct {
 	opts     []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 }
 
-func NewAuthorizeWithRegoPolicySpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+func NewOpaAuthorizeRequestSpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
 	return &spec{
 		registry: registry,
 		opts:     opts,
@@ -24,7 +24,7 @@ func NewAuthorizeWithRegoPolicySpec(registry *openpolicyagent.OpenPolicyAgentReg
 }
 
 func (s *spec) Name() string {
-	return filters.AuthorizeWithRegoPolicyName
+	return filters.OpaAuthorizeRequestName
 }
 
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -68,20 +68,20 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, err
 	}
 
-	return &authorizeWithRegoPolicyFilter{
+	return &opaAuthorizeRequestFilter{
 		opa:                    opa,
 		registry:               s.registry,
 		envoyContextExtensions: envoyContextExtensions,
 	}, nil
 }
 
-type authorizeWithRegoPolicyFilter struct {
+type opaAuthorizeRequestFilter struct {
 	opa                    *openpolicyagent.OpenPolicyAgentInstance
 	registry               *openpolicyagent.OpenPolicyAgentRegistry
 	envoyContextExtensions map[string]string
 }
 
-func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
+func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	req := fc.Request()
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
@@ -144,8 +144,8 @@ func addRequestHeaders(fc filters.FilterContext, headers http.Header) {
 	}
 }
 
-func (*authorizeWithRegoPolicyFilter) Response(filters.FilterContext) {}
+func (*opaAuthorizeRequestFilter) Response(filters.FilterContext) {}
 
-func (f *authorizeWithRegoPolicyFilter) OpenPolicyAgent() *openpolicyagent.OpenPolicyAgentInstance {
+func (f *opaAuthorizeRequestFilter) OpenPolicyAgent() *openpolicyagent.OpenPolicyAgentInstance {
 	return f.opa
 }

@@ -493,17 +493,17 @@ See more details about rate limiting at [Rate limiting](../reference/filters.md#
 
 If Open Policy Agent filters are enabled, the following counters show up in the `/metrics` endpoint. The bundle-name is the first parameter of the filter so that for example increased error codes can be attributed to a specific source bundle / system. 
 
-- `skipper.authorizeWithRegoPolicy.custom.decision.allow.<bundle-name>`
-- `skipper.authorizeWithRegoPolicy.custom.decision.deny.<bundle-name>`
-- `skipper.authorizeWithRegoPolicy.custom.decision.err.<bundle-name>`
-- `skipper.serveResponseWithRegoPolicy.custom.decision.allow.<bundle-name>`
-- `skipper.serveResponseWithRegoPolicy.custom.decision.deny.<bundle-name>`
-- `skipper.serveResponseWithRegoPolicy.custom.decision.err.<bundle-name>`
+- `skipper.opaAuthorizeRequest.custom.decision.allow.<bundle-name>`
+- `skipper.opaAuthorizeRequest.custom.decision.deny.<bundle-name>`
+- `skipper.opaAuthorizeRequest.custom.decision.err.<bundle-name>`
+- `skipper.opaServeResponse.custom.decision.allow.<bundle-name>`
+- `skipper.opaServeResponse.custom.decision.deny.<bundle-name>`
+- `skipper.opaServeResponse.custom.decision.err.<bundle-name>`
 
 The following timer metrics are exposed per used bundle-name:
 
-- `skipper.authorizeWithRegoPolicy.custom.eval_time.<bundle-name>`
-- `skipper.serveResponseWithRegoPolicy.custom.eval_time.<bundle-name>`
+- `skipper.opaAuthorizeRequest.custom.eval_time.<bundle-name>`
+- `skipper.opaServeResponse.custom.eval_time.<bundle-name>`
 
 ## OpenTracing
 

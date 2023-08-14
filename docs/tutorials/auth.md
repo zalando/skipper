@@ -455,8 +455,8 @@ Generally there are two ways to pass context to a policy:
 
 This context can be passed as second argument to filters: 
 
-`authorizeWithRegoPolicy("my-app-id", "com.mycompany.myprop: myvalue")` 
-or `authorizeWithRegoPolicy("my-app-id", "{'com.mycompany.myprop': 'my value'}")` 
+`opaAuthorizeRequest("my-app-id", "com.mycompany.myprop: myvalue")` 
+or `opaAuthorizeRequest("my-app-id", "{'com.mycompany.myprop': 'my value'}")` 
 
 The second argument is parsed as YAML, cannot be nested and values need to be strings. 
 
@@ -492,7 +492,7 @@ Start Skipper with
 
 ```
 skipper -enable-open-policy-agent -open-policy-agent-config-template opaconfig.yaml \
-  -inline-routes 'notfound: * -> authorizeWithRegoPolicy("<playground-bundle-id>") -> inlineContent("<h1>Authorized Hello</h1>") -> <shunt>'
+  -inline-routes 'notfound: * -> opaAuthorizeRequest("<playground-bundle-id>") -> inlineContent("<h1>Authorized Hello</h1>") -> <shunt>'
 ```
 
 You can test the policy with

@@ -1,4 +1,4 @@
-package serveresponsewithregopolicy
+package opaserveresponse
 
 import (
 	"time"
@@ -15,7 +15,7 @@ type spec struct {
 	opts     []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 }
 
-func NewServeResponseWithRegoPolicySpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+func NewOpaServeResponseSpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
 	return &spec{
 		registry: registry,
 		opts:     opts,
@@ -23,7 +23,7 @@ func NewServeResponseWithRegoPolicySpec(registry *openpolicyagent.OpenPolicyAgen
 }
 
 func (s *spec) Name() string {
-	return filters.ServeResponseWithRegoPolicyName
+	return filters.OpaServeResponseName
 }
 
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -66,20 +66,20 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, err
 	}
 
-	return &serveResponseWithRegoPolicyFilter{
+	return &opaServeResponseFilter{
 		opa:                    opa,
 		registry:               s.registry,
 		envoyContextExtensions: envoyContextExtensions,
 	}, nil
 }
 
-type serveResponseWithRegoPolicyFilter struct {
+type opaServeResponseFilter struct {
 	opa                    *openpolicyagent.OpenPolicyAgentInstance
 	registry               *openpolicyagent.OpenPolicyAgentRegistry
 	envoyContextExtensions map[string]string
 }
 
-func (f *serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
+func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
 
@@ -97,8 +97,8 @@ func (f *serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	f.opa.ServeResponse(fc, span, result)
 }
 
-func (f *serveResponseWithRegoPolicyFilter) Response(fc filters.FilterContext) {}
+func (f *opaServeResponseFilter) Response(fc filters.FilterContext) {}
 
-func (f *serveResponseWithRegoPolicyFilter) OpenPolicyAgent() *openpolicyagent.OpenPolicyAgentInstance {
+func (f *opaServeResponseFilter) OpenPolicyAgent() *openpolicyagent.OpenPolicyAgentInstance {
 	return f.opa
 }

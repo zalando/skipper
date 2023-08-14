@@ -1,4 +1,4 @@
-package authorizewithregopolicy
+package opaauthorizerequest
 
 import (
 	"fmt"
@@ -218,10 +218,10 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			}`, opaControlPlane.URL(), ti.regoQuery))
 
 			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
-			ftSpec := NewAuthorizeWithRegoPolicySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 			fr.Register(ftSpec)
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> authorizeWithRegoPolicy("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> opaAuthorizeRequest("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 
@@ -251,7 +251,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 func TestCreateFilterArguments(t *testing.T) {
 	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry()
-	ftSpec := NewAuthorizeWithRegoPolicySpec(opaRegistry, openpolicyagent.WithConfigTemplate([]byte("")))
+	ftSpec := NewOpaAuthorizeRequestSpec(opaRegistry, openpolicyagent.WithConfigTemplate([]byte("")))
 
 	_, err := ftSpec.CreateFilter([]interface{}{})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)

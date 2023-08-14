@@ -37,8 +37,8 @@ import (
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/openpolicyagent"
-	"github.com/zalando/skipper/filters/openpolicyagent/authorizewithregopolicy"
-	"github.com/zalando/skipper/filters/openpolicyagent/serveresponsewithregopolicy"
+	"github.com/zalando/skipper/filters/openpolicyagent/opaauthorizerequest"
+	"github.com/zalando/skipper/filters/openpolicyagent/opaserveresponse"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
 	teefilters "github.com/zalando/skipper/filters/tee"
@@ -1773,8 +1773,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
-			authorizewithregopolicy.NewAuthorizeWithRegoPolicySpec(opaRegistry, opts...),
-			serveresponsewithregopolicy.NewServeResponseWithRegoPolicySpec(opaRegistry, opts...),
+			opaauthorizerequest.NewOpaAuthorizeRequestSpec(opaRegistry, opts...),
+			opaserveresponse.NewOpaServeResponseSpec(opaRegistry, opts...),
 		)
 	}
 
