@@ -341,6 +341,8 @@ const (
 	EndpointCreatedName                        = "endpointCreated"
 	ConsistentHashKeyName                      = "consistentHashKey"
 	ConsistentHashBalanceFactorName            = "consistentHashBalanceFactor"
+	OpaAuthorizeRequestName                    = "opaAuthorizeRequest"
+	OpaServeResponseName                       = "opaServeResponse"
 
 	// Undocumented filters
 	HealthCheckName        = "healthcheck"

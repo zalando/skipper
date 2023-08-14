@@ -1719,6 +1719,128 @@ oidcClaimsQuery("/:name%\"*One\"", "/path:groups.#[%\"*-Test-Users\"] groups.#[=
 
 As of now there is no negative/deny rule possible. The first matching path is evaluated against the defined query/queries and if positive, permitted.
 
+### Open Policy Agent
+
+To get started with [Open Policy Agent](https://www.openpolicyagent.org/), also have a look at the [tutorial](../tutorials/auth.md#open-policy-agent). This section is only a reference for the implemented filters. 
+
+#### opaAuthorizeRequest
+
+The canonical use case that is also implemented with [Envoy External Authorization](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter): Use the http request to evaluate if Skipper should deny the request (with customizable response) or let the request pass to the downstream service
+
+Example:
+
+```
+opaAuthorizeRequest("my-app-id")
+```
+
+Example (passing context):
+```
+opaAuthorizeRequest("my-app-id", "com.mydomain.xxx.myprop: myvalue")
+```
+
+*Data Flows*
+
+The data flow in case the policy allows the request looks like this
+
+```ascii
+             ┌──────────────────┐               ┌────────────────────┐
+ (1) Request │     Skipper      │ (4) Request   │ Target Aplication  │
+─────────────┤                  ├──────────────►│                    │
+             │                  │               │                    │
+ (6) Response│   (2)│   ▲ (3)   │ (5) Response  │                    │
+◄────────────┤Req ->│   │ allow │◄──────────────┤                    │
+             │Input │   │       │               │                    │
+             ├──────┴───┴───────┤               └────────────────────┘
+             │Open Policy Agent │
+             │      │   │       │
+             │      │   │       │
+             │      │   │       │
+             │      ▼   │       │
+             │ ┌────────┴─────┐ │
+             │ │   Policy     │ │
+             │ └──────────────┘ │
+             │                  │
+             └──────────────────┘
+
+```
+
+In Step (2) the http request is transformed into an input object following the [Envoy structure](https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto#service-auth-v3-checkrequest) that is also used by the OPA Envoy plugin. In (3) the decision of the policy is evaluated. If it is equivalent to an "allow", the remaining steps are executed as without the filter.
+
+The data flow in case the policy disallows the request looks like this
+
+```ascii
+             ┌──────────────────┐               ┌────────────────────┐
+ (1) Request │     Skipper      │               │ Target Aplication  │
+─────────────┤                  ├──────────────►│                    │
+             │                  │               │                    │
+ (4) Response│   (2)│   ▲ (3)   │               │                    │
+◄────────────┤Req ->│   │ allow │◄──────────────┤                    │
+             │Input │   │ =false│               │                    │
+             ├──────┴───┴───────┤               └────────────────────┘
+             │Open Policy Agent │
+             │      │   │       │
+             │      │   │       │
+             │      │   │       │
+             │      ▼   │       │
+             │ ┌────────┴─────┐ │
+             │ │   Policy     │ │
+             │ └──────────────┘ │
+             │                  │
+             └──────────────────┘
+
+```
+
+The difference is that if the decision in (3) is equivalent to false, the response is handled directly from the filter. If the decision contains response body, status or headers those are used to build the response in (6) otherwise a 403 Forbidden with a generic body is returned.
+
+*Manipulating Request Headers*
+
+Headers both to the upstream and the downstream service can be manipulated the same way this works for [Envoy external authorization](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-policy-with-additional-controls)
+
+This allows both to add and remove unwanted headers in allow/deny cases. 
+
+#### opaServeResponse
+
+Always serves the response even if the policy allows the request and can customize the response completely. Can be used to re-implement legacy authorization services by already using data in Open Policy Agent but implementing an old REST API. This can also be useful to support Single Page Applications to return the calling users' permissions.
+
+*Hint*: As there is no real allow/deny in this case and the policy computes the http response, you typically will want to [drop all decision logs](https://www.openpolicyagent.org/docs/latest/management-decision-logs/#drop-decision-logs)
+
+Example:
+
+```
+opaServeResponse("my-app-id")
+```
+
+Example (passing context):
+```
+opaServeResponse("my-app-id", "com.mydomain.xxx.myprop: myvalue")
+```
+
+*Data Flows*
+
+For this filter, the data flow looks like this independent of an allow/deny decision
+
+```ascii
+             ┌──────────────────┐
+ (1) Request │     Skipper      │ 
+─────────────┤                  ├
+             │                  │
+ (4) Response│   (2)│   ▲ (3)   │
+◄────────────┤Req ->│   │ resp  │
+             │Input │   │       │
+             ├──────┴───┴───────┤
+             │Open Policy Agent │
+             │      │   │       │
+             │      │   │       │
+             │      │   │       │
+             │      ▼   │       │
+             │ ┌────────┴─────┐ │
+             │ │   Policy     │ │
+             │ └──────────────┘ │
+             │                  │
+             └──────────────────┘
+
+```
+
 ## Cookie Handling
 ### dropRequestCookie
 

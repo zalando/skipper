@@ -489,6 +489,22 @@ by the default, and exposed among the timers via the following keys:
 
 See more details about rate limiting at [Rate limiting](../reference/filters.md#clusterclientratelimit).
 
+### Open Policy Agent metrics
+
+If Open Policy Agent filters are enabled, the following counters show up in the `/metrics` endpoint. The bundle-name is the first parameter of the filter so that for example increased error codes can be attributed to a specific source bundle / system. 
+
+- `skipper.opaAuthorizeRequest.custom.decision.allow.<bundle-name>`
+- `skipper.opaAuthorizeRequest.custom.decision.deny.<bundle-name>`
+- `skipper.opaAuthorizeRequest.custom.decision.err.<bundle-name>`
+- `skipper.opaServeResponse.custom.decision.allow.<bundle-name>`
+- `skipper.opaServeResponse.custom.decision.deny.<bundle-name>`
+- `skipper.opaServeResponse.custom.decision.err.<bundle-name>`
+
+The following timer metrics are exposed per used bundle-name:
+
+- `skipper.opaAuthorizeRequest.custom.eval_time.<bundle-name>`
+- `skipper.opaServeResponse.custom.eval_time.<bundle-name>`
+
 ## OpenTracing
 
 Skipper has support for different [OpenTracing API](http://opentracing.io/) vendors, including
@@ -611,6 +627,16 @@ The auth filters have trace log values `start` and `end` for DNS, TCP
 connect, TLS handshake and connection pool:
 
 ![tokeninfo auth filter span with logs](../img/skipper_opentracing_auth_filter_tokeninfo_span_with_logs.png)
+
+### Open Policy Agent span
+
+When one of the Open Policy Agent filters is used, child spans with the operation name `open-policy-agent` are added to the Trace.
+
+The following tags are added to the Span, labels are taken from the OPA configuration YAML file as is and are not interpreted:
+- `opa.decision_id=<decision id that was recorded>`
+- `opa.labels.<label1>=<value1>`
+
+The labels can for example be used to link to a specific decision in the control plane if they contain URL fragments for the receiving entity. 
 
 ### Redis rate limiting spans
 

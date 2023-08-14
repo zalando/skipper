@@ -36,6 +36,9 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/filters/openpolicyagent"
+	"github.com/zalando/skipper/filters/openpolicyagent/opaauthorizerequest"
+	"github.com/zalando/skipper/filters/openpolicyagent/opaserveresponse"
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
 	teefilters "github.com/zalando/skipper/filters/tee"
@@ -892,6 +895,11 @@ type Options struct {
 	// defaults to "file","inline" and "none" disables lua
 	// filters.
 	LuaSources []string
+
+	EnableOpenPolicyAgent          bool
+	OpenPolicyAgentConfigTemplate  string
+	OpenPolicyAgentEnvoyMetadata   string
+	OpenPolicyAgentCleanerInterval time.Duration
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
@@ -1753,6 +1761,23 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		)
 	}
 
+	var opaRegistry *openpolicyagent.OpenPolicyAgentRegistry
+	if o.EnableOpenPolicyAgent {
+		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval))
+		defer opaRegistry.Close()
+
+		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
+		opts = append(opts, openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
+		if o.OpenPolicyAgentEnvoyMetadata != "" {
+			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
+		}
+
+		o.CustomFilters = append(o.CustomFilters,
+			opaauthorizerequest.NewOpaAuthorizeRequestSpec(opaRegistry, opts...),
+			opaserveresponse.NewOpaServeResponseSpec(opaRegistry, opts...),
+		)
+	}
+
 	if len(o.CompressEncodings) > 0 {
 		compress, err := builtin.NewCompressWithOptions(builtin.CompressOptions{Encodings: o.CompressEncodings})
 		if err != nil {
@@ -1880,6 +1905,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
 		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
+	}
+
+	if o.EnableOpenPolicyAgent {
+		ro.PostProcessors = append(ro.PostProcessors, opaRegistry)
 	}
 
 	if o.CustomRoutingPreProcessors != nil {

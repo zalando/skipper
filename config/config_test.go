@@ -160,6 +160,7 @@ func defaultConfig() *Config {
 		ValidateQueryLog:                        true,
 		LuaModules:                              commaListFlag(),
 		LuaSources:                              commaListFlag(),
+		OpenPolicyAgentCleanerInterval:          10 * time.Second,
 	}
 }
 
