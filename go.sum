@@ -284,8 +284,8 @@ github.com/szuecs/rate-limit-buffer v0.9.0 h1:65fBCVsaJFh0E1G5C6/sInEPlYR6dXtF9J
 github.com/szuecs/rate-limit-buffer v0.9.0/go.mod h1:BxqrsmnHsCnWcvbtdcaDLEBmjNEvRFU5LQ8edoZ9B0M=
 github.com/testcontainers/testcontainers-go v0.22.1-0.20230806163346-d1c291e3c8e1 h1:iwspfBu8RJQeMGfkBvR+9sMoia/4CK0ndFNpuJgXEBQ=
 github.com/testcontainers/testcontainers-go v0.22.1-0.20230806163346-d1c291e3c8e1/go.mod h1:k0YiPa26xJCRUbUkYqy5rY6NGvSbVCeUBXCvucscBR4=
-github.com/tidwall/gjson v1.15.0 h1:5n/pM+v3r5ujuNl4YLZLsQ+UE5jlkLVm7jMzT5Mpolw=
-github.com/tidwall/gjson v1.15.0/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
+github.com/tidwall/gjson v1.16.0 h1:SyXa+dsSPpUlcwEDuKuEBJEz5vzTvOea+9rjyYodQFg=
+github.com/tidwall/gjson v1.16.0/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
 github.com/tidwall/match v1.1.1/go.mod h1:eRSPERbgtNPcGhD8UCthc6PmLEQXEWd3PRB5JTxsfmM=
 github.com/tidwall/pretty v1.2.0 h1:RWIZEg2iJ8/g6fDDYzMpobmaoGh5OLl4AXtGUGPcqCs=
