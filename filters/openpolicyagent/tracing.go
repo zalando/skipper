@@ -34,7 +34,7 @@ func (tr *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	parentSpan := opentracing.SpanFromContext(ctx)
 
 	if parentSpan != nil {
-		span := opentracing.StartSpan("http.send", opentracing.ChildOf(parentSpan.Context()))
+		span := parentSpan.Tracer().StartSpan("http.send", opentracing.ChildOf(parentSpan.Context()))
 		defer span.Finish()
 		req = req.WithContext(opentracing.ContextWithSpan(ctx, span))
 

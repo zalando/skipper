@@ -18,58 +18,123 @@ import (
 
 func TestAuthorizeRequestFilter(t *testing.T) {
 	for _, ti := range []struct {
-		msg             string
-		bundleName      string
-		regoQuery       string
-		requestPath     string
-		expectedBody    string
-		expectedHeaders http.Header
-		expectedStatus  int
-		backendHeaders  http.Header
-		removeHeaders   http.Header
+		msg               string
+		bundleName        string
+		regoQuery         string
+		requestPath       string
+		contextExtensions string
+		expectedBody      string
+		expectedHeaders   http.Header
+		expectedStatus    int
+		backendHeaders    http.Header
+		removeHeaders     http.Header
 	}{
 		{
-			msg:             "Allow Requests",
-			bundleName:      "somebundle.tar.gz",
-			regoQuery:       "envoy/authz/allow",
-			requestPath:     "/allow",
-			expectedStatus:  http.StatusOK,
-			expectedBody:    "Welcome!",
-			expectedHeaders: make(http.Header),
-			backendHeaders:  make(http.Header),
-			removeHeaders:   make(http.Header),
+			msg:               "Allow Requests",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
 		},
 		{
-			msg:             "Simple Forbidden",
-			bundleName:      "somebundle.tar.gz",
-			regoQuery:       "envoy/authz/allow",
-			requestPath:     "/forbidden",
-			expectedStatus:  http.StatusForbidden,
-			expectedHeaders: make(http.Header),
-			backendHeaders:  make(http.Header),
-			removeHeaders:   make(http.Header),
+			msg:               "Allow Matching Context Extension",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_context_extensions",
+			requestPath:       "/allow",
+			contextExtensions: "com.mycompany.myprop: myvalue",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
 		},
 		{
-			msg:             "Allow With Structured Rules",
-			bundleName:      "somebundle.tar.gz",
-			regoQuery:       "envoy/authz/allow_object",
-			requestPath:     "/allow/structured",
-			expectedStatus:  http.StatusOK,
-			expectedBody:    "Welcome!",
-			expectedHeaders: make(http.Header),
-			backendHeaders:  map[string][]string{"X-Consumer": {"x-consumer header value"}},
-			removeHeaders:   map[string][]string{"X-Remove-Me": {"Remove me"}},
+			msg:               "Simple Forbidden",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/forbidden",
+			contextExtensions: "",
+			expectedStatus:    http.StatusForbidden,
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
 		},
 		{
-			msg:             "Forbidden With Body",
-			bundleName:      "somebundle.tar.gz",
-			regoQuery:       "envoy/authz/allow_object",
-			requestPath:     "/forbidden",
-			expectedStatus:  http.StatusUnauthorized,
-			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"no"}},
-			expectedBody:    "Unauthorized Request",
-			backendHeaders:  make(http.Header),
-			removeHeaders:   make(http.Header),
+			msg:               "Allow With Structured Rules",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_object",
+			requestPath:       "/allow/structured",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    map[string][]string{"X-Consumer": {"x-consumer header value"}},
+			removeHeaders:     map[string][]string{"X-Remove-Me": {"Remove me"}},
+		},
+		{
+			msg:               "Forbidden With Body",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_object",
+			requestPath:       "/forbidden",
+			contextExtensions: "",
+			expectedStatus:    http.StatusUnauthorized,
+			expectedHeaders:   map[string][]string{"X-Ext-Auth-Allow": {"no"}},
+			expectedBody:      "Unauthorized Request",
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Misconfigured Rego Query",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/invalid_path",
+			requestPath:       "/allow",
+			contextExtensions: "",
+			expectedStatus:    http.StatusInternalServerError,
+			expectedBody:      "",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Wrong Query Data Type",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_wrong_type",
+			requestPath:       "/allow",
+			contextExtensions: "",
+			expectedStatus:    http.StatusInternalServerError,
+			expectedBody:      "",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Wrong Query Data Type",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_object_invalid_headers_to_remove",
+			requestPath:       "/allow",
+			contextExtensions: "",
+			expectedStatus:    http.StatusInternalServerError,
+			expectedBody:      "",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Wrong Query Data Type",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_object_invalid_headers",
+			requestPath:       "/allow",
+			contextExtensions: "",
+			expectedStatus:    http.StatusInternalServerError,
+			expectedBody:      "",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -90,7 +155,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 						allow {
 							input.parsed_path = [ "allow" ]
 						}
-	
+
+						allow_context_extensions {
+							input.attributes.contextExtensions["com.mycompany.myprop"] == "myvalue"
+						}
+						
 						default allow_object = {
 							"allowed": false,
 							"headers": {"x-ext-auth-allow": "no"},
@@ -110,6 +179,18 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 									"absent-header"
 								]
 							}
+						}
+
+						allow_wrong_type := "true"
+
+						allow_object_invalid_headers_to_remove := {
+							"allowed": true,
+							"request_headers_to_remove": "bogus string instead of object"
+						}
+
+						allow_object_invalid_headers := {
+							"allowed": true,
+							"headers": "bogus string instead of object"
 						}
 					`,
 				}),
@@ -140,7 +221,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			ftSpec := NewAuthorizeWithRegoPolicySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 			fr.Register(ftSpec)
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> authorizeWithRegoPolicy("%s") -> "%s"`, ti.bundleName, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> authorizeWithRegoPolicy("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 
@@ -166,6 +247,17 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 		})
 	}
+}
+
+func TestCreateFilterArguments(t *testing.T) {
+	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry()
+	ftSpec := NewAuthorizeWithRegoPolicySpec(opaRegistry, openpolicyagent.WithConfigTemplate([]byte("")))
+
+	_, err := ftSpec.CreateFilter([]interface{}{})
+	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+
+	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", "extra: value", "superfluous argument"})
+	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 }
 
 func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.Header) bool {

@@ -450,7 +450,7 @@ Input structures to policies follow those that are used by the [opa-envoy-plugin
 
 Generally there are two ways to pass context to a policy:
 
-1. as part of the labels on Open Policy Agent (configured in the configuration file, see below) that should be used for deployment level taxonomy,
+1. as part of the labels in Open Policy Agent (configured in the configuration file, see below) that should be used for deployment level taxonomy,
 2. as part of so called context extensions that are part of the Envoy external auth specification. 
 
 This context can be passed as second argument to filters: 

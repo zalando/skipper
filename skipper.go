@@ -896,9 +896,10 @@ type Options struct {
 	// filters.
 	LuaSources []string
 
-	EnableOpenPolicyAgent         bool
-	OpenPolicyAgentConfigTemplate string
-	OpenPolicyAgentEnvoyMetadata  string
+	EnableOpenPolicyAgent          bool
+	OpenPolicyAgentConfigTemplate  string
+	OpenPolicyAgentEnvoyMetadata   string
+	OpenPolicyAgentCleanerInterval time.Duration
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
@@ -1762,7 +1763,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	var opaRegistry *openpolicyagent.OpenPolicyAgentRegistry
 	if o.EnableOpenPolicyAgent {
-		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry()
+		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval))
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)

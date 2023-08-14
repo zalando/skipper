@@ -1721,7 +1721,7 @@ As of now there is no negative/deny rule possible. The first matching path is ev
 
 ### Open Policy Agent
 
-To get started with Open Policy Agent, also have a look at the [tutorial](../tutorials/auth.md#open-policy-agent). This section is only a reference for the implemented filters. 
+To get started with [Open Policy Agent](https://www.openpolicyagent.org/), also have a look at the [tutorial](../tutorials/auth.md#open-policy-agent). This section is only a reference for the implemented filters. 
 
 #### authorizeWithRegoPolicy
 

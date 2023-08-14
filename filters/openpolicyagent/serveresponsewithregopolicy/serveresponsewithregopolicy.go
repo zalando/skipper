@@ -62,7 +62,6 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, *opaConfig, s.Name())
-
 	if err != nil {
 		return nil, err
 	}
@@ -89,21 +88,13 @@ func (f *serveResponseWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	start := time.Now()
 	result, err := f.opa.Eval(ctx, authzreq)
 	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
-
 	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		f.opa.ServeInvalidDecisionError(fc, span, result, err)
+
 		return
 	}
 
-	if f.opa.EnvoyPluginConfig().DryRun {
-		return
-	}
-
-	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, span, result, err)
-	} else {
-		f.opa.ServeResponse(fc, span, result)
-	}
+	f.opa.ServeResponse(fc, span, result)
 }
 
 func (f *serveResponseWithRegoPolicyFilter) Response(fc filters.FilterContext) {}

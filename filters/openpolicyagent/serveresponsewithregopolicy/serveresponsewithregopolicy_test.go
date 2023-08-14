@@ -47,6 +47,15 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			expectedHeaders: make(http.Header),
 		},
 		{
+			msg:             "Misconfigured Rego Query",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/invalid_path",
+			requestPath:     "allow",
+			expectedStatus:  http.StatusInternalServerError,
+			expectedBody:    "",
+			expectedHeaders: make(http.Header),
+		},
+		{
 			msg:             "Allow With Structured Rules",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
@@ -196,4 +205,24 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Headers do not match")
 		})
 	}
+}
+
+func TestCreateFilterArguments(t *testing.T) {
+	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry()
+	ftSpec := NewServeResponseWithRegoPolicySpec(opaRegistry, openpolicyagent.WithConfigTemplate([]byte("")))
+
+	_, err := ftSpec.CreateFilter([]interface{}{})
+	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+
+	_, err = ftSpec.CreateFilter([]interface{}{42})
+	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+
+	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", 42})
+	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+
+	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", "invalid; context extensions"})
+	assert.Error(t, err)
+
+	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", "extra: value", "superfluous argument"})
+	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 }

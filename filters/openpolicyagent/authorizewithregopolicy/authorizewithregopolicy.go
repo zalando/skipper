@@ -93,7 +93,7 @@ func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
 
 	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)
 		return
 	}
 
@@ -102,12 +102,10 @@ func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 	}
 
 	allowed, err := result.IsAllowed()
-
 	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)
 		return
 	}
-
 	if !allowed {
 		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.deny"))
 		f.opa.ServeResponse(fc, span, result)
@@ -118,14 +116,14 @@ func (f *authorizeWithRegoPolicyFilter) Request(fc filters.FilterContext) {
 
 	headersToRemove, err := result.GetRequestHTTPHeadersToRemove()
 	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)
 		return
 	}
 	removeRequestHeaders(fc, headersToRemove)
 
 	headers, err := result.GetResponseHTTPHeaders()
 	if err != nil {
-		f.opa.RejectInvalidDecisionError(fc, span, result, err)
+		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)
 		return
 	}
 	addRequestHeaders(fc, headers)

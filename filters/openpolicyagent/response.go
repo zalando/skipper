@@ -11,12 +11,12 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
-func (opa *OpenPolicyAgentInstance) RejectInvalidDecisionError(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult, err error) {
-	resp := http.Response{}
+func (opa *OpenPolicyAgentInstance) ServeInvalidDecisionError(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult, err error) {
+	opa.HandleInvalidDecisionError(fc, span, result, err, true)
+}
 
+func (opa *OpenPolicyAgentInstance) HandleInvalidDecisionError(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult, err error, serve bool) {
 	fc.Metrics().IncCounter(opa.MetricsKey("decision.err"))
-
-	resp.StatusCode = http.StatusInternalServerError
 	span.SetTag("error", true)
 
 	if result != nil {
@@ -42,7 +42,12 @@ func (opa *OpenPolicyAgentInstance) RejectInvalidDecisionError(fc filters.Filter
 		}).Info("Rejecting request because of an invalid decision")
 	}
 
-	fc.Serve(&resp)
+	if serve {
+		resp := http.Response{}
+		resp.StatusCode = http.StatusInternalServerError
+
+		fc.Serve(&resp)
+	}
 }
 
 func (opa *OpenPolicyAgentInstance) ServeResponse(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult) {
@@ -51,22 +56,20 @@ func (opa *OpenPolicyAgentInstance) ServeResponse(fc filters.FilterContext, span
 	var err error
 	resp.StatusCode, err = result.GetResponseHTTPStatus()
 	if err != nil {
-		opa.RejectInvalidDecisionError(fc, span, result, err)
+		opa.ServeInvalidDecisionError(fc, span, result, err)
 		return
 	}
 
 	resp.Header, err = result.GetResponseHTTPHeaders()
 	if err != nil {
-		opa.RejectInvalidDecisionError(fc, span, result, err)
+		opa.ServeInvalidDecisionError(fc, span, result, err)
 		return
 	}
 
-	hasbody := result.HasResponseBody()
-
-	if hasbody {
+	if result.HasResponseBody() {
 		body, err := result.GetResponseBody()
 		if err != nil {
-			opa.RejectInvalidDecisionError(fc, span, result, err)
+			opa.ServeInvalidDecisionError(fc, span, result, err)
 			return
 		}
 

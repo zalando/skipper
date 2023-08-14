@@ -36,6 +36,7 @@ import (
 const (
 	defaultReuseDuration       = 30 * time.Second
 	defaultShutdownGracePeriod = 30 * time.Second
+	DefaultCleanIdlePeriod     = 10 * time.Second
 )
 
 type OpenPolicyAgentRegistry struct {
@@ -53,6 +54,7 @@ type OpenPolicyAgentRegistry struct {
 	closed        bool
 	quit          chan struct{}
 	reuseDuration time.Duration
+	cleanInterval time.Duration
 }
 
 type OpenPolicyAgentFilter interface {
@@ -66,9 +68,17 @@ func WithReuseDuration(duration time.Duration) func(*OpenPolicyAgentRegistry) er
 	}
 }
 
+func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.cleanInterval = interval
+		return nil
+	}
+}
+
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration: defaultReuseDuration,
+		cleanInterval: DefaultCleanIdlePeriod,
 		instances:     make(map[string]*OpenPolicyAgentInstance),
 		lastused:      make(map[*OpenPolicyAgentInstance]time.Time),
 		quit:          make(chan struct{}),
@@ -127,7 +137,7 @@ func WithEnvoyMetadataFile(file string) func(*OpenPolicyAgentInstanceConfig) err
 
 		err = WithEnvoyMetadataBytes(content)(cfg)
 		if err != nil {
-			return fmt.Errorf("cannot parse '%v': %w", file, err)
+			return fmt.Errorf("cannot parse '%q': %w", file, err)
 		}
 
 		return nil
@@ -199,7 +209,7 @@ func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 }
 
 func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(registry.cleanInterval)
 	defer ticker.Stop()
 
 	for {
@@ -239,16 +249,13 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 
 	if instance, ok := registry.instances[bundleName]; ok {
 		delete(registry.lastused, instance)
-
 		return instance, nil
 	}
 
 	instance, err := registry.newOpenPolicyAgentInstance(bundleName, config, filterName)
-
 	if err != nil {
 		return nil, err
 	}
-
 	registry.instances[bundleName] = instance
 
 	return instance, nil
@@ -276,7 +283,6 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 	}
 
 	engine, err := New(inmem.New(), configBytes, config, filterName, bundleName)
-
 	if err != nil {
 		return nil, err
 	}
@@ -296,11 +302,10 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 }
 
 type OpenPolicyAgentInstance struct {
-	manager        *plugins.Manager
-	instanceConfig OpenPolicyAgentInstanceConfig
-	opaConfig      *config.Config
-	bundleName     string
-
+	manager                *plugins.Manager
+	instanceConfig         OpenPolicyAgentInstanceConfig
+	opaConfig              *config.Config
+	bundleName             string
 	preparedQuery          *rego.PreparedEvalQuery
 	preparedQueryDoOnce    *sync.Once
 	interQueryBuiltinCache iCache.InterQueryCache
@@ -308,13 +313,11 @@ type OpenPolicyAgentInstance struct {
 }
 
 func envVariablesMap() map[string]string {
-	var rawEnvVariables = os.Environ()
-
-	var envVariables = make(map[string]string)
+	rawEnvVariables := os.Environ()
+	envVariables := make(map[string]string)
 
 	for _, item := range rawEnvVariables {
 		tokens := strings.SplitN(item, "=", 2)
-
 		envVariables[tokens[0]] = tokens[1]
 	}
 
@@ -332,7 +335,6 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 	binding["Env"] = envVariablesMap()
 
 	err := tpl.ExecuteTemplate(&buf, "opa-config", binding)
-
 	if err != nil {
 		return nil, err
 	}
@@ -468,24 +470,43 @@ func (opa *OpenPolicyAgentInstance) MetricsKey(key string) string {
 	return key + "." + opa.bundleName
 }
 
-// Implementation of the envoyauth.EvalContext interface
+// ParsedQuery is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) ParsedQuery() ast.Body {
 	return opa.EnvoyPluginConfig().ParsedQuery
 }
 
-func (opa *OpenPolicyAgentInstance) Store() storage.Store            { return opa.manager.Store }
-func (opa *OpenPolicyAgentInstance) Compiler() *ast.Compiler         { return opa.manager.GetCompiler() }
-func (opa *OpenPolicyAgentInstance) Runtime() *ast.Term              { return opa.manager.Info }
-func (opa *OpenPolicyAgentInstance) Logger() logging.Logger          { return opa.manager.Logger() }
+// Store is an implementation of the envoyauth.EvalContext interface
+func (opa *OpenPolicyAgentInstance) Store() storage.Store { return opa.manager.Store }
+
+// Compiler is an implementation of the envoyauth.EvalContext interface
+func (opa *OpenPolicyAgentInstance) Compiler() *ast.Compiler { return opa.manager.GetCompiler() }
+
+// Runtime is an implementation of the envoyauth.EvalContext interface
+func (opa *OpenPolicyAgentInstance) Runtime() *ast.Term { return opa.manager.Info }
+
+// Logger is an implementation of the envoyauth.EvalContext interface
+func (opa *OpenPolicyAgentInstance) Logger() logging.Logger { return opa.manager.Logger() }
+
+// PreparedQueryDoOnce is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) PreparedQueryDoOnce() *sync.Once { return opa.preparedQueryDoOnce }
+
+// InterQueryBuiltinCache is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) InterQueryBuiltinCache() iCache.InterQueryCache {
 	return opa.interQueryBuiltinCache
 }
+
+// PreparedQuery is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) PreparedQuery() *rego.PreparedEvalQuery { return opa.preparedQuery }
+
+// SetPreparedQuery is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) SetPreparedQuery(q *rego.PreparedEvalQuery) {
 	opa.preparedQuery = q
 }
+
+// Config is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) Config() *config.Config { return opa.opaConfig }
+
+// DistributedTracing is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) DistributedTracing() opatracing.Options {
 	return opatracing.NewOptions(opa)
 }
