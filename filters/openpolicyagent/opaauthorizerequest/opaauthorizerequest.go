@@ -1,6 +1,7 @@
 package opaauthorizerequest
 
 import (
+	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	"net/http"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 )
+
+const responseHeadersKey = "open-policy-agent:decision-response-headers"
 
 type spec struct {
 	registry *openpolicyagent.OpenPolicyAgentRegistry
@@ -127,6 +130,13 @@ func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 		return
 	}
 	addRequestHeaders(fc, headers)
+
+	if responseHeaders, err := result.GetResponseHTTPHeadersToAdd(); err != nil {
+		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)
+		return
+	} else if len(responseHeaders) > 0 {
+		fc.StateBag()[responseHeadersKey] = responseHeaders
+	}
 }
 
 func removeRequestHeaders(fc filters.FilterContext, headersToRemove []string) {
@@ -143,8 +153,18 @@ func addRequestHeaders(fc filters.FilterContext, headers http.Header) {
 		}
 	}
 }
+func (f *opaAuthorizeRequestFilter) Response(fc filters.FilterContext) {
+	if headers, ok := fc.StateBag()[responseHeadersKey].([]*ext_authz_v3_core.HeaderValueOption); ok {
+		addResponseHeaders(fc, headers)
+	}
+}
 
-func (*opaAuthorizeRequestFilter) Response(filters.FilterContext) {}
+func addResponseHeaders(fc filters.FilterContext, headersToAdd []*ext_authz_v3_core.HeaderValueOption) {
+	for _, headerToAdd := range headersToAdd {
+		header := headerToAdd.GetHeader()
+		fc.Response().Header.Add(header.GetKey(), header.GetValue())
+	}
+}
 
 func (f *opaAuthorizeRequestFilter) OpenPolicyAgent() *openpolicyagent.OpenPolicyAgentInstance {
 	return f.opa
