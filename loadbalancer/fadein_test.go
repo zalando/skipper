@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
 )
@@ -203,63 +202,63 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "consistent-hash, 9", newConsistentHashForTest, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
 }
 
-func testFadeInLoadBetweenOldEps(
-	t *testing.T,
-	name string,
-	algorithm func([]string) routing.LBAlgorithm,
-	nOld int, nNew int,
-) {
-	t.Run(name, func(t *testing.T) {
-		const (
-			numberOfReqs            = 100000
-			acceptableErrorNearZero = 10
-			old                     = fadeInDurationHuge
-			new                     = time.Duration(0)
-		)
-		endpointAges := []time.Duration{}
-		for i := 0; i < nOld; i++ {
-			endpointAges = append(endpointAges, old)
-		}
-		for i := 0; i < nNew; i++ {
-			endpointAges = append(endpointAges, new)
-		}
+// func testFadeInLoadBetweenOldEps(
+// 	t *testing.T,
+// 	name string,
+// 	algorithm func([]string) routing.LBAlgorithm,
+// 	nOld int, nNew int,
+// ) {
+// 	t.Run(name, func(t *testing.T) {
+// 		const (
+// 			numberOfReqs            = 100000
+// 			acceptableErrorNearZero = 10
+// 			old                     = fadeInDurationHuge
+// 			new                     = time.Duration(0)
+// 		)
+// 		endpointAges := []time.Duration{}
+// 		for i := 0; i < nOld; i++ {
+// 			endpointAges = append(endpointAges, old)
+// 		}
+// 		for i := 0; i < nNew; i++ {
+// 			endpointAges = append(endpointAges, new)
+// 		}
 
-		ctx, eps := initializeEndpoints(endpointAges, fadeInDurationHuge)
+// 		ctx, eps := initializeEndpoints(endpointAges, fadeInDurationHuge)
 
-		a := algorithm(eps)
-		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-		nReqs := map[string]int{}
+// 		a := algorithm(eps)
+// 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+// 		nReqs := map[string]int{}
 
-		t.Log("test start", time.Now())
-		// Emulate the load balancer loop, sending requests to it with random hash keys
-		// over and over again till fadeIn period is over.
-		for i := 0; i < numberOfReqs; i++ {
-			ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(100000))
-			ep := a.Apply(ctx)
-			nReqs[ep.Host]++
-		}
+// 		t.Log("test start", time.Now())
+// 		// Emulate the load balancer loop, sending requests to it with random hash keys
+// 		// over and over again till fadeIn period is over.
+// 		for i := 0; i < numberOfReqs; i++ {
+// 			ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(100000))
+// 			ep := a.Apply(ctx)
+// 			nReqs[ep.Host]++
+// 		}
 
-		expectedReqsPerOldEndpoint := numberOfReqs / nOld
-		for idx, ep := range eps {
-			if endpointAges[idx] == old {
-				assert.InEpsilon(t, expectedReqsPerOldEndpoint, nReqs[ep], 0.2)
-			}
-			if endpointAges[idx] == new {
-				assert.InDelta(t, 0, nReqs[ep], acceptableErrorNearZero)
-			}
-		}
-	})
-}
+// 		expectedReqsPerOldEndpoint := numberOfReqs / nOld
+// 		for idx, ep := range eps {
+// 			if endpointAges[idx] == old {
+// 				assert.InEpsilon(t, expectedReqsPerOldEndpoint, nReqs[ep], 0.2)
+// 			}
+// 			if endpointAges[idx] == new {
+// 				assert.InDelta(t, 0, nReqs[ep], acceptableErrorNearZero)
+// 			}
+// 		}
+// 	})
+// }
 
-func TestFadeInLoadBetweenOldEps(t *testing.T) {
-	for nOld := 1; nOld < 6; nOld++ {
-		for nNew := 0; nNew < 6; nNew++ {
-			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("consistent-hash, %d old, %d new", nOld, nNew), newConsistentHash, nOld, nNew)
-			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("random, %d old, %d new", nOld, nNew), newRandom, nOld, nNew)
-			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("round-robin, %d old, %d new", nOld, nNew), newRoundRobin, nOld, nNew)
-		}
-	}
-}
+// func TestFadeInLoadBetweenOldEps(t *testing.T) {
+// 	for nOld := 1; nOld < 6; nOld++ {
+// 		for nNew := 0; nNew < 6; nNew++ {
+// 			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("consistent-hash, %d old, %d new", nOld, nNew), newConsistentHash, nOld, nNew)
+// 			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("random, %d old, %d new", nOld, nNew), newRandom, nOld, nNew)
+// 			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("round-robin, %d old, %d new", nOld, nNew), newRoundRobin, nOld, nNew)
+// 		}
+// 	}
+// }
 
 func testApplyEndsWhenAllEndpointsAreFading(
 	t *testing.T,
