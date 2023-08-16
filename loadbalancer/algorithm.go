@@ -244,15 +244,16 @@ func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
 
 // Apply implements routing.LBAlgorithm with power of random N choices algorithm.
 func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	ne := len(ctx.Route.LBEndpoints)
+	endpoints := ctx.Route.GetHealthyEndpoints()
+	ne := len(endpoints)
 
 	p.mx.Lock()
 	defer p.mx.Unlock()
 
-	best := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
+	best := endpoints[p.rnd.Intn(ne)]
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		ce := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
+		ce := endpoints[p.rnd.Intn(ne)]
 
 		if p.getScore(ce) > p.getScore(best) {
 			best = ce
