@@ -43,6 +43,7 @@ type admissionRequest struct {
 	Name        string               `json:"name,omitempty"`
 	Namespace   string               `json:"namespace,omitempty"`
 	Operation   string               `json:"operation"`
+	UserInfo    userInfo             `json:"userInfo"`
 	Object      json.RawMessage      `json:"object,omitempty"`
 }
 
@@ -54,4 +55,8 @@ type admissionResponse struct {
 
 type status struct {
 	Message string `json:"message,omitempty"`
+}
+
+type userInfo struct {
+	Username string `json:"username,omitempty"`
 }
