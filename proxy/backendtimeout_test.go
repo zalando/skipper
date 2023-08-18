@@ -20,7 +20,7 @@ func TestSlowService(t *testing.T) {
 		service.Close()
 	}()
 
-	doc := fmt.Sprintf(`* -> backendTimeout("1ms") -> "%s"`, service.URL)
+	doc := fmt.Sprintf(`* -> backendTimeout("10ms") -> "%s"`, service.URL)
 	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +30,7 @@ func TestSlowService(t *testing.T) {
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
 
-	rsp, err := http.Get(ps.URL)
+	rsp, err := ps.Client().Get(ps.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestFastService(t *testing.T) {
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
 
-	rsp, err := http.Get(ps.URL)
+	rsp, err := ps.Client().Get(ps.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestBackendTimeoutInTheMiddleOfServiceResponse(t *testing.T) {
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
 
-	rsp, err := http.Get(ps.URL)
+	rsp, err := ps.Client().Get(ps.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestRetryAndSlowService(t *testing.T) {
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
 
-	rsp, err := http.Get(ps.URL)
+	rsp, err := ps.Client().Get(ps.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestRetryAndFastService(t *testing.T) {
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
 
-	rsp, err := http.Get(ps.URL)
+	rsp, err := ps.Client().Get(ps.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
