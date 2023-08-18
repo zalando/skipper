@@ -93,7 +93,7 @@ func checkRepeatedRouteIds(routes []*eskip.Route) error {
 func checkEmptyBackends(routes []*eskip.Route) error {
 	for _, route := range routes {
 		if route.BackendType == eskip.NetworkBackend && route.Backend == "" {
-			return fmt.Errorf("route %s has empty backend", route.Id)
+			return fmt.Errorf("route has empty backend: %s", route.Id)
 		}
 	}
 

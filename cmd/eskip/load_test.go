@@ -144,11 +144,10 @@ func TestCheckRepeatingRouteIds(t *testing.T) {
 
 func TestCheckEmptyBackend(t *testing.T) {
 	const name = "testFile"
-	expectedError := errors.New("route empty has empty backend")
 
 	err := withFile(name, `foo: Method("POST") -> "https://www.example1.org";empty: Method("POST") -> "";`, func(_ *os.File) {
 		err := checkCmd(cmdArgs{in: &medium{typ: file, path: name}})
-		if err == nil || !errors.Is(err, expectedError) {
+		if err == nil || err.Error() != "route has empty backend: empty" {
 			t.Error("Expected an error for empty backend")
 		}
 	})
