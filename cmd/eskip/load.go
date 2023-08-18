@@ -90,6 +90,16 @@ func checkRepeatedRouteIds(routes []*eskip.Route) error {
 	return nil
 }
 
+func checkEmptyBackends(routes []*eskip.Route) error {
+	for _, route := range routes {
+		if route.BackendType == eskip.NetworkBackend && route.Backend == "" {
+			return fmt.Errorf("route %s has empty backend", route.Id)
+		}
+	}
+
+	return nil
+}
+
 // load and parse routes, ignore parse errors.
 func loadRoutesUnchecked(in *medium) []*eskip.Route {
 	lr, _ := loadRoutes(in)
@@ -104,23 +114,11 @@ func checkCmd(a cmdArgs) error {
 	}
 
 	err = checkEmptyBackends(routes)
-
 	if err != nil {
 		return err
 	}
 
 	return checkRepeatedRouteIds(routes)
-}
-
-func checkEmptyBackends(routes []*eskip.Route) error {
-
-	for _, route := range routes {
-		if route.BackendType == eskip.NetworkBackend && route.Backend == "" {
-			return errors.New("Route has empty backend: " + route.Id)
-		}
-	}
-
-	return nil
 }
 
 // command executed for print.
