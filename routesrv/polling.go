@@ -63,12 +63,6 @@ type poller struct {
 func (p *poller) poll(wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	var (
-		routesCount, routesBytes int
-		initialized              bool
-		msg                      string
-	)
-
 	log.WithField("timeout", p.timeout).Info(LogPollingStarted)
 	ticker := time.NewTicker(p.timeout)
 	defer ticker.Stop()
@@ -81,7 +75,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 
 		routes = p.process(routes)
 
-		routesCount = len(routes)
+		routesCount := len(routes)
 
 		switch {
 		case err != nil:
@@ -98,19 +92,20 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			span.SetTag("error", true)
 			span.LogKV(
 				"event", "error",
-				"message", msg,
+				"message", LogRoutesEmpty,
 			)
 		case routesCount > 0:
-			routesBytes, initialized = p.b.formatAndSet(routes)
+			routesBytes, initialized, updated := p.b.formatAndSet(routes)
 			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes})
 			if initialized {
 				logger.Info(LogRoutesInitialized)
 				span.SetTag("routes.initialized", true)
 				routesInitialized.SetToCurrentTime()
-			} else {
-				logger.Info(LogRoutesUpdated)
 			}
-			routesUpdated.SetToCurrentTime()
+			if updated {
+				logger.Info(LogRoutesUpdated)
+				routesUpdated.SetToCurrentTime()
+			}
 			span.SetTag("routes.count", routesCount)
 			span.SetTag("routes.bytes", routesBytes)
 		}
