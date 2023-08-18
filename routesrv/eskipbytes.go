@@ -30,26 +30,27 @@ type eskipBytes struct {
 }
 
 // formatAndSet takes a slice of routes and stores them eskip-formatted
-// in a synchronized way. It returns a number of stored bytes and a boolean,
-// being true, when the stored bytes were set for the first time.
-func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (int, bool) {
+// in a synchronized way. It returns the length of the stored data, and
+// flags signaling whether the data was initialized and updated.
+func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, initialized bool, updated bool) {
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
+	data := buf.Bytes()
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if updated := buf.Bytes(); !bytes.Equal(e.data, updated) {
-		e.lastModified = time.Now()
-		e.data = updated
-		h := sha256.New()
-		h.Write(e.data)
-		e.etag = fmt.Sprintf(`"%x"`, h.Sum(nil))
-	}
-	oldInitialized := e.initialized
-	e.initialized = true
-	e.count = len(routes)
 
-	return len(e.data), !oldInitialized
+	updated = !bytes.Equal(e.data, data)
+	if updated {
+		e.lastModified = time.Now()
+		e.data = data
+		e.etag = fmt.Sprintf(`"%x"`, sha256.Sum256(e.data))
+		e.count = len(routes)
+	}
+	initialized = !e.initialized
+	e.initialized = true
+
+	return len(e.data), initialized, updated
 }
 
 func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -147,8 +147,8 @@ func wantHTTPCode(t *testing.T, w *httptest.ResponseRecorder, want int) {
 }
 
 const (
-	pollInterval = 3 * time.Second
-	waitTimeout  = 5 * time.Second
+	pollInterval = 100 * time.Millisecond
+	waitTimeout  = 1 * time.Second
 )
 
 var tl *loggingtest.Logger
@@ -303,7 +303,7 @@ func TestRoutesAreUpdated(t *testing.T) {
 	w1 := getRoutes(rs)
 
 	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
-	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout*2); err != nil {
+	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout); err != nil {
 		t.Error("routes not updated")
 	}
 	w2 := getRoutes(rs)
@@ -459,7 +459,7 @@ func TestESkipBytesHandlerWithStaleEtag(t *testing.T) {
 
 	// update the routes, which also updates e.etag
 	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
-	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout*2); err != nil {
+	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout); err != nil {
 		t.Error("routes not updated")
 	}
 
@@ -512,9 +512,13 @@ func TestESkipBytesHandlerWithOldLastModified(t *testing.T) {
 	w1 := getRoutes(rs)
 	lastModified := w1.Header().Get("Last-Modified")
 	header := map[string]string{"If-Modified-Since": lastModified}
+
+	// Last-Modified has a second precision so we need to wait a bit for it to change
+	time.Sleep(2 * time.Second)
+
 	// update the routes, which also updated the e.lastModified
 	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
-	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout*2); err != nil {
+	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout); err != nil {
 		t.Error("routes not updated")
 	}
 
