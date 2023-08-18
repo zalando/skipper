@@ -1159,7 +1159,11 @@ func (o *Options) tracerInstance() (ot.Tracer, error) {
 	} else {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
-		return tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+		tracer, _ := tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+		if tracer == nil {
+			return ot.NoopTracer{}, nil
+		}
+		return tracer, nil
 	}
 }
 

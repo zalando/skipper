@@ -118,13 +118,21 @@ func TestOptionsTracerInstanceOverridesOpenTracing(t *testing.T) {
 
 	tr, err := o.tracerInstance()
 	assert.NoError(t, err)
-	assert.Same(t, tr, tracer)
+	assert.Same(t, tracer, tr)
 }
 
 func TestOptionsTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t *testing.T) {
 	o := Options{
 		OpenTracing: []string{"noop"},
 	}
+
+	tr, err := o.tracerInstance()
+	assert.NoError(t, err)
+	assert.NotNil(t, tr)
+}
+
+func TestOptionsDefaultTracer(t *testing.T) {
+	o := Options{}
 
 	tr, err := o.tracerInstance()
 	assert.NoError(t, err)
