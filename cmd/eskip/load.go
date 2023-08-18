@@ -103,7 +103,24 @@ func checkCmd(a cmdArgs) error {
 		return err
 	}
 
+	err = checkEmptyBackends(routes)
+
+	if err != nil {
+		return err
+	}
+
 	return checkRepeatedRouteIds(routes)
+}
+
+func checkEmptyBackends(routes []*eskip.Route) error {
+
+	for _, route := range routes {
+		if route.BackendType == eskip.NetworkBackend && route.Backend == "" {
+			return errors.New("Route has empty backend: " + route.Id)
+		}
+	}
+
+	return nil
 }
 
 // command executed for print.
