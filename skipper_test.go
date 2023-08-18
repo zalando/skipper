@@ -544,3 +544,32 @@ func TestDataClients(t *testing.T) {
 
 	sigs <- syscall.SIGTERM
 }
+
+func TestTracerInstanceTakesPrecedenceOverTracingOptions(t *testing.T) {
+	tracer := &tracingtest.Tracer{}
+	// run skipper proxy that we want to test
+	o := Options{
+		Address:      ":8090",
+		InlineRoutes: `healthz: Path("/healthz") -> status(200) -> inlineContent("OK") -> <shunt>;`,
+		Tracer:       tracer,
+		OpenTracing:  []string{"noop"},
+	}
+
+	sigs := make(chan os.Signal, 1)
+	go run(o, sigs, nil)
+
+	for i := 0; i < 10; i++ {
+		t.Logf("Waiting for proxy being ready")
+
+		rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
+		if rsp != nil && rsp.StatusCode == 200 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	span, _ := tracer.FindSpan("ingress")
+	assert.NotNil(t, span)
+
+	sigs <- syscall.SIGTERM
+}

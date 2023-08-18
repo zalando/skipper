@@ -667,6 +667,10 @@ type Options struct {
 	// for a route when it's available (e.g. for RouteGroups)
 	OpenTracingBackendNameTag bool
 
+	// Tracer allows pre-created tracer to be passed on to skipper. Providing the tracer
+	// overrides options provided under OpenTracing property.
+	Tracer ot.Tracer
+
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
 	// PluginDirs defines the directories to load plugins from
@@ -1468,20 +1472,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	var tracer ot.Tracer
-	if len(o.OpenTracing) > 0 {
-		tracer, err = tracing.InitTracer(o.OpenTracing)
-		if err != nil {
-			return err
-		}
-	} else {
-		// always have a tracer available, so filter authors can rely on the
-		// existence of a tracer
-		tracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	tracer, err := initializeTracer(o)
+	if err != nil {
+		return err
 	}
 
 	// tee filters override if we have a tracer
-	if len(o.OpenTracing) > 0 {
+	if tracer != nil {
 		o.CustomFilters = append(o.CustomFilters,
 			// tee()
 			teefilters.WithOptions(teefilters.Options{
@@ -2026,6 +2023,20 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	log.Info("Dataclients are updated once, first load complete")
 
 	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
+}
+
+func initializeTracer(o Options) (ot.Tracer, error) {
+	if o.Tracer != nil {
+		return o.Tracer, nil
+	}
+
+	if len(o.OpenTracing) > 0 {
+		return tracing.InitTracer(o.OpenTracing)
+	} else {
+		// always have a tracer available, so filter authors can rely on the
+		// existence of a tracer
+		return tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	}
 }
 
 // Run skipper.
