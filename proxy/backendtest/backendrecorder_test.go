@@ -16,8 +16,10 @@ func TestServerShouldCloseWhenAllRequestsAreFulfilled(t *testing.T) {
 			resp, err := http.Get(recorder.GetURL() + "/" + strconv.Itoa(counter))
 			if err != nil {
 				t.Error(err)
+				return
 			}
-			_, _ = io.ReadAll(resp.Body)
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 		}(i)
 	}
 	recorder.Done()
