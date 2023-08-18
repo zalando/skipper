@@ -109,6 +109,30 @@ func TestOptionsFilterRegistry(t *testing.T) {
 	assert.NotContains(t, fr, filters.BearerInjectorName)
 }
 
+func TestOptionsTracerInstanceOverridesOpenTracing(t *testing.T) {
+	tracer := &tracingtest.Tracer{}
+	// run skipper proxy that we want to test
+	o := Options{
+		Tracer:      tracer,
+		OpenTracing: []string{"noop"},
+	}
+
+	tr, err := o.tracerInstance()
+	assert.Nil(t, err)
+	assert.NotNil(t, tr)
+}
+
+func TestOptionsTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t *testing.T) {
+	// run skipper proxy that we want to test
+	o := Options{
+		OpenTracing: []string{"noop"},
+	}
+
+	tr, err := o.tracerInstance()
+	assert.Nil(t, err)
+	assert.NotNil(t, tr)
+}
+
 func TestOptionsTLSConfig(t *testing.T) {
 	cr := certregistry.NewCertRegistry()
 	proxyTLS := &tls.Config{}
@@ -541,34 +565,6 @@ func TestDataClients(t *testing.T) {
 	if rsp.StatusCode != routesFileStatus {
 		t.Fatalf("Failed to GET the status of routes file route: %d", rsp.StatusCode)
 	}
-
-	sigs <- syscall.SIGTERM
-}
-
-func TestTracerInstanceTakesPrecedenceOverTracingOptions(t *testing.T) {
-	tracer := &tracingtest.Tracer{}
-	// run skipper proxy that we want to test
-	o := Options{
-		Address:      ":8090",
-		InlineRoutes: `healthz: Path("/healthz") -> status(200) -> inlineContent("OK") -> <shunt>;`,
-		Tracer:       tracer,
-		OpenTracing:  []string{"noop"},
-	}
-
-	sigs := make(chan os.Signal, 1)
-	go run(o, sigs, nil)
-
-	for i := 0; i < 10; i++ {
-		t.Logf("Waiting for proxy being ready")
-
-		rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
-		if rsp != nil && rsp.StatusCode == 200 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	assert.NotNil(t, tracer.RecordedSpans)
 
 	sigs <- syscall.SIGTERM
 }

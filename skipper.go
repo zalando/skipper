@@ -1149,6 +1149,20 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	return config, nil
 }
 
+func (o *Options) tracerInstance() (ot.Tracer, error) {
+	if o.Tracer != nil {
+		return o.Tracer, nil
+	}
+
+	if len(o.OpenTracing) > 0 {
+		return tracing.InitTracer(o.OpenTracing)
+	} else {
+		// always have a tracer available, so filter authors can rely on the
+		// existence of a tracer
+		return tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	}
+}
+
 func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, error) {
 
 	if !o.EnableTCPQueue {
@@ -1472,26 +1486,24 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	tracer, err := initializeTracer(o)
+	tracer, err := o.tracerInstance()
 	if err != nil {
 		return err
 	}
 
-	// tee filters override if we have a tracer
-	if tracer != nil {
-		o.CustomFilters = append(o.CustomFilters,
-			// tee()
-			teefilters.WithOptions(teefilters.Options{
-				Tracer:   tracer,
-				NoFollow: false,
-			}),
-			// teenf()
-			teefilters.WithOptions(teefilters.Options{
-				NoFollow: true,
-				Tracer:   tracer,
-			}),
-		)
-	}
+	// tee filters override with initialized tracer
+	o.CustomFilters = append(o.CustomFilters,
+		// tee()
+		teefilters.WithOptions(teefilters.Options{
+			Tracer:   tracer,
+			NoFollow: false,
+		}),
+		// teenf()
+		teefilters.WithOptions(teefilters.Options{
+			NoFollow: true,
+			Tracer:   tracer,
+		}),
+	)
 
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
@@ -2023,20 +2035,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	log.Info("Dataclients are updated once, first load complete")
 
 	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
-}
-
-func initializeTracer(o Options) (ot.Tracer, error) {
-	if o.Tracer != nil {
-		return o.Tracer, nil
-	}
-
-	if len(o.OpenTracing) > 0 {
-		return tracing.InitTracer(o.OpenTracing)
-	} else {
-		// always have a tracer available, so filter authors can rely on the
-		// existence of a tracer
-		return tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-	}
 }
 
 // Run skipper.
