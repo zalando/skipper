@@ -34,7 +34,8 @@ var invalidRouteExpression = errors.New("one or more invalid route expressions")
 // parse errors if any.
 func mapRouteInfo(allInfo []*eskip.RouteInfo) loadResult {
 	lr := loadResult{make([]*eskip.Route, len(allInfo)), make(map[string]error)}
-	for i, info := range allInfo {
+	for i := range allInfo {
+		info := allInfo[i]
 		lr.routes[i] = &info.Route
 		if info.ParseError != nil {
 			lr.parseErrors[info.Id] = info.ParseError
