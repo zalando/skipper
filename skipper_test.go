@@ -111,7 +111,6 @@ func TestOptionsFilterRegistry(t *testing.T) {
 
 func TestOptionsTracerInstanceOverridesOpenTracing(t *testing.T) {
 	tracer := &tracingtest.Tracer{}
-	// run skipper proxy that we want to test
 	o := Options{
 		Tracer:      tracer,
 		OpenTracing: []string{"noop"},
@@ -119,11 +118,10 @@ func TestOptionsTracerInstanceOverridesOpenTracing(t *testing.T) {
 
 	tr, err := o.tracerInstance()
 	assert.Nil(t, err)
-	assert.NotNil(t, tr)
+	assert.Same(t, tr, tracer)
 }
 
 func TestOptionsTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t *testing.T) {
-	// run skipper proxy that we want to test
 	o := Options{
 		OpenTracing: []string{"noop"},
 	}
