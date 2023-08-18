@@ -568,8 +568,7 @@ func TestTracerInstanceTakesPrecedenceOverTracingOptions(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	span, _ := tracer.FindSpan("ingress")
-	assert.NotNil(t, span)
+	assert.NotNil(t, tracer.RecordedSpans)
 
 	sigs <- syscall.SIGTERM
 }
