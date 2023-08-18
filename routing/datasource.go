@@ -577,7 +577,8 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 				invalidRouteIds[err.ID] = struct{}{}
 			}
 
-			for _, r := range routes {
+			for i := range routes {
+				r := routes[i]
 				if _, found := invalidRouteIds[r.Id]; found {
 					invalidRoutes = append(invalidRoutes, &r.Route)
 				} else {

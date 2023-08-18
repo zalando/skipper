@@ -197,7 +197,8 @@ func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*a
 
 func (s *apiUsageMonitoringSpec) buildUnknownPathInfo(paths []*pathInfo) *pathInfo {
 	var applicationId *string
-	for _, path := range paths {
+	for i := range paths {
+		path := paths[i]
 		if applicationId != nil && *applicationId != path.ApplicationId {
 			return s.unknownPath
 		}

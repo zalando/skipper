@@ -371,7 +371,8 @@ func parseRoutes(data map[string]string) []*eskip.RouteInfo {
 // parsing failed.
 func infoToRoutesLogged(info []*eskip.RouteInfo) []*eskip.Route {
 	var routes []*eskip.Route
-	for _, ri := range info {
+	for i := range info {
+		ri := info[i]
 		if ri.ParseError == nil {
 			routes = append(routes, &ri.Route)
 		} else {
