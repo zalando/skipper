@@ -1159,9 +1159,12 @@ func (o *Options) tracerInstance() (ot.Tracer, error) {
 	} else {
 		// always have a tracer available, so filter authors can rely on the
 		// existence of a tracer
-		tracer, _ := tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-		if tracer == nil {
-			return ot.NoopTracer{}, nil
+		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+		if err != nil {
+			return nil, err
+		} else if tracer == nil {
+			// LoadTracingPlugin unfortunately may return nil tracer
+			return nil, fmt.Errorf("failed to load tracing plugin from %v", o.PluginDirs)
 		}
 		return tracer, nil
 	}

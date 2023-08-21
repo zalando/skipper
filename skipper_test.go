@@ -131,12 +131,12 @@ func TestOptionsTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t *testing.T
 	assert.NotNil(t, tr)
 }
 
-func TestOptionsDefaultTracer(t *testing.T) {
+func TestOptionsTracerInstanceReturnsErrorWhenNoTracerConfigIsSpecified(t *testing.T) {
 	o := Options{}
 
 	tr, err := o.tracerInstance()
-	assert.NoError(t, err)
-	assert.NotNil(t, tr)
+	assert.Error(t, err)
+	assert.Nil(t, tr)
 }
 
 func TestOptionsTLSConfig(t *testing.T) {
