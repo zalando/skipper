@@ -163,6 +163,8 @@ func TestMain(m *testing.M) {
 func TestNotInitializedRoutesAreNotServed(t *testing.T) {
 	defer tl.Reset()
 	ks, _ := newKubeServer(t)
+	defer ks.Close()
+
 	rs := newRouteServer(t, ks)
 
 	w := getRoutes(rs)
@@ -513,8 +515,9 @@ func TestESkipBytesHandlerWithOldLastModified(t *testing.T) {
 	lastModified := w1.Header().Get("Last-Modified")
 	header := map[string]string{"If-Modified-Since": lastModified}
 
-	// Last-Modified has a second precision so we need to wait a bit for it to change
-	time.Sleep(2 * time.Second)
+	// Last-Modified has a second precision so we need to wait a bit for it to change.
+	// Move clock forward instead of using time.Sleep that makes test flaky.
+	routesrv.SetNow(rs, func() time.Time { return time.Now().Add(2 * time.Second) })
 
 	// update the routes, which also updated the e.lastModified
 	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))

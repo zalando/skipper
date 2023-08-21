@@ -42,7 +42,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		return nil, err
 	}
 
-	b := &eskipBytes{tracer: tracer}
+	b := &eskipBytes{tracer: tracer, now: time.Now}
 	bs := &eskipBytesStatus{b: b}
 	handler := http.NewServeMux()
 	handler.Handle("/health", bs)
