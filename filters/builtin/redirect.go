@@ -154,16 +154,26 @@ func getLocation(ctx filters.FilterContext, location *url.URL, typ redirectType)
 	return u.String()
 }
 
-func redirectWithType(ctx filters.FilterContext, code int, location *url.URL, typ redirectType) {
-	u := getLocation(ctx, location, typ)
+func redirectWithType(ctx filters.FilterContext, code int, location *url.URL, typ redirectType, headers *map[string]string) {
+
+	var headersResponse http.Header
+	if headers != nil {
+		headersResponse = make(http.Header)
+		for k, v := range *headers {
+			headersResponse.Set(k, v)
+		}
+	}
+	headersResponse.Set("Location", getLocation(ctx, location, typ))
+
 	ctx.Serve(&http.Response{
 		StatusCode: code,
-		Header:     http.Header{"Location": []string{u}}})
+		Header:     headersResponse,
+	})
 }
 
 // Redirect implements the redirect logic as a standalone function.
 func Redirect(ctx filters.FilterContext, code int, location *url.URL) {
-	redirectWithType(ctx, code, location, redTo)
+	redirectWithType(ctx, code, location, redTo, nil)
 }
 
 func (spec *redirect) Request(ctx filters.FilterContext) {
@@ -172,7 +182,7 @@ func (spec *redirect) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	redirectWithType(ctx, spec.code, spec.location, spec.typ)
+	redirectWithType(ctx, spec.code, spec.location, spec.typ, nil)
 }
 
 // Sets the status code and the location header of the response. Marks the
