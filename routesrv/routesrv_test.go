@@ -46,9 +46,8 @@ func newKubeAPI(t *testing.T, specs ...io.Reader) http.Handler {
 	t.Helper()
 	api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, specs...)
 	if err != nil {
-		t.Errorf("cannot initialize kubernetes api: %s", err)
+		t.Fatalf("cannot initialize kubernetes api: %s", err)
 	}
-
 	return api
 }
 
@@ -64,7 +63,6 @@ func loadKubeYAML(t *testing.T, path string) io.Reader {
 	if err != nil {
 		t.Fatalf("failed to open kubernetes resources fixture %s: %v", path, err)
 	}
-
 	return bytes.NewBuffer(y)
 }
 
@@ -79,9 +77,8 @@ func newRouteServerWithOptions(t *testing.T, o skipper.Options) *routesrv.RouteS
 	t.Helper()
 	rs, err := routesrv.New(o)
 	if err != nil {
-		t.Errorf("cannot initialize server: %s", err)
+		t.Fatalf("cannot initialize server: %s", err)
 	}
-
 	return rs
 }
 
@@ -140,6 +137,7 @@ func getRoutesWithRequestHeadersSetting(rs *routesrv.RouteServer, header map[str
 }
 
 func wantHTTPCode(t *testing.T, w *httptest.ResponseRecorder, want int) {
+	t.Helper()
 	got := w.Code
 	if got != want {
 		t.Errorf("wrong http status; %d != %d", got, want)
@@ -183,6 +181,8 @@ func TestEmptyRoutesAreNotServed(t *testing.T) {
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesEmpty, waitTimeout); err != nil {
 		t.Error("empty routes not received")
 	}
@@ -202,8 +202,10 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w := getRoutes(rs)
 
@@ -249,8 +251,10 @@ func TestFetchedIngressRoutesAreServedInEskipFormat(t *testing.T) {
 	})
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Fatal("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w := getRoutes(rs)
 
@@ -273,15 +277,17 @@ func TestLastRoutesAreServedDespiteSourceFailure(t *testing.T) {
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w1 := getRoutes(rs)
 	wantHTTPCode(t, w1, http.StatusOK)
 
 	ks.Close()
 	if err := tl.WaitFor(routesrv.LogRoutesFetchingFailed, waitTimeout); err != nil {
-		t.Error("source failure not recognized")
+		t.Fatalf("source failure not recognized: %v", err)
 	}
 	w2 := getRoutes(rs)
 
@@ -299,14 +305,16 @@ func TestRoutesAreUpdated(t *testing.T) {
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w1 := getRoutes(rs)
 
 	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
 	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout); err != nil {
-		t.Error("routes not updated")
+		t.Fatalf("source failure not recognized: %v", err)
 	}
 	w2 := getRoutes(rs)
 
@@ -340,8 +348,10 @@ func TestRoutesWithDefaultFilters(t *testing.T) {
 	})
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w := getRoutes(rs)
 
@@ -369,8 +379,10 @@ func TestRoutesWithOAuth2Callback(t *testing.T) {
 	})
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w := getRoutes(rs)
 
@@ -403,8 +415,10 @@ func TestRoutesWithEastWest(t *testing.T) {
 	})
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w := getRoutes(rs)
 
@@ -427,8 +441,10 @@ func TestESkipBytesHandlerWithCorrectEtag(t *testing.T) {
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Fatal("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w1 := getRoutes(rs)
 
@@ -452,8 +468,10 @@ func TestESkipBytesHandlerWithStaleEtag(t *testing.T) {
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Fatal("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w1 := getRoutes(rs)
 	etag := w1.Header().Get("Etag")
@@ -462,7 +480,7 @@ func TestESkipBytesHandlerWithStaleEtag(t *testing.T) {
 	// update the routes, which also updates e.etag
 	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
 	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout); err != nil {
-		t.Error("routes not updated")
+		t.Fatalf("routes not updated: %v", err)
 	}
 
 	w2 := getRoutesWithRequestHeadersSetting(rs, header)
@@ -483,8 +501,10 @@ func TestESkipBytesHandlerWithLastModified(t *testing.T) {
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Fatal("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w1 := getRoutes(rs)
 
@@ -508,8 +528,10 @@ func TestESkipBytesHandlerWithOldLastModified(t *testing.T) {
 	rs := newRouteServer(t, ks)
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Fatal("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w1 := getRoutes(rs)
 	lastModified := w1.Header().Get("Last-Modified")
@@ -522,7 +544,7 @@ func TestESkipBytesHandlerWithOldLastModified(t *testing.T) {
 	// update the routes, which also updated the e.lastModified
 	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
 	if err := tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout); err != nil {
-		t.Error("routes not updated")
+		t.Fatalf("routes not updated: %v", err)
 	}
 
 	w2 := getRoutesWithRequestHeadersSetting(rs, header)
@@ -546,8 +568,10 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 	})
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Fatal("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	w1 := headRoutes(rs)
 	if n := w1.Body.Len(); n != 0 {
@@ -579,8 +603,10 @@ func TestRoutesWithEditRoute(t *testing.T) {
 	})
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	responseRecorder := getRoutes(rs)
 
@@ -609,8 +635,10 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 	})
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	responseRecorder := getRoutes(rs)
 
@@ -637,8 +665,10 @@ func TestRoutesWithExplicitLBAlgorithm(t *testing.T) {
 	})
 
 	rs.StartUpdates()
+	defer rs.StopUpdates()
+
 	if err := tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout); err != nil {
-		t.Error("routes not initialized")
+		t.Fatalf("routes not initialized: %v", err)
 	}
 	responseRecorder := getRoutes(rs)
 
