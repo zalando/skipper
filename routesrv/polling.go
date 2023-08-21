@@ -104,6 +104,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			}
 			if updated {
 				logger.Info(LogRoutesUpdated)
+				span.SetTag("routes.updated", true)
 				routesUpdated.SetToCurrentTime()
 			}
 			span.SetTag("routes.count", routesCount)

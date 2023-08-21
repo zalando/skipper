@@ -27,6 +27,7 @@ type eskipBytes struct {
 	mu           sync.RWMutex
 
 	tracer ot.Tracer
+	now    func() time.Time
 }
 
 // formatAndSet takes a slice of routes and stores them eskip-formatted
@@ -42,7 +43,7 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, initialized boo
 
 	updated = !bytes.Equal(e.data, data)
 	if updated {
-		e.lastModified = time.Now()
+		e.lastModified = e.now()
 		e.data = data
 		e.etag = fmt.Sprintf(`"%x"`, sha256.Sum256(e.data))
 		e.count = len(routes)
