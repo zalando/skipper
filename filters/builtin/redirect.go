@@ -30,6 +30,12 @@ const (
 	redToLower
 )
 
+var sensitiveHeaders = map[string]bool{
+	"Authrorization": true,
+	"Cookie":         true,
+	"Set-Cookie":     true,
+}
+
 // Filter to return
 type redirect struct {
 	typ      redirectType
@@ -160,7 +166,9 @@ func redirectWithType(ctx filters.FilterContext, code int, location *url.URL, ty
 	if headers != nil {
 		headersResponse = make(http.Header)
 		for k, v := range *headers {
-			headersResponse.Set(k, v)
+			if headerIsAllowed(k) {
+				headersResponse.Set(k, v)
+			}
 		}
 	}
 	headersResponse.Set("Location", getLocation(ctx, location, typ))
@@ -197,4 +205,8 @@ func (spec *redirect) Response(ctx filters.FilterContext) {
 	w.Header().Set("Location", u)
 	w.WriteHeader(spec.code)
 	ctx.MarkServed()
+}
+
+func headerIsAllowed(header string) bool {
+	return !sensitiveHeaders[header]
 }
