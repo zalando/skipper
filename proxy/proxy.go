@@ -244,6 +244,11 @@ type Params struct {
 	// It allows to add additional logic (for example tracing) by providing a wrapper function
 	// which accepts original skipper http.RoundTripper as an argument and returns a wrapped roundtripper
 	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
+
+	// Registry provides key-value API which uses "host:port" string as a key
+	// and returns some metadata about endpoint. Information about the metadata
+	// returned from the registry could be found in routing.Metrics interface.
+	EndpointRegistry *routing.EndpointRegistry
 }
 
 type (
@@ -323,6 +328,7 @@ type Proxy struct {
 	maxLoops                 int
 	defaultHTTPStatus        int
 	routing                  *routing.Routing
+	registry                 *routing.EndpointRegistry
 	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
@@ -471,7 +477,7 @@ func setRequestURLForLoadBalancedBackend(u *url.URL, rt *routing.Route, lbctx *r
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHeaders bool) (*http.Request, *routing.LBEndpoint, error) {
+func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHeaders bool, registry *routing.EndpointRegistry) (*http.Request, *routing.LBEndpoint, error) {
 	var endpoint *routing.LBEndpoint
 	r := ctx.request
 	rt := ctx.route
@@ -484,7 +490,7 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 		setRequestURLFromRequest(u, r)
 		setRequestURLForDynamicBackend(u, stateBag)
 	case eskip.LBBackend:
-		endpoint = setRequestURLForLoadBalancedBackend(u, rt, &routing.LBContext{Request: r, Route: rt, Params: stateBag})
+		endpoint = setRequestURLForLoadBalancedBackend(u, rt, &routing.LBContext{Request: r, Route: rt, Params: stateBag, Registry: registry})
 	default:
 		u.Scheme = rt.Scheme
 		u.Host = rt.Host
@@ -696,10 +702,15 @@ func WithParams(p Params) *Proxy {
 		defaultHTTPStatus = p.DefaultHTTPStatus
 	}
 
+	if p.EndpointRegistry == nil {
+		p.EndpointRegistry = routing.NewEndpointRegistry(routing.RegistryOptions{})
+	}
+
 	hostname := os.Getenv("HOSTNAME")
 
 	return &Proxy{
 		routing:                  p.Routing,
+		registry:                 p.EndpointRegistry,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
@@ -817,7 +828,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
-	req, endpoint, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval())
+	req, endpoint, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval(), p.registry)
 	if err != nil {
 		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
 	}
@@ -829,6 +840,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	if endpoint != nil {
 		endpoint.Metrics.IncInflightRequest()
 		defer endpoint.Metrics.DecInflightRequest()
+
+		p.registry.IncInflightRequest(endpoint.Host)
+		defer p.registry.DecInflightRequest(endpoint.Host)
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
@@ -1104,7 +1118,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
-		debugReq, _, err := mapRequest(ctx, ctx.request.Context(), p.flags.HopHeadersRemoval())
+		debugReq, _, err := mapRequest(ctx, ctx.request.Context(), p.flags.HopHeadersRemoval(), p.registry)
 		if err != nil {
 			perr := &proxyError{err: err}
 			p.makeErrorResponse(ctx, perr)

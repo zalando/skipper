@@ -1875,6 +1875,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	defer schedulerRegistry.Close()
 
 	// create a routing engine
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	ro := routing.Options{
 		FilterRegistry:  o.filterRegistry(),
 		MatchingOptions: mo,
@@ -1885,6 +1886,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		SuppressLogs:    o.SuppressRouteUpdateLogs,
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.NewAlgorithmProvider(),
+			endpointRegistry,
 			schedulerRegistry,
 			builtin.NewRouteCreationMetrics(mtr),
 			fadein.NewPostProcessor(),
@@ -1939,6 +1941,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
 		Routing:                    routing,
+		EndpointRegistry:           endpointRegistry,
 		Flags:                      proxyFlags,
 		PriorityRoutes:             o.PriorityRoutes,
 		IdleConnectionsPerHost:     o.IdleConnectionsPerHost,

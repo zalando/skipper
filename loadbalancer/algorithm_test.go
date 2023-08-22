@@ -43,7 +43,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Host != "www.example.org:443" ||
 			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
@@ -70,7 +70,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Host != "www.example.org:443" ||
 			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
@@ -97,7 +97,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Host != "www.example.org:443" ||
 			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
@@ -124,7 +124,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Host != "www.example.org:443" ||
 			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
@@ -151,7 +151,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 		if len(rr[0].LBEndpoints) != 1 ||
 			rr[0].LBEndpoints[0].Scheme != "https" ||
-			rr[0].LBEndpoints[0].Host != "www.example.org" ||
+			rr[0].LBEndpoints[0].Host != "www.example.org:443" ||
 			rr[0].LBEndpoints[0].Metrics == nil {
 			t.Fatal("failed to set the endpoints")
 		}
@@ -258,8 +258,9 @@ func TestApply(t *testing.T) {
 			rt := p.Do([]*routing.Route{r})
 
 			lbctx := &routing.LBContext{
-				Request: req,
-				Route:   rt[0],
+				Request:  req,
+				Route:    rt[0],
+				Registry: routing.NewEndpointRegistry(routing.RegistryOptions{}),
 			}
 
 			h := make(map[string]int)
@@ -314,7 +315,12 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		},
 	}})[0]
 	ch := route.LBAlgorithm.(*consistentHash)
-	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: 1.25}}
+	ctx := &routing.LBContext{
+		Request:  r,
+		Route:    route,
+		Params:   map[string]interface{}{ConsistentHashBalanceFactor: 1.25},
+		Registry: routing.NewEndpointRegistry(routing.RegistryOptions{}),
+	}
 	noLoad := ch.Apply(ctx)
 	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{}})
 
@@ -322,21 +328,21 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		t.Error("When no endpoints are overloaded, the chosen endpoint should be the same as standard consistentHash")
 	}
 	// now we know that noLoad is the endpoint which should be requested for somekey if load is not an issue.
-	addInflightRequests(noLoad, 20)
+	addInflightRequests(ctx.Registry, noLoad, 20)
 	failover1 := ch.Apply(ctx)
 	if failover1 == nonBounded {
 		t.Error("When the selected endpoint is overloaded, the chosen endpoint should be different to standard consistentHash")
 	}
 
 	// now if 2 endpoints are overloaded, the request should go to the final endpoint
-	addInflightRequests(failover1, 20)
+	addInflightRequests(ctx.Registry, failover1, 20)
 	failover2 := ch.Apply(ctx)
 	if failover2 == nonBounded || failover2 == failover1 {
 		t.Error("Only the final endpoint had load below the average * balanceFactor, so it should have been selected.")
 	}
 
 	// now all will have same load, should select the original endpoint again
-	addInflightRequests(failover2, 20)
+	addInflightRequests(ctx.Registry, failover2, 20)
 	allLoaded := ch.Apply(ctx)
 	if allLoaded != nonBounded {
 		t.Error("When all endpoints have the same load, the consistentHash endpoint should be chosen again.")
@@ -386,7 +392,12 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 	}})[0]
 	ch := route.LBAlgorithm.(*consistentHash)
 	balanceFactor := 1.25
-	ctx := &routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor}}
+	ctx := &routing.LBContext{
+		Request:  r,
+		Route:    route,
+		Params:   map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
+		Registry: routing.NewEndpointRegistry(routing.RegistryOptions{}),
+	}
 
 	for i := 0; i < 100; i++ {
 		ep := ch.Apply(ctx)
@@ -399,6 +410,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 			t.Errorf("Expected in-flight requests for each endpoint to be less than %d. In-flight request counts: %d, %d, %d", limit, ifr0, ifr1, ifr2)
 		}
 		ep.Metrics.IncInflightRequest()
+		ctx.Registry.IncInflightRequest(ep.Host)
 	}
 }
 
@@ -417,9 +429,10 @@ func TestConsistentHashKeyDistribution(t *testing.T) {
 	}
 }
 
-func addInflightRequests(endpoint routing.LBEndpoint, count int) {
+func addInflightRequests(registry *routing.EndpointRegistry, endpoint routing.LBEndpoint, count int) {
 	for i := 0; i < count; i++ {
 		endpoint.Metrics.IncInflightRequest()
+		registry.IncInflightRequest(endpoint.Host)
 	}
 }
 
