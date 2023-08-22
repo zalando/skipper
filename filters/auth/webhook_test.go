@@ -116,35 +116,29 @@ func TestWebhook(t *testing.T) {
 
 			reqURL, err := url.Parse(proxy.URL)
 			if err != nil {
-				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-				return
+				t.Fatalf("Failed to parse url %s: %v", proxy.URL, err)
 			}
 
 			req, err := http.NewRequest("GET", reqURL.String(), nil)
 			if err != nil {
-				t.Errorf("failed to create request %v", err)
-				return
+				t.Fatalf("failed to create request %v", err)
 			}
 			req.Header.Set(authHeaderName, authHeaderPrefix+ti.token)
 
-			rsp, err := http.DefaultClient.Do(req)
+			rsp, err := proxy.Client().Do(req)
 			if err != nil {
-				t.Errorf("failed to get response: %v", err)
-				return
+				t.Fatalf("failed to get response: %v", err)
 			}
 			defer rsp.Body.Close()
 
 			buf := make([]byte, 128)
 			var n int
 			if n, err = rsp.Body.Read(buf); err != nil && err != io.EOF {
-				t.Errorf("Could not read response body: %v", err)
-				return
+				t.Fatalf("Could not read response body: %v", err)
 			}
 
-			t.Logf("%d %d", rsp.StatusCode, ti.expected)
 			if rsp.StatusCode != ti.expected {
-				t.Errorf("unexpected status code: %v != %v %d %s", rsp.StatusCode, ti.expected, n, buf)
-				return
+				t.Fatalf("unexpected status code: %v != %v %d %s", rsp.StatusCode, ti.expected, n, buf)
 			}
 
 			// check that the header was passed forward to the backend request, if it should have been
