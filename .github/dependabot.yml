@@ -15,10 +15,6 @@ updates:
       interval: "weekly"
   # Keep Docker dependencies up to date
   - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "docker"
     directory: "/packaging"
     schedule:
       interval: "daily"
