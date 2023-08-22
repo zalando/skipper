@@ -59,9 +59,10 @@ func TestWebhook(t *testing.T) {
 			}))
 			defer backend.Close()
 
+			d := 100 * time.Millisecond
 			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if ti.timeout {
-					time.Sleep(time.Second + time.Millisecond)
+					time.Sleep(2 * d)
 				}
 
 				if r.Method != "GET" {
@@ -91,7 +92,7 @@ func TestWebhook(t *testing.T) {
 			}))
 			defer authServer.Close()
 
-			spec := NewWebhook(time.Second)
+			spec := NewWebhook(d)
 
 			args := []interface{}{
 				"http://" + authServer.Listener.Addr().String(),
@@ -103,8 +104,7 @@ func TestWebhook(t *testing.T) {
 
 			_, err := spec.CreateFilter(args)
 			if err != nil {
-				t.Errorf("error creating filter for %s: %v", ti.msg, err)
-				return
+				t.Fatalf("error creating filter for %s: %v", ti.msg, err)
 			}
 
 			fr := make(filters.Registry)
