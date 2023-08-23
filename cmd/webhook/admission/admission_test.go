@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -211,6 +212,85 @@ func TestIngressAdmitter(t *testing.T) {
 			resp.Body.Close()
 
 			assert.JSONEq(t, expectedResponse, string(rb))
+		})
+	}
+}
+
+func TestMalformedRequests(t *testing.T) {
+	routeGroupHandler := Handler(&RouteGroupAdmitter{})
+	ingressHandler := Handler(&IngressAdmitter{})
+
+	for _, tc := range []struct {
+		name           string
+		method         string
+		contentType    string
+		input          string
+		expectedStatus int
+	}{
+		{
+			name:           "unsupported method",
+			method:         "GET",
+			input:          `{"foo": "bar"}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "unsupported content type",
+			contentType:    "text/plain",
+			input:          "hello world",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "malformed json",
+			input:          "not a json",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "missing review request",
+			input:          `{"foo": "bar"}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "malformed object",
+			input: `
+			  {
+				"request": {
+				  "uid": "req-uid",
+				  "name": "req1",
+				  "namespace": "ns1",
+				  "object": "not an object"
+				}
+			  }
+			`,
+			expectedStatus: http.StatusBadRequest,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			makeRequest := func() *http.Request {
+				method := "POST"
+				if tc.method != "" {
+					method = tc.method
+				}
+
+				req := httptest.NewRequest(method, "http://example.com/foo", strings.NewReader(tc.input))
+				if tc.contentType != "" {
+					req.Header.Set("Content-Type", tc.contentType)
+				} else {
+					req.Header.Set("Content-Type", "application/json")
+				}
+				return req
+			}
+
+			t.Run("route group", func(t *testing.T) {
+				w := httptest.NewRecorder()
+				routeGroupHandler(w, makeRequest())
+				assert.Equal(t, tc.expectedStatus, w.Code)
+			})
+
+			t.Run("ingress", func(t *testing.T) {
+				w := httptest.NewRecorder()
+				ingressHandler(w, makeRequest())
+				assert.Equal(t, tc.expectedStatus, w.Code)
+			})
 		})
 	}
 }

@@ -2,7 +2,6 @@ package admission
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -80,7 +79,7 @@ func Handler(admitter admitter) http.HandlerFunc {
 			return
 		}
 
-		review := admissionReview{}
+		var review admissionReview
 		err = json.Unmarshal(body, &review)
 		if err != nil {
 			log.Errorf("Failed to parse request: %v", err)
@@ -89,15 +88,23 @@ func Handler(admitter admitter) http.HandlerFunc {
 			return
 		}
 
-		operationInfo := fmt.Sprintf(
-			"%s %s %s/%s",
-			review.Request.Operation,
-			review.Request.Kind,
-			review.Request.Namespace,
-			extractName(review.Request),
-		)
+		request := review.Request
+		if request == nil {
+			log.Errorf("Missing review request")
+			w.WriteHeader(http.StatusBadRequest)
+			invalidRequests.WithLabelValues(admitterName).Inc()
+			return
+		}
 
-		gvr := review.Request.Resource
+		log := log.WithFields(log.Fields{
+			"operation": request.Operation,
+			"kind":      request.Kind,
+			"namespace": request.Namespace,
+			"name":      extractName(request),
+			"user":      request.UserInfo.Username,
+		})
+
+		gvr := request.Resource
 		group := gvr.Group
 		if group == "" {
 			group = "zalando.org"
@@ -105,27 +112,32 @@ func Handler(admitter admitter) http.HandlerFunc {
 
 		labelValues := prometheus.Labels{
 			"admitter":     admitterName,
-			"operation":    string(review.Request.Operation),
+			"operation":    request.Operation,
 			"group":        group,
 			"version":      gvr.Version,
 			"resource":     gvr.Resource,
-			"sub_resource": review.Request.SubResource,
+			"sub_resource": request.SubResource,
 		}
 
 		start := time.Now()
-		defer admissionDuration.With(labelValues).
-			Observe(float64(time.Since(start)) / float64(time.Second))
+		defer admissionDuration.With(labelValues).Observe(float64(time.Since(start)) / float64(time.Second))
 
-		admResp, err := admitter.admit(review.Request)
+		admResp, err := admitter.admit(request)
 		if err != nil {
-			log.Errorf("Rejected %s: %v", operationInfo, err)
-			writeResponse(w, errorResponse(review.Request.UID, err))
-			rejectedRequests.With(labelValues).Inc()
+			log.Errorf("Failed to admit request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			invalidRequests.WithLabelValues(admitterName).Inc()
 			return
 		}
 
-		log.Debugf("Allowed %s", operationInfo)
-		approvedRequests.With(labelValues).Inc()
+		if admResp.Allowed {
+			log.Debugf("Allowed")
+			approvedRequests.With(labelValues).Inc()
+		} else {
+			log.Debugf("Rejected")
+			rejectedRequests.With(labelValues).Inc()
+		}
+
 		writeResponse(w, admResp)
 	}
 }
@@ -145,16 +157,6 @@ func writeResponse(writer http.ResponseWriter, response *admissionResponse) {
 	}
 	if _, err := writer.Write(resp); err != nil {
 		log.Errorf("failed to write response: %v", err)
-	}
-}
-
-func errorResponse(uid string, err error) *admissionResponse {
-	return &admissionResponse{
-		Allowed: false,
-		UID:     uid,
-		Result: &status{
-			Message: err.Error(),
-		},
 	}
 }
 

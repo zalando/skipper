@@ -15,16 +15,17 @@ func (iga *IngressAdmitter) name() string {
 }
 
 func (iga *IngressAdmitter) admit(req *admissionRequest) (*admissionResponse, error) {
-
-	ingressItem := definitions.IngressV1Item{}
-	err := json.Unmarshal(req.Object, &ingressItem)
-	if err != nil {
+	var ingressItem definitions.IngressV1Item
+	if err := json.Unmarshal(req.Object, &ingressItem); err != nil {
 		return nil, err
 	}
 
-	err = iga.IngressValidator.Validate(&ingressItem)
-	if err != nil {
-		return nil, err
+	if err := iga.IngressValidator.Validate(&ingressItem); err != nil {
+		return &admissionResponse{
+			UID:     req.UID,
+			Allowed: false,
+			Result:  &status{Message: err.Error()},
+		}, nil
 	}
 
 	return &admissionResponse{
