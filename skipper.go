@@ -667,6 +667,10 @@ type Options struct {
 	// for a route when it's available (e.g. for RouteGroups)
 	OpenTracingBackendNameTag bool
 
+	// OpenTracingTracer allows pre-created tracer to be passed on to skipper. Providing the
+	// tracer instance overrides options provided under OpenTracing property.
+	OpenTracingTracer ot.Tracer
+
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
 	// PluginDirs defines the directories to load plugins from
@@ -1145,6 +1149,27 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	return config, nil
 }
 
+func (o *Options) openTracingTracerInstance() (ot.Tracer, error) {
+	if o.OpenTracingTracer != nil {
+		return o.OpenTracingTracer, nil
+	}
+
+	if len(o.OpenTracing) > 0 {
+		return tracing.InitTracer(o.OpenTracing)
+	} else {
+		// always have a tracer available, so filter authors can rely on the
+		// existence of a tracer
+		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+		if err != nil {
+			return nil, err
+		} else if tracer == nil {
+			// LoadTracingPlugin unfortunately may return nil tracer
+			return nil, fmt.Errorf("failed to load tracing plugin from %v", o.PluginDirs)
+		}
+		return tracer, nil
+	}
+}
+
 func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, error) {
 
 	if !o.EnableTCPQueue {
@@ -1468,33 +1493,24 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	var tracer ot.Tracer
-	if len(o.OpenTracing) > 0 {
-		tracer, err = tracing.InitTracer(o.OpenTracing)
-		if err != nil {
-			return err
-		}
-	} else {
-		// always have a tracer available, so filter authors can rely on the
-		// existence of a tracer
-		tracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+	tracer, err := o.openTracingTracerInstance()
+	if err != nil {
+		return err
 	}
 
-	// tee filters override if we have a tracer
-	if len(o.OpenTracing) > 0 {
-		o.CustomFilters = append(o.CustomFilters,
-			// tee()
-			teefilters.WithOptions(teefilters.Options{
-				Tracer:   tracer,
-				NoFollow: false,
-			}),
-			// teenf()
-			teefilters.WithOptions(teefilters.Options{
-				NoFollow: true,
-				Tracer:   tracer,
-			}),
-		)
-	}
+	// tee filters override with initialized tracer
+	o.CustomFilters = append(o.CustomFilters,
+		// tee()
+		teefilters.WithOptions(teefilters.Options{
+			Tracer:   tracer,
+			NoFollow: false,
+		}),
+		// teenf()
+		teefilters.WithOptions(teefilters.Options{
+			NoFollow: true,
+			Tracer:   tracer,
+		}),
+	)
 
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
