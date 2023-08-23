@@ -109,32 +109,32 @@ func TestOptionsFilterRegistry(t *testing.T) {
 	assert.NotContains(t, fr, filters.BearerInjectorName)
 }
 
-func TestOptionsTracerInstanceOverridesOpenTracing(t *testing.T) {
+func TestOptionsOpenTracingTracerInstanceOverridesOpenTracing(t *testing.T) {
 	tracer := &tracingtest.Tracer{}
 	o := Options{
-		Tracer:      tracer,
-		OpenTracing: []string{"noop"},
+		OpenTracingTracer: tracer,
+		OpenTracing:       []string{"noop"},
 	}
 
-	tr, err := o.tracerInstance()
+	tr, err := o.openTracingTracerInstance()
 	assert.NoError(t, err)
 	assert.Same(t, tracer, tr)
 }
 
-func TestOptionsTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t *testing.T) {
+func TestOptionsOpenTracingTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t *testing.T) {
 	o := Options{
 		OpenTracing: []string{"noop"},
 	}
 
-	tr, err := o.tracerInstance()
+	tr, err := o.openTracingTracerInstance()
 	assert.NoError(t, err)
 	assert.NotNil(t, tr)
 }
 
-func TestOptionsTracerInstanceReturnsErrorWhenNoTracerConfigIsSpecified(t *testing.T) {
+func TestOptionsOpenTracingTracerInstanceReturnsErrorWhenNoTracerConfigIsSpecified(t *testing.T) {
 	o := Options{}
 
-	tr, err := o.tracerInstance()
+	tr, err := o.openTracingTracerInstance()
 	assert.Error(t, err)
 	assert.Nil(t, tr)
 }

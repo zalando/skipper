@@ -667,9 +667,9 @@ type Options struct {
 	// for a route when it's available (e.g. for RouteGroups)
 	OpenTracingBackendNameTag bool
 
-	// Tracer allows pre-created tracer to be passed on to skipper. Providing the tracer
-	// overrides options provided under OpenTracing property.
-	Tracer ot.Tracer
+	// OpenTracingTracer allows pre-created tracer to be passed on to skipper. Providing the
+	// tracer instance overrides options provided under OpenTracing property.
+	OpenTracingTracer ot.Tracer
 
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
@@ -1149,9 +1149,9 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	return config, nil
 }
 
-func (o *Options) tracerInstance() (ot.Tracer, error) {
-	if o.Tracer != nil {
-		return o.Tracer, nil
+func (o *Options) openTracingTracerInstance() (ot.Tracer, error) {
+	if o.OpenTracingTracer != nil {
+		return o.OpenTracingTracer, nil
 	}
 
 	if len(o.OpenTracing) > 0 {
@@ -1493,7 +1493,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	tracer, err := o.tracerInstance()
+	tracer, err := o.openTracingTracerInstance()
 	if err != nil {
 		return err
 	}
