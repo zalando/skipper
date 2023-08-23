@@ -1549,12 +1549,17 @@ func TestRoundtripperRetry(t *testing.T) {
 }
 
 func TestResponseHeaderTimeout(t *testing.T) {
+	const timeout = 10 * time.Millisecond
+
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(5 * time.Microsecond)
+		time.Sleep(2 * timeout)
 	}))
 	defer s.Close()
 
-	p, err := newTestProxyWithParams(fmt.Sprintf(`* -> "%s"`, s.URL), Params{ResponseHeaderTimeout: 1 * time.Microsecond})
+	params := Params{
+		ResponseHeaderTimeout: timeout,
+	}
+	p, err := newTestProxyWithParams(fmt.Sprintf(`* -> "%s"`, s.URL), params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1563,8 +1568,8 @@ func TestResponseHeaderTimeout(t *testing.T) {
 	ps := httptest.NewServer(p.proxy)
 	defer ps.Close()
 
-	// Prevent retry
-	rsp, err := http.Post(ps.URL, "text/plain", strings.NewReader("payload"))
+	// Prevent retry by using POST
+	rsp, err := ps.Client().Post(ps.URL, "text/plain", strings.NewReader("payload"))
 	if err != nil {
 		t.Fatal(err)
 	}
