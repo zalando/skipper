@@ -28,6 +28,17 @@ func (rga *RouteGroupAdmitter) admit(req *admissionRequest) (*admissionResponse,
 		}, nil
 	}
 
+	if rgItem.Metadata.Name == "admission-test" {
+		return &admissionResponse{
+			UID:     req.UID,
+			Allowed: true,
+			Warnings: []string{
+				"This is a test warning1, see https://opensource.zalando.com/skipper/kubernetes/routegroups/",
+				`Argument "foo" is not allowed for filter fooBarBazQux due to whatever, see https://opensource.zalando.com/skipper/kubernetes/routegroups/ for details.`,
+			},
+		}, nil
+	}
+
 	return &admissionResponse{
 		UID:     req.UID,
 		Allowed: true,
