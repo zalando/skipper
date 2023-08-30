@@ -47,10 +47,12 @@ type admissionRequest struct {
 	Object      json.RawMessage      `json:"object,omitempty"`
 }
 
+// See https://pkg.go.dev/k8s.io/api/admission/v1#AdmissionResponse
 type admissionResponse struct {
-	UID     string  `json:"uid"`
-	Allowed bool    `json:"allowed"`
-	Result  *status `json:"status,omitempty"`
+	UID      string   `json:"uid"`
+	Allowed  bool     `json:"allowed"`
+	Result   *status  `json:"status,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type status struct {
