@@ -109,6 +109,12 @@ func TestBackendRatelimitRoundRobin(t *testing.T) {
 }
 
 func TestBackendRatelimitScenarios(t *testing.T) {
+	// Use shared instance for all tests.
+	// If this test flakes because of backend IP reuse between test cases,
+	// implement database cleanup, see https://redis.io/commands/flushdb/.
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
+
 	for _, ti := range []struct {
 		name             string
 		routes           string
@@ -179,9 +185,6 @@ func TestBackendRatelimitScenarios(t *testing.T) {
 		t.Run(ti.name, func(t *testing.T) {
 			filterRegistry := builtin.MakeRegistry()
 			filterRegistry.Register(ratelimitfilters.NewBackendRatelimit())
-
-			redisAddr, done := redistest.NewTestRedis(t)
-			defer done()
 
 			ratelimitRegistry := ratelimit.NewSwarmRegistry(nil, &snet.RedisOptions{Addrs: []string{redisAddr}})
 			defer ratelimitRegistry.Close()
