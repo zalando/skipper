@@ -20,7 +20,7 @@ func TestSlowService(t *testing.T) {
 		service.Close()
 	}()
 
-	doc := fmt.Sprintf(`* -> backendTimeout("10ms") -> "%s"`, service.URL)
+	doc := fmt.Sprintf(`* -> backendTimeout("100ms") -> "%s"`, service.URL)
 	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +47,7 @@ func TestFastService(t *testing.T) {
 	}))
 	defer service.Close()
 
-	doc := fmt.Sprintf(`* -> backendTimeout("10ms") -> "%s"`, service.URL)
+	doc := fmt.Sprintf(`* -> backendTimeout("100ms") -> "%s"`, service.URL)
 	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
 		t.Fatal(err)
@@ -79,13 +79,13 @@ func TestBackendTimeoutInTheMiddleOfServiceResponse(t *testing.T) {
 		f := w.(http.Flusher)
 		f.Flush()
 
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 
 		w.Write([]byte(" Were Here"))
 	}))
 	defer service.Close()
 
-	doc := fmt.Sprintf(`* -> backendTimeout("10ms") -> "%s"`, service.URL)
+	doc := fmt.Sprintf(`* -> backendTimeout("100ms") -> "%s"`, service.URL)
 	tp, err := newTestProxy(doc, FlagsNone)
 	if err != nil {
 		t.Fatal(err)
@@ -149,16 +149,16 @@ func newUnstable(timeout time.Duration) func(r http.RoundTripper) http.RoundTrip
 }
 
 // Retryable request, dial timeout on first attempt, load balanced backend
-// dial timeout (10ms) + service latency (10ms) > backendTimeout("15ms") => Gateway Timeout
+// dial timeout (100ms) + service latency (100ms) > backendTimeout("150ms") => Gateway Timeout
 func TestRetryAndSlowService(t *testing.T) {
 	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}))
 	defer service.Close()
 
-	doc := fmt.Sprintf(`* -> backendTimeout("15ms") -> <"%s", "%s">`, service.URL, service.URL)
+	doc := fmt.Sprintf(`* -> backendTimeout("150ms") -> <"%s", "%s">`, service.URL, service.URL)
 	tp, err := newTestProxyWithParams(doc, Params{
-		CustomHttpRoundTripperWrap: newUnstable(10 * time.Millisecond),
+		CustomHttpRoundTripperWrap: newUnstable(100 * time.Millisecond),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -180,16 +180,16 @@ func TestRetryAndSlowService(t *testing.T) {
 }
 
 // Retryable request, dial timeout on first attempt, load balanced backend
-// dial timeout (10ms) + service latency (10ms) < backendTimeout("25ms") => OK
+// dial timeout (100ms) + service latency (100ms) < backendTimeout("250ms") => OK
 func TestRetryAndFastService(t *testing.T) {
 	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}))
 	defer service.Close()
 
-	doc := fmt.Sprintf(`* -> backendTimeout("25ms") -> <"%s", "%s">`, service.URL, service.URL)
+	doc := fmt.Sprintf(`* -> backendTimeout("250ms") -> <"%s", "%s">`, service.URL, service.URL)
 	tp, err := newTestProxyWithParams(doc, Params{
-		CustomHttpRoundTripperWrap: newUnstable(10 * time.Millisecond),
+		CustomHttpRoundTripperWrap: newUnstable(100 * time.Millisecond),
 	})
 	if err != nil {
 		t.Fatal(err)
