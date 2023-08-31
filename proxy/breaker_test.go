@@ -1,6 +1,3 @@
-//go:build !race
-// +build !race
-
 package proxy_test
 
 import (

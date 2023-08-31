@@ -40,4 +40,4 @@ jobs:
       - run: make check-fmt
       - run: make vet
       - run: make staticcheck
-      - run: make cicheck
+      - run: make shortcheck
