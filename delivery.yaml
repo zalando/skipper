@@ -48,7 +48,7 @@ pipeline:
         IMAGE="${IMAGE_REGISTRY}/teapot/skipper-test:${CDP_BUILD_VERSION}"
         MULTIARCH_IMAGE="${MULTIARCH_REGISTRY}/teapot/skipper-test:${CDP_BUILD_VERSION}"
       fi
-      export IMAGE ARM_IMAGE ARM64_IMAGE MULTIARCH_IMAGE
+      export IMAGE MULTIARCH_IMAGE
 
       make deps cicheck staticcheck gosec
 
