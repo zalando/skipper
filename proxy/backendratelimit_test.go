@@ -1,6 +1,3 @@
-//go:build !race || redis
-// +build !race redis
-
 package proxy_test
 
 import (

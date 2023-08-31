@@ -81,10 +81,6 @@ check: build check-plugins ## run all tests
 shortcheck: build check-plugins fixlimits  ## run all short tests
 	go test -test.short ./...
 
-.PHONY: cicheck
-cicheck: build check-plugins ## run all short and redis tests
-	go test -tags=redis -test.short ./...
-
 .PHONY: check-race
 check-race: build ## run all short tests with race checker
 	go test -race -test.short ./...

@@ -1,6 +1,3 @@
-//go:build !race
-// +build !race
-
 package skipper
 
 import "testing"
