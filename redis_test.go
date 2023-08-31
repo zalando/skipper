@@ -273,10 +273,14 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 
 	successRate := va.Success()
 	t.Logf("Success [0..1]: %0.2f", successRate)
+	t.Logf("Want: %0.2f", float64(sec*1)/float64(sec*rate))
 
 	epsilon := 0.2
 	// sec * 1 because 1 is the number of requests allowed per second via clusterRatelimit("foo", 1, "1s")
-	assert.InEpsilon(t, float64(sec*1)/float64(sec*rate), successRate, epsilon, fmt.Sprintf("Test should have a success rate between %0.2f < %0.2f < %0.2f", successRate-epsilon, successRate, successRate+epsilon))
+	expected := float64(sec*1) / float64(sec*rate)
+	if !assert.InEpsilon(t, expected, successRate, epsilon, fmt.Sprintf("Test should have a success rate between %0.2f < %0.2f < %0.2f", expected-epsilon, successRate, expected+epsilon)) {
+		t.Fatal("FAIL")
+	}
 
 	// reqCount should be between 49 & 51 since we run 10 per second for 5 seconds
 	epsilon = 1

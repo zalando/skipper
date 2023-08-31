@@ -32,24 +32,26 @@ type fixtureSet struct {
 }
 
 type kubeOptionsParser struct {
-	IngressV1                    bool               `yaml:"ingressv1"`
-	EastWest                     bool               `yaml:"eastWest"`
-	EastWestDomain               string             `yaml:"eastWestDomain"`
-	EastWestRangeDomains         []string           `yaml:"eastWestRangeDomains"`
-	EastWestRangePredicates      []*eskip.Predicate `yaml:"eastWestRangePredicatesAppend"`
-	HTTPSRedirect                bool               `yaml:"httpsRedirect"`
-	HTTPSRedirectCode            int                `yaml:"httpsRedirectCode"`
-	BackendNameTracingTag        bool               `yaml:"backendNameTracingTag"`
-	OnlyAllowedExternalNames     bool               `yaml:"onlyAllowedExternalNames"`
-	AllowedExternalNames         []string           `yaml:"allowedExternalNames"`
-	IngressClass                 string             `yaml:"kubernetes-ingress-class"`
-	KubernetesEnableTLS          bool               `yaml:"kubernetes-enable-tls"`
-	IngressesLabels              map[string]string  `yaml:"kubernetes-ingresses-label-selector"`
-	ServicesLabels               map[string]string  `yaml:"kubernetes-services-label-selector"`
-	EndpointsLabels              map[string]string  `yaml:"kubernetes-endpoints-label-selector"`
-	ForceKubernetesService       bool               `yaml:"force-kubernetes-service"`
-	BackendTrafficAlgorithm      string             `yaml:"backend-traffic-algorithm"`
-	DefaultLoadBalancerAlgorithm string             `yaml:"default-lb-algorithm"`
+	IngressV1                      bool               `yaml:"ingressv1"`
+	EastWest                       bool               `yaml:"eastWest"`
+	EastWestDomain                 string             `yaml:"eastWestDomain"`
+	EastWestRangeDomains           []string           `yaml:"eastWestRangeDomains"`
+	EastWestRangePredicates        []*eskip.Predicate `yaml:"eastWestRangePredicatesAppend"`
+	HTTPSRedirect                  bool               `yaml:"httpsRedirect"`
+	HTTPSRedirectCode              int                `yaml:"httpsRedirectCode"`
+	BackendNameTracingTag          bool               `yaml:"backendNameTracingTag"`
+	OnlyAllowedExternalNames       bool               `yaml:"onlyAllowedExternalNames"`
+	AllowedExternalNames           []string           `yaml:"allowedExternalNames"`
+	IngressClass                   string             `yaml:"kubernetes-ingress-class"`
+	KubernetesEnableEndpointSlices bool               `yaml:"enable-kubernetes-endpointslices"`
+	KubernetesEnableTLS            bool               `yaml:"kubernetes-enable-tls"`
+	IngressesLabels                map[string]string  `yaml:"kubernetes-ingresses-label-selector"`
+	ServicesLabels                 map[string]string  `yaml:"kubernetes-services-label-selector"`
+	EndpointsLabels                map[string]string  `yaml:"kubernetes-endpoints-label-selector"`
+	EndpointsliceLabels            map[string]string  `yaml:"kubernetes-endpointslice-label-selector"`
+	ForceKubernetesService         bool               `yaml:"force-kubernetes-service"`
+	BackendTrafficAlgorithm        string             `yaml:"backend-traffic-algorithm"`
+	DefaultLoadBalancerAlgorithm   string             `yaml:"default-lb-algorithm"`
 }
 
 func baseNoExt(n string) string {
@@ -221,6 +223,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			cr = certregistry.NewCertRegistry()
 		}
 
+		o.KubernetesEnableEndpointslices = kop.KubernetesEnableEndpointSlices
 		o.KubernetesEnableEastWest = kop.EastWest
 		o.KubernetesEastWestDomain = kop.EastWestDomain
 		o.KubernetesEastWestRangeDomains = kop.EastWestRangeDomains

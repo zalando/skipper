@@ -1,0 +1,15 @@
+// default backend, target 1:
+kube_namespace1__ingress1______:
+  *
+  -> <roundRobin, "http://42.0.1.1:8080", "http://42.0.1.2:8080", "http://42.0.1.3:8080", "http://42.0.1.4:8080">;
+
+// path rule, target 1:
+kube_namespace1__ingress1__test_example_org___test1__service1:
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
+  && PathRegexp(/^(\/test1)/)
+  -> <roundRobin, "http://42.0.1.1:8080", "http://42.0.1.2:8080", "http://42.0.1.3:8080", "http://42.0.1.4:8080">;
+
+// catch all:
+kube___catchall__test_example_org____:
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
+  -> <shunt>;

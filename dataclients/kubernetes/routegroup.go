@@ -187,6 +187,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	eps := ctx.state.GetEndpointsByTarget(
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		s.Meta.Name,
+		"TCP",
 		protocol,
 		targetPort,
 	)

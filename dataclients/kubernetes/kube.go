@@ -95,6 +95,10 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
+	// KubernetesEnableEndpointslices if set skipper will fetch
+	// endpointslices instead of endpoints to scale more than 1000 pods within a service
+	KubernetesEnableEndpointslices bool
+
 	// *DEPRECATED* KubernetesEnableEastWest if set adds automatically routes
 	// with "%s.%s.skipper.cluster.local" domain pattern
 	KubernetesEnableEastWest bool
@@ -155,6 +159,11 @@ type Options struct {
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
 	// The default value is no labels required.
 	EndpointsLabelSelectors map[string]string
+
+	// EndpointSlicesLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
+	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
+	// The default value is no labels required.
+	EndpointSlicesLabelSelectors map[string]string
 
 	// SecretsLabelSelectors is a map of kubernetes labels to their values that must be present on a resource to be loaded
 	// by the client. Read documentation for IngressLabelSelectors for examples and more details.
@@ -568,7 +577,7 @@ func (c *Client) GetEndpointAddresses(ns, name string) []string {
 	if c.state == nil {
 		return nil
 	}
-	return c.state.GetEndpointsByName(ns, name, "TCP")
+	return c.state.GetEndpointsByName(ns, name, "TCP", "http")
 }
 
 func compareStringList(a, b []string) []string {
