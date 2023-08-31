@@ -1356,7 +1356,7 @@ func getRedisUpdaterFunc(namespace, name string, kdc *kubernetes.Client) func() 
 		a := kdc.GetEndpointAddresses(namespace, name)
 		log.Debugf("Redis updater called and found %d redis endpoints", len(a))
 		for i := 0; i < len(a); i++ {
-			a[i] = strings.TrimPrefix(a[i], "TCP://")
+			a[i] = strings.TrimPrefix(a[i], "http://")
 		}
 		return a, nil
 	}

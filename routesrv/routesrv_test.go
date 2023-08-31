@@ -220,7 +220,27 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 	wantHTTPCode(t, w, http.StatusOK)
 }
 
-func TestRedisIPs(t *testing.T) {
+func TestRedisEndpointSlices(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/redis-endpointslice.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServerWithOptions(t, skipper.Options{
+		SourcePollTimeout:               pollInterval,
+		KubernetesURL:                   ks.URL,
+		KubernetesRedisServiceNamespace: "namespace1",
+		KubernetesRedisServiceName:      "service1",
+	})
+
+	w := getRedisURLs(rs)
+
+	wantHTTPCode(t, w, http.StatusOK)
+
+	want := parseRedisIP(t, "testdata/redis-ip.json")
+	assert.JSONEq(t, string(want), w.Body.String())
+}
+
+func TestRedisEndpoints(t *testing.T) {
 	defer tl.Reset()
 	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/redis.yaml"))
 	ks.Start()

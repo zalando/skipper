@@ -23,11 +23,12 @@ type TestAPIOptions struct {
 }
 
 type namespace struct {
-	services    []byte
-	ingresses   []byte
-	routeGroups []byte
-	endpoints   []byte
-	secrets     []byte
+	services       []byte
+	ingresses      []byte
+	routeGroups    []byte
+	endpoints      []byte
+	endpointslices []byte
+	secrets        []byte
 }
 
 type api struct {
@@ -43,7 +44,7 @@ func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
 		pathRx: regexp.MustCompile(
-			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpoints|secrets)",
+			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpointslices|endpoints|secrets)",
 		),
 	}
 
@@ -191,6 +192,8 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b = filterBySelectors(ns.routeGroups, parseSelectors(r))
 	case "endpoints":
 		b = filterBySelectors(ns.endpoints, parseSelectors(r))
+	case "endpointslices":
+		b = filterBySelectors(ns.endpointslices, parseSelectors(r))
 	case "secrets":
 		b = filterBySelectors(ns.secrets, parseSelectors(r))
 	default:
@@ -278,6 +281,10 @@ func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
 	}
 
 	if err = itemsJSON(&ns.endpoints, kinds["Endpoints"]); err != nil {
+		return
+	}
+
+	if err = itemsJSON(&ns.endpointslices, kinds["EndpointSlice"]); err != nil {
 		return
 	}
 

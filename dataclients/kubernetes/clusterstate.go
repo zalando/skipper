@@ -16,6 +16,7 @@ type clusterState struct {
 	routeGroups     []*definitions.RouteGroupItem
 	services        map[definitions.ResourceID]*service
 	endpoints       map[definitions.ResourceID]*endpoint
+	endpointSlices  map[definitions.ResourceID]*skipperEndpointSlice
 	secrets         map[definitions.ResourceID]*secret
 	cachedEndpoints map[endpointID][]string
 }
@@ -47,6 +48,7 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 	return s, nil
 }
 
+// GetEndpointsByService returns the skipper endpoints for kubernetes endpoints or endpointslices.
 func (state *clusterState) GetEndpointsByService(namespace, name, protocol string, servicePort *servicePort) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
@@ -60,18 +62,27 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 		return cached
 	}
 
-	ep, ok := state.endpoints[epID.ResourceID]
-	if !ok {
-		return nil
+	var targets []string
+	eps, ok := state.endpointSlices[epID.ResourceID]
+	if ok {
+		targets = eps.targetsByServicePort("TCP", protocol, servicePort)
+	} else {
+		log.Warnf("GetEndpointsByService %s/%s - fallback to *deprecated* endpoint: %s/%s", namespace, name, epID.ResourceID.Namespace, epID.ResourceID.Name)
+		ep, ok := state.endpoints[epID.ResourceID]
+		if !ok {
+			return nil
+		}
+		targets = ep.targetsByServicePort(protocol, servicePort)
 	}
 
-	targets := ep.targetsByServicePort(protocol, servicePort)
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets
 }
 
-func (state *clusterState) GetEndpointsByName(namespace, name, protocol string) []string {
+// GetEndpointsByName returns the skipper endpoints for kubernetes endpoints or endpointslices.
+// This function works only correctly for endpointslices (and likely endpoints) with one port with the same protocol ("TCP", "UDP").
+func (state *clusterState) GetEndpointsByName(namespace, name, protocol, backendProtocol string) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -82,19 +93,27 @@ func (state *clusterState) GetEndpointsByName(namespace, name, protocol string) 
 		return cached
 	}
 
-	ep, ok := state.endpoints[epID.ResourceID]
-	if !ok {
-		return nil
+	var targets []string
+	eps, ok := state.endpointSlices[epID.ResourceID]
+	if ok {
+		targets = eps.targets(protocol, backendProtocol)
+	} else {
+		log.Warnf("GetEndpointsByName - fallback to *deprecated* endpoint: %s/%s", epID.ResourceID.Namespace, epID.ResourceID.Name)
+		ep, ok := state.endpoints[epID.ResourceID]
+		if !ok {
+			return nil
+		}
+		targets = ep.targets(backendProtocol)
 	}
 
-	targets := ep.targets(protocol)
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets
 
 }
 
-func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol string, target *definitions.BackendPort) []string {
+// GetEndpointsByTarget returns the skipper endpoints for kubernetes endpoints or endpointslices.
+func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, backendProtocol string, target *definitions.BackendPort) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -107,12 +126,19 @@ func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol string
 		return cached
 	}
 
-	ep, ok := state.endpoints[epID.ResourceID]
-	if !ok {
-		return nil
+	var targets []string
+	eps, ok := state.endpointSlices[epID.ResourceID]
+	if ok {
+		targets = eps.targetsByServiceTarget(protocol, backendProtocol, target)
+	} else {
+		log.Warnf("GetEndpointsByTarget - fallback to *deprecated* endpoint: %s/%s", epID.ResourceID.Namespace, epID.ResourceID.Name)
+		ep, ok := state.endpoints[epID.ResourceID]
+		if !ok {
+			return nil
+		}
+		targets = ep.targetsByServiceTarget(backendProtocol, target)
 	}
 
-	targets := ep.targetsByServiceTarget(protocol, target)
 	sort.Strings(targets)
 	state.cachedEndpoints[epID] = targets
 	return targets

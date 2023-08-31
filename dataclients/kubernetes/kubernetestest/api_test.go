@@ -64,6 +64,26 @@ subsets:
     port: 7272
     protocol: TCP
 ---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    application: foo
+  name: foo-braj
+  namespace: default
+endpoints:
+- addresses:
+  - 10.0.0.0
+  conditions:
+    ready: true
+    serving: true
+    terminating: false
+  zone: eu-central-1a
+ports:
+- name: main
+  port: 7272
+  protocol: TCP
+---
 `
 
 const testAPISpec2 = `
@@ -116,6 +136,26 @@ subsets:
   - name: main
     port: 7878
     protocol: TCP
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    application: bar
+  name: bar-kaiw
+  namespace: internal
+endpoints:
+- addresses:
+  - 10.0.0.2
+  conditions:
+    ready: true
+    serving: true
+    terminating: false
+  zone: eu-central-1c
+ports:
+- name: main
+  port: 7878
+  protocol: TCP
 ---
 apiVersion: v1
 kind: Secret
@@ -183,8 +223,11 @@ func TestTestAPI(t *testing.T) {
 		}
 
 		resource, ok := items[0].(map[string]interface{})
-		if !ok || resource["kind"] != kind {
-			t.Fatalf("failed to get the right resource: %s", kind)
+		if !ok {
+			t.Fatalf("failed to get the right resource:  %s", kind)
+		}
+		if resource["kind"] != kind {
+			t.Fatalf("failed to get the right resource: %s != %s", resource["kind"], kind)
 		}
 	}
 
@@ -195,35 +238,36 @@ func TestTestAPI(t *testing.T) {
 		if err := get(fmt.Sprintf(kubernetes.ServicesNamespaceFmt, namespace), &s); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, s, 1, "Service")
 
 		var i map[string]interface{}
 		if err := get(fmt.Sprintf(kubernetes.IngressesV1NamespaceFmt, namespace), &i); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, i, 0, "Ingress")
 
 		var r map[string]interface{}
-		if err := get(fmt.Sprintf("/apis/zalando.org/v1/namespaces/%s/routegroups", namespace), &r); err != nil {
+		if err := get(fmt.Sprintf(kubernetes.RouteGroupsNamespaceFmt, namespace), &r); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, r, 1, "RouteGroup")
 
 		var e map[string]interface{}
 		if err := get(fmt.Sprintf(kubernetes.EndpointsNamespaceFmt, namespace), &e); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, e, 1, "Endpoints")
+
+		var eps map[string]interface{}
+		if err := get(fmt.Sprintf(kubernetes.EndpointSlicesNamespaceFmt, namespace), &eps); err != nil {
+			t.Fatal(err)
+		}
+		check(t, eps, 1, "EndpointSlice")
 
 		var sec map[string]interface{}
 		if err := get(fmt.Sprintf(kubernetes.SecretsNamespaceFmt, namespace), &sec); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, sec, 1, "Secret")
 	})
 
@@ -232,35 +276,36 @@ func TestTestAPI(t *testing.T) {
 		if err := get(kubernetes.ServicesClusterURI, &s); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, s, 3, "Service")
 
 		var i map[string]interface{}
 		if err := get(kubernetes.IngressesV1ClusterURI, &i); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, i, 1, "Ingress")
 
 		var r map[string]interface{}
-		if err := get("/apis/zalando.org/v1/routegroups", &r); err != nil {
+		if err := get(kubernetes.RouteGroupsClusterURI, &r); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, r, 2, "RouteGroup")
 
 		var e map[string]interface{}
 		if err := get(kubernetes.EndpointsClusterURI, &e); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, e, 3, "Endpoints")
+
+		var eps map[string]interface{}
+		if err := get(kubernetes.EndpointSlicesClusterURI, &eps); err != nil {
+			t.Fatal(err)
+		}
+		check(t, eps, 3, "EndpointSlice")
 
 		var sec map[string]interface{}
 		if err := get(kubernetes.SecretsClusterURI, &sec); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, sec, 1, "Secret")
 	})
 
@@ -271,35 +316,36 @@ func TestTestAPI(t *testing.T) {
 		if err := get(fmt.Sprintf(kubernetes.ServicesNamespaceFmt, namespace), &s); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, s, 1, "Service")
 
 		var i map[string]interface{}
 		if err := get(fmt.Sprintf(kubernetes.IngressesV1NamespaceFmt, namespace), &i); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, i, 0, "Ingress")
 
 		var r map[string]interface{}
-		if err := get(fmt.Sprintf("/apis/zalando.org/v1/namespaces/%s/routegroups", namespace), &r); err != nil {
+		if err := get(fmt.Sprintf(kubernetes.RouteGroupsNamespaceFmt, namespace), &r); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, r, 1, "RouteGroup")
 
 		var e map[string]interface{}
 		if err := get(fmt.Sprintf(kubernetes.EndpointsNamespaceFmt, namespace), &e); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, e, 1, "Endpoints")
+
+		var eps map[string]interface{}
+		if err := get(fmt.Sprintf(kubernetes.EndpointSlicesNamespaceFmt, namespace), &eps); err != nil {
+			t.Fatal(err)
+		}
+		check(t, eps, 1, "EndpointSlice")
 
 		var sec map[string]interface{}
 		if err := get(fmt.Sprintf(kubernetes.SecretsNamespaceFmt, namespace), &sec); err != nil {
 			t.Fatal(err)
 		}
-
 		check(t, sec, 0, "Secret")
 	})
 }
