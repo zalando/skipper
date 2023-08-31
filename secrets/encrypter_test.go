@@ -126,7 +126,7 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestCipherRefreshing(t *testing.T) {
-	d := 1 * time.Second
+	d := 100 * time.Millisecond
 	sleepD := 4 * d
 	SecSource := &testingSecretSource{secretKey: "abc"}
 	enc := &Encrypter{
@@ -138,7 +138,8 @@ func TestCipherRefreshing(t *testing.T) {
 	time.Sleep(sleepD)
 	enc.Close()
 	<-enc.closedHook
-	assert.True(t, SecSource.getCount >= 3, "secret fetched more than 3 times in %s", sleepD)
+
+	assert.True(t, SecSource.getCount >= 3, "secret fetched less than 3 times in %s", sleepD)
 }
 
 func Test_GetSecret(t *testing.T) {
