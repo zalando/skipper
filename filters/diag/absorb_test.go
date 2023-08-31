@@ -14,12 +14,9 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
-const (
-	bodySize   = 1 << 12
-	logTimeout = 3 * time.Second
-)
-
 func testAbsorb(t *testing.T, silent bool) {
+	const bodySize = 1 << 12
+
 	l := loggingtest.New()
 	defer l.Close()
 	a := withLogger(silent, l)
@@ -34,55 +31,43 @@ func testAbsorb(t *testing.T, silent bool) {
 	)
 	defer p.Close()
 
-	req, err := http.NewRequest(
-		"POST",
-		p.URL,
-		io.LimitReader(
-			rand.New(rand.NewSource(time.Now().UnixNano())),
-			bodySize,
-		),
-	)
+	body := io.LimitReader(rand.New(rand.NewSource(time.Now().UnixNano())), bodySize)
+	req, err := http.NewRequest("POST", p.URL, body)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	req.Header.Set("X-Flow-Id", "foo-bar-baz")
-	rsp, err := (&http.Client{}).Do(req)
+	rsp, err := p.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	defer rsp.Body.Close()
+
 	if rsp.StatusCode != http.StatusOK {
 		t.Fatalf("invalid status code received: %d", rsp.StatusCode)
 	}
 
-	expectLog := func(content string, err error) {
-		if err != nil {
-			t.Fatalf("%s: %v", content, err)
-		}
+	const lastMessage = "testAbsorb finished"
+	l.Info(lastMessage)
+	if err := l.WaitFor(lastMessage, 100*time.Millisecond); err != nil {
+		t.Errorf("Expected %s: %v", lastMessage, err)
 	}
 
-	expectNoLog := func(content string, err error) {
-		if err != loggingtest.ErrWaitTimeout {
-			t.Fatalf("%s: unexpected log entry", content)
+	if silent {
+		if err := l.WaitFor("foo-bar-baz", 100*time.Millisecond); err != loggingtest.ErrWaitTimeout {
+			t.Error("Unexpected log entry")
 		}
-	}
-
-	for _, content := range []string{
-		"received request",
-		"foo-bar-baz",
-		"consumed",
-		fmt.Sprint(bodySize),
-		"request finished",
-	} {
-		err := l.WaitFor(content, logTimeout)
-		if silent {
-			expectNoLog(content, err)
-			continue
+	} else {
+		for _, content := range []string{
+			"received request to be absorbed: foo-bar-baz",
+			fmt.Sprintf("request foo-bar-baz, consumed bytes: %d", bodySize),
+			"request finished: foo-bar-baz",
+		} {
+			if err := l.WaitFor(content, 100*time.Millisecond); err != nil {
+				t.Errorf("Expected %s: %v", content, err)
+			}
 		}
-
-		expectLog(content, err)
 	}
 }
 
