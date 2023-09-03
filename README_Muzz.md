@@ -2,6 +2,8 @@
 
 Muzz plugins live in `plugins/filters/`
 
+To build the container run `docker build -t muzz-skipper .`
+
 ## Teapot Plugin
 
 To locally test the Teapot plugin, you can run the following command:
@@ -18,7 +20,7 @@ aws-vault exec dev -- docker \
         -e TEAPOT_S3_TEAPOTS_KEY=teapots2.json \
         --rm \
         -p 9090:9090 \
-        s \
+        muzz-skipper \
         -inline-routes 'all: * -> preserveHost("true") -> teapot() -> "http://example.com/"; health: Path("/health") -> status(200) -> <shunt>'
 ```
 
