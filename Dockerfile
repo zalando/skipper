@@ -9,6 +9,8 @@ RUN go mod tidy \
 
 COPY . /app
 
+# Note: CGO_ENABLED=1 is required for the teapot plugin to build
+
 RUN CGO_ENABLED=1 \
     go \
       build \
@@ -27,6 +29,8 @@ RUN CGO_ENABLED=1 \
 FROM scratch
 
 COPY --from=builder /etc/ssl/certs /etc/ssl/certs
+
+# Discovered by running `ldd bin/skipper` and `ldd plugins/filters/teapot/teapot.so` on the builder image
 COPY --from=builder /lib/aarch64-linux-gnu/libc.so.6 /lib/aarch64-linux-gnu/libc.so.6
 COPY --from=builder /lib/ld-linux-aarch64.so.1 /lib/ld-linux-aarch64.so.1
 
