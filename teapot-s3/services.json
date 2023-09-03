@@ -1,0 +1,29 @@
+[
+  {
+    "name": "all",
+    "routes": [
+      {
+        "uri": "/*"
+      }
+    ]
+  },
+  {
+    "name": "discover",
+    "routes": [
+      {
+        "uri": "/v2.5/members/discover*"
+      },
+      {
+        "uri": "/v2.5/members/new*"
+      }
+    ]
+  },
+  {
+    "name": "explore",
+    "routes": [
+      {
+        "uri": "/v2.5/user/activities/*"
+      }
+    ]
+  }
+]

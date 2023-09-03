@@ -6,6 +6,7 @@ require (
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/andybalholm/brotli v1.0.5
 	github.com/aryszka/jobqueue v0.0.2
+	github.com/aws/aws-sdk-go v1.45.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cjoudrey/gluahttp v0.0.0-20201111170219-25003d9adfa9
@@ -52,6 +53,7 @@ require (
 	golang.org/x/oauth2 v0.11.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/term v0.11.0
+	golang.org/x/text v0.12.0
 	golang.org/x/time v0.3.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -111,6 +113,7 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/influxdata/tdigest v0.0.1 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/compress v1.16.0 // indirect
 	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20210210170715-a8dfcb80d3a7 // indirect
 	github.com/looplab/fsm v1.0.1 // indirect
@@ -160,7 +163,6 @@ require (
 	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/sys v0.11.0 // indirect
-	golang.org/x/text v0.12.0 // indirect
 	golang.org/x/tools v0.11.0 // indirect
 	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
