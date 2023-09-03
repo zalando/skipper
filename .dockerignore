@@ -1,0 +1,8 @@
+Dockerfile
+*.so
+bin/
+docs/
+_test_plugins
+_test_plugins_fail
+.github
+*_test.go

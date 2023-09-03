@@ -1,0 +1,80 @@
+[
+  {
+    "enabled": false,
+    "services": ["all"],
+    "ignoreCountries": [],
+    "onlyCountries": [],
+    "title": {
+      "en": "Essential Maintenance",
+      "ar": "إعادة تثبيته",
+      "fr": "Désolé ! Muzz sera indisponible"
+    },
+    "message": {
+      "en": "Sorry! Muzz will be unavailable until %s whilst we do some essential maintenance\n\nThere's no need to delete or reinstall your app",
+      "ar": "عذراً! لن يكون Muzz متاحًا حتى %s بينما نقوم ببعض أعمال الصيانة اللازمة\n\nلا حاجة لحذف تطبيقك أو إعادة تثبيته",
+      "fr": "Désolé ! Muzz sera indisponible jusque %s le temps que nous procédions à une maintenance indispensable\n\nIl est inutile de supprimer ou de réinstaller votre application"
+    },
+    "endsAt": "2023-08-30T09:30:00Z",
+    "extendBy": 15
+  },
+  {
+    "enabled": false,
+    "services": ["explore"],
+    "ignoreCountries": [],
+    "onlyCountries": [],
+    "title": {
+      "en": "Essential Maintenance",
+      "ar": "إعادة تثبيته",
+      "fr": "Désolé ! Muzz sera indisponible"
+    },
+    "message": {
+      "en": "Sorry! Muzz will be unavailable until %s whilst we do some essential maintenance\n\nThere's no need to delete or reinstall your app",
+      "ar": "عذراً! لن يكون Muzz متاحًا حتى %s بينما نقوم ببعض أعمال الصيانة اللازمة\n\nلا حاجة لحذف تطبيقك أو إعادة تثبيته",
+      "bn": "দুঃখিত! যতক্ষণ পর্যন্ত আমরা কিছু জরুরী মেইন্টেনেন্স করব , মুযম্যাচ %s পর্যন্ত আনেভেইলেবল থাকবে \n\n আপনার অ্যাপ মুছে ফেলার বা পুনরায় ইনস্টল করার প্রয়োজন নেই",
+      "de": "Entschuldige! Muzz wird bis %s nicht mehr verfügbar sein, weil wir grundlegende \n Wartungsarbeiten durchführen\n\nDu brauchst deine App nicht zu löschen \n oder neu zu installieren.",
+      "es": "¡Lo sentimos! Muzz no estará disponible hasta las %s mientras llevamos a cabo las tareas de mantenimiento indispensables\n\nNo es necesario eliminar o reinstalar tu aplicación",
+      "fa": "متأسفیم! به دلیل انجام عملیات ضروری نگهداری، Muzz تا %s در دسترس نخواهد بودn\n\\هیچ نیازی به حذف یا نصب دوباره برنامه نیست",
+      "fr": "Désolé ! Muzz sera indisponible jusque %s le temps que nous procédions à une maintenance indispensable\n\nIl est inutile de supprimer ou de réinstaller votre application",
+      "hi": "माफ़ कीजिये! Muzz %s तक अनुपलब्ध होगा जब तक हम कुछ आवश्यक रखरखाव करते हैं \n\n आपके ऐप को हटाने या पुनर्स्थापित करने की आवश्यकता नहीं है",
+      "id": "Maaf! Muzz tidak akan dapat diakses sampai dengan %s karena kami sedang melakukan pemeliharaan\n\nTidak perlu menghapus atau memasang ulang aplikasi.",
+      "it": "Spiacenti! Muzz non sarà disponibile fino a %s per degli interventi di manutenzione importanti\n\nNon c'è bisogno di eliminare o reinstallare l'app",
+      "ms": "Maaf! Muzz tidak dapat digunakan sehingga %s sementara kami membuat penyelenggaraan \n\nAnda tak perlu memadamkan atau memuat turun semula aplikasi ini",
+      "nl": "Sorry! Muzz is tot %s niet beschikbaar vanwege essentieel onderhoud\n\nJe hoeft de app niet te verwijderen of opnieuw te installeren.",
+      "ru": "К сожалению, приложение Muzz будет недоступно до %s, пока мы будем производить некоторые важные технические работы.\n\nНе нужно удалять или переустанавливать приложение.",
+      "tr": "Afedersin! Muzz biz bazı gerekli bakımları yaparken %s'ye kadar kullanılamayacak\n\nUygulamanı silmene ya da yeniden yüklemene gerek yoktur",
+      "ur": "Mazarat! Muzz %s tak dastiyab nahi rahega, jabtak ham kuch zaruri dekh bhal karte hain.\n"
+    },
+    "endsAt": "2023-06-08T18:00:00Z",
+    "extendBy": 15
+  },
+  {
+    "enabled": false,
+    "services": ["discover"],
+    "ignoreCountries": [],
+    "onlyCountries": [],
+    "title": {
+      "en": "Essential Maintenance",
+      "ar": "إعادة تثبيته",
+      "fr": "Désolé ! Muzz sera indisponible"
+    },
+    "message": {
+      "en": "Sorry! Muzz will be unavailable until %s whilst we do some essential maintenance\n\nThere's no need to delete or reinstall your app",
+      "ar": "عذراً! لن يكون Muzz متاحًا حتى %s بينما نقوم ببعض أعمال الصيانة اللازمة\n\nلا حاجة لحذف تطبيقك أو إعادة تثبيته",
+      "bn": "দুঃখিত! যতক্ষণ পর্যন্ত আমরা কিছু জরুরী মেইন্টেনেন্স করব , মুযম্যাচ %s পর্যন্ত আনেভেইলেবল থাকবে \n\n আপনার অ্যাপ মুছে ফেলার বা পুনরায় ইনস্টল করার প্রয়োজন নেই",
+      "de": "Entschuldige! Muzz wird bis %s nicht mehr verfügbar sein, weil wir grundlegende \n Wartungsarbeiten durchführen\n\nDu brauchst deine App nicht zu löschen \n oder neu zu installieren.",
+      "es": "¡Lo sentimos! Muzz no estará disponible hasta las %s mientras llevamos a cabo las tareas de mantenimiento indispensables\n\nNo es necesario eliminar o reinstalar tu aplicación",
+      "fa": "متأسفیم! به دلیل انجام عملیات ضروری نگهداری، Muzz تا %s در دسترس نخواهد بودn\n\\هیچ نیازی به حذف یا نصب دوباره برنامه نیست",
+      "fr": "Désolé ! Muzz sera indisponible jusque %s le temps que nous procédions à une maintenance indispensable\n\nIl est inutile de supprimer ou de réinstaller votre application",
+      "hi": "माफ़ कीजिये! Muzz %s तक अनुपलब्ध होगा जब तक हम कुछ आवश्यक रखरखाव करते हैं \n\n आपके ऐप को हटाने या पुनर्स्थापित करने की आवश्यकता नहीं है",
+      "id": "Maaf! Muzz tidak akan dapat diakses sampai dengan %s karena kami sedang melakukan pemeliharaan\n\nTidak perlu menghapus atau memasang ulang aplikasi.",
+      "it": "Spiacenti! Muzz non sarà disponibile fino a %s per degli interventi di manutenzione importanti\n\nNon c'è bisogno di eliminare o reinstallare l'app",
+      "ms": "Maaf! Muzz tidak dapat digunakan sehingga %s sementara kami membuat penyelenggaraan \n\nAnda tak perlu memadamkan atau memuat turun semula aplikasi ini",
+      "nl": "Sorry! Muzz is tot %s niet beschikbaar vanwege essentieel onderhoud\n\nJe hoeft de app niet te verwijderen of opnieuw te installeren.",
+      "ru": "К сожалению, приложение Muzz будет недоступно до %s, пока мы будем производить некоторые важные технические работы.\n\nНе нужно удалять или переустанавливать приложение.",
+      "tr": "Afedersin! Muzz biz bazı gerekli bakımları yaparken %s'ye kadar kullanılamayacak\n\nUygulamanı silmene ya da yeniden yüklemene gerek yoktur",
+      "ur": "Mazarat! Muzz %s tak dastiyab nahi rahega, jabtak ham kuch zaruri dekh bhal karte hain.\n"
+    },
+    "endsAt": "2023-07-03T11:00:00Z",
+    "extendBy": 15
+  }
+]
