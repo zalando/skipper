@@ -1,0 +1,217 @@
+package main
+
+import (
+	"bytes"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/zalando/skipper/filters"
+)
+
+var _ filters.Filter = (*attestationFilter)(nil)
+
+type attestationFilter struct {
+	googlePlay googlePlayIntegrityServiceClient
+}
+
+func (a attestationFilter) Request(ctx filters.FilterContext) {
+	r := ctx.Request()
+
+	// TODO: Determine if the URI is one we want to perform an integrity check on
+	uri := r.URL.RequestURI()
+	var isProtectedRoute bool
+	for _, protectedRoute := range []string{
+		"/TODO",
+	} {
+		if uri == protectedRoute {
+			isProtectedRoute = true
+			break
+		}
+	}
+
+	if !isProtectedRoute {
+		// Not a protected route, skip
+		return
+	}
+
+	// Fetch headers we'll need
+	deviceUDID := r.Header.Get("udid")
+	userAgent := r.Header.Get("user-agent")
+	appVersion := r.Header.Get("appVersion")
+	authorizationHeader := r.Header.Get("authorization")
+	bypassHeader := r.Header.Get("x-muzz-bypass-device-integrity-check")
+
+	// Determine platform
+	var isAndroid = androidUserAgent.MatchString(r.Header.Get("user-agent"))
+	var isIOS bool
+	for _, rgx := range iOSUserAgents {
+		if rgx.MatchString(userAgent) {
+			isIOS = true
+			break
+		}
+	}
+
+	// Check there is a UDID
+	if deviceUDID == "" {
+		sendErrorResponse(ctx, http.StatusForbidden, "Missing UDID in request")
+		return
+	}
+
+	// Check there is an app version
+	if appVersion == "" {
+		sendErrorResponse(ctx, http.StatusForbidden, "Missing app version in request")
+		return
+	}
+
+	// Enforce minimum versions of apps
+	switch {
+	case isAndroid:
+		// TODO: If device version is < minimumAndroidVersion send HTTP 426 and user message
+	case isIOS:
+		// We don't have any support on iOS yet
+		return
+	default:
+		sendErrorResponse(ctx, http.StatusForbidden, "Invalid OS")
+		return
+	}
+
+	// Is there a bypass header (used for automated tests and in Postman)?
+	if bypassHeader != "" {
+		return
+	}
+
+	// Fetch the existing app attestation record from the database
+	var existingAppAttestation any = nil
+
+	// If there is no authorization header, or there is no existing app attestation record in the database, issue the challenge
+	if existingAppAttestation == nil || authorizationHeader == "" {
+		// Generate 128 random bytes
+		buf := make([]byte, 128)
+		_, _ = rand.Read(buf)
+
+		// TODO create app attestation
+
+		header := http.Header{}
+		header.Set("Content-Type", "application/json")
+		header.Set("WWW-Authenticate", "Integrity")
+
+		b, _ := json.Marshal(
+			struct {
+				Challenge string `json:"challenge"`
+			}{
+				Challenge: base64.URLEncoding.EncodeToString([]byte(buf)),
+			},
+		)
+
+		ctx.Serve(
+			&http.Response{
+				StatusCode: 480, // 480 is the response we've agreed with the apps teams to initiate integrity check
+				Header:     header,
+				Body:       io.NopCloser(bytes.NewBufferString(string(b))),
+			},
+		)
+	}
+
+	// Authorization header is present, lets validate
+	if !strings.HasPrefix(authorizationHeader, "Integrity ") {
+		sendErrorResponse(ctx, http.StatusForbidden, "Missing integrity authorization header")
+		return
+	}
+	authorizationHeader = strings.TrimPrefix(authorizationHeader, "Integrity ")
+
+	// Check for empty authorization header
+	if authorizationHeader == "" {
+		sendErrorResponse(ctx, http.StatusForbidden, "Empty authorization header")
+		return
+	}
+
+	// Set the challenge response we received
+	// TODO: $existingAttestation->setChallengeResponse($authorizationHeader);
+
+	// Has the app send an error code instead
+	if isIOS {
+		switch authorizationHeader {
+		case "serverUnavailable":
+		case "unknownSystemFailure":
+			// $existingAttestation->setDeviceErrorCode($authorizationHeader);
+			// $this->repository->updateAttestationForUDID($existingAttestation);
+
+			// TODO: issue a captcha challenge
+			return
+		}
+	}
+
+	if isAndroid {
+		switch authorizationHeader {
+		case "API_NOT_AVAILABLE":
+		// Make sure that Integrity API is enabled in Google Play Console.
+		// Ask the user to update Google Play Store.
+		case "NETWORK_ERROR": // Ask them to retry
+		case "PLAY_STORE_NOT_FOUND": // Ask the user to install or enable Google Play Store.
+		case "PLAY_STORE_VERSION_OUTDATED": // Ask the user to update Google Play Store.
+		case "PLAY_STORE_ACCOUNT_NOT_FOUND": // Ask the user to sign in to the Google Play Store.
+		case "CANNOT_BIND_TO_SERVICE": // Ask the user to update the Google Play Store.
+		case "PLAY_SERVICES_NOT_FOUND": // Ask the user to install or enable Play Services.
+		case "PLAY_SERVICES_VERSION_OUTDATED": // Ask the user to update Google Play services.
+		case "TOO_MANY_REQUESTS": // Retry with an exponential backoff.
+		case "GOOGLE_SERVER_UNAVAILABLE": // Retry with an exponential backoff.
+		case "CLIENT_TRANSIENT_ERROR": // Retry with an exponential backoff.
+		case "INTERNAL_ERROR": // Retry with an exponential backoff.
+		case "APP_NOT_INSTALLED": // Pass error to API and do nothing else
+		case "NONCE_TOO_SHORT": // Pass error to API and do nothing else
+		case "NONCE_TOO_LONG": // Pass error to API and do nothing else
+		case "NONCE_IS_NOT_BASE64": // Pass error to API and do nothing else
+		case "CLOUD_PROJECT_NUMBER_IS_INVALID": // Pass error to API and do nothing else
+		case "APP_UID_MISMATCH": // Pass error to API and do nothing else
+			// $existingAttestation->setDeviceErrorCode($authorizationHeader);
+			// $this->repository->updateAttestationForUDID($existingAttestation);
+			// TODO: issue a captcha challenge
+			return
+		}
+	}
+
+	// Base64 decode the header value
+	challengeResponse, base64decodeErr := base64.URLEncoding.DecodeString(authorizationHeader)
+	if base64decodeErr != nil {
+		sendErrorResponse(ctx, http.StatusForbidden, "Could not decode challenge response from base64 URL encoding")
+		return
+	}
+
+	// Calculate the hash
+	var base64encodedChallenge string // TODO: base64.URLEncoding.EncodeToString(existingAppAttestation.challenge))
+	serverNonce, serverNonceErr := calculateRequestNonce(ctx.Request(), base64encodedChallenge)
+	if serverNonceErr != nil {
+		sendErrorResponse(ctx, http.StatusInternalServerError, "Failed to calculate server nonce")
+		return
+	}
+
+	switch {
+	case isAndroid:
+		verdict := a.googlePlay.validate(challengeResponse, serverNonce)
+		// $this->repository->updateAttestationForUDID($existingAttestation);
+
+		if verdict == integritySuccess {
+			return // All good, proceed
+		}
+
+		if verdict == integrityUnevaluated {
+			// TODO: Captcha challenge
+			return
+		}
+
+		// Integrity failed, throw an error
+		sendErrorResponse(ctx, http.StatusForbidden, "Integrity check failed")
+
+	case isIOS:
+		// Nothing to do
+	}
+
+	// All good, continue
+	return
+}
+
+func (a attestationFilter) Response(_ filters.FilterContext) {}
