@@ -40,7 +40,7 @@ func formatEndpointsForSubsetAddresses(addresses []*address, port *port, protoco
 
 }
 
-func (ep endpoint) targetsByServicePort(protocol string, servicePort *servicePort) []string {
+func (ep *endpoint) targetsByServicePort(protocol string, servicePort *servicePort) []string {
 	for _, s := range ep.Subsets {
 		// If only one port exists in the endpoint, use it
 		if len(s.Ports) == 1 {
@@ -60,7 +60,7 @@ func (ep endpoint) targetsByServicePort(protocol string, servicePort *servicePor
 	return nil
 }
 
-func (ep endpoint) targetsByServiceTarget(protocol string, serviceTarget *definitions.BackendPort) []string {
+func (ep *endpoint) targetsByServiceTarget(protocol string, serviceTarget *definitions.BackendPort) []string {
 	portName, named := serviceTarget.Value.(string)
 	portValue, byValue := serviceTarget.Value.(int)
 	for _, s := range ep.Subsets {
@@ -81,7 +81,7 @@ func (ep endpoint) targetsByServiceTarget(protocol string, serviceTarget *defini
 	return nil
 }
 
-func (ep endpoint) targets(protocol string) []string {
+func (ep *endpoint) targets(protocol string) []string {
 	result := make([]string, 0)
 	for _, s := range ep.Subsets {
 		for _, p := range s.Ports {
