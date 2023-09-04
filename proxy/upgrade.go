@@ -161,7 +161,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	done := make(chan struct{}, 2)
 
 	if p.useAuditLog {
-		copyAsync("backend->request+audit", backendConn, io.MultiWriter(requestHijackedConn, p.auditLogOut), done)
+		copyAsync("backend->request+audit", backendConn, io.MultiWriter(p.auditLogOut, requestHijackedConn), done)
 	} else {
 		copyAsync("backend->request", backendConn, requestHijackedConn, done)
 	}

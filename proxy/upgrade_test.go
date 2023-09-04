@@ -344,10 +344,9 @@ func TestAuditLogging(t *testing.T) {
 		return func(t *testing.T) {
 			wss := httptest.NewServer(websocket.Handler(func(ws *websocket.Conn) {
 				if _, err := io.Copy(ws, ws); err != nil {
-					t.Fatal(err)
+					t.Error(err)
 				}
 			}))
-
 			defer wss.Close()
 
 			// only used as poor man's sync, the audit log in question goes stdout and stderr,
