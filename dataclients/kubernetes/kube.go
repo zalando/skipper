@@ -95,6 +95,10 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
+	// KubernetesEnableEndpointslices if set skipper will fetch
+	// endpointslices instead of endpoints to scale more than 1000 pods within a service
+	KubernetesEnableEndpointslices bool
+
 	// *DEPRECATED* KubernetesEnableEastWest if set adds automatically routes
 	// with "%s.%s.skipper.cluster.local" domain pattern
 	KubernetesEnableEastWest bool

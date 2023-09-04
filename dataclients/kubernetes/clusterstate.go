@@ -11,14 +11,15 @@ import (
 )
 
 type clusterState struct {
-	mu              sync.Mutex
-	ingressesV1     []*definitions.IngressV1Item
-	routeGroups     []*definitions.RouteGroupItem
-	services        map[definitions.ResourceID]*service
-	endpoints       map[definitions.ResourceID]*endpoint
-	endpointSlices  map[definitions.ResourceID]*skipperEndpointSlice
-	secrets         map[definitions.ResourceID]*secret
-	cachedEndpoints map[endpointID][]string
+	mu                   sync.Mutex
+	ingressesV1          []*definitions.IngressV1Item
+	routeGroups          []*definitions.RouteGroupItem
+	services             map[definitions.ResourceID]*service
+	endpoints            map[definitions.ResourceID]*endpoint
+	endpointSlices       map[definitions.ResourceID]*skipperEndpointSlice
+	secrets              map[definitions.ResourceID]*secret
+	cachedEndpoints      map[endpointID][]string
+	enableEndpointSlices bool
 }
 
 func (state *clusterState) getService(namespace, name string) (*service, error) {
@@ -63,16 +64,18 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 	}
 
 	var targets []string
-	eps, ok := state.endpointSlices[epID.ResourceID]
-	if ok {
-		targets = eps.targetsByServicePort("TCP", protocol, servicePort)
-	} else {
-		log.Warnf("GetEndpointsByService %s/%s - fallback to *deprecated* endpoint: %s/%s", namespace, name, epID.ResourceID.Namespace, epID.ResourceID.Name)
-		ep, ok := state.endpoints[epID.ResourceID]
-		if !ok {
+	if state.enableEndpointSlices {
+		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
+			targets = eps.targetsByServicePort("TCP", protocol, servicePort)
+		} else {
 			return nil
 		}
-		targets = ep.targetsByServicePort(protocol, servicePort)
+	} else {
+		if ep, ok := state.endpoints[epID.ResourceID]; ok {
+			targets = ep.targetsByServicePort(protocol, servicePort)
+		} else {
+			return nil
+		}
 	}
 
 	sort.Strings(targets)
@@ -82,7 +85,7 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 
 // GetEndpointsByName returns the skipper endpoints for kubernetes endpoints or endpointslices.
 // This function works only correctly for endpointslices (and likely endpoints) with one port with the same protocol ("TCP", "UDP").
-func (state *clusterState) GetEndpointsByName(namespace, name, protocol, backendProtocol string) []string {
+func (state *clusterState) GetEndpointsByName(namespace, name, protocol, scheme string) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -94,16 +97,18 @@ func (state *clusterState) GetEndpointsByName(namespace, name, protocol, backend
 	}
 
 	var targets []string
-	eps, ok := state.endpointSlices[epID.ResourceID]
-	if ok {
-		targets = eps.targets(protocol, backendProtocol)
-	} else {
-		log.Warnf("GetEndpointsByName - fallback to *deprecated* endpoint: %s/%s", epID.ResourceID.Namespace, epID.ResourceID.Name)
-		ep, ok := state.endpoints[epID.ResourceID]
-		if !ok {
+	if state.enableEndpointSlices {
+		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
+			targets = eps.targets(protocol, scheme)
+		} else {
 			return nil
 		}
-		targets = ep.targets(backendProtocol)
+	} else {
+		if ep, ok := state.endpoints[epID.ResourceID]; ok {
+			targets = ep.targets(scheme)
+		} else {
+			return nil
+		}
 	}
 
 	sort.Strings(targets)
@@ -113,7 +118,7 @@ func (state *clusterState) GetEndpointsByName(namespace, name, protocol, backend
 }
 
 // GetEndpointsByTarget returns the skipper endpoints for kubernetes endpoints or endpointslices.
-func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, backendProtocol string, target *definitions.BackendPort) []string {
+func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, scheme string, target *definitions.BackendPort) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -127,16 +132,18 @@ func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, backe
 	}
 
 	var targets []string
-	eps, ok := state.endpointSlices[epID.ResourceID]
-	if ok {
-		targets = eps.targetsByServiceTarget(protocol, backendProtocol, target)
-	} else {
-		log.Warnf("GetEndpointsByTarget - fallback to *deprecated* endpoint: %s/%s", epID.ResourceID.Namespace, epID.ResourceID.Name)
-		ep, ok := state.endpoints[epID.ResourceID]
-		if !ok {
+	if state.enableEndpointSlices {
+		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
+			targets = eps.targetsByServiceTarget(protocol, scheme, target)
+		} else {
 			return nil
 		}
-		targets = ep.targetsByServiceTarget(backendProtocol, target)
+	} else {
+		if ep, ok := state.endpoints[epID.ResourceID]; ok {
+			targets = ep.targetsByServiceTarget(scheme, target)
+		} else {
+			return nil
+		}
 	}
 
 	sort.Strings(targets)

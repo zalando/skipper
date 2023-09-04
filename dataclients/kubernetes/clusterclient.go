@@ -75,6 +75,8 @@ type clusterClient struct {
 	secretsLabelSelectors        string
 	routeGroupsLabelSelectors    string
 
+	enableEndpointSlices bool
+
 	loggedMissingRouteGroups bool
 	routeGroupValidator      *definitions.RouteGroupValidator
 }
@@ -171,6 +173,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		apiURL:                       apiURL,
 		certificateRegistry:          o.CertificateRegistry,
 		routeGroupValidator:          &definitions.RouteGroupValidator{},
+		enableEndpointSlices:         o.KubernetesEnableEndpointslices,
 	}
 
 	if o.KubernetesInCluster {
@@ -446,7 +449,6 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 }
 
 func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
-	//log.Warn("*deprecated* use of endpoints detected, please use endpointslices")
 	var endpoints endpointList
 	if err := c.getJSON(c.endpointsURI+c.endpointsLabelSelectors, &endpoints); err != nil {
 		log.Debugf("requesting all endpoints failed: %v", err)
@@ -497,54 +499,43 @@ func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skippe
 			Meta: epSlices[0].Meta,
 		}
 
+		terminatingEps := make(map[string]struct{})
+		resEps := make(map[string]*skipperEndpoint)
+
 		for i := range epSlices {
-			resEps := make(map[string]*skipperEndpoint)
-			terminatingEps := make(map[string]struct{})
 
 			for _, ep := range epSlices[i].Endpoints {
-				// if conditions are nil then we need to treat is as ready
-				if ep.Conditions == nil {
-					resEps[ep.Addresses[0]] = &skipperEndpoint{
-						// Addresses [1..100] of the same AddressType, as kube-proxy we use the first
-						// see also https://github.com/kubernetes/kubernetes/issues/106267
-						Address: ep.Addresses[0],
+				// Addresses [1..100] of the same AddressType, as kube-proxy we use the first
+				// see also https://github.com/kubernetes/kubernetes/issues/106267
+				address := ep.Addresses[0]
+				if _, ok := terminatingEps[address]; ok {
+					// already known terminating
+				} else if ep.isTerminating() {
+					terminatingEps[address] = struct{}{}
+					// if we had this one with a non terminating condition,
+					// we should delete it, because of eventual consistency
+					// it is actually terminating
+					delete(resEps, address)
+				} else if ep.Conditions == nil {
+					// if conditions are nil then we need to treat is as ready
+					resEps[address] = &skipperEndpoint{
+						Address: address,
 						Zone:    ep.Zone,
 					}
-					continue
-				}
-
-				if ep.isTerminating() {
-					terminatingEps[ep.Addresses[0]] = struct{}{}
-					// if we had this one with a non termiating condition, we should delete it, because of eventual consistency it is actually terminating
-					delete(resEps, ep.Addresses[0])
-					continue
-				}
-				// already known terminating?
-				if _, ok := terminatingEps[ep.Addresses[0]]; ok {
-					continue
-				}
-
-				if ep.isReady() {
-					resEps[ep.Addresses[0]] = &skipperEndpoint{
-						// Addresses [1..100] of the same AddressType, as kube-proxy we use the first
-						// see also https://github.com/kubernetes/kubernetes/issues/106267
-						Address: ep.Addresses[0],
+				} else if ep.isReady() {
+					resEps[address] = &skipperEndpoint{
+						Address: address,
 						Zone:    ep.Zone,
 					}
 				}
-			}
-
-			for _, o := range resEps {
-				result[resID].Endpoints = append(result[resID].Endpoints, o)
 			}
 
 			result[resID].Ports = epSlices[i].Ports
 		}
+		for _, o := range resEps {
+			result[resID].Endpoints = append(result[resID].Endpoints, o)
+		}
 	}
-
-	// TODO(sszuecs): cleanup
-	//log.Infof("loadEndpointSlices result: %d", len(result))
-	//spew.Dump(result)
 
 	return result, nil
 }
@@ -562,7 +553,6 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	var (
 		err         error
 		ingressesV1 []*definitions.IngressV1Item
-		secrets     map[definitions.ResourceID]*secret
 	)
 	ingressesV1, err = c.loadIngressesV1()
 	if err != nil {
@@ -586,39 +576,32 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		return nil, err
 	}
 
-	endpointSlices, err := c.loadEndpointSlices()
-	// if err != nil {
-	// 	// TODO(sszuecs): ignore because of tests not having endpointslices
-	// 	return nil, err
-	// }
+	state := &clusterState{
+		ingressesV1:          ingressesV1,
+		routeGroups:          routeGroups,
+		services:             services,
+		cachedEndpoints:      make(map[endpointID][]string),
+		enableEndpointSlices: c.enableEndpointSlices,
+	}
 
-	// TODO(sszuecs) deprecated
-	endpoints, err2 := c.loadEndpoints()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	if endpoints == nil && endpointSlices == nil {
+	if c.enableEndpointSlices {
+		state.endpointSlices, err = c.loadEndpointSlices()
 		if err != nil {
 			return nil, err
 		}
-
-		return nil, err2
+	} else {
+		state.endpoints, err = c.loadEndpoints()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if c.certificateRegistry != nil {
-		secrets, err = c.loadSecrets()
+		state.secrets, err = c.loadSecrets()
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &clusterState{
-		ingressesV1:     ingressesV1,
-		routeGroups:     routeGroups,
-		services:        services,
-		endpoints:       endpoints,
-		endpointSlices:  endpointSlices,
-		secrets:         secrets,
-		cachedEndpoints: make(map[endpointID][]string),
-	}, nil
+	return state, nil
 }

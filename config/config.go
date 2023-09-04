@@ -161,6 +161,7 @@ type Config struct {
 	KubernetesPathModeString                string                             `yaml:"kubernetes-path-mode"`
 	KubernetesPathMode                      kubernetes.PathMode                `yaml:"-"`
 	KubernetesNamespace                     string                             `yaml:"kubernetes-namespace"`
+	KubernetesEnableEndpointSlices          bool                               `yaml:"enable-kubernetes-endpointslices"`
 	KubernetesEnableEastWest                bool                               `yaml:"enable-kubernetes-east-west"`
 	KubernetesEastWestDomain                string                             `yaml:"kubernetes-east-west-domain"`
 	KubernetesEastWestRangeDomains          *listFlag                          `yaml:"kubernetes-east-west-range-domains"`
@@ -448,6 +449,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", "sets the iprange/CIDRS to be whitelisted during healthcheck")
 	flag.StringVar(&cfg.KubernetesPathModeString, "kubernetes-path-mode", "kubernetes-ingress", "controls the default interpretation of Kubernetes ingress paths: <kubernetes-ingress|path-regexp|path-prefix>")
 	flag.StringVar(&cfg.KubernetesNamespace, "kubernetes-namespace", "", "watch only this namespace for ingresses")
+	flag.BoolVar(&cfg.KubernetesEnableEndpointSlices, "enable-kubernetes-endpointslices", false, "Enables that skipper fetches Kubernetes endpointslices instead of endpoints to scale more than 1000 pods within a service")
 	flag.BoolVar(&cfg.KubernetesEnableEastWest, "enable-kubernetes-east-west", false, "*Deprecated*: use kubernetes-east-west-range feature. Enables east-west communication, which automatically adds routes for Ingress objects with hostname <name>.<namespace>.skipper.cluster.local")
 	flag.StringVar(&cfg.KubernetesEastWestDomain, "kubernetes-east-west-domain", "", "*Deprecated*: use kubernetes-east-west-range feature. Sets the east-west domain, defaults to .skipper.cluster.local")
 	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
@@ -790,6 +792,7 @@ func (c *Config) ToOptions() skipper.Options {
 		WhitelistedHealthCheckCIDR:             whitelistCIDRS,
 		KubernetesPathMode:                     c.KubernetesPathMode,
 		KubernetesNamespace:                    c.KubernetesNamespace,
+		KubernetesEnableEndpointslices:         c.KubernetesEnableEndpointSlices,
 		KubernetesEnableEastWest:               c.KubernetesEnableEastWest,
 		KubernetesEastWestDomain:               c.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:         c.KubernetesEastWestRangeDomains.values,

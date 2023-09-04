@@ -1,38 +1,14 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: myapp-deployment
-  namespace: default
-  labels:
-    app: myapp
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: myapp
-  template:
-    metadata:
-      labels:
-        app: myapp
-    spec:
-      containers:
-        - name: myapp
-          image: myapp:v1
-          ports:
-            - containerPort: 80
-              protocol: TCP
----
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     app: myapp-deployment
   name: myapp-service
-  namespace: default
 spec:
   clusterIP: 10.3.190.1
   ports:
-    - port: 8080
+    - name: this-is-my-service-port-name
+      port: 8080
       protocol: TCP
       targetPort: 80
   selector:
@@ -55,7 +31,7 @@ spec:
               service:
                 name: myapp-service
                 port:
-                  number: 8080
+                  name: this-is-my-service-port-name
             pathType: ImplementationSpecific
 ---
 apiVersion: v1
@@ -71,5 +47,6 @@ endpoints:
     - 10.3.0.3
     zone: my-zone
 ports:
-  - port: 80
+  - name: this-is-my-service-port-name
+    port: 80
     protocol: TCP

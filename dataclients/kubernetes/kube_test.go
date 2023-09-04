@@ -34,13 +34,14 @@ import (
 )
 
 type testAPI struct {
-	test      *testing.T
-	services  *serviceList
-	endpoints *endpointList
-	ingresses *definitions.IngressV1List
-	secrets   *secretList
-	server    *httptest.Server
-	failNext  bool
+	test           *testing.T
+	services       *serviceList
+	endpoints      *endpointList
+	endpointSlices *endpointSliceList
+	ingresses      *definitions.IngressV1List
+	secrets        *secretList
+	server         *httptest.Server
+	failNext       bool
 }
 
 func init() {
@@ -92,6 +93,55 @@ func testEndpoints(namespace, name string, labels map[string]string, base string
 		}
 		eps[j].Subsets = append(eps[j].Subsets, s)
 	}
+	return eps
+}
+
+func testEndpointSlicesList() *endpointSliceList {
+	eps := make([]*endpointSlice, 0)
+	eps = append(eps, testEndpointSlices("namespace1", "service1", map[string]string{}, "1.1.1", 1, map[string]int{"port1": 8080})...)
+	eps = append(eps, testEndpointSlices("namespace1", "service2", map[string]string{}, "1.1.2", 1, map[string]int{"port2": 8181})...)
+	eps = append(eps, testEndpointSlices("namespace2", "service3", map[string]string{}, "2.1.3", 1, map[string]int{"port3": 7272})...)
+	eps = append(eps, testEndpointSlices("namespace2", "service4", map[string]string{}, "2.1.4", 1, map[string]int{"port4": 4444, "port5": 5555})...)
+	return &endpointSliceList{
+		Items: eps,
+	}
+}
+
+func testEndpointSlices(namespace, name string, labels map[string]string, base string, n int, ports map[string]int) []*endpointSlice {
+	eps := make([]*endpointSlice, 0, 1)
+
+	eps = append(eps, &endpointSlice{
+		Meta: &definitions.Metadata{
+			Namespace: namespace,
+			Name:      name,
+			Labels:    labels,
+		},
+		Endpoints: []*EndpointSliceEndpoints{},
+		Ports:     []*endpointSlicePort{},
+	})
+	for i := range eps {
+		for k, v := range ports {
+			eps[i].Ports = append(eps[i].Ports, &endpointSlicePort{
+				Name: k,
+				Port: v,
+			})
+		}
+	}
+
+	b := true
+	for i := range eps {
+		for j := 0; j < n; j++ {
+			ip := fmt.Sprintf("%s.%d", base, i)
+			eps[i].Endpoints = append(eps[i].Endpoints, &EndpointSliceEndpoints{
+				Addresses: []string{ip},
+				Zone:      "my-zone",
+				Conditions: &endpointsliceCondition{
+					Ready: &b,
+				},
+			})
+		}
+	}
+
 	return eps
 }
 
@@ -498,6 +548,126 @@ func (api *testAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (api *testAPI) Close() {
 	api.server.Close()
+}
+
+func TestGetEndpointAddresses(t *testing.T) {
+	api := newTestAPI(t, nil, &definitions.IngressV1List{})
+	defer api.Close()
+
+	t.Run("state not synced", func(t *testing.T) {
+		api.ingresses.Items = testIngresses()
+		api.endpoints = testEndpointList()
+		api.services = testServices()
+
+		client, err := New(Options{
+			KubernetesURL: api.server.URL,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create client: %v", err)
+		}
+		defer client.Close()
+
+		ns := "namespace1"
+		name := "service1"
+		got := client.GetEndpointAddresses(ns, name)
+		if got != nil {
+			t.Fatalf("Failed to nil: %v", got)
+		}
+	})
+
+	t.Run("Ingress with endpointslices", func(t *testing.T) {
+		api.ingresses.Items = testIngresses()
+		api.endpointSlices = testEndpointSlicesList()
+		api.services = testServices()
+
+		client, err := New(Options{
+			KubernetesURL: api.server.URL,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create client: %v", err)
+		}
+		defer client.Close()
+
+		_, err = client.LoadAll()
+		if err != nil {
+			t.Fatalf("Failed to LoadAll: %v", err)
+		}
+		if client.state == nil {
+			t.Fatal("client state is nil")
+		}
+
+		ns := "namespace1"
+		name := "service1"
+		got := client.GetEndpointAddresses(ns, name)
+		expected := []string{"http://1.1.1.0:8080"}
+		if len(got) != len(expected) {
+			t.Fatalf("Failed to get same size: %d != %d", len(expected), len(got))
+		}
+		for i := range got {
+			if got[i] != expected[i] {
+				t.Fatalf("Failed to get expected %q, got %q", expected[i], got[i])
+			}
+		}
+
+		// test cache
+		got = client.GetEndpointAddresses(ns, name)
+		if len(got) != len(expected) {
+			t.Fatalf("Failed to get same size: %d != %d", len(expected), len(got))
+		}
+		for i := range got {
+			if got[i] != expected[i] {
+				t.Fatalf("Failed to get cached result expected %q, got %q", expected[i], got[i])
+			}
+		}
+
+	})
+
+	t.Run("Ingress with endpoints", func(t *testing.T) {
+		api.ingresses.Items = testIngresses()
+		api.endpoints = testEndpointList()
+		api.services = testServices()
+
+		client, err := New(Options{
+			KubernetesURL: api.server.URL,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create client: %v", err)
+		}
+		defer client.Close()
+
+		_, err = client.LoadAll()
+		if err != nil {
+			t.Fatalf("Failed to LoadAll: %v", err)
+		}
+		if client.state == nil {
+			t.Fatal("client state is nil")
+		}
+
+		ns := "namespace1"
+		name := "service1"
+		got := client.GetEndpointAddresses(ns, name)
+		expected := []string{"http://1.1.1.0:8080"}
+		if len(got) != len(expected) {
+			t.Fatalf("Failed to get same size: %d != %d", len(expected), len(got))
+		}
+		for i := range got {
+			if got[i] != expected[i] {
+				t.Fatalf("Failed to get expected %q, got %q", expected[i], got[i])
+			}
+		}
+
+		// test cache
+		got = client.GetEndpointAddresses(ns, name)
+		if len(got) != len(expected) {
+			t.Fatalf("Failed to get same size: %d != %d", len(expected), len(got))
+		}
+		for i := range got {
+			if got[i] != expected[i] {
+				t.Fatalf("Failed to get cached result expected %q, got %q", expected[i], got[i])
+			}
+		}
+
+	})
 }
 
 func TestIngressClassFilter(t *testing.T) {

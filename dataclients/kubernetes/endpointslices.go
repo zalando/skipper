@@ -1,6 +1,8 @@
 package kubernetes
 
-import "github.com/zalando/skipper/dataclients/kubernetes/definitions"
+import (
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
+)
 
 // There are [1..N] Kubernetes endpointslices created for a single Kubernetes service.
 // Kubernetes endpointslices of a given service can have duplicates with different states.
@@ -20,16 +22,15 @@ type skipperEndpoint struct {
 
 func (eps *skipperEndpointSlice) getPort(protocol, pName string, pValue int) int {
 	var port int
-
 	for _, p := range eps.Ports {
-		if p.Protocol != protocol {
+		if protocol != "" && p.Protocol != protocol {
 			continue
 		}
-		if p.Name == pName {
+		if pName != "" && p.Name == pName {
 			port = p.Port
 			break
 		}
-		if p.Port == pValue {
+		if pValue != 0 && p.Port == pValue {
 			port = pValue
 			break
 		}
@@ -37,32 +38,43 @@ func (eps *skipperEndpointSlice) getPort(protocol, pName string, pValue int) int
 
 	return port
 }
-func (eps *skipperEndpointSlice) targetsByServicePort(protocol, backendProtocol string, servicePort *servicePort) []string {
-	port := eps.getPort(protocol, servicePort.Name, servicePort.Port)
+func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, servicePort *servicePort) []string {
+	var port int
+	if servicePort.Name != "" {
+		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
+	} else if servicePort.TargetPort != nil {
+		var ok bool
+		port, ok = servicePort.TargetPort.Number()
+		if !ok {
+			port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
+		}
+	} else {
+		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
+	}
 
 	var result []string
 	for _, ep := range eps.Endpoints {
-		result = append(result, formatEndpointString(ep.Address, backendProtocol, port))
+		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
 
 	return result
 }
 
-func (eps *skipperEndpointSlice) targetsByServiceTarget(protocol, backendProtocol string, serviceTarget *definitions.BackendPort) []string {
-	pName := serviceTarget.Value.(string)
-	pValue := serviceTarget.Value.(int)
+func (eps *skipperEndpointSlice) targetsByServiceTarget(protocol, scheme string, serviceTarget *definitions.BackendPort) []string {
+	pName, _ := serviceTarget.Value.(string)
+	pValue, _ := serviceTarget.Value.(int)
 	port := eps.getPort(protocol, pName, pValue)
 
 	var result []string
 	for _, ep := range eps.Endpoints {
-		result = append(result, formatEndpointString(ep.Address, backendProtocol, port))
+		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
 
 	return result
 }
 
-func (eps *skipperEndpointSlice) targets(protocol, backendProtocol string) []string {
-	result := make([]string, 0)
+func (eps *skipperEndpointSlice) targets(protocol, scheme string) []string {
+	result := make([]string, 0, len(eps.Endpoints))
 
 	var port int
 	for _, p := range eps.Ports {
@@ -72,7 +84,7 @@ func (eps *skipperEndpointSlice) targets(protocol, backendProtocol string) []str
 		}
 	}
 	for _, ep := range eps.Endpoints {
-		result = append(result, formatEndpointString(ep.Address, backendProtocol, port))
+		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
 
 	return result
@@ -98,7 +110,7 @@ func (eps *endpointSlice) ToResourceID() definitions.ResourceID {
 	return newResourceID(namespace, svcName)
 }
 
-// TODO(sszuecs): name TBD, endpoints would be ambiguous because of the other endpoint object
+// EndpointSliceEndpoints is the single endpoint definition
 type EndpointSliceEndpoints struct {
 	// Addresses [1..100] of the same AddressType, see also https://github.com/kubernetes/kubernetes/issues/106267
 	// Basically it always has only one in our case and likely makes no sense to use more than one.
@@ -130,7 +142,7 @@ type endpointSlicePort struct {
 
 func (ep *EndpointSliceEndpoints) isTerminating() bool {
 	// see also https://github.com/kubernetes/kubernetes/blob/91aca10d5984313c1c5858979d4946ff9446615f/pkg/proxy/endpointslicecache.go#L137C39-L139
-	return ep.Conditions.Terminating != nil && *ep.Conditions.Terminating
+	return ep.Conditions != nil && ep.Conditions.Terminating != nil && *ep.Conditions.Terminating
 }
 
 func (ep *EndpointSliceEndpoints) isReady() bool {

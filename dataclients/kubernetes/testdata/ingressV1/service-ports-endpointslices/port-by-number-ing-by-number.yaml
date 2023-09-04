@@ -1,34 +1,9 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: myapp-deployment
-  namespace: default
-  labels:
-    app: myapp
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: myapp
-  template:
-    metadata:
-      labels:
-        app: myapp
-    spec:
-      containers:
-        - name: myapp
-          image: myapp:v1
-          ports:
-            - containerPort: 80
-              protocol: TCP
----
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     app: myapp-deployment
   name: myapp-service
-  namespace: default
 spec:
   clusterIP: 10.3.190.1
   ports:
