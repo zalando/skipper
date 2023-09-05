@@ -142,8 +142,7 @@ func printCmd(a cmdArgs) error {
 			}
 		}
 
-		eskip.Fprint(stdout, eskip.PrettyPrintInfo{Pretty: pretty, IndentStr: indentStr, SortPredicates: sortPredicates}, lr.routes...)
-
+		eskip.Fprint(stdout, eskip.PrettyPrintInfo{Pretty: pretty, IndentStr: indentStr}, lr.routes...)
 	}
 
 	if len(lr.parseErrors) > 0 {
