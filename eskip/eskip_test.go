@@ -829,3 +829,65 @@ func BenchmarkParsePredicates(b *testing.B) {
 		_, _ = ParsePredicates(doc)
 	}
 }
+
+var stringSink string
+
+func BenchmarkRouteString(b *testing.B) {
+	doc := `
+		Method("GET") &&
+		Path("/foo") &&
+		Host(/foo/) &&
+		Host(/bar/) &&
+		Host(/baz/) &&
+		PathRegexp(/C/) &&
+		PathRegexp(/B/) &&
+		PathRegexp(/A/) &&
+		Header("Foo", "Bar") &&
+		Header("Bar", "Baz") &&
+		Header("Qux", "Bar") &&
+		HeaderRegexp("B", /3/) &&
+		HeaderRegexp("B", /2/) &&
+		HeaderRegexp("A", /1/) &&
+		Foo("bar", "baz") &&
+		True() -> <shunt>`
+
+	rr, err := Parse(doc)
+	if err != nil {
+		b.Fatal(err)
+	}
+	r := rr[0]
+	var s string
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s = r.String()
+	}
+	stringSink = s
+}
+
+func BenchmarkRouteStringNoRepeatedPredicates(b *testing.B) {
+	doc := `
+		Method("GET") &&
+		Path("/foo") &&
+		Host(/foo/) &&
+		PathRegexp(/A/) &&
+		Header("Foo", "Bar") &&
+		HeaderRegexp("A", /1/) &&
+		Foo("bar", "baz") &&
+		True() -> <shunt>`
+
+	rr, err := Parse(doc)
+	if err != nil {
+		b.Fatal(err)
+	}
+	r := rr[0]
+	var s string
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s = r.String()
+	}
+	stringSink = s
+}
