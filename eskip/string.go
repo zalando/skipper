@@ -10,9 +10,8 @@ import (
 )
 
 type PrettyPrintInfo struct {
-	Pretty         bool
-	IndentStr      string
-	SortPredicates bool
+	Pretty    bool
+	IndentStr string
 }
 
 func escape(s string, chars string) string {
@@ -80,46 +79,24 @@ func argsString(args []interface{}) string {
 	return strings.Join(sargs, ", ")
 }
 
-func sortedKeys[V interface{}](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+func sortTail(s []string, from int) {
+	if len(s)-from > 1 {
+		sort.Strings(s[from:])
 	}
-	sort.Strings(keys)
-	return keys
 }
 
-func sortedCopy(values []string) []string {
-	toSortValues := make([]string, len(values))
-	copy(toSortValues, values)
-	sort.Strings(toSortValues)
-	return toSortValues
-}
-
-func (r *Route) predicateString(sortPredicates bool) string {
+func (r *Route) predicateString() string {
 	var predicates []string
 
 	if r.Path != "" {
 		predicates = appendFmtEscape(predicates, `Path("%s")`, `"`, r.Path)
 	}
 
-	hostRegexps := r.HostRegexps
-
-	if sortPredicates {
-		hostRegexps = sortedCopy(r.HostRegexps)
-	}
-
-	for _, h := range hostRegexps {
+	for _, h := range r.HostRegexps {
 		predicates = appendFmtEscape(predicates, "Host(/%s/)", "/", h)
 	}
 
-	pathRegexps := r.PathRegexps
-
-	if sortPredicates {
-		pathRegexps = sortedCopy(r.PathRegexps)
-	}
-
-	for _, p := range pathRegexps {
+	for _, p := range r.PathRegexps {
 		predicates = appendFmtEscape(predicates, "PathRegexp(/%s/)", "/", p)
 	}
 
@@ -127,44 +104,21 @@ func (r *Route) predicateString(sortPredicates bool) string {
 		predicates = appendFmtEscape(predicates, `Method("%s")`, `"`, r.Method)
 	}
 
-	if sortPredicates {
-		headerKeys := sortedKeys(r.Headers)
-		for _, key := range headerKeys {
-			predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, key, r.Headers[key])
-		}
+	from := len(predicates)
+	for k, v := range r.Headers {
+		predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, k, v)
+	}
+	sortTail(predicates, from)
 
-	} else {
-		for k, v := range r.Headers {
-			predicates = appendFmtEscape(predicates, `Header("%s", "%s")`, `"`, k, v)
+	from = len(predicates)
+	for k, rxs := range r.HeaderRegexps {
+		for _, rx := range rxs {
+			predicates = appendFmt(predicates, `HeaderRegexp("%s", /%s/)`, escape(k, `"`), escape(rx, "/"))
 		}
 	}
+	sortTail(predicates, from)
 
-	if sortPredicates {
-		headerKeys := sortedKeys(r.HeaderRegexps)
-		for _, k := range headerKeys {
-			for _, rx := range r.HeaderRegexps[k] {
-				predicates = appendFmt(predicates, `HeaderRegexp("%s", /%s/)`, escape(k, `"`), escape(rx, "/"))
-			}
-		}
-	} else {
-		for k, rxs := range r.HeaderRegexps {
-			for _, rx := range rxs {
-				predicates = appendFmt(predicates, `HeaderRegexp("%s", /%s/)`, escape(k, `"`), escape(rx, "/"))
-			}
-		}
-	}
-
-	routePredicates := r.Predicates
-
-	if sortPredicates {
-		routePredicates = make([]*Predicate, len(r.Predicates))
-		copy(routePredicates, r.Predicates)
-		sort.SliceStable(routePredicates, func(i, j int) bool {
-			return routePredicates[i].String() < routePredicates[j].String()
-		})
-	}
-
-	for _, p := range routePredicates {
+	for _, p := range r.Predicates {
 		if p.Name != "Any" {
 			predicates = appendFmt(predicates, "%s(%s)", p.Name, argsString(p.Args))
 		}
@@ -238,7 +192,7 @@ func (r *Route) String() string {
 }
 
 func (r *Route) Print(prettyPrintInfo PrettyPrintInfo) string {
-	s := []string{r.predicateString(prettyPrintInfo.SortPredicates)}
+	s := []string{r.predicateString()}
 
 	fs := r.filterString(prettyPrintInfo)
 	if fs != "" {

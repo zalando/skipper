@@ -180,35 +180,49 @@ func TestPrintNonPretty(t *testing.T) {
 
 func TestPrintSortedPredicates(t *testing.T) {
 	for i, item := range []struct {
+		name     string
 		route    string
 		expected string
 	}{
 		{
+			"preserves order of regular predicates",
 			`routeWithoutDefaultPredicates: True() && Cookie("alpha", "/^enabled$/") -> "https://www.example.org"`,
-			`Cookie("alpha", "/^enabled$/") && True() -> "https://www.example.org"`,
+			`True() && Cookie("alpha", "/^enabled$/") -> "https://www.example.org"`,
 		},
 		{
+			"puts builtin predicate before regular predicates",
 			`routeWithDefaultPredicates: True() && Cookie("alpha", "/^enabled$/") && Method("GET") -> "https://www.example.org"`,
-			`Method("GET") && Cookie("alpha", "/^enabled$/") && True() -> "https://www.example.org"`,
+			`Method("GET") && True() && Cookie("alpha", "/^enabled$/") -> "https://www.example.org"`,
 		},
 		{
+			"puts Method before Header",
 			`routeWithDefaultPredicatesOnly: Header("Accept", "application/json") && Method("GET") -> "https://www.example.org"`,
 			`Method("GET") && Header("Accept", "application/json") -> "https://www.example.org"`,
 		},
 		{
+			"sorts Header",
 			`routeWithMultipleHeaders: Header("x-frontend-type", "mobile-app") && Header("X-Forwarded-Proto", "http") -> "https://www.example.org"`,
 			`Header("X-Forwarded-Proto", "http") && Header("x-frontend-type", "mobile-app") -> "https://www.example.org"`,
 		},
 		{
+			"sorts HeaderRegexp",
 			`routeWithMultipleHeadersRegex: HeaderRegexp("User-Agent", /Zelt-(.*)/) && HeaderRegexp("age", /\\d/) -> "https://www.example.org"`,
 			`HeaderRegexp("User-Agent", /Zelt-(.*)/) && HeaderRegexp("age", /\\d/) -> "https://www.example.org"`,
 		},
 		{
+			"sorts HeaderRegexp with the same name",
+			`routeWithMultipleHeadersRegex: HeaderRegexp("B", /3/) && HeaderRegexp("B", /2/) && HeaderRegexp("A", /1/) -> "https://www.example.org"`,
+			`HeaderRegexp("A", /1/) && HeaderRegexp("B", /2/) && HeaderRegexp("B", /3/) -> "https://www.example.org"`,
+		},
+		{
+			"puts Method before Header, Header before HeaderRegexp and sorts",
 			`routeComplex: True() && Cookie("alpha", "/^enabled$/") && Method("GET") && Header("x-frontend-type", "mobile-app") && Header("X-Forwarded-Proto", "http") && HeaderRegexp("User-Agent", /Zelt-(.*)/) && HeaderRegexp("age", /\\d/) -> "https://www.example.org"`,
-			`Method("GET") && Header("X-Forwarded-Proto", "http") && Header("x-frontend-type", "mobile-app") && HeaderRegexp("User-Agent", /Zelt-(.*)/) && HeaderRegexp("age", /\\d/) && Cookie("alpha", "/^enabled$/") && True() -> "https://www.example.org"`,
+			`Method("GET") && Header("X-Forwarded-Proto", "http") && Header("x-frontend-type", "mobile-app") && HeaderRegexp("User-Agent", /Zelt-(.*)/) && HeaderRegexp("age", /\\d/) && True() && Cookie("alpha", "/^enabled$/") -> "https://www.example.org"`,
 		},
 	} {
-		testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: "", SortPredicates: true}, false)
+		t.Run(item.name, func(t *testing.T) {
+			testPrinting(item.route, item.expected, t, i, PrettyPrintInfo{Pretty: false, IndentStr: ""}, false)
+		})
 	}
 }
 
@@ -252,7 +266,7 @@ func TestPrintMultiRouteNonPretty(t *testing.T) {
 func testPrinting(routestr string, expected string, t *testing.T, i int, prettyPrintInfo PrettyPrintInfo, multi bool) {
 	routes, err := Parse(routestr)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	var printedRoute string
 

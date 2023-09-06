@@ -39,7 +39,6 @@ const (
 	appendFiltersFlag  = "append"
 	appendFileFlag     = "append-file"
 	prettyFlag         = "pretty"
-	sortPredicatesFlag = "sort-predicates"
 	indentStrFlag      = "indent"
 	jsonFlag           = "json"
 
@@ -76,7 +75,6 @@ var (
 	appendFiltersArg  string
 	appendFileArg     string
 	pretty            bool
-	sortPredicates    bool
 	indentStr         string
 	printJson         bool
 )
@@ -112,7 +110,6 @@ func initFlags() {
 	flags.StringVar(&appendFileArg, appendFileFlag, "", appendFileUsage)
 
 	flags.BoolVar(&pretty, prettyFlag, false, prettyUsage)
-	flags.BoolVar(&sortPredicates, sortPredicatesFlag, false, sortPredicateUsage)
 	flags.StringVar(&indentStr, indentStrFlag, "  ", indentStrUsage)
 	flags.BoolVar(&printJson, jsonFlag, false, jsonUsage)
 }
