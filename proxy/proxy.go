@@ -19,6 +19,7 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -542,10 +543,18 @@ func (f *flusher) Write(p []byte) (n int, err error) {
 	return
 }
 
-func copyStream(to flushWriter, from io.Reader) (int64, error) {
-	b := make([]byte, proxyBufferSize)
+var bufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, proxyBufferSize)
+		return &b
+	},
+}
 
-	return io.CopyBuffer(&flusher{to}, from, b)
+func copyStream(to flushWriter, from io.Reader) (int64, error) {
+	b := bufPool.Get().(*[]byte)
+	defer bufPool.Put(b)
+
+	return io.CopyBuffer(&flusher{to}, from, *b)
 }
 
 func schemeFromRequest(r *http.Request) string {
