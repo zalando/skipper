@@ -401,11 +401,11 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		ep := ch.Apply(ctx)
-		ifr0 := route.LBEndpoints[0].Metrics.GetInflightRequests()
-		ifr1 := route.LBEndpoints[1].Metrics.GetInflightRequests()
-		ifr2 := route.LBEndpoints[2].Metrics.GetInflightRequests()
+		ifr0 := ctx.Registry.GetMetrics(route.LBEndpoints[0].Host).InflightRequests()
+		ifr1 := ctx.Registry.GetMetrics(route.LBEndpoints[1].Host).InflightRequests()
+		ifr2 := ctx.Registry.GetMetrics(route.LBEndpoints[2].Host).InflightRequests()
 		avg := float64(ifr0+ifr1+ifr2) / 3.0
-		limit := int(avg*balanceFactor) + 1
+		limit := int64(avg*balanceFactor) + 1
 		if ifr0 > limit || ifr1 > limit || ifr2 > limit {
 			t.Errorf("Expected in-flight requests for each endpoint to be less than %d. In-flight request counts: %d, %d, %d", limit, ifr0, ifr1, ifr2)
 		}

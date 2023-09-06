@@ -263,8 +263,8 @@ func (p *fadeInProxy) addInstances(n int) {
 	for i := 0; i < n; i++ {
 		client := p.backend.createDataClient()
 		fr := make(filters.Registry)
-		fr.Register(fadein.NewFadeIn())
-		fr.Register(fadein.NewEndpointCreated())
+		fr.Register(routing.NewFadeIn())
+		fr.Register(routing.NewEndpointCreated())
 		rt := routing.New(routing.Options{
 			FilterRegistry: fr,
 			DataClients:    []routing.DataClient{client},

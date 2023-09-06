@@ -10,6 +10,8 @@ var (
 	ExportLastSeenTimeout   = lastSeenTimeout
 )
 
+type ExportFadeIn = fadeIn
+
 func SetNow(r *EndpointRegistry, now func() time.Time) {
 	r.now = now
 }

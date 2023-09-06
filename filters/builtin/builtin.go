@@ -12,7 +12,6 @@ import (
 	"github.com/zalando/skipper/filters/cookie"
 	"github.com/zalando/skipper/filters/cors"
 	"github.com/zalando/skipper/filters/diag"
-	"github.com/zalando/skipper/filters/fadein"
 	"github.com/zalando/skipper/filters/flowid"
 	logfilter "github.com/zalando/skipper/filters/log"
 	"github.com/zalando/skipper/filters/rfc"
@@ -21,6 +20,7 @@ import (
 	"github.com/zalando/skipper/filters/tee"
 	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/filters/xforward"
+	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/script"
 )
 
@@ -219,8 +219,8 @@ func Filters() []filters.Spec {
 		scheduler.NewLIFOGroup(),
 		rfc.NewPath(),
 		rfc.NewHost(),
-		fadein.NewFadeIn(),
-		fadein.NewEndpointCreated(),
+		routing.NewFadeIn(),
+		routing.NewEndpointCreated(),
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
 	}
