@@ -61,6 +61,8 @@ import (
 	"github.com/zalando/skipper/tracing/tracers/instana"
 	"github.com/zalando/skipper/tracing/tracers/jaeger"
 	"github.com/zalando/skipper/tracing/tracers/lightstep"
+	"github.com/zalando/skipper/tracing/tracers/otel"
+	opentelemetry "go.opentelemetry.io/otel/trace"
 
 	originstana "github.com/instana/go-sensor"
 	origlightstep "github.com/lightstep/lightstep-tracer-go"
@@ -72,7 +74,7 @@ import (
 // tracer implementation name.
 func InitTracer(opts []string) (tracer ot.Tracer, err error) {
 	if len(opts) == 0 {
-		return nil, errors.New("opentracing: the implementation parameter is mandatory")
+		return nil, errors.New("tracing: the implementation parameter is mandatory")
 	}
 	var impl string
 	impl, opts = opts[0], opts[1:]
@@ -91,6 +93,21 @@ func InitTracer(opts []string) (tracer ot.Tracer, err error) {
 	default:
 		return nil, fmt.Errorf("tracer '%s' not supported", impl)
 	}
+}
+
+// TryOtelTracerWithBridge tries to initialize a OpenTelemetry tracer and a
+// OpenTelemetry bridge tracer. If the user did not specify otel as tracer
+// implementation, it will just return nil for both tracers and no error.
+func TryOtelTracerWithBridge(ctx context.Context, opts []string) (opentelemetry.Tracer, ot.Tracer, error) {
+	if len(opts) == 0 {
+		return nil, nil, errors.New("tracing: the implementation parameter is mandatory")
+	}
+
+	if opts[0] != "otel" {
+		return nil, nil, nil
+	}
+
+	return otel.WithBridgeTracer(ctx, opts)
 }
 
 func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, err error) {

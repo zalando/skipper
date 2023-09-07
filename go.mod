@@ -46,6 +46,13 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/yookoala/gofast v0.8.0
 	github.com/yuin/gopher-lua v1.1.1
+	go.opentelemetry.io/otel v1.21.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.17.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.21.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.21.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.19.0
+	go.opentelemetry.io/otel/sdk v1.21.0
+	go.opentelemetry.io/otel/trace v1.21.0
 	go4.org/netipx v0.0.0-20220925034521-797b0c90d8ab
 	golang.org/x/crypto v0.21.0
 	golang.org/x/net v0.22.0
@@ -155,12 +162,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1 // indirect
-	go.opentelemetry.io/otel v1.21.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.21.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.21.0 // indirect
 	go.opentelemetry.io/otel/metric v1.21.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.21.0 // indirect
-	go.opentelemetry.io/otel/trace v1.21.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/automaxprocs v1.5.3 // indirect
