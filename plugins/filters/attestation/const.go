@@ -26,9 +26,9 @@ const (
 
 var (
 	iOSUserAgents = []*regexp.Regexp{
-		regexp.MustCompile(`/^Muzz\/[7-8]\.\d+\.\d+ \(com\.muzmatch\.muzmatch; build:\d+; iOS \d+\.\d+\.\d+\) Alamofire\/\d+\.\d+\.\d+$/`),
-		regexp.MustCompile(`/^MuzzAlpha\/[7-8]\.\d+\.\d+ \(com\.muzmatch\.muzmatch\.alpha; build:\d+; iOS \d+\.\d+\.\d+\) Alamofire\/\d+\.\d+\.\d+$/`),
-		regexp.MustCompile(`/^MuzzTestsUI\-Runner\/\d+\.\d+ \(com\.muzmatch\.muzmatchUITests\.xctrunner; build:\d+; iOS \d+\.\d+\.\d+\) Alamofire\/\d+\.\d+\.\d+$/`),
+		regexp.MustCompile(`^Muzz/[7-8]\.\d+\.\d+ \(com\.muzmatch\.muzmatch; build:\d+; iOS \d+\.\d+\.\d+\) Alamofire/\d+\.\d+\.\d+$`),
+		regexp.MustCompile(`^MuzzAlpha/[7-8]\.\d+\.\d+ \(com\.muzmatch\.muzmatch\.alpha; build:\d+; iOS \d+\.\d+\.\d+\) Alamofire/\d+\.\d+\.\d+$`),
+		regexp.MustCompile(`^MuzzTestsUI-Runner/\d+\.\d+ \(com\.muzmatch\.muzmatchUITests\.xctrunner; build:\d+; iOS \d+\.\d+\.\d+\) Alamofire/\d+\.\d+\.\d+$`),
 	}
-	androidUserAgent = regexp.MustCompile(`^okhttp\/\d+\.\d+\.\d+$`)
+	androidUserAgent = regexp.MustCompile(`^okhttp/\d+\.\d+\.\d+$`)
 )
