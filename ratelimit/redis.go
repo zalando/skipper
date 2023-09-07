@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
+	"golang.org/x/time/rate"
 )
 
 // clusterLimitRedis stores all data required for the cluster ratelimit.
@@ -23,6 +24,7 @@ type clusterLimitRedis struct {
 	window     time.Duration
 	ringClient *net.RedisRingClient
 	metrics    metrics.Metrics
+	sometimes  rate.Sometimes
 }
 
 const (
@@ -52,6 +54,7 @@ func newClusterRateLimiterRedis(s Settings, r *net.RedisRingClient, group string
 		window:     s.TimeWindow,
 		ringClient: r,
 		metrics:    metrics.Default,
+		sometimes:  rate.Sometimes{First: 3, Interval: 1 * time.Second},
 	}
 
 	return rl
@@ -121,6 +124,7 @@ func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 	if failed {
 		allow = !c.failClosed
 		setError(span)
+		c.logError("Failed to determine if operation is allowed: %v", err)
 	}
 	if span != nil {
 		span.SetTag("allowed", allow)
@@ -194,7 +198,7 @@ func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 	now := time.Now()
 	d, err := c.deltaFrom(context.Background(), clearText, now)
 	if err != nil {
-		log.Errorf("Failed to redis get the duration until the next call is allowed: %v", err)
+		c.logError("Failed to get the duration until the next call is allowed: %v", err)
 
 		// Earlier, we returned duration since time=0 in these error cases. It is more graceful to the
 		// client applications to return 0.
@@ -208,6 +212,12 @@ func setError(span opentracing.Span) {
 	if span != nil {
 		ext.Error.Set(span, true)
 	}
+}
+
+func (c *clusterLimitRedis) logError(format string, err error) {
+	c.sometimes.Do(func() {
+		log.Errorf(format, err)
+	})
 }
 
 func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.Time, error) {
@@ -257,7 +267,7 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 func (c *clusterLimitRedis) Oldest(clearText string) time.Time {
 	t, err := c.oldest(context.Background(), clearText)
 	if err != nil {
-		log.Errorf("Failed to get from redis the oldest known request time: %v", err)
+		c.logError("Failed to get the oldest known request time: %v", err)
 		return time.Time{}
 	}
 
@@ -285,7 +295,7 @@ func (c *clusterLimitRedis) RetryAfterContext(ctx context.Context, clearText str
 
 	retr, err := c.deltaFrom(ctx, clearText, now)
 	if err != nil {
-		log.Errorf("Failed to get from redis the duration to wait with the next request: %v", err)
+		c.logError("Failed to get the duration to wait until the next request: %v", err)
 		queryFailure = true
 		return minWait
 	}
