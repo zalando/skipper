@@ -77,7 +77,7 @@ pipeline:
         echo "create release page"
         tf=$(mktemp)
         echo -e "### Changes\n" >$tf
-        git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*' >>$tf
+        git log -1 --pretty=%B | grep -v 'Signed-off-by:' >>$tf
         echo -e "\n### Multiarch Docker image\n" >>$tf
         echo -e "Multiarch Docker image is available in Github's docker registry:\n" >>$tf
         echo -e '```' >>$tf
