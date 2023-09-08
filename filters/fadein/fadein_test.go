@@ -265,8 +265,8 @@ func TestPostProcessor(t *testing.T) {
 
 		rt, _ := createRouting(t, routes)
 		r := route(rt, "/")
-		if r == nil || len(r.LBEndpoints) == 0 || !r.LBEndpoints[0].Detected.IsZero() {
-			t.Fatal("failed to ignore invalid LB endpoint")
+		if r != nil {
+			t.Fatal("created invalid LB endpoint")
 		}
 	})
 

@@ -185,9 +185,10 @@ type LBAlgorithm interface {
 // LBContext is used to pass data to the load balancer to decide based
 // on that data which endpoint to call from the backends
 type LBContext struct {
-	Request *http.Request
-	Route   *Route
-	Params  map[string]interface{}
+	Request  *http.Request
+	Route    *Route
+	Params   map[string]interface{}
+	Registry *EndpointRegistry
 }
 
 // NewLBContext is used to create a new LBContext, to pass data to the

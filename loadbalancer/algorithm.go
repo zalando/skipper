@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"net"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,7 +16,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/net"
+	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -308,7 +310,7 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext, skipEndpoint func(int) bool) int {
 	key, ok := ctx.Params[ConsistentHashKey].(string)
 	if !ok {
-		key = net.RemoteHost(ctx.Request).String()
+		key = snet.RemoteHost(ctx.Request).String()
 	}
 	balanceFactor, ok := ctx.Params[ConsistentHashBalanceFactor].(float64)
 	var choice int
@@ -431,9 +433,14 @@ func parseEndpoints(r *routing.Route) error {
 			return err
 		}
 
+		scheme, host, err := normalizeSchemeHost(eu.Scheme, eu.Host)
+		if err != nil {
+			return err
+		}
+
 		r.LBEndpoints[i] = routing.LBEndpoint{
-			Scheme:  eu.Scheme,
-			Host:    eu.Host,
+			Scheme:  scheme,
+			Host:    host,
 			Metrics: &routing.LBMetrics{},
 		}
 	}
@@ -454,6 +461,33 @@ func setAlgorithm(r *routing.Route) error {
 
 	r.LBAlgorithm = initialize(r.Route.LBEndpoints)
 	return nil
+}
+
+func normalizeSchemeHost(s, h string) (string, string, error) {
+	// endpoint address cannot contain path, the rest is not case sensitive
+	s, h = strings.ToLower(s), strings.ToLower(h)
+
+	hh, p, err := net.SplitHostPort(h)
+	if err != nil {
+		// what is the actual right way of doing this, considering IPv6 addresses, too?
+		if !strings.Contains(err.Error(), "missing port") {
+			return "", "", err
+		}
+
+		p = ""
+	} else {
+		h = hh
+	}
+
+	switch {
+	case p == "" && s == "http":
+		p = "80"
+	case p == "" && s == "https":
+		p = "443"
+	}
+
+	h = net.JoinHostPort(h, p)
+	return s, h, nil
 }
 
 // Do implements routing.PostProcessor

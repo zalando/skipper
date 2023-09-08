@@ -62,6 +62,7 @@ func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Durat
 			LBFadeInDuration: fadeInDuration,
 			LBFadeInExponent: 1,
 		},
+		Registry: routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
 
 	for i := range eps {
@@ -69,6 +70,7 @@ func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Durat
 			Host:     eps[i],
 			Detected: detectionTimes[i],
 		})
+		ctx.Registry.SetDetectedTime(eps[i], detectionTimes[i])
 	}
 
 	return ctx, eps
@@ -323,11 +325,13 @@ func benchmarkFadeIn(
 			LBFadeInDuration: fadeInDuration,
 			LBFadeInExponent: 1,
 		}
+		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		for i := range eps {
 			route.LBEndpoints = append(route.LBEndpoints, routing.LBEndpoint{
 				Host:     eps[i],
 				Detected: detectionTimes[i],
 			})
+			registry.SetDetectedTime(eps[i], detectionTimes[i])
 		}
 
 		var wg sync.WaitGroup
@@ -342,8 +346,9 @@ func benchmarkFadeIn(
 
 				rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 				ctx := &routing.LBContext{
-					Params: map[string]interface{}{},
-					Route:  route,
+					Params:   map[string]interface{}{},
+					Route:    route,
+					Registry: registry,
 				}
 
 				for j := 0; j < b.N/clients; j++ {

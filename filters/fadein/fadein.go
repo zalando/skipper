@@ -201,7 +201,6 @@ func NewPostProcessor() routing.PostProcessor {
 }
 
 func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
-	const configErrFmt = "Error while processing endpoint fade-in settings: %s, %s, %v."
 	now := time.Now()
 
 	for _, ri := range r {
@@ -229,13 +228,7 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 		for i := range ri.LBEndpoints {
 			ep := &ri.LBEndpoints[i]
 
-			s, h, err := normalizeSchemeHost(ep.Scheme, ep.Host)
-			if err != nil {
-				log.Errorf(configErrFmt, ep.Scheme, ep.Host, err)
-				continue
-			}
-
-			key := endpointKey(s, h)
+			key := endpointKey(ep.Scheme, ep.Host)
 			detected := p.detected[key].when
 			if detected.IsZero() || endpointsCreated[key].After(detected) {
 				detected = now
