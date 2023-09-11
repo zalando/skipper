@@ -81,6 +81,10 @@ check: build check-plugins ## run all tests
 shortcheck: build check-plugins fixlimits  ## run all short tests
 	go test -test.short ./...
 
+.PHONY: flakes
+flakes: ## run all short tests 100 times and show failures
+	go test -test.short -count=100 -fullpath ./... | grep -F 'FAIL:' -A1
+
 .PHONY: check-race
 check-race: build ## run all short tests with race checker
 	go test -race -test.short ./...
