@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"compress/zlib"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/x509"
 	_ "embed"
 	"encoding/asn1"
 	"encoding/base64"
-	"encoding/hex"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,10 +22,10 @@ import (
 var appleRootCertBytes []byte
 
 // This comes from the device and is sent as the header - it is ZLIB encoded
-var encodedAttestation = []byte(`7VgJVFPHGk5uLmELmyggolyXUnbmJoQk8FQ2FYyIsihgRS_JTQjNgsllc6kkWhSOWNcK1loURHGjdcG6AK-1vKqotYp9ikVLFbRVammxrpQ3lwAGn93O6Xk9553mnLmTf-7_z0zm_77__yflEpmK0hCZmUrSDz4JiiJ1lBx28ZSK2i7J5UsMych9YEDuwqYtYyFMBGEzC_dsO7QeWLEtvAuizo9HWQiIxceC0WxWIsriuIbRs2HwiYX1TkdQCo0aiwjDcNwRONBKVhwro1K0WuLfP2jBsYoglAqZRqtWEGCUsw2XBwQ8gONAwBWm9IpCwO0TgX4tHg2mGFcMlUmBhExLE-FAKgQkIAipUAiCgEBA8NJkOBkoEEi5Mi6XHyjCubwgKSECokBpIC4hSVwaCODTFbjQU1lzHMLCwrAIUkspZApJ78b_wJ6TgSPbvPdIEGbf2bCY5qxwBpr1Se6eKVN7pq2YpfkECa0s0T6s2jAsprCw-W64e7W4kxyz6k3Rg0ZfLs9pVtVNzWeu9_Z6KgMqQ4a9PWqaY3fw1Ihy_U9A_yPgwDVHOjKZPSgCGMCWluxoCXoA_R7o89mWcNGChxKphRmqAwsqoLus6gsB7Jj1hTjsGPWFXKPEM3aBnqgHPyZudpSQx5s6yV-iUfmrshaqCEqS_vwLocxMJ3awUVT3ug6rLwyCpmb1hQLjfCJjF0x3YMTzHZijtoBTX5RrgbLxQP9Afy7gPX-JoB5g3LYxKBaxJlurtXvz-MGbRSuqWKJdVz00LTsXbUr5rGxn1fIJX20yBRlLzgBSBDjNX121dV11Wve9fbXXRC1fzk3S1o4fsTXgyISnymr_j3ZyrK_v31p7wWPn2oAoQ76sCwHUBMXZXakHjvh80K6rwkvz2qpWVS22We6xSOjGzImRzStcnsTpcTl6cnfziAuPSvzqk5EpEO0RwMA8ZUS8veWxhtYToa5Xm-I3nhC6WiSYbIsF4nD4Y4xIHPly7MdpNBQkwB-AEg1_AHi4EBfyRHw-hD-PFuGD_qT8-XzLBvbPsWvmo0cZY1hpDHT_HEFZTkzeAf5bobc__8HDo_Pjefed8_2-PWjISF4R--jivmGv5G7eLkOHD4mq-cdROXtrySVJbarArr5sNXdrvq7qzduUujx5-08ar2vc6kmpo52SLsurt3q8cYCI-dhVdr60XAakYMgArC0AG3Y0ktzpsbGoC3DKH7p3rX08r7YuPaxnJ6eq7cm3bW1F28BIWsEWdUKHTrg51w0dXnX6EP5oOfVFa-ts7c13BpODyTZ1GEvBADIEZxyvW1msKzZDPjvRLVNZzp7BP_HFCt-Jy0G0h1fH54-H3skrddt85_D-R5d2JfAe1tiwockeYceFs_oORkXcyWORj9dLyPifz3ot9T90473UupSpZ2pKXxMbbB6jQk2u-fGkDaIjci0pIRWZVLJtGuhnpw3THCnLB_mQf7gdsGFbzi-IYpIsFJKKYarELMsfl48aWHdwAzoK-NM4ZDJ_L1shfh8jTJrjqOHv-P079_x3_P7_iN_AE2GiNPSx1HEbU18vrSghJ3x53Td3YdyNdxd_f2FpRIqw8Efn8IjJz8B8eBS0ZtLkoOypkxSzghIjJ_nIpRk-SkkOSMTTJoXlRC0QiiMyxAtiMiLyMsRcjZoksxcKfARScQxQZoRJ1dqcxBm8gKDpghnZ2eLAIFWANCp9pjY8KU0mHz8e2EIs0SuwwxISJsUnADsE8h_K5jpCLU3T5AIMYXLoARc0mAu4PD8g8OPhCTgeDATBXKG_QCRIoXWG9er0auDAjysarMHo_cCwYmDtgy2hL28tOVc602_VknNO1tdthfqF4YM4vxgHwN_IwFcHOK_sow2kCUXKtQPc52N-2BS8P9NZ92e6QVTDwrKodI1WQeW9nHTWwJIeZDsiifF9AQLGBJzPFeECOkAEgkAQ1CsGpYAUPAgEGnfnZ7ov05g0WUtkSbE4Y4zF4hVytUIt_x1r_zLRm0s85ffnXvTaO6K2bssCy46J_xbvGJ7n8n6k0pUb0D5rdvS9xx8cv4zqEGX7hisjL52yaDG8Mepg49PObm-vr5fad5cbmFdg3dD0AtVNs9lV55_F8jVC8bqua-cvz84fav3W-NMggm3hw2aamZlDJwsAH3KtTwbMglfTKSozOCBAI9Fl-veW6jTPe0XA8yMIeDJ8OQ5wuK4bvQ6GGpiOULCDzXqAs2ZMoO8G-pP9EyMI0Ndw9AfjSKWCUEtIDJ4nla7QYZIBl5JYWh5GqPOwTEJLwW86XZaK1GGEREJmUkYbGbQh6abGCKOT0uCJQ_-opYRWilGkVgUN1FJMolFLFbTTdLRRlo70HbRQpgba5hk1B0EqU0tIKIWkd06KVJFqSucP-AM_gunk1Xc6OTk5JodjMjfRD0qTkmFa58737IkiV5H0rKr9Woh52qbs2sHx2Dwf2A2cHccORWByNo1lUxggEsEWXpN-nbUl1sypxzf62o9rfAMcfCtzVs8wWFHLtuwNeecegk3ifzrfmxsa89hbL3-2qUb7lWVpk1fR27fNGjssM51nFNOJGralfYSd9XRZk09P8UlB6djDKfvVtYMKTTk-Agw3UmKIEdp9hSXNTd6fy01cBHhcLi7g83g8uvoMpMX-6vOvjRy_zN515yW1Swo-2ONpFeLWWv0U3ZC_du9P-I3KRk--JlLcOrptdsuQ4uJjhsUb66Kf1PHO7D-HDu8MiHjlSVfdwcZlbxwr1z8E-i7o-H7umgEW7AbR9_j717cl8VZurigqvV5Xe7e6uXHcHjDZhL7BsMwJMqGv96_Tlx7QQjdKCDmsl-iF3FF4usC3zLvMs8Cjz1iiVZrYDjLyh-9MoP3S8PJiNWzPtuqDNhthvYBtFiudAUhY7BZrKt_b9tWte3Om64rWLR2fG1_yVleze9Kok1lTfxbumua9zNV1t02lVNV6dP2dzxOndSBAHuJ7qPWOwDyn8fK97F2uwYkhE_kZpxra173fStTlRytuzfOpUrY6ILvPEleFR3RT-25Zp43gt_BreLbyYoN4418HepiBYMUqhOAPokEvMhH_dxv5hatYyTcB40O1FR3rx2j1jm4t9hs7G8qnL_hyqNNV27ZKM-8c6aJ504WXjrtFHl76wL2Gmzb39DfL58SCWIcURndSEmfHAzvfGPMpjlnNmzZt0uCvdfi8uwgLuXI04WpqaUXwTCu8PByEmuDopTj_L2b82jWrD0bLvvnoE6dU17mBLlc77ncpbRmTxR_eODDZocGuu33hqm2Vr5__mNW05cH6f1EfZtzYPXYYAlSyIvszTTZNseeKIyYcKpLs4Klvqpqdj0jdT8V7PF6ZRomsnec0ztzFuePCur39gCeDgeufAT288MAct-avjU4vqbleuOKZZBF0Mp1EmDGK9sMtXZ2WT-yja1RjHWKDBe3TX-1Jf7t-KMoh9rsjWB765Gy3m3zf082ycNfb4Te_G3WkQXzjn_HZh7T6H9jRUcbqL53OdJEERSRV1JwpOLdu3pM1MbZ7vl9dtGpJ8kNh_TveLbcw-aftGW1d3aG0PtH_f5-UzCaVmkwG1s25e9T-iq3VvpVs84UhnbdyLv7wSvSQoOY1G5rcvhsZ-t0OJsLywJijk7DfvBAlYb91J_oP`)
+var encodedAttestation = []byte(`7VgJVBPXGk4mQ9gioCgIbuNSZA13MgkkUJUUERARZJHFCg6ThWg2k0HE1kqionBKa12qtLaCqBW1Yl1oFYFXLc_dVsXW5SGlKmIfVG2pipb67hDA4LPbOT2v57zTnNy5-W_-u-T_v-___5tySqGhdaRer5YHwCdJ03IjrYRdIq2hN1MLRZQ5DbkLzEgbbIZSDsJGEC67aFmZ4xngwLXzLYg6OwHlICAOHwtGcznJKIfnKWVWw-ATk3YvR9IqnRYLl2I47goGMkoOPAeLUrSW4vcO2vEcwkm1SqEzaFUkGOk-QEAACQ5woUAowNN7RKJHBKa38GgQadkxTCTHASGWibIkQUEyhSALEIRcIQwWkgQlIBWyYFwmFokUQABwMS4DQTI5FQRIiSA4SyAAgAQE7gmGMks58gZKpVIsXG6gVQoV1X3wP3DmNODKte02CcLusQ2Hbct5iYU2T2xK8Dzgduj7iyF3P508-7x_0d4Hre7ml7FIdFDllyk-FfPrc2JO-r5dUI3dKBE06zcuT-VNq-AFs0Js53zB2_Sw3HQfmH4APLjnCFc2-wmKABZwYiRnRoIeQO8CUz7XHm5a8ICS2dmgRjB_C3SXQ10hgB27rhCHHauuUGCRCEsn9Ea9RLEJKVFigpgawad0Gr4mZ5GGpKnspx9ItT6b3MpFUeM8I1ZXGASn2tQVBlvWk1i6EKYDw56ewBZ1Ary6ooV2KBcX8oV8ASCefomgXmBc2RgUi5hkOt3pTJaU2R-b7zbyeGROqFtWwXrR7PU3qJkjR4_63BpknGwWkCMgu6Ux7nHGuMwE9wfNidKuCNS94thB6sFjn8Ilc_elV7MXv9eYGN-xsnCFKJnbkl9LITir9R9RL34TUKzSNlz38Ll21n_xYdcM9fBYm-avZ611OFZJfFcqzvJwkPK_Ozokk7djpnMaEgnhHg7M7OMWyLvYH6pvPhzmebkhcd1hsaddktW5OCABh7_GAsURzwd_gk5HQwb8ASwx-AcQmWJcTEhEIoh_ghHhg3ml__mEWwBcnoLXxs-EssZwsljo7lnBpbmxeXtFb4bdOve9l9e9I5l33PMDvt1nnpu2Iu7h-Q-HvLDwnc0K1GNQVNWLB5Xc9zdcoGoygp3rSt8QvJ9vrFh-i9aWp22-r_O5KqiMyBjtlnpRWfm-12t7ydgjnoqzJeUKIAOD-nBtB7iwY6A0ihkbiw4FbvmDd73lkkjU1GZLn3zAq7j56NubN4vKwAhGwQl1QwdPvD57OOpRcWI__nAZ_WVzc4rh-rv92cHmWjuMo2IBBYRFde3KYmOxDfL54S6Fxj4lXnT4yxX-k5aBaC-f9nOdg1vzSoa_03pg98ML25OIB1UDuHDKTnH7F6dN7awtCUcPTe5cQ8kTfz7ts4S_v2lTRm361JNVJS_HmAd0omLdQtvq1LWSj5UGOSVX6ek0pyzQS88BbFukNB_kQwLizmAA135OQRRbzkEhq1jWSuzS_HH5qJnTipvREYDP4JDN_r10hfh9hLAZkqPmvwP47zzz3wH8_ySAA2-EjTLYx1bwp8efLVl1aY-U4EWeaDw3rG1efMht8dySK8uX3a4e9BmYA23BaKbGRk2VSYSGZKFSlTYlUBmdNyOKjAkXRsULDMoF8mRNnEoar5YvSs2ZlzgzWxsjnqbG4_OCg7SSmdGKvFxp4NxwuVChShQqQUR2Skx8unJ6oF_kjAkTgBMEE7MDV5qUFJGYBJwRGACgbGsktbIs3UIwCmHzmAFU4i4AAiIASAJwPAkXhgjgG-cLJemMyhBGxaKACwJw0E-B1f2CUcXM-RC2pJ60tfhMyYyA1xefcXO85iQ2LXqpH-VfxQHgWwg4vo_y6h7WQJbQcqWhj_oiLACLxHsTnWNvouvHNEyaQ2frDCo67_mccwT2zCDXFUlO7IkPBBDjIoEED2bigxAIQVC3GJQO0vEgILScLsD6XNYhaYqBzJFhCZYQiyWqlFqVVvk79v5lnl_Z4K28M_u8z65hNbUb59u3T_oqZqtH3tA9k9WegsCWmSnRbZ0fVV9EjYi6Ze2lEReO2zWaXxu579Tje12-Pt8scekqN7MvwbKh4RmmWyezy-4_xyhXiWNWd1w9ezElf7DjmxNOgHCunR-XbWNjC30cDESQaj0yYBeMz6ZpfUhgoI4y6vndpTpD824REAEkCS0jUsI4C_cdzuyDoWa2KxScYXPso6wNG5i6gOlo78IIAkxVPNO-BLlaRWopOQbtSWerjBjV51I5lpWHkdo8TE8aaPjJaMzRyI0YSVFyPW2Zo4Bz5EzTYqTFSVnQ4tA_WhlpkGG03KCBE7QyjNJpZSrGaUZmUo5R7t9vI70Ozs2zaPaDlN5AUrSK6l6TlmvkWtrIB6K-H8F28-mxTm5urpVxrNYme0FpVTFMu_fBJheyyFMiO61puRpqm7V-QU3_cGybD5z7bMdzRhGYm61DWSQLTEawRVdl3-RsjLNxe-IfffWHVf6BA_235b4Rb3agl27cFfpuG4JFiI7N8RWExXb6mpQ_ra8yfG1f0uBT9PYtm1Pt9nr3-GKYlTthW9JD2JmPlzb4PSk-Glwy9kD6bm1NvzpTiQ8DHhZKDLJAu6euZLhJ_LncxCWAEAjwYBFBEEzxKWTE3uLzr40cv8ze1WepmsUFH-30dggd3lz5GF2b_9au-3jTtlPeIt3kmObRN1MaBxUXHzK_uq42-lEtcXL3GdTjXmD4C486avedWvraoXLTA2DqgI7v5a4N4MCuH32r91wrSyVWvrOlqORabc2_K6-cGrcTTLGibwgQgyAr-vr-On2ZAQN0I0UqCRDMbDQKhdYF_qW-pd4FXj2TKYPaam6_SXz4nRW0nxteni2GXbgOPdDmIpxnsM2xpGmcVazbtqns6xtts6Ybi1YvmbAwccObHVdGpY48mjP1Z_H2ab5LPT13DNgm0zQfXNN6LnlaOwKUof77m1uDbXNPXWxbsN0zJDl0kmju8fqW1Xuaydr8aNWNTL8KdfNAZMdp8rL4Y-PUnkvWCQv47QLqf1p5vj5m3V8HepiBCKbGlIAgBvQSK_F_d5BfuIltuB04IcywpX3NGIPJdXijy7p79eXT5_9rsNtlp5vbbHxzZa9kThdfqB4--cCSH0dVCbJmn7i9bFYciBuYzupKTeVt_dHZP9Y20jXnyvr163X4y-1-772ChV46mHQ5o2RLyAwHvPwlEGaFo-fi_L-Y8Wu3rB4YLb396WduGZ6zhUMvt9_pUDuxpsR80rR3ysB6566WRa-XbZt39ginYeOPa_5JfzK3acfYIQjQKIpcTjYMaIg7Uxw-cX8RtZXQXtdccf9YNup4olfnyixa4ug-69SM7bzWoZxbm_d6s1g4k9rgfQfmuFV_bXR6Ts31zA3PKougkSACGc26Fz-m6fs7DynegSltTTUn6ybwBFfWrku-qmdleujGD9yPYF7Rg64FAFVorN-NYRvM0-KLHjfe361b0tg4a92r8icbOJbyL5tJdZNJmkzdUnWy4MzqzEerYp123n2j6PXFaQ_Ede_6Nt7AlMda5t7s6Apj9MneP_xk8gVytU7PwjJcxBcPKpr8OBM76PIjlV-NWJ6JsE1faNrmVIzfizlwtrIRjhfGHp2K_daFaEwq9lt3ov8A`)
 
 // Challenge that was issued to the client
-var encodedChallengeData = []byte(`NzY4RTBGQTQtQkI0MC00NjA3LUI3QjktRTBBRTcyODBCQ0U3`)
+var encodedChallengeData = []byte(`4lhoEqr48g2ivoOLgUW5EZPhpFlede3ucn1EcWGfVNI=`)
 
 func getAttestationCbor() *attestationCbor {
 	var decodedAttestationPayload = make([]byte, base64.URLEncoding.DecodedLen(len(encodedAttestation)))
@@ -35,7 +36,7 @@ func getAttestationCbor() *attestationCbor {
 
 	// iOS implements level 5 zlib compression - https://developer.apple.com/documentation/compression/compression_zlib
 	// iOS doesn't prepend the zlib magic bytes so we're adding them, found via https://stackoverflow.com/a/43170354
-	decodedAttestationPayload = append([]byte{0x78, 0x5E}, decodedAttestationPayload...) // iOS doesn't append the
+	decodedAttestationPayload = append([]byte{0x78, 0x5E}, decodedAttestationPayload...) // iOS doesn't prepend the 78 and 5E bytes
 
 	reader, readerErr := zlib.NewReader(bytes.NewBuffer(decodedAttestationPayload))
 	if readerErr != nil {
@@ -47,12 +48,37 @@ func getAttestationCbor() *attestationCbor {
 	_, _ = io.Copy(&attestationCborData, reader)
 	_ = reader.Close()
 
-	fmt.Println(hex.EncodeToString(attestationCborData.Bytes()))
+	//fmt.Println(hex.EncodeToString(attestationCborData.Bytes()))
 
 	var attestation attestationCbor
 	if err := cbor.Unmarshal(attestationCborData.Bytes(), &attestation); err != nil {
 		slog.Error("cannot read CBOR data", "error", err)
+		return nil
 	}
+
+	attestation.AttAuthData.RPIDHash = attestation.RawAuthData[:32]
+	attestation.AttAuthData.Flags = AuthenticatorFlags(attestation.RawAuthData[32])
+	attestation.AttAuthData.Counter = binary.BigEndian.Uint32(attestation.RawAuthData[33:37])
+
+	attestation.AttAuthData.AttData.AAGUID = attestation.RawAuthData[37:53]
+	idLength := binary.BigEndian.Uint16(attestation.RawAuthData[53:55])
+	attestation.AttAuthData.AttData.CredentialID = attestation.RawAuthData[55 : 55+idLength]
+	attestation.AttAuthData.AttData.CredentialPublicKey = attestation.RawAuthData[55+idLength:]
+
+	//minAuthDataLength := 37
+	//remaining := len(attestation.RawAuthData) - minAuthDataLength
+
+	// Apple didn't read the W3C specification properly and sets the attestedCredentialData flag, while it's not present for an assertion. We'll just look a the length...
+	//if len(attestation.RawAuthData) > minAuthDataLength {
+	//	a.unmarshalAttestedData(attestation.RawAuthData)
+	//	attDataLen := len(attestation.AttAuthData.AttData.AAGUID) + 2 + len(attestation.AttAuthData.AttData.CredentialID) + len(attestation.AttAuthData.AttData.CredentialPublicKey)
+	//	remaining = remaining - attDataLen
+	//}
+	//
+	//if remaining != 0 {
+	//	return utils.ErrBadRequest.WithDetails("Leftover bytes decoding AuthenticatorData")
+	//}
+
 	return &attestation
 }
 
@@ -119,8 +145,10 @@ func main() {
 				Roots:         rootPool,
 			},
 		)
+
 		if verifyErr != nil {
 			slog.Error("Unable to verify certificate", "error", verifyErr)
+			return
 		}
 		credCert = _credCert
 	}
@@ -129,21 +157,26 @@ func main() {
 	// Create clientDataHash as the SHA256 hash of the one-time challenge your server sends to your app before
 	// performing the attestation, and append that hash to the end of the authenticator data
 	// (authData from the decoded object).
-	var clientDataHash []byte
+	var clientDataHash [32]byte
 	{
-		clientDataHasher := sha256.New()
-		clientDataHasher.Write(encodedChallengeData)
-		clientDataHash = clientDataHasher.Sum(nil)
+		//clientDataHasher := sha256.New()
+		//clientDataHasher.Write(attestation.RawAuthData)
+		//clientDataHasher.Write([]byte("HelloWorld"))
+		//clientDataHash = clientDataHasher.Sum(nil)
+
+		clientDataHash = sha256.Sum256([]byte("HelloWorld"))
 	}
 
 	// Step 3.
 	// Generate a new SHA256 hash of the composite item to create nonce.
-	var nonce []byte
+	var nonce [32]byte
 	{
-		nonceHasher := sha256.New()
-		nonceHasher.Write(attestation.AuthData)
-		nonceHasher.Write(clientDataHash)
-		nonce = nonceHasher.Sum(nil)
+		//nonceHasher := sha256.New()
+		//nonceHasher.Write(attestation.RawAuthData)
+		//nonceHasher.Write(clientDataHash[:])
+		//nonce = nonceHasher.Sum(nil)
+
+		nonce = sha256.Sum256(append(attestation.RawAuthData, clientDataHash[:]...))
 	}
 
 	// Step 4.
@@ -153,20 +186,24 @@ func main() {
 	{
 		var attExtBytes []byte
 		for _, ext := range credCert.Extensions {
-			if ext.Id.Equal([]int{1, 2, 840, 113635, 100, 8, 2}) {
+			if ext.Id.Equal(asn1.ObjectIdentifier{1, 2, 840, 113635, 100, 8, 2}) {
 				attExtBytes = ext.Value
 			}
 		}
 		if len(attExtBytes) == 0 {
 			slog.Error("Attestation certificate extensions missing 1.2.840.113635.100.8.2")
+			return
 		}
+
 		decoded := AppleAnonymousAttestation{}
 		if _, err := asn1.Unmarshal(attExtBytes, &decoded); err != nil {
 			slog.Error("Unable to parse apple attestation certificate extensions")
+			return
 		}
 
-		if !bytes.Equal(decoded.Nonce, nonce) {
+		if !bytes.Equal(decoded.Nonce, nonce[:]) {
 			slog.Error("Attestation certificate does not contain expected nonce")
+			return
 		}
 	}
 
@@ -175,44 +212,68 @@ func main() {
 	// your app.
 	var publicKey *ecdsa.PublicKey
 	{
-		_pubKey := credCert.PublicKey.(*ecdsa.PublicKey)
-		// nonceHasher.Write(elliptic.Marshal(pubKey, pubKey.X, pubKey.Y))
-		// certSha256 := fmt.Sprintf("%x", nonceHasher.Sum(nil))
-		// fmt.Println(certSha256)
-		publicKey = _pubKey
+		pubKey := credCert.PublicKey.(*ecdsa.PublicKey)
+		publicKeyBytes := elliptic.Marshal(pubKey, pubKey.X, pubKey.Y)
+		pubKeyHash := sha256.Sum256(publicKeyBytes)
+		keyID, _ := base64.URLEncoding.DecodeString("XhA41blm3ysDPvR0o8Kv1x2FXwIBgdBt7GCpJ7IgCgM=") // TODO: don't hardcode
+		if !bytes.Equal(pubKeyHash[:], keyID) {
+			slog.Error("Mismatch")
+			return
+		}
+		publicKey = pubKey
 	}
+	_ = publicKey
 
 	// Step 6.
 	// Compute the SHA256 hash of your app’s App ID, and verify that it’s the same as the authenticator
 	// data’s RP ID hash.
 	{
 		// TODO where to get the authenticator data from?
+		appID := sha256.Sum256([]byte("5MRWH833JE.com.muzmatch.muzmatch.alpha"))
+		if !bytes.Equal(appID[:], attestation.AttAuthData.RPIDHash) {
+			slog.Error("RPID mismatch")
+			return
+		}
 	}
 
 	// Step 7.
 	// Verify that the authenticator data’s counter field equals 0.
 	{
-		// TODO where to get the authenticator data from?
+		if attestation.AttAuthData.Counter != 0 {
+			slog.Error("authenticator data counter field does not equal 0.")
+			return
+		}
 	}
 
 	// Step 8.
 	// Verify that the authenticator data’s aaguid field is either appattestdevelop if operating in the
 	// development environment, or appattest followed by seven 0x00 bytes if operating in the production environment.
+	// TODO: prod is different
 	{
-		// TODO where to get the authenticator data from?
+		if !bytes.Equal([]byte("appattestdevelop"), attestation.AttAuthData.AttData.AAGUID) {
+			slog.Error("bad AAGUID provided")
+			return
+		}
 	}
 
 	// Step 9.
 	// Verify that the authenticator data’s credentialId field is the same as the key identifier.
 	{
-		// TODO where to get the authenticator data from?
+		keyID, _ := base64.URLEncoding.DecodeString("XhA41blm3ysDPvR0o8Kv1x2FXwIBgdBt7GCpJ7IgCgM=") // TODO: don't hardcode
+		if !bytes.Equal(keyID, attestation.AttAuthData.AttData.CredentialID) {
+			slog.Error("bad credentialID provided")
+			return
+		}
 	}
+
+	fmt.Println("DONE")
 }
 
 type attestationCbor struct {
-	Fmt      string           `cbor:"fmt"`
-	AttStmt  appleCborAttStmt `cbor:"attStmt"`
-	AuthData []byte           `cbor:"authData"`
+	AttAuthData appleAuthData
+	Fmt         string           `cbor:"fmt"`
+	AttStmt     appleCborAttStmt `cbor:"attStmt"`
+	RawAuthData []byte           `cbor:"authData"`
 }
 
 type appleCborAttStmt struct {
@@ -220,12 +281,21 @@ type appleCborAttStmt struct {
 	Receipt []byte   `cbor:"receipt"`
 }
 
+type AuthenticatorFlags byte
+
+type AttestedCredentialData struct {
+	AAGUID       []byte `cbor:"aaguid"`
+	CredentialID []byte `cbor:"credentialId"`
+	// The raw credential public key bytes received from the attestation data
+	CredentialPublicKey []byte `cbor:"public_key"`
+}
+
 type appleAuthData struct {
-	RPIDHash []byte `cbor:"rpid"`
-	// Flags    AuthenticatorFlags     `json:"flags"`
-	// Counter  uint32                 `json:"sign_count"`
-	// AttData  AttestedCredentialData `json:"att_data"`
-	// ExtData  []byte                 `json:"ext_data"`
+	RPIDHash []byte                 `cbor:"rpid"`
+	Flags    AuthenticatorFlags     `cbor:"flags"`
+	Counter  uint32                 `cbor:"sign_count"`
+	AttData  AttestedCredentialData `cbor:"att_data"`
+	ExtData  []byte                 `cbor:"ext_data"`
 }
 
 // Apple has not yet publish schema for the extension(as of JULY 2021.)
