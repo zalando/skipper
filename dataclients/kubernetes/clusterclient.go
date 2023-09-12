@@ -57,6 +57,7 @@ type clusterClient struct {
 	endpointsURI        string
 	secretsURI          string
 	tokenProvider       secrets.SecretsProvider
+	tokenFile           string
 	apiURL              string
 	certificateRegistry *certregistry.CertRegistry
 
@@ -168,17 +169,22 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 
 	if o.KubernetesInCluster {
 		c.tokenProvider = secrets.NewSecretPaths(time.Minute)
-		err := c.tokenProvider.Add(serviceAccountDir + serviceAccountTokenKey)
-		if err != nil {
-			log.Errorf("Failed to Add secret %s: %v", serviceAccountDir+serviceAccountTokenKey, err)
-			return nil, err
+		c.tokenFile = serviceAccountDir + serviceAccountTokenKey
+	} else if o.TokenFile != "" {
+		c.tokenProvider = secrets.NewSecretPaths(time.Minute)
+		c.tokenFile = o.TokenFile
+	}
+
+	if c.tokenProvider != nil {
+		if err := c.tokenProvider.Add(c.tokenFile); err != nil {
+			return nil, fmt.Errorf("failed to add secret %s: %w", c.tokenFile, err)
 		}
 
-		b, ok := c.tokenProvider.GetSecret(serviceAccountDir + serviceAccountTokenKey)
-		if !ok {
-			return nil, fmt.Errorf("failed to GetSecret: %s", serviceAccountDir+serviceAccountTokenKey)
+		if b, ok := c.tokenProvider.GetSecret(c.tokenFile); ok {
+			log.Debugf("Got secret %d bytes from %s", len(b), c.tokenFile)
+		} else {
+			return nil, fmt.Errorf("failed to get secret %s", c.tokenFile)
 		}
-		log.Debugf("Got secret %d bytes", len(b))
 	}
 
 	if o.KubernetesNamespace != "" {
@@ -227,9 +233,9 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 	}
 
 	if c.tokenProvider != nil {
-		token, ok := c.tokenProvider.GetSecret(serviceAccountDir + serviceAccountTokenKey)
+		token, ok := c.tokenProvider.GetSecret(c.tokenFile)
 		if !ok {
-			return nil, fmt.Errorf("secret not found: %v", serviceAccountDir+serviceAccountTokenKey)
+			return nil, fmt.Errorf("secret not found: %v", c.tokenFile)
 		}
 		req.Header.Set("Authorization", "Bearer "+string(token))
 	}

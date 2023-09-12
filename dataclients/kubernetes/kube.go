@@ -86,6 +86,10 @@ type Options struct {
 	// environment variables.)
 	KubernetesURL string
 
+	// TokenFile configures path to the token file.
+	// Defaults to /var/run/secrets/kubernetes.io/serviceaccount/token when running in-cluster.
+	TokenFile string
+
 	// KubernetesNamespace is used to switch between finding ingresses in the cluster-scope or limit
 	// the ingresses to only those in the specified namespace. Defaults to "" which means monitor ingresses
 	// in the cluster-scope.
