@@ -14,7 +14,7 @@ type endpointID struct {
 }
 
 type endpoint struct {
-	Meta    *definitions.Metadata `json:"Metadata"`
+	Meta    *definitions.Metadata `json:"metadata"`
 	Subsets []*subset             `json:"subsets"`
 }
 
