@@ -166,6 +166,10 @@ type Options struct {
 	// skipper is not running in-cluster, the default API URL will be used.
 	KubernetesURL string
 
+	// KubernetesTokenFile configures path to the token file.
+	// Defaults to /var/run/secrets/kubernetes.io/serviceaccount/token when running in-cluster.
+	KubernetesTokenFile string
+
 	// KubernetesHealthcheck, when Kubernetes ingress is set, indicates
 	// whether an automatic healthcheck route should be generated. The
 	// generated route will report healthyness when the Kubernetes API
@@ -913,6 +917,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		DefaultFiltersDir:                 o.DefaultFiltersDir,
 		KubernetesInCluster:               o.KubernetesInCluster,
 		KubernetesURL:                     o.KubernetesURL,
+		TokenFile:                         o.KubernetesTokenFile,
 		KubernetesNamespace:               o.KubernetesNamespace,
 		KubernetesEnableEastWest:          o.KubernetesEnableEastWest,
 		KubernetesEastWestDomain:          o.KubernetesEastWestDomain,

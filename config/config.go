@@ -151,6 +151,7 @@ type Config struct {
 	KubernetesIngress                       bool                               `yaml:"kubernetes"`
 	KubernetesInCluster                     bool                               `yaml:"kubernetes-in-cluster"`
 	KubernetesURL                           string                             `yaml:"kubernetes-url"`
+	KubernetesTokenFile                     string                             `yaml:"kubernetes-token-file"`
 	KubernetesHealthcheck                   bool                               `yaml:"kubernetes-healthcheck"`
 	KubernetesHTTPSRedirect                 bool                               `yaml:"kubernetes-https-redirect"`
 	KubernetesHTTPSRedirectCode             int                                `yaml:"kubernetes-https-redirect-code"`
@@ -436,8 +437,9 @@ func NewConfig() *Config {
 
 	// Kubernetes:
 	flag.BoolVar(&cfg.KubernetesIngress, "kubernetes", false, "enables skipper to generate routes for ingress resources in kubernetes cluster. Enables -normalize-host")
-	flag.BoolVar(&cfg.KubernetesInCluster, "kubernetes-in-cluster", false, "specify if skipper is running inside kubernetes cluster")
-	flag.StringVar(&cfg.KubernetesURL, "kubernetes-url", "", "kubernetes API base URL for the ingress data client; requires kubectl proxy running; omit if kubernetes-in-cluster is set to true")
+	flag.BoolVar(&cfg.KubernetesInCluster, "kubernetes-in-cluster", false, "specify if skipper is running inside kubernetes cluster. It will automatically discover API server URL and service account token")
+	flag.StringVar(&cfg.KubernetesURL, "kubernetes-url", "", "kubernetes API server URL, ignored if kubernetes-in-cluster is set to true")
+	flag.StringVar(&cfg.KubernetesTokenFile, "kubernetes-token-file", "", "kubernetes token file path, ignored if kubernetes-in-cluster is set to true")
 	flag.BoolVar(&cfg.KubernetesHealthcheck, "kubernetes-healthcheck", true, "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes")
 	flag.BoolVar(&cfg.KubernetesHTTPSRedirect, "kubernetes-https-redirect", true, "automatic HTTP->HTTPS redirect route; valid only with kubernetes")
 	flag.IntVar(&cfg.KubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, "overrides the default redirect code (308) when used together with -kubernetes-https-redirect")
@@ -779,6 +781,7 @@ func (c *Config) ToOptions() skipper.Options {
 		Kubernetes:                             c.KubernetesIngress,
 		KubernetesInCluster:                    c.KubernetesInCluster,
 		KubernetesURL:                          c.KubernetesURL,
+		KubernetesTokenFile:                    c.KubernetesTokenFile,
 		KubernetesHealthcheck:                  c.KubernetesHealthcheck,
 		KubernetesHTTPSRedirect:                c.KubernetesHTTPSRedirect,
 		KubernetesHTTPSRedirectCode:            c.KubernetesHTTPSRedirectCode,
