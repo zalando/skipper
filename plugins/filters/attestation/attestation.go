@@ -19,7 +19,9 @@ func (s *attestationSpec) Name() string {
 
 func (s *attestationSpec) CreateFilter(_ []interface{}) (filters.Filter, error) {
 	filter := &attestationFilter{
+		repo:       NewRepo("d-all-api-gateway"),
 		googlePlay: newGooglePlayIntegrityServiceClient(),
+		appStore:   appStore{},
 	}
 	return filter, nil
 }

@@ -85,6 +85,7 @@ func (c googlePlayIntegrityServiceClient) validate(token []byte, nonce string) i
 
 	// Did Google give us confidence in the installation and device?
 	var platformSuccess = true
+	_ = platformSuccess
 
 	// Ensure the app has been recognised by the Play Store the package is `com.muzmatch.muzmatchapp`
 	if requestPackageName != productionAndroidPackageName {
@@ -105,6 +106,7 @@ func (c googlePlayIntegrityServiceClient) validate(token []byte, nonce string) i
 		nonceSuccess = false
 		muzzError = append(muzzError, fmt.Sprintf("Nonce mismatch: server %q app %q", nonce, googleNonce))
 	}
+	_ = nonceSuccess
 
 	// $appAttestation->setPlatformSuccess($platformSuccess);
 	// $appAttestation->setNonceSuccess($nonceSuccess);

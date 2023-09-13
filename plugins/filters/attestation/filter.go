@@ -15,17 +15,18 @@ import (
 var _ filters.Filter = (*attestationFilter)(nil)
 
 type attestationFilter struct {
+	repo       *repo
 	googlePlay googlePlayIntegrityServiceClient
+	appStore   appStore
 }
 
 func (a attestationFilter) Request(ctx filters.FilterContext) {
 	r := ctx.Request()
 
-	// TODO: Determine if the URI is one we want to perform an integrity check on
 	uri := r.URL.RequestURI()
 	var isProtectedRoute bool
 	for _, protectedRoute := range []string{
-		"/TODO",
+		"/v2.5/auth/confirm",
 	} {
 		if uri == protectedRoute {
 			isProtectedRoute = true
@@ -44,6 +45,8 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	appVersion := r.Header.Get("appVersion")
 	authorizationHeader := r.Header.Get("authorization")
 	bypassHeader := r.Header.Get("x-muzz-bypass-device-integrity-check")
+	encodedKeyId := r.Header.Get("x-keyid")             // iOS only
+	encodedAssertation := r.Header.Get("x-assertation") // iOS only
 
 	// Determine platform
 	var isAndroid = androidUserAgent.MatchString(r.Header.Get("user-agent"))
@@ -68,12 +71,14 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	}
 
 	// Enforce minimum versions of apps
+	platform := ""
 	switch {
 	case isAndroid:
+		platform = "android"
 		// TODO: If device version is < minimumAndroidVersion send HTTP 426 and user message
 	case isIOS:
+		platform = "ios"
 		// We don't have any support on iOS yet
-		return
 	default:
 		sendErrorResponse(ctx, http.StatusForbidden, "Invalid OS")
 		return
@@ -84,8 +89,8 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	// Fetch the existing app attestation record from the database
-	var existingAppAttestation any = nil
+	// TODO: error handling
+	existingAppAttestation, _ := a.repo.GetAttestationForUDID(deviceUDID)
 
 	// If there is no authorization header, or there is no existing app attestation record in the database, issue the challenge
 	if existingAppAttestation == nil || authorizationHeader == "" {
@@ -93,7 +98,19 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		buf := make([]byte, 128)
 		_, _ = rand.Read(buf)
 
+		requestBody, _ := io.ReadAll(ctx.Request().Body)
+
 		// TODO create app attestation
+		err := a.repo.CreateAttestationForUDID(
+			deviceUDID,
+			buf,
+			platform,
+			ctx.Request().Header,
+			string(requestBody),
+		)
+		if err != nil {
+			return
+		}
 
 		header := http.Header{}
 		header.Set("Content-Type", "application/json")
@@ -103,7 +120,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 			struct {
 				Challenge string `json:"challenge"`
 			}{
-				Challenge: base64.URLEncoding.EncodeToString([]byte(buf)),
+				Challenge: base64.URLEncoding.EncodeToString(buf),
 			},
 		)
 
@@ -114,6 +131,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 				Body:       io.NopCloser(bytes.NewBufferString(string(b))),
 			},
 		)
+		return
 	}
 
 	// Authorization header is present, lets validate
@@ -132,7 +150,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	// Set the challenge response we received
 	// TODO: $existingAttestation->setChallengeResponse($authorizationHeader);
 
-	// Has the app send an error code instead
+	// Has the app sent an error code instead
 	if isIOS {
 		switch authorizationHeader {
 		case "serverUnavailable":
@@ -207,7 +225,30 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		sendErrorResponse(ctx, http.StatusForbidden, "Integrity check failed")
 
 	case isIOS:
-		// Nothing to do
+		if encodedAssertation == "" {
+			sendErrorResponse(ctx, http.StatusForbidden, "Empty x-assertation header")
+			return
+		}
+		if encodedKeyId == "" {
+			sendErrorResponse(ctx, http.StatusForbidden, "Empty x-keyid header")
+			return
+		}
+
+		// TODO: get challenge from db
+		verdict := a.appStore.validate(encodedAssertation, "", encodedKeyId)
+		// $this->repository->updateAttestationForUDID($existingAttestation);
+
+		if verdict == integritySuccess {
+			return // All good, proceed
+		}
+
+		if verdict == integrityUnevaluated {
+			// TODO: Captcha challenge
+			return
+		}
+
+		// Integrity failed, throw an error
+		sendErrorResponse(ctx, http.StatusForbidden, "Integrity check failed")
 	}
 
 	// All good, continue

@@ -25,7 +25,7 @@ func New(
 func (a *Attestation) Parse() error {
 	// iOS implements level 5 zlib compression - https://developer.apple.com/documentation/compression/compression_zlib
 	// iOS doesn't prepend the zlib magic bytes - so we're adding them, found via https://stackoverflow.com/a/43170354
-	decodedAttestationPayload := append([]byte{0x78, 0x5E}, a.req.DecodedAttestation...) // iOS doesn't prepend the 78 and 5E bytes
+	decodedAttestationPayload := append([]byte{0x78, 0x5E}, a.req.DecodedAttestation...)
 
 	reader, readerErr := zlib.NewReader(bytes.NewBuffer(decodedAttestationPayload))
 	if readerErr != nil {
@@ -47,7 +47,7 @@ func (a *Attestation) Parse() error {
 
 func (a *Attestation) ValidateCertificate() error {
 	if a.attestationCbor.Fmt != "apple-appattest" {
-		return errors.New("fmt is not apple-appattest")
+		return errors.New("fmt is not 'apple-appattest'")
 	}
 
 	// If x5c is not present, return an error
@@ -97,7 +97,7 @@ func (a *Attestation) ValidateCertificate() error {
 }
 
 func (a *Attestation) ClientHashData() {
-	a.clientDataHash = sha256.Sum256([]byte("HelloWorld"))
+	a.clientDataHash = sha256.Sum256(a.req.DecodedChallengeData)
 }
 
 func (a *Attestation) GenerateNonce() {
