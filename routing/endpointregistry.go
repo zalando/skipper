@@ -3,7 +3,11 @@ package routing
 import (
 	"sync"
 	"time"
+
+	"github.com/zalando/skipper/eskip"
 )
+
+const lastSeenTimeout = 1 * time.Minute
 
 // Metrics describe the data about endpoint that could be
 // used to perform better load balancing, fadeIn, etc.
@@ -28,6 +32,8 @@ func (e *entry) InflightRequests() int64 {
 }
 
 type EndpointRegistry struct {
+	lastSeen map[string]time.Time
+
 	mu sync.Mutex
 
 	data map[string]*entry
@@ -39,19 +45,38 @@ type RegistryOptions struct {
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
+	now := time.Now()
+
 	for _, route := range routes {
-		for _, epi := range route.LBEndpoints {
-			metrics := r.GetMetrics(epi.Host)
-			if metrics.DetectedTime().IsZero() {
-				r.SetDetectedTime(epi.Host, time.Now())
+		if route.BackendType == eskip.LBBackend {
+			for _, epi := range route.LBEndpoints {
+				metrics := r.GetMetrics(epi.Host)
+				if metrics.DetectedTime().IsZero() {
+					r.SetDetectedTime(epi.Host, now)
+				}
+
+				r.lastSeen[epi.Host] = now
 			}
 		}
 	}
+
+	for host, ts := range r.lastSeen {
+		if ts.Add(lastSeenTimeout).Before(now) {
+			delete(r.lastSeen, host)
+			r.mu.Lock()
+			delete(r.data, host)
+			r.mu.Unlock()
+		}
+	}
+
 	return routes
 }
 
 func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
-	return &EndpointRegistry{data: map[string]*entry{}}
+	return &EndpointRegistry{
+		data:     map[string]*entry{},
+		lastSeen: map[string]time.Time{},
+	}
 }
 
 func (r *EndpointRegistry) GetMetrics(key string) Metrics {
