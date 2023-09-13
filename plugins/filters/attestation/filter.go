@@ -48,6 +48,11 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	encodedKeyId := r.Header.Get("x-keyid")             // iOS only
 	encodedAssertation := r.Header.Get("x-assertation") // iOS only
 
+	feature := strings.Contains(r.Header.Get("features"), "SUPPORTS_CHALLENGE_RESPONSE")
+	if !feature {
+		bypassHeader = "true"
+	}
+
 	// Determine platform
 	var isAndroid = androidUserAgent.MatchString(r.Header.Get("user-agent"))
 	var isIOS bool
