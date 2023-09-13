@@ -1,0 +1,79 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: myapp
+  name: myapp-ingress
+  namespace: myapp-ns
+spec:
+  rules:
+    - host: example.org
+      http:
+        paths:
+          - backend:
+              service:
+                name: myapp-service
+                port:
+                  number: 80
+            pathType: ImplementationSpecific
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: myapp
+  name: myapp-service
+  namespace: myapp-ns
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: http-grafana
+  selector:
+    app: myapp
+---
+kind: EndpointSlice
+metadata:
+  labels:
+    app: myapp
+    kubernetes.io/service-name: myapp-service
+  name: myapp-service-foo
+  namespace: myapp-ns
+addressType: IPv4
+apiVersion: discovery.k8s.io/v1
+endpoints:
+  - addresses:
+      - 10.2.0.162
+    conditions:
+      ready: true
+      serving: true
+      terminating: false
+    zone: eu-central-1a
+  - addresses:
+      - 10.2.72.100
+    conditions:
+      ready: true
+      serving: true
+      terminating: false
+    zone: eu-central-1c
+ports:
+  - name: ""
+    port: 3000
+    protocol: TCP
+---
+# Endpoints for comparison
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    app: myapp
+  name: myapp-service
+  namespace: myapp-ns
+subsets:
+  - addresses:
+      - ip: 10.2.0.162
+      - ip: 10.2.72.100
+    ports:
+      - port: 3000
+        protocol: TCP

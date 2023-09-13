@@ -1,0 +1,4 @@
+#
+# Passes with false but fails with true
+#
+enable-kubernetes-endpointslices: true
