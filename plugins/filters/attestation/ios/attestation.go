@@ -14,7 +14,7 @@ import (
 	"log/slog"
 )
 
-func New(
+func NewAttestation(
 	req *AttestationRequest,
 ) *Attestation {
 	return &Attestation{

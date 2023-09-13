@@ -64,7 +64,7 @@ func (as appStore) validate(
 		return integrityFailure
 	}
 
-	attestation := ios.New(req)
+	attestation := ios.NewAttestation(req)
 
 	if err = attestation.Parse(); err != nil {
 		slog.Error("parse fail", "err", err)

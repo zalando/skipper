@@ -39,12 +39,13 @@ docker run --rm -p 9090:9090 muzz-skipper \
 
 To get a challenge response, run the following
 ```shell
-curl -sL \
+curl -vsL \
   -H 'Host: example.com' \
   -H 'UDID: 4FD061D3-7936-4646-B53E-77A45277F2FA' \
   -H 'User-Agent: MuzzAlpha/7.51.0 (com.muzmatch.muzmatch.alpha; build:7688; iOS 16.6.1) Alamofire/5.6.4' \
   -H 'appVersion: 7.51.0' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
+  -H 'features: SUPPORTS_CHALLENGE_RESPONSE' \
   --data-urlencode 'emailAddress=mark+1@dev.muzz.com' \
   --data-urlencode 'UDID=4FD061D3-7936-4646-B53E-77A45277F2FA' \
   --data-urlencode 'verificationCode=160893' \
@@ -53,7 +54,7 @@ curl -sL \
 
 To get a challenge response, run the following
 ```shell
-curl -sL \
+curl -vsL \
   -H 'Host: example.com' \
   -H 'UDID: 4FD061D3-7936-4646-B53E-77A45277F2FA' \
   -H 'User-Agent: MuzzAlpha/7.51.0 (com.muzmatch.muzmatch.alpha; build:7688; iOS 16.6.1) Alamofire/5.6.4' \
@@ -62,6 +63,7 @@ curl -sL \
   -H 'X-KeyId: XhA41blm3ysDPvR0o8Kv1x2FXwIBgdBt7GCpJ7IgCgM=' \
   -H 'X-Assertation: omlzaWduYXR1cmVYRzBFAiEA_DKiduPNY7MnN-5gaLZBzpNgbPf41fSxysCtYSN1N6UCIBtf4UNijn379m3n6M_edzoblI_COHUxApC0KHy2WRLlcWF1dGhlbnRpY2F0b3JEYXRhWCW2yobNkl_6kE0Oq_COiox9Wfc4v5sq3eQgZ8fmauX0_UAAAAAB' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
+  -H 'features: SUPPORTS_CHALLENGE_RESPONSE' \
   --data-urlencode 'emailAddress=mark+1@dev.muzz.com' \
   --data-urlencode 'UDID=4FD061D3-7936-4646-B53E-77A45277F2FA' \
   --data-urlencode 'verificationCode=160893' \

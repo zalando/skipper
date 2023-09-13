@@ -105,7 +105,6 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 
 		requestBody, _ := io.ReadAll(ctx.Request().Body)
 
-		// TODO create app attestation
 		err := a.repo.CreateAttestationForUDID(
 			deviceUDID,
 			buf,
@@ -153,15 +152,15 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	}
 
 	// Set the challenge response we received
-	// TODO: $existingAttestation->setChallengeResponse($authorizationHeader);
+	existingAppAttestation.Challenge = []byte(authorizationHeader)
 
 	// Has the app sent an error code instead
 	if isIOS {
 		switch authorizationHeader {
 		case "serverUnavailable":
 		case "unknownSystemFailure":
-			// $existingAttestation->setDeviceErrorCode($authorizationHeader);
-			// $this->repository->updateAttestationForUDID($existingAttestation);
+			existingAppAttestation.DeviceErrorCode = authorizationHeader
+			a.repo.UpdateAttestationForUDID(existingAppAttestation)
 
 			// TODO: issue a captcha challenge
 			return
@@ -190,8 +189,12 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		case "NONCE_IS_NOT_BASE64": // Pass error to API and do nothing else
 		case "CLOUD_PROJECT_NUMBER_IS_INVALID": // Pass error to API and do nothing else
 		case "APP_UID_MISMATCH": // Pass error to API and do nothing else
-			// $existingAttestation->setDeviceErrorCode($authorizationHeader);
-			// $this->repository->updateAttestationForUDID($existingAttestation);
+		// The following are catch-all errors reported by the client
+		case "INVALID_ERROR": // Google client SDK returned an error but didn't match an expected error code
+		case "ERROR": // There was some non-Google SDK error that stopped authorization being granted
+			existingAppAttestation.DeviceErrorCode = authorizationHeader
+			a.repo.UpdateAttestationForUDID(existingAppAttestation)
+
 			// TODO: issue a captcha challenge
 			return
 		}
@@ -215,7 +218,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	switch {
 	case isAndroid:
 		verdict := a.googlePlay.validate(challengeResponse, serverNonce)
-		// $this->repository->updateAttestationForUDID($existingAttestation);
+		a.repo.UpdateAttestationForUDID(existingAppAttestation)
 
 		if verdict == integritySuccess {
 			return // All good, proceed
@@ -241,7 +244,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 
 		// TODO: get challenge from db
 		verdict := a.appStore.validate(encodedAssertation, "", encodedKeyId)
-		// $this->repository->updateAttestationForUDID($existingAttestation);
+		a.repo.UpdateAttestationForUDID(existingAppAttestation)
 
 		if verdict == integritySuccess {
 			return // All good, proceed
