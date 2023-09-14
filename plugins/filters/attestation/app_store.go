@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/md5"
 	_ "embed"
 	"encoding/base64"
 	"github.com/zalando/skipper/plugins/filters/attestation/ios"
@@ -22,11 +23,16 @@ func newAppStoreIntegrityServiceClient() appStore {
 
 func (as appStore) buildRequest(
 	encodedAttestation string,
-	rawChallengeData []byte,
+	challengeData []byte,
 	encodedKeyID string,
 ) (*ios.AttestationRequest, error) {
 	var req ios.AttestationRequest
 	req.RootCert = appleRootCertBytes
+
+	slog.Error("b challenge data", "v", challengeData)
+	slog.Error("s challenge data", "v", string(challengeData))
+	slog.Error("challenge data md5", "v", md5.Sum(challengeData))
+	slog.Error("encodedKeyID", "v", encodedKeyID)
 
 	decodedAttestationPayload, err := base64.URLEncoding.DecodeString(encodedAttestation)
 	slog.Debug("attestation payload", "payload", encodedAttestation)
@@ -36,15 +42,10 @@ func (as appStore) buildRequest(
 	}
 	req.DecodedAttestation = decodedAttestationPayload // Still in ZLIB format
 
-	//decodedChallengeData, err := base64.URLEncoding.DecodeString(encodedChallengeData)
-	//slog.Debug("challenge data payload", "payload", encodedChallengeData)
-	//if err != nil {
-	//	slog.Error("cannot decode challenge data payload", "error", err)
-	//	return nil, err
-	//}
-	req.DecodedChallengeData = rawChallengeData
+	req.ChallengeData = challengeData
+	slog.Error("challenge_data", "v", challengeData)
 
-	decodedKeyID, err := base64.URLEncoding.DecodeString(encodedKeyID)
+	decodedKeyID, err := base64.StdEncoding.DecodeString(encodedKeyID)
 	slog.Debug("key id payload", "payload", encodedKeyID)
 	if err != nil {
 		slog.Error("cannot decode key id payload", "error", err)
@@ -57,11 +58,11 @@ func (as appStore) buildRequest(
 
 func (as appStore) validate(
 	encodedAttestation string,
-	rawChallengeData []byte,
+	encodedChallengeData []byte,
 	encodedKeyID string,
 ) integrityEvaluation {
 	req, err := as.buildRequest(
-		encodedAttestation, rawChallengeData, encodedKeyID,
+		encodedAttestation, encodedChallengeData, encodedKeyID,
 	)
 	if err != nil {
 		slog.Error("bad request", "err", err)

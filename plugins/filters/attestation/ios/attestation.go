@@ -97,7 +97,7 @@ func (a *Attestation) ValidateCertificate() error {
 }
 
 func (a *Attestation) ClientHashData() {
-	a.clientDataHash = sha256.Sum256(a.req.DecodedChallengeData)
+	a.clientDataHash = sha256.Sum256(a.req.ChallengeData)
 }
 
 func (a *Attestation) GenerateNonce() {
@@ -120,6 +120,9 @@ func (a *Attestation) CheckAgainstNonce() error {
 	if _, err := asn1.Unmarshal(attExtBytes, &decoded); err != nil {
 		return errors.New("enable to parse apple attestation certificate extensions")
 	}
+
+	//slog.Error("decodedNonce", "v", decoded.Nonce)
+	//slog.Error("a.generatedNonce", "v", a.generatedNonce[:])
 
 	if !bytes.Equal(decoded.Nonce, a.generatedNonce[:]) {
 		return errors.New("attestation certificate does not contain expected nonce")

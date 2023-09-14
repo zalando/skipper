@@ -44,7 +44,7 @@ func sendErrorResponse(ctx filters.FilterContext, statusCode int, message string
 
 	ctx.Serve(
 		&http.Response{
-			StatusCode: http.StatusTeapot,
+			StatusCode: statusCode,
 			Header:     header,
 			Body:       io.NopCloser(bytes.NewBufferString(string(b))),
 		},

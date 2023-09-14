@@ -8,11 +8,11 @@ import (
 )
 
 type AttestationRequest struct {
-	RootCert             []byte
-	DecodedAttestation   []byte
-	DecodedChallengeData []byte
-	DecodedKeyID         []byte
-	DecodedAppID         []byte
+	RootCert           []byte
+	DecodedAttestation []byte
+	ChallengeData      []byte
+	DecodedKeyID       []byte
+	DecodedAppID       []byte
 }
 
 type Attestation struct {

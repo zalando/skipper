@@ -95,6 +95,9 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		if semver.Compare(appVersion, minimumAndroidVersion) < 0 {
 			//sendErrorResponse(ctx, http.StatusUpgradeRequired, "Invalid OS")
 		}
+
+		// skip android for now
+		bypassHeader = "true"
 	case isIOS:
 		platform = PlatformIos
 
@@ -105,6 +108,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		// TODO: the body is a bit trickier, plus needs to be localised
 		if semver.Compare(appVersion, minimumIosVersion) < 0 {
 			//sendErrorResponse(ctx, http.StatusUpgradeRequired, "Invalid OS")
+			bypassHeader = "true"
 		}
 	default:
 		sendErrorResponse(ctx, http.StatusForbidden, "Invalid OS")
@@ -129,7 +133,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 
 		err := a.repo.CreateAttestationForUDID(
 			deviceUDID,
-			buf,
+			[]byte(base64.URLEncoding.EncodeToString(buf)),
 			platform,
 			ctx.Request().Header,
 			string(requestBody),
@@ -172,9 +176,6 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		sendErrorResponse(ctx, http.StatusForbidden, "Empty authorization header")
 		return
 	}
-
-	// Set the challenge response we received
-	existingAppAttestation.Challenge = []byte(authorizationHeader)
 
 	// Has the app sent an error code instead
 	if isIOS {
@@ -265,7 +266,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		}
 
 		// TODO: get challenge from db
-		verdict := a.appStore.validate(encodedAssertation, existingAppAttestation.Challenge, encodedKeyId)
+		verdict := a.appStore.validate(authorizationHeader, existingAppAttestation.Challenge, encodedKeyId)
 		a.repo.UpdateAttestationForUDID(existingAppAttestation)
 
 		if verdict == integritySuccess {
