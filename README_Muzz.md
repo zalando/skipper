@@ -30,10 +30,13 @@ Inside `teapot-s3/` there are the files that can be synced to S3 to test differe
 
 ## Attestation Plugin
 
-To locally test the Teapot plugin, you can run the following command:
+To locally test the Attestation plugin, you can run the following command:
 
 ```shell
-docker run --rm -p 9090:9090 muzz-skipper \
+aws-vault exec dev -- docker run --rm \
+  -e DYNAMO_TABLE_NAME=d-all-api-gateway \
+  -p 9090:9090 \
+  muzz-skipper \
   -inline-routes 'all: * -> preserveHost("true") -> attestation() -> "http://example.com/"; health: Path("/health") -> status(200) -> <shunt>'
 ```
 
