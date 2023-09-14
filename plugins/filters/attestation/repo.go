@@ -71,7 +71,13 @@ func (d *repo) GetAttestationForUDID(udid string) (*AttestationModel, error) {
 	return &am, nil
 }
 
-func (d *repo) CreateAttestationForUDID(udid string, challenge []byte, platform string, headers http.Header, requestBody string) error {
+func (d *repo) CreateAttestationForUDID(
+	udid string,
+	challenge []byte,
+	platform Platform,
+	headers http.Header,
+	requestBody string,
+) error {
 	headerList := map[string]string{}
 	for k, v := range headers {
 		headerList[k] = strings.Join(v, ",")
@@ -88,7 +94,7 @@ func (d *repo) CreateAttestationForUDID(udid string, challenge []byte, platform 
 				Value: challenge,
 			},
 			"Platform": &types.AttributeValueMemberS{
-				Value: platform,
+				Value: string(platform),
 			},
 			"CreatedAt": &types.AttributeValueMemberN{
 				Value: strconv.Itoa(int(time.Now().Unix())),

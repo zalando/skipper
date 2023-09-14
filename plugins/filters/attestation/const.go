@@ -5,7 +5,8 @@ import (
 )
 
 const (
-	minimumAndroidVersion = "7.41.0"
+	minimumAndroidVersion = "v7.41.0"
+	minimumIosVersion     = "v7.51.0"
 	production            = "production"
 	dev                   = "dev"
 	local                 = "local"
@@ -14,6 +15,13 @@ const (
 	productionAndroidSigningCertDigest = "dpkBP6sRbN7Cu7B7Rv0AvxQPSZzOYJ9u-Gn5zYs_pWI"
 	debugAndroidPackageName            = "com.muzmatch.muzmatchapp.debug"
 	debugAndroidSigningCertDigest      = "wV4SYt84cgGObwVuCfLBGYmTplP_wNDk6H5_ng6sZcc"
+)
+
+type Platform string
+
+const (
+	PlatformAndroid Platform = "android"
+	PlatformIos     Platform = "ios"
 )
 
 type integrityEvaluation int

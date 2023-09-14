@@ -22,7 +22,7 @@ func (s *attestationSpec) CreateFilter(_ []interface{}) (filters.Filter, error) 
 	filter := &attestationFilter{
 		repo:       NewRepo(os.Getenv("DYNAMO_TABLE_NAME")),
 		googlePlay: newGooglePlayIntegrityServiceClient(),
-		appStore:   appStore{},
+		appStore:   newAppStoreIntegrityServiceClient(),
 	}
 	return filter, nil
 }

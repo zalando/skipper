@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"golang.org/x/mod/semver"
 	"io"
 	"net/http"
 	"strings"
@@ -76,14 +77,35 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	}
 
 	// Enforce minimum versions of apps
-	platform := ""
+	var platform Platform
 	switch {
 	case isAndroid:
-		platform = "android"
-		// TODO: If device version is < minimumAndroidVersion send HTTP 426 and user message
+		platform = PlatformAndroid
+
+		if !strings.HasPrefix(appVersion, "v") {
+			appVersion = "v" + appVersion
+		}
+
+		// It always does, but just to be safe
+		if strings.HasSuffix(appVersion, "a") {
+			appVersion = strings.TrimSuffix(appVersion, "a")
+		}
+
+		// TODO: the body is a bit trickier, plus needs to be localised
+		if semver.Compare(appVersion, minimumAndroidVersion) < 0 {
+			//sendErrorResponse(ctx, http.StatusUpgradeRequired, "Invalid OS")
+		}
 	case isIOS:
-		platform = "ios"
-		// We don't have any support on iOS yet
+		platform = PlatformIos
+
+		if !strings.HasPrefix(appVersion, "v") {
+			appVersion = "v" + appVersion
+		}
+
+		// TODO: the body is a bit trickier, plus needs to be localised
+		if semver.Compare(appVersion, minimumIosVersion) < 0 {
+			//sendErrorResponse(ctx, http.StatusUpgradeRequired, "Invalid OS")
+		}
 	default:
 		sendErrorResponse(ctx, http.StatusForbidden, "Invalid OS")
 		return

@@ -16,6 +16,10 @@ type appStore struct {
 	req *ios.AttestationRequest
 }
 
+func newAppStoreIntegrityServiceClient() appStore {
+	return appStore{}
+}
+
 func (as appStore) buildRequest(
 	encodedAttestation string,
 	encodedChallengeData string,
