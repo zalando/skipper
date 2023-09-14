@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/md5"
 	_ "embed"
 	"encoding/base64"
 	"github.com/zalando/skipper/plugins/filters/attestation/ios"
@@ -26,11 +25,6 @@ func buildRequest(
 ) (*ios.AttestationRequest, error) {
 	var req ios.AttestationRequest
 	req.RootCert = appleRootCertBytes
-
-	slog.Error("b challenge data", "v", []byte(encodedChallengeData))
-	slog.Error("s challenge data", "v", encodedChallengeData)
-	slog.Error("encodedKeyID", "v", encodedKeyID)
-	slog.Error("challenge data md5", "v", md5.Sum(encodedChallengeData))
 
 	decodedAttestationPayload, err := base64.URLEncoding.DecodeString(encodedAttestation)
 	slog.Debug("attestation payload", "payload", encodedAttestation)

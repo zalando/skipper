@@ -121,9 +121,6 @@ func (a *Attestation) CheckAgainstNonce() error {
 		return errors.New("enable to parse apple attestation certificate extensions")
 	}
 
-	//slog.Error("decodedNonce", "v", decoded.Nonce)
-	//slog.Error("a.generatedNonce", "v", a.generatedNonce[:])
-
 	if !bytes.Equal(decoded.Nonce, a.generatedNonce[:]) {
 		return errors.New("attestation certificate does not contain expected nonce")
 	}
