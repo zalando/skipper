@@ -1,4 +1,4 @@
-package routing
+package routing_test
 
 import (
 	"fmt"
@@ -9,10 +9,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/routing"
 )
 
 func TestEmptyRegistry(t *testing.T) {
-	r := NewEndpointRegistry(RegistryOptions{})
+	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	m := r.GetMetrics("some key")
 
 	assert.Equal(t, time.Time{}, m.DetectedTime())
@@ -20,7 +21,7 @@ func TestEmptyRegistry(t *testing.T) {
 }
 
 func TestSetAndGet(t *testing.T) {
-	r := NewEndpointRegistry(RegistryOptions{})
+	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 
 	mBefore := r.GetMetrics("some key")
 	r.IncInflightRequest("some key")
@@ -39,7 +40,7 @@ func TestSetAndGet(t *testing.T) {
 }
 
 func TestSetAndGetAnotherKey(t *testing.T) {
-	r := NewEndpointRegistry(RegistryOptions{})
+	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 
 	r.IncInflightRequest("some key")
 	mToChange := r.GetMetrics("some key")
@@ -50,22 +51,49 @@ func TestSetAndGetAnotherKey(t *testing.T) {
 }
 
 func TestDoRemovesOldEntries(t *testing.T) {
-	route := &Route{LBEndpoints: []LBEndpoint{
-		{Host: "existing endpoint"},
-	}}
+	beginTestTs := time.Now()
+	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+
+	routing.SetNow(r, func() time.Time {
+		return beginTestTs
+	})
+	route := &routing.Route{
+		LBEndpoints: []routing.LBEndpoint{
+			{Host: "endpoint1.test:80"},
+			{Host: "endpoint2.test:80"},
+		},
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+		},
+	}
+	r.Do([]*routing.Route{route})
+
+	mExist := r.GetMetrics("endpoint1.test:80")
+	mExistYet := r.GetMetrics("endpoint2.test:80")
+	assert.Equal(t, beginTestTs, mExist.DetectedTime())
+	assert.Equal(t, beginTestTs, mExistYet.DetectedTime())
+
+	r.IncInflightRequest("endpoint1.test:80")
+	r.IncInflightRequest("endpoint2.test:80")
+
+	routing.SetNow(r, func() time.Time {
+		return beginTestTs.Add(routing.ExportLastSeenTimeout + time.Second)
+	})
+	route = &routing.Route{
+		LBEndpoints: []routing.LBEndpoint{
+			{Host: "endpoint1.test:80"},
+		},
+		Route: eskip.Route{
+			BackendType: eskip.LBBackend,
+		},
+	}
 	route.BackendType = eskip.LBBackend
+	r.Do([]*routing.Route{route})
 
-	r := NewEndpointRegistry(RegistryOptions{})
+	mExist = r.GetMetrics("endpoint1.test:80")
+	mRemoved := r.GetMetrics("endpoint2.test:80")
 
-	r.IncInflightRequest("existing endpoint")
-	r.IncInflightRequest("removed endpoint")
-	r.lastSeen["removed endpoint"] = time.Now().Add(-lastSeenTimeout)
-	r.Do([]*Route{route})
-
-	mExist := r.GetMetrics("existing endpoint")
-	mRemoved := r.GetMetrics("removed endpoint")
-
-	assert.NotEqual(t, time.Time{}, mExist.DetectedTime())
+	assert.Equal(t, beginTestTs, mExist.DetectedTime())
 	assert.Equal(t, int64(1), mExist.InflightRequests())
 
 	assert.Equal(t, time.Time{}, mRemoved.DetectedTime())
@@ -103,7 +131,7 @@ func benchmarkIncInflightRequests(b *testing.B, name string, goroutines int) {
 	const mapSize int = 10000
 
 	b.Run(name, func(b *testing.B) {
-		r := NewEndpointRegistry(RegistryOptions{})
+		r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		for i := 1; i < mapSize; i++ {
 			r.IncInflightRequest(fmt.Sprintf("foo-%d", i))
 		}
@@ -139,7 +167,7 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 	const mapSize int = 10000
 
 	b.Run(name, func(b *testing.B) {
-		r := NewEndpointRegistry(RegistryOptions{})
+		r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		for i := 1; i < mapSize; i++ {
 			r.IncInflightRequest(fmt.Sprintf("foo-%d", i))
 		}

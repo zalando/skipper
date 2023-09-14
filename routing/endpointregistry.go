@@ -33,6 +33,7 @@ func (e *entry) InflightRequests() int64 {
 
 type EndpointRegistry struct {
 	lastSeen map[string]time.Time
+	now      func() time.Time
 
 	mu sync.Mutex
 
@@ -45,7 +46,7 @@ type RegistryOptions struct {
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
-	now := time.Now()
+	now := r.now()
 
 	for _, route := range routes {
 		if route.BackendType == eskip.LBBackend {
@@ -76,6 +77,7 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 	return &EndpointRegistry{
 		data:     map[string]*entry{},
 		lastSeen: map[string]time.Time{},
+		now:      time.Now,
 	}
 }
 
