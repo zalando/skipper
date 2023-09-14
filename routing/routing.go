@@ -12,6 +12,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/predicates"
 )
 
@@ -122,6 +123,10 @@ type Options struct {
 
 	// SuppressLogs indicates whether to log only a summary of the route changes.
 	SuppressLogs bool
+
+	// Metrics is used to collect monitoring data about the routes health, including
+	// total number of routes applied and UNIX time of the last routes update.
+	Metrics metrics.Metrics
 
 	// PreProcessors contains custom eskip.Route pre-processors.
 	PreProcessors []PreProcessor
@@ -268,6 +273,7 @@ type Routing struct {
 	firstLoad         chan struct{}
 	firstLoadSignaled bool
 	quit              chan struct{}
+	metrics           metrics.Metrics
 }
 
 // New initializes a routing instance, and starts listening for route
@@ -278,6 +284,7 @@ func New(o Options) *Routing {
 	}
 
 	r := &Routing{log: o.Log, firstLoad: make(chan struct{}), quit: make(chan struct{})}
+	r.metrics = o.Metrics
 	if !o.SignalFirstLoad {
 		close(r.firstLoad)
 		r.firstLoadSignaled = true
@@ -371,6 +378,10 @@ func (r *Routing) startReceivingUpdates(o Options) {
 					}
 				}
 				r.log.Info("route settings applied")
+				if r.metrics != nil { // existing codebases might not supply metrics instance
+					r.metrics.UpdateGauge("routes.total", float64(len(rt.validRoutes)))
+					r.metrics.UpdateGauge("routes.updated_timestamp", float64(rt.created.Unix()))
+				}
 			case <-r.quit:
 				var rt *routeTable
 				rt, ok := r.routeTable.Load().(*routeTable)
