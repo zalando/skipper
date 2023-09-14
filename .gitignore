@@ -1,7 +1,7 @@
 .*.sw?
 bin
 .bin
-plugins/pkg
+pkg
 src/github.com/mailgun
 default.etcd
 .idea
