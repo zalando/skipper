@@ -265,7 +265,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		}
 
 		// TODO: get challenge from db
-		verdict := a.appStore.validate(encodedAssertation, "", encodedKeyId)
+		verdict := a.appStore.validate(encodedAssertation, existingAppAttestation.Challenge, encodedKeyId)
 		a.repo.UpdateAttestationForUDID(existingAppAttestation)
 
 		if verdict == integritySuccess {

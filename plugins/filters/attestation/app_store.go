@@ -22,7 +22,7 @@ func newAppStoreIntegrityServiceClient() appStore {
 
 func (as appStore) buildRequest(
 	encodedAttestation string,
-	encodedChallengeData string,
+	rawChallengeData []byte,
 	encodedKeyID string,
 ) (*ios.AttestationRequest, error) {
 	var req ios.AttestationRequest
@@ -36,13 +36,13 @@ func (as appStore) buildRequest(
 	}
 	req.DecodedAttestation = decodedAttestationPayload // Still in ZLIB format
 
-	decodedChallengeData, err := base64.URLEncoding.DecodeString(encodedChallengeData)
-	slog.Debug("challenge data payload", "payload", encodedChallengeData)
-	if err != nil {
-		slog.Error("cannot decode challenge data payload", "error", err)
-		return nil, err
-	}
-	req.DecodedChallengeData = decodedChallengeData
+	//decodedChallengeData, err := base64.URLEncoding.DecodeString(encodedChallengeData)
+	//slog.Debug("challenge data payload", "payload", encodedChallengeData)
+	//if err != nil {
+	//	slog.Error("cannot decode challenge data payload", "error", err)
+	//	return nil, err
+	//}
+	req.DecodedChallengeData = rawChallengeData
 
 	decodedKeyID, err := base64.URLEncoding.DecodeString(encodedKeyID)
 	slog.Debug("key id payload", "payload", encodedKeyID)
@@ -57,11 +57,11 @@ func (as appStore) buildRequest(
 
 func (as appStore) validate(
 	encodedAttestation string,
-	encodedChallengeData string,
+	rawChallengeData []byte,
 	encodedKeyID string,
 ) integrityEvaluation {
 	req, err := as.buildRequest(
-		encodedAttestation, encodedChallengeData, encodedKeyID,
+		encodedAttestation, rawChallengeData, encodedKeyID,
 	)
 	if err != nil {
 		slog.Error("bad request", "err", err)
