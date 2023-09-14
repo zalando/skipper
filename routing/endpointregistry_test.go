@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/eskip"
 )
 
 func TestEmptyRegistry(t *testing.T) {
@@ -46,6 +47,29 @@ func TestSetAndGetAnotherKey(t *testing.T) {
 
 	assert.Equal(t, int64(0), mConst.InflightRequests())
 	assert.Equal(t, int64(1), mToChange.InflightRequests())
+}
+
+func TestDoRemovesOldEntries(t *testing.T) {
+	route := &Route{LBEndpoints: []LBEndpoint{
+		{Host: "existing endpoint"},
+	}}
+	route.BackendType = eskip.LBBackend
+
+	r := NewEndpointRegistry(RegistryOptions{})
+
+	r.IncInflightRequest("existing endpoint")
+	r.IncInflightRequest("removed endpoint")
+	r.lastSeen["removed endpoint"] = time.Now().Add(-lastSeenTimeout)
+	r.Do([]*Route{route})
+
+	mExist := r.GetMetrics("existing endpoint")
+	mRemoved := r.GetMetrics("removed endpoint")
+
+	assert.NotEqual(t, time.Time{}, mExist.DetectedTime())
+	assert.Equal(t, int64(1), mExist.InflightRequests())
+
+	assert.Equal(t, time.Time{}, mRemoved.DetectedTime())
+	assert.Equal(t, int64(0), mRemoved.InflightRequests())
 }
 
 func printTotalMutexWaitTime(b *testing.B) {
