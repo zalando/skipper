@@ -187,12 +187,14 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 
 	// Has the app sent an error code instead
 	if isIOS {
+		authorizationHeader = strings.TrimPrefix(authorizationHeader, "Error ")
+
 		switch authorizationHeader {
 		case "featureUnsupported":
 			fallthrough
 		case "invalidInput":
 			fallthrough
-		case "invalidOutput":
+		case "invalidKey":
 			fallthrough
 		case "serverUnavailable":
 			fallthrough
