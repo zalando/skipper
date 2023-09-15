@@ -190,6 +190,10 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		switch authorizationHeader {
 		case "featureUnsupported":
 			fallthrough
+		case "invalidInput":
+			fallthrough
+		case "invalidOutput":
+			fallthrough
 		case "serverUnavailable":
 			fallthrough
 		case "unknownSystemFailure":
