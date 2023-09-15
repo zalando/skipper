@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"golang.org/x/mod/semver"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -179,7 +180,10 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 
 	// Set the challenge response we received
 	existingAppAttestation.ChallengeResponse = authorizationHeader
-	a.repo.UpdateAttestationForUDID(existingAppAttestation)
+	err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
+	if err != nil {
+		slog.Error("update challenge response", "err", err)
+	}
 
 	// Has the app sent an error code instead
 	if isIOS {
@@ -187,7 +191,10 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		case "serverUnavailable":
 		case "unknownSystemFailure":
 			existingAppAttestation.DeviceErrorCode = authorizationHeader
-			a.repo.UpdateAttestationForUDID(existingAppAttestation)
+			err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
+			if err != nil {
+				slog.Error("update device error code", "err", err)
+			}
 
 			// TODO: issue a captcha challenge
 			return
@@ -220,7 +227,10 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		case "INVALID_ERROR": // Google client SDK returned an error but didn't match an expected error code
 		case "ERROR": // There was some non-Google SDK error that stopped authorization being granted
 			existingAppAttestation.DeviceErrorCode = authorizationHeader
-			a.repo.UpdateAttestationForUDID(existingAppAttestation)
+			err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
+			if err != nil {
+				slog.Error("update challenge response", "err", err)
+			}
 
 			// TODO: issue a captcha challenge
 			return
@@ -270,7 +280,10 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		}
 
 		verdict := a.appStore.validate(authorizationHeader, existingAppAttestation.Challenge, encodedKeyId)
-		a.repo.UpdateAttestationForUDID(existingAppAttestation)
+		err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
+		if err != nil {
+			slog.Error("update challenge response", "err", err)
+		}
 
 		if verdict == integritySuccess {
 			return // All good, proceed

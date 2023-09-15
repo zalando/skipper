@@ -11,7 +11,6 @@ import (
 	"errors"
 	"github.com/fxamacker/cbor/v2"
 	"io"
-	"log/slog"
 )
 
 func NewAttestation(
@@ -185,6 +184,5 @@ func (a *Attestation) ValidateCredentialID() error {
 		return nil
 	}
 
-	slog.Error("bad credentialID provided")
 	return errors.New("bad credentialID provided")
 }

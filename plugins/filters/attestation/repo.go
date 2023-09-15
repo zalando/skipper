@@ -120,30 +120,30 @@ func (d *repo) CreateAttestationForUDID(
 
 func (d *repo) UpdateAttestationForUDID(am *AttestationModel) error {
 	updateBuilder := expression.UpdateBuilder{}
-	updateBuilder.Set(expression.Name("UpdatedAt"), expression.Value(am.UpdatedAt.Unix()))
+	updateBuilder = updateBuilder.Set(expression.Name("UpdatedAt"), expression.Value(time.Now().Unix()))
 
 	if am.ChallengeResponse != "" {
-		updateBuilder.Set(expression.Name("ChallengeResponse"), expression.Value(am.ChallengeResponse))
+		updateBuilder = updateBuilder.Set(expression.Name("ChallengeResponse"), expression.Value(am.ChallengeResponse))
 	}
 
 	if am.PlatformSuccess {
-		updateBuilder.Set(expression.Name("PlatformSuccess"), expression.Value(am.PlatformSuccess))
+		updateBuilder = updateBuilder.Set(expression.Name("PlatformSuccess"), expression.Value(am.PlatformSuccess))
 	}
 
 	if am.NonceSuccess {
-		updateBuilder.Set(expression.Name("NonceSuccess"), expression.Value(am.NonceSuccess))
+		updateBuilder = updateBuilder.Set(expression.Name("NonceSuccess"), expression.Value(am.NonceSuccess))
 	}
 
 	if am.DeviceErrorCode != "" {
-		updateBuilder.Set(expression.Name("DeviceErrorCode"), expression.Value(am.DeviceErrorCode))
+		updateBuilder = updateBuilder.Set(expression.Name("DeviceErrorCode"), expression.Value(am.DeviceErrorCode))
 	}
 
 	if am.GoogleResponse != "" {
-		updateBuilder.Set(expression.Name("GoogleResponse"), expression.Value(am.GoogleResponse))
+		updateBuilder = updateBuilder.Set(expression.Name("GoogleResponse"), expression.Value(am.GoogleResponse))
 	}
 
 	if am.MuzzError != "" {
-		updateBuilder.Set(expression.Name("MuzzError"), expression.Value(am.MuzzError))
+		updateBuilder = updateBuilder.Set(expression.Name("MuzzError"), expression.Value(am.MuzzError))
 	}
 
 	expr, err := expression.NewBuilder().WithUpdate(updateBuilder).Build()
