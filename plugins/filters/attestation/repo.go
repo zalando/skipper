@@ -122,6 +122,10 @@ func (d *repo) UpdateAttestationForUDID(am *AttestationModel) error {
 	updateBuilder := expression.UpdateBuilder{}
 	updateBuilder.Set(expression.Name("UpdatedAt"), expression.Value(am.UpdatedAt.Unix()))
 
+	if am.ChallengeResponse != "" {
+		updateBuilder.Set(expression.Name("ChallengeResponse"), expression.Value(am.ChallengeResponse))
+	}
+
 	if am.PlatformSuccess {
 		updateBuilder.Set(expression.Name("PlatformSuccess"), expression.Value(am.PlatformSuccess))
 	}
