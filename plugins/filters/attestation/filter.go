@@ -188,7 +188,10 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	// Has the app sent an error code instead
 	if isIOS {
 		switch authorizationHeader {
+		case "featureUnsupported":
+			fallthrough
 		case "serverUnavailable":
+			fallthrough
 		case "unknownSystemFailure":
 			existingAppAttestation.DeviceErrorCode = authorizationHeader
 			err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
@@ -204,27 +207,46 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	if isAndroid {
 		switch authorizationHeader {
 		case "API_NOT_AVAILABLE":
+			fallthrough
 		// Make sure that Integrity API is enabled in Google Play Console.
 		// Ask the user to update Google Play Store.
 		case "NETWORK_ERROR": // Ask them to retry
+			fallthrough
 		case "PLAY_STORE_NOT_FOUND": // Ask the user to install or enable Google Play Store.
+			fallthrough
 		case "PLAY_STORE_VERSION_OUTDATED": // Ask the user to update Google Play Store.
+			fallthrough
 		case "PLAY_STORE_ACCOUNT_NOT_FOUND": // Ask the user to sign in to the Google Play Store.
+			fallthrough
 		case "CANNOT_BIND_TO_SERVICE": // Ask the user to update the Google Play Store.
+			fallthrough
 		case "PLAY_SERVICES_NOT_FOUND": // Ask the user to install or enable Play Services.
+			fallthrough
 		case "PLAY_SERVICES_VERSION_OUTDATED": // Ask the user to update Google Play services.
+			fallthrough
 		case "TOO_MANY_REQUESTS": // Retry with an exponential backoff.
+			fallthrough
 		case "GOOGLE_SERVER_UNAVAILABLE": // Retry with an exponential backoff.
+			fallthrough
 		case "CLIENT_TRANSIENT_ERROR": // Retry with an exponential backoff.
+			fallthrough
 		case "INTERNAL_ERROR": // Retry with an exponential backoff.
+			fallthrough
 		case "APP_NOT_INSTALLED": // Pass error to API and do nothing else
+			fallthrough
 		case "NONCE_TOO_SHORT": // Pass error to API and do nothing else
+			fallthrough
 		case "NONCE_TOO_LONG": // Pass error to API and do nothing else
+			fallthrough
 		case "NONCE_IS_NOT_BASE64": // Pass error to API and do nothing else
+			fallthrough
 		case "CLOUD_PROJECT_NUMBER_IS_INVALID": // Pass error to API and do nothing else
+			fallthrough
 		case "APP_UID_MISMATCH": // Pass error to API and do nothing else
+			fallthrough
 		// The following are catch-all errors reported by the client
 		case "INVALID_ERROR": // Google client SDK returned an error but didn't match an expected error code
+			fallthrough
 		case "ERROR": // There was some non-Google SDK error that stopped authorization being granted
 			existingAppAttestation.DeviceErrorCode = authorizationHeader
 			err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
