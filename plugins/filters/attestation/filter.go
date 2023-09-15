@@ -179,6 +179,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 
 	// Set the challenge response we received
 	existingAppAttestation.ChallengeResponse = authorizationHeader
+	a.repo.UpdateAttestationForUDID(existingAppAttestation)
 
 	// Has the app sent an error code instead
 	if isIOS {
@@ -268,7 +269,6 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		// TODO: get challenge from db
 		verdict := a.appStore.validate(authorizationHeader, existingAppAttestation.Challenge, encodedKeyId)
 		a.repo.UpdateAttestationForUDID(existingAppAttestation)
 
