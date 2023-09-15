@@ -177,6 +177,9 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
+	// Set the challenge response we received
+	existingAppAttestation.ChallengeResponse = authorizationHeader
+
 	// Has the app sent an error code instead
 	if isIOS {
 		switch authorizationHeader {
