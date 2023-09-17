@@ -165,26 +165,6 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	// Authorization header is present, lets validate
-	if !strings.HasPrefix(authorizationHeader, "Integrity ") {
-		sendErrorResponse(ctx, http.StatusForbidden, "Missing integrity authorization header")
-		return
-	}
-	authorizationHeader = strings.TrimPrefix(authorizationHeader, "Integrity ")
-
-	// Check for empty authorization header
-	if authorizationHeader == "" {
-		sendErrorResponse(ctx, http.StatusForbidden, "Empty authorization header")
-		return
-	}
-
-	// Set the challenge response we received
-	existingAppAttestation.ChallengeResponse = authorizationHeader
-	err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
-	if err != nil {
-		slog.Error("update challenge response", "err", err)
-	}
-
 	// Has the app sent an error code instead
 	if isIOS {
 		authorizationHeader = strings.TrimPrefix(authorizationHeader, "Error ")
@@ -263,6 +243,26 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 			// TODO: issue a captcha challenge
 			return
 		}
+	}
+
+	// Authorization header is present, lets validate
+	if !strings.HasPrefix(authorizationHeader, "Integrity ") {
+		sendErrorResponse(ctx, http.StatusForbidden, "Missing integrity authorization header")
+		return
+	}
+	authorizationHeader = strings.TrimPrefix(authorizationHeader, "Integrity ")
+
+	// Check for empty authorization header
+	if authorizationHeader == "" {
+		sendErrorResponse(ctx, http.StatusForbidden, "Empty authorization header")
+		return
+	}
+
+	// Set the challenge response we received
+	existingAppAttestation.ChallengeResponse = authorizationHeader
+	err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
+	if err != nil {
+		slog.Error("update challenge response", "err", err)
 	}
 
 	// Base64 decode the header value
