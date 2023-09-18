@@ -284,7 +284,10 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	switch {
 	case isAndroid:
 		verdict := a.googlePlay.validate(challengeResponse, serverNonce)
-		a.repo.UpdateAttestationForUDID(existingAppAttestation)
+		err = a.repo.UpdateAttestationForUDID(existingAppAttestation)
+		if err != nil {
+			a.logger.Error("update challenge response", "err", err)
+		}
 
 		if verdict == integritySuccess {
 			return // All good, proceed
@@ -309,7 +312,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		}
 
 		verdict := a.appStore.validate(authorizationHeader, existingAppAttestation.Challenge, encodedKeyId)
-		err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
+		err = a.repo.UpdateAttestationForUDID(existingAppAttestation)
 		if err != nil {
 			a.logger.Error("update challenge response", "err", err)
 		}
@@ -323,8 +326,9 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 			return
 		}
 
-		// Integrity failed, throw an error
-		sendErrorResponse(ctx, http.StatusForbidden, "Integrity check failed")
+		// Integrity failed, silently "fail" for now, i.e. let them in anyway
+		//sendErrorResponse(ctx, http.StatusForbidden, "Integrity check failed")
+		return
 	}
 
 	// All good, continue
