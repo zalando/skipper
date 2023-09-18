@@ -1,0 +1,10 @@
+// default backend, target 1:
+kube_namespace1__ingress1______:
+  *
+  -> <roundRobin, "http://42.0.1.4:8080", "http://42.0.1.5:8080">;
+
+kube_namespace1__ingress1__test_example_org_____service1:
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
+  && PathRegexp("^/")
+  -> <roundRobin, "http://42.0.1.4:8080", "http://42.0.1.5:8080">;
+

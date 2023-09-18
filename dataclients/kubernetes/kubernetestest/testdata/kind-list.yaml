@@ -53,3 +53,23 @@ items:
     - name: main
       port: 7878
       protocol: TCP
+
+- apiVersion: v1
+  kind: EndpointSlice
+  metadata:
+    labels:
+      application: baz
+    name: baz-brzy
+    namespace: baz
+  endpoints:
+  - addresses:
+    - 10.0.0.2
+    conditions:
+      ready: true
+      serving: true
+      terminating: false
+    zone: eu-central-1c
+  ports:
+  - name: main
+    port: 7878
+    protocol: TCP

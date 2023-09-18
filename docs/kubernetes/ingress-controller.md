@@ -149,19 +149,30 @@ You would point your DNS entries to the
 load balancer in front of skipper, for example automated using
 [external-dns](https://github.com/kubernetes-incubator/external-dns).
 
-## Why Skipper uses Endpoints and not Services?
+## Why Skipper uses EndpointSlices or Endpoints and not Services?
 
 Skipper does not use the ClusterIP of [Kubernetes
 Services](http://kubernetes.io/docs/user-guide/services) to route
-traffic to the pods. Instead it uses the Endpoints API to bypass
-kube-proxy created iptables to remove overhead like conntrack entries
-for iptables DNAT. Skipper can also reuse connections to Pods, such
-that you have no overhead in establishing connections all the time. To
-prevent errors on node failures, Skipper also does automatic
-retries to another endpoint in case it gets a connection refused or
-TLS handshake error to the endpoint.  Other reasons are future support
-of features like session affinity, different load balancer
-algorithms or distributed loadbalancing also known as service mesh.
+traffic to the pods. Instead it uses the Endpointslices or Endpoints
+API to bypass kube-proxy created iptables to remove overhead like
+conntrack entries for iptables DNAT. Skipper can also reuse
+connections to Pods, such that you have no overhead in establishing
+connections all the time. To prevent errors on node failures, Skipper
+also does automatic retries to another endpoint in case it gets a
+connection refused or TLS handshake error to the endpoint.  Other
+reasons are future support of features like session affinity,
+different load balancer algorithms or distributed loadbalancing also
+known as service mesh.
+
+### Using EndpointSlices instead of Endpoints
+
+[EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices)
+provide the ability to
+[scale beyond 1000](https://kubernetes.io/docs/concepts/services-networking/service/#over-capacity-endpoints)
+load balancer members in one pool.
+
+To enable EndpointSlices you need to run skipper or routesrv with
+`-enable-kubernetes-endpointslices=true`.
 
 ### Using Services instead of Endpoints
 

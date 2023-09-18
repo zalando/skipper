@@ -241,6 +241,11 @@ type Options struct {
 	// in the cluster-scope.
 	KubernetesNamespace string
 
+	// KubernetesEnableEndpointslices if set skipper will fetch
+	// endpointslices instead of endpoints to scale more than 1000
+	// pods within a service
+	KubernetesEnableEndpointslices bool
+
 	// *DEPRECATED* KubernetesEnableEastWest enables cluster internal service to service communication, aka east-west traffic
 	KubernetesEnableEastWest bool
 
@@ -920,6 +925,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		TokenFile:                         o.KubernetesTokenFile,
 		KubernetesNamespace:               o.KubernetesNamespace,
 		KubernetesEnableEastWest:          o.KubernetesEnableEastWest,
+		KubernetesEnableEndpointslices:    o.KubernetesEnableEndpointslices,
 		KubernetesEastWestDomain:          o.KubernetesEastWestDomain,
 		KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
 		KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
@@ -1356,7 +1362,7 @@ func getRedisUpdaterFunc(namespace, name string, kdc *kubernetes.Client) func() 
 		a := kdc.GetEndpointAddresses(namespace, name)
 		log.Debugf("Redis updater called and found %d redis endpoints", len(a))
 		for i := 0; i < len(a); i++ {
-			a[i] = strings.TrimPrefix(a[i], "TCP://")
+			a[i] = strings.TrimPrefix(a[i], "http://")
 		}
 		return a, nil
 	}

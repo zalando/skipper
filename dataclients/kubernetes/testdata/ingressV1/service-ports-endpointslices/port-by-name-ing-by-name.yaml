@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: myapp-deployment
+  name: myapp-service
+spec:
+  clusterIP: 10.3.190.1
+  ports:
+    - name: this-is-my-service-port-name
+      port: 8080
+      protocol: TCP
+      targetPort: my-port
+  selector:
+    app: myapp
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: myapp
+  name: myapp-ingress
+  namespace: default
+spec:
+  rules:
+    - host: example.org
+      http:
+        paths:
+          - backend:
+              service:
+                name: myapp-service
+                port:
+                  name: this-is-my-service-port-name
+            pathType: ImplementationSpecific
+---
+apiVersion: v1
+kind: EndpointSlice
+metadata:
+  labels:
+    app: myapp-deployment
+    kubernetes.io/service-name: myapp-service
+  name: myapp-service-foo
+  namespace: default
+endpoints:
+  - addresses:
+    - 10.3.0.3
+    zone: my-zone
+ports:
+  - name: this-is-my-service-port-name
+    port: 80
+    protocol: TCP

@@ -41,11 +41,12 @@ func getRedisAddresses(namespace, name string, kdc *kubernetes.Client) func() ([
 	return func() ([]byte, error) {
 		result := RedisEndpoints{}
 		a := kdc.GetEndpointAddresses(namespace, name)
-		log.Infof("Redis updater called and found %d redis endpoints", len(a))
+		log.Infof("Redis updater called and found %d redis endpoints: %v", len(a), a)
 		for i := 0; i < len(a); i++ {
-			a[i] = strings.TrimPrefix(a[i], "TCP://")
+			a[i] = strings.TrimPrefix(a[i], "http://")
 			result.Endpoints = append(result.Endpoints, RedisEndpoint{Address: a[i]})
 		}
+		log.Infof("Redis endpoints: %v", result.Endpoints)
 		data, err := json.Marshal(result)
 
 		if err != nil {
