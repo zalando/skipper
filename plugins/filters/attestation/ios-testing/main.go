@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"github.com/zalando/skipper/plugins/filters/attestation/ios"
 	"log/slog"
+	"os"
 )
 
 //go:embed Apple_App_Attestation_Root_CA.pem
@@ -18,6 +19,7 @@ var encodedAttestation = `7VgJVBPXGk4mQ9g3QVCKMi6lgIB3MglJ8FFFEAQEFFAC1mWYLESzmQ
 var encodedKeyID = `l/NSHlIVgm0XJI2Dztnf88R+hx26FUkg9swwR+RU0+U=`
 
 func buildRequest(
+	logger *slog.Logger,
 	appleRootCertBytes []byte,
 	encodedAttestation string,
 	encodedChallengeData []byte,
@@ -27,9 +29,9 @@ func buildRequest(
 	req.RootCert = appleRootCertBytes
 
 	decodedAttestationPayload, err := base64.URLEncoding.DecodeString(encodedAttestation)
-	slog.Debug("attestation payload", "payload", encodedAttestation)
+	logger.Debug("attestation payload", "payload", encodedAttestation)
 	if err != nil {
-		slog.Error("cannot decode attestation payload", "error", err)
+		logger.Error("cannot decode attestation payload", "error", err)
 		return nil, err
 	}
 	req.DecodedAttestation = decodedAttestationPayload // Still in ZLIB format
@@ -37,9 +39,9 @@ func buildRequest(
 	req.ChallengeData = []byte(encodedChallengeData)
 
 	decodedKeyID, err := base64.StdEncoding.DecodeString(encodedKeyID)
-	slog.Debug("key id payload", "payload", encodedKeyID)
+	logger.Debug("key id payload", "payload", encodedKeyID)
 	if err != nil {
-		slog.Error("cannot decode key id payload", "error", err)
+		logger.Error("cannot decode key id payload", "error", err)
 		return nil, err
 	}
 	req.DecodedKeyID = decodedKeyID
@@ -48,21 +50,28 @@ func buildRequest(
 }
 
 func main() {
+	slogHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+
+	logger := slog.New(slogHandler)
+
 	req, err := buildRequest(
+		logger,
 		appleRootCertBytes,
 		encodedAttestation,
 		encodedChallengeData,
 		encodedKeyID,
 	)
 	if err != nil {
-		slog.Error("bad request", "err", err)
+		logger.Error("bad request", "err", err)
 		return
 	}
 
 	attestation := ios.NewAttestation(req)
 
 	if err = attestation.Parse(); err != nil {
-		slog.Error("parse fail", "err", err)
+		logger.Error("parse fail", "err", err)
 		return
 	}
 
@@ -71,7 +80,7 @@ func main() {
 	// starting from the credential certificate in the first data buffer in the array (credcert).
 	// Verify the validity of the certificates using Apple's App Attest root certificate.
 	if err = attestation.ValidateCertificate(); err != nil {
-		slog.Error("validate certificate", "err", err)
+		logger.Error("validate certificate", "err", err)
 		return
 	}
 
@@ -90,14 +99,14 @@ func main() {
 	// sequence. Decode the sequence and extract the single octet string that it contains.
 	// Verify that the string equals nonce.
 	if err = attestation.CheckAgainstNonce(); err != nil {
-		slog.Error("check against nonce", "err", err)
+		logger.Error("check against nonce", "err", err)
 		return
 	}
 
 	// Step 5.
 	// Create the SHA256 hash of the public key in credCert, and verify that it matches the key identifier from your app.
 	if err = attestation.GeneratePublicKey(); err != nil {
-		slog.Error("generate public key", "err", err)
+		logger.Error("generate public key", "err", err)
 		return
 	}
 
@@ -105,14 +114,14 @@ func main() {
 	// Compute the SHA256 hash of your app's App ID, and verify that it's the same as the authenticator
 	// data's RP ID hash.
 	if err = attestation.CheckAgainstAppID(); err != nil {
-		slog.Error("check against appID", "err", err)
+		logger.Error("check against appID", "err", err)
 		return
 	}
 
 	// Step 7.
 	// Verify that the authenticator data’s counter field equals 0.
 	if err = attestation.CheckCounterIsZero(); err != nil {
-		slog.Error("check counter is zero", "err", err)
+		logger.Error("check counter is zero", "err", err)
 		return
 	}
 
@@ -120,16 +129,16 @@ func main() {
 	// Verify that the authenticator data’s aaguid field is either appattestdevelop if operating in the
 	// development environment, or appattest followed by seven 0x00 bytes if operating in the production environment.
 	if err = attestation.ValidateAAGUID(); err != nil {
-		slog.Error("validate AAGUID", "err", err)
+		logger.Error("validate AAGUID", "err", err)
 		return
 	}
 
 	// Step 9.
 	// Verify that the authenticator data’s credentialId field is the same as the key identifier.
 	if err = attestation.ValidateCredentialID(); err != nil {
-		slog.Error("validate credentialID", "err", err)
+		logger.Error("validate credentialID", "err", err)
 		return
 	}
 
-	slog.Info("Complete!")
+	logger.Info("Complete!")
 }

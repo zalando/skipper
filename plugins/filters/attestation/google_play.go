@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"log/slog"
 
 	"google.golang.org/api/option"
 	"google.golang.org/api/playintegrity/v1"
@@ -15,10 +16,11 @@ var (
 )
 
 type googlePlayIntegrityServiceClient struct {
+	logger *slog.Logger
 	client *playintegrity.Service
 }
 
-func newGooglePlayIntegrityServiceClient() googlePlayIntegrityServiceClient {
+func newGooglePlayIntegrityServiceClient(logger *slog.Logger) googlePlayIntegrityServiceClient {
 	client, initGoogleServiceErr := playintegrity.NewService(
 		context.Background(),
 		option.WithCredentialsJSON(googleCredentials),
@@ -28,6 +30,7 @@ func newGooglePlayIntegrityServiceClient() googlePlayIntegrityServiceClient {
 	}
 
 	return googlePlayIntegrityServiceClient{
+		logger: logger,
 		client: client,
 	}
 }

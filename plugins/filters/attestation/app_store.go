@@ -13,11 +13,14 @@ var (
 )
 
 type appStore struct {
-	req *ios.AttestationRequest
+	req    *ios.AttestationRequest
+	logger *slog.Logger
 }
 
-func newAppStoreIntegrityServiceClient() appStore {
-	return appStore{}
+func newAppStoreIntegrityServiceClient(logger *slog.Logger) appStore {
+	return appStore{
+		logger: logger,
+	}
 }
 
 func (as appStore) buildRequest(
@@ -29,9 +32,9 @@ func (as appStore) buildRequest(
 	req.RootCert = appleRootCertBytes
 
 	decodedAttestationPayload, err := base64.URLEncoding.DecodeString(encodedAttestation)
-	slog.Debug("attestation payload", "payload", encodedAttestation)
+	as.logger.Debug("attestation payload", "payload", encodedAttestation)
 	if err != nil {
-		slog.Error("cannot decode attestation payload", "error", err)
+		as.logger.Error("cannot decode attestation payload", "error", err)
 		return nil, err
 	}
 	req.DecodedAttestation = decodedAttestationPayload // Still in ZLIB format
@@ -39,9 +42,9 @@ func (as appStore) buildRequest(
 	req.ChallengeData = challengeData
 
 	decodedKeyID, err := base64.StdEncoding.DecodeString(encodedKeyID)
-	slog.Debug("key id payload", "payload", encodedKeyID)
+	as.logger.Debug("key id payload", "payload", encodedKeyID)
 	if err != nil {
-		slog.Error("cannot decode key id payload", "error", err)
+		as.logger.Error("cannot decode key id payload", "error", err)
 		return nil, err
 	}
 	req.DecodedKeyID = decodedKeyID
@@ -58,14 +61,14 @@ func (as appStore) validate(
 		encodedAttestation, encodedChallengeData, encodedKeyID,
 	)
 	if err != nil {
-		slog.Error("bad request", "err", err)
+		as.logger.Error("bad request", "err", err)
 		return integrityFailure
 	}
 
 	attestation := ios.NewAttestation(req)
 
 	if err = attestation.Parse(); err != nil {
-		slog.Error("parse fail", "err", err)
+		as.logger.Error("parse fail", "err", err)
 		return integrityFailure
 	}
 
@@ -74,7 +77,7 @@ func (as appStore) validate(
 	// starting from the credential certificate in the first data buffer in the array (credcert).
 	// Verify the validity of the certificates using Apple's App Attest root certificate.
 	if err = attestation.ValidateCertificate(); err != nil {
-		slog.Error("validate certificate", "err", err)
+		as.logger.Error("validate certificate", "err", err)
 		return integrityFailure
 	}
 
@@ -93,14 +96,14 @@ func (as appStore) validate(
 	// sequence. Decode the sequence and extract the single octet string that it contains.
 	// Verify that the string equals nonce.
 	if err = attestation.CheckAgainstNonce(); err != nil {
-		slog.Error("check against nonce", "err", err)
+		as.logger.Error("check against nonce", "err", err)
 		return integrityFailure
 	}
 
 	// Step 5.
 	// Create the SHA256 hash of the public key in credCert, and verify that it matches the key identifier from your app.
 	if err = attestation.GeneratePublicKey(); err != nil {
-		slog.Error("generate public key", "err", err)
+		as.logger.Error("generate public key", "err", err)
 		return integrityFailure
 	}
 
@@ -108,14 +111,14 @@ func (as appStore) validate(
 	// Compute the SHA256 hash of your app's App ID, and verify that it's the same as the authenticator
 	// data's RP ID hash.
 	if err = attestation.CheckAgainstAppID(); err != nil {
-		slog.Error("check against appID", "err", err)
+		as.logger.Error("check against appID", "err", err)
 		return integrityFailure
 	}
 
 	// Step 7.
 	// Verify that the authenticator data’s counter field equals 0.
 	if err = attestation.CheckCounterIsZero(); err != nil {
-		slog.Error("check counter is zero", "err", err)
+		as.logger.Error("check counter is zero", "err", err)
 		return integrityFailure
 	}
 
@@ -123,14 +126,14 @@ func (as appStore) validate(
 	// Verify that the authenticator data’s aaguid field is either appattestdevelop if operating in the
 	// development environment, or appattest followed by seven 0x00 bytes if operating in the production environment.
 	if err = attestation.ValidateAAGUID(); err != nil {
-		slog.Error("validate AAGUID", "err", err)
+		as.logger.Error("validate AAGUID", "err", err)
 		return integrityFailure
 	}
 
 	// Step 9.
 	// Verify that the authenticator data’s credentialId field is the same as the key identifier.
 	if err = attestation.ValidateCredentialID(); err != nil {
-		slog.Error("validate credentialID", "err", err)
+		as.logger.Error("validate credentialID", "err", err)
 		return integrityFailure
 	}
 

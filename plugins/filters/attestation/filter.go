@@ -20,6 +20,7 @@ type attestationFilter struct {
 	repo       *repo
 	googlePlay googlePlayIntegrityServiceClient
 	appStore   appStore
+	logger     *slog.Logger
 }
 
 func (a attestationFilter) Request(ctx filters.FilterContext) {
@@ -182,7 +183,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 			existingAppAttestation.DeviceErrorCode = authorizationHeader
 			err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
 			if err != nil {
-				slog.Error("update device error code", "err", err)
+				a.logger.Error("update device error code", "err", err)
 			}
 
 			// TODO: issue a captcha challenge
@@ -237,7 +238,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 			existingAppAttestation.DeviceErrorCode = authorizationHeader
 			err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
 			if err != nil {
-				slog.Error("update challenge response", "err", err)
+				a.logger.Error("update challenge response", "err", err)
 			}
 
 			// TODO: issue a captcha challenge
@@ -262,7 +263,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 	existingAppAttestation.ChallengeResponse = authorizationHeader
 	err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
 	if err != nil {
-		slog.Error("update challenge response", "err", err)
+		a.logger.Error("update challenge response", "err", err)
 	}
 
 	// Base64 decode the header value
@@ -310,7 +311,7 @@ func (a attestationFilter) Request(ctx filters.FilterContext) {
 		verdict := a.appStore.validate(authorizationHeader, existingAppAttestation.Challenge, encodedKeyId)
 		err := a.repo.UpdateAttestationForUDID(existingAppAttestation)
 		if err != nil {
-			slog.Error("update challenge response", "err", err)
+			a.logger.Error("update challenge response", "err", err)
 		}
 
 		if verdict == integritySuccess {

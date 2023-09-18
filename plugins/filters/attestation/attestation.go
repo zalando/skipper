@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/zalando/skipper/filters"
+	"log/slog"
 	"os"
 )
 
@@ -19,10 +20,18 @@ func (s *attestationSpec) Name() string {
 }
 
 func (s *attestationSpec) CreateFilter(_ []interface{}) (filters.Filter, error) {
+	slogHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+
+	logger := slog.New(slogHandler)
+
 	filter := &attestationFilter{
 		repo:       NewRepo(os.Getenv("DYNAMO_TABLE_NAME")),
-		googlePlay: newGooglePlayIntegrityServiceClient(),
-		appStore:   newAppStoreIntegrityServiceClient(),
+		googlePlay: newGooglePlayIntegrityServiceClient(logger),
+		appStore:   newAppStoreIntegrityServiceClient(logger),
+		logger:     logger,
 	}
+
 	return filter, nil
 }
