@@ -25,7 +25,7 @@ require (
 	github.com/hashicorp/memberlist v0.5.0
 	github.com/instana/go-sensor v1.55.2
 	github.com/lightstep/lightstep-tracer-go v0.26.0
-	github.com/miekg/dns v1.1.55
+	github.com/miekg/dns v1.1.56
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/opa v0.56.0
 	github.com/open-policy-agent/opa-envoy-plugin v0.56.0-envoy
@@ -160,7 +160,7 @@ require (
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
-	golang.org/x/tools v0.12.0 // indirect
+	golang.org/x/tools v0.13.0 // indirect
 	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
