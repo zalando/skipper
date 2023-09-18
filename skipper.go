@@ -1940,6 +1940,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
 
+	ro.Metrics = mtr
+
 	routing := routing.New(ro)
 	defer routing.Close()
 
