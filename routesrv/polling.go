@@ -68,6 +68,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	defer ticker.Stop()
 	pollingStarted.SetToCurrentTime()
 
+	var lastRoutesById map[string]string
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
@@ -109,6 +110,12 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			}
 			span.SetTag("routes.count", routesCount)
 			span.SetTag("routes.bytes", routesBytes)
+
+			if updated && log.IsLevelEnabled(log.DebugLevel) {
+				routesById := mapRoutes(routes)
+				logChanges(routesById, lastRoutesById)
+				lastRoutesById = routesById
+			}
 		}
 
 		span.Finish()
@@ -144,4 +151,51 @@ func (p *poller) process(routes []*eskip.Route) []*eskip.Route {
 	})
 
 	return routes
+}
+
+func mapRoutes(routes []*eskip.Route) map[string]string {
+	byId := make(map[string]string)
+	for _, r := range routes {
+		byId[r.Id] = r.String()
+	}
+	return byId
+}
+
+func logChanges(routesById map[string]string, lastRoutesById map[string]string) {
+	added := notIn(routesById, lastRoutesById)
+	for i, id := range added {
+		log.Debugf("added (%d/%d): %s", i+1, len(added), id)
+	}
+
+	removed := notIn(lastRoutesById, routesById)
+	for i, id := range removed {
+		log.Debugf("removed (%d/%d): %s", i+1, len(removed), id)
+	}
+
+	changed := valueMismatch(routesById, lastRoutesById)
+	for i, id := range changed {
+		log.Debugf("changed (%d/%d): %s", i+1, len(changed), id)
+	}
+}
+
+func notIn(a, b map[string]string) []string {
+	var ids []string
+	for id := range a {
+		if _, ok := b[id]; !ok {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func valueMismatch(a, b map[string]string) []string {
+	var ids []string
+	for id, va := range a {
+		if vb, ok := b[id]; ok && va != vb {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids
 }
