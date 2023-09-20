@@ -14,6 +14,24 @@
       "ar": "عذراً! لن يكون Muzz متاحًا حتى %s بينما نقوم ببعض أعمال الصيانة اللازمة\n\nلا حاجة لحذف تطبيقك أو إعادة تثبيته",
       "fr": "Désolé ! Muzz sera indisponible jusque %s le temps que nous procédions à une maintenance indispensable\n\nIl est inutile de supprimer ou de réinstaller votre application"
     },
+    "endsAt": "2023-09-21T01:00:00Z",
+    "extendBy": 15
+  },
+  {
+    "enabled": false,
+    "services": ["all"],
+    "ignoreCountries": [],
+    "onlyCountries": [],
+    "title": {
+      "en": "Essential Maintenance",
+      "ar": "إعادة تثبيته",
+      "fr": "Désolé ! Muzz sera indisponible"
+    },
+    "message": {
+      "en": "Sorry! Muzz will be unavailable until %s whilst we do some essential maintenance\n\nThere's no need to delete or reinstall your app",
+      "ar": "عذراً! لن يكون Muzz متاحًا حتى %s بينما نقوم ببعض أعمال الصيانة اللازمة\n\nلا حاجة لحذف تطبيقك أو إعادة تثبيته",
+      "fr": "Désolé ! Muzz sera indisponible jusque %s le temps que nous procédions à une maintenance indispensable\n\nIl est inutile de supprimer ou de réinstaller votre application"
+    },
     "endsAt": "2023-08-30T09:30:00Z",
     "extendBy": 15
   },
