@@ -66,7 +66,7 @@ func TestTracingTag(t *testing.T) {
 		},
 		"test_value",
 	}, {
-		"tag from header",
+		"tag from request header",
 		"${request.header.X-Flow-Id}",
 		&filtertest.Context{
 			FRequest: &http.Request{
@@ -76,6 +76,18 @@ func TestTracingTag(t *testing.T) {
 			},
 		},
 		"foo",
+	}, {
+		"tag from response header",
+		"${response.header.X-Fallback}",
+		&filtertest.Context{
+			FRequest: &http.Request{},
+			FResponse: &http.Response{
+				Header: http.Header{
+					"X-Fallback": []string{"true"},
+				},
+			},
+		},
+		"true",
 	}, {
 		"tag from missing header",
 		"${request.header.missing}",

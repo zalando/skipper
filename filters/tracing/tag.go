@@ -45,6 +45,14 @@ func (s tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 }
 
 func (f tagFilter) Request(ctx filters.FilterContext) {
+	tagSpan(f, ctx)
+}
+
+func (f tagFilter) Response(ctx filters.FilterContext) {
+	tagSpan(f, ctx)
+}
+
+func tagSpan(f tagFilter, ctx filters.FilterContext) {
 	req := ctx.Request()
 	span := opentracing.SpanFromContext(req.Context())
 	if span == nil {
@@ -55,5 +63,3 @@ func (f tagFilter) Request(ctx filters.FilterContext) {
 		span.SetTag(f.tagName, v)
 	}
 }
-
-func (f tagFilter) Response(filters.FilterContext) {}
