@@ -1,7 +1,7 @@
 package tracing
 
 import (
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 )
@@ -44,7 +44,7 @@ func (s tagOnResponseSpec) CreateFilter(args []interface{}) (filters.Filter, err
 	}, nil
 }
 
-func (f tagOnResponseFilter) Request(ctx filters.FilterContext) {}
+func (f tagOnResponseFilter) Request(filters.FilterContext) {}
 
 func (f tagOnResponseFilter) Response(ctx filters.FilterContext) {
 	req := ctx.Request()

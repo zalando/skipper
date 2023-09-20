@@ -62,6 +62,7 @@ func TestTracingTagOnResponseTag(t *testing.T) {
 		"plain key value",
 		"test_value",
 		&filtertest.Context{
+			FRequest:  &http.Request{},
 			FResponse: &http.Response{},
 		},
 		"test_value",
@@ -81,6 +82,7 @@ func TestTracingTagOnResponseTag(t *testing.T) {
 		"tag from missing header",
 		"${response.header.missing}",
 		&filtertest.Context{
+			FRequest:  &http.Request{},
 			FResponse: &http.Response{},
 		},
 		nil,
@@ -100,11 +102,11 @@ func TestTracingTagOnResponseTag(t *testing.T) {
 
 			f.Request(ti.context)
 
+			f.Response(ti.context)
+
 			if got := span.Tag("test_tag"); got != ti.expected {
 				t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
 			}
-
-			f.Response(ti.context)
 		})
 	}
 }
