@@ -33,7 +33,7 @@ type eskipBytes struct {
 // formatAndSet takes a slice of routes and stores them eskip-formatted
 // in a synchronized way. It returns the length of the stored data, and
 // flags signaling whether the data was initialized and updated.
-func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, initialized bool, updated bool) {
+func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initialized bool, updated bool) {
 	buf := &bytes.Buffer{}
 	eskip.Fprint(buf, eskip.PrettyPrintInfo{Pretty: false, IndentStr: ""}, routes...)
 	data := buf.Bytes()
@@ -51,7 +51,7 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, initialized boo
 	initialized = !e.initialized
 	e.initialized = true
 
-	return len(e.data), initialized, updated
+	return len(e.data), e.etag, initialized, updated
 }
 
 func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -96,8 +96,8 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				"message", LogRoutesEmpty,
 			)
 		case routesCount > 0:
-			routesBytes, initialized, updated := p.b.formatAndSet(routes)
-			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes})
+			routesBytes, routesEtag, initialized, updated := p.b.formatAndSet(routes)
+			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "etag": routesEtag})
 			if initialized {
 				logger.Info(LogRoutesInitialized)
 				span.SetTag("routes.initialized", true)
@@ -110,6 +110,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			}
 			span.SetTag("routes.count", routesCount)
 			span.SetTag("routes.bytes", routesBytes)
+			span.SetTag("routes.etag", routesEtag)
 
 			if updated && log.IsLevelEnabled(log.DebugLevel) {
 				routesById := mapRoutes(routes)
