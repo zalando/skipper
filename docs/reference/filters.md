@@ -3013,6 +3013,28 @@ Example: Set tag from request header
 tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 ```
 
+### tracingTagOnResponse
+
+This filter adds an opentracing tag upon completing the operation.
+
+Syntax:
+```
+tracingTagOnResponse("<tag_name>", "<tag_value>")
+```
+
+Tag value may contain [template placeholders](#template-placeholders).
+If a template placeholder can't be resolved then filter does not set the tag.
+
+Example: Adding the below filter will add a tag named `foo` with the value `bar`.
+```
+tracingTagOnResponse("foo", "bar")
+```
+
+Example: Set tag from response header
+```
+tracingTagOnResponse("error", "${response.header.X-Functional-Error}")
+```
+
 ### tracingSpanName
 
 This filter sets the name of the outgoing (client span) in opentracing. The default name is "proxy". Example:

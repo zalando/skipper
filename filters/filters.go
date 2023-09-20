@@ -335,6 +335,7 @@ const (
 	TracingBaggageToTagName                    = "tracingBaggageToTag"
 	StateBagToTagName                          = "stateBagToTag"
 	TracingTagName                             = "tracingTag"
+	TracingTagOnResponseName                   = "tracingTagOnResponse"
 	TracingSpanNameName                        = "tracingSpanName"
 	OriginMarkerName                           = "originMarker"
 	FadeInName                                 = "fadeIn"
