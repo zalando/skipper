@@ -72,7 +72,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			contextExtensions: "",
 			expectedStatus:    http.StatusOK,
 			expectedBody:      "Welcome!",
-			expectedHeaders:   make(http.Header),
+			expectedHeaders:   map[string][]string{"X-Response-Header": {"a response header value"}, "Server": {"Skipper", "server header"}},
 			backendHeaders:    map[string][]string{"X-Consumer": {"x-consumer header value"}},
 			removeHeaders:     map[string][]string{"X-Remove-Me": {"Remove me"}},
 		},
@@ -177,7 +177,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 								"request_headers_to_remove" : [
 									"x-remove-me",
 									"absent-header"
-								]
+								],
+								"response_headers_to_add": {
+									"x-response-header": "a response header value",
+									"server": "server header"
+								}
 							}
 						}
 
