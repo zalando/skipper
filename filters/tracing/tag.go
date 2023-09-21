@@ -56,26 +56,23 @@ func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 func (f *tagFilter) Request(ctx filters.FilterContext) {
 	if !f.tagFromResponse {
-		span := opentracing.SpanFromContext(ctx.Request().Context())
-		if span == nil {
-			return
-		}
-
-		if v, ok := f.tagValue.ApplyContext(ctx); ok {
-			span.SetTag(f.tagName, v)
-		}
+		f.setTag(ctx)
 	}
 }
 
 func (f *tagFilter) Response(ctx filters.FilterContext) {
 	if f.tagFromResponse {
-		span := opentracing.SpanFromContext(ctx.Request().Context())
-		if span == nil {
-			return
-		}
+		f.setTag(ctx)
+	}
+}
 
-		if v, ok := f.tagValue.ApplyContext(ctx); ok {
-			span.SetTag(f.tagName, v)
-		}
+func (f *tagFilter) setTag(ctx filters.FilterContext) {
+	span := opentracing.SpanFromContext(ctx.Request().Context())
+	if span == nil {
+		return
+	}
+
+	if v, ok := f.tagValue.ApplyContext(ctx); ok {
+		span.SetTag(f.tagName, v)
 	}
 }

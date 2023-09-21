@@ -31,17 +31,14 @@ func TestTracingTagNil(t *testing.T) {
 }
 
 func TestTagName(t *testing.T) {
-	if (&tagSpec{
-		typ: filters.TracingTagName,
-	}).Name() != filters.TracingTagName {
+	if NewTag().Name() != filters.TracingTagName {
 		t.Error("Wrong tag spec name")
 	}
-	if (&tagSpec{
-		typ: filters.TracingTagFromResponseName,
-	}).Name() != filters.TracingTagFromResponseName {
+	if NewTagFromResponse().Name() != filters.TracingTagFromResponseName {
 		t.Error("Wrong tag spec name")
 	}
 }
+
 func TestTagCreateFilter(t *testing.T) {
 	spec := tagSpec{}
 	if _, err := spec.CreateFilter(nil); err != filters.ErrInvalidFilterParameters {
@@ -62,7 +59,7 @@ func TestTracingTag(t *testing.T) {
 
 	for _, ti := range []struct {
 		name     string
-		filter   filters.Spec
+		spec     filters.Spec
 		value    string
 		context  *filtertest.Context
 		expected interface{}
@@ -115,7 +112,7 @@ func TestTracingTag(t *testing.T) {
 
 			ti.context.FRequest = ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span))
 
-			f, err := ti.filter.CreateFilter([]interface{}{"test_tag", ti.value})
+			f, err := ti.spec.CreateFilter([]interface{}{"test_tag", ti.value})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -154,6 +151,44 @@ func TestTagFilterIgnoresResponse(t *testing.T) {
 	}
 
 	f.Response(requestContext)
+
+	if got := span.Tag("test_tag"); got != nil {
+		t.Errorf("unexpected tag value '%v' != '%v'", got, nil)
+	}
+}
+
+func TestTagFromResponseFilterIgnoresRequest(t *testing.T) {
+	tracer := mocktracer.New()
+	span := tracer.StartSpan("proxy").(*mocktracer.MockSpan)
+	defer span.Finish()
+
+	requestContext := &filtertest.Context{
+		FRequest: &http.Request{
+			Header: http.Header{
+				"X-Flow-Id": []string{"a-flow-id"},
+			},
+		},
+	}
+	requestContext.FRequest = requestContext.FRequest.WithContext(opentracing.ContextWithSpan(requestContext.FRequest.Context(), span))
+
+	f, err := NewTagFromResponse().CreateFilter([]interface{}{"test_tag", "${request.header.X-Flow-Id}"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f.Request(requestContext)
+
+	responseContext := &filtertest.Context{
+		FRequest: &http.Request{},
+		FResponse: &http.Response{
+			Header: http.Header{
+				"X-Flow-Id": []string{"a-different-flow-id"},
+			},
+		},
+	}
+	responseContext.FRequest.WithContext(opentracing.ContextWithSpan(responseContext.FRequest.Context(), span))
+
+	f.Response(responseContext)
 
 	if got := span.Tag("test_tag"); got != nil {
 		t.Errorf("unexpected tag value '%v' != '%v'", got, nil)

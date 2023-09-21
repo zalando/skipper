@@ -207,8 +207,8 @@ func Filters() []filters.Spec {
 		tracing.NewSpanName(),
 		tracing.NewBaggageToTagFilter(),
 		tracing.NewTag(),
-		tracing.NewStateBagToTag(),
 		tracing.NewTagFromResponse(),
+		tracing.NewStateBagToTag(),
 		//lint:ignore SA1019 due to backward compatibility
 		accesslog.NewAccessLogDisabled(),
 		accesslog.NewDisableAccessLog(),
