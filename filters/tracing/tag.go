@@ -16,10 +16,10 @@ type tagFilter struct {
 
 // NewTag creates a filter specification for the tracingTag filter.
 func NewTag() filters.Spec {
-	return tagSpec{}
+	return &tagSpec{}
 }
 
-func (s tagSpec) Name() string {
+func (s *tagSpec) Name() string {
 	return filters.TracingTagName
 }
 
@@ -38,15 +38,14 @@ func (s tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return tagFilter{
+	return &tagFilter{
 		tagName:  tagName,
 		tagValue: eskip.NewTemplate(tagValue),
 	}, nil
 }
 
-func (f tagFilter) Request(ctx filters.FilterContext) {
-	req := ctx.Request()
-	span := opentracing.SpanFromContext(req.Context())
+func (f *tagFilter) Request(ctx filters.FilterContext) {
+	span := opentracing.SpanFromContext(ctx.Request().Context())
 	if span == nil {
 		return
 	}
@@ -56,4 +55,4 @@ func (f tagFilter) Request(ctx filters.FilterContext) {
 	}
 }
 
-func (f tagFilter) Response(filters.FilterContext) {}
+func (f *tagFilter) Response(filters.FilterContext) {}

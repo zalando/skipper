@@ -47,8 +47,7 @@ func (s *tagOnResponseSpec) CreateFilter(args []interface{}) (filters.Filter, er
 func (f *tagOnResponseFilter) Request(filters.FilterContext) {}
 
 func (f *tagOnResponseFilter) Response(ctx filters.FilterContext) {
-	req := ctx.Request()
-	span := opentracing.SpanFromContext(req.Context())
+	span := opentracing.SpanFromContext(ctx.Request().Context())
 	if span == nil {
 		return
 	}
