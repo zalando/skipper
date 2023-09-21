@@ -1696,8 +1696,8 @@ Given following example ID token:
   "email": "someone@example.org",
   "groups": [
     "CD-xyz",
-    "appX-Test-Users"
-    "Purchasing-Department",
+    "appX-Test-Users",
+    "Purchasing-Department"
   ],
   "name": "Some One"
 }
@@ -3013,27 +3013,9 @@ Example: Set tag from request header
 tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 ```
 
-### tracingTagOnResponse
+### tracingTagFromResponse
 
-This filter adds an opentracing tag upon completing the operation.
-
-Syntax:
-```
-tracingTagOnResponse("<tag_name>", "<tag_value>")
-```
-
-Tag value may contain [template placeholders](#template-placeholders).
-If a template placeholder can't be resolved then filter does not set the tag.
-
-Example: Adding the below filter will add a tag named `foo` with the value `bar`.
-```
-tracingTagOnResponse("foo", "bar")
-```
-
-Example: Set tag from response header
-```
-tracingTagOnResponse("error", "${response.header.X-Functional-Error}")
-```
+This filter works just like [tracingTag](#tracingTag), but is applied after the request was processed. In particular, [template placeholders](#template-placeholders) referencing the response can be used in the parameters. 
 
 ### tracingSpanName
 
