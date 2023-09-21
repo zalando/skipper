@@ -16,14 +16,14 @@ type tagOnResponseFilter struct {
 
 // NewTagOnResponse creates a filter specification for the tracingTagOnResponse filter.
 func NewTagOnResponse() filters.Spec {
-	return tagOnResponseSpec{}
+	return &tagOnResponseSpec{}
 }
 
-func (s tagOnResponseSpec) Name() string {
+func (s *tagOnResponseSpec) Name() string {
 	return filters.TracingTagOnResponseName
 }
 
-func (s tagOnResponseSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *tagOnResponseSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -38,15 +38,15 @@ func (s tagOnResponseSpec) CreateFilter(args []interface{}) (filters.Filter, err
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return tagOnResponseFilter{
+	return &tagOnResponseFilter{
 		tagName:  tagName,
 		tagValue: eskip.NewTemplate(tagValue),
 	}, nil
 }
 
-func (f tagOnResponseFilter) Request(filters.FilterContext) {}
+func (f *tagOnResponseFilter) Request(filters.FilterContext) {}
 
-func (f tagOnResponseFilter) Response(ctx filters.FilterContext) {
+func (f *tagOnResponseFilter) Response(ctx filters.FilterContext) {
 	req := ctx.Request()
 	span := opentracing.SpanFromContext(req.Context())
 	if span == nil {
