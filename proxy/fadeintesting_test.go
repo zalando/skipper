@@ -260,6 +260,7 @@ func (p *fadeInProxy) addInstances(n int) {
 	p.mx.Lock()
 	defer p.mx.Unlock()
 
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	for i := 0; i < n; i++ {
 		client := p.backend.createDataClient()
 		fr := make(filters.Registry)
@@ -270,7 +271,8 @@ func (p *fadeInProxy) addInstances(n int) {
 			DataClients:    []routing.DataClient{client},
 			PostProcessors: []routing.PostProcessor{
 				loadbalancer.NewAlgorithmProvider(),
-				fadein.NewPostProcessor(),
+				endpointRegistry,
+				fadein.NewPostProcessorWithOptions(fadein.Options{EndpointRegistry: endpointRegistry}),
 			},
 		})
 

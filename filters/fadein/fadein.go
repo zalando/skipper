@@ -20,6 +20,10 @@ const (
 	EndpointCreatedName = filters.EndpointCreatedName
 )
 
+type Options struct {
+	EndpointRegistry *routing.EndpointRegistry
+}
+
 type (
 	fadeIn struct {
 		duration time.Duration
@@ -39,7 +43,8 @@ type (
 
 	postProcessor struct {
 		// "http://10.2.1.53:1234": {t0 60s t0-10s}
-		detected map[string]detectedFadeIn
+		detected         map[string]detectedFadeIn
+		endpointRegistry *routing.EndpointRegistry
 	}
 )
 
@@ -192,12 +197,18 @@ func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) 
 func (endpointCreated) Request(filters.FilterContext)  {}
 func (endpointCreated) Response(filters.FilterContext) {}
 
-// NewPostProcessor creates post-processor for maintaining the detection time of LB endpoints with fade-in
-// behavior.
-func NewPostProcessor() routing.PostProcessor {
+// NewPostProcessorWithOptions creates post-processor for maintaining
+// the fade-in behavior.
+func NewPostProcessorWithOptions(o Options) routing.PostProcessor {
 	return &postProcessor{
-		detected: make(map[string]detectedFadeIn),
+		detected:         make(map[string]detectedFadeIn),
+		endpointRegistry: o.EndpointRegistry,
 	}
+}
+
+// Deprecated: use NewPostProcessorWithOptions
+func NewPostProcessor() routing.PostProcessor {
+	return NewPostProcessorWithOptions(Options{})
 }
 
 func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
@@ -232,9 +243,15 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 			detected := p.detected[key].when
 			if detected.IsZero() || endpointsCreated[key].After(detected) {
 				detected = now
+				if p.endpointRegistry != nil {
+					p.endpointRegistry.SetDetectedTime(ep.Host, detected)
+				}
 			}
 
 			ep.Detected = detected
+			if p.endpointRegistry != nil {
+				p.endpointRegistry.SetFadeIn(ep.Host, ri.Id, ri.LBFadeInDuration, ri.LBFadeInExponent)
+			}
 			p.detected[key] = detectedFadeIn{
 				when:       detected,
 				duration:   ri.LBFadeInDuration,

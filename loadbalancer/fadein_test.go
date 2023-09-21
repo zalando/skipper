@@ -71,6 +71,7 @@ func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Durat
 			Detected: detectionTimes[i],
 		})
 		ctx.Registry.SetDetectedTime(eps[i], detectionTimes[i])
+		ctx.Registry.SetFadeIn(eps[i], "dummy", fadeInDuration, 1)
 	}
 
 	return ctx, eps
@@ -332,6 +333,7 @@ func benchmarkFadeIn(
 				Detected: detectionTimes[i],
 			})
 			registry.SetDetectedTime(eps[i], detectionTimes[i])
+			registry.SetFadeIn(eps[i], "dummy", fadeInDuration, 1)
 		}
 
 		var wg sync.WaitGroup

@@ -14,11 +14,18 @@ const lastSeenTimeout = 1 * time.Minute
 type Metrics interface {
 	DetectedTime() time.Time
 	InflightRequests() int64
+	FadeInDuration(routeId string) time.Duration
 }
 
 type entry struct {
 	detected         time.Time
 	inflightRequests int64
+	fadeIn           map[string]fadeInData
+}
+
+type fadeInData struct {
+	fadeInDuration time.Duration
+	fadeInExponent float64
 }
 
 var _ Metrics = &entry{}
@@ -29,6 +36,15 @@ func (e *entry) DetectedTime() time.Time {
 
 func (e *entry) InflightRequests() int64 {
 	return e.inflightRequests
+}
+
+func (e *entry) FadeInDuration(routeId string) time.Duration {
+	d, ok := e.fadeIn[routeId]
+	if !ok {
+		return 0
+	}
+
+	return d.fadeInDuration
 }
 
 type EndpointRegistry struct {
@@ -90,6 +106,11 @@ func (r *EndpointRegistry) GetMetrics(key string) Metrics {
 	e := r.getOrInitEntryLocked(key)
 	copy := &entry{}
 	*copy = *e
+
+	copy.fadeIn = make(map[string]fadeInData)
+	for k, v := range e.fadeIn {
+		copy.fadeIn[k] = v
+	}
 	return copy
 }
 
@@ -117,6 +138,14 @@ func (r *EndpointRegistry) DecInflightRequest(key string) {
 	e.inflightRequests--
 }
 
+func (r *EndpointRegistry) SetFadeIn(key string, routeId string, duration time.Duration, exponent float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	e := r.getOrInitEntryLocked(key)
+	e.fadeIn[routeId] = fadeInData{fadeInDuration: duration, fadeInExponent: exponent}
+}
+
 // getOrInitEntryLocked returns pointer to endpoint registry entry
 // which contains the information about endpoint representing the
 // following key. r.mu must be held while calling this function and
@@ -125,7 +154,7 @@ func (r *EndpointRegistry) DecInflightRequest(key string) {
 func (r *EndpointRegistry) getOrInitEntryLocked(key string) *entry {
 	e, ok := r.data[key]
 	if !ok {
-		e = &entry{}
+		e = &entry{fadeIn: map[string]fadeInData{}}
 		r.data[key] = e
 	}
 	return e

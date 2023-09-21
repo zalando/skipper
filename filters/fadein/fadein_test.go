@@ -183,7 +183,7 @@ func TestCreateEndpointCreated(t *testing.T) {
 }
 
 func TestPostProcessor(t *testing.T) {
-	createRouting := func(t *testing.T, routes string) (*routing.Routing, func(string)) {
+	createRouting := func(t *testing.T, routes string, registry *routing.EndpointRegistry) (*routing.Routing, func(string)) {
 		dc, err := testdataclient.NewDoc(routes)
 		if err != nil {
 			t.Fatal(err)
@@ -197,7 +197,7 @@ func TestPostProcessor(t *testing.T) {
 			},
 			PostProcessors: []routing.PostProcessor{
 				loadbalancer.NewAlgorithmProvider(),
-				NewPostProcessor(),
+				NewPostProcessorWithOptions(Options{EndpointRegistry: registry}),
 			},
 			SignalFirstLoad: true,
 		})
@@ -234,10 +234,14 @@ func TestPostProcessor(t *testing.T) {
 			baz: Path("/baz") -> <"http://10.0.1.1:8080", "http://10.0.1.2:8080">
 		`
 
-		rt, _ := createRouting(t, routes)
+		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		rt, _ := createRouting(t, routes, registry)
 
 		foo := route(rt, "/foo")
 		if foo == nil || foo.LBFadeInDuration != 0 {
+			t.Fatal("failed to preserve non-LB route")
+		}
+		if registry.GetMetrics("www.example.org:443").FadeInDuration("foo") != 0 {
 			t.Fatal("failed to preserve non-LB route")
 		}
 
@@ -245,15 +249,30 @@ func TestPostProcessor(t *testing.T) {
 		if bar == nil || bar.LBFadeInDuration != time.Minute {
 			t.Fatal("failed to postprocess LB route")
 		}
+		if registry.GetMetrics("10.0.0.1:8080").FadeInDuration("bar") != time.Minute {
+			t.Fatal("failed to postprocess LB route")
+		}
+		if registry.GetMetrics("10.0.0.2:8080").FadeInDuration("bar") != time.Minute {
+			t.Fatal("failed to postprocess LB route")
+		}
 
 		for _, ep := range bar.LBEndpoints {
 			if ep.Detected.IsZero() {
+				t.Fatal("failed to set detection time")
+			}
+			if registry.GetMetrics(ep.Host).DetectedTime().IsZero() {
 				t.Fatal("failed to set detection time")
 			}
 		}
 
 		baz := route(rt, "/baz")
 		if baz == nil || baz.LBFadeInDuration != 0 {
+			t.Fatal("failed to preserve non-fade LB route")
+		}
+		if registry.GetMetrics("10.0.1.1:8080").FadeInDuration("baz") != 0 {
+			t.Fatal("failed to preserve non-fade LB route")
+		}
+		if registry.GetMetrics("10.0.1.2:8080").FadeInDuration("baz") != 0 {
 			t.Fatal("failed to preserve non-fade LB route")
 		}
 	})
@@ -263,7 +282,7 @@ func TestPostProcessor(t *testing.T) {
 			* -> fadeIn("1m") -> <"http://::">
 		`
 
-		rt, _ := createRouting(t, routes)
+		rt, _ := createRouting(t, routes, nil)
 		r := route(rt, "/")
 		if r != nil {
 			t.Fatal("created invalid LB endpoint")
@@ -275,9 +294,13 @@ func TestPostProcessor(t *testing.T) {
 			* -> fadeIn("-1m") -> <"http://10.0.0.1:8080">
 		`
 
-		rt, _ := createRouting(t, routes)
+		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		rt, _ := createRouting(t, routes, registry)
 		r := route(rt, "/")
 		if r == nil || len(r.LBEndpoints) == 0 || !r.LBEndpoints[0].Detected.IsZero() {
+			t.Fatal("failed to ignore negative duration")
+		}
+		if !registry.GetMetrics("10.0.0.1:8080").DetectedTime().IsZero() {
 			t.Fatal("failed to ignore negative duration")
 		}
 	})
@@ -287,7 +310,8 @@ func TestPostProcessor(t *testing.T) {
 			* -> fadeIn("1m") -> <"http://10.0.0.1:8080">
 		`
 
-		rt, update := createRouting(t, routes)
+		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		rt, update := createRouting(t, routes, registry)
 		firstDetected := time.Now()
 
 		const nextRoutes = `
@@ -301,6 +325,9 @@ func TestPostProcessor(t *testing.T) {
 		for _, ep := range r.LBEndpoints {
 			if ep.Host == "10.0.0.1:8080" {
 				if ep.Detected.After(firstDetected) {
+					t.Fatal("Failed to keep detection time.")
+				}
+				if registry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
 					t.Fatal("Failed to keep detection time.")
 				}
 
@@ -318,7 +345,8 @@ func TestPostProcessor(t *testing.T) {
 			* -> fadeIn("1m") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
 		`
 
-		rt, update := createRouting(t, initialRoutes)
+		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		rt, update := createRouting(t, initialRoutes, registry)
 		firstDetected := time.Now()
 
 		const nextRoutes = `
@@ -336,6 +364,9 @@ func TestPostProcessor(t *testing.T) {
 				if ep.Detected.After(firstDetected) {
 					t.Fatal("Failed to keep detection time.")
 				}
+				if registry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
+					t.Fatal("Failed to keep detection time.")
+				}
 
 				found = true
 			}
@@ -351,7 +382,8 @@ func TestPostProcessor(t *testing.T) {
 			* -> fadeIn("15ms") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
 		`
 
-		rt, update := createRouting(t, initialRoutes)
+		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		rt, update := createRouting(t, initialRoutes, registry)
 		firstDetected := time.Now()
 
 		const nextRoutes = `
@@ -370,6 +402,9 @@ func TestPostProcessor(t *testing.T) {
 				if !ep.Detected.After(firstDetected) {
 					t.Fatal("Failed to clear detection time.")
 				}
+				if !registry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
+					t.Fatal("Failed to clear detection time.")
+				}
 
 				found = true
 			}
@@ -386,7 +421,8 @@ func TestPostProcessor(t *testing.T) {
 		`
 
 		routes := fmt.Sprintf(routesFmt, nows(t))
-		rt, update := createRouting(t, routes)
+		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		rt, update := createRouting(t, routes, registry)
 		firstDetected := time.Now()
 
 		const nextRoutesFmt = `
@@ -405,6 +441,9 @@ func TestPostProcessor(t *testing.T) {
 		for _, ep := range r.LBEndpoints {
 			if ep.Host == "10.0.0.1:8080" {
 				if !ep.Detected.After(firstDetected) {
+					t.Fatal("Failed to reset detection time.")
+				}
+				if !registry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
 					t.Fatal("Failed to reset detection time.")
 				}
 
