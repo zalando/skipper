@@ -178,15 +178,8 @@ func TestTagFromResponseFilterIgnoresRequest(t *testing.T) {
 
 	f.Request(requestContext)
 
-	responseContext := &filtertest.Context{
-		FRequest: &http.Request{},
-		FResponse: &http.Response{
-			Header: http.Header{
-				"X-Flow-Id": []string{"a-different-flow-id"},
-			},
-		},
-	}
-	responseContext.FRequest.WithContext(opentracing.ContextWithSpan(responseContext.FRequest.Context(), span))
+	responseContext := &filtertest.Context{FRequest: &http.Request{}}
+	responseContext.FRequest = responseContext.FRequest.WithContext(opentracing.ContextWithSpan(responseContext.FRequest.Context(), span))
 
 	f.Response(responseContext)
 
