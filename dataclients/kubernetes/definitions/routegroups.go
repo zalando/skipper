@@ -231,10 +231,6 @@ func (sb *SkipperBackend) UnmarshalJSON(value []byte) error {
 		perr = err
 	}
 
-	if a == loadbalancer.None {
-		a = loadbalancer.RoundRobin
-	}
-
 	var b SkipperBackend
 	b.Name = p.Name
 	b.Type = bt
