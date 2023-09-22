@@ -63,9 +63,11 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 
 	for host, ts := range r.lastSeen {
 		if ts.Add(lastSeenTimeout).Before(now) {
-			delete(r.lastSeen, host)
 			r.mu.Lock()
-			delete(r.data, host)
+			if r.data[host].inflightRequests == 0 {
+				delete(r.lastSeen, host)
+				delete(r.data, host)
+			}
 			r.mu.Unlock()
 		}
 	}

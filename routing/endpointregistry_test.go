@@ -75,6 +75,7 @@ func TestDoRemovesOldEntries(t *testing.T) {
 
 	r.IncInflightRequest("endpoint1.test:80")
 	r.IncInflightRequest("endpoint2.test:80")
+	r.DecInflightRequest("endpoint2.test:80")
 
 	routing.SetNow(r, func() time.Time {
 		return beginTestTs.Add(routing.ExportLastSeenTimeout + time.Second)
