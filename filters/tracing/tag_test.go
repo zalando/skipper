@@ -104,86 +104,43 @@ func TestTracingTag(t *testing.T) {
 			FRequest: &http.Request{},
 		},
 		nil,
+	}, {
+		"tracingTag is not processed on response",
+		NewTag(),
+		"${response.header.X-Fallback}",
+		&filtertest.Context{
+			FRequest: &http.Request{},
+			FResponse: &http.Response{
+				Header: http.Header{
+					"X-Fallback": []string{"true"},
+				},
+			},
+		},
+		nil,
 	},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			span := tracer.StartSpan("proxy").(*mocktracer.MockSpan)
 			defer span.Finish()
 
-			ti.context.FRequest = ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span))
+			requestContext := &filtertest.Context{
+				FRequest: ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span)),
+			}
 
 			f, err := ti.spec.CreateFilter([]interface{}{"test_tag", ti.value})
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			f.Request(ti.context)
-			f.Response(ti.context)
+			f.Request(requestContext)
+
+			requestContext.FResponse = ti.context.FResponse
+
+			f.Response(requestContext)
 
 			if got := span.Tag("test_tag"); got != ti.expected {
 				t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
 			}
 		})
-	}
-}
-
-func TestTagFilterIgnoresResponse(t *testing.T) {
-	tracer := mocktracer.New()
-	span := tracer.StartSpan("proxy").(*mocktracer.MockSpan)
-	defer span.Finish()
-
-	requestContext := &filtertest.Context{
-		FRequest: &http.Request{},
-	}
-	requestContext.FRequest = requestContext.FRequest.WithContext(opentracing.ContextWithSpan(requestContext.FRequest.Context(), span))
-
-	f, err := NewTag().CreateFilter([]interface{}{"test_tag", "${response.header.X-Fallback}"})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	f.Request(requestContext)
-
-	requestContext.FResponse = &http.Response{
-		Header: http.Header{
-			"X-Fallback": []string{"true"},
-		},
-	}
-
-	f.Response(requestContext)
-
-	if got := span.Tag("test_tag"); got != nil {
-		t.Errorf("unexpected tag value '%v' != '%v'", got, nil)
-	}
-}
-
-func TestTagFromResponseFilterIgnoresRequest(t *testing.T) {
-	tracer := mocktracer.New()
-	span := tracer.StartSpan("proxy").(*mocktracer.MockSpan)
-	defer span.Finish()
-
-	requestContext := &filtertest.Context{
-		FRequest: &http.Request{
-			Header: http.Header{
-				"X-Flow-Id": []string{"a-flow-id"},
-			},
-		},
-	}
-	requestContext.FRequest = requestContext.FRequest.WithContext(opentracing.ContextWithSpan(requestContext.FRequest.Context(), span))
-
-	f, err := NewTagFromResponse().CreateFilter([]interface{}{"test_tag", "${request.header.X-Flow-Id}"})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	f.Request(requestContext)
-
-	responseContext := &filtertest.Context{FRequest: &http.Request{}}
-	responseContext.FRequest = responseContext.FRequest.WithContext(opentracing.ContextWithSpan(responseContext.FRequest.Context(), span))
-
-	f.Response(responseContext)
-
-	if got := span.Tag("test_tag"); got != nil {
-		t.Errorf("unexpected tag value '%v' != '%v'", got, nil)
 	}
 }
