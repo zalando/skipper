@@ -1696,8 +1696,8 @@ Given following example ID token:
   "email": "someone@example.org",
   "groups": [
     "CD-xyz",
-    "appX-Test-Users"
-    "Purchasing-Department",
+    "appX-Test-Users",
+    "Purchasing-Department"
   ],
   "name": "Some One"
 }
@@ -3012,6 +3012,10 @@ Example: Set tag from request header
 ```
 tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 ```
+
+### tracingTagFromResponse
+
+This filter works just like [tracingTag](#tracingTag), but is applied after the request was processed. In particular, [template placeholders](#template-placeholders) referencing the response can be used in the parameters. 
 
 ### tracingSpanName
 

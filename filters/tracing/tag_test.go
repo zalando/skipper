@@ -31,10 +31,14 @@ func TestTracingTagNil(t *testing.T) {
 }
 
 func TestTagName(t *testing.T) {
-	if (tagSpec{}).Name() != filters.TracingTagName {
+	if NewTag().Name() != filters.TracingTagName {
+		t.Error("Wrong tag spec name")
+	}
+	if NewTagFromResponse().Name() != filters.TracingTagFromResponseName {
 		t.Error("Wrong tag spec name")
 	}
 }
+
 func TestTagCreateFilter(t *testing.T) {
 	spec := tagSpec{}
 	if _, err := spec.CreateFilter(nil); err != filters.ErrInvalidFilterParameters {
@@ -55,11 +59,13 @@ func TestTracingTag(t *testing.T) {
 
 	for _, ti := range []struct {
 		name     string
+		spec     filters.Spec
 		value    string
 		context  *filtertest.Context
 		expected interface{}
 	}{{
 		"plain key value",
+		NewTag(),
 		"test_value",
 		&filtertest.Context{
 			FRequest: &http.Request{},
@@ -67,6 +73,7 @@ func TestTracingTag(t *testing.T) {
 		"test_value",
 	}, {
 		"tag from header",
+		NewTag(),
 		"${request.header.X-Flow-Id}",
 		&filtertest.Context{
 			FRequest: &http.Request{
@@ -77,10 +84,37 @@ func TestTracingTag(t *testing.T) {
 		},
 		"foo",
 	}, {
+		"tag from response",
+		NewTagFromResponse(),
+		"${response.header.X-Fallback}",
+		&filtertest.Context{
+			FRequest: &http.Request{},
+			FResponse: &http.Response{
+				Header: http.Header{
+					"X-Fallback": []string{"true"},
+				},
+			},
+		},
+		"true",
+	}, {
 		"tag from missing header",
+		NewTag(),
 		"${request.header.missing}",
 		&filtertest.Context{
 			FRequest: &http.Request{},
+		},
+		nil,
+	}, {
+		"tracingTag is not processed on response",
+		NewTag(),
+		"${response.header.X-Fallback}",
+		&filtertest.Context{
+			FRequest: &http.Request{},
+			FResponse: &http.Response{
+				Header: http.Header{
+					"X-Fallback": []string{"true"},
+				},
+			},
 		},
 		nil,
 	},
@@ -89,21 +123,24 @@ func TestTracingTag(t *testing.T) {
 			span := tracer.StartSpan("proxy").(*mocktracer.MockSpan)
 			defer span.Finish()
 
-			ti.context.FRequest = ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span))
+			requestContext := &filtertest.Context{
+				FRequest: ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span)),
+			}
 
-			s := NewTag()
-			f, err := s.CreateFilter([]interface{}{"test_tag", ti.value})
+			f, err := ti.spec.CreateFilter([]interface{}{"test_tag", ti.value})
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			f.Request(ti.context)
+			f.Request(requestContext)
+
+			requestContext.FResponse = ti.context.FResponse
+
+			f.Response(requestContext)
 
 			if got := span.Tag("test_tag"); got != ti.expected {
 				t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
 			}
-
-			f.Response(ti.context)
 		})
 	}
 }

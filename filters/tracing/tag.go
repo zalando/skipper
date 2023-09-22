@@ -7,23 +7,31 @@ import (
 )
 
 type tagSpec struct {
+	typ string
 }
 
 type tagFilter struct {
+	tagFromResponse bool
+
 	tagName  string
 	tagValue *eskip.Template
 }
 
 // NewTag creates a filter specification for the tracingTag filter.
 func NewTag() filters.Spec {
-	return tagSpec{}
+	return &tagSpec{typ: filters.TracingTagName}
 }
 
-func (s tagSpec) Name() string {
-	return filters.TracingTagName
+// NewTagFromResponse creates a filter similar to NewTag, but applies tags after the request has been processed.
+func NewTagFromResponse() filters.Spec {
+	return &tagSpec{typ: filters.TracingTagFromResponseName}
 }
 
-func (s tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (s *tagSpec) Name() string {
+	return s.typ
+}
+
+func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -38,15 +46,28 @@ func (s tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return tagFilter{
+	return &tagFilter{
+		tagFromResponse: s.typ == filters.TracingTagFromResponseName,
+
 		tagName:  tagName,
 		tagValue: eskip.NewTemplate(tagValue),
 	}, nil
 }
 
-func (f tagFilter) Request(ctx filters.FilterContext) {
-	req := ctx.Request()
-	span := opentracing.SpanFromContext(req.Context())
+func (f *tagFilter) Request(ctx filters.FilterContext) {
+	if !f.tagFromResponse {
+		f.setTag(ctx)
+	}
+}
+
+func (f *tagFilter) Response(ctx filters.FilterContext) {
+	if f.tagFromResponse {
+		f.setTag(ctx)
+	}
+}
+
+func (f *tagFilter) setTag(ctx filters.FilterContext) {
+	span := opentracing.SpanFromContext(ctx.Request().Context())
 	if span == nil {
 		return
 	}
@@ -55,5 +76,3 @@ func (f tagFilter) Request(ctx filters.FilterContext) {
 		span.SetTag(f.tagName, v)
 	}
 }
-
-func (f tagFilter) Response(filters.FilterContext) {}
