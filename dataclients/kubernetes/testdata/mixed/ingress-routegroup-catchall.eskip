@@ -1,0 +1,11 @@
+kube_foo__qux__www_example_org____qux: Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
+    -> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_rg__default__qux_rg__all__0_0: HeaderRegexp("User-Agent", "^FooBar$") && Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$") && PathSubtree("/")
+    -> status(403)
+    -> inlineContent("Forbidden")
+    -> <shunt>;
+
+// The following catchall route for RouteGroup interferes with Ingress route
+// kube_rg____www_example_org__catchall__0_0: Host("^(www[.]example[.]org[.]?(:[0-9]+)?)$")
+//     -> <shunt>;
