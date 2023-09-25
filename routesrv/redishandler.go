@@ -39,20 +39,19 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func getRedisAddresses(namespace, name string, kdc *kubernetes.Client) func() ([]byte, error) {
 	return func() ([]byte, error) {
-		result := RedisEndpoints{}
 		a := kdc.GetEndpointAddresses(namespace, name)
-		log.Infof("Redis updater called and found %d redis endpoints: %v", len(a), a)
+		log.Debugf("Redis updater called and found %d redis endpoints: %v", len(a), a)
+
+		result := RedisEndpoints{}
 		for i := 0; i < len(a); i++ {
 			a[i] = strings.TrimPrefix(a[i], "http://")
 			result.Endpoints = append(result.Endpoints, RedisEndpoint{Address: a[i]})
 		}
-		log.Infof("Redis endpoints: %v", result.Endpoints)
-		data, err := json.Marshal(result)
 
+		data, err := json.Marshal(result)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal json data %w", err)
 		}
-
 		return data, nil
 	}
 }
