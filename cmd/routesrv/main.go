@@ -8,10 +8,12 @@ import (
 
 func main() {
 	cfg := config.NewConfig()
-	cfg.Parse()
+	if err := cfg.Parse(); err != nil {
+		log.Fatalf("Error processing config: %s", err)
+	}
+
 	log.SetLevel(cfg.ApplicationLogLevel)
-	err := routesrv.Run(cfg.ToOptions())
-	if err != nil {
+	if err := routesrv.Run(cfg.ToOptions()); err != nil {
 		log.Fatal(err)
 	}
 }
