@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -253,10 +254,12 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 	}
 
 	instance, err := registry.newOpenPolicyAgentInstance(bundleName, config, filterName)
+
 	if err != nil {
 		return nil, err
 	}
 	registry.instances[bundleName] = instance
+	log.Print(len(registry.instances))
 
 	return instance, nil
 }
@@ -295,6 +298,7 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 	err = engine.waitPluginsReady(100*time.Millisecond, 30*time.Second)
 	if err != nil {
 		engine.Logger().WithFields(map[string]interface{}{"err": err}).Error("Failed to wait for plugins activation.")
+		engine.Close(ctx)
 		return nil, err
 	}
 
@@ -345,7 +349,6 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 // New returns a new OPA object.
 func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
-
 	opaConfig, err := config.ParseConfig(configBytes, id)
 	if err != nil {
 		return nil, err

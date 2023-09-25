@@ -89,7 +89,44 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 	assert.Equal(t, expected, cfg.envoyMetadata)
 }
 
-func mockControlPlane() (*opasdktest.Server, []byte) {
+func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Server, []byte) {
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/test", map[string]string{
+			"main.rego": `
+				package envoy.authz
+	
+				default allow = false
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery", map[string]string{
+			"data.json": `
+				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}},"plugins":{"envoy_ext_authz_grpc":{"addr":"unix:///run/opa/sockets/auth.sock","dry-run":false,"enable-reflection":true,"path":"main/main"}},"status":{"console": true}}}
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery-with-error", map[string]string{
+			"data.json": `
+				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}},"plugins":{"envoy_ext_authz_grpc":{"addr":"unix:///run/opa/sockets/auth.sock","dry-run":false,"enable-reflection":true,"path":"main/main"}},"status":{"console": true}}}
+			`,
+		}),
+	)
+
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"discovery": {
+			"name": "discovery",
+			"resource": %q,
+			"service": "test"
+		}
+	}`, opaControlPlane.URL(), discoveryBundle))
+
+	return opaControlPlane, config
+}
+
+func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 	opaControlPlane := opasdktest.MustNewServer(
 		opasdktest.MockBundle("/bundles/test", map[string]string{
 			"main.rego": `
@@ -130,7 +167,7 @@ func mockControlPlane() (*opasdktest.Server, []byte) {
 }
 
 func TestRegistry(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
@@ -182,8 +219,34 @@ func TestRegistry(t *testing.T) {
 	assert.Error(t, err, "should not work after close")
 }
 
+func TestBundleActivationSuccessWithDiscovery(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.NotNil(t, instance)
+	assert.NoError(t, err)
+}
+
+func TestBundleActivationFailureWithDiscovery(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-error")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Nil(t, instance)
+	assert.Error(t, err)
+}
+
 func TestStartup(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
@@ -199,7 +262,7 @@ func TestStartup(t *testing.T) {
 }
 
 func TestTracing(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
@@ -222,7 +285,7 @@ func TestTracing(t *testing.T) {
 }
 
 func TestEval(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
@@ -250,7 +313,7 @@ func TestEval(t *testing.T) {
 }
 
 func TestResponses(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
