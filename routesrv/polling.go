@@ -163,19 +163,31 @@ func mapRoutes(routes []*eskip.Route) map[string]string {
 }
 
 func logChanges(routesById map[string]string, lastRoutesById map[string]string) {
-	added := notIn(routesById, lastRoutesById)
-	for i, id := range added {
-		log.Debugf("added (%d/%d): %s", i+1, len(added), id)
+	inserted := notIn(routesById, lastRoutesById)
+	for i, id := range inserted {
+		log.WithFields(log.Fields{
+			"op":    "inserted",
+			"id":    id,
+			"route": routesById[id],
+		}).Debugf("Inserted route %d of %d", i+1, len(inserted))
 	}
 
-	removed := notIn(lastRoutesById, routesById)
-	for i, id := range removed {
-		log.Debugf("removed (%d/%d): %s", i+1, len(removed), id)
+	deleted := notIn(lastRoutesById, routesById)
+	for i, id := range deleted {
+		log.WithFields(log.Fields{
+			"op":    "deleted",
+			"id":    id,
+			"route": lastRoutesById[id],
+		}).Debugf("Deleted route %d of %d", i+1, len(deleted))
 	}
 
-	changed := valueMismatch(routesById, lastRoutesById)
-	for i, id := range changed {
-		log.Debugf("changed (%d/%d): %s", i+1, len(changed), id)
+	updated := valueMismatch(routesById, lastRoutesById)
+	for i, id := range updated {
+		log.WithFields(log.Fields{
+			"op":    "updated",
+			"id":    id,
+			"route": routesById[id],
+		}).Debugf("Updated route %d of %d", i+1, len(updated))
 	}
 }
 
