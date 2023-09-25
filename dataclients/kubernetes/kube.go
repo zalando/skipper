@@ -380,23 +380,21 @@ func ParsePathMode(s string) (PathMode, error) {
 	}
 }
 
-func mapRoutes(r []*eskip.Route) (map[string]*eskip.Route, []*eskip.Route) {
+func mapRoutes(routes []*eskip.Route) (map[string]*eskip.Route, []*eskip.Route) {
 	var uniqueRoutes []*eskip.Route
-	m := make(map[string]*eskip.Route)
-	for _, ri := range r {
-		if existingRoute, ok := m[ri.Id]; ok {
-			if eskip.Eq(existingRoute, ri) {
-				log.Warnf("Duplicate routeID found: %s", ri.Id)
-			} else {
-				log.Errorf("Failed to map route, duplicate ID with different body found, existing routeID: %s, existing route body: %s, new route body: %s", ri.Id, existingRoute.String(), ri.String())
+	routesById := make(map[string]*eskip.Route)
+	for _, route := range routes {
+		if existing, ok := routesById[route.Id]; ok {
+			existingEskip, routeEskip := existing.String(), route.String()
+			if existingEskip != routeEskip {
+				log.Errorf("Ignoring route with the same id %s, existing: %s, ignored: %s", route.Id, existingEskip, routeEskip)
 			}
 		} else {
-			m[ri.Id] = ri
-			uniqueRoutes = append(uniqueRoutes, ri)
+			routesById[route.Id] = route
+			uniqueRoutes = append(uniqueRoutes, route)
 		}
 	}
-
-	return m, uniqueRoutes
+	return routesById, uniqueRoutes
 }
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
