@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -254,12 +253,10 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 	}
 
 	instance, err := registry.newOpenPolicyAgentInstance(bundleName, config, filterName)
-
 	if err != nil {
 		return nil, err
 	}
 	registry.instances[bundleName] = instance
-	log.Print(len(registry.instances))
 
 	return instance, nil
 }
