@@ -9,21 +9,24 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/tracing"
 )
 
 // RouteServer is used to serve eskip-formatted routes,
 // that originate from the polled data source.
 type RouteServer struct {
-	server *http.Server
-	poller *poller
-	wg     *sync.WaitGroup
+	metrics       metrics.Metrics
+	server        *http.Server
+	supportServer *http.Server
+	poller        *poller
+	wg            *sync.WaitGroup
 }
 
 // New returns an initialized route server according to the passed options.
@@ -31,7 +34,27 @@ type RouteServer struct {
 // will stay in an uninitialized state, till StartUpdates is called and
 // in effect data source is queried and routes initialized/updated.
 func New(opts skipper.Options) (*RouteServer, error) {
-	rs := &RouteServer{}
+	if opts.PrometheusRegistry == nil {
+		opts.PrometheusRegistry = prometheus.NewRegistry()
+	}
+
+	mopt := metrics.Options{
+		Format:               metrics.PrometheusKind,
+		Prefix:               "routesrv",
+		PrometheusRegistry:   opts.PrometheusRegistry,
+		EnableDebugGcMetrics: true,
+		EnableRuntimeMetrics: true,
+		EnableProfile:        opts.EnableProfile,
+		BlockProfileRate:     opts.BlockProfileRate,
+		MutexProfileFraction: opts.MutexProfileFraction,
+		MemProfileRate:       opts.MemProfileRate,
+	}
+	m := metrics.NewMetrics(mopt)
+	metricsHandler := metrics.NewHandler(mopt, m)
+
+	rs := &RouteServer{
+		metrics: m,
+	}
 
 	opentracingOpts := opts.OpenTracing
 	if len(opentracingOpts) == 0 {
@@ -42,12 +65,25 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		return nil, err
 	}
 
-	b := &eskipBytes{tracer: tracer, now: time.Now}
-	bs := &eskipBytesStatus{b: b}
-	handler := http.NewServeMux()
-	handler.Handle("/health", bs)
-	handler.Handle("/routes", b)
-	handler.Handle("/metrics", promhttp.Handler())
+	b := &eskipBytes{
+		tracer:  tracer,
+		metrics: m,
+		now:     time.Now,
+	}
+	bs := &eskipBytesStatus{
+		b: b,
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/health", bs)
+	mux.Handle("/routes", b)
+	supportHandler := http.NewServeMux()
+	supportHandler.Handle("/metrics", metricsHandler)
+	supportHandler.Handle("/metrics/", metricsHandler)
+
+	if opts.EnableProfile {
+		supportHandler.Handle("/debug/pprof", metricsHandler)
+		supportHandler.Handle("/debug/pprof/", metricsHandler)
+	}
 
 	dataclient, err := kubernetes.New(opts.KubernetesDataClientOptions())
 	if err != nil {
@@ -68,13 +104,20 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		if err != nil {
 			return nil, err
 		}
-		rh.AddrUpdater = getRedisAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName, dataclient)
-		handler.Handle("/swarm/redis/shards", rh)
+		rh.AddrUpdater = getRedisAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName, dataclient, m)
+		mux.Handle("/swarm/redis/shards", rh)
 	}
 
 	rs.server = &http.Server{
 		Addr:              opts.Address,
-		Handler:           handler,
+		Handler:           mux,
+		ReadTimeout:       1 * time.Minute,
+		ReadHeaderTimeout: 1 * time.Minute,
+	}
+
+	rs.supportServer = &http.Server{
+		Addr:              opts.SupportListener,
+		Handler:           supportHandler,
 		ReadTimeout:       1 * time.Minute,
 		ReadHeaderTimeout: 1 * time.Minute,
 	}
@@ -89,6 +132,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		cloneRoute:     opts.CloneRoute,
 		oauth2Config:   oauthConfig,
 		tracer:         tracer,
+		metrics:        m,
 	}
 
 	rs.wg = &sync.WaitGroup{}
@@ -114,6 +158,15 @@ func (rs *RouteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rs.server.Handler.ServeHTTP(w, r)
 }
 
+func (rs *RouteServer) startSupportListener() {
+	if rs.supportServer != nil {
+		err := rs.supportServer.ListenAndServe()
+		if err != nil {
+			log.Errorf("Failed support listener: %v", err)
+		}
+	}
+}
+
 func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 	once := sync.Once{}
 	rs.wg.Add(1)
@@ -125,12 +178,43 @@ func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 
 			log.Infof("shutting down the server in %s...", delay)
 			time.Sleep(delay)
+			if rs.supportServer != nil {
+				if err := rs.supportServer.Shutdown(context.Background()); err != nil {
+					log.Error("unable to shut down the support server: ", err)
+				}
+				log.Info("supportServer shut down")
+			}
 			if err := rs.server.Shutdown(context.Background()); err != nil {
 				log.Error("unable to shut down the server: ", err)
 			}
 			log.Info("server shut down")
 		})
 	}
+}
+
+func run(rs *RouteServer, opts skipper.Options, sigs chan os.Signal) error {
+	var err error
+
+	shutdown := newShutdownFunc(rs)
+
+	signal.Notify(sigs, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		shutdown(opts.WaitForHealthcheckInterval)
+	}()
+
+	rs.StartUpdates()
+
+	go rs.startSupportListener()
+	if err = rs.server.ListenAndServe(); err != http.ErrServerClosed {
+		go shutdown(0)
+	} else {
+		err = nil
+	}
+
+	rs.wg.Wait()
+
+	return err
 }
 
 // Run starts a route server set up according to the passed options.
@@ -144,25 +228,7 @@ func Run(opts skipper.Options) error {
 	if err != nil {
 		return err
 	}
-
-	shutdown := newShutdownFunc(rs)
-
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		shutdown(opts.WaitForHealthcheckInterval)
-	}()
+	return run(rs, opts, sigs)
 
-	rs.StartUpdates()
-
-	if err = rs.server.ListenAndServe(); err != http.ErrServerClosed {
-		go shutdown(0)
-	} else {
-		err = nil
-	}
-
-	rs.wg.Wait()
-
-	return err
 }
