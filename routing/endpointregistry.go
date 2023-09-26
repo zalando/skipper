@@ -7,7 +7,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-const lastSeenTimeout = 1 * time.Minute
+const defaultLastSeenTimeout = 1 * time.Minute
 
 // Metrics describe the data about endpoint that could be
 // used to perform better load balancing, fadeIn, etc.
@@ -32,8 +32,9 @@ func (e *entry) InflightRequests() int64 {
 }
 
 type EndpointRegistry struct {
-	lastSeen map[string]time.Time
-	now      func() time.Time
+	lastSeen        map[string]time.Time
+	lastSeenTimeout time.Duration
+	now             func() time.Time
 
 	mu sync.Mutex
 
@@ -43,6 +44,7 @@ type EndpointRegistry struct {
 var _ PostProcessor = &EndpointRegistry{}
 
 type RegistryOptions struct {
+	LastSeenTimeout time.Duration
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
@@ -62,7 +64,7 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 	}
 
 	for host, ts := range r.lastSeen {
-		if ts.Add(lastSeenTimeout).Before(now) {
+		if ts.Add(r.lastSeenTimeout).Before(now) {
 			r.mu.Lock()
 			if r.data[host].inflightRequests == 0 {
 				delete(r.lastSeen, host)
@@ -76,10 +78,15 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 }
 
 func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
+	if o.LastSeenTimeout == 0 {
+		o.LastSeenTimeout = defaultLastSeenTimeout
+	}
+
 	return &EndpointRegistry{
-		data:     map[string]*entry{},
-		lastSeen: map[string]time.Time{},
-		now:      time.Now,
+		data:            map[string]*entry{},
+		lastSeen:        map[string]time.Time{},
+		lastSeenTimeout: o.LastSeenTimeout,
+		now:             time.Now,
 	}
 }
 

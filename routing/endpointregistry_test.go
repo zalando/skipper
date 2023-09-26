@@ -78,7 +78,7 @@ func TestDoRemovesOldEntries(t *testing.T) {
 	r.DecInflightRequest("endpoint2.test:80")
 
 	routing.SetNow(r, func() time.Time {
-		return beginTestTs.Add(routing.ExportLastSeenTimeout + time.Second)
+		return beginTestTs.Add(routing.ExportDefaultLastSeenTimeout + time.Second)
 	})
 	route = &routing.Route{
 		LBEndpoints: []routing.LBEndpoint{
