@@ -8,11 +8,10 @@ import (
 	"time"
 
 	ot "github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
 )
@@ -24,24 +23,6 @@ const (
 	LogRoutesEmpty          = "received empty routes; ignoring"
 	LogRoutesInitialized    = "routes initialized"
 	LogRoutesUpdated        = "routes updated"
-)
-
-var (
-	pollingStarted = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "routesrv",
-		Name:      "polling_started_timestamp",
-		Help:      "UNIX time when the routes polling has started",
-	})
-	routesInitialized = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "routesrv",
-		Name:      "routes_initialized_timestamp",
-		Help:      "UNIX time when the first routes were received and stored",
-	})
-	routesUpdated = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "routesrv",
-		Name:      "routes_updated_timestamp",
-		Help:      "UNIX time of the last routes update (initial load counts as well)",
-	})
 )
 
 type poller struct {
@@ -56,8 +37,9 @@ type poller struct {
 	editRoute      []*eskip.Editor
 	cloneRoute     []*eskip.Clone
 
-	// tracer
-	tracer ot.Tracer
+	// visibility
+	tracer  ot.Tracer
+	metrics metrics.Metrics
 }
 
 func (p *poller) poll(wg *sync.WaitGroup) {
@@ -66,21 +48,21 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	log.WithField("timeout", p.timeout).Info(LogPollingStarted)
 	ticker := time.NewTicker(p.timeout)
 	defer ticker.Stop()
-	pollingStarted.SetToCurrentTime()
+	p.metrics.UpdateGauge("polling_started_timestamp", (float64(time.Now().UnixNano()) / 1e9))
 
 	var lastRoutesById map[string]string
 	for {
 		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
 
 		routes, err := p.client.LoadAll()
-
 		routes = p.process(routes)
-
 		routesCount := len(routes)
 
 		switch {
 		case err != nil:
 			log.WithError(err).Error(LogRoutesFetchingFailed)
+
+			p.metrics.IncCounter("routes_fetch_errors")
 
 			span.SetTag("error", true)
 			span.LogKV(
@@ -89,6 +71,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			)
 		case routesCount == 0:
 			log.Error(LogRoutesEmpty)
+
+			p.metrics.UpdateGauge("routes_count", 0)
+			p.metrics.UpdateGauge("routes_byte", 0)
 
 			span.SetTag("error", true)
 			span.LogKV(
@@ -101,12 +86,15 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			if initialized {
 				logger.Info(LogRoutesInitialized)
 				span.SetTag("routes.initialized", true)
-				routesInitialized.SetToCurrentTime()
+				p.metrics.UpdateGauge("routes_initialized_timestamp", (float64(time.Now().UnixNano()) / 1e9))
 			}
 			if updated {
 				logger.Info(LogRoutesUpdated)
 				span.SetTag("routes.updated", true)
-				routesUpdated.SetToCurrentTime()
+				p.metrics.UpdateGauge("routes_updated_timestamp", (float64(time.Now().UnixNano()) / 1e9))
+				p.metrics.UpdateGauge("routes_count", float64(routesCount))
+				p.metrics.UpdateGauge("routes_byte", float64(routesBytes))
+
 			}
 			span.SetTag("routes.count", routesCount)
 			span.SetTag("routes.bytes", routesBytes)

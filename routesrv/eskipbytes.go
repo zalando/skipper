@@ -11,8 +11,33 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
+)
+
+type responseWriterInterceptor struct {
+	http.ResponseWriter
+	statusCode   int
+	bytesWritten int
+}
+
+func (w *responseWriterInterceptor) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *responseWriterInterceptor) Header() http.Header {
+	return w.ResponseWriter.Header()
+}
+
+func (w *responseWriterInterceptor) Write(p []byte) (int, error) {
+	w.bytesWritten += len(p)
+	return w.ResponseWriter.Write(p)
+}
+
+var (
+	_ http.ResponseWriter = &responseWriterInterceptor{}
 )
 
 // eskipBytes keeps eskip-formatted routes as a byte slice and
@@ -26,8 +51,9 @@ type eskipBytes struct {
 	count        int
 	mu           sync.RWMutex
 
-	tracer ot.Tracer
-	now    func() time.Time
+	tracer  ot.Tracer
+	metrics metrics.Metrics
+	now     func() time.Time
 }
 
 // formatAndSet takes a slice of routes and stores them eskip-formatted
@@ -54,9 +80,20 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initi
 	return len(e.data), e.etag, initialized, updated
 }
 
-func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	span := tracing.CreateSpan("serve_routes", r.Context(), e.tracer)
 	defer span.Finish()
+	start := time.Now()
+	defer e.metrics.MeasureBackend("routersv", start)
+
+	w := &responseWriterInterceptor{
+		ResponseWriter: rw,
+	}
+
+	defer func() {
+		span.SetTag("status", w.statusCode)
+		e.metrics.IncCounter(strconv.Itoa(w.statusCode))
+	}()
 
 	if r.Method != "GET" && r.Method != "HEAD" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -75,7 +112,6 @@ func (e *eskipBytes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Etag", etag)
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Add(routing.RoutesCountName, strconv.Itoa(count))
-
 		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
 	} else {
 		w.WriteHeader(http.StatusNotFound)

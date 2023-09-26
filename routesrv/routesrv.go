@@ -9,21 +9,23 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/filters/auth"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/tracing"
 )
 
 // RouteServer is used to serve eskip-formatted routes,
 // that originate from the polled data source.
 type RouteServer struct {
-	server *http.Server
-	poller *poller
-	wg     *sync.WaitGroup
+	metrics metrics.Metrics
+	server  *http.Server
+	poller  *poller
+	wg      *sync.WaitGroup
 }
 
 // New returns an initialized route server according to the passed options.
@@ -31,7 +33,27 @@ type RouteServer struct {
 // will stay in an uninitialized state, till StartUpdates is called and
 // in effect data source is queried and routes initialized/updated.
 func New(opts skipper.Options) (*RouteServer, error) {
-	rs := &RouteServer{}
+	if opts.PrometheusRegistry == nil {
+		opts.PrometheusRegistry = prometheus.NewRegistry()
+	}
+
+	mopt := metrics.Options{
+		Format:               metrics.PrometheusKind,
+		Prefix:               "routesrv",
+		PrometheusRegistry:   opts.PrometheusRegistry,
+		EnableDebugGcMetrics: true,
+		EnableRuntimeMetrics: true,
+		EnableProfile:        opts.EnableProfile,
+		BlockProfileRate:     opts.BlockProfileRate,
+		MutexProfileFraction: opts.MutexProfileFraction,
+		MemProfileRate:       opts.MemProfileRate,
+	}
+	m := metrics.NewMetrics(mopt)
+	metricsHandler := metrics.NewHandler(mopt, m)
+
+	rs := &RouteServer{
+		metrics: m,
+	}
 
 	opentracingOpts := opts.OpenTracing
 	if len(opentracingOpts) == 0 {
@@ -42,12 +64,24 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		return nil, err
 	}
 
-	b := &eskipBytes{tracer: tracer, now: time.Now}
-	bs := &eskipBytesStatus{b: b}
-	handler := http.NewServeMux()
-	handler.Handle("/health", bs)
-	handler.Handle("/routes", b)
-	handler.Handle("/metrics", promhttp.Handler())
+	b := &eskipBytes{
+		tracer:  tracer,
+		metrics: m,
+		now:     time.Now,
+	}
+	bs := &eskipBytesStatus{
+		b: b,
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/health", bs)
+	mux.Handle("/routes", b)
+	mux.Handle("/metrics", metricsHandler)
+	mux.Handle("/metrics/", metricsHandler)
+
+	if opts.EnableProfile {
+		mux.Handle("/debug/pprof", metricsHandler)
+		mux.Handle("/debug/pprof/", metricsHandler)
+	}
 
 	dataclient, err := kubernetes.New(opts.KubernetesDataClientOptions())
 	if err != nil {
@@ -68,13 +102,13 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		if err != nil {
 			return nil, err
 		}
-		rh.AddrUpdater = getRedisAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName, dataclient)
-		handler.Handle("/swarm/redis/shards", rh)
+		rh.AddrUpdater = getRedisAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName, dataclient, m)
+		mux.Handle("/swarm/redis/shards", rh)
 	}
 
 	rs.server = &http.Server{
 		Addr:              opts.Address,
-		Handler:           handler,
+		Handler:           mux,
 		ReadTimeout:       1 * time.Minute,
 		ReadHeaderTimeout: 1 * time.Minute,
 	}
@@ -89,6 +123,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		cloneRoute:     opts.CloneRoute,
 		oauth2Config:   oauthConfig,
 		tracer:         tracer,
+		metrics:        m,
 	}
 
 	rs.wg = &sync.WaitGroup{}
@@ -133,21 +168,11 @@ func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 	}
 }
 
-// Run starts a route server set up according to the passed options.
-// It is a blocking call designed to be used as a single call/entry point,
-// when running the route server as a standalone binary. It returns, when
-// the server is closed, which can happen due to server startup errors or
-// gracefully handled SIGTERM signal. In case of a server startup error,
-// the error is returned as is.
-func Run(opts skipper.Options) error {
-	rs, err := New(opts)
-	if err != nil {
-		return err
-	}
+func run(rs *RouteServer, opts skipper.Options, sigs chan os.Signal) error {
+	var err error
 
 	shutdown := newShutdownFunc(rs)
 
-	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
 	go func() {
 		<-sigs
@@ -165,4 +190,20 @@ func Run(opts skipper.Options) error {
 	rs.wg.Wait()
 
 	return err
+}
+
+// Run starts a route server set up according to the passed options.
+// It is a blocking call designed to be used as a single call/entry point,
+// when running the route server as a standalone binary. It returns, when
+// the server is closed, which can happen due to server startup errors or
+// gracefully handled SIGTERM signal. In case of a server startup error,
+// the error is returned as is.
+func Run(opts skipper.Options) error {
+	rs, err := New(opts)
+	if err != nil {
+		return err
+	}
+	sigs := make(chan os.Signal, 1)
+	return run(rs, opts, sigs)
+
 }
