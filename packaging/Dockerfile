@@ -1,16 +1,18 @@
 ARG BASE_IMAGE=default
-FROM registry.opensource.zalan.do/library/alpine-3:latest AS default
+FROM alpine:latest AS default
 FROM ${BASE_IMAGE}
 LABEL maintainer="Team Gateway&Proxy @ Zalando SE <team-gwproxy@zalando.de>"
-RUN apk --no-cache add ca-certificates && update-ca-certificates
-RUN mkdir -p /usr/bin
-ARG BUILD_FOLDER=build
+
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG TARGETPLATFORM
-ADD ${BUILD_FOLDER}/${TARGETPLATFORM}/skipper \
-    ${BUILD_FOLDER}/${TARGETPLATFORM}/eskip \
-    ${BUILD_FOLDER}/${TARGETPLATFORM}/webhook \
-    ${BUILD_FOLDER}/${TARGETPLATFORM}/routesrv /usr/bin/
-ENV PATH $PATH:/usr/bin
+
+RUN apk --no-cache add ca-certificates && update-ca-certificates
+
+COPY build/${TARGETPLATFORM}/skipper \
+    build/${TARGETPLATFORM}/eskip \
+    build/${TARGETPLATFORM}/webhook \
+    build/${TARGETPLATFORM}/routesrv \
+    /usr/bin/
 
 EXPOSE 9090 9911
 

@@ -5,17 +5,16 @@ package managers. (Currently, only docker.)
 
 ## Docker
 
-Use the provided Dockerfile to build a docker image with Alpine Linux and the latest version of skipper and
-eskip.
+Use the provided Dockerfile to build a docker image with Alpine Linux and the latest version of skipper and tools.
 
 Use the `VERSION` and `REGISTRY` or `IMAGE` environment variables to set the docker tag.
 `VERSION` defaults to the hash of the current git head, which revision is also used to build the packaged
-binary of skipper and eskip.
+binary of skipper and tools.
 
 **Example:**
 
 ```
-REGISTRY=my-repo VERSION=latest-SNAPSHOT make docker-build docker-push
+REGISTRY=my-repo VERSION=latest-SNAPSHOT make docker.build.local docker.push.local
 ```
 
 The above command will build a docker image with a tag 'my-repo/skipper:latest-SNAPSHOT' and push it to
