@@ -1,7 +1,7 @@
 version: "2017-09-20"
 allow_concurrent_steps: true
 pipeline:
-- id: vulncheck & capslock
+- id: vulncheck and capslock
   depends_on: []
   vm_config:
     type: linux
