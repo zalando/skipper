@@ -369,7 +369,8 @@ func TestPostProcessor(t *testing.T) {
 			* -> fadeIn("15ms") -> <"http://10.0.0.1:8080", "http://10.0.0.2:8080">
 		`
 
-		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		const lastSeenTimeout = 2 * time.Second
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{LastSeenTimeout: lastSeenTimeout})
 		rt, update := createRouting(t, initialRoutes, endpointRegistry)
 		firstDetected := time.Now()
 
@@ -377,9 +378,7 @@ func TestPostProcessor(t *testing.T) {
 			* -> fadeIn("1m") -> <"http://10.0.0.2:8080">
 		`
 
-		// We need to wait routing.lastSeenTimeout to expire.
-		// TODO: Use mock clock like this https://pkg.go.dev/github.com/benbjohnson/clock
-		time.Sleep(61 * time.Second)
+		time.Sleep(lastSeenTimeout + 10*time.Millisecond)
 		update(nextRoutes)
 		update(initialRoutes)
 

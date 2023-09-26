@@ -75,7 +75,8 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routin
 	rt := ctx.Route
 	ep := ctx.Route.LBEndpoints
 	for _, epi := range ep {
-		wi := fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Detected)
+		detected := ctx.Registry.GetMetrics(epi.Host).DetectedTime()
+		wi := fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, detected)
 		sum += wi
 	}
 
@@ -83,7 +84,8 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routin
 	r := rnd.Float64() * sum
 	var upto float64
 	for i, epi := range ep {
-		upto += fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Detected)
+		detected := ctx.Registry.GetMetrics(epi.Host).DetectedTime()
+		upto += fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, detected)
 		if upto > r {
 			choice = ep[i]
 			break
@@ -112,11 +114,12 @@ func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, wi []int, now time
 func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing.LBAlgorithm) routing.LBEndpoint {
 	ep := ctx.Route.LBEndpoints
 	now := time.Now()
+	detected := ctx.Registry.GetMetrics(ctx.Route.LBEndpoints[choice].Host).DetectedTime()
 	f := fadeIn(
 		now,
 		ctx.Route.LBFadeInDuration,
 		ctx.Route.LBFadeInExponent,
-		ctx.Route.LBEndpoints[choice].Detected,
+		detected,
 	)
 
 	if rnd.Float64() < f {
@@ -124,7 +127,8 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing
 	}
 	notFadingIndexes := make([]int, 0, len(ep))
 	for i := 0; i < len(ep); i++ {
-		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, ep[i].Detected); !fadingIn {
+		detected := ctx.Registry.GetMetrics(ep[i].Host).DetectedTime()
+		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, detected); !fadingIn {
 			notFadingIndexes = append(notFadingIndexes, i)
 		}
 	}
