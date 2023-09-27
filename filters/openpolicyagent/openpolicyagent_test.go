@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
@@ -100,28 +101,40 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 		}),
 		opasdktest.MockBundle("/bundles/discovery", map[string]string{
 			"data.json": `
-				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}},"plugins":{"envoy_ext_authz_grpc":{"addr":"unix:///run/opa/sockets/auth.sock","dry-run":false,"enable-reflection":true,"path":"main/main"}},"status":{"console": true}}}
+				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}},"plugins":{"envoy_ext_authz_grpc":{"addr":"unix:///run/opa/sockets/auth.sock","dry-run":false,"enable-reflection":true,"path":"main/main"}},"status":{"console": false, "service": "observability"}}}
 			`,
 		}),
-		opasdktest.MockBundle("/bundles/discovery-with-error", map[string]string{
+		opasdktest.MockBundle("/bundles/discovery-with-wrong-bundle", map[string]string{
 			"data.json": `
-				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}},"plugins":{"envoy_ext_authz_grpc":{"addr":"unix:///run/opa/sockets/auth.sock","dry-run":false,"enable-reflection":true,"path":"main/main"}},"status":{"console": true}}}
+				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}},"plugins":{"envoy_ext_authz_grpc":{"addr":"unix:///run/opa/sockets/auth.sock","dry-run":false,"enable-reflection":true,"path":"main/main"}},"status":{"console": false, "service": "observability"}}}
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery-with-parsing-error", map[string]string{
+			"data.json": `
+				{unparsable : json}
 			`,
 		}),
 	)
+
+	observabilityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
 
 	config := []byte(fmt.Sprintf(`{
 		"services": {
 			"test": {
 				"url": %q
-			}
+			},
+			"observability": {
+				"url": %q
+			},
 		},
 		"discovery": {
 			"name": "discovery",
 			"resource": %q,
 			"service": "test"
 		}
-	}`, opaControlPlane.URL(), discoveryBundle))
+	}`, opaControlPlane.URL(), observabilityServer.URL, discoveryBundle))
 
 	return opaControlPlane, config
 }
@@ -219,7 +232,7 @@ func TestRegistry(t *testing.T) {
 	assert.Error(t, err, "should not work after close")
 }
 
-func TestBundleActivationSuccessWithDiscovery(t *testing.T) {
+func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
@@ -232,17 +245,48 @@ func TestBundleActivationSuccessWithDiscovery(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestBundleActivationFailureWithDiscovery(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-error")
+func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
+	configWithUnknownService := []byte(fmt.Sprintf(`{
+		"discovery": {
+			"name": "discovery",
+			"resource": "discovery",
+			"service": "test"
+		}}`))
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService), WithStartupTimeout(1*time.Second))
 	assert.NoError(t, err)
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid configuration for discovery")
+}
+
+func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Nil(t, instance)
+	assert.Contains(t, err.Error(), "bundle plugin failed to start in 1s")
+}
+
+func TestOpaActivationFailureWithDiscoveryParsingError(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-parsing-error")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Nil(t, instance)
+	assert.Contains(t, err.Error(), "discovery plugin failed to start in 1s")
 }
 
 func TestStartup(t *testing.T) {
