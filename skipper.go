@@ -913,6 +913,7 @@ type Options struct {
 	OpenPolicyAgentConfigTemplate  string
 	OpenPolicyAgentEnvoyMetadata   string
 	OpenPolicyAgentCleanerInterval time.Duration
+	OpenPolicyAgentStartupTimeout  time.Duration
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
@@ -1795,6 +1796,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
 		opts = append(opts, openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
+		opts = append(opts, openpolicyagent.WithStartupTimeout(o.OpenPolicyAgentStartupTimeout))
 		if o.OpenPolicyAgentEnvoyMetadata != "" {
 			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
 		}
