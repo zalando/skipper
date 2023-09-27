@@ -101,12 +101,12 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 		}),
 		opasdktest.MockBundle("/bundles/discovery", map[string]string{
 			"data.json": `
-				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}},"plugins":{"envoy_ext_authz_grpc":{"addr":"unix:///run/opa/sockets/auth.sock","dry-run":false,"enable-reflection":true,"path":"main/main"}},"status":{"console": false, "service": "observability"}}}
+				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}},"status":{"console": false, "service": "observability"}}}
 			`,
 		}),
 		opasdktest.MockBundle("/bundles/discovery-with-wrong-bundle", map[string]string{
 			"data.json": `
-				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}},"plugins":{"envoy_ext_authz_grpc":{"addr":"unix:///run/opa/sockets/auth.sock","dry-run":false,"enable-reflection":true,"path":"main/main"}},"status":{"console": false, "service": "observability"}}}
+				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}}, "status":{"console": false, "service": "observability"}}}
 			`,
 		}),
 		opasdktest.MockBundle("/bundles/discovery-with-parsing-error", map[string]string{
