@@ -158,7 +158,9 @@ func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.
 }
 
 func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) (*OpenPolicyAgentInstanceConfig, error) {
-	cfg := OpenPolicyAgentInstanceConfig{}
+	cfg := OpenPolicyAgentInstanceConfig{
+		startupTimeout: DefaultOpaStartupTimeout,
+	}
 
 	for _, opt := range opts {
 		if err := opt(&cfg); err != nil {
@@ -429,7 +431,7 @@ func (opa *OpenPolicyAgentInstance) waitPluginsReady(checkInterval, timeout time
 				}).Error("Open policy agent plugin did not start in %v", timeout)
 			}
 		}
-		err = fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %v", timeout, err.Error())
+		err = fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, err)
 	}
 
 	return err
