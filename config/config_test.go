@@ -161,6 +161,7 @@ func defaultConfig() *Config {
 		LuaModules:                              commaListFlag(),
 		LuaSources:                              commaListFlag(),
 		OpenPolicyAgentCleanerInterval:          10 * time.Second,
+		OpenPolicyAgentStartupTimeout:           30 * time.Second,
 	}
 }
 
