@@ -265,7 +265,7 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "bundle plugin failed to start in 1s")
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
 }
 
 func TestOpaActivationFailureWithDiscoveryParsingError(t *testing.T) {
@@ -278,7 +278,7 @@ func TestOpaActivationFailureWithDiscoveryParsingError(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "discovery plugin failed to start in 1s")
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
 }
 
 func TestStartup(t *testing.T) {

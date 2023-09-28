@@ -427,9 +427,9 @@ func (opa *OpenPolicyAgentInstance) waitPluginsReady(checkInterval, timeout time
 					"plugin_state":  status.State,
 					"error_message": status.Message,
 				}).Error("Open policy agent plugin did not start in %v", timeout)
-				err = fmt.Errorf("%v plugin failed to start in %v", pluginName, timeout)
 			}
 		}
+		err = fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %v", timeout, err.Error())
 	}
 
 	return err
