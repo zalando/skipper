@@ -1795,8 +1795,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
-		opts = append(opts, openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
-		opts = append(opts, openpolicyagent.WithStartupTimeout(o.OpenPolicyAgentStartupTimeout))
+		opts = append(opts,
+			openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate),
+			openpolicyagent.WithStartupTimeout(o.OpenPolicyAgentStartupTimeout))
 		if o.OpenPolicyAgentEnvoyMetadata != "" {
 			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
 		}

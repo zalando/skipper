@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
@@ -101,12 +100,12 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 		}),
 		opasdktest.MockBundle("/bundles/discovery", map[string]string{
 			"data.json": `
-				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}},"status":{"console": false, "service": "observability"}}}
+				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}}}}
 			`,
 		}),
 		opasdktest.MockBundle("/bundles/discovery-with-wrong-bundle", map[string]string{
 			"data.json": `
-				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}}, "status":{"console": false, "service": "observability"}}}
+				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}}}}
 			`,
 		}),
 		opasdktest.MockBundle("/bundles/discovery-with-parsing-error", map[string]string{
@@ -116,25 +115,18 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 		}),
 	)
 
-	observabilityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
 	config := []byte(fmt.Sprintf(`{
 		"services": {
 			"test": {
 				"url": %q
-			},
-			"observability": {
-				"url": %q
-			},
+			}
 		},
 		"discovery": {
 			"name": "discovery",
 			"resource": %q,
 			"service": "test"
 		}
-	}`, opaControlPlane.URL(), observabilityServer.URL, discoveryBundle))
+	}`, opaControlPlane.URL(), discoveryBundle))
 
 	return opaControlPlane, config
 }
@@ -246,12 +238,12 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 }
 
 func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
-	configWithUnknownService := []byte(fmt.Sprintf(`{
+	configWithUnknownService := []byte(`{
 		"discovery": {
 			"name": "discovery",
 			"resource": "discovery",
 			"service": "test"
-		}}`))
+		}}`)
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 

@@ -146,9 +146,9 @@ func WithEnvoyMetadataFile(file string) func(*OpenPolicyAgentInstanceConfig) err
 	}
 }
 
-func WithStartupTimeout(timeoutInSeconds time.Duration) func(*OpenPolicyAgentInstanceConfig) error {
+func WithStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentInstanceConfig) error {
 	return func(cfg *OpenPolicyAgentInstanceConfig) error {
-		cfg.startupTimeout = timeoutInSeconds
+		cfg.startupTimeout = timeout
 		return nil
 	}
 }
