@@ -122,8 +122,8 @@ func convertPathRuleV1(
 		ic.logger.Debugf("Found %d endpoints for %s, %s", len(eps), svcName, servicePort)
 	}
 	if len(eps) == 0 {
-		// add shunt route https://github.com/zalando/skipper/issues/1525
-		ic.logger.Debugf("Adding shuntroute to return 502 for service %s with %d endpoints", svcName, len(eps))
+		ic.logger.Debugf("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
+
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
 			HostRegexps: hostRegexp,
@@ -364,8 +364,8 @@ func (ing *ingress) convertDefaultBackendV1(
 	}
 
 	if len(eps) == 0 {
-		// add shunt route https://github.com/zalando/skipper/issues/1525
-		ic.logger.Debugf("Adding shuntroute to return 502 for service %s with %d endpoints", svcName, len(eps))
+		ic.logger.Debugf("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
+
 		r := &eskip.Route{
 			Id: routeID(ns, name, "", "", ""),
 		}

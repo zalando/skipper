@@ -362,11 +362,13 @@ func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) 
 		log.Debugf("requesting all ingresses failed: %v", err)
 		return nil, err
 	}
-
 	log.Debugf("all ingresses received: %d", len(il.Items))
+
 	fItems := c.filterIngressesV1ByClass(il.Items)
 	log.Debugf("filtered ingresses by ingress class: %d", len(fItems))
+
 	sortByMetadata(fItems, func(i int) *definitions.Metadata { return fItems[i].Metadata })
+
 	return fItems, nil
 }
 
@@ -375,6 +377,7 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 	if err := c.getJSON(c.routeGroupsURI+c.routeGroupsLabelSelectors, &rgl); err != nil {
 		return nil, err
 	}
+	log.Debugf("all routegroups received: %d", len(rgl.Items))
 
 	rgs := make([]*definitions.RouteGroupItem, 0, len(rgl.Items))
 	for _, i := range rgl.Items {
@@ -396,19 +399,21 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 		rgs = append(rgs, i)
 	}
 
+	log.Debugf("filtered valid routegroups by routegroups class: %d", len(rgs))
+
 	sortByMetadata(rgs, func(i int) *definitions.Metadata { return rgs[i].Metadata })
+
 	return rgs, nil
 }
 
 func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, error) {
 	var services serviceList
-
 	if err := c.getJSON(c.servicesURI+c.servicesLabelSelectors, &services); err != nil {
 		log.Debugf("requesting all services failed: %v", err)
 		return nil, err
 	}
-
 	log.Debugf("all services received: %d", len(services.Items))
+
 	result := make(map[definitions.ResourceID]*service)
 	var hasInvalidService bool
 	for _, service := range services.Items {
@@ -429,13 +434,12 @@ func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, err
 
 func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error) {
 	var secrets secretList
-
 	if err := c.getJSON(c.secretsURI+c.secretsLabelSelectors, &secrets); err != nil {
 		log.Debugf("requesting all secrets failed: %v", err)
 		return nil, err
 	}
-
 	log.Debugf("all secrets received: %d", len(secrets.Items))
+
 	result := make(map[definitions.ResourceID]*secret)
 	for _, secret := range secrets.Items {
 		if secret == nil || secret.Metadata == nil {
@@ -454,8 +458,8 @@ func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, e
 		log.Debugf("requesting all endpoints failed: %v", err)
 		return nil, err
 	}
-
 	log.Debugf("all endpoints received: %d", len(endpoints.Items))
+
 	result := make(map[definitions.ResourceID]*endpoint)
 	for _, endpoint := range endpoints.Items {
 		resID := endpoint.Meta.ToResourceID()
@@ -476,13 +480,12 @@ func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, e
 // given service, check endpointSlice.ToResourceID().
 func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skipperEndpointSlice, error) {
 	var endpointSlices endpointSliceList
-
 	if err := c.getJSON(c.endpointSlicesURI+c.endpointSlicesLabelSelectors, &endpointSlices); err != nil {
 		log.Debugf("requesting all endpointslices failed: %v", err)
 		return nil, err
 	}
-
 	log.Debugf("all endpointslices received: %d", len(endpointSlices.Items))
+
 	mapSlices := make(map[definitions.ResourceID][]*endpointSlice)
 	for _, endpointSlice := range endpointSlices.Items {
 		resID := endpointSlice.ToResourceID() // service resource ID

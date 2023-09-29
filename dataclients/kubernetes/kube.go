@@ -437,6 +437,8 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	return r, nil
 }
 
+// shuntRoute creates a route that returns a 502 status code when there are no endpoints found,
+// see https://github.com/zalando/skipper/issues/1525
 func shuntRoute(r *eskip.Route) {
 	r.Filters = []*eskip.Filter{
 		{
@@ -499,7 +501,7 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 
 	c.current, r = mapRoutes(r)
 
-	log.Debugf("all routes loaded and mapped")
+	log.Debugf("all routes loaded and mapped: %d", len(r))
 
 	return r, nil
 }

@@ -193,11 +193,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	)
 
 	if len(eps) == 0 {
-		ctx.logger.Debugf(
-			"Target endpoints not found, shuntroute for %s:%d",
-			backend.ServiceName,
-			backend.ServicePort,
-		)
+		ctx.logger.Debugf("Target endpoints not found, shuntroute for %s:%d", backend.ServiceName, backend.ServicePort)
 
 		shuntRoute(r)
 		return nil
