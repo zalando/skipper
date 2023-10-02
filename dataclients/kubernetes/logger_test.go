@@ -1,76 +1,82 @@
-package kubernetes_test
+package kubernetes
 
 import (
 	"bytes"
-	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/zalando/skipper/dataclients/kubernetes"
-	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 )
 
-func TestLogger(t *testing.T) {
-	// TODO: with validation changes we need to update/refactor this test
-	manifest, err := os.Open("testdata/routegroups/convert/missing-service.yaml")
-	require.NoError(t, err)
-	defer manifest.Close()
-
+func captureLog(t *testing.T, level log.Level) *bytes.Buffer {
+	oldOut := log.StandardLogger().Out
 	var out bytes.Buffer
 	log.SetOutput(&out)
-	defer log.SetOutput(os.Stderr)
-
-	countMessages := func() int {
-		return strings.Count(out.String(), "Error transforming external hosts")
-	}
-
-	a, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, manifest)
-	require.NoError(t, err)
-
-	s := httptest.NewServer(a)
-	defer s.Close()
-
-	c, err := kubernetes.New(kubernetes.Options{KubernetesURL: s.URL})
-	require.NoError(t, err)
-	defer c.Close()
-
-	const loggingInterval = 100 * time.Millisecond
-	c.SetLoggingInterval(loggingInterval)
-
-	_, err = c.LoadAll()
-	require.NoError(t, err)
-
-	assert.Equal(t, 1, countMessages(), "one message expected after initial load")
-
-	const (
-		n              = 2
-		updateDuration = time.Duration(n)*loggingInterval + loggingInterval/2
-	)
-
-	start := time.Now()
-	for time.Since(start) < updateDuration {
-		_, _, err := c.LoadUpdate()
-		require.NoError(t, err)
-
-		time.Sleep(loggingInterval / 10)
-	}
-
-	assert.Equal(t, 1+n, countMessages(), "%d additional messages expected", n)
 
 	oldLevel := log.GetLevel()
-	defer log.SetLevel(oldLevel)
+	log.SetLevel(level)
 
-	log.SetLevel(log.DebugLevel)
+	t.Cleanup(func() {
+		log.SetOutput(oldOut)
+		log.SetLevel(oldLevel)
+	})
+	return &out
+}
 
-	for i := 1; i <= 10; i++ {
-		_, _, err := c.LoadUpdate()
-		require.NoError(t, err)
+func TestLogger(t *testing.T) {
+	t.Run("test disabled", func(t *testing.T) {
+		out := captureLog(t, log.DebugLevel)
 
-		assert.Equal(t, 1+n+i, countMessages(), "a new message expected for each subsequent update when log level is debug")
-	}
+		l := newLogger("ingress", "foo", "bar", false)
+		l.Debugf("test message")
+		l.Infof("test message")
+		l.Errorf("test message")
+
+		assert.Equal(t, 0, strings.Count(out.String(), "test message"))
+	})
+
+	t.Run("test level", func(t *testing.T) {
+		out := captureLog(t, log.ErrorLevel)
+
+		l := newLogger("ingress", "foo", "bar", true)
+		l.Debugf("test message")
+		l.Infof("test message")
+		l.Errorf("test message")
+
+		assert.Equal(t, 0, strings.Count(out.String(), `level=debug`))
+		assert.Equal(t, 0, strings.Count(out.String(), `level=info`))
+		assert.Equal(t, 1, strings.Count(out.String(), `level=error`))
+	})
+
+	t.Run("test logs once per level", func(t *testing.T) {
+		out := captureLog(t, log.DebugLevel)
+
+		l := newLogger("ingress", "foo", "bar", true)
+
+		msg1 := "test message1 %d %s"
+		args1 := []any{1, "qux"}
+		for i := 0; i < 3; i++ {
+			l.Debugf(msg1, args1...)
+			l.Infof(msg1, args1...)
+			l.Errorf(msg1, args1...)
+		}
+
+		msg2 := "test message2 %d %s"
+		args2 := []any{2, "quux"}
+		for i := 0; i < 3; i++ {
+			l.Debugf(msg2, args2...)
+			l.Infof(msg2, args2...)
+			l.Errorf(msg2, args2...)
+		}
+
+		t.Logf("log output: %s", out.String())
+
+		assert.Equal(t, 1, strings.Count(out.String(), `level=debug msg="test message1 1 qux" kind=ingress name=bar ns=foo`))
+		assert.Equal(t, 1, strings.Count(out.String(), `level=info msg="test message1 1 qux" kind=ingress name=bar ns=foo`))
+		assert.Equal(t, 1, strings.Count(out.String(), `level=error msg="test message1 1 qux" kind=ingress name=bar ns=foo`))
+		assert.Equal(t, 1, strings.Count(out.String(), `level=debug msg="test message2 2 quux" kind=ingress name=bar ns=foo`))
+		assert.Equal(t, 1, strings.Count(out.String(), `level=info msg="test message2 2 quux" kind=ingress name=bar ns=foo`))
+		assert.Equal(t, 1, strings.Count(out.String(), `level=error msg="test message2 2 quux" kind=ingress name=bar ns=foo`))
+	})
 }
