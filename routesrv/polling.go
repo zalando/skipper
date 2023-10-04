@@ -48,7 +48,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 	log.WithField("timeout", p.timeout).Info(LogPollingStarted)
 	ticker := time.NewTicker(p.timeout)
 	defer ticker.Stop()
-	p.metrics.UpdateGauge("polling_started_timestamp", (float64(time.Now().UnixNano()) / 1e9))
+	p.setGaugeToCurrentTime("polling_started_timestamp")
 
 	var lastRoutesById map[string]string
 	for {
@@ -71,9 +71,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			)
 		case routesCount == 0:
 			log.Error(LogRoutesEmpty)
-
-			p.metrics.UpdateGauge("routes_count", 0)
-			p.metrics.UpdateGauge("routes_byte", 0)
+			p.metrics.IncCounter("routes_empty")
 
 			span.SetTag("error", true)
 			span.LogKV(
@@ -86,12 +84,12 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			if initialized {
 				logger.Info(LogRoutesInitialized)
 				span.SetTag("routes.initialized", true)
-				p.metrics.UpdateGauge("routes_initialized_timestamp", (float64(time.Now().UnixNano()) / 1e9))
+				p.setGaugeToCurrentTime("routes_initialized_timestamp")
 			}
 			if updated {
 				logger.Info(LogRoutesUpdated)
 				span.SetTag("routes.updated", true)
-				p.metrics.UpdateGauge("routes_updated_timestamp", (float64(time.Now().UnixNano()) / 1e9))
+				p.setGaugeToCurrentTime("routes_updated_timestamp")
 				p.metrics.UpdateGauge("routes_count", float64(routesCount))
 				p.metrics.UpdateGauge("routes_byte", float64(routesBytes))
 
@@ -140,6 +138,10 @@ func (p *poller) process(routes []*eskip.Route) []*eskip.Route {
 	})
 
 	return routes
+}
+
+func (p *poller) setGaugeToCurrentTime(name string) {
+	p.metrics.UpdateGauge(name, (float64(time.Now().UnixNano()) / 1e9))
 }
 
 func mapRoutes(routes []*eskip.Route) map[string]string {

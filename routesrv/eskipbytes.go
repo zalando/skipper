@@ -36,6 +36,12 @@ func (w *responseWriterInterceptor) Write(p []byte) (int, error) {
 	return w.ResponseWriter.Write(p)
 }
 
+// Unwrap will be used by ResponseController, so if they will use that
+// to get the ResponseWrite for some reason they can do it.
+func (w *responseWriterInterceptor) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 var (
 	_ http.ResponseWriter = &responseWriterInterceptor{}
 )
@@ -88,10 +94,13 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	w := &responseWriterInterceptor{
 		ResponseWriter: rw,
+		statusCode:     http.StatusOK,
 	}
 
 	defer func() {
 		span.SetTag("status", w.statusCode)
+		span.SetTag("bytes", w.bytesWritten)
+
 		e.metrics.IncCounter(strconv.Itoa(w.statusCode))
 	}()
 
@@ -113,6 +122,7 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Add(routing.RoutesCountName, strconv.Itoa(count))
 		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
+
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
