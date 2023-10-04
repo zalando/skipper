@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
@@ -404,6 +405,11 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		ifr0 := route.LBEndpoints[0].Metrics.GetInflightRequests()
 		ifr1 := route.LBEndpoints[1].Metrics.GetInflightRequests()
 		ifr2 := route.LBEndpoints[2].Metrics.GetInflightRequests()
+
+		assert.Equal(t, int64(ifr0), ctx.Registry.GetMetrics(route.LBEndpoints[0].Host).InflightRequests())
+		assert.Equal(t, int64(ifr1), ctx.Registry.GetMetrics(route.LBEndpoints[1].Host).InflightRequests())
+		assert.Equal(t, int64(ifr2), ctx.Registry.GetMetrics(route.LBEndpoints[2].Host).InflightRequests())
+
 		avg := float64(ifr0+ifr1+ifr2) / 3.0
 		limit := int(avg*balanceFactor) + 1
 		if ifr0 > limit || ifr1 > limit || ifr2 > limit {

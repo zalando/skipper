@@ -267,7 +267,7 @@ func computeLoadAverage(ctx *routing.LBContext) float64 {
 	sum := 1.0 // add 1 to include the request that just arrived
 	endpoints := ctx.Route.LBEndpoints
 	for _, v := range endpoints {
-		sum += float64(v.Metrics.GetInflightRequests())
+		sum += float64(ctx.Registry.GetMetrics(v.Host).InflightRequests())
 	}
 	return sum / float64(len(endpoints))
 }
@@ -284,10 +284,10 @@ func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, c
 		if skipEndpoint(endpointIndex) {
 			continue
 		}
-		load := ctx.Route.LBEndpoints[endpointIndex].Metrics.GetInflightRequests()
+		load := ctx.Registry.GetMetrics(ctx.Route.LBEndpoints[endpointIndex].Host).InflightRequests()
 		// We know there must be an endpoint whose load <= average load.
 		// Since targetLoad >= average load (balancerFactor >= 1), there must also be an endpoint with load <= targetLoad.
-		if load <= int(targetLoad) {
+		if load <= int64(targetLoad) {
 			break
 		}
 		ringIndex = (ringIndex + 1) % ch.Len()
@@ -369,7 +369,7 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	for i := 1; i < p.numberOfChoices; i++ {
 		ce := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
 
-		if p.getScore(ce) > p.getScore(best) {
+		if p.getScore(ctx, ce) > p.getScore(ctx, best) {
 			best = ce
 		}
 	}
@@ -377,9 +377,9 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 }
 
 // getScore returns negative value of inflightrequests count.
-func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int {
+func (p *powerOfRandomNChoices) getScore(ctx *routing.LBContext, e routing.LBEndpoint) int64 {
 	// endpoints with higher inflight request should have lower score
-	return -e.Metrics.GetInflightRequests()
+	return -ctx.Registry.GetMetrics(e.Host).InflightRequests()
 }
 
 type (
