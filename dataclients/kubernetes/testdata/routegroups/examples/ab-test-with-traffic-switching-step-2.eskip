@@ -1,6 +1,3 @@
-kube_rg____api_example_org__catchall__0_0: Host(/^(api[.]example[.]org[.]?(:[0-9]+)?)$/)
-  -> <shunt>;
-
 kube_rg__default__my_routes__all__0_0: Host(/^(api[.]example[.]org[.]?(:[0-9]+)?)$/) && PathSubtree("/") && Traffic(0.1)
   -> responseCookie("canary", "A")
   -> <roundRobin, "http://10.2.8.16:80", "http://10.2.8.8:80">;

@@ -12,9 +12,6 @@ import (
 
 const backendNameTracingTagName = "skipper.backend_name"
 
-// TODO:
-// - consider catchall for east-west routes
-
 type routeGroups struct {
 	options Options
 }
@@ -538,12 +535,6 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				continue
 			}
 
-			catchAll := hostCatchAllRoutes(ctx.hostRoutes, func(host string) string {
-				// "catchall" won't conflict with any HTTP method
-				return rgRouteID("", toSymbol(host), "catchall", 0, 0, false)
-			})
-			ri = append(ri, catchAll...)
-
 			rs = append(rs, ri...)
 		}
 
@@ -571,12 +562,6 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 
 				continue
 			}
-
-			catchAll := hostCatchAllRoutes(internalCtx.hostRoutes, func(host string) string {
-				// "catchall" won't conflict with any HTTP method
-				return rgRouteID("", toSymbol(host), "catchall", 0, 0, true)
-			})
-			internalRi = append(internalRi, catchAll...)
 
 			applyEastWestRangePredicates(internalRi, r.options.KubernetesEastWestRangePredicates)
 

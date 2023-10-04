@@ -12,7 +12,3 @@ kube_namespace1__ingress1__test_example_org___test1__service1v2:
   Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/) &&
   PathRegexp(/^(\/test1)/)
   -> "http://service1v2.namespace1.svc.cluster.local:8080";
-
-kube___catchall__test_example_org____:
-  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
-  -> <shunt>;

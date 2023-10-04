@@ -73,7 +73,3 @@ kubeew_foo__qux_c_2__www1_example_org_____:
 kubeew_foo__qux_c_2__www2_example_org_____:
 	Path("/a/path/somewhere") && Host(/^(qux[.]foo[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$/) && PathRegexp(/^\//)
 	-> "https://some.other-url.org/a/path/somewhere";
-kube___catchall__www3_example_org____:
-	Host("^(www3[.]example[.]org[.]?(:[0-9]+)?)$")
-	-> <shunt>;
-

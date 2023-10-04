@@ -45,8 +45,7 @@ type RouteGroupItem struct {
 
 type RouteGroupSpec struct {
 	// Hosts specifies the host headers, that will be matched for
-	// all routes created by this route group. No hosts mean
-	// catchall.
+	// all routes created by this route group.
 	Hosts []string `json:"hosts,omitempty"`
 
 	// Backends specify the list of backends that can be
@@ -60,8 +59,7 @@ type RouteGroupSpec struct {
 	DefaultBackends BackendReferences `json:"defaultBackends,omitempty"`
 
 	// Routes specifies the list of route based on path, method
-	// and predicates. It defaults to catchall, if there are no
-	// routes.
+	// and predicates.
 	Routes []*RouteSpec `json:"routes,omitempty"`
 }
 

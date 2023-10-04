@@ -293,48 +293,6 @@ func pathMode(m *definitions.Metadata, globalDefault PathMode, logger *logger) P
 	return pathMode
 }
 
-func (ing *ingress) addCatchAllRoutes(host string, r *eskip.Route, redirect *redirectInfo) []*eskip.Route {
-	catchAll := &eskip.Route{
-		Id:          routeID("", "catchall", host, "", ""),
-		HostRegexps: r.HostRegexps,
-		BackendType: eskip.ShuntBackend,
-	}
-	routes := []*eskip.Route{catchAll}
-	if ing.kubernetesEnableEastWest {
-		if ew := createEastWestRouteIng(ing.kubernetesEastWestDomain, r.Name, r.Namespace, catchAll); ew != nil {
-			routes = append(routes, ew)
-		}
-	}
-	if code, ok := redirect.setHostCode[host]; ok {
-		routes = append(routes, createIngressEnableHTTPSRedirect(catchAll, code))
-	}
-	if redirect.disableHost[host] {
-		routes = append(routes, createIngressDisableHTTPSRedirect(catchAll))
-	}
-
-	return routes
-}
-
-// hasCatchAllRoutes returns true if one of the routes in the list has a catchAll
-// path expression.
-//
-// TODO: this should also consider path types exact and subtree
-func hasCatchAllRoutes(routes []*eskip.Route) bool {
-	for _, route := range routes {
-		if len(route.PathRegexps) == 0 {
-			return true
-		}
-
-		for _, exp := range route.PathRegexps {
-			if exp == "^/" {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 // addHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
 // secret is found and is a valid TLS secret.
 func addHostTLSCert(ic *ingressContext, hosts []string, secretID *definitions.ResourceID) {
@@ -387,12 +345,6 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregis
 
 		applyEastWestRange(ing.eastWestRangeDomains, ing.eastWestRangePredicates, host, rs)
 		routes = append(routes, rs...)
-
-		// if routes were configured, but there is no catchall route
-		// defined for the host name, create a route which returns 404
-		if !hasCatchAllRoutes(rs) {
-			routes = append(routes, ing.addCatchAllRoutes(host, rs[0], redirect)...)
-		}
 	}
 
 	if ing.kubernetesEnableEastWest && len(routes) > 0 && len(ewIngInfo) > 0 {

@@ -15,7 +15,3 @@ kube_rg__default__myapp__all__0_2:
 	Host("^(example[.]org[.]?(:[0-9]+)?)$")
 	&& Path("/app")
 	-> "https://test.example.org";
-
-kube_rg____example_org__catchall__0_0:
-	Host("^(example[.]org[.]?(:[0-9]+)?)$")
-	-> <shunt>;

@@ -4,5 +4,3 @@ kube_rg__default__myapp__all__0_0:
 	-> status(502)
 	-> inlineContent("no endpoints")
 	-> <shunt>;
-
-kube_rg____example_org__catchall__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") -> <shunt>;

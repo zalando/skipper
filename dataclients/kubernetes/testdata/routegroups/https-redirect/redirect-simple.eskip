@@ -10,8 +10,6 @@ kube_rg__default__myapp__all__0_0_https_redirect:
 	-> redirectTo(308, "https:")
 	-> <shunt>;
 
-kube_rg____example_org__catchall__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") -> <shunt>;
-
 // global, legacy:
 kube__redirect:
 	Header("X-Forwarded-Proto", "http")

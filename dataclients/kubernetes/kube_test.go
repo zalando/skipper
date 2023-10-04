@@ -892,10 +892,8 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega______":                                   "http://1.1.1.0:8080",
 			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.1.1.0:8080",
 			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://1.1.2.0:8181",
-			"kube___catchall__foo_example_org____":                          "",
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.1.1.0:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://1.1.2.0:8181",
-			"kube___catchall__bar_example_org____":                          "",
 			"kube_namespace1__ratelimit______":                              "http://1.1.1.0:8080",
 			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.1.1.0:8080",
 			"kube_namespace2__svcwith2ports______":                          "http://2.1.4.0:4444",
@@ -955,10 +953,8 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega______":                                   "http://1.1.1.0:8080",
 			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.1.1.0:8080",
 			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://1.1.2.0:8181",
-			"kube___catchall__foo_example_org____":                          "",
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.1.1.0:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://1.1.2.0:8181",
-			"kube___catchall__bar_example_org____":                          "",
 			"kube_namespace1__ratelimit______":                              "http://1.1.1.0:8080",
 			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.1.1.0:8080",
 			"kube_namespace2__svcwith2ports______":                          "http://2.1.4.0:4444",
@@ -1094,10 +1090,8 @@ func TestIngress(t *testing.T) {
 			"kube_namespace1__mega______",
 			"kube_namespace1__mega__foo_example_org___test1__service1",
 			"kube_namespace1__mega__foo_example_org___test2__service2",
-			"kube___catchall__foo_example_org____",
 			"kube_namespace1__mega__bar_example_org___test1__service1",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube___catchall__bar_example_org____",
 			"kube_namespace1__ratelimit______",
 			"kube_namespace1__ratelimitAndBreaker______",
 			"kube_namespace2__svcwith2ports______",
@@ -1133,7 +1127,6 @@ func TestIngress(t *testing.T) {
 			d,
 			"kube_namespace1__mega__bar_example_org___test1__service1",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube___catchall__bar_example_org____",
 		)
 	})
 
@@ -1279,7 +1272,6 @@ func TestIngress(t *testing.T) {
 			d,
 			"kube_namespace1__mega__bar_example_org___test1__service1",
 			"kube_namespace1__mega__bar_example_org___test2__service2",
-			"kube___catchall__bar_example_org____",
 		)
 	})
 	t.Run("has ingresses, add new ones and filter not valid ones using class ingress", func(t *testing.T) {
@@ -1514,7 +1506,6 @@ func TestConvertPathRule(t *testing.T) {
 
 		checkRoutes(t, r, map[string]string{
 			"kube_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
-			"kube___catchall__new1_example_org____":                     "",
 			"kube_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
 		})
 	})
@@ -1571,10 +1562,8 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 		}
 
 		checkRoutes(t, r, map[string]string{
-			"kube___catchall__new1_example_org____":                       "",
 			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.1.1.0:8080",
 			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
-			"kube___catchall__new1_namespace1_skipper_cluster_local____":  "",
 		})
 	})
 
@@ -1644,11 +1633,9 @@ func TestConvertPathRuleEastWestEnabled(t *testing.T) {
 
 		checkRoutes(t, r, map[string]string{
 			"kube_namespace1__new1__new1_example_org___test1__service1":   "http://1.1.1.0:8080",
-			"kube___catchall__new1_example_org____":                       "",
 			"kube_namespace1__new1__new1_example_org___test2__service1":   "http://1.1.1.0:8080",
 			"kubeew_namespace1__new1__new1_example_org___test1__service1": "http://1.1.1.0:8080",
 			"kubeew_namespace1__new1__new1_example_org___test2__service1": "http://1.1.1.0:8080",
-			"kube___catchall__new1_namespace1_skipper_cluster_local____":  "",
 		})
 	})
 }
@@ -1988,10 +1975,8 @@ func TestHealthcheckReload(t *testing.T) {
 			"kube_namespace1__mega______":                                   "http://1.1.1.0:8080",
 			"kube_namespace1__mega__foo_example_org___test1__service1":      "http://1.1.1.0:8080",
 			"kube_namespace1__mega__foo_example_org___test2__service2":      "http://1.1.2.0:8181",
-			"kube___catchall__foo_example_org____":                          "",
 			"kube_namespace1__mega__bar_example_org___test1__service1":      "http://1.1.1.0:8080",
 			"kube_namespace1__mega__bar_example_org___test2__service2":      "http://1.1.2.0:8181",
-			"kube___catchall__bar_example_org____":                          "",
 			"kube_namespace1__ratelimit______":                              "http://1.1.1.0:8080",
 			"kube_namespace1__ratelimitAndBreaker______":                    "http://1.1.1.0:8080",
 			"kube_namespace2__svcwith2ports______":                          "http://2.1.4.0:4444",
@@ -2305,49 +2290,6 @@ func createCert(template, parent *x509.Certificate, pub interface{}, parentPriv 
 	return
 }
 
-func TestCatchAllRoutes(t *testing.T) {
-	for _, tc := range []struct {
-		msg         string
-		routes      []*eskip.Route
-		hasCatchAll bool
-	}{
-		{
-			msg: "empty path expression is a catchall",
-			routes: []*eskip.Route{
-				{
-					PathRegexps: []string{},
-				},
-			},
-			hasCatchAll: true,
-		},
-		{
-			msg: "^/ path expression is a catchall",
-			routes: []*eskip.Route{
-				{
-					PathRegexps: []string{"^/"},
-				},
-			},
-			hasCatchAll: true,
-		},
-		{
-			msg: "^/test path expression is not a catchall",
-			routes: []*eskip.Route{
-				{
-					PathRegexps: []string{"^/test"},
-				},
-			},
-			hasCatchAll: false,
-		},
-	} {
-		t.Run(tc.msg, func(t *testing.T) {
-			catchAll := hasCatchAllRoutes(tc.routes)
-			if catchAll != tc.hasCatchAll {
-				t.Errorf("expected %t, got %t", tc.hasCatchAll, catchAll)
-			}
-		})
-	}
-}
-
 func TestRatelimits(t *testing.T) {
 	api := newTestAPI(t, nil, &definitions.IngressV1List{})
 	defer api.Close()
@@ -2613,7 +2555,6 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org___a_path__bar": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
 			"kube_foo__qux__0__www1_example_org_a_path____": "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www1_example_org____":         "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 		},
 	}, {
 		msg:       "ingress with 2 host definitions and 1 additional custom route",
@@ -2648,10 +2589,8 @@ func TestSkipperCustomRoutes(t *testing.T) {
 		expectedRoutes: map[string]string{
 			"kube_foo__qux__www1_example_org___a_path__bar":       "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"http://1.1.1.0:8181\"",
 			"kube_foo__qux__0__www1_example_org_a_path____":       "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www1_example_org____":               "Host(/^(www1[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 			"kube_foo__qux__www2_example_org___another_path__bar": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/another\\/path)/) -> \"http://1.1.1.0:8181\"",
 			"kube_foo__qux__0__www2_example_org_another_path____": "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/another\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
-			"kube___catchall__www2_example_org____":               "Host(/^(www2[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 		},
 	}, {
 		msg: "ingress with 3 host definitions with one path and 3 additional custom routes",
@@ -2685,7 +2624,6 @@ func TestSkipperCustomRoutes(t *testing.T) {
 			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
 			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
 			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kube___catchall__www3_example_org____":          "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 		},
 	}, {
 		msg: "ingress with 3 host definitions with one without path and 3 additional custom routes",
@@ -2719,7 +2657,6 @@ func TestSkipperCustomRoutes(t *testing.T) {
 			"kube_foo__qux_a_0__www3_example_org_a_path____": "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Method(\"OPTIONS\") -> <shunt>",
 			"kube_foo__qux_b_1__www3_example_org_a_path____": "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) && Cookie(\"alpha\", \"^enabled$\") -> \"http://1.1.2.0:8181\"",
 			"kube_foo__qux_c_2__www3_example_org_a_path____": "Path(\"/a/path/somewhere\") && Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) && PathRegexp(/^(\\/a\\/path)/) -> \"https://some.other-url.org/a/path/somewhere\"",
-			"kube___catchall__www3_example_org____":          "Host(/^(www3[.]example[.]org[.]?(:[0-9]+)?)$/) -> <shunt>",
 		},
 	}, {
 		msg:       "ingress with 1 host definitions and 1 additional custom route, changed pathmode to PathSubtree",
@@ -2955,7 +2892,7 @@ func TestSkipperDefaultFilters(t *testing.T) {
 			t.Error("should not return an error", err)
 			return
 		}
-		if len(r) != 12 {
+		if len(r) != 10 {
 			t.Error("number of routes is incorrect", len(r))
 			return
 		}

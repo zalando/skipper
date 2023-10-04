@@ -610,7 +610,7 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 		t.Fatalf("Failed to convert response header %s value '%v' to int: %v", routing.RoutesCountName, countStr, err)
 	}
 
-	N := 3
+	N := 2
 	if count != N {
 		t.Errorf("Failed to get %d number of routes, got: %d", N, count)
 	}

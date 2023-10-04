@@ -21,5 +21,3 @@ kube_rg__default__myapp__put__1_0:
 	&& Method("PUT")
 	&& Path("/resources/:id")
 	-> <roundRobin, "http://10.2.4.8:80", "http://10.2.4.16:80">;
-
-kube_rg____example_org__catchall__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") -> <shunt>;

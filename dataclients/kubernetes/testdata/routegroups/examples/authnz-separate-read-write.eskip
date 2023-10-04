@@ -21,9 +21,3 @@ kube_rg__default__myapp__get__1_0: Host(/^(www[.]complex[.]example[.]org[.]?(:[0
 kube_rg__default__myapp__head__1_0: Host(/^(www[.]complex[.]example[.]org[.]?(:[0-9]+)?|complex[.]example[.]org[.]?(:[0-9]+)?)$/) && Method("HEAD") && PathSubtree("/")
   -> oauthTokeninfoAllScope("myapp.read")
   -> <roundRobin, "http://10.2.4.16:80", "http://10.2.4.8:80">;
-
-kube_rg____www_complex_example_org__catchall__0_0: Host(/^(www[.]complex[.]example[.]org[.]?(:[0-9]+)?)$/)
-  -> <shunt>;
-
-kube_rg____complex_example_org__catchall__0_0: Host(/^(complex[.]example[.]org[.]?(:[0-9]+)?)$/)
-  -> <shunt>;
