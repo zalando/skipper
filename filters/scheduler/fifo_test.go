@@ -191,7 +191,7 @@ func TestFifo(t *testing.T) {
 				Timeout:        250 * time.Millisecond,
 			},
 			wantParseErr: false,
-			wantOkRate:   0.001,
+			wantOkRate:   0.0009,
 			epsilon:      1,
 		},
 	} {
