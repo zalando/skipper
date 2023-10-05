@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/open-policy-agent/opa/storage/inmem"
 	"io"
 	"net/http"
 	"os"
@@ -222,6 +223,23 @@ func TestRegistry(t *testing.T) {
 
 	_, err = registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Error(t, err, "should not work after close")
+}
+
+func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	engine, err := New(inmem.New(), config, *cfg, "testfilter", "test")
+	assert.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.startupTimeout)
+	defer cancel()
+
+	err = engine.Start(ctx, cfg.startupTimeout)
+	assert.True(t, engine.stopped)
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
 }
 
 func TestOpaActivationSuccessWithDiscovery(t *testing.T) {

@@ -301,8 +301,6 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 	defer cancel()
 
 	if err = engine.Start(ctx, config.startupTimeout); err != nil {
-		engine.Close(ctx)
-		engine = &OpenPolicyAgentInstance{}
 		return nil, err
 	}
 
@@ -318,6 +316,7 @@ type OpenPolicyAgentInstance struct {
 	preparedQueryDoOnce    *sync.Once
 	interQueryBuiltinCache iCache.InterQueryCache
 	once                   sync.Once
+	stopped                bool
 }
 
 func envVariablesMap() map[string]string {
@@ -420,6 +419,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 				}).Error("Open policy agent plugin did not start in time")
 			}
 		}
+		opa.Close(ctx)
 		return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, err)
 	}
 	return nil
@@ -429,6 +429,7 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	opa.once.Do(func() {
 		opa.manager.Stop(ctx)
 	})
+	opa.stopped = true
 }
 
 func waitFunc(ctx context.Context, fun func() bool, interval time.Duration) error {
