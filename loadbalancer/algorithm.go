@@ -73,7 +73,7 @@ func fadeIn(now time.Time, duration time.Duration, exponent float64, detected ti
 func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routing.LBEndpoint {
 	var sum float64
 	rt := ctx.Route
-	ep := ctx.Route.LBEndpoints
+	ep := ctx.LBEndpoints
 	for _, epi := range ep {
 		detected := ctx.Registry.GetMetrics(epi.Host).DetectedTime()
 		wi := fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, detected)
@@ -97,7 +97,7 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routin
 
 func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, wi []int, now time.Time) routing.LBEndpoint {
 	notFadingIndexes := wi
-	ep := ctx.Route.LBEndpoints
+	ep := ctx.LBEndpoints
 
 	// if all endpoints are fading, the simplest approach is to use the oldest,
 	// this departs from the desired curve, but guarantees monotonic fade-in. From
@@ -112,9 +112,9 @@ func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, wi []int, now time
 }
 
 func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing.LBAlgorithm) routing.LBEndpoint {
-	ep := ctx.Route.LBEndpoints
+	ep := ctx.LBEndpoints
 	now := time.Now()
-	detected := ctx.Registry.GetMetrics(ctx.Route.LBEndpoints[choice].Host).DetectedTime()
+	detected := ctx.Registry.GetMetrics(ctx.LBEndpoints[choice].Host).DetectedTime()
 	f := fadeIn(
 		now,
 		ctx.Route.LBFadeInDuration,
@@ -165,14 +165,14 @@ func newRoundRobin(endpoints []string) routing.LBAlgorithm {
 
 // Apply implements routing.LBAlgorithm with a roundrobin algorithm.
 func (r *roundRobin) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	if len(ctx.Route.LBEndpoints) == 1 {
-		return ctx.Route.LBEndpoints[0]
+	if len(ctx.LBEndpoints) == 1 {
+		return ctx.LBEndpoints[0]
 	}
 
-	index := int(atomic.AddInt64(&r.index, 1) % int64(len(ctx.Route.LBEndpoints)))
+	index := int(atomic.AddInt64(&r.index, 1) % int64(len(ctx.LBEndpoints)))
 
 	if ctx.Route.LBFadeInDuration <= 0 {
-		return ctx.Route.LBEndpoints[index]
+		return ctx.LBEndpoints[index]
 	}
 
 	return withFadeIn(r.rnd, ctx, index, r)
@@ -191,13 +191,13 @@ func newRandom(endpoints []string) routing.LBAlgorithm {
 
 // Apply implements routing.LBAlgorithm with a stateless random algorithm.
 func (r *random) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	if len(ctx.Route.LBEndpoints) == 1 {
-		return ctx.Route.LBEndpoints[0]
+	if len(ctx.LBEndpoints) == 1 {
+		return ctx.LBEndpoints[0]
 	}
 
-	i := r.rnd.Intn(len(ctx.Route.LBEndpoints))
+	i := r.rnd.Intn(len(ctx.LBEndpoints))
 	if ctx.Route.LBFadeInDuration <= 0 {
-		return ctx.Route.LBEndpoints[i]
+		return ctx.LBEndpoints[i]
 	}
 
 	return withFadeIn(r.rnd, ctx, i, r)
@@ -265,7 +265,7 @@ func (ch *consistentHash) search(key string, skipEndpoint func(int) bool) int {
 
 func computeLoadAverage(ctx *routing.LBContext) float64 {
 	sum := 1.0 // add 1 to include the request that just arrived
-	endpoints := ctx.Route.LBEndpoints
+	endpoints := ctx.LBEndpoints
 	for _, v := range endpoints {
 		sum += float64(ctx.Registry.GetMetrics(v.Host).InflightRequests())
 	}
@@ -284,7 +284,7 @@ func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, c
 		if skipEndpoint(endpointIndex) {
 			continue
 		}
-		load := ctx.Registry.GetMetrics(ctx.Route.LBEndpoints[endpointIndex].Host).InflightRequests()
+		load := ctx.Registry.GetMetrics(ctx.LBEndpoints[endpointIndex].Host).InflightRequests()
 		// We know there must be an endpoint whose load <= average load.
 		// Since targetLoad >= average load (balancerFactor >= 1), there must also be an endpoint with load <= targetLoad.
 		if load <= int64(targetLoad) {
@@ -298,14 +298,14 @@ func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, c
 
 // Apply implements routing.LBAlgorithm with a consistent hash algorithm.
 func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	if len(ctx.Route.LBEndpoints) == 1 {
-		return ctx.Route.LBEndpoints[0]
+	if len(ctx.LBEndpoints) == 1 {
+		return ctx.LBEndpoints[0]
 	}
 
 	choice := ch.chooseConsistentHashEndpoint(ctx, noSkippedEndpoints)
 
 	if ctx.Route.LBFadeInDuration <= 0 {
-		return ctx.Route.LBEndpoints[choice]
+		return ctx.LBEndpoints[choice]
 	}
 
 	return withFadeIn(ch.rnd, ctx, choice, ch)
@@ -359,15 +359,15 @@ func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
 
 // Apply implements routing.LBAlgorithm with power of random N choices algorithm.
 func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
-	ne := len(ctx.Route.LBEndpoints)
+	ne := len(ctx.LBEndpoints)
 
 	p.mx.Lock()
 	defer p.mx.Unlock()
 
-	best := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
+	best := ctx.LBEndpoints[p.rnd.Intn(ne)]
 
 	for i := 1; i < p.numberOfChoices; i++ {
-		ce := ctx.Route.LBEndpoints[p.rnd.Intn(ne)]
+		ce := ctx.LBEndpoints[p.rnd.Intn(ne)]
 
 		if p.getScore(ctx, ce) > p.getScore(ctx, best) {
 			best = ce
