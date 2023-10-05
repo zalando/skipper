@@ -125,7 +125,7 @@ func TestHistogramRequestLatency(t *testing.T) {
 			assert.Equal(t, uint64(0), h.total)
 
 			const (
-				nSamples = 10_000
+				nSamples = 20_000
 				epsilon  = 0.1
 			)
 			for i := 0; i < nSamples; i++ {
