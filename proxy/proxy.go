@@ -468,10 +468,18 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{})
 	}
 }
 
-func setRequestURLForLoadBalancedBackend(u *url.URL, rt *routing.Route, lbctx *routing.LBContext) *routing.LBEndpoint {
+func selectEndpoint(ctx *context, registry *routing.EndpointRegistry) *routing.LBEndpoint {
+	rt := ctx.route
+
+	lbctx := &routing.LBContext{
+		Request:     ctx.request,
+		Route:       rt,
+		LBEndpoints: rt.LBEndpoints,
+		Params:      ctx.StateBag(),
+		Registry:    registry,
+	}
 	e := rt.LBAlgorithm.Apply(lbctx)
-	u.Scheme = e.Scheme
-	u.Host = e.Host
+
 	return &e
 }
 
@@ -490,7 +498,9 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 		setRequestURLFromRequest(u, r)
 		setRequestURLForDynamicBackend(u, stateBag)
 	case eskip.LBBackend:
-		endpoint = setRequestURLForLoadBalancedBackend(u, rt, &routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: stateBag, Registry: registry})
+		endpoint = selectEndpoint(ctx, registry)
+		u.Scheme = endpoint.Scheme
+		u.Host = endpoint.Host
 	default:
 		u.Scheme = rt.Scheme
 		u.Host = rt.Host
