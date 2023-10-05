@@ -13,6 +13,10 @@ func main() {
 	}
 
 	log.SetLevel(cfg.ApplicationLogLevel)
+	if cfg.ApplicationLogJSONEnabled {
+		log.SetFormatter(&log.JSONFormatter{})
+	}
+
 	if err := routesrv.Run(cfg.ToOptions()); err != nil {
 		log.Fatal(err)
 	}
