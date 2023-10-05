@@ -428,8 +428,8 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	opa.once.Do(func() {
 		opa.manager.Stop(ctx)
+		opa.stopped = true
 	})
-	opa.stopped = true
 }
 
 func waitFunc(ctx context.Context, fun func() bool, interval time.Duration) error {
