@@ -631,7 +631,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 
 			return
 		}
-		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
+		oidcIDToken, err = f.getidtoken(oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
 				ctx.Logger().Errorf("Error while getting id token: %v", err)
@@ -660,7 +660,7 @@ func (f *tokenOidcFilter) callbackEndpoint(ctx filters.FilterContext) {
 			return
 		}
 	case checkOIDCAnyClaims, checkOIDCAllClaims:
-		oidcIDToken, err = f.getidtoken(ctx, oauth2Token)
+		oidcIDToken, err = f.getidtoken(oauth2Token)
 		if err != nil {
 			if _, ok := err.(*requestError); !ok {
 				ctx.Logger().Errorf("Error while getting id token: %v", err)
@@ -880,14 +880,14 @@ func (f *tokenOidcFilter) tokenClaims(ctx filters.FilterContext, oauth2Token *oa
 		return nil, "", requestErrorf("claims do not contain sub")
 	}
 
-	if err = f.handleDistributedClaims(r.Context(), idToken, oauth2Token, tokenMap); err != nil {
+	if err = f.handleDistributedClaims(idToken, oauth2Token, tokenMap); err != nil {
 		return nil, "", requestErrorf("failed to handle distributed claims: %v", err)
 	}
 
 	return tokenMap, sub, nil
 }
 
-func (f *tokenOidcFilter) getidtoken(ctx filters.FilterContext, oauth2Token *oauth2.Token) (string, error) {
+func (f *tokenOidcFilter) getidtoken(oauth2Token *oauth2.Token) (string, error) {
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
 		return "", requestErrorf("invalid token, no id_token field in oauth2 token")
@@ -966,7 +966,7 @@ func (f *tokenOidcFilter) getTokenWithExchange(state *OauthState, ctx filters.Fi
 //		   }
 //	  }
 //	}
-func (f *tokenOidcFilter) handleDistributedClaims(ctx context.Context, idToken *oidc.IDToken, oauth2Token *oauth2.Token, claimsMap map[string]interface{}) error {
+func (f *tokenOidcFilter) handleDistributedClaims(idToken *oidc.IDToken, oauth2Token *oauth2.Token, claimsMap map[string]interface{}) error {
 	// https://github.com/coreos/go-oidc/issues/171#issuecomment-1044286153
 	var distClaims distributedClaims
 	err := idToken.Claims(&distClaims)

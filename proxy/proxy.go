@@ -805,7 +805,7 @@ func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]
 	return ctx.routeLookup.Do(ctx.request)
 }
 
-func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
+func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 	backendURL := req.URL
 
 	reverseProxy := httputil.NewSingleHostReverseProxy(backendURL)
@@ -824,7 +824,6 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) error {
 	upgradeProxy.serveHTTP(ctx.responseWriter, req)
 	ctx.successfulUpgrade = true
 	ctx.Logger().Debugf("finished upgraded protocol %s session", getUpgradeRequest(ctx.request))
-	return nil
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
@@ -846,9 +845,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
-		if err = p.makeUpgradeRequest(ctx, req); err != nil {
-			return nil, &proxyError{err: err}
-		}
+		p.makeUpgradeRequest(ctx, req)
 
 		// We are not owner of the connection anymore.
 		return nil, &proxyError{handled: true}

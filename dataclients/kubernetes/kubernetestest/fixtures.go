@@ -61,7 +61,7 @@ func baseNoExt(n string) string {
 
 // iterate over file names, looking for the ones with '.yaml' and '.eskip' extensions
 // and same name, tolerating other files among the fixtures.
-func rangeOverFixtures(t *testing.T, dir string, fs []os.FileInfo, test func(fixtureSet)) {
+func rangeOverFixtures(dir string, fs []os.FileInfo, test func(fixtureSet)) {
 	// sort to ensure that the files belonging together by name are next to each other,
 	// without extension
 	sort.Slice(fs, func(i, j int) bool {
@@ -352,7 +352,7 @@ func FixturesToTest(t *testing.T, dirs ...string) {
 			t.Fatal(err)
 		}
 
-		rangeOverFixtures(t, dir, fs, func(f fixtureSet) {
+		rangeOverFixtures(dir, fs, func(f fixtureSet) {
 			t.Run(f.name, func(t *testing.T) {
 				testFixture(t, f)
 			})

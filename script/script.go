@@ -340,13 +340,13 @@ func serveRequest(f filters.FilterContext) func(*lua.LState) int {
 			return 1
 		}
 		res := &http.Response{}
-		r.ForEach(serveTableWalk(s, res))
+		r.ForEach(serveTableWalk(res))
 		f.Serve(res)
 		return 0
 	}
 }
 
-func serveTableWalk(s *lua.LState, res *http.Response) func(lua.LValue, lua.LValue) {
+func serveTableWalk(res *http.Response) func(lua.LValue, lua.LValue) {
 	return func(k, v lua.LValue) {
 		sk, ok := k.(lua.LString)
 		if !ok {
