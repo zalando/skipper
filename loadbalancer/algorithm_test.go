@@ -259,9 +259,10 @@ func TestApply(t *testing.T) {
 			rt := p.Do([]*routing.Route{r})
 
 			lbctx := &routing.LBContext{
-				Request:  req,
-				Route:    rt[0],
-				Registry: routing.NewEndpointRegistry(routing.RegistryOptions{}),
+				Request:     req,
+				Route:       rt[0],
+				LBEndpoints: rt[0].LBEndpoints,
+				Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 			}
 
 			h := make(map[string]int)
@@ -317,13 +318,14 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 	}})[0]
 	ch := route.LBAlgorithm.(*consistentHash)
 	ctx := &routing.LBContext{
-		Request:  r,
-		Route:    route,
-		Params:   map[string]interface{}{ConsistentHashBalanceFactor: 1.25},
-		Registry: routing.NewEndpointRegistry(routing.RegistryOptions{}),
+		Request:     r,
+		Route:       route,
+		LBEndpoints: route.LBEndpoints,
+		Params:      map[string]interface{}{ConsistentHashBalanceFactor: 1.25},
+		Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
 	noLoad := ch.Apply(ctx)
-	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, Params: map[string]interface{}{}})
+	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]interface{}{}})
 
 	if noLoad != nonBounded {
 		t.Error("When no endpoints are overloaded, the chosen endpoint should be the same as standard consistentHash")
@@ -365,8 +367,8 @@ func TestConsistentHashKey(t *testing.T) {
 		},
 	}})[0]
 
-	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: make(map[string]interface{})})
-	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: map[string]interface{}{ConsistentHashKey: net.RemoteHost(r).String()}})
+	defaultEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: make(map[string]interface{})})
+	remoteHostEndpoint := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: net.RemoteHost(r).String()}})
 
 	if defaultEndpoint != remoteHostEndpoint {
 		t.Error("remote host should be used as a default key")
@@ -374,7 +376,7 @@ func TestConsistentHashKey(t *testing.T) {
 
 	for i, ep := range endpoints {
 		key := fmt.Sprintf("%s-%d", ep, 1) // "ep-0" to "ep-99" is the range of keys for this endpoint. If we use this as the hash key it should select endpoint ep.
-		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, Params: map[string]interface{}{ConsistentHashKey: key}})
+		selected := ch.Apply(&routing.LBContext{Request: r, Route: rt, LBEndpoints: rt.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: key}})
 		if selected != rt.LBEndpoints[i] {
 			t.Errorf("expected: %v, got %v", rt.LBEndpoints[i], selected)
 		}
@@ -394,10 +396,11 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 	ch := route.LBAlgorithm.(*consistentHash)
 	balanceFactor := 1.25
 	ctx := &routing.LBContext{
-		Request:  r,
-		Route:    route,
-		Params:   map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
-		Registry: routing.NewEndpointRegistry(routing.RegistryOptions{}),
+		Request:     r,
+		Route:       route,
+		LBEndpoints: route.LBEndpoints,
+		Params:      map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
+		Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
 
 	for i := 0; i < 100; i++ {

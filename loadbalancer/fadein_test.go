@@ -72,6 +72,7 @@ func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Durat
 		})
 		ctx.Registry.SetDetectedTime(eps[i], detectionTimes[i])
 	}
+	ctx.LBEndpoints = ctx.Route.LBEndpoints
 
 	return ctx, eps
 }
