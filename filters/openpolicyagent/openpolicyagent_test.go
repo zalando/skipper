@@ -235,6 +235,7 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.NotNil(t, instance)
 	assert.NoError(t, err)
+	assert.Equal(t, 1, len(registry.instances))
 }
 
 func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
@@ -253,9 +254,10 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
 	assert.Contains(t, err.Error(), "invalid configuration for discovery")
+	assert.Equal(t, 0, len(registry.instances))
 }
 
-func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
+func TestOpaActivationTimeOutWithDiscoveryPointingWrongBundle(t *testing.T) {
 	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
@@ -265,10 +267,11 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
+	assert.Equal(t, 0, len(registry.instances))
 }
 
-func TestOpaActivationFailureWithDiscoveryParsingError(t *testing.T) {
+func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-parsing-error")
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
@@ -278,7 +281,8 @@ func TestOpaActivationFailureWithDiscoveryParsingError(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
+	assert.Equal(t, 0, len(registry.instances))
 }
 
 func TestStartup(t *testing.T) {
