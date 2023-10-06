@@ -156,7 +156,7 @@ type roundRobin struct {
 }
 
 func newRoundRobin(endpoints []string) routing.LBAlgorithm {
-	rnd := rand.New(newLockedSource()) // #nosec
+	rnd := rand.New(NewLockedSource()) // #nosec
 	return &roundRobin{
 		index: int64(rnd.Intn(len(endpoints))),
 		rnd:   rnd,
@@ -185,7 +185,7 @@ type random struct {
 func newRandom(endpoints []string) routing.LBAlgorithm {
 	// #nosec
 	return &random{
-		rnd: rand.New(newLockedSource()),
+		rnd: rand.New(NewLockedSource()),
 	}
 }
 
@@ -221,7 +221,7 @@ func (ch *consistentHash) Swap(i, j int) {
 }
 
 func newConsistentHashInternal(endpoints []string, hashesPerEndpoint int) routing.LBAlgorithm {
-	rnd := rand.New(newLockedSource()) // #nosec
+	rnd := rand.New(NewLockedSource()) // #nosec
 	ch := &consistentHash{
 		hashRing: make([]endpointHash, hashesPerEndpoint*len(endpoints)),
 		rnd:      rnd,
@@ -350,7 +350,7 @@ type powerOfRandomNChoices struct {
 
 // newPowerOfRandomNChoices selects N random backends and picks the one with less outstanding requests.
 func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
-	rnd := rand.New(newLockedSource()) // #nosec
+	rnd := rand.New(NewLockedSource()) // #nosec
 	return &powerOfRandomNChoices{
 		rnd:             rnd,
 		numberOfChoices: powerOfRandomNChoicesDefaultN,

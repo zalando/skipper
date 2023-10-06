@@ -11,7 +11,7 @@ type lockedSource struct {
 	r  rand.Source
 }
 
-func newLockedSource() *lockedSource {
+func NewLockedSource() *lockedSource {
 	return &lockedSource{r: rand.NewSource(time.Now().UnixNano())}
 }
 

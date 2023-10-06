@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -329,6 +330,7 @@ type Proxy struct {
 	defaultHTTPStatus        int
 	routing                  *routing.Routing
 	registry                 *routing.EndpointRegistry
+	rnd                      *rand.Rand
 	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
@@ -468,7 +470,7 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{})
 	}
 }
 
-func selectEndpoint(ctx *context, registry *routing.EndpointRegistry) *routing.LBEndpoint {
+func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 
 	lbctx := &routing.LBContext{
@@ -476,7 +478,7 @@ func selectEndpoint(ctx *context, registry *routing.EndpointRegistry) *routing.L
 		Route:       rt,
 		LBEndpoints: rt.LBEndpoints,
 		Params:      ctx.StateBag(),
-		Registry:    registry,
+		Registry:    p.registry,
 	}
 	e := rt.LBAlgorithm.Apply(lbctx)
 
@@ -485,7 +487,7 @@ func selectEndpoint(ctx *context, registry *routing.EndpointRegistry) *routing.L
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHeaders bool, registry *routing.EndpointRegistry) (*http.Request, *routing.LBEndpoint, error) {
+func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Request, *routing.LBEndpoint, error) {
 	var endpoint *routing.LBEndpoint
 	r := ctx.request
 	rt := ctx.route
@@ -498,7 +500,7 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 		setRequestURLFromRequest(u, r)
 		setRequestURLForDynamicBackend(u, stateBag)
 	case eskip.LBBackend:
-		endpoint = selectEndpoint(ctx, registry)
+		endpoint = p.selectEndpoint(ctx)
 		u.Scheme = endpoint.Scheme
 		u.Host = endpoint.Host
 	default:
@@ -517,7 +519,7 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 	}
 
 	rr.ContentLength = r.ContentLength
-	if removeHopHeaders {
+	if p.flags.HopHeadersRemoval() {
 		rr.Header = cloneHeaderExcluding(r.Header, hopHeaders)
 	} else {
 		rr.Header = cloneHeader(r.Header)
@@ -721,6 +723,7 @@ func WithParams(p Params) *Proxy {
 	return &Proxy{
 		routing:                  p.Routing,
 		registry:                 p.EndpointRegistry,
+		rnd:                      rand.New(loadbalancer.NewLockedSource()),
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
@@ -837,7 +840,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
-	req, endpoint, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval(), p.registry)
+	req, endpoint, err := p.mapRequest(ctx, requestContext)
 	if err != nil {
 		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
 	}
@@ -1125,7 +1128,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
-		debugReq, _, err := mapRequest(ctx, ctx.request.Context(), p.flags.HopHeadersRemoval(), p.registry)
+		debugReq, _, err := p.mapRequest(ctx, ctx.request.Context())
 		if err != nil {
 			perr := &proxyError{err: err}
 			p.makeErrorResponse(ctx, perr)

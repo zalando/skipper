@@ -12,7 +12,7 @@ func loadTestLockedSource(s *lockedSource, n int) {
 }
 
 func TestLockedSourceForConcurrentUse(t *testing.T) {
-	s := newLockedSource()
+	s := NewLockedSource()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
