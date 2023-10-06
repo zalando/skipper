@@ -538,11 +538,13 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				continue
 			}
 
-			catchAll := hostCatchAllRoutes(ctx.hostRoutes, func(host string) string {
-				// "catchall" won't conflict with any HTTP method
-				return rgRouteID("", toSymbol(host), "catchall", 0, 0, false)
-			})
-			ri = append(ri, catchAll...)
+			if !r.options.DisableCatchAllRoutes {
+				catchAll := hostCatchAllRoutes(ctx.hostRoutes, func(host string) string {
+					// "catchall" won't conflict with any HTTP method
+					return rgRouteID("", toSymbol(host), "catchall", 0, 0, false)
+				})
+				ri = append(ri, catchAll...)
+			}
 
 			rs = append(rs, ri...)
 		}
@@ -572,11 +574,13 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				continue
 			}
 
-			catchAll := hostCatchAllRoutes(internalCtx.hostRoutes, func(host string) string {
-				// "catchall" won't conflict with any HTTP method
-				return rgRouteID("", toSymbol(host), "catchall", 0, 0, true)
-			})
-			internalRi = append(internalRi, catchAll...)
+			if !r.options.DisableCatchAllRoutes {
+				catchAll := hostCatchAllRoutes(internalCtx.hostRoutes, func(host string) string {
+					// "catchall" won't conflict with any HTTP method
+					return rgRouteID("", toSymbol(host), "catchall", 0, 0, true)
+				})
+				internalRi = append(internalRi, catchAll...)
+			}
 
 			applyEastWestRangePredicates(internalRi, r.options.KubernetesEastWestRangePredicates)
 

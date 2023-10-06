@@ -155,6 +155,7 @@ type Config struct {
 	KubernetesHealthcheck                   bool                               `yaml:"kubernetes-healthcheck"`
 	KubernetesHTTPSRedirect                 bool                               `yaml:"kubernetes-https-redirect"`
 	KubernetesHTTPSRedirectCode             int                                `yaml:"kubernetes-https-redirect-code"`
+	KubernetesDisableCatchAllRoutes         bool                               `yaml:"kubernetes-disable-catchall-routes"`
 	KubernetesIngressClass                  string                             `yaml:"kubernetes-ingress-class"`
 	KubernetesRouteGroupClass               string                             `yaml:"kubernetes-routegroup-class"`
 	WhitelistedHealthCheckCIDR              string                             `yaml:"whitelisted-healthcheck-cidr"`
@@ -444,6 +445,7 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.KubernetesHealthcheck, "kubernetes-healthcheck", true, "automatic healthcheck route for internal IPs with path /kube-system/healthz; valid only with kubernetes")
 	flag.BoolVar(&cfg.KubernetesHTTPSRedirect, "kubernetes-https-redirect", true, "automatic HTTP->HTTPS redirect route; valid only with kubernetes")
 	flag.IntVar(&cfg.KubernetesHTTPSRedirectCode, "kubernetes-https-redirect-code", 308, "overrides the default redirect code (308) when used together with -kubernetes-https-redirect")
+	flag.BoolVar(&cfg.KubernetesDisableCatchAllRoutes, "kubernetes-disable-catchall-routes", false, "disables creation of catchall routes")
 	flag.StringVar(&cfg.KubernetesIngressClass, "kubernetes-ingress-class", "", "ingress class regular expression used to filter ingress resources for kubernetes")
 	flag.StringVar(&cfg.KubernetesRouteGroupClass, "kubernetes-routegroup-class", "", "route group class regular expression used to filter route group resources for kubernetes")
 	flag.StringVar(&cfg.WhitelistedHealthCheckCIDR, "whitelisted-healthcheck-cidr", "", "sets the iprange/CIDRS to be whitelisted during healthcheck")
@@ -787,6 +789,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesHealthcheck:                  c.KubernetesHealthcheck,
 		KubernetesHTTPSRedirect:                c.KubernetesHTTPSRedirect,
 		KubernetesHTTPSRedirectCode:            c.KubernetesHTTPSRedirectCode,
+		KubernetesDisableCatchAllRoutes:        c.KubernetesDisableCatchAllRoutes,
 		KubernetesIngressClass:                 c.KubernetesIngressClass,
 		KubernetesRouteGroupClass:              c.KubernetesRouteGroupClass,
 		WhitelistedHealthCheckCIDR:             whitelistCIDRS,

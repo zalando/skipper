@@ -54,6 +54,7 @@ type ingress struct {
 	httpsRedirectCode            int
 	kubernetesEnableEastWest     bool
 	provideHTTPSRedirect         bool
+	disableCatchAllRoutes        bool
 	forceKubernetesService       bool
 	backendTrafficAlgorithm      BackendTrafficAlgorithm
 	defaultLoadBalancerAlgorithm string
@@ -71,6 +72,7 @@ func newIngress(o Options) *ingress {
 	return &ingress{
 		provideHTTPSRedirect:         o.ProvideHTTPSRedirect,
 		httpsRedirectCode:            o.HTTPSRedirectCode,
+		disableCatchAllRoutes:        o.DisableCatchAllRoutes,
 		pathMode:                     o.PathMode,
 		kubernetesEnableEastWest:     o.KubernetesEnableEastWest,
 		kubernetesEastWestDomain:     o.KubernetesEastWestDomain,
@@ -388,10 +390,12 @@ func (ing *ingress) convert(state *clusterState, df defaultFilters, r *certregis
 		applyEastWestRange(ing.eastWestRangeDomains, ing.eastWestRangePredicates, host, rs)
 		routes = append(routes, rs...)
 
-		// if routes were configured, but there is no catchall route
-		// defined for the host name, create a route which returns 404
-		if !hasCatchAllRoutes(rs) {
-			routes = append(routes, ing.addCatchAllRoutes(host, rs[0], redirect)...)
+		if !ing.disableCatchAllRoutes {
+			// if routes were configured, but there is no catchall route
+			// defined for the host name, create a route which returns 404
+			if !hasCatchAllRoutes(rs) {
+				routes = append(routes, ing.addCatchAllRoutes(host, rs[0], redirect)...)
+			}
 		}
 	}
 

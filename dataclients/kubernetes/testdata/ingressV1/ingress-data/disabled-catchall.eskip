@@ -1,0 +1,9 @@
+kube_namespace1__ingress1__test_example_org___test1__service1:
+  Host(/^(test[.]example[.]org[.]?(:[0-9]+)?)$/)
+  && PathRegexp(/^(\/test1)/)
+  -> "http://42.0.1.2:8080";
+
+kube_namespace1__ingress1__test_ingress_cluster_local___test1__service1:
+  Host("^(test[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+  && PathRegexp("^(/test1)")
+  -> "http://42.0.1.2:8080";

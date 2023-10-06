@@ -39,6 +39,7 @@ type kubeOptionsParser struct {
 	EastWestRangePredicates        []*eskip.Predicate `yaml:"eastWestRangePredicatesAppend"`
 	HTTPSRedirect                  bool               `yaml:"httpsRedirect"`
 	HTTPSRedirectCode              int                `yaml:"httpsRedirectCode"`
+	DisableCatchAllRoutes          bool               `yaml:"disableCatchAllRoutes"`
 	BackendNameTracingTag          bool               `yaml:"backendNameTracingTag"`
 	OnlyAllowedExternalNames       bool               `yaml:"onlyAllowedExternalNames"`
 	AllowedExternalNames           []string           `yaml:"allowedExternalNames"`
@@ -230,6 +231,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.KubernetesEastWestRangePredicates = kop.EastWestRangePredicates
 		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
+		o.DisableCatchAllRoutes = kop.DisableCatchAllRoutes
 		o.BackendNameTracingTag = kop.BackendNameTracingTag
 		o.IngressClass = kop.IngressClass
 		o.CertificateRegistry = cr

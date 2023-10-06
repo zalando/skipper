@@ -188,6 +188,9 @@ type Options struct {
 	// when used together with -kubernetes-https-redirect.
 	KubernetesHTTPSRedirectCode int
 
+	// KubernetesDisableCatchAllRoutes, when set, tells the data client to not create catchall routes.
+	KubernetesDisableCatchAllRoutes bool
+
 	// KubernetesIngressClass is a regular expression, that will make
 	// skipper load only the ingress resources that have a matching
 	// kubernetes.io/ingress.class annotation. For backwards compatibility,
@@ -930,6 +933,7 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		KubernetesEastWestRangeDomains:    o.KubernetesEastWestRangeDomains,
 		KubernetesEastWestRangePredicates: o.KubernetesEastWestRangePredicates,
 		HTTPSRedirectCode:                 o.KubernetesHTTPSRedirectCode,
+		DisableCatchAllRoutes:             o.KubernetesDisableCatchAllRoutes,
 		IngressClass:                      o.KubernetesIngressClass,
 		IngressLabelSelectors:             o.KubernetesIngressLabelSelectors,
 		ServicesLabelSelectors:            o.KubernetesServicesLabelSelectors,
