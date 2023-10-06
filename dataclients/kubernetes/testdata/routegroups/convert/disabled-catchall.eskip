@@ -1,0 +1,2 @@
+kube_rg__default__myapp__all__0_0: Host("^(example[.]org[.]?(:[0-9]+)?)$") && Path("/app") -> "http://10.2.4.8:80";
+kube_rg__internal_default__myapp__all__0_0: Host("^(example[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && Path("/app") -> "http://10.2.4.8:80";

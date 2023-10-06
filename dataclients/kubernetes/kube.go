@@ -126,6 +126,9 @@ type Options struct {
 	// By default, 308 StatusPermanentRedirect is used.
 	HTTPSRedirectCode int
 
+	// DisableCatchAllRoutes, when set, tells the data client to not create catchall routes.
+	DisableCatchAllRoutes bool
+
 	// IngressClass is a regular expression to filter only those ingresses that match. If an ingress does
 	// not have a class annotation or the annotation is an empty string, skipper will load it. The default
 	// value for the ingress class is 'skipper'.
