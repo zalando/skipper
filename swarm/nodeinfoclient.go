@@ -112,15 +112,23 @@ func (c *nodeInfoClientKubernetes) GetNodeInfo() ([]*NodeInfo, error) {
 			continue
 		}
 		addr := net.ParseIP(u.Hostname())
-		port, err := strconv.ParseUint(u.Port(), 10, 16)
+		port, err := parsetUint16(u.Port())
 		if err != nil {
 			log.Errorf("SWARM: failed to parse port to int: %v", err)
 			continue
 		}
-		n := &NodeInfo{Name: s, Addr: addr, Port: uint16(port)}
+		n := &NodeInfo{Name: s, Addr: addr, Port: port}
 		log.Debugf("SWARM: got nodeinfo %v", n)
 		nodes = append(nodes, n)
 	}
 	log.Debugf("SWARM: got nodeinfo with %d members", len(nodes))
 	return nodes, nil
+}
+
+func parsetUint16(s string) (uint16, error) {
+	u64, err := strconv.ParseUint(s, 10, 16)
+	if err != nil {
+		return 0, err
+	}
+	return uint16(u64), err
 }
