@@ -112,7 +112,7 @@ func (c *nodeInfoClientKubernetes) GetNodeInfo() ([]*NodeInfo, error) {
 			continue
 		}
 		addr := net.ParseIP(u.Hostname())
-		port, err := strconv.Atoi(u.Port())
+		port, err := strconv.ParseUint(u.Port(), 10, 16)
 		if err != nil {
 			log.Errorf("SWARM: failed to parse port to int: %v", err)
 			continue
