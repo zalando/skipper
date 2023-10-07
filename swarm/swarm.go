@@ -157,8 +157,8 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 	}
 
 	if o.KubernetesOptions.Namespace == "" {
-		log.Errorf("Namespace is empty set to default %s instead", defaultNamespace)
-		o.KubernetesOptions.Namespace = defaultNamespace
+		log.Errorf("Namespace is empty set to default %s instead", DefaultNamespace)
+		o.KubernetesOptions.Namespace = DefaultNamespace
 	}
 
 	if o.KubernetesOptions.Name == "" {

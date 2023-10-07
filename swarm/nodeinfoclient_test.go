@@ -6,22 +6,21 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 )
 
 func newFakeKubernetesNodeInfoClient(url string) nodeInfoClient {
-	cli, err := NewClientKubernetes(false, url)
+	cli, err := kubernetes.New(kubernetes.Options{
+		KubernetesURL: url,
+	})
 	if err != nil {
 		log.Fatalf("failed to create kubernetes client: %v", err)
 	}
 
 	return &nodeInfoClientKubernetes{
-		kubernetesInCluster: false,
-		kubeAPIBaseURL:      url,
-		client:              cli,
-		namespace:           DefaultNamespace,
-		labelKey:            "application",
-		labelVal:            "skipper-ingress",
-		port:                DefaultPort,
+		client:    cli,
+		namespace: DefaultNamespace,
+		port:      DefaultPort,
 	}
 }
 

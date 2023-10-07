@@ -1134,7 +1134,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 		kops := o.KubernetesDataClientOptions()
 		kops.CertificateRegistry = cr
 
-		kubernetesClient, err := kubernetes.New(kops)
+		kubernetesClient, err = kubernetes.New(kops)
 		if err != nil {
 			return nil, fmt.Errorf("error while creating kubernetes data client: %w", err)
 		}

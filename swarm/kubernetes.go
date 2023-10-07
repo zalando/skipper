@@ -3,10 +3,14 @@ package swarm
 import "github.com/zalando/skipper/dataclients/kubernetes"
 
 const (
-	// defaultNamespace is used  to find other peer endpoints
-	defaultNamespace = "kube-system"
-	// defaultName is used to find other peer endpoints
 	defaultName = "skipper-ingress"
+
+	// DefaultNamespace is the default namespace where swarm searches for peer information
+	DefaultNamespace = "kube-system"
+	// DefaultLabelSelectorKey is *deprecated* and not in use, was the default label key to select Pods for peer information
+	DefaultLabelSelectorKey = "application"
+	// DefaultLabelSelectorValue  is *deprecated* and not in use, was the default label value to select Pods for peer information
+	DefaultLabelSelectorValue = defaultName
 )
 
 // KubernetesOptions are Kubernetes specific swarm options, that are
