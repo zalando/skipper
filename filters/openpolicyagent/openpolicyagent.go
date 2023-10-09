@@ -23,7 +23,6 @@ import (
 	"github.com/open-policy-agent/opa/storage/inmem"
 	iCache "github.com/open-policy-agent/opa/topdown/cache"
 	opatracing "github.com/open-policy-agent/opa/tracing"
-	opautil "github.com/open-policy-agent/opa/util"
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -36,7 +35,8 @@ import (
 const (
 	defaultReuseDuration       = 30 * time.Second
 	defaultShutdownGracePeriod = 30 * time.Second
-	DefaultCleanIdlePeriod     = 10 * time.Second
+	DefaultCleanerInterval     = 10 * time.Second
+	DefaultOpaStartupTimeout   = 30 * time.Second
 )
 
 type OpenPolicyAgentRegistry struct {
@@ -78,7 +78,7 @@ func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) er
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration: defaultReuseDuration,
-		cleanInterval: DefaultCleanIdlePeriod,
+		cleanInterval: DefaultCleanerInterval,
 		instances:     make(map[string]*OpenPolicyAgentInstance),
 		lastused:      make(map[*OpenPolicyAgentInstance]time.Time),
 		quit:          make(chan struct{}),
@@ -96,6 +96,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 type OpenPolicyAgentInstanceConfig struct {
 	envoyMetadata  *ext_authz_v3_core.Metadata
 	configTemplate []byte
+	startupTimeout time.Duration
 }
 
 func WithConfigTemplate(configTemplate []byte) func(*OpenPolicyAgentInstanceConfig) error {
@@ -144,12 +145,21 @@ func WithEnvoyMetadataFile(file string) func(*OpenPolicyAgentInstanceConfig) err
 	}
 }
 
+func WithStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentInstanceConfig) error {
+	return func(cfg *OpenPolicyAgentInstanceConfig) error {
+		cfg.startupTimeout = timeout
+		return nil
+	}
+}
+
 func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.Metadata {
 	return cfg.envoyMetadata
 }
 
 func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) (*OpenPolicyAgentInstanceConfig, error) {
-	cfg := OpenPolicyAgentInstanceConfig{}
+	cfg := OpenPolicyAgentInstanceConfig{
+		startupTimeout: DefaultOpaStartupTimeout,
+	}
 
 	for _, opt := range opts {
 		if err := opt(&cfg); err != nil {
@@ -285,14 +295,10 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 		return nil, err
 	}
 
-	ctx := context.Background()
-	if err = engine.Start(ctx); err != nil {
-		return nil, err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), config.startupTimeout)
+	defer cancel()
 
-	err = engine.waitPluginsReady(100*time.Millisecond, 30*time.Second)
-	if err != nil {
-		engine.Logger().WithFields(map[string]interface{}{"err": err}).Error("Failed to wait for plugins activation.")
+	if err = engine.Start(ctx, config.startupTimeout); err != nil {
 		return nil, err
 	}
 
@@ -308,6 +314,7 @@ type OpenPolicyAgentInstance struct {
 	preparedQueryDoOnce    *sync.Once
 	interQueryBuiltinCache iCache.InterQueryCache
 	once                   sync.Once
+	stopped                bool
 }
 
 func envVariablesMap() map[string]string {
@@ -343,7 +350,6 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 // New returns a new OPA object.
 func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
-
 	opaConfig, err := config.ParseConfig(configBytes, id)
 	if err != nil {
 		return nil, err
@@ -382,19 +388,11 @@ func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgent
 
 // Start asynchronously starts the policy engine's plugins that download
 // policies, report status, etc.
-func (opa *OpenPolicyAgentInstance) Start(ctx context.Context) error {
-	return opa.manager.Start(ctx)
-}
+func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Duration) error {
+	err := opa.manager.Start(ctx)
 
-func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
-	opa.once.Do(func() {
-		opa.manager.Stop(ctx)
-	})
-}
-
-func (opa *OpenPolicyAgentInstance) waitPluginsReady(checkInterval, timeout time.Duration) error {
-	if timeout <= 0 {
-		return nil
+	if err != nil {
+		return err
 	}
 
 	// check readiness of all plugins
@@ -407,9 +405,48 @@ func (opa *OpenPolicyAgentInstance) waitPluginsReady(checkInterval, timeout time
 		return true
 	}
 
-	opa.Logger().Debug("Waiting for plugins activation (%v).", timeout)
+	err = waitFunc(ctx, pluginsReady, 100*time.Millisecond)
 
-	return opautil.WaitFunc(pluginsReady, checkInterval, timeout)
+	if err != nil {
+		for pluginName, status := range opa.manager.PluginStatus() {
+			if status != nil && status.State != plugins.StateOK {
+				opa.Logger().WithFields(map[string]interface{}{
+					"plugin_name":   pluginName,
+					"plugin_state":  status.State,
+					"error_message": status.Message,
+				}).Error("Open policy agent plugin did not start in time")
+			}
+		}
+		opa.Close(ctx)
+		return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, err)
+	}
+	return nil
+}
+
+func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
+	opa.once.Do(func() {
+		opa.manager.Stop(ctx)
+		opa.stopped = true
+	})
+}
+
+func waitFunc(ctx context.Context, fun func() bool, interval time.Duration) error {
+	if fun() {
+		return nil
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out while starting: %w", ctx.Err())
+		case <-ticker.C:
+			if fun() {
+				return nil
+			}
+		}
+	}
 }
 
 func (opa *OpenPolicyAgentInstance) InstanceConfig() *OpenPolicyAgentInstanceConfig {

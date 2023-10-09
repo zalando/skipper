@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/open-policy-agent/opa/storage/inmem"
 	"io"
 	"net/http"
 	"os"
@@ -89,7 +90,49 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 	assert.Equal(t, expected, cfg.envoyMetadata)
 }
 
-func mockControlPlane() (*opasdktest.Server, []byte) {
+func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Server, []byte) {
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/test", map[string]string{
+			"main.rego": `
+				package envoy.authz
+	
+				default allow = false
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery", map[string]string{
+			"data.json": `
+				{"discovery":{"bundles":{"bundles/test":{"persist":false,"resource":"bundles/test","service":"test"}}}}
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery-with-wrong-bundle", map[string]string{
+			"data.json": `
+				{"discovery":{"bundles":{"bundles/non-existing-bundle":{"persist":false,"resource":"bundles/non-existing-bundle","service":"test"}}}}
+			`,
+		}),
+		opasdktest.MockBundle("/bundles/discovery-with-parsing-error", map[string]string{
+			"data.json": `
+				{unparsable : json}
+			`,
+		}),
+	)
+
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"discovery": {
+			"name": "discovery",
+			"resource": %q,
+			"service": "test"
+		}
+	}`, opaControlPlane.URL(), discoveryBundle))
+
+	return opaControlPlane, config
+}
+
+func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 	opaControlPlane := opasdktest.MustNewServer(
 		opasdktest.MockBundle("/bundles/test", map[string]string{
 			"main.rego": `
@@ -130,7 +173,7 @@ func mockControlPlane() (*opasdktest.Server, []byte) {
 }
 
 func TestRegistry(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
@@ -182,8 +225,86 @@ func TestRegistry(t *testing.T) {
 	assert.Error(t, err, "should not work after close")
 }
 
+func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	engine, err := New(inmem.New(), config, *cfg, "testfilter", "test")
+	assert.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.startupTimeout)
+	defer cancel()
+
+	err = engine.Start(ctx, cfg.startupTimeout)
+	assert.True(t, engine.stopped)
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
+}
+
+func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.NotNil(t, instance)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(registry.instances))
+}
+
+func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
+	configWithUnknownService := []byte(`{
+		"discovery": {
+			"name": "discovery",
+			"resource": "discovery",
+			"service": "test"
+		}}`)
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Nil(t, instance)
+	assert.Contains(t, err.Error(), "invalid configuration for discovery")
+	assert.Equal(t, 0, len(registry.instances))
+}
+
+func TestOpaActivationTimeOutWithDiscoveryPointingWrongBundle(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Nil(t, instance)
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
+	assert.Equal(t, 0, len(registry.instances))
+}
+
+func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-parsing-error")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Nil(t, instance)
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
+	assert.Equal(t, 0, len(registry.instances))
+}
+
 func TestStartup(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
@@ -199,7 +320,7 @@ func TestStartup(t *testing.T) {
 }
 
 func TestTracing(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
@@ -222,7 +343,7 @@ func TestTracing(t *testing.T) {
 }
 
 func TestEval(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
@@ -250,7 +371,7 @@ func TestEval(t *testing.T) {
 }
 
 func TestResponses(t *testing.T) {
-	_, config := mockControlPlane()
+	_, config := mockControlPlaneWithResourceBundle()
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
 
