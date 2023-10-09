@@ -70,6 +70,12 @@ func TestFailureMode(t *testing.T) {
 			wantLimit:       true,
 			limitStatusCode: http.StatusTooManyRequests,
 		},
+		{
+			name:            "test ratelimitFailClosed applies when placed after ratelimit filter",
+			filters:         `clusterRatelimit("t", 1, "1s") -> ratelimitFailClosed()`,
+			wantLimit:       true,
+			limitStatusCode: http.StatusTooManyRequests,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			fr := builtin.MakeRegistry()

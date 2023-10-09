@@ -1721,7 +1721,7 @@ As of now there is no negative/deny rule possible. The first matching path is ev
 
 ### Open Policy Agent
 
-To get started with [Open Policy Agent](https://www.openpolicyagent.org/), also have a look at the [tutorial](../tutorials/auth.md#open-policy-agent). This section is only a reference for the implemented filters. 
+To get started with [Open Policy Agent](https://www.openpolicyagent.org/), also have a look at the [tutorial](../tutorials/auth.md#open-policy-agent). This section is only a reference for the implemented filters.
 
 #### opaAuthorizeRequest
 
@@ -1796,7 +1796,7 @@ The difference is that if the decision in (3) is equivalent to false, the respon
 
 Headers both to the upstream and the downstream service can be manipulated the same way this works for [Envoy external authorization](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-policy-with-additional-controls)
 
-This allows both to add and remove unwanted headers in allow/deny cases. 
+This allows both to add and remove unwanted headers in allow/deny cases.
 
 #### opaServeResponse
 
@@ -1821,7 +1821,7 @@ For this filter, the data flow looks like this independent of an allow/deny deci
 
 ```ascii
              ┌──────────────────┐
- (1) Request │     Skipper      │ 
+ (1) Request │     Skipper      │
 ─────────────┤                  ├
              │                  │
  (4) Response│   (2)│   ▲ (3)   │
@@ -2255,8 +2255,9 @@ Path("/expensive") -> clusterLeakyBucketRatelimit("user-${request.cookie.Authori
 
 ### ratelimitFailClosed
 
-This filter changes the failure mode for rate limit filters. If the
-filter is present, infrastructure issues will lead to rate limit.
+This filter changes the failure mode for all rate limit filters of the route.
+By default rate limit filters fail open on infrastructure errors (e.g. when redis is down) and allow requests.
+When this filter is present on the route, rate limit filters will fail closed in case of infrastructure errors and deny requests.
 
 Examples:
 ```
@@ -2264,7 +2265,7 @@ fail_open: * -> clusterRatelimit("g",10, "1s")
 fail_closed: * -> ratelimitFailClosed() -> clusterRatelimit("g", 10, "1s")
 ```
 
-In case `clusterRatelimit` could not reach the swarm (f.e. redis):
+In case `clusterRatelimit` could not reach the swarm (e.g. redis):
 
 * Route `fail_open` will allow the request
 * Route `fail_closed` will deny the request
@@ -3015,7 +3016,7 @@ tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 
 ### tracingTagFromResponse
 
-This filter works just like [tracingTag](#tracingTag), but is applied after the request was processed. In particular, [template placeholders](#template-placeholders) referencing the response can be used in the parameters. 
+This filter works just like [tracingTag](#tracingTag), but is applied after the request was processed. In particular, [template placeholders](#template-placeholders) referencing the response can be used in the parameters.
 
 ### tracingSpanName
 

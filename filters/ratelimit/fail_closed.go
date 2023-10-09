@@ -19,18 +19,20 @@ func NewFailClosedPostProcessor() *FailClosedPostProcessor {
 // new routes.
 func (*FailClosedPostProcessor) Do(routes []*routing.Route) []*routing.Route {
 	for _, r := range routes {
-		var found bool
-
+		var failClosed bool
 		for _, f := range r.Filters {
 			if f.Name == filters.RatelimitFailClosedName {
-				found = true
-				continue
+				failClosed = true
+				break
 			}
-			// no config changes detected
-			if !found {
-				continue
-			}
+		}
 
+		// no config changes detected
+		if !failClosed {
+			continue
+		}
+
+		for _, f := range r.Filters {
 			switch f.Name {
 			// leaky bucket has no Settings
 			case filters.ClusterLeakyBucketRatelimitName:
@@ -45,11 +47,11 @@ func (*FailClosedPostProcessor) Do(routes []*routing.Route) []*routing.Route {
 					bf.Settings.FailClosed = true
 				}
 
-			case filters.ClientRatelimitName:
-				fallthrough
-			case filters.ClusterClientRatelimitName:
-				fallthrough
-			case filters.ClusterRatelimitName:
+			case
+				filters.ClientRatelimitName,
+				filters.ClusterClientRatelimitName,
+				filters.ClusterRatelimitName:
+
 				ff, ok := f.Filter.(*filter)
 				if ok {
 					ff.settings.FailClosed = true
