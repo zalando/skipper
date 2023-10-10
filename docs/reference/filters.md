@@ -1467,6 +1467,8 @@ jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 
 The filter takes the header name as its first argument and sets header value to the
 token info or token introspection result serialized as a JSON object.
+JSON object keys (as well keys of object values) are sorted therefore
+header value is stable and can be used e.g. as a ratelimit key.
 To include only particular fields provide their names as additional arguments.
 
 If this filter is used when there is no token introspection or token info data

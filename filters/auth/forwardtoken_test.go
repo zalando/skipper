@@ -20,7 +20,7 @@ func staticServer(content string) *httptest.Server {
 }
 
 func TestForwardToken(t *testing.T) {
-	tokeninfoServer := staticServer(`{"uid": "test", "scope": ["uid"]}`)
+	tokeninfoServer := staticServer(`{"uid": "test", "scope": ["uid"], "obj": {"foo": "bar", "baz": "qux"}}`)
 	defer tokeninfoServer.Close()
 
 	introspectionServer := staticServer(`{"uid": "test-uid", "sub": "test-sub", "claims": {"email": "test@test.com"}, "active": true}`)
@@ -38,7 +38,7 @@ func TestForwardToken(t *testing.T) {
 			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo")`,
 			header:  http.Header{},
 			expectedHeader: http.Header{
-				"X-Skipper-Tokeninfo": []string{`{"scope":["uid"],"uid":"test"}`},
+				"X-Skipper-Tokeninfo": []string{`{"obj":{"baz":"qux","foo":"bar"},"scope":["uid"],"uid":"test"}`},
 			},
 		},
 		{
@@ -49,10 +49,18 @@ func TestForwardToken(t *testing.T) {
 			},
 		},
 		{
-			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo", "uid", "scope")`,
+			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo", "uid", "scope", "obj")`,
 			header:  http.Header{},
 			expectedHeader: http.Header{
-				"X-Skipper-Tokeninfo": []string{`{"scope":["uid"],"uid":"test"}`},
+				"X-Skipper-Tokeninfo": []string{`{"obj":{"baz":"qux","foo":"bar"},"scope":["uid"],"uid":"test"}`},
+			},
+		},
+		{
+			// JSON value keys are sorted
+			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo", "obj", "scope", "uid")`,
+			header:  http.Header{},
+			expectedHeader: http.Header{
+				"X-Skipper-Tokeninfo": []string{`{"obj":{"baz":"qux","foo":"bar"},"scope":["uid"],"uid":"test"}`},
 			},
 		},
 		{
@@ -77,21 +85,24 @@ func TestForwardToken(t *testing.T) {
 			},
 		},
 		{
-			filters:        `forwardToken("X-Skipper-Tokeninfo")`, // not tokeninfo or tokenintrospection
+			// not tokeninfo or tokenintrospection
+			filters:        `forwardToken("X-Skipper-Tokeninfo")`,
 			header:         http.Header{},
 			expectedHeader: http.Header{},
 		},
 		{
-			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo")`, // overwrites existing
+			// overwrites existing
+			filters: `oauthTokeninfoAnyScope("uid") -> forwardToken("X-Skipper-Tokeninfo")`,
 			header: http.Header{
 				"X-Skipper-Tokeninfo": []string{`{"already": "exists"}`},
 			},
 			expectedHeader: http.Header{
-				"X-Skipper-Tokeninfo": []string{`{"scope":["uid"],"uid":"test"}`},
+				"X-Skipper-Tokeninfo": []string{`{"obj":{"baz":"qux","foo":"bar"},"scope":["uid"],"uid":"test"}`},
 			},
 		},
 		{
-			filters: `forwardToken("X-Skipper-Tokeninfo")`, // not tokeninfo or tokenintrospection, passes existing
+			// not tokeninfo or tokenintrospection, passes existing
+			filters: `forwardToken("X-Skipper-Tokeninfo")`,
 			header: http.Header{
 				"X-Skipper-Tokeninfo": []string{`{"already": "exists"}`},
 			},
