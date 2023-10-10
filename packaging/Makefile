@@ -120,13 +120,21 @@ build/windows/amd64/%:
 	GOOS=windows \
 	GOARCH=amd64 \
 	CGO_ENABLED=$(CGO_ENABLED) \
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/windows/amd64/$(notdir $@) ../cmd/$(notdir $@)/*.go
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/windows/amd64/$(notdir $@).exe ../cmd/$(notdir $@)/*.go
 
 build.package: build.linux build.darwin build.windows
+# Pack linux binaries
 	tar --transform 's,^\.,skipper-$(VERSION)-linux-amd64,' -C build/linux/amd64 -czvf skipper-$(VERSION)-linux-amd64.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-linux-arm64,' -C build/linux/arm64 -czvf skipper-$(VERSION)-linux-arm64.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-linux-armv7,' -C build/linux/arm/v7 -czvf skipper-$(VERSION)-linux-armv7.tar.gz .
+
+# Pack darwin binaries
 	tar --transform 's,^\.,skipper-$(VERSION)-darwin-amd64,' -C build/darwin/amd64 -czvf skipper-$(VERSION)-darwin-amd64.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-darwin-arm64,' -C build/darwin/arm64 -czvf skipper-$(VERSION)-darwin-arm64.tar.gz .
-	tar --transform 's,^\.,skipper-$(VERSION)-windows-amd64,' -C build/windows/amd64 -czvf skipper-$(VERSION)-windows-amd64.tar.gz .
+
+# Pack windows binaries
+	zip -j -r skipper-$(VERSION)-windows-amd64.zip build/windows/amd64
+
+# Generate checksums for all archives and save to file
 	for f in *.tar.gz; do sha256sum $$f >> sha256sum.txt; done
+	for f in *.zip; do sha256sum $$f >> sha256sum.txt; done
