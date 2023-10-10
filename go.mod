@@ -50,7 +50,7 @@ require (
 	golang.org/x/crypto v0.14.0
 	golang.org/x/net v0.16.0
 	golang.org/x/oauth2 v0.13.0
-	golang.org/x/sync v0.3.0
+	golang.org/x/sync v0.4.0
 	golang.org/x/term v0.13.0
 	golang.org/x/time v0.3.0
 	google.golang.org/protobuf v1.31.0
@@ -73,7 +73,6 @@ require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/biter777/processex v0.0.0-20210102170504-01bb369eda71 // indirect
 	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
 	github.com/bytecodealliance/wasmtime-go/v3 v3.0.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
