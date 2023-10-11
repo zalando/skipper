@@ -123,17 +123,20 @@ build/windows/amd64/%:
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/windows/amd64/$(notdir $@).exe ../cmd/$(notdir $@)/*.go
 
 build.package: build.linux build.darwin build.windows
-# Pack linux binaries
+# Pack linux binaries as tar
 	tar --transform 's,^\.,skipper-$(VERSION)-linux-amd64,' -C build/linux/amd64 -czvf skipper-$(VERSION)-linux-amd64.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-linux-arm64,' -C build/linux/arm64 -czvf skipper-$(VERSION)-linux-arm64.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-linux-armv7,' -C build/linux/arm/v7 -czvf skipper-$(VERSION)-linux-armv7.tar.gz .
 
-# Pack darwin binaries
+# Pack darwin binaries as tar
 	tar --transform 's,^\.,skipper-$(VERSION)-darwin-amd64,' -C build/darwin/amd64 -czvf skipper-$(VERSION)-darwin-amd64.tar.gz .
 	tar --transform 's,^\.,skipper-$(VERSION)-darwin-arm64,' -C build/darwin/arm64 -czvf skipper-$(VERSION)-darwin-arm64.tar.gz .
 
-# Pack windows binaries
-	zip -j -r skipper-$(VERSION)-windows-amd64.zip build/windows/amd64
+# Pack windows binaries as zip - use a temp directory to achieve same transform result as other archives
+	mkdir skipper-$(VERSION)-windows-amd64
+	for f in ./build/windows/amd64/*.exe; do cp "$$f" "skipper-$(VERSION)-windows-amd64"; done
+	zip -r skipper-$(VERSION)-windows-amd64.zip skipper-$(VERSION)-windows-amd64
+	rm -rf skipper-$(VERSION)-windows-amd64
 
 # Generate checksums for all archives and save to file
 	for f in *.tar.gz; do sha256sum $$f >> sha256sum.txt; done
