@@ -133,11 +133,9 @@ build.package: build.linux build.darwin build.windows
 	tar --transform 's,^\.,skipper-$(VERSION)-darwin-arm64,' -C build/darwin/arm64 -czvf skipper-$(VERSION)-darwin-arm64.tar.gz .
 
 # Pack windows binaries as zip - use a temp directory to achieve same transform result as other archives
-	mkdir skipper-$(VERSION)-windows-amd64
-	for f in ./build/windows/amd64/*.exe; do cp "$$f" "skipper-$(VERSION)-windows-amd64"; done
+	cp -R build/windows/amd64/ skipper-$(VERSION)-windows-amd64
 	zip -r skipper-$(VERSION)-windows-amd64.zip skipper-$(VERSION)-windows-amd64
 	rm -rf skipper-$(VERSION)-windows-amd64
 
 # Generate checksums for all archives and save to file
-	for f in *.tar.gz; do sha256sum $$f >> sha256sum.txt; done
-	for f in *.zip; do sha256sum $$f >> sha256sum.txt; done
+	for f in *.tar.gz *.zip; do sha256sum $$f >> sha256sum.txt; done
