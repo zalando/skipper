@@ -138,4 +138,4 @@ build.package: build.linux build.darwin build.windows
 	rm -rf skipper-$(VERSION)-windows-amd64
 
 # Generate checksums for all archives and save to file
-	for f in *.tar.gz *.zip; do sha256sum $$f >> sha256sum.txt; done
+	sha256sum *.tar.gz *.zip > sha256sum.txt
