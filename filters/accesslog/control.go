@@ -18,8 +18,12 @@ const (
 
 // AccessLogFilter stores access log state
 type AccessLogFilter struct {
-	Enable   bool
+	// Enable represents whether or not the access log is enabled.
+	Enable bool
+	// Prefixes contains the list of response code prefixes.
 	Prefixes []int
+	// MaskedQueryParams contains the list of query parameters (keys) that are masked/obfuscated in the access log.
+	MaskedQueryParams []string
 }
 
 func (al *AccessLogFilter) Request(ctx filters.FilterContext) {
@@ -86,4 +90,33 @@ func (*enableAccessLog) Name() string { return filters.EnableAccessLogName }
 
 func (al *enableAccessLog) CreateFilter(args []interface{}) (filters.Filter, error) {
 	return extractFilterValues(args, true)
+}
+
+type maskAccessLogQuery struct{}
+
+// NewMaskAccessLogQuery creates a filter spec to mask specific query parameters from the access log for a specific route.
+// Takes in query param keys as arguments. When provided, the value of these keys are masked (i.e., hashed).
+//
+//	maskAccessLogQuery("key_1", "key_2") to mask the value of provided keys in the access log.
+func NewMaskAccessLogQuery() filters.Spec {
+	return &maskAccessLogQuery{}
+}
+
+func (*maskAccessLogQuery) Name() string { return filters.MaskAccessLogQueryName }
+
+func (al *maskAccessLogQuery) CreateFilter(args []interface{}) (filters.Filter, error) {
+	if len(args) <= 0 {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	keys := make([]string, len(args))
+	for i := range args {
+		if key, ok := args[i].(string); ok && key != "" {
+			keys[i] = key
+		} else {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+	}
+
+	return &AccessLogFilter{Enable: true, MaskedQueryParams: keys}, nil
 }
