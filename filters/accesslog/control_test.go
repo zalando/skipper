@@ -1,8 +1,9 @@
 package accesslog
 
 import (
-	"github.com/google/go-cmp/cmp"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -20,14 +21,14 @@ func TestAccessLogControl(t *testing.T) {
 			msg:     "enables-access-log",
 			state:   NewEnableAccessLog(),
 			args:    nil,
-			result:  AccessLogFilter{true, make([]int, 0)},
+			result:  AccessLogFilter{Enable: true, Prefixes: make([]int, 0)},
 			isError: false,
 		},
 		{
 			msg:     "enable-access-log-selective",
 			state:   NewEnableAccessLog(),
 			args:    []interface{}{2, 4, 300},
-			result:  AccessLogFilter{true, []int{2, 4, 300}},
+			result:  AccessLogFilter{Enable: true, Prefixes: []int{2, 4, 300}},
 			isError: false,
 		},
 		{
@@ -41,22 +42,36 @@ func TestAccessLogControl(t *testing.T) {
 			msg:     "disables-access-log",
 			state:   NewDisableAccessLog(),
 			args:    nil,
-			result:  AccessLogFilter{false, make([]int, 0)},
+			result:  AccessLogFilter{Enable: false, Prefixes: make([]int, 0)},
 			isError: false,
 		},
 		{
 			msg:     "disables-access-log-selective",
 			state:   NewDisableAccessLog(),
 			args:    []interface{}{1, 201, 30},
-			result:  AccessLogFilter{false, []int{1, 201, 30}},
+			result:  AccessLogFilter{Enable: false, Prefixes: []int{1, 201, 30}},
 			isError: false,
 		},
 		{
 			msg:     "disables-access-log-convert-float",
 			state:   NewDisableAccessLog(),
 			args:    []interface{}{1.0, 201},
-			result:  AccessLogFilter{false, []int{1, 201}},
+			result:  AccessLogFilter{Enable: false, Prefixes: []int{1, 201}},
 			isError: false,
+		},
+		{
+			msg:     "mask-access-log-query",
+			state:   NewMaskAccessLogQuery(),
+			args:    []interface{}{"key_1"},
+			result:  AccessLogFilter{Enable: true, MaskedQueryParams: []string{"key_1"}},
+			isError: false,
+		},
+		{
+			msg:     "mask-access-log-query-convert-int",
+			state:   NewMaskAccessLogQuery(),
+			args:    []interface{}{1},
+			result:  AccessLogFilter{Enable: true, MaskedQueryParams: []string{"key_1"}},
+			isError: true,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
