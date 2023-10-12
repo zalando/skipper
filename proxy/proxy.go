@@ -849,9 +849,6 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	if endpoint != nil {
 		endpoint.Metrics.IncInflightRequest()
 		defer endpoint.Metrics.DecInflightRequest()
-
-		p.registry.IncInflightRequest(endpoint.Host)
-		defer p.registry.DecInflightRequest(endpoint.Host)
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {

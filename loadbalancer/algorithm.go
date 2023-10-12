@@ -75,8 +75,7 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routin
 	rt := ctx.Route
 	ep := ctx.LBEndpoints
 	for _, epi := range ep {
-		detected := ctx.Registry.GetMetrics(epi.Host).DetectedTime()
-		wi := fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, detected)
+		wi := fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Detected)
 		sum += wi
 	}
 
@@ -84,8 +83,7 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routin
 	r := rnd.Float64() * sum
 	var upto float64
 	for i, epi := range ep {
-		detected := ctx.Registry.GetMetrics(epi.Host).DetectedTime()
-		upto += fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, detected)
+		upto += fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Detected)
 		if upto > r {
 			choice = ep[i]
 			break
@@ -114,12 +112,11 @@ func shiftToRemaining(rnd *rand.Rand, ctx *routing.LBContext, wi []int, now time
 func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing.LBAlgorithm) routing.LBEndpoint {
 	ep := ctx.LBEndpoints
 	now := time.Now()
-	detected := ctx.Registry.GetMetrics(ctx.LBEndpoints[choice].Host).DetectedTime()
 	f := fadeIn(
 		now,
 		ctx.Route.LBFadeInDuration,
 		ctx.Route.LBFadeInExponent,
-		detected,
+		ctx.LBEndpoints[choice].Detected,
 	)
 
 	if rnd.Float64() < f {
@@ -127,8 +124,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing
 	}
 	notFadingIndexes := make([]int, 0, len(ep))
 	for i := 0; i < len(ep); i++ {
-		detected := ctx.Registry.GetMetrics(ep[i].Host).DetectedTime()
-		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, detected); !fadingIn {
+		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, ep[i].Detected); !fadingIn {
 			notFadingIndexes = append(notFadingIndexes, i)
 		}
 	}
@@ -267,7 +263,7 @@ func computeLoadAverage(ctx *routing.LBContext) float64 {
 	sum := 1.0 // add 1 to include the request that just arrived
 	endpoints := ctx.LBEndpoints
 	for _, v := range endpoints {
-		sum += float64(ctx.Registry.GetMetrics(v.Host).InflightRequests())
+		sum += float64(v.Metrics.GetInflightRequests())
 	}
 	return sum / float64(len(endpoints))
 }
@@ -284,10 +280,10 @@ func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, c
 		if skipEndpoint(endpointIndex) {
 			continue
 		}
-		load := ctx.Registry.GetMetrics(ctx.LBEndpoints[endpointIndex].Host).InflightRequests()
+		load := ctx.LBEndpoints[endpointIndex].Metrics.GetInflightRequests()
 		// We know there must be an endpoint whose load <= average load.
 		// Since targetLoad >= average load (balancerFactor >= 1), there must also be an endpoint with load <= targetLoad.
-		if load <= int64(targetLoad) {
+		if load <= int(targetLoad) {
 			break
 		}
 		ringIndex = (ringIndex + 1) % ch.Len()
@@ -369,7 +365,7 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	for i := 1; i < p.numberOfChoices; i++ {
 		ce := ctx.LBEndpoints[p.rnd.Intn(ne)]
 
-		if p.getScore(ctx, ce) > p.getScore(ctx, best) {
+		if p.getScore(ce) > p.getScore(best) {
 			best = ce
 		}
 	}
@@ -377,9 +373,9 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 }
 
 // getScore returns negative value of inflightrequests count.
-func (p *powerOfRandomNChoices) getScore(ctx *routing.LBContext, e routing.LBEndpoint) int64 {
+func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int64 {
 	// endpoints with higher inflight request should have lower score
-	return -ctx.Registry.GetMetrics(e.Host).InflightRequests()
+	return -int64(e.Metrics.GetInflightRequests())
 }
 
 type (
