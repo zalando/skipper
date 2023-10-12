@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spaolacci/murmur3"
 
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
 	logFilter "github.com/zalando/skipper/filters/log"
@@ -21,6 +22,9 @@ const (
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
 	// We add the duration in ms, a requested host and a flow id and audit log
 	accessLogFormat = combinedLogFormat + " %d %s %s %s\n"
+
+	// seedQueryParamMaskingHash represents the seed used to hash masked query parameters in access log.
+	seedQueryParamMaskingHash = 42
 )
 
 type accessLogFormatter struct {
@@ -109,9 +113,19 @@ func stripQueryString(u string) string {
 	}
 }
 
+// seedQueryParamMaskingHash hashes a provided query parameter value and returns the hashed value.
+// Uses the murmur3 algorithm and a 32-bit hasher set.
+func hashQueryParamValue(val string) string {
+	h32 := murmur3.New32WithSeed(seedQueryParamMaskingHash)
+	h32.Write([]byte(val))
+	hashedVal := h32.Sum32()
+
+	return fmt.Sprint(hashedVal)
+}
+
 // Logs an access event in Apache combined log format (with a minor customization with the duration).
 // Additional allows to provide extra data that may be also logged, depending on the specific log format.
-func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
+func LogAccess(entry *AccessEntry, additional map[string]interface{}, maskedQueryParams []string) {
 	if accessLog == nil || entry == nil {
 		return
 	}
@@ -144,6 +158,20 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		uri = entry.Request.RequestURI
 		if stripQuery {
 			uri = stripQueryString(uri)
+		} else if len(maskedQueryParams) != 0 {
+			strippedURI := stripQueryString(uri)
+
+			params := entry.Request.URL.Query()
+			for i := range maskedQueryParams {
+				val := params.Get(maskedQueryParams[i])
+				if val == "" {
+					continue
+				}
+
+				params.Set(maskedQueryParams[i], hashQueryParamValue(val))
+			}
+
+			uri = fmt.Sprintf("%s?%s", strippedURI, params.Encode())
 		}
 
 		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
