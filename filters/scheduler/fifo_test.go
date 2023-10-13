@@ -6,6 +6,7 @@ import (
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,28 @@ import (
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
 )
+
+func TestCreateFifoName(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		filterFunc func() filters.Spec
+	}{
+		{
+			name:       filters.FifoName,
+			filterFunc: NewFifo,
+		},
+		{
+			name:       filters.FifoWithBodyName,
+			filterFunc: NewFifoWithBody,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.filterFunc().Name() != tt.name {
+				t.Fatalf("got %q, want %q", tt.filterFunc().Name(), tt.name)
+			}
+		})
+	}
+}
 
 func TestCreateFifoFilter(t *testing.T) {
 	for _, tt := range []struct {
@@ -51,6 +74,33 @@ func TestCreateFifoFilter(t *testing.T) {
 				5,
 				"1s",
 			},
+		},
+		{
+			name: "fifo negative value arg1",
+			args: []interface{}{
+				-3,
+				5,
+				"1s",
+			},
+			wantParseErr: true,
+		},
+		{
+			name: "fifo negative value arg2",
+			args: []interface{}{
+				3,
+				-5,
+				"1s",
+			},
+			wantParseErr: true,
+		},
+		{
+			name: "fifo too small value arg3",
+			args: []interface{}{
+				3,
+				5,
+				"1ns",
+			},
+			wantParseErr: true,
 		},
 		{
 			name: "fifo wrong type arg1",
@@ -100,17 +150,145 @@ func TestCreateFifoFilter(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			spec := &fifoSpec{}
-			ff, err := spec.CreateFilter(tt.args)
-			if err != nil && !tt.wantParseErr {
-				t.Fatalf("Failed to parse filter: %v", err)
+			for _, f := range []func() filters.Spec{NewFifo, NewFifoWithBody} {
+				spec := f()
+				ff, err := spec.CreateFilter(tt.args)
+				if err != nil && !tt.wantParseErr {
+					t.Fatalf("Failed to parse filter: %v", err)
+				}
+				if err == nil && tt.wantParseErr {
+					t.Fatal("Failed to get wanted error on create filter")
+				}
+
+				if _, ok := ff.(*fifoFilter); !ok && err == nil {
+					t.Fatal("Failed to convert filter to *fifoFilter")
+				}
 			}
-			if err == nil && tt.wantParseErr {
-				t.Fatal("Failed to get wanted error on create filter")
+		})
+	}
+}
+
+func TestFifoWithBody(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		args         []interface{}
+		backendTime  time.Duration
+		responseSize int
+	}{
+		{
+			name:         "fifoWithBody 1024",
+			args:         []interface{}{1, 0, "1s"},
+			backendTime:  10 * time.Millisecond,
+			responseSize: 1024,
+		},
+		{
+			name:         "fifoWithBody 100MB",
+			args:         []interface{}{1, 0, "20ms"},
+			backendTime:  10 * time.Millisecond,
+			responseSize: 100 * 1000 * 1024,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+
+			backend := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				// sleep here to test the difference between streaming response and not
+				time.Sleep(tt.backendTime)
+				// TODO: maybe better to do slow body streaming?
+				w.Write([]byte(strings.Repeat("A", tt.responseSize)))
+			}))
+			defer backend.Close()
+
+			// proxy
+			metrics := &metricstest.MockMetrics{}
+			reg := scheduler.RegistryWith(scheduler.Options{
+				Metrics:                metrics,
+				EnableRouteFIFOMetrics: true,
+			})
+			defer reg.Close()
+			fr := make(filters.Registry)
+			fr.Register(NewFifoWithBody())
+			args := append(tt.args, backend.URL)
+			doc := fmt.Sprintf(`r: * -> fifoWithBody(%v, %v, "%v") -> "%s"`, args...)
+			t.Logf("%s", doc)
+			dc, err := testdataclient.NewDoc(doc)
+			if err != nil {
+				t.Fatalf("Failed to create testdataclient: %v", err)
+			}
+			defer dc.Close()
+			ro := routing.Options{
+				SignalFirstLoad: true,
+				FilterRegistry:  fr,
+				DataClients:     []routing.DataClient{dc},
+				PostProcessors:  []routing.PostProcessor{reg},
+			}
+			rt := routing.New(ro)
+			defer rt.Close()
+			<-rt.FirstLoad()
+			tracer := &testTracer{MockTracer: mocktracer.New()}
+			pr := proxy.WithParams(proxy.Params{
+				Routing:     rt,
+				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+			})
+			defer pr.Close()
+			ts := stdlibhttptest.NewServer(pr)
+			defer ts.Close()
+
+			// simple test
+			rsp, err := ts.Client().Get(ts.URL)
+			if err != nil {
+				t.Fatalf("Failed to get response from %s: %v", ts.URL, err)
+			}
+			defer rsp.Body.Close()
+			if rsp.StatusCode != http.StatusOK {
+				t.Fatalf("Failed to get valid response from endpoint: %d", rsp.StatusCode)
+			}
+			b, err := io.ReadAll(rsp.Body)
+			if err != nil {
+				t.Fatalf("Failed to read response body from: %v", err)
+			}
+			if len(b) != tt.responseSize {
+				t.Fatalf("Failed to read the size, got: %v, want: %v", len(b), tt.responseSize)
 			}
 
-			if _, ok := ff.(*fifoFilter); !ok && err == nil {
-				t.Fatal("Failed to convert filter to *fifoFilter")
+			// the streaming test
+			rspCH := make(chan *http.Response)
+			errCH := make(chan error)
+			waithCH := make(chan struct{})
+			go func() {
+				rsp, err := ts.Client().Get(ts.URL)
+				waithCH <- struct{}{}
+				if err != nil {
+					errCH <- err
+				} else {
+					rspCH <- rsp
+				}
+			}()
+
+			<-waithCH
+			rsp, err = ts.Client().Get(ts.URL)
+			if err != nil {
+				t.Fatalf("Failed to do 2nd request: %v", err)
+			} else {
+				b, err := io.ReadAll(rsp.Body)
+				if err != nil {
+					t.Fatalf("Failed 2nd request to read body: %v", err)
+				}
+				if len(b) != tt.responseSize {
+					t.Fatalf("Failed 2nd request to get response size: %d, want: %d", len(b), tt.responseSize)
+				}
+			}
+			select {
+			case err := <-errCH:
+				t.Fatalf("Failed to do request: %v", err)
+			case rsp := <-rspCH:
+				b, err := io.ReadAll(rsp.Body)
+				if err != nil {
+					t.Fatalf("Failed to read body: %v", err)
+				}
+				if len(b) != tt.responseSize {
+					t.Fatalf("Failed to get response size: %d, want: %d", len(b), tt.responseSize)
+				}
 			}
 		})
 	}
@@ -119,6 +297,7 @@ func TestCreateFifoFilter(t *testing.T) {
 func TestFifo(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
+		filterFunc    func() filters.Spec
 		args          []interface{}
 		freq          int
 		per           time.Duration
@@ -131,11 +310,19 @@ func TestFifo(t *testing.T) {
 	}{
 		{
 			name:         "fifo defaults",
+			filterFunc:   NewFifo,
 			args:         []interface{}{},
 			wantParseErr: true,
 		},
 		{
-			name: "fifo simple ok",
+			name:         "fifoWithBody defaults",
+			filterFunc:   NewFifoWithBody,
+			args:         []interface{}{},
+			wantParseErr: true,
+		},
+		{
+			name:       "fifo simple ok",
+			filterFunc: NewFifo,
 			args: []interface{}{
 				3,
 				5,
@@ -155,7 +342,29 @@ func TestFifo(t *testing.T) {
 			epsilon:      1,
 		},
 		{
-			name: "fifo with reaching max concurrency and queue timeouts",
+			name:       "fifoWithbody simple ok",
+			filterFunc: NewFifoWithBody,
+			args: []interface{}{
+				3,
+				5,
+				"1s",
+			},
+			freq:          20,
+			per:           100 * time.Millisecond,
+			backendTime:   1 * time.Millisecond,
+			clientTimeout: time.Second,
+			wantConfig: scheduler.Config{
+				MaxConcurrency: 3,
+				MaxQueueSize:   5,
+				Timeout:        time.Second,
+			},
+			wantParseErr: false,
+			wantOkRate:   1.0,
+			epsilon:      1,
+		},
+		{
+			name:       "fifo with reaching max concurrency and queue timeouts",
+			filterFunc: NewFifo,
 			args: []interface{}{
 				3,
 				5,
@@ -175,7 +384,50 @@ func TestFifo(t *testing.T) {
 			epsilon:      1,
 		},
 		{
-			name: "fifo with reaching max concurrency and queue full",
+			name:       "fifoWithBody with reaching max concurrency and queue timeouts",
+			filterFunc: NewFifoWithBody,
+			args: []interface{}{
+				3,
+				5,
+				"10ms",
+			},
+			freq:          200,
+			per:           100 * time.Millisecond,
+			backendTime:   10 * time.Millisecond,
+			clientTimeout: time.Second,
+			wantConfig: scheduler.Config{
+				MaxConcurrency: 3,
+				MaxQueueSize:   5,
+				Timeout:        10 * time.Millisecond,
+			},
+			wantParseErr: false,
+			wantOkRate:   0.1,
+			epsilon:      1,
+		},
+		{
+			name:       "fifo with reaching max concurrency and queue full",
+			filterFunc: NewFifo,
+			args: []interface{}{
+				1,
+				1,
+				"250ms",
+			},
+			freq:          200,
+			per:           100 * time.Millisecond,
+			backendTime:   100 * time.Millisecond,
+			clientTimeout: time.Second,
+			wantConfig: scheduler.Config{
+				MaxConcurrency: 1,
+				MaxQueueSize:   1,
+				Timeout:        250 * time.Millisecond,
+			},
+			wantParseErr: false,
+			wantOkRate:   0.0008,
+			epsilon:      1,
+		},
+		{
+			name:       "fifoWithBody with reaching max concurrency and queue full",
+			filterFunc: NewFifoWithBody,
 			args: []interface{}{
 				1,
 				1,
@@ -196,10 +448,7 @@ func TestFifo(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			fs := NewFifo()
-			if fs.Name() != filters.FifoName {
-				t.Fatalf("Failed to get name got %s want %s", fs.Name(), filters.FifoName)
-			}
+			fs := tt.filterFunc()
 
 			// no parse error
 			ff, err := fs.CreateFilter(tt.args)
@@ -244,18 +493,20 @@ func TestFifo(t *testing.T) {
 			var fmtStr string
 			switch len(tt.args) {
 			case 0:
-				fmtStr = `aroute: * -> fifo() -> "%s"`
+				fmtStr = `aroute: * -> %s() -> "%s"`
 			case 1:
-				fmtStr = `aroute: * -> fifo(%v) -> "%s"`
+				fmtStr = `aroute: * -> %s(%v) -> "%s"`
 			case 2:
-				fmtStr = `aroute: * -> fifo(%v, %v) -> "%s"`
+				fmtStr = `aroute: * -> %s(%v, %v) -> "%s"`
 			case 3:
-				fmtStr = `aroute: * -> fifo(%v, %v, "%v") -> "%s"`
+				fmtStr = `aroute: * -> %s(%v, %v, "%v") -> "%s"`
 			default:
 				t.Fatalf("Test not possible %d >3", len(tt.args))
 			}
 
+			filterName := fs.Name()
 			args := append(tt.args, backend.URL)
+			args = append([]interface{}{filterName}, args...)
 			doc := fmt.Sprintf(fmtStr, args...)
 			t.Logf("%s", doc)
 
@@ -285,14 +536,9 @@ func TestFifo(t *testing.T) {
 			ts := stdlibhttptest.NewServer(pr)
 			defer ts.Close()
 
-			reqURL, err := url.Parse(ts.URL)
+			rsp, err := ts.Client().Get(ts.URL)
 			if err != nil {
-				t.Fatalf("Failed to parse url %s: %v", ts.URL, err)
-			}
-
-			rsp, err := http.DefaultClient.Get(reqURL.String())
-			if err != nil {
-				t.Fatalf("Failed to get response from %s: %v", reqURL.String(), err)
+				t.Fatalf("Failed to get response from %s: %v", ts.URL, err)
 			}
 			defer rsp.Body.Close()
 
@@ -300,7 +546,7 @@ func TestFifo(t *testing.T) {
 				t.Fatalf("Failed to get valid response from endpoint: %d", rsp.StatusCode)
 			}
 
-			va := httptest.NewVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
+			va := httptest.NewVegetaAttacker(ts.URL, tt.freq, tt.per, tt.clientTimeout)
 			va.Attack(io.Discard, 1*time.Second, tt.name)
 
 			t.Logf("Success [0..1]: %0.2f", va.Success())
@@ -330,6 +576,7 @@ func TestFifo(t *testing.T) {
 func TestConstantRouteUpdatesFifo(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
+		filterFunc    func() filters.Spec
 		args          []interface{}
 		freq          int
 		per           time.Duration
@@ -342,7 +589,30 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 		epsilon       float64
 	}{
 		{
-			name: "fifo simple ok",
+			name:       "fifo simple ok",
+			filterFunc: NewFifo,
+			args: []interface{}{
+				3,
+				5,
+				"1s",
+			},
+			freq:          20,
+			per:           100 * time.Millisecond,
+			updateRate:    25 * time.Millisecond,
+			backendTime:   1 * time.Millisecond,
+			clientTimeout: time.Second,
+			wantConfig: scheduler.Config{
+				MaxConcurrency: 3,
+				MaxQueueSize:   5,
+				Timeout:        time.Second,
+			},
+			wantParseErr: false,
+			wantOkRate:   1.0,
+			epsilon:      1,
+		},
+		{
+			name:       "fifoWithBody simple ok",
+			filterFunc: NewFifoWithBody,
 			args: []interface{}{
 				3,
 				5,
@@ -364,10 +634,7 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			fs := NewFifo()
-			if fs.Name() != filters.FifoName {
-				t.Fatalf("Failed to get name got %s want %s", fs.Name(), filters.FifoName)
-			}
+			fs := tt.filterFunc()
 
 			// no parse error
 			ff, err := fs.CreateFilter(tt.args)
@@ -409,8 +676,10 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 			}))
 			defer backend.Close()
 
+			filterName := fs.Name()
 			args := append(tt.args, backend.URL)
-			doc := fmt.Sprintf(`aroute: * -> fifo(%v, %v, "%v") -> "%s"`, args...)
+			args = append([]interface{}{filterName}, args...)
+			doc := fmt.Sprintf(`aroute: * -> %s(%v, %v, "%v") -> "%s"`, args...)
 
 			dc, err := testdataclient.NewDoc(doc)
 			if err != nil {
@@ -455,7 +724,7 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 
 			// run dataclient updates
 			quit := make(chan struct{})
-			newDoc := fmt.Sprintf(`aroute: * -> fifo(100, 200, "250ms") -> "%s"`, backend.URL)
+			newDoc := fmt.Sprintf(`aroute: * -> %s(100, 200, "250ms") -> "%s"`, filterName, backend.URL)
 			go func(q chan<- struct{}, updateRate time.Duration, doc1, doc2 string) {
 				i := 0
 				for {

@@ -15,20 +15,44 @@ const (
 	fifoKey string = "fifo"
 )
 
+type fifoType int
+
+const (
+	fifo fifoType = iota + 1
+	fifoWithBody
+)
+
 type (
-	fifoSpec   struct{}
+	fifoSpec struct {
+		typ fifoType
+	}
 	fifoFilter struct {
 		config scheduler.Config
 		queue  *scheduler.FifoQueue
+		typ    fifoType
 	}
 )
 
 func NewFifo() filters.Spec {
-	return &fifoSpec{}
+	return &fifoSpec{
+		typ: fifo,
+	}
 }
 
-func (*fifoSpec) Name() string {
-	return filters.FifoName
+func NewFifoWithBody() filters.Spec {
+	return &fifoSpec{
+		typ: fifoWithBody,
+	}
+}
+
+func (f *fifoSpec) Name() string {
+	switch f.typ {
+	case fifo:
+		return filters.FifoName
+	case fifoWithBody:
+		return filters.FifoWithBodyName
+	}
+	return "unknown"
 }
 
 // CreateFilter creates a fifoFilter, that will use a semaphore based
@@ -65,6 +89,7 @@ func (s *fifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	return &fifoFilter{
+		typ: s.typ,
 		config: scheduler.Config{
 			MaxConcurrency: cc,
 			MaxQueueSize:   qs,
@@ -139,16 +164,28 @@ func (f *fifoFilter) Request(ctx filters.FilterContext) {
 // Response will decrease the number of inflight requests to release
 // the concurrency reservation for the request.
 func (f *fifoFilter) Response(ctx filters.FilterContext) {
-	pending, ok := ctx.StateBag()[fifoKey].([]func())
-	if !ok {
-		return
+	g := f.createResponse(ctx)
+	switch f.typ {
+	case fifo:
+		g()
+	case fifoWithBody:
+		ctx.StateBag()[filters.FifoWithBody] = g
 	}
-	last := len(pending) - 1
-	if last < 0 {
-		return
+}
+
+func (f *fifoFilter) createResponse(ctx filters.FilterContext) func() {
+	return func() {
+		pending, ok := ctx.StateBag()[fifoKey].([]func())
+		if !ok {
+			return
+		}
+		last := len(pending) - 1
+		if last < 0 {
+			return
+		}
+		pending[last]()
+		ctx.StateBag()[fifoKey] = pending[:last]
 	}
-	pending[last]()
-	ctx.StateBag()[fifoKey] = pending[:last]
 }
 
 // HandleErrorResponse is to opt-in for filters to get called

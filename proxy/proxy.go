@@ -1460,6 +1460,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ctx.Logger().Errorf("Failed to set write deadline: %v", e)
 		}
 	}
+	if sbf, ok := ctx.StateBag()[filters.FifoWithBody]; ok {
+		if f, ok := sbf.(func()); ok {
+			defer f()
+		}
+	}
 
 	if err != nil {
 		p.errorResponse(ctx, err)
