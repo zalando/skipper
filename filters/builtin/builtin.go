@@ -218,6 +218,7 @@ func Filters() []filters.Spec {
 		scheduler.NewFifo(),
 		scheduler.NewLIFO(),
 		scheduler.NewLIFOGroup(),
+		scheduler.NewLimitConcurrency(),
 		rfc.NewPath(),
 		rfc.NewHost(),
 		fadein.NewFadeIn(),

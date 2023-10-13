@@ -35,6 +35,9 @@ const (
 
 	// BackendRatelimit is the key used in the state bag to configure backend ratelimit in proxy
 	BackendRatelimit = "backend:ratelimit"
+
+	// LimitConcurrency
+	LimitConcurrency = "limit:concurrency"
 )
 
 // FilterContext object providing state and information that is unique to a request.
@@ -329,6 +332,7 @@ const (
 	FifoName                                   = "fifo"
 	LifoName                                   = "lifo"
 	LifoGroupName                              = "lifoGroup"
+	LimitConcurrencyName                       = "limitConcurrency"
 	RfcPathName                                = "rfcPath"
 	RfcHostName                                = "rfcHost"
 	BearerInjectorName                         = "bearerinjector"
