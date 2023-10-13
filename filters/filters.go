@@ -35,6 +35,9 @@ const (
 
 	// BackendRatelimit is the key used in the state bag to configure backend ratelimit in proxy
 	BackendRatelimit = "backend:ratelimit"
+
+	// FifoWithBody
+	FifoWithBody = "fifo:body:func"
 )
 
 // FilterContext object providing state and information that is unique to a request.
@@ -327,6 +330,7 @@ const (
 	SetDynamicBackendUrl                       = "setDynamicBackendUrl"
 	ApiUsageMonitoringName                     = "apiUsageMonitoring"
 	FifoName                                   = "fifo"
+	FifoWithBodyName                           = "fifoWithBody"
 	LifoName                                   = "lifo"
 	LifoGroupName                              = "lifoGroup"
 	RfcPathName                                = "rfcPath"
