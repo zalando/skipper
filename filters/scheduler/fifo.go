@@ -150,3 +150,9 @@ func (f *fifoFilter) Response(ctx filters.FilterContext) {
 	pending[last]()
 	ctx.StateBag()[fifoKey] = pending[:last]
 }
+
+// HandleErrorResponse is to opt-in for filters to get called
+// Response(ctx) in case of errors via proxy. It has to return true to opt-in.
+func (f *fifoFilter) HandleErrorResponse() bool {
+	return true
+}
