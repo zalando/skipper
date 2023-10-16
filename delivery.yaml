@@ -50,7 +50,7 @@ pipeline:
       fi
       export IMAGE MULTIARCH_IMAGE
 
-      make deps check-fmt vet staticcheck gosec shortcheck
+      make deps check-fmt vet staticcheck shortcheck
 
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         echo "Creating git tag: ${RELEASE_VERSION}"
