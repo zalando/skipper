@@ -243,7 +243,7 @@ func (l *lifoFilter) Close() error {
 // increase the number of inflight requests and respond to the caller,
 // if the bounded queue returns an error. Status code by Error:
 //
-// - 503 if jobqueue.ErrQueueFull
+// - 503 if jobqueue.ErrStackFull
 // - 502 if jobqueue.ErrTimeout
 func (l *lifoFilter) Request(ctx filters.FilterContext) {
 	request(l.GetQueue(), scheduler.LIFOKey, ctx)
@@ -253,6 +253,12 @@ func (l *lifoFilter) Request(ctx filters.FilterContext) {
 // will decrease the number of inflight requests.
 func (l *lifoFilter) Response(ctx filters.FilterContext) {
 	response(scheduler.LIFOKey, ctx)
+}
+
+// HandleErrorResponse is to opt-in for filters to get called
+// Response(ctx) in case of errors via proxy. It has to return true to opt-in.
+func (l *lifoFilter) HandleErrorResponse() bool {
+	return true
 }
 
 func (l *lifoGroupFilter) Group() string {
@@ -298,6 +304,12 @@ func (l *lifoGroupFilter) Request(ctx filters.FilterContext) {
 // will decrease the number of inflight requests.
 func (l *lifoGroupFilter) Response(ctx filters.FilterContext) {
 	response(scheduler.LIFOKey, ctx)
+}
+
+// HandleErrorResponse is to opt-in for filters to get called
+// Response(ctx) in case of errors via proxy. It has to return true to opt-in.
+func (l *lifoGroupFilter) HandleErrorResponse() bool {
+	return true
 }
 
 func request(q *scheduler.Queue, key string, ctx filters.FilterContext) {

@@ -40,7 +40,6 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/rfc"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -1045,29 +1044,6 @@ func (p *Proxy) do(ctx *context) (err error) {
 		p.makeErrorResponse(ctx, &proxyError{err: errMaxLoopbacksReached})
 		return errMaxLoopbacksReached
 	}
-
-	// this can be deleted after fixing
-	// https://github.com/zalando/skipper/issues/1238 problem
-	// happens if we get proxy errors, for example connect errors,
-	// which would block responses until fifo() timeouts.
-	defer func() {
-		stateBag := ctx.StateBag()
-
-		pendingFIFO, _ := stateBag[scheduler.FIFOKey].([]func())
-		for _, done := range pendingFIFO {
-			done()
-		}
-
-		pendingLIFO, _ := stateBag[scheduler.LIFOKey].([]func())
-		for _, done := range pendingLIFO {
-			done()
-		}
-
-		// Cleanup state bag to avoid double call of done()
-		// because do() could be called for loopback backend
-		delete(stateBag, scheduler.FIFOKey)
-		delete(stateBag, scheduler.LIFOKey)
-	}()
 
 	// proxy global setting
 	if !ctx.wasExecuted() {
