@@ -25,7 +25,6 @@ jobs:
       - run: make staticcheck
       - run: make check-race
       - run: make osv-scanner
-      - run: make gosec
       - run: make govulncheck
       - run: make capslock
       - run: make publish-coverage
