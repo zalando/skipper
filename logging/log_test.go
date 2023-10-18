@@ -38,7 +38,7 @@ func TestCustomPrefixForApplicationLog(t *testing.T) {
 func TestCustomOutputForAccessLog(t *testing.T) {
 	var buf bytes.Buffer
 	Init(Options{AccessLogOutput: &buf})
-	LogAccess(&AccessEntry{StatusCode: http.StatusTeapot}, nil, nil)
+	LogAccess(&AccessEntry{StatusCode: http.StatusTeapot}, nil)
 	if !strings.Contains(buf.String(), strconv.Itoa(http.StatusTeapot)) {
 		t.Error("failed to use custom access log output")
 	}
