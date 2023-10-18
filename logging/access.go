@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +22,10 @@ const (
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
 	// We add the duration in ms, a requested host and a flow id and audit log
 	accessLogFormat = combinedLogFormat + " %d %s %s %s\n"
+
+	// KeyMaskedQueryParams represents the key used to store and retrieve masked query parameters
+	// from the additional data.
+	KeyMaskedQueryParams = "maskedQueryParams"
 )
 
 type accessLogFormatter struct {
@@ -111,13 +114,32 @@ func stripQueryString(u string) string {
 	}
 }
 
+// maskQueryParams masks (i.e., hashing) specific query parameters in the provided request's URI.
+// Returns the obfuscated URI.
+func maskQueryParams(req *http.Request, maskedQueryParams []string) string {
+	strippedURI := stripQueryString(req.RequestURI)
+
+	params := req.URL.Query()
+	for i := range maskedQueryParams {
+		val := params.Get(maskedQueryParams[i])
+		if val == "" {
+			continue
+		}
+
+		hashed := hash(val)
+		params.Set(maskedQueryParams[i], fmt.Sprintf("%d", hashed))
+	}
+
+	return fmt.Sprintf("%s?%s", strippedURI, params.Encode())
+}
+
 func hash(val string) uint64 {
 	return xxhash.Sum64String(val)
 }
 
 // Logs an access event in Apache combined log format (with a minor customization with the duration).
 // Additional allows to provide extra data that may be also logged, depending on the specific log format.
-func LogAccess(entry *AccessEntry, additional map[string]interface{}, maskedQueryParams []string) {
+func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 	if accessLog == nil || entry == nil {
 		return
 	}
@@ -150,21 +172,10 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}, maskedQuer
 		uri = entry.Request.RequestURI
 		if stripQuery {
 			uri = stripQueryString(uri)
-		} else if len(maskedQueryParams) != 0 {
-			strippedURI := stripQueryString(uri)
-
-			params := entry.Request.URL.Query()
-			for i := range maskedQueryParams {
-				val := params.Get(maskedQueryParams[i])
-				if val == "" {
-					continue
-				}
-
-				hashed := hash(val)
-				params.Set(maskedQueryParams[i], strconv.Itoa(int(hashed)))
+		} else if keys, ok := additional[KeyMaskedQueryParams].([]string); ok {
+			if len(keys) > 0 {
+				uri = maskQueryParams(entry.Request, keys)
 			}
-
-			uri = fmt.Sprintf("%s?%s", strippedURI, params.Encode())
 		}
 
 		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
@@ -187,6 +198,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}, maskedQuer
 		"auth-user":      authUser,
 	}
 
+	delete(additional, KeyMaskedQueryParams)
 	for k, v := range additional {
 		logData[k] = v
 	}

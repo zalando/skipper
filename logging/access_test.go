@@ -57,19 +57,18 @@ func testAccessEntryWithQueryParameters(params url.Values) *AccessEntry {
 }
 
 func testAccessLog(t *testing.T, entry *AccessEntry, expectedOutput string, o Options) {
-	testAccessLogExtended(t, entry, nil, nil, expectedOutput, o)
+	testAccessLogExtended(t, entry, nil, expectedOutput, o)
 }
 
 func testAccessLogExtended(t *testing.T, entry *AccessEntry,
 	additional map[string]interface{},
-	maskedQueryParams []string,
 	expectedOutput string,
 	o Options,
 ) {
 	var buf bytes.Buffer
 	o.AccessLogOutput = &buf
 	Init(o)
-	LogAccess(entry, additional, maskedQueryParams)
+	LogAccess(entry, additional)
 	got := buf.String()
 	if got != "" {
 		got = got[:len(got)-1]
@@ -95,18 +94,18 @@ func TestAccessLogFormatJSON(t *testing.T) {
 }
 
 func TestAccessLogFormatJSONWithAdditionalData(t *testing.T) {
-	testAccessLogExtended(t, testAccessEntry(), map[string]interface{}{"extra": "extra"}, nil, logExtendedJSONOutput, Options{AccessLogJSONEnabled: true})
+	testAccessLogExtended(t, testAccessEntry(), map[string]interface{}{"extra": "extra"}, logExtendedJSONOutput, Options{AccessLogJSONEnabled: true})
 }
 
 func TestAccessLogFormatJSONWithMaskedQueryParameters(t *testing.T) {
-	maskedQueryParams := []string{"key_1"}
+	additional := map[string]interface{}{KeyMaskedQueryParams: []string{"foo"}}
 
 	params := url.Values{}
-	params.Add("key_1", "value_1")
+	params.Add("foo", "bar")
 	testAccessLogExtended(t,
 		testAccessEntryWithQueryParameters(params),
-		nil, maskedQueryParams,
-		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif?key_1=3272669212","user-agent":""}`,
+		additional,
+		`{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif?foo=5234164152756840025","user-agent":""}`,
 		Options{AccessLogJSONEnabled: true},
 	)
 }
@@ -302,10 +301,10 @@ func TestAccessLogStripQuery(t *testing.T) {
 }
 
 func TestHashQueryParamValue(t *testing.T) {
-	want := "2972666014"
-	got := hashQueryParamValue("foo")
+	want := uint64(3728699739546630719)
+	got := hash("foo")
 
 	if got != want {
-		t.Errorf("\ngot %q\nwant %q", got, want)
+		t.Errorf("\ngot %v\nwant %v", got, want)
 	}
 }
