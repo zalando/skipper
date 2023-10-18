@@ -105,7 +105,7 @@ func NewMaskAccessLogQuery() filters.Spec {
 func (*maskAccessLogQuery) Name() string { return filters.MaskAccessLogQueryName }
 
 func (al *maskAccessLogQuery) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) <= 0 {
+	if len(args) == 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
