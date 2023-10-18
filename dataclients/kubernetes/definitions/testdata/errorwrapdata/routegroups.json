@@ -45,10 +45,10 @@
             "kind": "RouteGroup",
             "spec": {
                 "backends": [
-                    { 
+                    {
                         "name": "shunt",
                         "type": "shunt"
-                    } 
+                    }
                 ],
                 "hosts": [
                     "test.example.com"
@@ -62,6 +62,71 @@
                         ],
                         "filters": [
                             "inlineContent(\"/foo\")"
+                        ],
+                        "path": "/foo"
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "zalando.org/v1",
+            "metadata": {
+                "name": "rg1"
+            },
+            "kind": "RouteGroup",
+            "spec": {
+                "backends": [
+                    {
+                        "name": "shunt",
+                        "type": "shunt"
+                    }
+                ],
+                "hosts": [
+                    "test.example.com"
+                ],
+                "routes": [
+                    {
+                        "backends": [
+                            {
+                                "backendName": "shunt"
+                            }
+                        ],
+                        "predicates": [
+                            "Path(\"/foo\") && Method(\"GET\")"
+                        ],
+                        "filters": [
+                            "inlineContent(\"/foo\")"
+                        ],
+                        "path": "/foo"
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "zalando.org/v1",
+            "metadata": {
+                "name": "rg1"
+            },
+            "kind": "RouteGroup",
+            "spec": {
+                "backends": [
+                    {
+                        "name": "shunt",
+                        "type": "shunt"
+                    }
+                ],
+                "hosts": [
+                    "test.example.com"
+                ],
+                "routes": [
+                    {
+                        "backends": [
+                            {
+                                "backendName": "shunt"
+                            }
+                        ],
+                        "filters": [
+                            "inlineContent(\"/foo\") -> status(200)"
                         ],
                         "path": "/foo"
                     }

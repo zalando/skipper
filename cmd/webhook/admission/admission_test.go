@@ -122,6 +122,16 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			inputFile: "rg-with-invalid-eskip-filters-and-predicates.json",
 			message:   "parse failed after token status, last route id: , position 11: syntax error\\nparse failed after token Method, last route id: Method, position 6: syntax error",
 		},
+		{
+			name:      "invalid routgroup multiple filters per json/yaml array item",
+			inputFile: "rg-with-multiple-filters.json",
+			message:   "multiple filters per yaml/json array item is not supported",
+		},
+		{
+			name:      "invalid routgroup multiple predicates per json/yaml array item",
+			inputFile: "rg-with-multiple-predicates.json",
+			message:   "multiple predicates per yaml/json array item is not supported",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			expectedResponse := responseAllowedFmt

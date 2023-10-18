@@ -1,10 +1,17 @@
 package definitions
 
 import (
+	"errors"
+
 	"github.com/zalando/skipper/eskip"
 )
 
 type RouteGroupValidator struct{}
+
+var (
+	errMultipleFilters    = errors.New("multiple filters per yaml/json array item is not supported")
+	errMultiplePredicates = errors.New("multiple predicates per yaml/json array item is not supported")
+)
 
 var defaultRouteGroupValidator = &RouteGroupValidator{}
 
@@ -56,7 +63,10 @@ func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
-			_, err := eskip.ParseFilters(f)
+			filters, err := eskip.ParseFilters(f)
+			if len(filters) > 1 {
+				errs = append(errs, errMultipleFilters)
+			}
 			errs = append(errs, err)
 		}
 	}
@@ -68,7 +78,10 @@ func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error
 	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, p := range r.Predicates {
-			_, err := eskip.ParsePredicates(p)
+			predicates, err := eskip.ParsePredicates(p)
+			if len(predicates) > 1 {
+				errs = append(errs, errMultiplePredicates)
+			}
 			errs = append(errs, err)
 		}
 	}
