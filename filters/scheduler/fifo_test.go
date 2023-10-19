@@ -1,15 +1,19 @@
 package scheduler
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 	stdlibhttptest "net/http/httptest"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
@@ -174,39 +178,100 @@ func TestCreateFifoFilter(t *testing.T) {
 	}
 }
 
+type flusher struct {
+	w http.ResponseWriter
+}
+
+func (f *flusher) Flush() {
+	f.w.(http.Flusher).Flush()
+}
+
+func (f *flusher) Unwrap() http.ResponseWriter {
+	return f.w
+}
+
+func (f *flusher) Write(p []byte) (n int, err error) {
+	n, err = f.w.Write(p)
+	if err == nil {
+		f.Flush()
+	}
+	return
+}
+
+type slowReader struct {
+	r io.Reader
+	d time.Duration
+}
+
+func (sr *slowReader) Read(p []byte) (int, error) {
+	logrus.Infof("slowReader: %d", len(p))
+	if len(p) == 0 {
+		return 0, nil
+	}
+	time.Sleep(sr.d)
+	n, err := sr.r.Read(p)
+	logrus.Infof("slowReader: %d %v", n, err)
+	return n, err
+}
+
 func TestFifoWithBody(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
 		args         []interface{}
 		backendTime  time.Duration
 		responseSize int
+		wantErr      bool
 	}{
 		{
-			name:         "fifoWithBody 1024",
-			args:         []interface{}{1, 0, "1s"},
+			name:         "fifoWithBody 1024B with 1 queue should be ok",
+			args:         []interface{}{1, 1, "1s"},
 			backendTime:  10 * time.Millisecond,
 			responseSize: 1024,
 		},
 		{
-			name:         "fifoWithBody 100MB",
-			args:         []interface{}{1, 0, "20ms"},
+			name:         "fifoWithBody 1024B with 0 queue should fail",
+			args:         []interface{}{1, 0, "10ms"},
+			backendTime:  50 * time.Millisecond,
+			responseSize: 1024,
+			wantErr:      true,
+		},
+		{
+			name:         "fifoWithBody 2x 1024B with 1 queue should be ok",
+			args:         []interface{}{1, 1, "1s"},
 			backendTime:  10 * time.Millisecond,
-			responseSize: 100 * 1000 * 1024,
+			responseSize: 2 * 1024,
+		},
+		{
+			name:         "fifoWithBody 2x 1024B with 0 queue should fail",
+			args:         []interface{}{1, 0, "15ms"},
+			backendTime:  10 * time.Millisecond,
+			responseSize: 2 * 1024,
+			wantErr:      true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 
 			backend := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Logf("backend path: %s", r.URL.Path)
+				buf := bytes.NewBufferString(strings.Repeat("A", tt.responseSize))
+				halfReader := iotest.HalfReader(buf)
+				sr := &slowReader{
+					d: 100 * time.Millisecond,
+					r: halfReader,
+				}
+
 				w.WriteHeader(http.StatusOK)
 				// sleep here to test the difference between streaming response and not
 				time.Sleep(tt.backendTime)
 				// TODO: maybe better to do slow body streaming?
-				w.Write([]byte(strings.Repeat("A", tt.responseSize)))
+				b := make([]byte, 1024)
+				io.CopyBuffer(&flusher{w}, sr, b)
 			}))
 			defer backend.Close()
 
 			// proxy
 			metrics := &metricstest.MockMetrics{}
+			defer metrics.Close()
 			reg := scheduler.RegistryWith(scheduler.Options{
 				Metrics:                metrics,
 				EnableRouteFIFOMetrics: true,
@@ -241,7 +306,7 @@ func TestFifoWithBody(t *testing.T) {
 			defer ts.Close()
 
 			// simple test
-			rsp, err := ts.Client().Get(ts.URL)
+			rsp, err := ts.Client().Get(ts.URL + "/test")
 			if err != nil {
 				t.Fatalf("Failed to get response from %s: %v", ts.URL, err)
 			}
@@ -257,13 +322,19 @@ func TestFifoWithBody(t *testing.T) {
 				t.Fatalf("Failed to read the size, got: %v, want: %v", len(b), tt.responseSize)
 			}
 
+			t.Log("the streaming test")
 			// the streaming test
 			rspCH := make(chan *http.Response)
 			errCH := make(chan error)
+			defer func() {
+				close(rspCH)
+				close(errCH)
+			}()
 			waithCH := make(chan struct{})
 			go func() {
-				rsp, err := ts.Client().Get(ts.URL)
-				waithCH <- struct{}{}
+				rsp, err := ts.Client().Get(ts.URL + "/1")
+				t.Logf("rsp1: %s", rsp.Status)
+				close(waithCH)
 				if err != nil {
 					errCH <- err
 				} else {
@@ -272,22 +343,34 @@ func TestFifoWithBody(t *testing.T) {
 			}()
 
 			<-waithCH
-			rsp, err = ts.Client().Get(ts.URL)
-			if err != nil {
-				t.Fatalf("Failed to do 2nd request: %v", err)
-			} else {
-				b, err := io.ReadAll(rsp.Body)
-				if err != nil {
-					t.Fatalf("Failed 2nd request to read body: %v", err)
+			rsp2, err2 := ts.Client().Get(ts.URL + "/2")
+			t.Logf("rsp2: %s", rsp.Status)
+			if tt.wantErr {
+				n, err := io.Copy(io.Discard, rsp2.Body)
+				if n != 0 {
+					t.Fatalf("Failed to get error copied %d bytes, err: %v", n, err)
 				}
-				if len(b) != tt.responseSize {
-					t.Fatalf("Failed 2nd request to get response size: %d, want: %d", len(b), tt.responseSize)
+				rsp2.Body.Close()
+			} else {
+				if err2 != nil {
+					t.Errorf("Failed to do 2nd request: %v", err2)
+				} else {
+					b, err2 := io.ReadAll(rsp2.Body)
+					if err2 != nil {
+						t.Errorf("Failed 2nd request to read body: %v", err2)
+					}
+					if len(b) != tt.responseSize {
+						t.Errorf("Failed 2nd request to get response size: %d, want: %d", len(b), tt.responseSize)
+					}
 				}
 			}
+
+			// read body from first request
 			select {
 			case err := <-errCH:
 				t.Fatalf("Failed to do request: %v", err)
 			case rsp := <-rspCH:
+				t.Logf("client1 got %s", rsp.Status)
 				b, err := io.ReadAll(rsp.Body)
 				if err != nil {
 					t.Fatalf("Failed to read body: %v", err)
@@ -329,22 +412,40 @@ func TestFifo(t *testing.T) {
 			wantOkRate:    1.0,
 		},
 		{
+			name:          "fifo simple client canceled",
+			filter:        `fifo(3, 5, "1s")`,
+			freq:          20,
+			per:           100 * time.Millisecond,
+			backendTime:   1 * time.Millisecond,
+			clientTimeout: time.Nanosecond,
+			wantOkRate:    0,
+		},
+		{
+			name:          "fifoWithbody simple client canceled",
+			filter:        `fifoWithbody(3, 5, "1s")`,
+			freq:          20,
+			per:           100 * time.Millisecond,
+			backendTime:   1 * time.Millisecond,
+			clientTimeout: time.Nanosecond,
+			wantOkRate:    0,
+		},
+		{
 			name:          "fifo with reaching max concurrency and queue timeouts",
 			filter:        `fifo(3, 5, "10ms")`,
-			freq:          200,
-			per:           100 * time.Millisecond,
-			backendTime:   10 * time.Millisecond,
+			freq:          20,
+			per:           10 * time.Millisecond,
+			backendTime:   11 * time.Millisecond,
 			clientTimeout: time.Second,
-			wantOkRate:    0.1,
+			wantOkRate:    0.005,
 		},
 		{
 			name:          "fifoWithbody with reaching max concurrency and queue timeouts",
 			filter:        `fifoWithbody(3, 5, "10ms")`,
-			freq:          200,
-			per:           100 * time.Millisecond,
-			backendTime:   10 * time.Millisecond,
+			freq:          20,
+			per:           10 * time.Millisecond,
+			backendTime:   11 * time.Millisecond,
 			clientTimeout: time.Second,
-			wantOkRate:    0.1,
+			wantOkRate:    0.005,
 		},
 		{
 			name:          "fifo with reaching max concurrency and queue full",
@@ -432,11 +533,21 @@ func TestFifo(t *testing.T) {
 
 			t.Logf("Success [0..1]: %0.2f", va.Success())
 			t.Logf("requests: %d", va.TotalRequests())
+			count200, _ := va.CountStatus(200)
+			count499, _ := va.CountStatus(0)
+			count502, _ := va.CountStatus(502)
+			count503, _ := va.CountStatus(503)
+			t.Logf("status 200: %d", count200)
+			t.Logf("status 499: %d", count499)
+			t.Logf("status 502: %d", count502)
+			t.Logf("status 503: %d", count503)
+
 			got := va.TotalSuccess()
 			want := tt.wantOkRate * float64(va.TotalRequests())
 			if got < want {
 				t.Fatalf("OK rate too low got<want: %0.0f < %0.0f", got, want)
 			}
+			t.Logf("got: %0.2f, want: %0.2f", got, want)
 			countOK, ok := va.CountStatus(http.StatusOK)
 			if !ok && tt.wantOkRate > 0 {
 				t.Fatal("no OK")

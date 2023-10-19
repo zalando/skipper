@@ -11,48 +11,31 @@ import (
 	"github.com/zalando/skipper/scheduler"
 )
 
-type fifoType int
-
-const (
-	fifo fifoType = iota + 1
-	fifoWithBody
-)
-
-func (t fifoType) String() string {
-	switch t {
-	case fifo:
-		return filters.FifoName
-	case fifoWithBody:
-		return filters.FifoWithBodyName
-	}
-	return "unknown"
-}
-
 type (
 	fifoSpec struct {
-		typ fifoType
+		typ string
 	}
 	fifoFilter struct {
 		config scheduler.Config
 		queue  *scheduler.FifoQueue
-		typ    fifoType
+		typ    string
 	}
 )
 
 func NewFifo() filters.Spec {
 	return &fifoSpec{
-		typ: fifo,
+		typ: filters.FifoName,
 	}
 }
 
 func NewFifoWithBody() filters.Spec {
 	return &fifoSpec{
-		typ: fifoWithBody,
+		typ: filters.FifoWithBodyName,
 	}
 }
 
 func (s *fifoSpec) Name() string {
-	return s.typ.String()
+	return s.typ
 }
 
 // CreateFilter creates a fifoFilter, that will use a semaphore based
@@ -157,25 +140,16 @@ func (f *fifoFilter) Request(ctx filters.FilterContext) {
 	}
 
 	// ok
-	pending, _ := ctx.StateBag()[f.typ.String()].([]func())
-	ctx.StateBag()[f.typ.String()] = append(pending, done)
+	pending, _ := ctx.StateBag()[f.typ].([]func())
+	ctx.StateBag()[f.typ] = append(pending, done)
 }
 
 // Response will decrease the number of inflight requests to release
 // the concurrency reservation for the request.
 func (f *fifoFilter) Response(ctx filters.FilterContext) {
-	g := f.createResponse(ctx)
 	switch f.typ {
-	case fifo:
-		g()
-	case fifoWithBody:
-		ctx.StateBag()[filters.FifoWithBody] = g
-	}
-}
-
-func (f *fifoFilter) createResponse(ctx filters.FilterContext) func() {
-	return func() {
-		pending, ok := ctx.StateBag()[f.typ.String()].([]func())
+	case filters.FifoName:
+		pending, ok := ctx.StateBag()[f.typ].([]func())
 		if !ok {
 			return
 		}
@@ -184,7 +158,10 @@ func (f *fifoFilter) createResponse(ctx filters.FilterContext) func() {
 			return
 		}
 		pending[last]()
-		ctx.StateBag()[f.typ.String()] = pending[:last]
+		ctx.StateBag()[f.typ] = pending[:last]
+
+	case filters.FifoWithBodyName:
+		// nothing to do here, handled in the proxy after copyStream()
 	}
 }
 

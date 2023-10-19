@@ -1454,22 +1454,28 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err := p.do(ctx)
 
+	// writeTimeout() filter
 	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
 		e := ctx.ResponseController().SetWriteDeadline(time.Now().Add(d))
 		if e != nil {
 			ctx.Logger().Errorf("Failed to set write deadline: %v", e)
 		}
 	}
-	if sbf, ok := ctx.StateBag()[filters.FifoWithBody]; ok {
-		if f, ok := sbf.(func()); ok {
-			defer f()
-		}
-	}
 
+	// stream response body to client
 	if err != nil {
 		p.errorResponse(ctx, err)
 	} else {
 		p.serveResponse(ctx)
+	}
+
+	// fifoWtihBody() filter
+	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
+		if fs, ok := sbf.([]func()); ok {
+			for i := len(fs) - 1; i >= 0; i-- {
+				fs[i]()
+			}
+		}
 	}
 
 	if ctx.cancelBackendContext != nil {

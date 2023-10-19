@@ -155,6 +155,20 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	cnt := fq.counter
 	fq.mu.RUnlock()
 
+	// check request context expired
+	// https://github.com/golang/go/issues/63615
+	if err := ctx.Err(); err != nil {
+		switch err {
+		case context.DeadlineExceeded:
+			return nil, ErrQueueTimeout
+		case context.Canceled:
+			return nil, ErrClientCanceled
+		default:
+			// does not exist yet in Go stdlib as of Go1.18.4
+			return nil, err
+		}
+	}
+
 	// handle queue
 	all := cnt.Add(1)
 	// queue full?
@@ -178,6 +192,18 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 		default:
 			// does not exist yet in Go stdlib as of Go1.18.4
 			return nil, err
+		}
+	} else {
+		// semaphore will not fail on Acquire when context timed out, nor when it's canceled.
+		// see also: https://github.com/golang/go/issues/63615
+		// The behavior can change as in the proposed change, so the code path on error would apply.
+		// If the proposed change was merge this code path below can likely be cleaned up.
+		select {
+		case <-c.Done():
+			// We timed out in Acquire, so it never increased semaphore by one
+			cnt.Add(-1)
+			return nil, ErrQueueTimeout
+		default:
 		}
 	}
 
