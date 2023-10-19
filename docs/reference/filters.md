@@ -1744,7 +1744,7 @@ The data flow in case the policy allows the request looks like this
 
 ```ascii
              ┌──────────────────┐               ┌────────────────────┐
- (1) Request │     Skipper      │ (4) Request   │ Target Aplication  │
+ (1) Request │     Skipper      │ (4) Request   │ Target Application │
 ─────────────┤                  ├──────────────►│                    │
              │                  │               │                    │
  (6) Response│   (2)│   ▲ (3)   │ (5) Response  │                    │
@@ -1770,7 +1770,7 @@ The data flow in case the policy disallows the request looks like this
 
 ```ascii
              ┌──────────────────┐               ┌────────────────────┐
- (1) Request │     Skipper      │               │ Target Aplication  │
+ (1) Request │     Skipper      │               │ Target Applicatio  │
 ─────────────┤                  ├──────────────►│                    │
              │                  │               │                    │
  (4) Response│   (2)│   ▲ (3)   │               │                    │
