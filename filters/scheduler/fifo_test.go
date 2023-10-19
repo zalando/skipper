@@ -5,11 +5,11 @@ import (
 	"io"
 	"net/http"
 	stdlibhttptest "net/http/httptest"
-	"net/url"
 	"testing"
 	"time"
 
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/httptest"
@@ -19,11 +19,12 @@ import (
 	"github.com/zalando/skipper/scheduler"
 )
 
-func TestCreateFifoFilter(t *testing.T) {
+func TestFifoCreateFilter(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
 		args         []interface{}
 		wantParseErr bool
+		wantConfig   scheduler.Config
 	}{
 		{
 			name:         "fifo no args",
@@ -50,6 +51,11 @@ func TestCreateFifoFilter(t *testing.T) {
 				3,
 				5,
 				"1s",
+			},
+			wantConfig: scheduler.Config{
+				MaxConcurrency: 3,
+				MaxQueueSize:   5,
+				Timeout:        1 * time.Second,
 			},
 		},
 		{
@@ -108,9 +114,22 @@ func TestCreateFifoFilter(t *testing.T) {
 			if err == nil && tt.wantParseErr {
 				t.Fatal("Failed to get wanted error on create filter")
 			}
+			if tt.wantParseErr {
+				return
+			}
 
-			if _, ok := ff.(*fifoFilter); !ok && err == nil {
+			f, ok := ff.(*fifoFilter)
+			if !ok {
 				t.Fatal("Failed to convert filter to *fifoFilter")
+			}
+
+			// validate config
+			config := f.Config()
+			if config != tt.wantConfig {
+				t.Fatalf("Failed to get Config, got: %v, want: %v", config, tt.wantConfig)
+			}
+			if f.queue != f.GetQueue() {
+				t.Fatal("Failed to get expected queue")
 			}
 		})
 	}
@@ -118,110 +137,42 @@ func TestCreateFifoFilter(t *testing.T) {
 
 func TestFifo(t *testing.T) {
 	for _, tt := range []struct {
-		name          string
-		args          []interface{}
-		freq          int
-		per           time.Duration
-		backendTime   time.Duration
-		clientTimeout time.Duration
-		wantConfig    scheduler.Config
-		wantParseErr  bool
-		wantOkRate    float64
-		epsilon       float64
+		name        string
+		filter      string
+		freq        int
+		per         time.Duration
+		backendTime time.Duration
+		wantOkRate  float64
 	}{
 		{
-			name:         "fifo defaults",
-			args:         []interface{}{},
-			wantParseErr: true,
+			name:        "fifo simple ok",
+			filter:      `fifo(3, 5, "1s")`,
+			freq:        20,
+			per:         100 * time.Millisecond,
+			backendTime: 1 * time.Millisecond,
+			wantOkRate:  1.0,
 		},
 		{
-			name: "fifo simple ok",
-			args: []interface{}{
-				3,
-				5,
-				"1s",
-			},
-			freq:          20,
-			per:           100 * time.Millisecond,
-			backendTime:   1 * time.Millisecond,
-			clientTimeout: time.Second,
-			wantConfig: scheduler.Config{
-				MaxConcurrency: 3,
-				MaxQueueSize:   5,
-				Timeout:        time.Second,
-			},
-			wantParseErr: false,
-			wantOkRate:   1.0,
-			epsilon:      1,
+			name:        "fifo with reaching max concurrency and queue timeouts",
+			filter:      `fifo(3, 5, "10ms")`,
+			freq:        200,
+			per:         100 * time.Millisecond,
+			backendTime: 10 * time.Millisecond,
+			wantOkRate:  0.1,
 		},
 		{
-			name: "fifo with reaching max concurrency and queue timeouts",
-			args: []interface{}{
-				3,
-				5,
-				"10ms",
-			},
-			freq:          200,
-			per:           100 * time.Millisecond,
-			backendTime:   10 * time.Millisecond,
-			clientTimeout: time.Second,
-			wantConfig: scheduler.Config{
-				MaxConcurrency: 3,
-				MaxQueueSize:   5,
-				Timeout:        10 * time.Millisecond,
-			},
-			wantParseErr: false,
-			wantOkRate:   0.1,
-			epsilon:      1,
-		},
-		{
-			name: "fifo with reaching max concurrency and queue full",
-			args: []interface{}{
-				1,
-				1,
-				"250ms",
-			},
-			freq:          200,
-			per:           100 * time.Millisecond,
-			backendTime:   100 * time.Millisecond,
-			clientTimeout: time.Second,
-			wantConfig: scheduler.Config{
-				MaxConcurrency: 1,
-				MaxQueueSize:   1,
-				Timeout:        250 * time.Millisecond,
-			},
-			wantParseErr: false,
-			wantOkRate:   0.0008,
-			epsilon:      1,
+			name:        "fifo with reaching max concurrency and queue full",
+			filter:      `fifo(3, 5, "250ms")`,
+			freq:        200,
+			per:         100 * time.Millisecond,
+			backendTime: 100 * time.Millisecond,
+			wantOkRate:  0.0008,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			fs := NewFifo()
 			if fs.Name() != filters.FifoName {
 				t.Fatalf("Failed to get name got %s want %s", fs.Name(), filters.FifoName)
-			}
-
-			// no parse error
-			ff, err := fs.CreateFilter(tt.args)
-			if err != nil && !tt.wantParseErr {
-				t.Fatalf("Failed to parse filter: %v", err)
-			}
-			if err == nil && tt.wantParseErr {
-				t.Fatalf("want parse error but have no: %v", err)
-			}
-			if tt.wantParseErr {
-				return
-			}
-
-			// validate config
-			if f, ok := ff.(*fifoFilter); ok {
-				config := f.Config()
-				if config != tt.wantConfig {
-					t.Fatalf("Failed to get Config, got: %v, want: %v", config, tt.wantConfig)
-				}
-				if f.queue != f.GetQueue() {
-					t.Fatal("Failed to get expected queue")
-				}
 			}
 
 			metrics := &metricstest.MockMetrics{}
@@ -241,22 +192,11 @@ func TestFifo(t *testing.T) {
 			}))
 			defer backend.Close()
 
-			var fmtStr string
-			switch len(tt.args) {
-			case 0:
-				fmtStr = `aroute: * -> fifo() -> "%s"`
-			case 1:
-				fmtStr = `aroute: * -> fifo(%v) -> "%s"`
-			case 2:
-				fmtStr = `aroute: * -> fifo(%v, %v) -> "%s"`
-			case 3:
-				fmtStr = `aroute: * -> fifo(%v, %v, "%v") -> "%s"`
-			default:
-				t.Fatalf("Test not possible %d >3", len(tt.args))
+			if ff := eskip.MustParseFilters(tt.filter); len(ff) != 1 {
+				t.Fatalf("expected one filter, got %d", len(ff))
 			}
 
-			args := append(tt.args, backend.URL)
-			doc := fmt.Sprintf(fmtStr, args...)
+			doc := fmt.Sprintf(`aroute: * -> %s -> "%s"`, tt.filter, backend.URL)
 			t.Logf("%s", doc)
 
 			dc, err := testdataclient.NewDoc(doc)
@@ -285,14 +225,9 @@ func TestFifo(t *testing.T) {
 			ts := stdlibhttptest.NewServer(pr)
 			defer ts.Close()
 
-			reqURL, err := url.Parse(ts.URL)
+			rsp, err := ts.Client().Get(ts.URL)
 			if err != nil {
-				t.Fatalf("Failed to parse url %s: %v", ts.URL, err)
-			}
-
-			rsp, err := http.DefaultClient.Get(reqURL.String())
-			if err != nil {
-				t.Fatalf("Failed to get response from %s: %v", reqURL.String(), err)
+				t.Fatalf("Failed to get response from %s: %v", ts.URL, err)
 			}
 			defer rsp.Body.Close()
 
@@ -300,7 +235,9 @@ func TestFifo(t *testing.T) {
 				t.Fatalf("Failed to get valid response from endpoint: %d", rsp.StatusCode)
 			}
 
-			va := httptest.NewVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
+			const clientTimeout = 1 * time.Second
+
+			va := httptest.NewVegetaAttacker(ts.URL, tt.freq, tt.per, clientTimeout)
 			va.Attack(io.Discard, 1*time.Second, tt.name)
 
 			t.Logf("Success [0..1]: %0.2f", va.Success())
@@ -327,69 +264,30 @@ func TestFifo(t *testing.T) {
 	}
 }
 
-func TestConstantRouteUpdatesFifo(t *testing.T) {
+func TestFifoConstantRouteUpdates(t *testing.T) {
 	for _, tt := range []struct {
-		name          string
-		args          []interface{}
-		freq          int
-		per           time.Duration
-		updateRate    time.Duration
-		backendTime   time.Duration
-		clientTimeout time.Duration
-		wantConfig    scheduler.Config
-		wantParseErr  bool
-		wantOkRate    float64
-		epsilon       float64
+		name        string
+		filter      string
+		freq        int
+		per         time.Duration
+		updateRate  time.Duration
+		backendTime time.Duration
+		wantOkRate  float64
 	}{
 		{
-			name: "fifo simple ok",
-			args: []interface{}{
-				3,
-				5,
-				"1s",
-			},
-			freq:          20,
-			per:           100 * time.Millisecond,
-			updateRate:    25 * time.Millisecond,
-			backendTime:   1 * time.Millisecond,
-			clientTimeout: time.Second,
-			wantConfig: scheduler.Config{
-				MaxConcurrency: 3,
-				MaxQueueSize:   5,
-				Timeout:        time.Second,
-			},
-			wantParseErr: false,
-			wantOkRate:   1.0,
-			epsilon:      1,
+			name:        "fifo simple ok",
+			filter:      `fifo(3, 5, "1s")`,
+			freq:        20,
+			per:         100 * time.Millisecond,
+			updateRate:  25 * time.Millisecond,
+			backendTime: 1 * time.Millisecond,
+			wantOkRate:  1.0,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			fs := NewFifo()
 			if fs.Name() != filters.FifoName {
 				t.Fatalf("Failed to get name got %s want %s", fs.Name(), filters.FifoName)
-			}
-
-			// no parse error
-			ff, err := fs.CreateFilter(tt.args)
-			if err != nil && !tt.wantParseErr {
-				t.Fatalf("Failed to parse filter: %v", err)
-			}
-			if err == nil && tt.wantParseErr {
-				t.Fatalf("want parse error but have no: %v", err)
-			}
-			if tt.wantParseErr {
-				return
-			}
-
-			// validate config
-			if f, ok := ff.(*fifoFilter); ok {
-				config := f.Config()
-				if config != tt.wantConfig {
-					t.Fatalf("Failed to get Config, got: %v, want: %v", config, tt.wantConfig)
-				}
-				if f.queue != f.GetQueue() {
-					t.Fatal("Failed to get expected queue")
-				}
 			}
 
 			metrics := &metricstest.MockMetrics{}
@@ -409,8 +307,11 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 			}))
 			defer backend.Close()
 
-			args := append(tt.args, backend.URL)
-			doc := fmt.Sprintf(`aroute: * -> fifo(%v, %v, "%v") -> "%s"`, args...)
+			if ff := eskip.MustParseFilters(tt.filter); len(ff) != 1 {
+				t.Fatalf("expected one filter, got %d", len(ff))
+			}
+
+			doc := fmt.Sprintf(`aroute: * -> %s -> "%s"`, tt.filter, backend.URL)
 
 			dc, err := testdataclient.NewDoc(doc)
 			if err != nil {
@@ -438,14 +339,9 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 			ts := stdlibhttptest.NewServer(pr)
 			defer ts.Close()
 
-			reqURL, err := url.Parse(ts.URL)
+			rsp, err := ts.Client().Get(ts.URL)
 			if err != nil {
-				t.Fatalf("Failed to parse url %s: %v", ts.URL, err)
-			}
-
-			rsp, err := http.DefaultClient.Get(reqURL.String())
-			if err != nil {
-				t.Fatalf("Failed to get response from %s: %v", reqURL.String(), err)
+				t.Fatalf("Failed to get response from %s: %v", ts.URL, err)
 			}
 			defer rsp.Body.Close()
 
@@ -475,7 +371,9 @@ func TestConstantRouteUpdatesFifo(t *testing.T) {
 
 			}(quit, tt.updateRate, doc, newDoc)
 
-			va := httptest.NewVegetaAttacker(reqURL.String(), tt.freq, tt.per, tt.clientTimeout)
+			const clientTimeout = 1 * time.Second
+
+			va := httptest.NewVegetaAttacker(ts.URL, tt.freq, tt.per, clientTimeout)
 			va.Attack(io.Discard, 1*time.Second, tt.name)
 			quit <- struct{}{}
 
