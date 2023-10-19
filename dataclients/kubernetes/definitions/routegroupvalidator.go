@@ -9,8 +9,8 @@ import (
 type RouteGroupValidator struct{}
 
 var (
-	errMultipleFilters    = errors.New("multiple filters per yaml/json array item is not supported")
-	errMultiplePredicates = errors.New("multiple predicates per yaml/json array item is not supported")
+	errMultipleFilters    = errors.New("single filter expected")
+	errMultiplePredicates = errors.New("single predicate expected")
 )
 
 var defaultRouteGroupValidator = &RouteGroupValidator{}

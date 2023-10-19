@@ -125,12 +125,12 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "invalid routgroup multiple filters per json/yaml array item",
 			inputFile: "rg-with-multiple-filters.json",
-			message:   "multiple filters per yaml/json array item is not supported",
+			message:   "single filter expected",
 		},
 		{
 			name:      "invalid routgroup multiple predicates per json/yaml array item",
 			inputFile: "rg-with-multiple-predicates.json",
-			message:   "multiple predicates per yaml/json array item is not supported",
+			message:   "single predicate expected",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

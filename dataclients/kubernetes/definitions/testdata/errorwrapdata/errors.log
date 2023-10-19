@@ -1,4 +1,4 @@
 route group without name
 error in route group default/rg1: route group without backend
-multiple predicates per yaml/json array item is not supported
-multiple filters per yaml/json array item is not supported
+single predicate expected
+single filter expected
