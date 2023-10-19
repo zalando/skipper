@@ -403,8 +403,8 @@ func TestFifo(t *testing.T) {
 			wantOkRate:  1.0,
 		},
 		{
-			name:          "fifoWithbody simple ok",
-			filter:        `fifoWithbody(3, 5, "1s")`,
+			name:          "fifoWithBody simple ok",
+			filter:        `fifoWithBody(3, 5, "1s")`,
 			freq:          20,
 			per:           100 * time.Millisecond,
 			backendTime:   1 * time.Millisecond,
@@ -421,8 +421,8 @@ func TestFifo(t *testing.T) {
 			wantOkRate:    0,
 		},
 		{
-			name:          "fifoWithbody simple client canceled",
-			filter:        `fifoWithbody(3, 5, "1s")`,
+			name:          "fifoWithBody simple client canceled",
+			filter:        `fifoWithBody(3, 5, "1s")`,
 			freq:          20,
 			per:           100 * time.Millisecond,
 			backendTime:   1 * time.Millisecond,
@@ -439,8 +439,8 @@ func TestFifo(t *testing.T) {
 			wantOkRate:    0.005,
 		},
 		{
-			name:          "fifoWithbody with reaching max concurrency and queue timeouts",
-			filter:        `fifoWithbody(3, 5, "10ms")`,
+			name:          "fifoWithBody with reaching max concurrency and queue timeouts",
+			filter:        `fifoWithBody(3, 5, "10ms")`,
 			freq:          20,
 			per:           10 * time.Millisecond,
 			backendTime:   11 * time.Millisecond,
