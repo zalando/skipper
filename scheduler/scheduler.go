@@ -155,6 +155,20 @@ func (fq *fifoQueue) wait(ctx context.Context) (func(), error) {
 	cnt := fq.counter
 	fq.mu.RUnlock()
 
+	// check request context expired
+	// https://github.com/golang/go/issues/63615
+	if err := ctx.Err(); err != nil {
+		switch err {
+		case context.DeadlineExceeded:
+			return nil, ErrQueueTimeout
+		case context.Canceled:
+			return nil, ErrClientCanceled
+		default:
+			// does not exist yet in Go stdlib as of Go1.18.4
+			return nil, err
+		}
+	}
+
 	// handle queue
 	all := cnt.Add(1)
 	// queue full?

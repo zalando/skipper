@@ -327,6 +327,7 @@ const (
 	SetDynamicBackendUrl                       = "setDynamicBackendUrl"
 	ApiUsageMonitoringName                     = "apiUsageMonitoring"
 	FifoName                                   = "fifo"
+	FifoWithBodyName                           = "fifoWithBody"
 	LifoName                                   = "lifo"
 	LifoGroupName                              = "lifoGroup"
 	RfcPathName                                = "rfcPath"
