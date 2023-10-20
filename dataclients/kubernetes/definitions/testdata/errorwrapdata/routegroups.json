@@ -92,7 +92,8 @@
                             }
                         ],
                         "predicates": [
-                            "Path(\"/foo\") && Method(\"GET\")"
+                            "Path(\"/foo\") && Method(\"GET\")",
+                            ""
                         ],
                         "filters": [
                             "inlineContent(\"/foo\")"
@@ -126,7 +127,8 @@
                             }
                         ],
                         "filters": [
-                            "inlineContent(\"/foo\") -> status(200)"
+                            "inlineContent(\"/foo\") -> status(200)",
+                            " "
                         ],
                         "path": "/foo"
                     }

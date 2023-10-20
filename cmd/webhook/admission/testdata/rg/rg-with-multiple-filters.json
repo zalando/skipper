@@ -34,7 +34,8 @@
               }
             ],
             "filters": [
-              "status(201) -> inlineContent(\"hi\")"
+              "status(201) -> inlineContent(\"hi\")",
+              " "
             ],
             "path": "/",
             "predicates": [

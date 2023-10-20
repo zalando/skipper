@@ -25,8 +25,6 @@ var (
 	errRouteGroupWithoutName    = errors.New("route group without name")
 	errRouteGroupWithoutSpec    = errors.New("route group without spec")
 	errInvalidRouteSpec         = errors.New("invalid route spec")
-	errInvalidPredicate         = errors.New("invalid predicate")
-	errInvalidFilter            = errors.New("invalid filter")
 	errInvalidMethod            = errors.New("invalid method")
 	errBothPathAndPathSubtree   = errors.New("path and path subtree in the same route")
 	errMissingBackendReference  = errors.New("missing backend reference")

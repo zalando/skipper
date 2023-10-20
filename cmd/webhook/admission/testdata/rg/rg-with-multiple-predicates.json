@@ -38,7 +38,8 @@
             ],
             "path": "/",
             "predicates": [
-              "Method(\"GET\") && Path(\"/\")"
+              "Method(\"GET\") && Path(\"/\")",
+              " "
             ]
           }
         ]
