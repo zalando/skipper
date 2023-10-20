@@ -10,8 +10,8 @@ import (
 type RouteGroupValidator struct{}
 
 var (
-	errMultipleFilters    = errors.New("single filter expected")
-	errMultiplePredicates = errors.New("single predicate expected")
+	errSingleFilterExpected    = errors.New("single filter expected")
+	errSinglePredicateExpected = errors.New("single predicate expected")
 )
 
 var defaultRouteGroupValidator = &RouteGroupValidator{}
@@ -66,7 +66,7 @@ func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
 		for _, f := range r.Filters {
 			filters, err := eskip.ParseFilters(f)
 			if len(filters) != 1 && err == nil {
-				errs = append(errs, fmt.Errorf("%w at \"%s\"", errMultipleFilters, f))
+				errs = append(errs, fmt.Errorf("%w at \"%s\"", errSingleFilterExpected, f))
 			}
 			errs = append(errs, err)
 		}
@@ -81,7 +81,7 @@ func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error
 		for _, p := range r.Predicates {
 			predicates, err := eskip.ParsePredicates(p)
 			if len(predicates) != 1 && err == nil {
-				errs = append(errs, fmt.Errorf("%w at \"%s\"", errMultiplePredicates, p))
+				errs = append(errs, fmt.Errorf("%w at \"%s\"", errSinglePredicateExpected, p))
 			}
 			errs = append(errs, err)
 		}
