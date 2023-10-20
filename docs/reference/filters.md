@@ -2819,6 +2819,31 @@ Example:
 fifo(100, 150, "10s")
 ```
 
+### fifoWithBody
+
+This Filter is similar to the [lifo](#lifo) filter in regards to
+parameters and status codes.
+Performance considerations are similar to [fifo](#fifo).
+
+The difference between fifo and fifoWithBody is that fifo will decrement
+the concurrency as soon as the backend sent response headers and
+fifoWithBody will decrement the concurrency if the response body was
+served. Normally both are very similar, but if you have a fully async
+component that serves multiple website fragments, this would decrement
+concurrency too early.
+
+Parameters:
+
+* MaxConcurrency specifies how many goroutines are allowed to work on this queue (int)
+* MaxQueueSize sets the queue size (int)
+* Timeout sets the timeout to get request scheduled (time)
+
+Example:
+
+```
+fifoWithBody(100, 150, "10s")
+```
+
 ### lifo
 
 This Filter changes skipper to handle the route with a bounded last in
