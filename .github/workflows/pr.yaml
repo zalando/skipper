@@ -10,7 +10,7 @@ jobs:
       image: returntocorp/semgrep
     steps:
       # Retrieve the source code for the repository
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       # Fetch the semgrep rules
       - run: git clone https://github.com/dgryski/semgrep-go.git
       # Run the rule checker using the fetched rules
@@ -19,7 +19,7 @@ jobs:
   check-race:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: actions/setup-go@bfd2fb341f32be7281829126376a12a780ca79fc
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
@@ -31,7 +31,7 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: actions/setup-go@bfd2fb341f32be7281829126376a12a780ca79fc
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
