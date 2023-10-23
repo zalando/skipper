@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/loov/hrtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
@@ -174,16 +175,27 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 		}
 		r.IncInflightRequest(key)
 		r.IncInflightRequest(key)
+		bench := hrtime.NewStopwatch(b.N)
 
 		var dummy int64
 		wg := sync.WaitGroup{}
 		b.ResetTimer()
 		for i := 0; i < goroutines; i++ {
 			wg.Add(1)
+
+			// bench.Start must be called exactly b.N times, this variable is needed
+			// to satisfy this requirement
+			oneMore := 0
+			if i < b.N%goroutines {
+				oneMore = 1
+			}
 			go func() {
 				defer wg.Done()
-				for n := 0; n < b.N/goroutines; n++ {
+
+				for n := 0; n < b.N/goroutines+oneMore; n++ {
+					exp := bench.Start()
 					dummy = r.GetMetrics(key).InflightRequests()
+					bench.Stop(exp)
 				}
 			}()
 		}
@@ -191,6 +203,7 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 		wg.Wait()
 
 		printTotalMutexWaitTime(b)
+		fmt.Print(bench.Histogram(20))
 	})
 }
 

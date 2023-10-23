@@ -116,6 +116,7 @@ require (
 	github.com/klauspost/compress v1.16.0 // indirect
 	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20210210170715-a8dfcb80d3a7 // indirect
 	github.com/looplab/fsm v1.0.1 // indirect
+	github.com/loov/hrtime v1.0.3 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.0 // indirect
