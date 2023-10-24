@@ -65,10 +65,11 @@ func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
 			filters, err := eskip.ParseFilters(f)
-			if len(filters) != 1 && err == nil {
+			if err != nil {
+				errs = append(errs, err)
+			} else if len(filters) != 1 {
 				errs = append(errs, fmt.Errorf("%w at \"%s\"", errSingleFilterExpected, f))
 			}
-			errs = append(errs, err)
 		}
 	}
 
@@ -80,10 +81,11 @@ func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error
 	for _, r := range item.Spec.Routes {
 		for _, p := range r.Predicates {
 			predicates, err := eskip.ParsePredicates(p)
-			if len(predicates) != 1 && err == nil {
+			if err != nil {
+				errs = append(errs, err)
+			} else if len(predicates) != 1 {
 				errs = append(errs, fmt.Errorf("%w at \"%s\"", errSinglePredicateExpected, p))
 			}
-			errs = append(errs, err)
 		}
 	}
 	return errorsJoin(errs...)
