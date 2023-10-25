@@ -1,10 +1,18 @@
 package definitions
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/zalando/skipper/eskip"
 )
 
 type RouteGroupValidator struct{}
+
+var (
+	errSingleFilterExpected    = errors.New("single filter expected")
+	errSinglePredicateExpected = errors.New("single predicate expected")
+)
 
 var defaultRouteGroupValidator = &RouteGroupValidator{}
 
@@ -56,8 +64,12 @@ func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
-			_, err := eskip.ParseFilters(f)
-			errs = append(errs, err)
+			filters, err := eskip.ParseFilters(f)
+			if err != nil {
+				errs = append(errs, err)
+			} else if len(filters) != 1 {
+				errs = append(errs, fmt.Errorf("%w at \"%s\"", errSingleFilterExpected, f))
+			}
 		}
 	}
 
@@ -68,8 +80,12 @@ func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error
 	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, p := range r.Predicates {
-			_, err := eskip.ParsePredicates(p)
-			errs = append(errs, err)
+			predicates, err := eskip.ParsePredicates(p)
+			if err != nil {
+				errs = append(errs, err)
+			} else if len(predicates) != 1 {
+				errs = append(errs, fmt.Errorf("%w at \"%s\"", errSinglePredicateExpected, p))
+			}
 		}
 	}
 	return errorsJoin(errs...)
@@ -129,14 +145,6 @@ func (r *RouteSpec) validate(hasDefault bool, backends map[string]bool) error {
 
 	if r.Path != "" && r.PathSubtree != "" {
 		return errBothPathAndPathSubtree
-	}
-
-	if hasEmpty(r.Predicates) {
-		return errInvalidPredicate
-	}
-
-	if hasEmpty(r.Filters) {
-		return errInvalidFilter
 	}
 
 	if hasEmpty(r.Methods) {
