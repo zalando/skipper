@@ -1,0 +1,6 @@
+route group without name
+error in route group default/rg1: route group without backend
+single predicate expected at "Path("/foo") && Method("GET")"
+single predicate expected at ""
+single filter expected at "inlineContent("/foo") -> status(200)"
+single filter expected at " "

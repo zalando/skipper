@@ -2,6 +2,7 @@ package definitions_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,10 +19,15 @@ func TestValidateRouteGroups(t *testing.T) {
 	data, err := os.ReadFile("testdata/errorwrapdata/routegroups.json")
 	require.NoError(t, err)
 
+	logs, err := os.ReadFile("testdata/errorwrapdata/errors.log")
+	require.NoError(t, err)
+
+	logsString := strings.TrimSuffix(string(logs), "\n")
+
 	rgl, err := definitions.ParseRouteGroupsJSON(data)
 	require.NoError(t, err)
 
 	err = definitions.ValidateRouteGroups(&rgl)
 
-	assert.EqualError(t, err, "route group without name\nerror in route group default/rg1: route group without backend")
+	assert.EqualError(t, err, logsString)
 }
