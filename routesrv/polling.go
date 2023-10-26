@@ -62,7 +62,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		case err != nil:
 			log.WithError(err).Error(LogRoutesFetchingFailed)
 
-			p.metrics.IncCounter("routes_fetch_errors")
+			p.metrics.IncCounter("routes.fetch_errors")
 
 			span.SetTag("error", true)
 			span.LogKV(
@@ -71,7 +71,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			)
 		case routesCount == 0:
 			log.Error(LogRoutesEmpty)
-			p.metrics.IncCounter("routes_empty")
+			p.metrics.IncCounter("routes.empty")
 
 			span.SetTag("error", true)
 			span.LogKV(
@@ -84,14 +84,14 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			if initialized {
 				logger.Info(LogRoutesInitialized)
 				span.SetTag("routes.initialized", true)
-				p.setGaugeToCurrentTime("routes_initialized_timestamp")
+				p.setGaugeToCurrentTime("routes.initialized_timestamp")
 			}
 			if updated {
 				logger.Info(LogRoutesUpdated)
 				span.SetTag("routes.updated", true)
-				p.setGaugeToCurrentTime("routes_updated_timestamp")
-				p.metrics.UpdateGauge("routes_count", float64(routesCount))
-				p.metrics.UpdateGauge("routes_byte", float64(routesBytes))
+				p.setGaugeToCurrentTime("routes.updated_timestamp")
+				p.metrics.UpdateGauge("routes.total", float64(routesCount))
+				p.metrics.UpdateGauge("routes.byte", float64(routesBytes))
 
 			}
 			span.SetTag("routes.count", routesCount)
