@@ -125,12 +125,12 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "invalid routgroup multiple filters per json/yaml array item",
 			inputFile: "rg-with-multiple-filters.json",
-			message:   `single filter expected at \"status(201) -> inlineContent(\"hi\")\"\nsingle filter expected at \" \"`,
+			message:   `single filter expected at \"status(201) -> inlineContent(\\\"hi\\\")\"\nsingle filter expected at \" \"`,
 		},
 		{
 			name:      "invalid routgroup multiple predicates per json/yaml array item",
 			inputFile: "rg-with-multiple-predicates.json",
-			message:   `single predicate expected at \"Method(\"GET\") && Path(\"/\")\"\nsingle predicate expected at \" \"`,
+			message:   `single predicate expected at \"Method(\\\"GET\\\") && Path(\\\"/\\\")\"\nsingle predicate expected at \" \"`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
