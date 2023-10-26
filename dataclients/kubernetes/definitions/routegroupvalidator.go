@@ -68,7 +68,7 @@ func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
 			if err != nil {
 				errs = append(errs, err)
 			} else if len(filters) != 1 {
-				errs = append(errs, fmt.Errorf("%w at \"%s\"", errSingleFilterExpected, f))
+				errs = append(errs, fmt.Errorf("%w at %q", errSingleFilterExpected, f))
 			}
 		}
 	}
@@ -84,7 +84,7 @@ func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error
 			if err != nil {
 				errs = append(errs, err)
 			} else if len(predicates) != 1 {
-				errs = append(errs, fmt.Errorf("%w at \"%s\"", errSinglePredicateExpected, p))
+				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
 			}
 		}
 	}
