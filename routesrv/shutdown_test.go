@@ -25,6 +25,7 @@ func findAddress() (string, error) {
 func TestServerShutdownHTTP(t *testing.T) {
 	o := skipper.Options{
 		SourcePollTimeout: 500 * time.Millisecond,
+		SupportListener:   ":9911",
 	}
 	const shutdownDelay = 1 * time.Second
 
@@ -34,7 +35,15 @@ func TestServerShutdownHTTP(t *testing.T) {
 	}
 
 	o.Address, o.WaitForHealthcheckInterval = address, shutdownDelay
-	baseUrl := "http://" + address
+	baseURL := "http://" + address
+	// test support listener
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	supportBaseURL := "http://" + host + o.SupportListener
+	testEndpoints := []string{baseURL + "/routes", supportBaseURL + "/metrics"}
+
 	rs, err := New(o)
 	if err != nil {
 		t.Fatalf("Failed to create a routesrv: %v", err)
@@ -50,12 +59,15 @@ func TestServerShutdownHTTP(t *testing.T) {
 		}
 	}()
 
-	rsp, err := http.DefaultClient.Get(baseUrl + "/metrics")
-	if err != nil {
-		t.Fatalf("Failed to get routes: %v", err)
-	}
-	if rsp.StatusCode != 200 {
-		t.Fatalf("Failed to get expected status code 200, got: %d", rsp.StatusCode)
+	time.Sleep(o.SourcePollTimeout * 2)
+	for _, u := range testEndpoints {
+		rsp, err := http.DefaultClient.Get(u)
+		if err != nil {
+			t.Fatalf("Failed to get %q: %v", u, err)
+		}
+		if rsp.StatusCode != 200 {
+			t.Fatalf("Failed to get expected status code 200 for %q, got: %d", u, rsp.StatusCode)
+		}
 	}
 
 	// initiate shutdown
@@ -64,23 +76,28 @@ func TestServerShutdownHTTP(t *testing.T) {
 	// test that we can fetch even within termination
 	time.Sleep(shutdownDelay / 2)
 
-	rsp, err = http.DefaultClient.Get(baseUrl + "/metrics")
-	if err != nil {
-		t.Fatalf("Failed to get routes after SIGTERM: %v", err)
-	}
-	if rsp.StatusCode != 200 {
-		t.Fatalf("Failed to get expected status code 200 after SIGTERM, got: %d", rsp.StatusCode)
+	for _, u := range testEndpoints {
+		rsp, err := http.DefaultClient.Get(u)
+		if err != nil {
+			t.Fatalf("Failed to get %q after SIGTERM: %v", u, err)
+		}
+		if rsp.StatusCode != 200 {
+			t.Fatalf("Failed to get expected status code 200 for %q after SIGTERM, got: %d", u, rsp.StatusCode)
+		}
 	}
 
 	// test that we get connection refused after shutdown
 	time.Sleep(shutdownDelay / 2)
-	_, err = http.DefaultClient.Get(baseUrl + "/metrics")
-	switch err {
-	case nil:
-		t.Fatal("Failed to get error as expected")
-	default:
-		if e := err.Error(); !strings.Contains(e, "refused") {
-			t.Fatalf("Failed to get connection refused, got: %s", e)
+
+	for _, u := range testEndpoints {
+		_, err = http.DefaultClient.Get(u)
+		switch err {
+		case nil:
+			t.Fatalf("Failed to get error as expected: %q", u)
+		default:
+			if e := err.Error(); !strings.Contains(e, "refused") {
+				t.Fatalf("Failed to get connection refused, got: %s", e)
+			}
 		}
 	}
 

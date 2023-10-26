@@ -92,7 +92,6 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				p.setGaugeToCurrentTime("routes.updated_timestamp")
 				p.metrics.UpdateGauge("routes.total", float64(routesCount))
 				p.metrics.UpdateGauge("routes.byte", float64(routesBytes))
-
 			}
 			span.SetTag("routes.count", routesCount)
 			span.SetTag("routes.bytes", routesBytes)

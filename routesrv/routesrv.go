@@ -178,6 +178,11 @@ func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 
 			log.Infof("shutting down the server in %s...", delay)
 			time.Sleep(delay)
+			if rs.supportServer != nil {
+				if err := rs.supportServer.Shutdown(context.Background()); err != nil {
+					log.Error("unable to shut down the support server: ", err)
+				}
+			}
 			if err := rs.server.Shutdown(context.Background()); err != nil {
 				log.Error("unable to shut down the server: ", err)
 			}
