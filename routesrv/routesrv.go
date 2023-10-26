@@ -22,10 +22,11 @@ import (
 // RouteServer is used to serve eskip-formatted routes,
 // that originate from the polled data source.
 type RouteServer struct {
-	metrics metrics.Metrics
-	server  *http.Server
-	poller  *poller
-	wg      *sync.WaitGroup
+	metrics       metrics.Metrics
+	server        *http.Server
+	supportServer *http.Server
+	poller        *poller
+	wg            *sync.WaitGroup
 }
 
 // New returns an initialized route server according to the passed options.
@@ -75,12 +76,13 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/health", bs)
 	mux.Handle("/routes", b)
-	mux.Handle("/metrics", metricsHandler)
-	mux.Handle("/metrics/", metricsHandler)
+	supportHandler := http.NewServeMux()
+	supportHandler.Handle("/metrics", metricsHandler)
+	supportHandler.Handle("/metrics/", metricsHandler)
 
 	if opts.EnableProfile {
-		mux.Handle("/debug/pprof", metricsHandler)
-		mux.Handle("/debug/pprof/", metricsHandler)
+		supportHandler.Handle("/debug/pprof", metricsHandler)
+		supportHandler.Handle("/debug/pprof/", metricsHandler)
 	}
 
 	dataclient, err := kubernetes.New(opts.KubernetesDataClientOptions())
@@ -109,6 +111,13 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	rs.server = &http.Server{
 		Addr:              opts.Address,
 		Handler:           mux,
+		ReadTimeout:       1 * time.Minute,
+		ReadHeaderTimeout: 1 * time.Minute,
+	}
+
+	rs.supportServer = &http.Server{
+		Addr:              opts.SupportListener,
+		Handler:           supportHandler,
 		ReadTimeout:       1 * time.Minute,
 		ReadHeaderTimeout: 1 * time.Minute,
 	}
@@ -149,6 +158,15 @@ func (rs *RouteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rs.server.Handler.ServeHTTP(w, r)
 }
 
+func (rs *RouteServer) startSupportListener() {
+	if rs.supportServer != nil {
+		err := rs.supportServer.ListenAndServe()
+		if err != nil {
+			log.Errorf("Failed support listener: %v", err)
+		}
+	}
+}
+
 func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 	once := sync.Once{}
 	rs.wg.Add(1)
@@ -177,10 +195,16 @@ func run(rs *RouteServer, opts skipper.Options, sigs chan os.Signal) error {
 	go func() {
 		<-sigs
 		shutdown(opts.WaitForHealthcheckInterval)
+		if rs.supportServer != nil {
+			ctx, done := context.WithTimeout(context.Background(), 10*time.Second)
+			defer done()
+			rs.supportServer.Shutdown(ctx)
+		}
 	}()
 
 	rs.StartUpdates()
 
+	go rs.startSupportListener()
 	if err = rs.server.ListenAndServe(); err != http.ErrServerClosed {
 		go shutdown(0)
 	} else {
