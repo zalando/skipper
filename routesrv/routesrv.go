@@ -182,6 +182,7 @@ func newShutdownFunc(rs *RouteServer) func(delay time.Duration) {
 				if err := rs.supportServer.Shutdown(context.Background()); err != nil {
 					log.Error("unable to shut down the support server: ", err)
 				}
+				log.Info("supportServer shut down")
 			}
 			if err := rs.server.Shutdown(context.Background()); err != nil {
 				log.Error("unable to shut down the server: ", err)
@@ -200,11 +201,6 @@ func run(rs *RouteServer, opts skipper.Options, sigs chan os.Signal) error {
 	go func() {
 		<-sigs
 		shutdown(opts.WaitForHealthcheckInterval)
-		if rs.supportServer != nil {
-			ctx, done := context.WithTimeout(context.Background(), 10*time.Second)
-			defer done()
-			rs.supportServer.Shutdown(ctx)
-		}
 	}()
 
 	rs.StartUpdates()

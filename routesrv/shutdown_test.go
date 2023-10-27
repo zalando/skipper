@@ -1,16 +1,62 @@
 package routesrv
 
 import (
+	"bytes"
+	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/zalando/skipper"
+	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 )
+
+type muxHandler struct {
+	handler http.Handler
+	mu      sync.RWMutex
+}
+
+func (m *muxHandler) set(handler http.Handler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.handler = handler
+}
+
+func (m *muxHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	m.handler.ServeHTTP(w, r)
+}
+
+func newKubeAPI(t *testing.T, specs ...io.Reader) http.Handler {
+	t.Helper()
+	api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, specs...)
+	if err != nil {
+		t.Fatalf("cannot initialize kubernetes api: %s", err)
+	}
+	return api
+}
+func newKubeServer(t *testing.T, specs ...io.Reader) (*httptest.Server, *muxHandler) {
+	t.Helper()
+	handler := &muxHandler{handler: newKubeAPI(t, specs...)}
+	return httptest.NewUnstartedServer(handler), handler
+}
+
+func loadKubeYAML(t *testing.T, path string) io.Reader {
+	t.Helper()
+	y, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to open kubernetes resources fixture %s: %v", path, err)
+	}
+	return bytes.NewBuffer(y)
+}
 
 func findAddress() (string, error) {
 	l, err := net.ListenTCP("tcp6", &net.TCPAddr{})
@@ -23,9 +69,13 @@ func findAddress() (string, error) {
 }
 
 func TestServerShutdownHTTP(t *testing.T) {
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	defer ks.Close()
+	ks.Start()
+
 	o := skipper.Options{
+		KubernetesURL:     "http://" + ks.Listener.Addr().String(),
 		SourcePollTimeout: 500 * time.Millisecond,
-		SupportListener:   ":9911",
 	}
 	const shutdownDelay = 1 * time.Second
 
@@ -33,20 +83,37 @@ func TestServerShutdownHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to find address: %v", err)
 	}
-
-	o.Address, o.WaitForHealthcheckInterval = address, shutdownDelay
-	baseURL := "http://" + address
-	// test support listener
-	host, _, err := net.SplitHostPort(address)
+	supportAddress, err := findAddress()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to find supportAddress: %v", err)
 	}
-	supportBaseURL := "http://" + host + o.SupportListener
+
+	o.Address, o.SupportListener, o.WaitForHealthcheckInterval = address, supportAddress, shutdownDelay
+	baseURL := "http://" + address
+	supportBaseURL := "http://" + supportAddress
 	testEndpoints := []string{baseURL + "/routes", supportBaseURL + "/metrics"}
+
+	t.Logf("kube endpoint: %q", o.KubernetesURL)
+	for _, u := range testEndpoints {
+		t.Logf("test endpoint: %q", u)
+	}
 
 	rs, err := New(o)
 	if err != nil {
 		t.Fatalf("Failed to create a routesrv: %v", err)
+	}
+
+	time.Sleep(o.SourcePollTimeout * 2)
+
+	cli := http.Client{
+		Timeout: time.Second,
+	}
+	rsp, err := cli.Get(o.KubernetesURL + "/api")
+	if err != nil {
+		t.Fatalf("Failed to get %q: %v", o.KubernetesURL, err)
+	}
+	if rsp.StatusCode != 200 {
+		t.Fatalf("Failed to get status OK: %d", rsp.StatusCode)
 	}
 
 	sigs := make(chan os.Signal, 1)
@@ -59,7 +126,6 @@ func TestServerShutdownHTTP(t *testing.T) {
 		}
 	}()
 
-	time.Sleep(o.SourcePollTimeout * 2)
 	for _, u := range testEndpoints {
 		rsp, err := http.DefaultClient.Get(u)
 		if err != nil {
