@@ -365,17 +365,25 @@ func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint
 	for i := 1; i < p.numberOfChoices; i++ {
 		ce := ctx.LBEndpoints[p.rnd.Intn(ne)]
 
-		if p.getScore(ce) > p.getScore(best) {
+		if p.getScore(ctx, ce) > p.getScore(ctx, best) {
 			best = ce
 		}
 	}
 	return best
 }
 
-// getScore returns negative value of inflightrequests count.
-func (p *powerOfRandomNChoices) getScore(e routing.LBEndpoint) int64 {
+// getScore returns negative value of inflightrequests count, discounted by fadeIn multiplier if needed
+func (p *powerOfRandomNChoices) getScore(ctx *routing.LBContext, e routing.LBEndpoint) float64 {
+	now := time.Now()
+	f := fadeIn(
+		now,
+		ctx.Route.LBFadeInDuration,
+		ctx.Route.LBFadeInExponent,
+		e.Detected,
+	)
+
 	// endpoints with higher inflight request should have lower score
-	return -int64(e.Metrics.GetInflightRequests())
+	return -float64(e.Metrics.GetInflightRequests()) / f
 }
 
 type (
