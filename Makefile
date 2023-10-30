@@ -24,19 +24,19 @@ lib: $(SOURCES) ## build skipper library
 
 .PHONY: skipper
 skipper: $(SOURCES) ## build skipper binary
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper
+	go build -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/skipper ./cmd/skipper
 
 .PHONY: eskip
 eskip: $(SOURCES) ## build eskip binary
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
+	go build -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/eskip ./cmd/eskip
 
 .PHONY: webhook
 webhook: $(SOURCES) ## build webhook binary
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook
+	go build -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/webhook ./cmd/webhook
 
 .PHONY: routesrv
 routesrv: $(SOURCES) ## build routesrv binary
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/routesrv ./cmd/routesrv
+	go build -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o bin/routesrv ./cmd/routesrv
 
 .PHONY: fixlimits
 fixlimits:
@@ -48,30 +48,30 @@ endif
 build: $(SOURCES) lib skipper eskip webhook routesrv ## build library and all binaries
 
 build.linux.static: ## build static linux binary for amd64
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-extldflags=-static -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-extldflags=-static -X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux.arm64: ## build linux binary for arm64
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux.armv7: ## build linux binary for arm7
-	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.linux:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.darwin.arm64: ## build osx binary for arm64
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.darwin: ## build osx binary for amd64
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 build.windows: ## build windows binary for amd64
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/skipper -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
 
 .PHONY: install
 install: $(SOURCES) ## install skipper and eskip binaries into your system
-	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
-	go install -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
+	go install -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/skipper
+	go install -ldflags "-X github.com/zalando/skipper/metrics.version=$(VERSION) -X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" ./cmd/eskip
 
 .PHONY: check
 check: build check-plugins ## run all tests

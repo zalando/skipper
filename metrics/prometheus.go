@@ -22,6 +22,8 @@ const (
 	promCustomSubsystem    = "custom"
 )
 
+var version string
+
 // Prometheus implements the prometheus metrics backend.
 type Prometheus struct {
 	// Metrics.
@@ -67,14 +69,14 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "lookup_duration_seconds",
 		Help:      "Duration in seconds of a route lookup.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{})
+	}, []string{"version"})
 
 	routeErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promRouteSubsystem,
 		Name:      "error_total",
 		Help:      "The total of route lookup errors.",
-	}, []string{})
+	}, []string{"version"})
 
 	response := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -90,7 +92,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "request_duration_seconds",
 		Help:      "Duration in seconds of a filter request.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{"filter"})
+	}, []string{"filter", "version"})
 
 	filterAllRequest := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -98,7 +100,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "all_request_duration_seconds",
 		Help:      "Duration in seconds of a filter request by all filters.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{"route"})
+	}, []string{"route", "version"})
 
 	filterAllCombinedRequest := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -106,7 +108,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "all_combined_request_duration_seconds",
 		Help:      "Duration in seconds of a filter request combined by all filters.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{})
+	}, []string{"version"})
 
 	proxyBackend := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -114,7 +116,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of a proxy backend.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{"route", "host"})
+	}, []string{"route", "host", "version"})
 
 	proxyBackendCombined := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -122,7 +124,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "combined_duration_seconds",
 		Help:      "Duration in seconds of a proxy backend combined.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{})
+	}, []string{"version"})
 
 	filterResponse := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -130,7 +132,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "response_duration_seconds",
 		Help:      "Duration in seconds of a filter request.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{"filter"})
+	}, []string{"filter", "version"})
 
 	filterAllResponse := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -138,7 +140,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "all_response_duration_seconds",
 		Help:      "Duration in seconds of a filter response by all filters.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{"route"})
+	}, []string{"route", "version"})
 
 	filterAllCombinedResponse := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -146,9 +148,9 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "all_combined_response_duration_seconds",
 		Help:      "Duration in seconds of a filter response combined by all filters.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{})
+	}, []string{"version"})
 
-	metrics := []string{}
+	metrics := []string{"version"}
 	if opts.EnableServeStatusCodeMetric {
 		metrics = append(metrics, "code")
 	}
@@ -167,7 +169,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promServeSubsystem,
 		Name:      "route_count",
 		Help:      "Total number of requests of serving a route.",
-	}, []string{"code", "method", "route"})
+	}, []string{"code", "method", "route", "version"})
 
 	serveHost := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -176,12 +178,13 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "Duration in seconds of serving a host.",
 		Buckets:   opts.HistogramBuckets,
 	}, append(metrics, "host"))
+
 	serveHostCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promServeSubsystem,
 		Name:      "host_count",
 		Help:      "Total number of requests of serving a host.",
-	}, []string{"code", "method", "host"})
+	}, []string{"code", "method", "host", "version"})
 
 	proxyBackend5xx := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -189,39 +192,39 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "5xx_duration_seconds",
 		Help:      "Duration in seconds of backend 5xx.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{})
+	}, []string{"version"})
 	proxyBackendErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promProxySubsystem,
 		Name:      "error_total",
 		Help:      "Total number of backend route errors.",
-	}, []string{"route"})
+	}, []string{"route", "version"})
 	proxyStreamingErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promStreamingSubsystem,
 		Name:      "error_total",
 		Help:      "Total number of streaming route errors.",
-	}, []string{"route"})
+	}, []string{"route", "version"})
 
 	customCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promCustomSubsystem,
 		Name:      "total",
 		Help:      "Total number of custom metrics.",
-	}, []string{"key"})
+	}, []string{"key", "version"})
 	customGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: promCustomSubsystem,
 		Name:      "gauges",
 		Help:      "Gauges number of custom metrics.",
-	}, []string{"key"})
+	}, []string{"key", "version"})
 	customHistogram := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promCustomSubsystem,
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of custom metrics.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{"key"})
+	}, []string{"key", "version"})
 
 	p := &Prometheus{
 		routeLookupM:               routeLookup,
@@ -316,57 +319,57 @@ func (p *Prometheus) RegisterHandler(path string, mux *http.ServeMux) {
 // MeasureSince satisfies Metrics interface.
 func (p *Prometheus) MeasureSince(key string, start time.Time) {
 	t := p.sinceS(start)
-	p.customHistogramM.WithLabelValues(key).Observe(t)
+	p.customHistogramM.WithLabelValues(key, version).Observe(t)
 }
 
 // IncCounter satisfies Metrics interface.
 func (p *Prometheus) IncCounter(key string) {
-	p.customCounterM.WithLabelValues(key).Inc()
+	p.customCounterM.WithLabelValues(key, version).Inc()
 }
 
 // IncCounterBy satisfies Metrics interface.
 func (p *Prometheus) IncCounterBy(key string, value int64) {
 	f := float64(value)
-	p.customCounterM.WithLabelValues(key).Add(f)
+	p.customCounterM.WithLabelValues(key, version).Add(f)
 }
 
 // IncFloatCounterBy satisfies Metrics interface.
 func (p *Prometheus) IncFloatCounterBy(key string, value float64) {
-	p.customCounterM.WithLabelValues(key).Add(value)
+	p.customCounterM.WithLabelValues(key, version).Add(value)
 }
 
 // UpdateGauge satisfies Metrics interface.
 func (p *Prometheus) UpdateGauge(key string, v float64) {
-	p.customGaugeM.WithLabelValues(key).Set(v)
+	p.customGaugeM.WithLabelValues(key, version).Set(v)
 }
 
 // MeasureRouteLookup satisfies Metrics interface.
 func (p *Prometheus) MeasureRouteLookup(start time.Time) {
 	t := p.sinceS(start)
-	p.routeLookupM.WithLabelValues().Observe(t)
+	p.routeLookupM.WithLabelValues(version).Observe(t)
 }
 
 // MeasureFilterRequest satisfies Metrics interface.
 func (p *Prometheus) MeasureFilterRequest(filterName string, start time.Time) {
 	t := p.sinceS(start)
-	p.filterRequestM.WithLabelValues(filterName).Observe(t)
+	p.filterRequestM.WithLabelValues(filterName, version).Observe(t)
 }
 
 // MeasureAllFiltersRequest satisfies Metrics interface.
 func (p *Prometheus) MeasureAllFiltersRequest(routeID string, start time.Time) {
 	t := p.sinceS(start)
-	p.filterAllCombinedRequestM.WithLabelValues().Observe(t)
+	p.filterAllCombinedRequestM.WithLabelValues(version).Observe(t)
 	if p.opts.EnableAllFiltersMetrics {
-		p.filterAllRequestM.WithLabelValues(routeID).Observe(t)
+		p.filterAllRequestM.WithLabelValues(routeID, version).Observe(t)
 	}
 }
 
 // MeasureBackend satisfies Metrics interface.
 func (p *Prometheus) MeasureBackend(routeID string, start time.Time) {
 	t := p.sinceS(start)
-	p.proxyBackendCombinedM.WithLabelValues().Observe(t)
+	p.proxyBackendCombinedM.WithLabelValues(version).Observe(t)
 	if p.opts.EnableRouteBackendMetrics {
-		p.proxyBackendM.WithLabelValues(routeID, "").Observe(t)
+		p.proxyBackendM.WithLabelValues(routeID, "", version).Observe(t)
 	}
 }
 
@@ -374,22 +377,22 @@ func (p *Prometheus) MeasureBackend(routeID string, start time.Time) {
 func (p *Prometheus) MeasureBackendHost(routeBackendHost string, start time.Time) {
 	t := p.sinceS(start)
 	if p.opts.EnableBackendHostMetrics {
-		p.proxyBackendM.WithLabelValues("", routeBackendHost).Observe(t)
+		p.proxyBackendM.WithLabelValues("", routeBackendHost, version).Observe(t)
 	}
 }
 
 // MeasureFilterResponse satisfies Metrics interface.
 func (p *Prometheus) MeasureFilterResponse(filterName string, start time.Time) {
 	t := p.sinceS(start)
-	p.filterResponseM.WithLabelValues(filterName).Observe(t)
+	p.filterResponseM.WithLabelValues(filterName, version).Observe(t)
 }
 
 // MeasureAllFiltersResponse satisfies Metrics interface.
 func (p *Prometheus) MeasureAllFiltersResponse(routeID string, start time.Time) {
 	t := p.sinceS(start)
-	p.filterAllCombinedResponseM.WithLabelValues().Observe(t)
+	p.filterAllCombinedResponseM.WithLabelValues(version).Observe(t)
 	if p.opts.EnableAllFiltersMetrics {
-		p.filterAllResponseM.WithLabelValues(routeID).Observe(t)
+		p.filterAllResponseM.WithLabelValues(routeID, version).Observe(t)
 	}
 }
 
@@ -398,10 +401,10 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	method = measuredMethod(method)
 	t := p.sinceS(start)
 	if p.opts.EnableCombinedResponseMetrics {
-		p.responseM.WithLabelValues(fmt.Sprint(code), method, "").Observe(t)
+		p.responseM.WithLabelValues(fmt.Sprint(code), method, "", version).Observe(t)
 	}
 	if p.opts.EnableRouteResponseMetrics {
-		p.responseM.WithLabelValues(fmt.Sprint(code), method, routeID).Observe(t)
+		p.responseM.WithLabelValues(fmt.Sprint(code), method, routeID, version).Observe(t)
 	}
 }
 
@@ -411,7 +414,7 @@ func (p *Prometheus) MeasureServe(routeID, host, method string, code int, start 
 	t := p.sinceS(start)
 
 	if p.opts.EnableServeRouteMetrics || p.opts.EnableServeHostMetrics {
-		metrics := []string{}
+		metrics := []string{version}
 		if p.opts.EnableServeStatusCodeMetric {
 			metrics = append(metrics, fmt.Sprint(code))
 		}
@@ -427,33 +430,33 @@ func (p *Prometheus) MeasureServe(routeID, host, method string, code int, start 
 	}
 
 	if p.opts.EnableServeRouteCounter {
-		p.serveRouteCounterM.WithLabelValues(fmt.Sprint(code), method, routeID).Inc()
+		p.serveRouteCounterM.WithLabelValues(fmt.Sprint(code), method, routeID, version).Inc()
 	}
 
 	if p.opts.EnableServeHostCounter {
-		p.serveHostCounterM.WithLabelValues(fmt.Sprint(code), method, hostForKey(host)).Inc()
+		p.serveHostCounterM.WithLabelValues(fmt.Sprint(code), method, hostForKey(host), version).Inc()
 	}
 }
 
 // IncRoutingFailures satisfies Metrics interface.
 func (p *Prometheus) IncRoutingFailures() {
-	p.routeErrorsM.WithLabelValues().Inc()
+	p.routeErrorsM.WithLabelValues(version).Inc()
 }
 
 // IncErrorsBackend satisfies Metrics interface.
 func (p *Prometheus) IncErrorsBackend(routeID string) {
-	p.proxyBackendErrorsM.WithLabelValues(routeID).Inc()
+	p.proxyBackendErrorsM.WithLabelValues(routeID, version).Inc()
 }
 
 // MeasureBackend5xx satisfies Metrics interface.
 func (p *Prometheus) MeasureBackend5xx(start time.Time) {
 	t := p.sinceS(start)
-	p.proxyBackend5xxM.WithLabelValues().Observe(t)
+	p.proxyBackend5xxM.WithLabelValues(version).Observe(t)
 }
 
 // IncErrorsStreaming satisfies Metrics interface.
 func (p *Prometheus) IncErrorsStreaming(routeID string) {
-	p.proxyStreamingErrorsM.WithLabelValues(routeID).Inc()
+	p.proxyStreamingErrorsM.WithLabelValues(routeID, version).Inc()
 }
 
 func (p *Prometheus) Close() {}
