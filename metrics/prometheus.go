@@ -56,6 +56,9 @@ type Prometheus struct {
 
 // NewPrometheus returns a new Prometheus metric backend.
 func NewPrometheus(opts Options) *Prometheus {
+	if version == "" {
+		version = "<unknown>"
+	}
 	opts = applyCompatibilityDefaults(opts)
 
 	namespace := promNamespace
@@ -84,7 +87,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of a response.",
 		Buckets:   opts.HistogramBuckets,
-	}, []string{"code", "method", "route"})
+	}, []string{"code", "method", "route", "version"})
 
 	filterRequest := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -150,20 +153,22 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{"version"})
 
-	metrics := []string{"version"}
+	metrics := []string{}
 	if opts.EnableServeStatusCodeMetric {
 		metrics = append(metrics, "code")
 	}
 	if opts.EnableServeMethodMetric {
 		metrics = append(metrics, "method")
 	}
+
 	serveRoute := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promServeSubsystem,
 		Name:      "route_duration_seconds",
 		Help:      "Duration in seconds of serving a route.",
 		Buckets:   opts.HistogramBuckets,
-	}, append(metrics, "route"))
+	}, append(metrics, "route", "version"))
+
 	serveRouteCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promServeSubsystem,
@@ -177,7 +182,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "host_duration_seconds",
 		Help:      "Duration in seconds of serving a host.",
 		Buckets:   opts.HistogramBuckets,
-	}, append(metrics, "host"))
+	}, append(metrics, "host", "version"))
 
 	serveHostCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
@@ -414,7 +419,7 @@ func (p *Prometheus) MeasureServe(routeID, host, method string, code int, start 
 	t := p.sinceS(start)
 
 	if p.opts.EnableServeRouteMetrics || p.opts.EnableServeHostMetrics {
-		metrics := []string{version}
+		metrics := []string{}
 		if p.opts.EnableServeStatusCodeMetric {
 			metrics = append(metrics, fmt.Sprint(code))
 		}
@@ -422,10 +427,10 @@ func (p *Prometheus) MeasureServe(routeID, host, method string, code int, start 
 			metrics = append(metrics, method)
 		}
 		if p.opts.EnableServeRouteMetrics {
-			p.serveRouteM.WithLabelValues(append(metrics, routeID)...).Observe(t)
+			p.serveRouteM.WithLabelValues(append(metrics, routeID, version)...).Observe(t)
 		}
 		if p.opts.EnableServeHostMetrics {
-			p.serveHostM.WithLabelValues(append(metrics, hostForKey(host))...).Observe(t)
+			p.serveHostM.WithLabelValues(append(metrics, hostForKey(host), version)...).Observe(t)
 		}
 	}
 
