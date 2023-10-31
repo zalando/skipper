@@ -85,6 +85,17 @@ endpoints:
       serving: true
       terminating: false
     zone: my-zone-2
+  - addresses:
+    - 42.0.1.5
+    conditions:
+      ready: false
+      serving: true
+    zone: my-zone-1
+  - addresses:
+    - 42.0.1.6
+    conditions:
+      ready: false
+    zone: my-zone-3
 ports:
   - name: port1
     port: 8080
