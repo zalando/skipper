@@ -441,7 +441,7 @@ type lookuper struct {
 	s string
 }
 
-func (l *lookuper) Lookup(*http.Request) string { return l.s }
+func (l *lookuper) Lookup(*http.Request) (string, bool) { return l.s, true }
 
 func TestLookuperNoData(t *testing.T) {
 	f := &filter{settings: ratelimit.Settings{Lookuper: &lookuper{""}}, provider: &noLimit{}}

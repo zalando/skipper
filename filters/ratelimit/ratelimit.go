@@ -469,9 +469,9 @@ func (f *filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	s := f.settings.Lookuper.Lookup(ctx.Request())
-	if s == "" {
-		ctx.Logger().Debugf("Lookuper found no data in request for settings: %s and request: %v", f.settings, ctx.Request())
+	s, ok := f.settings.Lookuper.Lookup(ctx.Request())
+	if !ok {
+		ctx.Logger().Debugf("Lookup unsuccessful for settings: %s and request: %v", f.settings, ctx.Request())
 		return
 	}
 
