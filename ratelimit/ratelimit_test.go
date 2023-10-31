@@ -151,7 +151,7 @@ func TestSameBucketLookuper(t *testing.T) {
 	}
 
 	lookuper := NewSameBucketLookuper()
-	if s := lookuper.Lookup(req); s != sameBucket {
+	if s, _ := lookuper.Lookup(req); s != sameBucket {
 		t.Errorf("Failed to lookup request %s != %s", s, sameBucket)
 	}
 
@@ -169,7 +169,7 @@ func TestXForwardedForLookuper(t *testing.T) {
 	t.Run("header lookuper X-Forwarded-For header", func(t *testing.T) {
 		req.Header.Add("X-Forwarded-For", "127.0.0.3")
 		lookuper := NewXForwardedForLookuper()
-		if lookuper.Lookup(req) != "127.0.0.3" {
+		if lookupResult, _ := lookuper.Lookup(req); lookupResult != "127.0.0.3" {
 			t.Errorf("Failed to lookup request")
 		}
 
@@ -183,7 +183,7 @@ func TestXForwardedForLookuper(t *testing.T) {
 		req.Header.Set("X-Forwarded-For", "127.0.0.1")
 		req.Header.Add("X-Forwarded-For", "127.0.0.2")
 		req.Header.Add("X-Forwarded-For", "127.0.0.3")
-		if s := lookuper.Lookup(req); s != "127.0.0.1" {
+		if s, _ := lookuper.Lookup(req); s != "127.0.0.1" {
 			t.Errorf("Failed to lookup request, got: %s", s)
 		}
 	})
@@ -199,7 +199,7 @@ func TestHeaderLookuper(t *testing.T) {
 	t.Run("header lookuper authorization header", func(t *testing.T) {
 		req.Header.Add("authorization", "foo")
 		authLookuper := NewHeaderLookuper("authorizatioN")
-		if authLookuper.Lookup(req) != "foo" {
+		if lookupResult, _ := authLookuper.Lookup(req); lookupResult != "foo" {
 			t.Errorf("Failed to lookup request")
 		}
 
@@ -211,13 +211,14 @@ func TestHeaderLookuper(t *testing.T) {
 	t.Run("header lookuper x header", func(t *testing.T) {
 		req.Header.Add("x-blah", "bar")
 		xLookuper := NewHeaderLookuper("x-bLAh")
-		if xLookuper.Lookup(req) != "bar" {
+		if lookupResult, _ := xLookuper.Lookup(req); lookupResult != "bar" {
 			t.Errorf("Failed to lookup request")
 		}
 	})
 }
 
 func TestTupleLookuper(t *testing.T) {
+	// TODO: @ponimas check termination on falsy lookup
 	req, err := http.NewRequest("GET", "/foo", nil)
 	if err != nil {
 		t.Errorf("Could not create request: %v", err)
@@ -230,7 +231,8 @@ func TestTupleLookuper(t *testing.T) {
 			NewHeaderLookuper("authorizatioN"),
 			NewHeaderLookuper("bar"),
 		)
-		if tupleLookuper.Lookup(req) != "foomeow" {
+
+		if lookupResult, _ := tupleLookuper.Lookup(req); lookupResult != "foomeow" {
 			t.Errorf("Failed to lookup request")
 		}
 
@@ -246,7 +248,7 @@ func TestTupleLookuper(t *testing.T) {
 			NewHeaderLookuper("x-blah"),
 			NewHeaderLookuper("foo"),
 		)
-		if tupleLookuper.Lookup(req) != "barmeow" {
+		if lookupResult, _ := tupleLookuper.Lookup(req); lookupResult != "barmeow" {
 			t.Errorf("Failed to lookup request")
 		}
 	})
@@ -254,7 +256,7 @@ func TestTupleLookuper(t *testing.T) {
 	t.Run("nil tuple lookuper", func(t *testing.T) {
 		tupleLookuper := NewTupleLookuper()
 		tupleLookuper.l = nil
-		if s := tupleLookuper.Lookup(req); s != "" {
+		if s, _ := tupleLookuper.Lookup(req); s != "" {
 			t.Errorf("Failed to get empty result for nil lookuper: %s", s)
 		}
 	})
@@ -302,7 +304,8 @@ func testRoundRobinLookuper(lookuper Lookuper, concurrency, iterations int) map[
 			buckets := make(map[string]int)
 			for i := 0; i < iterations; i++ {
 				r, _ := http.NewRequest("GET", "/foo", nil)
-				buckets[lookuper.Lookup(r)]++
+				lookupResult, _ := lookuper.Lookup(r)
+				buckets[lookupResult]++
 			}
 			ch <- buckets
 		}()
