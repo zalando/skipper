@@ -217,8 +217,13 @@ func TestHeaderLookuper(t *testing.T) {
 	})
 }
 
+type falsyLookuper struct{}
+
+func (*falsyLookuper) Lookup(r *http.Request) (string, bool) {
+	return "", false
+}
+
 func TestTupleLookuper(t *testing.T) {
-	// TODO: @ponimas check termination on falsy lookup
 	req, err := http.NewRequest("GET", "/foo", nil)
 	if err != nil {
 		t.Errorf("Could not create request: %v", err)
@@ -232,7 +237,7 @@ func TestTupleLookuper(t *testing.T) {
 			NewHeaderLookuper("bar"),
 		)
 
-		if lookupResult, _ := tupleLookuper.Lookup(req); lookupResult != "foomeow" {
+		if lookupResult, ok := tupleLookuper.Lookup(req); lookupResult != "foomeow" || !ok {
 			t.Errorf("Failed to lookup request")
 		}
 
@@ -248,16 +253,30 @@ func TestTupleLookuper(t *testing.T) {
 			NewHeaderLookuper("x-blah"),
 			NewHeaderLookuper("foo"),
 		)
-		if lookupResult, _ := tupleLookuper.Lookup(req); lookupResult != "barmeow" {
+		if lookupResult, ok := tupleLookuper.Lookup(req); lookupResult != "barmeow" || !ok {
 			t.Errorf("Failed to lookup request")
+		}
+	})
+
+	t.Run("falsy lookuper", func(t *testing.T) {
+		req.Header.Add("foo", "meow")
+		req.Header.Add("x-blah", "bar")
+		tupleLookuper := NewTupleLookuper(
+			NewHeaderLookuper("x-blah"),
+			NewHeaderLookuper("foo"),
+			&falsyLookuper{},
+		)
+
+		if _, ok := tupleLookuper.Lookup(req); ok {
+			t.Error("Lookup should not be successful if one of the underlying lookupers returns ok == false")
 		}
 	})
 
 	t.Run("nil tuple lookuper", func(t *testing.T) {
 		tupleLookuper := NewTupleLookuper()
 		tupleLookuper.l = nil
-		if s, _ := tupleLookuper.Lookup(req); s != "" {
-			t.Errorf("Failed to get empty result for nil lookuper: %s", s)
+		if _, ok := tupleLookuper.Lookup(req); ok {
+			t.Error("Failed to get false result for nil lookuper")
 		}
 	})
 }
