@@ -158,8 +158,10 @@ type Lookuper interface {
 	// to decide to ratelimit or not. For example you can use the
 	// X-Forwarded-For Header if you want to rate limit based on
 	// source ip behind a proxy/loadbalancer or the Authorization
-	// Header for request per token or user.
-	Lookup(*http.Request) string
+	// Header for request per token or user. The second return
+	// value is used only for conditional lookups and signals that
+	// lookup was unsuccessful.
+	Lookup(*http.Request) (string, bool)
 }
 
 // SameBucketLookuper implements Lookuper interface and will always
@@ -172,8 +174,8 @@ func NewSameBucketLookuper() SameBucketLookuper {
 }
 
 // Lookup will always return "s" to select the same bucket.
-func (SameBucketLookuper) Lookup(*http.Request) string {
-	return sameBucket
+func (SameBucketLookuper) Lookup(*http.Request) (string, bool) {
+	return sameBucket, true
 }
 
 func (SameBucketLookuper) String() string {
@@ -191,8 +193,8 @@ func NewXForwardedForLookuper() XForwardedForLookuper {
 
 // Lookup returns the content of the X-Forwarded-For header or the
 // clientIP if not set.
-func (XForwardedForLookuper) Lookup(req *http.Request) string {
-	return net.RemoteHost(req).String()
+func (XForwardedForLookuper) Lookup(req *http.Request) (string, bool) {
+	return net.RemoteHost(req).String(), true
 }
 
 func (XForwardedForLookuper) String() string {
@@ -211,8 +213,8 @@ func NewHeaderLookuper(k string) HeaderLookuper {
 }
 
 // Lookup returns the content of the Authorization header.
-func (h HeaderLookuper) Lookup(req *http.Request) string {
-	return req.Header.Get(h.key)
+func (h HeaderLookuper) Lookup(req *http.Request) (string, bool) {
+	return req.Header.Get(h.key), true
 }
 
 func (h HeaderLookuper) String() string {
@@ -239,16 +241,20 @@ func NewTupleLookuper(args ...Lookuper) TupleLookuper {
 
 // Lookup returns the combined string of all Lookupers part of the
 // tuple
-func (t TupleLookuper) Lookup(req *http.Request) string {
+func (t TupleLookuper) Lookup(req *http.Request) (string, bool) {
 	if t.l == nil {
-		return ""
+		return "", false
 	}
 
 	buf := bytes.Buffer{}
 	for _, l := range *(t.l) {
-		buf.WriteString(l.Lookup(req))
+		r, ok := l.Lookup(req)
+		if !ok {
+			return "", false
+		}
+		buf.WriteString(r)
 	}
-	return buf.String()
+	return buf.String(), true
 }
 
 func (t TupleLookuper) String() string {
@@ -269,9 +275,9 @@ func NewRoundRobinLookuper(n uint64) Lookuper {
 }
 
 // Lookup will return one of n distinct keys in round robin fashion
-func (rrl *RoundRobinLookuper) Lookup(*http.Request) string {
+func (rrl *RoundRobinLookuper) Lookup(*http.Request) (string, bool) {
 	next := atomic.AddUint64(rrl.c, 1) % rrl.n
-	return fmt.Sprintf("RoundRobin%d", next)
+	return fmt.Sprintf("RoundRobin%d", next), true
 }
 
 func (rrl *RoundRobinLookuper) String() string {
