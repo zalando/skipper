@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"github.com/zalando/skipper/eskip"
@@ -109,6 +110,14 @@ func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	return w
 }
 
+func getHealth(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/health", nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
 func getRedisURLs(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/swarm/redis/shards", nil)
@@ -171,6 +180,9 @@ func TestNotInitializedRoutesAreNotServed(t *testing.T) {
 		t.Error("uninitialized routes were served")
 	}
 	wantHTTPCode(t, w, http.StatusNotFound)
+
+	w = getHealth(rs)
+	wantHTTPCode(t, w, http.StatusServiceUnavailable)
 }
 
 func TestEmptyRoutesAreNotServed(t *testing.T) {
@@ -218,6 +230,9 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
 	}
 	wantHTTPCode(t, w, http.StatusOK)
+
+	w = getHealth(rs)
+	wantHTTPCode(t, w, http.StatusNoContent)
 }
 
 func TestRedisEndpointSlices(t *testing.T) {
