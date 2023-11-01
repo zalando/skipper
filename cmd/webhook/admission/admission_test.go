@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 const (
@@ -146,7 +147,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
-			rgAdm := &RouteGroupAdmitter{}
+			rgAdm := &RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}}
 
 			h := Handler(rgAdm)
 			h(w, req)
@@ -210,7 +211,7 @@ func TestIngressAdmitter(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
-			ingressAdm := &IngressAdmitter{}
+			ingressAdm := &IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}}
 
 			h := Handler(ingressAdm)
 			h(w, req)
@@ -227,8 +228,8 @@ func TestIngressAdmitter(t *testing.T) {
 }
 
 func TestMalformedRequests(t *testing.T) {
-	routeGroupHandler := Handler(&RouteGroupAdmitter{})
-	ingressHandler := Handler(&IngressAdmitter{})
+	routeGroupHandler := Handler(&RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}})
+	ingressHandler := Handler(&IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}})
 
 	for _, tc := range []struct {
 		name           string
