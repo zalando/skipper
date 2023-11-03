@@ -1087,7 +1087,13 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
-		loopSpan := loopCTX.Tracer().StartSpan(p.tracing.initialOperationName, ot.ChildOf(ctx.ParentSpan().Context()))
+		loopSpan := tracing.CreateSpan("loopback", ctx.request.Context(), p.tracing.tracer)
+		p.tracing.
+			setTag(loopSpan, SpanKindTag, SpanKindServer).
+			setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
+		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
+
+		defer loopSpan.Finish()
 
 		if err := p.do(loopCTX, loopSpan); err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
