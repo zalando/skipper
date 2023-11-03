@@ -296,7 +296,8 @@ func (c *context) Split() (filters.FilterContext, error) {
 }
 
 func (c *context) Loopback() {
-	err := c.proxy.do(c)
+	loopSpan := c.Tracer().StartSpan(c.proxy.tracing.initialOperationName, opentracing.ChildOf(c.ParentSpan().Context()))
+	err := c.proxy.do(c, loopSpan)
 	if c.response != nil && c.response.Body != nil {
 		if _, err := io.Copy(io.Discard, c.response.Body); err != nil {
 			c.Logger().Errorf("context: error while discarding remainder response body: %v.", err)
