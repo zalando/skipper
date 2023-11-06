@@ -84,7 +84,8 @@ func TestTracingIngressSpan(t *testing.T) {
 	})
 	defer s.Close()
 
-	doc := fmt.Sprintf(`hello: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, s.URL)
+	routeID := "ingressRoute"
+	doc := fmt.Sprintf(`%s: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, routeID, s.URL)
 
 	tracer := mocktracer.New()
 	params := Params{
@@ -126,6 +127,7 @@ func TestTracingIngressSpan(t *testing.T) {
 
 	verifyTag(t, span, SpanKindTag, SpanKindServer)
 	verifyTag(t, span, ComponentTag, "skipper")
+	verifyTag(t, span, SkipperRouteIDTag, routeID)
 	// to save memory we dropped the URL tag from ingress span
 	//verifyTag(t, span, HTTPUrlTag, "/hello?world") // For server requests there is no scheme://host:port, see https://golang.org/pkg/net/http/#Request
 	verifyTag(t, span, HTTPMethodTag, "GET")
@@ -135,6 +137,139 @@ func TestTracingIngressSpan(t *testing.T) {
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
 	verifyTag(t, span, HTTPStatusCodeTag, uint16(200))
 	verifyHasTag(t, span, HTTPRemoteIPTag)
+}
+
+func TestTracingIngressSpanShunt(t *testing.T) {
+	routeID := "ingressShuntRoute"
+	doc := fmt.Sprintf(`%s: Path("/hello") -> setPath("/bye") -> setQuery("void") -> status(205) -> <shunt>`, routeID)
+
+	tracer := mocktracer.New()
+	params := Params{
+		OpenTracing: &OpenTracingParams{
+			Tracer: tracer,
+		},
+		Flags: FlagsNone,
+	}
+
+	t.Setenv("HOSTNAME", "ingress-shunt.tracing.test")
+
+	tp, err := newTestProxyWithParams(doc, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/hello?world", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Flow-Id", "test-flow-id")
+
+	rsp, err := ps.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+	io.Copy(io.Discard, rsp.Body)
+
+	// client may get response before proxy finishes span
+	time.Sleep(10 * time.Millisecond)
+
+	span, ok := findSpan(tracer, "ingress")
+	if !ok {
+		t.Fatal("ingress span not found")
+	}
+
+	verifyTag(t, span, SpanKindTag, SpanKindServer)
+	verifyTag(t, span, ComponentTag, "skipper")
+	verifyTag(t, span, SkipperRouteIDTag, routeID)
+	// to save memory we dropped the URL tag from ingress span
+	//verifyTag(t, span, HTTPUrlTag, "/hello?world") // For server requests there is no scheme://host:port, see https://golang.org/pkg/net/http/#Request
+	verifyTag(t, span, HTTPMethodTag, "GET")
+	verifyTag(t, span, HostnameTag, "ingress-shunt.tracing.test")
+	verifyTag(t, span, HTTPPathTag, "/hello")
+	verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
+	verifyTag(t, span, FlowIDTag, "test-flow-id")
+	verifyTag(t, span, HTTPStatusCodeTag, uint16(205))
+	verifyHasTag(t, span, HTTPRemoteIPTag)
+}
+
+func TestTracingIngressSpanLoopback(t *testing.T) {
+	shuntRouteID := "ingressShuntRoute"
+	loop1RouteID := "loop1Route"
+	loop2RouteID := "loop2Route"
+	routeIDs := []string{loop2RouteID, loop1RouteID, shuntRouteID}
+	paths := map[string]string{
+		loop2RouteID: "/loop2",
+		loop1RouteID: "/loop1",
+		shuntRouteID: "/shunt",
+	}
+
+	doc := fmt.Sprintf(`
+%s: Path("/shunt") -> setPath("/bye") -> setQuery("void") -> status(204) -> <shunt>;
+%s: Path("/loop1") -> setPath("/shunt") -> <loopback>;
+%s: Path("/loop2") -> setPath("/loop1") -> <loopback>;
+`, shuntRouteID, loop1RouteID, loop2RouteID)
+
+	tracer := mocktracer.New()
+	params := Params{
+		OpenTracing: &OpenTracingParams{
+			Tracer: tracer,
+		},
+		Flags: FlagsNone,
+	}
+
+	t.Setenv("HOSTNAME", "ingress-loop.tracing.test")
+
+	tp, err := newTestProxyWithParams(doc, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/loop2", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Flow-Id", "test-flow-id")
+
+	rsp, err := ps.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+	io.Copy(io.Discard, rsp.Body)
+	t.Logf("got response %d", rsp.StatusCode)
+
+	// client may get response before proxy finishes span
+	time.Sleep(10 * time.Millisecond)
+
+	sp, ok := findSpanByRouteID(tracer, loop2RouteID)
+	if !ok {
+		t.Fatalf("span for route %q not found", loop2RouteID)
+	}
+	verifyTag(t, sp, HTTPStatusCodeTag, uint16(204))
+
+	for _, rid := range routeIDs {
+		span, ok := findSpanByRouteID(tracer, rid)
+		if !ok {
+			t.Fatalf("span for route %q not found", rid)
+		}
+		verifyTag(t, span, SpanKindTag, SpanKindServer)
+		verifyTag(t, span, ComponentTag, "skipper")
+		verifyTag(t, span, SkipperRouteIDTag, rid)
+		verifyTag(t, span, HTTPMethodTag, "GET")
+		verifyTag(t, span, HostnameTag, "ingress-loop.tracing.test")
+		verifyTag(t, span, HTTPPathTag, paths[rid])
+		verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
+		verifyTag(t, span, FlowIDTag, "test-flow-id")
+	}
 }
 
 func TestTracingSpanName(t *testing.T) {
@@ -556,6 +691,15 @@ func TestSetTagWithEmptySpan(t *testing.T) {
 func findSpan(tracer *mocktracer.MockTracer, name string) (*mocktracer.MockSpan, bool) {
 	for _, s := range tracer.FinishedSpans() {
 		if s.OperationName == name {
+			return s, true
+		}
+	}
+	return nil, false
+}
+
+func findSpanByRouteID(tracer *mocktracer.MockTracer, routeID string) (*mocktracer.MockSpan, bool) {
+	for _, s := range tracer.FinishedSpans() {
+		if s.Tag(SkipperRouteIDTag) == routeID {
 			return s, true
 		}
 	}
