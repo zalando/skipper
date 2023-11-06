@@ -3,10 +3,10 @@ package routing_test
 import (
 	"fmt"
 	"runtime/metrics"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/benburkert/pbench"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
@@ -131,29 +131,27 @@ func benchmarkIncInflightRequests(b *testing.B, name string, goroutines int) {
 	const key string = "some key"
 	const mapSize int = 10000
 
-	b.Run(name, func(b *testing.B) {
+	percentileBench := pbench.New(b)
+	percentileBench.ReportPercentile(0.95)
+	percentileBench.ReportPercentile(0.99)
+
+	percentileBench.Run(name, func(b *pbench.B) {
 		r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		for i := 1; i < mapSize; i++ {
 			r.IncInflightRequest(fmt.Sprintf("foo-%d", i))
 		}
 		r.IncInflightRequest(key)
 		r.IncInflightRequest(key)
-
-		wg := sync.WaitGroup{}
 		b.ResetTimer()
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for n := 0; n < b.N/goroutines; n++ {
-					r.IncInflightRequest(key)
-				}
-			}()
-		}
-		wg.Wait()
 
-		printTotalMutexWaitTime(b)
+		b.RunParallel(func(pb *pbench.PB) {
+			for pb.Next() {
+				r.IncInflightRequest(key)
+			}
+		})
 	})
+
+	printTotalMutexWaitTime(b)
 }
 
 func BenchmarkIncInflightRequests(b *testing.B) {
@@ -167,31 +165,29 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 	const key string = "some key"
 	const mapSize int = 10000
 
-	b.Run(name, func(b *testing.B) {
+	percentileBench := pbench.New(b)
+	percentileBench.ReportPercentile(0.95)
+	percentileBench.ReportPercentile(0.99)
+
+	percentileBench.Run(name, func(b *pbench.B) {
 		r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		for i := 1; i < mapSize; i++ {
 			r.IncInflightRequest(fmt.Sprintf("foo-%d", i))
 		}
 		r.IncInflightRequest(key)
 		r.IncInflightRequest(key)
+		b.ResetTimer()
 
 		var dummy int64
-		wg := sync.WaitGroup{}
-		b.ResetTimer()
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for n := 0; n < b.N/goroutines; n++ {
-					dummy = r.GetMetrics(key).InflightRequests()
-				}
-			}()
-		}
+		b.RunParallel(func(pb *pbench.PB) {
+			for pb.Next() {
+				dummy = r.GetMetrics(key).InflightRequests()
+			}
+		})
 		dummy++
-		wg.Wait()
-
-		printTotalMutexWaitTime(b)
 	})
+
+	printTotalMutexWaitTime(b)
 }
 
 func BenchmarkGetInflightRequests(b *testing.B) {
