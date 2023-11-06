@@ -1024,7 +1024,7 @@ func stack() []byte {
 	}
 }
 
-func (p *Proxy) do(ctx *context) (err error) {
+func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			p.onPanicSometimes.Do(func() {
@@ -1068,6 +1068,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		p.makeErrorResponse(ctx, errRouteLookupFailed)
 		return errRouteLookupFailed
 	}
+	parentSpan.SetTag(SkipperRouteIDTag, route.Id)
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
@@ -1086,7 +1087,16 @@ func (p *Proxy) do(ctx *context) (err error) {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
-		if err := p.do(loopCTX); err != nil {
+		loopSpan := tracing.CreateSpan("loopback", ctx.request.Context(), p.tracing.tracer)
+		p.tracing.
+			setTag(loopSpan, SpanKindTag, SpanKindServer).
+			setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
+		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
+		ctx.parentSpan = loopSpan
+
+		defer loopSpan.Finish()
+
+		if err := p.do(loopCTX, loopSpan); err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
 			ctx.response = loopCTX.response
 			if err != nil {
@@ -1442,6 +1452,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
+	ctx.parentSpan = span
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -1452,7 +1463,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err := p.do(ctx)
+	err := p.do(ctx, span)
 
 	// writeTimeout() filter
 	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
