@@ -1,0 +1,1 @@
+backend address \"http://example.com/foo\" contains path\nbackend address \"http://example.com/foo/bar\" contains path\nbackend address \"/foo\" contains path\nbackend address \"/foo/bar\" contains path

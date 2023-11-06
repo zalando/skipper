@@ -134,6 +134,62 @@
                     }
                 ]
             }
+        },
+        {
+            "apiVersion": "zalando.org/v1",
+            "metadata": {
+                "name": "rg1"
+            },
+            "kind": "RouteGroup",
+            "spec": {
+                "backends": [
+                    {
+                        "name": "backend1",
+                        "type": "network",
+                        "address": "http://example.com"
+                    },
+                    {
+                        "name": "backend2",
+                        "type": "network",
+                        "address": "http://example.com/foo"
+                    },
+                    {
+                        "name": "backend3",
+                        "type": "network",
+                        "address": "http://example.com/foo/bar"
+                    },
+                    {
+                        "name": "backend4",
+                        "type": "network",
+                        "address": "http://example.com/foo/"
+                    },
+                    {
+                        "name": "backend5",
+                        "type": "network",
+                        "address": "/foo"   
+                    },
+                    {
+                        "name": "shunt",
+                        "type": "shunt"
+                    }
+                ],
+                "hosts": [
+                    "test.example.com"
+                ],
+                "routes": [
+                    {
+                        "backends": [
+                            {
+                                "backendName": "shunt"
+                            }
+                        ],
+                        "filters": [
+                            "inlineContent(\"/foo\")"
+                        ],
+                        "path": "/foo"
+                    }
+                ]
+            }
         }
     ]
 }

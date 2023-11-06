@@ -3,6 +3,7 @@ package definitions
 import (
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/zalando/skipper/eskip"
 )
@@ -37,6 +38,7 @@ func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 	var errs []error
 	errs = append(errs, rgv.filtersValidation(item))
 	errs = append(errs, rgv.predicatesValidation(item))
+	errs = append(errs, rgv.validateBackends(item))
 
 	return errorsJoin(errs...)
 }
@@ -86,6 +88,19 @@ func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error
 			} else if len(predicates) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
 			}
+		}
+	}
+	return errorsJoin(errs...)
+}
+
+func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
+	var errs []error
+	for _, backend := range item.Spec.Backends {
+		address, err := url.Parse(backend.Address)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to parse backend address %s: %w", backend.Address, err))
+		} else if address.Path != "" {
+			errs = append(errs, fmt.Errorf("backend address %s contains path", backend.Address))
 		}
 	}
 	return errorsJoin(errs...)
