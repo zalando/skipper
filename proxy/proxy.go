@@ -1092,6 +1092,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			setTag(loopSpan, SpanKindTag, SpanKindServer).
 			setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
 		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
+		ctx.parentSpan = loopSpan
 
 		defer loopSpan.Finish()
 
@@ -1451,6 +1452,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
+	ctx.parentSpan = span
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
