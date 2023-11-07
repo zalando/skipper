@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/go-connections/nat"
 	"github.com/redis/go-redis/v9"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -26,12 +27,20 @@ func NewTestRedisWithPassword(t testing.TB, password string) (address string, do
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
+	port, err := nat.NewPort("tcp", "6379")
+	if err != nil {
+		t.Fatalf("Failed to get new nat port: %v", err)
+	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "redis:6-alpine",
 			Cmd:          args,
 			ExposedPorts: []string{"6379/tcp"},
-			WaitingFor:   wait.ForLog("* Ready to accept connections"),
+			WaitingFor: wait.ForAll(
+				wait.ForLog("* Ready to accept connections"),
+				wait.NewHostPortStrategy(port),
+			),
 		},
 		Started: true,
 	})
