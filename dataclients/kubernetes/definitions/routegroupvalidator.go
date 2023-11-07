@@ -98,9 +98,9 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 	for _, backend := range item.Spec.Backends {
 		address, err := url.Parse(backend.Address)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to parse backend address %s: %w", backend.Address, err))
+			errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
 		} else if address.Path != "" {
-			errs = append(errs, fmt.Errorf("backend address %s contains path", backend.Address))
+			errs = append(errs, fmt.Errorf("backend address %q contains path", backend.Address))
 		}
 	}
 	return errorsJoin(errs...)

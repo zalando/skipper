@@ -169,6 +169,16 @@
                         "address": "/foo"   
                     },
                     {
+                        "name": "backend6",
+                        "type": "network",
+                        "address": "example.com/"
+                    },
+                    {
+                        "name": "backend7",
+                        "type": "network",
+                        "address": "http://user:pass@example.com"
+                    },
+                    {
                         "name": "shunt",
                         "type": "shunt"
                     }

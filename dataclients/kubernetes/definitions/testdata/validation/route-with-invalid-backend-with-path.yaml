@@ -25,6 +25,15 @@ spec:
   - name: backend5
     type: network
     address: /foo/bar
+  - name: backend6
+    type: network
+    address: example.com/foo
+  - name: backend7
+    type: network
+    address: http://example.com/
+  - name: backend8
+    type: network
+    address: http://user:pass@example.com
   defaultBackends:
   - backendName: app
   routes:
