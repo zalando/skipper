@@ -245,7 +245,6 @@ func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
 	dc.Update(routeNoShadow, nil)
 	originalHandler.served = make(chan struct{})
 	shadowHandler.served = make(chan struct{})
-	defer close(shadowHandler.served)
 
 	// test shadow do not get anything
 	testingStr := "TESTEST"
