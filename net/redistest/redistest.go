@@ -24,7 +24,7 @@ func NewTestRedisWithPassword(t testing.TB, password string) (address string, do
 	start := time.Now()
 
 	// first testcontainer start takes longer than subsequent
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
 	port, err := nat.NewPort("tcp", "6379")
