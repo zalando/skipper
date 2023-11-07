@@ -1,4 +1,4 @@
-// Package tracing handles opentracing support for skipper
+// Package tracing handles opentelemetry and opentracing support for skipper
 //
 // Implementations of Opentracing API can be found in the https://github.com/skipper-plugins.
 // It follows how to implement a new tracer plugin for this interface.
@@ -47,6 +47,11 @@
 // and copied to the given as -plugindir (by default, "./plugins").
 //
 // Then it can be loaded with -opentracing basic as parameter to skipper.
+//
+// Also note that the API always return and receive opentelemetry.Tracer, to use opentracing
+// within skipper its necessary to embedd it into a TracerWrapper, this type will implement
+// opentelemetry.Tracer interface but will instead call opentracing.Tracer under the hood
+// making it possible to pass and receive opentracing.Tracer to and from skipper.
 package tracing
 
 import (
@@ -62,7 +67,7 @@ import (
 	"github.com/zalando/skipper/tracing/tracers/jaeger"
 	"github.com/zalando/skipper/tracing/tracers/lightstep"
 	"github.com/zalando/skipper/tracing/tracers/otel"
-	opentelemetry "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace"
 
 	originstana "github.com/instana/go-sensor"
 	origlightstep "github.com/lightstep/lightstep-tracer-go"
@@ -70,9 +75,11 @@ import (
 	origjaeger "github.com/uber/jaeger-client-go"
 )
 
-// InitTracer initializes an opentracing tracer. The first option item is the
-// tracer implementation name.
-func InitTracer(opts []string) (tracer ot.Tracer, err error) {
+// InitTracer initializes an opentelemetry tracer. The first option item is the
+// tracer implementation name. If the first option is not "otel" InitTracer will
+// initialize a opentracing tracer and embedd it into a TracerWrapper that will
+// convert calls from opentelemetry API to opentracing API when necessary.
+func InitTracer(opts []string) (tracer trace.Tracer, err error) {
 	if len(opts) == 0 {
 		return nil, errors.New("tracing: the implementation parameter is mandatory")
 	}
@@ -80,37 +87,37 @@ func InitTracer(opts []string) (tracer ot.Tracer, err error) {
 	impl, opts = opts[0], opts[1:]
 
 	switch impl {
+	case "otel":
+		ctx := context.TODO()
+		return otel.InitTracer(ctx, opts)
 	case "noop":
-		return &ot.NoopTracer{}, nil
+		return &TracerWrapper{Ot: &ot.NoopTracer{}}, nil
 	case "basic":
-		return basic.InitTracer(opts)
+		var err error
+		tracer := &TracerWrapper{}
+		tracer.Ot, err = basic.InitTracer(opts)
+		return tracer, err
 	case "instana":
-		return instana.InitTracer(opts)
+		var err error
+		tracer := &TracerWrapper{}
+		tracer.Ot, err = instana.InitTracer(opts)
+		return tracer, err
 	case "jaeger":
-		return jaeger.InitTracer(opts)
+		var err error
+		tracer := &TracerWrapper{}
+		tracer.Ot, err = jaeger.InitTracer(opts)
+		return tracer, err
 	case "lightstep":
-		return lightstep.InitTracer(opts)
+		var err error
+		tracer := &TracerWrapper{}
+		tracer.Ot, err = lightstep.InitTracer(opts)
+		return tracer, err
 	default:
 		return nil, fmt.Errorf("tracer '%s' not supported", impl)
 	}
 }
 
-// TryOtelTracerWithBridge tries to initialize a OpenTelemetry tracer and a
-// OpenTelemetry bridge tracer. If the user did not specify otel as tracer
-// implementation, it will just return nil for both tracers and no error.
-func TryOtelTracerWithBridge(ctx context.Context, opts []string) (opentelemetry.Tracer, ot.Tracer, error) {
-	if len(opts) == 0 {
-		return nil, nil, errors.New("tracing: the implementation parameter is mandatory")
-	}
-
-	if opts[0] != "otel" {
-		return nil, nil, nil
-	}
-
-	return otel.WithBridgeTracer(ctx, opts)
-}
-
-func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, err error) {
+func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer trace.Tracer, err error) {
 	for _, dir := range pluginDirs {
 		tracer, err = LoadPlugin(dir, opts)
 		if err == nil {
@@ -120,9 +127,12 @@ func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, er
 	return nil, err
 }
 
-// LoadPlugin loads the given opentracing plugin and returns an opentracing.Tracer
+// LoadPlugin loads the given opentracing plugin and returns an opentelemetry.Tracer
+// be aware that in case your system only uses opentracing.Tracer, it will be necessary
+// to use the TracerWrapper also provided in this package. TacerWrapper converts calls
+// from opentelemetry.Tracer to opentracing.Tracer.
 // DEPRECATED, use LoadTracingPlugin
-func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
+func LoadPlugin(pluginDir string, opts []string) (trace.Tracer, error) {
 	if len(opts) == 0 {
 		return nil, errors.New("opentracing: the implementation parameter is mandatory")
 	}
@@ -130,7 +140,7 @@ func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	impl, opts = opts[0], opts[1:]
 
 	if impl == "noop" {
-		return &ot.NoopTracer{}, nil
+		return &TracerWrapper{Ot: &ot.NoopTracer{}}, nil
 	}
 
 	pluginFile := filepath.Join(pluginDir, impl+".so") // FIXME this is Linux and other ELF...
@@ -142,7 +152,7 @@ func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lookup module symbol failed for %s: %s", impl, err)
 	}
-	fn, ok := sym.(func([]string) (ot.Tracer, error))
+	fn, ok := sym.(func([]string) (trace.Tracer, error))
 	if !ok {
 		return nil, fmt.Errorf("module %s's InitTracer function has wrong signature", impl)
 	}
@@ -153,44 +163,31 @@ func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	return tracer, nil
 }
 
-// CreateSpan creates a started span from an optional given parent from context
-func CreateSpan(name string, ctx context.Context, openTracer ot.Tracer) ot.Span {
-	parentSpan := ot.SpanFromContext(ctx)
-	if parentSpan == nil {
-		return openTracer.StartSpan(name)
-	}
-	return openTracer.StartSpan(name, ot.ChildOf(parentSpan.Context()))
-}
-
-// LogKV will add a log to the span from the given context
-func LogKV(k, v string, ctx context.Context) {
-	if span := ot.SpanFromContext(ctx); span != nil {
-		span.LogKV(k, v)
-	}
-}
-
 // GetTraceID retrieves TraceID from HTTP request, for example to search for this trace
 // in the UI of your tracing solution and to get more context about it
-func GetTraceID(span ot.Span) string {
+func GetTraceID(span trace.Span) string {
 	if span == nil {
 		return ""
 	}
 
-	spanContext := span.Context()
-	if spanContext == nil {
-		return ""
+	if sw, ok := span.(*SpanWrapper); ok {
+
+		spanContext := sw.Ot.Context()
+		if spanContext == nil {
+			return ""
+		}
+
+		switch spanContextType := spanContext.(type) {
+		case origbasic.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.TraceID)
+		case originstana.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.TraceID)
+		case origjaeger.SpanContext:
+			return spanContextType.TraceID().String()
+		case origlightstep.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.TraceID)
+		}
 	}
 
-	switch spanContextType := spanContext.(type) {
-	case origbasic.SpanContext:
-		return fmt.Sprintf("%x", spanContextType.TraceID)
-	case originstana.SpanContext:
-		return fmt.Sprintf("%x", spanContextType.TraceID)
-	case origjaeger.SpanContext:
-		return spanContextType.TraceID().String()
-	case origlightstep.SpanContext:
-		return fmt.Sprintf("%x", spanContextType.TraceID)
-	}
-
-	return ""
+	return span.SpanContext().TraceID().String()
 }

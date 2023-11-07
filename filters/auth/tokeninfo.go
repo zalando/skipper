@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -26,7 +26,7 @@ type TokeninfoOptions struct {
 	URL          string
 	Timeout      time.Duration
 	MaxIdleConns int
-	Tracer       opentracing.Tracer
+	Tracer       trace.Tracer
 
 	// CacheSize configures the maximum number of cached tokens.
 	// The cache evicts least recently used items first.

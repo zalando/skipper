@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type (
@@ -105,9 +106,14 @@ func (f *fifoFilter) Request(ctx filters.FilterContext) {
 	c := ctx.Request().Context()
 	done, err := q.Wait(c)
 	if err != nil {
-		if span := opentracing.SpanFromContext(c); span != nil {
-			ext.Error.Set(span, true)
-			span.LogKV("fifo error", fmt.Sprintf("Failed to wait for fifo queue: %v", err))
+		if span := tracing.SpanFromContext(c, ctx.Tracer()); span != nil {
+			span.SetAttributes(attribute.Bool(tracing.ErrorTag, true))
+			span.AddEvent(
+				"fifo error",
+				trace.WithAttributes(attribute.String(
+					"message",
+					fmt.Sprintf("Failed to wait for fifo queue: %v", err),
+				)))
 		}
 		ctx.Logger().Debugf("Failed to wait for fifo queue: %v", err)
 

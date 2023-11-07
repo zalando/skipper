@@ -61,6 +61,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	if len(opentracingOpts) == 0 {
 		opentracingOpts = []string{"noop"}
 	}
+
 	tracer, err := tracing.InitTracer(opentracingOpts)
 	if err != nil {
 		return nil, err

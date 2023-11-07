@@ -105,7 +105,7 @@ type opaAuthorizeRequestFilter struct {
 func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	req := fc.Request()
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
-	defer span.Finish()
+	defer span.End()
 
 	var rawBodyBytes []byte
 	if f.bodyParsing {

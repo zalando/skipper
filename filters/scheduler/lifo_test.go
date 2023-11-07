@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,6 +23,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/tracing"
 )
 
 func TestNewLIFO(t *testing.T) {
@@ -520,24 +522,29 @@ func TestLifoErrors(t *testing.T) {
 
 	requestSpike(t, 20, ts.URL)
 
-	codes := make(map[uint16]int)
+	codes := make(map[string]int)
 	for _, span := range tracer.FinishedSpans() {
 		if span.OperationName == "ingress" {
-			code := span.Tag("http.status_code").(uint16)
+			code := span.Tag(tracing.HTTPStatusCodeTag).(string)
+
 			codes[code]++
-			if code >= 500 {
-				assert.Equal(t, true, span.Tag("error"))
+			c, err := strconv.Atoi(code)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c >= 500 {
+				assert.Equal(t, true, span.Tag(tracing.ErrorTag))
 			} else {
-				assert.Nil(t, span.Tag("error"))
+				assert.Nil(t, span.Tag(tracing.ErrorTag))
 			}
 		}
 	}
 
-	assert.Equal(t, map[uint16]int{
+	assert.Equal(t, map[string]int{
 		// 20 request in total, of which:
-		200: 5, // went straight to the backend
-		502: 7, // were queued and timed out as backend latency is greater than scheduling timeout
-		503: 8, // were refused due to full queue
+		"200": 5, // went straight to the backend
+		"502": 7, // were queued and timed out as backend latency is greater than scheduling timeout
+		"503": 8, // were refused due to full queue
 	}, codes)
 
 	reg.UpdateMetrics()

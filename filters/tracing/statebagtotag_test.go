@@ -4,20 +4,20 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestStateBagToTag(t *testing.T) {
 	req := &http.Request{Header: http.Header{}}
-
-	span := tracingtest.NewSpan("start_span")
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+	s := tracingtest.NewSpan("start_span")
+	span := &tracing.SpanWrapper{Ot: s}
+	req = req.WithContext(tracing.ContextWithSpan(req.Context(), span))
 	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
 
 	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
@@ -25,14 +25,14 @@ func TestStateBagToTag(t *testing.T) {
 
 	f.Request(ctx)
 
-	assert.Equal(t, "val", span.Tags["tag"])
+	assert.Equal(t, "val", s.Tags["tag"])
 }
 
 func TestStateBagToTagAllocs(t *testing.T) {
 	req := &http.Request{Header: http.Header{}}
 
-	span := tracingtest.NewSpan("start_span")
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+	span := &tracing.SpanWrapper{Ot: tracingtest.NewSpan("start_span")}
+	req = req.WithContext(tracing.ContextWithSpan(req.Context(), span))
 	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
 
 	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
@@ -101,9 +101,10 @@ func BenchmarkStateBagToTag_StringValue(b *testing.B) {
 	require.NoError(b, err)
 
 	span := tracingtest.NewSpan("start_span")
+	sw := &tracing.SpanWrapper{Ot: span}
 
 	req := &http.Request{Header: http.Header{}}
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+	req = req.WithContext(tracing.ContextWithSpan(req.Context(), sw))
 
 	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
 	f.Request(ctx)

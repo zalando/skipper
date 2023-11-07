@@ -1,9 +1,10 @@
 package tracing
 
 import (
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type tagSpec struct {
@@ -67,12 +68,12 @@ func (f *tagFilter) Response(ctx filters.FilterContext) {
 }
 
 func (f *tagFilter) setTag(ctx filters.FilterContext) {
-	span := opentracing.SpanFromContext(ctx.Request().Context())
+	span := tracing.SpanFromContext(ctx.Request().Context(), ctx.Tracer())
 	if span == nil {
 		return
 	}
 
 	if v, ok := f.tagValue.ApplyContext(ctx); ok {
-		span.SetTag(f.tagName, v)
+		span.SetAttributes(attribute.String(f.tagName, v))
 	}
 }

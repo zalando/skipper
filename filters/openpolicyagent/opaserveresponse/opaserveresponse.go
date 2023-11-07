@@ -97,7 +97,7 @@ type opaServeResponseFilter struct {
 
 func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
-	defer span.Finish()
+	defer span.End()
 	req := fc.Request()
 
 	var rawBodyBytes []byte

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"runtime"
 	"sync"
+
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
+
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/tee"

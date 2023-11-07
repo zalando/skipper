@@ -13,6 +13,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -36,9 +38,9 @@ type tokeninfoClient interface {
 
 var _ tokeninfoClient = &authClient{}
 
-func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer opentracing.Tracer) (*authClient, error) {
+func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer trace.Tracer) (*authClient, error) {
 	if tracer == nil {
-		tracer = opentracing.NoopTracer{}
+		tracer = &tracing.TracerWrapper{Ot: opentracing.NoopTracer{}}
 	}
 	if maxIdleConns <= 0 {
 		maxIdleConns = defaultMaxIdleConns
@@ -53,7 +55,7 @@ func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns
 		ResponseHeaderTimeout:   timeout,
 		TLSHandshakeTimeout:     timeout,
 		MaxIdleConnsPerHost:     maxIdleConns,
-		Tracer:                  tracer,
+		OtelTracer:              tracer,
 		OpentracingComponentTag: "skipper",
 		OpentracingSpanName:     spanName,
 	})

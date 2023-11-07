@@ -54,6 +54,19 @@ type options struct {
 	tags               map[string]string
 }
 
+func InitTracer(ctx context.Context, opts []string) (trace.Tracer, error) {
+	opt, err := parseOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	builder := tracerBuilder{
+		opt: opt,
+	}
+
+	return builder.Build(ctx)
+}
+
 func WithBridgeTracer(ctx context.Context, opts []string) (trace.Tracer, ot.Tracer, error) {
 	opt, err := parseOptions(opts)
 	if err != nil {

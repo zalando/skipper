@@ -1,9 +1,11 @@
 package proxy
 
 import (
-	ot "github.com/opentracing/opentracing-go"
-
 	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
+	ot "github.com/opentracing/opentracing-go"
 )
 
 const (
@@ -34,7 +36,7 @@ const (
 )
 
 type proxyTracing struct {
-	tracer                   ot.Tracer
+	trace.Tracer
 	initialOperationName     string
 	disableFilterSpans       bool
 	logFilterLifecycleEvents bool
@@ -43,7 +45,7 @@ type proxyTracing struct {
 }
 
 type filterTracing struct {
-	span      ot.Span
+	span      trace.Span
 	logEvents bool
 }
 
@@ -56,18 +58,22 @@ func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 		p.InitialSpan = "ingress"
 	}
 
-	if p.Tracer == nil {
-		p.Tracer = &ot.NoopTracer{}
-	}
-
 	excludedTags := map[string]bool{}
 
 	for _, t := range p.ExcludeTags {
 		excludedTags[t] = true
 	}
 
+	if p.OtelTracer == nil {
+		if p.Tracer != nil {
+			p.OtelTracer = &tracing.TracerWrapper{Ot: p.Tracer}
+		} else {
+			p.OtelTracer = &tracing.TracerWrapper{Ot: &ot.NoopTracer{}}
+		}
+	}
+
 	return &proxyTracing{
-		tracer:                   p.Tracer,
+		Tracer:                   p.OtelTracer,
 		initialOperationName:     p.InitialSpan,
 		disableFilterSpans:       p.DisableFilterSpans,
 		logFilterLifecycleEvents: p.LogFilterEvents,
@@ -76,31 +82,35 @@ func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 	}
 }
 
-func (t *proxyTracing) logEvent(span ot.Span, eventName, eventValue string) {
+func (t *proxyTracing) logEvent(span trace.Span, eventName, eventValue string) {
 	if span == nil {
 		return
 	}
 
-	span.LogKV(eventName, ensureUTF8(eventValue))
+	span.AddEvent(eventName, trace.WithAttributes(attribute.String(eventName, eventValue)))
 }
 
-func (t *proxyTracing) setTag(span ot.Span, key string, value interface{}) *proxyTracing {
+func (t *proxyTracing) logErrorEvent(span trace.Span, message string) {
+	if span == nil {
+		return
+	}
+
+	span.AddEvent(tracing.ErrorTag, trace.WithAttributes(attribute.String("message", message)))
+}
+
+func (t *proxyTracing) setTag(span trace.Span, key string, value string) *proxyTracing {
 	if span == nil {
 		return t
 	}
 
 	if !t.excludeTags[key] {
-		if s, ok := value.(string); ok {
-			span.SetTag(key, ensureUTF8(s))
-		} else {
-			span.SetTag(key, value)
-		}
+		span.SetAttributes(attribute.String(key, value))
 	}
 
 	return t
 }
 
-func (t *proxyTracing) logStreamEvent(span ot.Span, eventName, eventValue string) {
+func (t *proxyTracing) logStreamEvent(span trace.Span, eventName, eventValue string) {
 	if !t.logStreamEvents {
 		return
 	}
@@ -112,26 +122,33 @@ func (t *proxyTracing) startFilterTracing(operation string, ctx *context) *filte
 	if t.disableFilterSpans {
 		return nil
 	}
-	span := tracing.CreateSpan(operation, ctx.request.Context(), t.tracer)
+
+	_, span := t.Start(ctx.request.Context(), operation)
 	ctx.parentSpan = span
 
 	return &filterTracing{span, t.logFilterLifecycleEvents}
 }
 
 func (t *filterTracing) finish() {
-	if t != nil {
-		t.span.Finish()
+	if t == nil {
+		return
 	}
+
+	t.span.End()
 }
 
 func (t *filterTracing) logStart(filterName string) {
-	if t != nil && t.logEvents {
-		t.span.LogKV(filterName, StartEvent)
+	if t == nil || !t.logEvents {
+		return
 	}
+
+	t.span.AddEvent(filterName, trace.WithAttributes(attribute.String(filterName, StartEvent)))
 }
 
 func (t *filterTracing) logEnd(filterName string) {
-	if t != nil && t.logEvents {
-		t.span.LogKV(filterName, EndEvent)
+	if t == nil || !t.logEvents {
+		return
 	}
+
+	t.span.AddEvent(filterName, trace.WithAttributes(attribute.String(filterName, EndEvent)))
 }

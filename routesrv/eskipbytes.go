@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	ot "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type responseWriterInterceptor struct {
@@ -62,7 +62,7 @@ type eskipBytes struct {
 	zw    *gzip.Writer
 	zdata []byte
 
-	tracer  ot.Tracer
+	tracer  trace.Tracer
 	metrics metrics.Metrics
 	now     func() time.Time
 }
@@ -112,8 +112,8 @@ func (e *eskipBytes) compressLocked(data []byte) []byte {
 }
 
 func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	span := tracing.CreateSpan("serve_routes", r.Context(), e.tracer)
-	defer span.Finish()
+	_, span := e.tracer.Start(r.Context(), "serve_routes")
+	defer span.End()
 	start := time.Now()
 	defer e.metrics.MeasureBackend("routersv", start)
 
@@ -123,8 +123,8 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	defer func() {
-		span.SetTag("status", w.statusCode)
-		span.SetTag("bytes", w.bytesWritten)
+		span.SetAttributes(attribute.Int("status", w.statusCode))
+		span.SetAttributes(attribute.Int("bytes", w.bytesWritten))
 
 		e.metrics.IncCounter(strconv.Itoa(w.statusCode))
 	}()

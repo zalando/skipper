@@ -9,6 +9,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/trace"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -33,7 +35,7 @@ type Context struct {
 	FBackendUrl         string
 	FOutgoingHost       string
 	FMetrics            filters.Metrics
-	FTracer             opentracing.Tracer
+	FTracer             trace.Tracer
 }
 
 func (spec *Filter) Name() string                    { return spec.FilterName }
@@ -58,15 +60,16 @@ func (fc *Context) ResponseController() *http.ResponseController {
 	return http.NewResponseController(fc.FResponseWriter)
 }
 
-func (fc *Context) Tracer() opentracing.Tracer {
+func (fc *Context) Tracer() trace.Tracer {
 	if fc.FTracer != nil {
 		return fc.FTracer
 	}
-	return &opentracing.NoopTracer{}
+	return &tracing.TracerWrapper{Ot: &opentracing.NoopTracer{}}
 }
 
-func (fc *Context) ParentSpan() opentracing.Span {
-	return opentracing.StartSpan("test_span")
+func (fc *Context) ParentSpan() trace.Span {
+	_, span := fc.FTracer.Start(fc.FRequest.Context(), "test_span")
+	return span
 }
 
 func (fc *Context) Logger() filters.FilterContextLogger {
@@ -77,6 +80,10 @@ func (fc *Context) Serve(resp *http.Response) {
 	fc.FServedWithResponse = true
 	fc.FResponse = resp
 	fc.FServed = true
+}
+
+func (fc *Context) WithRequest(r *http.Request) {
+	fc.FRequest = r
 }
 
 //lint:ignore ST1016 ignore receiver name, because of type reuse

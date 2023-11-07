@@ -28,6 +28,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 
 	"github.com/stretchr/testify/assert"
@@ -126,10 +127,10 @@ spec:
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracingtest.Tracer{}
+	tracer := &tracing.TracerWrapper{Ot: &tracingtest.Tracer{}}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
-		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
 	})
 	defer pr.Close()
 	lb := stdlibhttptest.NewServer(pr)
@@ -301,10 +302,10 @@ spec:
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracingtest.Tracer{}
+	tracer := &tracing.TracerWrapper{Ot: &tracingtest.Tracer{}}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
-		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
 	})
 	defer pr.Close()
 	lb := stdlibhttptest.NewServer(pr)

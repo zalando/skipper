@@ -11,6 +11,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -37,7 +39,7 @@ const (
 
 type TokenintrospectionOptions struct {
 	Timeout      time.Duration
-	Tracer       opentracing.Tracer
+	Tracer       trace.Tracer
 	MaxIdleConns int
 }
 
@@ -173,7 +175,7 @@ func NewSecureOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Sp
 // NewOAuthTokenintrospectionAnyClaims, NewOAuthTokenintrospectionAllClaims,
 // NewSecureOAuthTokenintrospectionAnyKV, NewSecureOAuthTokenintrospectionAllKV,
 // NewSecureOAuthTokenintrospectionAnyClaims, NewSecureOAuthTokenintrospectionAllClaims,
-// pass opentracing.Tracer and other options in TokenintrospectionOptions.
+// pass open telemetry Tracer and other options in TokenintrospectionOptions.
 func TokenintrospectionWithOptions(
 	create func(time.Duration) filters.Spec,
 	o TokenintrospectionOptions,
@@ -193,7 +195,7 @@ func newOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Duration) 
 		typ: typ,
 		options: TokenintrospectionOptions{
 			Timeout: timeout,
-			Tracer:  opentracing.NoopTracer{},
+			Tracer:  &tracing.TracerWrapper{Ot: opentracing.NoopTracer{}},
 		},
 		secure: false,
 	}
@@ -204,7 +206,7 @@ func newSecureOAuthTokenintrospectionFilter(typ roleCheckType, timeout time.Dura
 		typ: typ,
 		options: TokenintrospectionOptions{
 			Timeout: timeout,
-			Tracer:  opentracing.NoopTracer{},
+			Tracer:  &tracing.TracerWrapper{Ot: opentracing.NoopTracer{}},
 		},
 		secure: true,
 	}

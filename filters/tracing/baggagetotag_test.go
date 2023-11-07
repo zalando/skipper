@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
@@ -25,9 +25,9 @@ func TestBaggageItemNameToTag(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			req := &http.Request{Header: http.Header{}}
 
-			span := tracingtest.NewSpan("start_span")
-			span.SetBaggageItem(ti.baggageItemName, ti.baggageItemValue)
-			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+			span := &tracing.SpanWrapper{Ot: tracingtest.NewSpan("start_span")}
+			span.Ot.SetBaggageItem(ti.baggageItemName, ti.baggageItemValue)
+			req = req.WithContext(tracing.ContextWithSpan(req.Context(), span))
 			ctx := &filtertest.Context{FRequest: req}
 
 			f, err := NewBaggageToTagFilter().CreateFilter([]interface{}{ti.baggageItemName, ti.tagName})
@@ -38,7 +38,12 @@ func TestBaggageItemNameToTag(t *testing.T) {
 
 			f.Request(ctx)
 
-			if tagValue := span.Tags[ti.tagName]; ti.baggageItemValue != tagValue {
+			otSpan, ok := span.Ot.(*tracingtest.Span)
+			if !ok {
+				t.Fatal("Expected span.Ot to be of type *tracingtest.Span")
+			}
+
+			if tagValue := otSpan.Tags[ti.tagName]; ti.baggageItemValue != tagValue {
 				t.Error("couldn't set span tag from baggage item")
 			}
 		})
@@ -99,9 +104,9 @@ func TestFallbackToBaggageNameForTag(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			req := &http.Request{Header: http.Header{}}
 
-			span := tracingtest.NewSpan("start_span")
-			span.SetBaggageItem(ti.baggageItemName, ti.baggageItemValue)
-			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+			span := &tracing.SpanWrapper{Ot: tracingtest.NewSpan("start_span")}
+			span.Ot.SetBaggageItem(ti.baggageItemName, ti.baggageItemValue)
+			req = req.WithContext(tracing.ContextWithSpan(req.Context(), span))
 			ctx := &filtertest.Context{FRequest: req}
 
 			f, err := NewBaggageToTagFilter().CreateFilter([]interface{}{ti.baggageItemName})
@@ -112,7 +117,12 @@ func TestFallbackToBaggageNameForTag(t *testing.T) {
 
 			f.Request(ctx)
 
-			if tagValue := span.Tags[ti.baggageItemName]; ti.baggageItemValue != tagValue {
+			otSpan, ok := span.Ot.(*tracingtest.Span)
+			if !ok {
+				t.Fatal("Expected span.Ot to be of type *tracingtest.Span")
+			}
+
+			if tagValue := otSpan.Tags[ti.baggageItemName]; ti.baggageItemValue != tagValue {
 				t.Error("couldn't set span tag from baggage item")
 			}
 		})

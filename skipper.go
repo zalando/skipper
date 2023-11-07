@@ -22,6 +22,7 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -681,7 +682,12 @@ type Options struct {
 
 	// OpenTracingTracer allows pre-created tracer to be passed on to skipper. Providing the
 	// tracer instance overrides options provided under OpenTracing property.
+	// DEPRECATED use OpenTelemetryTracer instead.
 	OpenTracingTracer ot.Tracer
+
+	// OpenTelemetryTracer allows pre-created tracer to be passed on to skipper. Providing the
+	// tracer instance overrides options provided under OpenTracing property.
+	OpenTelemetryTracer trace.Tracer
 
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
@@ -1167,9 +1173,13 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	return config, nil
 }
 
-func (o *Options) openTracingTracerInstance() (ot.Tracer, error) {
+func (o *Options) tracerInstance() (trace.Tracer, error) {
+	if o.OpenTelemetryTracer != nil {
+		return o.OpenTelemetryTracer, nil
+	}
+
 	if o.OpenTracingTracer != nil {
-		return o.OpenTracingTracer, nil
+		return &tracing.TracerWrapper{Ot: o.OpenTracingTracer}, nil
 	}
 
 	if len(o.OpenTracing) > 0 {
@@ -1521,30 +1531,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	var otTracer ot.Tracer
+	var tracer trace.Tracer
 	if len(o.OpenTracing) > 0 {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		// TODO (@lucastt): We should use otelTracer and pass it along to filters and proxy
-		// in next iterations.
-		_, otTracer, err = tracing.TryOtelTracerWithBridge(ctx, o.OpenTracing)
+		tracer, err = tracing.InitTracer(o.OpenTracing)
 		if err != nil {
 			return err
 		}
-
-		if otTracer == nil {
-			otTracer, err = o.openTracingTracerInstance()
-			if err != nil {
-				return err
-			}
-		} else {
-			o.OpenTracingTracer = otTracer
-		}
 	} else {
-		// always have a tracer available, so filter authors can rely on the
-		// existence of a tracer
-		otTracer, _ = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+		log.Warning("no tracing arguments provided, using noop tracer plugin")
+		tracer, err = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
+		if err != nil {
+			return err
+		}
 	}
 
 	// tee filters override if we have a tracer
@@ -1552,13 +1550,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.CustomFilters = append(o.CustomFilters,
 			// tee()
 			teefilters.WithOptions(teefilters.Options{
-				Tracer:   otTracer,
+				Tracer:   tracer,
 				NoFollow: false,
 			}),
 			// teenf()
 			teefilters.WithOptions(teefilters.Options{
 				NoFollow: true,
-				Tracer:   otTracer,
+				Tracer:   tracer,
 			}),
 		)
 	}
@@ -1568,7 +1566,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			URL:          o.OAuthTokeninfoURL,
 			Timeout:      o.OAuthTokeninfoTimeout,
 			MaxIdleConns: o.IdleConnectionsPerHost,
-			Tracer:       otTracer,
+			Tracer:       tracer,
 			CacheSize:    o.OAuthTokeninfoCacheSize,
 			CacheTTL:     o.OAuthTokeninfoCacheTTL,
 		}
@@ -1597,17 +1595,17 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	tio := auth.TokenintrospectionOptions{
 		Timeout:      o.OAuthTokenintrospectionTimeout,
 		MaxIdleConns: o.IdleConnectionsPerHost,
-		Tracer:       otTracer,
+		Tracer:       tracer,
 	}
 
 	who := auth.WebhookOptions{
 		Timeout:      o.WebhookTimeout,
 		MaxIdleConns: o.IdleConnectionsPerHost,
-		Tracer:       otTracer,
+		Tracer:       tracer,
 	}
 
 	admissionControlFilter := shedder.NewAdmissionControl(shedder.Options{
-		Tracer: otTracer,
+		Tracer: tracer,
 	})
 	admissionControlSpec, ok := admissionControlFilter.(*shedder.AdmissionControlSpec)
 	if !ok {
@@ -1645,7 +1643,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			CookieValidity: o.OIDCCookieValidity,
 			Timeout:        o.OIDCDistributedClaimsTimeout,
 			MaxIdleConns:   o.IdleConnectionsPerHost,
-			Tracer:         otTracer,
+			Tracer:         tracer,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
@@ -1674,7 +1672,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 				MaxIdleConns:        o.SwarmRedisMaxIdleConns,
 				ConnMetricsInterval: o.SwarmRedisConnMetricsInterval,
 				UpdateInterval:      o.SwarmRedisUpdateInterval,
-				Tracer:              otTracer,
+				Tracer:              tracer,
 				Log:                 log.New(),
 			}
 		} else {
@@ -1821,7 +1819,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oauthConfig.Insecure = o.OAuth2GrantInsecure
 		oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout
 		oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
-		oauthConfig.Tracer = otTracer
+		oauthConfig.Tracer = tracer
 
 		if err := oauthConfig.Init(); err != nil {
 			log.Errorf("Failed to initialize oauth grant filter: %v.", err)
@@ -1841,7 +1839,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(
 			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
-			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval))
+			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
+			openpolicyagent.WithTracer(tracer))
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
@@ -2085,7 +2084,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	proxyParams.OpenTracing = &proxy.OpenTracingParams{
-		Tracer:             otTracer,
+		OtelTracer:         tracer,
 		InitialSpan:        o.OpenTracingInitialSpan,
 		ExcludeTags:        o.OpenTracingExcludedProxyTags,
 		DisableFilterSpans: o.OpenTracingDisableFilterSpans,
