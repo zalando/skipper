@@ -4,3 +4,4 @@ backend address \\\"/foo\\\" contains path
 backend address \\\"/foo/bar\\\" contains path
 backend address \\\"example\.com/foo\\\" contains path
 backend address \\\"http://example\.com/\\\" contains path
+backend address \\\"http://example\.com\?foo=bar\\\" contains path

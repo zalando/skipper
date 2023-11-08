@@ -136,7 +136,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "routegroup with invalid backends",
 			inputFile: "rg-with-invalid-backend-path.json",
-			message:   `backend address \"http://example.com/foo\" contains path\nbackend address \"http://example.com/foo/bar\" contains path\nbackend address \"http://example.com/foo/\" contains path\nbackend address \"/foo\" contains path\nbackend address \"http://example.com/\" contains path\nbackend address \"example.com/\" contains path\nbackend address \"example.com/foo\" contains path`,
+			message:   `backend address \"http://example.com/foo\" contains path\nbackend address \"http://example.com/foo/bar\" contains path\nbackend address \"http://example.com/foo/\" contains path\nbackend address \"/foo\" contains path\nbackend address \"http://example.com/\" contains path\nbackend address \"example.com/\" contains path\nbackend address \"example.com/foo\" contains path\nbackend address \"http://example.com?foo=bar\" contains path`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

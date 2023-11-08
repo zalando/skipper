@@ -179,6 +179,11 @@
                         "address": "http://user:pass@example.com"
                     },
                     {
+                        "name": "backend8",
+                        "type": "network",
+                        "address": "http://example.com?foo=bar"
+                    },
+                    {
                         "name": "shunt",
                         "type": "shunt"
                     }
