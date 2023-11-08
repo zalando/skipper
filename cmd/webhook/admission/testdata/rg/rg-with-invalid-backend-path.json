@@ -21,7 +21,7 @@
             "type": "shunt"
           },
           {
-            "name": "valid-backend2",
+            "name": "valid-backend3",
             "type": "network",
             "address": "http://example.com"
           },
