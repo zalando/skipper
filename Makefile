@@ -170,7 +170,7 @@ check-fmt: $(SOURCES) ## check format code
 precommit: fmt build vet staticcheck check-race shortcheck ## precommit hook
 
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
-	go test -tags=redis -coverprofile=.coverprofile-all ./...
+	go test -test.short -coverprofile=.coverprofile-all ./...
 
 .PHONY: cover
 cover: .coverprofile-all ## coverage test and show it in your browser
