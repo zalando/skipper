@@ -78,11 +78,6 @@ func TestProcessArgs(t *testing.T) {
 		nil,
 		nil,
 	}, {
-		[]string{"-sort-predicates"},
-		false,
-		nil,
-		nil,
-	}, {
 
 		// etcd-urls
 		[]string{"-etcd-urls", "https://etcd1.example.org:4242,https://etcd2.example.org:4545", "-etcd-oauth-token", "example"},
