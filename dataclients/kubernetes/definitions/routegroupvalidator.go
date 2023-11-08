@@ -100,7 +100,7 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
 		} else if address.Path != "" || address.RawQuery != "" {
-			errs = append(errs, fmt.Errorf("backend address %q contains path", backend.Address))
+			errs = append(errs, fmt.Errorf("backend address %q contains path or query", backend.Address))
 		}
 	}
 	return errorsJoin(errs...)

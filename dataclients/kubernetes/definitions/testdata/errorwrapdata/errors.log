@@ -4,9 +4,9 @@ single predicate expected at "Path(\"/foo\") && Method(\"GET\")"
 single predicate expected at ""
 single filter expected at "inlineContent(\"/foo\") -> status(200)"
 single filter expected at " "
-backend address "http://example.com/foo" contains path
-backend address "http://example.com/foo/bar" contains path
-backend address "http://example.com/foo/" contains path
-backend address "/foo" contains path
-backend address "example.com/" contains path
-backend address "http://example.com?foo=bar" contains path
+backend address "http://example.com/foo" contains path or query
+backend address "http://example.com/foo/bar" contains path or query
+backend address "http://example.com/foo/" contains path or query
+backend address "/foo" contains path or query
+backend address "example.com/" contains path or query
+backend address "http://example.com?foo=bar" contains path or query
