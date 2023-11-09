@@ -109,7 +109,7 @@ clean: ## clean temporary files and directories
 	rm -rf .bin
 	rm -f _test_plugins/*.so
 	rm -f _test_plugins_fail/*.so
-	rm -f .coverprofile-all
+	rm -f .coverprofile-all coverage.out
 
 .PHONY: deps
 deps: ## install dependencies to run everything
@@ -169,6 +169,9 @@ check-fmt: $(SOURCES) ## check format code
 .PHONY: precommit
 precommit: fmt build vet staticcheck check-race shortcheck ## precommit hook
 
+coverprofile: $(SOURCES) $(TEST_PLUGINS)
+	go test -test.short -covermode atomic -coverprofile=coverage.out ./...
+
 .coverprofile-all: $(SOURCES) $(TEST_PLUGINS)
 	go test -test.short -coverprofile=.coverprofile-all ./...
 
@@ -179,8 +182,3 @@ cover: .coverprofile-all ## coverage test and show it in your browser
 .PHONY: show-cover
 show-cover: .coverprofile-all
 	go tool cover -html .coverprofile-all
-
-.PHONY: publish-coverage
-publish-coverage: .coverprofile-all
-	curl -s https://codecov.io/bash -o codecov
-	bash codecov -f .coverprofile-all
