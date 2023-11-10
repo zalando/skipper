@@ -1,5 +1,5 @@
-//go:build fuzz
-// +build fuzz
+//go:build gofuzz
+// +build gofuzz
 
 package eskip
 
