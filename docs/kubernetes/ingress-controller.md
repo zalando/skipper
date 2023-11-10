@@ -323,13 +323,10 @@ run:
 kubectl create -f docs/kubernetes/deploy/deployment
 ```
 
-!!! note
-    The `extensions/v1beta1` and `networking.k8s.io/v1beta1` API versions of Ingress is no longer served as of v1.22.
-    In order to use `networking.k8s.io/v1` extension, you need to add `-kubernetes-ingress-v1` to the `skipper-ingress` container's arguments. This feature is added from skipper version v0.13.149
-
 Now, let's see what we have just deployed.
 This will create serviceaccount, PodSecurityPolicy and RBAC rules such that
-skipper-ingress is allowed to listen on the hostnetwork.
+skipper-ingress is allowed to listen on the hostnetwork and poll
+ingress resources.
 
 ```yaml
 # cat docs/kubernetes/deploy/deployment/rbac.yaml
@@ -495,7 +492,7 @@ The source code is available at [GitHub](https://github.com/baez90/skipper-helm)
 The chart includes resource definitions for the following use cases:
 
 - RBAC
-- CoreOS [Prometheus-Operator](https://github.com/coreos/prometheus-operator)
+- [Prometheus-Operator](https://github.com/prometheus-operator/prometheus-operator)
 
 As this chart is not maintained by the Skipper developers and is still under development only the basic deployment workflow is covered here.
 Check the GitHub repository for all details.
@@ -641,7 +638,7 @@ line option `-enable-swarm` and `-enable-ratelimits`.
 The rest depends on the implementation, that can be:
 
 - [Redis](https://redis.io)
-- [SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
+- alpha version: [SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
 
 ### Redis based
 
@@ -754,6 +751,13 @@ the communication work with TCP and UDP to the specified `swarm-port`:
 ```
 
 ## Upgrades
+
+Please always read the announcements of the vX.Y.**0**
+[release page](https://github.com/zalando/skipper/releases/tag/v0.18.0),
+because these will document in case we break something in a backwards non
+compatible way. Most of the time it will be safe to deploy minor
+version updates, but better to know in advance if something could
+break.
 
 ### <v0.14.0 to >=v0.14.0
 
