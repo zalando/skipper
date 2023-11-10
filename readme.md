@@ -3,7 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/zalando/skipper.svg)](https://pkg.go.dev/github.com/zalando/skipper)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/zalando/skipper)](https://goreportcard.com/report/zalando/skipper)
-[![codecov](https://codecov.io/gh/zalando/skipper/branch/master/graph/badge.svg)](https://codecov.io/gh/zalando/skipper)
+[![Coverage Status](https://coveralls.io/repos/github/zalando/skipper/badge.svg?branch=master)](https://coveralls.io/github/zalando/skipper?branch=master)
 [![GitHub release](https://img.shields.io/github/release/zalando/skipper.svg)](https://github.com/zalando/skipper/releases)
 [![OpenSSF Best Practices](https://bestpractices.coreinfrastructure.org/projects/2461/badge)](https://bestpractices.coreinfrastructure.org/en/projects/2461)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/zalando/skipper/badge)](https://api.securityscorecards.dev/projects/github.com/zalando/skipper)
