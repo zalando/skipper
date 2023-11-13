@@ -31,19 +31,26 @@ Skipper
 - simultaneously streams incoming requests and backend responses
 - optionally acts as a final endpoint (shunt), e.g. as a static file server or a mock backend for diagnostics
 - updates routing rules without downtime, while supporting multiple types of data sources — including
-  [etcd](https://github.com/coreos/etcd), [Kubernetes Ingress](https://opensource.zalando.com/skipper/data-clients/kubernetes/), [Innkeeper (deprecated)](https://github.com/zalando/innkeeper), [static files](https://opensource.zalando.com/skipper/data-clients/eskip-file/), [route string](https://opensource.zalando.com/skipper/data-clients/route-string/) and
-  [custom configuration sources](https://godoc.org/github.com/zalando/skipper/predicates/#source)
+  [etcd](https://github.com/coreos/etcd), [Kubernetes Ingress](https://opensource.zalando.com/skipper/data-clients/kubernetes/), [static files](https://opensource.zalando.com/skipper/data-clients/eskip-file/), [route string](https://opensource.zalando.com/skipper/data-clients/route-string/) and
+  [custom configuration sources](https://opensource.zalando.com/skipper/tutorials/development/#dataclients)
 - can serve as a
   [Kubernetes Ingress controller](https://zalando.github.io/skipper/data-clients/kubernetes/)
   without reloads. You can use it in combination with a controller that will route public traffic to
   your skipper fleet; [see AWS example](https://github.com/zalando-incubator/kube-ingress-aws-controller)
-- shipped with eskip: a descriptive configuration language designed for routing rules
+- shipped with
+   - eskip: a descriptive configuration language designed for routing
+     rules
+   - routesrv: proxy to omit kube-apiserver overload leveraging Etag
+     header to reduce amount of CPU used in your skipper data plane
+   - webhook: Kubernetes validation webhook to make sure your
+     manifests are deployed safely
 
 Skipper provides a default executable command with a few built-in filters. However, its primary use case is to
 be extended with custom filters, predicates or data sources. [Go here for additional documentation](https://pkg.go.dev/github.com/zalando/skipper).
 
 A few examples for extending Skipper:
 
+- Example proxy with custom filter https://github.com/szuecs/skipper-example-proxy
 - Image server https://github.com/zalando-stups/skrop
 - Plugins repository https://github.com/skipper-plugins/, [plugin docs](https://opensource.zalando.com/skipper/reference/plugins/)
 
@@ -125,8 +132,8 @@ Skipper will then be available on http://localhost:9090
 #### Authentication Proxy
 
 Skipper can be used as an authentication proxy, to check incoming
-requests with Basic auth or an OAuth2 provider including audit
-logging. See the documentation at:
+requests with Basic auth or an OAuth2 provider or an OpenID Connect
+provider including audit logging. See the documentation at:
 [https://pkg.go.dev/github.com/zalando/skipper/filters/auth](https://pkg.go.dev/github.com/zalando/skipper/filters/auth).
 
 
@@ -141,6 +148,7 @@ Build and test all packages:
 
     make deps
     make install
+    make lint
     make shortcheck
 
 > On Mac the tests may fail because of low max open file limit. Please make sure you have correct limits setup
@@ -167,8 +175,9 @@ you will can be found in our [ingress-controller deployment docs](https://openso
 
 For AWS integration, we provide an ingress controller
 https://github.com/zalando-incubator/kube-ingress-aws-controller, that
-manage ALBs in front of your skipper deployment.
-A [production example](https://github.com/zalando-incubator/kubernetes-on-aws/blob/stable/cluster/manifests/skipper/),
+manage ALBs or NLBs in front of your skipper deployment.
+A [production example for skipper](https://github.com/zalando-incubator/kubernetes-on-aws/blob/stable/cluster/manifests/skipper/)
+and a [production example for kube-ingress-aws-controller](https://github.com/zalando-incubator/kubernetes-on-aws/tree/dev/cluster/manifests/ingress-controller/),
 can be found in our Kubernetes configuration https://github.com/zalando-incubator/kubernetes-on-aws.
 
 - [Comparison with other Ingress controllers](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#comparison-with-other-ingress-controllers)
@@ -182,20 +191,25 @@ includes information about [deployment use cases](https://opensource.zalando.com
 and detailed information on these topics:
 
 - The [Routing](https://pkg.go.dev/github.com/zalando/skipper/routing) Mechanism
-- Matching Requests
+- [Matching Requests](https://opensource.zalando.com/skipper/tutorials/basics/#route-matching)
 - [Filters](https://opensource.zalando.com/skipper/reference/filters/) - Augmenting Requests and Responses
-- Service Backends
-- Route Definitions
-- Data Sources: [eskip file](https://pkg.go.dev/github.com/zalando/skipper/eskipfile), [etcd](https://pkg.go.dev/github.com/zalando/skipper/etcd), [Kubernetes](https://pkg.go.dev/github.com/zalando/skipper/dataclients/kubernetes), [Route string](https://pkg.go.dev/github.com/zalando/skipper/dataclients/routestring)
-- [Circuit Breakers](https://pkg.go.dev/github.com/zalando/skipper/filters/circuit)
-- Extending It with Customized [Predicates](https://opensource.zalando.com/skipper/reference/predicates/), [Filters](https://opensource.zalando.com/skipper/reference/filters/), can be done by [Plugins](https://opensource.zalando.com/skipper/reference/plugins/) or [Lua Scripts](https://opensource.zalando.com/skipper/reference/scripts/)
 - [Predicates](https://opensource.zalando.com/skipper/reference/predicates/) - additional predicates to match a route
-- [Proxy Packages](https://pkg.go.dev/github.com/zalando/skipper/proxy)
+- Service [Backends](https://opensource.zalando.com/skipper/reference/backends/)
+- Route Definitions fetched by dataclients:
+   - [route string](https://opensource.zalando.com/skipper/data-clients/route-string/)
+   - [eskip file](https://opensource.zalando.com/skipper/data-clients/eskip-file/)
+   - [remote eskip](https://opensource.zalando.com/skipper/data-clients/eskip-remote/)
+   - [etcd](https://opensource.zalando.com/skipper/data-clients/etcd/)
+   - [kubernetes](https://opensource.zalando.com/skipper/data-clients/kubernetes/)
+- [Circuit Breakers](https://pkg.go.dev/github.com/zalando/skipper/filters/circuit)
+- Extending It with Custom [Predicates](https://opensource.zalando.com/skipper/tutorials/development/#predicates), [Filters](https://opensource.zalando.com/skipper/tutorials/development/#filters), can be done by [building your own proxy](https://opensource.zalando.com/skipper/tutorials/built-your-own/), [Plugins](https://opensource.zalando.com/skipper/reference/plugins/) or [Lua Scripts](https://opensource.zalando.com/skipper/reference/scripts/)
+- [Proxy Package](https://pkg.go.dev/github.com/zalando/skipper/proxy)
 - [Logging](https://pkg.go.dev/github.com/zalando/skipper/logging) and [Metrics](https://pkg.go.dev/github.com/zalando/skipper/metrics)
-- Performance Considerations
+- [Operations guide](https://opensource.zalando.com/skipper/operation/operation/)
+- [Authentication and Authorization](https://opensource.zalando.com/skipper/reference/filters/#authentication-and-authorization)
+- [Load Shedders](https://opensource.zalando.com/skipper/reference/filters/#load-shedding)
 - [Rate Limiters](https://pkg.go.dev/github.com/zalando/skipper/filters/ratelimit)
-- [Opentracing plugin](https://github.com/skipper-plugins/opentracing/) or extend [create your own](https://opensource.zalando.com/skipper/reference/plugins/#opentracing-plugins)
-- [WAF plugin](https://github.com/jptosso/coraza-waf) - Web Application Firewall filter for Skipper routes
+- [Opentracing tracers](https://pkg.go.dev/github.com/zalando/skipper/tracing/tracers) or extend [create your own](https://opensource.zalando.com/skipper/reference/plugins/#opentracing-plugins)
 
 #### 1 Minute Skipper introduction
 
@@ -222,9 +236,9 @@ The following example shows a skipper routes file in eskip format, that has 3 na
 
 Matching the route:
 
-- baidu is using Path() matching to differentiate the HTTP requests to select the route.
-- google is the default matching with wildcard '*'
-- yandex is the default matching with wildcard '*' if you have a cookie "yandex=true"
+- baidu is using `Path()` matching to differentiate the HTTP requests to select the route.
+- google is the default matching with wildcard `*`
+- yandex is the default matching with wildcard `*` if you have a cookie `yandex=true`
 
 Request Filters:
 
@@ -242,7 +256,7 @@ To test each route you can use curl:
     % curl -v localhost:9090/
     % curl -v --cookie "yandex=true" localhost:9090/
 
-To see the request that is made by the tee() filter you can use nc:
+To see the shadow traffic request that is made by the `tee()` filter you can use nc:
 
     [terminal1]% nc -l 12345
     [terminal2]% curl -v --cookie "yandex=true" localhost:9090/
@@ -253,32 +267,33 @@ This introduction was [moved to ingress controller documentation](https://openso
 
 For More details, please check out our [Kubernetes ingress controller docs](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/), our [ingress usage](https://opensource.zalando.com/skipper/kubernetes/ingress-usage/) and how to handle [common backend problems in Kubernetes](https://opensource.zalando.com/skipper/kubernetes/ingress-backends/).
 
-You should have a base understanding of [Kubernetes](https://kubernetes.io) and
-[Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
-
 ### Packaging support
 
 See https://github.com/zalando/skipper/blob/master/packaging/readme.md
 
-Skipper uses Go modules, so you might need to add `GO111MODULE=on` in
-your custom build process.
-
 In case you want to implement and link your own modules into your
-skipper, there is https://github.com/skipper-plugins organization to enable you to do
-so. In order to explain you the build process with custom Go modules
-there is https://github.com/skipper-plugins/skipper-tracing-build,
-that was used to build skipper's [opentracing
-package](https://github.com/skipper-plugins/opentracing).
-We moved the opentracing plugin source into the `tracing` package.
+skipper, there is https://github.com/skipper-plugins organization to
+enable you to do so. In order to explain you the build process with
+custom Go modules there is
+https://github.com/skipper-plugins/skipper-tracing-build, that was
+used to build skipper's [opentracing package](https://github.com/skipper-plugins/opentracing).
+We moved the opentracing plugin source into the `tracing` package, so
+there is no need to use plugins for this case.
 
+Because Go plugins are not very well supported by Go itself we do not
+recommend to use plugins, but you can extend skipper and
+[build your own proxy](https://opensource.zalando.com/skipper/tutorials/built-your-own/).
 
 ## Community
 
 User or developer questions can be asked in our [public Google Group](https://groups.google.com/forum/#!forum/skipper-router)
 
-We also have a slack channel #skipper in gophers.slack.com. Get an [invite](https://invite.slack.golangbridge.org).
+We have a slack channel #skipper in gophers.slack.com. Get an [invite](https://invite.slack.golangbridge.org).
 If for some reason this link doesn't work, you can find more information about
 the gophers communities [here](https://github.com/gobridge/about-us/blob/master/README.md#onlineoffline-communities).
+
+The preferred communication channel is the slack channel, because the google group is a manual process to add members.
+Feel also free to [create an issue](https://github.com/zalando/skipper/issues/new/choose), if you dislike chat and post your questions there.
 
 ### Proposals
 
@@ -289,11 +304,11 @@ bigger change we will invite you to a document, such that we can work together.
 
 ### Users
 
-Zalando uses this project as shop frontend http router with 350000 routes, as
-Kubernetes ingress controller and runs several custom skipper
-instances that use skipper as library.
+Zalando used this project as shop frontend http router with 350000 routes.
+We use it as Kubernetes ingress controller in more than 100 production clusters. With every day traffic between 500k and 7M RPS serving 15000 ingress and 3750 RouteGroups at less than ¢5/1M requests.
+We also run several custom skipper instances that use skipper as library.
 
-Sergio Ballesteros from [spotahome](https://www.spotahome.com/)
+Sergio Ballesteros from [spotahome](https://www.spotahome.com/) said 2018:
 > We also ran tests with several ingress controllers and skipper gave us the more reliable results. Currently we are running skipper since almost 2 years with like 20K Ingress rules.
 > The fact that skipper is written in go let us understand the code, add features and fix bugs since all of our infra stack is golang.
 
