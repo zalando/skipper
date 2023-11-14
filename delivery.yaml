@@ -101,19 +101,18 @@ pipeline:
 - id: docs
   depends_on: [build]
   type: script
-  overlay: ci/python
+  vm_config:
+    type: linux
+    image: cdp-runtime/mkdocs-v9
+    size: small
   commands:
   - desc: install deps
     cmd: |
-      pip3 install mkdocs mkdocs-material markdown-include
+      pipx inject mkdocs-material markdown-include
   - desc: build docs
     cmd: |
-      mkdocs build --strict
-      shopt -s extglob  # needed to use !(pr)
-      if [ "$CDP_PULL_REQUEST_NUMBER" ]; then
-        mkdir -p site/pr/#{CDP_PULL_REQUEST_NUMBER}
-        mv site/!(pr) site/pr/#{CDP_PULL_REQUEST_NUMBER}
-      fi
+      build-docs
+
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
         echo "Please update the docs with: mkdocs gh-deploy"
       fi
