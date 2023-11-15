@@ -37,6 +37,9 @@ spec:
   - name: backend9
     type: network
     address: http://example.com?foo=bar
+  - name: backend10
+    type: network
+    address: example.com
   defaultBackends:
   - backendName: app
   routes:

@@ -184,6 +184,11 @@
                         "address": "http://example.com?foo=bar"
                     },
                     {
+                        "name": "backend9",
+                        "type": "network",
+                        "address": "example.com"
+                    },
+                    {
                         "name": "shunt",
                         "type": "shunt"
                     }

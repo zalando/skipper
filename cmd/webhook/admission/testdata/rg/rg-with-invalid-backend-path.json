@@ -69,6 +69,11 @@
             "name" : "invalid-backend9",
             "type" : "network",
             "address" : "http://example.com?foo=bar"
+          },
+          {
+            "name": "invalid-backend10",
+            "type": "network",
+            "address": "example.com"
           }
         ],
         "defaultBackends": [
