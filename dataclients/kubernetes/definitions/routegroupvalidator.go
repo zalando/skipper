@@ -3,6 +3,7 @@ package definitions
 import (
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/zalando/skipper/eskip"
 )
@@ -35,8 +36,9 @@ func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 		return err
 	}
 	var errs []error
-	errs = append(errs, rgv.filtersValidation(item))
-	errs = append(errs, rgv.predicatesValidation(item))
+	errs = append(errs, rgv.validateFilters(item))
+	errs = append(errs, rgv.validatePredicates(item))
+	errs = append(errs, rgv.validateBackends(item))
 
 	return errorsJoin(errs...)
 }
@@ -60,7 +62,7 @@ func (rgv *RouteGroupValidator) basicValidation(r *RouteGroupItem) error {
 	return nil
 }
 
-func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
+func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, f := range r.Filters {
@@ -76,7 +78,7 @@ func (rgv *RouteGroupValidator) filtersValidation(item *RouteGroupItem) error {
 	return errorsJoin(errs...)
 }
 
-func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error {
+func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
 		for _, p := range r.Predicates {
@@ -85,6 +87,21 @@ func (rgv *RouteGroupValidator) predicatesValidation(item *RouteGroupItem) error
 				errs = append(errs, err)
 			} else if len(predicates) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
+			}
+		}
+	}
+	return errorsJoin(errs...)
+}
+
+func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
+	var errs []error
+	for _, backend := range item.Spec.Backends {
+		if backend.Type == eskip.NetworkBackend {
+			address, err := url.Parse(backend.Address)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
+			} else if address.Path != "" || address.RawQuery != "" || address.Scheme == "" {
+				errs = append(errs, fmt.Errorf("backend address %q contains path, query or missing scheme", backend.Address))
 			}
 		}
 	}
