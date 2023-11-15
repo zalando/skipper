@@ -333,6 +333,7 @@ const (
 	RfcPathName                                = "rfcPath"
 	RfcHostName                                = "rfcHost"
 	BearerInjectorName                         = "bearerinjector"
+	SetRequestHeaderFromSecretName             = "setRequestHeaderFromSecret"
 	TracingBaggageToTagName                    = "tracingBaggageToTag"
 	StateBagToTagName                          = "stateBagToTag"
 	TracingTagName                             = "tracingTag"
