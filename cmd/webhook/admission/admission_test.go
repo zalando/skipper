@@ -133,6 +133,11 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			inputFile: "rg-with-multiple-predicates.json",
 			message:   `single predicate expected at \"Method(\\\"GET\\\") && Path(\\\"/\\\")\"\nsingle predicate expected at \" \"`,
 		},
+		{
+			name:      "routegroup with invalid backends",
+			inputFile: "rg-with-invalid-backend-path.json",
+			message:   `backend address \"http://example.com/foo\" contains path, query or missing scheme\nbackend address \"http://example.com/foo/bar\" contains path, query or missing scheme\nbackend address \"http://example.com/foo/\" contains path, query or missing scheme\nbackend address \"/foo\" contains path, query or missing scheme\nbackend address \"http://example.com/\" contains path, query or missing scheme\nbackend address \"example.com/\" contains path, query or missing scheme\nbackend address \"example.com/foo\" contains path, query or missing scheme\nbackend address \"http://example.com?foo=bar\" contains path, query or missing scheme\nbackend address \"example.com\" contains path, query or missing scheme`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			expectedResponse := responseAllowedFmt
