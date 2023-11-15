@@ -1,0 +1,8 @@
+backend address \\\"http://example\.com/foo\\\" contains path, query or missing scheme
+backend address \\\"http://example\.com/foo/bar\\\" contains path, query or missing scheme
+backend address \\\"/foo\\\" contains path, query or missing scheme
+backend address \\\"/foo/bar\\\" contains path, query or missing scheme
+backend address \\\"example\.com/foo\\\" contains path, query or missing scheme
+backend address \\\"http://example\.com/\\\" contains path, query or missing scheme
+backend address \\\"http://example\.com\?foo=bar\\\" contains path, query or missing scheme
+backend address \\\"example\.com\\\" contains path, query or missing scheme
