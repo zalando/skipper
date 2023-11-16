@@ -2,10 +2,12 @@ package routesrv
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,12 +52,15 @@ var (
 // provides synchronized r/w access to them. Additionally it can
 // serve as an HTTP handler exposing its content.
 type eskipBytes struct {
+	mu           sync.RWMutex
 	data         []byte
-	etag         string
+	hash         string
 	lastModified time.Time
 	initialized  bool
 	count        int
-	mu           sync.RWMutex
+
+	zw    *gzip.Writer
+	zdata []byte
 
 	tracer  ot.Tracer
 	metrics metrics.Metrics
@@ -77,13 +82,33 @@ func (e *eskipBytes) formatAndSet(routes []*eskip.Route) (_ int, _ string, initi
 	if updated {
 		e.lastModified = e.now()
 		e.data = data
-		e.etag = fmt.Sprintf(`"%x"`, sha256.Sum256(e.data))
+		e.zdata = e.compressLocked(data)
+		e.hash = fmt.Sprintf("%x", sha256.Sum256(e.data))
 		e.count = len(routes)
 	}
 	initialized = !e.initialized
 	e.initialized = true
 
-	return len(e.data), e.etag, initialized, updated
+	return len(e.data), e.hash, initialized, updated
+}
+
+// compressLocked compresses the data with gzip and returns
+// the compressed data or nil if compression fails.
+// e.mu must be held.
+func (e *eskipBytes) compressLocked(data []byte) []byte {
+	var buf bytes.Buffer
+	if e.zw == nil {
+		e.zw = gzip.NewWriter(&buf)
+	} else {
+		e.zw.Reset(&buf)
+	}
+	if _, err := e.zw.Write(data); err != nil {
+		return nil
+	}
+	if err := e.zw.Close(); err != nil {
+		return nil
+	}
+	return buf.Bytes()
 }
 
 func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -112,17 +137,24 @@ func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	e.mu.RLock()
 	count := e.count
 	data := e.data
-	etag := e.etag
+	zdata := e.zdata
+	hash := e.hash
 	lastModified := e.lastModified
 	initialized := e.initialized
 	e.mu.RUnlock()
 
 	if initialized {
-		w.Header().Add("Etag", etag)
-		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Add(routing.RoutesCountName, strconv.Itoa(count))
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set(routing.RoutesCountName, strconv.Itoa(count))
 
-		http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") && len(zdata) > 0 {
+			w.Header().Set("Etag", `"`+hash+`+gzip"`)
+			w.Header().Set("Content-Encoding", "gzip")
+			http.ServeContent(w, r, "", lastModified, bytes.NewReader(zdata))
+		} else {
+			w.Header().Set("Etag", `"`+hash+`"`)
+			http.ServeContent(w, r, "", lastModified, bytes.NewReader(data))
+		}
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 	}
