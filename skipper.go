@@ -1584,6 +1584,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		block.NewBlock(o.MaxMatcherBufferSize),
 		block.NewBlockHex(o.MaxMatcherBufferSize),
 		auth.NewBearerInjector(sp),
+		auth.NewSetRequestHeaderFromSecret(sp),
 		auth.NewJwtValidationWithOptions(tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAnyClaims, tio),
 		auth.TokenintrospectionWithOptions(auth.NewOAuthTokenintrospectionAllClaims, tio),
