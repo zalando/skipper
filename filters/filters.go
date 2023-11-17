@@ -263,6 +263,7 @@ const (
 	HistogramRequestLatencyName                = "histogramRequestLatency"
 	HistogramResponseLatencyName               = "histogramResponseLatency"
 	LogHeaderName                              = "logHeader"
+	LogBodyName                                = "logBody"
 	TeeName                                    = "tee"
 	TeenfName                                  = "teenf"
 	TeeLoopbackName                            = "teeLoopback"
