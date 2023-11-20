@@ -88,7 +88,6 @@ func blockMatcher(matches []toBlockKeys) func(b []byte) (int, error) {
 	return func(b []byte) (int, error) {
 		for _, s := range matches {
 			s := s
-			println("blockMatcher:", string(b), len(string(b)), "contains?:", string(s.Str))
 			if bytes.Contains(b, s.Str) {
 				b = nil
 				return 0, net.ErrBlocked

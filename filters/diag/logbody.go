@@ -2,9 +2,11 @@ package diag
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/net"
 )
 
@@ -59,13 +61,12 @@ func (lb logBody) Request(ctx filters.FilterContext) {
 
 	req := ctx.Request()
 	if req.Body != nil {
-		req.Body = net.WrapBody(
-			req.Context(),
-			func(p []byte) (int, error) {
-				ctx.Logger().Infof(`logBody("request"): %q`, p)
-				return len(p), nil
-			},
-			req.Body)
+		req.Body = net.LogBody(
+			context.Background(),
+			fmt.Sprintf(`logBody("request") %s: `, req.Header.Get(flowid.HeaderName)),
+			ctx.Logger().Infof,
+			req.Body,
+		)
 	}
 }
 
@@ -76,16 +77,11 @@ func (lb logBody) Response(ctx filters.FilterContext) {
 
 	rsp := ctx.Response()
 	if rsp.Body != nil {
-		// if this is not set we get from curl
-		//    Error while processing content unencoding: invalid stored block lengths
-		rsp.Header.Del("Content-Length")
-		rsp.ContentLength = -1
-
-		rsp.Body = net.WrapBody(
-			context.Background(), // not sure if it makes sense to be cancellable here
-			func(p []byte) (int, error) {
-				ctx.Logger().Infof(`logBody("response"): %q`, p)
-				return len(p), nil
-			}, rsp.Body)
+		rsp.Body = net.LogBody(
+			context.Background(),
+			fmt.Sprintf(`logBody("response") %s: `, ctx.Request().Header.Get(flowid.HeaderName)),
+			ctx.Logger().Infof,
+			rsp.Body,
+		)
 	}
 }

@@ -26,6 +26,38 @@ const (
 	MaxBufferAbort
 )
 
+type logBody struct {
+	ctx    context.Context
+	fmtstr string
+	log    func(format string, args ...interface{})
+	input  io.ReadCloser
+}
+
+func newLogBody(ctx context.Context, fmtstr string, log func(format string, args ...interface{}), rc io.ReadCloser) io.ReadCloser {
+	return &logBody{
+		ctx:    ctx,
+		fmtstr: fmtstr,
+		input:  rc,
+		log:    log,
+	}
+}
+
+func (lb *logBody) Read(p []byte) (int, error) {
+	n, err := lb.input.Read(p)
+	if n > 0 {
+		lb.log("%s%s", lb.fmtstr, p)
+	}
+	return n, err
+}
+
+func (lb *logBody) Close() error {
+	return lb.input.Close()
+}
+
+func LogBody(ctx context.Context, fmtstr string, log func(format string, args ...interface{}), rc io.ReadCloser) io.ReadCloser {
+	return newLogBody(ctx, fmtstr, log, rc)
+}
+
 type matcher struct {
 	ctx               context.Context
 	once              sync.Once
@@ -60,7 +92,6 @@ func newMatcher(
 	if maxBufferSize < rsize {
 		rsize = maxBufferSize
 	}
-	println("maxBufferSize:", maxBufferSize, "rsize:", rsize)
 
 	return &matcher{
 		ctx:               ctx,
@@ -80,9 +111,7 @@ func (m *matcher) readNTimes(times int) (bool, error) {
 	var consumedInput bool
 	for i := 0; i < times; i++ {
 		n, err := m.input.Read(m.readBuffer)
-		println("readNTimes(", times, "): read n bytes:", n, "eof:", err == io.EOF)
-		n2, err2 := m.pending.Write(m.readBuffer[:n])
-		println("readNTimes(", times, "): wrote n2 bytes:", n2, "eof:", err == io.EOF)
+		_, err2 := m.pending.Write(m.readBuffer[:n])
 
 		if n > 0 {
 			consumedInput = true
@@ -92,7 +121,7 @@ func (m *matcher) readNTimes(times int) (bool, error) {
 			return consumedInput, err
 		}
 		if err2 != nil {
-			return consumedInput, err
+			return consumedInput, err2
 		}
 
 	}
@@ -104,7 +133,6 @@ func (m *matcher) fill(requested int) error {
 	readSize := 1
 	for m.ready.Len() < requested {
 		consumedInput, err := m.readNTimes(readSize)
-		println("fill(", requested, "), m.ready.Len():", m.ready.Len(), "consumedInput:", consumedInput, "m.pending.Len():", m.pending.Len())
 		if !consumedInput {
 			io.CopyBuffer(m.ready, m.pending, m.readBuffer)
 			return err
@@ -136,7 +164,6 @@ func (m *matcher) fill(requested int) error {
 }
 
 func (m *matcher) Read(p []byte) (int, error) {
-	println("matcher.Read: len(p):", len(p))
 	if m.closed {
 		return 0, ErrClosed
 	}
@@ -159,8 +186,6 @@ func (m *matcher) Read(p []byte) (int, error) {
 	}
 
 	n, _ := m.ready.Read(p)
-	println("matcher.Read n bytes:", n)
-
 	if n == 0 && len(p) > 0 && m.err != nil {
 		return 0, m.err
 	}
@@ -172,13 +197,13 @@ func (m *matcher) Read(p []byte) (int, error) {
 		return 0, m.ctx.Err()
 	default:
 	}
-	n, err := m.f(p)
-	println("matcher.Read f processed n bytes:", n)
 
+	n, err := m.f(p)
 	if err != nil {
 		m.closed = true
 
-		if err == ErrBlocked {
+		switch err {
+		case ErrBlocked:
 			m.metrics.IncCounter("blocked.requests")
 		}
 
