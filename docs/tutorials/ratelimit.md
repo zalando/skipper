@@ -113,6 +113,12 @@ There are 2 different configurations to assign redis instances as a skipper redi
 see also [Running with
 Redis based Cluster Ratelimits](../kubernetes/ingress-controller.md#redis-based)
 
+#### Redis Swarm Configuration
+
+When working with redis swarm, use kubernetes service selector. Configure it with `-kubernetes-redis-service-namespace` and `-kubernetes-redis-service-name` flags. Skipper auto-discovers new redis instances each 10 seconds using background routine. 
+
+#### Implementation
+
 The implementation use [redis ring](https://godoc.org/github.com/go-redis/redis#Ring)
 to be able to shard via client hashing and spread the load across
 multiple Redis instances to be able to scale out the shared storage.
