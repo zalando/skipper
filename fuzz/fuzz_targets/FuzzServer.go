@@ -7,16 +7,15 @@ import (
 	"errors"
 	"log"
 	"net"
+	"os"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/config"
 )
 
-var (
-	initialized = false
-	address     = ""
-)
+var address = ""
 
 func findAddress() (string, error) {
 	l, err := net.ListenTCP("tcp6", &net.TCPAddr{})
@@ -35,6 +34,7 @@ func connect(host string) (net.Conn, error) {
 		conn, err := net.Dial("tcp6", host)
 
 		if err != nil {
+			time.Sleep(10 * time.Millisecond)
 			continue
 		}
 
@@ -44,29 +44,29 @@ func connect(host string) (net.Conn, error) {
 	return nil, errors.New("unable to connect")
 }
 
-func FuzzServer(data []byte) int {
-	if !initialized {
-		addr, err := findAddress()
+func init() {
+	addr, err := findAddress()
 
-		if err != nil {
-			log.Printf("failed to find address: %v\n", err)
-			return -1
-		}
-
-		cfg := config.NewConfig()
-		cfg.InlineRoutes = `r: * -> status(200) -> inlineContent("ok") -> <shunt>`
-		cfg.ApplicationLogLevel = logrus.PanicLevel
-		cfg.AccessLogDisabled = true
-		cfg.ApplicationLog = "/dev/null"
-		cfg.Address = addr
-
-		go func() {
-			log.Fatal(skipper.Run(cfg.ToOptions()))
-		}()
-
-		initialized = true
-		address = cfg.Address
+	if err != nil {
+		log.Printf("failed to find address: %v\n", err)
+		os.Exit(-1)
 	}
+
+	cfg := config.NewConfig()
+	cfg.InlineRoutes = `r: * -> status(200) -> inlineContent("ok") -> <shunt>`
+	cfg.ApplicationLogLevel = logrus.PanicLevel
+	cfg.AccessLogDisabled = true
+	cfg.ApplicationLog = "/dev/null"
+	cfg.Address = addr
+
+	go func() {
+		log.Fatal(skipper.Run(cfg.ToOptions()))
+	}()
+
+	address = cfg.Address
+}
+
+func FuzzServer(data []byte) int {
 
 	conn, err := connect(address)
 
