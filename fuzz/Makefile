@@ -59,4 +59,4 @@ fuzz: $(FUZZ_TARGETS:=.out) ## run all fuzz tests
 	done
 
 clean: ## clean temporary files and directories
-	$(RM) $(PREFIX)/*.out $(PREFIX)/*.h $(PREFIX)/main.*.go
+	$(RM) $(PREFIX)/*.out $(PREFIX)/*.a $(PREFIX)/*.h $(PREFIX)/main.*.go
