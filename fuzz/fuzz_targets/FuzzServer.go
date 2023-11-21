@@ -4,6 +4,7 @@
 package fuzz
 
 import (
+	"errors"
 	"log"
 	"net"
 
@@ -13,6 +14,20 @@ import (
 )
 
 var initialized = false
+
+func connect(host string) (net.Conn, error) {
+	for i := 0; i < 15; i++ {
+		conn, err := net.Dial("tcp", host)
+
+		if err != nil {
+			continue
+		}
+
+		return conn, err
+	}
+
+	return nil, errors.New("unable to connect")
+}
 
 func FuzzServer(data []byte) int {
 	if !initialized {
@@ -29,7 +44,7 @@ func FuzzServer(data []byte) int {
 		initialized = true
 	}
 
-	conn, err := net.Dial("tcp", "localhost:9090")
+	conn, err := connect("localhost:9090")
 
 	if err != nil {
 		log.Printf("failed to dial: %v\n", err)
