@@ -15,10 +15,13 @@ import (
 	"github.com/zalando/skipper/config"
 )
 
-var address = ""
+var (
+	address     = ""
+	initialized = false
+)
 
-func findAddress() (string, error) {
-	l, err := net.ListenTCP("tcp6", &net.TCPAddr{})
+func find_address() (string, error) {
+	l, err := net.ListenTCP("tcp", &net.TCPAddr{})
 
 	if err != nil {
 		return "", err
@@ -31,7 +34,7 @@ func findAddress() (string, error) {
 
 func connect(host string) (net.Conn, error) {
 	for i := 0; i < 15; i++ {
-		conn, err := net.Dial("tcp6", host)
+		conn, err := net.Dial("tcp", host)
 
 		if err != nil {
 			time.Sleep(10 * time.Millisecond)
@@ -44,8 +47,8 @@ func connect(host string) (net.Conn, error) {
 	return nil, errors.New("unable to connect")
 }
 
-func init() {
-	addr, err := findAddress()
+func run_server() {
+	addr, err := find_address()
 
 	if err != nil {
 		log.Printf("failed to find address: %v\n", err)
@@ -58,6 +61,7 @@ func init() {
 	cfg.AccessLogDisabled = true
 	cfg.ApplicationLog = "/dev/null"
 	cfg.Address = addr
+	cfg.SupportListener = ":0"
 
 	go func() {
 		log.Fatal(skipper.Run(cfg.ToOptions()))
@@ -67,6 +71,11 @@ func init() {
 }
 
 func FuzzServer(data []byte) int {
+
+	if !initialized {
+		run_server()
+		initialized = true
+	}
 
 	conn, err := connect(address)
 
