@@ -47,8 +47,11 @@ all: $(FUZZ_TARGETS:=.out) ## build all fuzz binaries
 %.a:
 	$(GO_FUZZ_BUILD) -func $(@:.a=) -o $@ $(FUZZ_TARGETS_PATH)
 
-%.out: %.a
-	$(CC) $(FUZZ_BUILD_ARGS) -lresolv $< -o $@
+gosigfuzz/gosigfuzz.o:
+	$(CC) -c $(@:.o=.c) -o $@
+
+%.out: %.a gosigfuzz/gosigfuzz.o
+	$(CC) $(FUZZ_BUILD_ARGS) -lresolv $^ -o $@
 
 fuzz: $(FUZZ_TARGETS:=.out) ## run all fuzz tests
 	for TARGET in $(FUZZ_TARGETS); do \
@@ -59,4 +62,4 @@ fuzz: $(FUZZ_TARGETS:=.out) ## run all fuzz tests
 	done
 
 clean: ## clean temporary files and directories
-	$(RM) $(PREFIX)/*.out $(PREFIX)/*.a $(PREFIX)/*.h $(PREFIX)/main.*.go
+	$(RM) $(PREFIX)/*.out $(PREFIX)/*.a $(PREFIX)/*.h $(PREFIX)/main.*.go gosigfuzz/gosigfuzz.o
