@@ -1,17 +1,21 @@
-FROM golang:buster
+FROM amazonlinux:2023
 
 WORKDIR /workspace
 
+ENV PATH="/root/go/bin:$PATH"
+
 COPY . .
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y make clang-11 && \
+RUN dnf install -q -y make clang golang && \
+    update-alternatives --install /usr/bin/cc cc /usr/bin/clang 20 && \
     go install github.com/mdempsky/go114-fuzz-build@latest && \
-    apt-get autoremove --purge -y && apt-get autoclean && \
-    go mod init fuzz && go mod tidy && \
-    make all CC=clang-11 -j $(nproc)
+    go mod init fuzz && \
+    go mod tidy && \
+    make -s -j $(nproc) && \
+    dnf autoremove -q -y && \
+    dnf clean all -q && \
+    go clean -cache -testcache -modcache -fuzzcache
 
-ENTRYPOINT [ "/usr/bin/make" ]
+ENTRYPOINT [ "/usr/bin/make", "fuzz" ]
 
-CMD ["fuzz", "FUZZ_TARGETS=FuzzParseEskip"]
+CMD ["FUZZ_TARGETS=FuzzParseEskip"]

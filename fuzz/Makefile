@@ -26,15 +26,14 @@ ifeq ($(FUZZ_SANITIZER), address)
 	FUZZ_BUILD_ARGS = -fsanitize=fuzzer -fsanitize=address -fsanitize-address-use-after-scope
 else ifeq ($(FUZZ_SANITIZER), undefined)
 	FUZZ_BUILD_ARGS = -fsanitize=fuzzer -fsanitize=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unsigned-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr
-else ifeq ($(FUZZ_SANITIZER), memory)
-	FUZZ_BUILD_ARGS = -fsanitize=fuzzer -fsanitize=memory -fsanitize-memory-track-origins
+else ifeq ($(FUZZ_SANITIZER), none)
+	FUZZ_BUILD_ARGS = -fsanitize=fuzzer
 else
-$(error $(FUZZ_SANITIZER) is invalid sanitizer, available options are address, undefined, memory)
+$(error $(FUZZ_SANITIZER) is invalid sanitizer, available options are address, undefined, none)
 endif
 
 export ASAN_OPTIONS	= alloc_dealloc_mismatch=0:allocator_may_return_null=1:allocator_release_to_os_interval_ms=500:check_malloc_usable_size=0:detect_container_overflow=1:detect_odr_violation=0:detect_leaks=1:detect_stack_use_after_return=1:fast_unwind_on_fatal=0:handle_abort=1:handle_segv=1:handle_sigill=1:max_uar_stack_size_log=16:print_scariness=1:quarantine_size_mb=10:strict_memcmp=1:symbolize=1:use_sigaltstack=1:dedup_token_length=3
 export UBSAN_OPTIONS	= print_stacktrace=1:print_summary=1:silence_unsigned_overflow=1:symbolize=1:dedup_token_length=3
-export MSAN_OPTIONS	= print_stats=1:symbolize=1:dedup_token_length=3
 
 .PHONY: help all fuzz clean
 default: all
