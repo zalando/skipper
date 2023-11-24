@@ -217,6 +217,158 @@ func TestHeaderLookuper(t *testing.T) {
 	})
 }
 
+func TestHeaderMustExistLookuper(t *testing.T) {
+	req, err := http.NewRequest("GET", "/foo", nil)
+	if err != nil {
+		t.Errorf("Could not create request: %v", err)
+	}
+
+	t.Run("header must exist lookuper x header", func(t *testing.T) {
+		req.Header.Add("x-blah", "bar")
+		xLookuper := NewHeaderMustExistLookuper("x-bLAh")
+		lookupResult, ok := xLookuper.Lookup(req)
+		if lookupResult != "bar" {
+			t.Errorf("Failed to lookup request")
+		}
+	  if !ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+
+	t.Run("header must exist lookuper missing header", func(t *testing.T) {
+		xLookuper := NewHeaderMustExistLookuper("x-bruh")
+		lookupResult, ok := xLookuper.Lookup(req)
+
+		if lookupResult != "" {
+			t.Errorf("Failed to lookup request")
+		}
+		
+	  if ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+}
+
+func TestHeaderMustNotExistLookuper(t *testing.T) {
+	req, err := http.NewRequest("GET", "/foo", nil)
+	if err != nil {
+		t.Errorf("Could not create request: %v", err)
+	}
+
+	t.Run("header must not exist lookuper x header", func(t *testing.T) {
+		req.Header.Add("x-blah", "bar")
+		xLookuper := NewHeaderMustNotExistLookuper("x-bLAh")
+		lookupResult, ok := xLookuper.Lookup(req)
+		if lookupResult != "" {
+			t.Errorf("Failed to lookup request")
+		}
+	  if ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+
+	t.Run("header must not exist lookuper missing header", func(t *testing.T) {
+		xLookuper := NewHeaderMustNotExistLookuper("x-bruh")
+		lookupResult, ok := xLookuper.Lookup(req)
+
+		if lookupResult != "" {
+			t.Errorf("Failed to lookup request")
+		}
+		
+	  if !ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+}
+
+
+func TestHeaderWithValueMustExistLookuper(t *testing.T) {
+	req, err := http.NewRequest("GET", "/foo", nil)
+	if err != nil {
+		t.Errorf("Could not create request: %v", err)
+	}
+
+	t.Run("header with value must exist lookuper x header", func(t *testing.T) {
+		req.Header.Add("x-blah", "bar")
+		xLookuper := NewHeaderWithValueMustExistLookuper("x-bLAh", "bar")
+		lookupResult, ok := xLookuper.Lookup(req)
+		if lookupResult != "bar" {
+			t.Errorf("Failed to lookup request")
+		}
+	  if !ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+
+	t.Run("header with value must exist lookuper x header with wrong value", func(t *testing.T) {
+		req.Header.Add("x-blah", "bar")
+		xLookuper := NewHeaderWithValueMustExistLookuper("x-bLAh", "foo")
+		lookupResult, ok := xLookuper.Lookup(req)
+		if lookupResult != "" {
+			t.Errorf("Failed to lookup request")
+		}
+	  if ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+	
+	t.Run("header with value must exist lookuper missing header", func(t *testing.T) {
+		xLookuper := NewHeaderWithValueMustExistLookuper("x-bruh", "bar")
+		lookupResult, ok := xLookuper.Lookup(req)
+		if lookupResult != "" {
+			t.Errorf("Failed to lookup request")
+		}
+		
+	  if ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+}
+
+func TestHeaderWithValueMustNotExistLookuper(t *testing.T) {
+	req, err := http.NewRequest("GET", "/foo", nil)
+	if err != nil {
+		t.Errorf("Could not create request: %v", err)
+	}
+
+	t.Run("header with value must not exist lookuper x header", func(t *testing.T) {
+		req.Header.Add("x-blah", "bar")
+		xLookuper := NewHeaderWithValueMustNotExistLookuper("x-bLAh", "bar")
+		lookupResult, ok := xLookuper.Lookup(req)
+		if lookupResult != "" {
+			t.Errorf("Failed to lookup request")
+		}
+	  if ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+
+	t.Run("header with value must not exist lookuper x header with wrong value", func(t *testing.T) {
+		req.Header.Add("x-blah", "bar")
+		xLookuper := NewHeaderWithValueMustNotExistLookuper("x-bLAh", "foo")
+		lookupResult, ok := xLookuper.Lookup(req)
+		if lookupResult != "" {
+			t.Errorf("Failed to lookup request")
+		}
+	  if !ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+	
+	t.Run("header with value must not exist lookuper missing header", func(t *testing.T) {
+		xLookuper := NewHeaderWithValueMustNotExistLookuper("x-bruh", "bar")
+		lookupResult, ok := xLookuper.Lookup(req)
+		if lookupResult != "" {
+			t.Errorf("Failed to lookup request")
+		}
+		
+	  if !ok {
+			t.Errorf("Failed to lookup request")
+		}
+	})
+}
+
+
 type falsyLookuper struct{}
 
 func (*falsyLookuper) Lookup(r *http.Request) (string, bool) {

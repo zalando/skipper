@@ -221,6 +221,84 @@ func (h HeaderLookuper) String() string {
 	return "HeaderLookuper"
 }
 
+// TODO Docs
+type HeaderMustExistLookuper struct {
+	key string
+}
+
+func NewHeaderMustExistLookuper(k string) HeaderMustExistLookuper {
+	return HeaderMustExistLookuper{key: k}
+}
+
+func (h HeaderMustExistLookuper) Lookup(req *http.Request) (string, bool) {
+	val := req.Header.Get(h.key)
+	return val, val != ""
+}
+
+func (h HeaderMustExistLookuper) String() string {
+	return "HeaderMustExistLookuper"
+}
+
+type HeaderWithValueMustExistLookuper struct {
+	key string
+	val string
+}
+
+func NewHeaderWithValueMustExistLookuper(k string, v string) HeaderWithValueMustExistLookuper {
+	return HeaderWithValueMustExistLookuper{key: k, val: v}
+}
+
+func (h HeaderWithValueMustExistLookuper) Lookup(req *http.Request) (string, bool) {
+	for _, v := range req.Header.Values(h.key) {
+		if v == h.val {
+			return v, true
+		}
+	}
+	return "", false
+}
+func (h HeaderWithValueMustExistLookuper) String() string {
+	return "HeaderWithValueMustExistLookuper"
+}
+
+type HeaderMustNotExistLookuper struct {
+	key string
+}
+
+func NewHeaderMustNotExistLookuper(k string) HeaderMustNotExistLookuper {
+	return HeaderMustNotExistLookuper{key: k}
+}
+
+func (h HeaderMustNotExistLookuper) Lookup(req *http.Request) (string, bool) {
+	return "", req.Header.Get(h.key) == ""
+}
+
+func (h HeaderMustNotExistLookuper) String() string {
+	return "HeaderMustNotExistLookuper"
+}
+
+type HeaderWithValueMustNotExistLookuper struct {
+	key   string
+	value string
+}
+
+func NewHeaderWithValueMustNotExistLookuper(k string, v string) HeaderWithValueMustNotExistLookuper {
+	return HeaderWithValueMustNotExistLookuper{key: k, value: v}
+}
+
+func (h HeaderWithValueMustNotExistLookuper) Lookup(req *http.Request) (string, bool) {
+	for _, v := range req.Header.Values(h.key) {
+		if v == h.value {
+			return "", false
+		}
+	}
+
+	return "", true
+}
+
+func (h HeaderWithValueMustNotExistLookuper) String() string {
+	return "HeaderWithValueMustNotExistLookuper"
+}
+
 // Lookupers is a slice of Lookuper, required to get a hashable member
 // in the TupleLookuper.
 type Lookupers []Lookuper
