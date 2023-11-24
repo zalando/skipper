@@ -9,6 +9,7 @@ import (
 )
 
 func checkItems(t *testing.T, message string, l, lenExpected int, checkItem func(int) bool) bool {
+	t.Helper()
 	if l != lenExpected {
 		t.Error(message, "length", l, lenExpected)
 		return false
@@ -25,6 +26,7 @@ func checkItems(t *testing.T, message string, l, lenExpected int, checkItem func
 }
 
 func checkFilters(t *testing.T, message string, fs, fsExp []*Filter) bool {
+	t.Helper()
 	return checkItems(t, "filters "+message,
 		len(fs),
 		len(fsExp),
@@ -823,7 +825,18 @@ func TestFilterString(t *testing.T) {
 }
 
 func BenchmarkParsePredicates(b *testing.B) {
-	doc := `Foo("bar", "baz")`
+	doc := `FooBarBazKeyValues(
+		"https://example.org/foo0", "foobarbaz0",
+		"https://example.org/foo1", "foobarbaz1",
+		"https://example.org/foo2", "foobarbaz2",
+		"https://example.org/foo3", "foobarbaz3",
+		"https://example.org/foo4", "foobarbaz4",
+		"https://example.org/foo5", "foobarbaz5",
+		"https://example.org/foo6", "foobarbaz6",
+		"https://example.org/foo7", "foobarbaz7",
+		"https://example.org/foo8", "foobarbaz8",
+		"https://example.org/foo9", "foobarbaz9")`
+
 	_, err := ParsePredicates(doc)
 	if err != nil {
 		b.Fatal(err)
