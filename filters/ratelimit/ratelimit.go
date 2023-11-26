@@ -329,6 +329,26 @@ func clusterClientRatelimitFilter(args []interface{}) (*filter, error) {
 }
 
 func getLookuper(s string) ratelimit.Lookuper {
+	if strings.HasPrefix(s, "!") || strings.HasPrefix(s, "~") {
+
+		key, value, valueExists := strings.Cut(s[1:], "=")
+		headerName := http.CanonicalHeaderKey(key)
+
+		if s[0] == '!' && valueExists {
+			return ratelimit.NewHeaderWithValueMustExistLookuper(headerName, value)
+		}
+		if s[0] == '!' {
+			return ratelimit.NewHeaderMustExistLookuper(headerName)
+		}
+
+		if s[0] == '~' && valueExists {
+			return ratelimit.NewHeaderWithValueMustNotExistLookuper(headerName, value)
+		}
+		if s[0] == '~' {
+			return ratelimit.NewHeaderMustNotExistLookuper(headerName)
+		}
+	}
+
 	headerName := http.CanonicalHeaderKey(s)
 	if headerName == "X-Forwarded-For" {
 		return ratelimit.NewXForwardedForLookuper()
