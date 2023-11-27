@@ -2011,12 +2011,16 @@ Parameters:
 
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string).
+  Header names can be prefixed by symbols '!', indicating that the rate limit applies only if this header exists in the request, and '~',
+  indicating that the rate limit applies only if this header is missing. In both cases, it is possible to provide a value for
+  fine-grained control in the form `!HeaderName=Value`.
 
 ```
 clientRatelimit(3, "1m")
 clientRatelimit(3, "1m", "Authorization")
 clientRatelimit(3, "1m", "X-Foo,Authorization,X-Bar")
+clientRatelimit(3, "1m", "X-Foo,Authorization,!X-Bar=foo")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
@@ -2059,12 +2063,16 @@ Parameters:
 * rate limit group (string)
 * number of allowed requests per time period (int)
 * time period for requests being counted (time.Duration)
-* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string)
+* optional parameter to set the same client by header, in case the provided string contains `,`, it will combine all these headers (string).
+  Header names can be prefixed by symbols '!', indicating that the rate limit applies only if this header exists in the request, and '~',
+  indicating that the rate limit applies only if this header is missing. In both cases, it is possible to provide a value for
+  fine-grained control in the form `!HeaderName=Value`
 
 ```
 clusterClientRatelimit("groupA", 10, "1h")
 clusterClientRatelimit("groupA", 10, "1h", "Authorization")
 clusterClientRatelimit("groupA", 10, "1h", "X-Forwarded-For,Authorization,User-Agent")
+clusterClientRatelimit("groupA", 10, "1h", "X-Forwarded-For,Authorization,User-Agent,!X-Foo=bar")
 ```
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
