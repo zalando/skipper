@@ -221,15 +221,18 @@ func (h HeaderLookuper) String() string {
 	return "HeaderLookuper"
 }
 
-// TODO Docs
+// HeaderMustExistLookuper implements Lookuper interface and will select a bucket
+// by a header only if it exists in request.
 type HeaderMustExistLookuper struct {
 	key string
 }
 
+// NewHeaderMustExistLookuper returns HeaderMustExistLookuper configured to lookup header named k
 func NewHeaderMustExistLookuper(k string) HeaderMustExistLookuper {
 	return HeaderMustExistLookuper{key: k}
 }
 
+// Lookup returns the content of the header and true if it exists, otherwise false.
 func (h HeaderMustExistLookuper) Lookup(req *http.Request) (string, bool) {
 	val := req.Header.Get(h.key)
 	return val, val != ""
@@ -239,15 +242,19 @@ func (h HeaderMustExistLookuper) String() string {
 	return "HeaderMustExistLookuper"
 }
 
+// HeaderWithValueMustExistLookuper implements Lookuper interface and will select a bucket
+// by a header only if it exists in request with a specific value.
 type HeaderWithValueMustExistLookuper struct {
 	key string
 	val string
 }
 
+// NewHeaderWithValueMustExistLookuper returns HeaderWithValueMustExistLookuper configured to lookup header named k with value v
 func NewHeaderWithValueMustExistLookuper(k string, v string) HeaderWithValueMustExistLookuper {
 	return HeaderWithValueMustExistLookuper{key: k, val: v}
 }
 
+// Lookup returns the content of the header and true if it exists with the specified value, otherwise false.
 func (h HeaderWithValueMustExistLookuper) Lookup(req *http.Request) (string, bool) {
 	for _, v := range req.Header.Values(h.key) {
 		if v == h.val {
@@ -260,14 +267,18 @@ func (h HeaderWithValueMustExistLookuper) String() string {
 	return "HeaderWithValueMustExistLookuper"
 }
 
+// HeaderMustNotExistLookuper implements Lookuper interface and will select a bucket
+// by a header only if it does not exist in request.
 type HeaderMustNotExistLookuper struct {
 	key string
 }
 
+// NewHeaderMustNotExistLookuper returns HeaderMustNotExistLookuper configured to lookup header named k
 func NewHeaderMustNotExistLookuper(k string) HeaderMustNotExistLookuper {
 	return HeaderMustNotExistLookuper{key: k}
 }
 
+// Lookup returns an empty string  ad true if the header does not exist, otherwise false.
 func (h HeaderMustNotExistLookuper) Lookup(req *http.Request) (string, bool) {
 	return "", req.Header.Get(h.key) == ""
 }
@@ -276,15 +287,19 @@ func (h HeaderMustNotExistLookuper) String() string {
 	return "HeaderMustNotExistLookuper"
 }
 
+// HeaderWithValueMustNotExistLookuper implements Lookuper interface and will select a bucket
+// by a header only if it does not exist in request with a specific value.
 type HeaderWithValueMustNotExistLookuper struct {
 	key   string
 	value string
 }
 
+// NewHeaderWithValueMustNotExistLookuper returns HeaderWithValueMustNotExistLookuper configured to lookup header named k with value v
 func NewHeaderWithValueMustNotExistLookuper(k string, v string) HeaderWithValueMustNotExistLookuper {
 	return HeaderWithValueMustNotExistLookuper{key: k, value: v}
 }
 
+// Lookup returns an empty string and true if the header does not exist with the specified value, otherwise false.
 func (h HeaderWithValueMustNotExistLookuper) Lookup(req *http.Request) (string, bool) {
 	for _, v := range req.Header.Values(h.key) {
 		if v == h.value {
