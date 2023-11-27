@@ -213,6 +213,8 @@ To monitor skipper we recommend the following queries:
 - P99 response filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_response_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
 - If you use Kubernetes limits or Linux cgroup CFS quotas (depends on label selector): `sum(rate(container_cpu_cfs_throttled_periods_total{container_name="skipper-ingress"}[1m]))`
 
+You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
+
 ### Connection metrics
 
 This option will enable known loadbalancer connections metrics, like
@@ -630,67 +632,67 @@ RouteSRV metrics expose the following metrics in Prometheus format:
 
 # HELP routesrv_backend_combined_duration_seconds Duration in seconds of a proxy backend combined.
 # TYPE routesrv_backend_combined_duration_seconds histogram
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38-8",le="0.005"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="0.01"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="0.025"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="0.05"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="0.1"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="0.25"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="0.5"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="1"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="2.5"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="5"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="10"} 5
-routesrv_backend_combined_duration_seconds_bucket{version="v0.18.38",le="+Inf"} 5
-routesrv_backend_combined_duration_seconds_sum{version="v0.18.38"} 0.001349441
-routesrv_backend_combined_duration_seconds_count{version="v0.18.38"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.005"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.01"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.025"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.05"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.1"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.25"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.5"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="1"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="2.5"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="5"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="10"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="+Inf"} 5
+routesrv_backend_combined_duration_seconds_sum 0.001349441
+routesrv_backend_combined_duration_seconds_count 5
 # HELP routesrv_backend_duration_seconds Duration in seconds of a proxy backend.
 # TYPE routesrv_backend_duration_seconds histogram
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="0.005"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="0.01"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="0.025"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="0.05"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="0.1"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="0.25"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="0.5"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="1"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="2.5"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="5"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="10"} 5
-routesrv_backend_duration_seconds_bucket{host="",route="routersv",version="v0.18.38",le="+Inf"} 5
-routesrv_backend_duration_seconds_sum{host="",route="routersv",version="v0.18.38"} 0.001349441
-routesrv_backend_duration_seconds_count{host="",route="routersv",version="v0.18.38"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.005"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.01"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.025"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.05"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.1"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.25"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.5"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="1"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="2.5"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="5"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="10"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="+Inf"} 5
+routesrv_backend_duration_seconds_sum{host="",route="routersv"} 0.001349441
+routesrv_backend_duration_seconds_count{host="",route="routersv"} 5
 # HELP routesrv_custom_gauges Gauges number of custom metrics.
 # TYPE routesrv_custom_gauges gauge
-routesrv_custom_gauges{key="polling_started_timestamp",version="v0.18.38"} 1.69876646881321e+09
-routesrv_custom_gauges{key="redis_endpoints",version="v0.18.38"} 1
-routesrv_custom_gauges{key="routes.byte",version="v0.18.38"} 91378
-routesrv_custom_gauges{key="routes.initialized_timestamp",version="v0.18.38"} 1.6987664689696188e+09
-routesrv_custom_gauges{key="routes.total",version="v0.18.38"} 258
-routesrv_custom_gauges{key="routes.updated_timestamp",version="v0.18.38"} 1.698766468969631e+09
+routesrv_custom_gauges{key="polling_started_timestamp"} 1.69876646881321e+09
+routesrv_custom_gauges{key="redis_endpoints"} 1
+routesrv_custom_gauges{key="routes.byte"} 91378
+routesrv_custom_gauges{key="routes.initialized_timestamp"} 1.6987664689696188e+09
+routesrv_custom_gauges{key="routes.total"} 258
+routesrv_custom_gauges{key="routes.updated_timestamp"} 1.698766468969631e+09
 # HELP routesrv_custom_total Total number of custom metrics.
 # TYPE routesrv_custom_total counter
-routesrv_custom_total{key="200",version="v0.18.38"} 5
+routesrv_custom_total{key="200"} 5
 ```
 
 Metrics explanation:
 
-- `routesrv_custom_total{key="200",version="v0.18.38"} 5`:
+- `routesrv_custom_total{key="200"} 5`:
   5 requests were responded with status code 200 by the current routesrv
   version `v0.18.38`.
-- `routesrv_custom_gauges{key="polling_started_timestamp",version="v0.18.38"} 1.69876646881321e+09`:
+- `routesrv_custom_gauges{key="polling_started_timestamp"} 1.69876646881321e+09`:
   routesrv started to poll at 1.69876646881321e+09 seconds of UNIX beginning
   (2023-10-31 16:34:28 1705425/2097152 +0100).
-- `routesrv_custom_gauges{key="redis_endpoints", version="v0.18.38"} 1`:
+- `routesrv_custom_gauges{key="redis_endpoints"} 1`:
   The routes endpoint `/swarm/redis/shards` was called 1 times
-- `routesrv_custom_gauges{key="routes.byte",version="v0.18.38"} 91378`:
+- `routesrv_custom_gauges{key="routes.byte"} 91378`:
   The number of bytes that are served at `/routes` is 91378.
-- `routesrv_custom_gauges{key="routes.initialized_timestamp",version="v0.18.38"} 1.6987664689696188e+09`:
+- `routesrv_custom_gauges{key="routes.initialized_timestamp"} 1.6987664689696188e+09`:
   routesrv initialized the routes at 1.6987664689696188e+09 seconds of UNIX beginning.
   (2023-10-31 16:34:28 1016719/1048576 +0100)
-- `routesrv_custom_gauges{key="routes.total",version="v0.18.38"} 258`:
+- `routesrv_custom_gauges{key="routes.total"} 258`:
   The number of routes that are served at `/routes` are 258.
-- `routesrv_custom_gauges{key="routes.updated_timestamp",version="v0.18.38"} 1.698766468969631e+09`:
+- `routesrv_custom_gauges{key="routes.updated_timestamp"} 1.698766468969631e+09`:
   The last update of routes by routesrv was at 1.698766468969631e+09.
   (2023-10-31 16:34:28 4066927/4194304 +0100)
 
