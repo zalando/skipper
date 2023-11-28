@@ -14,7 +14,7 @@ func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 	errs = append(errs, igv.validateFilterAnnotation(item.Metadata.Annotations))
 	errs = append(errs, igv.validatePredicateAnnotation(item.Metadata.Annotations))
 	errs = append(errs, igv.validateRoutesAnnotation(item.Metadata.Annotations))
-	errs = append(errs, igv.validateDuplicateHosts(item))
+	errs = append(errs, igv.validateHosts(item))
 
 	return errorsJoin(errs...)
 }
@@ -52,7 +52,7 @@ func (igv *IngressV1Validator) validateRoutesAnnotation(annotations map[string]s
 	return nil
 }
 
-func (igv *IngressV1Validator) validateDuplicateHosts(item *IngressV1Item) error {
+func (igv *IngressV1Validator) validateHosts(item *IngressV1Item) error {
 	var errs []error
 	uniqueHosts := make(map[string]struct{}, len(item.Spec.Rules))
 	for _, rule := range item.Spec.Rules {

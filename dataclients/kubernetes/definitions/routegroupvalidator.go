@@ -39,7 +39,7 @@ func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 	errs = append(errs, rgv.validateFilters(item))
 	errs = append(errs, rgv.validatePredicates(item))
 	errs = append(errs, rgv.validateBackends(item))
-	errs = append(errs, rgv.validateDuplicateHosts(item))
+	errs = append(errs, rgv.validateHosts(item))
 
 	return errorsJoin(errs...)
 }
@@ -111,14 +111,14 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 	return errorsJoin(errs...)
 }
 
-func (rgv *RouteGroupValidator) validateDuplicateHosts(item *RouteGroupItem) error {
+func (rgv *RouteGroupValidator) validateHosts(item *RouteGroupItem) error {
 	var errs []error
 	uniqueHosts := make(map[string]struct{}, len(item.Spec.Hosts))
-	for _, hosts := range item.Spec.Hosts {
-		if _, ok := uniqueHosts[hosts]; ok {
-			errs = append(errs, fmt.Errorf("duplicate host %q", hosts))
+	for _, host := range item.Spec.Hosts {
+		if _, ok := uniqueHosts[host]; ok {
+			errs = append(errs, fmt.Errorf("duplicate host %q", host))
 		}
-		uniqueHosts[hosts] = struct{}{}
+		uniqueHosts[host] = struct{}{}
 	}
 	return errorsJoin(errs...)
 }
