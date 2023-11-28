@@ -97,7 +97,7 @@ _test_plugins_fail/%.so: _test_plugins_fail/%.go
 
 .PHONY: fuzz
 fuzz: ## run all fuzz tests
-	for p in $(PACKAGES); do go test -run=NONE -fuzz=Fuzz -fuzztime 30s $$p; done
+	$(MAKE) -C fuzz $(MAKECMDGOALS)
 
 .PHONY: lint
 lint: build staticcheck ## run all linters
