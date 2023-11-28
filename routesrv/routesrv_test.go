@@ -2,6 +2,7 @@ package routesrv_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"flag"
 	"io"
 	"net/http"
@@ -16,6 +17,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"github.com/zalando/skipper/eskip"
@@ -109,6 +112,14 @@ func getRoutes(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	return w
 }
 
+func getHealth(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/health", nil)
+	rs.ServeHTTP(w, r)
+
+	return w
+}
+
 func getRedisURLs(rs *routesrv.RouteServer) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/swarm/redis/shards", nil)
@@ -171,6 +182,9 @@ func TestNotInitializedRoutesAreNotServed(t *testing.T) {
 		t.Error("uninitialized routes were served")
 	}
 	wantHTTPCode(t, w, http.StatusNotFound)
+
+	w = getHealth(rs)
+	wantHTTPCode(t, w, http.StatusServiceUnavailable)
 }
 
 func TestEmptyRoutesAreNotServed(t *testing.T) {
@@ -218,6 +232,9 @@ func TestFetchedRoutesAreServedInEskipFormat(t *testing.T) {
 		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
 	}
 	wantHTTPCode(t, w, http.StatusOK)
+
+	w = getHealth(rs)
+	wantHTTPCode(t, w, http.StatusNoContent)
 }
 
 func TestRedisEndpointSlices(t *testing.T) {
@@ -708,4 +725,94 @@ func TestRoutesWithExplicitLBAlgorithm(t *testing.T) {
 		t.Errorf("served routes do not reflect kubernetes resources: %s", cmp.Diff(got, want))
 	}
 	wantHTTPCode(t, responseRecorder, http.StatusOK)
+}
+
+func TestESkipBytesHandlerGzip(t *testing.T) {
+	defer tl.Reset()
+	ks, handler := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+	rs := newRouteServer(t, ks)
+
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	testGzipResponse := func(t *testing.T, count int) {
+		// Get plain response
+		plainResponse := getRoutes(rs)
+		plainEtag := plainResponse.Header().Get("Etag")
+		plainContent := plainResponse.Body.Bytes()
+
+		// Get gzip response
+		gzipResponse := getRoutesWithRequestHeadersSetting(rs, map[string]string{"Accept-Encoding": "gzip"})
+		assert.Equal(t, http.StatusOK, gzipResponse.Code)
+		assert.Equal(t, "text/plain; charset=utf-8", gzipResponse.Header().Get("Content-Type"))
+		assert.Equal(t, "gzip", gzipResponse.Header().Get("Content-Encoding"))
+		assert.Equal(t, strconv.Itoa(count), gzipResponse.Header().Get("X-Count"))
+
+		gzipEtag := gzipResponse.Header().Get("Etag")
+		assert.NotEqual(t, plainEtag, gzipEtag, "gzip Etag should differ from plain Etag")
+
+		zr, err := gzip.NewReader(gzipResponse.Body)
+		require.NoError(t, err)
+		defer zr.Close()
+
+		gzipContent, err := io.ReadAll(zr)
+		require.NoError(t, err)
+
+		assert.Equal(t, plainContent, gzipContent, "gzip content should be equal to plain content")
+
+		// Get gzip response using Etag
+		gzipEtagResponse := getRoutesWithRequestHeadersSetting(rs, map[string]string{"If-None-Match": gzipEtag, "Accept-Encoding": "gzip"})
+
+		assert.Equal(t, http.StatusNotModified, gzipEtagResponse.Code)
+		// RFC 7232 section 4.1:
+		assert.Empty(t, gzipEtagResponse.Header().Get("Content-Type"))
+		assert.Empty(t, gzipEtagResponse.Header().Get("Content-Length"))
+		assert.Empty(t, gzipEtagResponse.Header().Get("Content-Encoding"))
+		assert.Equal(t, strconv.Itoa(count), gzipEtagResponse.Header().Get("X-Count"))
+		assert.Empty(t, gzipEtagResponse.Body.String())
+	}
+
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+	testGzipResponse(t, 3)
+
+	handler.set(newKubeAPI(t, loadKubeYAML(t, "testdata/lb-target-single.yaml")))
+	require.NoError(t, tl.WaitForN(routesrv.LogRoutesUpdated, 2, waitTimeout))
+
+	testGzipResponse(t, 2)
+}
+
+func TestESkipBytesHandlerGzipServedForDefaultClient(t *testing.T) {
+	defer tl.Reset()
+	ks, _ := newKubeServer(t, loadKubeYAML(t, "testdata/lb-target-multi.yaml"))
+	ks.Start()
+	defer ks.Close()
+
+	rs, err := routesrv.New(skipper.Options{
+		SourcePollTimeout: pollInterval,
+		KubernetesURL:     ks.URL,
+	})
+	require.NoError(t, err)
+
+	rs.StartUpdates()
+	defer rs.StopUpdates()
+
+	require.NoError(t, tl.WaitFor(routesrv.LogRoutesInitialized, waitTimeout))
+
+	ts := httptest.NewServer(rs)
+	defer ts.Close()
+
+	resp, err := ts.Client().Get(ts.URL + "/routes")
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.True(t, resp.Uncompressed, "expected uncompressed body")
+
+	b, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	routes, err := eskip.Parse(string(b))
+	require.NoError(t, err)
+	assert.Len(t, routes, 3)
 }

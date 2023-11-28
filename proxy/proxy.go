@@ -40,7 +40,6 @@ import (
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/rfc"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
 )
 
@@ -1025,7 +1024,7 @@ func stack() []byte {
 	}
 }
 
-func (p *Proxy) do(ctx *context) (err error) {
+func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			p.onPanicSometimes.Do(func() {
@@ -1045,29 +1044,6 @@ func (p *Proxy) do(ctx *context) (err error) {
 		p.makeErrorResponse(ctx, &proxyError{err: errMaxLoopbacksReached})
 		return errMaxLoopbacksReached
 	}
-
-	// this can be deleted after fixing
-	// https://github.com/zalando/skipper/issues/1238 problem
-	// happens if we get proxy errors, for example connect errors,
-	// which would block responses until fifo() timeouts.
-	defer func() {
-		stateBag := ctx.StateBag()
-
-		pendingFIFO, _ := stateBag[scheduler.FIFOKey].([]func())
-		for _, done := range pendingFIFO {
-			done()
-		}
-
-		pendingLIFO, _ := stateBag[scheduler.LIFOKey].([]func())
-		for _, done := range pendingLIFO {
-			done()
-		}
-
-		// Cleanup state bag to avoid double call of done()
-		// because do() could be called for loopback backend
-		delete(stateBag, scheduler.FIFOKey)
-		delete(stateBag, scheduler.LIFOKey)
-	}()
 
 	// proxy global setting
 	if !ctx.wasExecuted() {
@@ -1092,6 +1068,7 @@ func (p *Proxy) do(ctx *context) (err error) {
 		p.makeErrorResponse(ctx, errRouteLookupFailed)
 		return errRouteLookupFailed
 	}
+	parentSpan.SetTag(SkipperRouteIDTag, route.Id)
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
@@ -1110,7 +1087,16 @@ func (p *Proxy) do(ctx *context) (err error) {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
-		if err := p.do(loopCTX); err != nil {
+		loopSpan := tracing.CreateSpan("loopback", ctx.request.Context(), p.tracing.tracer)
+		p.tracing.
+			setTag(loopSpan, SpanKindTag, SpanKindServer).
+			setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
+		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
+		ctx.parentSpan = loopSpan
+
+		defer loopSpan.Finish()
+
+		if err := p.do(loopCTX, loopSpan); err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
 			ctx.response = loopCTX.response
 			if err != nil {
@@ -1466,6 +1452,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
+	ctx.parentSpan = span
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -1476,8 +1463,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	err := p.do(ctx)
+	err := p.do(ctx, span)
 
+	// writeTimeout() filter
 	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
 		e := ctx.ResponseController().SetWriteDeadline(time.Now().Add(d))
 		if e != nil {
@@ -1485,10 +1473,20 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// stream response body to client
 	if err != nil {
 		p.errorResponse(ctx, err)
 	} else {
 		p.serveResponse(ctx)
+	}
+
+	// fifoWtihBody() filter
+	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
+		if fs, ok := sbf.([]func()); ok {
+			for i := len(fs) - 1; i >= 0; i-- {
+				fs[i]()
+			}
+		}
 	}
 
 	if ctx.cancelBackendContext != nil {

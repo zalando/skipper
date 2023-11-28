@@ -1,0 +1,103 @@
+{
+  "request": {
+    "uid": "req-uid",
+    "name": "req1",
+    "operation": "create",
+    "kind": {
+      "group": "zalando",
+      "version": "v1",
+      "kind": "RouteGroup"
+    },
+    "namespace": "n1",
+    "object": {
+      "metadata": {
+        "name": "rg1",
+        "namespace": "n1"
+      },
+      "spec": {
+        "backends": [
+          {
+            "name": "valid-backend1",
+            "type": "shunt"
+          },
+          {
+            "name": "valid-backend3",
+            "type": "network",
+            "address": "http://example.com"
+          },
+          {
+            "name": "invalid-backend2",
+            "type": "network",
+            "address": "http://example.com/foo"
+          },
+          {
+            "name": "invalid-backend3",
+            "type": "network",
+            "address": "http://example.com/foo/bar"
+          },
+          {
+            "name": "invalid-backend4",
+            "type": "network",
+            "address": "http://example.com/foo/"
+          },
+          {
+            "name": "invalid-backend5",
+            "type": "network",
+            "address": "/foo"
+          },
+          {
+            "name": "valid-backend2",
+            "type": "network",
+            "address": "http://user:pass@example.com"
+          },
+          {
+            "name": "invalid-backend6",
+            "type": "network",
+            "address": "http://example.com/"
+          },
+          {
+            "name": "invalid-backend7",
+            "type": "network",
+            "address": "example.com/"
+          },
+          {
+            "name" : "invalid-backend8",
+            "type" : "network",
+            "address" : "example.com/foo"
+          },
+          {
+            "name" : "invalid-backend9",
+            "type" : "network",
+            "address" : "http://example.com?foo=bar"
+          },
+          {
+            "name": "invalid-backend10",
+            "type": "network",
+            "address": "example.com"
+          }
+        ],
+        "defaultBackends": [
+          {
+            "backendName": "valid-backend1"
+          }
+        ],
+        "routes": [
+          {
+            "backends": [
+              {
+                "backendName": "valid-backend1"
+              }
+            ],
+            "filters": [
+              "status(201)"
+            ],
+            "path": "/",
+            "predicates": [
+              "Method(\"GET\")"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

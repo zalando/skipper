@@ -1,0 +1,49 @@
+{
+  "request": {
+    "uid": "req-uid",
+    "name": "req1",
+    "operation": "create",
+    "kind": {
+      "group": "zalando",
+      "version": "v1",
+      "kind": "RouteGroup"
+    },
+    "namespace": "n1",
+    "object": {
+      "metadata": {
+        "name": "rg1",
+        "namespace": "n1"
+      },
+      "spec": {
+        "backends": [
+          {
+            "name": "backend",
+            "type": "shunt"
+          }
+        ],
+        "defaultBackends": [
+          {
+            "backendName": "backend"
+          }
+        ],
+        "routes": [
+          {
+            "backends": [
+              {
+                "backendName": "backend"
+              }
+            ],
+            "filters": [
+              "status(201)"
+            ],
+            "path": "/",
+            "predicates": [
+              "Method(\"GET\") && Path(\"/\")",
+              " "
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

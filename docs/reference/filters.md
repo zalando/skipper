@@ -2819,6 +2819,31 @@ Example:
 fifo(100, 150, "10s")
 ```
 
+### fifoWithBody
+
+This Filter is similar to the [lifo](#lifo) filter in regards to
+parameters and status codes.
+Performance considerations are similar to [fifo](#fifo).
+
+The difference between fifo and fifoWithBody is that fifo will decrement
+the concurrency as soon as the backend sent response headers and
+fifoWithBody will decrement the concurrency if the response body was
+served. Normally both are very similar, but if you have a fully async
+component that serves multiple website fragments, this would decrement
+concurrency too early.
+
+Parameters:
+
+* MaxConcurrency specifies how many goroutines are allowed to work on this queue (int)
+* MaxQueueSize sets the queue size (int)
+* Timeout sets the timeout to get request scheduled (time)
+
+Example:
+
+```
+fifoWithBody(100, 150, "10s")
+```
+
 ### lifo
 
 This Filter changes skipper to handle the route with a bounded last in
@@ -2932,31 +2957,54 @@ the -rfc-patch-path flag. See
 [URI standards interpretation](../operation/operation.md#uri-standards-interpretation).
 
 ## Egress
-### bearerinjector
 
-This filter injects `Bearer` tokens into `Authorization` headers read
-from file providing the token as content. This is only for use cases
-using skipper as sidecar to inject tokens for the application on the
+### setRequestHeaderFromSecret
+
+This filter sets request header to the secret value with optional prefix and suffix.
+This is only for use cases using skipper as sidecar to inject tokens for the application on the
 [**egress**](egress.md) path, if it's used in the **ingress** path you likely
 create a security issue for your application.
 
 This filter should be used as an [egress](egress.md) only feature.
 
+Parameters:
+
+* header name (string)
+* secret name (string)
+* value prefix (string) - optional
+* value suffix (string) - optional
+
 Example:
 
 ```
-egress1: Method("POST") && Host("api.example.com") -> bearerinjector("/tmp/secrets/write-token") -> "https://api.example.com/shoes";
-egress2: Method("GET") && Host("api.example.com") -> bearerinjector("/tmp/secrets/read-token") -> "https://api.example.com/shoes";
+egress1: Method("GET") -> setRequestHeaderFromSecret("Authorization", "/tmp/secrets/get-token") -> "https://api.example.com";
+egress2: Method("POST") -> setRequestHeaderFromSecret("Authorization", "/tmp/secrets/post-token", "foo-") -> "https://api.example.com";
+egress3: Method("PUT") -> setRequestHeaderFromSecret("X-Secret", "/tmp/secrets/put-token", "bar-", "-baz") -> "https://api.example.com";
 ```
 
-To integrate with the `bearerinjector` filter you need to run skipper
-with `-credentials-paths=/tmp/secrets` and specify an update interval
-`-credentials-update-interval=10s`. Files in the credentials path can
-be a directory, which will be able to find all files within this
-directory, but it won't walk subtrees. For the example case, there
-have to be filenames `write-token` and `read-token` within the
+To use `setRequestHeaderFromSecret` filter you need to run skipper
+with `-credentials-paths=/tmp/secrets` and specify an update interval `-credentials-update-interval=10s`.
+Files in the credentials path can be a directory, which will be able to find all files within this
+directory, but it won't walk subtrees.
+For the example case, there have to be `get-token`, `post-token` and `put-token` files within the
 specified credential paths `/tmp/secrets/`, resulting in
-`/tmp/secrets/write-token` and `/tmp/secrets/read-token`.
+`/tmp/secrets/get-token`, `/tmp/secrets/post-token` and `/tmp/secrets/put-token`.
+
+### bearerinjector
+
+This filter injects `Bearer` tokens into `Authorization` headers read
+from file providing the token as content.
+
+It is a special form of `setRequestHeaderFromSecret` with `"Authorization"` header name,
+`"Bearer "` prefix and empty suffix.
+
+Example:
+
+```
+egress: * -> bearerinjector("/tmp/secrets/my-token") -> "https://api.example.com";
+
+// equivalent to setRequestHeaderFromSecret("Authorization", "/tmp/secrets/my-token", "Bearer ")
+```
 
 ## Open Tracing
 ### tracingBaggageToTag

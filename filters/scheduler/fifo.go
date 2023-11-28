@@ -11,24 +11,31 @@ import (
 	"github.com/zalando/skipper/scheduler"
 )
 
-const (
-	fifoKey string = "fifo"
-)
-
 type (
-	fifoSpec   struct{}
+	fifoSpec struct {
+		typ string
+	}
 	fifoFilter struct {
 		config scheduler.Config
 		queue  *scheduler.FifoQueue
+		typ    string
 	}
 )
 
 func NewFifo() filters.Spec {
-	return &fifoSpec{}
+	return &fifoSpec{
+		typ: filters.FifoName,
+	}
 }
 
-func (*fifoSpec) Name() string {
-	return filters.FifoName
+func NewFifoWithBody() filters.Spec {
+	return &fifoSpec{
+		typ: filters.FifoWithBodyName,
+	}
+}
+
+func (s *fifoSpec) Name() string {
+	return s.typ
 }
 
 // CreateFilter creates a fifoFilter, that will use a semaphore based
@@ -65,6 +72,7 @@ func (s *fifoSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	return &fifoFilter{
+		typ: s.typ,
 		config: scheduler.Config{
 			MaxConcurrency: cc,
 			MaxQueueSize:   qs,
@@ -132,21 +140,33 @@ func (f *fifoFilter) Request(ctx filters.FilterContext) {
 	}
 
 	// ok
-	pending, _ := ctx.StateBag()[fifoKey].([]func())
-	ctx.StateBag()[fifoKey] = append(pending, done)
+	pending, _ := ctx.StateBag()[f.typ].([]func())
+	ctx.StateBag()[f.typ] = append(pending, done)
 }
 
 // Response will decrease the number of inflight requests to release
 // the concurrency reservation for the request.
 func (f *fifoFilter) Response(ctx filters.FilterContext) {
-	pending, ok := ctx.StateBag()[fifoKey].([]func())
-	if !ok {
-		return
+	switch f.typ {
+	case filters.FifoName:
+		pending, ok := ctx.StateBag()[f.typ].([]func())
+		if !ok {
+			return
+		}
+		last := len(pending) - 1
+		if last < 0 {
+			return
+		}
+		pending[last]()
+		ctx.StateBag()[f.typ] = pending[:last]
+
+	case filters.FifoWithBodyName:
+		// nothing to do here, handled in the proxy after copyStream()
 	}
-	last := len(pending) - 1
-	if last < 0 {
-		return
-	}
-	pending[last]()
-	ctx.StateBag()[fifoKey] = pending[:last]
+}
+
+// HandleErrorResponse is to opt-in for filters to get called
+// Response(ctx) in case of errors via proxy. It has to return true to opt-in.
+func (f *fifoFilter) HandleErrorResponse() bool {
+	return true
 }

@@ -2,7 +2,6 @@ package httptest
 
 import (
 	"io"
-	"log"
 	"strconv"
 	"time"
 
@@ -64,13 +63,8 @@ func (atk *VegetaAttacker) Attack(w io.Writer, d time.Duration, name string) {
 			continue
 		}
 		atk.metrics.Add(res)
-		//metrics.Latencies.Add(res.Latency)
 	}
 	atk.metrics.Close()
-	// logrus.Info("histogram reporter:")
-	// histReporter := vegeta.NewHistogramReporter(atk.metrics.Histogram)
-	// histReporter.Report(os.Stdout)
-	log.Print("text reporter:")
 	reporter := vegeta.NewTextReporter(atk.metrics)
 	reporter.Report(w)
 }

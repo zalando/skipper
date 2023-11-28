@@ -8,6 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/metrics"
 )
 
 type RedisHandler struct {
@@ -37,10 +38,11 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(address)
 }
 
-func getRedisAddresses(namespace, name string, kdc *kubernetes.Client) func() ([]byte, error) {
+func getRedisAddresses(namespace, name string, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
 	return func() ([]byte, error) {
 		a := kdc.GetEndpointAddresses(namespace, name)
 		log.Debugf("Redis updater called and found %d redis endpoints: %v", len(a), a)
+		m.UpdateGauge("redis_endpoints", float64(len(a)))
 
 		result := RedisEndpoints{}
 		for i := 0; i < len(a); i++ {

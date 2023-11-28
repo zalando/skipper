@@ -213,6 +213,8 @@ To monitor skipper we recommend the following queries:
 - P99 response filter duration (depends on label selector): `histogram_quantile(0.99, sum(rate(skipper_filter_response_duration_seconds_bucket{application="skipper-ingress"}[1m])) by (le) )`
 - If you use Kubernetes limits or Linux cgroup CFS quotas (depends on label selector): `sum(rate(container_cpu_cfs_throttled_periods_total{container_name="skipper-ingress"}[1m]))`
 
+You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
+
 ### Connection metrics
 
 This option will enable known loadbalancer connections metrics, like
@@ -359,7 +361,9 @@ utilized applications (less than 100 requests per second):
 Metrics from the
 [go runtime memstats](https://golang.org/pkg/runtime/#MemStats)
 are exposed from skipper to the metrics endpoint, default listener
-:9911, on path /metrics :
+:9911, on path /metrics
+
+#### Go metrics - Codahale
 
 ```json
 "gauges": {
@@ -464,6 +468,119 @@ are exposed from skipper to the metrics endpoint, default listener
 }
 ```
 
+#### Go metrics - Prometheus
+
+```
+# HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 4.7279e-05
+go_gc_duration_seconds{quantile="0.25"} 5.9291e-05
+go_gc_duration_seconds{quantile="0.5"} 7.4e-05
+go_gc_duration_seconds{quantile="0.75"} 9.55e-05
+go_gc_duration_seconds{quantile="1"} 0.000199667
+go_gc_duration_seconds_sum 0.001108339
+go_gc_duration_seconds_count 13
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines 13
+# HELP go_info Information about the Go environment.
+# TYPE go_info gauge
+go_info{version="go1.21.3"} 1
+# HELP go_memstats_alloc_bytes Number of bytes allocated and still in use.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 6.4856e+06
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated, even if freed.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 4.1797384e+07
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table.
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+go_memstats_buck_hash_sys_bytes 1.462151e+06
+# HELP go_memstats_frees_total Total number of frees.
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 507460
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata.
+# TYPE go_memstats_gc_sys_bytes gauge
+go_memstats_gc_sys_bytes 4.549296e+06
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and still in use.
+# TYPE go_memstats_heap_alloc_bytes gauge
+go_memstats_heap_alloc_bytes 6.4856e+06
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used.
+# TYPE go_memstats_heap_idle_bytes gauge
+go_memstats_heap_idle_bytes 7.421952e+06
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use.
+# TYPE go_memstats_heap_inuse_bytes gauge
+go_memstats_heap_inuse_bytes 8.372224e+06
+# HELP go_memstats_heap_objects Number of allocated objects.
+# TYPE go_memstats_heap_objects gauge
+go_memstats_heap_objects 70159
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS.
+# TYPE go_memstats_heap_released_bytes gauge
+go_memstats_heap_released_bytes 6.47168e+06
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system.
+# TYPE go_memstats_heap_sys_bytes gauge
+go_memstats_heap_sys_bytes 1.5794176e+07
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# TYPE go_memstats_last_gc_time_seconds gauge
+go_memstats_last_gc_time_seconds 1.6987664839728708e+09
+# HELP go_memstats_lookups_total Total number of pointer lookups.
+# TYPE go_memstats_lookups_total counter
+go_memstats_lookups_total 0
+# HELP go_memstats_mallocs_total Total number of mallocs.
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 577619
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures.
+# TYPE go_memstats_mcache_inuse_bytes gauge
+go_memstats_mcache_inuse_bytes 19200
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system.
+# TYPE go_memstats_mcache_sys_bytes gauge
+go_memstats_mcache_sys_bytes 31200
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures.
+# TYPE go_memstats_mspan_inuse_bytes gauge
+go_memstats_mspan_inuse_bytes 302904
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system.
+# TYPE go_memstats_mspan_sys_bytes gauge
+go_memstats_mspan_sys_bytes 309624
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place.
+# TYPE go_memstats_next_gc_bytes gauge
+go_memstats_next_gc_bytes 8.206808e+06
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations.
+# TYPE go_memstats_other_sys_bytes gauge
+go_memstats_other_sys_bytes 2.402169e+06
+# HELP go_memstats_stack_inuse_bytes Number of bytes in use by the stack allocator.
+# TYPE go_memstats_stack_inuse_bytes gauge
+go_memstats_stack_inuse_bytes 983040
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator.
+# TYPE go_memstats_stack_sys_bytes gauge
+go_memstats_stack_sys_bytes 983040
+# HELP go_memstats_sys_bytes Number of bytes obtained from system.
+# TYPE go_memstats_sys_bytes gauge
+go_memstats_sys_bytes 2.5531656e+07
+# HELP go_threads Number of OS threads created.
+# TYPE go_threads gauge
+go_threads 22
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 0.42
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 60000
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 10
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 4.2811392e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.69876646736e+09
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.823462912e+09
+# HELP process_virtual_memory_max_bytes Maximum amount of virtual memory available in bytes.
+# TYPE process_virtual_memory_max_bytes gauge
+process_virtual_memory_max_bytes 1.8446744073709552e+19
+```
+
 ### Redis - Rate limiting metrics
 
 System metrics exposed by the redisclient:
@@ -491,7 +608,7 @@ See more details about rate limiting at [Rate limiting](../reference/filters.md#
 
 ### Open Policy Agent metrics
 
-If Open Policy Agent filters are enabled, the following counters show up in the `/metrics` endpoint. The bundle-name is the first parameter of the filter so that for example increased error codes can be attributed to a specific source bundle / system. 
+If Open Policy Agent filters are enabled, the following counters show up in the `/metrics` endpoint. The bundle-name is the first parameter of the filter so that for example increased error codes can be attributed to a specific source bundle / system.
 
 - `skipper.opaAuthorizeRequest.custom.decision.allow.<bundle-name>`
 - `skipper.opaAuthorizeRequest.custom.decision.deny.<bundle-name>`
@@ -504,6 +621,83 @@ The following timer metrics are exposed per used bundle-name:
 
 - `skipper.opaAuthorizeRequest.custom.eval_time.<bundle-name>`
 - `skipper.opaServeResponse.custom.eval_time.<bundle-name>`
+
+### RouteSRV metrics
+
+RouteSRV metrics expose the following metrics in Prometheus format:
+
+```
+% curl http://127.0.0.1:9911/metrics
+# 8< Go metrics >8
+
+# HELP routesrv_backend_combined_duration_seconds Duration in seconds of a proxy backend combined.
+# TYPE routesrv_backend_combined_duration_seconds histogram
+routesrv_backend_combined_duration_seconds_bucket{le="0.005"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.01"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.025"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.05"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.1"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.25"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="0.5"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="1"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="2.5"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="5"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="10"} 5
+routesrv_backend_combined_duration_seconds_bucket{le="+Inf"} 5
+routesrv_backend_combined_duration_seconds_sum 0.001349441
+routesrv_backend_combined_duration_seconds_count 5
+# HELP routesrv_backend_duration_seconds Duration in seconds of a proxy backend.
+# TYPE routesrv_backend_duration_seconds histogram
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.005"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.01"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.025"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.05"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.1"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.25"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="0.5"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="1"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="2.5"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="5"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="10"} 5
+routesrv_backend_duration_seconds_bucket{host="",route="routersv",le="+Inf"} 5
+routesrv_backend_duration_seconds_sum{host="",route="routersv"} 0.001349441
+routesrv_backend_duration_seconds_count{host="",route="routersv"} 5
+# HELP routesrv_custom_gauges Gauges number of custom metrics.
+# TYPE routesrv_custom_gauges gauge
+routesrv_custom_gauges{key="polling_started_timestamp"} 1.69876646881321e+09
+routesrv_custom_gauges{key="redis_endpoints"} 1
+routesrv_custom_gauges{key="routes.byte"} 91378
+routesrv_custom_gauges{key="routes.initialized_timestamp"} 1.6987664689696188e+09
+routesrv_custom_gauges{key="routes.total"} 258
+routesrv_custom_gauges{key="routes.updated_timestamp"} 1.698766468969631e+09
+# HELP routesrv_custom_total Total number of custom metrics.
+# TYPE routesrv_custom_total counter
+routesrv_custom_total{key="200"} 5
+```
+
+Metrics explanation:
+
+- `routesrv_custom_total{key="200"} 5`:
+  5 requests were responded with status code 200 by the current routesrv
+  version `v0.18.38`.
+- `routesrv_custom_gauges{key="polling_started_timestamp"} 1.69876646881321e+09`:
+  routesrv started to poll at 1.69876646881321e+09 seconds of UNIX beginning
+  (2023-10-31 16:34:28 1705425/2097152 +0100).
+- `routesrv_custom_gauges{key="redis_endpoints"} 1`:
+  The routes endpoint `/swarm/redis/shards` was called 1 times
+- `routesrv_custom_gauges{key="routes.byte"} 91378`:
+  The number of bytes that are served at `/routes` is 91378.
+- `routesrv_custom_gauges{key="routes.initialized_timestamp"} 1.6987664689696188e+09`:
+  routesrv initialized the routes at 1.6987664689696188e+09 seconds of UNIX beginning.
+  (2023-10-31 16:34:28 1016719/1048576 +0100)
+- `routesrv_custom_gauges{key="routes.total"} 258`:
+  The number of routes that are served at `/routes` are 258.
+- `routesrv_custom_gauges{key="routes.updated_timestamp"} 1.698766468969631e+09`:
+  The last update of routes by routesrv was at 1.698766468969631e+09.
+  (2023-10-31 16:34:28 4066927/4194304 +0100)
+
+
+If you want to read more about RouteSRV see [deploy RouteSRV](../kubernetes/ingress-controller.md#routesrv).
 
 ## OpenTracing
 
@@ -636,7 +830,7 @@ The following tags are added to the Span, labels are taken from the OPA configur
 - `opa.decision_id=<decision id that was recorded>`
 - `opa.labels.<label1>=<value1>`
 
-The labels can for example be used to link to a specific decision in the control plane if they contain URL fragments for the receiving entity. 
+The labels can for example be used to link to a specific decision in the control plane if they contain URL fragments for the receiving entity.
 
 ### Redis rate limiting spans
 
@@ -962,10 +1156,12 @@ predicates and filters involved in the route processing:
 }
 ```
 
-## Profiling skipper
+## Profiling
 
 Go profiling is explained in Go's
 [diagnostics](https://golang.org/doc/diagnostics.html) documentation.
+
+### Profiling skipper or RouteSRV
 
 To enable profiling in skipper you have to use `-enable-profile`. This
 will start a profiling route at `/debug/pprof/profile` on the support

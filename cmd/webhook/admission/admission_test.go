@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
 const (
@@ -122,6 +123,21 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			inputFile: "rg-with-invalid-eskip-filters-and-predicates.json",
 			message:   "parse failed after token status, last route id: , position 11: syntax error\\nparse failed after token Method, last route id: Method, position 6: syntax error",
 		},
+		{
+			name:      "invalid routgroup multiple filters per json/yaml array item",
+			inputFile: "rg-with-multiple-filters.json",
+			message:   `single filter expected at \"status(201) -> inlineContent(\\\"hi\\\")\"\nsingle filter expected at \" \"`,
+		},
+		{
+			name:      "invalid routgroup multiple predicates per json/yaml array item",
+			inputFile: "rg-with-multiple-predicates.json",
+			message:   `single predicate expected at \"Method(\\\"GET\\\") && Path(\\\"/\\\")\"\nsingle predicate expected at \" \"`,
+		},
+		{
+			name:      "routegroup with invalid backends",
+			inputFile: "rg-with-invalid-backend-path.json",
+			message:   `backend address \"http://example.com/foo\" contains path, query or missing scheme\nbackend address \"http://example.com/foo/bar\" contains path, query or missing scheme\nbackend address \"http://example.com/foo/\" contains path, query or missing scheme\nbackend address \"/foo\" contains path, query or missing scheme\nbackend address \"http://example.com/\" contains path, query or missing scheme\nbackend address \"example.com/\" contains path, query or missing scheme\nbackend address \"example.com/foo\" contains path, query or missing scheme\nbackend address \"http://example.com?foo=bar\" contains path, query or missing scheme\nbackend address \"example.com\" contains path, query or missing scheme`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			expectedResponse := responseAllowedFmt
@@ -136,7 +152,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
-			rgAdm := &RouteGroupAdmitter{}
+			rgAdm := &RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}}
 
 			h := Handler(rgAdm)
 			h(w, req)
@@ -200,7 +216,7 @@ func TestIngressAdmitter(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
-			ingressAdm := &IngressAdmitter{}
+			ingressAdm := &IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}}
 
 			h := Handler(ingressAdm)
 			h(w, req)
@@ -217,8 +233,8 @@ func TestIngressAdmitter(t *testing.T) {
 }
 
 func TestMalformedRequests(t *testing.T) {
-	routeGroupHandler := Handler(&RouteGroupAdmitter{})
-	ingressHandler := Handler(&IngressAdmitter{})
+	routeGroupHandler := Handler(&RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}})
+	ingressHandler := Handler(&IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}})
 
 	for _, tc := range []struct {
 		name           string
