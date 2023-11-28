@@ -2045,12 +2045,14 @@ See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratel
 
 This ratelimit is calculated across all skipper peers and the same
 rate limit group. The first parameter is a string to select the same
-ratelimit group across one or more routes.  The rate limit group
-allows the given number of requests by client. The definition of the
-same client is based on data of the http header and can be changed
-with an optional fourth parameter. If the fourth parameter is set
-skipper will use the HTTP header defined by this to put the request in
-the same client bucket, else the X-Forwarded-For Header will be used.
+ratelimit group across one or more routes.
+The rate limit group allows the given number of requests by client.
+The client identity is derived from the value of the `X-Forwarded-For` header or client IP address
+and can be changed with an optional fourth parameter.
+The optional fourth parameter may specify comma-separated list of header names.
+Skipper will join header values to obtain client identity.
+If identity value is empty (i.e. when all header values are empty or missing) then ratelimit does not apply.
+
 You need to run skipper with command line flags `-enable-swarm` and
 `-enable-ratelimits`. See also our [cluster ratelimit tutorial](../tutorials/ratelimit.md#cluster-ratelimit)
 
