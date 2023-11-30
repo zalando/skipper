@@ -270,7 +270,7 @@ func (p *fadeInProxy) addInstances(n int) {
 			DataClients:    []routing.DataClient{client},
 			PostProcessors: []routing.PostProcessor{
 				loadbalancer.NewAlgorithmProvider(),
-				fadein.NewPostProcessor(),
+				fadein.NewPostProcessor(fadein.PostProcessorOptions{}),
 			},
 		})
 

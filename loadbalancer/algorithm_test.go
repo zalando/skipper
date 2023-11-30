@@ -419,7 +419,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 			t.Errorf("Expected in-flight requests for each endpoint to be less than %d. In-flight request counts: %d, %d, %d", limit, ifr0, ifr1, ifr2)
 		}
 		ep.Metrics.IncInflightRequest()
-		ctx.Registry.IncInflightRequest(ep.Host)
+		ctx.Registry.GetMetrics(ep.Host).IncInflightRequest()
 	}
 }
 
@@ -441,7 +441,7 @@ func TestConsistentHashKeyDistribution(t *testing.T) {
 func addInflightRequests(registry *routing.EndpointRegistry, endpoint routing.LBEndpoint, count int) {
 	for i := 0; i < count; i++ {
 		endpoint.Metrics.IncInflightRequest()
-		registry.IncInflightRequest(endpoint.Host)
+		registry.GetMetrics(endpoint.Host).IncInflightRequest()
 	}
 }
 
