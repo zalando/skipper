@@ -176,6 +176,7 @@ func Filters() []filters.Spec {
 		diag.NewBackendLatency(),
 		diag.NewBackendBandwidth(),
 		diag.NewBackendChunks(),
+		diag.NewTarpit(),
 		diag.NewAbsorb(),
 		diag.NewAbsorbSilent(),
 		diag.NewLogHeader(),

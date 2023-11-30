@@ -598,6 +598,24 @@ the response path.
 Same as [chunks filter](#chunks), but on the request path and not on
 the response path.
 
+### tarpit
+
+The tarpit filter discards the request and respond with a never ending
+stream of chunked response payloads. The goal is to consume the client
+connection without letting the client know what is happening.
+
+Parameters:
+
+* time duration (time.Duration)
+
+Example:
+
+```
+* -> tarpit("1s") -> <shunt>;
+```
+
+The example will send every second a chunk of response payload.
+
 ### absorb
 
 The absorb filter reads and discards the payload of the incoming requests.

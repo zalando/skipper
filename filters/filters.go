@@ -254,6 +254,7 @@ const (
 	BackendLatencyName                         = "backendLatency"
 	BackendBandwidthName                       = "backendBandwidth"
 	BackendChunksName                          = "backendChunks"
+	TarpitName                                 = "tarpit"
 	AbsorbName                                 = "absorb"
 	AbsorbSilentName                           = "absorbSilent"
 	UniformRequestLatencyName                  = "uniformRequestLatency"
