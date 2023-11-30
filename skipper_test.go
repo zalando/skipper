@@ -527,6 +527,8 @@ func TestDataClients(t *testing.T) {
 	})
 	defer reg.Close()
 
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+
 	// create LB in front of apiservers to be able to switch the data served by apiserver
 	ro := routing.Options{
 		SignalFirstLoad: true,
@@ -534,6 +536,7 @@ func TestDataClients(t *testing.T) {
 		DataClients:     dcs, //[]routing.DataClient{dc},
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.NewAlgorithmProvider(),
+			endpointRegistry,
 			reg,
 		},
 		SuppressLogs: true,

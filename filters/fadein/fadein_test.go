@@ -252,7 +252,7 @@ func TestPostProcessor(t *testing.T) {
 			if ep.Detected.IsZero() {
 				t.Fatal("failed to set detection time")
 			}
-			if endpointRegistry.GetMetrics(ep.Host).DetectedTime().IsZero() {
+			if endpointRegistry.GetMetrics(ep.Host).GetDetectedTime().IsZero() {
 				t.Fatal("failed to set detection time")
 			}
 		}
@@ -287,7 +287,7 @@ func TestPostProcessor(t *testing.T) {
 		if r == nil || len(r.LBEndpoints) == 0 || !r.LBEndpoints[0].Detected.IsZero() {
 			t.Fatal("failed to ignore negative duration")
 		}
-		if endpointRegisty.GetMetrics(r.LBEndpoints[0].Host).DetectedTime().IsZero() {
+		if endpointRegisty.GetMetrics(r.LBEndpoints[0].Host).GetDetectedTime().IsZero() {
 			t.Fatal("failed to ignore negative duration")
 		}
 	})
@@ -314,7 +314,7 @@ func TestPostProcessor(t *testing.T) {
 				if ep.Detected.After(firstDetected) {
 					t.Fatal("Failed to keep detection time.")
 				}
-				if endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
+				if endpointRegistry.GetMetrics(ep.Host).GetDetectedTime().After(firstDetected) {
 					t.Fatal("Failed to keep detection time.")
 				}
 
@@ -351,7 +351,7 @@ func TestPostProcessor(t *testing.T) {
 				if ep.Detected.After(firstDetected) {
 					t.Fatal("Failed to keep detection time.")
 				}
-				if endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
+				if endpointRegistry.GetMetrics(ep.Host).GetDetectedTime().After(firstDetected) {
 					t.Fatal("Failed to keep detection time.")
 				}
 
@@ -390,7 +390,7 @@ func TestPostProcessor(t *testing.T) {
 				if !ep.Detected.After(firstDetected) {
 					t.Fatal("Failed to clear detection time.")
 				}
-				if !endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
+				if !endpointRegistry.GetMetrics(ep.Host).GetDetectedTime().After(firstDetected) {
 					t.Fatal("Failed to clear detection time.")
 				}
 
@@ -431,7 +431,7 @@ func TestPostProcessor(t *testing.T) {
 				if !ep.Detected.After(firstDetected) {
 					t.Fatal("Failed to reset detection time.")
 				}
-				if !endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
+				if !endpointRegistry.GetMetrics(ep.Host).GetDetectedTime().After(firstDetected) {
 					t.Fatal("Failed to reset detection time.")
 				}
 

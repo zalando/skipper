@@ -205,8 +205,8 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 			ep.Detected = detected
 			if p.endpointRegisty != nil {
 				metrics := p.endpointRegisty.GetMetrics(ep.Host)
-				if endpointsCreated[key].After(metrics.DetectedTime()) {
-					metrics.SetDetected(endpointsCreated[key])
+				if endpointsCreated[key].After(metrics.GetDetectedTime()) {
+					metrics.SetDetectedTime(endpointsCreated[key])
 				}
 			}
 			p.detected[key] = detectedFadeIn{

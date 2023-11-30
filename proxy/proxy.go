@@ -484,8 +484,8 @@ func selectEndpoint(ctx *context, registry *routing.EndpointRegistry) *routing.L
 
 // creates an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHeaders bool, registry *routing.EndpointRegistry) (*http.Request, *routing.LBEndpoint, error) {
-	var endpoint *routing.LBEndpoint
+func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHeaders bool, registry *routing.EndpointRegistry) (*http.Request, *routing.LBMetrics, error) {
+	var endpointMetrics *routing.LBMetrics
 	r := ctx.request
 	rt := ctx.route
 	host := ctx.outgoingHost
@@ -497,9 +497,13 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 		setRequestURLFromRequest(u, r)
 		setRequestURLForDynamicBackend(u, stateBag)
 	case eskip.LBBackend:
-		endpoint = selectEndpoint(ctx, registry)
+		endpoint := selectEndpoint(ctx, registry)
+		endpointMetrics = endpoint.Metrics
 		u.Scheme = endpoint.Scheme
 		u.Host = endpoint.Host
+	case eskip.NetworkBackend:
+		endpointMetrics = registry.GetMetrics(rt.Host)
+		fallthrough
 	default:
 		u.Scheme = rt.Scheme
 		u.Host = rt.Host
@@ -512,7 +516,7 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 
 	rr, err := http.NewRequestWithContext(requestContext, r.Method, u.String(), body)
 	if err != nil {
-		return nil, endpoint, err
+		return nil, nil, err
 	}
 
 	rr.ContentLength = r.ContentLength
@@ -543,7 +547,7 @@ func mapRequest(ctx *context, requestContext stdlibcontext.Context, removeHopHea
 		rr = forwardToProxy(r, rr)
 	}
 
-	return rr, endpoint, nil
+	return rr, endpointMetrics, nil
 }
 
 type proxyUrlContextKey struct{}
@@ -836,7 +840,7 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
-	req, endpoint, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval(), p.registry)
+	req, endpointMetrics, err := mapRequest(ctx, requestContext, p.flags.HopHeadersRemoval(), p.registry)
 	if err != nil {
 		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
 	}
@@ -845,9 +849,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		return res, nil
 	}
 
-	if endpoint != nil {
-		endpoint.Metrics.IncInflightRequest()
-		defer endpoint.Metrics.DecInflightRequest()
+	if endpointMetrics != nil {
+		endpointMetrics.IncInflightRequest()
+		defer endpointMetrics.DecInflightRequest()
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {

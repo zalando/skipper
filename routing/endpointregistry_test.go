@@ -16,9 +16,9 @@ func TestEmptyRegistry(t *testing.T) {
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	m := r.GetMetrics("some key")
 
-	assert.Equal(t, time.Time{}, m.DetectedTime())
-	assert.Equal(t, time.Time{}, m.LastSeen())
-	assert.Equal(t, int64(0), m.InflightRequests())
+	assert.Equal(t, time.Time{}, m.GetDetectedTime())
+	assert.Equal(t, time.Time{}, m.GetLastSeenTime())
+	assert.Equal(t, int(0), m.GetInflightRequests())
 }
 
 func TestSetAndGet(t *testing.T) {
@@ -26,22 +26,22 @@ func TestSetAndGet(t *testing.T) {
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 
 	mBefore := r.GetMetrics("some key")
-	assert.Equal(t, time.Time{}, mBefore.DetectedTime())
-	assert.Equal(t, time.Time{}, mBefore.LastSeen())
-	assert.Equal(t, int64(0), mBefore.InflightRequests())
+	assert.Equal(t, time.Time{}, mBefore.GetDetectedTime())
+	assert.Equal(t, time.Time{}, mBefore.GetLastSeenTime())
+	assert.Equal(t, int(0), mBefore.GetInflightRequests())
 
-	r.GetMetrics("some key").SetDetected(now.Add(-time.Second))
-	r.GetMetrics("some key").SetLastSeen(now)
+	r.GetMetrics("some key").SetDetectedTime(now.Add(-time.Second))
+	r.GetMetrics("some key").SetLastSeenTime(now)
 	r.GetMetrics("some key").IncInflightRequest()
 	mAfter := r.GetMetrics("some key")
 
-	assert.Equal(t, now.Add(-time.Second), mBefore.DetectedTime())
-	assert.Equal(t, now, mBefore.LastSeen())
-	assert.Equal(t, int64(1), mBefore.InflightRequests())
+	assert.Equal(t, now.Add(-time.Second), mBefore.GetDetectedTime())
+	assert.Equal(t, now, mBefore.GetLastSeenTime())
+	assert.Equal(t, int(1), mBefore.GetInflightRequests())
 
-	assert.Equal(t, now.Add(-time.Second), mAfter.DetectedTime())
-	assert.Equal(t, now, mAfter.LastSeen())
-	assert.Equal(t, int64(1), mAfter.InflightRequests())
+	assert.Equal(t, now.Add(-time.Second), mAfter.GetDetectedTime())
+	assert.Equal(t, now, mAfter.GetLastSeenTime())
+	assert.Equal(t, int(1), mAfter.GetInflightRequests())
 }
 
 func TestSetAndGetAnotherKey(t *testing.T) {
@@ -50,17 +50,17 @@ func TestSetAndGetAnotherKey(t *testing.T) {
 
 	mToChange := r.GetMetrics("some key")
 	mToChange.IncInflightRequest()
-	mToChange.SetDetected(now.Add(-time.Second))
-	mToChange.SetLastSeen(now)
+	mToChange.SetDetectedTime(now.Add(-time.Second))
+	mToChange.SetLastSeenTime(now)
 	mConst := r.GetMetrics("another key")
 
-	assert.Equal(t, int64(0), mConst.InflightRequests())
-	assert.Equal(t, time.Time{}, mConst.DetectedTime())
-	assert.Equal(t, time.Time{}, mConst.LastSeen())
+	assert.Equal(t, int(0), mConst.GetInflightRequests())
+	assert.Equal(t, time.Time{}, mConst.GetDetectedTime())
+	assert.Equal(t, time.Time{}, mConst.GetLastSeenTime())
 
-	assert.Equal(t, int64(1), mToChange.InflightRequests())
-	assert.Equal(t, now.Add(-time.Second), mToChange.DetectedTime())
-	assert.Equal(t, now, mToChange.LastSeen())
+	assert.Equal(t, int(1), mToChange.GetInflightRequests())
+	assert.Equal(t, now.Add(-time.Second), mToChange.GetDetectedTime())
+	assert.Equal(t, now, mToChange.GetLastSeenTime())
 }
 
 func TestDoRemovesOldEntries(t *testing.T) {
@@ -72,8 +72,8 @@ func TestDoRemovesOldEntries(t *testing.T) {
 	})
 	route := &routing.Route{
 		LBEndpoints: []routing.LBEndpoint{
-			{Host: "endpoint1.test:80"},
-			{Host: "endpoint2.test:80"},
+			{Host: "endpoint1.test:80", Metrics: r.GetMetrics("endpoint1.test:80")},
+			{Host: "endpoint2.test:80", Metrics: r.GetMetrics("endpoint2.test:80")},
 		},
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,
@@ -83,8 +83,8 @@ func TestDoRemovesOldEntries(t *testing.T) {
 
 	mExist := r.GetMetrics("endpoint1.test:80")
 	mExistYet := r.GetMetrics("endpoint2.test:80")
-	assert.Equal(t, beginTestTs, mExist.DetectedTime())
-	assert.Equal(t, beginTestTs, mExistYet.DetectedTime())
+	assert.Equal(t, beginTestTs, mExist.GetDetectedTime())
+	assert.Equal(t, beginTestTs, mExistYet.GetDetectedTime())
 
 	mExist.IncInflightRequest()
 	mExistYet.IncInflightRequest()
@@ -95,7 +95,7 @@ func TestDoRemovesOldEntries(t *testing.T) {
 	})
 	route = &routing.Route{
 		LBEndpoints: []routing.LBEndpoint{
-			{Host: "endpoint1.test:80"},
+			{Host: "endpoint1.test:80", Metrics: r.GetMetrics("endpoint1.test:80")},
 		},
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,
@@ -107,32 +107,32 @@ func TestDoRemovesOldEntries(t *testing.T) {
 	mExist = r.GetMetrics("endpoint1.test:80")
 	mRemoved := r.GetMetrics("endpoint2.test:80")
 
-	assert.Equal(t, beginTestTs, mExist.DetectedTime())
-	assert.Equal(t, int64(1), mExist.InflightRequests())
+	assert.Equal(t, beginTestTs, mExist.GetDetectedTime())
+	assert.Equal(t, int(1), mExist.GetInflightRequests())
 
-	assert.Equal(t, time.Time{}, mRemoved.DetectedTime())
-	assert.Equal(t, int64(0), mRemoved.InflightRequests())
+	assert.Equal(t, time.Time{}, mRemoved.GetDetectedTime())
+	assert.Equal(t, int(0), mRemoved.GetInflightRequests())
 }
 
 func TestMetricsMethodsDoNotAllocate(t *testing.T) {
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	metrics := r.GetMetrics("some key")
 	now := time.Now()
-	metrics.SetDetected(now.Add(-time.Hour))
-	metrics.SetLastSeen(now)
+	metrics.SetDetectedTime(now.Add(-time.Hour))
+	metrics.SetLastSeenTime(now)
 
 	allocs := testing.AllocsPerRun(100, func() {
-		assert.Equal(t, int64(0), metrics.InflightRequests())
+		assert.Equal(t, int(0), metrics.GetInflightRequests())
 		metrics.IncInflightRequest()
-		assert.Equal(t, int64(1), metrics.InflightRequests())
+		assert.Equal(t, int(1), metrics.GetInflightRequests())
 		metrics.DecInflightRequest()
-		assert.Equal(t, int64(0), metrics.InflightRequests())
+		assert.Equal(t, int(0), metrics.GetInflightRequests())
 
-		metrics.DetectedTime()
-		metrics.LastSeen()
+		metrics.GetDetectedTime()
+		metrics.GetLastSeenTime()
 	})
-	assert.Equal(t, now.Add(-time.Hour), metrics.DetectedTime())
-	assert.Equal(t, now, metrics.LastSeen())
+	assert.Equal(t, now.Add(-time.Hour), metrics.GetDetectedTime())
+	assert.Equal(t, now, metrics.GetLastSeenTime())
 
 	assert.Equal(t, 0.0, allocs)
 }
@@ -241,7 +241,7 @@ func benchmarkIncInflightRequests(b *testing.B, name string, goroutines int) {
 			r.GetMetrics(fmt.Sprintf("foo-%d", i)).IncInflightRequest()
 		}
 		r.GetMetrics(key).IncInflightRequest()
-		r.GetMetrics(key).SetDetected(now)
+		r.GetMetrics(key).SetDetectedTime(now)
 
 		wg := sync.WaitGroup{}
 		b.ResetTimer()
@@ -280,9 +280,9 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 			r.GetMetrics(fmt.Sprintf("foo-%d", i)).IncInflightRequest()
 		}
 		r.GetMetrics(key).IncInflightRequest()
-		r.GetMetrics(key).SetDetected(now)
+		r.GetMetrics(key).SetDetectedTime(now)
 
-		var dummy int64
+		var dummy int
 		wg := sync.WaitGroup{}
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -292,7 +292,7 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 				defer wg.Done()
 				metrics := r.GetMetrics(key)
 				for n := 0; n < b.N/goroutines; n++ {
-					dummy = metrics.InflightRequests()
+					dummy = metrics.GetInflightRequests()
 				}
 			}()
 		}
@@ -321,7 +321,7 @@ func benchmarkGetDetectedTime(b *testing.B, name string, goroutines int) {
 			r.GetMetrics(fmt.Sprintf("foo-%d", i)).IncInflightRequest()
 		}
 		r.GetMetrics(key).IncInflightRequest()
-		r.GetMetrics(key).SetDetected(now)
+		r.GetMetrics(key).SetDetectedTime(now)
 
 		var dummy time.Time
 		wg := sync.WaitGroup{}
@@ -333,7 +333,7 @@ func benchmarkGetDetectedTime(b *testing.B, name string, goroutines int) {
 				defer wg.Done()
 				metrics := r.GetMetrics(key)
 				for n := 0; n < b.N/goroutines; n++ {
-					dummy = metrics.DetectedTime()
+					dummy = metrics.GetDetectedTime()
 				}
 			}()
 		}

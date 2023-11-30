@@ -86,14 +86,21 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 
 	for _, route := range routes {
 		if route.BackendType == eskip.LBBackend {
-			for _, epi := range route.LBEndpoints {
-				metrics := r.GetMetrics(epi.Host)
-				if metrics.DetectedTime().IsZero() {
-					metrics.SetDetected(now)
+			for i := range route.LBEndpoints {
+				epi := &route.LBEndpoints[i]
+				epi.Metrics = r.GetMetrics(epi.Host)
+				if epi.Metrics.GetDetectedTime().IsZero() {
+					epi.Metrics.SetDetectedTime(now)
 				}
 
-				metrics.SetLastSeen(now)
+				epi.Metrics.endpointRegistryEntry.SetLastSeen(now)
 			}
+		} else {
+			metrics := r.GetMetrics(route.Host)
+			if metrics.GetDetectedTime().IsZero() {
+				metrics.SetDetectedTime(now)
+			}
+			metrics.endpointRegistryEntry.SetLastSeen(now)
 		}
 	}
 
@@ -122,7 +129,7 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 	}
 }
 
-func (r *EndpointRegistry) GetMetrics(key string) Metrics {
+func (r *EndpointRegistry) GetMetrics(key string) *LBMetrics {
 	e, _ := r.data.LoadOrStore(key, newEntry())
-	return e.(*entry)
+	return &LBMetrics{endpointRegistryEntry: e.(*entry)}
 }

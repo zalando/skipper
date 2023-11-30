@@ -72,7 +72,7 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routin
 	rt := ctx.Route
 	ep := ctx.LBEndpoints
 	for _, epi := range ep {
-		wi := fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Detected)
+		wi := fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Metrics.GetDetectedTime())
 		sum += wi
 	}
 
@@ -80,7 +80,7 @@ func shiftWeighted(rnd *rand.Rand, ctx *routing.LBContext, now time.Time) routin
 	r := rnd.Float64() * sum
 	var upto float64
 	for i, epi := range ep {
-		upto += fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Detected)
+		upto += fadeIn(now, rt.LBFadeInDuration, rt.LBFadeInExponent, epi.Metrics.GetDetectedTime())
 		if upto > r {
 			choice = ep[i]
 			break
@@ -113,7 +113,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing
 		now,
 		ctx.Route.LBFadeInDuration,
 		ctx.Route.LBFadeInExponent,
-		ctx.LBEndpoints[choice].Detected,
+		ctx.LBEndpoints[choice].Metrics.GetDetectedTime(),
 	)
 
 	if rnd.Float64() < f {
@@ -121,7 +121,7 @@ func withFadeIn(rnd *rand.Rand, ctx *routing.LBContext, choice int, algo routing
 	}
 	notFadingIndexes := make([]int, 0, len(ep))
 	for i := 0; i < len(ep); i++ {
-		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, ep[i].Detected); !fadingIn {
+		if _, fadingIn := fadeInState(now, ctx.Route.LBFadeInDuration, ep[i].Metrics.GetDetectedTime()); !fadingIn {
 			notFadingIndexes = append(notFadingIndexes, i)
 		}
 	}
@@ -280,7 +280,7 @@ func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, c
 		load := ctx.LBEndpoints[endpointIndex].Metrics.GetInflightRequests()
 		// We know there must be an endpoint whose load <= average load.
 		// Since targetLoad >= average load (balancerFactor >= 1), there must also be an endpoint with load <= targetLoad.
-		if load <= int(targetLoad) {
+		if float64(load) <= targetLoad {
 			break
 		}
 		ringIndex = (ringIndex + 1) % ch.Len()
@@ -431,9 +431,8 @@ func parseEndpoints(r *routing.Route) error {
 		}
 
 		r.LBEndpoints[i] = routing.LBEndpoint{
-			Scheme:  scheme,
-			Host:    host,
-			Metrics: &routing.LBMetrics{},
+			Scheme: scheme,
+			Host:   host,
 		}
 	}
 

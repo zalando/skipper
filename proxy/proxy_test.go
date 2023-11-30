@@ -208,11 +208,12 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 	}
 
 	tl := loggingtest.New()
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	opts := routing.Options{
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
-		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider()},
+		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider(), endpointRegistry},
 		Log:            tl,
 		Predicates:     []routing.PredicateSpec{teePredicate.New()},
 	}

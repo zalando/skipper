@@ -152,22 +152,42 @@ type RouteFilter struct {
 
 // LBMetrics contains metrics used by LB algorithms
 type LBMetrics struct {
-	inflightRequests int64
+	endpointRegistryEntry Metrics
 }
 
 // IncInflightRequest increments the number of outstanding requests from the proxy to a given backend.
 func (m *LBMetrics) IncInflightRequest() {
-	atomic.AddInt64(&m.inflightRequests, 1)
+	m.endpointRegistryEntry.IncInflightRequest()
 }
 
 // DecInflightRequest decrements the number of outstanding requests from the proxy to a given backend.
 func (m *LBMetrics) DecInflightRequest() {
-	atomic.AddInt64(&m.inflightRequests, -1)
+	m.endpointRegistryEntry.DecInflightRequest()
 }
 
 // GetInflightRequests decrements the number of outstanding requests from the proxy to a given backend.
 func (m *LBMetrics) GetInflightRequests() int {
-	return int(atomic.LoadInt64(&m.inflightRequests))
+	return int(m.endpointRegistryEntry.InflightRequests())
+}
+
+// GetDetectedTime returns the time when skipper instance first detected a host of a given backend.
+func (m *LBMetrics) GetDetectedTime() time.Time {
+	return m.endpointRegistryEntry.DetectedTime()
+}
+
+// SetDetectedTime sets the time when skipper instance first detected a host of a given backend.
+func (m *LBMetrics) SetDetectedTime(t time.Time) {
+	m.endpointRegistryEntry.SetDetected(t)
+}
+
+// GetLastSeen returns the time when skipper instance last saw a host of a given backend.
+func (m *LBMetrics) GetLastSeenTime() time.Time {
+	return m.endpointRegistryEntry.LastSeen()
+}
+
+// SetLastSeen sets the time when skipper instance last saw a host of a given backend.
+func (m *LBMetrics) SetLastSeenTime(t time.Time) {
+	m.endpointRegistryEntry.SetLastSeen(t)
 }
 
 // LBEndpoint represents the scheme and the host of load balanced
