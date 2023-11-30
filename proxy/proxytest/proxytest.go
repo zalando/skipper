@@ -74,6 +74,7 @@ func New(fr filters.Registry, routes ...*eskip.Route) *TestProxy {
 }
 
 func (c Config) Create() *TestProxy {
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	tl := loggingtest.New()
 	var dc *testdataclient.Client
 
@@ -83,7 +84,7 @@ func (c Config) Create() *TestProxy {
 	}
 
 	c.RoutingOptions.Log = tl
-	c.RoutingOptions.PostProcessors = append(c.RoutingOptions.PostProcessors, loadbalancer.NewAlgorithmProvider())
+	c.RoutingOptions.PostProcessors = append(c.RoutingOptions.PostProcessors, loadbalancer.NewAlgorithmProvider(), endpointRegistry)
 
 	rt := routing.New(c.RoutingOptions)
 	c.ProxyParams.Routing = rt

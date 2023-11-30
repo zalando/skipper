@@ -72,8 +72,8 @@ func TestDoRemovesOldEntries(t *testing.T) {
 	})
 	route := &routing.Route{
 		LBEndpoints: []routing.LBEndpoint{
-			{Host: "endpoint1.test:80"},
-			{Host: "endpoint2.test:80"},
+			{Host: "endpoint1.test:80", Metrics: r.GetMetrics("endpoint1.test:80")},
+			{Host: "endpoint2.test:80", Metrics: r.GetMetrics("endpoint2.test:80")},
 		},
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,
@@ -95,7 +95,7 @@ func TestDoRemovesOldEntries(t *testing.T) {
 	})
 	route = &routing.Route{
 		LBEndpoints: []routing.LBEndpoint{
-			{Host: "endpoint1.test:80"},
+			{Host: "endpoint1.test:80", Metrics: r.GetMetrics("endpoint1.test:80")},
 		},
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,

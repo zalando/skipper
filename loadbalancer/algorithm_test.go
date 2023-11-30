@@ -30,6 +30,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with default algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -38,6 +39,7 @@ func TestSelectAlgorithm(t *testing.T) {
 		}
 
 		rr := p.Do([]*routing.Route{r})
+		endpointRegistry.Do([]*routing.Route{r})
 		if len(rr) != 1 {
 			t.Fatal("failed to process LB route")
 		}
@@ -56,6 +58,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with explicit round-robin algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -65,6 +68,7 @@ func TestSelectAlgorithm(t *testing.T) {
 		}
 
 		rr := p.Do([]*routing.Route{r})
+		endpointRegistry.Do([]*routing.Route{r})
 		if len(rr) != 1 {
 			t.Fatal("failed to process LB route")
 		}
@@ -83,6 +87,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with explicit consistentHash algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -92,6 +97,7 @@ func TestSelectAlgorithm(t *testing.T) {
 		}
 
 		rr := p.Do([]*routing.Route{r})
+		endpointRegistry.Do([]*routing.Route{r})
 		if len(rr) != 1 {
 			t.Fatal("failed to process LB route")
 		}
@@ -110,6 +116,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with explicit random algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -119,6 +126,7 @@ func TestSelectAlgorithm(t *testing.T) {
 		}
 
 		rr := p.Do([]*routing.Route{r})
+		endpointRegistry.Do([]*routing.Route{r})
 		if len(rr) != 1 {
 			t.Fatal("failed to process LB route")
 		}
@@ -137,6 +145,7 @@ func TestSelectAlgorithm(t *testing.T) {
 
 	t.Run("LB route with explicit powerOfRandomNChoices algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -146,6 +155,7 @@ func TestSelectAlgorithm(t *testing.T) {
 		}
 
 		rr := p.Do([]*routing.Route{r})
+		endpointRegistry.Do([]*routing.Route{r})
 		if len(rr) != 1 {
 			t.Fatal("failed to process LB route")
 		}
@@ -264,6 +274,7 @@ func TestApply(t *testing.T) {
 				LBEndpoints: rt[0].LBEndpoints,
 				Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 			}
+			lbctx.Registry.Do([]*routing.Route{r})
 
 			h := make(map[string]int)
 			for i := 0; i < R; i++ {
@@ -316,6 +327,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 			LBEndpoints: endpoints,
 		},
 	}})[0]
+
 	ch := route.LBAlgorithm.(*consistentHash)
 	ctx := &routing.LBContext{
 		Request:     r,
@@ -324,6 +336,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		Params:      map[string]interface{}{ConsistentHashBalanceFactor: 1.25},
 		Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
+	ctx.Registry.Do([]*routing.Route{route})
 	noLoad := ch.Apply(ctx)
 	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]interface{}{}})
 
@@ -393,6 +406,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 			LBEndpoints: endpoints,
 		},
 	}})[0]
+
 	ch := route.LBAlgorithm.(*consistentHash)
 	balanceFactor := 1.25
 	ctx := &routing.LBContext{
@@ -402,23 +416,23 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		Params:      map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
 		Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
+	ctx.Registry.Do([]*routing.Route{route})
 
 	for i := 0; i < 100; i++ {
 		ep := ch.Apply(ctx)
-		ifr0 := route.LBEndpoints[0].Metrics.GetInflightRequests()
-		ifr1 := route.LBEndpoints[1].Metrics.GetInflightRequests()
-		ifr2 := route.LBEndpoints[2].Metrics.GetInflightRequests()
+		ifr0 := route.LBEndpoints[0].Metrics.InflightRequests()
+		ifr1 := route.LBEndpoints[1].Metrics.InflightRequests()
+		ifr2 := route.LBEndpoints[2].Metrics.InflightRequests()
 
 		assert.Equal(t, int64(ifr0), ctx.Registry.GetMetrics(route.LBEndpoints[0].Host).InflightRequests())
 		assert.Equal(t, int64(ifr1), ctx.Registry.GetMetrics(route.LBEndpoints[1].Host).InflightRequests())
 		assert.Equal(t, int64(ifr2), ctx.Registry.GetMetrics(route.LBEndpoints[2].Host).InflightRequests())
 
 		avg := float64(ifr0+ifr1+ifr2) / 3.0
-		limit := int(avg*balanceFactor) + 1
+		limit := int64(avg*balanceFactor) + 1
 		if ifr0 > limit || ifr1 > limit || ifr2 > limit {
 			t.Errorf("Expected in-flight requests for each endpoint to be less than %d. In-flight request counts: %d, %d, %d", limit, ifr0, ifr1, ifr2)
 		}
-		ep.Metrics.IncInflightRequest()
 		ctx.Registry.GetMetrics(ep.Host).IncInflightRequest()
 	}
 }

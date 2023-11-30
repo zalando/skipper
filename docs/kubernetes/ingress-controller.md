@@ -753,7 +753,7 @@ the communication work with TCP and UDP to the specified `swarm-port`:
 ## Upgrades
 
 Please always read the announcements of the vX.Y.**0**
-[release page](https://github.com/zalando/skipper/releases/tag/v0.18.0),
+[release page](https://github.com/zalando/skipper/releases/tag/v0.19.0),
 because these will document in case we break something in a backwards non
 compatible way. Most of the time it will be safe to deploy minor
 version updates, but better to know in advance if something could
