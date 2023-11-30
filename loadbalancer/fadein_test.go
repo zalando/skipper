@@ -67,10 +67,11 @@ func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Durat
 
 	for i := range eps {
 		ctx.Route.LBEndpoints = append(ctx.Route.LBEndpoints, routing.LBEndpoint{
-			Host:     eps[i],
-			Detected: detectionTimes[i],
+			Host:                    eps[i],
+			Detected:                detectionTimes[i],
+			EndpointRegistryMetrics: ctx.Registry.GetMetrics(eps[i]),
 		})
-		ctx.Registry.GetMetrics(eps[i]).SetDetected(detectionTimes[i])
+		ctx.Route.LBEndpoints[i].EndpointRegistryMetrics.SetDetected(detectionTimes[i])
 	}
 	ctx.LBEndpoints = ctx.Route.LBEndpoints
 

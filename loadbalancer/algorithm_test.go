@@ -264,6 +264,7 @@ func TestApply(t *testing.T) {
 				LBEndpoints: rt[0].LBEndpoints,
 				Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 			}
+			lbctx.Registry.Do([]*routing.Route{r})
 
 			h := make(map[string]int)
 			for i := 0; i < R; i++ {
@@ -309,13 +310,15 @@ func TestConsistentHashSearch(t *testing.T) {
 func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
-	route := NewAlgorithmProvider().Do([]*routing.Route{{
+	routeWrapper := []*routing.Route{{
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,
 			LBAlgorithm: ConsistentHash.String(),
 			LBEndpoints: endpoints,
 		},
-	}})[0]
+	}}
+
+	route := NewAlgorithmProvider().Do(routeWrapper)[0]
 	ch := route.LBAlgorithm.(*consistentHash)
 	ctx := &routing.LBContext{
 		Request:     r,
@@ -324,6 +327,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		Params:      map[string]interface{}{ConsistentHashBalanceFactor: 1.25},
 		Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
+	ctx.Registry.Do(routeWrapper)
 	noLoad := ch.Apply(ctx)
 	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]interface{}{}})
 
@@ -386,13 +390,15 @@ func TestConsistentHashKey(t *testing.T) {
 func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
 	r, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
-	route := NewAlgorithmProvider().Do([]*routing.Route{{
+	routeWrapper := []*routing.Route{{
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,
 			LBAlgorithm: ConsistentHash.String(),
 			LBEndpoints: endpoints,
 		},
-	}})[0]
+	}}
+
+	route := NewAlgorithmProvider().Do(routeWrapper)[0]
 	ch := route.LBAlgorithm.(*consistentHash)
 	balanceFactor := 1.25
 	ctx := &routing.LBContext{
@@ -402,6 +408,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		Params:      map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
 		Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
+	ctx.Registry.Do(routeWrapper)
 
 	for i := 0; i < 100; i++ {
 		ep := ch.Apply(ctx)

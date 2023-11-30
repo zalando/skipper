@@ -86,13 +86,14 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 
 	for _, route := range routes {
 		if route.BackendType == eskip.LBBackend {
-			for _, epi := range route.LBEndpoints {
-				metrics := r.GetMetrics(epi.Host)
-				if metrics.DetectedTime().IsZero() {
-					metrics.SetDetected(now)
+			for i := range route.LBEndpoints {
+				epi := &route.LBEndpoints[i]
+				epi.EndpointRegistryMetrics = r.GetMetrics(epi.Host)
+				if epi.EndpointRegistryMetrics.DetectedTime().IsZero() {
+					epi.EndpointRegistryMetrics.SetDetected(now)
 				}
 
-				metrics.SetLastSeen(now)
+				epi.EndpointRegistryMetrics.SetLastSeen(now)
 			}
 		}
 	}

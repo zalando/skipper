@@ -179,6 +179,11 @@ type LBEndpoint struct {
 	// Detected represents the time when skipper instances first detected a new LB endpoint. This detection
 	// time is used for the fade-in feature of the round-robin and random LB algorithms.
 	Detected time.Time
+
+	// There is ongoing effort to move all dynamic data about endpoints to the EndpointRegistry instead of the
+	// LBEndpoint struct. This will allow us to remove Metrics and Detected fields above and replace them with
+	// EndpointRegistryMetrics which has host-wide metrics instead of route-wide metrics.
+	EndpointRegistryMetrics Metrics
 }
 
 // LBAlgorithm implementations apply a load balancing algorithm
