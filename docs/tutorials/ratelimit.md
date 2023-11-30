@@ -115,11 +115,11 @@ Redis based Cluster Ratelimits](../kubernetes/ingress-controller.md#redis-based)
 
 #### Redis Swarm Configuration
 
-When working with redis swarm, use kubernetes service selector. Configure it with `-kubernetes-redis-service-namespace` and `-kubernetes-redis-service-name` flags.
+When working with Redis swarm, use Kubernetes service selector. Configure it with `-kubernetes-redis-service-namespace` and `-kubernetes-redis-service-name` flags.
 
-Auto-discovery routine for new redis endpoints will be triggered every 10 seconds.
+Auto-discovery routine for new Redis endpoints will be triggered every 10 seconds.
 
-If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#routesrv) enabled, you need to configure skipper with the flag `-swarm-redis-remote` where remote value will be the service address for `routesrv` service. `Routesrv` will be responsible for collecting redis endpoints and skipper will poll them from the proxy.
+If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#routesrv) enabled, you need to configure Skipper with the flag `-swarm-redis-remote=http://skipper.ingress.cluster.local/swarm/redis/shards` where value is the service address for `routesrv` service. `Routesrv` will be responsible for collecting Redis endpoints and Skipper will poll them from the proxy.
 
 #### Implementation
 
