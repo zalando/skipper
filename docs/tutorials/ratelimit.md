@@ -113,6 +113,16 @@ There are 2 different configurations to assign redis instances as a skipper redi
 see also [Running with
 Redis based Cluster Ratelimits](../kubernetes/ingress-controller.md#redis-based)
 
+#### Redis Swarm Configuration
+
+When working with Redis swarm, use Kubernetes service selector. Configure it with `-kubernetes-redis-service-namespace` and `-kubernetes-redis-service-name` flags.
+
+Auto-discovery routine for new Redis endpoints will be triggered every 10 seconds.
+
+If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#routesrv) enabled, you need to configure Skipper with the flag `-swarm-redis-remote=http://skipper.ingress.cluster.local/swarm/redis/shards` where value is the service address for `routesrv` service. `Routesrv` will be responsible for collecting Redis endpoints and Skipper will poll them from the proxy.
+
+#### Implementation
+
 The implementation use [redis ring](https://godoc.org/github.com/go-redis/redis#Ring)
 to be able to shard via client hashing and spread the load across
 multiple Redis instances to be able to scale out the shared storage.
