@@ -5,7 +5,7 @@ require (
 	github.com/MicahParks/keyfunc v1.9.0
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/andybalholm/brotli v1.0.6
-	github.com/aryszka/jobqueue v0.0.2
+	github.com/aryszka/jobqueue v0.0.3
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cjoudrey/gluahttp v0.0.0-20201111170219-25003d9adfa9
