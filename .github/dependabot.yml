@@ -18,3 +18,7 @@ updates:
     directory: "/packaging"
     schedule:
       interval: "daily"
+  - package-ecosystem: "docker"
+    directory: "/fuzz"
+    schedule:
+      interval: "weekly"
