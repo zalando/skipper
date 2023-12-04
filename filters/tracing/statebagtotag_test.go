@@ -73,3 +73,25 @@ func TestStateBagToTag_CreateFilter(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkStateBagToTag_StringValue(b *testing.B) {
+	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
+	require.NoError(b, err)
+
+	span := tracingtest.NewSpan("start_span")
+
+	req := &http.Request{Header: http.Header{}}
+	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
+	f.Request(ctx)
+
+	require.Equal(b, "val", span.Tags["tag"])
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		f.Request(ctx)
+	}
+}
