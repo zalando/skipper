@@ -59,13 +59,18 @@ func TestStateBagToTag_CreateFilter(t *testing.T) {
 			args: []interface{}{""},
 			err:  filters.ErrInvalidFilterParameters,
 		},
+		{
+			msg:  "too many args",
+			args: []interface{}{"foo", "bar", "baz"},
+			err:  filters.ErrInvalidFilterParameters,
+		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			f, err := NewStateBagToTag().CreateFilter(ti.args)
 
 			assert.Equal(t, ti.err, err)
 			if err == nil {
-				ff := f.(stateBagToTagFilter)
+				ff := f.(*stateBagToTagFilter)
 
 				assert.Equal(t, ti.stateBag, ff.stateBagItemName)
 				assert.Equal(t, ti.tag, ff.tagName)
