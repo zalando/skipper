@@ -6,4 +6,15 @@ approvals:
       from:
         orgs:
           - "zalando"
+# mandatory pull request labels
+pull-request:
+  labels:
+    additional: true
+    oneOf:
+      - architectural
+      - major
+      - minor
+      - bugfix
+      - documentation
+      - dependencies
 X-Zalando-Team: "teapot"
