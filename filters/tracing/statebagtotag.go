@@ -25,7 +25,7 @@ func (stateBagToTagSpec) Name() string {
 }
 
 func (stateBagToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) < 1 {
+	if len(args) < 1 || len(args) > 2 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -43,7 +43,7 @@ func (stateBagToTagSpec) CreateFilter(args []interface{}) (filters.Filter, error
 		tagName = tagNameArg
 	}
 
-	return stateBagToTagFilter{
+	return &stateBagToTagFilter{
 		stateBagItemName: stateBagItemName,
 		tagName:          tagName,
 	}, nil
@@ -53,16 +53,22 @@ func NewStateBagToTag() filters.Spec {
 	return stateBagToTagSpec{}
 }
 
-func (f stateBagToTagFilter) Request(ctx filters.FilterContext) {
-	span := opentracing.SpanFromContext(ctx.Request().Context())
-	if span == nil {
-		return
-	}
+func (f *stateBagToTagFilter) Request(ctx filters.FilterContext) {
 	value, ok := ctx.StateBag()[f.stateBagItemName]
 	if !ok {
 		return
 	}
-	span.SetTag(f.tagName, fmt.Sprint(value))
+
+	span := opentracing.SpanFromContext(ctx.Request().Context())
+	if span == nil {
+		return
+	}
+
+	if _, ok := value.(string); ok {
+		span.SetTag(f.tagName, value)
+	} else {
+		span.SetTag(f.tagName, fmt.Sprint(value))
+	}
 }
 
-func (stateBagToTagFilter) Response(ctx filters.FilterContext) {}
+func (*stateBagToTagFilter) Response(ctx filters.FilterContext) {}
