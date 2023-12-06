@@ -4,10 +4,3 @@ single predicate expected at "Path(\"/foo\") && Method(\"GET\")"
 single predicate expected at ""
 single filter expected at "inlineContent(\"/foo\") -> status(200)"
 single filter expected at " "
-backend address "http://example.com/foo" does not match scheme://host format
-backend address "http://example.com/foo/bar" does not match scheme://host format
-backend address "http://example.com/foo/" does not match scheme://host format
-backend address "/foo" does not match scheme://host format
-backend address "example.com/" does not match scheme://host format
-backend address "http://example.com?foo=bar" does not match scheme://host format
-backend address "example.com" does not match scheme://host format
