@@ -38,7 +38,7 @@ func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 	var errs []error
 	errs = append(errs, rgv.validateFilters(item))
 	errs = append(errs, rgv.validatePredicates(item))
-	errs = append(errs, rgv.validateBackends(item))
+	// errs = append(errs, rgv.validateBackends(item))
 
 	return errorsJoin(errs...)
 }
@@ -93,6 +93,7 @@ func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 	return errorsJoin(errs...)
 }
 
+//lint:ignore U1000 Disable address validation to prevent errors for existing RouteGroups
 func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 	var errs []error
 	for _, backend := range item.Spec.Backends {
