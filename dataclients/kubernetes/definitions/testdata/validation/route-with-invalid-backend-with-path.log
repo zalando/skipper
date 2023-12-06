@@ -1,8 +1,8 @@
-backend address \\\"http://example\.com/foo\\\" contains path, query or missing scheme
-backend address \\\"http://example\.com/foo/bar\\\" contains path, query or missing scheme
-backend address \\\"/foo\\\" contains path, query or missing scheme
-backend address \\\"/foo/bar\\\" contains path, query or missing scheme
-backend address \\\"example\.com/foo\\\" contains path, query or missing scheme
-backend address \\\"http://example\.com/\\\" contains path, query or missing scheme
-backend address \\\"http://example\.com\?foo=bar\\\" contains path, query or missing scheme
-backend address \\\"example\.com\\\" contains path, query or missing scheme
+backend address \\\"http://example\.com/foo\\\" does not match scheme://host format
+backend address \\\"http://example\.com/foo/bar\\\" does not match scheme://host format
+backend address \\\"/foo\\\" does not match scheme://host format
+backend address \\\"/foo/bar\\\" does not match scheme://host format
+backend address \\\"example\.com/foo\\\" does not match scheme://host format
+backend address \\\"http://example\.com/\\\" does not match scheme://host format
+backend address \\\"http://example\.com\?foo=bar\\\" does not match scheme://host format
+backend address \\\"example\.com\\\" does not match scheme://host format
