@@ -18,8 +18,7 @@ func TestStateBagToTag(t *testing.T) {
 
 	span := tracingtest.NewSpan("start_span")
 	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
-	ctx := &filtertest.Context{FRequest: req, FStateBag: make(map[string]interface{})}
-	ctx.StateBag()["item"] = "val"
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
 
 	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
 	require.NoError(t, err)
@@ -27,6 +26,24 @@ func TestStateBagToTag(t *testing.T) {
 	f.Request(ctx)
 
 	assert.Equal(t, "val", span.Tags["tag"])
+}
+
+func TestStateBagToTagAllocs(t *testing.T) {
+	req := &http.Request{Header: http.Header{}}
+
+	span := tracingtest.NewSpan("start_span")
+	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
+
+	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
+	require.NoError(t, err)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		f.Request(ctx)
+	})
+	if allocs != 0.0 {
+		t.Errorf("Expected zero allocations, got %f", allocs)
+	}
 }
 
 func TestStateBagToTag_CreateFilter(t *testing.T) {
