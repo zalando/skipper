@@ -100,8 +100,10 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 			address, err := url.Parse(backend.Address)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
-			} else if address.Path != "" || address.RawQuery != "" || address.Scheme == "" {
-				errs = append(errs, fmt.Errorf("backend address %q contains path, query or missing scheme", backend.Address))
+			} else {
+				if address.Path != "" || address.RawQuery != "" || address.Scheme == "" || address.Host == "" {
+					errs = append(errs, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address))
+				}
 			}
 		}
 	}
