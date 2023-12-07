@@ -254,7 +254,7 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 }
 
 func (c *clusterClient) getJSON(uri string, a interface{}) error {
-	log.Debugf("making request to: %s", uri)
+	log.Tracef("making request to: %s", uri)
 
 	req, err := c.createRequest(uri, nil)
 	if err != nil {
@@ -263,11 +263,11 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 
 	rsp, err := c.httpClient.Do(req)
 	if err != nil {
-		log.Debugf("request to %s failed: %v", uri, err)
+		log.Tracef("request to %s failed: %v", uri, err)
 		return err
 	}
 
-	log.Debugf("request to %s succeeded", uri)
+	log.Tracef("request to %s succeeded", uri)
 	defer rsp.Body.Close()
 
 	if rsp.StatusCode == http.StatusNotFound {
@@ -275,19 +275,19 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 	}
 
 	if rsp.StatusCode != http.StatusOK {
-		log.Debugf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
+		log.Tracef("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
 	}
 
 	b := bytes.NewBuffer(nil)
 	if _, err = io.Copy(b, rsp.Body); err != nil {
-		log.Debugf("reading response body failed: %v", err)
+		log.Tracef("reading response body failed: %v", err)
 		return err
 	}
 
 	err = json.Unmarshal(b.Bytes(), a)
 	if err != nil {
-		log.Debugf("invalid response format: %v", err)
+		log.Tracef("invalid response format: %v", err)
 	}
 
 	return err
