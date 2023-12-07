@@ -24,6 +24,12 @@ func newLogger(kind, namespace, name string, enabled bool) *logger {
 	return &logger{logger: log.WithFields(log.Fields{"kind": kind, "ns": namespace, "name": name})}
 }
 
+func (l *logger) Tracef(format string, args ...any) {
+	if l != nil {
+		l.once(log.TraceLevel, format, args...)
+	}
+}
+
 func (l *logger) Debugf(format string, args ...any) {
 	if l != nil {
 		l.once(log.DebugLevel, format, args...)

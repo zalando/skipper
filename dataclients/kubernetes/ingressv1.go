@@ -119,10 +119,9 @@ func convertPathRuleV1(
 		}
 
 		eps = state.GetEndpointsByService(ns, svcName, protocol, servicePort)
-		ic.logger.Debugf("Found %d endpoints for %s, %s", len(eps), svcName, servicePort)
 	}
 	if len(eps) == 0 {
-		ic.logger.Debugf("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
+		ic.logger.Tracef("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
 
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
@@ -135,7 +134,7 @@ func convertPathRuleV1(
 		return r, nil
 	}
 
-	ic.logger.Debugf("%d routes for %s/%s", len(eps), svcName, svcPort)
+	ic.logger.Tracef("Found %d endpoints for %s:%s", len(eps), svcName, svcPort)
 	if len(eps) == 1 {
 		r := &eskip.Route{
 			Id:          routeID(ns, name, host, prule.Path, svcName),
@@ -364,7 +363,7 @@ func (ing *ingress) convertDefaultBackendV1(
 	}
 
 	if len(eps) == 0 {
-		ic.logger.Debugf("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
+		ic.logger.Tracef("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
 
 		r := &eskip.Route{
 			Id: routeID(ns, name, "", "", ""),
