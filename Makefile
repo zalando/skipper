@@ -1,10 +1,11 @@
-SOURCES            = $(shell find . -name '*.go' -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
-PACKAGES           = $(shell go list ./...)
-CURRENT_VERSION    = $(shell git describe --tags --always --dirty)
-VERSION           ?= $(CURRENT_VERSION)
-COMMIT_HASH        = $(shell git rev-parse --short HEAD)
-LIMIT_FDS          = $(shell ulimit -n)
-TEST_ETCD_VERSION ?= v2.3.8
+SOURCES             = $(shell find . -name '*.go' -and -not -path "./_test_plugins" -and -not -path "./_test_plugins_fail" )
+PACKAGES            = $(shell go list ./...)
+CURRENT_VERSION     = $(shell git describe --tags --always --dirty)
+VERSION            ?= $(CURRENT_VERSION)
+COMMIT_HASH         = $(shell git rev-parse --short HEAD)
+LIMIT_FDS           = $(shell ulimit -n)
+TEST_ETCD_VERSION  ?= v3.5.11
+TEST_ETCD_CHECKSUM ?= 4fb304f384dd4d6e491e405fed8375a09ea1c6c2596b93f97cb31844202e620df160f87f18611e84f17675e7b7245e40d1aa23571ecdb507cb094ba04d378171
 TEST_PLUGINS       = _test_plugins/filter_noop.so \
 		     _test_plugins/predicate_match_none.so \
 		     _test_plugins/dataclient_noop.so \
@@ -114,7 +115,7 @@ clean: ## clean temporary files and directories
 .PHONY: deps
 deps: ## install dependencies to run everything
 	go env
-	./etcd/install.sh $(TEST_ETCD_VERSION)
+	./etcd/install.sh $(TEST_ETCD_VERSION) $(TEST_ETCD_CHECKSUM)
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
