@@ -32,3 +32,4 @@ jobs:
         mode: 'code-change'
         sanitizer: ${{ matrix.sanitizer }}
         output-sarif: true
+        parallel-fuzzing: true
