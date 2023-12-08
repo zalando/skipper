@@ -21,7 +21,7 @@ var (
 )
 
 func find_address() (string, error) {
-	l, err := net.ListenTCP("tcp", &net.TCPAddr{})
+	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP("127.0.0.1")})
 
 	if err != nil {
 		return "", err
@@ -61,7 +61,7 @@ func run_server() {
 	cfg.AccessLogDisabled = true
 	cfg.ApplicationLog = "/dev/null"
 	cfg.Address = addr
-	cfg.SupportListener = ":0"
+	cfg.SupportListener = "127.0.0.1:0"
 
 	go func() {
 		log.Fatal(skipper.Run(cfg.ToOptions()))
