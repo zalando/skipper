@@ -182,3 +182,15 @@ require (
 )
 
 go 1.20
+
+replace github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da => github.com/hashicorp/go-metrics v0.0.0-20180917152333-f0300d1749da
+
+replace github.com/docker/docker v24.0.7+incompatible => github.com/moby/moby v24.0.7+incompatible
+
+replace github.com/docker/distribution v2.8.2+incompatible => github.com/distribution/distribution v2.8.2+incompatible
+
+replace github.com/envoyproxy/protoc-gen-validate v1.0.2 => github.com/bufbuild/protoc-gen-validate v1.0.2
+
+replace github.com/uber/jaeger-lib v2.4.1+incompatible => github.com/jaegertracing/jaeger-lib v2.4.1+incompatible
+
+replace github.com/uber/jaeger-client-go v2.30.0+incompatible => github.com/jaegertracing/jaeger-client-go v2.30.0+incompatible
