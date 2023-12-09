@@ -37,8 +37,10 @@ func (*headerSha256Spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	var hashes [][sha256.Size]byte
-	for _, arg := range args[1:] {
+	args = args[1:]
+
+	hashes := make([][sha256.Size]byte, 0, len(args))
+	for _, arg := range args {
 		hexHash, ok := arg.(string)
 		if !ok {
 			return nil, predicates.ErrInvalidPredicateParameters
@@ -50,7 +52,7 @@ func (*headerSha256Spec) Create(args []interface{}) (routing.Predicate, error) {
 		if len(hash) != sha256.Size {
 			return nil, predicates.ErrInvalidPredicateParameters
 		}
-		hashes = append(hashes, *(*[sha256.Size]byte)(hash)) // https://github.com/golang/go/issues/46505
+		hashes = append(hashes, ([sha256.Size]byte)(hash))
 	}
 
 	return &headerSha256Predicate{name, hashes}, nil
