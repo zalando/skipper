@@ -528,3 +528,50 @@ func BenchmarkOAuthTokeninfoRequest(b *testing.B) {
 		}
 	})
 }
+
+func TestOAuthTokeninfoAllocs(t *testing.T) {
+	tio := TokeninfoOptions{
+		URL:     "https://127.0.0.1:12345/token",
+		Timeout: 3 * time.Second,
+	}
+
+	fr := make(filters.Registry)
+	fr.Register(NewOAuthTokeninfoAllScopeWithOptions(tio))
+	fr.Register(NewOAuthTokeninfoAnyScopeWithOptions(tio))
+	fr.Register(NewOAuthTokeninfoAllKVWithOptions(tio))
+	fr.Register(NewOAuthTokeninfoAnyKVWithOptions(tio))
+
+	var filters []filters.Filter
+	for _, def := range eskip.MustParseFilters(`
+		oauthTokeninfoAnyScope("foobar.read", "foobar.write") ->
+		oauthTokeninfoAllScope("foobar.read", "foobar.write") ->
+		oauthTokeninfoAnyKV("k1", "v1", "k2", "v2") ->
+		oauthTokeninfoAllKV("k1", "v1", "k2", "v2")
+	`) {
+		f, err := fr[def.Name].CreateFilter(def.Args)
+		require.NoError(t, err)
+
+		filters = append(filters, f)
+	}
+
+	ctx := &filtertest.Context{
+		FStateBag: map[string]interface{}{
+			tokeninfoCacheKey: map[string]interface{}{
+				scopeKey: []interface{}{"uid", "foobar.read", "foobar.write", "foobar.exec"},
+				"k1":     "v1",
+				"k2":     "v2",
+			},
+		},
+		FResponse: &http.Response{},
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		for _, f := range filters {
+			f.Request(ctx)
+		}
+		require.False(t, ctx.FServed)
+	})
+	if allocs != 0.0 {
+		t.Errorf("Expected zero allocations, got %f", allocs)
+	}
+}
