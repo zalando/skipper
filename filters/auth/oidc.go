@@ -329,12 +329,12 @@ func (f *tokenOidcFilter) validateAnyClaims(h map[string]interface{}) bool {
 		return false
 	}
 
-	keys := make([]string, 0, len(h))
-	for k := range h {
-		keys = append(keys, k)
+	for _, c := range f.claims {
+		if _, ok := h[c]; ok {
+			return true
+		}
 	}
-
-	return intersect(f.claims, keys)
+	return false
 }
 
 func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
@@ -346,11 +346,12 @@ func (f *tokenOidcFilter) validateAllClaims(h map[string]interface{}) bool {
 		return false
 	}
 
-	keys := make([]string, 0, len(h))
-	for k := range h {
-		keys = append(keys, k)
+	for _, c := range f.claims {
+		if _, ok := h[c]; !ok {
+			return false
+		}
 	}
-	return all(f.claims, keys)
+	return true
 }
 
 type OauthState struct {
