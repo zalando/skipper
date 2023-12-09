@@ -31,13 +31,11 @@ func formatEndpoint(a *address, p *port, protocol string) string {
 }
 
 func formatEndpointsForSubsetAddresses(addresses []*address, port *port, protocol string) []string {
-	var result []string
+	result := make([]string, 0, len(addresses))
 	for _, address := range addresses {
 		result = append(result, formatEndpoint(address, port, protocol))
 	}
-
 	return result
-
 }
 
 func (ep *endpoint) targetsByServicePort(protocol string, servicePort *servicePort) []string {

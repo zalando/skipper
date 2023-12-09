@@ -142,7 +142,7 @@ func safeFileClose(t *testing.T, fd *os.File) {
 }
 
 func compileRegexps(s []string) ([]*regexp.Regexp, error) {
-	var r []*regexp.Regexp
+	r := make([]*regexp.Regexp, 0, len(s))
 	for _, si := range s {
 		ri, err := regexp.Compile(si)
 		if err != nil {

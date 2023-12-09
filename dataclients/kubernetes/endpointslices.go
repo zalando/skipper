@@ -55,11 +55,10 @@ func (eps *skipperEndpointSlice) targetsByServicePort(protocol, scheme string, s
 		port = eps.getPort(protocol, servicePort.Name, servicePort.Port)
 	}
 
-	var result []string
+	result := make([]string, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
 		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
-
 	return result
 }
 
@@ -68,11 +67,10 @@ func (eps *skipperEndpointSlice) targetsByServiceTarget(protocol, scheme string,
 	pValue, _ := serviceTarget.Value.(int)
 	port := eps.getPort(protocol, pName, pValue)
 
-	var result []string
+	result := make([]string, 0, len(eps.Endpoints))
 	for _, ep := range eps.Endpoints {
 		result = append(result, formatEndpointString(ep.Address, scheme, port))
 	}
-
 	return result
 }
 
