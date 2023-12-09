@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -463,7 +464,7 @@ func TestOAuth2Tokeninfo5xx(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, rsp.StatusCode, "auth filter failed got=%d, expected=%d, route=%s", rsp.StatusCode, http.StatusUnauthorized, r)
 }
 
-func BenchmarkOAuthTokeninfoFilter(b *testing.B) {
+func BenchmarkOAuthTokeninfoCreateFilter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var spec filters.Spec
 		args := []interface{}{"uid"}
@@ -474,4 +475,56 @@ func BenchmarkOAuthTokeninfoFilter(b *testing.B) {
 			break
 		}
 	}
+}
+
+func BenchmarkOAuthTokeninfoRequest(b *testing.B) {
+	b.Run("oauthTokeninfoAllScope", func(b *testing.B) {
+		spec := NewOAuthTokeninfoAllScope("https://127.0.0.1:12345/token", 3*time.Second)
+		f, err := spec.CreateFilter([]interface{}{"foobar.read", "foobar.write"})
+		require.NoError(b, err)
+
+		ctx := &filtertest.Context{
+			FStateBag: map[string]interface{}{
+				tokeninfoCacheKey: map[string]interface{}{
+					scopeKey: []interface{}{"uid", "foobar.read", "foobar.write"},
+				},
+			},
+			FResponse: &http.Response{},
+		}
+
+		f.Request(ctx)
+		require.False(b, ctx.FServed)
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			f.Request(ctx)
+		}
+	})
+
+	b.Run("oauthTokeninfoAnyScope", func(b *testing.B) {
+		spec := NewOAuthTokeninfoAnyScope("https://127.0.0.1:12345/token", 3*time.Second)
+		f, err := spec.CreateFilter([]interface{}{"foobar.read", "foobar.write"})
+		require.NoError(b, err)
+
+		ctx := &filtertest.Context{
+			FStateBag: map[string]interface{}{
+				tokeninfoCacheKey: map[string]interface{}{
+					scopeKey: []interface{}{"uid", "foobar.write", "foobar.exec"},
+				},
+			},
+			FResponse: &http.Response{},
+		}
+
+		f.Request(ctx)
+		require.False(b, ctx.FServed)
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			f.Request(ctx)
+		}
+	})
 }
