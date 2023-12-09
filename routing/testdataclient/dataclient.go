@@ -61,11 +61,10 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 		return nil, errors.New("failed to get routes")
 	}
 
-	var routes []*eskip.Route
+	routes := make([]*eskip.Route, 0, len(c.routes))
 	for _, r := range c.routes {
 		routes = append(routes, r)
 	}
-
 	return routes, nil
 }
 
