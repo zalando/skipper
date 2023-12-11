@@ -149,11 +149,10 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
 		}
 	}
 
-	var all []*eskip.Route
+	all := make([]*eskip.Route, 0, len(mergeByID))
 	for _, def := range mergeByID {
 		all = append(all, def)
 	}
-
 	return all
 }
 
@@ -238,7 +237,7 @@ func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]Predica
 // creates filter instances based on their definition
 // and the filter registry.
 func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]PredicateSpec) ([]*RouteFilter, error) {
-	var fs []*RouteFilter
+	fs := make([]*RouteFilter, 0, len(defs))
 	for i, def := range defs {
 		f, err := createFilter(fr, def, cpm)
 		if err != nil {
@@ -246,7 +245,6 @@ func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]Pre
 		}
 		fs = append(fs, &RouteFilter{f, def.Name, i})
 	}
-
 	return fs, nil
 }
 
@@ -272,16 +270,14 @@ func getFreeStringArgs(count int, p *eskip.Predicate) ([]string, error) {
 		)
 	}
 
-	var a []string
+	a := make([]string, 0, len(p.Args))
 	for i := range p.Args {
 		s, ok := p.Args[i].(string)
 		if !ok {
 			return nil, fmt.Errorf("expected argument of type string, %s", p.Name)
 		}
-
 		a = append(a, s)
 	}
-
 	return a, nil
 }
 
