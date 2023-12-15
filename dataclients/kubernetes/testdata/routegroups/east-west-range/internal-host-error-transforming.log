@@ -1,2 +1,2 @@
-Error transforming internal hosts: service not found: default/myapp
+Ignoring route 0: service not found: default/myapp
 kind=RouteGroup name=myapp
