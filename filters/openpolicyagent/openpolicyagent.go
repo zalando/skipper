@@ -356,10 +356,11 @@ func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgent
 	}
 
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
+	info := runtimeConfigInfo(*opaConfig)
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
 	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName})
-	manager, err := plugins.New(configBytes, id, store, plugins.Logger(logger))
+	manager, err := plugins.New(configBytes, id, store, plugins.Info(ast.NewTerm(info)), plugins.Logger(logger))
 	if err != nil {
 		return nil, err
 	}
@@ -447,6 +448,21 @@ func waitFunc(ctx context.Context, fun func() bool, interval time.Duration) erro
 			}
 		}
 	}
+}
+
+func runtimeConfigInfo(opaConfig config.Config) ast.Object {
+	info := ast.NewObject()
+	labels := ast.NewObject()
+	labelsWrapper := ast.NewObject()
+
+	for key, value := range opaConfig.Labels {
+		labels.Insert(ast.StringTerm(key), ast.StringTerm(value))
+	}
+
+	labelsWrapper.Insert(ast.StringTerm("labels"), ast.NewTerm(labels))
+	info.Insert(ast.StringTerm("config"), ast.NewTerm(labelsWrapper))
+
+	return info
 }
 
 func (opa *OpenPolicyAgentInstance) InstanceConfig() *OpenPolicyAgentInstanceConfig {

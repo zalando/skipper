@@ -54,6 +54,17 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			removeHeaders:     make(http.Header),
 		},
 		{
+			msg:             "Allow Matching Environment",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_runtime_environment",
+			requestPath:     "/allow",
+			expectedStatus:  http.StatusOK,
+			expectedBody:    "Welcome!",
+			expectedHeaders: make(http.Header),
+			backendHeaders:  make(http.Header),
+			removeHeaders:   make(http.Header),
+		},
+		{
 			msg:               "Simple Forbidden",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow",
@@ -159,6 +170,10 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 						allow_context_extensions {
 							input.attributes.contextExtensions["com.mycompany.myprop"] == "myvalue"
 						}
+
+						allow_runtime_environment {
+							opa.runtime().config.labels.environment == "test"
+						}
 						
 						default allow_object = {
 							"allowed": false,
@@ -212,6 +227,9 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 					"test": {
 						"resource": "/bundles/{{ .bundlename }}"
 					}
+				},
+				"labels": {
+					"environment": "test"
 				},
 				"plugins": {
 					"envoy_ext_authz_grpc": {    

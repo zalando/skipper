@@ -65,6 +65,24 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
 		},
 		{
+			msg:             "Allow With opa.runtime execution",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_object",
+			requestPath:     "allow/production",
+			expectedStatus:  http.StatusOK,
+			expectedBody:    "Welcome to production evaluation!",
+			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
+		},
+		{
+			msg:             "Deny With opa.runtime execution",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_object",
+			requestPath:     "allow/test",
+			expectedStatus:  http.StatusForbidden,
+			expectedBody:    "Unauthorized Request",
+			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"no"}},
+		},
+		{
 			msg:             "Allow With Structured Body",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object_structured_body",
@@ -105,7 +123,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							"allowed": false,
 							"headers": {"x-ext-auth-allow": "no"},
 							"body": "Unauthorized Request",
-							"http_status": 401
+							"http_status": 403
 						}
 						  
 						allow_object = response {
@@ -114,6 +132,28 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
 								"body": "Welcome from policy!",
+								"http_status": 200
+							}
+						}
+						
+						allow_object = response {
+							input.parsed_path = [ "allow", "production" ]
+							opa.runtime().config.labels.environment == "production"
+							response := {
+								"allowed": true,
+								"headers": {"x-ext-auth-allow": "yes"},
+								"body": "Welcome to production evaluation!",
+								"http_status": 200
+							}
+						}
+
+						allow_object = response {
+							input.parsed_path = [ "allow", "test" ]
+							opa.runtime().config.labels.environment == "test"
+							response := {
+								"allowed": true,
+								"headers": {"x-ext-auth-allow": "yes"},
+								"body": "Welcome to production evaluation!",
 								"http_status": 200
 							}
 						}
@@ -148,8 +188,16 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			config := []byte(fmt.Sprintf(`{
 				"services": {
 					"test": {
-						"url": %q
+						"url": %q,
+						"credentials": {
+							"bearer": { 
+								"token": "432423342"
+							}
+						}
 					}
+				},
+				"labels": {
+					"environment" : "production"
 				},
 				"bundles": {
 					"test": {
