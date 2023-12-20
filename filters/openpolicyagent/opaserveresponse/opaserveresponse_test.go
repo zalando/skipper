@@ -188,12 +188,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			config := []byte(fmt.Sprintf(`{
 				"services": {
 					"test": {
-						"url": %q,
-						"credentials": {
-							"bearer": { 
-								"token": "432423342"
-							}
-						}
+						"url": %q
 					}
 				},
 				"labels": {
