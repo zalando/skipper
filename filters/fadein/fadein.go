@@ -38,6 +38,7 @@ type (
 	}
 
 	postProcessor struct {
+		endpointRegisty *routing.EndpointRegistry
 		// "http://10.2.1.53:1234": {t0 60s t0-10s}
 		detected map[string]detectedFadeIn
 	}
@@ -192,11 +193,20 @@ func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) 
 func (endpointCreated) Request(filters.FilterContext)  {}
 func (endpointCreated) Response(filters.FilterContext) {}
 
+type PostProcessorOptions struct {
+	EndpointRegistry *routing.EndpointRegistry
+}
+
 // NewPostProcessor creates post-processor for maintaining the detection time of LB endpoints with fade-in
 // behavior.
-func NewPostProcessor() routing.PostProcessor {
+func NewPostProcessor(options PostProcessorOptions) routing.PostProcessor {
+	if options.EndpointRegistry == nil {
+		options.EndpointRegistry = routing.NewEndpointRegistry(routing.RegistryOptions{})
+	}
+
 	return &postProcessor{
-		detected: make(map[string]detectedFadeIn),
+		endpointRegisty: options.EndpointRegistry,
+		detected:        make(map[string]detectedFadeIn),
 	}
 }
 
@@ -235,6 +245,10 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 			}
 
 			ep.Detected = detected
+			metrics := p.endpointRegisty.GetMetrics(ep.Host)
+			if endpointsCreated[key].After(metrics.DetectedTime()) {
+				metrics.SetDetected(endpointsCreated[key])
+			}
 			p.detected[key] = detectedFadeIn{
 				when:       detected,
 				duration:   ri.LBFadeInDuration,

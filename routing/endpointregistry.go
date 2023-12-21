@@ -2,6 +2,7 @@ package routing
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zalando/skipper/eskip"
@@ -13,32 +14,65 @@ const defaultLastSeenTimeout = 1 * time.Minute
 // used to perform better load balancing, fadeIn, etc.
 type Metrics interface {
 	DetectedTime() time.Time
+	SetDetected(detected time.Time)
+
+	LastSeen() time.Time
+	SetLastSeen(lastSeen time.Time)
+
 	InflightRequests() int64
+	IncInflightRequest()
+	DecInflightRequest()
 }
 
 type entry struct {
-	detected         time.Time
-	inflightRequests int64
+	detected         atomic.Value // time.Time
+	lastSeen         atomic.Value // time.Time
+	inflightRequests atomic.Int64
 }
 
 var _ Metrics = &entry{}
 
 func (e *entry) DetectedTime() time.Time {
-	return e.detected
+	return e.detected.Load().(time.Time)
+}
+
+func (e *entry) LastSeen() time.Time {
+	return e.lastSeen.Load().(time.Time)
 }
 
 func (e *entry) InflightRequests() int64 {
-	return e.inflightRequests
+	return e.inflightRequests.Load()
+}
+
+func (e *entry) IncInflightRequest() {
+	e.inflightRequests.Add(1)
+}
+
+func (e *entry) DecInflightRequest() {
+	e.inflightRequests.Add(-1)
+}
+
+func (e *entry) SetDetected(detected time.Time) {
+	e.detected.Store(detected)
+}
+
+func (e *entry) SetLastSeen(ts time.Time) {
+	e.lastSeen.Store(ts)
+}
+
+func newEntry() (result *entry) {
+	result = &entry{}
+	result.SetDetected(time.Time{})
+	result.SetLastSeen(time.Time{})
+	return
 }
 
 type EndpointRegistry struct {
-	lastSeen        map[string]time.Time
 	lastSeenTimeout time.Duration
 	now             func() time.Time
 
-	mu sync.Mutex
-
-	data map[string]*entry
+	// map[string]*entry
+	data sync.Map
 }
 
 var _ PostProcessor = &EndpointRegistry{}
@@ -55,24 +89,23 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 			for _, epi := range route.LBEndpoints {
 				metrics := r.GetMetrics(epi.Host)
 				if metrics.DetectedTime().IsZero() {
-					r.SetDetectedTime(epi.Host, now)
+					metrics.SetDetected(now)
 				}
 
-				r.lastSeen[epi.Host] = now
+				metrics.SetLastSeen(now)
 			}
 		}
 	}
 
-	for host, ts := range r.lastSeen {
-		if ts.Add(r.lastSeenTimeout).Before(now) {
-			r.mu.Lock()
-			if r.data[host].inflightRequests == 0 {
-				delete(r.lastSeen, host)
-				delete(r.data, host)
-			}
-			r.mu.Unlock()
+	removeOlder := now.Add(-r.lastSeenTimeout)
+	r.data.Range(func(key, value any) bool {
+		e := value.(*entry)
+		if e.LastSeen().Before(removeOlder) {
+			r.data.Delete(key)
 		}
-	}
+
+		return true
+	})
 
 	return routes
 }
@@ -82,58 +115,16 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 		o.LastSeenTimeout = defaultLastSeenTimeout
 	}
 
-	return &EndpointRegistry{
-		data:            map[string]*entry{},
-		lastSeen:        map[string]time.Time{},
+	result := &EndpointRegistry{
+		data:            sync.Map{},
 		lastSeenTimeout: o.LastSeenTimeout,
 		now:             time.Now,
 	}
+
+	return result
 }
 
 func (r *EndpointRegistry) GetMetrics(key string) Metrics {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	e := r.getOrInitEntryLocked(key)
-	copy := &entry{}
-	*copy = *e
-	return copy
-}
-
-func (r *EndpointRegistry) SetDetectedTime(key string, detected time.Time) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	e := r.getOrInitEntryLocked(key)
-	e.detected = detected
-}
-
-func (r *EndpointRegistry) IncInflightRequest(key string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	e := r.getOrInitEntryLocked(key)
-	e.inflightRequests++
-}
-
-func (r *EndpointRegistry) DecInflightRequest(key string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	e := r.getOrInitEntryLocked(key)
-	e.inflightRequests--
-}
-
-// getOrInitEntryLocked returns pointer to endpoint registry entry
-// which contains the information about endpoint representing the
-// following key. r.mu must be held while calling this function and
-// using of the entry returned. In general, key represents the "host:port"
-// string
-func (r *EndpointRegistry) getOrInitEntryLocked(key string) *entry {
-	e, ok := r.data[key]
-	if !ok {
-		e = &entry{}
-		r.data[key] = e
-	}
-	return e
+	e, _ := r.data.LoadOrStore(key, newEntry())
+	return e.(*entry)
 }

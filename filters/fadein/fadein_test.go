@@ -198,7 +198,7 @@ func TestPostProcessor(t *testing.T) {
 			PostProcessors: []routing.PostProcessor{
 				loadbalancer.NewAlgorithmProvider(),
 				endpointRegistry,
-				NewPostProcessor(),
+				NewPostProcessor(PostProcessorOptions{EndpointRegistry: endpointRegistry}),
 			},
 			SignalFirstLoad: true,
 		})
@@ -431,7 +431,7 @@ func TestPostProcessor(t *testing.T) {
 				if !ep.Detected.After(firstDetected) {
 					t.Fatal("Failed to reset detection time.")
 				}
-				if endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
+				if !endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
 					t.Fatal("Failed to reset detection time.")
 				}
 
