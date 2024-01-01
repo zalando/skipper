@@ -422,7 +422,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
-	rg, err := c.routeGroups.convert(state, defaultFilters, loggingEnabled)
+	rg, err := c.routeGroups.convert(state, defaultFilters, loggingEnabled, c.ClusterClient.certificateRegistry)
 	if err != nil {
 		return nil, err
 	}

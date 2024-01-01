@@ -8,6 +8,7 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 const backendNameTracingTagName = "skipper.backend_name"
@@ -39,6 +40,7 @@ type routeGroupContext struct {
 	provideHTTPSRedirect         bool
 	calculateTraffic             func([]*definitions.BackendReference) map[string]backendTraffic
 	defaultLoadBalancerAlgorithm string
+	certificateRegistry          *certregistry.CertRegistry
 }
 
 type routeContext struct {
@@ -478,7 +480,39 @@ func splitHosts(hosts []string, domains []string) ([]string, []string) {
 	return internalHosts, externalHosts
 }
 
-func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled bool) ([]*eskip.Route, error) {
+// addRouteGroupHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
+// secret is found and is a valid TLS secret.
+func addRouteGroupHostTLSCert(ctx *routeGroupContext, hosts []string, secretID *definitions.ResourceID) {
+	secret, ok := ctx.state.secrets[*secretID]
+	if !ok {
+		ctx.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
+		return
+	}
+	cert, err := generateTLSCertFromSecret(secret)
+	if err != nil {
+		ctx.logger.Errorf("Failed to generate TLS certificate from secret: %v", err)
+		return
+	}
+	for _, host := range hosts {
+		err := ctx.certificateRegistry.ConfigureCertificate(host, cert)
+		if err != nil {
+			ctx.logger.Errorf("Failed to configure certificate: %v", err)
+		}
+	}
+}
+
+func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.RouteTLSSpec) {
+	hostlist := compareStringList(tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
+	if len(hostlist) == 0 {
+		ctx.logger.Infof("No matching tls hosts found")
+		return
+	}
+
+	secretID := &definitions.ResourceID{Name: tls.SecretName, Namespace: ctx.routeGroup.Metadata.Namespace}
+	addRouteGroupHostTLSCert(ctx, hostlist, secretID)
+}
+
+func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled bool, cr *certregistry.CertRegistry) ([]*eskip.Route, error) {
 	var rs []*eskip.Route
 	redirect := createRedirectInfo(r.options.ProvideHTTPSRedirect, r.options.HTTPSRedirectCode)
 
@@ -530,6 +564,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				allowedExternalNames:         r.options.AllowedExternalNames,
 				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
+				certificateRegistry:          cr,
 			}
 
 			ri, err := transformRouteGroup(ctx)
@@ -544,6 +579,12 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 					return rgRouteID("", toSymbol(host), "catchall", 0, 0, false)
 				})
 				ri = append(ri, catchAll...)
+			}
+
+			if ctx.certificateRegistry != nil {
+				for _, ctxTls := range rg.Spec.TLS {
+					r.addRouteGroupTLS(ctx, ctxTls)
+				}
 			}
 
 			rs = append(rs, ri...)
@@ -565,6 +606,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				allowedExternalNames:         r.options.AllowedExternalNames,
 				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
+				certificateRegistry:          cr,
 			}
 
 			internalRi, err := transformRouteGroup(internalCtx)
@@ -583,6 +625,12 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 			}
 
 			applyEastWestRangePredicates(internalRi, r.options.KubernetesEastWestRangePredicates)
+
+			if internalCtx.certificateRegistry != nil {
+				for _, ctxTls := range rg.Spec.TLS {
+					r.addRouteGroupTLS(internalCtx, ctxTls)
+				}
+			}
 
 			rs = append(rs, internalRi...)
 		}
