@@ -299,6 +299,13 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 		ic.logger.Infof("No matching tls hosts found")
 		return
 	}
+
+	// Skip adding certs to registry since if certs defined
+	if ingtls.SecretName == "" {
+		ic.logger.Infof("No tls secret defined for hosts - %s", ingtls.Hosts)
+		return
+	}
+
 	// Secrets should always reside in same namespace as the Ingress
 	secretID := &definitions.ResourceID{Name: ingtls.SecretName, Namespace: ic.ingressV1.Metadata.Namespace}
 	secret, ok := ic.state.secrets[*secretID]

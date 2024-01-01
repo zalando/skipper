@@ -490,6 +490,12 @@ func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.
 		return
 	}
 
+	// Skip adding certs to registry since no certs defined
+	if tls.SecretName == "" {
+		ctx.logger.Infof("No tls secret defined for hosts - %s", tls.Hosts)
+		return
+	}
+
 	// Secrets should always reside in the same namespace as the RouteGroup
 	secretID := &definitions.ResourceID{Name: tls.SecretName, Namespace: ctx.routeGroup.Metadata.Namespace}
 	secret, ok := ctx.state.secrets[*secretID]
