@@ -1,0 +1,1 @@
+level=error msg="Failed to generate TLS certificate from secret: failed to decode tls.crt from secret myapp-secret" kind=RouteGroup name=myapp ns=default

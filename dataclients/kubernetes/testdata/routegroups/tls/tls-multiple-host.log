@@ -1,0 +1,2 @@
+level=info msg="adding certificate to registry - foo.org"
+level=info msg="adding certificate to registry - example.org"
