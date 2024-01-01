@@ -480,38 +480,25 @@ func splitHosts(hosts []string, domains []string) ([]string, []string) {
 	return internalHosts, externalHosts
 }
 
-// addRouteGroupHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
-// secret is found and is a valid TLS secret.
-func addRouteGroupHostTLSCert(ctx *routeGroupContext, hosts []string, secretID *definitions.ResourceID) {
-	secret, ok := ctx.state.secrets[*secretID]
-	if !ok {
-		ctx.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
-		return
-	}
-	cert, err := generateTLSCertFromSecret(secret)
-	if err != nil {
-		ctx.logger.Errorf("Failed to generate TLS certificate from secret: %v", err)
-		return
-	}
-	for _, host := range hosts {
-		err := ctx.certificateRegistry.ConfigureCertificate(host, cert)
-		if err != nil {
-			ctx.logger.Errorf("Failed to configure certificate: %v", err)
-		}
-	}
-}
-
 // addRouteGroupTLS compares the RouteGroup host list and the RouteGroup.TLS host list
 // and adds the TLS secret to the registry if a match is found.
 func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.RouteTLSSpec) {
+	// Host in the tls section need to explicitly match the host in the RouteGroup
 	hostlist := compareStringList(tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
 	if len(hostlist) == 0 {
 		ctx.logger.Infof("No matching tls hosts found")
 		return
 	}
 
+	// Secrets should always reside in the same namespace as the RouteGroup
 	secretID := &definitions.ResourceID{Name: tls.SecretName, Namespace: ctx.routeGroup.Metadata.Namespace}
-	addRouteGroupHostTLSCert(ctx, hostlist, secretID)
+	secret, ok := ctx.state.secrets[*secretID]
+	if !ok {
+		ctx.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
+		return
+	}
+	addTLSCertToRegistry(*ctx.certificateRegistry, ctx.logger, hostlist, secret)
+
 }
 
 func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled bool, cr *certregistry.CertRegistry) ([]*eskip.Route, error) {

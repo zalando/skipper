@@ -301,7 +301,12 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 	}
 	// Secrets should always reside in same namespace as the Ingress
 	secretID := &definitions.ResourceID{Name: ingtls.SecretName, Namespace: ic.ingressV1.Metadata.Namespace}
-	addHostTLSCert(ic, hostlist, secretID)
+	secret, ok := ic.state.secrets[*secretID]
+	if !ok {
+		ic.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
+		return
+	}
+	addTLSCertToRegistry(*ic.certificateRegistry, ic.logger, hostlist, secret)
 }
 
 // converts the default backend if any

@@ -595,3 +595,19 @@ func compareStringList(a, b []string) []string {
 	}
 	return c
 }
+
+// addRouteGroupHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
+// secret is found and is a valid TLS secret.
+func addTLSCertToRegistry(cr certregistry.CertRegistry, logger *logger, hosts []string, secret *secret) {
+	cert, err := generateTLSCertFromSecret(secret)
+	if err != nil {
+		logger.Errorf("Failed to generate TLS certificate from secret: %v", err)
+		return
+	}
+	for _, host := range hosts {
+		err := cr.ConfigureCertificate(host, cert)
+		if err != nil {
+			logger.Errorf("Failed to configure certificate: %v", err)
+		}
+	}
+}
