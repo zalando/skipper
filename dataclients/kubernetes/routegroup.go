@@ -501,6 +501,8 @@ func addRouteGroupHostTLSCert(ctx *routeGroupContext, hosts []string, secretID *
 	}
 }
 
+// addRouteGroupTLS compares the RouteGroup host list and the RouteGroup.TLS host list
+// and adds the TLS secret to the registry if a match is found.
 func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.RouteTLSSpec) {
 	hostlist := compareStringList(tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
 	if len(hostlist) == 0 {
