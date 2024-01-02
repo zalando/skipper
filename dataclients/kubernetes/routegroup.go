@@ -407,9 +407,13 @@ func transformExplicitGroupRoute(ctx *routeContext) (*eskip.Route, error) {
 // explicitGroupRoutes creates routes for those route groups that have the
 // `route` field explicitly defined.
 func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
-	var routes []*eskip.Route
+	var result []*eskip.Route
 	rg := ctx.routeGroup
+
+nextRoute:
 	for routeIndex, rgr := range rg.Spec.Routes {
+		var routes []*eskip.Route
+
 		if len(rgr.Methods) == 0 {
 			rgr.Methods = []string{""}
 		}
@@ -437,7 +441,8 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 					backend:    be,
 				})
 				if err != nil {
-					return nil, err
+					ctx.logger.Errorf("Ignoring route %d: %v", routeIndex, err)
+					continue nextRoute
 				}
 
 				backendTraffic[bref.BackendName].apply(r)
@@ -447,9 +452,11 @@ func explicitGroupRoutes(ctx *routeGroupContext) ([]*eskip.Route, error) {
 				routes = appendHTTPSRedirect(ctx, routes, r)
 			}
 		}
+
+		result = append(result, routes...)
 	}
 
-	return routes, nil
+	return result, nil
 }
 
 func transformRouteGroup(ctx *routeGroupContext) ([]*eskip.Route, error) {
