@@ -2094,8 +2094,9 @@ See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratel
 This ratelimit is calculated across all skipper peers and the same
 rate limit group. The first parameter is a string to select the same
 ratelimit group across one or more routes.  The rate limit group
-allows the given number of requests to a backend. You need to have run
-skipper with command line flags `-enable-swarm` and
+allows the given number of requests to a backend.
+
+You need to run skipper with command line flags `-enable-swarm` and
 `-enable-ratelimits`. See also our [cluster ratelimit tutorial](../tutorials/ratelimit.md#cluster-ratelimit)
 
 
