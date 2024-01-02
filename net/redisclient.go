@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -401,7 +402,7 @@ func (r *RedisRingClient) Set(ctx context.Context, key string, value interface{}
 }
 
 func (r *RedisRingClient) ZAdd(ctx context.Context, key string, val int64, score float64) (int64, error) {
-	res := r.ring.ZAdd(ctx, key, redis.Z{Member: val, Score: score})
+	res := r.ring.ZAdd(ctx, key, redis.Z{Member: strconv.FormatInt(val, 10), Score: score})
 	return res.Val(), res.Err()
 }
 
