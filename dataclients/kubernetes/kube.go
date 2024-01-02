@@ -596,8 +596,8 @@ func compareStringList(a, b []string) []string {
 	return c
 }
 
-// addRouteGroupHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
-// secret is found and is a valid TLS secret.
+// addTLSCertToRegistry adds a TLS certificate to the certificate registry per host using the provided
+// Kubernetes TLS secret
 func addTLSCertToRegistry(cr certregistry.CertRegistry, logger *logger, hosts []string, secret *secret) {
 	cert, err := generateTLSCertFromSecret(secret)
 	if err != nil {

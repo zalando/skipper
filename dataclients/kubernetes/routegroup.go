@@ -480,7 +480,7 @@ func splitHosts(hosts []string, domains []string) ([]string, []string) {
 	return internalHosts, externalHosts
 }
 
-// addRouteGroupTLS compares the RouteGroup host list and the RouteGroup.TLS host list
+// addRouteGroupTLS compares the RouteGroup host list and the RouteGroup TLS host list
 // and adds the TLS secret to the registry if a match is found.
 func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.RouteTLSSpec) {
 	// Host in the tls section need to explicitly match the host in the RouteGroup
