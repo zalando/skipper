@@ -164,8 +164,8 @@ func TestServerShutdownHTTP(t *testing.T) {
 		}
 	}
 
-	// test that we get connection refused after shutdown
-	time.Sleep(shutdownDelay / 2)
+	// test that we get connection refused after 1.5 shutdown interval elapsed
+	time.Sleep(shutdownDelay)
 
 	for _, u := range testEndpoints {
 		_, err = http.DefaultClient.Get(u)
