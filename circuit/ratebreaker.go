@@ -1,8 +1,9 @@
 package circuit
 
 import (
-	log "github.com/sirupsen/logrus"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/sony/gobreaker"
 )
@@ -14,7 +15,7 @@ import (
 
 type rateBreaker struct {
 	settings BreakerSettings
-	mx       *sync.Mutex
+	mx       sync.Mutex
 	sampler  *binarySampler
 	gb       *gobreaker.TwoStepCircuitBreaker
 }
@@ -22,7 +23,6 @@ type rateBreaker struct {
 func newRate(s BreakerSettings) *rateBreaker {
 	b := &rateBreaker{
 		settings: s,
-		mx:       &sync.Mutex{},
 	}
 
 	b.gb = gobreaker.NewTwoStepCircuitBreaker(gobreaker.Settings{

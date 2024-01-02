@@ -64,7 +64,7 @@ type fadeInProxyInstance struct {
 
 type fadeInProxy struct {
 	test      *testing.T
-	mx        *sync.Mutex
+	mx        sync.Mutex
 	backend   *fadeInBackend
 	instances []*fadeInProxyInstance
 }
@@ -251,7 +251,6 @@ func (p *fadeInProxyInstance) close() {
 func startProxy(t *testing.T, b *fadeInBackend) *fadeInProxy {
 	return &fadeInProxy{
 		test:    t,
-		mx:      &sync.Mutex{},
 		backend: b,
 	}
 }

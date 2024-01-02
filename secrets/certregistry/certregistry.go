@@ -13,7 +13,7 @@ import (
 // ensuring synchronized access to them.
 type CertRegistry struct {
 	lookup map[string]*tls.Certificate
-	mx     *sync.Mutex
+	mx     sync.Mutex
 }
 
 // NewCertRegistry initializes the certificate registry.
@@ -22,7 +22,6 @@ func NewCertRegistry() *CertRegistry {
 
 	return &CertRegistry{
 		lookup: l,
-		mx:     &sync.Mutex{},
 	}
 }
 
