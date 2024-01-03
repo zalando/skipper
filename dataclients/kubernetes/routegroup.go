@@ -497,8 +497,8 @@ func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.
 	}
 
 	// Secrets should always reside in the same namespace as the RouteGroup
-	secretID := &definitions.ResourceID{Name: tls.SecretName, Namespace: ctx.routeGroup.Metadata.Namespace}
-	secret, ok := ctx.state.secrets[*secretID]
+	secretID := definitions.ResourceID{Name: tls.SecretName, Namespace: ctx.routeGroup.Metadata.Namespace}
+	secret, ok := ctx.state.secrets[secretID]
 	if !ok {
 		ctx.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
 		return
