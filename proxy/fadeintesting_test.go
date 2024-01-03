@@ -64,7 +64,7 @@ type fadeInProxyInstance struct {
 
 type fadeInProxy struct {
 	test      *testing.T
-	mx        sync.Mutex
+	mu        sync.Mutex
 	backend   *fadeInBackend
 	instances []*fadeInProxyInstance
 }
@@ -256,8 +256,8 @@ func startProxy(t *testing.T, b *fadeInBackend) *fadeInProxy {
 }
 
 func (p *fadeInProxy) addInstances(n int) {
-	p.mx.Lock()
-	defer p.mx.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	for i := 0; i < n; i++ {
 		client := p.backend.createDataClient()
@@ -287,8 +287,8 @@ func (p *fadeInProxy) addInstances(n int) {
 }
 
 func (p *fadeInProxy) endpoints() []string {
-	p.mx.Lock()
-	defer p.mx.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	var ep []string
 	for _, i := range p.instances {
@@ -299,8 +299,8 @@ func (p *fadeInProxy) endpoints() []string {
 }
 
 func (p *fadeInProxy) close() {
-	p.mx.Lock()
-	defer p.mx.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	for _, i := range p.instances {
 		i.close()

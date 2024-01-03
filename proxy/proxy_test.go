@@ -57,7 +57,7 @@ type (
 )
 
 type syncResponseWriter struct {
-	mx         sync.Mutex
+	mu         sync.Mutex
 	statusCode int
 	header     http.Header
 	body       *bytes.Buffer
@@ -76,7 +76,7 @@ type listener struct {
 }
 
 type testLog struct {
-	m sync.Mutex
+	mu sync.Mutex
 
 	buf      bytes.Buffer
 	oldOut   io.Writer
@@ -94,15 +94,15 @@ func NewTestLog() *testLog {
 }
 
 func (l *testLog) Write(p []byte) (int, error) {
-	l.m.Lock()
-	defer l.m.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	return l.buf.Write(p)
 }
 
 func (l *testLog) String() string {
-	l.m.Lock()
-	defer l.m.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	return l.buf.String()
 }
@@ -178,22 +178,22 @@ func (srw *syncResponseWriter) WriteHeader(statusCode int) {
 }
 
 func (srw *syncResponseWriter) Write(b []byte) (int, error) {
-	srw.mx.Lock()
-	defer srw.mx.Unlock()
+	srw.mu.Lock()
+	defer srw.mu.Unlock()
 	return srw.body.Write(b)
 }
 
 func (srw *syncResponseWriter) Read(b []byte) (int, error) {
-	srw.mx.Lock()
-	defer srw.mx.Unlock()
+	srw.mu.Lock()
+	defer srw.mu.Unlock()
 	return srw.body.Read(b)
 }
 
 func (srw *syncResponseWriter) Flush() {}
 
 func (srw *syncResponseWriter) Len() int {
-	srw.mx.Lock()
-	defer srw.mx.Unlock()
+	srw.mu.Lock()
+	defer srw.mu.Unlock()
 	return srw.body.Len()
 }
 
