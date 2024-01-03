@@ -505,7 +505,7 @@ func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.
 		ctx.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
 		return
 	}
-	addTLSCertToRegistry(*ctx.certificateRegistry, ctx.logger, hostlist, secret)
+	addTLSCertToRegistry(ctx.certificateRegistry, ctx.logger, hostlist, secret)
 
 }
 

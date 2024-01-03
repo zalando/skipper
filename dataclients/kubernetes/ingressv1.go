@@ -315,7 +315,7 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 		ic.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
 		return
 	}
-	addTLSCertToRegistry(*ic.certificateRegistry, ic.logger, hostlist, secret)
+	addTLSCertToRegistry(ic.certificateRegistry, ic.logger, hostlist, secret)
 }
 
 // converts the default backend if any

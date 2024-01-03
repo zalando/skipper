@@ -598,7 +598,7 @@ func compareStringList(a, b []string) []string {
 
 // addTLSCertToRegistry adds a TLS certificate to the certificate registry per host using the provided
 // Kubernetes TLS secret
-func addTLSCertToRegistry(cr certregistry.CertRegistry, logger *logger, hosts []string, secret *secret) {
+func addTLSCertToRegistry(cr *certregistry.CertRegistry, logger *logger, hosts []string, secret *secret) {
 	cert, err := generateTLSCertFromSecret(secret)
 	if err != nil {
 		logger.Errorf("Failed to generate TLS certificate from secret: %v", err)
