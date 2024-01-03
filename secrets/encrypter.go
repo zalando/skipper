@@ -49,8 +49,8 @@ func newFileSecretSource(file string) SecretSource {
 }
 
 type Encrypter struct {
+	mu           sync.RWMutex
 	cipherSuites []cipher.AEAD
-	mux          sync.RWMutex
 	secretSource SecretSource
 	closer       chan struct{}
 	closedHook   chan struct{}
@@ -78,8 +78,8 @@ func WithSource(s SecretSource) (*Encrypter, error) {
 }
 
 func (e *Encrypter) CreateNonce() ([]byte, error) {
-	e.mux.RLock()
-	defer e.mux.RUnlock()
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	if len(e.cipherSuites) > 0 {
 		nonce := make([]byte, e.cipherSuites[0].NonceSize())
 		if _, err := io.ReadFull(crand.Reader, nonce); err != nil {
@@ -92,8 +92,8 @@ func (e *Encrypter) CreateNonce() ([]byte, error) {
 
 // Encrypt encrypts given plaintext
 func (e *Encrypter) Encrypt(plaintext []byte) ([]byte, error) {
-	e.mux.RLock()
-	defer e.mux.RUnlock()
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	if len(e.cipherSuites) > 0 {
 		nonce, err := e.CreateNonce()
 		if err != nil {
@@ -106,8 +106,8 @@ func (e *Encrypter) Encrypt(plaintext []byte) ([]byte, error) {
 
 // Decrypt decrypts given cipher text
 func (e *Encrypter) Decrypt(cipherText []byte) ([]byte, error) {
-	e.mux.RLock()
-	defer e.mux.RUnlock()
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	for _, c := range e.cipherSuites {
 		nonceSize := c.NonceSize()
 		if len(cipherText) < nonceSize {
@@ -147,8 +147,8 @@ func (e *Encrypter) RefreshCiphers() error {
 		}
 		suites[i] = aesgcm
 	}
-	e.mux.Lock()
-	defer e.mux.Unlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.cipherSuites = suites
 	return nil
 }
