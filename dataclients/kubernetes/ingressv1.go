@@ -296,7 +296,7 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 	// Hosts in the tls section need to explicitly match the host in the rules section.
 	hostlist := compareStringList(ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
 	if len(hostlist) == 0 {
-		ic.logger.Infof("No matching tls hosts found")
+		ic.logger.Infof("No matching tls hosts found - tls hosts: %s, ingress hosts: %s", ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
 		return
 	}
 
