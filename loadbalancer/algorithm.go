@@ -339,7 +339,7 @@ func noSkippedEndpoints(_ int) bool {
 }
 
 type powerOfRandomNChoices struct {
-	mx              sync.Mutex
+	mu              sync.Mutex
 	rnd             *rand.Rand
 	numberOfChoices int
 }
@@ -357,8 +357,8 @@ func newPowerOfRandomNChoices([]string) routing.LBAlgorithm {
 func (p *powerOfRandomNChoices) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 	ne := len(ctx.LBEndpoints)
 
-	p.mx.Lock()
-	defer p.mx.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	best := ctx.LBEndpoints[p.rnd.Intn(ne)]
 

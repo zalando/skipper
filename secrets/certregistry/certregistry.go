@@ -12,8 +12,8 @@ import (
 // CertRegistry object holds TLS certificates to be used to terminate TLS connections
 // ensuring synchronized access to them.
 type CertRegistry struct {
+	mu     sync.Mutex
 	lookup map[string]*tls.Certificate
-	mx     sync.Mutex
 }
 
 // NewCertRegistry initializes the certificate registry.
@@ -38,8 +38,8 @@ func (r *CertRegistry) ConfigureCertificate(host string, cert *tls.Certificate) 
 	}
 	cert.Leaf = leaf
 
-	r.mx.Lock()
-	defer r.mx.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	curr, found := r.lookup[host]
 	if found {
@@ -60,9 +60,9 @@ func (r *CertRegistry) ConfigureCertificate(host string, cert *tls.Certificate) 
 // GetCertFromHello reads the SNI from a TLS client and returns the appropriate certificate.
 // If no certificate is found for the host it will return nil.
 func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	r.mx.Lock()
+	r.mu.Lock()
 	cert, found := r.lookup[hello.ServerName]
-	r.mx.Unlock()
+	r.mu.Unlock()
 	if found {
 		return cert, nil
 	}

@@ -54,7 +54,7 @@ const (
 )
 
 type random struct {
-	mx   sync.Mutex
+	mu   sync.Mutex
 	rand *rand.Rand
 	len  int64
 }
@@ -232,8 +232,8 @@ func (r *random) CreateFilter(args []interface{}) (filters.Filter, error) {
 }
 
 func (r *random) Read(p []byte) (int, error) {
-	r.mx.Lock()
-	defer r.mx.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for i := 0; i < len(p); i++ {
 		p[i] = randomChars[r.rand.Intn(len(randomChars))]
 	}
