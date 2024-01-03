@@ -19,7 +19,7 @@ const (
 	oidcClaimsCacheKey = "oidcclaimscachekey"
 )
 
-var gjsonModifierMutex = sync.RWMutex{}
+var gjsonMu sync.RWMutex
 
 type (
 	oidcIntrospectionSpec struct {
@@ -87,16 +87,16 @@ func (spec *oidcIntrospectionSpec) CreateFilter(args []interface{}) (filters.Fil
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	gjsonModifierMutex.RLock()
+	gjsonMu.RLock()
 	// method is not thread safe
 	modExists := gjson.ModifierExists("_", gjsonThisModifier)
-	gjsonModifierMutex.RUnlock()
+	gjsonMu.RUnlock()
 
 	if !modExists {
-		gjsonModifierMutex.Lock()
+		gjsonMu.Lock()
 		// method is not thread safe
 		gjson.AddModifier("_", gjsonThisModifier)
-		gjsonModifierMutex.Unlock()
+		gjsonMu.Unlock()
 	}
 
 	return filter, nil

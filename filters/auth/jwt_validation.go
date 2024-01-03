@@ -26,15 +26,16 @@ type (
 	}
 )
 
-var m sync.RWMutex
-
 var refreshInterval = time.Hour
 var refreshRateLimit = time.Minute * 5
 var refreshTimeout = time.Second * 10
 var refreshUnknownKID = true
 
 // the map of jwks keyfunctions stored per jwksUri
-var jwksMap map[string]*keyfunc.JWKS = make(map[string]*keyfunc.JWKS)
+var (
+	jwksMu  sync.RWMutex
+	jwksMap map[string]*keyfunc.JWKS = make(map[string]*keyfunc.JWKS)
+)
 
 func NewJwtValidationWithOptions(o TokenintrospectionOptions) filters.Spec {
 	return &jwtValidationSpec{
@@ -75,16 +76,16 @@ func (s *jwtValidationSpec) CreateFilter(args []interface{}) (filters.Filter, er
 }
 
 func hasKeyFunction(url string) bool {
-	m.RLock()
-	defer m.RUnlock()
+	jwksMu.RLock()
+	defer jwksMu.RUnlock()
 
 	_, ok := jwksMap[url]
 	return ok
 }
 
 func putKeyFunction(url string, jwks *keyfunc.JWKS) {
-	m.Lock()
-	defer m.Unlock()
+	jwksMu.Lock()
+	defer jwksMu.Unlock()
 
 	jwksMap[url] = jwks
 }
@@ -114,8 +115,8 @@ func registerKeyFunction(url string) (err error) {
 }
 
 func getKeyFunction(url string) (jwks *keyfunc.JWKS) {
-	m.RLock()
-	defer m.RUnlock()
+	jwksMu.RLock()
+	defer jwksMu.RUnlock()
 
 	return jwksMap[url]
 }

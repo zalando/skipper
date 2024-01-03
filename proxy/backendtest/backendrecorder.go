@@ -18,9 +18,9 @@ type RecordedRequest struct {
 
 type BackendRecorderHandler struct {
 	server   *httptest.Server
-	requests []RecordedRequest
-	mutex    sync.RWMutex
 	done     <-chan time.Time
+	mu       sync.RWMutex
+	requests []RecordedRequest
 }
 
 func NewBackendRecorder(closeAfter time.Duration) *BackendRecorderHandler {
@@ -42,18 +42,18 @@ func (rec *BackendRecorderHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		log.Errorf("backendrecorder: error writing reading request body: %v", err)
 	}
-	rec.mutex.Lock()
+	rec.mu.Lock()
 	rec.requests = append(rec.requests, RecordedRequest{
 		URL:  r.URL,
 		Body: string(body),
 	})
-	rec.mutex.Unlock()
+	rec.mu.Unlock()
 }
 
 func (rec *BackendRecorderHandler) GetRequests() []RecordedRequest {
-	rec.mutex.RLock()
+	rec.mu.RLock()
 	requests := rec.requests
-	rec.mutex.RUnlock()
+	rec.mu.RUnlock()
 	return requests
 }
 
