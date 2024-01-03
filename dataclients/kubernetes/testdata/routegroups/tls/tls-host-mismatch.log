@@ -1,0 +1,2 @@
+level=info msg="Hosts in TLS and RouteGroup don't match: tls hosts: \[bar.org example.org\], routegroup hosts: \[example.org\]" kind=RouteGroup name=myapp ns=default
+level=info msg="adding certificate to registry - example.org"
