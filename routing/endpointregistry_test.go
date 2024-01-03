@@ -263,7 +263,7 @@ func benchmarkIncInflightRequests(b *testing.B, name string, goroutines int) {
 }
 
 func BenchmarkIncInflightRequests(b *testing.B) {
-	goroutinesNums := []int{1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32, 48, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096}
+	goroutinesNums := []int{1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32, 48, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096, 8192, 16384, 32768}
 	for _, goroutines := range goroutinesNums {
 		benchmarkIncInflightRequests(b, fmt.Sprintf("%d goroutines", goroutines), goroutines)
 	}
@@ -304,7 +304,7 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 }
 
 func BenchmarkGetInflightRequests(b *testing.B) {
-	goroutinesNums := []int{1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32, 48, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096}
+	goroutinesNums := []int{1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32, 48, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096, 8192, 16384, 32768}
 	for _, goroutines := range goroutinesNums {
 		benchmarkGetInflightRequests(b, fmt.Sprintf("%d goroutines", goroutines), goroutines)
 	}
@@ -345,7 +345,7 @@ func benchmarkGetDetectedTime(b *testing.B, name string, goroutines int) {
 }
 
 func BenchmarkGetDetectedTime(b *testing.B) {
-	goroutinesNums := []int{1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32, 48, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096}
+	goroutinesNums := []int{1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32, 48, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096, 8192, 16384, 32768}
 	for _, goroutines := range goroutinesNums {
 		benchmarkGetDetectedTime(b, fmt.Sprintf("%d goroutines", goroutines), goroutines)
 	}

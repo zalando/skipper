@@ -200,10 +200,6 @@ type PostProcessorOptions struct {
 // NewPostProcessor creates post-processor for maintaining the detection time of LB endpoints with fade-in
 // behavior.
 func NewPostProcessor(options PostProcessorOptions) routing.PostProcessor {
-	if options.EndpointRegistry == nil {
-		options.EndpointRegistry = routing.NewEndpointRegistry(routing.RegistryOptions{})
-	}
-
 	return &postProcessor{
 		endpointRegisty: options.EndpointRegistry,
 		detected:        make(map[string]detectedFadeIn),
@@ -245,9 +241,11 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 			}
 
 			ep.Detected = detected
-			metrics := p.endpointRegisty.GetMetrics(ep.Host)
-			if endpointsCreated[key].After(metrics.DetectedTime()) {
-				metrics.SetDetected(endpointsCreated[key])
+			if p.endpointRegisty != nil {
+				metrics := p.endpointRegisty.GetMetrics(ep.Host)
+				if endpointsCreated[key].After(metrics.DetectedTime()) {
+					metrics.SetDetected(endpointsCreated[key])
+				}
 			}
 			p.detected[key] = detectedFadeIn{
 				when:       detected,
