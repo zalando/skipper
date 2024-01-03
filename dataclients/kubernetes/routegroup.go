@@ -488,6 +488,8 @@ func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.
 	if len(hostlist) == 0 {
 		ctx.logger.Infof("No matching tls hosts found - tls hosts: %s, routegroup hosts: %s", tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
 		return
+	} else if len(hostlist) != len(tls.Hosts) {
+		ctx.logger.Infof("Hosts in TLS and RouteGroup don't match: tls hosts: %s, routegroup hosts: %s", tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
 	}
 
 	// Skip adding certs to registry since no certs defined

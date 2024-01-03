@@ -298,6 +298,8 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 	if len(hostlist) == 0 {
 		ic.logger.Infof("No matching tls hosts found - tls hosts: %s, ingress hosts: %s", ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
 		return
+	} else if len(hostlist) != len(ingtls.Hosts) {
+		ic.logger.Infof("Hosts in TLS and Ingress don't match: tls hosts: %s, ingress hosts: %s", ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
 	}
 
 	// Skip adding certs to registry since no certs defined
