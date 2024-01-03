@@ -13,7 +13,7 @@ type Registry struct {
 	defaults     BreakerSettings
 	hostSettings map[string]BreakerSettings
 	lookup       map[BreakerSettings]*Breaker
-	mx           *sync.Mutex
+	mx           sync.Mutex
 }
 
 // NewRegistry initializes a registry with the provided default settings. Settings with an empty Host field are
@@ -50,7 +50,6 @@ func NewRegistry(settings ...BreakerSettings) *Registry {
 		defaults:     defaults,
 		hostSettings: hs,
 		lookup:       make(map[BreakerSettings]*Breaker),
-		mx:           &sync.Mutex{},
 	}
 }
 
