@@ -302,7 +302,7 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 
 	// Skip adding certs to registry since no certs defined
 	if ingtls.SecretName == "" {
-		ic.logger.Infof("No tls secret defined for hosts - %s", ingtls.Hosts)
+		ic.logger.Debugf("No tls secret defined for hosts - %s", ingtls.Hosts)
 		return
 	}
 

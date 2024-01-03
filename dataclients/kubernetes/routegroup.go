@@ -492,7 +492,7 @@ func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.
 
 	// Skip adding certs to registry since no certs defined
 	if tls.SecretName == "" {
-		ctx.logger.Infof("No tls secret defined for hosts - %s", tls.Hosts)
+		ctx.logger.Debugf("No tls secret defined for hosts - %s", tls.Hosts)
 		return
 	}
 
