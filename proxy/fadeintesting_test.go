@@ -264,12 +264,15 @@ func (p *fadeInProxy) addInstances(n int) {
 		fr := make(filters.Registry)
 		fr.Register(fadein.NewFadeIn())
 		fr.Register(fadein.NewEndpointCreated())
+
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		rt := routing.New(routing.Options{
 			FilterRegistry: fr,
 			DataClients:    []routing.DataClient{client},
 			PostProcessors: []routing.PostProcessor{
 				loadbalancer.NewAlgorithmProvider(),
-				fadein.NewPostProcessor(fadein.PostProcessorOptions{}),
+				endpointRegistry,
+				fadein.NewPostProcessor(fadein.PostProcessorOptions{EndpointRegistry: endpointRegistry}),
 			},
 		})
 

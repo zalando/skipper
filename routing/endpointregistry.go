@@ -60,11 +60,11 @@ func (e *entry) SetLastSeen(ts time.Time) {
 	e.lastSeen.Store(ts)
 }
 
-func newEntry() (result *entry) {
-	result = &entry{}
+func newEntry() *entry {
+	result := &entry{}
 	result.SetDetected(time.Time{})
 	result.SetLastSeen(time.Time{})
-	return
+	return result
 }
 
 type EndpointRegistry struct {
@@ -115,13 +115,11 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 		o.LastSeenTimeout = defaultLastSeenTimeout
 	}
 
-	result := &EndpointRegistry{
+	return &EndpointRegistry{
 		data:            sync.Map{},
 		lastSeenTimeout: o.LastSeenTimeout,
 		now:             time.Now,
 	}
-
-	return result
 }
 
 func (r *EndpointRegistry) GetMetrics(key string) Metrics {
