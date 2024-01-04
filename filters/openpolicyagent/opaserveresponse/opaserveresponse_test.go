@@ -153,7 +153,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
-								"body": "Welcome to production evaluation!",
+								"body": "Welcome to test evaluation!",
 								"http_status": 200
 							}
 						}

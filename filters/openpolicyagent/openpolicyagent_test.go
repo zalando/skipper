@@ -270,6 +270,7 @@ func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 	assert.NoError(t, err)
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.NoError(t, err)
 	assert.NotNil(t, instance)
 	assert.NotNil(t, instance.Runtime())
 
@@ -279,7 +280,7 @@ func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 	assert.NoError(t, err)
 
 	if m, ok := j.(map[string]interface{}); ok {
-		configObject, _ := m["config"]
+		configObject := m["config"]
 		assert.NotNil(t, configObject)
 
 		jsonData, err := json.Marshal(configObject)
