@@ -2,14 +2,12 @@ package fadein
 
 import (
 	"fmt"
-	"net"
-	"net/url"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -101,42 +99,6 @@ func NewEndpointCreated() filters.Spec {
 
 func (endpointCreated) Name() string { return filters.EndpointCreatedName }
 
-func normalizeSchemeHost(s, h string) (string, string, error) {
-	// endpoint address cannot contain path, the rest is not case sensitive
-	s, h = strings.ToLower(s), strings.ToLower(h)
-
-	hh, p, err := net.SplitHostPort(h)
-	if err != nil {
-		// what is the actual right way of doing this, considering IPv6 addresses, too?
-		if !strings.Contains(err.Error(), "missing port") {
-			return "", "", err
-		}
-
-		p = ""
-	} else {
-		h = hh
-	}
-
-	switch {
-	case p == "" && s == "http":
-		p = "80"
-	case p == "" && s == "https":
-		p = "443"
-	}
-
-	h = net.JoinHostPort(h, p)
-	return s, h, nil
-}
-
-func normalizeEndpoint(e string) (string, string, error) {
-	u, err := url.Parse(e)
-	if err != nil {
-		return "", "", err
-	}
-
-	return normalizeSchemeHost(u.Scheme, u.Host)
-}
-
 func endpointKey(scheme, host string) string {
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
@@ -151,7 +113,7 @@ func (endpointCreated) CreateFilter(args []interface{}) (filters.Filter, error) 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	s, h, err := normalizeEndpoint(e)
+	s, h, err := snet.SchemeHost(e)
 	if err != nil {
 		return nil, err
 	}

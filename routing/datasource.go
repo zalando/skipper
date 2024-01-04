@@ -3,7 +3,6 @@ package routing
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"sort"
 	"sync"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/logging"
+	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/predicates"
 )
 
@@ -203,12 +203,7 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 		return "", "", nil
 	}
 
-	bu, err := url.ParseRequestURI(r.Backend)
-	if err != nil {
-		return "", "", err
-	}
-
-	return bu.Scheme, bu.Host, nil
+	return net.SchemeHost(r.Backend)
 }
 
 // creates a filter instance based on its definition and its

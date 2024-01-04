@@ -1,13 +1,40 @@
 package net
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+type tc[T any] struct {
+	location string
+	in       T
+}
+
+// https://github.com/golang/go/issues/52751
+func testCase[T any](in T) tc[T] {
+	_, file, line, _ := runtime.Caller(1)
+	location := fmt.Sprintf("%s:%d", filepath.Base(file), line)
+	return tc[T]{location: location, in: in}
+}
+
+func (tc *tc[T]) logLocation(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		t.Helper()
+		if t.Failed() {
+			t.Logf("Test case location: %s", tc.location)
+		}
+	})
+}
 
 func TestRemoteAddr(t *testing.T) {
 	for _, tt := range []struct {
@@ -232,6 +259,266 @@ func TestIPNetsDoNotContain(t *testing.T) {
 			}
 			if nets.Contain(tt.ip) {
 				t.Errorf("nets %v expected to contain %v", nets, tt.ip)
+			}
+		})
+	}
+}
+
+type TestSchemeHostItem struct {
+	input  string
+	scheme string
+	host   string
+	err    string
+}
+
+func TestSchemeHost(t *testing.T) {
+	for _, ti := range []tc[TestSchemeHostItem]{
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com:80",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com:8080",
+			scheme: "http",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "https://example.com",
+			scheme: "https",
+			host:   "example.com:443",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "https://example.com:443",
+			scheme: "https",
+			host:   "example.com:443",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "https://example.com:8080",
+			scheme: "https",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "fastcgi://example.com",
+			scheme: "fastcgi",
+			host:   "example.com",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "fastcgi://example.com:9000",
+			scheme: "fastcgi",
+			host:   "example.com:9000",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "fastcgi://example.com:8080",
+			scheme: "fastcgi",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "fastcgi://foo/bar",
+			scheme: "fastcgi",
+			host:   "foo",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "postgres://example.com",
+			scheme: "postgres",
+			host:   "example.com",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "postgres://example.com:5432",
+			scheme: "postgres",
+			host:   "example.com:5432",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "postgresql://example.com",
+			scheme: "postgresql",
+			host:   "example.com",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "postgresql://example.com:5432",
+			scheme: "postgresql",
+			host:   "example.com:5432",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "someprotocol://example.com",
+			scheme: "someprotocol",
+			host:   "example.com",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "someprotocol://example.com:12345",
+			scheme: "someprotocol",
+			host:   "example.com:12345",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "example.com",
+			scheme: "",
+			host:   "",
+			err:    `parse "example.com": invalid URI for request`,
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "example.com/",
+			scheme: "",
+			host:   "",
+			err:    `parse "example.com/": invalid URI for request`,
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "example.com:80",
+			scheme: "",
+			host:   "",
+			err:    `parse "example.com:80": missing host`,
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "hTTP://exAMPLe.com",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com/foo/bar",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com:80/foo/bar",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com:8080/foo/bar",
+			scheme: "http",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com?foo=bar",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com:80?foo=bar",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://example.com:8080?foo=bar",
+			scheme: "http",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "http://192.168.0.1",
+			scheme: "http",
+			host:   "192.168.0.1:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://192.168.0.1:80",
+			scheme: "http",
+			host:   "192.168.0.1:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://192.168.0.1:8080",
+			scheme: "http",
+			host:   "192.168.0.1:8080",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "http://[2001:db8:3333:4444:5555:6666:7777:8888]",
+			scheme: "http",
+			host:   "[2001:db8:3333:4444:5555:6666:7777:8888]:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://[2001:db8:3333:4444:5555:6666:7777:8888]:80",
+			scheme: "http",
+			host:   "[2001:db8:3333:4444:5555:6666:7777:8888]:80",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "http://[2001:db8:3333:4444:5555:6666:7777:8888]:8080",
+			scheme: "http",
+			host:   "[2001:db8:3333:4444:5555:6666:7777:8888]:8080",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "fastcgi://192.168.0.1",
+			scheme: "fastcgi",
+			host:   "192.168.0.1",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "fastcgi://192.168.0.1:9000",
+			scheme: "fastcgi",
+			host:   "192.168.0.1:9000",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "fastcgi://[2001:db8:3333:4444:5555:6666:7777:8888]",
+			scheme: "fastcgi",
+			host:   "2001:db8:3333:4444:5555:6666:7777:8888",
+			err:    "",
+		}),
+		testCase(TestSchemeHostItem{
+			input:  "fastcgi://[2001:db8:3333:4444:5555:6666:7777:8888]:9000",
+			scheme: "fastcgi",
+			host:   "[2001:db8:3333:4444:5555:6666:7777:8888]:9000",
+			err:    "",
+		}),
+
+		testCase(TestSchemeHostItem{
+			input:  "/foo",
+			scheme: "",
+			host:   "",
+			err:    `parse "/foo": missing scheme`,
+		}),
+	} {
+		t.Run(ti.in.input, func(t *testing.T) {
+			ti.logLocation(t)
+
+			scheme, host, err := SchemeHost(ti.in.input)
+			if ti.in.err != "" {
+				assert.EqualError(t, err, ti.in.err)
+			} else {
+				if assert.NoError(t, err) {
+					assert.Equal(t, ti.in.scheme, scheme)
+					assert.Equal(t, ti.in.host, host)
+				}
 			}
 		})
 	}
