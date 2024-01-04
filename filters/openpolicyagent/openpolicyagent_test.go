@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage/inmem"
 	"io"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
+	opaconf "github.com/open-policy-agent/opa/config"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
@@ -121,6 +123,9 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 			"test": {
 				"url": %q
 			}
+		},
+		"labels": {
+			"environment": "envValue"
 		},
 		"discovery": {
 			"name": "discovery",
@@ -254,6 +259,41 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 	assert.NotNil(t, instance)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(registry.instances))
+}
+
+func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.NoError(t, err)
+	assert.NotNil(t, instance)
+	assert.NotNil(t, instance.Runtime())
+
+	value := instance.Runtime().Value
+
+	j, err := ast.JSON(value)
+	assert.NoError(t, err)
+
+	if m, ok := j.(map[string]interface{}); ok {
+		configObject := m["config"]
+		assert.NotNil(t, configObject)
+
+		jsonData, err := json.Marshal(configObject)
+		assert.NoError(t, err)
+
+		var parsed *opaconf.Config
+		json.Unmarshal(jsonData, &parsed)
+
+		labels := parsed.Labels
+		assert.Equal(t, labels["environment"], "envValue")
+	} else {
+		t.Fatalf("Failed to process runtime value %v", j)
+	}
 }
 
 func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
