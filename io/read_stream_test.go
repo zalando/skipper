@@ -19,7 +19,6 @@ func blockMatcher(matches []toBlockKeys) func(b []byte) (int, error) {
 		var consumed int
 		for _, s := range matches {
 			if bytes.Contains(b, s.Str) {
-				b = nil
 				return 0, ErrBlocked
 			}
 		}

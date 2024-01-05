@@ -87,7 +87,6 @@ func blockMatcher(m metrics.Metrics, matches []toBlockKeys) func(b []byte) (int,
 		for _, s := range matches {
 			s := s
 			if bytes.Contains(b, s.Str) {
-				b = nil
 				m.IncCounter("blocked.requests")
 				return 0, io.ErrBlocked
 			}
