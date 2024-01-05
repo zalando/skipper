@@ -3,14 +3,9 @@ package block
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/net"
-)
-
-var (
-	ErrClosed = errors.New("reader closed")
 )
 
 type blockSpec struct {
