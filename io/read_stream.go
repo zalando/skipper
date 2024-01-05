@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrClosed  = errors.New("reader closed")
-	ErrBlocked = errors.New("blocked string match found in body")
+	ErrBlocked = errors.New("blocked string match found in stream")
 )
 
 const (
@@ -79,16 +79,13 @@ func (m *matcher) readNTimes(times int) (bool, error) {
 		if n > 0 {
 			consumedInput = true
 		}
-
 		if err != nil {
 			return consumedInput, err
 		}
 		if err2 != nil {
 			return consumedInput, err2
 		}
-
 	}
-
 	return consumedInput, nil
 }
 
