@@ -5,7 +5,6 @@ import (
 	stdlibio "io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -154,13 +153,9 @@ func TestBlock(t *testing.T) {
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString("hello foo world")
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -185,13 +180,9 @@ func TestBlock(t *testing.T) {
 			}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString("hello foo world")
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -216,13 +207,9 @@ func TestBlock(t *testing.T) {
 			}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString("hello foo world")
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -242,13 +229,9 @@ func TestBlock(t *testing.T) {
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString("hello world")
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -293,13 +276,9 @@ func TestBlock(t *testing.T) {
 		}, Backend: be.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString(content)
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -320,13 +299,9 @@ func TestBlock(t *testing.T) {
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString("")
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -349,13 +324,9 @@ func TestBlock(t *testing.T) {
 		}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString("")
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -387,13 +358,9 @@ func TestBlockHex(t *testing.T) {
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString("hello \x00\x0afoo world")
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -413,13 +380,9 @@ func TestBlockHex(t *testing.T) {
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBuffer([]byte{65, 65, 31, 0, 10, 102, 111, 111, 31})
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -439,13 +402,9 @@ func TestBlockHex(t *testing.T) {
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBufferString("hello \x00a\x0a world")
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -465,13 +424,9 @@ func TestBlockHex(t *testing.T) {
 		r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
 		proxy := proxytest.New(fr, r)
 		defer proxy.Close()
-		reqURL, err := url.Parse(proxy.URL)
-		if err != nil {
-			t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
-		}
 
 		buf := bytes.NewBuffer([]byte{65, 65, 31, 0, 11, 102, 111, 111, 31})
-		req, err := http.NewRequest("POST", reqURL.String(), buf)
+		req, err := http.NewRequest("POST", proxy.URL, buf)
 		if err != nil {
 			t.Fatal(err)
 		}
