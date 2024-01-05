@@ -709,7 +709,7 @@ The histogramResponseLatency adds latency to responses according to the histogra
 
 ### logHeader
 
-The logHeader filter prints the request line and the header, but not the body, to
+The `logHeader` filter prints the request line and the header, but not the body, to
 stderr. Note that this filter should be used only in diagnostics setup and with care,
 since the request headers may contain sensitive data, and they also can explode the
 amount of logs. Authorization headers will be truncated in request and
@@ -728,6 +728,32 @@ Example:
 * -> logHeader("request") -> "https://www.example.org";
 * -> logHeader("response") -> "https://www.example.org";
 * -> logHeader("request", "response") -> "https://www.example.org";
+```
+
+### logBody
+
+The `logBody` filter logs the request or response body in chunks while
+streaming. Chunks start with `logBody("request") $flowid: ` or
+`logBody("response") $flowid: `, such that you can find all chunks
+belonging to a given flow. See also [flowId()](#flowid) filter.
+
+Note that this filter should be used only in diagnostics setup and
+with care, since the request and response body may contain sensitive
+data. Logs can also explode in the amount of bytes, so you have to
+choose a limit. You can log request or response bodies. This filter
+has close to no overhead other than the I/O created by the logger.
+
+Parameters:
+
+* type: "request" or "response" (string)
+* limit: maximum number of bytes to log (int)
+
+Example:
+
+```
+* -> logBody("request", 1024) -> "https://www.example.org";
+* -> logBody("response", 1024) -> "https://www.example.org";
+* -> logBody("request", 1024) -> logBody("response", 1024) -> "https://www.example.org";
 ```
 
 ## Timeout
