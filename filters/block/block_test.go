@@ -2,7 +2,7 @@ package block
 
 import (
 	"bytes"
-	"io"
+	stdlibio "io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,8 +11,8 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/io"
 	"github.com/zalando/skipper/metrics"
-	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
 
@@ -47,7 +47,7 @@ func TestMatcher(t *testing.T) {
 			name:    "small string",
 			content: ".class",
 			block:   []byte(".class"),
-			err:     net.ErrBlocked,
+			err:     io.ErrBlocked,
 		},
 		{
 			name:    "small string without match",
@@ -59,7 +59,7 @@ func TestMatcher(t *testing.T) {
 			name:    "small string with match",
 			content: "fox.class.foo.blah",
 			block:   []byte(".class"),
-			err:     net.ErrBlocked,
+			err:     io.ErrBlocked,
 		},
 		{
 			name:    "hex string 0x00 without match",
@@ -70,19 +70,19 @@ func TestMatcher(t *testing.T) {
 			name:    "hex string 0x00 with match",
 			content: "fox.c\x00.foo.blah",
 			block:   []byte("\x00"),
-			err:     net.ErrBlocked,
+			err:     io.ErrBlocked,
 		},
 		{
 			name:    "hex string with uppercase match content string with lowercase",
 			content: "fox.c\x0A.foo.blah",
 			block:   []byte("\x0a"),
-			err:     net.ErrBlocked,
+			err:     io.ErrBlocked,
 		},
 		{
 			name:    "hex string 0x00 0x0a with match",
 			content: "fox.c\x00\x0a.foo.blah",
 			block:   []byte{0, 10},
-			err:     net.ErrBlocked,
+			err:     io.ErrBlocked,
 		},
 		{
 			name:    "long string",
@@ -98,7 +98,7 @@ func TestMatcher(t *testing.T) {
 				t.Fatalf("Failed to create request with body: %v", err)
 			}
 
-			bmb := net.WrapBodyWithOptions(req.Context(), net.BodyOptions{MaxBufferHandling: net.MaxBufferBestEffort}, blockMatcher(metrics.Default, toblockList), req.Body)
+			bmb := io.WrapBodyWithOptions(req.Context(), io.BodyOptions{MaxBufferHandling: io.MaxBufferBestEffort}, blockMatcher(metrics.Default, toblockList), req.Body)
 
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)
@@ -106,7 +106,7 @@ func TestMatcher(t *testing.T) {
 				t.Fatalf("Failed to get expected err %v, got: %v", tt.err, err)
 			}
 			if err != nil {
-				if err == net.ErrBlocked {
+				if err == io.ErrBlocked {
 					t.Logf("Stop! Request has some blocked content!")
 				} else {
 					t.Errorf("Failed to read: %v", err)
@@ -138,7 +138,7 @@ func TestBlockCreateFilterErrors(t *testing.T) {
 
 func TestBlock(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(io.Discard, r.Body)
+		stdlibio.Copy(stdlibio.Discard, r.Body)
 		r.Body.Close()
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
@@ -267,7 +267,7 @@ func TestBlock(t *testing.T) {
 		content := "hello world"
 
 		be := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			res, err := io.ReadAll(r.Body)
+			res, err := stdlibio.ReadAll(r.Body)
 			r.Body.Close()
 			if err != nil {
 				w.WriteHeader(500)
@@ -308,7 +308,7 @@ func TestBlock(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		result, _ := io.ReadAll(rsp.Body)
+		result, _ := stdlibio.ReadAll(rsp.Body)
 		defer rsp.Body.Close()
 		if rsp.StatusCode != 200 {
 			t.Errorf("Blocked response status code %d: %s", rsp.StatusCode, string(result))

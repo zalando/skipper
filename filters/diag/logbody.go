@@ -7,7 +7,7 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/flowid"
-	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/io"
 )
 
 type logBody struct {
@@ -61,7 +61,7 @@ func (lb logBody) Request(ctx filters.FilterContext) {
 
 	req := ctx.Request()
 	if req.Body != nil {
-		req.Body = net.LogBody(
+		req.Body = io.LogBody(
 			req.Context(),
 			fmt.Sprintf(`logBody("request") %s: `, req.Header.Get(flowid.HeaderName)),
 			ctx.Logger().Infof,
@@ -77,7 +77,7 @@ func (lb logBody) Response(ctx filters.FilterContext) {
 
 	rsp := ctx.Response()
 	if rsp.Body != nil {
-		rsp.Body = net.LogBody(
+		rsp.Body = io.LogBody(
 			context.Background(),
 			fmt.Sprintf(`logBody("response") %s: `, ctx.Request().Header.Get(flowid.HeaderName)),
 			ctx.Logger().Infof,
