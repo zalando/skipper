@@ -62,7 +62,7 @@ func (lb logBody) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	if req.Body != nil {
 		req.Body = net.LogBody(
-			context.Background(),
+			req.Context(),
 			fmt.Sprintf(`logBody("request") %s: `, req.Header.Get(flowid.HeaderName)),
 			ctx.Logger().Infof,
 			req.Body,
