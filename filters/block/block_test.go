@@ -97,7 +97,7 @@ func TestMatcher(t *testing.T) {
 				t.Fatalf("Failed to create request with body: %v", err)
 			}
 
-			bmb := io.WrapBodyWithOptions(req.Context(), io.BodyOptions{MaxBufferHandling: io.MaxBufferBestEffort}, blockMatcher(metrics.Default, toblockList), req.Body)
+			bmb := io.InspectReader(req.Context(), io.BufferOptions{MaxBufferHandling: io.MaxBufferBestEffort}, blockMatcher(metrics.Default, toblockList), req.Body)
 
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)

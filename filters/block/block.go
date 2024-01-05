@@ -105,9 +105,9 @@ func (b *block) Request(ctx filters.FilterContext) {
 	ctx.Request().Header.Del("Content-Length")
 	ctx.Request().ContentLength = -1
 
-	req.Body = io.WrapBodyWithOptions(
+	req.Body = io.InspectReader(
 		req.Context(),
-		io.BodyOptions{
+		io.BufferOptions{
 			MaxBufferHandling: b.maxBufferHandling,
 			ReadBufferSize:    b.maxEditorBuffer,
 		},

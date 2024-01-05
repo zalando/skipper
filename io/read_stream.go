@@ -195,18 +195,19 @@ func (m *matcher) Close() error {
 
 */
 
-type BodyOptions struct {
+type BufferOptions struct {
 	MaxBufferHandling MaxBufferHandling
 	ReadBufferSize    uint64
 }
 
-// WrapBodyWithOptions wraps the given ReadCloser such that the given
-// function f runs along streaming the http body to the target. A
-// target can be the request target or the response target. It applies
-// given BodyOptions to the matcher.
+// InspectReader wraps the given ReadCloser such that the given
+// function f can inspect the streaming while streaming to the
+// target. A target can be any io.ReadCloser, so for example the
+// request body to the backend or the response body to the
+// client. InspectReader applies given BufferOptions to the matcher.
 //
 // NOTE: This function is *experimental* and will likely change or disappear in the future.
-func WrapBodyWithOptions(ctx context.Context, bo BodyOptions, f func([]byte) (int, error), rc io.ReadCloser) io.ReadCloser {
+func InspectReader(ctx context.Context, bo BufferOptions, f func([]byte) (int, error), rc io.ReadCloser) io.ReadCloser {
 	if bo.ReadBufferSize < 1 {
 		bo.ReadBufferSize = defaultReadBufferSize
 	}
