@@ -1,10 +1,11 @@
 package proxy
 
 import (
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"net/url"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type teeTie struct {

@@ -68,9 +68,8 @@ func NewAbsorbSilent() filters.Spec {
 func (a *absorb) Name() string {
 	if a.silent {
 		return filters.AbsorbSilentName
-	} else {
-		return filters.AbsorbName
 	}
+	return filters.AbsorbName
 }
 
 func (a *absorb) CreateFilter(args []interface{}) (filters.Filter, error) { return a, nil }
