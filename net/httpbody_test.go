@@ -199,7 +199,7 @@ func TestHttpBodyReadOnly(t *testing.T) {
 		var b mybuf
 		b.buf = bytes.NewBufferString(sent)
 
-		body := WrapBody(context.Background(), blockMatcher([]toBlockKeys{{Str: []byte("no match")}}), b)
+		body := WrapBodyWithOptions(context.Background(), BodyOptions{}, blockMatcher([]toBlockKeys{{Str: []byte("no match")}}), b)
 		defer body.Close()
 		rsp, err := (&http.Client{}).Post(okBackend.URL, "text/plain", body)
 		if err != nil {
@@ -221,9 +221,9 @@ func TestHttpBodyReadOnly(t *testing.T) {
 		var b mybuf
 		b.buf = bytes.NewBufferString(sent)
 
-		bod := WrapBody(context.Background(), blockMatcher([]toBlockKeys{{Str: []byte("no-match")}}), b)
+		bod := WrapBodyWithOptions(context.Background(), BodyOptions{}, blockMatcher([]toBlockKeys{{Str: []byte("no-match")}}), b)
 		defer bod.Close()
-		body := WrapBody(context.Background(), blockMatcher([]toBlockKeys{{Str: []byte("no match")}}), bod)
+		body := WrapBodyWithOptions(context.Background(), BodyOptions{}, blockMatcher([]toBlockKeys{{Str: []byte("no match")}}), bod)
 		defer body.Close()
 		rsp, err := (&http.Client{}).Post(okBackend.URL, "text/plain", body)
 		if err != nil {
@@ -246,7 +246,7 @@ func TestHttpBodyReadOnly(t *testing.T) {
 		var b mybuf
 		b.buf = bytes.NewBufferString("hell0 foo bar")
 
-		body := WrapBody(context.Background(), blockMatcher([]toBlockKeys{{Str: []byte("foo")}}), b)
+		body := WrapBodyWithOptions(context.Background(), BodyOptions{}, blockMatcher([]toBlockKeys{{Str: []byte("foo")}}), b)
 		defer body.Close()
 		rsp, err := (&http.Client{}).Post(blockedBackend.URL, "text/plain", body)
 		if !errors.Is(err, ErrBlocked) {
@@ -261,8 +261,8 @@ func TestHttpBodyReadOnly(t *testing.T) {
 		var b mybuf
 		b.buf = bytes.NewBufferString("hell0 foo bar")
 
-		body := WrapBody(context.Background(), blockMatcher([]toBlockKeys{{Str: []byte("foo")}}), b)
-		body = WrapBody(context.Background(), blockMatcher([]toBlockKeys{{Str: []byte("no match")}}), body)
+		body := WrapBodyWithOptions(context.Background(), BodyOptions{}, blockMatcher([]toBlockKeys{{Str: []byte("foo")}}), b)
+		body = WrapBodyWithOptions(context.Background(), BodyOptions{}, blockMatcher([]toBlockKeys{{Str: []byte("no match")}}), body)
 		defer body.Close()
 		rsp, err := (&http.Client{}).Post(blockedBackend.URL, "text/plain", body)
 
@@ -278,8 +278,8 @@ func TestHttpBodyReadOnly(t *testing.T) {
 		var b mybuf
 		b.buf = bytes.NewBufferString("hell0 foo bar")
 
-		body := WrapBody(context.Background(), blockMatcher([]toBlockKeys{{Str: []byte("no match")}}), b)
-		body = WrapBody(context.Background(), blockMatcher([]toBlockKeys{{Str: []byte("bar")}}), body)
+		body := WrapBodyWithOptions(context.Background(), BodyOptions{}, blockMatcher([]toBlockKeys{{Str: []byte("no match")}}), b)
+		body = WrapBodyWithOptions(context.Background(), BodyOptions{}, blockMatcher([]toBlockKeys{{Str: []byte("bar")}}), body)
 		defer body.Close()
 		rsp, err := (&http.Client{}).Post(blockedBackend.URL, "text/plain", body)
 
