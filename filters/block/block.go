@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
 )
 
@@ -23,6 +24,7 @@ type block struct {
 	toblockList       []toBlockKeys
 	maxEditorBuffer   uint64
 	maxBufferHandling net.MaxBufferHandling
+	metrics           metrics.Metrics
 }
 
 // NewBlockFilter *deprecated* version of NewBlock
@@ -76,15 +78,17 @@ func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		toblockList:       sargs,
 		maxBufferHandling: net.MaxBufferBestEffort,
 		maxEditorBuffer:   bs.MaxMatcherBufferSize,
+		metrics:           metrics.Default,
 	}, nil
 }
 
-func blockMatcher(matches []toBlockKeys) func(b []byte) (int, error) {
+func blockMatcher(m metrics.Metrics, matches []toBlockKeys) func(b []byte) (int, error) {
 	return func(b []byte) (int, error) {
 		for _, s := range matches {
 			s := s
 			if bytes.Contains(b, s.Str) {
 				b = nil
+				m.IncCounter("blocked.requests")
 				return 0, net.ErrBlocked
 			}
 		}
@@ -107,7 +111,7 @@ func (b *block) Request(ctx filters.FilterContext) {
 			MaxBufferHandling: b.maxBufferHandling,
 			ReadBufferSize:    b.maxEditorBuffer,
 		},
-		blockMatcher(b.toblockList),
+		blockMatcher(b.metrics, b.toblockList),
 		req.Body)
 }
 

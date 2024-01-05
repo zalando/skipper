@@ -11,6 +11,7 @@ import (
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
@@ -97,7 +98,7 @@ func TestMatcher(t *testing.T) {
 				t.Fatalf("Failed to create request with body: %v", err)
 			}
 
-			bmb := net.WrapBody(req.Context(), blockMatcher(toblockList), req.Body)
+			bmb := net.WrapBody(req.Context(), blockMatcher(metrics.Default, toblockList), req.Body)
 
 			p := make([]byte, len(r.initialContent))
 			n, err := bmb.Read(p)

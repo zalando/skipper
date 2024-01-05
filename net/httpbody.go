@@ -6,8 +6,6 @@ import (
 	"errors"
 	"io"
 	"sync"
-
-	"github.com/zalando/skipper/metrics"
 )
 
 var (
@@ -70,8 +68,6 @@ type matcher struct {
 	ready   *bytes.Buffer
 	pending *bytes.Buffer
 
-	metrics metrics.Metrics
-
 	err    error
 	closed bool
 }
@@ -103,7 +99,6 @@ func newMatcher(
 		readBuffer:        make([]byte, rsize),
 		pending:           bytes.NewBuffer(nil),
 		ready:             bytes.NewBuffer(nil),
-		metrics:           metrics.Default,
 	}
 }
 
@@ -176,13 +171,9 @@ func (m *matcher) Read(p []byte) (int, error) {
 		m.err = m.fill(len(p))
 	}
 
-	if m.err == ErrMatcherBufferFull {
-		return 0, ErrMatcherBufferFull
-	}
-
-	if m.err == ErrBlocked {
-		m.metrics.IncCounter("blocked.requests")
-		return 0, ErrBlocked
+	switch m.err {
+	case ErrMatcherBufferFull, ErrBlocked:
+		return 0, m.err
 	}
 
 	n, _ := m.ready.Read(p)
@@ -201,12 +192,6 @@ func (m *matcher) Read(p []byte) (int, error) {
 	n, err := m.f(p)
 	if err != nil {
 		m.closed = true
-
-		switch err {
-		case ErrBlocked:
-			m.metrics.IncCounter("blocked.requests")
-		}
-
 		return 0, err
 	}
 	return n, nil
