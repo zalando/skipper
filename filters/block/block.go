@@ -1,14 +1,12 @@
 package block
 
 import (
+	"bytes"
 	"encoding/hex"
-	"errors"
 
 	"github.com/zalando/skipper/filters"
-)
-
-var (
-	ErrClosed = errors.New("reader closed")
+	"github.com/zalando/skipper/io"
+	"github.com/zalando/skipper/metrics"
 )
 
 type blockSpec struct {
@@ -16,10 +14,17 @@ type blockSpec struct {
 	hex                  bool
 }
 
+type toBlockKeys struct{ Str []byte }
+
+func (b toBlockKeys) String() string {
+	return string(b.Str)
+}
+
 type block struct {
-	toblockList       []toblockKeys
+	toblockList       []toBlockKeys
 	maxEditorBuffer   uint64
-	maxBufferHandling maxBufferHandling
+	maxBufferHandling io.MaxBufferHandling
+	metrics           metrics.Metrics
 }
 
 // NewBlockFilter *deprecated* version of NewBlock
@@ -52,7 +57,7 @@ func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	sargs := make([]toblockKeys, 0, len(args))
+	sargs := make([]toBlockKeys, 0, len(args))
 	for _, w := range args {
 		v, ok := w.(string)
 		if !ok {
@@ -63,33 +68,50 @@ func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 			if err != nil {
 				return nil, err
 			}
-			sargs = append(sargs, toblockKeys{str: a})
+			sargs = append(sargs, toBlockKeys{Str: a})
 		} else {
-			sargs = append(sargs, toblockKeys{str: []byte(v)})
+			sargs = append(sargs, toBlockKeys{Str: []byte(v)})
 		}
 	}
 
-	b := &block{
+	return &block{
 		toblockList:       sargs,
-		maxBufferHandling: maxBufferBestEffort,
+		maxBufferHandling: io.MaxBufferBestEffort,
 		maxEditorBuffer:   bs.MaxMatcherBufferSize,
-	}
-
-	return *b, nil
+		metrics:           metrics.Default,
+	}, nil
 }
 
-func (b block) Request(ctx filters.FilterContext) {
+func blockMatcher(m metrics.Metrics, matches []toBlockKeys) func(b []byte) (int, error) {
+	return func(b []byte) (int, error) {
+		for _, s := range matches {
+			s := s
+			if bytes.Contains(b, s.Str) {
+				m.IncCounter("blocked.requests")
+				return 0, io.ErrBlocked
+			}
+		}
+		return len(b), nil
+	}
+}
+
+func (b *block) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 	if req.ContentLength == 0 {
 		return
 	}
+	// fix filter chaining - https://github.com/zalando/skipper/issues/2605
+	ctx.Request().Header.Del("Content-Length")
+	ctx.Request().ContentLength = -1
 
-	req.Body = newMatcher(
-		req.Body,
-		b.toblockList,
-		b.maxEditorBuffer,
-		b.maxBufferHandling,
-	)
+	req.Body = io.InspectReader(
+		req.Context(),
+		io.BufferOptions{
+			MaxBufferHandling: b.maxBufferHandling,
+			ReadBufferSize:    b.maxEditorBuffer,
+		},
+		blockMatcher(b.metrics, b.toblockList),
+		req.Body)
 }
 
-func (block) Response(filters.FilterContext) {}
+func (*block) Response(filters.FilterContext) {}
