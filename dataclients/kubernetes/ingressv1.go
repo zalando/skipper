@@ -293,10 +293,12 @@ func (ing *ingress) addSpecRuleV1(ic *ingressContext, ru *definitions.RuleV1) er
 // addSpecIngressTLSV1 is used to add TLS Certificates from Ingress resources. Certificates will be added
 // only if the Ingress rule host matches a host in TLS config
 func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.TLSV1) {
+	ingressHosts := definitions.GetHostsFromIngressRulesV1(ic.ingressV1)
+
 	// Hosts in the tls section need to explicitly match the host in the rules section.
-	hostlist := compareStringList(ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
+	hostlist := compareStringList(ingtls.Hosts, ingressHosts)
 	if len(hostlist) == 0 {
-		ic.logger.Infof("No matching tls hosts found - tls hosts: %s, ingress hosts: %s", ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
+		ic.logger.Infof("No matching tls hosts found - tls hosts: %s, ingress hosts: %s", ingtls.Hosts, ingressHosts)
 		return
 	} else if len(hostlist) != len(ingtls.Hosts) {
 		ic.logger.Infof("Hosts in TLS and Ingress don't match: tls hosts: %s, ingress hosts: %s", ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
