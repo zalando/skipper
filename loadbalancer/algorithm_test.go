@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +13,28 @@ import (
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 )
+
+type tc[T any] struct {
+	location string
+	in       T
+}
+
+// https://github.com/golang/go/issues/52751
+func testCase[T any](in T) tc[T] {
+	_, file, line, _ := runtime.Caller(1)
+	location := fmt.Sprintf("%s:%d", filepath.Base(file), line)
+	return tc[T]{location: location, in: in}
+}
+
+func (tc *tc[T]) logLocation(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		t.Helper()
+		if t.Failed() {
+			t.Logf("Test case location: %s", tc.location)
+		}
+	})
+}
 
 func TestSelectAlgorithm(t *testing.T) {
 	t.Run("not an LB route", func(t *testing.T) {
@@ -474,4 +498,198 @@ func stdDeviation(counters map[int]uint64) float64 {
 	}
 	stdDev := math.Sqrt(summedDiffs / float64(len(counters)))
 	return (stdDev * 100) / mean
+}
+
+type TestNormalizeSchemeHostItem struct {
+	inputS string
+	inputH string
+	scheme string
+	host   string
+	err    string
+}
+
+func TestNormalizeSchemeHostSchemeHost(t *testing.T) {
+	for _, ti := range []tc[TestNormalizeSchemeHostItem]{
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "example.com",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "example.com:80",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "example.com:8080",
+			scheme: "http",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "https",
+			inputH: "example.com",
+			scheme: "https",
+			host:   "example.com:443",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "https",
+			inputH: "example.com:443",
+			scheme: "https",
+			host:   "example.com:443",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "https",
+			inputH: "example.com:8080",
+			scheme: "https",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "fastcgi",
+			inputH: "example.com",
+			scheme: "fastcgi",
+			host:   "example.com",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "fastcgi",
+			inputH: "example.com:9000",
+			scheme: "fastcgi",
+			host:   "example.com:9000",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "fastcgi",
+			inputH: "example.com:8080",
+			scheme: "fastcgi",
+			host:   "example.com:8080",
+			err:    "",
+		}),
+
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "postgres",
+			inputH: "example.com",
+			scheme: "postgres",
+			host:   "example.com",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "postgres",
+			inputH: "example.com:5432",
+			scheme: "postgres",
+			host:   "example.com:5432",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "postgresql",
+			inputH: "example.com",
+			scheme: "postgresql",
+			host:   "example.com",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "postgresql",
+			inputH: "example.com:5432",
+			scheme: "postgresql",
+			host:   "example.com:5432",
+			err:    "",
+		}),
+
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "someprotocol",
+			inputH: "example.com",
+			scheme: "someprotocol",
+			host:   "example.com",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "someprotocol",
+			inputH: "example.com:12345",
+			scheme: "someprotocol",
+			host:   "example.com:12345",
+			err:    "",
+		}),
+
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "hTTP",
+			inputH: "exAMPLe.com",
+			scheme: "http",
+			host:   "example.com:80",
+			err:    "",
+		}),
+
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "127.0.0.1",
+			scheme: "http",
+			host:   "127.0.0.1:80",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "127.0.0.1:8080",
+			scheme: "http",
+			host:   "127.0.0.1:8080",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "192.168.0.1:8080",
+			scheme: "http",
+			host:   "192.168.0.1:8080",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "[::1]",
+			scheme: "http",
+			host:   "[::1]:80",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "[::1]:8080",
+			scheme: "http",
+			host:   "[::1]:8080",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "[2001:db8:3333:4444:5555:6666:7777:8888]",
+			scheme: "http",
+			host:   "[2001:db8:3333:4444:5555:6666:7777:8888]:80",
+			err:    "",
+		}),
+		testCase(TestNormalizeSchemeHostItem{
+			inputS: "http",
+			inputH: "[2001:db8:3333:4444:5555:6666:7777:8888]:8080",
+			scheme: "http",
+			host:   "[2001:db8:3333:4444:5555:6666:7777:8888]:8080",
+			err:    "",
+		}),
+	} {
+		t.Run(ti.in.inputS+"___"+ti.in.inputH, func(t *testing.T) {
+			ti.logLocation(t)
+
+			scheme, host, err := normalizeSchemeHost(ti.in.inputS, ti.in.inputH)
+			if ti.in.err != "" {
+				assert.EqualError(t, err, ti.in.err)
+			} else {
+				if assert.NoError(t, err) {
+					assert.Equal(t, ti.in.scheme, scheme)
+					assert.Equal(t, ti.in.host, host)
+				}
+			}
+		})
+	}
 }

@@ -486,7 +486,12 @@ func normalizeSchemeHost(s, h string) (string, string, error) {
 		p = "443"
 	}
 
-	h = net.JoinHostPort(h, p)
+	if p != "" {
+		// IPv6 addresses are enclosed in brackets by SplitHostPort, so we need to remove
+		// them before JoinHostPort insert one more brackets pair
+		h = strings.Trim(h, "[]")
+		h = net.JoinHostPort(h, p)
+	}
 	return s, h, nil
 }
 
