@@ -1,1 +1,1 @@
-level=info msg="No matching tls hosts found - tls hosts: \[foo.org bar.org\], ingress hosts: \[example.org\]" kind=Ingress name=myapp-ingress ns=default
+level=error msg="No matching tls hosts found - tls hosts: \[foo.org bar.org\], ingress hosts: \[example.org\]" kind=Ingress name=myapp-ingress ns=default
