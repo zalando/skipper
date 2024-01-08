@@ -486,7 +486,7 @@ func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.
 	// Host in the tls section need to explicitly match the host in the RouteGroup
 	hostlist := compareStringList(tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
 	if len(hostlist) == 0 {
-		ctx.logger.Infof("No matching tls hosts found - tls hosts: %s, routegroup hosts: %s", tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
+		ctx.logger.Errorf("No matching tls hosts found - tls hosts: %s, routegroup hosts: %s", tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
 		return
 	} else if len(hostlist) != len(tls.Hosts) {
 		ctx.logger.Infof("Hosts in TLS and RouteGroup don't match: tls hosts: %s, routegroup hosts: %s", tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
