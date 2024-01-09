@@ -205,6 +205,10 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		if i == paramCallbackURL {
 			continue
 		}
+		// SubdomainsToRemove not taken into account for cookie hashing for additional sub-domain ingresses
+		if i == paramSubdomainsToRemove {
+			continue
+		}
 		h.Write([]byte(s))
 	}
 	byteSlice := h.Sum(nil)
