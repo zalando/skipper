@@ -271,16 +271,13 @@ func (f *tokeninfoFilter) validateAnyScopes(h map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
-	var a []string
-	for i := range v {
-		s, ok := v[i].(string)
-		if !ok {
-			return false
-		}
-		a = append(a, s)
-	}
 
-	return intersect(f.scopes, a)
+	for _, scope := range f.scopes {
+		if contains(v, scope) {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *tokeninfoFilter) validateAllScopes(h map[string]interface{}) bool {
@@ -296,16 +293,13 @@ func (f *tokeninfoFilter) validateAllScopes(h map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
-	var a []string
-	for i := range v {
-		s, ok := v[i].(string)
-		if !ok {
+
+	for _, scope := range f.scopes {
+		if !contains(v, scope) {
 			return false
 		}
-		a = append(a, s)
 	}
-
-	return all(f.scopes, a)
+	return true
 }
 
 func (f *tokeninfoFilter) validateAnyKV(h map[string]interface{}) bool {
@@ -334,6 +328,15 @@ func (f *tokeninfoFilter) validateAllKV(h map[string]interface{}) bool {
 		}
 	}
 	return true
+}
+
+func contains(vals []interface{}, s string) bool {
+	for _, v := range vals {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // Request handles authentication based on the defined auth type.
