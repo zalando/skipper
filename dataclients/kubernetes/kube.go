@@ -422,7 +422,7 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 		return nil, err
 	}
 
-	rg, err := c.routeGroups.convert(state, defaultFilters, loggingEnabled)
+	rg, err := c.routeGroups.convert(state, defaultFilters, loggingEnabled, c.ClusterClient.certificateRegistry)
 	if err != nil {
 		return nil, err
 	}
@@ -594,4 +594,20 @@ func compareStringList(a, b []string) []string {
 		}
 	}
 	return c
+}
+
+// addTLSCertToRegistry adds a TLS certificate to the certificate registry per host using the provided
+// Kubernetes TLS secret
+func addTLSCertToRegistry(cr *certregistry.CertRegistry, logger *logger, hosts []string, secret *secret) {
+	cert, err := generateTLSCertFromSecret(secret)
+	if err != nil {
+		logger.Errorf("Failed to generate TLS certificate from secret: %v", err)
+		return
+	}
+	for _, host := range hosts {
+		err := cr.ConfigureCertificate(host, cert)
+		if err != nil {
+			logger.Errorf("Failed to configure certificate: %v", err)
+		}
+	}
 }

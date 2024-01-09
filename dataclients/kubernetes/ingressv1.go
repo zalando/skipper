@@ -293,15 +293,31 @@ func (ing *ingress) addSpecRuleV1(ic *ingressContext, ru *definitions.RuleV1) er
 // addSpecIngressTLSV1 is used to add TLS Certificates from Ingress resources. Certificates will be added
 // only if the Ingress rule host matches a host in TLS config
 func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.TLSV1) {
+	ingressHosts := definitions.GetHostsFromIngressRulesV1(ic.ingressV1)
+
 	// Hosts in the tls section need to explicitly match the host in the rules section.
-	hostlist := compareStringList(ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
+	hostlist := compareStringList(ingtls.Hosts, ingressHosts)
 	if len(hostlist) == 0 {
-		ic.logger.Infof("No matching tls hosts found")
+		ic.logger.Errorf("No matching tls hosts found - tls hosts: %s, ingress hosts: %s", ingtls.Hosts, ingressHosts)
+		return
+	} else if len(hostlist) != len(ingtls.Hosts) {
+		ic.logger.Infof("Hosts in TLS and Ingress don't match: tls hosts: %s, ingress hosts: %s", ingtls.Hosts, definitions.GetHostsFromIngressRulesV1(ic.ingressV1))
+	}
+
+	// Skip adding certs to registry since no certs defined
+	if ingtls.SecretName == "" {
+		ic.logger.Debugf("No tls secret defined for hosts - %s", ingtls.Hosts)
 		return
 	}
+
 	// Secrets should always reside in same namespace as the Ingress
-	secretID := &definitions.ResourceID{Name: ingtls.SecretName, Namespace: ic.ingressV1.Metadata.Namespace}
-	addHostTLSCert(ic, hostlist, secretID)
+	secretID := definitions.ResourceID{Name: ingtls.SecretName, Namespace: ic.ingressV1.Metadata.Namespace}
+	secret, ok := ic.state.secrets[secretID]
+	if !ok {
+		ic.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
+		return
+	}
+	addTLSCertToRegistry(ic.certificateRegistry, ic.logger, hostlist, secret)
 }
 
 // converts the default backend if any

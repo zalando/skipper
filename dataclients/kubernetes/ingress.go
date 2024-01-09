@@ -337,27 +337,6 @@ func hasCatchAllRoutes(routes []*eskip.Route) bool {
 	return false
 }
 
-// addHostTLSCert adds a TLS certificate to the certificate registry per host when the referenced
-// secret is found and is a valid TLS secret.
-func addHostTLSCert(ic *ingressContext, hosts []string, secretID *definitions.ResourceID) {
-	secret, ok := ic.state.secrets[*secretID]
-	if !ok {
-		ic.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
-		return
-	}
-	cert, err := generateTLSCertFromSecret(secret)
-	if err != nil {
-		ic.logger.Errorf("Failed to generate TLS certificate from secret: %v", err)
-		return
-	}
-	for _, host := range hosts {
-		err := ic.certificateRegistry.ConfigureCertificate(host, cert)
-		if err != nil {
-			ic.logger.Errorf("Failed to configure certificate: %v", err)
-		}
-	}
-}
-
 // convert logs if an invalid found, but proceeds with the valid ones.
 // Reporting failures in Ingress status is not possible, because
 // Ingress status field only supports IP and Hostname as string.

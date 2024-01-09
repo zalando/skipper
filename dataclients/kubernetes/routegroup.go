@@ -8,6 +8,7 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/secrets/certregistry"
 )
 
 const backendNameTracingTagName = "skipper.backend_name"
@@ -39,6 +40,7 @@ type routeGroupContext struct {
 	provideHTTPSRedirect         bool
 	calculateTraffic             func([]*definitions.BackendReference) map[string]backendTraffic
 	defaultLoadBalancerAlgorithm string
+	certificateRegistry          *certregistry.CertRegistry
 }
 
 type routeContext struct {
@@ -485,7 +487,36 @@ func splitHosts(hosts []string, domains []string) ([]string, []string) {
 	return internalHosts, externalHosts
 }
 
-func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled bool) ([]*eskip.Route, error) {
+// addRouteGroupTLS compares the RouteGroup host list and the RouteGroup TLS host list
+// and adds the TLS secret to the registry if a match is found.
+func (r *routeGroups) addRouteGroupTLS(ctx *routeGroupContext, tls *definitions.RouteTLSSpec) {
+	// Host in the tls section need to explicitly match the host in the RouteGroup
+	hostlist := compareStringList(tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
+	if len(hostlist) == 0 {
+		ctx.logger.Errorf("No matching tls hosts found - tls hosts: %s, routegroup hosts: %s", tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
+		return
+	} else if len(hostlist) != len(tls.Hosts) {
+		ctx.logger.Infof("Hosts in TLS and RouteGroup don't match: tls hosts: %s, routegroup hosts: %s", tls.Hosts, ctx.routeGroup.Spec.UniqueHosts())
+	}
+
+	// Skip adding certs to registry since no certs defined
+	if tls.SecretName == "" {
+		ctx.logger.Debugf("No tls secret defined for hosts - %s", tls.Hosts)
+		return
+	}
+
+	// Secrets should always reside in the same namespace as the RouteGroup
+	secretID := definitions.ResourceID{Name: tls.SecretName, Namespace: ctx.routeGroup.Metadata.Namespace}
+	secret, ok := ctx.state.secrets[secretID]
+	if !ok {
+		ctx.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
+		return
+	}
+	addTLSCertToRegistry(ctx.certificateRegistry, ctx.logger, hostlist, secret)
+
+}
+
+func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled bool, cr *certregistry.CertRegistry) ([]*eskip.Route, error) {
 	var rs []*eskip.Route
 	redirect := createRedirectInfo(r.options.ProvideHTTPSRedirect, r.options.HTTPSRedirectCode)
 
@@ -537,6 +568,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				allowedExternalNames:         r.options.AllowedExternalNames,
 				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
+				certificateRegistry:          cr,
 			}
 
 			ri, err := transformRouteGroup(ctx)
@@ -551,6 +583,12 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 					return rgRouteID("", toSymbol(host), "catchall", 0, 0, false)
 				})
 				ri = append(ri, catchAll...)
+			}
+
+			if ctx.certificateRegistry != nil {
+				for _, ctxTls := range rg.Spec.TLS {
+					r.addRouteGroupTLS(ctx, ctxTls)
+				}
 			}
 
 			rs = append(rs, ri...)
@@ -572,6 +610,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				allowedExternalNames:         r.options.AllowedExternalNames,
 				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
+				certificateRegistry:          cr,
 			}
 
 			internalRi, err := transformRouteGroup(internalCtx)
@@ -590,6 +629,12 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 			}
 
 			applyEastWestRangePredicates(internalRi, r.options.KubernetesEastWestRangePredicates)
+
+			if internalCtx.certificateRegistry != nil {
+				for _, ctxTls := range rg.Spec.TLS {
+					r.addRouteGroupTLS(internalCtx, ctxTls)
+				}
+			}
 
 			rs = append(rs, internalRi...)
 		}

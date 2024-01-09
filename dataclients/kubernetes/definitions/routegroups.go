@@ -59,6 +59,10 @@ type RouteGroupSpec struct {
 	// Routes specifies the list of route based on path, method
 	// and predicates.
 	Routes []*RouteSpec `json:"routes,omitempty"`
+
+	// TLS specifies the list of Kubernetes TLS secrets to
+	// be used to terminate the TLS connection
+	TLS []*RouteTLSSpec `json:"tls,omitempty"`
 }
 
 // SkipperBackend is the type safe version of skipperBackendParser
@@ -153,6 +157,16 @@ type RouteSpec struct {
 
 	// Methods defines valid HTTP methods for the specified RouteSpec
 	Methods []string `json:"methods,omitempty"`
+}
+
+type RouteTLSSpec struct {
+	// Hosts specifies the list of hosts included in the
+	// TLS certificate
+	Hosts []string `json:"hosts,omitempty"`
+
+	// SecretName specifies the Kubernetes TLS secret to be
+	// used to terminate the TLS SNI connection
+	SecretName string `json:"secretName,omitempty"`
 }
 
 func backendsWithDuplicateName(name string) error {

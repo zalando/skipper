@@ -27,6 +27,7 @@ spec:
   - secretName: myapp-secret
     hosts:
     - example.org
+    - bar.org
   rules:
     - host: example.org
       http:

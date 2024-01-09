@@ -1,0 +1,2 @@
+level=info msg="Hosts in TLS and Ingress don't match: tls hosts: \[example.org bar.org\], ingress hosts: \[example.org\]" kind=Ingress name=myapp-ingress ns=default
+level=info msg="adding certificate to registry - example.org"

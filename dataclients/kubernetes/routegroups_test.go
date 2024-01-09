@@ -57,3 +57,7 @@ func TestRouteGroupExternalName(t *testing.T) {
 func TestRouteGroupDefaultLoadBalancerAlgorithm(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/loadbalancer-algorithm")
 }
+
+func TestRouteGroupTLS(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/tls")
+}

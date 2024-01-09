@@ -15,28 +15,28 @@ spec:
     app: myapp
   type: ClusterIP
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: zalando.org/v1
+kind: RouteGroup
 metadata:
-  labels:
-    app: myapp
-  name: myapp-ingress
+  name: myapp
   namespace: default
 spec:
+  hosts:
+  - example.org
+  backends:
+  - name: myapp
+    type: service
+    serviceName: myapp-service
+    servicePort: 8080
+  routes:
+  - pathSubtree: /
+    backends:
+    - backendName: myapp
   tls:
-  - secretName: myapp-secret
-    hosts:
+  - hosts:
+    - bar.org
     - example.org
-  rules:
-    - host: example.org
-      http:
-        paths:
-          - backend:
-              service:
-                name: myapp-service
-                port:
-                  number: 8080
-            pathType: ImplementationSpecific
+    secretName: myapp-secret
 ---
 apiVersion: v1
 kind: Endpoints
