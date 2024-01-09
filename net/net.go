@@ -1,9 +1,11 @@
 package net
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 
 	"go4.org/netipx"
@@ -153,4 +155,49 @@ func ParseIPCIDRs(cidrs []string) (*netipx.IPSet, error) {
 	}
 
 	return ips, nil
+}
+
+// SchemeHost parses URI string (without #fragment part) and returns schema used in this URI as first return value and
+// host[:port] part as second return value. Port is never omitted for HTTP(S): if no port is specified in URI, default port for given
+// schema is used. If URI is invalid, error is returned.
+func SchemeHost(input string) (string, string, error) {
+	u, err := url.ParseRequestURI(input)
+	if err != nil {
+		return "", "", err
+	}
+	if u.Scheme == "" {
+		return "", "", fmt.Errorf(`parse %q: missing scheme`, input)
+	}
+	if u.Host == "" {
+		return "", "", fmt.Errorf(`parse %q: missing host`, input)
+	}
+
+	// endpoint address cannot contain path, the rest is not case sensitive
+	s, h := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+
+	hh, p, err := net.SplitHostPort(h)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port") {
+			// Trim is needed to remove brackets from IPv6 addresses, JoinHostPort will add them in case of any IPv6 address,
+			// so we need to remove them to avoid duplicate pairs of brackets.
+			h = strings.Trim(h, "[]")
+			switch s {
+			case "http":
+				p = "80"
+			case "https":
+				p = "443"
+			default:
+				p = ""
+			}
+		} else {
+			return "", "", err
+		}
+	} else {
+		h = hh
+	}
+
+	if p != "" {
+		h = net.JoinHostPort(h, p)
+	}
+	return s, h, nil
 }
