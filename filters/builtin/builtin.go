@@ -180,6 +180,7 @@ func Filters() []filters.Spec {
 		diag.NewAbsorb(),
 		diag.NewAbsorbSilent(),
 		diag.NewLogHeader(),
+		diag.NewLogBody(),
 		diag.NewUniformRequestLatency(),
 		diag.NewUniformResponseLatency(),
 		diag.NewNormalRequestLatency(),
