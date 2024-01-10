@@ -67,8 +67,8 @@ func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Durat
 
 	for i := range eps {
 		ctx.Route.LBEndpoints = append(ctx.Route.LBEndpoints, routing.LBEndpoint{
-			Host:     eps[i],
-			Detected: detectionTimes[i],
+			Host:    eps[i],
+			Metrics: ctx.Registry.GetMetrics(eps[i]),
 		})
 		ctx.Registry.GetMetrics(eps[i]).SetDetected(detectionTimes[i])
 	}
@@ -329,8 +329,8 @@ func benchmarkFadeIn(
 		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		for i := range eps {
 			route.LBEndpoints = append(route.LBEndpoints, routing.LBEndpoint{
-				Host:     eps[i],
-				Detected: detectionTimes[i],
+				Host:    eps[i],
+				Metrics: registry.GetMetrics(eps[i]),
 			})
 			registry.GetMetrics(eps[i]).SetDetected(detectionTimes[i])
 		}

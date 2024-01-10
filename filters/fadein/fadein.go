@@ -202,7 +202,6 @@ func (p *postProcessor) Do(r []*routing.Route) []*routing.Route {
 				detected = now
 			}
 
-			ep.Detected = detected
 			if p.endpointRegisty != nil {
 				metrics := p.endpointRegisty.GetMetrics(ep.Host)
 				if endpointsCreated[key].After(metrics.DetectedTime()) {

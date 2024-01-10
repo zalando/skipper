@@ -249,9 +249,6 @@ func TestPostProcessor(t *testing.T) {
 		}
 
 		for _, ep := range bar.LBEndpoints {
-			if ep.Detected.IsZero() {
-				t.Fatal("failed to set detection time")
-			}
 			if endpointRegistry.GetMetrics(ep.Host).DetectedTime().IsZero() {
 				t.Fatal("failed to set detection time")
 			}
@@ -284,7 +281,7 @@ func TestPostProcessor(t *testing.T) {
 		endpointRegisty := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		rt, _ := createRouting(t, routes, endpointRegisty)
 		r := route(rt, "/")
-		if r == nil || len(r.LBEndpoints) == 0 || !r.LBEndpoints[0].Detected.IsZero() {
+		if r == nil || len(r.LBEndpoints) == 0 {
 			t.Fatal("failed to ignore negative duration")
 		}
 		if endpointRegisty.GetMetrics(r.LBEndpoints[0].Host).DetectedTime().IsZero() {
@@ -311,9 +308,6 @@ func TestPostProcessor(t *testing.T) {
 		var found bool
 		for _, ep := range r.LBEndpoints {
 			if ep.Host == "10.0.0.1:8080" {
-				if ep.Detected.After(firstDetected) {
-					t.Fatal("Failed to keep detection time.")
-				}
 				if endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
 					t.Fatal("Failed to keep detection time.")
 				}
@@ -348,9 +342,6 @@ func TestPostProcessor(t *testing.T) {
 		var found bool
 		for _, ep := range r.LBEndpoints {
 			if ep.Host == "10.0.0.1:8080" {
-				if ep.Detected.After(firstDetected) {
-					t.Fatal("Failed to keep detection time.")
-				}
 				if endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
 					t.Fatal("Failed to keep detection time.")
 				}
@@ -387,9 +378,6 @@ func TestPostProcessor(t *testing.T) {
 		var found bool
 		for _, ep := range r.LBEndpoints {
 			if ep.Host == "10.0.0.1:8080" {
-				if !ep.Detected.After(firstDetected) {
-					t.Fatal("Failed to clear detection time.")
-				}
 				if !endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
 					t.Fatal("Failed to clear detection time.")
 				}
@@ -428,9 +416,6 @@ func TestPostProcessor(t *testing.T) {
 		var found bool
 		for _, ep := range r.LBEndpoints {
 			if ep.Host == "10.0.0.1:8080" {
-				if !ep.Detected.After(firstDetected) {
-					t.Fatal("Failed to reset detection time.")
-				}
 				if !endpointRegistry.GetMetrics(ep.Host).DetectedTime().After(firstDetected) {
 					t.Fatal("Failed to reset detection time.")
 				}

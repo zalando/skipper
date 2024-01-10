@@ -192,6 +192,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	if err != nil {
 		t.Fatalf("Failed to create testdataclient: %v", err)
 	}
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 
 	// create LB in front of apiservers to be able to switch the data served by apiserver
 	ro := routing.Options{
@@ -200,6 +201,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		DataClients:     []routing.DataClient{dc},
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.NewAlgorithmProvider(),
+			endpointRegistry,
 			reg,
 		},
 		SuppressLogs: true,
@@ -460,6 +462,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	if err != nil {
 		t.Fatalf("Failed to create testdataclient: %v", err)
 	}
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 
 	// create LB in front of apiservers to be able to switch the data served by apiserver
 	ro := routing.Options{
@@ -468,6 +471,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		DataClients:     []routing.DataClient{dc},
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.NewAlgorithmProvider(),
+			endpointRegistry,
 			reg,
 		},
 		SuppressLogs: true,
