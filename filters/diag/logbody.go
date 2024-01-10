@@ -114,7 +114,10 @@ func newLogBodyStream(left int, f func([]byte), rc io.ReadCloser) io.ReadCloser 
 func (lb *logBodyStream) Read(p []byte) (n int, err error) {
 	n, err = lb.input.Read(p)
 	if lb.left > 0 && n > 0 {
-		m := min(n, lb.left)
+		m := lb.left
+		if m > n {
+			m = n
+		}
 		lb.f(p[:m])
 		lb.left -= m
 	}
