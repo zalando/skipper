@@ -229,13 +229,13 @@ route2: Path("/test") && True() -> "http://www.github.com";
 
 ## False
 
-Does not match. Can be used to disable certain routes.
+Does not match. Can be used to disable certain routes. Ignores all arguments.
 
 Example where `route2` is disabled.
 
 ```
 route1: Path("/test") -> "http://www.zalando.de";
-route2: Path("/test") && False() -> "http://www.github.com";
+route2: Path("/test") && False("Disabled due to maintenance") -> "http://www.github.com";
 ```
 
 ## Shutdown
