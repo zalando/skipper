@@ -22,12 +22,16 @@ type Metrics interface {
 	InflightRequests() int64
 	IncInflightRequest()
 	DecInflightRequest()
+
+	SetTag(name, value string)
+	Tag(name string) string
 }
 
 type entry struct {
 	detected         atomic.Value // time.Time
 	lastSeen         atomic.Value // time.Time
 	inflightRequests atomic.Int64
+	tags             sync.Map // map[string]string
 }
 
 var _ Metrics = &entry{}
@@ -60,6 +64,17 @@ func (e *entry) SetLastSeen(ts time.Time) {
 	e.lastSeen.Store(ts)
 }
 
+func (e *entry) SetTag(name string, value string) {
+	e.tags.Store(name, value)
+}
+
+func (e *entry) Tag(name string) string {
+	if value, ok := e.tags.Load(name); ok {
+		return value.(string)
+	}
+	return ""
+}
+
 func newEntry() *entry {
 	result := &entry{}
 	result.SetDetected(time.Time{})
@@ -90,7 +105,6 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 				if epi.Metrics.DetectedTime().IsZero() {
 					epi.Metrics.SetDetected(now)
 				}
-
 				epi.Metrics.SetLastSeen(now)
 			}
 		} else if route.BackendType == eskip.NetworkBackend {

@@ -21,6 +21,7 @@ const (
 	HTTPStatusCodeTag     = "http.status_code"
 	SkipperRouteIDTag     = "skipper.route_id"
 	SpanKindTag           = "span.kind"
+	ServiceInstanceIdTag  = "service.instance.id"
 
 	ClientRequestCanceled = "canceled"
 	SpanKindClient        = "client"

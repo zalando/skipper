@@ -98,8 +98,9 @@ type subset struct {
 }
 
 type address struct {
-	IP   string `json:"ip"`
-	Node string `json:"nodeName"`
+	IP        string           `json:"ip"`
+	NodeName  string           `json:"nodeName"`
+	TargetRef *objectReference `json:"targetRef"`
 }
 
 type port struct {

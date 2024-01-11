@@ -519,16 +519,13 @@ func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skippe
 					// we should delete it, because of eventual consistency
 					// it is actually terminating
 					delete(resEps, address)
-				} else if ep.Conditions == nil {
+				} else if ep.Conditions == nil || ep.isReady() {
 					// if conditions are nil then we need to treat is as ready
 					resEps[address] = &skipperEndpoint{
-						Address: address,
-						Zone:    ep.Zone,
-					}
-				} else if ep.isReady() {
-					resEps[address] = &skipperEndpoint{
-						Address: address,
-						Zone:    ep.Zone,
+						Address:   address,
+						Zone:      ep.Zone,
+						NodeName:  ep.NodeName,
+						TargetRef: ep.TargetRef,
 					}
 				}
 			}

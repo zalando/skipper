@@ -24,3 +24,17 @@ type secret struct {
 type secretList struct {
 	Items []*secret `json:"items"`
 }
+
+type objectReference struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Uid       string `json:"uid"`
+}
+
+func (r *objectReference) getPodName() string {
+	if r != nil && r.Kind == "Pod" {
+		return r.Name
+	}
+	return ""
+}
