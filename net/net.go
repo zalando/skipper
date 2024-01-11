@@ -173,31 +173,31 @@ func SchemeHost(input string) (string, string, error) {
 	}
 
 	// endpoint address cannot contain path, the rest is not case sensitive
-	s, h := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	scheme, host := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
 
-	hh, p, err := net.SplitHostPort(h)
+	hostWithoutPort, port, err := net.SplitHostPort(host)
 	if err != nil {
 		if strings.Contains(err.Error(), "missing port") {
 			// Trim is needed to remove brackets from IPv6 addresses, JoinHostPort will add them in case of any IPv6 address,
 			// so we need to remove them to avoid duplicate pairs of brackets.
-			h = strings.Trim(h, "[]")
-			switch s {
+			host = strings.Trim(host, "[]")
+			switch scheme {
 			case "http":
-				p = "80"
+				port = "80"
 			case "https":
-				p = "443"
+				port = "443"
 			default:
-				p = ""
+				port = ""
 			}
 		} else {
 			return "", "", err
 		}
 	} else {
-		h = hh
+		host = hostWithoutPort
 	}
 
-	if p != "" {
-		h = net.JoinHostPort(h, p)
+	if port != "" {
+		host = net.JoinHostPort(host, port)
 	}
-	return s, h, nil
+	return scheme, host, nil
 }
