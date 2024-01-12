@@ -70,9 +70,7 @@ func newEntry() *entry {
 type EndpointRegistry struct {
 	lastSeenTimeout time.Duration
 	now             func() time.Time
-
-	// map[string]*entry
-	data sync.Map
+	data            sync.Map // map[string]*entry
 }
 
 var _ PostProcessor = &EndpointRegistry{}
@@ -129,7 +127,11 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 	}
 }
 
-func (r *EndpointRegistry) GetMetrics(key string) Metrics {
-	e, _ := r.data.LoadOrStore(key, newEntry())
+func (r *EndpointRegistry) GetMetrics(hostPort string) Metrics {
+	// https://github.com/golang/go/issues/44159#issuecomment-780774977
+	e, ok := r.data.Load(hostPort)
+	if !ok {
+		e, _ = r.data.LoadOrStore(hostPort, newEntry())
+	}
 	return e.(*entry)
 }
