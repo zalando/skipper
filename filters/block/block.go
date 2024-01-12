@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/io"
+	skpio "github.com/zalando/skipper/io"
 	"github.com/zalando/skipper/metrics"
 )
 
@@ -23,7 +23,7 @@ func (b toBlockKeys) String() string {
 type block struct {
 	toblockList       []toBlockKeys
 	maxEditorBuffer   uint64
-	maxBufferHandling io.MaxBufferHandling
+	maxBufferHandling skpio.MaxBufferHandling
 	metrics           metrics.Metrics
 }
 
@@ -76,7 +76,7 @@ func (bs *blockSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	return &block{
 		toblockList:       sargs,
-		maxBufferHandling: io.MaxBufferBestEffort,
+		maxBufferHandling: skpio.MaxBufferBestEffort,
 		maxEditorBuffer:   bs.MaxMatcherBufferSize,
 		metrics:           metrics.Default,
 	}, nil
@@ -88,7 +88,7 @@ func blockMatcher(m metrics.Metrics, matches []toBlockKeys) func(b []byte) (int,
 			s := s
 			if bytes.Contains(b, s.Str) {
 				m.IncCounter("blocked.requests")
-				return 0, io.ErrBlocked
+				return 0, skpio.ErrBlocked
 			}
 		}
 		return len(b), nil
@@ -104,9 +104,9 @@ func (b *block) Request(ctx filters.FilterContext) {
 	ctx.Request().Header.Del("Content-Length")
 	ctx.Request().ContentLength = -1
 
-	req.Body = io.InspectReader(
+	req.Body = skpio.InspectReader(
 		req.Context(),
-		io.BufferOptions{
+		skpio.BufferOptions{
 			MaxBufferHandling: b.maxBufferHandling,
 			ReadBufferSize:    b.maxEditorBuffer,
 		},
