@@ -14,10 +14,12 @@ import (
 )
 
 const (
-	fadeInDuration     = 500 * time.Millisecond
-	fadeInDurationHuge = 24 * time.Hour // we need this to be sure we're at the very beginning of fading in
+	fadeInRequestCount = 300_000
 	bucketCount        = 20
 	monotonyTolerance  = 0.4 // we need to use a high tolerance for CI testing
+
+	defaultFadeInDuration     = 500 * time.Millisecond
+	defaultFadeInDurationHuge = 24 * time.Hour // we need this to be sure we're at the very beginning of fading in
 )
 
 func absint(i int) int {
@@ -44,16 +46,22 @@ func checkMonotony(direction, prev, next int) bool {
 	}
 }
 
-func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Duration) (*routing.LBContext, []string) {
+func multiply(k float64, d time.Duration) time.Duration {
+	return time.Duration(k * float64(d))
+}
+
+func initializeEndpoints(endpointAges []float64, fadeInDuration time.Duration) (*routing.LBContext, []string) {
 	var detectionTimes []time.Time
 	now := time.Now()
 	for _, ea := range endpointAges {
-		detectionTimes = append(detectionTimes, now.Add(-ea))
+		endpointAgeDuration := multiply(ea, fadeInDuration)
+		detectionTimes = append(detectionTimes, now.Add(-endpointAgeDuration))
 	}
 
 	var eps []string
-	for i := range endpointAges {
-		eps = append(eps, fmt.Sprintf("ep-%d-%s.test", i, endpointAges[i]))
+	for i, ea := range endpointAges {
+		endpointAgeDuration := multiply(ea, fadeInDuration)
+		eps = append(eps, fmt.Sprintf("ep-%d-%s.test", i, endpointAgeDuration))
 	}
 
 	ctx := &routing.LBContext{
@@ -77,17 +85,40 @@ func initializeEndpoints(endpointAges []time.Duration, fadeInDuration time.Durat
 	return ctx, eps
 }
 
+// This function is needed to calculate the duration needed to send fadeInRequestCount requests.
+// It is needed to send number of requests close to fadeInRequestCount on one hand and to have them sent exactly
+// in the fade-in duration returned on the other hand.
+func calculateFadeInDuration(t *testing.T, algorithm func([]string) routing.LBAlgorithm, endpointAges []float64) time.Duration {
+	const precalculateRatio = 10
+
+	ctx, eps := initializeEndpoints(endpointAges, defaultFadeInDuration)
+	a := algorithm(eps)
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	t.Log("preemulation start", time.Now())
+	// Preemulate the load balancer loop to find out the approximate amount of RPS
+	begin := time.Now()
+	for i := 0; i < fadeInRequestCount/precalculateRatio; i++ {
+		ctx.Params[ConsistentHashKey] = strconv.Itoa(rnd.Intn(100000))
+		_ = a.Apply(ctx)
+	}
+	preemulationDuration := time.Since(begin)
+
+	return preemulationDuration * precalculateRatio
+}
+
 func testFadeIn(
 	t *testing.T,
 	name string,
 	algorithm func([]string) routing.LBAlgorithm,
-	endpointAges ...time.Duration,
+	endpointAges ...float64,
 ) {
 	t.Run(name, func(t *testing.T) {
+		fadeInDuration := calculateFadeInDuration(t, algorithm, endpointAges)
 		ctx, eps := initializeEndpoints(endpointAges, fadeInDuration)
-
 		a := algorithm(eps)
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 		t.Log("test start", time.Now())
 		var stats []string
 		stop := time.After(fadeInDuration)
@@ -172,7 +203,7 @@ func newConsistentHashForTest(endpoints []string) routing.LBAlgorithm {
 // Those tests check that the amount of requests per period for each endpoint is monotonical over the time.
 // For every endpoint, it could increase, decrease or stay the same.
 func TestFadeIn(t *testing.T) {
-	old := 2 * fadeInDuration
+	old := 2.0
 	testFadeIn(t, "power-of-n-random-choices, 0", newPowerOfRandomNChoices, old, old)
 	testFadeIn(t, "power-of-n-random-choices, 1", newPowerOfRandomNChoices, 0, old)
 	testFadeIn(t, "power-of-n-random-choices, 2", newPowerOfRandomNChoices, 0, 0)
@@ -182,7 +213,7 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "power-of-n-random-choices, 6", newPowerOfRandomNChoices, old, 0, 0, 0)
 	testFadeIn(t, "power-of-n-random-choices, 7", newPowerOfRandomNChoices, old, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "power-of-n-random-choices, 8", newPowerOfRandomNChoices, 0, 0, 0, 0, 0, 0)
-	testFadeIn(t, "power-of-n-random-choices, 9", newPowerOfRandomNChoices, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+	testFadeIn(t, "power-of-n-random-choices, 9", newPowerOfRandomNChoices, 1.0/2.0, 1.0/3.0, 1.0/4.0)
 
 	testFadeIn(t, "round-robin, 0", newRoundRobin, old, old)
 	testFadeIn(t, "round-robin, 1", newRoundRobin, 0, old)
@@ -193,7 +224,7 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "round-robin, 6", newRoundRobin, old, 0, 0, 0)
 	testFadeIn(t, "round-robin, 7", newRoundRobin, old, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "round-robin, 8", newRoundRobin, 0, 0, 0, 0, 0, 0)
-	testFadeIn(t, "round-robin, 9", newRoundRobin, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+	testFadeIn(t, "round-robin, 9", newRoundRobin, 1.0/2.0, 1.0/3.0, 1.0/4.0)
 
 	testFadeIn(t, "random, 0", newRandom, old, old)
 	testFadeIn(t, "random, 1", newRandom, 0, old)
@@ -204,7 +235,7 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "random, 6", newRandom, old, 0, 0, 0)
 	testFadeIn(t, "random, 7", newRandom, old, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "random, 8", newRandom, 0, 0, 0, 0, 0, 0)
-	testFadeIn(t, "random, 9", newRandom, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+	testFadeIn(t, "random, 9", newRandom, 1.0/2.0, 1.0/3.0, 1.0/4.0)
 
 	testFadeIn(t, "consistent-hash, 0", newConsistentHashForTest, old, old)
 	testFadeIn(t, "consistent-hash, 1", newConsistentHashForTest, 0, old)
@@ -215,7 +246,7 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "consistent-hash, 6", newConsistentHashForTest, old, 0, 0, 0)
 	testFadeIn(t, "consistent-hash, 7", newConsistentHashForTest, old, 0, 0, 0, 0, 0, 0)
 	testFadeIn(t, "consistent-hash, 8", newConsistentHashForTest, 0, 0, 0, 0, 0, 0)
-	testFadeIn(t, "consistent-hash, 9", newConsistentHashForTest, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+	testFadeIn(t, "consistent-hash, 9", newConsistentHashForTest, 1.0/2.0, 1.0/3.0, 1.0/4.0)
 }
 
 func testFadeInLoadBetweenOldAndNewEps(
@@ -228,18 +259,18 @@ func testFadeInLoadBetweenOldAndNewEps(
 		const (
 			numberOfReqs            = 100000
 			acceptableErrorNearZero = 10
-			old                     = fadeInDurationHuge
-			new                     = time.Duration(0)
+			old                     = 1.0
+			new                     = 0.0
 		)
-		endpointAges := []time.Duration{}
+		endpointAges := []float64{}
 		for i := 0; i < nOld; i++ {
-			endpointAges = append(endpointAges, old)
+			endpointAges = append(endpointAges, 1.0)
 		}
 		for i := 0; i < nNew; i++ {
-			endpointAges = append(endpointAges, new)
+			endpointAges = append(endpointAges, 0.0)
 		}
 
-		ctx, eps := initializeEndpoints(endpointAges, fadeInDurationHuge)
+		ctx, eps := initializeEndpoints(endpointAges, defaultFadeInDurationHuge)
 
 		a := algorithm(eps)
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -301,9 +332,9 @@ func testApplyEndsWhenAllEndpointsAreFading(
 ) {
 	t.Run(name, func(t *testing.T) {
 		// Initialize every endpoint with zero: every endpoint is new
-		endpointAges := make([]time.Duration, nEndpoints)
+		endpointAges := make([]float64, nEndpoints)
 
-		ctx, eps := initializeEndpoints(endpointAges, fadeInDurationHuge)
+		ctx, eps := initializeEndpoints(endpointAges, defaultFadeInDurationHuge)
 
 		a := algorithm(eps)
 		ctx.Params[ConsistentHashKey] = "someConstantString"
@@ -336,13 +367,13 @@ func benchmarkFadeIn(
 	name string,
 	algorithm func([]string) routing.LBAlgorithm,
 	clients int,
-	endpointAges ...time.Duration,
+	endpointAges ...float64,
 ) {
 	b.Run(name, func(b *testing.B) {
 		var detectionTimes []time.Time
 		now := time.Now()
 		for _, ea := range endpointAges {
-			detectionTimes = append(detectionTimes, now.Add(-ea))
+			detectionTimes = append(detectionTimes, now.Add(-defaultFadeInDuration*time.Duration(ea)))
 		}
 
 		var eps []string
@@ -353,7 +384,7 @@ func benchmarkFadeIn(
 		a := algorithm(eps)
 
 		route := &routing.Route{
-			LBFadeInDuration: fadeInDuration,
+			LBFadeInDuration: defaultFadeInDuration,
 			LBFadeInExponent: 1,
 		}
 		registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
@@ -393,8 +424,8 @@ func benchmarkFadeIn(
 	})
 }
 
-func repeatedSlice(v time.Duration, n int) []time.Duration {
-	var s []time.Duration
+func repeatedSlice(v float64, n int) []float64 {
+	var s []float64
 	for i := 0; i < n; i++ {
 		s = append(s, v)
 	}
@@ -402,7 +433,7 @@ func repeatedSlice(v time.Duration, n int) []time.Duration {
 }
 
 func BenchmarkFadeIn(b *testing.B) {
-	old := 2 * fadeInDuration
+	old := 2.0
 	clients := []int{1, 4, 16, 64, 256}
 	for _, c := range clients {
 		benchmarkFadeIn(b, fmt.Sprintf("random, 11, %d clients", c), newRandom, c, repeatedSlice(old, 200)...)
