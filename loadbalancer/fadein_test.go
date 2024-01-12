@@ -169,8 +169,21 @@ func newConsistentHashForTest(endpoints []string) routing.LBAlgorithm {
 	return newConsistentHashInternal(endpoints, 1000)
 }
 
+// Those tests check that the amount of requests per period for each endpoint is monotonical over the time.
+// For every endpoint, it could increase, decrease or stay the same.
 func TestFadeIn(t *testing.T) {
 	old := 2 * fadeInDuration
+	testFadeIn(t, "power-of-n-random-choices, 0", newPowerOfRandomNChoices, old, old)
+	testFadeIn(t, "power-of-n-random-choices, 1", newPowerOfRandomNChoices, 0, old)
+	testFadeIn(t, "power-of-n-random-choices, 2", newPowerOfRandomNChoices, 0, 0)
+	testFadeIn(t, "power-of-n-random-choices, 3", newPowerOfRandomNChoices, old, 0)
+	testFadeIn(t, "power-of-n-random-choices, 4", newPowerOfRandomNChoices, old, old, old, 0)
+	testFadeIn(t, "power-of-n-random-choices, 5", newPowerOfRandomNChoices, old, old, old, 0, 0, 0)
+	testFadeIn(t, "power-of-n-random-choices, 6", newPowerOfRandomNChoices, old, 0, 0, 0)
+	testFadeIn(t, "power-of-n-random-choices, 7", newPowerOfRandomNChoices, old, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "power-of-n-random-choices, 8", newPowerOfRandomNChoices, 0, 0, 0, 0, 0, 0)
+	testFadeIn(t, "power-of-n-random-choices, 9", newPowerOfRandomNChoices, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
+
 	testFadeIn(t, "round-robin, 0", newRoundRobin, old, old)
 	testFadeIn(t, "round-robin, 1", newRoundRobin, 0, old)
 	testFadeIn(t, "round-robin, 2", newRoundRobin, 0, 0)
@@ -205,7 +218,7 @@ func TestFadeIn(t *testing.T) {
 	testFadeIn(t, "consistent-hash, 9", newConsistentHashForTest, fadeInDuration/2, fadeInDuration/3, fadeInDuration/4)
 }
 
-func testFadeInLoadBetweenOldEps(
+func testFadeInLoadBetweenOldAndNewEps(
 	t *testing.T,
 	name string,
 	algorithm func([]string) routing.LBAlgorithm,
@@ -241,24 +254,41 @@ func testFadeInLoadBetweenOldEps(
 			nReqs[ep.Host]++
 		}
 
-		expectedReqsPerOldEndpoint := numberOfReqs / nOld
-		for idx, ep := range eps {
-			if endpointAges[idx] == old {
-				assert.InEpsilon(t, expectedReqsPerOldEndpoint, nReqs[ep], 0.2)
+		if nOld == 0 {
+			expectedReqsPerEndpoint := numberOfReqs / nNew
+			for _, ep := range eps {
+				assert.InEpsilon(t, expectedReqsPerEndpoint, nReqs[ep], 0.2)
 			}
-			if endpointAges[idx] == new {
-				assert.InDelta(t, 0, nReqs[ep], acceptableErrorNearZero)
+		} else {
+			expectedReqsPerOldEndpoint := numberOfReqs / nOld
+			for idx, ep := range eps {
+				if endpointAges[idx] == old {
+					assert.InEpsilon(t, expectedReqsPerOldEndpoint, nReqs[ep], 0.2)
+				}
+				if endpointAges[idx] == new {
+					assert.InDelta(t, 0, nReqs[ep], acceptableErrorNearZero)
+				}
 			}
 		}
 	})
 }
 
-func TestFadeInLoadBetweenOldEps(t *testing.T) {
-	for nOld := 1; nOld < 6; nOld++ {
+// Those tests check that the amount of requests per period for every endpoint at the very beginning of fading in (when all endpoints are new)
+// and at the very end of fading in (when all endpoints are old) is correct.
+func TestFadeInLoadBetweenOldAndNewEps(t *testing.T) {
+	for nOld := 0; nOld < 6; nOld++ {
 		for nNew := 0; nNew < 6; nNew++ {
-			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("consistent-hash, %d old, %d new", nOld, nNew), newConsistentHash, nOld, nNew)
-			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("random, %d old, %d new", nOld, nNew), newRandom, nOld, nNew)
-			testFadeInLoadBetweenOldEps(t, fmt.Sprintf("round-robin, %d old, %d new", nOld, nNew), newRoundRobin, nOld, nNew)
+			if nOld == 0 && nNew == 0 {
+				continue
+			}
+
+			// This test does not work with power of n random choices at the moment, because there is no fadein for
+			// this algorithm. Feel free to uncomment this line when this problem is fixed.
+			// testFadeInLoadBetweenOldAndNewEps(t, fmt.Sprintf("power-of-n-random-choices, %d old, %d new", nOld, nNew), newPowerOfRandomNChoices, nOld, nNew)
+
+			testFadeInLoadBetweenOldAndNewEps(t, fmt.Sprintf("consistent-hash, %d old, %d new", nOld, nNew), newConsistentHash, nOld, nNew)
+			testFadeInLoadBetweenOldAndNewEps(t, fmt.Sprintf("random, %d old, %d new", nOld, nNew), newRandom, nOld, nNew)
+			testFadeInLoadBetweenOldAndNewEps(t, fmt.Sprintf("round-robin, %d old, %d new", nOld, nNew), newRoundRobin, nOld, nNew)
 		}
 	}
 }
