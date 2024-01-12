@@ -10,7 +10,8 @@ FUZZ_TARGETS_PATH	= $(PREFIX)/fuzz_targets
 FUZZ_TARGETS 		?= FuzzParseCIDRs FuzzParseEskip FuzzParseFilters \
 				FuzzParseIngressV1JSON FuzzParseIPCIDRs \
 				FuzzParseJwt FuzzParsePredicates \
-				FuzzParseRouteGroupsJSON FuzzServer
+				FuzzParseRouteGroupsJSON FuzzServer \
+				FuzzHostAnyCreate FuzzHostAnyMatch
 
 FUZZ_SANITIZER		?= address
 FUZZ_FORKS		?= 2
