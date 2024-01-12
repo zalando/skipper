@@ -4,6 +4,7 @@
 package fuzz
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -24,6 +25,10 @@ func FuzzQuery(data []byte) int {
 
 	f.GenerateStruct(&args)
 
+	if args.Key == "" || args.Value == "" {
+		return 0
+	}
+
 	p, err := query.New().Create([]interface{}{args.Key, args.Value})
 
 	if err != nil {
@@ -31,7 +36,7 @@ func FuzzQuery(data []byte) int {
 	}
 
 	if !p.Match(&http.Request{URL: &url.URL{RawQuery: args.Key + "=" + args.Value}}) {
-		panic("Query predicate match failed")
+		panic(fmt.Sprintf("Query predicate match failed: %x=%x\n", args.Key, args.Value))
 	}
 
 	return 1

@@ -11,13 +11,13 @@ FUZZ_TARGETS 		?= FuzzParseCIDRs FuzzParseEskip FuzzParseFilters \
 				FuzzParseIngressV1JSON FuzzParseIPCIDRs \
 				FuzzParseJwt FuzzParsePredicates \
 				FuzzParseRouteGroupsJSON FuzzServer \
-				FuzzHostAny
+				FuzzHostAny FuzzQuery
 
 FUZZ_SANITIZER		?= address
 FUZZ_FORKS		?= 2
 FUZZ_MAX_TOTAL_TIME	?= 600
 FUZZ_RUNS		?= -1
-FUZZER_ARGS		?= -artifact_prefix=$(ARTIFACTS_PATH) \
+FUZZER_ARGS		?= -artifact_prefix=$(ARTIFACTS_PATH)/ \
 				-rss_limit_mb=2560 -timeout=25 \
 				-max_total_time=$(FUZZ_MAX_TOTAL_TIME) \
 				-len_control=0 -detect_leaks=0 -max_len=4096 \

@@ -4,6 +4,7 @@
 package fuzz
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/zalando/skipper/predicates/host"
@@ -17,7 +18,7 @@ func FuzzHostAny(data []byte) int {
 	}
 
 	if !p.Match(&http.Request{Host: string(data)}) {
-		panic("HostAny predicate match failed")
+		panic(fmt.Sprintf("HostAny predicate match failed: %x\n", data))
 	}
 
 	return 1
