@@ -46,6 +46,12 @@ jobs:
         # a pull request then we can checkout the head.
         fetch-depth: 2
 
+    - name: Setup Go
+      uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+      with:
+        go-version: '^1.21'
+        check-latest: true
+
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@9a866ed4524fc3422c3af1e446dab8efa3503411
@@ -73,8 +79,4 @@ jobs:
     #   make release
 
     - name: Perform CodeQL Analysis
-    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
-      with:
-        go-version: '^1.21'
-        check-latest: true
-    - uses: github/codeql-action/analyze@9a866ed4524fc3422c3af1e446dab8efa3503411
+      uses: github/codeql-action/analyze@9a866ed4524fc3422c3af1e446dab8efa3503411
