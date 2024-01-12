@@ -73,4 +73,8 @@ jobs:
     #   make release
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@9a866ed4524fc3422c3af1e446dab8efa3503411
+    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+      with:
+        go-version: '^1.21'
+        check-latest: true
+    - uses: github/codeql-action/analyze@9a866ed4524fc3422c3af1e446dab8efa3503411
