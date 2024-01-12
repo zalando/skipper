@@ -9,15 +9,7 @@ import (
 	"github.com/zalando/skipper/predicates/host"
 )
 
-func FuzzHostAnyCreate(data []byte) int {
-	if _, err := host.NewAny().Create([]interface{}{data}); err != nil {
-		return 0
-	}
-
-	return 1
-}
-
-func FuzzHostAnyMatch(data []byte) int {
+func FuzzHostAny(data []byte) int {
 	p, err := host.NewAny().Create([]interface{}{string(data)})
 
 	if err != nil {

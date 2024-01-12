@@ -11,7 +11,7 @@ FUZZ_TARGETS 		?= FuzzParseCIDRs FuzzParseEskip FuzzParseFilters \
 				FuzzParseIngressV1JSON FuzzParseIPCIDRs \
 				FuzzParseJwt FuzzParsePredicates \
 				FuzzParseRouteGroupsJSON FuzzServer \
-				FuzzHostAnyCreate FuzzHostAnyMatch
+				FuzzHostAny
 
 FUZZ_SANITIZER		?= address
 FUZZ_FORKS		?= 2
