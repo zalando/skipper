@@ -386,16 +386,22 @@ func TestPredicateParsing(t *testing.T) {
 	}, {
 		title: "star notation",
 		input: `*`,
+	}, {
+		title:    "comment fuzz 1",
+		input:    `///`,
+		expected: nil,
+	}, {
+		title:    "comment fuzz 2", // "\x2f\x2f..." == "//..."
+		input:    "\x2f\x2f\x00\x00\x00\xe6\xfe\x00\x00\x2f\x00\x00\x00\x00\x00\x00\x00\xe6\xfe\x00\x00\x2f\x00\x00\x00\x00",
+		expected: nil,
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			p, err := ParsePredicates(test.input)
 
 			if err == nil && test.fail {
-				t.Error("failed to fail")
-				return
+				t.Fatalf("failed to fail: %#v", p)
 			} else if err != nil && !test.fail {
-				t.Error(err)
-				return
+				t.Fatal(err)
 			}
 
 			if !cmp.Equal(p, test.expected) {
