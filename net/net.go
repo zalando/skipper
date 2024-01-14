@@ -144,6 +144,8 @@ func ParseIPCIDRs(cidrs []string) (*netipx.IPSet, error) {
 
 		} else if addr, err := netip.ParseAddr(w); err != nil {
 			return nil, err
+		} else if addr.IsUnspecified() {
+			return nil, fmt.Errorf("failed to parse cidr: addr is unspecified: %s", w)
 		} else {
 			b.Add(addr)
 		}
