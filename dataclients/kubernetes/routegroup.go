@@ -443,7 +443,7 @@ nextRoute:
 					backend:    be,
 				})
 				if err != nil {
-					ctx.logger.Errorf("Ignoring route %d: %v", routeIndex, err)
+					ctx.logger.Errorf("Ignoring route: %v", err)
 					continue nextRoute
 				}
 
