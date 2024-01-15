@@ -1,4 +1,2 @@
 kind=RouteGroup name=myapp
-Ignoring route 1: service not found: default/myapp-2
-Ignoring route 2: service not found: default/myapp-2
-Ignoring route 3: service not found: default/myapp-2
+Ignoring route: service not found: default/myapp-2
