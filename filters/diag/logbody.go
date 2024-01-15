@@ -68,7 +68,7 @@ func (lb *logBody) Request(ctx filters.FilterContext) {
 			lb.limit,
 			func(chunk []byte) {
 				ctx.Logger().Infof(
-					`logBody("request") %s: %s`,
+					`logBody("request") %s: %q`,
 					req.Header.Get(flowid.HeaderName),
 					chunk)
 			},
@@ -88,7 +88,7 @@ func (lb *logBody) Response(ctx filters.FilterContext) {
 			lb.limit,
 			func(chunk []byte) {
 				ctx.Logger().Infof(
-					`logBody("response") %s: %s`,
+					`logBody("response") %s: %q`,
 					ctx.Request().Header.Get(flowid.HeaderName),
 					chunk)
 			},

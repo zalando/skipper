@@ -84,7 +84,7 @@ func TestLogBody(t *testing.T) {
 		logbuf := bytes.NewBuffer(nil)
 		log.SetOutput(logbuf)
 		buf := bytes.NewBufferString(content)
-		rsp, err := http.DefaultClient.Post(p.URL, "text/plain", buf)
+		rsp, err := p.Client().Post(p.URL, "text/plain", buf)
 		log.SetOutput(os.Stderr)
 		if err != nil {
 			t.Fatalf("Failed to POST: %v", err)
@@ -112,7 +112,7 @@ func TestLogBody(t *testing.T) {
 		logbuf := bytes.NewBuffer(nil)
 		log.SetOutput(logbuf)
 		buf := bytes.NewBufferString(content)
-		rsp, err := http.DefaultClient.Post(p.URL, "text/plain", buf)
+		rsp, err := p.Client().Post(p.URL, "text/plain", buf)
 		if err != nil {
 			t.Fatalf("Failed to do post request: %v", err)
 		}
@@ -147,7 +147,7 @@ func TestLogBody(t *testing.T) {
 		logbuf := bytes.NewBuffer(nil)
 		log.SetOutput(logbuf)
 		buf := bytes.NewBufferString(requestContent)
-		rsp, err := http.DefaultClient.Post(p.URL, "text/plain", buf)
+		rsp, err := p.Client().Post(p.URL, "text/plain", buf)
 		if err != nil {
 			t.Fatalf("Failed to get respone: %v", err)
 		}
@@ -196,16 +196,18 @@ func TestLogBody(t *testing.T) {
 		logbuf := bytes.NewBuffer(nil)
 		log.SetOutput(logbuf)
 		buf := bytes.NewBufferString(content)
-		rsp, err := http.DefaultClient.Post(p.URL, "text/plain", buf)
+		rsp, err := p.Client().Post(p.URL, "text/plain", buf)
 		log.SetOutput(os.Stderr)
 		if err != nil {
 			t.Fatalf("Failed to POST: %v", err)
 		}
 		defer rsp.Body.Close()
 
-		want := " " + content[:limit] + `"` + "\n"
-		if got := logbuf.String(); want != got[len(got)-limit-3:] {
-			t.Fatalf("Failed want suffix: %q, got: %q\nwant hex: %x\ngot hex : %x", want, got, want, got[len(got)-limit-3:])
+		want := ` \"` + content[:limit] + "\\\"\"" + "\n"
+		got := logbuf.String()
+		from := len(got) - limit - 7
+		if want != got[from:] {
+			t.Fatalf("Failed want suffix: %q, got: %q\nwant hex: %x\ngot hex : %x", want, got, want, got[from:])
 		}
 	})
 
@@ -226,7 +228,7 @@ func TestLogBody(t *testing.T) {
 		logbuf := bytes.NewBuffer(nil)
 		log.SetOutput(logbuf)
 		buf := bytes.NewBufferString(content)
-		rsp, err := http.DefaultClient.Post(p.URL, "text/plain", buf)
+		rsp, err := p.Client().Post(p.URL, "text/plain", buf)
 		if err != nil {
 			t.Fatalf("Failed to do post request: %v", err)
 		}
@@ -242,7 +244,7 @@ func TestLogBody(t *testing.T) {
 		}
 
 		// repeatContent("a", 1024) but only 10 bytes
-		want := " " + strings.Repeat("a", 10) + `"` + "\n"
+		want := " \\\"" + strings.Repeat("a", 10) + "\\\"\"" + "\n"
 		if !strings.HasSuffix(got, want) {
 			t.Fatalf("Failed to find rsp content %q log, got: %q", want, got)
 		}
