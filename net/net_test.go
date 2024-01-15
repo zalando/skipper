@@ -179,6 +179,10 @@ func TestParseIPCIDRs(t *testing.T) {
 		input   []string
 		wantErr bool
 	}{
+		{[]string{"::"}, true},
+		{[]string{"f::"}, false},
+		{[]string{"::1"}, false},
+		{[]string{"::1/8"}, false},
 		{[]string{"1.2.3.4.5"}, true},
 		{[]string{"1.2.3.4/"}, true},
 		{[]string{"1.2.3.4/245"}, true},
