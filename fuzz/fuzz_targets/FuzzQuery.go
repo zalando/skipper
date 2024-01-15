@@ -14,29 +14,24 @@ import (
 )
 
 func FuzzQuery(data []byte) int {
-	type Args struct {
-		Key   string
-		Value string
-	}
-
 	f := fuzz.NewConsumer(data)
 
-	args := Args{}
+	args := struct{ k, v string }{}
 
 	f.GenerateStruct(&args)
 
-	if args.Key == "" || args.Value == "" {
+	if args.k == "" || args.v == "" {
 		return 0
 	}
 
-	p, err := query.New().Create([]interface{}{args.Key, args.Value})
+	p, err := query.New().Create([]interface{}{args.k, args.v})
 
 	if err != nil {
 		return 0
 	}
 
-	if !p.Match(&http.Request{URL: &url.URL{RawQuery: args.Key + "=" + args.Value}}) {
-		panic(fmt.Sprintf("Query predicate match failed: %x=%x\n", args.Key, args.Value))
+	if !p.Match(&http.Request{URL: &url.URL{RawQuery: args.k + "=" + args.v}}) {
+		panic(fmt.Sprintf("Query predicate match failed: %x=%x\n", args.k, args.v))
 	}
 
 	return 1
