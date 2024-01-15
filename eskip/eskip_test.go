@@ -348,6 +348,28 @@ func TestParseFilters(t *testing.T) {
 		`filter1(3.14) -> filter2("key", 42)`,
 		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
 		false,
+	}, {
+		"a comment produces empty filters without error",
+		"// a comment",
+		nil,
+		false,
+	}, {
+		"a trailing comment is ignored",
+		`filter1(3.14) -> filter2("key", 42) // a trailing comment`,
+		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
+		false,
+	}, {
+		"a comment before is ignored",
+		`// a comment on a separate line
+		filter1(3.14) -> filter2("key", 42)`,
+		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
+		false,
+	}, {
+		"a comment after is ignored",
+		`filter1(3.14) -> filter2("key", 42)
+		// a comment on a separate line`,
+		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
+		false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			fs, err := ParseFilters(ti.expression)
@@ -396,6 +418,29 @@ func TestPredicateParsing(t *testing.T) {
 		title:    "comment fuzz 2", // "\x2f\x2f..." == "//..."
 		input:    "\x2f\x2f\x00\x00\x00\xe6\xfe\x00\x00\x2f\x00\x00\x00\x00\x00\x00\x00\xe6\xfe\x00\x00\x2f\x00\x00\x00\x00",
 		expected: nil,
+	}, {
+		title: "a trailing comment is ignored",
+		input: `Foo("bar") && Baz("qux") // a trailing comment`,
+		expected: []*Predicate{
+			{Name: "Foo", Args: []interface{}{"bar"}},
+			{Name: "Baz", Args: []interface{}{"qux"}},
+		},
+	}, {
+		title: "a comment before is ignored",
+		input: `// a comment on a separate line
+		Foo("bar") && Baz("qux")`,
+		expected: []*Predicate{
+			{Name: "Foo", Args: []interface{}{"bar"}},
+			{Name: "Baz", Args: []interface{}{"qux"}},
+		},
+	}, {
+		title: "a comment after is ignored",
+		input: `Foo("bar") && Baz("qux")
+		// a comment on a separate line`,
+		expected: []*Predicate{
+			{Name: "Foo", Args: []interface{}{"bar"}},
+			{Name: "Baz", Args: []interface{}{"qux"}},
+		},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			p, err := ParsePredicates(test.input)
