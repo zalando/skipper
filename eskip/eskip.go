@@ -616,25 +616,6 @@ func parse(code string) ([]*parsedRoute, error) {
 	return lp.lexer.routes, lp.lexer.err
 }
 
-func partialRouteToRoute(format, p string) string {
-	p = strings.TrimSpace(p)
-	if p == "" {
-		return ""
-	}
-
-	return fmt.Sprintf(format, p)
-}
-
-// hacks a filter expression into a route expression for parsing.
-func filtersToRoute(f string) string {
-	return partialRouteToRoute("* -> %s -> <shunt>", f)
-}
-
-// hacks a predicate expression into a route expression for parsing.
-func predicatesToRoute(p string) string {
-	return partialRouteToRoute("%s -> <shunt>", p)
-}
-
 // Parses a route expression or a routing document to a set of route definitions.
 func Parse(code string) ([]*Route, error) {
 	parsedRoutes, err := parse(code)
@@ -685,8 +666,30 @@ func MustParseFilters(s string) []*Filter {
 	return p
 }
 
-func partialParse(f string, partialToRoute func(string) string) (*parsedRoute, error) {
-	rs, err := parse(partialToRoute(f))
+// Parses a filter chain into a list of parsed filter definitions.
+func ParseFilters(f string) ([]*Filter, error) {
+	f = strings.TrimSpace(f)
+	if f == "" {
+		return nil, nil
+	}
+
+	rs, err := parse("* -> " + f + " -> <shunt>")
+	if err != nil {
+		return nil, err
+	}
+
+	return rs[0].filters, nil
+}
+
+// ParsePredicates parses a set of predicates (combined by '&&') into
+// a list of parsed predicate definitions.
+func ParsePredicates(p string) ([]*Predicate, error) {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return nil, nil
+	}
+
+	rs, err := parse(p + " -> <shunt>")
 	if err != nil {
 		return nil, err
 	}
@@ -695,33 +698,12 @@ func partialParse(f string, partialToRoute func(string) string) (*parsedRoute, e
 		return nil, nil
 	}
 
-	return rs[0], nil
-}
-
-// Parses a filter chain into a list of parsed filter definitions.
-func ParseFilters(f string) ([]*Filter, error) {
-	r, err := partialParse(f, filtersToRoute)
-	if r == nil || err != nil {
-		return nil, err
-	}
-
-	return r.filters, nil
-}
-
-// ParsePredicates parses a set of predicates (combined by '&&') into
-// a list of parsed predicate definitions.
-func ParsePredicates(p string) ([]*Predicate, error) {
-	r, err := partialParse(p, predicatesToRoute)
-	if r == nil || err != nil {
-		return nil, err
-	}
-
 	var ps []*Predicate
-	for i := range r.matchers {
-		if r.matchers[i].name != "*" {
+	for _, matcher := range rs[0].matchers {
+		if matcher.name != "*" {
 			ps = append(ps, &Predicate{
-				Name: r.matchers[i].name,
-				Args: r.matchers[i].args,
+				Name: matcher.name,
+				Args: matcher.args,
 			})
 		}
 	}

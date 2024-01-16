@@ -24,14 +24,14 @@ func (sf scannerFunc) scan(code string) (token, string, error) { return sf(code)
 
 type eskipLex struct {
 	code          string
-	lastToken     *token
+	lastToken     string
 	lastRouteID   string
 	err           error
 	initialLength int
 	routes        []*parsedRoute
 }
 
-type fixedScanner string
+type fixedScanner token
 
 const (
 	escapeChar  = '\\'
@@ -48,51 +48,27 @@ var (
 	eof              = errors.New("eof")
 )
 
-// now this needs to be sorted
-var fixedTokens = []fixedScanner{
-	"&&",
-	"*",
-	"->",
-	")",
-	":",
-	",",
-	"(",
-	";",
-	"<shunt>",
-	"<loopback>",
-	"<dynamic>",
-	"<",
-	">",
+var (
+	andToken        = &fixedScanner{and, "&&"}
+	anyToken        = &fixedScanner{any, "*"}
+	arrowToken      = &fixedScanner{arrow, "->"}
+	closeparenToken = &fixedScanner{closeparen, ")"}
+	colonToken      = &fixedScanner{colon, ":"}
+	commaToken      = &fixedScanner{comma, ","}
+	openparenToken  = &fixedScanner{openparen, "("}
+	semicolonToken  = &fixedScanner{semicolon, ";"}
+	openarrowToken  = &fixedScanner{openarrow, "<"}
+	closearrowToken = &fixedScanner{closearrow, ">"}
+)
+
+var openarrowPrefixedTokens = []*fixedScanner{
+	{shunt, "<shunt>"},
+	{loopback, "<loopback>"},
+	{dynamic, "<dynamic>"},
 }
 
-var fixedTokenIDs = map[fixedScanner]int{
-	"&&":         and,
-	"*":          any,
-	"->":         arrow,
-	")":          closeparen,
-	":":          colon,
-	",":          comma,
-	"(":          openparen,
-	";":          semicolon,
-	"<shunt>":    shunt,
-	"<loopback>": loopback,
-	"<dynamic>":  dynamic,
-	"<":          openarrow,
-	">":          closearrow,
-}
-
-func (t token) String() string { return t.val }
-
-func (fs fixedScanner) scan(code string) (t token, rest string, err error) {
-	if len(code) < len(fs) {
-		err = unexpectedToken
-		return
-	}
-
-	t.id = fixedTokenIDs[fs]
-	t.val = string(fs)
-	rest = code[len(fs):]
-	return
+func (fs *fixedScanner) scan(code string) (t token, rest string, err error) {
+	return token(*fs), code[len(fs.val):], nil
 }
 
 func (l *eskipLex) init(code string) {
@@ -100,7 +76,6 @@ func (l *eskipLex) init(code string) {
 	l.initialLength = len(code)
 }
 
-func isWhitespace(c byte) bool  { return unicode.IsSpace(rune(c)) }
 func isNewline(c byte) bool     { return c == newlineChar }
 func isUnderscore(c byte) bool  { return c == underscore }
 func isAlpha(c byte) bool       { return unicode.IsLetter(rune(c)) }
@@ -109,14 +84,13 @@ func isSymbolChar(c byte) bool  { return isUnderscore(c) || isAlpha(c) || isDigi
 func isDecimalChar(c byte) bool { return c == decimalChar }
 func isNumberChar(c byte) bool  { return isDecimalChar(c) || isDigit(c) }
 
-func scanWhile(code string, p charPredicate) ([]byte, string) {
-	var b []byte
-	for len(code) > 0 && p(code[0]) {
-		b = append(b, code[0])
-		code = code[1:]
+func scanWhile(code string, p charPredicate) (string, string) {
+	for i := 0; i < len(code); i++ {
+		if !p(code[i]) {
+			return code[0:i], code[i:]
+		}
 	}
-
-	return b, code
+	return code, ""
 }
 
 func scanVoid(code string, p charPredicate) string {
@@ -124,13 +98,21 @@ func scanVoid(code string, p charPredicate) string {
 	return rest
 }
 
-func scanEscaped(delimiter byte, code string) ([]byte, string) {
-	var b []byte
+func scanEscaped(delimiter byte, code string) (string, string) {
+	// fast path: check if there is a delimiter without preceding escape character
+	for i := 0; i < len(code); i++ {
+		c := code[i]
+		if c == delimiter {
+			return code[:i], code[i:]
+		} else if c == escapeChar {
+			break
+		}
+	}
+
+	var sb strings.Builder
 	escaped := false
 	for len(code) > 0 {
 		c := code[0]
-		isDelimiter := c == delimiter
-		isEscapeChar := c == escapeChar
 
 		if escaped {
 			switch c {
@@ -151,31 +133,29 @@ func scanEscaped(delimiter byte, code string) ([]byte, string) {
 			case delimiter:
 			case escapeChar:
 			default:
-				b = append(b, escapeChar)
+				sb.WriteByte(escapeChar)
 			}
 
-			b = append(b, c)
+			sb.WriteByte(c)
 			escaped = false
 		} else {
-			if isDelimiter {
-				return b, code
+			if c == delimiter {
+				return sb.String(), code
 			}
 
-			if isEscapeChar {
+			if c == escapeChar {
 				escaped = true
 			} else {
-				b = append(b, c)
+				sb.WriteByte(c)
 			}
 		}
-
 		code = code[1:]
 	}
-
-	return b, code
+	return sb.String(), code
 }
 
-func scanRegexp(code string) ([]byte, string) {
-	var b []byte
+func scanRegexp(code string) (string, string) {
+	var sb strings.Builder
 	escaped := false
 	var insideGroup = false
 	for len(code) > 0 {
@@ -193,35 +173,35 @@ func scanRegexp(code string) ([]byte, string) {
 		if escaped {
 			//delimiter / is escaped in PathRegexp so that it means no end PathRegexp(/\//)
 			if !isDelimiter && !isEscapeChar {
-				b = append(b, escapeChar)
+				sb.WriteByte(escapeChar)
 			}
-			b = append(b, c)
+			sb.WriteByte(c)
 			escaped = false
 		} else {
 			if isDelimiter && !insideGroup {
-				return b, code
+				return sb.String(), code
 			}
 			if isEscapeChar {
 				escaped = true
 			} else {
-				b = append(b, c)
+				sb.WriteByte(c)
 			}
 		}
 		code = code[1:]
 	}
-	return b, code
+	return sb.String(), code
 }
 
 func scanRegexpLiteral(code string) (t token, rest string, err error) {
-	b, rest := scanRegexp(code[1:])
+	t.id = regexpliteral
+	t.val, rest = scanRegexp(code[1:])
 	if len(rest) == 0 {
 		err = incompleteToken
 		return
 	}
 
 	rest = rest[1:]
-	t.id = regexpliteral
-	t.val = string(b)
+
 	return
 }
 
@@ -238,24 +218,33 @@ func scanRegexpOrComment(code string) (t token, rest string, err error) {
 		return
 	}
 
-	t, rest, err = scanRegexpLiteral(code)
-	return
+	return scanRegexpLiteral(code)
 }
 
 func scanStringLiteral(delimiter byte, code string) (t token, rest string, err error) {
-	b, rest := scanEscaped(delimiter, code[1:])
+	t.id = stringliteral
+	t.val, rest = scanEscaped(delimiter, code[1:])
 	if len(rest) == 0 {
 		err = incompleteToken
 		return
 	}
 
 	rest = rest[1:]
-	t.id = stringliteral
-	t.val = string(b)
+
 	return
 }
 
-func scanWhitespace(code string) string { return scanVoid(code, isWhitespace) }
+func scanWhitespace(code string) string {
+	start := 0
+	for ; start < len(code); start++ {
+		c := code[start]
+		// check frequent values first
+		if c != ' ' && c != '\n' && c != '\t' && c != '\v' && c != '\f' && c != '\r' && c != 0x85 && c != 0xA0 {
+			break
+		}
+	}
+	return code[start:]
+}
 func scanComment(code string) string {
 	return scanVoid(code, func(c byte) bool { return !isNewline(c) })
 }
@@ -263,8 +252,9 @@ func scanDoubleQuote(code string) (token, string, error) { return scanStringLite
 func scanBacktick(code string) (token, string, error)    { return scanStringLiteral('`', code) }
 
 func scanNumber(code string) (t token, rest string, err error) {
+	t.id = number
 	decimal := false
-	b, rest := scanWhile(code, func(c byte) bool {
+	t.val, rest = scanWhile(code, func(c byte) bool {
 		if isDecimalChar(c) {
 			if decimal {
 				return false
@@ -277,65 +267,68 @@ func scanNumber(code string) (t token, rest string, err error) {
 		return isDigit(c)
 	})
 
-	if isDecimalChar(b[len(b)-1]) {
+	if isDecimalChar(t.val[len(t.val)-1]) {
 		err = incompleteToken
 		return
 	}
 
-	t.id = number
-	t.val = string(b)
 	return
 }
 
 func scanSymbol(code string) (t token, rest string, err error) {
-	b, rest := scanWhile(code, isSymbolChar)
 	t.id = symbol
-	t.val = string(b)
+	t.val, rest = scanWhile(code, isSymbolChar)
 	return
 }
 
-func selectFixed(code string) scanner {
-	for _, fixed := range fixedTokens {
-		if len(code) >= len(fixed) && strings.HasPrefix(code, string(fixed)) {
-			return fixed
-		}
-	}
-
-	return nil
-}
-
-func selectVaryingScanner(code string) scanner {
-	var sf scannerFunc
+func selectScanner(code string) scanner {
 	switch code[0] {
+	case ',':
+		return commaToken
+	case ')':
+		return closeparenToken
+	case '(':
+		return openparenToken
+	case ':':
+		return colonToken
+	case ';':
+		return semicolonToken
+	case '>':
+		return closearrowToken
+	case '*':
+		return anyToken
+	case '&':
+		if len(code) >= 2 && code[1] == '&' {
+			return andToken
+		}
+	case '-':
+		if len(code) >= 2 && code[1] == '>' {
+			return arrowToken
+		}
 	case '/':
-		sf = scanRegexpOrComment
+		return scannerFunc(scanRegexpOrComment)
 	case '"':
-		sf = scanDoubleQuote
+		return scannerFunc(scanDoubleQuote)
 	case '`':
-		sf = scanBacktick
+		return scannerFunc(scanBacktick)
+	case '<':
+		for _, tok := range openarrowPrefixedTokens {
+			if strings.HasPrefix(code, tok.val) {
+				return tok
+			}
+		}
+		return openarrowToken
 	}
 
 	if isNumberChar(code[0]) {
-		sf = scanNumber
+		return scannerFunc(scanNumber)
 	}
 
 	if isAlpha(code[0]) || isUnderscore(code[0]) {
-		sf = scanSymbol
-	}
-
-	if sf != nil {
-		return scanner(sf)
+		return scannerFunc(scanSymbol)
 	}
 
 	return nil
-}
-
-func selectScanner(code string) scanner {
-	if s := selectFixed(code); s != nil {
-		return s
-	}
-
-	return selectVaryingScanner(code)
 }
 
 func (l *eskipLex) next() (t token, err error) {
@@ -357,14 +350,14 @@ func (l *eskipLex) next() (t token, err error) {
 	}
 
 	if err == nil {
-		l.lastToken = &t
+		l.lastToken = t.val
 	}
 
 	return
 }
 
 func (l *eskipLex) Lex(lval *eskipSymType) int {
-	token, err := l.next()
+	t, err := l.next()
 	if err == eof {
 		return -1
 	}
@@ -374,12 +367,12 @@ func (l *eskipLex) Lex(lval *eskipSymType) int {
 		return -1
 	}
 
-	lval.token = token.val
-	return token.id
+	lval.token = t.val
+	return t.id
 }
 
 func (l *eskipLex) Error(err string) {
 	l.err = fmt.Errorf(
-		"parse failed after token %v, last route id: %v, position %d: %s",
+		"parse failed after token %s, last route id: %v, position %d: %s",
 		l.lastToken, l.lastRouteID, l.initialLength-len(l.code), err)
 }
