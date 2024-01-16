@@ -31,8 +31,6 @@ type eskipSymType struct {
 	dynamic     bool
 	lbBackend   bool
 	numval      float64
-	stringval   string
-	regexpval   string
 	stringvals  []string
 	lbAlgorithm string
 	lbEndpoints []string
@@ -93,62 +91,61 @@ var eskipExca = [...]int8{
 
 const eskipPrivate = 57344
 
-const eskipLast = 62
+const eskipLast = 56
 
 var eskipAct = [...]int8{
-	34, 40, 32, 31, 24, 17, 20, 21, 22, 25,
-	27, 26, 19, 48, 36, 9, 37, 25, 41, 9,
-	16, 25, 25, 3, 10, 7, 14, 42, 29, 43,
-	4, 55, 8, 45, 44, 49, 45, 30, 28, 19,
-	50, 15, 13, 47, 46, 38, 23, 51, 52, 39,
-	53, 42, 54, 12, 35, 11, 33, 18, 5, 6,
-	2, 1,
+	38, 31, 30, 24, 17, 20, 21, 22, 19, 26,
+	25, 35, 46, 34, 40, 39, 9, 9, 33, 3,
+	16, 40, 51, 10, 7, 14, 41, 4, 47, 28,
+	8, 48, 53, 29, 43, 13, 36, 27, 15, 23,
+	45, 44, 37, 32, 49, 50, 42, 18, 43, 52,
+	12, 5, 11, 6, 2, 1,
 }
 
 var eskipPact = [...]int16{
-	14, -1000, 11, -1000, -1000, 49, 34, -1000, 15, -1000,
-	2, -8, 10, 10, 4, -1000, -1000, -1000, 39, -1000,
-	-1000, -1000, -1000, -1000, -1000, -1000, 0, 18, -1000, 15,
-	-1000, 27, -1000, -1000, -1000, -1000, -1000, -1000, -8, -7,
-	26, 31, -1000, 4, -1000, 4, -1000, -1000, -1000, 5,
-	5, 24, -1000, -1000, 26, -1000,
+	12, -1000, 10, -1000, -1000, 46, 27, -1000, 14, -1000,
+	2, -9, 11, 11, 1, -1000, -1000, -1000, 30, -1000,
+	-1000, -1000, -1000, -1000, -1000, -3, 15, -1000, 14, -1000,
+	39, -1000, -1000, -1000, -1000, -1000, -9, -8, 19, 22,
+	-1000, 1, -1000, 1, -1000, -1000, -1000, 5, 4, 25,
+	-1000, -1000, 19, -1000,
 }
 
 var eskipPgo = [...]int8{
-	0, 61, 60, 23, 30, 59, 58, 5, 57, 25,
-	3, 4, 2, 56, 0, 54, 1, 49, 46,
+	0, 55, 54, 19, 27, 53, 51, 4, 47, 24,
+	2, 3, 1, 43, 0, 42, 39,
 }
 
 var eskipR1 = [...]int8{
 	0, 1, 1, 2, 2, 2, 2, 4, 5, 3,
 	3, 6, 6, 9, 9, 8, 8, 11, 10, 10,
-	10, 12, 12, 12, 16, 16, 17, 17, 18, 7,
-	7, 7, 7, 7, 13, 14, 15,
+	10, 12, 12, 12, 14, 14, 15, 15, 16, 7,
+	7, 7, 7, 7, 13,
 }
 
 var eskipR2 = [...]int8{
 	0, 1, 1, 0, 1, 3, 2, 3, 1, 3,
 	5, 1, 3, 1, 4, 1, 3, 4, 0, 1,
 	3, 1, 1, 1, 1, 3, 1, 3, 3, 1,
-	1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1,
 }
 
 var eskipChk = [...]int16{
 	-1000, -1, -2, -3, -4, -6, -5, -9, 18, 5,
-	13, 6, 4, 8, 11, -4, 18, -7, -8, -14,
-	14, 15, 16, -18, -11, 17, 19, 18, -9, 18,
-	-3, -10, -12, -13, -14, -15, 10, 12, 6, -17,
-	-16, 18, -14, 11, 7, 9, -7, -11, 20, 9,
-	9, -10, -12, -14, -16, 7,
+	13, 6, 4, 8, 11, -4, 18, -7, -8, 17,
+	14, 15, 16, -16, -11, 19, 18, -9, 18, -3,
+	-10, -12, -13, 17, 12, 10, 6, -15, -14, 18,
+	17, 11, 7, 9, -7, -11, 20, 9, 9, -10,
+	-12, 17, -14, 7,
 }
 
 var eskipDef = [...]int8{
 	3, -2, 1, 2, 4, 0, 0, 11, 8, 13,
 	6, 0, 0, 0, 18, 5, 8, 9, 0, 29,
-	30, 31, 32, 33, 15, 35, 0, 0, 12, 0,
-	7, 0, 19, 21, 22, 23, 34, 36, 0, 0,
-	26, 0, 24, 18, 14, 0, 10, 16, 28, 0,
-	0, 0, 20, 25, 27, 17,
+	30, 31, 32, 33, 15, 0, 0, 12, 0, 7,
+	0, 19, 21, 22, 23, 34, 0, 0, 26, 0,
+	24, 18, 14, 0, 10, 16, 28, 0, 0, 0,
+	20, 25, 27, 17,
 }
 
 var eskipTok1 = [...]int8{
@@ -633,23 +630,23 @@ eskipdefault:
 	case 22:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		{
-			eskipVAL.arg = eskipDollar[1].stringval
+			eskipVAL.arg = eskipDollar[1].token
 		}
 	case 23:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		{
-			eskipVAL.arg = eskipDollar[1].regexpval
+			eskipVAL.arg = eskipDollar[1].token
 		}
 	case 24:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		{
-			eskipVAL.stringvals = []string{eskipDollar[1].stringval}
+			eskipVAL.stringvals = []string{eskipDollar[1].token}
 		}
 	case 25:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
 		{
 			eskipVAL.stringvals = eskipDollar[1].stringvals
-			eskipVAL.stringvals = append(eskipVAL.stringvals, eskipDollar[3].stringval)
+			eskipVAL.stringvals = append(eskipVAL.stringvals, eskipDollar[3].token)
 		}
 	case 26:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
@@ -671,7 +668,7 @@ eskipdefault:
 	case 29:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		{
-			eskipVAL.backend = eskipDollar[1].stringval
+			eskipVAL.backend = eskipDollar[1].token
 			eskipVAL.shunt = false
 			eskipVAL.loopback = false
 			eskipVAL.dynamic = false
@@ -715,16 +712,6 @@ eskipdefault:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		{
 			eskipVAL.numval = convertNumber(eskipDollar[1].token)
-		}
-	case 35:
-		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		{
-			eskipVAL.stringval = eskipDollar[1].token
-		}
-	case 36:
-		eskipDollar = eskipS[eskippt-1 : eskippt+1]
-		{
-			eskipVAL.regexpval = eskipDollar[1].token
 		}
 	}
 	goto eskipstack /* stack new state and value */
