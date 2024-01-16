@@ -93,7 +93,7 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 
 				epi.Metrics.SetLastSeen(now)
 			}
-		} else {
+		} else if route.BackendType == eskip.NetworkBackend {
 			entry := r.GetMetrics(route.Host)
 			if entry.DetectedTime().IsZero() {
 				entry.SetDetected(now)
@@ -134,4 +134,13 @@ func (r *EndpointRegistry) GetMetrics(hostPort string) Metrics {
 		e, _ = r.data.LoadOrStore(hostPort, newEntry())
 	}
 	return e.(*entry)
+}
+
+func (r *EndpointRegistry) allMetrics() map[string]Metrics {
+	result := make(map[string]Metrics)
+	r.data.Range(func(k, v any) bool {
+		result[k.(string)] = v.(Metrics)
+		return true
+	})
+	return result
 }
