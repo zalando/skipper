@@ -114,6 +114,53 @@ func TestDoRemovesOldEntries(t *testing.T) {
 	assert.Equal(t, int64(0), mRemoved.InflightRequests())
 }
 
+func TestEndpointRegistryPostProcessor(t *testing.T) {
+	beginTestTs := time.Now()
+	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+
+	routing.SetNow(r, func() time.Time {
+		return beginTestTs
+	})
+	routes := []*routing.Route{
+		{
+			Route: eskip.Route{
+				BackendType: eskip.ShuntBackend,
+			},
+		},
+		{
+			Route: eskip.Route{
+				BackendType: eskip.LoopBackend,
+			},
+		},
+		{
+			Route: eskip.Route{
+				BackendType: eskip.DynamicBackend,
+			},
+		},
+		{
+			Route: eskip.Route{
+				BackendType: eskip.LBBackend,
+			},
+			LBEndpoints: []routing.LBEndpoint{
+				{Host: "endpoint1.test:80", Metrics: r.GetMetrics("endpoint1.test:80")},
+				{Host: "endpoint2.test:80", Metrics: r.GetMetrics("endpoint2.test:80")},
+			},
+		},
+		{
+			Route: eskip.Route{
+				BackendType: eskip.NetworkBackend,
+			},
+			Host: "endpoint3.test:80",
+		},
+	}
+	r.Do(routes)
+
+	assert.Equal(t, 3, len(routing.ExportEndpointRegistryAllMetrics(r)))
+	assert.Equal(t, beginTestTs, r.GetMetrics("endpoint1.test:80").DetectedTime())
+	assert.Equal(t, beginTestTs, r.GetMetrics("endpoint2.test:80").DetectedTime())
+	assert.Equal(t, beginTestTs, r.GetMetrics("endpoint3.test:80").DetectedTime())
+}
+
 func TestMetricsMethodsDoNotAllocate(t *testing.T) {
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	metrics := r.GetMetrics("some key")
