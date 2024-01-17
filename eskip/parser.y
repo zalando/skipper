@@ -1,11 +1,11 @@
 // Copyright 2015 Zalando SE
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 // http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,8 +32,8 @@ func convertNumber(s string) float64 {
 	token string
 	route *parsedRoute
 	routes []*parsedRoute
-	matchers []*matcher
-	matcher *matcher
+	predicates []*Predicate
+	predicate *Predicate
 	filter *Filter
 	filters []*Filter
 	args []interface{}
@@ -110,9 +110,9 @@ routeid:
 	}
 
 route:
-	frontend arrow backend {
+	predicates arrow backend {
 		$$.route = &parsedRoute{
-			matchers: $1.matchers,
+			predicates: $1.predicates,
 			backend: $3.backend,
 			shunt: $3.shunt,
 			loopback: $3.loopback,
@@ -121,13 +121,13 @@ route:
 			lbAlgorithm: $3.lbAlgorithm,
 			lbEndpoints: $3.lbEndpoints,
 		}
-		$1.matchers = nil
+		$1.predicates = nil
 		$3.lbEndpoints = nil
 	}
 	|
-	frontend arrow filters arrow backend {
+	predicates arrow filters arrow backend {
 		$$.route = &parsedRoute{
-			matchers: $1.matchers,
+			predicates: $1.predicates,
 			filters: $3.filters,
 			backend: $5.backend,
 			shunt: $5.shunt,
@@ -137,28 +137,28 @@ route:
 			lbAlgorithm: $5.lbAlgorithm,
 			lbEndpoints: $5.lbEndpoints,
 		}
-		$1.matchers = nil
+		$1.predicates = nil
 		$3.filters = nil
 		$5.lbEndpoints = nil
 	}
 
-frontend:
-	matcher {
-		$$.matchers = []*matcher{$1.matcher}
+predicates:
+	predicate {
+		$$.predicates = []*Predicate{$1.predicate}
 	}
 	|
-	frontend and matcher {
-		$$.matchers = $1.matchers
-		$$.matchers = append($$.matchers, $3.matcher)
+	predicates and predicate {
+		$$.predicates = $1.predicates
+		$$.predicates = append($$.predicates, $3.predicate)
 	}
 
-matcher:
+predicate:
 	any {
-		$$.matcher = &matcher{"*", nil}
+		$$.predicate = &Predicate{"*", nil}
 	}
 	|
 	symbol openparen args closeparen {
-		$$.matcher = &matcher{$1.token, $3.args}
+		$$.predicate = &Predicate{$1.token, $3.args}
 		$3.args = nil
 	}
 
