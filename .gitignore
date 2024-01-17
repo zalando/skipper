@@ -23,3 +23,5 @@ opentracingplugin/build
 build/
 skptesting/lorem.html
 .vscode/*
+*.test
+

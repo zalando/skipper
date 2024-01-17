@@ -3,6 +3,7 @@ package eskip
 import (
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -846,6 +847,39 @@ func BenchmarkParsePredicates(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = ParsePredicates(doc)
+	}
+}
+
+func BenchmarkParse(b *testing.B) {
+	doc := strings.Repeat(`xxxx_xx__xxxxx__xxx_xxxxxxxx_xxxxxxxxxx_xxxxxxx_xxxxxxx_xxxxxxx_xxxxx__xxx__40_0:
+		Path("/xxxxxxxxx/:xxxxxxxx_xx/xxxxxxxx-xxxxxxxxxx-xxxxxxxxx")
+		&& Host("^(xxx-xxxxxxxx-xxxxxxxxxx-xxxxxxx-xxxxxxx-xxxx-18[.]xxx-xxxx[.]xxxxx[.]xx[.]?(:[0-9]+)?|xxx-xxxxxxxx-xxxxxxxxxx-xxxxxxx-xxxxxxx-xxxx-19[.]xxx-xxxx[.]xxxxx[.]xx[.]?(:[0-9]+)?|xxx-xxxxxxxx-xxxxxxxxxx-xxxxxxx-xxxxxxx-xxxx-20[.]xxx-xxxx[.]xxxxx[.]xx[.]?(:[0-9]+)?|xxx-xxxxxxxx-xxxxxxxxxx-xxxxxxx-xxxxxxx-xxxx-21[.]xxx-xxxx[.]xxxxx[.]xx[.]?(:[0-9]+)?|xxx-xxxxxxxx-xxxxxxxxxx-xxxxxxx-xxxxxxx[.]xxx-xxxx[.]xxxxx[.]xx[.]?(:[0-9]+)?|xxxxxxxxx-xxxxxxxx-xxxxxxxxxx-xxxxxxx[.]xxxxxxxxxxx[.]xxx[.]?(:[0-9]+)?)$")
+		&& Host("^(xxx-xxxxxxxx-xxxxxxxxxx-xxxxxxx-xxxxxxx-xxxx-21[.]xxx-xxxx[.]xxxxx[.]xx[.]?(:[0-9]+)?)$")
+		&& Weight(4)
+		&& Method("GET")
+		&& JWTPayloadAllKV("xxxxx://xxxxxxxx.xxxxxxx.xxx/xxxxx", "xxxxx")
+		&& Header("X-Xxxxxxxxx-Xxxxx", "xxxxx")
+		-> disableAccessLog(2, 3, 40, 500)
+		-> fifo(1000, 100, "10s")
+		-> apiUsageMonitoring("{\"xxx_xx\":\"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\",\"xxxxxxxxxxx_xx\":\"xxx-xxxxxxxx-xxxxxxxxxx\",\"xxxx_xxxxxxxxx\":[\"/xxxxxxxxx/{xxxxxxxx_xx}/xxxxxxxx-xxxxxxxxxx\",\"/xxxxxxxxx/{xxxxxxxx_xx}/xxxxxxxx-xxxxxxxxxx-xxxxxxx\",\"/xxxxxxxxx/{xxxxxxxx_xx}/xxxxxxxx-xxxxxxxxxx-xxxxxxxxx\"]}")
+		-> oauthTokeninfoAnyKV("xxxxx", "/xxxxxxxxx")
+		-> unverifiedAuditLog("xxxxx://xxxxxxxx.xxxxxxx.xxx/xxxxxxx-xx")
+		-> oauthTokeninfoAllScope("xxx")
+		-> flowId("reuse")
+		-> forwardToken("X-XxxxxXxxx-Xxxxxxx", "xxx", "xxxxx", "xxxxx")
+		-> stateBagToTag("xxxx-xxxx", "xxxxxx.xxx")
+		-> <powerOfRandomNChoices, "http://1.2.1.1:8080", "http://1.2.1.2:8080", "http://1.2.1.3:8080", "http://1.2.1.4:8080", "http://1.2.1.5:8080">;
+	`, 10_000)
+
+	_, err := Parse(doc)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = Parse(doc)
 	}
 }
 

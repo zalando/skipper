@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode"
 )
 
 type token struct {
@@ -13,14 +12,6 @@ type token struct {
 }
 
 type charPredicate func(byte) bool
-
-type scanner interface {
-	scan(string) (token, string, error)
-}
-
-type scannerFunc func(string) (token, string, error)
-
-func (sf scannerFunc) scan(code string) (token, string, error) { return sf(code) }
 
 type eskipLex struct {
 	code          string
@@ -78,11 +69,11 @@ func (l *eskipLex) init(code string) {
 
 func isNewline(c byte) bool     { return c == newlineChar }
 func isUnderscore(c byte) bool  { return c == underscore }
-func isAlpha(c byte) bool       { return unicode.IsLetter(rune(c)) }
-func isDigit(c byte) bool       { return unicode.IsDigit(rune(c)) }
-func isSymbolChar(c byte) bool  { return isUnderscore(c) || isAlpha(c) || isDigit(c) }
+func isAlpha(c byte) bool       { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') }
+func isDigit(c byte) bool       { return c >= '0' && c <= '9' }
+func isSymbolChar(c byte) bool  { return isAlpha(c) || isDigit(c) || isUnderscore(c) }
 func isDecimalChar(c byte) bool { return c == decimalChar }
-func isNumberChar(c byte) bool  { return isDecimalChar(c) || isDigit(c) }
+func isNumberChar(c byte) bool  { return isDigit(c) || isDecimalChar(c) }
 
 func scanWhile(code string, p charPredicate) (string, string) {
 	for i := 0; i < len(code); i++ {
@@ -277,74 +268,78 @@ func scanNumber(code string) (t token, rest string, err error) {
 
 func scanSymbol(code string) (t token, rest string, err error) {
 	t.id = symbol
-	t.val, rest = scanWhile(code, isSymbolChar)
+	for i := 0; i < len(code); i++ {
+		if !isSymbolChar(code[i]) {
+			t.val, rest = code[0:i], code[i:]
+			return
+		}
+	}
+	t.val, rest = code, ""
 	return
 }
 
-func selectScanner(code string) scanner {
+func scan(code string) (token, string, error) {
 	switch code[0] {
 	case ',':
-		return commaToken
+		return commaToken.scan(code)
 	case ')':
-		return closeparenToken
+		return closeparenToken.scan(code)
 	case '(':
-		return openparenToken
+		return openparenToken.scan(code)
 	case ':':
-		return colonToken
+		return colonToken.scan(code)
 	case ';':
-		return semicolonToken
+		return semicolonToken.scan(code)
 	case '>':
-		return closearrowToken
+		return closearrowToken.scan(code)
 	case '*':
-		return anyToken
+		return anyToken.scan(code)
 	case '&':
 		if len(code) >= 2 && code[1] == '&' {
-			return andToken
+			return andToken.scan(code)
 		}
 	case '-':
 		if len(code) >= 2 && code[1] == '>' {
-			return arrowToken
+			return arrowToken.scan(code)
 		}
 	case '/':
-		return scannerFunc(scanRegexpOrComment)
+		return scanRegexpOrComment(code)
 	case '"':
-		return scannerFunc(scanDoubleQuote)
+		return scanDoubleQuote(code)
 	case '`':
-		return scannerFunc(scanBacktick)
+		return scanBacktick(code)
 	case '<':
 		for _, tok := range openarrowPrefixedTokens {
 			if strings.HasPrefix(code, tok.val) {
-				return tok
+				return tok.scan(code)
 			}
 		}
-		return openarrowToken
+		return openarrowToken.scan(code)
 	}
 
 	if isNumberChar(code[0]) {
-		return scannerFunc(scanNumber)
+		return scanNumber(code)
 	}
 
 	if isAlpha(code[0]) || isUnderscore(code[0]) {
-		return scannerFunc(scanSymbol)
+		return scanSymbol(code)
 	}
 
-	return nil
+	return token{}, "", unexpectedToken
 }
 
-func (l *eskipLex) next() (t token, err error) {
+func (l *eskipLex) next() (token, error) {
 	l.code = scanWhitespace(l.code)
 	if len(l.code) == 0 {
-		err = eof
-		return
+		return token{}, eof
 	}
 
-	s := selectScanner(l.code)
-	if s == nil {
-		err = unexpectedToken
-		return
+	t, rest, err := scan(l.code)
+	if err == unexpectedToken {
+		return token{}, err
 	}
+	l.code = rest
 
-	t, l.code, err = s.scan(l.code)
 	if err == void {
 		return l.next()
 	}
@@ -353,7 +348,7 @@ func (l *eskipLex) next() (t token, err error) {
 		l.lastToken = t.val
 	}
 
-	return
+	return t, err
 }
 
 func (l *eskipLex) Lex(lval *eskipSymType) int {
