@@ -10,10 +10,17 @@ if [ -z "$c" ]; then c=128; fi
 wd=$3
 if [ -z "$wd" ]; then wd=3; fi
 
+# skipper binary to use
+bin=$4
+if [ -z "$bin" ]
+then
+        go install github.com/zalando/skipper/cmd/skipper@latest
+        if [ $? -ne 0 ]; then exit -1; fi
+        bin="${GOBIN}/skipper"
+fi
+
 cwd=$GOPATH/src/github.com/zalando/skipper/skptesting
 cd $cwd
-GO111MODULE=on go install github.com/zalando/skipper/...
-if [ $? -ne 0 ]; then exit -1; fi
 
 loremHead='<!doctype html>
 <html>
@@ -71,7 +78,7 @@ skp() {
 		tokeninfo_url=http://localhost:9999
 	fi
 
-	skipper -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
+	$bin -access-log-disabled -address "$1" -routes-file "$cwd"/"$2" -insecure \
 		-support-listener :0 \
 		-oauth2-tokeninfo-url "$tokeninfo_url" \
 		-idle-conns-num "$c" -close-idle-conns-period=3s \

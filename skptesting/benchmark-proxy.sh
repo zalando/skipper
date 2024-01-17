@@ -1,11 +1,11 @@
 #! /bin/bash
 
+source "${GOPATH}/src/github.com/zalando/skipper/skptesting/benchmark.inc"
+
 if [ "$1" == -help ]; then
-	log benchmark-proxy.sh [duration] [connections] [warmup-duration]
+	log "benchmark-proxy.sh [duration] [connections] [warmup-duration] [skipper-binary]"
 	exit 0
 fi
-
-source $GOPATH/src/github.com/zalando/skipper/skptesting/benchmark.inc
 
 check_deps
 
