@@ -276,7 +276,7 @@ func Test_Validate(t *testing.T) {
 				c.KubernetesEastWestRangePredicatesString = "WrongEastWestMode"
 			},
 			wantErr: true,
-			want:    errors.New("invalid east-west-range-predicates: parse failed after token ->, position 20: syntax error"),
+			want:    errors.New("invalid east-west-range-predicates: parse failed after token WrongEastWestMode, position 17: syntax error"),
 		},
 		{
 			name: "test wrong HistoGramBuckets",

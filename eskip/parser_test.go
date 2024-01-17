@@ -82,14 +82,14 @@ func checkSingleRouteExample(r *parsedRoute, t *testing.T) {
 }
 
 func TestReturnsLexerErrors(t *testing.T) {
-	_, err := parse("invalid code")
+	_, err := parseDocument("invalid code")
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
 func TestParseSingleRoute(t *testing.T) {
-	r, err := parse(singleRouteExample)
+	r, err := parseDocument(singleRouteExample)
 
 	if err != nil {
 		t.Error("failed to parse", err)
@@ -103,7 +103,7 @@ func TestParseSingleRoute(t *testing.T) {
 }
 
 func TestParsingSpecialChars(t *testing.T) {
-	r, err := parse(`Path("newlines") -> inlineContent("Line \ \1\nLine 2\r\nLine 3\a\b\f\n\r\t\v") -> <shunt>`)
+	r, err := parseDocument(`Path("newlines") -> inlineContent("Line \ \1\nLine 2\r\nLine 3\a\b\f\n\r\t\v") -> <shunt>`)
 
 	if err != nil {
 		t.Error("failed to parse", err)
@@ -122,7 +122,7 @@ func TestParsingSpecialChars(t *testing.T) {
 }
 
 func TestParseSingleRouteDef(t *testing.T) {
-	r, err := parse(singleRouteDefExample)
+	r, err := parseDocument(singleRouteDefExample)
 
 	if err != nil {
 		t.Error("failed to parse", err)
@@ -144,14 +144,14 @@ func TestParseInvalidDocument(t *testing.T) {
         route0: Method("GET") -> "https://backend-0.example.com"
         route1: Method("POST") -> "https://backend-1.example.com"`
 
-	_, err := parse(missingSemicolon)
+	_, err := parseDocument(missingSemicolon)
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
 func TestParseDocument(t *testing.T) {
-	r, err := parse(routingDocumentExample)
+	r, err := parseDocument(routingDocumentExample)
 
 	if err != nil {
 		t.Error("failed to parse document", err)
@@ -188,21 +188,21 @@ func TestParseDocument(t *testing.T) {
 }
 
 func TestNumberNotClosedWithDecimalSign(t *testing.T) {
-	_, err := parse(`* -> number(3.) -> <shunt>`)
+	_, err := parseDocument(`* -> number(3.) -> <shunt>`)
 	if err == nil {
 		t.Error("failed to fail")
 	}
 }
 
 func TestNumberStartingWithDecimal(t *testing.T) {
-	_, err := parse(`* -> number(.3) -> <shunt>`)
+	_, err := parseDocument(`* -> number(.3) -> <shunt>`)
 	if err != nil {
 		t.Error("failed to parse number", err)
 	}
 }
 
 func TestNumber(t *testing.T) {
-	_, err := parse(`* -> number(3.14) -> <shunt>`)
+	_, err := parseDocument(`* -> number(3.14) -> <shunt>`)
 	if err != nil {
 		t.Error("failed to parse number", err)
 	}
@@ -221,7 +221,7 @@ func TestRegExp(t *testing.T) {
 }
 
 func testRegExpOnce(t *testing.T, regexpStr string, expectedRegExp string) {
-	routes, err := parse(regexpStr)
+	routes, err := parseDocument(regexpStr)
 	if err != nil {
 		t.Error("failed to parse PathRegexp:"+regexpStr, err)
 		return
