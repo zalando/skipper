@@ -45,11 +45,11 @@ const (
 )
 
 func checkSingleRouteExample(r *parsedRoute, t *testing.T) {
-	if len(r.matchers) != 2 ||
-		r.matchers[0].name != "PathRegexp" || len(r.matchers[0].args) != 1 ||
-		r.matchers[0].args[0] != "\\.html$" ||
-		r.matchers[1].name != "Header" || len(r.matchers[1].args) != 2 ||
-		r.matchers[1].args[0] != "Accept" || r.matchers[1].args[1] != "text/html" {
+	if len(r.predicates) != 2 ||
+		r.predicates[0].Name != "PathRegexp" || len(r.predicates[0].Args) != 1 ||
+		r.predicates[0].Args[0] != "\\.html$" ||
+		r.predicates[1].Name != "Header" || len(r.predicates[1].Args) != 2 ||
+		r.predicates[1].Args[0] != "Accept" || r.predicates[1].Args[1] != "text/html" {
 		t.Error("failed to parse match expression")
 	}
 
@@ -227,7 +227,7 @@ func testRegExpOnce(t *testing.T, regexpStr string, expectedRegExp string) {
 		return
 	}
 
-	if expectedRegExp != routes[0].matchers[0].args[0] {
+	if expectedRegExp != routes[0].predicates[0].Args[0] {
 		t.Error("failed to parse PathRegexp:"+regexpStr+", expected regexp to be "+expectedRegExp, err)
 	}
 }

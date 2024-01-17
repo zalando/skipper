@@ -19,8 +19,8 @@ type eskipSymType struct {
 	token       string
 	route       *parsedRoute
 	routes      []*parsedRoute
-	matchers    []*matcher
-	matcher     *matcher
+	predicates  []*Predicate
+	predicate   *Predicate
 	filter      *Filter
 	filters     []*Filter
 	args        []interface{}
@@ -543,7 +543,7 @@ eskipdefault:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
 		{
 			eskipVAL.route = &parsedRoute{
-				matchers:    eskipDollar[1].matchers,
+				predicates:  eskipDollar[1].predicates,
 				backend:     eskipDollar[3].backend,
 				shunt:       eskipDollar[3].shunt,
 				loopback:    eskipDollar[3].loopback,
@@ -552,14 +552,14 @@ eskipdefault:
 				lbAlgorithm: eskipDollar[3].lbAlgorithm,
 				lbEndpoints: eskipDollar[3].lbEndpoints,
 			}
-			eskipDollar[1].matchers = nil
+			eskipDollar[1].predicates = nil
 			eskipDollar[3].lbEndpoints = nil
 		}
 	case 10:
 		eskipDollar = eskipS[eskippt-5 : eskippt+1]
 		{
 			eskipVAL.route = &parsedRoute{
-				matchers:    eskipDollar[1].matchers,
+				predicates:  eskipDollar[1].predicates,
 				filters:     eskipDollar[3].filters,
 				backend:     eskipDollar[5].backend,
 				shunt:       eskipDollar[5].shunt,
@@ -569,30 +569,30 @@ eskipdefault:
 				lbAlgorithm: eskipDollar[5].lbAlgorithm,
 				lbEndpoints: eskipDollar[5].lbEndpoints,
 			}
-			eskipDollar[1].matchers = nil
+			eskipDollar[1].predicates = nil
 			eskipDollar[3].filters = nil
 			eskipDollar[5].lbEndpoints = nil
 		}
 	case 11:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		{
-			eskipVAL.matchers = []*matcher{eskipDollar[1].matcher}
+			eskipVAL.predicates = []*Predicate{eskipDollar[1].predicate}
 		}
 	case 12:
 		eskipDollar = eskipS[eskippt-3 : eskippt+1]
 		{
-			eskipVAL.matchers = eskipDollar[1].matchers
-			eskipVAL.matchers = append(eskipVAL.matchers, eskipDollar[3].matcher)
+			eskipVAL.predicates = eskipDollar[1].predicates
+			eskipVAL.predicates = append(eskipVAL.predicates, eskipDollar[3].predicate)
 		}
 	case 13:
 		eskipDollar = eskipS[eskippt-1 : eskippt+1]
 		{
-			eskipVAL.matcher = &matcher{"*", nil}
+			eskipVAL.predicate = &Predicate{"*", nil}
 		}
 	case 14:
 		eskipDollar = eskipS[eskippt-4 : eskippt+1]
 		{
-			eskipVAL.matcher = &matcher{eskipDollar[1].token, eskipDollar[3].args}
+			eskipVAL.predicate = &Predicate{eskipDollar[1].token, eskipDollar[3].args}
 			eskipDollar[3].args = nil
 		}
 	case 15:

@@ -202,15 +202,6 @@ func (df *DefaultFilters) Do(routes []*Route) []*Route {
 	return nextRoutes
 }
 
-// Represents a matcher condition for incoming requests.
-type matcher struct {
-	// The name of the matcher, e.g. Path or Header
-	name string
-
-	// The args of the matcher, e.g. the path to be matched.
-	args []interface{}
-}
-
 // BackendType indicates whether a route is a network backend, a shunt or a loopback.
 type BackendType int
 
@@ -228,7 +219,7 @@ var errMixedProtocols = errors.New("loadbalancer endpoints cannot have mixed pro
 // document.
 type parsedRoute struct {
 	id          string
-	matchers    []*matcher
+	predicates  []*Predicate
 	filters     []*Filter
 	shunt       bool
 	loopback    bool
@@ -483,27 +474,27 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 		methodSet bool
 	)
 
-	for _, m := range proute.matchers {
+	for _, p := range proute.predicates {
 		if err != nil {
 			return err
 		}
 
-		switch m.name {
+		switch p.Name {
 		case "Path":
 			if pathSet {
 				return duplicatePathTreePredicateError
 			}
 
-			if args, err = getStringArgs(1, m.args); err == nil {
+			if args, err = getStringArgs(1, p.Args); err == nil {
 				route.Path = args[0]
 				pathSet = true
 			}
 		case "Host":
-			if args, err = getStringArgs(1, m.args); err == nil {
+			if args, err = getStringArgs(1, p.Args); err == nil {
 				route.HostRegexps = append(route.HostRegexps, args[0])
 			}
 		case "PathRegexp":
-			if args, err = getStringArgs(1, m.args); err == nil {
+			if args, err = getStringArgs(1, p.Args); err == nil {
 				route.PathRegexps = append(route.PathRegexps, args[0])
 			}
 		case "Method":
@@ -511,12 +502,12 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 				return duplicateMethodPredicateError
 			}
 
-			if args, err = getStringArgs(1, m.args); err == nil {
+			if args, err = getStringArgs(1, p.Args); err == nil {
 				route.Method = args[0]
 				methodSet = true
 			}
 		case "HeaderRegexp":
-			if args, err = getStringArgs(2, m.args); err == nil {
+			if args, err = getStringArgs(2, p.Args); err == nil {
 				if route.HeaderRegexps == nil {
 					route.HeaderRegexps = make(map[string][]string)
 				}
@@ -524,7 +515,7 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 				route.HeaderRegexps[args[0]] = append(route.HeaderRegexps[args[0]], args[1])
 			}
 		case "Header":
-			if args, err = getStringArgs(2, m.args); err == nil {
+			if args, err = getStringArgs(2, p.Args); err == nil {
 				if route.Headers == nil {
 					route.Headers = make(map[string]string)
 				}
@@ -538,9 +529,7 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 		case "*", "Any":
 			// void
 		default:
-			route.Predicates = append(
-				route.Predicates,
-				&Predicate{m.name, m.args})
+			route.Predicates = append(route.Predicates, p)
 		}
 	}
 
@@ -698,14 +687,15 @@ func ParsePredicates(p string) ([]*Predicate, error) {
 		return nil, nil
 	}
 
-	var ps []*Predicate
-	for _, matcher := range rs[0].matchers {
-		if matcher.name != "*" {
-			ps = append(ps, &Predicate{
-				Name: matcher.name,
-				Args: matcher.args,
-			})
+	r := rs[0]
+	ps := make([]*Predicate, 0, len(r.predicates))
+	for _, p := range r.predicates {
+		if p.Name != "*" {
+			ps = append(ps, p)
 		}
+	}
+	if len(ps) == 0 {
+		ps = nil
 	}
 
 	return ps, nil
