@@ -7,98 +7,66 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
-func checkItems(t *testing.T, message string, l, lenExpected int, checkItem func(int) bool) bool {
-	t.Helper()
-	if l != lenExpected {
-		t.Error(message, "length", l, lenExpected)
-		return false
-	}
-
-	for i := 0; i < l; i++ {
-		if !checkItem(i) {
-			t.Error(message, "item", i)
-			return false
-		}
-	}
-
-	return true
-}
-
-func checkFilters(t *testing.T, message string, fs, fsExp []*Filter) bool {
-	t.Helper()
-	return checkItems(t, "filters "+message,
-		len(fs),
-		len(fsExp),
-		func(i int) bool {
-			return fs[i].Name == fsExp[i].Name &&
-				checkItems(t, "filter args",
-					len(fs[i].Args),
-					len(fsExp[i].Args),
-					func(j int) bool {
-						return fs[i].Args[j] == fsExp[i].Args[j]
-					})
-		})
-}
-
-func TestParseRouteExpression(t *testing.T) {
+func TestParse(t *testing.T) {
 	for _, ti := range []struct {
 		msg        string
 		expression string
-		check      *Route
-		err        bool
+		check      []*Route
+		err        string
 	}{{
 		"loadbalancer endpoints same protocol",
 		`* -> <roundRobin, "http://localhost:80", "fastcgi://localhost:80">`,
 		nil,
-		true,
+		"loadbalancer endpoints cannot have mixed protocols",
 	}, {
 		"path predicate",
 		`Path("/some/path") -> "https://www.example.org"`,
-		&Route{Path: "/some/path", Backend: "https://www.example.org"},
-		false,
+		[]*Route{{Path: "/some/path", Backend: "https://www.example.org"}},
+		"",
 	}, {
 		"path regexp",
 		`PathRegexp("^/some") && PathRegexp(/\/\w+Id$/) -> "https://www.example.org"`,
-		&Route{
+		[]*Route{{
 			PathRegexps: []string{"^/some", "/\\w+Id$"},
-			Backend:     "https://www.example.org"},
-		false,
+			Backend:     "https://www.example.org"}},
+		"",
 	}, {
 		"weight predicate",
 		`Weight(50) -> "https://www.example.org"`,
-		&Route{
+		[]*Route{{
 			Predicates: []*Predicate{
 				{"Weight", []interface{}{float64(50)}},
 			},
 			Backend: "https://www.example.org",
-		},
-		false,
+		}},
+		"",
 	}, {
 		"method predicate",
 		`Method("HEAD") -> "https://www.example.org"`,
-		&Route{Method: "HEAD", Backend: "https://www.example.org"},
-		false,
+		[]*Route{{Method: "HEAD", Backend: "https://www.example.org"}},
+		"",
 	}, {
 		"invalid method predicate",
 		`Path("/endpoint") && Method("GET", "POST") -> "https://www.example.org"`,
 		nil,
-		true,
+		"invalid predicate count arg",
 	}, {
 		"host regexps",
 		`Host(/^www[.]/) && Host(/[.]org$/) -> "https://www.example.org"`,
-		&Route{HostRegexps: []string{"^www[.]", "[.]org$"}, Backend: "https://www.example.org"},
-		false,
+		[]*Route{{HostRegexps: []string{"^www[.]", "[.]org$"}, Backend: "https://www.example.org"}},
+		"",
 	}, {
 		"headers",
 		`Header("Header-0", "value-0") &&
 		Header("Header-1", "value-1") ->
 		"https://www.example.org"`,
-		&Route{
+		[]*Route{{
 			Headers: map[string]string{"Header-0": "value-0", "Header-1": "value-1"},
-			Backend: "https://www.example.org"},
-		false,
+			Backend: "https://www.example.org"}},
+		"",
 	}, {
 		"header regexps",
 		`HeaderRegexp("Header-0", "value-0") &&
@@ -106,198 +74,107 @@ func TestParseRouteExpression(t *testing.T) {
 		HeaderRegexp("Header-1", "value-2") &&
 		HeaderRegexp("Header-1", "value-3") ->
 		"https://www.example.org"`,
-		&Route{
+		[]*Route{{
 			HeaderRegexps: map[string][]string{
 				"Header-0": {"value-0", "value-1"},
 				"Header-1": {"value-2", "value-3"}},
-			Backend: "https://www.example.org"},
-		false,
+			Backend: "https://www.example.org"}},
+		"",
 	}, {
 		"comment as last token",
 		"route: Any() -> <shunt>; // some comment",
-		&Route{Id: "route", BackendType: ShuntBackend, Shunt: true},
-		false,
+		[]*Route{{Id: "route", BackendType: ShuntBackend, Shunt: true}},
+		"",
 	}, {
 		"catch all",
 		`* -> "https://www.example.org"`,
-		&Route{Backend: "https://www.example.org"},
-		false,
+		[]*Route{{Backend: "https://www.example.org"}},
+		"",
 	}, {
 		"custom predicate",
 		`Custom1(3.14, "test value") && Custom2() -> "https://www.example.org"`,
-		&Route{
+		[]*Route{{
 			Predicates: []*Predicate{
 				{"Custom1", []interface{}{float64(3.14), "test value"}},
 				{"Custom2", nil}},
-			Backend: "https://www.example.org"},
-		false,
+			Backend: "https://www.example.org"}},
+		"",
 	}, {
 		"double path predicates",
 		`Path("/one") && Path("/two") -> "https://www.example.org"`,
 		nil,
-		true,
+		// TODO: should it be "duplicate path predicate"?
+		"duplicate path tree predicate",
 	}, {
 		"double method predicates",
 		`Method("HEAD") && Method("GET") -> "https://www.example.org"`,
 		nil,
-		true,
+		"duplicate method predicate",
 	}, {
 		"shunt",
 		`* -> setRequestHeader("X-Foo", "bar") -> <shunt>`,
-		&Route{
+		[]*Route{{
 			Filters: []*Filter{
 				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
 			},
 			BackendType: ShuntBackend,
 			Shunt:       true,
-		},
-		false,
+		}},
+		"",
 	}, {
 		"loopback",
 		`* -> setRequestHeader("X-Foo", "bar") -> <loopback>`,
-		&Route{
+		[]*Route{{
 			Filters: []*Filter{
 				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
 			},
 			BackendType: LoopBackend,
-		},
-		false,
+		}},
+		"",
 	}, {
 		"dynamic",
 		`* -> setRequestHeader("X-Foo", "bar") -> <dynamic>`,
-		&Route{
+		[]*Route{{
 			Filters: []*Filter{
 				{Name: "setRequestHeader", Args: []interface{}{"X-Foo", "bar"}},
 			},
 			BackendType: DynamicBackend,
+		}},
+		"",
+	}, {
+		"multiple routes",
+		`r1: Path("/foo") -> <shunt>; r2: Path("/bar") -> "https://www.example.org"`,
+		[]*Route{
+			{Id: "r1", Path: "/foo", BackendType: ShuntBackend, Shunt: true},
+			{Id: "r2", Path: "/bar", Backend: "https://www.example.org"},
 		},
-		false,
+		"",
+	}, {
+		"syntax error with id",
+		`fooId: * -> #`,
+		nil,
+		"parse failed after token ->, last route id: fooId, position 12: syntax error",
+	}, {
+		"syntax error multiple routes",
+		`r1: Path("/foo") -> <shunt>; r2: Path("/bar") -> #`,
+		nil,
+		"parse failed after token ->, last route id: r2, position 49: syntax error",
+	}, {
+		"syntax without id",
+		`* -> #`,
+		nil,
+		// TODO: remove empty last route id
+		"parse failed after token ->, last route id: , position 5: syntax error",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
-			stringMapKeys := func(m map[string]string) []string {
-				keys := make([]string, 0, len(m))
-				for k := range m {
-					keys = append(keys, k)
-				}
-
-				return keys
-			}
-
-			stringsMapKeys := func(m map[string][]string) []string {
-				keys := make([]string, 0, len(m))
-				for k := range m {
-					keys = append(keys, k)
-				}
-
-				return keys
-			}
-
-			checkItemsT := func(submessage string, l, lExp int, checkItem func(i int) bool) bool {
-				return checkItems(t, submessage, l, lExp, checkItem)
-			}
-
-			checkStrings := func(submessage string, s, sExp []string) bool {
-				return checkItemsT(submessage, len(s), len(sExp), func(i int) bool {
-					return s[i] == sExp[i]
-				})
-			}
-
-			checkStringMap := func(submessage string, m, mExp map[string]string) bool {
-				keys := stringMapKeys(m)
-				return checkItemsT(submessage, len(m), len(mExp), func(i int) bool {
-					return m[keys[i]] == mExp[keys[i]]
-				})
-			}
-
-			checkStringsMap := func(submessage string, m, mExp map[string][]string) bool {
-				keys := stringsMapKeys(m)
-				return checkItemsT(submessage, len(m), len(mExp), func(i int) bool {
-					return checkItemsT(submessage, len(m[keys[i]]), len(mExp[keys[i]]), func(j int) bool {
-						return m[keys[i]][j] == mExp[keys[i]][j]
-					})
-				})
-			}
-
 			routes, err := Parse(ti.expression)
-			if err == nil && ti.err || err != nil && !ti.err {
-				t.Error("failure case", err, ti.err)
-				return
-			}
 
-			if ti.err {
-				return
-			}
-
-			r := routes[0]
-
-			if r.Id != ti.check.Id {
-				t.Error("id", r.Id, ti.check.Id)
-				return
-			}
-
-			if r.Path != ti.check.Path {
-				t.Error("path", r.Path, ti.check.Path)
-				return
-			}
-
-			if !checkStrings("host", r.HostRegexps, ti.check.HostRegexps) {
-				return
-			}
-
-			if !checkStrings("path regexp", r.PathRegexps, ti.check.PathRegexps) {
-				return
-			}
-
-			if r.Method != ti.check.Method {
-				t.Error("method", r.Method, ti.check.Method)
-				return
-			}
-
-			if !checkStringMap("headers", r.Headers, ti.check.Headers) {
-				return
-			}
-
-			if !checkStringsMap("header regexps", r.HeaderRegexps, ti.check.HeaderRegexps) {
-				return
-			}
-
-			if !checkItemsT("custom predicates",
-				len(r.Predicates),
-				len(ti.check.Predicates),
-				func(i int) bool {
-					return r.Predicates[i].Name == ti.check.Predicates[i].Name &&
-						checkItemsT("custom predicate args",
-							len(r.Predicates[i].Args),
-							len(ti.check.Predicates[i].Args),
-							func(j int) bool {
-								return r.Predicates[i].Args[j] == ti.check.Predicates[i].Args[j]
-							})
-				}) {
-				return
-			}
-
-			if !checkFilters(t, "", r.Filters, ti.check.Filters) {
-				return
-			}
-
-			if r.BackendType != ti.check.BackendType {
-				t.Error("invalid backend type", r.BackendType, ti.check.BackendType)
-			}
-
-			if r.Shunt != ti.check.Shunt {
-				t.Error("shunt", r.Shunt, ti.check.Shunt)
-			}
-
-			if r.Shunt && r.BackendType != ShuntBackend || !r.Shunt && r.BackendType == ShuntBackend {
-				t.Error("shunt, deprecated and new form are not sync")
-			}
-
-			if r.BackendType == LoopBackend && r.Shunt {
-				t.Error("shunt set for loopback route")
-			}
-
-			if r.Backend != ti.check.Backend {
-				t.Error("backend", r.Backend, ti.check.Backend)
+			if ti.err != "" {
+				assert.EqualError(t, err, ti.err)
+				assert.Nil(t, routes)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, ti.check, routes)
 			}
 		})
 	}
@@ -333,47 +210,62 @@ func TestParseFilters(t *testing.T) {
 		msg        string
 		expression string
 		check      []*Filter
-		err        bool
+		err        string
 	}{{
 		"empty",
 		" \t",
 		nil,
-		false,
+		"",
 	}, {
 		"error",
 		"trallala",
 		nil,
-		true,
+		// TODO: remove empty last route id and fix position
+		"parse failed after token ->, last route id: , position 16: syntax error",
+	}, {
+		"error 2",
+		"foo-bar",
+		nil,
+		// TODO: remove empty last route id and fix position
+		"parse failed after token foo, last route id: , position 8: syntax error",
 	}, {
 		"success",
 		`filter1(3.14) -> filter2("key", 42)`,
 		[]*Filter{{Name: "filter1", Args: []interface{}{3.14}}, {Name: "filter2", Args: []interface{}{"key", float64(42)}}},
-		false,
+		"",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			fs, err := ParseFilters(ti.expression)
-			if err == nil && ti.err || err != nil && !ti.err {
-				t.Error(ti.msg, "failure case", err, ti.err)
-				return
-			}
 
-			checkFilters(t, ti.msg, fs, ti.check)
+			if ti.err != "" {
+				assert.EqualError(t, err, ti.err)
+				assert.Nil(t, fs)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, ti.check, fs)
+			}
 		})
 	}
 }
 
-func TestPredicateParsing(t *testing.T) {
+func TestParsePredicates(t *testing.T) {
 	for _, test := range []struct {
 		title    string
 		input    string
 		expected []*Predicate
-		fail     bool
+		err      string
 	}{{
 		title: "empty",
 	}, {
 		title: "invalid",
-		input: "not predicates",
-		fail:  true,
+		input: `not predicates`,
+		// TODO: fix wrong last route id
+		err: "parse failed after token predicates, last route id: not, position 14: syntax error",
+	}, {
+		title: "invalid",
+		input: `Header#`,
+		// TODO: fix wrong last route id
+		err: "parse failed after token Header, last route id: Header, position 6: syntax error",
 	}, {
 		title:    "single predicate",
 		input:    `Foo("bar")`,
@@ -399,16 +291,14 @@ func TestPredicateParsing(t *testing.T) {
 		expected: nil,
 	}} {
 		t.Run(test.title, func(t *testing.T) {
-			p, err := ParsePredicates(test.input)
+			ps, err := ParsePredicates(test.input)
 
-			if err == nil && test.fail {
-				t.Fatalf("failed to fail: %#v", p)
-			} else if err != nil && !test.fail {
-				t.Fatal(err)
-			}
-
-			if !cmp.Equal(p, test.expected) {
-				t.Errorf("invalid parse result:\n%s", cmp.Diff(p, test.expected))
+			if test.err != "" {
+				assert.EqualError(t, err, test.err)
+				assert.Nil(t, ps)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expected, ps)
 			}
 		})
 	}
