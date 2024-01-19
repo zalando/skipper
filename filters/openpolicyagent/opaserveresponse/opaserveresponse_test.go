@@ -74,6 +74,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:             "Allow With opa.runtime execution",
+			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
 			requestPath:     "allow/production",
@@ -83,6 +84,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:             "Deny With opa.runtime execution",
+			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
 			requestPath:     "allow/test",

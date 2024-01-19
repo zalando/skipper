@@ -65,6 +65,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:             "Allow Matching Environment",
+			filterName:      "opaAuthorizeRequest",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_runtime_environment",
 			requestPath:     "/allow",
