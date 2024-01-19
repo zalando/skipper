@@ -768,6 +768,8 @@ func BenchmarkParse(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	b.ReportMetric(float64(len(benchmarkRoutes10k)), "bytes/op")
+
 	for i := 0; i < b.N; i++ {
 		_, _ = Parse(benchmarkRoutes10k)
 	}
