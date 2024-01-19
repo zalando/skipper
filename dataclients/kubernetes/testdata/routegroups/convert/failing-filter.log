@@ -1,1 +1,1 @@
-\[routegroup\] parse failed after token foo, last route id: , position 8: syntax error
+\[routegroup\] parse failed after token foo, position 8: syntax error

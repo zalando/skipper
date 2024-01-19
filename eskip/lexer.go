@@ -367,7 +367,11 @@ func (l *eskipLex) Lex(lval *eskipSymType) int {
 }
 
 func (l *eskipLex) Error(err string) {
+	lastRouteID := ""
+	if l.lastRouteID != "" {
+		lastRouteID = ", last route id: " + l.lastRouteID
+	}
 	l.err = fmt.Errorf(
-		"parse failed after token %s, last route id: %v, position %d: %s",
-		l.lastToken, l.lastRouteID, l.initialLength-len(l.code), err)
+		"parse failed after token %s%s, position %d: %s",
+		l.lastToken, lastRouteID, l.initialLength-len(l.code), err)
 }

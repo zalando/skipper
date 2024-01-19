@@ -98,13 +98,14 @@ routes:
 	}
 
 routedef:
-	routeid colon route {
-		$$.route = $3.route
+	routeid route {
+		$$.route = $2.route
 		$$.route.id = $1.token
 	}
 
 routeid:
-	symbol {
+	symbol colon {
+		// match symbol and colon to get route id early even if route parsing fails later
 		$$.token = $1.token
 		eskiplex.(*eskipLex).lastRouteID = $1.token
 	}

@@ -183,8 +183,7 @@ func TestParse(t *testing.T) {
 		"syntax without id",
 		`* -> #`,
 		nil,
-		// TODO: remove empty last route id
-		"parse failed after token ->, last route id: , position 5: syntax error",
+		"parse failed after token ->, position 5: syntax error",
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			routes, err := Parse(ti.expression)
@@ -240,14 +239,14 @@ func TestParseFilters(t *testing.T) {
 		"error",
 		"trallala",
 		nil,
-		// TODO: remove empty last route id and fix position
-		"parse failed after token ->, last route id: , position 16: syntax error",
+		// TODO: fix position
+		"parse failed after token ->, position 16: syntax error",
 	}, {
 		"error 2",
 		"foo-bar",
 		nil,
-		// TODO: remove empty last route id and fix position
-		"parse failed after token foo, last route id: , position 8: syntax error",
+		// TODO: fix position
+		"parse failed after token foo, position 8: syntax error",
 	}, {
 		"success",
 		`filter1(3.14) -> filter2("key", 42)`,
@@ -279,13 +278,11 @@ func TestParsePredicates(t *testing.T) {
 	}, {
 		title: "invalid",
 		input: `not predicates`,
-		// TODO: fix wrong last route id
-		err: "parse failed after token predicates, last route id: not, position 14: syntax error",
+		err:   "parse failed after token predicates, position 14: syntax error",
 	}, {
 		title: "invalid",
 		input: `Header#`,
-		// TODO: fix wrong last route id
-		err: "parse failed after token Header, last route id: Header, position 6: syntax error",
+		err:   "parse failed after token Header, position 6: syntax error",
 	}, {
 		title:    "single predicate",
 		input:    `Foo("bar")`,
