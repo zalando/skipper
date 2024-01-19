@@ -319,3 +319,25 @@ func TestInvalidJSON(t *testing.T) {
 		})
 	}
 }
+
+type testRouteContainer struct {
+	Routes []*Route `json:"routes"`
+}
+
+func BenchmarkJsonUnmarshal(b *testing.B) {
+	content, err := json.Marshal(testRouteContainer{Routes: MustParse(benchmarkRoutes10k)})
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	out := testRouteContainer{}
+	if err := json.Unmarshal(content, &out); err != nil {
+		b.Fatal(err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = json.Unmarshal(content, &out)
+	}
+}
