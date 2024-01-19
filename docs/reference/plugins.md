@@ -32,7 +32,7 @@ Each plugin should be built with Go version >= 1.11, enabled Go
 modules support similar to the following build command line:
 
 ```sh
-GO111MODULE=on go build -buildmode=plugin -o example.so example.go
+go build -buildmode=plugin -o example.so example.go
 ```
 
 There are some pitfalls:
@@ -66,7 +66,7 @@ Install filter plugins:
 % ls plugins/filters
 geoip/  glide.lock  glide.yaml  ldapauth/  Makefile  noop/  plugin_test.go
 % cd plugins/filters/geoip
-% GO111MODULE=on go build -buildmode=plugin -o geoip.so geoip.go
+% go build -buildmode=plugin -o geoip.so geoip.go
 % cd -
 ~/go/src/github.com/zalando/skipper
 ```

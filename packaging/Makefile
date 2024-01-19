@@ -11,13 +11,11 @@ CGO_ENABLED        ?= 0
 GOOS               ?= linux
 GOARCH             ?= amd64
 GOARM              ?=
-GO111              ?= on
 COMMIT_HASH        = $(shell git rev-parse --short HEAD)
 
 default: docker-build
 
 skipper:
-	GO111MODULE=$(GO111) \
 	GOOS=$(GOOS) \
 	GOARCH=$(GOARCH) \
 	$(GOARM) \
@@ -25,13 +23,13 @@ skipper:
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o skipper ../cmd/skipper/*.go
 
 eskip:
-	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o eskip ../cmd/eskip/*.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o eskip ../cmd/eskip/*.go
 
 webhook:
-	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o webhook ../cmd/webhook/*.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o webhook ../cmd/webhook/*.go
 
 routesrv:
-	GO111MODULE=$(GO111) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o routesrv ../cmd/routesrv/*.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build -o routesrv ../cmd/routesrv/*.go
 
 clean:
 	rm -rf $(BINARIES) build/
@@ -80,21 +78,18 @@ build.darwin.arm64: $(addprefix build/darwin/arm64/,$(BINARIES))
 build.windows: $(addprefix build/windows/amd64/,$(BINARIES))
 
 build/linux/amd64/%:
-	GO111MODULE=$(GO111) \
 	GOOS=linux \
 	GOARCH=amd64 \
 	CGO_ENABLED=$(CGO_ENABLED) \
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux/amd64/$(notdir $@) ../cmd/$(notdir $@)/*.go
 
 build/linux/arm64/%:
-	GO111MODULE=$(GO111) \
 	GOOS=linux \
 	GOARCH=arm64 \
 	CGO_ENABLED=$(CGO_ENABLED) \
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux/arm64/$(notdir $@) ../cmd/$(notdir $@)/*.go
 
 build/linux/arm/v7/%:
-	GO111MODULE=$(GO111) \
 	GOOS=linux \
 	GOARCH=arm \
 	GOARM=7 \
@@ -102,21 +97,18 @@ build/linux/arm/v7/%:
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/linux/arm/v7/$(notdir $@) ../cmd/$(notdir $@)/*.go
 
 build/darwin/amd64/%:
-	GO111MODULE=$(GO111) \
 	GOOS=darwin \
 	GOARCH=amd64 \
 	CGO_ENABLED=$(CGO_ENABLED) \
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/darwin/amd64/$(notdir $@) ../cmd/$(notdir $@)/*.go
 
 build/darwin/arm64/%:
-	GO111MODULE=$(GO111) \
 	GOOS=darwin \
 	GOARCH=arm64 \
 	CGO_ENABLED=$(CGO_ENABLED) \
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH)" -o build/darwin/arm64/$(notdir $@) ../cmd/$(notdir $@)/*.go
 
 build/windows/amd64/%:
-	GO111MODULE=$(GO111) \
 	GOOS=windows \
 	GOARCH=amd64 \
 	CGO_ENABLED=$(CGO_ENABLED) \
