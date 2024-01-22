@@ -327,3 +327,42 @@ Blog posts:
 Conference/Meetups talks
 
 - [LISA 2018 - modern HTTP routing](https://www.usenix.org/conference/lisa18/presentation/szucs)
+
+## Version promise
+
+Skipper will update the minor version in case we have either:
+
+- a significant change
+- a Go version requirement change (`go` directive in go.mod change)
+- a dependency change that adds or removes a `replace` directive in
+  go.mod file (requires library users to add or remove the same
+  directive in their go.mod file)
+- a change that require attention to users, for example Kubernetes
+  RBAC changes required to deploy
+  https://github.com/zalando/skipper/releases/tag/v0.18.0
+- a feature removal like Kubernetes ingress v1beta1
+  https://github.com/zalando/skipper/releases/tag/v0.15.0
+- an API change of a function that is marked *experimental* [example](https://github.com/zalando/skipper/blob/e8c099f1740e3d85be0784d449b1177a48247813/io/read_stream.go#L209)
+
+We expect that skipper library users will use
+`skipper.Run(skipper.Options{})` as main interface that we do not want
+to break. Besides the Kubernetes v1beta1 removal there was never a
+change that removed an option. We also do not want to break generic
+useful packages like `net`. Sometimes we mark library functions, that
+we expect to be useful as *experimental*, because we want to try and
+learn over time if this is a good API decision or if this limits us.
+
+This promise we hold considering the main, filter, predicate,
+dataclient, eskip interfaces and generic packages. For other packages,
+we have more weak promise with backwards compatibility as these are
+more internal packages. We try to omit breaking changes also in
+internal packages. If this would mean too much work or impossible
+to build new functionality as we would like, we will do a breaking
+change considering strictly semantic versioning rules.
+
+### How to update
+
+Every update that changes the minor version (the `m` in `v0.m.p`),
+should be done by `+1` only. So `v0.N.x` to `v0.N+1.y` and you should
+read `v0.N+1.0` release page to see what can break and what you have
+to do in order to have no issues while updating.
