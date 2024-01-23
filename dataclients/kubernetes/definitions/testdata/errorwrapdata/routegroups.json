@@ -210,6 +210,39 @@
                     }
                 ]
             }
+        },
+        {
+            "apiVersion": "zalando.org/v1",
+            "metadata": {
+                "name": "rg1"
+            },
+            "kind": "RouteGroup",
+            "spec": {
+                "backends": [
+                    {
+                        "name": "shunt",
+                        "type": "shunt"
+                    }
+                ],
+                "hosts": [
+                    "test.example.com",
+                    "test.example.com",
+                    "test2.example.com"
+                ],
+                "routes": [
+                    {
+                        "backends": [
+                            {
+                                "backendName": "shunt"
+                            }
+                        ],
+                        "filters": [
+                            "inlineContent(\"/foo\")"
+                        ],
+                        "path": "/foo"
+                    }
+                ]
+            }
         }
     ]
 }

@@ -11,3 +11,4 @@ backend address "/foo" does not match scheme://host format
 backend address "example.com/" does not match scheme://host format
 backend address "http://example.com?foo=bar" does not match scheme://host format
 backend address "example.com" does not match scheme://host format
+duplicate host "test.example.com"
