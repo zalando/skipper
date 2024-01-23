@@ -29,7 +29,7 @@ require (
 	github.com/miekg/dns v1.1.58
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/opa v0.60.0
-	github.com/open-policy-agent/opa-envoy-plugin v0.58.0-envoy
+	github.com/open-policy-agent/opa-envoy-plugin v0.60.0-envoy
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/prometheus/client_golang v1.18.0
