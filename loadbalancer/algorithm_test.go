@@ -291,8 +291,21 @@ func TestApply(t *testing.T) {
 
 func TestConsistentHashSearch(t *testing.T) {
 	apply := func(key string, endpoints []string) string {
+		p := NewAlgorithmProvider()
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		r := &routing.Route{
+			Route: eskip.Route{
+				BackendType: eskip.LBBackend,
+				LBAlgorithm: ConsistentHash.String(),
+				LBEndpoints: endpoints,
+			},
+		}
+		p.Do([]*routing.Route{r})
+		endpointRegistry.Do([]*routing.Route{r})
+
 		ch := newConsistentHash(endpoints).(*consistentHash)
-		return endpoints[ch.search(key, noSkippedEndpoints)]
+		ctx := &routing.LBContext{Route: r, LBEndpoints: r.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: key}, Registry: endpointRegistry}
+		return endpoints[ch.search(key, ctx)]
 	}
 
 	endpoints := []string{"http://127.0.0.1:8080", "http://127.0.0.2:8080", "http://127.0.0.3:8080"}
