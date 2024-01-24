@@ -1,0 +1,21 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: foo
+  namespace: foo
+  # no application label
+spec:
+  hosts:
+    - example.org
+  backends:
+    - name: app
+      type: service
+      serviceName: app-svc
+      servicePort: 80
+  routes:
+    - path: /
+      filters:
+        # oauthTokeninfoAnyScope with uid scope
+        - oauthTokeninfoAnyScope("uid", "foo.read")
+      backends:
+        - backendName: app
