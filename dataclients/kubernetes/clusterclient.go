@@ -79,6 +79,7 @@ type clusterClient struct {
 
 	loggedMissingRouteGroups bool
 	routeGroupValidator      *definitions.RouteGroupValidator
+	ingressValidator         *definitions.IngressV1Validator
 }
 
 var (
@@ -173,6 +174,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		apiURL:                       apiURL,
 		certificateRegistry:          o.CertificateRegistry,
 		routeGroupValidator:          &definitions.RouteGroupValidator{},
+		ingressValidator:             &definitions.IngressV1Validator{},
 		enableEndpointSlices:         o.KubernetesEnableEndpointslices,
 	}
 
@@ -369,7 +371,16 @@ func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) 
 
 	sortByMetadata(fItems, func(i int) *definitions.Metadata { return fItems[i].Metadata })
 
-	return fItems, nil
+	validatedItems := make([]*definitions.IngressV1Item, 0, len(fItems))
+	for _, i := range fItems {
+		if err := c.ingressValidator.Validate(i); err != nil {
+			log.Errorf("[ingress] %v", err)
+			continue
+		}
+		validatedItems = append(validatedItems, i)
+	}
+
+	return validatedItems, nil
 }
 
 func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error) {

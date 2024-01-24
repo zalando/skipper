@@ -432,7 +432,7 @@ func (ing *ingress) ingressV1Route(
 		logger:              logger,
 		annotationFilters:   annotationFilter(i.Metadata, logger),
 		annotationPredicate: annotationPredicate(i.Metadata),
-		extraRoutes:         extraRoutes(i.Metadata, logger),
+		extraRoutes:         extraRoutes(i.Metadata),
 		backendWeights:      backendWeights(i.Metadata, logger),
 		pathMode:            pathMode(i.Metadata, ing.pathMode, logger),
 		redirect:            redirect,

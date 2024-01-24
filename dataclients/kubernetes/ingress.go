@@ -255,15 +255,11 @@ func annotationPredicate(m *definitions.Metadata) string {
 }
 
 // parse routes annotation
-func extraRoutes(m *definitions.Metadata, logger *logger) []*eskip.Route {
+func extraRoutes(m *definitions.Metadata) []*eskip.Route {
 	var extraRoutes []*eskip.Route
 	annotationRoutes := m.Annotations[definitions.IngressRoutesAnnotation]
 	if annotationRoutes != "" {
-		var err error
-		extraRoutes, err = eskip.Parse(annotationRoutes)
-		if err != nil {
-			logger.Errorf("Failed to parse routes from %s, skipping: %v", definitions.IngressRoutesAnnotation, err)
-		}
+		extraRoutes, _ = eskip.Parse(annotationRoutes) // We ignore the error here because it should be handled by the validator object
 	}
 	return extraRoutes
 }
