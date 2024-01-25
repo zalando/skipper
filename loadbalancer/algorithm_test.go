@@ -259,6 +259,7 @@ func TestApply(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
 			p := NewAlgorithmProvider()
+			endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 			r := &routing.Route{
 				Route: eskip.Route{
 					BackendType: eskip.LBBackend,
@@ -267,14 +268,13 @@ func TestApply(t *testing.T) {
 				},
 			}
 			rt := p.Do([]*routing.Route{r})
+			endpointRegistry.Do([]*routing.Route{r})
 
 			lbctx := &routing.LBContext{
 				Request:     req,
 				Route:       rt[0],
 				LBEndpoints: rt[0].LBEndpoints,
-				Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 			}
-			lbctx.Registry.Do([]*routing.Route{r})
 
 			h := make(map[string]int)
 			for i := 0; i < R; i++ {
@@ -304,7 +304,7 @@ func TestConsistentHashSearch(t *testing.T) {
 		endpointRegistry.Do([]*routing.Route{r})
 
 		ch := newConsistentHash(endpoints).(*consistentHash)
-		ctx := &routing.LBContext{Route: r, LBEndpoints: r.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: key}, Registry: endpointRegistry}
+		ctx := &routing.LBContext{Route: r, LBEndpoints: r.LBEndpoints, Params: map[string]interface{}{ConsistentHashKey: key}}
 		return endpoints[ch.search(key, ctx)]
 	}
 
@@ -347,9 +347,9 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		Route:       route,
 		LBEndpoints: route.LBEndpoints,
 		Params:      map[string]interface{}{ConsistentHashBalanceFactor: 1.25},
-		Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
-	ctx.Registry.Do([]*routing.Route{route})
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	endpointRegistry.Do([]*routing.Route{route})
 	noLoad := ch.Apply(ctx)
 	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]interface{}{}})
 
@@ -357,21 +357,21 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		t.Error("When no endpoints are overloaded, the chosen endpoint should be the same as standard consistentHash")
 	}
 	// now we know that noLoad is the endpoint which should be requested for somekey if load is not an issue.
-	addInflightRequests(ctx.Registry, noLoad, 20)
+	addInflightRequests(endpointRegistry, noLoad, 20)
 	failover1 := ch.Apply(ctx)
 	if failover1 == nonBounded {
 		t.Error("When the selected endpoint is overloaded, the chosen endpoint should be different to standard consistentHash")
 	}
 
 	// now if 2 endpoints are overloaded, the request should go to the final endpoint
-	addInflightRequests(ctx.Registry, failover1, 20)
+	addInflightRequests(endpointRegistry, failover1, 20)
 	failover2 := ch.Apply(ctx)
 	if failover2 == nonBounded || failover2 == failover1 {
 		t.Error("Only the final endpoint had load below the average * balanceFactor, so it should have been selected.")
 	}
 
 	// now all will have same load, should select the original endpoint again
-	addInflightRequests(ctx.Registry, failover2, 20)
+	addInflightRequests(endpointRegistry, failover2, 20)
 	allLoaded := ch.Apply(ctx)
 	if allLoaded != nonBounded {
 		t.Error("When all endpoints have the same load, the consistentHash endpoint should be chosen again.")
@@ -427,9 +427,9 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		Route:       route,
 		LBEndpoints: route.LBEndpoints,
 		Params:      map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
-		Registry:    routing.NewEndpointRegistry(routing.RegistryOptions{}),
 	}
-	ctx.Registry.Do([]*routing.Route{route})
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	endpointRegistry.Do([]*routing.Route{route})
 
 	for i := 0; i < 100; i++ {
 		ep := ch.Apply(ctx)
@@ -437,16 +437,16 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		ifr1 := route.LBEndpoints[1].Metrics.InflightRequests()
 		ifr2 := route.LBEndpoints[2].Metrics.InflightRequests()
 
-		assert.Equal(t, int64(ifr0), ctx.Registry.GetMetrics(route.LBEndpoints[0].Host).InflightRequests())
-		assert.Equal(t, int64(ifr1), ctx.Registry.GetMetrics(route.LBEndpoints[1].Host).InflightRequests())
-		assert.Equal(t, int64(ifr2), ctx.Registry.GetMetrics(route.LBEndpoints[2].Host).InflightRequests())
+		assert.Equal(t, int64(ifr0), endpointRegistry.GetMetrics(route.LBEndpoints[0].Host).InflightRequests())
+		assert.Equal(t, int64(ifr1), endpointRegistry.GetMetrics(route.LBEndpoints[1].Host).InflightRequests())
+		assert.Equal(t, int64(ifr2), endpointRegistry.GetMetrics(route.LBEndpoints[2].Host).InflightRequests())
 
 		avg := float64(ifr0+ifr1+ifr2) / 3.0
 		limit := int64(avg*balanceFactor) + 1
 		if ifr0 > limit || ifr1 > limit || ifr2 > limit {
 			t.Errorf("Expected in-flight requests for each endpoint to be less than %d. In-flight request counts: %d, %d, %d", limit, ifr0, ifr1, ifr2)
 		}
-		ctx.Registry.GetMetrics(ep.Host).IncInflightRequest()
+		endpointRegistry.GetMetrics(ep.Host).IncInflightRequest()
 	}
 }
 

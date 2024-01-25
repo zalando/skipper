@@ -326,7 +326,7 @@ type Proxy struct {
 	defaultHTTPStatus        int
 	routing                  *routing.Routing
 	registry                 *routing.EndpointRegistry
-	rnd                      *rand.Rand
+	fadein                   *fadeIn
 	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
@@ -469,14 +469,13 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{})
 func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
-	endpoints = filterFadeIn(endpoints, rt, p.registry, p.rnd)
+	endpoints = p.fadein.filterFadeIn(endpoints, rt)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
 		Route:       rt,
 		LBEndpoints: endpoints,
 		Params:      ctx.StateBag(),
-		Registry:    p.registry,
 	}
 
 	e := rt.LBAlgorithm.Apply(lbctx)
@@ -726,6 +725,7 @@ func WithParams(p Params) *Proxy {
 	return &Proxy{
 		routing:                  p.Routing,
 		registry:                 p.EndpointRegistry,
+		fadein:                   &fadeIn{rnd: rand.New(loadbalancer.NewLockedSource()), endpointRegistry: p.EndpointRegistry},
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
@@ -747,8 +747,6 @@ func WithParams(p Params) *Proxy {
 		clientTLS:                tr.TLSClientConfig,
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
-		/* #nosec */
-		rnd: rand.New(loadbalancer.NewLockedSource()),
 	}
 }
 

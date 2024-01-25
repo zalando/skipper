@@ -170,7 +170,6 @@ type LBContext struct {
 	Route       *Route
 	LBEndpoints []LBEndpoint
 	Params      map[string]interface{}
-	Registry    *EndpointRegistry
 }
 
 // NewLBContext is used to create a new LBContext, to pass data to the
