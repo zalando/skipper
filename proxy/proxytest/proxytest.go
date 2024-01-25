@@ -88,6 +88,7 @@ func (c Config) Create() *TestProxy {
 
 	rt := routing.New(c.RoutingOptions)
 	c.ProxyParams.Routing = rt
+	c.ProxyParams.EndpointRegistry = endpointRegistry
 
 	pr := proxy.WithParams(c.ProxyParams)
 

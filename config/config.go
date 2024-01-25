@@ -285,6 +285,8 @@ type Config struct {
 	OpenPolicyAgentStartupTimeout       time.Duration `yaml:"open-policy-agent-startup-timeout"`
 	OpenPolicyAgentMaxRequestBodySize   int64         `yaml:"open-policy-agent-max-request-body-size"`
 	OpenPolicyAgentMaxMemoryBodyParsing int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
+
+	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
 }
 
 const (
@@ -570,6 +572,9 @@ func NewConfig() *Config {
 
 	flag.Var(cfg.LuaModules, "lua-modules", "comma separated list of lua filter modules. Use <module>.<symbol> to selectively enable module symbols, for example: package,base._G,base.print,json")
 	flag.Var(cfg.LuaSources, "lua-sources", `comma separated list of lua input types for the lua() filter. Valid sources "", "file", "inline", "file,inline" and "none". Use "file" to only allow lua file references in lua filter. Default "" is the same as "file","inline". Use "none" to disable lua filters.`)
+
+	// Passive Health Checks
+	flag.Var(&cfg.PassiveHealthCheck, "passive-health-check", "sets the parameters for passive health check feature")
 
 	cfg.flags = flag
 	return cfg
@@ -912,6 +917,8 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenPolicyAgentStartupTimeout:       c.OpenPolicyAgentStartupTimeout,
 		OpenPolicyAgentMaxRequestBodySize:   c.OpenPolicyAgentMaxRequestBodySize,
 		OpenPolicyAgentMaxMemoryBodyParsing: c.OpenPolicyAgentMaxMemoryBodyParsing,
+
+		PassiveHealthCheck: c.PassiveHealthCheck.values,
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)

@@ -92,7 +92,7 @@ func initializeEndpoints(endpointAges []float64, algorithmName string, fadeInDur
 		registry.GetMetrics(eps[i]).SetDetected(detectionTimes[i])
 	}
 
-	proxy := &Proxy{registry: registry, fadein: &fadeIn{rnd: rand.New(loadbalancer.NewLockedSource()), endpointRegistry: registry}}
+	proxy := &Proxy{registry: registry, fadein: &fadeIn{rnd: rand.New(loadbalancer.NewLockedSource()), endpointRegistry: registry}, quit: make(chan struct{})}
 	return route, proxy, eps
 }
 
@@ -103,6 +103,7 @@ func calculateFadeInDuration(t *testing.T, algorithmName string, endpointAges []
 	const precalculateRatio = 10
 
 	route, proxy, _ := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDuration)
+	defer proxy.Close()
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	t.Log("preemulation start", time.Now())
@@ -125,6 +126,7 @@ func testFadeInMonotony(
 	t.Run(name, func(t *testing.T) {
 		fadeInDuration := calculateFadeInDuration(t, algorithmName, endpointAges)
 		route, proxy, eps := initializeEndpoints(endpointAges, algorithmName, fadeInDuration)
+		defer proxy.Close()
 
 		t.Log("test start", time.Now())
 		var stats []string
@@ -273,6 +275,7 @@ func testFadeInLoadBetweenOldAndNewEps(
 		}
 
 		route, proxy, eps := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDurationHuge)
+		defer proxy.Close()
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		nReqs := map[string]int{}
 
@@ -330,6 +333,7 @@ func testSelectEndpointEndsWhenAllEndpointsAreFading(
 		// Initialize every endpoint with zero: every endpoint is new
 		endpointAges := make([]float64, nEndpoints)
 		route, proxy, _ := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDurationHuge)
+		defer proxy.Close()
 		applied := make(chan struct{})
 
 		go func() {
@@ -364,6 +368,7 @@ func benchmarkFadeIn(
 ) {
 	b.Run(name, func(b *testing.B) {
 		route, proxy, _ := initializeEndpoints(endpointAges, algorithmName, defaultFadeInDurationHuge)
+		defer proxy.Close()
 		var wg sync.WaitGroup
 
 		// Emulate the load balancer loop, sending requests to it with random hash keys

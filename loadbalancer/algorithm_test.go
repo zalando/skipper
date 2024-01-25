@@ -31,6 +31,7 @@ func TestSelectAlgorithm(t *testing.T) {
 	t.Run("LB route with default algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -59,6 +60,7 @@ func TestSelectAlgorithm(t *testing.T) {
 	t.Run("LB route with explicit round-robin algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -88,6 +90,7 @@ func TestSelectAlgorithm(t *testing.T) {
 	t.Run("LB route with explicit consistentHash algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -117,6 +120,7 @@ func TestSelectAlgorithm(t *testing.T) {
 	t.Run("LB route with explicit random algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -146,6 +150,7 @@ func TestSelectAlgorithm(t *testing.T) {
 	t.Run("LB route with explicit powerOfRandomNChoices algorithm", func(t *testing.T) {
 		p := NewAlgorithmProvider()
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -260,6 +265,7 @@ func TestApply(t *testing.T) {
 			req, _ := http.NewRequest("GET", "http://127.0.0.1:1234/foo", nil)
 			p := NewAlgorithmProvider()
 			endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+			defer endpointRegistry.Close()
 			r := &routing.Route{
 				Route: eskip.Route{
 					BackendType: eskip.LBBackend,
@@ -293,6 +299,7 @@ func TestConsistentHashSearch(t *testing.T) {
 	apply := func(key string, endpoints []string) string {
 		p := NewAlgorithmProvider()
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
@@ -349,6 +356,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		Params:      map[string]interface{}{ConsistentHashBalanceFactor: 1.25},
 	}
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer endpointRegistry.Close()
 	endpointRegistry.Do([]*routing.Route{route})
 	noLoad := ch.Apply(ctx)
 	nonBounded := ch.Apply(&routing.LBContext{Request: r, Route: route, LBEndpoints: route.LBEndpoints, Params: map[string]interface{}{}})
@@ -429,6 +437,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		Params:      map[string]interface{}{ConsistentHashBalanceFactor: balanceFactor},
 	}
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer endpointRegistry.Close()
 	endpointRegistry.Do([]*routing.Route{route})
 
 	for i := 0; i < 100; i++ {

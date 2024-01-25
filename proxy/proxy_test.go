@@ -208,12 +208,14 @@ func newTestProxyWithFiltersAndParams(fr filters.Registry, doc string, params Pa
 	}
 
 	tl := loggingtest.New()
-	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	if params.EndpointRegistry == nil {
+		params.EndpointRegistry = routing.NewEndpointRegistry(routing.RegistryOptions{})
+	}
 	opts := routing.Options{
 		FilterRegistry: fr,
 		PollTimeout:    sourcePollTimeout,
 		DataClients:    []routing.DataClient{dc},
-		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider(), endpointRegistry},
+		PostProcessors: []routing.PostProcessor{loadbalancer.NewAlgorithmProvider(), params.EndpointRegistry},
 		Log:            tl,
 		Predicates:     []routing.PredicateSpec{teePredicate.New()},
 	}
@@ -2278,3 +2280,133 @@ func BenchmarkAccessLogEnablePrint(b *testing.B) {
 	benchmarkAccessLog(b, "enableAccessLog(1,200,3)", 200)
 }
 func BenchmarkAccessLogEnable(b *testing.B) { benchmarkAccessLog(b, "enableAccessLog(1,3)", 200) }
+
+func TestInitPassiveHealthChecker(t *testing.T) {
+	for i, ti := range []struct {
+		inputArg        map[string]string
+		expectedEnabled bool
+		expectedParams  *PassiveHealthCheck
+		expectedError   error
+	}{
+		{
+			inputArg:        map[string]string{},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   nil,
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "somethingInvalid",
+				"min-requests":         "10",
+				"max-drop-probability": "0.9",
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: invalid period value: somethingInvalid"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "1m",
+				"min-requests":         "10",
+				"max-drop-probability": "0.9",
+			},
+			expectedEnabled: true,
+			expectedParams: &PassiveHealthCheck{
+				Period:             1 * time.Minute,
+				MinRequests:        10,
+				MaxDropProbability: 0.9,
+			},
+			expectedError: nil,
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "-1m",
+				"min-requests":         "10",
+				"max-drop-probability": "0.9",
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: invalid period value: -1m"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "1m",
+				"min-requests":         "somethingInvalid",
+				"max-drop-probability": "0.9",
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: invalid minRequests value: somethingInvalid"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "1m",
+				"min-requests":         "-10",
+				"max-drop-probability": "0.9",
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: invalid minRequests value: -10"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "1m",
+				"min-requests":         "10",
+				"max-drop-probability": "somethingInvalid",
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: invalid maxDropProbability value: somethingInvalid"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "1m",
+				"min-requests":         "10",
+				"max-drop-probability": "-0.1",
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: invalid maxDropProbability value: -0.1"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "1m",
+				"min-requests":         "10",
+				"max-drop-probability": "3.1415",
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: invalid maxDropProbability value: 3.1415"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "1m",
+				"min-requests":         "10",
+				"max-drop-probability": "0.9",
+				"non-existing":         "non-existing",
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: invalid parameter: key=non-existing,value=non-existing"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":       "1m",
+				"min-requests": "10",
+				/* forgot max-drop-probability */
+			},
+			expectedEnabled: false,
+			expectedParams:  nil,
+			expectedError:   fmt.Errorf("passive health check: missing required parameters"),
+		},
+	} {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			enabled, params, err := InitPassiveHealthChecker(ti.inputArg)
+			assert.Equal(t, ti.expectedEnabled, enabled)
+			assert.Equal(t, ti.expectedError, err)
+			if enabled {
+				assert.Equal(t, ti.expectedParams, params)
+			}
+		})
+	}
+}

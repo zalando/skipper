@@ -14,6 +14,8 @@ import (
 
 func TestEmptyRegistry(t *testing.T) {
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer r.Close()
+
 	m := r.GetMetrics("some key")
 
 	assert.Equal(t, time.Time{}, m.DetectedTime())
@@ -24,6 +26,7 @@ func TestEmptyRegistry(t *testing.T) {
 func TestSetAndGet(t *testing.T) {
 	now := time.Now()
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer r.Close()
 
 	mBefore := r.GetMetrics("some key")
 	assert.Equal(t, time.Time{}, mBefore.DetectedTime())
@@ -47,6 +50,7 @@ func TestSetAndGet(t *testing.T) {
 func TestSetAndGetAnotherKey(t *testing.T) {
 	now := time.Now()
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer r.Close()
 
 	mToChange := r.GetMetrics("some key")
 	mToChange.IncInflightRequest()
@@ -66,6 +70,7 @@ func TestSetAndGetAnotherKey(t *testing.T) {
 func TestDoRemovesOldEntries(t *testing.T) {
 	beginTestTs := time.Now()
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer r.Close()
 
 	routing.SetNow(r, func() time.Time {
 		return beginTestTs
@@ -117,6 +122,7 @@ func TestDoRemovesOldEntries(t *testing.T) {
 func TestEndpointRegistryPostProcessor(t *testing.T) {
 	beginTestTs := time.Now()
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer r.Close()
 
 	routing.SetNow(r, func() time.Time {
 		return beginTestTs
@@ -163,6 +169,8 @@ func TestEndpointRegistryPostProcessor(t *testing.T) {
 
 func TestMetricsMethodsDoNotAllocate(t *testing.T) {
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer r.Close()
+
 	metrics := r.GetMetrics("some key")
 	now := time.Now()
 	metrics.SetDetected(now.Add(-time.Hour))
@@ -186,6 +194,7 @@ func TestMetricsMethodsDoNotAllocate(t *testing.T) {
 
 func TestRaceReadWrite(t *testing.T) {
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer r.Close()
 	duration := time.Second
 
 	wg := sync.WaitGroup{}
@@ -219,6 +228,7 @@ func TestRaceReadWrite(t *testing.T) {
 
 func TestRaceTwoWriters(t *testing.T) {
 	r := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer r.Close()
 	duration := time.Second
 
 	wg := sync.WaitGroup{}
