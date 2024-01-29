@@ -252,19 +252,16 @@ type Params struct {
 }
 
 type (
-	maxLoopbackError string
 	ratelimitError   string
 	routeLookupError string
 )
 
-func (e maxLoopbackError) Error() string { return string(e) }
 func (e ratelimitError) Error() string   { return string(e) }
 func (e routeLookupError) Error() string { return string(e) }
 
 const (
-	errMaxLoopbacksReached = maxLoopbackError("max loopbacks reached")
-	errRatelimit           = ratelimitError("ratelimited")
-	errRouteLookup         = routeLookupError("route lookup failed")
+	errRatelimit   = ratelimitError("ratelimited")
+	errRouteLookup = routeLookupError("route lookup failed")
 )
 
 var (
@@ -1045,8 +1042,11 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 	if ctx.executionCounter > p.maxLoops {
 		// TODO(sszuecs): think about setting status code to 463 or 465 (check what AWS ALB sets for redirect loop) or similar
-		p.makeErrorResponse(ctx, &proxyError{err: errMaxLoopbacksReached})
-		return errMaxLoopbacksReached
+		perr := &proxyError{
+			err: fmt.Errorf("max loopbacks reached after route %s", ctx.route.Id),
+		}
+		p.makeErrorResponse(ctx, perr)
+		return perr
 	}
 
 	// proxy global setting
