@@ -37,7 +37,7 @@ func filterFadeIn(endpoints []routing.LBEndpoint, rt *routing.Route, registry *r
 	filtered := make([]routing.LBEndpoint, 0, len(endpoints))
 	for _, e := range endpoints {
 		f := fadeIn(
-			now.Sub(registry.GetMetrics(e.Host).DetectedTime()),
+			now.Sub(e.Metrics.DetectedTime()),
 			rt.LBFadeInDuration,
 			rt.LBFadeInExponent,
 		)
