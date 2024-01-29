@@ -22,7 +22,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.6.0
-	github.com/google/uuid v1.5.0
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.5.0
 	github.com/instana/go-sensor v1.59.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
