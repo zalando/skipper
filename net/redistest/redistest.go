@@ -34,7 +34,7 @@ func NewTestRedisWithPassword(t testing.TB, password string) (address string, do
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "redis:6-alpine",
+			Image:        "redis:7-alpine",
 			Cmd:          args,
 			ExposedPorts: []string{"6379/tcp"},
 			WaitingFor: wait.ForAll(
