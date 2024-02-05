@@ -94,7 +94,8 @@ func scanEscaped(delimiter byte, code string) (string, string) {
 	for i := 0; i < len(code); i++ {
 		c := code[i]
 		if c == delimiter {
-			return code[:i], code[i:]
+			// make a copy to avoid referencing the possibly large underlying data array
+			return strings.Clone(code[:i]), code[i:]
 		} else if c == escapeChar {
 			break
 		}
