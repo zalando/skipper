@@ -1589,9 +1589,12 @@ Skipper arguments:
 | `-oauth2-client-secret` | conditional | OAuth2 client secret for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-secret-file`. Example: `-oauth2-client-secret=myclientsecret` |
 | `-credentials-update-interval` | no | the time interval for updating client id and client secret from files. Example: `-credentials-update-interval=30s` |
 | `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Example: `-oauth2-access-token-header-name=X-Grant-Authorization` |
+| `-oauth2-grant-tokeninfo-keys` | no | comma separated list of keys to preserve in OAuth2 Grant Flow tokeninfo. Default: empty, preserves all tokeninfo keys. Example: `-oauth2-grant-tokeninfo-keys=scope,realm,expires_in` |
 | `-oauth2-auth-url-parameters` | no | any additional URL query parameters to set for the OAuth2 provider's authorize and token endpoint calls. Example: `-oauth2-auth-url-parameters=key1=foo,key2=bar` |
 | `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
-| `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`.  Example: `-oauth2-token-cookie-name=SESSION` |
+| `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`. Example: `-oauth2-token-cookie-name=SESSION` |
+| `-oauth2-token-cookie-remove-subdomains` | no | the number of subdomains to remove from the callback request hostname to obtain token cookie domain. Default: `1`. Example: `-oauth2-token-cookie-remove-subdomains=0` |
+| `-oauth2-grant-insecure` | no | omits `Secure` attribute of the token cookie and uses `http` scheme for callback url. Default: `false` |
 
 #### grantCallback
 
