@@ -1,4 +1,4 @@
-FROM amazonlinux:2023@sha256:fe46a60a46e7334e360e63125aea37b282f9992102e45b764459dc0a5ffcfafc
+FROM amazonlinux:2023@sha256:d8323b3ea56d286d65f9a7469359bb29519c636d7d009671ac00b5c12ddbacf0
 
 WORKDIR /workspace
 
