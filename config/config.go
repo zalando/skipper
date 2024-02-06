@@ -340,7 +340,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.MaxLoopbacks, "max-loopbacks", proxy.DefaultMaxLoopbacks, "maximum number of loopbacks for an incoming request, set to -1 to disable loopbacks")
 	flag.IntVar(&cfg.DefaultHTTPStatus, "default-http-status", http.StatusNotFound, "default HTTP status used when no route is found for a request")
 	flag.StringVar(&cfg.PluginDir, "plugindir", "", "set the directory to load plugins from, default is ./")
-	flag.DurationVar(&cfg.LoadBalancerHealthCheckInterval, "lb-healthcheck-interval", 0, "use to set the health checker interval to check healthiness of former dead or unhealthy routes")
+	flag.DurationVar(&cfg.LoadBalancerHealthCheckInterval, "lb-healthcheck-interval", 0, "This is *deprecated* and not in use anymore")
 	flag.BoolVar(&cfg.ReverseSourcePredicate, "reverse-source-predicate", false, "reverse the order of finding the client IP from X-Forwarded-For header")
 	flag.BoolVar(&cfg.RemoveHopHeaders, "remove-hop-headers", false, "enables removal of Hop-Headers according to RFC-2616")
 	flag.BoolVar(&cfg.RfcPatchPath, "rfc-patch-path", false, "patches the incoming request path to preserve uncoded reserved characters according to RFC 2616 and RFC 3986")
@@ -636,6 +636,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		"api-usage-monitoring-default-client-tracking-pattern",
 		"enable-kubernetes-east-west",
 		"kubernetes-east-west-domain",
+		"lb-healthcheck-interval",
 	)
 
 	if err := validate(c); err != nil {
@@ -690,38 +691,37 @@ func (c *Config) ToOptions() skipper.Options {
 
 	options := skipper.Options{
 		// generic:
-		Address:                         c.Address,
-		InsecureAddress:                 c.InsecureAddress,
-		StatusChecks:                    c.StatusChecks.values,
-		EnableTCPQueue:                  c.EnableTCPQueue,
-		ExpectedBytesPerRequest:         c.ExpectedBytesPerRequest,
-		MaxTCPListenerConcurrency:       c.MaxTCPListenerConcurrency,
-		MaxTCPListenerQueue:             c.MaxTCPListenerQueue,
-		IgnoreTrailingSlash:             c.IgnoreTrailingSlash,
-		DevMode:                         c.DevMode,
-		SupportListener:                 c.SupportListener,
-		DebugListener:                   c.DebugListener,
-		CertPathTLS:                     c.CertPathTLS,
-		KeyPathTLS:                      c.KeyPathTLS,
-		MaxLoopbacks:                    c.MaxLoopbacks,
-		DefaultHTTPStatus:               c.DefaultHTTPStatus,
-		LoadBalancerHealthCheckInterval: c.LoadBalancerHealthCheckInterval,
-		ReverseSourcePredicate:          c.ReverseSourcePredicate,
-		MaxAuditBody:                    c.MaxAuditBody,
-		MaxMatcherBufferSize:            c.MaxMatcherBufferSize,
-		EnableBreakers:                  c.EnableBreakers,
-		BreakerSettings:                 c.Breakers,
-		EnableRatelimiters:              c.EnableRatelimiters,
-		RatelimitSettings:               c.Ratelimits,
-		EnableRouteFIFOMetrics:          c.EnableRouteFIFOMetrics,
-		EnableRouteLIFOMetrics:          c.EnableRouteLIFOMetrics,
-		MetricsFlavours:                 c.MetricsFlavour.values,
-		FilterPlugins:                   c.FilterPlugins.values,
-		PredicatePlugins:                c.PredicatePlugins.values,
-		DataClientPlugins:               c.DataclientPlugins.values,
-		Plugins:                         c.MultiPlugins.values,
-		PluginDirs:                      []string{skipper.DefaultPluginDir},
-		CompressEncodings:               c.CompressEncodings.values,
+		Address:                   c.Address,
+		InsecureAddress:           c.InsecureAddress,
+		StatusChecks:              c.StatusChecks.values,
+		EnableTCPQueue:            c.EnableTCPQueue,
+		ExpectedBytesPerRequest:   c.ExpectedBytesPerRequest,
+		MaxTCPListenerConcurrency: c.MaxTCPListenerConcurrency,
+		MaxTCPListenerQueue:       c.MaxTCPListenerQueue,
+		IgnoreTrailingSlash:       c.IgnoreTrailingSlash,
+		DevMode:                   c.DevMode,
+		SupportListener:           c.SupportListener,
+		DebugListener:             c.DebugListener,
+		CertPathTLS:               c.CertPathTLS,
+		KeyPathTLS:                c.KeyPathTLS,
+		MaxLoopbacks:              c.MaxLoopbacks,
+		DefaultHTTPStatus:         c.DefaultHTTPStatus,
+		ReverseSourcePredicate:    c.ReverseSourcePredicate,
+		MaxAuditBody:              c.MaxAuditBody,
+		MaxMatcherBufferSize:      c.MaxMatcherBufferSize,
+		EnableBreakers:            c.EnableBreakers,
+		BreakerSettings:           c.Breakers,
+		EnableRatelimiters:        c.EnableRatelimiters,
+		RatelimitSettings:         c.Ratelimits,
+		EnableRouteFIFOMetrics:    c.EnableRouteFIFOMetrics,
+		EnableRouteLIFOMetrics:    c.EnableRouteLIFOMetrics,
+		MetricsFlavours:           c.MetricsFlavour.values,
+		FilterPlugins:             c.FilterPlugins.values,
+		PredicatePlugins:          c.PredicatePlugins.values,
+		DataClientPlugins:         c.DataclientPlugins.values,
+		Plugins:                   c.MultiPlugins.values,
+		PluginDirs:                []string{skipper.DefaultPluginDir},
+		CompressEncodings:         c.CompressEncodings.values,
 
 		// logging, metrics, profiling, tracing:
 		EnablePrometheusMetrics:             c.EnablePrometheusMetrics,

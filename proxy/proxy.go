@@ -204,9 +204,6 @@ type Params struct {
 	// set, no ratelimits are used.
 	RateLimiters *ratelimit.Registry
 
-	// LoadBalancer to report unhealthy or dead backends to
-	LoadBalancer *loadbalancer.LB
-
 	// Defines the time period of how often the idle connections are
 	// forcibly closed. The default is 12 seconds. When set to less than
 	// 0, the proxy doesn't force closing the idle connections.
@@ -337,7 +334,6 @@ type Proxy struct {
 	limiters                 *ratelimit.Registry
 	log                      logging.Logger
 	tracing                  *proxyTracing
-	lb                       *loadbalancer.LB
 	upgradeAuditLogOut       io.Writer
 	upgradeAuditLogErr       io.Writer
 	auditLogHook             chan struct{}
@@ -736,7 +732,6 @@ func WithParams(p Params) *Proxy {
 		experimentalUpgradeAudit: p.ExperimentalUpgradeAudit,
 		maxLoops:                 p.MaxLoopbacks,
 		breakers:                 p.CircuitBreakers,
-		lb:                       p.LoadBalancer,
 		limiters:                 p.RateLimiters,
 		log:                      &logging.DefaultLog{},
 		defaultHTTPStatus:        defaultHTTPStatus,
@@ -918,12 +913,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 		ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(err.Error()))
 		if perr, ok := err.(*proxyError); ok {
-			//p.lb.AddHealthcheck(ctx.route.Backend)
 			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
 			return nil, perr
 
 		} else if nerr, ok := err.(net.Error); ok {
-			//p.lb.AddHealthcheck(ctx.route.Backend)
 			var status int
 			if nerr.Timeout() {
 				status = http.StatusGatewayTimeout

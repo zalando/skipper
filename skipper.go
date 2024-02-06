@@ -725,9 +725,7 @@ type Options struct {
 	// of metrics endpoints.
 	MetricsFlavours []string
 
-	// LoadBalancerHealthCheckInterval enables and sets the
-	// interval when to schedule health checks for dead or
-	// unhealthy routes
+	// LoadBalancerHealthCheckInterval is *deprecated* and not in use anymore
 	LoadBalancerHealthCheckInterval time.Duration
 
 	// ReverseSourcePredicate enables the automatic use of IP
@@ -1480,11 +1478,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		log.Warn(`"ApiUsageMonitoringDefaultClientTrackingPattern" option is deprecated`)
 	}
 
-	var lbInstance *loadbalancer.LB
-	if o.LoadBalancerHealthCheckInterval != 0 {
-		lbInstance = loadbalancer.New(o.LoadBalancerHealthCheckInterval)
-	}
-
 	if err := o.findAndLoadPlugins(); err != nil {
 		return err
 	}
@@ -1915,10 +1908,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}
 
-	if lbInstance != nil {
-		ro.PostProcessors = append(ro.PostProcessors, loadbalancer.HealthcheckPostProcessor{LB: lbInstance})
-	}
-
 	if failClosedRatelimitPostProcessor != nil {
 		ro.PostProcessors = append(ro.PostProcessors, failClosedRatelimitPostProcessor)
 	}
@@ -1973,7 +1962,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ExperimentalUpgradeAudit:   o.ExperimentalUpgradeAudit,
 		MaxLoopbacks:               o.MaxLoopbacks,
 		DefaultHTTPStatus:          o.DefaultHTTPStatus,
-		LoadBalancer:               lbInstance,
 		Timeout:                    o.TimeoutBackend,
 		ResponseHeaderTimeout:      o.ResponseHeaderTimeoutBackend,
 		ExpectContinueTimeout:      o.ExpectContinueTimeoutBackend,
