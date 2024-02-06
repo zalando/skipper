@@ -271,7 +271,8 @@ func scanSymbol(code string) (t token, rest string, err error) {
 	t.id = symbol
 	for i := 0; i < len(code); i++ {
 		if !isSymbolChar(code[i]) {
-			t.val, rest = code[0:i], code[i:]
+			// make a copy to avoid referencing the possibly large underlying data array
+			t.val, rest = strings.Clone(code[:i]), code[i:]
 			return
 		}
 	}
