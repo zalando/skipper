@@ -240,6 +240,9 @@ type Options struct {
 	// DefaultLoadBalancerAlgorithm sets the default algorithm to be used for load balancing between backend endpoints,
 	// available options: roundRobin, consistentHash, random, powerOfRandomNChoices
 	DefaultLoadBalancerAlgorithm string
+
+	// FiltersRegistry is used to validate filters names in RouteGroups/Ingresses
+	FiltersRegistry filters.Registry
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.

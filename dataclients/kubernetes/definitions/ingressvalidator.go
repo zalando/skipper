@@ -4,9 +4,12 @@ import (
 	"fmt"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
 )
 
-type IngressV1Validator struct{}
+type IngressV1Validator struct {
+	FiltersRegistry filters.Registry
+}
 
 func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 	var errs []error
@@ -19,14 +22,19 @@ func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 }
 
 func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
+	var errs []error
 	if filters, ok := annotations[IngressFilterAnnotation]; ok {
-		_, err := eskip.ParseFilters(filters)
+		parsedFilters, err := eskip.ParseFilters(filters)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err)
+			errs = append(errs, fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err))
 		}
-		return err
+
+		if igv.FiltersRegistry != nil {
+			errs = append(errs, igv.validateFiltersNames(parsedFilters))
+		}
 	}
-	return nil
+
+	return errorsJoin(errs...)
 }
 
 func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[string]string) error {
@@ -41,12 +49,28 @@ func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[strin
 }
 
 func (igv *IngressV1Validator) validateRoutesAnnotation(annotations map[string]string) error {
+	var errs []error
 	if routes, ok := annotations[IngressRoutesAnnotation]; ok {
-		_, err := eskip.Parse(routes)
+		parsedRoutes, err := eskip.Parse(routes)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err)
+			errs = append(errs, fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err))
 		}
-		return err
+
+		if igv.FiltersRegistry != nil {
+			for _, r := range parsedRoutes {
+				errs = append(errs, igv.validateFiltersNames(r.Filters))
+			}
+		}
+	}
+
+	return errorsJoin(errs...)
+}
+
+func (igv *IngressV1Validator) validateFiltersNames(filters []*eskip.Filter) error {
+	for _, f := range filters {
+		if _, ok := igv.FiltersRegistry[f.Name]; !ok {
+			return fmt.Errorf("filter \"%s\" is not supported", f.Name)
+		}
 	}
 	return nil
 }
