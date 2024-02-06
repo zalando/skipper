@@ -349,6 +349,7 @@ const (
 	ConsistentHashBalanceFactorName            = "consistentHashBalanceFactor"
 	OpaAuthorizeRequestName                    = "opaAuthorizeRequest"
 	OpaServeResponseName                       = "opaServeResponse"
+	TlsName                                    = "tls"
 
 	// Undocumented filters
 	HealthCheckName        = "healthcheck"
