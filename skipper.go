@@ -1910,6 +1910,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			builtin.NewRouteCreationMetrics(mtr),
 			fadein.NewPostProcessor(fadein.PostProcessorOptions{EndpointRegistry: endpointRegistry}),
 			admissionControlSpec.PostProcessor(),
+			builtin.CommentPostProcessor{},
 		},
 		SignalFirstLoad: o.WaitFirstRouteLoad,
 	}

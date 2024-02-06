@@ -115,6 +115,7 @@ const (
 func Filters() []filters.Spec {
 	return []filters.Spec{
 		NewBackendIsProxy(),
+		NewComment(),
 		NewRequestHeader(),
 		NewSetRequestHeader(),
 		NewAppendRequestHeader(),

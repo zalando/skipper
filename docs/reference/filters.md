@@ -63,6 +63,22 @@ Example:
 route1: Host(/^all401\.example\.org$/) -> status(401) -> <shunt>;
 ```
 
+## comment
+
+No operation, only to comment the route or a group of filters of a route
+
+Parameters:
+
+* msg (string)
+
+Example:
+
+```
+route1: *
+    -> comment("nothing to see")
+    -> <shunt>;
+```
+
 ## HTTP Headers
 ### preserveHost
 
