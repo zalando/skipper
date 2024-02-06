@@ -207,6 +207,7 @@ func (r Registry) Register(s Spec) {
 // All Skipper filter names
 const (
 	BackendIsProxyName                         = "backendIsProxy"
+	CommentName                                = "comment"
 	ModRequestHeaderName                       = "modRequestHeader"
 	SetRequestHeaderName                       = "setRequestHeader"
 	AppendRequestHeaderName                    = "appendRequestHeader"
