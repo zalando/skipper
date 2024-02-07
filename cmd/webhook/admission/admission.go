@@ -120,7 +120,9 @@ func Handler(admitter admitter) http.HandlerFunc {
 		}
 
 		start := time.Now()
-		defer admissionDuration.With(labelValues).Observe(float64(time.Since(start)) / float64(time.Second))
+		defer func() {
+			admissionDuration.With(labelValues).Observe(float64(time.Since(start)) / float64(time.Second))
+		}()
 
 		admResp, err := admitter.admit(request)
 		if err != nil {
