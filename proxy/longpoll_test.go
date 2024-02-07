@@ -122,6 +122,7 @@ func cancelableRequest(
 	ctx, cancel := stdlibcontext.WithCancel(stdlibcontext.Background())
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
