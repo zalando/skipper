@@ -450,6 +450,22 @@ The second filter will set `Authorization` header to the
 `access_token` query param with a prefix value `Bearer ` and will
 not override the value if the header exists already.
 
+## TLS
+
+Filters that provide access to TLS data of a request.
+
+### tlsPassClientCertificates
+
+This filter copies TLS client certificates encoded as pem into the
+X-Forwarded-Tls-Client-Cert header. Multiple certificates are
+separated by `,`.
+
+Example:
+
+```
+* -> tlsPassClientCertificates() -> "http://10.2.5.21:8080";
+```
+
 ## Diagnostics
 
 These filters are meant for diagnostic or load testing purposes.

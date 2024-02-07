@@ -9,44 +9,40 @@ import (
 )
 
 type tlsSpec struct{}
-type tlsFilter struct {
-	headerName string
-}
+type tlsFilter struct{}
 
-// New
 func New() filters.Spec {
 	return &tlsSpec{}
 }
 
 func (*tlsSpec) Name() string {
-	return filters.TlsName
+	return filters.TLSName
 }
 
 func (c *tlsSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 1 {
-		return nil, filters.ErrInvalidFilterParameters
-	}
-	s, ok := args[0].(string)
-	if !ok {
+	if len(args) != 0 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &tlsFilter{
-		headerName: s,
-	}, nil
+	return &tlsFilter{}, nil
 }
 
 const (
-	certSeparator = ","
+	certSeparator  = ","
+	certHeaderName = "X-Forwarded-Tls-Client-Cert"
 )
 
-// sanitize As we pass the raw certificates, remove the useless data and make it http request compliant.
-func sanitize(cert []byte) string {
-	return strings.NewReplacer(
+var (
+	replacer = strings.NewReplacer(
 		"-----BEGIN CERTIFICATE-----", "",
 		"-----END CERTIFICATE-----", "",
 		"\n", "",
-	).Replace(string(cert))
+	)
+)
+
+// sanitize the raw certificates, remove the useless data and make it http request compliant.
+func sanitize(cert []byte) string {
+	return replacer.Replace(string(cert))
 }
 
 // getCertificates Build a string with the client certificates.
@@ -69,10 +65,13 @@ func extractCertificate(cert *x509.Certificate) string {
 
 	return sanitize(certPEM)
 }
+
+// Request passes cert information via X-Forwarded-Tls-Client-Cert header to the backend.
+// Largely inspired by traefik, see also https://github.com/traefik/traefik/blob/6c19a9cb8fb9e41a274bf712580df3712b69dc3e/pkg/middlewares/passtlsclientcert/pass_tls_client_cert.go#L146
 func (f *tlsFilter) Request(ctx filters.FilterContext) {
 	if t := ctx.Request().TLS; t != nil {
 		if len(t.PeerCertificates) > 0 {
-
+			ctx.Request().Header.Set(certHeaderName, getCertificates(ctx.Request().TLS.PeerCertificates))
 		}
 	}
 }
