@@ -19,6 +19,7 @@ type clusterState struct {
 	endpointSlices       map[definitions.ResourceID]*skipperEndpointSlice
 	secrets              map[definitions.ResourceID]*secret
 	cachedEndpoints      map[endpointID][]string
+	cachedAddresses      map[definitions.ResourceID][]string
 	enableEndpointSlices bool
 }
 
@@ -83,38 +84,35 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 	return targets
 }
 
-// GetEndpointsByName returns the skipper endpoints for kubernetes endpoints or endpointslices.
-// This function works only correctly for endpointslices (and likely endpoints) with one port with the same protocol ("TCP", "UDP").
-func (state *clusterState) GetEndpointsByName(namespace, name, protocol, scheme string) []string {
-	epID := endpointID{
-		ResourceID: newResourceID(namespace, name),
-		Protocol:   protocol,
-	}
+// getEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices.
+func (state *clusterState) getEndpointAddresses(namespace, name string) []string {
+	rID := newResourceID(namespace, name)
+
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	if cached, ok := state.cachedEndpoints[epID]; ok {
+	if cached, ok := state.cachedAddresses[rID]; ok {
 		return cached
 	}
 
-	var targets []string
+	var addresses []string
 	if state.enableEndpointSlices {
-		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targets(protocol, scheme)
+		if eps, ok := state.endpointSlices[rID]; ok {
+			addresses = eps.addresses()
 		} else {
 			return nil
 		}
 	} else {
-		if ep, ok := state.endpoints[epID.ResourceID]; ok {
-			targets = ep.targets(scheme)
+		if ep, ok := state.endpoints[rID]; ok {
+			addresses = ep.addresses()
 		} else {
 			return nil
 		}
 	}
 
-	sort.Strings(targets)
-	state.cachedEndpoints[epID] = targets
-	return targets
+	sort.Strings(addresses)
+	state.cachedAddresses[rID] = addresses
 
+	return addresses
 }
 
 // GetEndpointsByTarget returns the skipper endpoints for kubernetes endpoints or endpointslices.

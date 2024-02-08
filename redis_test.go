@@ -153,6 +153,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		KubernetesURL:                   lb.URL,
 		KubernetesRedisServiceNamespace: "skipper",
 		KubernetesRedisServiceName:      "redis",
+		KubernetesRedisServicePort:      6379,
 		KubernetesHealthcheck:           true,
 		SourcePollTimeout:               1500 * time.Millisecond,
 	}
@@ -355,6 +356,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		KubernetesURL:                   lb.URL,
 		KubernetesRedisServiceNamespace: "skipper",
 		KubernetesRedisServiceName:      "redis",
+		KubernetesRedisServicePort:      6379,
 		KubernetesHealthcheck:           true,
 		SourcePollTimeout:               1500 * time.Millisecond,
 		WaitFirstRouteLoad:              true,

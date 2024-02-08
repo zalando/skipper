@@ -599,7 +599,7 @@ func TestGetEndpointAddresses(t *testing.T) {
 		ns := "namespace1"
 		name := "service1"
 		got := client.GetEndpointAddresses(ns, name)
-		expected := []string{"http://1.1.1.0:8080"}
+		expected := []string{"1.1.1.0"}
 		if len(got) != len(expected) {
 			t.Fatalf("Failed to get same size: %d != %d", len(expected), len(got))
 		}
@@ -646,7 +646,7 @@ func TestGetEndpointAddresses(t *testing.T) {
 		ns := "namespace1"
 		name := "service1"
 		got := client.GetEndpointAddresses(ns, name)
-		expected := []string{"http://1.1.1.0:8080"}
+		expected := []string{"1.1.1.0"}
 		if len(got) != len(expected) {
 			t.Fatalf("Failed to get same size: %d != %d", len(expected), len(got))
 		}
@@ -666,7 +666,6 @@ func TestGetEndpointAddresses(t *testing.T) {
 				t.Fatalf("Failed to get cached result expected %q, got %q", expected[i], got[i])
 			}
 		}
-
 	})
 }
 

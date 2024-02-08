@@ -74,20 +74,11 @@ func (eps *skipperEndpointSlice) targetsByServiceTarget(protocol, scheme string,
 	return result
 }
 
-func (eps *skipperEndpointSlice) targets(protocol, scheme string) []string {
+func (eps *skipperEndpointSlice) addresses() []string {
 	result := make([]string, 0, len(eps.Endpoints))
-
-	var port int
-	for _, p := range eps.Ports {
-		if p.Protocol == protocol {
-			port = p.Port
-			break
-		}
-	}
 	for _, ep := range eps.Endpoints {
-		result = append(result, formatEndpointString(ep.Address, scheme, port))
+		result = append(result, ep.Address)
 	}
-
 	return result
 }
 

@@ -3,10 +3,12 @@ package routesrv
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
-	"strings"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/metrics"
 )
@@ -38,16 +40,18 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(address)
 }
 
-func getRedisAddresses(namespace, name string, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
+func getRedisAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
 	return func() ([]byte, error) {
-		a := kdc.GetEndpointAddresses(namespace, name)
+		a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
 		log.Debugf("Redis updater called and found %d redis endpoints: %v", len(a), a)
 		m.UpdateGauge("redis_endpoints", float64(len(a)))
 
-		result := RedisEndpoints{}
+		result := RedisEndpoints{
+			Endpoints: make([]RedisEndpoint, len(a)),
+		}
+		port := strconv.Itoa(opts.KubernetesRedisServicePort)
 		for i := 0; i < len(a); i++ {
-			a[i] = strings.TrimPrefix(a[i], "http://")
-			result.Endpoints = append(result.Endpoints, RedisEndpoint{Address: a[i]})
+			result.Endpoints[i].Address = net.JoinHostPort(a[i], port)
 		}
 
 		data, err := json.Marshal(result)
