@@ -52,7 +52,7 @@ const (
 const RouteGroupsNotInstalledMessage = `RouteGroups CRD is not installed in the cluster.
 See: https://opensource.zalando.com/skipper/kubernetes/routegroups/#installation`
 
-type clusterClient struct {
+type ClusterClient struct {
 	ingressesURI        string
 	routeGroupsURI      string
 	servicesURI         string
@@ -152,7 +152,7 @@ func buildHTTPClient(certFilePath string, quit <-chan struct{}) (*http.Client, e
 	}, nil
 }
 
-func newClusterClient(o Options) (*clusterClient, error) {
+func NewClusterClient(o Options) (*ClusterClient, error) {
 	apiURL, err := buildAPIURL(&o)
 	if err != nil {
 		return nil, err
@@ -189,7 +189,7 @@ func newClusterClient(o Options) (*clusterClient, error) {
 		return nil, err
 	}
 
-	c := &clusterClient{
+	c := &ClusterClient{
 		ingressesURI:                 IngressesV1ClusterURI,
 		routeGroupsURI:               RouteGroupsClusterURI,
 		servicesURI:                  ServicesClusterURI,
@@ -264,7 +264,7 @@ func toLabelSelectorQuery(selectors map[string]string) string {
 	return fmt.Sprintf(labelSelectorQueryFmt, url.QueryEscape(strings.Join(strs, ",")))
 }
 
-func (c *clusterClient) setNamespace(namespace string) {
+func (c *ClusterClient) setNamespace(namespace string) {
 	c.ingressesURI = fmt.Sprintf(IngressesV1NamespaceFmt, namespace)
 	c.routeGroupsURI = fmt.Sprintf(RouteGroupsNamespaceFmt, namespace)
 	c.servicesURI = fmt.Sprintf(ServicesNamespaceFmt, namespace)
@@ -273,7 +273,7 @@ func (c *clusterClient) setNamespace(namespace string) {
 	c.secretsURI = fmt.Sprintf(SecretsNamespaceFmt, namespace)
 }
 
-func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request, error) {
+func (c *ClusterClient) createRequest(uri string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest("GET", c.apiURL+uri, body)
 	if err != nil {
 		return nil, err
@@ -290,7 +290,7 @@ func (c *clusterClient) createRequest(uri string, body io.Reader) (*http.Request
 	return req, nil
 }
 
-func (c *clusterClient) getJSON(uri string, a interface{}) error {
+func (c *ClusterClient) getJSON(uri string, a interface{}) error {
 	log.Tracef("making request to: %s", uri)
 
 	req, err := c.createRequest(uri, nil)
@@ -330,7 +330,7 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 	return err
 }
 
-func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
+func (c *ClusterClient) clusterHasRouteGroups() (bool, error) {
 	var crl ClusterResourceList
 	if err := c.getJSON(ZalandoResourcesClusterURI, &crl); err != nil { // it probably should bounce once
 		return false, err
@@ -345,7 +345,7 @@ func (c *clusterClient) clusterHasRouteGroups() (bool, error) {
 	return false, nil
 }
 
-func (c *clusterClient) ingressClassMissmatch(m *definitions.Metadata) bool {
+func (c *ClusterClient) ingressClassMissmatch(m *definitions.Metadata) bool {
 	// No Metadata is the same as no annotations for us
 	if m != nil {
 		cls, ok := m.Annotations[ingressClassKey]
@@ -357,7 +357,7 @@ func (c *clusterClient) ingressClassMissmatch(m *definitions.Metadata) bool {
 
 // filterIngressesV1ByClass will filter only the ingresses that have the valid class, these are
 // the defined one, empty string class or not class at all
-func (c *clusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1Item) []*definitions.IngressV1Item {
+func (c *ClusterClient) filterIngressesV1ByClass(items []*definitions.IngressV1Item) []*definitions.IngressV1Item {
 	validIngs := []*definitions.IngressV1Item{}
 
 	for _, ing := range items {
@@ -393,7 +393,7 @@ func sortByMetadata(slice interface{}, getMetadata func(int) *definitions.Metada
 	})
 }
 
-func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) {
+func (c *ClusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) {
 	var il definitions.IngressV1List
 	if err := c.getJSON(c.ingressesURI+c.ingressLabelSelectors, &il); err != nil {
 		log.Debugf("requesting all ingresses failed: %v", err)
@@ -418,7 +418,7 @@ func (c *clusterClient) loadIngressesV1() ([]*definitions.IngressV1Item, error) 
 	return validatedItems, nil
 }
 
-func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error) {
+func (c *ClusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error) {
 	var rgl definitions.RouteGroupList
 	if err := c.getJSON(c.routeGroupsURI+c.routeGroupsLabelSelectors, &rgl); err != nil {
 		return nil, err
@@ -452,7 +452,7 @@ func (c *clusterClient) LoadRouteGroups() ([]*definitions.RouteGroupItem, error)
 	return rgs, nil
 }
 
-func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, error) {
+func (c *ClusterClient) loadServices() (map[definitions.ResourceID]*service, error) {
 	var services serviceList
 	if err := c.getJSON(c.servicesURI+c.servicesLabelSelectors, &services); err != nil {
 		log.Debugf("requesting all services failed: %v", err)
@@ -478,7 +478,7 @@ func (c *clusterClient) loadServices() (map[definitions.ResourceID]*service, err
 	return result, nil
 }
 
-func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error) {
+func (c *ClusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error) {
 	var secrets secretList
 	if err := c.getJSON(c.secretsURI+c.secretsLabelSelectors, &secrets); err != nil {
 		log.Debugf("requesting all secrets failed: %v", err)
@@ -498,7 +498,7 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 	return result, nil
 }
 
-func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
+func (c *ClusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
 	var endpoints endpointList
 	if err := c.getJSON(c.endpointsURI+c.endpointsLabelSelectors, &endpoints); err != nil {
 		log.Debugf("requesting all endpoints failed: %v", err)
@@ -524,7 +524,7 @@ func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, e
 // members. The returned map will return the full list of ready
 // non-terminating endpoints that should be in the load balancer of a
 // given service, check endpointSlice.ToResourceID().
-func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skipperEndpointSlice, error) {
+func (c *ClusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skipperEndpointSlice, error) {
 	var endpointSlices endpointSliceList
 	if err := c.getJSON(c.endpointSlicesURI+c.endpointSlicesLabelSelectors, &endpointSlices); err != nil {
 		log.Debugf("requesting all endpointslices failed: %v", err)
@@ -589,7 +589,7 @@ func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skippe
 	return result, nil
 }
 
-func (c *clusterClient) logMissingRouteGroupsOnce() {
+func (c *ClusterClient) logMissingRouteGroupsOnce() {
 	if c.loggedMissingRouteGroups {
 		return
 	}
@@ -598,7 +598,7 @@ func (c *clusterClient) logMissingRouteGroupsOnce() {
 	log.Warn(RouteGroupsNotInstalledMessage)
 }
 
-func (c *clusterClient) fetchClusterState() (*clusterState, error) {
+func (c *ClusterClient) fetchClusterState() (*clusterState, error) {
 	var (
 		err         error
 		ingressesV1 []*definitions.IngressV1Item
@@ -655,7 +655,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	return state, nil
 }
 
-func (c *clusterClient) close() {
+func (c *ClusterClient) Close() {
 	if c.quit != nil {
 		close(c.quit)
 		c.quit = nil

@@ -803,7 +803,7 @@ func TestIngressClassFilter(t *testing.T) {
 				return
 			}
 
-			c := &clusterClient{
+			c := &ClusterClient{
 				ingressClass: clsRx,
 			}
 
@@ -2009,7 +2009,7 @@ func TestCreateRequest(t *testing.T) {
 	)
 	rc := io.NopCloser(&buf)
 
-	client := &clusterClient{}
+	client := &ClusterClient{}
 
 	url = "A%"
 	_, err = client.createRequest(url, rc)
@@ -2129,7 +2129,7 @@ func TestBuildHTTPClient(t *testing.T) {
 }
 
 func TestScoping(t *testing.T) {
-	client := &clusterClient{}
+	client := &ClusterClient{}
 
 	client.setNamespace("test")
 	assert.Equal(t, "/apis/networking.k8s.io/v1/namespaces/test/ingresses", client.ingressesURI)
@@ -2246,11 +2246,11 @@ func TestLabelSelectorsSet(t *testing.T) {
 			client, err := New(test.options)
 			require.NoError(t, err)
 
-			assert.Equal(t, sortedSlice(test.expectedIngressSelector), sortedSlice(client.ClusterClient.ingressLabelSelectors))
-			assert.Equal(t, sortedSlice(test.expectedServicesSelector), sortedSlice(client.ClusterClient.servicesLabelSelectors))
-			assert.Equal(t, sortedSlice(test.expectedEndpointsSelector), sortedSlice(client.ClusterClient.endpointsLabelSelectors))
-			assert.Equal(t, sortedSlice(test.expectedSecretsSelector), sortedSlice(client.ClusterClient.secretsLabelSelectors))
-			assert.Equal(t, sortedSlice(test.expectedRouteGroupsSelector), sortedSlice(client.ClusterClient.routeGroupsLabelSelectors))
+			assert.Equal(t, sortedSlice(test.expectedIngressSelector), sortedSlice(client.clusterClient.ingressLabelSelectors))
+			assert.Equal(t, sortedSlice(test.expectedServicesSelector), sortedSlice(client.clusterClient.servicesLabelSelectors))
+			assert.Equal(t, sortedSlice(test.expectedEndpointsSelector), sortedSlice(client.clusterClient.endpointsLabelSelectors))
+			assert.Equal(t, sortedSlice(test.expectedSecretsSelector), sortedSlice(client.clusterClient.secretsLabelSelectors))
+			assert.Equal(t, sortedSlice(test.expectedRouteGroupsSelector), sortedSlice(client.clusterClient.routeGroupsLabelSelectors))
 		})
 	}
 }
@@ -3091,7 +3091,7 @@ func TestCertificateRegistry(t *testing.T) {
 
 		defer dc.Close()
 
-		state, err := dc.ClusterClient.fetchClusterState()
+		state, err := dc.clusterClient.fetchClusterState()
 		if err != nil {
 			t.Error(err)
 		}
@@ -3110,7 +3110,7 @@ func TestCertificateRegistry(t *testing.T) {
 
 		defer dc.Close()
 
-		state, err := dc.ClusterClient.fetchClusterState()
+		state, err := dc.clusterClient.fetchClusterState()
 		if err != nil {
 			t.Error(err)
 		}

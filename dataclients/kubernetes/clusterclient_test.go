@@ -237,13 +237,13 @@ spec:
 			s := httptest.NewServer(a)
 			defer s.Close()
 
-			c, err := kubernetes.New(kubernetes.Options{KubernetesURL: s.URL, RouteGroupClass: tt.rgClass})
+			c, err := kubernetes.NewClusterClient(kubernetes.Options{KubernetesURL: s.URL, RouteGroupClass: tt.rgClass})
 			if err != nil {
 				t.Error(err)
 			}
 			defer c.Close()
 
-			rgs, err := c.ClusterClient.LoadRouteGroups()
+			rgs, err := c.LoadRouteGroups()
 			if err != nil {
 				t.Error(err)
 			}

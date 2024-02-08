@@ -243,7 +243,7 @@ type Options struct {
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
 type Client struct {
 	mu                     sync.Mutex
-	ClusterClient          *clusterClient
+	clusterClient          *ClusterClient
 	ingress                *ingress
 	routeGroups            *routeGroups
 	provideHealthcheck     bool
@@ -263,7 +263,7 @@ func New(o Options) (*Client, error) {
 		log.Warning("OriginMarker is deprecated")
 	}
 
-	clusterClient, err := newClusterClient(o)
+	clusterClient, err := NewClusterClient(o)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cluster client: %v", err)
 	}
@@ -301,7 +301,7 @@ func New(o Options) (*Client, error) {
 	rg := newRouteGroups(o)
 
 	return &Client{
-		ClusterClient:          clusterClient,
+		clusterClient:          clusterClient,
 		ingress:                ing,
 		routeGroups:            rg,
 		provideHealthcheck:     o.ProvideHealthcheck,
@@ -361,7 +361,7 @@ func mapRoutes(routes []*eskip.Route) (map[string]*eskip.Route, []*eskip.Route) 
 
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	c.mu.Lock()
-	state, err := c.ClusterClient.fetchClusterState()
+	state, err := c.clusterClient.fetchClusterState()
 	if err != nil {
 		c.mu.Unlock()
 		return nil, err
@@ -376,12 +376,12 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 
 	defaultFilters := c.fetchDefaultFilterConfigs()
 
-	ri, err := c.ingress.convert(state, defaultFilters, c.ClusterClient.certificateRegistry, loggingEnabled)
+	ri, err := c.ingress.convert(state, defaultFilters, c.clusterClient.certificateRegistry, loggingEnabled)
 	if err != nil {
 		return nil, err
 	}
 
-	rg, err := c.routeGroups.convert(state, defaultFilters, loggingEnabled, c.ClusterClient.certificateRegistry)
+	rg, err := c.routeGroups.convert(state, defaultFilters, loggingEnabled, c.clusterClient.certificateRegistry)
 	if err != nil {
 		return nil, err
 	}
@@ -512,7 +512,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 }
 
 func (c *Client) Close() {
-	c.ClusterClient.close()
+	c.clusterClient.Close()
 }
 
 func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
