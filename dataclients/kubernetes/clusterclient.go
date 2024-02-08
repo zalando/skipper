@@ -482,13 +482,13 @@ func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, e
 
 // loadEndpointSlices is different from the other load$Kind()
 // functions because there are 1..N endpointslices created for a given
-// service. endpointslices need to be deduplicated and state needs to
+// service. Endpointslices need to be deduplicated and state needs to
 // be checked. We read all endpointslices and create de-duplicated
-// business objects skipperEndpointSlice instead of raw Kubernetes
+// business objects [skipperEndpointSlice] instead of raw Kubernetes
 // objects, because we need just a clean list of load balancer
 // members. The returned map will return the full list of ready
 // non-terminating endpoints that should be in the load balancer of a
-// given service, check endpointSlice.ToResourceID().
+// given service, check [endpointSlice.ToResourceID].
 func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skipperEndpointSlice, error) {
 	var endpointSlices endpointSliceList
 	if err := c.getJSON(c.endpointSlicesURI+c.endpointSlicesLabelSelectors, &endpointSlices); err != nil {
@@ -497,6 +497,10 @@ func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skippe
 	}
 	log.Debugf("all endpointslices received: %d", len(endpointSlices.Items))
 
+	return collectReadyEndpoints(&endpointSlices), nil
+}
+
+func collectReadyEndpoints(endpointSlices *endpointSliceList) map[definitions.ResourceID]*skipperEndpointSlice {
 	mapSlices := make(map[definitions.ResourceID][]*endpointSlice)
 	for _, endpointSlice := range endpointSlices.Items {
 		resID := endpointSlice.ToResourceID() // service resource ID
@@ -550,6 +554,40 @@ func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skippe
 			result[resID].Endpoints = append(result[resID].Endpoints, o)
 		}
 	}
+	return result
+}
+
+// loadEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices API.
+func (c *clusterClient) loadEndpointAddresses(namespace, name string) ([]string, error) {
+	var result []string
+	if c.enableEndpointSlices {
+		url := fmt.Sprintf(EndpointSlicesNamespaceFmt, namespace) +
+			toLabelSelectorQuery(map[string]string{endpointSliceServiceNameLabel: name})
+
+		var endpointSlices endpointSliceList
+		if err := c.getJSON(url, &endpointSlices); err != nil {
+			return nil, fmt.Errorf("requesting endpointslices for %s/%s failed: %w", namespace, name, err)
+		}
+
+		ready := collectReadyEndpoints(&endpointSlices)
+		if len(ready) != 1 {
+			return nil, fmt.Errorf("unexpected number of endpoint slices for %s/%s: %d", namespace, name, len(ready))
+		}
+
+		for _, eps := range ready {
+			result = eps.addresses()
+			break
+		}
+	} else {
+		url := fmt.Sprintf(EndpointsNamespaceFmt, namespace) + "/" + name
+
+		var ep endpoint
+		if err := c.getJSON(url, &ep); err != nil {
+			return nil, fmt.Errorf("requesting endpoints for %s/%s failed: %w", namespace, name, err)
+		}
+		result = ep.addresses()
+	}
+	sort.Strings(result)
 
 	return result, nil
 }

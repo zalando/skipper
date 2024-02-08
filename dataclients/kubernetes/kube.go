@@ -574,7 +574,8 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 	return filters
 }
 
-// GetEndpointAddresses returns the list of all addresses for the given service.
+// GetEndpointAddresses returns the list of all addresses for the given service
+// loaded by previous call to LoadAll or LoadUpdate.
 func (c *Client) GetEndpointAddresses(ns, name string) []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -582,6 +583,11 @@ func (c *Client) GetEndpointAddresses(ns, name string) []string {
 		return nil
 	}
 	return c.state.getEndpointAddresses(ns, name)
+}
+
+// LoadEndpointAddresses returns the list of all addresses for the given service.
+func (c *Client) LoadEndpointAddresses(namespace, name string) ([]string, error) {
+	return c.ClusterClient.loadEndpointAddresses(namespace, name)
 }
 
 func compareStringList(a, b []string) []string {

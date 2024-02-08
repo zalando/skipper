@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	stdlibhttptest "net/http/httptest"
-	"net/url"
 	"os"
 	"syscall"
 	"testing"
@@ -20,6 +19,7 @@ import (
 	flog "github.com/zalando/skipper/filters/accesslog"
 	fscheduler "github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/loadbalancer"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net/httptest"
 	"github.com/zalando/skipper/net/redistest"
@@ -82,27 +82,15 @@ spec:
 
 	// apiserver1
 	redisSpec1 := createRedisEndpointsSpec(t, redis1)
-	apiServer1, u1, err := createApiserver(kubeSpec + redisSpec1)
-	if err != nil {
-		t.Fatalf("Failed to start apiserver1: %v", err)
-	}
-	defer apiServer1.Close()
+	apiServer1 := createApiserver(t, kubeSpec+redisSpec1)
 
 	// apiserver2
 	redisSpec2 := createRedisEndpointsSpec(t, redis1, redis2)
-	apiServer2, u2, err := createApiserver(kubeSpec + redisSpec2)
-	if err != nil {
-		t.Fatalf("Failed to start apiserver2: %v", err)
-	}
-	defer apiServer2.Close()
+	apiServer2 := createApiserver(t, kubeSpec+redisSpec2)
 
 	// apiserver3
 	redisSpec3 := createRedisEndpointsSpec(t, redis1, redis2, redis3)
-	apiServer3, u3, err := createApiserver(kubeSpec + redisSpec3)
-	if err != nil {
-		t.Fatalf("Failed to start apiserver3: %v", err)
-	}
-	defer apiServer3.Close()
+	apiServer3 := createApiserver(t, kubeSpec+redisSpec3)
 
 	// create skipper as LB to kube-apiservers
 	fr := createFilterRegistry(fscheduler.NewFifo(), flog.NewEnableAccessLog())
@@ -113,15 +101,13 @@ spec:
 	})
 	defer reg.Close()
 
-	docFmt := `
-r1: * -> enableAccessLog(4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;
-r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;
-`
-	docApiserver := fmt.Sprintf(docFmt, u1.String(), u2.String(), u3.String(), u1.String(), u2.String(), u3.String())
+	docApiserver := fmt.Sprintf(`r1: * -> enableAccessLog(4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;`,
+		apiServer1.URL, apiServer2.URL, apiServer3.URL)
+
 	dc, err := testdataclient.NewDoc(docApiserver)
-	if err != nil {
-		t.Fatalf("Failed to create testdataclient: %v", err)
-	}
+	require.NoError(t, err)
+	defer dc.Close()
+
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 
 	// create LB in front of apiservers to be able to switch the data served by apiserver
@@ -149,7 +135,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	defer lb.Close()
 
 	rsvo := skipper.Options{
-		Address:                         ":8082",
+		Address:                         findAddress(t),
 		KubernetesURL:                   lb.URL,
 		KubernetesRedisServiceNamespace: "skipper",
 		KubernetesRedisServiceName:      "redis",
@@ -160,21 +146,15 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 
 	go routesrv.Run(rsvo)
 
-	for {
-		rsp, _ := http.DefaultClient.Head("http://localhost:8082/routes")
-		if rsp != nil && rsp.StatusCode == 200 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	waitForOK(t, "http://"+rsvo.Address+"/routes", 1*time.Second)
 
 	// run skipper proxy that we want to test
 	o := skipper.Options{
-		Address:                        ":9090",
+		Address:                        findAddress(t),
 		EnableRatelimiters:             true,
 		EnableSwarm:                    true,
 		Kubernetes:                     true,
-		SwarmRedisEndpointsRemoteURL:   "http://localhost:8082/swarm/redis/shards",
+		SwarmRedisEndpointsRemoteURL:   "http://" + rsvo.Address + "/swarm/redis/shards",
 		KubernetesURL:                  lb.URL,
 		KubernetesHealthcheck:          true,
 		SourcePollTimeout:              1500 * time.Millisecond,
@@ -182,26 +162,19 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		ClusterRatelimitMaxGroupShards: 2,
 		SwarmRedisDialTimeout:          100 * time.Millisecond,
 		SuppressRouteUpdateLogs:        false,
-		SupportListener:                ":9091",
+		SupportListener:                findAddress(t),
 		SwarmRedisUpdateInterval:       time.Second,
 	}
 
+	runResult := make(chan error)
 	sigs := make(chan os.Signal, 1)
-	go skipper.RunWithShutdown(o, sigs, nil)
+	go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
-	for i := 0; i < 10; i++ {
-		t.Logf("Waiting for proxy being ready")
-
-		rsp, _ := http.DefaultClient.Get("http://localhost:9090/kube-system/healthz")
-		if rsp != nil && rsp.StatusCode == 200 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	waitForOK(t, "http://"+o.Address+"/kube-system/healthz", 1*time.Second)
 
 	rate := 10
 	sec := 5
-	va := httptest.NewVegetaAttacker("http://localhost:9090/test", rate, time.Second, time.Second)
+	va := httptest.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
 	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
 
 	successRate := va.Success()
@@ -231,6 +204,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	assert.InEpsilon(t, sec*rate-(1*sec), countLimited, epsilon, fmt.Sprintf("Test should have limited requests between %d and %d", countLimited-int(epsilon), countLimited+int(epsilon)))
 
 	sigs <- syscall.SIGTERM
+	assert.NoError(t, <-runResult)
 }
 
 func TestConcurrentKubernetesClusterStateAccess(t *testing.T) {
@@ -281,27 +255,15 @@ spec:
 
 	// apiserver1
 	redisSpec1 := createRedisEndpointsSpec(t, redis1)
-	apiServer1, u1, err := createApiserver(kubeSpec + redisSpec1)
-	if err != nil {
-		t.Fatalf("Failed to start apiserver1: %v", err)
-	}
-	defer apiServer1.Close()
+	apiServer1 := createApiserver(t, kubeSpec+redisSpec1)
 
 	// apiserver2
 	redisSpec2 := createRedisEndpointsSpec(t, redis1, redis2)
-	apiServer2, u2, err := createApiserver(kubeSpec + redisSpec2)
-	if err != nil {
-		t.Fatalf("Failed to start apiserver2: %v", err)
-	}
-	defer apiServer2.Close()
+	apiServer2 := createApiserver(t, kubeSpec+redisSpec2)
 
 	// apiserver3
 	redisSpec3 := createRedisEndpointsSpec(t, redis1, redis2, redis3)
-	apiServer3, u3, err := createApiserver(kubeSpec + redisSpec3)
-	if err != nil {
-		t.Fatalf("Failed to start apiserver3: %v", err)
-	}
-	defer apiServer3.Close()
+	apiServer3 := createApiserver(t, kubeSpec+redisSpec3)
 
 	// create skipper as LB to kube-apiservers
 	fr := createFilterRegistry(fscheduler.NewFifo(), flog.NewEnableAccessLog())
@@ -312,15 +274,13 @@ spec:
 	})
 	defer reg.Close()
 
-	docFmt := `
-r1: * -> enableAccessLog(4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;
-r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;
-`
-	docApiserver := fmt.Sprintf(docFmt, u1.String(), u2.String(), u3.String(), u1.String(), u2.String(), u3.String())
+	docApiserver := fmt.Sprintf(`r1: * -> enableAccessLog(4,5) -> fifo(100,100,"3s") -> <roundRobin, "%s", "%s", "%s">;`,
+		apiServer1.URL, apiServer2.URL, apiServer3.URL)
+
 	dc, err := testdataclient.NewDoc(docApiserver)
-	if err != nil {
-		t.Fatalf("Failed to create testdataclient: %v", err)
-	}
+	require.NoError(t, err)
+	defer dc.Close()
+
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 
 	// create LB in front of apiservers to be able to switch the data served by apiserver
@@ -349,7 +309,7 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 
 	// run skipper proxy that we want to test
 	o := skipper.Options{
-		Address:                         ":9090",
+		Address:                         findAddress(t),
 		EnableRatelimiters:              true,
 		EnableSwarm:                     true,
 		Kubernetes:                      true,
@@ -363,26 +323,19 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 		ClusterRatelimitMaxGroupShards:  2,
 		SwarmRedisDialTimeout:           100 * time.Millisecond,
 		SuppressRouteUpdateLogs:         false,
-		SupportListener:                 ":9091",
+		SupportListener:                 findAddress(t),
 		SwarmRedisUpdateInterval:        time.Second,
 	}
 
+	runResult := make(chan error)
 	sigs := make(chan os.Signal, 1)
-	go skipper.RunWithShutdown(o, sigs, nil)
+	go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
-	for i := 0; i < 10; i++ {
-		t.Logf("Waiting for proxy being ready")
-
-		rsp, _ := http.DefaultClient.Get("http://localhost:9090/kube-system/healthz")
-		if rsp != nil && rsp.StatusCode == 200 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	waitForOK(t, "http://"+o.Address+"/kube-system/healthz", 1*time.Second)
 
 	rate := 10
 	sec := 5
-	va := httptest.NewVegetaAttacker("http://localhost:9090/test", rate, time.Second, time.Second)
+	va := httptest.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
 	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
@@ -403,16 +356,176 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 	}
 
 	sigs <- syscall.SIGTERM
+	assert.NoError(t, <-runResult)
 }
 
-func createApiserver(spec string) (*stdlibhttptest.Server, *url.URL, error) {
+func TestRedisAddrUpdater(t *testing.T) {
+	dm := metrics.Default
+	t.Cleanup(func() { metrics.Default = dm })
+
+	const redisUpdateInterval = 10 * time.Millisecond
+	const kubeSpec = `
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: target
+spec:
+  backends:
+  - name: shunt
+    type: shunt
+  defaultBackends:
+  - backendName: shunt
+  routes:
+  - pathSubtree: /test
+    filters:
+    - inlineContent("OK")
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: skipper-ingress-redis
+  name: redis
+  namespace: skipper
+spec:
+  clusterIP: None
+  ports:
+  - port: 6379
+    protocol: TCP
+    targetPort: 6379
+  selector:
+    application: skipper-ingress-redis
+  type: ClusterIP
+`
+
+	t.Run("without kubernetes dataclient", func(t *testing.T) {
+		spec := kubeSpec + createRedisEndpointsSpec(t, "10.2.0.1:6379", "10.2.0.2:6379", "10.2.0.3:6379")
+		apiServer := createApiserver(t, spec)
+
+		metrics := &metricstest.MockMetrics{}
+
+		o := skipper.Options{
+			Address:                         findAddress(t),
+			EnableRatelimiters:              true,
+			EnableSwarm:                     true,
+			Kubernetes:                      false, // do not enable kubernetes dataclient
+			KubernetesURL:                   apiServer.URL,
+			KubernetesRedisServiceNamespace: "skipper",
+			KubernetesRedisServiceName:      "redis",
+			KubernetesRedisServicePort:      6379,
+			SwarmRedisUpdateInterval:        redisUpdateInterval,
+			InlineRoutes:                    `Path("/ready") -> inlineContent("OK") -> <shunt>`,
+			MetricsBackend:                  metrics,
+		}
+
+		runResult := make(chan error)
+		sigs := make(chan os.Signal, 1)
+		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
+
+		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
+		time.Sleep(2 * redisUpdateInterval)
+
+		metrics.WithGauges(func(g map[string]float64) {
+			t.Logf("gauges: %v", g)
+
+			assert.Equal(t, 1.0, g["routes.total"], "expected only the /ready route")
+			assert.Equal(t, 3.0, g["swarm.redis.shards"])
+		})
+
+		sigs <- syscall.SIGTERM
+		assert.NoError(t, <-runResult)
+	})
+
+	t.Run("kubernetes dataclient", func(t *testing.T) {
+		spec := kubeSpec + createRedisEndpointsSpec(t, "10.2.0.1:6379", "10.2.0.2:6379", "10.2.0.3:6379", "10.2.0.4:6379")
+		apiServer := createApiserver(t, spec)
+
+		metrics := &metricstest.MockMetrics{}
+
+		o := skipper.Options{
+			Address:                         findAddress(t),
+			EnableRatelimiters:              true,
+			EnableSwarm:                     true,
+			Kubernetes:                      true, // enable kubernetes dataclient
+			KubernetesURL:                   apiServer.URL,
+			KubernetesRedisServiceNamespace: "skipper",
+			KubernetesRedisServiceName:      "redis",
+			KubernetesRedisServicePort:      6379,
+			SwarmRedisUpdateInterval:        redisUpdateInterval,
+			MetricsBackend:                  metrics,
+		}
+
+		runResult := make(chan error)
+		sigs := make(chan os.Signal, 1)
+		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
+
+		waitForOK(t, "http://"+o.Address+"/test", 1*time.Second)
+		time.Sleep(2 * redisUpdateInterval)
+
+		metrics.WithGauges(func(g map[string]float64) {
+			t.Logf("gauges: %v", g)
+
+			assert.Equal(t, 1.0, g["routes.total"], "expected only the /test route")
+			assert.Equal(t, 4.0, g["swarm.redis.shards"])
+		})
+
+		sigs <- syscall.SIGTERM
+		assert.NoError(t, <-runResult)
+	})
+
+	t.Run("remote url", func(t *testing.T) {
+		eps := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte(`{
+				"endpoints": [
+					{"address": "10.2.0.1:6379"}, {"address": "10.2.0.2:6379"},
+					{"address": "10.2.0.3:6379"}, {"address": "10.2.0.4:6379"},
+					{"address": "10.2.0.5:6379"}
+				]
+			}`))
+		}))
+		defer eps.Close()
+
+		metrics := &metricstest.MockMetrics{}
+
+		o := skipper.Options{
+			Address:                      findAddress(t),
+			EnableRatelimiters:           true,
+			EnableSwarm:                  true,
+			SwarmRedisEndpointsRemoteURL: eps.URL,
+			SwarmRedisUpdateInterval:     redisUpdateInterval,
+			InlineRoutes:                 `Path("/ready") -> inlineContent("OK") -> <shunt>`,
+			MetricsBackend:               metrics,
+		}
+
+		runResult := make(chan error)
+		sigs := make(chan os.Signal, 1)
+		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
+
+		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
+		time.Sleep(2 * redisUpdateInterval)
+
+		metrics.WithGauges(func(g map[string]float64) {
+			t.Logf("gauges: %v", g)
+
+			assert.Equal(t, 1.0, g["routes.total"], "expected only the /ready route")
+			assert.Equal(t, 5.0, g["swarm.redis.shards"])
+		})
+
+		sigs <- syscall.SIGTERM
+		assert.NoError(t, <-runResult)
+	})
+}
+
+func createApiserver(t *testing.T, spec string) *stdlibhttptest.Server {
+	t.Helper()
+
 	api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(spec))
-	if err != nil {
-		return nil, nil, err
-	}
+	require.NoError(t, err)
+
 	apiServer := stdlibhttptest.NewServer(api)
-	u, err := url.Parse(apiServer.URL)
-	return apiServer, u, err
+	t.Cleanup(apiServer.Close)
+
+	return apiServer
 }
 
 func createFilterRegistry(specs ...filters.Spec) filters.Registry {
@@ -456,4 +569,38 @@ func createRedisEndpointsSpec(t *testing.T, addrs ...string) string {
 	require.NoError(t, err)
 
 	return fmt.Sprintf("---\n%s\n", b)
+}
+
+func findAddress(t *testing.T) string {
+	t.Helper()
+
+	l, err := net.ListenTCP("tcp6", &net.TCPAddr{})
+	require.NoError(t, err)
+
+	addr := l.Addr().String()
+	require.NoError(t, l.Close())
+
+	return addr
+}
+
+func waitForOK(t *testing.T, url string, timeout time.Duration) {
+	t.Helper()
+
+	to := time.After(timeout)
+	for {
+		rsp, err := http.DefaultClient.Get(url)
+		if err == nil {
+			rsp.Body.Close()
+			if rsp.StatusCode == http.StatusOK {
+				return
+			}
+		}
+
+		select {
+		case <-to:
+			t.Fatalf("timeout waiting for %s", url)
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 }

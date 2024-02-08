@@ -94,36 +94,51 @@ and your dataclient in use.
 
 ### Redis based Cluster Ratelimits
 
-This solution is independent of the dataclient being used.  You have
-to run N number of [Redis](https://redis.io) instances, where N is >
-0.
+This solution is independent of the dataclient being used.
+You have to run one or more [Redis](https://redis.io) instances.
+See also [Running with Redis based Cluster Ratelimits](../kubernetes/ingress-controller.md#redis-based).
 
-There are 2 different configurations to assign redis instances as a skipper redis swarm.
+There are 3 different configurations to assign Redis instances as a Skipper Redis swarm.
 
-- Static:
-    - Specify `-swarm-redis-urls`, multiple instances can be separated
-    by `,`, for example: `-swarm-redis-urls=redis1:6379,redis2:6379`. Use this if you don't need to scale your redis instances. 
+#### Static
 
-- Kubernetes Service Selector:
-    - Specify `-kubernetes-redis-service-namespace=default` and `-kubernetes-redis-service-name=redis`, this will create kubernetes dataclient which will take care of collecting redis instances endpoints. This will allow you to scale redis instances as much as you want.
+Specify `-swarm-redis-urls`, multiple instances can be separated by comma,
+for example: `-swarm-redis-urls=redis1:6379,redis2:6379`.
+Use this if you don't need to scale your Redis instances.
 
--  HTTP Endpoint
-    - Specify `-swarm-redis-remote=http://127.0.0.1/redis/endpoints`, this will make skipper pull endpoints from this remote URL and work with them.
+#### Kubernetes Service Selector
 
-see also [Running with
-Redis based Cluster Ratelimits](../kubernetes/ingress-controller.md#redis-based)
+Specify `-kubernetes-redis-service-namespace=<namespace>`, `-kubernetes-redis-service-name=<name>`
+and optional `-kubernetes-redis-service-port=<port number>`.
 
-#### Redis Swarm Configuration
+Skipper will update Redis addresses every 10 seconds from specified service endpoints.
+This allows you to dynamically scale Redis instances.
+Note that when `-kubernetes` is set Skipper also fetches `Ingresses` and `RouteGroups` for routing,
+see [ingress-controller deployment docs](../kubernetes/ingress-controller.md).
 
-When working with Redis swarm, use Kubernetes service selector. Configure it with `-kubernetes-redis-service-namespace` and `-kubernetes-redis-service-name` flags.
+#### HTTP Endpoint
 
-Auto-discovery routine for new Redis endpoints will be triggered every 10 seconds.
+Specify `-swarm-redis-remote=http://127.0.0.1/redis/endpoints`,
 
-If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#routesrv) enabled, you need to configure Skipper with the flag `-swarm-redis-remote=http://skipper.ingress.cluster.local/swarm/redis/shards` where value is the service address for `routesrv` service. `Routesrv` will be responsible for collecting Redis endpoints and Skipper will poll them from the proxy.
+Skipper will update Redis addresses every 10 seconds from this remote URL
+that should return data in the following JSON format:
+```json
+{
+    "endpoints": [
+        {"address": "10.2.0.1:6379"}, {"address": "10.2.0.2:6379"},
+        {"address": "10.2.0.3:6379"}, {"address": "10.2.0.4:6379"},
+        {"address": "10.2.0.5:6379"}
+    ]
+}
+```
+
+If you have [routesrv proxy](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/#routesrv) enabled,
+you need to configure Skipper with the flag `-swarm-redis-remote=http://<routesrv-service-name>.<routesrv-namespace>.svc.cluster.local/swarm/redis/shards`.
+`Routesrv` will be responsible for collecting Redis endpoints and Skipper will poll them from it.
 
 #### Implementation
 
-The implementation use [redis ring](https://godoc.org/github.com/go-redis/redis#Ring)
+The implementation use [Redis ring](https://godoc.org/github.com/go-redis/redis#Ring)
 to be able to shard via client hashing and spread the load across
 multiple Redis instances to be able to scale out the shared storage.
 

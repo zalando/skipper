@@ -4,6 +4,8 @@ import (
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
+const endpointSliceServiceNameLabel = "kubernetes.io/service-name"
+
 // There are [1..N] Kubernetes endpointslices created for a single Kubernetes service.
 // Kubernetes endpointslices of a given service can have duplicates with different states.
 // Therefore Kubernetes endpointslices need to be de-duplicated before usage.
@@ -97,7 +99,7 @@ type endpointSlice struct {
 
 // ToResourceID returns the same string for a group endpointlisces created for the same svc
 func (eps *endpointSlice) ToResourceID() definitions.ResourceID {
-	svcName := eps.Meta.Labels["kubernetes.io/service-name"]
+	svcName := eps.Meta.Labels[endpointSliceServiceNameLabel]
 	namespace := eps.Meta.Namespace
 	return newResourceID(namespace, svcName)
 }
