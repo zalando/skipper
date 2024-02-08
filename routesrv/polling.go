@@ -69,14 +69,9 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 				"message", fmt.Sprintf("%s: %s", LogRoutesFetchingFailed, err),
 			)
 		case routesCount == 0:
-			log.Error(LogRoutesEmpty)
+			log.Info(LogRoutesEmpty)
 			p.metrics.IncCounter("routes.empty")
-
-			span.SetTag("error", true)
-			span.LogKV(
-				"event", "error",
-				"message", LogRoutesEmpty,
-			)
+			span.SetTag("routes.count", routesCount)
 		case routesCount > 0:
 			routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes)
 			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})
