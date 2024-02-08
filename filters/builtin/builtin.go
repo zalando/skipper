@@ -19,6 +19,7 @@ import (
 	"github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/filters/sed"
 	"github.com/zalando/skipper/filters/tee"
+	"github.com/zalando/skipper/filters/tls"
 	"github.com/zalando/skipper/filters/tracing"
 	"github.com/zalando/skipper/filters/xforward"
 	"github.com/zalando/skipper/script"
@@ -228,6 +229,7 @@ func Filters() []filters.Spec {
 		fadein.NewEndpointCreated(),
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
+		tls.New(),
 	}
 }
 
