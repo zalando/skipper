@@ -532,6 +532,10 @@ func (c *ClusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skippe
 	}
 	log.Debugf("all endpointslices received: %d", len(endpointSlices.Items))
 
+	return mapEndpointSlices(&endpointSlices), nil
+}
+
+func mapEndpointSlices(endpointSlices *endpointSliceList) map[definitions.ResourceID]*skipperEndpointSlice {
 	mapSlices := make(map[definitions.ResourceID][]*endpointSlice)
 	for _, endpointSlice := range endpointSlices.Items {
 		resID := endpointSlice.ToResourceID() // service resource ID
@@ -585,6 +589,40 @@ func (c *ClusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skippe
 			result[resID].Endpoints = append(result[resID].Endpoints, o)
 		}
 	}
+	return result
+}
+
+// LoadEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices API.
+func (c *ClusterClient) LoadEndpointAddresses(namespace, name string) ([]string, error) {
+	var result []string
+	if c.enableEndpointSlices {
+		url := fmt.Sprintf(EndpointSlicesNamespaceFmt, namespace) +
+			toLabelSelectorQuery(map[string]string{endpointSliceServiceNameLabel: name})
+
+		var endpointSlices endpointSliceList
+		if err := c.getJSON(url, &endpointSlices); err != nil {
+			return nil, fmt.Errorf("requesting endpointslices for %s/%s failed: %v", namespace, name, err)
+		}
+
+		mapped := mapEndpointSlices(&endpointSlices)
+		if len(mapped) != 1 {
+			return nil, fmt.Errorf("unexpected number of endpoint slices for %s/%s: %d", namespace, name, len(mapped))
+		}
+
+		for _, eps := range mapped {
+			result = eps.addresses()
+			break
+		}
+	} else {
+		url := fmt.Sprintf(EndpointsNamespaceFmt, namespace) + "/" + name
+
+		var ep endpoint
+		if err := c.getJSON(url, &ep); err != nil {
+			return nil, fmt.Errorf("requesting endpoints for %s/%s failed: %v", namespace, name, err)
+		}
+		result = ep.addresses()
+	}
+	sort.Strings(result)
 
 	return result, nil
 }
