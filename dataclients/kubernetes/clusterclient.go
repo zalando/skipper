@@ -67,6 +67,7 @@ type clusterClient struct {
 	routeGroupClass *regexp.Regexp
 	ingressClass    *regexp.Regexp
 	httpClient      *http.Client
+	quit            chan struct{}
 
 	ingressLabelSelectors        string
 	servicesLabelSelectors       string
@@ -89,11 +90,23 @@ var (
 	errInvalidCertificate   = errors.New("invalid CA")
 )
 
-func buildHTTPClient(certFilePath string, inCluster bool, quit <-chan struct{}) (*http.Client, error) {
-	if !inCluster {
-		return http.DefaultClient, nil
+func buildAPIURL(o *Options) (string, error) {
+	if !o.KubernetesInCluster {
+		if o.KubernetesURL == "" {
+			return defaultKubernetesURL, nil
+		}
+		return o.KubernetesURL, nil
 	}
 
+	host, port := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
+	if host == "" || port == "" {
+		return "", errAPIServerURLNotFound
+	}
+
+	return "https://" + net.JoinHostPort(host, port), nil
+}
+
+func buildHTTPClient(certFilePath string, quit <-chan struct{}) (*http.Client, error) {
 	rootCA, err := os.ReadFile(certFilePath)
 	if err != nil {
 		return nil, err
@@ -139,10 +152,31 @@ func buildHTTPClient(certFilePath string, inCluster bool, quit <-chan struct{}) 
 	}, nil
 }
 
-func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struct{}) (*clusterClient, error) {
-	httpClient, err := buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, o.KubernetesInCluster, quit)
+func newClusterClient(o Options) (*clusterClient, error) {
+	apiURL, err := buildAPIURL(&o)
 	if err != nil {
 		return nil, err
+	}
+
+	httpClient := http.DefaultClient
+	var quit chan struct{}
+
+	if o.KubernetesInCluster {
+		quit = make(chan struct{})
+		httpClient, err = buildHTTPClient(serviceAccountDir+serviceAccountRootCAKey, quit)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	ingCls := defaultIngressClass
+	if o.IngressClass != "" {
+		ingCls = o.IngressClass
+	}
+
+	rgCls := defaultRouteGroupClass
+	if o.RouteGroupClass != "" {
+		rgCls = o.RouteGroupClass
 	}
 
 	ingClsRx, err := regexp.Compile(ingCls)
@@ -171,6 +205,7 @@ func newClusterClient(o Options, apiURL, ingCls, rgCls string, quit <-chan struc
 		routeGroupsLabelSelectors:    toLabelSelectorQuery(o.RouteGroupsLabelSelectors),
 		routeGroupClass:              rgClsRx,
 		httpClient:                   httpClient,
+		quit:                         quit,
 		apiURL:                       apiURL,
 		certificateRegistry:          o.CertificateRegistry,
 		routeGroupValidator:          &definitions.RouteGroupValidator{},
@@ -618,4 +653,11 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 	}
 
 	return state, nil
+}
+
+func (c *clusterClient) close() {
+	if c.quit != nil {
+		close(c.quit)
+		c.quit = nil
+	}
 }

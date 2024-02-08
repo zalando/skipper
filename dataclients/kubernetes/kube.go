@@ -2,9 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
-	"net"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -253,7 +251,6 @@ type Client struct {
 	reverseSourcePredicate bool
 	httpsRedirectCode      int
 	current                map[string]*eskip.Route
-	quit                   chan struct{}
 	defaultFiltersDir      string
 	state                  *clusterState
 	loggingInterval        time.Duration
@@ -265,27 +262,11 @@ func New(o Options) (*Client, error) {
 	if o.OriginMarker {
 		log.Warning("OriginMarker is deprecated")
 	}
-	quit := make(chan struct{})
 
-	apiURL, err := buildAPIURL(o)
+	clusterClient, err := newClusterClient(o)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create cluster client: %v", err)
 	}
-
-	ingCls := defaultIngressClass
-	if o.IngressClass != "" {
-		ingCls = o.IngressClass
-	}
-
-	rgCls := defaultRouteGroupClass
-	if o.RouteGroupClass != "" {
-		rgCls = o.RouteGroupClass
-	}
-
-	log.Debugf(
-		"running in-cluster: %t. api server url: %s. provide health check: %t. ingress.class filter: %s. routegroup.class filter: %s. namespace: %s",
-		o.KubernetesInCluster, apiURL, o.ProvideHealthcheck, ingCls, rgCls, o.KubernetesNamespace,
-	)
 
 	if len(o.WhitelistedHealthCheckCIDR) > 0 {
 		whitelistCIDRS := make([]interface{}, len(o.WhitelistedHealthCheckCIDR))
@@ -308,11 +289,6 @@ func New(o Options) (*Client, error) {
 		}
 	}
 
-	clusterClient, err := newClusterClient(o, apiURL, ingCls, rgCls, quit)
-	if err != nil {
-		return nil, err
-	}
-
 	if !o.OnlyAllowedExternalNames {
 		o.AllowedExternalNames = []*regexp.Regexp{regexp.MustCompile(".*")}
 	}
@@ -333,26 +309,9 @@ func New(o Options) (*Client, error) {
 		httpsRedirectCode:      o.HTTPSRedirectCode,
 		current:                make(map[string]*eskip.Route),
 		reverseSourcePredicate: o.ReverseSourcePredicate,
-		quit:                   quit,
 		defaultFiltersDir:      o.DefaultFiltersDir,
 		loggingInterval:        1 * time.Minute,
 	}, nil
-}
-
-func buildAPIURL(o Options) (string, error) {
-	if !o.KubernetesInCluster {
-		if o.KubernetesURL == "" {
-			return defaultKubernetesURL, nil
-		}
-		return o.KubernetesURL, nil
-	}
-
-	host, port := os.Getenv(serviceHostEnvVar), os.Getenv(servicePortEnvVar)
-	if host == "" || port == "" {
-		return "", errAPIServerURLNotFound
-	}
-
-	return "https://" + net.JoinHostPort(host, port), nil
 }
 
 // String returns the string representation of the path mode, the same
@@ -553,9 +512,7 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 }
 
 func (c *Client) Close() {
-	if c != nil && c.quit != nil {
-		close(c.quit)
-	}
+	c.ClusterClient.close()
 }
 
 func (c *Client) fetchDefaultFilterConfigs() defaultFilters {

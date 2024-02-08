@@ -16,7 +16,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -2043,7 +2042,7 @@ func TestCreateRequest(t *testing.T) {
 func TestBuildAPIURL(t *testing.T) {
 	var apiURL string
 	var err error
-	o := Options{}
+	o := &Options{}
 
 	apiURL, err = buildAPIURL(o)
 	if err != nil {
@@ -2095,20 +2094,12 @@ func TestBuildHTTPClient(t *testing.T) {
 	quit := make(chan struct{})
 	defer func() { close(quit) }()
 
-	httpClient, err := buildHTTPClient("", false, quit)
-	if err != nil {
-		t.Error(err)
-	}
-	if !reflect.DeepEqual(httpClient, http.DefaultClient) {
-		t.Errorf("should return default client if outside the cluster``")
-	}
-
-	_, err = buildHTTPClient("rumplestilzchen", true, quit)
+	_, err := buildHTTPClient("rumplestilzchen", quit)
 	if err == nil {
 		t.Errorf("expected to fail for non-existing file")
 	}
 
-	_, err = buildHTTPClient("kube_test.go", true, quit)
+	_, err = buildHTTPClient("kube_test.go", quit)
 	if err != errInvalidCertificate {
 		t.Errorf("should return invalid certificate")
 	}
@@ -2119,7 +2110,7 @@ func TestBuildHTTPClient(t *testing.T) {
 	}
 	defer os.Remove("ca.empty.crt")
 
-	_, err = buildHTTPClient("ca.empty.crt", true, quit)
+	_, err = buildHTTPClient("ca.empty.crt", quit)
 	if err != errInvalidCertificate {
 		t.Error("empty certificate is invalid certificate")
 	}
@@ -2131,7 +2122,7 @@ func TestBuildHTTPClient(t *testing.T) {
 	}
 	defer os.Remove("ca.temp.crt")
 
-	_, err = buildHTTPClient("ca.temp.crt", true, quit)
+	_, err = buildHTTPClient("ca.temp.crt", quit)
 	if err != nil {
 		t.Error(err)
 	}
