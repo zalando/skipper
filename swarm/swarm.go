@@ -378,11 +378,6 @@ func (s *Swarm) broadcast(m *message) error {
 	return nil
 }
 
-// Broadcast sends a broadcast message with a value to all peers.
-func (s *Swarm) Broadcast(m interface{}) error {
-	return s.broadcast(&message{Type: broadcast, Value: m})
-}
-
 // ShareValue sends a broadcast message with a sharedValue to all
 // peers. It implements the ratelimit.Swarmer interface.
 func (s *Swarm) ShareValue(key string, value interface{}) error {
