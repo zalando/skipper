@@ -588,8 +588,22 @@ type eskipLexParser struct {
 
 var parserPool sync.Pool
 
-// executes the parser.
-func parse(code string) ([]*parsedRoute, error) {
+func parseDocument(code string) ([]*parsedRoute, error) {
+	routes, _, _, err := parse(start_document, code)
+	return routes, err
+}
+
+func parsePredicates(code string) ([]*Predicate, error) {
+	_, predicates, _, err := parse(start_predicates, code)
+	return predicates, err
+}
+
+func parseFilters(code string) ([]*Filter, error) {
+	_, _, filters, err := parse(start_filters, code)
+	return filters, err
+}
+
+func parse(start int, code string) ([]*parsedRoute, []*Predicate, []*Filter, error) {
 	lp, ok := parserPool.Get().(*eskipLexParser)
 	if !ok {
 		lp = &eskipLexParser{}
@@ -598,16 +612,19 @@ func parse(code string) ([]*parsedRoute, error) {
 	}
 	defer parserPool.Put(lp)
 
-	lp.lexer.init(code)
+	lexer := &lp.lexer
+	lexer.init(start, code)
 
-	lp.parser.Parse(&lp.lexer)
+	lp.parser.Parse(lexer)
 
-	return lp.lexer.routes, lp.lexer.err
+	// Do not return lexer to avoid reading lexer fields after returning eskipLexParser to the pool.
+	// Let the caller decide which of return values to use based on the start token.
+	return lexer.routes, lexer.predicates, lexer.filters, lexer.err
 }
 
 // Parses a route expression or a routing document to a set of route definitions.
 func Parse(code string) ([]*Route, error) {
-	parsedRoutes, err := parse(code)
+	parsedRoutes, err := parseDocument(code)
 	if err != nil {
 		return nil, err
 	}
@@ -662,12 +679,7 @@ func ParseFilters(f string) ([]*Filter, error) {
 		return nil, nil
 	}
 
-	rs, err := parse("* -> " + f + " -> <shunt>")
-	if err != nil {
-		return nil, err
-	}
-
-	return rs[0].filters, nil
+	return parseFilters(f)
 }
 
 // ParsePredicates parses a set of predicates (combined by '&&') into
@@ -678,7 +690,7 @@ func ParsePredicates(p string) ([]*Predicate, error) {
 		return nil, nil
 	}
 
-	rs, err := parse(p + " -> <shunt>")
+	rs, err := parsePredicates(p)
 	if err != nil {
 		return nil, err
 	}
@@ -687,9 +699,8 @@ func ParsePredicates(p string) ([]*Predicate, error) {
 		return nil, nil
 	}
 
-	r := rs[0]
-	ps := make([]*Predicate, 0, len(r.predicates))
-	for _, p := range r.predicates {
+	ps := make([]*Predicate, 0, len(rs))
+	for _, p := range rs {
 		if p.Name != "*" {
 			ps = append(ps, p)
 		}

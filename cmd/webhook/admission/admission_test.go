@@ -107,7 +107,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip filters",
 			inputFile: "rg-with-invalid-eskip-filters.json",
-			message:   "parse failed after token status, position 11: syntax error",
+			message:   "parse failed after token status, position 6: syntax error",
 		},
 		{
 			name:      "valid eskip predicates",
@@ -121,7 +121,7 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip filters and predicates",
 			inputFile: "rg-with-invalid-eskip-filters-and-predicates.json",
-			message:   "parse failed after token status, position 11: syntax error\\nparse failed after token Method, position 6: syntax error",
+			message:   "parse failed after token status, position 6: syntax error\\nparse failed after token Method, position 6: syntax error",
 		},
 		{
 			name:      "invalid routgroup multiple filters per json/yaml array item",
@@ -190,12 +190,12 @@ func TestIngressAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip filters",
 			inputFile: "invalid-filters.json",
-			message:   `invalid \"zalando.org/skipper-filter\" annotation: parse failed after token this, position 9: syntax error`,
+			message:   `invalid \"zalando.org/skipper-filter\" annotation: parse failed after token this, position 4: syntax error`,
 		},
 		{
 			name:      "invalid eskip predicates",
 			inputFile: "invalid-predicates.json",
-			message:   `invalid \"zalando.org/skipper-predicate\" annotation: parse failed after token ), position 15: syntax error`,
+			message:   `invalid \"zalando.org/skipper-predicate\" annotation: parse failed after token ), position 15: unexpected token`,
 		},
 		{
 			name:      "invalid eskip routes",
@@ -205,7 +205,7 @@ func TestIngressAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip filters and predicates",
 			inputFile: "invalid-filters-and-predicates.json",
-			message:   `invalid \"zalando.org/skipper-filter\" annotation: parse failed after token this, position 9: syntax error\ninvalid \"zalando.org/skipper-predicate\" annotation: parse failed after token ), position 15: syntax error`,
+			message:   `invalid \"zalando.org/skipper-filter\" annotation: parse failed after token this, position 4: syntax error\ninvalid \"zalando.org/skipper-predicate\" annotation: parse failed after token ), position 15: unexpected token`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

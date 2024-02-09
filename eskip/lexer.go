@@ -14,12 +14,15 @@ type token struct {
 type charPredicate func(byte) bool
 
 type eskipLex struct {
+	start         int
 	code          string
 	lastToken     string
 	lastRouteID   string
 	err           error
 	initialLength int
 	routes        []*parsedRoute
+	predicates    []*Predicate
+	filters       []*Filter
 }
 
 type fixedScanner token
@@ -62,7 +65,8 @@ func (fs *fixedScanner) scan(code string) (t token, rest string, err error) {
 	return token(*fs), code[len(fs.val):], nil
 }
 
-func (l *eskipLex) init(code string) {
+func (l *eskipLex) init(start int, code string) {
+	l.start = start
 	l.code = code
 	l.initialLength = len(code)
 }
@@ -354,6 +358,13 @@ func (l *eskipLex) next() (token, error) {
 }
 
 func (l *eskipLex) Lex(lval *eskipSymType) int {
+	// first emit the start token
+	if l.start != 0 {
+		start := l.start
+		l.start = 0
+		return start
+	}
+
 	t, err := l.next()
 	if err == eof {
 		return -1

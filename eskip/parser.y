@@ -44,8 +44,6 @@ func convertNumber(s string) float64 {
 	dynamic bool
 	lbBackend bool
 	numval float64
-	stringval string
-	regexpval string
 	stringvals []string
 	lbAlgorithm string
 	lbEndpoints []string
@@ -69,17 +67,42 @@ func convertNumber(s string) float64 {
 %token openarrow
 %token closearrow
 
+%token start_document;
+%token start_predicates;
+%token start_filters;
+
 %%
+
+start:
+	start_document document {
+		eskiplex.(*eskipLex).routes = $2.routes
+	}
+	|
+	start_predicates {
+		// allow empty or comments only
+		eskiplex.(*eskipLex).predicates = nil
+	}
+	|
+	start_predicates predicates {
+		eskiplex.(*eskipLex).predicates = $2.predicates
+	}
+	|
+	start_filters {
+		// allow empty or comments only
+		eskiplex.(*eskipLex).filters = nil
+	}
+	|
+	start_filters filters {
+		eskiplex.(*eskipLex).filters = $2.filters
+	}
 
 document:
 	routes {
 		$$.routes = $1.routes
-		eskiplex.(*eskipLex).routes = $$.routes
 	}
 	|
 	route {
 		$$.routes = []*parsedRoute{$1.route}
-		eskiplex.(*eskipLex).routes = $$.routes
 	}
 
 routes:
@@ -197,22 +220,22 @@ arg:
 		$$.arg = $1.numval
 	}
 	|
-	stringval {
-		$$.arg = $1.stringval
+	stringliteral {
+		$$.arg = $1.token
 	}
 	|
-	regexpval {
-		$$.arg = $1.regexpval
+	regexpliteral {
+		$$.arg = $1.token
 	}
 
 stringvals:
-	stringval {
-		$$.stringvals = []string{$1.stringval}
+	stringliteral {
+		$$.stringvals = []string{$1.token}
 	}
 	|
-	stringvals comma stringval {
+	stringvals comma stringliteral {
 		$$.stringvals = $1.stringvals
-		$$.stringvals = append($$.stringvals, $3.stringval)
+		$$.stringvals = append($$.stringvals, $3.token)
 	}
 
 lbbackendbody:
@@ -232,8 +255,8 @@ lbbackend:
 	}
 
 backend:
-	stringval {
-		$$.backend = $1.stringval
+	stringliteral {
+		$$.backend = $1.token
 		$$.shunt = false
 		$$.loopback = false
 		$$.dynamic = false
@@ -273,16 +296,6 @@ backend:
 numval:
 	number {
 		$$.numval = convertNumber($1.token)
-	}
-
-stringval:
-	stringliteral {
-		$$.stringval = $1.token
-	}
-
-regexpval:
-	regexpliteral {
-		$$.regexpval = $1.token
 	}
 
 %%
