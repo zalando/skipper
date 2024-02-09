@@ -2,6 +2,7 @@ package skipper_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -30,28 +31,10 @@ import (
 	"github.com/zalando/skipper/tracing/tracingtest"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConcurrentKubernetesClusterStateAccessWithRemoteRedis(t *testing.T) {
-	redisPortFmt := `  - port: %s
-    protocol: TCP
-`
-	redisEpSpecFmt := `
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  labels:
-    application: skipper-ingress-redis
-  name: redis
-  namespace: skipper
-subsets:
-- addresses:
-  - hostname: redis-%d.skipper.cluster.local
-    ip: %s
-  ports:
-`
-
 	kubeSpec := `
 apiVersion: zalando.org/v1
 kind: RouteGroup
@@ -70,45 +53,6 @@ spec:
     - clusterRatelimit("foo", 1, "1s")
     - status(200)
     - inlineContent("OK")
----
-apiVersion: zalando.org/v1
-kind: RouteGroup
-metadata:
-  name: myapp
-spec:
-  hosts:
-  - example.org
-  backends:
-  - name: myapp
-    type: service
-    serviceName: myapp
-    servicePort: 80
-  defaultBackends:
-  - backendName: myapp
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: myapp
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 80
-  selector:
-    application: myapp
-  type: ClusterIP
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: myapp
-subsets:
-- addresses:
-  - ip: 10.2.4.8
-  - ip: 10.2.4.16
-  ports:
-  - port: 80
 ---
 apiVersion: v1
 kind: Service
@@ -131,25 +75,13 @@ spec:
 	redis1, done1 := redistest.NewTestRedis(t)
 	redis2, done2 := redistest.NewTestRedis(t)
 	redis3, done3 := redistest.NewTestRedis(t)
+
 	defer done1()
 	defer done2()
 	defer done3()
-	host1, port1, err := net.SplitHostPort(redis1)
-	if err != nil {
-		t.Fatalf("Failed to SplitHostPort: %v", err)
-	}
-	_, port2, err := net.SplitHostPort(redis2)
-	if err != nil {
-		t.Fatalf("Failed to SplitHostPort: %v", err)
-	}
-	_, port3, err := net.SplitHostPort(redis3)
-	if err != nil {
-		t.Fatalf("Failed to SplitHostPort: %v", err)
-	}
 
 	// apiserver1
-	specFmt := redisEpSpecFmt + redisPortFmt
-	redisSpec1 := fmt.Sprintf(specFmt, 0, host1, port1)
+	redisSpec1 := createRedisEndpointsSpec(t, redis1)
 	apiServer1, u1, err := createApiserver(kubeSpec + redisSpec1)
 	if err != nil {
 		t.Fatalf("Failed to start apiserver1: %v", err)
@@ -157,8 +89,7 @@ spec:
 	defer apiServer1.Close()
 
 	// apiserver2
-	specFmt += redisPortFmt
-	redisSpec2 := fmt.Sprintf(specFmt, 0, host1, port1, port2)
+	redisSpec2 := createRedisEndpointsSpec(t, redis1, redis2)
 	apiServer2, u2, err := createApiserver(kubeSpec + redisSpec2)
 	if err != nil {
 		t.Fatalf("Failed to start apiserver2: %v", err)
@@ -166,8 +97,7 @@ spec:
 	defer apiServer2.Close()
 
 	// apiserver3
-	specFmt += redisPortFmt
-	redisSpec3 := fmt.Sprintf(specFmt, 0, host1, port1, port2, port3)
+	redisSpec3 := createRedisEndpointsSpec(t, redis1, redis2, redis3)
 	apiServer3, u3, err := createApiserver(kubeSpec + redisSpec3)
 	if err != nil {
 		t.Fatalf("Failed to start apiserver3: %v", err)
@@ -303,25 +233,6 @@ r2: PathRegexp("/endpoints") -> enableAccessLog(2,4,5) -> fifo(100,100,"3s") -> 
 }
 
 func TestConcurrentKubernetesClusterStateAccess(t *testing.T) {
-	redisPortFmt := `  - port: %s
-    protocol: TCP
-`
-	redisEpSpecFmt := `
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  labels:
-    application: skipper-ingress-redis
-  name: redis
-  namespace: skipper
-subsets:
-- addresses:
-  - hostname: redis-%d.skipper.cluster.local
-    ip: %s
-  ports:
-`
-
 	kubeSpec := `
 apiVersion: zalando.org/v1
 kind: RouteGroup
@@ -340,45 +251,6 @@ spec:
     - clusterRatelimit("foo", 1, "1s")
     - status(200)
     - inlineContent("OK")
----
-apiVersion: zalando.org/v1
-kind: RouteGroup
-metadata:
-  name: myapp
-spec:
-  hosts:
-  - example.org
-  backends:
-  - name: myapp
-    type: service
-    serviceName: myapp
-    servicePort: 80
-  defaultBackends:
-  - backendName: myapp
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: myapp
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 80
-  selector:
-    application: myapp
-  type: ClusterIP
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: myapp
-subsets:
-- addresses:
-  - ip: 10.2.4.8
-  - ip: 10.2.4.16
-  ports:
-  - port: 80
 ---
 apiVersion: v1
 kind: Service
@@ -401,25 +273,13 @@ spec:
 	redis1, done1 := redistest.NewTestRedis(t)
 	redis2, done2 := redistest.NewTestRedis(t)
 	redis3, done3 := redistest.NewTestRedis(t)
+
 	defer done1()
 	defer done2()
 	defer done3()
-	host1, port1, err := net.SplitHostPort(redis1)
-	if err != nil {
-		t.Fatalf("Failed to SplitHostPort: %v", err)
-	}
-	_, port2, err := net.SplitHostPort(redis2)
-	if err != nil {
-		t.Fatalf("Failed to SplitHostPort: %v", err)
-	}
-	_, port3, err := net.SplitHostPort(redis3)
-	if err != nil {
-		t.Fatalf("Failed to SplitHostPort: %v", err)
-	}
 
 	// apiserver1
-	specFmt := redisEpSpecFmt + redisPortFmt
-	redisSpec1 := fmt.Sprintf(specFmt, 0, host1, port1)
+	redisSpec1 := createRedisEndpointsSpec(t, redis1)
 	apiServer1, u1, err := createApiserver(kubeSpec + redisSpec1)
 	if err != nil {
 		t.Fatalf("Failed to start apiserver1: %v", err)
@@ -427,8 +287,7 @@ spec:
 	defer apiServer1.Close()
 
 	// apiserver2
-	specFmt += redisPortFmt
-	redisSpec2 := fmt.Sprintf(specFmt, 0, host1, port1, port2)
+	redisSpec2 := createRedisEndpointsSpec(t, redis1, redis2)
 	apiServer2, u2, err := createApiserver(kubeSpec + redisSpec2)
 	if err != nil {
 		t.Fatalf("Failed to start apiserver2: %v", err)
@@ -436,8 +295,7 @@ spec:
 	defer apiServer2.Close()
 
 	// apiserver3
-	specFmt += redisPortFmt
-	redisSpec3 := fmt.Sprintf(specFmt, 0, host1, port1, port2, port3)
+	redisSpec3 := createRedisEndpointsSpec(t, redis1, redis2, redis3)
 	apiServer3, u3, err := createApiserver(kubeSpec + redisSpec3)
 	if err != nil {
 		t.Fatalf("Failed to start apiserver3: %v", err)
@@ -561,4 +419,39 @@ func createFilterRegistry(specs ...filters.Spec) filters.Registry {
 		fr.Register(spec)
 	}
 	return fr
+}
+
+func createRedisEndpointsSpec(t *testing.T, addrs ...string) string {
+	var addresses []map[string]any
+	for _, addr := range addrs {
+		host, port, err := net.SplitHostPort(addr)
+		require.NoError(t, err)
+		require.Equal(t, "6379", port)
+
+		addresses = append(addresses, map[string]any{"ip": host})
+	}
+
+	ep := map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Endpoints",
+		"metadata": map[string]any{
+			"name":      "redis",
+			"namespace": "skipper",
+		},
+		"subsets": []any{
+			map[string]any{
+				"addresses": addresses,
+				"ports": []map[string]any{{
+					"port":     6379,
+					"protocol": "TCP",
+				}},
+			},
+		},
+	}
+
+	// JSON is a valid YAML
+	b, err := json.Marshal(ep)
+	require.NoError(t, err)
+
+	return fmt.Sprintf("---\n%s\n", b)
 }
