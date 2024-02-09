@@ -15,11 +15,13 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters/filtertest"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/zalando/skipper/filters/filtertest"
 )
 
 func TestCreateStripQueryFilter(t *testing.T) {
@@ -89,5 +91,40 @@ func TestPreserveQuery(t *testing.T) {
 				t.Errorf("Uri %q => %q, want %q (%v)", tt.uri, c.FRequest.Header.Get(k), h, c.FRequest.Header)
 			}
 		}
+	}
+}
+
+func BenchmarkStripQuery(b *testing.B) {
+	var table = []struct {
+		url string
+	}{
+		{url: "http://example.org/foo?bar=baz"},
+		{url: "http://example.org/foo?query=cXVlcnkgewogIG5hbWUKfQo%253D&variables=&apiEndpoint=https%253A%252F%252Fwww.zalando.de%252Fapi%252Fgraphql%252Fpreview&frontendType=web&zalandoFeature=manual"},
+		{url: "http://example.org/foo?馬鹿=123"},
+		{url: "http://example.org/foo?a%20b=123"},
+	}
+
+	for i, v := range table {
+		url, _ := url.ParseRequestURI(v.url)
+		q := url.Query()
+		b.Run(fmt.Sprintf("[old sanitize] url %d", i+1), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				for k := range q {
+					Sanitize(k)
+				}
+			}
+		})
+	}
+
+	for i, v := range table {
+		url, _ := url.ParseRequestURI(v.url)
+		q := url.Query()
+		b.Run(fmt.Sprintf("[new sanitize] url %d", i + 1), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				for k := range q {
+					NewSanitize(k)
+				}
+			}
+		})
 	}
 }

@@ -51,7 +51,8 @@ func validHeaderFieldByte(b byte) bool {
 }
 
 // make sure we don't generate invalid headers
-func sanitize(input string) string {
+// temporary public function to benchmark it
+func Sanitize(input string) string {
 	toAscii := strconv.QuoteToASCII(input)
 	var b bytes.Buffer
 	for _, i := range toAscii {
@@ -60,6 +61,18 @@ func sanitize(input string) string {
 		}
 	}
 	return b.String()
+}
+
+// temporary public function to benchmark it
+func NewSanitize(input string) string {
+	toAscii := strconv.QuoteToASCII(input)
+	var s strings.Builder
+	for _, i := range toAscii {
+		if validHeaderFieldByte(byte(i)) {
+			s.WriteRune(i)
+		}
+	}
+	return s.String()
 }
 
 // Strips the query parameters and optionally preserves them in the X-Query-Param-xyz headers.
@@ -85,7 +98,7 @@ func (f *stripQuery) Request(ctx filters.FilterContext) {
 			if r.Header == nil {
 				r.Header = http.Header{}
 			}
-			r.Header.Add(fmt.Sprintf("X-Query-Param-%s", sanitize(k)), v)
+			r.Header.Add(fmt.Sprintf("X-Query-Param-%s", Sanitize(k)), v)
 		}
 	}
 
