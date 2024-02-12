@@ -19,7 +19,6 @@ type clusterState struct {
 	endpointSlices       map[definitions.ResourceID]*skipperEndpointSlice
 	secrets              map[definitions.ResourceID]*secret
 	cachedEndpoints      map[endpointID][]string
-	cachedAddresses      map[definitions.ResourceID][]string
 	enableEndpointSlices bool
 }
 
@@ -90,9 +89,6 @@ func (state *clusterState) getEndpointAddresses(namespace, name string) []string
 
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	if cached, ok := state.cachedAddresses[rID]; ok {
-		return cached
-	}
 
 	var addresses []string
 	if state.enableEndpointSlices {
@@ -108,9 +104,7 @@ func (state *clusterState) getEndpointAddresses(namespace, name string) []string
 			return nil
 		}
 	}
-
 	sort.Strings(addresses)
-	state.cachedAddresses[rID] = addresses
 
 	return addresses
 }
