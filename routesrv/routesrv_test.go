@@ -252,6 +252,7 @@ func TestRedisEndpointSlices(t *testing.T) {
 			KubernetesURL:                   ks.URL,
 			KubernetesRedisServiceNamespace: "namespace1",
 			KubernetesRedisServiceName:      "service1",
+			KubernetesRedisServicePort:      6379,
 			KubernetesEnableEndpointslices:  true,
 		})
 
@@ -274,6 +275,7 @@ func TestRedisEndpoints(t *testing.T) {
 		KubernetesURL:                   ks.URL,
 		KubernetesRedisServiceNamespace: "namespace1",
 		KubernetesRedisServiceName:      "service1",
+		KubernetesRedisServicePort:      6379,
 	})
 
 	w := getRedisURLs(rs)

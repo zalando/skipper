@@ -595,6 +595,7 @@ func (c *clusterClient) fetchClusterState() (*clusterState, error) {
 		routeGroups:          routeGroups,
 		services:             services,
 		cachedEndpoints:      make(map[endpointID][]string),
+		cachedAddresses:      make(map[definitions.ResourceID][]string),
 		enableEndpointSlices: c.enableEndpointSlices,
 	}
 

@@ -574,13 +574,14 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 	return filters
 }
 
+// GetEndpointAddresses returns the list of all addresses for the given service.
 func (c *Client) GetEndpointAddresses(ns, name string) []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.state == nil {
 		return nil
 	}
-	return c.state.GetEndpointsByName(ns, name, "TCP", "http")
+	return c.state.getEndpointAddresses(ns, name)
 }
 
 func compareStringList(a, b []string) []string {

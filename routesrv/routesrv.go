@@ -104,7 +104,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		if err != nil {
 			return nil, err
 		}
-		rh.AddrUpdater = getRedisAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName, dataclient, m)
+		rh.AddrUpdater = getRedisAddresses(&opts, dataclient, m)
 		mux.Handle("/swarm/redis/shards", rh)
 	}
 

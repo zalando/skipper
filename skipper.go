@@ -279,7 +279,7 @@ type Options struct {
 	// KubernetesRedisServiceName to be used to lookup ring shards dynamically
 	KubernetesRedisServiceName string
 
-	// *DEPRECATED* KubernetesRedisServicePort is not used anymore
+	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
 	KubernetesRedisServicePort int
 
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
@@ -1357,15 +1357,17 @@ func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Clie
 	return kdc
 }
 
-func getRedisUpdaterFunc(namespace, name string, kdc *kubernetes.Client) func() ([]string, error) {
+func getRedisUpdaterFunc(opts *Options, kdc *kubernetes.Client) func() ([]string, error) {
 	// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
 	// has polled the data once or kdc.GetEndpointAdresses should be blocking
 	// call to kubernetes API
 	return func() ([]string, error) {
-		a := kdc.GetEndpointAddresses(namespace, name)
+		a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
 		log.Debugf("Redis updater called and found %d redis endpoints", len(a))
+
+		port := strconv.Itoa(opts.KubernetesRedisServicePort)
 		for i := 0; i < len(a); i++ {
-			a[i] = strings.TrimPrefix(a[i], "http://")
+			a[i] = net.JoinHostPort(a[i], port)
 		}
 		return a, nil
 	}
@@ -1686,7 +1688,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			kdc := findKubernetesDataclient(dataClients)
 			if kdc != nil {
-				redisOptions.AddrUpdater = getRedisUpdaterFunc(o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName, kdc)
+				redisOptions.AddrUpdater = getRedisUpdaterFunc(&o, kdc)
 				_, err = redisOptions.AddrUpdater()
 				if err != nil {
 					log.Errorf("Failed to update redis address %v", err)
