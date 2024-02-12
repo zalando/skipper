@@ -3,28 +3,33 @@ package backendtest
 import (
 	"io"
 	"net/http"
-	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestServerShouldCloseWhenAllRequestsAreFulfilled(t *testing.T) {
 	expectedRequests := 4
 	recorder := NewBackendRecorder(10 * time.Millisecond)
+
+	var g errgroup.Group
 	for i := 0; i < expectedRequests; i++ {
-		go func(counter int) {
-			resp, err := http.Get(recorder.GetURL() + "/" + strconv.Itoa(counter))
+		g.Go(func() error {
+			resp, err := http.Get(recorder.GetURL())
 			if err != nil {
-				t.Error(err)
-				return
+				return err
 			}
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-		}(i)
+			if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+				return err
+			}
+			return resp.Body.Close()
+		})
 	}
+	require.NoError(t, g.Wait())
 	recorder.Done()
-	servedRequests := len(recorder.GetRequests())
-	if servedRequests != expectedRequests {
-		t.Errorf("number of requests served does not match with the expected. Expected %d but got %d", expectedRequests, servedRequests)
-	}
+
+	assert.Equal(t, expectedRequests, len(recorder.GetRequests()))
 }
