@@ -169,7 +169,6 @@ func TestRedisClient(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-
 			cli := NewRedisRingClient(tt.options)
 			defer func() {
 				if !cli.closed {
@@ -194,6 +193,8 @@ func TestRedisClient(t *testing.T) {
 
 				// test close stops background update
 				cli.Close()
+
+				time.Sleep(2 * cli.options.UpdateInterval)
 
 				afterClose := updater.calls()
 
