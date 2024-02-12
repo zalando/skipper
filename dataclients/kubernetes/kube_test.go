@@ -609,7 +609,9 @@ func TestGetEndpointAddresses(t *testing.T) {
 			}
 		}
 
-		// test cache
+		// test subsequent call returns the expected values even when previous result was modified
+		got[0] = "modified"
+
 		got = client.GetEndpointAddresses(ns, name)
 		if len(got) != len(expected) {
 			t.Fatalf("Failed to get same size: %d != %d", len(expected), len(got))
@@ -619,7 +621,6 @@ func TestGetEndpointAddresses(t *testing.T) {
 				t.Fatalf("Failed to get cached result expected %q, got %q", expected[i], got[i])
 			}
 		}
-
 	})
 
 	t.Run("Ingress with endpoints", func(t *testing.T) {
@@ -656,7 +657,9 @@ func TestGetEndpointAddresses(t *testing.T) {
 			}
 		}
 
-		// test cache
+		// test subsequent call returns the expected values even when previous result was modified
+		got[0] = "modified"
+
 		got = client.GetEndpointAddresses(ns, name)
 		if len(got) != len(expected) {
 			t.Fatalf("Failed to get same size: %d != %d", len(expected), len(got))
