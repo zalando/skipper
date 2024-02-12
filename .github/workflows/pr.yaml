@@ -2,6 +2,8 @@ name: pr
 on: [ pull_request ]
 permissions:
   contents: read
+env:
+  TESTCONTAINERS_RYUK_DISABLED: true
 jobs:
   semgrep:
     if: ${{ github.actor != 'dependabot[bot]' }}
@@ -23,7 +25,7 @@ jobs:
       - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
-          go-version: '^1.21'
+          go-version: "^1.21"
           check-latest: true
       - run: go version
       - run: make deps
@@ -35,7 +37,7 @@ jobs:
       - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
-          go-version: '^1.21'
+          go-version: "^1.21"
           check-latest: true
       - run: go version
       - run: make deps
