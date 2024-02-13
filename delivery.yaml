@@ -113,10 +113,6 @@ pipeline:
   - desc: build docs
     cmd: |
       build-docs
-
-      if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
-        echo "Please update the docs with: mkdocs gh-deploy"
-      fi
   artifacts:
   - type: docs
     name: skipper
