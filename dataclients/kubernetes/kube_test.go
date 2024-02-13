@@ -551,10 +551,10 @@ func (api *testAPI) Close() {
 }
 
 func TestGetEndpointAddresses(t *testing.T) {
-	api := newTestAPI(t, nil, &definitions.IngressV1List{})
-	defer api.Close()
-
 	t.Run("state not synced", func(t *testing.T) {
+		api := newTestAPI(t, nil, &definitions.IngressV1List{})
+		defer api.Close()
+
 		api.ingresses.Items = testIngresses()
 		api.endpoints = testEndpointList()
 		api.services = testServices()
@@ -576,6 +576,9 @@ func TestGetEndpointAddresses(t *testing.T) {
 	})
 
 	t.Run("Ingress with endpointslices", func(t *testing.T) {
+		api := newTestAPI(t, nil, &definitions.IngressV1List{})
+		defer api.Close()
+
 		api.ingresses.Items = testIngresses()
 		api.endpointSlices = testEndpointSlicesList()
 		api.services = testServices()
@@ -624,6 +627,9 @@ func TestGetEndpointAddresses(t *testing.T) {
 	})
 
 	t.Run("Ingress with endpoints", func(t *testing.T) {
+		api := newTestAPI(t, nil, &definitions.IngressV1List{})
+		defer api.Close()
+
 		api.ingresses.Items = testIngresses()
 		api.endpoints = testEndpointList()
 		api.services = testServices()
