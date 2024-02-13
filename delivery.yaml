@@ -49,6 +49,7 @@ pipeline:
         MULTIARCH_IMAGE="${MULTIARCH_REGISTRY}/teapot/skipper-test:${CDP_BUILD_VERSION}"
       fi
       export IMAGE MULTIARCH_IMAGE
+      export TESTCONTAINERS_RYUK_DISABLED=true
 
       make deps check-fmt vet staticcheck shortcheck
 
