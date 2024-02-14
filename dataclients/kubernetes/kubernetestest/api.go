@@ -3,6 +3,7 @@ package kubernetestest
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -43,8 +44,9 @@ type api struct {
 func NewAPI(o TestAPIOptions, specs ...io.Reader) (*api, error) {
 	a := &api{
 		namespaces: make(map[string]namespace),
+		// see https://kubernetes.io/docs/reference/using-api/api-concepts/#resource-uris
 		pathRx: regexp.MustCompile(
-			"(/namespaces/([^/]+))?/(services|ingresses|routegroups|endpointslices|endpoints|secrets)",
+			"(?:/namespaces/([^/]+))?/(services|ingresses|routegroups|endpointslices|endpoints|secrets)(?:/(.+))?",
 		),
 	}
 
@@ -178,30 +180,27 @@ func (a *api) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ns := a.all
-	if parts[2] != "" {
-		ns = a.namespaces[parts[2]]
+	if parts[1] != "" {
+		ns = a.namespaces[parts[1]]
 	}
 
-	var b []byte
-	switch parts[3] {
+	resourceType, name := parts[2], parts[3]
+	switch resourceType {
 	case "services":
-		b = filterBySelectors(ns.services, parseSelectors(r))
+		serve(w, r, ns.services, name)
 	case "ingresses":
-		b = filterBySelectors(ns.ingresses, parseSelectors(r))
+		serve(w, r, ns.ingresses, name)
 	case "routegroups":
-		b = filterBySelectors(ns.routeGroups, parseSelectors(r))
+		serve(w, r, ns.routeGroups, name)
 	case "endpoints":
-		b = filterBySelectors(ns.endpoints, parseSelectors(r))
+		serve(w, r, ns.endpoints, name)
 	case "endpointslices":
-		b = filterBySelectors(ns.endpointslices, parseSelectors(r))
+		serve(w, r, ns.endpointslices, name)
 	case "secrets":
-		b = filterBySelectors(ns.secrets, parseSelectors(r))
+		serve(w, r, ns.secrets, name)
 	default:
-		w.WriteHeader(http.StatusNotFound)
-		return
+		http.Error(w, fmt.Sprintf("unsupported resource type %s", resourceType), http.StatusBadRequest)
 	}
-
-	w.Write(b)
 }
 
 // Parses an optional parameter with `label selectors` into a map if present or, if not present, returns nil.
@@ -220,35 +219,56 @@ func parseSelectors(r *http.Request) map[string]string {
 	return selectors
 }
 
-// Filters all resources that are already set in k8s namespace using the given selectors map.
-// All resources are initially set to `namespace` as slices of bytes and for most tests it's not needed to make it any more complex.
-// This helper function deserializes resources, finds a metadata with labels in them and check if they have all
-// requested labels. If they do, they are returned.
-func filterBySelectors(resources []byte, selectors map[string]string) []byte {
-	if len(selectors) == 0 {
-		return resources
+func serve(w http.ResponseWriter, r *http.Request, resources []byte, name string) {
+	selectors := parseSelectors(r)
+	if name == "" && len(selectors) == 0 {
+		w.Write(resources)
+		return
 	}
 
-	labels := struct {
+	itemsMetadata := struct {
 		Items []struct {
 			Metadata struct {
+				Name   string            `json:"name"`
 				Labels map[string]string `json:"labels"`
 			} `json:"metadata"`
 		} `json:"items"`
 	}{}
+
+	if err := json.Unmarshal(resources, &itemsMetadata); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// every resource but top level is deserialized because we need access to the indexed array
 	allItems := struct {
 		Items []interface{} `json:"items"`
 	}{}
 
-	if json.Unmarshal(resources, &labels) != nil || json.Unmarshal(resources, &allItems) != nil {
-		return resources
+	if err := json.Unmarshal(resources, &allItems); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// serve named resource if present
+	if name != "" {
+		for idx, item := range itemsMetadata.Items {
+			if item.Metadata.Name == name {
+				if result, err := json.Marshal(allItems.Items[idx]); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				} else {
+					w.Write(result)
+				}
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 
 	// go over each item's label and check if all selectors with their values are present
 	var filteredItems []interface{}
-	for idx, item := range labels.Items {
+	for idx, item := range itemsMetadata.Items {
 		allMatch := true
 		for k, v := range selectors {
 			label, ok := item.Metadata.Labels[k]
@@ -261,10 +281,10 @@ func filterBySelectors(resources []byte, selectors map[string]string) []byte {
 
 	var result []byte
 	if err := itemsJSON(&result, filteredItems); err != nil {
-		return resources
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	} else {
+		w.Write(result)
 	}
-
-	return result
 }
 
 func initNamespace(kinds map[string][]interface{}) (ns namespace, err error) {
