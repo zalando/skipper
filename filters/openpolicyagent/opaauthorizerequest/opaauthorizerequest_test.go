@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
@@ -19,9 +20,14 @@ import (
 func TestAuthorizeRequestFilter(t *testing.T) {
 	for _, ti := range []struct {
 		msg               string
+		filterName        string
+		extraeskip        string
 		bundleName        string
 		regoQuery         string
 		requestPath       string
+		requestMethod     string
+		requestHeaders    http.Header
+		body              string
 		contextExtensions string
 		expectedBody      string
 		expectedHeaders   http.Header
@@ -31,9 +37,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 	}{
 		{
 			msg:               "Allow Requests",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow",
 			requestPath:       "/allow",
+			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusOK,
 			expectedBody:      "Welcome!",
@@ -43,9 +51,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Allow Matching Context Extension",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_context_extensions",
 			requestPath:       "/allow",
+			requestMethod:     "GET",
 			contextExtensions: "com.mycompany.myprop: myvalue",
 			expectedStatus:    http.StatusOK,
 			expectedBody:      "Welcome!",
@@ -55,6 +65,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:             "Allow Matching Environment",
+			filterName:      "opaAuthorizeRequest",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_runtime_environment",
 			requestPath:     "/allow",
@@ -66,9 +77,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Simple Forbidden",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow",
 			requestPath:       "/forbidden",
+			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusForbidden,
 			expectedHeaders:   make(http.Header),
@@ -77,9 +90,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Allow With Structured Rules",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_object",
 			requestPath:       "/allow/structured",
+			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusOK,
 			expectedBody:      "Welcome!",
@@ -89,9 +104,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Forbidden With Body",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_object",
 			requestPath:       "/forbidden",
+			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusUnauthorized,
 			expectedHeaders:   map[string][]string{"X-Ext-Auth-Allow": {"no"}},
@@ -101,9 +118,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Misconfigured Rego Query",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/invalid_path",
 			requestPath:       "/allow",
+			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusInternalServerError,
 			expectedBody:      "",
@@ -113,9 +132,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Wrong Query Data Type",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_wrong_type",
 			requestPath:       "/allow",
+			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusInternalServerError,
 			expectedBody:      "",
@@ -125,9 +146,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Wrong Query Data Type",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_object_invalid_headers_to_remove",
 			requestPath:       "/allow",
+			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusInternalServerError,
 			expectedBody:      "",
@@ -137,15 +160,92 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Wrong Query Data Type",
+			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_object_invalid_headers",
 			requestPath:       "/allow",
+			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusInternalServerError,
 			expectedBody:      "",
 			expectedHeaders:   make(http.Header),
 			backendHeaders:    make(http.Header),
 			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:             "Allow With Body",
+			filterName:      "opaAuthorizeRequestWithBody",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_body",
+			requestMethod:   "POST",
+			body:            `{ "target_id" : "123456" }`,
+			requestHeaders:  map[string][]string{"content-type": {"application/json"}},
+			requestPath:     "/allow_body",
+			expectedStatus:  http.StatusOK,
+			expectedBody:    "Welcome!",
+			expectedHeaders: make(http.Header),
+			backendHeaders:  make(http.Header),
+			removeHeaders:   make(http.Header),
+		},
+		{
+			msg:             "Forbidden With Body",
+			filterName:      "opaAuthorizeRequestWithBody",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_body",
+			requestMethod:   "POST",
+			body:            `{ "target_id" : "wrong id" }`,
+			requestHeaders:  map[string][]string{"content-type": {"application/json"}},
+			requestPath:     "/allow_body",
+			expectedStatus:  http.StatusForbidden,
+			expectedBody:    "",
+			expectedHeaders: make(http.Header),
+			backendHeaders:  make(http.Header),
+			removeHeaders:   make(http.Header),
+		},
+		{
+			msg:             "GET against body protected endpoint",
+			filterName:      "opaAuthorizeRequestWithBody",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_body",
+			requestMethod:   "GET",
+			requestHeaders:  map[string][]string{"content-type": {"application/json"}},
+			requestPath:     "/allow_body",
+			expectedStatus:  http.StatusForbidden,
+			expectedBody:    "",
+			expectedHeaders: make(http.Header),
+			backendHeaders:  make(http.Header),
+			removeHeaders:   make(http.Header),
+		},
+		{
+			msg:             "Broken Body",
+			filterName:      "opaAuthorizeRequestWithBody",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_body",
+			requestMethod:   "POST",
+			body:            `{ "target_id" / "wrong id" }`,
+			requestHeaders:  map[string][]string{"content-type": {"application/json"}},
+			requestPath:     "/allow_body",
+			expectedStatus:  http.StatusBadRequest,
+			expectedBody:    "",
+			expectedHeaders: make(http.Header),
+			backendHeaders:  make(http.Header),
+			removeHeaders:   make(http.Header),
+		},
+		{
+			msg:             "Chained OPA filter with body",
+			filterName:      "opaAuthorizeRequestWithBody",
+			extraeskip:      `-> opaAuthorizeRequestWithBody("somebundle.tar.gz")`,
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_body",
+			requestMethod:   "POST",
+			body:            `{ "target_id" : "123456" }`,
+			requestHeaders:  map[string][]string{"content-type": {"application/json"}},
+			requestPath:     "/allow_body",
+			expectedStatus:  http.StatusOK,
+			expectedBody:    "Welcome!",
+			expectedHeaders: make(http.Header),
+			backendHeaders:  make(http.Header),
+			removeHeaders:   make(http.Header),
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -154,6 +254,12 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				w.Write([]byte("Welcome!"))
 				assert.True(t, isHeadersPresent(t, ti.backendHeaders, r.Header), "Enriched request header is absent.")
 				assert.True(t, isHeadersAbsent(t, ti.removeHeaders, r.Header), "Unwanted HTTP Headers present.")
+
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				assert.Equal(t, ti.body, string(body))
 			}))
 
 			opaControlPlane := opasdktest.MustNewServer(
@@ -211,6 +317,12 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							"allowed": true,
 							"headers": "bogus string instead of object"
 						}
+
+						default allow_body = false
+
+						allow_body {
+							input.parsed_body.target_id == "123456"
+						}						
 					`,
 				}),
 			)
@@ -242,15 +354,27 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 			fr.Register(ftSpec)
+			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			fr.Register(ftSpec)
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> opaAuthorizeRequest("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") %s -> "%s"`, ti.filterName, ti.bundleName, ti.contextExtensions, ti.extraeskip, clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 
-			req, err := http.NewRequest("GET", proxy.URL+ti.requestPath, nil)
+			var bodyReader io.Reader
+			if ti.body != "" {
+				bodyReader = strings.NewReader(ti.body)
+			}
+
+			req, err := http.NewRequest(ti.requestMethod, proxy.URL+ti.requestPath, bodyReader)
 			for name, values := range ti.removeHeaders {
 				for _, value := range values {
 					req.Header.Add(name, value) //adding the headers to validate removal.
+				}
+			}
+			for name, values := range ti.requestHeaders {
+				for _, value := range values {
+					req.Header.Add(name, value)
 				}
 			}
 

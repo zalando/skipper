@@ -16,6 +16,10 @@ func (opa *OpenPolicyAgentInstance) ServeInvalidDecisionError(fc filters.FilterC
 }
 
 func (opa *OpenPolicyAgentInstance) HandleInvalidDecisionError(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult, err error, serve bool) {
+	opa.HandleEvaluationError(fc, span, result, err, serve, http.StatusInternalServerError)
+}
+
+func (opa *OpenPolicyAgentInstance) HandleEvaluationError(fc filters.FilterContext, span opentracing.Span, result *envoyauth.EvalResult, err error, serve bool, status int) {
 	fc.Metrics().IncCounter(opa.MetricsKey("decision.err"))
 	span.SetTag("error", true)
 
@@ -39,12 +43,12 @@ func (opa *OpenPolicyAgentInstance) HandleInvalidDecisionError(fc filters.Filter
 
 		opa.Logger().WithFields(map[string]interface{}{
 			"err": err,
-		}).Info("Rejecting request because of an invalid decision")
+		}).Info("Rejecting request because of an error")
 	}
 
 	if serve {
 		resp := http.Response{}
-		resp.StatusCode = http.StatusInternalServerError
+		resp.StatusCode = status
 
 		fc.Serve(&resp)
 	}

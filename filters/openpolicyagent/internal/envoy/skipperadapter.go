@@ -8,7 +8,7 @@ import (
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 )
 
-func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metadata, contextExtensions map[string]string) *ext_authz_v3.CheckRequest {
+func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metadata, contextExtensions map[string]string, rawBody []byte) *ext_authz_v3.CheckRequest {
 
 	headers := make(map[string]string, len(req.Header))
 	for h, vv := range req.Header {
@@ -25,6 +25,7 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 					Method:  req.Method,
 					Path:    req.URL.Path,
 					Headers: headers,
+					RawBody: rawBody,
 				},
 			},
 			ContextExtensions: contextExtensions,

@@ -48,8 +48,10 @@ func (p *Plugin) Reconfigure(ctx context.Context, config interface{}) {
 
 // PluginConfig represents the plugin configuration.
 type PluginConfig struct {
-	Path        string `json:"path"`
-	DryRun      bool   `json:"dry-run"`
+	Path                 string `json:"path"`
+	DryRun               bool   `json:"dry-run"`
+	SkipRequestBodyParse bool   `json:"skip-request-body-parse"`
+
 	ParsedQuery ast.Body
 }
 

@@ -348,7 +348,9 @@ const (
 	ConsistentHashKeyName                      = "consistentHashKey"
 	ConsistentHashBalanceFactorName            = "consistentHashBalanceFactor"
 	OpaAuthorizeRequestName                    = "opaAuthorizeRequest"
+	OpaAuthorizeRequestWithBodyName            = "opaAuthorizeRequestWithBody"
 	OpaServeResponseName                       = "opaServeResponse"
+	OpaServeResponseWithReqBodyName            = "opaServeResponseWithReqBody"
 	TLSName                                    = "tlsPassClientCertificates"
 
 	// Undocumented filters

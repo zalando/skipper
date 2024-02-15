@@ -1,9 +1,13 @@
 package opaauthorizerequest
 
 import (
-	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"time"
+
+	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 
 	"github.com/zalando/skipper/filters"
 	"gopkg.in/yaml.v2"
@@ -15,19 +19,31 @@ import (
 const responseHeadersKey = "open-policy-agent:decision-response-headers"
 
 type spec struct {
-	registry *openpolicyagent.OpenPolicyAgentRegistry
-	opts     []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
+	registry    *openpolicyagent.OpenPolicyAgentRegistry
+	opts        []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
+	name        string
+	bodyParsing bool
 }
 
 func NewOpaAuthorizeRequestSpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
 	return &spec{
 		registry: registry,
 		opts:     opts,
+		name:     filters.OpaAuthorizeRequestName,
+	}
+}
+
+func NewOpaAuthorizeRequestWithBodySpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+	return &spec{
+		registry:    registry,
+		opts:        opts,
+		name:        filters.OpaAuthorizeRequestWithBodyName,
+		bodyParsing: true,
 	}
 }
 
 func (s *spec) Name() string {
-	return filters.OpaAuthorizeRequestName
+	return s.name
 }
 
 func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
@@ -75,6 +91,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		opa:                    opa,
 		registry:               s.registry,
 		envoyContextExtensions: envoyContextExtensions,
+		bodyParsing:            s.bodyParsing,
 	}, nil
 }
 
@@ -82,6 +99,7 @@ type opaAuthorizeRequestFilter struct {
 	opa                    *openpolicyagent.OpenPolicyAgentInstance
 	registry               *openpolicyagent.OpenPolicyAgentRegistry
 	envoyContextExtensions map[string]string
+	bodyParsing            bool
 }
 
 func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
@@ -89,11 +107,31 @@ func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
 
-	authzreq := envoy.AdaptToExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions)
+	var rawBodyBytes []byte
+	if f.bodyParsing {
+		var body io.ReadCloser
+		var err error
+		var finalizer func()
+		body, rawBodyBytes, finalizer, err = f.opa.ExtractHttpBodyOptionally(req)
+		defer finalizer()
+		if err != nil {
+			f.opa.HandleInvalidDecisionError(fc, span, nil, err, !f.opa.EnvoyPluginConfig().DryRun)
+			return
+		}
+		req.Body = body
+	}
+
+	authzreq := envoy.AdaptToExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes)
 
 	start := time.Now()
 	result, err := f.opa.Eval(ctx, authzreq)
 	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
+
+	var jsonErr *json.SyntaxError
+	if errors.As(err, &jsonErr) {
+		f.opa.HandleEvaluationError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun, http.StatusBadRequest)
+		return
+	}
 
 	if err != nil {
 		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)

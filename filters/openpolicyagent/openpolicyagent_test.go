@@ -1,11 +1,10 @@
 package openpolicyagent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/storage/inmem"
 	"io"
 	"net/http"
 	"os"
@@ -13,12 +12,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/open-policy-agent/opa/ast"
+
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	opaconf "github.com/open-policy-agent/opa/config"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
+	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
@@ -146,6 +148,15 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 				default allow = false
 			`,
 		}),
+		opasdktest.MockBundle("/bundles/use_body", map[string]string{
+			"main.rego": `
+				package envoy.authz
+	
+				default allow = false
+
+				allow { input.parsed_body }
+			`,
+		}),
 		opasdktest.MockBundle("/bundles/anotherbundlename", map[string]string{
 			"main.rego": `
 				package envoy.authz
@@ -169,7 +180,8 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 		"plugins": {
 			"envoy_ext_authz_grpc": {    
 				"path": "/envoy/authz/allow",
-				"dry-run": false    
+				"dry-run": false,
+				"skip-request-body-parse": false
 			}
 		}
 	}`, opaControlPlane.URL()))
@@ -233,10 +245,12 @@ func TestRegistry(t *testing.T) {
 func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
 	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
 	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
 	assert.NoError(t, err)
 
-	engine, err := New(inmem.New(), config, *cfg, "testfilter", "test")
+	engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, defaultBodyBufferSize)
 	assert.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.startupTimeout)
@@ -494,4 +508,191 @@ func TestResponses(t *testing.T) {
 	})
 	assert.True(t, fc.FServed)
 	assert.Equal(t, fc.FResponse.StatusCode, http.StatusInternalServerError)
+}
+
+func TestBodyExtraction(t *testing.T) {
+
+	_, config := mockControlPlaneWithResourceBundle()
+
+	for _, ti := range []struct {
+		msg            string
+		body           string
+		contentLength  int64
+		maxBodySize    int64
+		readBodyBuffer int64
+
+		bodyInPolicy string
+	}{
+		{
+			msg:            "Read body ",
+			body:           `{ "welcome": "world" }`,
+			maxBodySize:    1024,
+			readBodyBuffer: defaultBodyBufferSize,
+			bodyInPolicy:   `{ "welcome": "world" }`,
+		},
+		{
+			msg:            "Read body in chunks",
+			body:           `{ "welcome": "world" }`,
+			maxBodySize:    1024,
+			readBodyBuffer: 5,
+			bodyInPolicy:   `{ "welcome": "world" }`,
+		},
+		{
+			msg:            "Read body with client sending more data than expected",
+			body:           `{ "welcome": "world" }`,
+			maxBodySize:    1024,
+			readBodyBuffer: 5,
+			contentLength:  5,
+			bodyInPolicy:   `{ "we`,
+		},
+		{
+			msg:            "Read body exhausing max bytes",
+			body:           `{ "welcome": "world" }`,
+			maxBodySize:    5,
+			readBodyBuffer: 5,
+			bodyInPolicy:   ``,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			t.Logf("Running test for %v", ti)
+
+			registry := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(ti.maxBodySize),
+				WithReadBodyBufferSize(ti.readBodyBuffer))
+
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
+
+			inst, err := registry.NewOpenPolicyAgentInstance("use_body", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			contentLength := ti.contentLength
+			if contentLength == 0 {
+				contentLength = int64(len(ti.body))
+			}
+
+			req := http.Request{
+				ContentLength: contentLength,
+				Body:          io.NopCloser(bytes.NewReader([]byte(ti.body))),
+			}
+
+			body, peekBody, finalizer, err := inst.ExtractHttpBodyOptionally(&req)
+			defer finalizer()
+			assert.NoError(t, err)
+			defer body.Close()
+
+			fullBody, err := io.ReadAll(body)
+			assert.NoError(t, err)
+			assert.Equal(t, ti.body, string(fullBody), "Full body must be readable")
+
+			assert.Equal(t, ti.bodyInPolicy, string(peekBody), "Body has been read up till maximum")
+		})
+	}
+}
+
+func TestBodyExtractionExhausingTotalBytes(t *testing.T) {
+
+	_, config := mockControlPlaneWithResourceBundle()
+
+	registry := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
+		WithReadBodyBufferSize(21),
+		WithMaxMemoryBodyParsing(40))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	inst, err := registry.NewOpenPolicyAgentInstance("use_body", *cfg, "testfilter")
+	assert.NoError(t, err)
+
+	req1 := http.Request{
+		ContentLength: 21,
+		Body:          io.NopCloser(bytes.NewReader([]byte(`{ "welcome": "world" }`))),
+	}
+
+	_, _, f1, err := inst.ExtractHttpBodyOptionally(&req1)
+	assert.NoError(t, err)
+
+	req2 := http.Request{
+		ContentLength: 21,
+		Body:          io.NopCloser(bytes.NewReader([]byte(`{ "welcome": "world" }`))),
+	}
+
+	_, _, f2, err := inst.ExtractHttpBodyOptionally(&req2)
+	if assert.Error(t, err) {
+		assert.Equal(t, ErrTotalBodyBytesExceeded, err)
+	}
+
+	f1()
+	f2()
+
+	req3 := http.Request{
+		ContentLength: 21,
+		Body:          io.NopCloser(bytes.NewReader([]byte(`{ "welcome": "world" }`))),
+	}
+
+	_, _, f3, err := inst.ExtractHttpBodyOptionally(&req3)
+	f3()
+	assert.NoError(t, err)
+}
+
+func TestBodyExtractionEmptyBody(t *testing.T) {
+
+	_, config := mockControlPlaneWithResourceBundle()
+
+	registry := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
+		WithReadBodyBufferSize(21),
+		WithMaxMemoryBodyParsing(40))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	inst, err := registry.NewOpenPolicyAgentInstance("use_body", *cfg, "testfilter")
+	assert.NoError(t, err)
+
+	req1 := http.Request{
+		ContentLength: 0,
+		Body:          nil,
+	}
+
+	body, bodybytes, f1, err := inst.ExtractHttpBodyOptionally(&req1)
+	assert.NoError(t, err)
+	assert.Nil(t, body)
+	assert.Nil(t, bodybytes)
+
+	f1()
+}
+
+func TestBodyExtractionUnknownBody(t *testing.T) {
+
+	_, config := mockControlPlaneWithResourceBundle()
+
+	registry := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
+		WithReadBodyBufferSize(21),
+		WithMaxMemoryBodyParsing(21))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	inst, err := registry.NewOpenPolicyAgentInstance("use_body", *cfg, "testfilter")
+	assert.NoError(t, err)
+
+	req1 := http.Request{
+		ContentLength: -1,
+		Body:          io.NopCloser(bytes.NewReader([]byte(`{ "welcome": "world" }`))),
+	}
+
+	_, _, f1, err := inst.ExtractHttpBodyOptionally(&req1)
+	assert.NoError(t, err)
+
+	req2 := http.Request{
+		ContentLength: 3,
+		Body:          io.NopCloser(bytes.NewReader([]byte(`{ }`))),
+	}
+
+	_, _, f2, err := inst.ExtractHttpBodyOptionally(&req2)
+	if assert.Error(t, err) {
+		assert.Equal(t, ErrTotalBodyBytesExceeded, err)
+	}
+
+	f1()
+	f2()
 }
