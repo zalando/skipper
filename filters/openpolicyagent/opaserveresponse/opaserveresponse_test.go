@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path"
+	"strings"
 	"testing"
 
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
@@ -21,9 +22,12 @@ import (
 func TestAuthorizeRequestFilter(t *testing.T) {
 	for _, ti := range []struct {
 		msg               string
+		filterName        string
 		bundleName        string
 		regoQuery         string
 		requestPath       string
+		requestHeaders    http.Header
+		body              string
 		expectedBody      string
 		contextExtensions string
 		expectedHeaders   http.Header
@@ -31,6 +35,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 	}{
 		{
 			msg:             "Allow Requests",
+			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow",
 			requestPath:     "allow",
@@ -40,6 +45,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:             "Simple Forbidden",
+			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow",
 			requestPath:     "forbidden",
@@ -48,6 +54,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:             "Misconfigured Rego Query",
+			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/invalid_path",
 			requestPath:     "allow",
@@ -57,6 +64,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:             "Allow With Structured Rules",
+			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
 			requestPath:     "allow/structured",
@@ -84,6 +92,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:             "Allow With Structured Body",
+			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object_structured_body",
 			requestPath:     "allow/structured",
@@ -93,6 +102,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		},
 		{
 			msg:               "Allow with context extensions",
+			filterName:        "opaServeResponse",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_object_contextextensions",
 			requestPath:       "allow/structured",
@@ -100,6 +110,18 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			expectedStatus:    http.StatusOK,
 			expectedHeaders:   map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
 			expectedBody:      `{"hello":"world"}`,
+		},
+		{
+			msg:             "Use request body",
+			filterName:      "opaServeResponseWithReqBody",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_object_req_body",
+			requestPath:     "allow/allow_object_req_body",
+			requestHeaders:  map[string][]string{"content-type": {"application/json"}},
+			body:            `{"hello":"world"}`,
+			expectedStatus:  http.StatusOK,
+			expectedBody:    `{"hello":"world"}`,
+			expectedHeaders: map[string][]string{},
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -168,13 +190,21 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							}
 						}
 
-
 						allow_object_contextextensions = response {
 							input.parsed_path = [ "allow", "structured" ]
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
 								"body": json.marshal(input.attributes.contextExtensions),
+								"http_status": 200
+							}
+						}
+
+						allow_object_req_body = response {
+							response := {
+								"allowed": true,
+								"headers": {},
+								"body": json.marshal(input.parsed_body),
 								"http_status": 200
 							}
 						}
@@ -202,13 +232,20 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				"plugins": {
 					"envoy_ext_authz_grpc": {    
 						"path": %q,
-						"dry-run": false    
+						"dry-run": false,
+						"skip-request-body-parse": false
 					}
+				},
+				"decision_logs": {
+					"console": true
 				}
 			}`, opaControlPlane.URL(), ti.regoQuery))
 
 			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 			ftSpec := NewOpaServeResponseSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			fr.Register(ftSpec)
+			ftSpec = NewOpaServeResponseWithReqBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			fr.Register(ftSpec)
 
 			filterArgs := []interface{}{ti.bundleName}
 			if ti.contextExtensions != "" {
@@ -218,17 +255,20 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			_, err := ftSpec.CreateFilter(filterArgs)
 			assert.NoErrorf(t, err, "error in creating filter: %v", err)
 
-			fr.Register(ftSpec)
-
-			r := eskip.MustParse(fmt.Sprintf(`* -> opaServeResponse("%s", "%s") -> "%s"`, ti.bundleName, ti.contextExtensions, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") -> "%s"`, ti.filterName, ti.bundleName, ti.contextExtensions, clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 			reqURL, err := url.Parse(proxy.URL)
 			assert.NoErrorf(t, err, "Failed to parse url %s: %v", proxy.URL, err)
 
 			reqURL.Path = path.Join(reqURL.Path, ti.requestPath)
-			req, err := http.NewRequest("GET", reqURL.String(), nil)
+			req, err := http.NewRequest("GET", reqURL.String(), strings.NewReader(ti.body))
 			assert.NoError(t, err)
+			for name, values := range ti.requestHeaders {
+				for _, value := range values {
+					req.Header.Add(name, value)
+				}
+			}
 
 			rsp, err := proxy.Client().Do(req)
 			assert.NoError(t, err)

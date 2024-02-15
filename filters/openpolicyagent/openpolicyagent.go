@@ -3,7 +3,10 @@ package openpolicyagent
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -14,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/config"
+	"github.com/open-policy-agent/opa/dependencies"
 	"github.com/open-policy-agent/opa/logging"
 	"github.com/open-policy-agent/opa/plugins"
 	"github.com/open-policy-agent/opa/plugins/discovery"
@@ -24,6 +28,7 @@ import (
 	iCache "github.com/open-policy-agent/opa/topdown/cache"
 	opatracing "github.com/open-policy-agent/opa/tracing"
 	"github.com/opentracing/opentracing-go"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/zalando/skipper/filters"
@@ -33,10 +38,14 @@ import (
 )
 
 const (
+	DefaultCleanIdlePeriod     = 10 * time.Second
 	defaultReuseDuration       = 30 * time.Second
 	defaultShutdownGracePeriod = 30 * time.Second
-	DefaultCleanerInterval     = 10 * time.Second
 	DefaultOpaStartupTimeout   = 30 * time.Second
+
+	DefaultMaxRequestBodySize   = 1 << 20 // 1 MB
+	DefaultMaxMemoryBodyParsing = 100 * DefaultMaxRequestBodySize
+	defaultBodyBufferSize       = 8192 * 1024
 )
 
 type OpenPolicyAgentRegistry struct {
@@ -55,6 +64,10 @@ type OpenPolicyAgentRegistry struct {
 	quit          chan struct{}
 	reuseDuration time.Duration
 	cleanInterval time.Duration
+
+	maxMemoryBodyParsingSem *semaphore.Weighted
+	maxRequestBodyBytes     int64
+	bodyReadBufferSize      int64
 }
 
 type OpenPolicyAgentFilter interface {
@@ -68,6 +81,27 @@ func WithReuseDuration(duration time.Duration) func(*OpenPolicyAgentRegistry) er
 	}
 }
 
+func WithMaxRequestBodyBytes(n int64) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.maxRequestBodyBytes = n
+		return nil
+	}
+}
+
+func WithMaxMemoryBodyParsing(n int64) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.maxMemoryBodyParsingSem = semaphore.NewWeighted(n)
+		return nil
+	}
+}
+
+func WithReadBodyBufferSize(n int64) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.bodyReadBufferSize = n
+		return nil
+	}
+}
+
 func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.cleanInterval = interval
@@ -77,15 +111,21 @@ func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) er
 
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
 	registry := &OpenPolicyAgentRegistry{
-		reuseDuration: defaultReuseDuration,
-		cleanInterval: DefaultCleanerInterval,
-		instances:     make(map[string]*OpenPolicyAgentInstance),
-		lastused:      make(map[*OpenPolicyAgentInstance]time.Time),
-		quit:          make(chan struct{}),
+		reuseDuration:       defaultReuseDuration,
+		cleanInterval:       DefaultCleanIdlePeriod,
+		instances:           make(map[string]*OpenPolicyAgentInstance),
+		lastused:            make(map[*OpenPolicyAgentInstance]time.Time),
+		quit:                make(chan struct{}),
+		maxRequestBodyBytes: DefaultMaxMemoryBodyParsing,
+		bodyReadBufferSize:  defaultBodyBufferSize,
 	}
 
 	for _, opt := range opts {
 		opt(registry)
+	}
+
+	if registry.maxMemoryBodyParsingSem == nil {
+		registry.maxMemoryBodyParsingSem = semaphore.NewWeighted(DefaultMaxMemoryBodyParsing)
 	}
 
 	go registry.startCleanerDaemon()
@@ -290,7 +330,8 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 		return nil, err
 	}
 
-	engine, err := New(inmem.New(), configBytes, config, filterName, bundleName)
+	engine, err := registry.new(inmem.New(), configBytes, config, filterName, bundleName,
+		registry.maxRequestBodyBytes, registry.bodyReadBufferSize)
 	if err != nil {
 		return nil, err
 	}
@@ -315,6 +356,10 @@ type OpenPolicyAgentInstance struct {
 	interQueryBuiltinCache iCache.InterQueryCache
 	once                   sync.Once
 	stopped                bool
+	registry               *OpenPolicyAgentRegistry
+
+	maxBodyBytes       int64
+	bodyReadBufferSize int64
 }
 
 func envVariablesMap() map[string]string {
@@ -347,8 +392,8 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 	return buf.Bytes(), nil
 }
 
-// New returns a new OPA object.
-func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string) (*OpenPolicyAgentInstance, error) {
+// new returns a new OPA object.
+func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
 	opaConfig, err := config.ParseConfig(configBytes, id)
 	if err != nil {
@@ -372,10 +417,14 @@ func New(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgent
 	manager.Register("discovery", discovery)
 
 	opa := &OpenPolicyAgentInstance{
+		registry:       registry,
 		instanceConfig: instanceConfig,
 		manager:        manager,
 		opaConfig:      opaConfig,
 		bundleName:     bundleName,
+
+		maxBodyBytes:       maxBodyBytes,
+		bodyReadBufferSize: bodyReadBufferSize,
 
 		preparedQueryDoOnce:    new(sync.Once),
 		interQueryBuiltinCache: iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
@@ -518,6 +567,119 @@ func (opa *OpenPolicyAgentInstance) StartSpanFromContext(ctx context.Context) (o
 
 func (opa *OpenPolicyAgentInstance) MetricsKey(key string) string {
 	return key + "." + opa.bundleName
+}
+
+var (
+	ErrClosed                 = errors.New("reader closed")
+	ErrTotalBodyBytesExceeded = errors.New("buffer for in-flight request body authorization in Open Policy Agent exceeded")
+)
+
+type bufferedBodyReader struct {
+	input         io.ReadCloser
+	maxBufferSize int64
+
+	bodyBuffer bytes.Buffer
+	readBuffer []byte
+
+	once   sync.Once
+	err    error
+	closed bool
+}
+
+func newBufferedBodyReader(input io.ReadCloser, maxBufferSize int64, readBufferSize int64) *bufferedBodyReader {
+	return &bufferedBodyReader{
+		input:         input,
+		maxBufferSize: maxBufferSize,
+		readBuffer:    make([]byte, readBufferSize),
+	}
+}
+
+func (m *bufferedBodyReader) fillBuffer(expectedSize int64) ([]byte, error) {
+	var err error
+
+	for err == nil && int64(m.bodyBuffer.Len()) < m.maxBufferSize && int64(m.bodyBuffer.Len()) < expectedSize {
+		var n int
+		n, err = m.input.Read(m.readBuffer)
+
+		m.bodyBuffer.Write(m.readBuffer[:n])
+	}
+
+	if err == io.EOF {
+		err = nil
+	}
+
+	return m.bodyBuffer.Bytes(), err
+}
+
+func (m *bufferedBodyReader) Read(p []byte) (int, error) {
+	if m.closed {
+		return 0, ErrClosed
+	}
+
+	if m.err != nil {
+		return 0, m.err
+	}
+
+	// First read the buffered body
+	if m.bodyBuffer.Len() != 0 {
+		return m.bodyBuffer.Read(p)
+	}
+
+	// Continue reading from the underlying body reader
+	return m.input.Read(p)
+}
+
+// Close closes the undelrying reader if it implements io.Closer.
+func (m *bufferedBodyReader) Close() error {
+	var err error
+	m.once.Do(func() {
+		m.closed = true
+		if c, ok := m.input.(io.Closer); ok {
+			err = c.Close()
+		}
+	})
+	return err
+}
+
+func bodyUpperBound(contentLength, maxBodyBytes int64) int64 {
+	if contentLength <= 0 {
+		return maxBodyBytes
+	}
+
+	if contentLength < maxBodyBytes {
+		return contentLength
+	}
+
+	return maxBodyBytes
+}
+
+func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request) (io.ReadCloser, []byte, func(), error) {
+	body := req.Body
+
+	if body != nil && !opa.EnvoyPluginConfig().SkipRequestBodyParse &&
+		req.ContentLength <= int64(opa.maxBodyBytes) {
+
+		bases, err := dependencies.Base(opa.Compiler(), opa.EnvoyPluginConfig().ParsedQuery)
+		if err != nil {
+			return req.Body, nil, func() {}, nil
+		}
+
+		for _, base := range bases {
+			if base.HasPrefix(ast.MustParseRef("input.parsed_body")) {
+				wrapper := newBufferedBodyReader(req.Body, opa.maxBodyBytes, opa.bodyReadBufferSize)
+
+				requestedBodyBytes := bodyUpperBound(req.ContentLength, opa.maxBodyBytes)
+				if !opa.registry.maxMemoryBodyParsingSem.TryAcquire(requestedBodyBytes) {
+					return req.Body, nil, func() {}, ErrTotalBodyBytesExceeded
+				}
+
+				rawBody, err := wrapper.fillBuffer(req.ContentLength)
+				return wrapper, rawBody, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
+			}
+		}
+	}
+
+	return req.Body, nil, func() {}, nil
 }
 
 // ParsedQuery is an implementation of the envoyauth.EvalContext interface

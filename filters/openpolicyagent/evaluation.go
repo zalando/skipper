@@ -41,7 +41,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	}
 
 	logger := opa.manager.Logger().WithFields(map[string]interface{}{"decision-id": result.DecisionID})
-	input, err = envoyauth.RequestToInput(req, logger, nil, true)
+	input, err = envoyauth.RequestToInput(req, logger, nil, opa.EnvoyPluginConfig().SkipRequestBodyParse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert request to input: %w", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"gopkg.in/yaml.v2"
@@ -160,8 +161,10 @@ func defaultConfig() *Config {
 		ValidateQueryLog:                        true,
 		LuaModules:                              commaListFlag(),
 		LuaSources:                              commaListFlag(),
-		OpenPolicyAgentCleanerInterval:          10 * time.Second,
+		OpenPolicyAgentCleanerInterval:          openpolicyagent.DefaultCleanIdlePeriod,
 		OpenPolicyAgentStartupTimeout:           30 * time.Second,
+		OpenPolicyAgentMaxRequestBodySize:       openpolicyagent.DefaultMaxRequestBodySize,
+		OpenPolicyAgentMaxMemoryBodyParsing:     openpolicyagent.DefaultMaxMemoryBodyParsing,
 	}
 }
 
