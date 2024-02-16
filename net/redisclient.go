@@ -222,6 +222,10 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 			ringOptions.NewConsistentHash = NewMultiprobe
 		}
 
+		if ro.Log == nil {
+			ro.Log = &logging.DefaultLog{}
+		}
+
 		if ro.AddrUpdater != nil {
 			address, err := ro.AddrUpdater()
 			for i := 0; i < retryCount; i++ {
@@ -232,16 +236,15 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 				address, err = ro.AddrUpdater()
 			}
 			if err != nil {
-				r.log.Errorf("Failed at redisclient startup %v", err)
+				ro.Log.Errorf("Failed at redisclient startup %v", err)
 			}
 			ringOptions.Addrs = createAddressMap(address)
 		} else {
 			ringOptions.Addrs = createAddressMap(ro.Addrs)
 		}
-		if ro.Log == nil {
-			ro.Log = &logging.DefaultLog{}
-		}
-		ro.Log.Infof("create ring with addresses: %v", ro.Addrs)
+
+		ro.Log.Infof("Created ring with addresses: %v", ro.Addrs)
+
 		ringOptions.ReadTimeout = ro.ReadTimeout
 		ringOptions.WriteTimeout = ro.WriteTimeout
 		ringOptions.PoolTimeout = ro.PoolTimeout
