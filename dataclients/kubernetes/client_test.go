@@ -86,3 +86,29 @@ func TestClientGetEndpointAddresses(t *testing.T) {
 		assert.Equal(t, []string{"42.0.1.1", "42.0.1.2", "42.0.1.3", "42.0.1.4"}, addrs)
 	})
 }
+
+func TestClientLoadEndpointAddresses(t *testing.T) {
+	t.Run("from endpoints", func(t *testing.T) {
+		client := newTestClient(t,
+			kubernetes.Options{},
+			"testdata/ingressV1/ingress-data/lb-target-multi.yaml",
+		)
+
+		addrs, err := client.LoadEndpointAddresses("namespace1", "service1")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"42.0.1.2", "42.0.1.3"}, addrs)
+	})
+
+	t.Run("from endpointslices", func(t *testing.T) {
+		client := newTestClient(t,
+			kubernetes.Options{
+				KubernetesEnableEndpointslices: true,
+			},
+			"testdata/ingressV1/ingress-data/lb-target-multi-multiple-endpointslices-conditions-all-ready.yaml",
+		)
+
+		addrs, err := client.LoadEndpointAddresses("namespace1", "service1")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"42.0.1.1", "42.0.1.2", "42.0.1.3", "42.0.1.4"}, addrs)
+	})
+}

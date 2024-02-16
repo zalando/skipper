@@ -1359,20 +1359,33 @@ func findKubernetesDataclient(dataClients []routing.DataClient) *kubernetes.Clie
 	return kdc
 }
 
-func getRedisUpdaterFunc(opts *Options, kdc *kubernetes.Client) func() ([]string, error) {
-	// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
-	// has polled the data once or kdc.GetEndpointAdresses should be blocking
-	// call to kubernetes API
-	return func() ([]string, error) {
-		a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
-		log.Debugf("Redis updater called and found %d redis endpoints", len(a))
+func getKubernetesRedisAddrUpdater(opts *Options, kdc *kubernetes.Client, loaded bool) func() ([]string, error) {
+	if loaded {
+		// TODO(sszuecs): make sure kubernetes dataclient is already initialized and
+		// has polled the data once or kdc.GetEndpointAdresses should be blocking
+		// call to kubernetes API
+		return func() ([]string, error) {
+			a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+			log.Debugf("GetEndpointAddresses found %d redis endpoints", len(a))
 
-		port := strconv.Itoa(opts.KubernetesRedisServicePort)
-		for i := 0; i < len(a); i++ {
-			a[i] = net.JoinHostPort(a[i], port)
+			return joinPort(a, opts.KubernetesRedisServicePort), nil
 		}
-		return a, nil
+	} else {
+		return func() ([]string, error) {
+			a, err := kdc.LoadEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+			log.Debugf("LoadEndpointAddresses found %d redis endpoints, err: %v", len(a), err)
+
+			return joinPort(a, opts.KubernetesRedisServicePort), err
+		}
 	}
+}
+
+func joinPort(addrs []string, port int) []string {
+	p := strconv.Itoa(port)
+	for i := 0; i < len(addrs); i++ {
+		addrs[i] = net.JoinHostPort(addrs[i], p)
+	}
+	return addrs
 }
 
 type RedisEndpoint struct {
@@ -1383,7 +1396,7 @@ type RedisEndpoints struct {
 	Endpoints []RedisEndpoint `json:"endpoints"`
 }
 
-func updateEndpointsFromURL(address string) func() ([]string, error) {
+func getRemoteURLRedisAddrUpdater(address string) func() ([]string, error) {
 	/* #nosec */
 	return func() ([]string, error) {
 		resp, err := http.Get(address)
@@ -1690,25 +1703,32 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			kdc := findKubernetesDataclient(dataClients)
 			if kdc != nil {
-				redisOptions.AddrUpdater = getRedisUpdaterFunc(&o, kdc)
-				_, err = redisOptions.AddrUpdater()
+				redisOptions.AddrUpdater = getKubernetesRedisAddrUpdater(&o, kdc, true)
+			} else {
+				kdc, err := kubernetes.New(o.KubernetesDataClientOptions())
 				if err != nil {
-					log.Errorf("Failed to update redis address %v", err)
 					return err
 				}
-			} else {
-				log.Errorf("Failed to find kubernetes dataclient, but redis shards should be get by kubernetes svc %s/%s", o.KubernetesRedisServiceNamespace, o.KubernetesRedisServiceName)
+				defer kdc.Close()
+
+				redisOptions.AddrUpdater = getKubernetesRedisAddrUpdater(&o, kdc, false)
+			}
+
+			_, err = redisOptions.AddrUpdater()
+			if err != nil {
+				log.Errorf("Failed to update redis addresses from kubernetes: %v", err)
+				return err
 			}
 		} else if redisOptions != nil && o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Use remote address %s to fetch updates redis shards", o.SwarmRedisEndpointsRemoteURL)
-			redisOptions.AddrUpdater = updateEndpointsFromURL(o.SwarmRedisEndpointsRemoteURL)
+			redisOptions.AddrUpdater = getRemoteURLRedisAddrUpdater(o.SwarmRedisEndpointsRemoteURL)
+
 			_, err = redisOptions.AddrUpdater()
 			if err != nil {
-				log.Errorf("Failed to update redis endpoints from URL %v", err)
+				log.Errorf("Failed to update redis addresses from URL: %v", err)
 				return err
 			}
 		}
-
 	}
 
 	var ratelimitRegistry *ratelimit.Registry
