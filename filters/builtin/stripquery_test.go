@@ -15,11 +15,12 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters/filtertest"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/zalando/skipper/filters/filtertest"
 )
 
 func TestCreateStripQueryFilter(t *testing.T) {
@@ -88,6 +89,24 @@ func TestPreserveQuery(t *testing.T) {
 			if c.FRequest.Header.Get(k) != strings.Join(h, ",") {
 				t.Errorf("Uri %q => %q, want %q (%v)", tt.uri, c.FRequest.Header.Get(k), h, c.FRequest.Header)
 			}
+		}
+	}
+}
+
+func BenchmarkSanitize(b *testing.B) {
+	piece := "query=cXVlcnkgUGRwKCRjb25maWdTa3U6IElEIS&variables=%7B%0A%20%20%20%20%22beautyColorImageWidth%22:%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20200,%0A%20%20%20%20%22portraitGalleryWidth%22:%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20828,%0A%20%20%20%20%22segmentedBannerHeaderLogoWidth%22:%20%20%20%20%20%20%20%20%20%20%20%20%20%2084,%0A%20%20%20%20%22shouldIncludeCtaTrackingKey%22:%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20false,%0A%20%20%20%20%22shouldIncludeFlagInfo%22:%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20false,%0A%20%20%20%20%22shouldIncludeHistogramValues%22:%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20false,%0A%20%20%20%20%22shouldIncludeOfferSelectionValues%22:%20%20%20%20%20%20%20%20%20%20%20true,%0A%20%20%20%20%22shouldIncludeOmnibusConfigModeChanges%22:%20%20%20%20%20%20%20false,%0A%20%20%20%20%22shouldIncludeOmnibusPriceLabelChanges%22:%20%20%20%20%20%20%20false,&apiEndpoint=https%253A%252F%252Fmodified%252Fsecret%252Fgraphql%252Fsecret&frontendType=secret&zalandoFeature=secret"
+	q := strings.Repeat(piece, 2)
+	v, e := url.ParseQuery(q)
+
+	if e != nil {
+		b.Error(e)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for k := range v {
+			sanitize(k)
 		}
 	}
 }
