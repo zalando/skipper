@@ -2,6 +2,7 @@ package net
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -1082,5 +1083,19 @@ func TestRedisClientSetAddr(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRedisClientFailingAddrUpdater(t *testing.T) {
+	cli := NewRedisRingClient(&RedisOptions{
+		AddrUpdater: func() ([]string, error) {
+			return nil, fmt.Errorf("failed to get addresses")
+		},
+		UpdateInterval: 1 * time.Second,
+	})
+	defer cli.Close()
+
+	if cli.RingAvailable() {
+		t.Error("Unexpected available ring")
 	}
 }
