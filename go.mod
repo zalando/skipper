@@ -41,7 +41,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/szuecs/rate-limit-buffer v0.9.0
 	github.com/testcontainers/testcontainers-go v0.27.0
-	github.com/tidwall/gjson v1.17.0
+	github.com/tidwall/gjson v1.17.1
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
