@@ -910,8 +910,8 @@ Parameters:
 Example, generate shadow traffic from 10% of the production traffic:
 
 ```
-main: * -> "https://main-backend.example.org;
-main-split: Traffic(.1) -> teeLoopback("test-A") -> "https://main-backend.example.org";
+main: * -> "https://main-backend.example.org";
+split: Traffic(.1) -> teeLoopback("test-A") -> "https://main-backend.example.org";
 shadow: Tee("test-A") && True() -> "https://test-backend.example.org";
 ```
 
@@ -1885,13 +1885,13 @@ Requests can also be authorized based on the request body the same way that is s
 
 This filter has the same parameters that the `opaAuthorizeRequest` filter has.
 
-A request's body is parsed up to a maximum size with a default of 1MB that can be configured via the `-open-policy-agent-max-request-body-size` command line argument. To avoid OOM errors due to too many concurrent authorized body requests, another flag `-open-policy-agent-max-memory-body-parsing` controls how much memory can be used across all requests with a default of 100MB. If in-flight requests that use body authorization exceed that limit, incoming requests that use the body will be rejected with an internal server error. The number of concurrent requests is 
+A request's body is parsed up to a maximum size with a default of 1MB that can be configured via the `-open-policy-agent-max-request-body-size` command line argument. To avoid OOM errors due to too many concurrent authorized body requests, another flag `-open-policy-agent-max-memory-body-parsing` controls how much memory can be used across all requests with a default of 100MB. If in-flight requests that use body authorization exceed that limit, incoming requests that use the body will be rejected with an internal server error. The number of concurrent requests is
 
 $$ n_{max-memory-body-parsing} \over min(avg(n_{request-content-length}), n_{max-request-body-size}) $$
 
-so if requests on average have 100KB and the maximum memory is set to 100MB, on average 1024 authorized requests can be processed concurrently. 
+so if requests on average have 100KB and the maximum memory is set to 100MB, on average 1024 authorized requests can be processed concurrently.
 
-The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses. 
+The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
 
 #### opaServeResponse
 
@@ -1942,13 +1942,13 @@ If you want to serve requests directly from an Open Policy Agent policy that use
 
 This filter has the same parameters that the `opaServeResponse` filter has.
 
-A request's body is parsed up to a maximum size with a default of 1MB that can be configured via the `-open-policy-agent-max-request-body-size` command line argument. To avoid OOM errors due to too many concurrent authorized body requests, another flag `-open-policy-agent-max-memory-body-parsing` controls how much memory can be used across all requests with a default of 100MB. If  in-flight requests that use body authorization exceed that limit, incoming requests that use the body will be rejected with an internal server error. The number of concurrent requests is 
+A request's body is parsed up to a maximum size with a default of 1MB that can be configured via the `-open-policy-agent-max-request-body-size` command line argument. To avoid OOM errors due to too many concurrent authorized body requests, another flag `-open-policy-agent-max-memory-body-parsing` controls how much memory can be used across all requests with a default of 100MB. If  in-flight requests that use body authorization exceed that limit, incoming requests that use the body will be rejected with an internal server error. The number of concurrent requests is
 
 $$ n_{max-memory-body-parsing} \over min(avg(n_{request-content-length}), n_{max-request-body-size}) $$
 
 so if requests on average have 100KB and the maximum memory is set to 100MB, on average 1024 authorized requests can be processed concurrently.
 
-The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses. 
+The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
 
 ## Cookie Handling
 ### dropRequestCookie
