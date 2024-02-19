@@ -1813,7 +1813,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	var opaRegistry *openpolicyagent.OpenPolicyAgentRegistry
 	if o.EnableOpenPolicyAgent {
-		opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry(
+		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(
 			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
 			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval))
