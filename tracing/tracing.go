@@ -154,7 +154,16 @@ func LoadPlugin(pluginDir string, opts []string) (trace.Tracer, error) {
 	}
 	fn, ok := sym.(func([]string) (trace.Tracer, error))
 	if !ok {
-		return nil, fmt.Errorf("module %s's InitTracer function has wrong signature", impl)
+        otfn, ok := sym.(func([]string) (ot.Tracer, error))
+        if !ok {
+		    return nil, fmt.Errorf("module %s's InitTracer function has wrong signature", impl)
+        }
+
+        t, err := otfn(opts)
+	    if err != nil {
+	    	return nil, fmt.Errorf("module %s returned: %s", impl, err)
+	    }
+        return &TracerWrapper{Ot: t}, nil
 	}
 	tracer, err := fn(opts)
 	if err != nil {

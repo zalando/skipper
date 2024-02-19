@@ -280,13 +280,26 @@ delay between the calls.
 A complete example is the [routestring implementation](https://github.com/zalando/skipper/blob/master/dataclients/routestring/string.go), which fits in
 less than 50 lines of code.
 
-## Opentracing
+## Tracing
+
+Currently Skipper supports both Opentelemetry and Opentracing as tracing options. Opentracing is soon to be deprecated in favor of Opentelemetry.
+
+Please check the [tracing package](https://github.com/zalando/skipper/blob/master/tracing)
+and ask for further guidance in our [community channels](https://github.com/zalando/skipper#community).
+
+### Opentelemetry
+
+Your custom Opentelemetry implementations need to satisfy the `opentelemetry.Tracer` interface from
+https://github.com/open-telemetry/opentelemetry-go and need to be loaded as
+a plugin, which might change in the future.
+
+### Opentracing
 
 Your custom Opentracing implementations need to satisfy the `opentracing.Tracer` interface from
 https://github.com/opentracing/opentracing-go and need to be loaded as
 a plugin, which might change in the future.
-Please check the [tracing package](https://github.com/zalando/skipper/blob/master/tracing)
-and ask for further guidance in our [community channels](https://github.com/zalando/skipper#community).
+
+Currently Skipper is migrating to Opentelemetry, what this means is, when this plugin is loaded it will be wrapped in a type called [TracerWrapper](https://github.com/zalando/skipper/blob/master/tracing/wrappers.go), this type implements `opentelemetry.Tracer` interface, and under the hood converts these function calls to `opentracing.Tracer` calls. In the future skipper will only accept plugins that return `opentelemetry.Tracer`.
 
 ## Core
 
