@@ -181,4 +181,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
+replace github.com/open-policy-agent/opa-envoy-plugin => /Users/pjayawardhan/opa-envoy-plugin  //ToDO
+
 go 1.21

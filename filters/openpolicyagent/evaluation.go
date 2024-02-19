@@ -16,15 +16,18 @@ import (
 )
 
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
-	result, stopeval, err := envoyauth.NewEvalResult()
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		span.SetTag("opa.decision_id", result.DecisionID)
-	}
+
+	decisionId, err := opa.idGenerator.Generate()
 
 	if err != nil {
 		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate decision ID.")
 		return nil, err
+	}
+
+	result, stopeval, err := envoyauth.NewEvalResult(WithDecisionID(decisionId))
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		span.SetTag("opa.decision_id", result.DecisionID)
 	}
 
 	var input map[string]interface{}
@@ -70,4 +73,12 @@ func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input inter
 	}
 
 	return decisionlog.LogDecision(ctx, opa.manager, info, result, err)
+}
+
+type Opt func(*envoyauth.EvalResult)
+
+func WithDecisionID(decisionID string) Opt {
+	return func(result *envoyauth.EvalResult) {
+		result.DecisionID = decisionID
+	}
 }
