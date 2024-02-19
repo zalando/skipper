@@ -3,17 +3,24 @@ package opaauthorizerequest
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy/proxytest"
 
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/filters/openpolicyagent"
 )
 
@@ -425,4 +432,175 @@ func isHeadersAbsent(t *testing.T, unwantedHeaders http.Header, headers http.Hea
 		}
 	}
 	return true
+}
+
+const (
+	tokenExp = 2 * time.Hour
+
+	certPath = "../../../skptesting/cert.pem"
+	keyPath  = "../../../skptesting/key.pem"
+)
+
+func BenchmarkAuthorizeRequest(b *testing.B) {
+	b.Run("authorize-request-minimal", func(b *testing.B) {
+		opaControlPlane := opasdktest.MustNewServer(
+			opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
+				"main.rego": `
+					package envoy.authz
+
+					default allow = false
+
+					allow {
+						input.parsed_path = [ "allow" ]
+					}
+				`,
+			}),
+		)
+
+		f, err := createOpaFilter(opaControlPlane)
+		assert.NoError(b, err)
+
+		url, err := url.Parse("http://opa-authorized.test/somepath")
+		assert.NoError(b, err)
+
+		ctx := &filtertest.Context{
+			FStateBag: map[string]interface{}{},
+			FResponse: &http.Response{},
+			FRequest: &http.Request{
+				Header: map[string][]string{
+					"Authorization": {"Bearer FOOBAR"},
+				},
+				URL: url,
+			},
+			FMetrics: &metricstest.MockMetrics{},
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			f.Request(ctx)
+		}
+	})
+
+	b.Run("authorize-request-jwt-validation", func(b *testing.B) {
+
+		publicKey, err := os.ReadFile(certPath)
+		if err != nil {
+			log.Fatalf("Failed to read public key: %v", err)
+		}
+
+		opaControlPlane := opasdktest.MustNewServer(
+			opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
+				"main.rego": fmt.Sprintf(`
+					package envoy.authz
+
+					import future.keywords.if
+
+					default allow = false
+
+					public_key_cert := %q
+
+					bearer_token := t if {
+						v := input.attributes.request.http.headers.authorization
+						startswith(v, "Bearer ")
+						t := substring(v, count("Bearer "), -1)
+					}
+
+					allow if {
+						[valid, _, payload] :=  io.jwt.decode_verify(bearer_token, {
+							"cert": public_key_cert,
+							"aud": "nqz3xhorr5"
+						})
+					
+						valid
+						
+						payload.sub == "5974934733"
+					}				
+				`, publicKey),
+			}),
+		)
+
+		f, err := createOpaFilter(opaControlPlane)
+		assert.NoError(b, err)
+
+		url, err := url.Parse("http://opa-authorized.test/somepath")
+		assert.NoError(b, err)
+
+		claims := jwt.MapClaims{
+			"iss":   "https://some.identity.acme.com",
+			"sub":   "5974934733",
+			"aud":   "nqz3xhorr5",
+			"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
+			"exp":   time.Now().Add(tokenExp).UTC().Unix(),
+			"email": "someone@example.org",
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
+		privKey, err := os.ReadFile(keyPath)
+		if err != nil {
+			log.Fatalf("Failed to read priv key: %v", err)
+		}
+
+		key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privKey))
+		if err != nil {
+			log.Fatalf("Failed to parse RSA PEM: %v", err)
+		}
+
+		// Sign and get the complete encoded token as a string using the secret
+		signedToken, err := token.SignedString(key)
+		if err != nil {
+			log.Fatalf("Failed to sign token: %v", err)
+		}
+
+		ctx := &filtertest.Context{
+			FStateBag: map[string]interface{}{},
+			FResponse: &http.Response{},
+			FRequest: &http.Request{
+				Header: map[string][]string{
+					"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
+				},
+				URL: url,
+			},
+			FMetrics: &metricstest.MockMetrics{},
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			f.Request(ctx)
+			assert.False(b, ctx.FServed)
+		}
+	})
+}
+
+func createOpaFilter(opaControlPlane *opasdktest.Server) (filters.Filter, error) {
+	config := []byte(fmt.Sprintf(`{
+			"services": {
+				"test": {
+					"url": %q
+				}
+			},
+			"bundles": {
+				"test": {
+					"resource": "/bundles/{{ .bundlename }}"
+				}
+			},
+			"labels": {
+				"environment": "test"
+			},
+			"plugins": {
+				"envoy_ext_authz_grpc": {    
+					"path": %q,
+					"dry-run": false    
+				}
+			}
+		}`, opaControlPlane.URL(), "envoy/authz/allow"))
+
+	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
+	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	f, err := spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
+	return f, err
 }
