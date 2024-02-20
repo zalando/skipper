@@ -12,14 +12,23 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+type options struct {
+	password string
+	image    string
+}
+
 func NewTestRedis(t testing.TB) (address string, done func()) {
-	return NewTestRedisWithPassword(t, "")
+	return newTestRedisWithOptions(t, options{})
 }
 
 func NewTestRedisWithPassword(t testing.TB, password string) (address string, done func()) {
+	return newTestRedisWithOptions(t, options{password: password})
+}
+
+func newTestRedisWithOptions(t testing.TB, opts options) (address string, done func()) {
 	var args []string
-	if password != "" {
-		args = append(args, "--requirepass", password)
+	if opts.password != "" {
+		args = append(args, "--requirepass", opts.password)
 	}
 
 	start := time.Now()
@@ -38,9 +47,14 @@ func NewTestRedisWithPassword(t testing.TB, password string) (address string, do
 		t.Fatalf("Failed to get new nat port: %v", err)
 	}
 
+	image := "redis:7-alpine"
+	if opts.image != "" {
+		image = opts.image
+	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "redis:7-alpine",
+			Image:        image,
 			Cmd:          args,
 			ExposedPorts: []string{"6379/tcp"},
 			Networks:     []string{network.Name},
@@ -66,7 +80,7 @@ func NewTestRedisWithPassword(t testing.TB, password string) (address string, do
 
 	t.Logf("Started redis server at %s in %v", address, time.Since(start))
 
-	if err := ping(ctx, address, password); err != nil {
+	if err := ping(ctx, address, opts.password); err != nil {
 		t.Fatalf("Failed to ping redis server: %v", err)
 	}
 
