@@ -97,6 +97,9 @@ type OAuthConfig struct {
 	// GrantTokeninfoKeys, optional. When not empty, keys not in this list are removed from the tokeninfo map.
 	GrantTokeninfoKeys []string
 
+	// GrantCookieEncoder, optional. Cookie encoder stores and extracts OAuth token from cookies.
+	GrantCookieEncoder CookieEncoder
+
 	// TokeninfoSubjectKey, optional. When set, it is used to look up the subject
 	// ID in the tokeninfo map received from a tokeninfo endpoint request.
 	TokeninfoSubjectKey string
@@ -255,6 +258,10 @@ func (c *OAuthConfig) Init() error {
 		for _, key := range c.GrantTokeninfoKeys {
 			c.grantTokeninfoKeysLookup[key] = struct{}{}
 		}
+	}
+
+	if c.GrantCookieEncoder == nil {
+		c.GrantCookieEncoder = &EncryptedCookieEncoder{config: c}
 	}
 
 	c.initialized = true

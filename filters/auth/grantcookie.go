@@ -12,6 +12,48 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type CookieEncoder interface {
+	// Update creates a set of cookies that encodes the token and deletes previously existing cookies if necessary.
+	// When token is nil it only returns cookies to delete.
+	Update(request *http.Request, token *oauth2.Token) ([]*http.Cookie, error)
+
+	// Read extracts the token from the request cookies.
+	Read(request *http.Request) (*oauth2.Token, error)
+}
+
+type EncryptedCookieEncoder struct {
+	config *OAuthConfig
+}
+
+var _ CookieEncoder = &EncryptedCookieEncoder{}
+
+func (ce *EncryptedCookieEncoder) Update(request *http.Request, token *oauth2.Token) ([]*http.Cookie, error) {
+	if token != nil {
+		c, err := createCookie(ce.config, request.Host, token)
+		if err != nil {
+			return nil, err
+		}
+		return []*http.Cookie{c}, nil
+	} else {
+		c := createDeleteCookie(ce.config, request.Host)
+		return []*http.Cookie{c}, nil
+	}
+}
+
+func (ce *EncryptedCookieEncoder) Read(request *http.Request) (*oauth2.Token, error) {
+	c, err := extractCookie(request, ce.config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &oauth2.Token{
+		AccessToken:  c.AccessToken,
+		TokenType:    "Bearer",
+		RefreshToken: c.RefreshToken,
+		Expiry:       c.Expiry,
+	}, nil
+}
+
 type cookie struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
@@ -37,11 +79,6 @@ func decodeCookie(cookieHeader string, config *OAuthConfig) (c *cookie, err erro
 
 	err = json.Unmarshal(b, &c)
 	return
-}
-
-func (c *cookie) isAccessTokenExpired() bool {
-	now := time.Now()
-	return now.After(c.Expiry)
 }
 
 // allowedForHost checks if provided host matches cookie domain
