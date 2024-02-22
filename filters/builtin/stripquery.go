@@ -15,7 +15,6 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -52,14 +51,14 @@ func validHeaderFieldByte(b byte) bool {
 
 // make sure we don't generate invalid headers
 func sanitize(input string) string {
+	var s strings.Builder
 	toAscii := strconv.QuoteToASCII(input)
-	var b bytes.Buffer
 	for _, i := range toAscii {
 		if validHeaderFieldByte(byte(i)) {
-			b.WriteRune(i)
+			s.WriteRune(i)
 		}
 	}
-	return b.String()
+	return s.String()
 }
 
 // Strips the query parameters and optionally preserves them in the X-Query-Param-xyz headers.
