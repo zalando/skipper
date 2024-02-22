@@ -136,6 +136,7 @@ spec:
 
 	rsvo := skipper.Options{
 		Address:                         findAddress(t),
+		Kubernetes:                      true,
 		KubernetesURL:                   lb.URL,
 		KubernetesRedisServiceNamespace: "skipper",
 		KubernetesRedisServiceName:      "redis",

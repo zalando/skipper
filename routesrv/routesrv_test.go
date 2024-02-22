@@ -72,6 +72,7 @@ func loadKubeYAML(t *testing.T, path string) io.Reader {
 func newRouteServer(t *testing.T, kubeServer *httptest.Server) *routesrv.RouteServer {
 	return newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
 		KubernetesURL:     kubeServer.URL,
 	})
 }
@@ -249,6 +250,7 @@ func TestRedisEndpointSlices(t *testing.T) {
 		defer ks.Close()
 		rs := newRouteServerWithOptions(t, skipper.Options{
 			SourcePollTimeout:               pollInterval,
+			Kubernetes:                      true,
 			KubernetesURL:                   ks.URL,
 			KubernetesRedisServiceNamespace: "namespace1",
 			KubernetesRedisServiceName:      "service1",
@@ -272,6 +274,7 @@ func TestRedisEndpoints(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout:               pollInterval,
+		Kubernetes:                      true,
 		KubernetesURL:                   ks.URL,
 		KubernetesRedisServiceNamespace: "namespace1",
 		KubernetesRedisServiceName:      "service1",
@@ -293,6 +296,7 @@ func TestFetchedIngressRoutesAreServedInEskipFormat(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
 		KubernetesURL:     ks.URL,
 	})
 
@@ -376,6 +380,7 @@ func TestRoutesWithDefaultFilters(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
 		KubernetesURL:     ks.URL,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: []*eskip.Filter{
@@ -419,6 +424,7 @@ func TestRoutesWithOAuth2Callback(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout:     pollInterval,
+		Kubernetes:            true,
 		KubernetesURL:         ks.URL,
 		EnableOAuth2GrantFlow: true,
 		OAuth2CallbackPath:    "/.well-known/oauth2-callback",
@@ -450,6 +456,7 @@ func TestRoutesWithEastWest(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout:              pollInterval,
+		Kubernetes:                     true,
 		KubernetesURL:                  ks.URL,
 		KubernetesEastWestRangeDomains: []string{"ingress.cluster.local"},
 		KubernetesEastWestRangePredicates: []*eskip.Predicate{
@@ -610,6 +617,7 @@ func TestESkipBytesHandlerWithXCount(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
 		KubernetesURL:     ks.URL,
 	})
 
@@ -642,6 +650,7 @@ func TestRoutesWithEditRoute(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
 		KubernetesURL:     ks.URL,
 		EditRoute: []*eskip.Editor{
 			eskip.NewEditor(regexp.MustCompile("Host[(](.*)[)]"), "HostAny($1)"),
@@ -674,6 +683,7 @@ func TestRoutesWithCloneRoute(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
 		KubernetesURL:     ks.URL,
 		CloneRoute: []*eskip.Clone{
 			eskip.NewClone(regexp.MustCompile("Host"), "HostAny"),
@@ -706,6 +716,7 @@ func TestRoutesWithExplicitLBAlgorithm(t *testing.T) {
 	defer ks.Close()
 	rs := newRouteServerWithOptions(t, skipper.Options{
 		SourcePollTimeout:                      pollInterval,
+		Kubernetes:                             true,
 		KubernetesURL:                          ks.URL,
 		KubernetesDefaultLoadBalancerAlgorithm: "powerOfRandomNChoices",
 	})
@@ -793,6 +804,7 @@ func TestESkipBytesHandlerGzipServedForDefaultClient(t *testing.T) {
 
 	rs, err := routesrv.New(skipper.Options{
 		SourcePollTimeout: pollInterval,
+		Kubernetes:        true,
 		KubernetesURL:     ks.URL,
 	})
 	require.NoError(t, err)

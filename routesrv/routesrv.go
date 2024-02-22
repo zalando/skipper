@@ -2,6 +2,7 @@ package routesrv
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -83,6 +84,10 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	if opts.EnableProfile {
 		supportHandler.Handle("/debug/pprof", metricsHandler)
 		supportHandler.Handle("/debug/pprof/", metricsHandler)
+	}
+
+	if !opts.Kubernetes {
+		return nil, fmt.Errorf(`option "Kubernetes" is required`)
 	}
 
 	dataclient, err := kubernetes.New(opts.KubernetesDataClientOptions())

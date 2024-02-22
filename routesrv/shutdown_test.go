@@ -69,6 +69,7 @@ func TestServerShutdownHTTP(t *testing.T) {
 	ks.Start()
 
 	o := skipper.Options{
+		Kubernetes:        true,
 		KubernetesURL:     "http://" + ks.Listener.Addr().String(),
 		SourcePollTimeout: 500 * time.Millisecond,
 	}

@@ -12,6 +12,10 @@ func main() {
 		log.Fatalf("Error processing config: %s", err)
 	}
 
+	if !cfg.KubernetesIngress {
+		log.Fatalf("-kubernetes flag required")
+	}
+
 	log.SetLevel(cfg.ApplicationLogLevel)
 	if cfg.ApplicationLogJSONEnabled {
 		log.SetFormatter(&log.JSONFormatter{})
