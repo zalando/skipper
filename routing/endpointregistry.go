@@ -22,12 +22,19 @@ type Metrics interface {
 	InflightRequests() int64
 	IncInflightRequest()
 	DecInflightRequest()
+
+	TotalRequests() int64
+	IncTotalRequests()
+	FailedRequests() int64
+	IncFailedRequests()
 }
 
 type entry struct {
 	detected         atomic.Value // time.Time
 	lastSeen         atomic.Value // time.Time
 	inflightRequests atomic.Int64
+	totalRequests    atomic.Int64
+	failedRequests   atomic.Int64
 }
 
 var _ Metrics = &entry{}
@@ -58,6 +65,28 @@ func (e *entry) SetDetected(detected time.Time) {
 
 func (e *entry) SetLastSeen(ts time.Time) {
 	e.lastSeen.Store(ts)
+}
+
+func (e *entry) TotalRequests() int64 {
+	return e.totalRequests.Load()
+}
+
+func (e *entry) IncTotalRequests() {
+	e.totalRequests.Add(1)
+}
+
+func (e *entry) FailedRequests() int64 {
+	return e.failedRequests.Load()
+}
+
+func (e *entry) IncFailedRequests() {
+	e.failedRequests.Add(1)
+}
+
+// TODO: use this to periodically reset request stats
+func (e *entry) resetRequestStats() {
+	e.totalRequests.Store(0)
+	e.failedRequests.Store(0)
 }
 
 func newEntry() *entry {

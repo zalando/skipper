@@ -462,10 +462,38 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{})
 	}
 }
 
+func (p *Proxy) filterHealthy(endpoints []routing.LBEndpoint) []routing.LBEndpoint {
+	pp := 0.42 // rnd.Float64()
+
+	filtered := make([]routing.LBEndpoint, 0, len(endpoints))
+	for _, e := range endpoints {
+		if pp > dropProbability(e.Metrics) {
+			filtered = append(filtered, e)
+		}
+	}
+
+	if len(filtered) == 0 {
+		return endpoints
+	}
+	return filtered
+}
+
+func dropProbability(m routing.Metrics) float64 {
+	total, failed := m.TotalRequests(), m.FailedRequests()
+	if total > 10 { // require min total requests (TODO: configurable)
+		fr := float64(failed) / float64(total) // safe as total > 0
+		fr = min(fr, 0.90)                     // cap the failed request ratio to 90% (TODO: configurable)
+		// drop endpoint with probability proportional to the failed request ratio
+		return fr
+	}
+	return 0.0
+}
+
 func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
+	endpoints = p.filterHealthy(endpoints)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -888,6 +916,15 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	req = injectClientTrace(req, ctx.proxySpan)
 
 	response, err := roundTripper.RoundTrip(req)
+
+	if endpointMetrics != nil {
+		if err != nil {
+			endpointMetrics.IncTotalRequests()
+			endpointMetrics.IncFailedRequests()
+		} else {
+			endpointMetrics.IncTotalRequests()
+		}
+	}
 
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
