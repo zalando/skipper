@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,12 +23,25 @@ type Metrics interface {
 	InflightRequests() int64
 	IncInflightRequest()
 	DecInflightRequest()
+
+	TotalRequests() int64
+	IncTotalRequests()
+	ResetTotalRequests()
+	FailedRequests() int64
+	IncFailedRequests()
+	ResetFailedRequests()
+
+	FailProbability() float64
+	SetFailProbability(float64)
 }
 
 type entry struct {
 	detected         atomic.Value // time.Time
 	lastSeen         atomic.Value // time.Time
 	inflightRequests atomic.Int64
+	totalRequests    atomic.Int64
+	failedRequests   atomic.Int64
+	failProbability  atomic.Uint64 // float64, see https://github.com/golang/go/issues/39356
 }
 
 var _ Metrics = &entry{}
@@ -58,6 +72,39 @@ func (e *entry) SetDetected(detected time.Time) {
 
 func (e *entry) SetLastSeen(ts time.Time) {
 	e.lastSeen.Store(ts)
+}
+
+func (e *entry) TotalRequests() int64 {
+	return e.totalRequests.Load()
+}
+
+func (e *entry) IncTotalRequests() {
+	e.totalRequests.Add(1)
+}
+
+func (e *entry) ResetTotalRequests() {
+	e.totalRequests.Store(0)
+}
+
+func (e *entry) FailedRequests() int64 {
+	return e.failedRequests.Load()
+}
+
+func (e *entry) IncFailedRequests() {
+	e.failedRequests.Add(1)
+}
+
+func (e *entry) ResetFailedRequests() {
+	e.totalRequests.Store(0)
+}
+
+func (e *entry) FailProbability() float64 {
+	v := e.failProbability.Load()
+	return math.Float64frombits(v)
+}
+
+func (e *entry) SetFailProbability(p float64) {
+	e.failProbability.Store(math.Float64bits(p))
 }
 
 func newEntry() *entry {
@@ -134,6 +181,13 @@ func (r *EndpointRegistry) GetMetrics(hostPort string) Metrics {
 		e, _ = r.data.LoadOrStore(hostPort, newEntry())
 	}
 	return e.(*entry)
+}
+
+func (r *EndpointRegistry) Visit(f func(Metrics)) {
+	r.data.Range(func(_, v any) bool {
+		f(v.(Metrics))
+		return true
+	})
 }
 
 func (r *EndpointRegistry) allMetrics() map[string]Metrics {

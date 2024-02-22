@@ -462,10 +462,27 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{})
 	}
 }
 
+func (p *Proxy) filterHealthy(endpoints []routing.LBEndpoint) []routing.LBEndpoint {
+	pp := 0.42 // rnd.Float64()
+
+	filtered := make([]routing.LBEndpoint, 0, len(endpoints))
+	for _, e := range endpoints {
+		if pp > e.Metrics.FailProbability() {
+			filtered = append(filtered, e)
+		}
+	}
+
+	if len(filtered) == 0 {
+		return endpoints
+	}
+	return filtered
+}
+
 func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
+	endpoints = p.filterHealthy(endpoints)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -888,6 +905,15 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	req = injectClientTrace(req, ctx.proxySpan)
 
 	response, err := roundTripper.RoundTrip(req)
+
+	if endpointMetrics != nil {
+		if err != nil {
+			endpointMetrics.IncTotalRequests()
+			endpointMetrics.IncFailedRequests()
+		} else {
+			endpointMetrics.IncTotalRequests()
+		}
+	}
 
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
