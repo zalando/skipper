@@ -2395,7 +2395,8 @@ that explains the basic principles.
 ### admissionControl
 
 Implements an admission control filter, that rejects traffic by
-observed error rate and probability.
+observed error rate and probability. If it rejects a request skipper will
+respond with status code 503.
 
 The probability of rejection is calculated by the following equation:
 
