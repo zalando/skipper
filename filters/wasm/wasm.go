@@ -16,9 +16,13 @@ type wasmSpec struct{}
 
 type wasm struct {
 	code     []byte
+	runtime  wazero.Runtime
 	mod      api.Module
 	request  api.Function
 	response api.Function
+
+	cache  wazero.CompilationCache
+	config wazero.RuntimeConfig
 }
 
 func NewWASM() filters.Spec {
@@ -60,7 +64,11 @@ func (*wasmSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	ctx := context.Background()
-	r := wazero.NewRuntime(ctx) // TODO: needs r.Close()
+
+	cache := wazero.NewCompilationCache()
+	config := wazero.NewRuntimeConfig().WithCompilationCache(cache)
+	r := wazero.NewRuntimeWithConfig(ctx, config)
+
 	// Instantiate WASI, which implements host functions needed for TinyGo to
 	// implement `panic`.
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
@@ -76,16 +84,18 @@ func (*wasmSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 
 	return &wasm{
 		code:     code,
+		runtime:  r,
 		mod:      mod,
 		request:  request,
 		response: response,
+		cache:    cache,
+		config:   config,
 	}, nil
 }
 
-// Request implements filters.Filter.
-func (w *wasm) Request(filters.FilterContext) {
+func (w *wasm) Request(ctx filters.FilterContext) {
 
-	result, err := w.request.Call(context.Background(), 2, 3)
+	result, err := w.request.Call(ctx.Request().Context(), 2, 3)
 	if err != nil {
 		logrus.Errorf("failed to call add: %v", err)
 	}
@@ -93,12 +103,15 @@ func (w *wasm) Request(filters.FilterContext) {
 
 }
 
-// Response implements filters.Filter.
-func (w *wasm) Response(filters.FilterContext) {
+func (w *wasm) Response(ctx filters.FilterContext) {
 	result, err := w.response.Call(context.Background(), 3, 2)
 	if err != nil {
 		logrus.Errorf("failed to call add: %v", err)
 	}
 	logrus.Infof("response result: %v", result)
 
+}
+
+func (w *wasm) Close() error {
+	return w.runtime.Close(context.Background())
 }
