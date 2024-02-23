@@ -46,10 +46,10 @@ import (
 )
 
 const (
-	proxyBufferSize         = 8192
-	unknownRouteID          = "_unknownroute_"
-	unknownRouteBackendType = "<unknown>"
-	unknownRouteBackend     = "<unknown>"
+	proxyBufferSize     = 8192
+	unknownRouteID      = "_unknownroute_"
+	unknownRouteBackend = "<unknown>"
+	endpointMetricsKey  = "proxy:endpointMetricsKey" // export for filters?
 
 	// Number of loops allowed by default.
 	DefaultMaxLoopbacks = 9
@@ -849,6 +849,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	if endpointMetrics != nil {
 		endpointMetrics.IncInflightRequest()
 		defer endpointMetrics.DecInflightRequest()
+
+		ctx.stateBag[endpointMetricsKey] = endpointMetrics
 	}
 
 	if p.experimentalUpgrade && isUpgradeRequest(req) {
@@ -877,6 +879,12 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id).
 		setTag(ctx.proxySpan, HTTPUrlTag, u.String())
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
+
+	if endpointMetrics != nil {
+		if podName := endpointMetrics.Tag("podName"); podName != "" {
+			p.tracing.setTag(ctx.proxySpan, ServiceInstanceIdTag, podName)
+		}
+	}
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
 	_ = p.tracing.tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
@@ -1258,12 +1266,19 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		flowIdLog = fmt.Sprintf(", flow id %s", flowId)
 	}
 	id := unknownRouteID
-	backendType := unknownRouteBackendType
 	backend := unknownRouteBackend
 	if ctx.route != nil {
 		id = ctx.route.Id
-		backendType = ctx.route.BackendType.String()
-		backend = fmt.Sprintf("%s://%s", ctx.request.URL.Scheme, ctx.request.URL.Host)
+
+		backend = fmt.Sprintf("%s %s://%s", ctx.route.BackendType.String(), ctx.request.URL.Scheme, ctx.request.URL.Host)
+		if m, ok := ctx.stateBag[endpointMetricsKey].(routing.Metrics); ok {
+			if podName := m.Tag("podName"); podName != "" {
+				backend += " " + podName
+			}
+			if nodeName := m.Tag("nodeName"); nodeName != "" {
+				backend += " " + nodeName
+			}
+		}
 	}
 
 	if err == errRouteLookupFailed {
@@ -1306,11 +1321,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 			uri = uri[:i]
 		}
 		logFunc(
-			`%s after %v, route %s with backend %s %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", host: %s, user agent: "%s"`,
+			`%s after %v, route %s with backend %s%s, status code %d: %v, remote host: %s, request: "%s %s %s", host: %s, user agent: "%s"`,
 			msgPrefix,
 			time.Since(ctx.startServe),
 			id,
-			backendType,
 			backend,
 			flowIdLog,
 			ctx.response.StatusCode,

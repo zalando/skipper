@@ -18,7 +18,11 @@ import (
 	"github.com/zalando/skipper/secrets/certregistry"
 )
 
-const DefaultLoadBalancerAlgorithm = "roundRobin"
+const (
+	DefaultLoadBalancerAlgorithm = "roundRobin"
+	MetadataRouteID              = "kube__metadata"
+	EnableMetadataRoute          = true // TODO: flag
+)
 
 const (
 	defaultIngressClass    = "skipper"
@@ -435,6 +439,10 @@ func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 
 	if c.provideHTTPSRedirect {
 		r = append(r, globalRedirectRoute(c.httpsRedirectCode))
+	}
+
+	if EnableMetadataRoute {
+		r = append(r, metadataRoute(state))
 	}
 
 	return r, nil

@@ -1941,6 +1941,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ro.PostProcessors = append(ro.PostProcessors, failClosedRatelimitPostProcessor)
 	}
 
+	if kubernetes.EnableMetadataRoute {
+		opts := kubernetes.MetadataPreProcessorOptions{EndpointRegistry: endpointRegistry}
+		ro.PreProcessors = append(ro.PreProcessors, kubernetes.NewMetadataPreProcessor(opts))
+	}
+
 	if o.DefaultFilters != nil {
 		ro.PreProcessors = append(ro.PreProcessors, o.DefaultFilters)
 	}

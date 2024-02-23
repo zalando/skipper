@@ -18,8 +18,10 @@ type skipperEndpointSlice struct {
 
 // Conditions have to be evaluated before creation
 type skipperEndpoint struct {
-	Address string
-	Zone    string
+	Address   string
+	Zone      string
+	NodeName  string
+	TargetRef *objectReference
 }
 
 func (eps *skipperEndpointSlice) getPort(protocol, pName string, pValue int) int {
@@ -118,6 +120,10 @@ type EndpointSliceEndpoints struct {
 	// https://kubernetes.io/docs/concepts/services-networking/topology-aware-routing/#safeguards
 	// Zone aware routing will be available if https://github.com/zalando/skipper/issues/1446 is closed.
 	Zone string `json:"zone"` // "eu-central-1c"
+	// Node hosting this endpoint. This can be used to determine endpoints local to a node.
+	NodeName string `json:"nodeName"`
+	// TargetRef is a reference to a Kubernetes object that represents this endpoint.
+	TargetRef *objectReference `json:"targetRef"`
 }
 
 type endpointsliceCondition struct {

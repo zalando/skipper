@@ -85,8 +85,8 @@ func testEndpoints(namespace, name string, labels map[string]string, base string
 
 		for i := 0; i < n; i++ {
 			adr := &address{
-				IP:   fmt.Sprintf("%s.%d", base, i),
-				Node: fmt.Sprintf("node-%d", i),
+				IP:       fmt.Sprintf("%s.%d", base, i),
+				NodeName: fmt.Sprintf("node-%d", i),
 			}
 			s.Addresses = append(s.Addresses, adr)
 		}

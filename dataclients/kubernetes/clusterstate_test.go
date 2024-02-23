@@ -23,17 +23,17 @@ func benchmarkCachedEndpoints(b *testing.B, n int) {
 			Subsets: []*subset{
 				{
 					Addresses: []*address{
-						{"192.168.0.1", "node1"},
-						{"192.168.0.2", "node2"},
-						{"192.168.0.3", "node3"},
-						{"192.168.0.4", "node4"},
-						{"192.168.0.5", "node5"},
-						{"192.168.0.6", "node6"},
-						{"192.168.0.7", "node7"},
-						{"192.168.0.8", "node8"},
-						{"192.168.0.9", "node9"},
-						{"192.168.0.10", "node10"},
-						{"192.168.0.11", "node11"},
+						{IP: "192.168.0.1", NodeName: "node1"},
+						{IP: "192.168.0.2", NodeName: "node2"},
+						{IP: "192.168.0.3", NodeName: "node3"},
+						{IP: "192.168.0.4", NodeName: "node4"},
+						{IP: "192.168.0.5", NodeName: "node5"},
+						{IP: "192.168.0.6", NodeName: "node6"},
+						{IP: "192.168.0.7", NodeName: "node7"},
+						{IP: "192.168.0.8", NodeName: "node8"},
+						{IP: "192.168.0.9", NodeName: "node9"},
+						{IP: "192.168.0.10", NodeName: "node10"},
+						{IP: "192.168.0.11", NodeName: "node11"},
 					},
 					Ports: []*port{
 						{"ssh", 22, "TCP"},
