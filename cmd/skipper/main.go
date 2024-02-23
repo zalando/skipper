@@ -38,6 +38,7 @@ func init() {
 			for _, setting := range info.Settings {
 				if setting.Key == "vcs.revision" {
 					commit = setting.Value[:min(8, len(setting.Value))]
+					break
 				}
 			}
 		}
@@ -51,11 +52,11 @@ func main() {
 	}
 
 	if cfg.PrintVersion {
-		fmt.Printf(
-			"Skipper version %s (commit: %s, runtime: %s)\n",
-			version, commit, runtime.Version(),
-		)
-
+		fmt.Printf("Skipper version %s (", version)
+		if commit != "" {
+			fmt.Printf("commit: %s, ", commit)
+		}
+		fmt.Printf("runtime: %s)\n", runtime.Version())
 		return
 	}
 
