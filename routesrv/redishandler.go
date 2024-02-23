@@ -39,11 +39,22 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(address)
 }
-
-func getRedisAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
+func getRedisAddresses(opts *skipper.Options, kdc *kubernetes.Client, loaded bool, m metrics.Metrics) func() ([]byte, error) {
 	return func() ([]byte, error) {
-		a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
-		log.Debugf("Redis updater called and found %d redis endpoints: %v", len(a), a)
+		var (
+			a   []string
+			err error
+		)
+		if loaded {
+			a = kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+			log.Debugf("GetEndpointAddresses found %d redis endpoints", len(a))
+		} else {
+			a, err = kdc.LoadEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+			log.Debugf("LoadEndpointAddresses found %d redis endpoints, err: %v", len(a), err)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load redis endpoints: %w", err)
+			}
+		}
 		m.UpdateGauge("redis_endpoints", float64(len(a)))
 
 		result := RedisEndpoints{
