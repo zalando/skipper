@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"runtime/debug"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
@@ -27,6 +28,21 @@ var (
 	version string
 	commit  string
 )
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if version == "" {
+			version = info.Main.Version
+		}
+		if commit == "" {
+			for _, setting := range info.Settings {
+				if setting.Key == "vcs.revision" {
+					commit = setting.Value[:min(8, len(setting.Value))]
+				}
+			}
+		}
+	}
+}
 
 func main() {
 	cfg := config.NewConfig()
