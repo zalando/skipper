@@ -14,13 +14,53 @@ import (
 )
 
 const (
-	nRequests            = 10_000
+	nRequests            = 15_000
 	rtFailureProbability = 0.8
-	period               = 1 * time.Second
+	period               = 100 * time.Millisecond
 )
 
 func defaultEndpointRegistry() *routing.EndpointRegistry {
-	return routing.NewEndpointRegistry(routing.RegistryOptions{})
+	return routing.NewEndpointRegistry(routing.RegistryOptions{
+		PassiveHealthCheckEnabled:     true,
+		StatsResetPeriod:              period,
+		MinRequests:                   10,
+		MaxHealthCheckDropProbability: 1.0,
+	})
+}
+
+func TestPHCWithoutRequests(t *testing.T) {
+	services := []*httptest.Server{}
+	for i := 0; i < 3; i++ {
+		service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		services = append(services, service)
+		defer service.Close()
+	}
+	endpointRegistry := defaultEndpointRegistry()
+
+	doc := fmt.Sprintf(`* -> <random, "%s", "%s", "%s">`, services[0].URL, services[1].URL, services[2].URL)
+	tp, err := newTestProxyWithParams(doc, Params{
+		EnablePassiveHealthCheck: true,
+		EndpointRegistry:         endpointRegistry,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	rsp, err := ps.Client().Get(ps.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, http.StatusOK, rsp.StatusCode)
+	rsp.Body.Close()
+
+	time.Sleep(10 * period)
+	/* this test is needed to check PHC will not crash without requests sent during period at all */
 }
 
 func TestPHCForSingleHealthyEndpoint(t *testing.T) {
@@ -32,7 +72,8 @@ func TestPHCForSingleHealthyEndpoint(t *testing.T) {
 
 	doc := fmt.Sprintf(`* -> "%s"`, service.URL)
 	tp, err := newTestProxyWithParams(doc, Params{
-		EndpointRegistry: endpointRegistry,
+		EnablePassiveHealthCheck: true,
+		EndpointRegistry:         endpointRegistry,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -43,27 +84,6 @@ func TestPHCForSingleHealthyEndpoint(t *testing.T) {
 	defer ps.Close()
 
 	failedReqs := 0
-	for i := 0; i < nRequests; i++ {
-		rsp, err := ps.Client().Get(ps.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if rsp.StatusCode != http.StatusOK {
-			failedReqs++
-		}
-		rsp.Body.Close()
-	}
-	assert.Equal(t, 0, failedReqs)
-
-	// Let endpointregistry update all stats
-	time.Sleep(period + time.Millisecond)
-	dummy := fmt.Sprintf(`Header("Foo", "Bar") -> "%s"`, service.URL)
-	tp.dc.UpdateDoc(dummy, nil)
-	tp.dc.UpdateDoc(doc, nil)
-	time.Sleep(10 * time.Millisecond)
-
-	failedReqs = 0
 	for i := 0; i < nRequests; i++ {
 		rsp, err := ps.Client().Get(ps.URL)
 		if err != nil {
@@ -91,7 +111,8 @@ func TestPHCForMultipleHealthyEndpoints(t *testing.T) {
 
 	doc := fmt.Sprintf(`* -> <random, "%s", "%s", "%s">`, services[0].URL, services[1].URL, services[2].URL)
 	tp, err := newTestProxyWithParams(doc, Params{
-		EndpointRegistry: endpointRegistry,
+		EnablePassiveHealthCheck: true,
+		EndpointRegistry:         endpointRegistry,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -102,27 +123,6 @@ func TestPHCForMultipleHealthyEndpoints(t *testing.T) {
 	defer ps.Close()
 
 	failedReqs := 0
-	for i := 0; i < nRequests; i++ {
-		rsp, err := ps.Client().Get(ps.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if rsp.StatusCode != http.StatusOK {
-			failedReqs++
-		}
-		rsp.Body.Close()
-	}
-	assert.Equal(t, 0, failedReqs)
-
-	// Let endpointregistry update all stats
-	time.Sleep(period + time.Millisecond)
-	dummy := fmt.Sprintf(`* -> <random, "%s", "%s">`, services[0].URL, services[1].URL)
-	tp.dc.UpdateDoc(dummy, nil)
-	tp.dc.UpdateDoc(doc, nil)
-	time.Sleep(10 * time.Millisecond)
-
-	failedReqs = 0
 	for i := 0; i < nRequests; i++ {
 		rsp, err := ps.Client().Get(ps.URL)
 		if err != nil {
@@ -144,7 +144,7 @@ type roundTripperUnhealthyHost struct {
 	rnd         *rand.Rand
 }
 
-type RoundTripperUnhealthyHostParams struct {
+type RoundTripperUnhealthyHostOptions struct {
 	Host        string
 	Probability float64
 }
@@ -158,7 +158,7 @@ func (rt *roundTripperUnhealthyHost) RoundTrip(r *http.Request) (*http.Response,
 	return rt.inner.RoundTrip(r)
 }
 
-func newRoundTripperUnhealthyHost(o *RoundTripperUnhealthyHostParams) func(r http.RoundTripper) http.RoundTripper {
+func newRoundTripperUnhealthyHost(o *RoundTripperUnhealthyHostOptions) func(r http.RoundTripper) http.RoundTripper {
 	return func(r http.RoundTripper) http.RoundTripper {
 		return &roundTripperUnhealthyHost{inner: r, rnd: rand.New(loadbalancer.NewLockedSource()), host: o.Host, probability: o.Probability}
 	}
@@ -177,8 +177,9 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 
 	doc := fmt.Sprintf(`* -> <random, "%s", "%s", "%s">`, services[0].URL, services[1].URL, services[2].URL)
 	tp, err := newTestProxyWithParams(doc, Params{
+		EnablePassiveHealthCheck:   true,
 		EndpointRegistry:           endpointRegistry,
-		CustomHttpRoundTripperWrap: newRoundTripperUnhealthyHost(&RoundTripperUnhealthyHostParams{Host: services[0].URL[7:], Probability: rtFailureProbability}),
+		CustomHttpRoundTripperWrap: newRoundTripperUnhealthyHost(&RoundTripperUnhealthyHostOptions{Host: services[0].URL[7:], Probability: rtFailureProbability}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -200,28 +201,5 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 		}
 		rsp.Body.Close()
 	}
-	assert.InDelta(t, 0.33*rtFailureProbability*nRequests, failedReqs, 0.05*nRequests)
-
-	// Let endpointregistry update all stats
-	time.Sleep(period + time.Millisecond)
-	dummy := fmt.Sprintf(`* -> <random, "%s", "%s">`, services[0].URL, services[1].URL)
-	tp.dc.UpdateDoc(dummy, nil)
-	tp.dc.UpdateDoc(doc, nil)
-	time.Sleep(10 * time.Millisecond)
-
-	failedReqs = 0
-	for i := 0; i < nRequests; i++ {
-		rsp, err := ps.Client().Get(ps.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if rsp.StatusCode != http.StatusOK {
-			failedReqs++
-		}
-		rsp.Body.Close()
-	}
-	assert.InDelta(t, 0.33*rtFailureProbability*nRequests, failedReqs, 0.05*nRequests)
-	// After PHC is implemented, I expect failed requests to decrease like this:
-	// assert.InDelta(t, 0.33*rtFailureProbability*(1.0-rtFailureProbability)*nRequests, failedReqs, 0.05*nRequests)
+	assert.InDelta(t, 0.33*rtFailureProbability*(1.0-rtFailureProbability)*float64(nRequests), failedReqs, 0.1*float64(nRequests))
 }

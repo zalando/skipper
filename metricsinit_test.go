@@ -53,6 +53,11 @@ func TestInitOrderAndDefault(t *testing.T) {
 			SwarmRedisURLs:                []string{fmt.Sprintf("localhost:%d", redisPort)},
 			EnableRatelimiters:            true,
 			SwarmRedisConnMetricsInterval: ringMetricsUpdatePeriod,
+			PassiveHealthCheck: map[string]string{
+				"period":               "1m",
+				"min-requests":         "10",
+				"max-drop-probability": "0.9",
+			},
 		}
 
 		tornDown := make(chan struct{})

@@ -917,6 +917,8 @@ type Options struct {
 	OpenPolicyAgentStartupTimeout       time.Duration
 	OpenPolicyAgentMaxRequestBodySize   int64
 	OpenPolicyAgentMaxMemoryBodyParsing int64
+
+	PassiveHealthCheck map[string]string
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
@@ -1915,8 +1917,18 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	})
 	defer schedulerRegistry.Close()
 
+	passiveHealthCheckEnabled, passiveHealthCheck, err := proxy.InitPassiveHealthChecker(o.PassiveHealthCheck)
+	if err != nil {
+		return err
+	}
+
 	// create a routing engine
-	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+		PassiveHealthCheckEnabled:     passiveHealthCheckEnabled,
+		StatsResetPeriod:              passiveHealthCheck.Period,
+		MinRequests:                   passiveHealthCheck.MinRequests,
+		MaxHealthCheckDropProbability: passiveHealthCheck.MaxDropProbability,
+	})
 	ro := routing.Options{
 		FilterRegistry:  o.filterRegistry(),
 		MatchingOptions: mo,
@@ -1982,6 +1994,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	proxyParams := proxy.Params{
 		Routing:                    routing,
 		EndpointRegistry:           endpointRegistry,
+		EnablePassiveHealthCheck:   passiveHealthCheckEnabled,
+		PassiveHealthCheck:         passiveHealthCheck,
 		Flags:                      proxyFlags,
 		PriorityRoutes:             o.PriorityRoutes,
 		IdleConnectionsPerHost:     o.IdleConnectionsPerHost,

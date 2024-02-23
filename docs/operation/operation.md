@@ -893,6 +893,34 @@ to get the results paginated or getting all of them at the same time.
 curl localhost:9911/routes?offset=200&limit=100
 ```
 
+## Passive health check (*experimental*)
+
+Skipper has an option to automatically detect and mitigate faulty backend endpoints, this feature is called
+Passive Health Check(PHC).
+
+PHC works the following way: the entire uptime is divided in chunks of `period`, per every period Skipper calculates
+the total amount of requests and amount of requests failed per every endpoint. While next period is going on,
+the Skipper takes a look at previous period and if the amount of requests in the previous period is more than `min-requests`
+for the given endpoints then Skipper will send reduced (the more `max-drop-probability`
+and failed requests ratio in previous period are, the stronger reduction is)
+amount of requests compared to amount sent without PHC.
+
+Having this, we expect less requests to fail because a lot of them would be sent to endpoints that seem to be healthy instead.
+
+To enable this feature, you need to provide `-passive-health-check` option having all forementioned parameters
+(`period`, `min-requests`, `max-drop-probability`) defined,
+for instance: `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9`.
+
+You need to define all parameters on your side, there are no defaults, and skipper will not run if PHC params are passed only partially.
+
+However, Skipper will run without this feature, if no `-passive-health-check` is provided at all.
+
+The parameters of `-passive-health-check` option are:
++ `period=<duration>` - the duration of stats reset period
++ `min-requests=<int>` - the minimum number of requests per `period` per backend endpoint required to activate PHC for this endpoint
++ `max-drop-probabilty=<float more than/equal to 0 and less than/equal to 1>` - the maximum possible probability of unhealthy endpoint being not considered
+while choosing the endpoint for the given request
+
 ## Memory consumption
 
 While Skipper is generally not memory bound, some features may require

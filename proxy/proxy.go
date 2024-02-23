@@ -145,6 +145,69 @@ type OpenTracingParams struct {
 	ExcludeTags []string
 }
 
+type PassiveHealthCheck struct {
+	// The period of time after which the endpointregistry begins to calculate endpoints statistics
+	// from scratch
+	Period time.Duration
+
+	// The minimum number of total requests that should be sent to an endpoint in a single period to
+	// potentially opt out the endpoint from the list of healthy endpoints
+	MinRequests int64
+
+	// The maximum probability of unhealthy endpoint to be dropped out from load balancing for every specific request
+	MaxDropProbability float64
+}
+
+func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, error) {
+	if len(o) == 0 {
+		return false, &PassiveHealthCheck{}, nil
+	}
+
+	result := &PassiveHealthCheck{}
+	keysInitialized := make(map[string]struct{})
+
+	for key, value := range o {
+		switch key {
+		case "period":
+			period, err := time.ParseDuration(value)
+			if err != nil {
+				return false, nil, fmt.Errorf("passive health check: invalid period value: %s", value)
+			}
+			if period < 0 {
+				return false, nil, fmt.Errorf("passive health check: invalid period value: %s", value)
+			}
+			result.Period = period
+		case "min-requests":
+			minRequests, err := strconv.Atoi(value)
+			if err != nil {
+				return false, nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
+			}
+			if minRequests < 0 {
+				return false, nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
+			}
+			result.MinRequests = int64(minRequests)
+		case "max-drop-probability":
+			maxDropProbability, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return false, nil, fmt.Errorf("passive health check: invalid maxDropProbability value: %s", value)
+			}
+			if maxDropProbability < 0 || maxDropProbability > 1 {
+				return false, nil, fmt.Errorf("passive health check: invalid maxDropProbability value: %s", value)
+			}
+			result.MaxDropProbability = maxDropProbability
+		default:
+			return false, nil, fmt.Errorf("passive health check: invalid parameter: key=%s,value=%s", key, value)
+		}
+
+		keysInitialized[key] = struct{}{}
+	}
+
+	if len(keysInitialized) != 3 {
+		return false, nil, fmt.Errorf("passive health check: missing required parameters")
+	}
+	return true, result, nil
+}
+
 // Proxy initialization options.
 type Params struct {
 	// The proxy expects a routing instance that is used to match
@@ -247,6 +310,12 @@ type Params struct {
 	// and returns some metadata about endpoint. Information about the metadata
 	// returned from the registry could be found in routing.Metrics interface.
 	EndpointRegistry *routing.EndpointRegistry
+
+	// EnablePassiveHealthCheck enables the healthy endpoints checker
+	EnablePassiveHealthCheck bool
+
+	// PassiveHealthCheck defines the parameters for the healthy endpoints checker.
+	PassiveHealthCheck *PassiveHealthCheck
 }
 
 type (
@@ -324,6 +393,7 @@ type Proxy struct {
 	routing                  *routing.Routing
 	registry                 *routing.EndpointRegistry
 	fadein                   *fadeIn
+	heathlyEndpoints         *healthyEndpoints
 	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
@@ -466,6 +536,7 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
+	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(endpoints, rt)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -718,10 +789,21 @@ func WithParams(p Params) *Proxy {
 
 	hostname := os.Getenv("HOSTNAME")
 
+	var healthyEndpointsChooser *healthyEndpoints
+	if p.EnablePassiveHealthCheck {
+		healthyEndpointsChooser = &healthyEndpoints{
+			rnd:              rand.New(loadbalancer.NewLockedSource()),
+			endpointRegistry: p.EndpointRegistry,
+		}
+	}
 	return &Proxy{
-		routing:                  p.Routing,
-		registry:                 p.EndpointRegistry,
-		fadein:                   &fadeIn{rnd: rand.New(loadbalancer.NewLockedSource()), endpointRegistry: p.EndpointRegistry},
+		routing:  p.Routing,
+		registry: p.EndpointRegistry,
+		fadein: &fadeIn{
+			rnd:              rand.New(loadbalancer.NewLockedSource()),
+			endpointRegistry: p.EndpointRegistry,
+		},
+		heathlyEndpoints:         healthyEndpointsChooser,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
@@ -888,7 +970,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	req = injectClientTrace(req, ctx.proxySpan)
 
 	response, err := roundTripper.RoundTrip(req)
-
+	if endpointMetrics != nil {
+		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
+	}
 	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
 	if err != nil {
 		if errors.Is(err, skpio.ErrBlocked) {
@@ -1501,6 +1585,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // It's primary purpose is to support testing.
 func (p *Proxy) Close() error {
 	close(p.quit)
+	p.registry.Close()
 	return nil
 }
 

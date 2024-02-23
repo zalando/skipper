@@ -236,6 +236,7 @@ func TestPostProcessor(t *testing.T) {
 		`
 
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		rt, _ := createRouting(t, routes, endpointRegistry)
 
 		foo := route(rt, "/foo")
@@ -266,6 +267,7 @@ func TestPostProcessor(t *testing.T) {
 		`
 
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		rt, _ := createRouting(t, routes, endpointRegistry)
 		r := route(rt, "/")
 		if r != nil {
@@ -278,13 +280,14 @@ func TestPostProcessor(t *testing.T) {
 			* -> fadeIn("-1m") -> <"http://10.0.0.1:8080">
 		`
 
-		endpointRegisty := routing.NewEndpointRegistry(routing.RegistryOptions{})
-		rt, _ := createRouting(t, routes, endpointRegisty)
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
+		rt, _ := createRouting(t, routes, endpointRegistry)
 		r := route(rt, "/")
 		if r == nil || len(r.LBEndpoints) == 0 {
 			t.Fatal("failed to ignore negative duration")
 		}
-		if endpointRegisty.GetMetrics(r.LBEndpoints[0].Host).DetectedTime().IsZero() {
+		if endpointRegistry.GetMetrics(r.LBEndpoints[0].Host).DetectedTime().IsZero() {
 			t.Fatal("failed to ignore negative duration")
 		}
 	})
@@ -295,6 +298,7 @@ func TestPostProcessor(t *testing.T) {
 		`
 
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		rt, update := createRouting(t, routes, endpointRegistry)
 		firstDetected := time.Now()
 
@@ -327,6 +331,7 @@ func TestPostProcessor(t *testing.T) {
 		`
 
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		rt, update := createRouting(t, initialRoutes, endpointRegistry)
 		firstDetected := time.Now()
 
@@ -362,6 +367,7 @@ func TestPostProcessor(t *testing.T) {
 
 		const lastSeenTimeout = 2 * time.Second
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{LastSeenTimeout: lastSeenTimeout})
+		defer endpointRegistry.Close()
 		rt, update := createRouting(t, initialRoutes, endpointRegistry)
 		firstDetected := time.Now()
 
@@ -397,6 +403,7 @@ func TestPostProcessor(t *testing.T) {
 		`
 
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+		defer endpointRegistry.Close()
 		routes := fmt.Sprintf(routesFmt, nows(t))
 		rt, update := createRouting(t, routes, endpointRegistry)
 		firstDetected := time.Now()

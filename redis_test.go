@@ -109,6 +109,7 @@ spec:
 	defer dc.Close()
 
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer endpointRegistry.Close()
 
 	// create LB in front of apiservers to be able to switch the data served by apiserver
 	ro := routing.Options{
@@ -283,6 +284,7 @@ spec:
 	defer dc.Close()
 
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{})
+	defer endpointRegistry.Close()
 
 	// create LB in front of apiservers to be able to switch the data served by apiserver
 	ro := routing.Options{

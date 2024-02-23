@@ -22,12 +22,24 @@ type Metrics interface {
 	InflightRequests() int64
 	IncInflightRequest()
 	DecInflightRequest()
+
+	IncRequests(o IncRequestsOptions)
+	HealthCheckDropProbability() float64
+}
+
+type IncRequestsOptions struct {
+	FailedRoundTrip bool
 }
 
 type entry struct {
 	detected         atomic.Value // time.Time
 	lastSeen         atomic.Value // time.Time
 	inflightRequests atomic.Int64
+
+	totalRequests              [2]atomic.Int64
+	totalFailedRoundTrips      [2]atomic.Int64
+	curSlot                    atomic.Int64
+	healthCheckDropProbability atomic.Value // float64
 }
 
 var _ Metrics = &entry{}
@@ -60,23 +72,46 @@ func (e *entry) SetLastSeen(ts time.Time) {
 	e.lastSeen.Store(ts)
 }
 
+func (e *entry) IncRequests(o IncRequestsOptions) {
+	curSlot := e.curSlot.Load()
+	e.totalRequests[curSlot].Add(1)
+	if o.FailedRoundTrip {
+		e.totalFailedRoundTrips[curSlot].Add(1)
+	}
+}
+
+func (e *entry) HealthCheckDropProbability() float64 {
+	return e.healthCheckDropProbability.Load().(float64)
+}
+
 func newEntry() *entry {
 	result := &entry{}
+	result.healthCheckDropProbability.Store(0.0)
 	result.SetDetected(time.Time{})
 	result.SetLastSeen(time.Time{})
 	return result
 }
 
 type EndpointRegistry struct {
-	lastSeenTimeout time.Duration
-	now             func() time.Time
-	data            sync.Map // map[string]*entry
+	lastSeenTimeout               time.Duration
+	statsResetPeriod              time.Duration
+	minRequests                   int64
+	maxHealthCheckDropProbability float64
+
+	quit chan struct{}
+
+	now  func() time.Time
+	data sync.Map // map[string]*entry
 }
 
 var _ PostProcessor = &EndpointRegistry{}
 
 type RegistryOptions struct {
-	LastSeenTimeout time.Duration
+	LastSeenTimeout               time.Duration
+	PassiveHealthCheckEnabled     bool
+	StatsResetPeriod              time.Duration
+	MinRequests                   int64
+	MaxHealthCheckDropProbability float64
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
@@ -115,16 +150,64 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 	return routes
 }
 
+func (r *EndpointRegistry) updateStats() {
+	ticker := time.NewTicker(r.statsResetPeriod)
+
+	for {
+		r.data.Range(func(key, value any) bool {
+			e := value.(*entry)
+
+			curSlot := e.curSlot.Load()
+			nextSlot := (curSlot + 1) % 2
+			e.totalFailedRoundTrips[nextSlot].Store(0)
+			e.totalRequests[nextSlot].Store(0)
+
+			failed := e.totalFailedRoundTrips[curSlot].Load()
+			requests := e.totalRequests[curSlot].Load()
+			if requests > r.minRequests {
+				failedRoundTripsRatio := float64(failed) / float64(requests)
+				e.healthCheckDropProbability.Store(min(failedRoundTripsRatio, r.maxHealthCheckDropProbability))
+			} else {
+				e.healthCheckDropProbability.Store(0.0)
+			}
+			e.curSlot.Store(nextSlot)
+
+			return true
+		})
+
+		select {
+		case <-r.quit:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (r *EndpointRegistry) Close() {
+	close(r.quit)
+}
+
 func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 	if o.LastSeenTimeout == 0 {
 		o.LastSeenTimeout = defaultLastSeenTimeout
 	}
 
-	return &EndpointRegistry{
-		data:            sync.Map{},
-		lastSeenTimeout: o.LastSeenTimeout,
-		now:             time.Now,
+	registry := &EndpointRegistry{
+		lastSeenTimeout:               o.LastSeenTimeout,
+		statsResetPeriod:              o.StatsResetPeriod,
+		minRequests:                   o.MinRequests,
+		maxHealthCheckDropProbability: o.MaxHealthCheckDropProbability,
+
+		quit: make(chan struct{}),
+
+		now:  time.Now,
+		data: sync.Map{},
 	}
+	if o.PassiveHealthCheckEnabled {
+		go registry.updateStats()
+	}
+
+	return registry
 }
 
 func (r *EndpointRegistry) GetMetrics(hostPort string) Metrics {
