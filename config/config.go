@@ -604,6 +604,12 @@ func validate(c *Config) error {
 	return c.parseForwardedHeaders()
 }
 
+// Flags returns the flag.FlagSet used by skipper.
+// Users can add custom flags to the FlagSet before calling Parse().
+func (c *Config) Flags() *flag.FlagSet {
+	return c.flags
+}
+
 func (c *Config) Parse() error {
 	return c.ParseArgs(os.Args[0], os.Args[1:])
 }
