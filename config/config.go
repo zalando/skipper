@@ -27,7 +27,7 @@ import (
 
 type Config struct {
 	ConfigFile string
-	flags      *flag.FlagSet
+	Flags      *flag.FlagSet
 
 	// generic:
 	Address                         string         `yaml:"address"`
@@ -576,7 +576,7 @@ func NewConfig() *Config {
 	// Passive Health Checks
 	flag.Var(&cfg.PassiveHealthCheck, "passive-health-check", "sets the parameters for passive health check feature")
 
-	cfg.flags = flag
+	cfg.Flags = flag
 	return cfg
 }
 
@@ -604,26 +604,20 @@ func validate(c *Config) error {
 	return c.parseForwardedHeaders()
 }
 
-// Flags returns the flag.FlagSet used by skipper.
-// Users can add custom flags to the FlagSet before calling Parse().
-func (c *Config) Flags() *flag.FlagSet {
-	return c.flags
-}
-
 func (c *Config) Parse() error {
 	return c.ParseArgs(os.Args[0], os.Args[1:])
 }
 
 func (c *Config) ParseArgs(progname string, args []string) error {
-	c.flags.Init(progname, flag.ExitOnError)
-	err := c.flags.Parse(args)
+	c.Flags.Init(progname, flag.ExitOnError)
+	err := c.Flags.Parse(args)
 	if err != nil {
 		return err
 	}
 
 	// check if arguments were correctly parsed.
-	if len(c.flags.Args()) != 0 {
-		return fmt.Errorf("invalid arguments: %s", c.flags.Args())
+	if len(c.Flags.Args()) != 0 {
+		return fmt.Errorf("invalid arguments: %s", c.Flags.Args())
 	}
 
 	configKeys := make(map[string]interface{})
@@ -640,7 +634,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 
 		_ = yaml.Unmarshal(yamlFile, configKeys)
 
-		err = c.flags.Parse(args)
+		err = c.Flags.Parse(args)
 		if err != nil {
 			return err
 		}
@@ -1092,13 +1086,13 @@ func (c *Config) parseEnv() {
 
 func (c *Config) checkDeprecated(configKeys map[string]interface{}, options ...string) {
 	flagKeys := make(map[string]bool)
-	c.flags.Visit(func(f *flag.Flag) { flagKeys[f.Name] = true })
+	c.Flags.Visit(func(f *flag.Flag) { flagKeys[f.Name] = true })
 
 	for _, name := range options {
 		_, ck := configKeys[name]
 		_, fk := flagKeys[name]
 		if ck || fk {
-			f := c.flags.Lookup(name)
+			f := c.Flags.Lookup(name)
 			log.Warnf("%s: %s", f.Name, f.Usage)
 		}
 	}

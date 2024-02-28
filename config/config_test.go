@@ -65,7 +65,7 @@ func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
 func defaultConfig() *Config {
 	return &Config{
 		ConfigFile:                              "testdata/test.yaml",
-		flags:                                   nil,
+		Flags:                                   nil,
 		Address:                                 "localhost:8080",
 		StatusChecks:                            nil,
 		ExpectedBytesPerRequest:                 50 * 1024,
