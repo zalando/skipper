@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/filters/flowid"
 	"io"
 	"net/http"
 	"os"
@@ -33,6 +32,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
