@@ -24,7 +24,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, err
 	}
 
-	result, stopeval, err := envoyauth.NewEvalResult(WithDecisionID(decisionId))
+	result, stopeval, _ := envoyauth.NewEvalResult(withDecisionID(decisionId))
 	span := opentracing.SpanFromContext(ctx)
 	if span != nil {
 		span.SetTag("opa.decision_id", result.DecisionID)
@@ -75,9 +75,7 @@ func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input inter
 	return decisionlog.LogDecision(ctx, opa.manager, info, result, err)
 }
 
-type Opt func(*envoyauth.EvalResult)
-
-func WithDecisionID(decisionID string) Opt {
+func withDecisionID(decisionID string) func(*envoyauth.EvalResult) {
 	return func(result *envoyauth.EvalResult) {
 		result.DecisionID = decisionID
 	}
