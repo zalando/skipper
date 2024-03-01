@@ -195,11 +195,11 @@ func addExtraRoutes(ic *ingressContext, ruleHost, path, pathType, eastWestDomain
 			ruleHost+strings.ReplaceAll(path, "/", "_"),
 			extraIndex)
 		setPathV1(ic.pathMode, &route, pathType, path)
-		if n := countPathRoutes(&route); n <= 1 {
+		if n := countPathPredicates(&route); n <= 1 {
 			ic.addHostRoute(ruleHost, &route)
 			ic.redirect.updateHost(ruleHost)
 		} else {
-			ic.logger.Errorf("Failed to add route having %d path routes: %v", n, r)
+			ic.logger.Errorf("Ignoring route due to multiple path predicates: %d path predicates, route: %v", n, route)
 		}
 		if enableEastWest {
 			ewRoute := createEastWestRouteIng(eastWestDomain, name, ns, &route)
@@ -209,7 +209,7 @@ func addExtraRoutes(ic *ingressContext, ruleHost, path, pathType, eastWestDomain
 	}
 }
 
-func countPathRoutes(r *eskip.Route) int {
+func countPathPredicates(r *eskip.Route) int {
 	i := 0
 	for _, p := range r.Predicates {
 		if p.Name == "PathSubtree" || p.Name == "Path" {
