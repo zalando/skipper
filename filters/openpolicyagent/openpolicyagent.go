@@ -398,7 +398,10 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 // new returns a new OPA object.
 func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
-	uniqueIDGenerator, _ := flowid.NewStandardGenerator(32)
+	uniqueIDGenerator, err := flowid.NewStandardGenerator(32)
+	if err != nil {
+		return nil, err
+	}
 
 	opaConfig, err := config.ParseConfig(configBytes, id)
 	if err != nil {

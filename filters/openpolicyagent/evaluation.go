@@ -18,13 +18,17 @@ import (
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
 
 	decisionId, err := opa.idGenerator.Generate()
-
 	if err != nil {
 		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate decision ID.")
 		return nil, err
 	}
 
-	result, stopeval, _ := envoyauth.NewEvalResult(withDecisionID(decisionId))
+	result, stopeval, err := envoyauth.NewEvalResult(withDecisionID(decisionId))
+	if err != nil {
+		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate new result with decision ID.")
+		return nil, err
+	}
+
 	span := opentracing.SpanFromContext(ctx)
 	if span != nil {
 		span.SetTag("opa.decision_id", result.DecisionID)
