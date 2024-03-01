@@ -34,8 +34,9 @@ func TestGrantClaimsQuery(t *testing.T) {
 		proxy, client := newAuthProxyForQuery(t, config, "/allowed:scope.#[==\"match\"]")
 		defer proxy.Close()
 
-		cookie, _ := newGrantCookie(config)
-		rsp := grantQueryWithCookie(t, client, proxy.URL+"/allowed", cookie)
+		cookies := auth.NewGrantCookies(t, config)
+
+		rsp := grantQueryWithCookies(t, client, proxy.URL+"/allowed", cookies...)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
@@ -46,8 +47,9 @@ func TestGrantClaimsQuery(t *testing.T) {
 		proxy, client := newAuthProxyForQuery(t, config, "/forbidden:scope.#[==\"noMatch\"]")
 		defer proxy.Close()
 
-		cookie, _ := newGrantCookie(config)
-		rsp := grantQueryWithCookie(t, client, proxy.URL+"/forbidden", cookie)
+		cookies := auth.NewGrantCookies(t, config)
+
+		rsp := grantQueryWithCookies(t, client, proxy.URL+"/forbidden", cookies...)
 
 		checkStatus(t, rsp, http.StatusUnauthorized)
 	})
@@ -59,8 +61,9 @@ func TestGrantClaimsQuery(t *testing.T) {
 		proxy, client := newAuthProxyForQuery(t, config, "/allowed:@_:sub%\"foo\"")
 		defer proxy.Close()
 
-		cookie, _ := newGrantCookie(config)
-		rsp := grantQueryWithCookie(t, client, proxy.URL+"/allowed", cookie)
+		cookies := auth.NewGrantCookies(t, config)
+
+		rsp := grantQueryWithCookies(t, client, proxy.URL+"/allowed", cookies...)
 
 		checkStatus(t, rsp, http.StatusNoContent)
 	})
