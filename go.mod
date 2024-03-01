@@ -38,7 +38,7 @@ require (
 	github.com/sarslanhan/cronmask v0.0.0-20230801193303-54e29300a091
 	github.com/sirupsen/logrus v1.9.3
 	github.com/sony/gobreaker v0.5.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/szuecs/rate-limit-buffer v0.9.0
 	github.com/testcontainers/testcontainers-go v0.28.0
 	github.com/tidwall/gjson v1.17.1
