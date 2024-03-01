@@ -65,7 +65,7 @@ func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
 func defaultConfig() *Config {
 	return &Config{
 		ConfigFile:                              "testdata/test.yaml",
-		flags:                                   nil,
+		Flags:                                   nil,
 		Address:                                 "localhost:8080",
 		StatusChecks:                            nil,
 		ExpectedBytesPerRequest:                 50 * 1024,
@@ -336,8 +336,8 @@ func Test_NewConfigWithArgs(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				if cmp.Equal(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}), cmpopts.IgnoreUnexported(Config{})) == false {
-					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}), cmpopts.IgnoreUnexported(Config{})))
+				if cmp.Equal(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}), cmpopts.IgnoreUnexported(Config{}), cmpopts.IgnoreFields(Config{}, "Flags")) == false {
+					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}), cmpopts.IgnoreUnexported(Config{}), cmpopts.IgnoreFields(Config{}, "Flags")))
 				}
 			}
 		})
