@@ -42,6 +42,7 @@ import (
 	ratelimitfilters "github.com/zalando/skipper/filters/ratelimit"
 	"github.com/zalando/skipper/filters/shedder"
 	teefilters "github.com/zalando/skipper/filters/tee"
+	"github.com/zalando/skipper/filters/wasm"
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
@@ -1523,6 +1524,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if err != nil {
 		return err
 	}
+
+	o.CustomFilters = append(o.CustomFilters,
+		wasm.NewWASM(wasm.WASMOpts{
+			Typ:      "none",
+			CacheDir: "",
+		}),
+	)
 
 	// tee filters override with initialized tracer
 	o.CustomFilters = append(o.CustomFilters,
