@@ -159,7 +159,7 @@ Skipper's implementation of OpenID Connect Client works as follows:
     and other required information.
 8. If all the user information/claims are present then it encrypts this and sets a cookie
     which is encrypted and redirects the user to the originally requested URL.
-    
+
 To use OpenID define a filter for a backend which needs to be covered by OpenID Connection authentication.
 
 ```sh
@@ -177,7 +177,7 @@ with the return id token.
 
 ```sh
 oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secret",
-    "http://target.example.com/subpath/callback", "email profile", 
+    "http://target.example.com/subpath/callback", "email profile",
     "name email picture") -> "https://internal.example.org";
 ```
 
@@ -249,28 +249,28 @@ oauthOidcAnyClaims(...) -> oidcClaimsQuery("/login:groups.#[==\"appX-Tester\"]",
 ## OAuth2 authorization grant flow
 
 [Authorization grant flow](https://tools.ietf.org/html/rfc6749#section-1.3) is a mechanism
-to coordinate between a user-agent, a client, and an authorization server to obtain an OAuth2 
-access token for a user. Skipper supports the flow with the `oauthGrant()` filter. 
+to coordinate between a user-agent, a client, and an authorization server to obtain an OAuth2
+access token for a user. Skipper supports the flow with the `oauthGrant()` filter.
 It works as follows:
 
 1. A user makes a request to a route with `oauthGrant()`.
 1. The filter checks whether the request has a cookie called `oauth-grant`<sup>[1](#grant-note-1)</sup>. If it does not, or
-   if the cookie and its tokens are invalid, it redirects the user to the OAuth2 provider's 
+   if the cookie and its tokens are invalid, it redirects the user to the OAuth2 provider's
    authorization endpoint<sup>[2](#grant-note-2)</sup>.
 1. The user logs into the external OAuth2 provider, e.g. by providing a username and password.
-1. The provider redirects the user back to Skipper with an authorization code, using the 
+1. The provider redirects the user back to Skipper with an authorization code, using the
    `redirect_uri` URL parameter which was part of the previous redirect<sup>[2](#grant-note-2)</sup>. The callback route must
    have a `grantCallback()` filter defined. Skipper automatically adds this callback route for you
    when the OAuth2 authorization grant flow feature is enabled. Note that the automatically added
 	 callback route does not apply [default filters](../operation/operation.md#default-filters).
 	 If you need default filters to be applied to the callback route as well, please register
 	 the route manually in your routes files.
-1. Skipper calls the provider's token URL with the authorization code, and receives a response 
+1. Skipper calls the provider's token URL with the authorization code, and receives a response
    with the access and refresh tokens.
 1. Skipper stores the tokens in an `oauth-grant`<sup>[1](#grant-note-1)</sup> cookie which is stored in the user's browser.
 1. Subsequent calls to any route with an `oauthGrant()` filter will now pass as long as the
    access token is valid.
-   
+
 <sup><a name="grant-note-1">1</a></sup> The name of this cookie can be changed by providing the `-oauth2-token-cookie-name` parameter.
 
 <sup><a name="grant-note-2">2</a></sup> The value of `redirect_uri` parameter of the authorization flow could be set by providing `-oauth2-auth-url-parameters=redirect_uri=https://example.org/oauth-callback`.
@@ -280,8 +280,8 @@ Please note that it is not currently possible to use multiple OAuth2 providers w
 
 ### Encrypted cookie tokens
 
-The cookie set by the `oauthGrant()` filter contains the OAuth2 access and refresh tokens in 
-encrypted form. This means Skipper does not need to persist any session information about users, 
+The cookie set by the `oauthGrant()` filter contains the OAuth2 access and refresh tokens in
+encrypted form. This means Skipper does not need to persist any session information about users,
 while also not exposing the tokens to users.
 
 ### Token refresh
@@ -301,9 +301,9 @@ To use authorization grant flow, you need to:
 #### Configure OAuth2 credentials
 
 Before you start, you need to register your application with the OAuth2 provider.
-If your provider asks you for the callback URL, provide the URL that you set 
+If your provider asks you for the callback URL, provide the URL that you set
 as the `-oauth2-callback-path` parameter. If you did not provide a value, use the default
-route : `/.well-known/oauth2-callback`. 
+route : `/.well-known/oauth2-callback`.
 
 Skipper must be configured with the following credentials and secrets:
 1. OAuth2 client ID for authenticating with the OAuth2 provider.
@@ -311,8 +311,8 @@ Skipper must be configured with the following credentials and secrets:
 1. Cookie encryption secret for encrypting and decrypting token cookies.
 
 You can load all of these secrets from separate files, in which case they get automatically
-reloaded to support secret rotation. You can provide the paths to the files containing each 
-secret as follows:
+reloaded to support secret rotation.
+You can provide the paths to the files containing each secret as follows:
 
 ```sh
 skipper -oauth2-client-id-file=/path/to/client_id \
@@ -320,6 +320,9 @@ skipper -oauth2-client-id-file=/path/to/client_id \
     -oauth2-secret-file=/path/to/cookie_encryption_secret \
     -credentials-update-interval=30s
 ```
+
+Paths may contain `{host}` placeholder which will be replaced by the request host.
+This is used to define separate credentials for different hosts.
 
 Care must be taken when used in conjunction with `-credentials-paths` option because files
 from `-credentials-paths` are available to `bearerinjector` filter.
@@ -362,7 +365,7 @@ You can configure the `oauthGrant()` filter further for your needs. See the
 You can protect any number of routes with the `oauthGrant()` filter. Unauthenticated users
 will be refused access and redirected to log in.
 
-Skipper will automatically add a callback route for you with the `grantCallback` filter registered 
+Skipper will automatically add a callback route for you with the `grantCallback` filter registered
 on it. The path for this route can be configured with the `-oauth2-callback-path` parameter.
 If the parameter is not given, it will be `/.well-known/oauth2-callback`
 
@@ -413,14 +416,14 @@ scope by doing the following:
    skipper -oauth2-tokeninfo-subject-key=username
    ```
 
-> The subject is the field that identifies the user and is often called `sub`, 
+> The subject is the field that identifies the user and is often called `sub`,
 > especially in the context of OpenID Connect. In the example above, it is `username`.
 
 ## Open Policy Agent
 
-To enable [Open Policy Agent](https://www.openpolicyagent.org/) filter, use the `-enable-open-policy-agent` command line flag. 
+To enable [Open Policy Agent](https://www.openpolicyagent.org/) filter, use the `-enable-open-policy-agent` command line flag.
 
-Open Policy Agent is integrated as a Go library so no extra setup is needed to run. Every filter creates a virtual OPA instance in memory that is configured using a configuration file in the same [configuration format](https://www.openpolicyagent.org/docs/latest/configuration/) that a standalone OPA would use. To allow for configurability, the configuration file is interpolated using Go Templates to allow every virtual instance to pull different bundles. This template file is passed using the `-open-policy-agent-config-template` flag. 
+Open Policy Agent is integrated as a Go library so no extra setup is needed to run. Every filter creates a virtual OPA instance in memory that is configured using a configuration file in the same [configuration format](https://www.openpolicyagent.org/docs/latest/configuration/) that a standalone OPA would use. To allow for configurability, the configuration file is interpolated using Go Templates to allow every virtual instance to pull different bundles. This template file is passed using the `-open-policy-agent-config-template` flag.
 
 ### Configuration File
 
@@ -451,14 +454,14 @@ Input structures to policies follow those that are used by the [opa-envoy-plugin
 Generally there are two ways to pass context to a policy:
 
 1. as part of the labels in Open Policy Agent (configured in the configuration file, see below) that should be used for deployment level taxonomy,
-2. as part of so called context extensions that are part of the Envoy external auth specification. 
+2. as part of so called context extensions that are part of the Envoy external auth specification.
 
-This context can be passed as second argument to filters: 
+This context can be passed as second argument to filters:
 
-`opaAuthorizeRequest("my-app-id", "com.mycompany.myprop: myvalue")` 
-or `opaAuthorizeRequest("my-app-id", "{'com.mycompany.myprop': 'my value'}")` 
+`opaAuthorizeRequest("my-app-id", "com.mycompany.myprop: myvalue")`
+or `opaAuthorizeRequest("my-app-id", "{'com.mycompany.myprop': 'my value'}")`
 
-The second argument is parsed as YAML, cannot be nested and values need to be strings. 
+The second argument is parsed as YAML, cannot be nested and values need to be strings.
 
 In Rego this can be used like this `input.attributes.contextExtensions["com.mycompany.myprop"] == "my value"`
 
@@ -466,7 +469,7 @@ In Rego this can be used like this `input.attributes.contextExtensions["com.myco
 
 A quick way without setting up Backend APIs is to use the [Rego Playground](https://play.openpolicyagent.org/).
 
-To get started pick from examples Envoy > Hello World. Click on "Publish" and note the random ID in the section "Run OPA with playground policy". 
+To get started pick from examples Envoy > Hello World. Click on "Publish" and note the random ID in the section "Run OPA with playground policy".
 
 Place the following file in your local directory with the name `opaconfig.yaml`
 
@@ -488,7 +491,7 @@ decision_logs:
   console: true
 ```
 
-Start Skipper with 
+Start Skipper with
 
 ```
 skipper -enable-open-policy-agent -open-policy-agent-config-template opaconfig.yaml \
