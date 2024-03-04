@@ -32,6 +32,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
@@ -360,6 +361,8 @@ type OpenPolicyAgentInstance struct {
 
 	maxBodyBytes       int64
 	bodyReadBufferSize int64
+
+	idGenerator flowid.Generator
 }
 
 func envVariablesMap() map[string]string {
@@ -395,6 +398,11 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 // new returns a new OPA object.
 func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
+	uniqueIDGenerator, err := flowid.NewStandardGenerator(32)
+	if err != nil {
+		return nil, err
+	}
+
 	opaConfig, err := config.ParseConfig(configBytes, id)
 	if err != nil {
 		return nil, err
@@ -428,6 +436,8 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 
 		preparedQueryDoOnce:    new(sync.Once),
 		interQueryBuiltinCache: iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
+
+		idGenerator: uniqueIDGenerator,
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
