@@ -306,6 +306,7 @@ as the `-oauth2-callback-path` parameter. If you did not provide a value, use th
 route : `/.well-known/oauth2-callback`.
 
 Skipper must be configured with the following credentials and secrets:
+
 1. OAuth2 client ID for authenticating with the OAuth2 provider.
 1. OAuth2 client secret for authenticating with the OAuth2 provider.
 1. Cookie encryption secret for encrypting and decrypting token cookies.
