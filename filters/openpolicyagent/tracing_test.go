@@ -7,7 +7,6 @@ import (
 
 	opatracing "github.com/open-policy-agent/opa/tracing"
 	"github.com/stretchr/testify/assert"
-	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
@@ -19,13 +18,12 @@ func (t *MockTransport) RoundTrip(*http.Request) (*http.Response, error) {
 }
 
 func TestTracingFactory(t *testing.T) {
-	tracer := &tracingtest.Tracer{}
-	tw := &tracing.TracerWrapper{Ot: tracer}
-    f := &tracingFactory{tracer: tw}
+	tracer := &tracingtest.OtelTracer{}
+	f := &tracingFactory{tracer: tracer}
 
 	tr := f.NewTransport(&MockTransport{}, opatracing.Options{&OpenPolicyAgentInstance{}})
 
-	ctx, span := tw.Start(context.Background(), "open-policy-agent")
+	ctx, span := tracer.Start(context.Background(), "open-policy-agent")
 
 	req := &http.Request{
 		Header: map[string][]string{},

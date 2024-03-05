@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestTracingTagNil(t *testing.T) {
@@ -55,7 +55,7 @@ func TestTagCreateFilter(t *testing.T) {
 }
 
 func TestTracingTag(t *testing.T) {
-	tracer := &tracing.TracerWrapper{Ot: mocktracer.New()}
+	tracer := &tracingtest.OtelTracer{}
 
 	for _, ti := range []struct {
 		name     string
@@ -120,7 +120,7 @@ func TestTracingTag(t *testing.T) {
 	},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			ctx, span := tracer.Start(ti.context.FRequest.Context(), "proxy") // .(*mocktracer.MockSpan)
+			ctx, span := tracer.Start(ti.context.FRequest.Context(), "proxy")
 			defer span.End()
 
 			requestContext := &filtertest.Context{
@@ -138,17 +138,12 @@ func TestTracingTag(t *testing.T) {
 
 			f.Response(requestContext)
 
-			var mockSpan *mocktracer.MockSpan
-			var sw *tracing.SpanWrapper
-			if sw, ok := span.(*tracing.SpanWrapper); !ok || sw == nil {
-				t.Fatal("Unexpected result of tracing.SpanWrapper convertion. ok: %t, sw: %v", ok, sw)
-			}
-			if mockSpan, ok := sw.Ot.(*mocktracer.MockSpan); !ok || mockSpan == nil {
-				t.Fatal("Unexpected result of mocktracer.MockSpan convertion. ok: %t, mockSpan: %v", ok, mockSpan)
-			}
-
-			if got := mockSpan.Tag("test_tag"); got != ti.expected {
-				t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
+			if mockSpan, ok := span.(*tracingtest.OtelSpan); ok {
+				if got := mockSpan.Attributes["test_tag"]; got != ti.expected {
+					t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
+				}
+			} else {
+				t.Fatal("Unexpected result of tracingtest.OtelSpan convertion. ok: %t, Span: %v", ok, mockSpan)
 			}
 		})
 	}

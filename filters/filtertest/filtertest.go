@@ -7,10 +7,9 @@ package filtertest
 import (
 	"net/http"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -64,7 +63,7 @@ func (fc *Context) Tracer() trace.Tracer {
 	if fc.FTracer != nil {
 		return fc.FTracer
 	}
-	return &tracing.TracerWrapper{Ot: &opentracing.NoopTracer{}}
+	return noop.NewTracerProvider().Tracer("Noop tracer - filtertest")
 }
 
 func (fc *Context) ParentSpan() trace.Span {

@@ -111,7 +111,7 @@ func TestOptionsFilterRegistry(t *testing.T) {
 }
 
 func TestOptionsOpenTracingTracerInstanceOverridesOpenTracing(t *testing.T) {
-	tracer := &tracingtest.Tracer{}
+	tracer := &tracingtest.OtTracer{}
 	o := Options{
 		OpenTracingTracer: tracer,
 		OpenTracing:       []string{"noop"},
@@ -551,7 +551,7 @@ func TestDataClients(t *testing.T) {
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracing.TracerWrapper{Ot: &tracingtest.Tracer{}}
+	tracer := &tracingtest.OtelTracer{}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
 		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},

@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/aryszka/jobqueue"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy"
@@ -24,6 +21,7 @@ import (
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestNewLIFO(t *testing.T) {
@@ -444,38 +442,6 @@ func TestNewLIFO(t *testing.T) {
 	}
 }
 
-type testTracer struct {
-	*mocktracer.MockTracer
-	spans int32
-}
-
-func (t *testTracer) Reset() {
-	atomic.StoreInt32(&t.spans, 0)
-	t.MockTracer.Reset()
-}
-
-func (t *testTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
-	atomic.AddInt32(&t.spans, 1)
-	return t.MockTracer.StartSpan(operationName, opts...)
-}
-
-func (t *testTracer) FinishedSpans() []*mocktracer.MockSpan {
-	timeout := time.After(1 * time.Second)
-	retry := time.NewTicker(100 * time.Millisecond)
-	defer retry.Stop()
-	for {
-		finished := t.MockTracer.FinishedSpans()
-		if len(finished) == int(atomic.LoadInt32(&t.spans)) {
-			return finished
-		}
-		select {
-		case <-retry.C:
-		case <-timeout:
-			return nil
-		}
-	}
-}
-
 func TestLifoErrors(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		time.Sleep(time.Second)
@@ -510,10 +476,10 @@ func TestLifoErrors(t *testing.T) {
 
 	<-rt.FirstLoad()
 
-	tracer := &testTracer{MockTracer: mocktracer.New()}
+	tracer := &tracingtest.OtelTracer{}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
-		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
 	})
 	defer pr.Close()
 
@@ -523,20 +489,19 @@ func TestLifoErrors(t *testing.T) {
 	requestSpike(t, 20, ts.URL)
 
 	codes := make(map[string]int)
-	for _, span := range tracer.FinishedSpans() {
-		if span.OperationName == "ingress" {
-			code := span.Tag(tracing.HTTPStatusCodeTag).(string)
 
-			codes[code]++
-			c, err := strconv.Atoi(code)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if c >= 500 {
-				assert.Equal(t, true, span.Tag(tracing.ErrorTag))
-			} else {
-				assert.Nil(t, span.Tag(tracing.ErrorTag))
-			}
+	for _, span := range tracer.FindAllSpans("ingress") {
+		code := span.Attributes[tracing.HTTPStatusCodeTag].(string)
+
+		codes[code]++
+		c, err := strconv.Atoi(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c >= 500 {
+			assert.Equal(t, true, span.Attributes[tracing.ErrorTag])
+		} else {
+			assert.Nil(t, span.Attributes[tracing.ErrorTag])
 		}
 	}
 

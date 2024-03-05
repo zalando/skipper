@@ -15,8 +15,9 @@ import (
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
-	skipperTracing "github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,10 +49,10 @@ func TestTracingFromWire(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	tracer := &tracingtest.Tracer{}
+	tracer := &tracingtest.OtelTracer{}
 	params := Params{
 		OpenTracing: &OpenTracingParams{
-			Tracer: tracer,
+			OtelTracer: tracer,
 		},
 		Flags: FlagsNone,
 	}
@@ -65,90 +66,25 @@ func TestTracingFromWire(t *testing.T) {
 
 	tp.proxy.ServeHTTP(w, r)
 
-	if len(tracer.RecordedSpans) == 0 {
+	if len(tracer.RecordedSpans()) == 0 {
 		t.Fatal("no span recorded...")
 	}
-	if tracer.RecordedSpans[0].Trace != traceContent {
-		t.Errorf("trace not found, got `%s` instead", tracer.RecordedSpans[0].Trace)
+	if tracer.RecordedSpans()[0].Trace != traceContent {
+		t.Errorf("trace not found, got `%s` instead", tracer.RecordedSpans()[0].Trace)
 	}
-	if len(tracer.RecordedSpans[0].Refs) == 0 {
+	if tracer.RecordedSpans()[0].Parent == nil {
 		t.Errorf("no references found, this is a root span")
 	}
-}
-
-func TestTracingIngressSpan(t *testing.T) {
-	s := startTestServer(nil, 0, func(r *http.Request) {
-		p := &mocktracer.TextMapPropagator{}
-		_, err := p.Extract(ot.HTTPHeadersCarrier(r.Header))
-		if err != nil {
-			t.Error(err)
-		}
-	})
-	defer s.Close()
-
-	routeID := "ingressRoute"
-	doc := fmt.Sprintf(`%s: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, routeID, s.URL)
-
-	tracer := mocktracer.New()
-	params := Params{
-		OpenTracing: &OpenTracingParams{
-			Tracer: tracer,
-		},
-		Flags: FlagsNone,
-	}
-
-	t.Setenv("HOSTNAME", "ingress.tracing.test")
-
-	tp, err := newTestProxyWithParams(doc, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tp.close()
-
-	ps := httptest.NewServer(tp.proxy)
-	defer ps.Close()
-
-	req, err := http.NewRequest("GET", ps.URL+"/hello?world", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("X-Flow-Id", "test-flow-id")
-
-	_, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// client may get response before proxy finishes span
-	time.Sleep(10 * time.Millisecond)
-
-	span, ok := findSpan(tracer, "ingress")
-	if !ok {
-		t.Fatal("ingress span not found")
-	}
-
-	verifyTag(t, span, SpanKindTag, SpanKindServer)
-	verifyTag(t, span, ComponentTag, "skipper")
-	verifyTag(t, span, SkipperRouteIDTag, routeID)
-	// to save memory we dropped the URL tag from ingress span
-	//verifyTag(t, span, HTTPUrlTag, "/hello?world") // For server requests there is no scheme://host:port, see https://golang.org/pkg/net/http/#Request
-	verifyTag(t, span, HTTPMethodTag, "GET")
-	verifyTag(t, span, HostnameTag, "ingress.tracing.test")
-	verifyTag(t, span, HTTPPathTag, "/hello")
-	verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
-	verifyTag(t, span, FlowIDTag, "test-flow-id")
-	verifyTag(t, span, HTTPStatusCodeTag, "200")
-	verifyHasTag(t, span, HTTPRemoteIPTag)
 }
 
 func TestTracingIngressSpanShunt(t *testing.T) {
 	routeID := "ingressShuntRoute"
 	doc := fmt.Sprintf(`%s: Path("/hello") -> setPath("/bye") -> setQuery("void") -> status(205) -> <shunt>`, routeID)
 
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 	params := Params{
 		OpenTracing: &OpenTracingParams{
-			Tracer: tracer,
+			OtelTracer: tracer,
 		},
 		Flags: FlagsNone,
 	}
@@ -180,7 +116,7 @@ func TestTracingIngressSpanShunt(t *testing.T) {
 	// client may get response before proxy finishes span
 	time.Sleep(10 * time.Millisecond)
 
-	span, ok := findSpan(tracer, "ingress")
+	span, ok := tracer.FindSpan("ingress")
 	if !ok {
 		t.Fatal("ingress span not found")
 	}
@@ -216,10 +152,10 @@ func TestTracingIngressSpanLoopback(t *testing.T) {
 %s: Path("/loop2") -> setPath("/loop1") -> <loopback>;
 `, shuntRouteID, loop1RouteID, loop2RouteID)
 
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 	params := Params{
 		OpenTracing: &OpenTracingParams{
-			Tracer: tracer,
+			OtelTracer: tracer,
 		},
 		Flags: FlagsNone,
 	}
@@ -297,10 +233,10 @@ func TestTracingSpanName(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> tracingSpanName("test-span") -> "%s"`, s.URL)
-	tracer := &tracingtest.Tracer{TraceContent: traceContent}
+	tracer := &tracingtest.OtelTracer{TraceContent: traceContent}
 	params := Params{
 		OpenTracing: &OpenTracingParams{
-			Tracer: tracer,
+			OtelTracer: tracer,
 		},
 		Flags: FlagsNone,
 	}
@@ -342,10 +278,10 @@ func TestTracingInitialSpanName(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	tracer := &tracingtest.Tracer{TraceContent: traceContent}
+	tracer := &tracingtest.OtelTracer{TraceContent: traceContent}
 	params := Params{
 		OpenTracing: &OpenTracingParams{
-			Tracer:      tracer,
+			OtelTracer:  tracer,
 			InitialSpan: "test-initial-span",
 		},
 		Flags: FlagsNone,
@@ -365,7 +301,7 @@ func TestTracingInitialSpanName(t *testing.T) {
 	}
 }
 
-func TestTracingProxySpan(t *testing.T) {
+func TestTracingProxyWithOtSpan(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := &mocktracer.TextMapPropagator{}
 		_, err := p.Extract(ot.HTTPHeadersCarrier(r.Header))
@@ -404,7 +340,71 @@ func TestTracingProxySpan(t *testing.T) {
 	// client may get response before proxy finishes span
 	time.Sleep(10 * time.Millisecond)
 
-	span, ok := findSpan(tracer, "proxy")
+	span, ok := otFindSpan(tracer, "proxy")
+	if !ok {
+		t.Fatal("proxy span not found")
+	}
+
+	backendAddr := s.Listener.Addr().String()
+
+	otVerifyTag(t, span, SpanKindTag, SpanKindClient)
+	otVerifyTag(t, span, SkipperRouteIDTag, "hello")
+	otVerifyTag(t, span, ComponentTag, "skipper")
+	otVerifyTag(t, span, HTTPUrlTag, "http://"+backendAddr+"/bye") // proxy removes query
+	otVerifyTag(t, span, HTTPMethodTag, "GET")
+	otVerifyTag(t, span, HostnameTag, "proxy.tracing.test")
+	otVerifyTag(t, span, HTTPPathTag, "/bye")
+	otVerifyTag(t, span, HTTPHostTag, backendAddr)
+	otVerifyTag(t, span, FlowIDTag, "test-flow-id")
+	otVerifyTag(t, span, HTTPStatusCodeTag, "204")
+	otVerifyNoTag(t, span, HTTPRemoteIPTag)
+}
+
+func TestTracingProxyWithOtelSpan(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		)
+		ctx := p.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		span := trace.SpanFromContext(ctx)
+		if sc := span.SpanContext(); !sc.IsValid() {
+			t.Error("expected tracingtest.OtelSpan, got otel.noopSpan/no span in the ctx")
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer s.Close()
+
+	doc := fmt.Sprintf(`hello: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, s.URL)
+	tracer := &tracingtest.OtelTracer{}
+
+	t.Setenv("HOSTNAME", "proxy.tracing.test")
+
+	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{OtelTracer: tracer}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tp.close()
+
+	ps := httptest.NewServer(tp.proxy)
+	defer ps.Close()
+
+	req, err := http.NewRequest("GET", ps.URL+"/hello?world", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Flow-Id", "test-flow-id")
+
+	_, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// client may get response before proxy finishes span
+	time.Sleep(10 * time.Millisecond)
+
+	span, ok := tracer.FindSpan("proxy")
 	if !ok {
 		t.Fatal("proxy span not found")
 	}
@@ -451,8 +451,8 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 
 	const docFmt = `r: * -> <roundRobin, "%s", "%s">;`
 	doc := fmt.Sprintf(docFmt, s0.URL, s1.URL)
-	tracer := &tracingtest.Tracer{}
-	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{Tracer: tracer}})
+	tracer := &tracingtest.OtelTracer{}
+	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{OtelTracer: tracer}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -534,8 +534,8 @@ func TestFilterTracing(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tracer := mocktracer.New()
-			tc.params.Tracer = tracer
+			tracer := &tracingtest.OtelTracer{}
+			tc.params.OtelTracer = tracer
 			tracing := newProxyTracing(tc.params)
 
 			ctx := &context{request: &http.Request{}}
@@ -548,31 +548,29 @@ func TestFilterTracing(t *testing.T) {
 			}
 			ft.finish()
 
-			spans := tracer.FinishedSpans()
-
 			if tc.params.DisableFilterSpans {
 				assert.Nil(t, ctx.parentSpan)
-				assert.Len(t, spans, 0)
+				assert.Len(t, tracer.RecordedSpans(), 0)
 				return
 			}
 
-			require.Len(t, spans, 1)
+			require.Len(t, tracer.RecordedSpans(), 1)
 
-			span := spans[0]
-			parentSpan := ctx.parentSpan.(*skipperTracing.SpanWrapper)
+			span := tracer.RecordedSpans()[0]
+			parentSpan := ctx.parentSpan.(*tracingtest.OtelSpan)
 
-			assert.Equal(t, span, parentSpan.Ot)
+			assert.Equal(t, span, parentSpan)
 			assert.Equal(t, tc.operation, span.OperationName)
 			assert.Equal(t, tc.expectLogs, spanLogs(span))
 		})
 	}
 }
 
-func spanLogs(span *mocktracer.MockSpan) string {
+func spanLogs(span *tracingtest.OtelSpan) string {
 	var logs []string
-	for _, e := range span.Logs() {
-		for _, f := range e.Fields {
-			logs = append(logs, fmt.Sprintf("%s: %s", f.Key, f.ValueString))
+	for _, e := range span.Events {
+		for _, f := range e.Attributes {
+			logs = append(logs, fmt.Sprintf("%s: %s", f.Key, f.Value.AsString()))
 		}
 	}
 	return strings.Join(logs, ", ")
@@ -580,9 +578,9 @@ func spanLogs(span *mocktracer.MockSpan) string {
 
 func TestEnabledLogStreamEvents(t *testing.T) {
 	ctx := stdlibctx.TODO()
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 	tracing := newProxyTracing(&OpenTracingParams{
-		Tracer:          tracer,
+		OtelTracer:      tracer,
 		LogStreamEvents: true,
 	})
 	_, span := tracing.Start(ctx, "test")
@@ -591,19 +589,21 @@ func TestEnabledLogStreamEvents(t *testing.T) {
 	tracing.logStreamEvent(span, "test-filter", StartEvent)
 	tracing.logStreamEvent(span, "test-filter", EndEvent)
 
-	wrapper := span.(*skipperTracing.SpanWrapper)
-	mockSpan := wrapper.Ot.(*mocktracer.MockSpan)
+	mockspan, ok := span.(*tracingtest.OtelSpan)
+	if !ok {
+		t.Errorf("span is not of type *tracingtest.OtelSpan")
+	}
 
-	if len(mockSpan.Logs()) != 2 {
+	if len(mockspan.Events) != 2 {
 		t.Errorf("filter lifecycle events were not logged although it was enabled")
 	}
 }
 
 func TestDisabledLogStreamEvents(t *testing.T) {
 	ctx := stdlibctx.TODO()
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 	tracing := newProxyTracing(&OpenTracingParams{
-		Tracer:          tracer,
+		OtelTracer:      tracer,
 		LogStreamEvents: false,
 	})
 	_, span := tracing.Start(ctx, "test")
@@ -612,19 +612,21 @@ func TestDisabledLogStreamEvents(t *testing.T) {
 	tracing.logStreamEvent(span, "test-filter", StartEvent)
 	tracing.logStreamEvent(span, "test-filter", EndEvent)
 
-	wrapper := span.(*skipperTracing.SpanWrapper)
-	mockSpan := wrapper.Ot.(*mocktracer.MockSpan)
+	mockspan, ok := span.(*tracingtest.OtelSpan)
+	if !ok {
+		t.Errorf("span is not of type *tracingtest.OtelSpan")
+	}
 
-	if len(mockSpan.Logs()) != 0 {
+	if len(mockspan.Events) != 0 {
 		t.Errorf("filter lifecycle events were logged although it was disabled")
 	}
 }
 
 func TestSetEnabledTags(t *testing.T) {
 	ctx := stdlibctx.TODO()
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 	tracing := newProxyTracing(&OpenTracingParams{
-		Tracer:      tracer,
+		OtelTracer:  tracer,
 		ExcludeTags: []string{},
 	})
 	_, span := tracing.Start(ctx, "test")
@@ -633,24 +635,24 @@ func TestSetEnabledTags(t *testing.T) {
 	tracing.setTag(span, HTTPStatusCodeTag, "200")
 	tracing.setTag(span, ComponentTag, "skipper")
 
-	wrapper := span.(*skipperTracing.SpanWrapper)
-	mockSpan := wrapper.Ot.(*mocktracer.MockSpan)
+	mockspan, ok := span.(*tracingtest.OtelSpan)
+	if !ok {
+		t.Errorf("span is not of type *tracingtest.OtelSpan")
+	}
 
-	tags := mockSpan.Tags()
+	_, ok1 := mockspan.Attributes[HTTPStatusCodeTag]
+	_, ok2 := mockspan.Attributes[ComponentTag]
 
-	_, ok := tags[HTTPStatusCodeTag]
-	_, ok2 := tags[ComponentTag]
-
-	if !ok || !ok2 {
+	if !ok1 || !ok2 {
 		t.Errorf("could not set tags although they were not configured to be excluded")
 	}
 }
 
 func TestSetDisabledTags(t *testing.T) {
 	ctx := stdlibctx.TODO()
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 	tracing := newProxyTracing(&OpenTracingParams{
-		Tracer: tracer,
+		OtelTracer: tracer,
 		ExcludeTags: []string{
 			SkipperRouteIDTag,
 		},
@@ -662,16 +664,16 @@ func TestSetDisabledTags(t *testing.T) {
 	tracing.setTag(span, ComponentTag, "skipper")
 	tracing.setTag(span, SkipperRouteIDTag, "long_route_id")
 
-	wrapper := span.(*skipperTracing.SpanWrapper)
-	mockSpan := wrapper.Ot.(*mocktracer.MockSpan)
+	mockspan, ok := span.(*tracingtest.OtelSpan)
+	if !ok {
+		t.Errorf("span is not of type *tracingtest.OtelSpan")
+	}
 
-	tags := mockSpan.Tags()
+	_, ok1 := mockspan.Attributes[HTTPStatusCodeTag]
+	_, ok2 := mockspan.Attributes[ComponentTag]
+	_, ok3 := mockspan.Attributes[SkipperRouteIDTag]
 
-	_, ok := tags[HTTPStatusCodeTag]
-	_, ok2 := tags[ComponentTag]
-	_, ok3 := tags[SkipperRouteIDTag]
-
-	if !ok || !ok2 {
+	if !ok1 || !ok2 {
 		t.Errorf("could not set tags although they were not configured to be excluded")
 	}
 
@@ -681,9 +683,9 @@ func TestSetDisabledTags(t *testing.T) {
 }
 
 func TestLogEventWithEmptySpan(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 	tracing := newProxyTracing(&OpenTracingParams{
-		Tracer: tracer,
+		OtelTracer: tracer,
 	})
 
 	// should not panic
@@ -692,16 +694,16 @@ func TestLogEventWithEmptySpan(t *testing.T) {
 }
 
 func TestSetTagWithEmptySpan(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 	tracing := newProxyTracing(&OpenTracingParams{
-		Tracer: tracer,
+		OtelTracer: tracer,
 	})
 
 	// should not panic
 	tracing.setTag(nil, "test", "val")
 }
 
-func findSpan(tracer *mocktracer.MockTracer, name string) (*mocktracer.MockSpan, bool) {
+func otFindSpan(tracer *mocktracer.MockTracer, name string) (*mocktracer.MockSpan, bool) {
 	for _, s := range tracer.FinishedSpans() {
 		if s.OperationName == name {
 			return s, true
@@ -710,7 +712,7 @@ func findSpan(tracer *mocktracer.MockTracer, name string) (*mocktracer.MockSpan,
 	return nil, false
 }
 
-func findSpanByRouteID(tracer *mocktracer.MockTracer, routeID string) (*mocktracer.MockSpan, bool) {
+func otFindSpanByRouteID(tracer *mocktracer.MockTracer, routeID string) (*mocktracer.MockSpan, bool) {
 	for _, s := range tracer.FinishedSpans() {
 		if s.Tag(SkipperRouteIDTag) == routeID {
 			return s, true
@@ -719,23 +721,53 @@ func findSpanByRouteID(tracer *mocktracer.MockTracer, routeID string) (*mocktrac
 	return nil, false
 }
 
-func verifyTag(t *testing.T, span *mocktracer.MockSpan, name string, expected interface{}) {
+func otVerifyTag(t *testing.T, span *mocktracer.MockSpan, name string, expected interface{}) {
 	t.Helper()
 	if got := span.Tag(name); got != expected {
 		t.Errorf("unexpected '%s' tag value: '%v' != '%v'", name, got, expected)
 	}
 }
 
-func verifyNoTag(t *testing.T, span *mocktracer.MockSpan, name string) {
+func otVerifyNoTag(t *testing.T, span *mocktracer.MockSpan, name string) {
 	t.Helper()
 	if got, ok := span.Tags()[name]; ok {
 		t.Errorf("unexpected '%s' tag: '%v'", name, got)
 	}
 }
 
-func verifyHasTag(t *testing.T, span *mocktracer.MockSpan, name string) {
+func otVerifyHasTag(t *testing.T, span *mocktracer.MockSpan, name string) {
 	t.Helper()
 	if got, ok := span.Tags()[name]; !ok || got == "" {
+		t.Errorf("expected '%s' tag", name)
+	}
+}
+
+func findSpanByRouteID(tracer *tracingtest.OtelTracer, routeID string) (*tracingtest.OtelSpan, bool) {
+	for _, s := range tracer.RecordedSpans() {
+		if s.Attributes[SkipperRouteIDTag] == routeID {
+			return s, true
+		}
+	}
+	return nil, false
+}
+
+func verifyTag(t *testing.T, span *tracingtest.OtelSpan, name string, expected interface{}) {
+	t.Helper()
+	if got, ok := span.Attributes[name]; !ok || got != expected {
+		t.Errorf("unexpected '%s' tag value: '%v' != '%v'", name, got, expected)
+	}
+}
+
+func verifyNoTag(t *testing.T, span *tracingtest.OtelSpan, name string) {
+	t.Helper()
+	if got, ok := span.Attributes[name]; ok {
+		t.Errorf("unexpected '%s' tag: '%v'", name, got)
+	}
+}
+
+func verifyHasTag(t *testing.T, span *tracingtest.OtelSpan, name string) {
+	t.Helper()
+	if got, ok := span.Attributes[name]; !ok || got == "" {
 		t.Errorf("expected '%s' tag", name)
 	}
 }

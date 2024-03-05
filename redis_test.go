@@ -28,7 +28,6 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
-	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 
 	"github.com/stretchr/testify/assert"
@@ -127,7 +126,7 @@ spec:
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracing.TracerWrapper{Ot: &tracingtest.Tracer{}}
+	tracer := &tracingtest.OtelTracer{}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
 		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
@@ -302,7 +301,7 @@ spec:
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracing.TracerWrapper{Ot: &tracingtest.Tracer{}}
+	tracer := &tracingtest.OtelTracer{}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
 		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},

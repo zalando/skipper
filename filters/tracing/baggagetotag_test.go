@@ -38,7 +38,7 @@ func TestBaggageItemNameToTag(t *testing.T) {
 
 			f.Request(ctx)
 
-			otSpan, ok := span.Ot.(*tracingtest.Span)
+			otSpan, ok := span.Ot.(*tracingtest.OtSpan)
 			if !ok {
 				t.Fatal("Expected span.Ot to be of type *tracingtest.Span")
 			}
@@ -117,7 +117,7 @@ func TestFallbackToBaggageNameForTag(t *testing.T) {
 
 			f.Request(ctx)
 
-			otSpan, ok := span.Ot.(*tracingtest.Span)
+			otSpan, ok := span.Ot.(*tracingtest.OtSpan)
 			if !ok {
 				t.Fatal("Expected span.Ot to be of type *tracingtest.Span")
 			}
