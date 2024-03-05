@@ -31,11 +31,9 @@ func (*tracingFactory) NewHandler(f http.Handler, label string, opts opatracing.
 }
 
 func (tr *transport) RoundTrip(req *http.Request) (*http.Response, error) {
-    if tr.tracer == nil {
-	    return tr.wrapped.RoundTrip(req)
-    }
-
-
+	if tr.tracer == nil {
+		return tr.wrapped.RoundTrip(req)
+	}
 
 	ctx, span := tr.tracer.Start(req.Context(), "http.send")
 	defer span.End()

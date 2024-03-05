@@ -257,7 +257,7 @@ func (tb *tracerBuilder) Build(ctx context.Context) (trace.Tracer, error) {
 
 	tags := []attribute.KeyValue{
 		semconv.ServiceNameKey.String(tb.opt.ServiceName),
-		semconv.ServiceVersionKey.String(tb.opt.ServiceVersion), // ?
+		semconv.ServiceVersionKey.String(tb.opt.ServiceVersion),
 		attribute.String("environment", tb.opt.Environment),
 	}
 

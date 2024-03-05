@@ -1525,7 +1525,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.metrics.IncCounter("incoming." + r.Proto)
 	var ctx *context
 
-	rCtx, span := p.tracing.Start(r.Context(), p.tracing.initialOperationName, tracing.StartWithExtractOption(r))
+	rCtx, span := p.tracing.Start(tracing.Extract(p.tracing.Tracer, r), p.tracing.initialOperationName)
 	r = r.WithContext(rCtx)
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
