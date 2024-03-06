@@ -1272,8 +1272,16 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			return errCircuitBreakerOpen
 		}
 
+		var retryBuffer *skpio.CopyBodyStream
+		retryConfig, ok := ctx.StateBag()[filters.RetryName]
+		if ok {
+			retryBuffer = skpio.NewCopyBodyStream(int(ctx.Request().ContentLength), &bytes.Buffer{}, ctx.Request().Body)
+			ctx.Request().Body = retryBuffer
+		}
+
 		backendContext := ctx.request.Context()
 		if timeout, ok := ctx.StateBag()[filters.BackendTimeout]; ok {
+			defer ctx.cancelBackendContext()
 			backendContext, ctx.cancelBackendContext = stdlibcontext.WithTimeout(backendContext, timeout.(time.Duration))
 		}
 
@@ -1312,6 +1320,23 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 					p.applyFiltersOnError(ctx, processedFilters)
 					return perr2
 				}
+
+			} else if retryConfig != nil {
+				perr = nil
+				var perr2 *proxyError
+
+				ctx.request.Body = retryBuffer.GetBody()
+				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
+				if perr2 != nil {
+					ctx.Logger().Errorf("Failed to retry backend request by filter: %v", perr2)
+					if perr2.code >= http.StatusInternalServerError {
+						p.metrics.MeasureBackend5xx(backendStart)
+					}
+					p.makeErrorResponse(ctx, perr2)
+					p.applyFiltersOnError(ctx, processedFilters)
+					return perr2
+				}
+
 			} else {
 				p.makeErrorResponse(ctx, perr)
 				p.applyFiltersOnError(ctx, processedFilters)
@@ -1321,6 +1346,21 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 		if rsp.StatusCode >= http.StatusInternalServerError {
 			p.metrics.MeasureBackend5xx(backendStart)
+
+			if retryConfig != nil {
+				perr = nil
+				ctx.request.Body = retryBuffer.GetBody()
+				rsp, perr = p.makeBackendRequest(ctx, backendContext)
+				if perr != nil {
+					ctx.Logger().Errorf("Failed to retry backend request by filter: %v", perr)
+					if perr.code >= http.StatusInternalServerError {
+						p.metrics.MeasureBackend5xx(backendStart)
+					}
+					p.makeErrorResponse(ctx, perr)
+					p.applyFiltersOnError(ctx, processedFilters)
+					return perr
+				}
+			}
 		}
 
 		if done != nil {
