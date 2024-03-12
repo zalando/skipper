@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	"github.com/aryszka/jobqueue"
 	"github.com/zalando/skipper/filters"
@@ -491,7 +492,8 @@ func TestLifoErrors(t *testing.T) {
 	codes := make(map[string]int)
 
 	for _, span := range tracer.FindAllSpans("ingress") {
-		code := span.Attributes[tracing.HTTPStatusCodeTag].(string)
+		code := span.Attributes[string(semconv.HTTPStatusCodeKey)].(string)
+        
 
 		codes[code]++
 		c, err := strconv.Atoi(code)

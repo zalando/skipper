@@ -17,6 +17,7 @@ import (
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -384,7 +385,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if span != nil {
 		span.AddEvent("http_do", trace.WithAttributes(attribute.String("http_do", "stop")))
 		if rsp != nil {
-			span.SetAttributes(attribute.Int(tracing.HTTPStatusCodeTag, rsp.StatusCode))
+			span.SetAttributes(semconv.HTTPStatusCode(rsp.StatusCode))
 		}
 	}
 
@@ -397,8 +398,8 @@ func (t *Transport) injectSpan(req *http.Request) (*http.Request, trace.Span) {
 
 	// add Tags
 	span.SetAttributes(attribute.String(tracing.ComponentTag, t.componentName))
-	span.SetAttributes(attribute.String(tracing.HTTPUrlTag, req.URL.String()))
-	span.SetAttributes(attribute.String(tracing.HTTPMethodTag, req.Method))
+	span.SetAttributes(semconv.HTTPURL(req.URL.String()))
+	span.SetAttributes(semconv.HTTPMethod(req.Method))
 	span.SetAttributes(attribute.String(tracing.SpanKindTag, "client"))
 
 	// Isso aqui acho que era melhor extrair da struct e receber a struct pra tentar fazer a conversao dentro do pacote

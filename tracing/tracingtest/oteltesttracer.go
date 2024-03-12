@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdk "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
 	otelembedded "go.opentelemetry.io/otel/trace/embedded"
 )
@@ -206,10 +206,10 @@ func (sw *OtelSpan) RecordError(err error, options ...trace.EventOption) {
 	sw.AddEvent("error", trace.WithAttributes(attribute.String("message", err.Error())))
 }
 
-// I think this is not what I think it is.
+// TODO(lucastt): I think this is not what I think it is.
 // https://github.com/open-telemetry/opentelemetry-go/blob/main/sdk/trace/span.go#L193
 func (sw *OtelSpan) SetStatus(code codes.Code, description string) {
-	sw.SetAttributes(attribute.Int(tracing.HTTPStatusCodeTag, int(code)))
+	sw.SetAttributes(semconv.HTTPStatusCode(int(code)))
 }
 
 // Not implemented

@@ -58,6 +58,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"plugin"
 
@@ -67,6 +68,9 @@ import (
 	"github.com/zalando/skipper/tracing/tracers/jaeger"
 	"github.com/zalando/skipper/tracing/tracers/lightstep"
 	"github.com/zalando/skipper/tracing/tracers/otel"
+	otelapi "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
 	originstana "github.com/instana/go-sensor"
@@ -172,6 +176,36 @@ func LoadPlugin(pluginDir string, opts []string) (trace.Tracer, error) {
 	return tracer, nil
 }
 
+// GetSpanID retrieves SpanID from HTTP request, for example to search for this span
+// in the UI of your tracing solution and to get more context about it
+func GetSpanID(span trace.Span) string {
+	if span == nil {
+		return ""
+	}
+
+	if sw, ok := span.(*SpanWrapper); ok {
+
+		spanContext := sw.Ot.Context()
+		if spanContext == nil {
+			return ""
+		}
+
+		switch spanContextType := spanContext.(type) {
+		case origbasic.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.SpanID)
+		case originstana.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.SpanID)
+		case origjaeger.SpanContext:
+			return spanContextType.TraceID().String()
+		case origlightstep.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.SpanID)
+		}
+	}
+
+	return span.SpanContext().SpanID().String()
+}
+
+
 // GetTraceID retrieves TraceID from HTTP request, for example to search for this trace
 // in the UI of your tracing solution and to get more context about it
 func GetTraceID(span trace.Span) string {
@@ -200,3 +234,109 @@ func GetTraceID(span trace.Span) string {
 
 	return span.SpanContext().TraceID().String()
 }
+
+// SpanFromContext retrieves a span from a context, this span can either be a
+// SpanWrapper or a open telemetry SDK span.
+func SpanFromContext(ctx context.Context, tracer trace.Tracer) trace.Span {
+	_, ok := tracer.(*TracerWrapper)
+	if ok {
+		s := ot.SpanFromContext(ctx)
+		if s == nil {
+			return nil
+		}
+		return &SpanWrapper{Ot: s}
+	}
+
+	// There is a possibility that otel.SpanFromContext returns a otel.noopSpan{}
+	// This might be an unexpected behaviour to our code because ot.SpanFromContext 
+    // in the same situation would return nil.	
+    // NoopSpan has empty spanContext, to check if this is a noop span just check if TraceID/SpanID
+    // exists.
+    s := trace.SpanFromContext(ctx)
+    if !s.SpanContext().HasTraceID() {
+        return nil 
+    }
+    return s
+}
+
+// ContextWithSpan is the oposite of SpanFromContext, it will store a span into the context.
+func ContextWithSpan(ctx context.Context, span trace.Span) context.Context {
+	sw, ok := span.(*SpanWrapper)
+	if ok {
+		return ot.ContextWithSpan(ctx, sw.Ot)
+	}
+
+	return trace.ContextWithSpan(ctx, span)
+}
+
+// Extract will extract any inter-process stored in the request like previous
+// spans or baggage items created by other services and store it in the context
+// being returned.
+func Extract(tracer trace.Tracer, req *http.Request) context.Context {
+	t, ok := tracer.(*TracerWrapper)
+
+	if !ok {
+		carrier := propagation.HeaderCarrier(req.Header)
+		ctx := otelapi.GetTextMapPropagator().Extract(req.Context(), carrier)
+		return ctx
+	}
+
+	wireContext, err := t.Ot.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(req.Header))
+	if err != nil {
+		return req.Context()
+	}
+	return context.WithValue(req.Context(), wireContextKey, wireContext)
+}
+
+// Inject in the oposite of Extract. It will inject any inter-process information into a 
+// *http.Request so this information can be propagated to other services.
+func Inject(ctx context.Context, req *http.Request, span trace.Span, tracer trace.Tracer) *http.Request {
+	t, ok := tracer.(*TracerWrapper)
+	if !ok {
+		carrier := propagation.HeaderCarrier(req.Header)
+		otelapi.GetTextMapPropagator().Inject(ctx, carrier)
+		return req.WithContext(ctx)
+	}
+
+	sp, ok := span.(*SpanWrapper)
+	if !ok {
+		return req.WithContext(ctx)
+	}
+	carrier := ot.HTTPHeadersCarrier(req.Header)
+	_ = t.Ot.Inject(sp.Ot.Context(), ot.HTTPHeaders, carrier)
+
+	return req.WithContext(ot.ContextWithSpan(ctx, sp.Ot))
+}
+
+// GetBaggageMember gets a BaggageItem from the context. This works both for TracerWrapper and
+// open telemetry.
+func GetBaggageMember(ctx context.Context, span trace.Span, key string) baggage.Member {
+	sw, ok := span.(*SpanWrapper)
+	if !ok {
+		return baggage.FromContext(ctx).Member(key)
+	}
+
+	bagItem := sw.Ot.BaggageItem(key)
+	m, err := baggage.NewMemberRaw(key, bagItem)
+	if err != nil {
+		return m
+	}
+	return m
+}
+
+// SetBaggageMember sets a BaggageItem to the context. This is the oposite of GetBaggageMember.
+func SetBaggageMember(ctx context.Context, span trace.Span, key string, value string) error {
+	sw, ok := span.(*SpanWrapper)
+	if !ok {
+        member, err := baggage.NewMember(key, value)
+        if err != nil {
+            return err
+        }
+        baggage.FromContext(ctx).SetMember(member)
+        return nil
+	}
+
+    sw.Ot.SetBaggageItem(key, value)
+	return nil
+}
+
