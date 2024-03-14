@@ -18,10 +18,12 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/trace"
 	"golang.org/x/time/rate"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -454,6 +456,9 @@ type Proxy struct {
 	clientTLS                *tls.Config
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
+	flightRecorder           *trace.FlightRecorder
+	traceOnce                sync.Once
+	tooLong                  time.Duration
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -845,6 +850,15 @@ func WithParams(p Params) *Proxy {
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
+	// TODO(sszuecs): expose an option to start it
+	fr := trace.NewFlightRecorder()
+	//fr.SetPeriod(d)
+	//fr.SetSize(bytes int)
+	err := fr.Start()
+	if err != nil {
+		println("Failed to start FlightRecorder:", err.Error())
+	}
+
 	return &Proxy{
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
@@ -873,6 +887,32 @@ func WithParams(p Params) *Proxy {
 		clientTLS:                tr.TLSClientConfig,
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
+		flightRecorder:           fr,
+		traceOnce:                sync.Once{},
+		tooLong:                  250 * time.Millisecond,
+	}
+}
+
+func (p *Proxy) writeTraceIfTooSlow(ctx *context) {
+	p.log.Infof("write trace if too slow: %s > %s", time.Since(ctx.startServe), p.tooLong)
+	if time.Since(ctx.startServe) > p.tooLong {
+		p.log.Info("too slow")
+		// Do it only once for simplicitly, but you can take more than one.
+		p.traceOnce.Do(func() {
+			p.log.Info("write trace because we were too slow")
+			// Grab the snapshot.
+			var b bytes.Buffer
+			_, err := p.flightRecorder.WriteTo(&b)
+			if err != nil {
+				p.log.Errorf("Failed to write flightrecorder data: %v", err)
+				return
+			}
+			// Write it to a file.
+			if err := os.WriteFile("trace.out", b.Bytes(), 0o755); err != nil {
+				p.log.Errorf("Failed to write trace.out: %v", err)
+				return
+			}
+		})
 	}
 }
 
@@ -1023,6 +1063,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
+
+	p.writeTraceIfTooSlow(ctx)
 
 	response, err := roundTripper.RoundTrip(req)
 	if endpointMetrics != nil {
@@ -1644,6 +1686,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) Close() error {
 	close(p.quit)
 	p.registry.Close()
+	p.flightRecorder.Stop()
 	return nil
 }
 
