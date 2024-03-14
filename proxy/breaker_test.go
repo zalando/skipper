@@ -543,7 +543,7 @@ func TestBreakerMultipleHosts(t *testing.T) {
 			checkBackendHostCounter("foo", testRateWindow),
 			checkBackendHostCounter("bar", testRateWindow),
 			setBackendFail,
-			trace("setting fail"),
+			traceBreakerTest("setting fail"),
 			setBackendHostFail("foo"),
 			setBackendHostFail("bar"),
 			times(testRateFailures,
