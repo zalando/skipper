@@ -39,7 +39,7 @@ type context struct {
 	originalRequest      *http.Request
 	originalResponse     *http.Response
 	outgoingHost         string
-	outgoingDebugRequest *http.Request
+	outgoingRequest      *http.Request
 	executionCounter     int
 	startServe           time.Time
 	metrics              *filterMetrics
@@ -192,9 +192,9 @@ func (c *context) shunted() bool {
 	return c.servedWithResponse
 }
 
-func (c *context) setResponse(r *http.Response, preserveOriginal bool) {
+func (c *context) setResponse(r *http.Response) {
 	c.response = r
-	if preserveOriginal {
+	if c.proxy.flags.PreserveOriginal() {
 		c.originalResponse = cloneResponseMetadata(r)
 	}
 }
