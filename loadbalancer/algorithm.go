@@ -199,8 +199,11 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.LBEndpoints[0]
 	}
 
+	// The index returned from this call is taken from hash ring which is built from data about
+	// all endpoints, including fading in, unhealthy, etc. ones. The index stored in hash ring is
+	// the index of the endpoint in the original list of endpoints.
 	choice := ch.chooseConsistentHashEndpoint(ctx)
-	return ctx.LBEndpoints[choice]
+	return ctx.Route.LBEndpoints[choice]
 }
 
 func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext) int {
