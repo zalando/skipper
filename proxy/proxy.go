@@ -23,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/trace"
 	"golang.org/x/time/rate"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -363,6 +364,18 @@ type Params struct {
 
 	// PassiveHealthCheck defines the parameters for the healthy endpoints checker.
 	PassiveHealthCheck *PassiveHealthCheck
+
+	// FlightRecorder is a started instance of https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder
+	FlightRecorder *trace.FlightRecorder
+
+	// FlightRecorderTargetURL is the target to write the trace
+	// to. Supported targets are http URL and file URL.
+	FlightRecorderTargetURL string
+
+	// FlightRecorderPeriod is the time.Duration that is used for
+	// a slow skipper. If skipper is detected to be slow it tries
+	// to write out a trace as configured by the FlightRecorderTargetURL.
+	FlightRecorderPeriod time.Duration
 }
 
 type (
@@ -457,6 +470,10 @@ type Proxy struct {
 	clientTLS                *tls.Config
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
+	flightRecorder           *trace.FlightRecorder
+	flightRecorderURL        *url.URL
+	flightRecorderPeriod     time.Duration
+	flightRecorderCH         chan struct{}
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -847,6 +864,48 @@ func WithParams(p Params) *Proxy {
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
+
+	log := &logging.DefaultLog{}
+
+	var (
+		frURL *url.URL
+		// buffered channel size 10k to allow unblocked requests
+		frChannel = make(chan struct{}, 10240)
+	)
+	if p.FlightRecorder != nil {
+		var err error
+		frURL, err = url.Parse(p.FlightRecorderTargetURL)
+		if err != nil {
+			p.FlightRecorder.Stop()
+			p.FlightRecorder = nil
+		} else {
+			go func() {
+				d := 7 * 24 * time.Hour
+				last := time.Now().Add(-time.Hour)
+
+				for {
+					select {
+					case <-frChannel:
+						// range through all notifications until 1ms there is no notification
+						d = time.Millisecond
+						continue
+					case <-quit:
+						p.FlightRecorder.Stop()
+						return
+					case <-time.After(d):
+						if time.Since(last) >= time.Hour {
+							writeTrace(p.FlightRecorder, frURL, log, tr)
+						}
+						last = time.Now()
+
+						// reset d
+						d = 7 * 24 * time.Hour
+					}
+				}
+			}()
+		}
+	}
+
 	return &Proxy{
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
@@ -865,7 +924,7 @@ func WithParams(p Params) *Proxy {
 		maxLoops:                 p.MaxLoopbacks,
 		breakers:                 p.CircuitBreakers,
 		limiters:                 p.RateLimiters,
-		log:                      &logging.DefaultLog{},
+		log:                      log,
 		defaultHTTPStatus:        defaultHTTPStatus,
 		tracing:                  newProxyTracing(p.OpenTracing),
 		accessLogDisabled:        p.AccessLogDisabled,
@@ -874,6 +933,87 @@ func WithParams(p Params) *Proxy {
 		clientTLS:                tr.TLSClientConfig,
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
+		flightRecorder:           p.FlightRecorder,
+		flightRecorderURL:        frURL,
+		flightRecorderPeriod:     p.FlightRecorderPeriod,
+		flightRecorderCH:         frChannel,
+	}
+}
+
+func (p *Proxy) writeTraceIfTooSlow(ctx *context, span ot.Span) {
+	took := time.Since(ctx.startServe)
+	span.SetTag("proxy.took", took)
+
+	d := p.flightRecorderPeriod
+	if d < 1*time.Millisecond && d > took {
+		return
+	}
+
+	// signal too slow
+	p.flightRecorderCH <- struct{}{}
+}
+
+func writeTraceTo(log logging.Logger, flightRecorder *trace.FlightRecorder, w io.Writer) (int, error) {
+	n, err := flightRecorder.WriteTo(w)
+	if err != nil {
+		switch err {
+		case trace.ErrSnapshotActive:
+			return 0, fmt.Errorf("flightRecorder already in progress")
+		default:
+			return 0, fmt.Errorf("failed to write FlightRecorder data: %w", err)
+		}
+	} else {
+		log.Infof("FlightRecorder wrote %d bytes", n)
+	}
+
+	return n, err
+}
+
+func writeTrace(flightRecorder *trace.FlightRecorder, flightRecorderURL *url.URL, log logging.Logger, roundTripper http.RoundTripper) {
+	if flightRecorder == nil || flightRecorderURL == nil {
+		return
+	}
+
+	switch flightRecorderURL.Scheme {
+	case "file":
+		fd, err := os.Open(flightRecorderURL.Path)
+		if err != nil {
+			log.Errorf("Failed to write file %q: %v", err, flightRecorderURL.Path)
+			return
+		}
+
+		_, err = writeTraceTo(log, flightRecorder, fd)
+		if err != nil {
+			log.Errorf("Failed to write trace file %q: %v", flightRecorderURL.Path, err)
+		}
+
+	case "http", "https":
+		var b bytes.Buffer
+		_, err := writeTraceTo(log, flightRecorder, &b)
+		if err != nil {
+			log.Errorf("Failed to write trace into in-memory buffer: %v", err)
+			return
+		}
+
+		req, err := http.NewRequest("PUT", flightRecorderURL.String(), &b)
+		if err != nil {
+			log.Errorf("Failed to create request to %q to send a trace: %v", flightRecorderURL.String(), err)
+		}
+
+		rsp, err := roundTripper.RoundTrip(req)
+		if err != nil {
+			log.Errorf("Failed to write trace to %q: %v", flightRecorderURL.String(), err)
+		} else {
+			rsp.Body.Close()
+		}
+		switch rsp.StatusCode {
+		case 200, 201, 204:
+			log.Infof("Successful send of a trace to %q", flightRecorderURL.String())
+		default:
+			log.Errorf("Failed to get successful response from %s: (%d) %s", flightRecorderURL.String(), rsp.StatusCode, rsp.Status)
+		}
+	default:
+		log.Errorf("Failed to write trace, unknown FlightRecorderURL scheme %q", flightRecorderURL.Scheme)
 	}
 }
 
@@ -1019,7 +1159,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	proxySpanOpts := []ot.StartSpanOption{ot.Tags{
 		SpanKindTag: SpanKindClient,
 	}}
-	if parentSpan := ot.SpanFromContext(req.Context()); parentSpan != nil {
+	parentSpan := ot.SpanFromContext(req.Context())
+	if parentSpan != nil {
 		proxySpanOpts = append(proxySpanOpts, ot.ChildOf(parentSpan.Context()))
 	}
 	ctx.proxySpan = p.tracing.tracer.StartSpan(spanName, proxySpanOpts...)
@@ -1041,12 +1182,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
 
+	p.writeTraceIfTooSlow(ctx, parentSpan)
 	p.metrics.MeasureBackendRequestHeader(ctx.metricsHost(), snet.SizeOfRequestHeader(req))
 
 	requestStopWatch.Stop()
-
 	response, err := roundTripper.RoundTrip(req)
-
 	responseStopWatch.Start()
 
 	if endpointMetrics != nil {
