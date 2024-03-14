@@ -534,10 +534,12 @@ func endpointStartTest(
 
 		p := startProxy(t, b)
 		defer p.close()
+
 		p.addInstances(proxies)
 
 		c := startClient(t, p)
 		defer c.close()
+
 		c.warmUp()
 
 		add := randomURLs(t, addEndpoints)

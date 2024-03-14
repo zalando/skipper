@@ -143,7 +143,7 @@ func TestTracingTag(t *testing.T) {
 					t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
 				}
 			} else {
-				t.Fatal("Unexpected result of tracingtest.OtelSpan convertion. ok: %t, Span: %v", ok, mockSpan)
+				t.Fatal("Unexpected result of tracingtest.OtelSpan convertion. ok: ", ok, " Span: ", mockSpan)
 			}
 		})
 	}

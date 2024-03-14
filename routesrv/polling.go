@@ -53,7 +53,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 
 	var lastRoutesById map[string]string
 	for {
-		_, span := p.tracer.Start(context.TODO(), "poll_routes")
+		_, span := p.tracer.Start(context.Background(), "poll_routes")
 
 		routes, err := p.client.LoadAll()
 		routes = p.process(routes)
@@ -75,7 +75,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		case routesCount == 0:
 			log.Info(LogRoutesEmpty)
 			p.metrics.IncCounter("routes.empty")
-            span.SetAttributes(attribute.Int("routes.count", routesCount))
+			span.SetAttributes(attribute.Int("routes.count", routesCount))
 		case routesCount > 0:
 			routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes)
 			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})

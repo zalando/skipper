@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -114,11 +113,6 @@ func (b *ClusterLeakyBucket) getBucketId(label string) string {
 }
 
 func (b *ClusterLeakyBucket) startSpan(ctx context.Context) (context.Context, trace.Span) {
-	parent := tracing.SpanFromContext(ctx, b.ringClient.Tracer())
-	if parent == nil {
-		span := &tracing.SpanWrapper{Ot: opentracing.NoopTracer{}.StartSpan("")}
-		return ctx, span
-	}
 	ctx, span := b.ringClient.StartSpan(ctx, leakyBucketSpanName)
 	span.SetAttributes(attribute.String(tracing.ComponentTag, "skipper"))
 	span.SetAttributes(attribute.String(tracing.SpanKindTag, "client"))

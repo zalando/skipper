@@ -813,10 +813,6 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 
-	if p.OpenTracing.OtelTracer == nil && p.OpenTracing.Tracer != nil {
-		p.OpenTracing.OtelTracer = &tracing.TracerWrapper{Ot: p.OpenTracing.Tracer}
-	}
-
 	trr := newOtelTransport(tr, tracer)
 
 	return &Proxy{
@@ -862,10 +858,8 @@ func newOtelTransport(tr *http.Transport, tracer trace.Tracer) http.RoundTripper
 	}
 }
 
-// TODO(lucastt): check if this is still necessary. After all we have an inject in skipper httpclient already, why do we need to inject here too?
 func (tr *otelTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-	// TODO(lucastt): what if span == nil?
 	span := tracing.SpanFromContext(ctx, tr.tracer)
 	req = tracing.Inject(ctx, req, span, tr.tracer)
 	return tr.tr.RoundTrip(req)
@@ -1005,7 +999,6 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		setTag(ctx.proxySpan, HTTPUrlTag, u.String())
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
-	// TODO(lucastt): Another inject?
 	req = tracing.Inject(reqContext, req, ctx.proxySpan, p.tracing.Tracer)
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
@@ -1647,7 +1640,6 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s trace.Span) {
 }
 
 // TODO(sszuecs): copy from net.Client, we should refactor this to use net.Client
-// func injectClientTrace(req *http.Request, span ot.Span) *http.Request {
 func (p *Proxy) injectClientTrace(req *http.Request, span trace.Span) *http.Request {
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(httptrace.DNSStartInfo) {

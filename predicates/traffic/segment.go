@@ -1,7 +1,6 @@
 package traffic
 
 import (
-	"fmt"
 	"math/rand"
 	"net/http"
 
@@ -73,11 +72,6 @@ func (*segmentSpec) Weight() int {
 }
 
 func (p *segmentPredicate) Match(req *http.Request) bool {
-	fmt.Println("")
-	fmt.Println("")
-	fmt.Println("req.Context: ", req.Context())
-	fmt.Println("")
-	fmt.Println("")
 	r := routing.FromContext(req.Context(), randomValue, rand.Float64)
 	// min == max defines a never-matching interval and always yields false
 	return p.min <= r && r < p.max

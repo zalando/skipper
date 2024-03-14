@@ -416,7 +416,7 @@ func TestEval(t *testing.T) {
 	tracer := &tracingtest.OtelTracer{}
 	ctx, span := tracer.Start(context.Background(), "open-policy-agent")
 
-	result, err := inst.Eval(ctx, &authv3.CheckRequest{})
+	result, err := inst.Eval(ctx, tracer, &authv3.CheckRequest{})
 	assert.NoError(t, err)
 
 	allowed, err := result.IsAllowed()

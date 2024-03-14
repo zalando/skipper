@@ -5,13 +5,16 @@ package tracingtest
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	sdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
 	otelembedded "go.opentelemetry.io/otel/trace/embedded"
 )
@@ -26,7 +29,8 @@ type OtelTracer struct {
 
 	// TraceContent represents the tracing content passed along the wire.
 	// The test tracer considers it an opaque value and doesn't modify it.
-	TraceContent string
+	TraceContent   string
+	traceContentMu sync.Mutex
 }
 
 // OtelSpan is an implementation of the opentelemetry.OtelSpan interface for testing.
@@ -61,6 +65,40 @@ type OtelSpan struct {
 
 	// Tracer used to create this span
 	tracer *OtelTracer
+}
+
+type SpanContextContextKey struct{}
+
+var traceContentContextKey SpanContextContextKey
+
+type MockPropagator struct {
+	t           *testing.T
+	traceHeader string
+}
+
+func (mp *MockPropagator) Fields() []string {
+	return []string{fmt.Sprintf("%t", traceContentContextKey)}
+}
+
+func (mp *MockPropagator) Inject(ctx context.Context, carrier propagation.TextMapCarrier) {
+	val := ctx.Value(traceContentContextKey)
+	if val == nil {
+		return
+	}
+	traceContent, ok := val.(string)
+	if !ok {
+		mp.t.Fatalf("Expect traceContent to be of type string, got %t", ctx.Value(traceContentContextKey))
+		return
+	}
+	carrier.Set(mp.traceHeader, traceContent)
+}
+
+func (mp *MockPropagator) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
+	return context.WithValue(ctx, traceContentContextKey, carrier.Get(mp.traceHeader))
+}
+
+func InitPropagator(t *testing.T, traceHeader string) {
+	otel.SetTextMapPropagator(&MockPropagator{t, traceHeader})
 }
 
 func NewSpan(operation string) *OtelSpan {
@@ -107,6 +145,8 @@ func (t *OtelTracer) Reset(traceContent string) {
 
 func (t *OtelTracer) createSpanBase(traceID trace.TraceID) *OtelSpan {
 	sc := trace.SpanContext{}
+	t.traceContentMu.Lock()
+	defer t.traceContentMu.Unlock()
 	return &OtelSpan{
 		Trace:       t.TraceContent,
 		StartTime:   time.Now(),
@@ -141,7 +181,19 @@ func (t *OtelTracer) Start(c context.Context, name string, opts ...trace.SpanSta
 		s.Parent = p
 	}
 
-	return trace.ContextWithSpan(c, s), s
+	t.traceContentMu.Lock()
+	defer t.traceContentMu.Unlock()
+	if t.TraceContent == "" {
+		val := c.Value(traceContentContextKey)
+		if val != nil {
+			tc, ok := val.(string)
+			if ok {
+				t.TraceContent = tc
+			}
+		}
+	}
+
+	return trace.ContextWithSpan(context.WithValue(c, traceContentContextKey, t.TraceContent), s), s
 }
 
 // Returns all Ended spans that were created by this tracer.
@@ -195,24 +247,22 @@ func (s *OtelSpan) AddEvent(k string, opts ...trace.EventOption) {
 
 // Returns wether this is a recording Span or not. For this implementation
 // this is always true.
-func (sw *OtelSpan) IsRecording() bool {
+func (s *OtelSpan) IsRecording() bool {
 	// Is there any moment that this is false for Opentelemetry?
 	return true
 }
 
-// There are things missing here, check the sdk code.
-func (sw *OtelSpan) RecordError(err error, options ...trace.EventOption) {
-	// I don't see why we don't pass options instead of creating attributes here...
-	sw.AddEvent("error", trace.WithAttributes(attribute.String("message", err.Error())))
-}
-
-// TODO(lucastt): I think this is not what I think it is.
-// https://github.com/open-telemetry/opentelemetry-go/blob/main/sdk/trace/span.go#L193
-func (sw *OtelSpan) SetStatus(code codes.Code, description string) {
-	sw.SetAttributes(semconv.HTTPStatusCode(int(code)))
+// Record an error into the span
+func (s *OtelSpan) RecordError(err error, options ...trace.EventOption) {
+	s.AddEvent("error", trace.WithAttributes(attribute.String("message", err.Error())))
 }
 
 // Not implemented
-func (sw *OtelSpan) TracerProvider() trace.TracerProvider {
+func (s *OtelSpan) SetStatus(code codes.Code, description string) {
+	panic("SetStatus is not implemented")
+}
+
+// Not implemented
+func (s *OtelSpan) TracerProvider() trace.TracerProvider {
 	panic("The function `testtracer.Span.TracerProvider()` is not implemented")
 }

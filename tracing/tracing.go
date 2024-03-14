@@ -92,7 +92,7 @@ func InitTracer(opts []string) (tracer trace.Tracer, err error) {
 
 	switch impl {
 	case "otel":
-		ctx := context.TODO()
+		ctx := context.Background()
 		return otel.InitTracer(ctx, opts)
 	case "noop":
 		return &TracerWrapper{Ot: &ot.NoopTracer{}}, nil
@@ -205,7 +205,6 @@ func GetSpanID(span trace.Span) string {
 	return span.SpanContext().SpanID().String()
 }
 
-
 // GetTraceID retrieves TraceID from HTTP request, for example to search for this trace
 // in the UI of your tracing solution and to get more context about it
 func GetTraceID(span trace.Span) string {
@@ -232,12 +231,20 @@ func GetTraceID(span trace.Span) string {
 		}
 	}
 
-	return span.SpanContext().TraceID().String()
+	if span.SpanContext().TraceID().IsValid() {
+		return span.SpanContext().TraceID().String()
+	} else {
+		return ""
+	}
 }
 
 // SpanFromContext retrieves a span from a context, this span can either be a
 // SpanWrapper or a open telemetry SDK span.
 func SpanFromContext(ctx context.Context, tracer trace.Tracer) trace.Span {
+	if tracer == nil {
+		return nil
+	}
+
 	_, ok := tracer.(*TracerWrapper)
 	if ok {
 		s := ot.SpanFromContext(ctx)
@@ -248,19 +255,23 @@ func SpanFromContext(ctx context.Context, tracer trace.Tracer) trace.Span {
 	}
 
 	// There is a possibility that otel.SpanFromContext returns a otel.noopSpan{}
-	// This might be an unexpected behaviour to our code because ot.SpanFromContext 
-    // in the same situation would return nil.	
-    // NoopSpan has empty spanContext, to check if this is a noop span just check if TraceID/SpanID
-    // exists.
-    s := trace.SpanFromContext(ctx)
-    if !s.SpanContext().HasTraceID() {
-        return nil 
-    }
-    return s
+	// This might be an unexpected behaviour to our code because ot.SpanFromContext
+	// in the same situation would return nil.
+	// NoopSpan has empty spanContext, to check if this is a noop span just check if TraceID/SpanID
+	// exists.
+	s := trace.SpanFromContext(ctx)
+	if !s.SpanContext().HasTraceID() {
+		return nil
+	}
+	return s
 }
 
 // ContextWithSpan is the oposite of SpanFromContext, it will store a span into the context.
 func ContextWithSpan(ctx context.Context, span trace.Span) context.Context {
+	if span == nil {
+		return ctx
+	}
+
 	sw, ok := span.(*SpanWrapper)
 	if ok {
 		return ot.ContextWithSpan(ctx, sw.Ot)
@@ -273,8 +284,11 @@ func ContextWithSpan(ctx context.Context, span trace.Span) context.Context {
 // spans or baggage items created by other services and store it in the context
 // being returned.
 func Extract(tracer trace.Tracer, req *http.Request) context.Context {
-	t, ok := tracer.(*TracerWrapper)
+	if tracer == nil {
+		return req.Context()
+	}
 
+	t, ok := tracer.(*TracerWrapper)
 	if !ok {
 		carrier := propagation.HeaderCarrier(req.Header)
 		ctx := otelapi.GetTextMapPropagator().Extract(req.Context(), carrier)
@@ -288,9 +302,13 @@ func Extract(tracer trace.Tracer, req *http.Request) context.Context {
 	return context.WithValue(req.Context(), wireContextKey, wireContext)
 }
 
-// Inject in the oposite of Extract. It will inject any inter-process information into a 
+// Inject in the oposite of Extract. It will inject any inter-process information into a
 // *http.Request so this information can be propagated to other services.
 func Inject(ctx context.Context, req *http.Request, span trace.Span, tracer trace.Tracer) *http.Request {
+	if span == nil || tracer == nil {
+		return req
+	}
+
 	t, ok := tracer.(*TracerWrapper)
 	if !ok {
 		carrier := propagation.HeaderCarrier(req.Header)
@@ -325,18 +343,20 @@ func GetBaggageMember(ctx context.Context, span trace.Span, key string) baggage.
 }
 
 // SetBaggageMember sets a BaggageItem to the context. This is the oposite of GetBaggageMember.
-func SetBaggageMember(ctx context.Context, span trace.Span, key string, value string) error {
+func SetBaggageMember(ctx context.Context, span trace.Span, key string, value string) (context.Context, error) {
 	sw, ok := span.(*SpanWrapper)
 	if !ok {
-        member, err := baggage.NewMember(key, value)
-        if err != nil {
-            return err
-        }
-        baggage.FromContext(ctx).SetMember(member)
-        return nil
+		member, err := baggage.NewMember(key, value)
+		if err != nil {
+			return ctx, err
+		}
+		b, err := baggage.FromContext(ctx).SetMember(member)
+		if err != nil {
+			return ctx, err
+		}
+		return baggage.ContextWithBaggage(ctx, b), nil
 	}
 
-    sw.Ot.SetBaggageItem(key, value)
-	return nil
+	sw.Ot.SetBaggageItem(key, value)
+	return ContextWithSpan(ctx, span), nil
 }
-

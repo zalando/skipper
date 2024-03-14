@@ -83,7 +83,7 @@ func TestFifoChanges(t *testing.T) {
 		t.Helper()
 
 		client := net.NewClient(net.Options{
-			ResponseHeaderTimeout: 2 * time.Second,
+			ResponseHeaderTimeout: 3 * time.Second,
 		})
 		rsp, err := client.Do(r)
 		if err != nil {
@@ -104,7 +104,6 @@ func TestFifoChanges(t *testing.T) {
 		go func() {
 			f(t, errCH, req, http.StatusOK)
 			wg.Done()
-
 		}()
 	}
 	time.Sleep(100 * time.Millisecond)

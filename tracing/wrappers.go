@@ -3,7 +3,6 @@ package tracing
 import (
 	"context"
 	"runtime"
-	"sync"
 
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -16,6 +15,7 @@ import (
 )
 
 type otSpanContextKey struct{}
+
 var wireContextKey otSpanContextKey
 
 // TracerWrapper is a wrapper around OpenTracing tracer that implements
@@ -33,10 +33,6 @@ type TracerWrapper struct {
 // both OpenTelemetry and OpenTracing keeping retrocompatibility.
 type SpanWrapper struct {
 	otelembedded.Span
-
-    mu sync.Mutex
-
-    isRecording bool
 	Ot ot.Span
 }
 
@@ -46,20 +42,18 @@ type SpanWrapper struct {
 // but was previously supported through Open tracing in:
 // github.com/opentracing/opentracing-go/ext/tags.go
 const (
-	ComponentTag      = "component"
-	SpanKindTag       = "span.kind"
-	ErrorTag          = "error"
+	ComponentTag = "component"
+	SpanKindTag  = "span.kind"
+	ErrorTag     = "error"
 )
 
 // Start Creates a SpanWrapper adds it to Go stdlib context and finaly returns both the span and the context.
 // currently TracerWrapper.Start does not convert any Open telemetry start option to Open tracing start
 // options, the parameter 'opts' is mostly ignored.
 func (t *TracerWrapper) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	span := &SpanWrapper{
-        isRecording: true,
-    }
+	span := &SpanWrapper{}
 
-    // If the value in the wirecontext is not of type ot.SpanContext it will just be ignored.
+	// If the value in the wirecontext is not of type ot.SpanContext it will just be ignored.
 	wireContext, ok := ctx.Value(wireContextKey).(ot.SpanContext)
 	if ok && wireContext != nil {
 		span.Ot = t.Ot.StartSpan(spanName, ext.RPCServerOption(wireContext))
@@ -78,30 +72,22 @@ func (t *TracerWrapper) Start(ctx context.Context, spanName string, opts ...trac
 	return ot.ContextWithSpan(ctx, span.Ot), span
 }
 
-// AddEvent emulates OpenTelemetry span.AddEvent function by logging key:value data 
-// in a OpenTracing span within a SpanWrapper. This is done by logging both the key:value  
+// AddEvent emulates OpenTelemetry span.AddEvent function by logging key:value data
+// in a OpenTracing span within a SpanWrapper. This is done by logging both the key:value
 // passed as option and the event name as "event":"$eventName" effectivelly storing two
 // key:value pairs. For example:
 //
-//      spanwrapper.AddEvent("some event name", trace.WithAttributes("key", "value"))
+//	spanwrapper.AddEvent("some event name", trace.WithAttributes("key", "value"))
 //
 // is equivalent to:
 //
-//      otSpan.LogKV(
-//          "event", "some event name",
-//          "key", "value",
-//      )
-//
-// In case the span is not being recorded nothing will happen.
+//	otSpan.LogKV(
+//	    "event", "some event name",
+//	    "key", "value",
+//	)
 func (sw *SpanWrapper) AddEvent(eventName string, opts ...trace.EventOption) {
-    sw.mu.Lock()
-    if !sw.isRecording {
-        return
-    }
-    sw.mu.Unlock()
-
 	alternatingKV := make([]interface{}, 0)
-    alternatingKV = append(alternatingKV, "event", eventName)
+	alternatingKV = append(alternatingKV, "event", eventName)
 	ec := trace.NewEventConfig(opts...)
 	for _, attr := range ec.Attributes() {
 		alternatingKV = append(alternatingKV, string(attr.Key), attr.Value.AsInterface())
@@ -110,34 +96,31 @@ func (sw *SpanWrapper) AddEvent(eventName string, opts ...trace.EventOption) {
 	sw.Ot.LogKV(alternatingKV...)
 }
 
-// IsRecording should always return true unless the span has been ended by calling
-// spanwrapper.End()
+// IsRecording always return true. The read only behavior is not implemented in the
+// wrapper because we rely on ot.SpanFromContext behavior in many parts of the code
+// and we can't reliably store this state in the context since this read only concept
+// is not present in Open Tracing APIs.
 func (sw *SpanWrapper) IsRecording() bool {
-    sw.mu.Lock()
-    defer sw.mu.Unlock()
-	return sw.isRecording
+	return true
 }
 
 // RecordError will record err as a span event for this span. An additional call to
 // SetStatus is required if the Status of the Span should be set to Error, this method
-// does not change the Span status. If err is nil or the span is not recording this method
-// does nothing.
+// does not change the Span status. If err is nil this method does nothing.
 func (sw *SpanWrapper) RecordError(err error, options ...trace.EventOption) {
-    sw.mu.Lock()
-    if err == nil || !sw.isRecording {
-        return
-    }
-    sw.mu.Unlock()
+	if err == nil {
+		return
+	}
 
 	stackTrace := make([]byte, 2048)
 	n := runtime.Stack(stackTrace, false)
 
-    opts := append(options, trace.WithAttributes(
-        semconv.ExceptionStacktrace(string(stackTrace[0:n])),
+	opts := append(options, trace.WithAttributes(
+		semconv.ExceptionStacktrace(string(stackTrace[0:n])),
 		semconv.ExceptionMessage(err.Error())),
-    )
+	)
 
-    sw.AddEvent(semconv.ExceptionEventName, opts...)
+	sw.AddEvent(semconv.ExceptionEventName, opts...)
 }
 
 // SpanContext is not implemented. It will not fail when called but will always return
@@ -149,35 +132,21 @@ func (sw *SpanWrapper) RecordError(err error, options ...trace.EventOption) {
 // convert it to Otel types. To retrieve Span and Trace ID please use the functions
 // GetTraceID and GetSpanID defined in this package.
 func (sw *SpanWrapper) SpanContext() trace.SpanContext {
-    return trace.SpanContext{}
+	return trace.SpanContext{}
 }
 
 // SetStatus is not implemented. There is no equivalent concept in OpenTracing.
 func (sw *SpanWrapper) SetStatus(code codes.Code, description string) {
-    panic("SpanWrapper.SetStatus() is not implemented")
+	panic("SpanWrapper.SetStatus() is not implemented")
 }
 
-// SetName changes the operation name in the underlying span if the span is recording,
-// otherwise nothing will happen.
+// SetName changes the operation name in the underlying span.
 func (sw *SpanWrapper) SetName(name string) {
-    sw.mu.Lock()
-    if !sw.isRecording {
-        return
-    }
-    sw.mu.Unlock()
-
 	sw.Ot.SetOperationName(name)
 }
 
-// SetAttributes will set tags in the underlying span if the span is recording,
-// otherwise nothing will happen.
+// SetAttributes will set tags in the underlying span.
 func (sw *SpanWrapper) SetAttributes(kv ...attribute.KeyValue) {
-    sw.mu.Lock()
-    if !sw.isRecording {
-        return
-    }
-    sw.mu.Unlock()
-
 	for _, attr := range kv {
 		sw.Ot.SetTag(string(attr.Key), attr.Value.AsInterface())
 	}
@@ -188,16 +157,12 @@ func (sw *SpanWrapper) SetAttributes(kv ...attribute.KeyValue) {
 // TracerProviderWrapper would have to be created to emulate OpenTelemetry
 // behaviour in the wrapper.
 func (sw *SpanWrapper) TracerProvider() trace.TracerProvider {
-    panic("SpanWrapper.TracerProvider() is not implemented")
+	panic("SpanWrapper.TracerProvider() is not implemented")
 }
 
 // End as the name suggests will terminate the span. A terminated span can
-// still be referenced in the code, but it will not be recording any new,
-// trying to change or add data into the span will have no effect.
+// still be referenced in the code, but any state changing functions will
+// have undefined behavior.
 func (sw *SpanWrapper) End(options ...trace.SpanEndOption) {
-    sw.mu.Lock()
-    sw.isRecording = false
-    sw.mu.Unlock()
 	sw.Ot.Finish()
 }
-

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -296,7 +296,7 @@ func TestFifoWithBody(t *testing.T) {
 			rt := routing.New(ro)
 			defer rt.Close()
 			<-rt.FirstLoad()
-			tracer := trace.NewNoopTracerProvider().Tracer("noop tracer")
+			tracer := nooptrace.NewTracerProvider().Tracer("noop tracer")
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
 				OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
@@ -508,7 +508,7 @@ func TestFifo(t *testing.T) {
 			defer rt.Close()
 			<-rt.FirstLoad()
 
-			tracer := trace.NewNoopTracerProvider().Tracer("noop tracer")
+			tracer := nooptrace.NewTracerProvider().Tracer("noop tracer")
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
 				OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
@@ -635,7 +635,7 @@ func TestFifoConstantRouteUpdates(t *testing.T) {
 			rt := routing.New(ro)
 			defer rt.Close()
 			<-rt.FirstLoad()
-			tracer := trace.NewNoopTracerProvider().Tracer("noop tracer")
+			tracer := nooptrace.NewTracerProvider().Tracer("noop tracer")
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
 				OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},

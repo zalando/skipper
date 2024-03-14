@@ -60,8 +60,6 @@ type OpenPolicyAgentRegistry struct {
 	instances map[string]*OpenPolicyAgentInstance
 	lastused  map[*OpenPolicyAgentInstance]time.Time
 
-	tracer trace.Tracer
-
 	once          sync.Once
 	closed        bool
 	quit          chan struct{}

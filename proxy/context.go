@@ -34,7 +34,6 @@ type context struct {
 	deprecatedServed     bool
 	servedWithResponse   bool // to support the deprecated way independently
 	successfulUpgrade    bool
-	useOtel              bool
 	pathParams           map[string]string
 	stateBag             map[string]interface{}
 	originalRequest      *http.Request

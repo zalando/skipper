@@ -4,8 +4,7 @@ import (
 	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-
-	ot "github.com/opentracing/opentracing-go"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
@@ -68,7 +67,7 @@ func newProxyTracing(p *OpenTracingParams) *proxyTracing {
 		if p.Tracer != nil {
 			p.OtelTracer = &tracing.TracerWrapper{Ot: p.Tracer}
 		} else {
-			p.OtelTracer = &tracing.TracerWrapper{Ot: &ot.NoopTracer{}}
+			p.OtelTracer = nooptrace.NewTracerProvider().Tracer("noop tracer")
 		}
 	}
 

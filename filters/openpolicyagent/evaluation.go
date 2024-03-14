@@ -12,10 +12,12 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/server"
 	"github.com/open-policy-agent/opa/tracing"
-	"github.com/opentracing/opentracing-go"
+	skipperTacing "github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
-func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
+func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, tracer trace.Tracer, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
 
 	decisionId, err := opa.idGenerator.Generate()
 	if err != nil {
@@ -29,9 +31,9 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, err
 	}
 
-	span := opentracing.SpanFromContext(ctx)
+	span := skipperTacing.SpanFromContext(ctx, tracer)
 	if span != nil {
-		span.SetTag("opa.decision_id", result.DecisionID)
+		span.SetAttributes(attribute.String("opa.decision_id", result.DecisionID))
 	}
 
 	var input map[string]interface{}

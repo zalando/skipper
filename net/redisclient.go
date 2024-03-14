@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/opentracing/opentracing-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
-	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	rendezvous "github.com/dgryski/go-rendezvous"
@@ -206,7 +205,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		once:    sync.Once{},
 		quit:    make(chan struct{}),
 		metrics: metrics.Default,
-		tracer:  &tracing.TracerWrapper{Ot: &opentracing.NoopTracer{}},
+		tracer:  nooptrace.NewTracerProvider().Tracer("noop tracer"),
 	}
 
 	ringOptions := &redis.RingOptions{

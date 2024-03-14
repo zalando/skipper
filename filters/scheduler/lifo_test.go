@@ -493,7 +493,6 @@ func TestLifoErrors(t *testing.T) {
 
 	for _, span := range tracer.FindAllSpans("ingress") {
 		code := span.Attributes[string(semconv.HTTPStatusCodeKey)].(string)
-        
 
 		codes[code]++
 		c, err := strconv.Atoi(code)
