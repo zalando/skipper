@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -24,6 +25,31 @@ func defaultEndpointRegistry() *routing.EndpointRegistry {
 		MinRequests:                   10,
 		MaxHealthCheckDropProbability: 1.0,
 	})
+}
+
+func sendGetRequest(t *testing.T, ps *httptest.Server, consistentHashKey int) *http.Response {
+	req, err := http.NewRequest("GET", ps.URL, nil)
+	if err != nil {
+		require.NoError(t, err)
+	}
+	req.Header.Add("ConsistentHashKey", fmt.Sprintf("%d", consistentHashKey))
+
+	rsp, err := ps.Client().Do(req)
+	if err != nil {
+		require.NoError(t, err)
+	}
+	return rsp
+}
+
+func sendGetRequests(t *testing.T, ps *httptest.Server) (failed int) {
+	for i := 0; i < nRequests; i++ {
+		rsp := sendGetRequest(t, ps, i)
+		if rsp.StatusCode != http.StatusOK {
+			failed++
+		}
+		rsp.Body.Close()
+	}
+	return
 }
 
 func TestPHCWithoutRequests(t *testing.T) {
@@ -54,10 +80,7 @@ func TestPHCWithoutRequests(t *testing.T) {
 			ps := httptest.NewServer(tp.proxy)
 			defer ps.Close()
 
-			rsp, err := ps.Client().Get(ps.URL)
-			if err != nil {
-				t.Fatal(err)
-			}
+			rsp := sendGetRequest(t, ps, 0)
 			assert.Equal(t, http.StatusOK, rsp.StatusCode)
 			rsp.Body.Close()
 
@@ -87,18 +110,7 @@ func TestPHCForSingleHealthyEndpoint(t *testing.T) {
 	ps := httptest.NewServer(tp.proxy)
 	defer ps.Close()
 
-	failedReqs := 0
-	for i := 0; i < nRequests; i++ {
-		rsp, err := ps.Client().Get(ps.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if rsp.StatusCode != http.StatusOK {
-			failedReqs++
-		}
-		rsp.Body.Close()
-	}
+	failedReqs := sendGetRequests(t, ps)
 	assert.Equal(t, 0, failedReqs)
 }
 
@@ -130,24 +142,7 @@ func TestPHCForMultipleHealthyEndpoints(t *testing.T) {
 			ps := httptest.NewServer(tp.proxy)
 			defer ps.Close()
 
-			failedReqs := 0
-			for i := 0; i < nRequests; i++ {
-				req, err := http.NewRequest("GET", ps.URL, nil)
-				if err != nil {
-					t.Fatal(err)
-				}
-				req.Header.Add("ConsistentHashKey", fmt.Sprintf("%d", i))
-
-				rsp, err := ps.Client().Do(req)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if rsp.StatusCode != http.StatusOK {
-					failedReqs++
-				}
-				rsp.Body.Close()
-			}
+			failedReqs := sendGetRequests(t, ps)
 			assert.Equal(t, 0, failedReqs)
 		})
 	}
@@ -186,24 +181,7 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 			ps := httptest.NewServer(tp.proxy)
 			defer ps.Close()
 
-			failedReqs := 0
-			for i := 0; i < nRequests; i++ {
-				req, err := http.NewRequest("GET", ps.URL, nil)
-				if err != nil {
-					t.Fatal(err)
-				}
-				req.Header.Add("ConsistentHashKey", fmt.Sprintf("%d", i))
-
-				rsp, err := ps.Client().Do(req)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				if rsp.StatusCode != http.StatusOK {
-					failedReqs++
-				}
-				rsp.Body.Close()
-			}
+			failedReqs := sendGetRequests(t, ps)
 			assert.InDelta(t, 0.33*rtFailureProbability*(1.0-rtFailureProbability)*float64(nRequests), failedReqs, 0.1*float64(nRequests))
 		})
 	}
