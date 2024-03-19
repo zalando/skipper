@@ -22,6 +22,7 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/trace"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -457,6 +458,22 @@ type Options struct {
 
 	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if non zero value, deactivate with <0
 	MemProfileRate int
+
+	// EnableFlightRecorder enables trace.FlightRecorder https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder to support Go tool trace.
+	EnableFlightRecorder bool
+
+	// FlightRecorderSizeBytes set size of the FlightRecorder https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder.SetSize
+	FlightRecorderSize int
+
+	// FlightRecorderPeriod set period of the FlightRecorder https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder.SetPeriod
+	FlightRecorderPeriod time.Duration
+	// FlightRecorderProxyTookTooLong sets the global
+	// time.Duration that is the threshold of writing the trace
+	FlightRecorderProxyTookTooLong time.Duration
+
+	// FlightRecorderTargetURL is the target to write the trace
+	// to. Supported targets are http URL and file URL.
+	FlightRecorderTargetURL string
 
 	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
 	EnableDebugGcMetrics bool
@@ -1990,33 +2007,54 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	routing := routing.New(ro)
 	defer routing.Close()
 
+	var fr *trace.FlightRecorder
+	if o.EnableFlightRecorder {
+		fr = trace.NewFlightRecorder()
+		if o.FlightRecorderPeriod != 0 {
+			fr.SetPeriod(o.FlightRecorderPeriod)
+		}
+		if o.FlightRecorderSize != 0 {
+			fr.SetSize(o.FlightRecorderSize)
+		}
+		err := fr.Start()
+		if err != nil {
+			log.Errorf("Failed to start FlightRecorder: %v", err)
+			fr.Stop()
+			fr = nil
+		}
+	}
+	log.Infof("FlightRecorder enabled %v: %v", o.EnableFlightRecorder, fr)
+
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
-		Routing:                    routing,
-		EndpointRegistry:           endpointRegistry,
-		EnablePassiveHealthCheck:   passiveHealthCheckEnabled,
-		PassiveHealthCheck:         passiveHealthCheck,
-		Flags:                      proxyFlags,
-		PriorityRoutes:             o.PriorityRoutes,
-		IdleConnectionsPerHost:     o.IdleConnectionsPerHost,
-		CloseIdleConnsPeriod:       o.CloseIdleConnsPeriod,
-		FlushInterval:              o.BackendFlushInterval,
-		ExperimentalUpgrade:        o.ExperimentalUpgrade,
-		ExperimentalUpgradeAudit:   o.ExperimentalUpgradeAudit,
-		MaxLoopbacks:               o.MaxLoopbacks,
-		DefaultHTTPStatus:          o.DefaultHTTPStatus,
-		Timeout:                    o.TimeoutBackend,
-		ResponseHeaderTimeout:      o.ResponseHeaderTimeoutBackend,
-		ExpectContinueTimeout:      o.ExpectContinueTimeoutBackend,
-		KeepAlive:                  o.KeepAliveBackend,
-		DualStack:                  o.DualStackBackend,
-		TLSHandshakeTimeout:        o.TLSHandshakeTimeoutBackend,
-		MaxIdleConns:               o.MaxIdleConnsBackend,
-		DisableHTTPKeepalives:      o.DisableHTTPKeepalives,
-		AccessLogDisabled:          o.AccessLogDisabled,
-		ClientTLS:                  o.ClientTLS,
-		CustomHttpRoundTripperWrap: o.CustomHttpRoundTripperWrap,
-		RateLimiters:               ratelimitRegistry,
+		Routing:                        routing,
+		EndpointRegistry:               endpointRegistry,
+		EnablePassiveHealthCheck:       passiveHealthCheckEnabled,
+		PassiveHealthCheck:             passiveHealthCheck,
+		Flags:                          proxyFlags,
+		PriorityRoutes:                 o.PriorityRoutes,
+		IdleConnectionsPerHost:         o.IdleConnectionsPerHost,
+		CloseIdleConnsPeriod:           o.CloseIdleConnsPeriod,
+		FlushInterval:                  o.BackendFlushInterval,
+		ExperimentalUpgrade:            o.ExperimentalUpgrade,
+		ExperimentalUpgradeAudit:       o.ExperimentalUpgradeAudit,
+		MaxLoopbacks:                   o.MaxLoopbacks,
+		DefaultHTTPStatus:              o.DefaultHTTPStatus,
+		Timeout:                        o.TimeoutBackend,
+		ResponseHeaderTimeout:          o.ResponseHeaderTimeoutBackend,
+		ExpectContinueTimeout:          o.ExpectContinueTimeoutBackend,
+		KeepAlive:                      o.KeepAliveBackend,
+		DualStack:                      o.DualStackBackend,
+		TLSHandshakeTimeout:            o.TLSHandshakeTimeoutBackend,
+		MaxIdleConns:                   o.MaxIdleConnsBackend,
+		DisableHTTPKeepalives:          o.DisableHTTPKeepalives,
+		AccessLogDisabled:              o.AccessLogDisabled,
+		ClientTLS:                      o.ClientTLS,
+		CustomHttpRoundTripperWrap:     o.CustomHttpRoundTripperWrap,
+		RateLimiters:                   ratelimitRegistry,
+		FlightRecorder:                 fr,
+		FlightRecorderProxyTookTooLong: o.FlightRecorderProxyTookTooLong,
+		FlightRecorderTargetURL:        o.FlightRecorderTargetURL,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
