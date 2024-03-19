@@ -268,6 +268,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				}
 				assert.Equal(t, ti.body, string(body))
 			}))
+			defer clientServer.Close()
 
 			opaControlPlane := opasdktest.MustNewServer(
 				opasdktest.MockBundle("/bundles/"+ti.bundleName, map[string]string{
