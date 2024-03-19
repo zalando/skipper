@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"path"
 	"strings"
@@ -128,9 +127,6 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
-			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte("Welcome!"))
-			}))
 
 			opaControlPlane := opasdktest.MustNewServer(
 				opasdktest.MockBundle("/bundles/"+ti.bundleName, map[string]string{
@@ -257,7 +253,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			_, err := ftSpec.CreateFilter(filterArgs)
 			assert.NoErrorf(t, err, "error in creating filter: %v", err)
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") -> "%s"`, ti.filterName, ti.bundleName, ti.contextExtensions, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") -> <shunt>`, ti.filterName, ti.bundleName, ti.contextExtensions))
 
 			proxy := proxytest.New(fr, r...)
 			reqURL, err := url.Parse(proxy.URL)
