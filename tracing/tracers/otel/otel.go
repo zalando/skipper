@@ -201,6 +201,10 @@ func (tb *tracerBuilder) setupGRPCExporter(ctx context.Context) error {
 
 	// OpenTelemetry only supports gzip or no compression:
 	// https://github.com/open-telemetry/opentelemetry-go/blob/exporters/otlp/otlptrace/v1.17.0/exporters/otlp/otlptrace/otlptracegrpc/options.go#L91
+	if tb.opt.compressionMethod != "gzip" && len(tb.opt.compressionMethod) != 0 {
+		return fmt.Errorf("compression method %q is not supported", tb.opt.compressionMethod)
+	}
+
 	if tb.opt.compressionMethod == "gzip" {
 		clientOptions = append(clientOptions, otlptracegrpc.WithCompressor(tb.opt.compressionMethod))
 	}
@@ -229,6 +233,10 @@ func (tb *tracerBuilder) setupHTTPExporter(ctx context.Context) error {
 
 	// OpenTelemetry only supports gzip or no compression:
 	// https://github.com/open-telemetry/opentelemetry-go/blob/3c476ce1816ae6f38758e90cc36d8b77ebcc223b/exporters/otlp/otlptrace/internal/otlpconfig/optiontypes.go#L29
+	if tb.opt.compressionMethod != "gzip" && len(tb.opt.compressionMethod) != 0 {
+		return fmt.Errorf("compression method %q is not supported", tb.opt.compressionMethod)
+	}
+
 	if tb.opt.compressionMethod == "gzip" {
 		clientOptions = append(clientOptions, otlptracehttp.WithCompression(otlptracehttp.GzipCompression))
 	}
