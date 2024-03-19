@@ -22,6 +22,7 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/trace"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -74,6 +75,9 @@ import (
 const (
 	defaultSourcePollTimeout   = 30 * time.Millisecond
 	defaultRoutingUpdateBuffer = 1 << 5
+
+	defaultFlightRecorderPeriod = 1 * time.Minute
+	defaultFlightRecorderSize   = 1 << 27 // 128 MB
 )
 
 const DefaultPluginDir = "./plugins"
@@ -457,6 +461,21 @@ type Options struct {
 
 	// MemProfileRate calls runtime.SetMemProfileRate(MemProfileRate) if non zero value, deactivate with <0
 	MemProfileRate int
+
+	// FlightRecorderSizeBytes set size of the FlightRecorder https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder.SetSize
+	FlightRecorderSize int
+
+	// FlightRecorderPeriod set period of the FlightRecorder https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder.SetPeriod
+	FlightRecorderPeriod time.Duration
+
+	// FlightRecorderTargetURL is the target to write the trace
+	// to. Supported targets are http URL and file URL. Skipper
+	// will try to upload the trace data by an http PUT request to
+	// this http URL. This is required to set if you want to have
+	// trace.FlightRecorder
+	// https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder
+	// enabled to support Go tool trace.
+	FlightRecorderTargetURL string
 
 	// Flag that enables reporting of the Go garbage collector statistics exported in debug.GCStats
 	EnableDebugGcMetrics bool
@@ -2022,6 +2041,31 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	routing := routing.New(ro)
 	defer routing.Close()
 
+	var fr *trace.FlightRecorder
+	if o.FlightRecorderTargetURL != "" {
+		fr = trace.NewFlightRecorder()
+
+		if o.FlightRecorderPeriod != 0 {
+			fr.SetPeriod(o.FlightRecorderPeriod)
+		} else {
+			fr.SetPeriod(defaultFlightRecorderPeriod)
+		}
+
+		if o.FlightRecorderSize != 0 {
+			fr.SetSize(o.FlightRecorderSize)
+		} else {
+			fr.SetSize(defaultFlightRecorderSize)
+		}
+
+		err := fr.Start()
+		if err != nil {
+			log.Errorf("Failed to start FlightRecorder: %v", err)
+			fr.Stop()
+			fr = nil
+		}
+	}
+	log.Infof("FlightRecorder: %v", fr)
+
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
 		Routing:                    routing,
@@ -2050,6 +2094,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		EndpointRegistry:           endpointRegistry,
 		EnablePassiveHealthCheck:   passiveHealthCheckEnabled,
 		PassiveHealthCheck:         passiveHealthCheck,
+		FlightRecorder:             fr,
+		FlightRecorderTargetURL:    o.FlightRecorderTargetURL,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {

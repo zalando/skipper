@@ -18,7 +18,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -362,6 +361,13 @@ type Params struct {
 
 	// PassiveHealthCheck defines the parameters for the healthy endpoints checker.
 	PassiveHealthCheck *PassiveHealthCheck
+
+	// FlightRecorder is a started instance of https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder
+	FlightRecorder *trace.FlightRecorder
+
+	// FlightRecorderTargetURL is the target to write the trace
+	// to. Supported targets are http URL and file URL.
+	FlightRecorderTargetURL string
 }
 
 type (
@@ -457,8 +463,7 @@ type Proxy struct {
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
 	flightRecorder           *trace.FlightRecorder
-	traceOnce                sync.Once
-	tooLong                  time.Duration
+	flightRecorderURL        *url.URL
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -850,13 +855,15 @@ func WithParams(p Params) *Proxy {
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
-	// TODO(sszuecs): expose an option to start it
-	fr := trace.NewFlightRecorder()
-	//fr.SetPeriod(d)
-	//fr.SetSize(bytes int)
-	err := fr.Start()
-	if err != nil {
-		println("Failed to start FlightRecorder:", err.Error())
+
+	var frURL *url.URL
+	if p.FlightRecorder != nil {
+		var err error
+		frURL, err = url.Parse(p.FlightRecorderTargetURL)
+		if err != nil {
+			p.FlightRecorder.Stop()
+			p.FlightRecorder = nil
+		}
 	}
 
 	return &Proxy{
@@ -887,32 +894,62 @@ func WithParams(p Params) *Proxy {
 		clientTLS:                tr.TLSClientConfig,
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
-		flightRecorder:           fr,
-		traceOnce:                sync.Once{},
-		tooLong:                  250 * time.Millisecond,
+		flightRecorder:           p.FlightRecorder,
+		flightRecorderURL:        frURL,
 	}
 }
 
 func (p *Proxy) writeTraceIfTooSlow(ctx *context) {
-	p.log.Infof("write trace if too slow: %s > %s", time.Since(ctx.startServe), p.tooLong)
-	if time.Since(ctx.startServe) > p.tooLong {
-		p.log.Info("too slow")
-		// Do it only once for simplicitly, but you can take more than one.
-		p.traceOnce.Do(func() {
-			p.log.Info("write trace because we were too slow")
-			// Grab the snapshot.
-			var b bytes.Buffer
-			_, err := p.flightRecorder.WriteTo(&b)
+	if p.flightRecorder == nil || p.flightRecorderURL == nil {
+		return
+	}
+
+	var d time.Duration
+	if e, ok := ctx.StateBag()[filters.TraceName]; ok {
+		d = e.(time.Duration)
+	}
+	if d < 1*time.Microsecond {
+		return
+	}
+
+	p.log.Infof("write trace if too slow: %s > %s", time.Since(ctx.startServe), d)
+	if time.Since(ctx.startServe) > d {
+		var b bytes.Buffer
+		_, err := p.flightRecorder.WriteTo(&b)
+		if err != nil {
+			p.log.Errorf("Failed to write flightrecorder data: %v", err)
+			return
+		}
+
+		switch p.flightRecorderURL.Scheme {
+		case "file":
+			if err := os.WriteFile(p.flightRecorderURL.Path, b.Bytes(), 0o644); err != nil {
+				p.log.Errorf("Failed to write file trace.out: %v", err)
+				return
+			} else {
+				p.log.Infof("FlightRecorder wrote %d bytes to trace file %q", b.Len(), p.flightRecorderURL.Path)
+			}
+		case "http", "https":
+			req, err := http.NewRequest("PUT", p.flightRecorderURL.String(), &b)
 			if err != nil {
-				p.log.Errorf("Failed to write flightrecorder data: %v", err)
-				return
+				p.log.Errorf("Failed to create request to %q to send a trace: %v", p.flightRecorderURL.String(), err)
 			}
-			// Write it to a file.
-			if err := os.WriteFile("trace.out", b.Bytes(), 0o755); err != nil {
-				p.log.Errorf("Failed to write trace.out: %v", err)
-				return
+
+			rsp, err := p.roundTripper.RoundTrip(req)
+			if err != nil {
+				p.log.Errorf("Failed to write trace to %q: %v", p.flightRecorderURL.String(), err)
+			} else {
+				rsp.Body.Close()
 			}
-		})
+			switch rsp.StatusCode {
+			case 200, 201, 204:
+				p.log.Infof("Successful send of a trace to %q", p.flightRecorderURL.String())
+			default:
+				p.log.Errorf("Failed to get successful response from %s: (%d) %s", p.flightRecorderURL.String(), rsp.StatusCode, rsp.Status)
+			}
+		default:
+			p.log.Errorf("Failed to write trace, unknown FlightRecorderURL scheme %q", p.flightRecorderURL.Scheme)
+		}
 	}
 }
 
@@ -1686,7 +1723,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) Close() error {
 	close(p.quit)
 	p.registry.Close()
-	p.flightRecorder.Stop()
+	if p.flightRecorder != nil {
+		p.flightRecorder.Stop()
+	}
+
 	return nil
 }
 

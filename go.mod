@@ -49,7 +49,7 @@ require (
 	github.com/yuin/gopher-lua v1.1.1
 	go4.org/netipx v0.0.0-20220925034521-797b0c90d8ab
 	golang.org/x/crypto v0.24.0
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
+	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	golang.org/x/net v0.26.0
 	golang.org/x/oauth2 v0.21.0
 	golang.org/x/sync v0.7.0
@@ -170,7 +170,6 @@ require (
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
-	golang.org/x/exp v0.0.0-20240314144324-c7f7c6466f7f // indirect
 	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240318140521-94a12d6c2237 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
