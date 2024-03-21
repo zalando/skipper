@@ -141,6 +141,16 @@ func TestOptionsOpenTracingTracerInstanceReturnsErrorWhenNoTracerConfigIsSpecifi
 	o := Options{}
 
 	tr, err := o.tracerInstance()
+	assert.NoError(t, err)
+	assert.NotNil(t, tr)
+}
+
+func TestOptionsOpenTracingTracerInstanceReturnsErrorWhenInvalidConfigIsSpecified(t *testing.T) {
+	o := Options{
+		OpenTracing: []string{"invalid"},
+	}
+
+	tr, err := o.tracerInstance()
 	assert.Error(t, err)
 	assert.Nil(t, tr)
 }
