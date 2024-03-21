@@ -129,25 +129,19 @@ func (t *proxyTracing) startFilterTracing(operation string, ctx *context) *filte
 }
 
 func (t *filterTracing) finish() {
-	if t == nil {
-		return
+	if t != nil {
+		t.span.End()
 	}
-
-	t.span.End()
 }
 
 func (t *filterTracing) logStart(filterName string) {
-	if t == nil || !t.logEvents {
-		return
+	if t != nil && t.logEvents {
+		t.span.AddEvent(filterName, trace.WithAttributes(attribute.String(filterName, StartEvent)))
 	}
-
-	t.span.AddEvent(filterName, trace.WithAttributes(attribute.String(filterName, StartEvent)))
 }
 
 func (t *filterTracing) logEnd(filterName string) {
-	if t == nil || !t.logEvents {
-		return
+	if t != nil && t.logEvents {
+		t.span.AddEvent(filterName, trace.WithAttributes(attribute.String(filterName, EndEvent)))
 	}
-
-	t.span.AddEvent(filterName, trace.WithAttributes(attribute.String(filterName, EndEvent)))
 }

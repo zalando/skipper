@@ -10,11 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/net"
-	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
@@ -40,7 +39,7 @@ var _ tokeninfoClient = &authClient{}
 
 func newAuthClient(baseURL, spanName string, timeout time.Duration, maxIdleConns int, tracer trace.Tracer) (*authClient, error) {
 	if tracer == nil {
-		tracer = &tracing.TracerWrapper{Ot: opentracing.NoopTracer{}}
+		tracer = noop.NewTracerProvider().Tracer("Noop tracer")
 	}
 	if maxIdleConns <= 0 {
 		maxIdleConns = defaultMaxIdleConns

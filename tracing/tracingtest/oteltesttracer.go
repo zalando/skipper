@@ -156,7 +156,7 @@ func (t *OtelTracer) createSpanBase(traceID trace.TraceID) *OtelSpan {
 	}
 }
 
-// Create, start, and return a new Span with the given `operationName` if
+// Start creates, starts, and returns a new Span with the given `operationName` if
 // the provided context already has a span, creates a child span from the
 // context span. A opentelemetry compatible span and a new context with
 // the newly created span is returned.
@@ -196,7 +196,7 @@ func (t *OtelTracer) Start(c context.Context, name string, opts ...trace.SpanSta
 	return trace.ContextWithSpan(context.WithValue(c, traceContentContextKey, t.TraceContent), s), s
 }
 
-// Returns all Ended spans that were created by this tracer.
+// RecordedSpans returns all Ended spans that were created by this tracer.
 func (t *OtelTracer) RecordedSpans() []*OtelSpan {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -209,7 +209,7 @@ func (t *OtelTracer) recordSpan(span *OtelSpan) {
 	t.recordedSpans = append(t.recordedSpans, span)
 }
 
-// Sets the end timestamp and finalizes Span state.
+// End sets the end timestamp and finalizes Span state.
 func (s *OtelSpan) End(opts ...trace.SpanEndOption) {
 	s.FinishTime = time.Now()
 	if s.tracer != nil {
@@ -217,25 +217,25 @@ func (s *OtelSpan) End(opts ...trace.SpanEndOption) {
 	}
 }
 
-// SpanContext() yields the SpanContext for this Span. Note that the return
+// SpanContext yields the SpanContext for this Span. Note that the return
 // value of Context() is still valid after a call to Span.End().
 func (s *OtelSpan) SpanContext() trace.SpanContext {
 	return s.spanContext
 }
 
-// Sets or changes the operation name.
+// SetName sets or changes the operation name.
 func (s *OtelSpan) SetName(operationName string) {
 	s.OperationName = operationName
 }
 
-// Adds a tag/attribute to the span.
+// SetAttributes adds a tag/attribute to the span.
 func (s *OtelSpan) SetAttributes(kv ...attribute.KeyValue) {
 	for _, attr := range kv {
 		s.Attributes[string(attr.Key)] = attr.Value.AsInterface()
 	}
 }
 
-// Add an Event to the span
+// AddEvent add an Event to the span
 func (s *OtelSpan) AddEvent(k string, opts ...trace.EventOption) {
 	ec := trace.NewEventConfig(opts...)
 	s.Events = append(s.Events, sdk.Event{
@@ -245,24 +245,22 @@ func (s *OtelSpan) AddEvent(k string, opts ...trace.EventOption) {
 	})
 }
 
-// Returns wether this is a recording Span or not. For this implementation
+// IsRecording returns wether this is a recording Span or not. For this implementation
 // this is always true.
 func (s *OtelSpan) IsRecording() bool {
 	// Is there any moment that this is false for Opentelemetry?
 	return true
 }
 
-// Record an error into the span
+// RecordError record an error into the span
 func (s *OtelSpan) RecordError(err error, options ...trace.EventOption) {
 	s.AddEvent("error", trace.WithAttributes(attribute.String("message", err.Error())))
 }
 
-// Not implemented
 func (s *OtelSpan) SetStatus(code codes.Code, description string) {
 	panic("SetStatus is not implemented")
 }
 
-// Not implemented
 func (s *OtelSpan) TracerProvider() trace.TracerProvider {
 	panic("The function `testtracer.Span.TracerProvider()` is not implemented")
 }

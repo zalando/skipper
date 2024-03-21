@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
@@ -236,7 +237,7 @@ type Transport struct {
 func NewTransport(options Options) *Transport {
 	// set default tracer
 	if options.Tracer == nil && options.OtelTracer == nil {
-		options.OtelTracer = &tracing.TracerWrapper{Ot: &opentracing.NoopTracer{}}
+		options.OtelTracer = noop.NewTracerProvider().Tracer("Noop tracer")
 	}
 
 	if options.OtelTracer == nil && options.Tracer != nil {
@@ -402,8 +403,6 @@ func (t *Transport) injectSpan(req *http.Request) (*http.Request, trace.Span) {
 	span.SetAttributes(semconv.HTTPMethod(req.Method))
 	span.SetAttributes(attribute.String(tracing.SpanKindTag, "client"))
 
-	// Isso aqui acho que era melhor extrair da struct e receber a struct pra tentar fazer a conversao dentro do pacote
-	// Vai ficar mais limpo e assim tira a preocupacao de conversao de quem usa o wrapper.
 	req = tracing.Inject(ctx, req, span, t.tracer)
 
 	return req, span

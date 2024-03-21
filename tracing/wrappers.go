@@ -19,8 +19,8 @@ type otSpanContextKey struct{}
 var wireContextKey otSpanContextKey
 
 // TracerWrapper is a wrapper around OpenTracing tracer that implements
-// Open OpenTelemetry tracer interface, translating all calls to OpenTelemetry
-// API to OpenTracing API effectivelly enabling Skipper to operate with
+// OpenTelemetry tracer interface, translating all calls to OpenTelemetry
+// API to OpenTracing API effectively enabling Skipper to operate with
 // both OpenTelemetry and OpenTracing keeping retrocompatibility.
 type TracerWrapper struct {
 	otelembedded.Tracer
@@ -28,8 +28,8 @@ type TracerWrapper struct {
 }
 
 // SpanWrapper is a wrapper around OpenTracing span that implements
-// Open OpenTelemetry Span interface, translating all calls to OpenTelemetry
-// API to OpenTracing API effectivelly enabling Skipper to operate with
+// OpenTelemetry Span interface, translating all calls to OpenTelemetry
+// API to OpenTracing API effectively enabling Skipper to operate with
 // both OpenTelemetry and OpenTracing keeping retrocompatibility.
 type SpanWrapper struct {
 	otelembedded.Span
@@ -49,7 +49,7 @@ const (
 
 // Start Creates a SpanWrapper adds it to Go stdlib context and finaly returns both the span and the context.
 // currently TracerWrapper.Start does not convert any Open telemetry start option to Open tracing start
-// options, the parameter 'opts' is mostly ignored.
+// options, the parameter 'opts' is ignored.
 func (t *TracerWrapper) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	span := &SpanWrapper{}
 

@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -18,6 +17,7 @@ import (
 	"github.com/zalando/skipper/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 func getIntArg(a interface{}) (int, error) {
@@ -197,7 +197,7 @@ type admissionControl struct {
 func NewAdmissionControl(o Options) filters.Spec {
 	tracer := o.Tracer
 	if tracer == nil {
-		tracer = &tracing.TracerWrapper{Ot: &opentracing.NoopTracer{}}
+		tracer = noop.NewTracerProvider().Tracer("Noop tracer")
 	}
 	return &AdmissionControlSpec{
 		tracer: tracer,

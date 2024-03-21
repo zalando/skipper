@@ -882,6 +882,7 @@ func (p *Proxy) applyFiltersToRequest(f []*routing.RouteFilter, ctx *context) []
 		ctx.setMetricsPrefix(fi.Name)
 
 		fi.Request(ctx)
+
 		p.metrics.MeasureFilterRequest(fi.Name, start)
 		filterTracing.logEnd(fi.Name)
 
@@ -1024,7 +1025,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		// - for `Canceled` it could be either the same `context canceled` or `unexpected EOF` (net.OpError)
 		// - for `DeadlineExceeded` it is net.Error(timeout=true, temporary=true) wrapping this `context deadline exceeded`
 		if cerr := reqContext.Err(); cerr != nil {
-			p.tracing.logErrorEvent(ctx.proxySpan, cerr.Error())
+			p.tracing.logErrorEvent(ctx.proxySpan, ensureUTF8(cerr.Error()))
 			if cerr == stdlibcontext.Canceled {
 				return nil, &proxyError{err: cerr, code: 499}
 			} else if cerr == stdlibcontext.DeadlineExceeded {
@@ -1032,7 +1033,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 			}
 		}
 
-		p.tracing.logErrorEvent(ctx.proxySpan, err.Error())
+		p.tracing.logErrorEvent(ctx.proxySpan, ensureUTF8(err.Error()))
 		if perr, ok := err.(*proxyError); ok {
 			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
 			return nil, perr

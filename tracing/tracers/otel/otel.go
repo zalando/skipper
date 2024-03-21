@@ -98,7 +98,7 @@ func parseOptions(opts []string) (options, error) {
 			config.customHeaders = make(map[string]string)
 			err := json.Unmarshal([]byte(val), &config.customHeaders)
 			if err != nil {
-				return options{}, fmt.Errorf("failed to parse %s as key-value custom headers: %w", val, err)
+				return options{}, fmt.Errorf("failed to parse %q as key-value custom headers: %w", val, err)
 			}
 		case "service-name":
 			if val != "" {
@@ -111,32 +111,32 @@ func parseOptions(opts []string) (options, error) {
 		case "max-export-batch-size":
 			v, err := strconv.Atoi(val)
 			if err != nil {
-				return options{}, fmt.Errorf("failed to parse %s as int max-export-batch-size: %w", val, err)
+				return options{}, fmt.Errorf("failed to parse %q as int max-export-batch-size: %w", val, err)
 			}
 			config.maxExportBatchSize = v
 		case "max-span-queue-size":
 			v, err := strconv.Atoi(val)
 			if err != nil {
-				return options{}, fmt.Errorf("failed to parse %s as int max-export-batch-size: %w", val, err)
+				return options{}, fmt.Errorf("failed to parse %q as int max-export-batch-size: %w", val, err)
 			}
 			config.maxSpanQueueSize = v
 		case "batch-timeout":
 			v, err := time.ParseDuration(val)
 			if err != nil {
-				return options{}, fmt.Errorf("failed to parse %s as time.Duration min-period : %w", val, err)
+				return options{}, fmt.Errorf("failed to parse %q as time.Duration min-period : %w", val, err)
 			}
 			config.batchTimeout = v
 		case "export-timeout":
 			v, err := time.ParseDuration(val)
 			if err != nil {
-				return options{}, fmt.Errorf("failed to parse %s as time.Duration min-period : %w", val, err)
+				return options{}, fmt.Errorf("failed to parse %q as time.Duration min-period : %w", val, err)
 			}
 			config.exportTimeout = v
 		case "tag":
 			if val != "" {
 				tag, tagVal, found := strings.Cut(val, "=")
 				if !found {
-					return options{}, fmt.Errorf("missing value for tag %s", val)
+					return options{}, fmt.Errorf("missing value for tag %q", val)
 				}
 				globalTags[tag] = tagVal
 			}
@@ -151,7 +151,7 @@ func parseOptions(opts []string) (options, error) {
 
 			config.port, err = strconv.Atoi(sport)
 			if err != nil {
-				return options{}, fmt.Errorf("failed to parse %s as int: %w", sport, err)
+				return options{}, fmt.Errorf("failed to parse %q as int: %w", sport, err)
 			}
 		case "compression-method":
 			config.compressionMethod = val
@@ -159,13 +159,13 @@ func parseOptions(opts []string) (options, error) {
 			var err error
 			config.insecure, err = strconv.ParseBool(val)
 			if err != nil {
-				return options{}, fmt.Errorf("failed to parse %s as bool: %w", val, err)
+				return options{}, fmt.Errorf("failed to parse %q as bool: %w", val, err)
 			}
 		case "use-http":
 			var err error
 			config.useHTTP, err = strconv.ParseBool(val)
 			if err != nil {
-				return options{}, fmt.Errorf("failed to parse %s as bool: %w", val, err)
+				return options{}, fmt.Errorf("failed to parse %q as bool: %w", val, err)
 			}
 		}
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -1185,16 +1186,8 @@ func (o *Options) tracerInstance() (trace.Tracer, error) {
 	if len(o.OpenTracing) > 0 {
 		return tracing.InitTracer(o.OpenTracing)
 	} else {
-		// always have a tracer available, so filter authors can rely on the
-		// existence of a tracer
-		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-		if err != nil {
-			return nil, err
-		} else if tracer == nil {
-			// LoadTracingPlugin unfortunately may return nil tracer
-			return nil, fmt.Errorf("failed to load tracing plugin from %v", o.PluginDirs)
-		}
-		return tracer, nil
+		log.Warning("no tracing arguments provided, using noop tracer plugin")
+		return noop.NewTracerProvider().Tracer("noop"), nil
 	}
 }
 
@@ -1531,18 +1524,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	var tracer trace.Tracer
-	if len(o.OpenTracing) > 0 {
-		tracer, err = tracing.InitTracer(o.OpenTracing)
-		if err != nil {
-			return err
-		}
-	} else {
-		log.Warning("no tracing arguments provided, using noop tracer plugin")
-		tracer, err = tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-		if err != nil {
-			return err
-		}
+	tracer, err := o.tracerInstance()
+	if err != nil {
+		return err
 	}
 
 	// tee filters override if we have a tracer
