@@ -261,7 +261,16 @@ func (c *OAuthConfig) Init() error {
 	}
 
 	if c.GrantCookieEncoder == nil {
-		c.GrantCookieEncoder = &EncryptedCookieEncoder{config: c}
+		encryption, err := c.Secrets.GetEncrypter(secretsRefreshInternal, c.SecretFile)
+		if err != nil {
+			return err
+		}
+		c.GrantCookieEncoder = &EncryptedCookieEncoder{
+			Encryption:       encryption,
+			CookieName:       c.TokenCookieName,
+			RemoveSubdomains: *c.TokenCookieRemoveSubdomains,
+			Insecure:         c.Insecure,
+		}
 	}
 
 	c.initialized = true
