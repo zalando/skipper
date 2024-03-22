@@ -28,7 +28,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
-	"github.com/zalando/skipper/tracing/tracingtest"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,10 +126,9 @@ spec:
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracingtest.OtelTracer{}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
-		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
+		OpenTracing: &proxy.OpenTracingParams{OtelTracer: noop.NewTracerProvider().Tracer("noop")},
 	})
 	defer pr.Close()
 	lb := stdlibhttptest.NewServer(pr)
@@ -301,10 +300,9 @@ spec:
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracingtest.OtelTracer{}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
-		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
+		OpenTracing: &proxy.OpenTracingParams{OtelTracer: noop.NewTracerProvider().Tracer("noop")},
 	})
 	defer pr.Close()
 	lb := stdlibhttptest.NewServer(pr)
