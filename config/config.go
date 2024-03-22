@@ -69,55 +69,51 @@ type Config struct {
 	CompressEncodings               *listFlag      `yaml:"compress-encodings"`
 
 	// logging, metrics, profiling, tracing:
-	EnablePrometheusMetrics             bool          `yaml:"enable-prometheus-metrics"`
-	OpenTracing                         string        `yaml:"opentracing"`
-	OpenTracingInitialSpan              string        `yaml:"opentracing-initial-span"`
-	OpenTracingExcludedProxyTags        string        `yaml:"opentracing-excluded-proxy-tags"`
-	OpenTracingDisableFilterSpans       bool          `yaml:"opentracing-disable-filter-spans"`
-	OpentracingLogFilterLifecycleEvents bool          `yaml:"opentracing-log-filter-lifecycle-events"`
-	OpentracingLogStreamEvents          bool          `yaml:"opentracing-log-stream-events"`
-	OpentracingBackendNameTag           bool          `yaml:"opentracing-backend-name-tag"`
-	MetricsListener                     string        `yaml:"metrics-listener"`
-	MetricsPrefix                       string        `yaml:"metrics-prefix"`
-	EnableProfile                       bool          `yaml:"enable-profile"`
-	BlockProfileRate                    int           `yaml:"block-profile-rate"`
-	MutexProfileFraction                int           `yaml:"mutex-profile-fraction"`
-	MemProfileRate                      int           `yaml:"memory-profile-rate"`
-	EnableFlightRecorder                bool          `yaml:"enable-flight-recorder"`
-	FlightRecorderSize                  int           `yaml:"flight-recorder-size"`
-	FlightRecorderPeriod                time.Duration `yaml:"flight-recorder-period"`
-	FlightRecorderProxyTookTooLong      time.Duration `yaml:"flight-recorder-proxy-took-too-long"`
-	FlightRecorderTargetURL             string        `yaml:"flight-recorder-target-url"`
-	DebugGcMetrics                      bool          `yaml:"debug-gc-metrics"`
-	RuntimeMetrics                      bool          `yaml:"runtime-metrics"`
-	ServeRouteMetrics                   bool          `yaml:"serve-route-metrics"`
-	ServeRouteCounter                   bool          `yaml:"serve-route-counter"`
-	ServeHostMetrics                    bool          `yaml:"serve-host-metrics"`
-	ServeHostCounter                    bool          `yaml:"serve-host-counter"`
-	ServeMethodMetric                   bool          `yaml:"serve-method-metric"`
-	ServeStatusCodeMetric               bool          `yaml:"serve-status-code-metric"`
-	BackendHostMetrics                  bool          `yaml:"backend-host-metrics"`
-	AllFiltersMetrics                   bool          `yaml:"all-filters-metrics"`
-	CombinedResponseMetrics             bool          `yaml:"combined-response-metrics"`
-	RouteResponseMetrics                bool          `yaml:"route-response-metrics"`
-	RouteBackendErrorCounters           bool          `yaml:"route-backend-error-counters"`
-	RouteStreamErrorCounters            bool          `yaml:"route-stream-error-counters"`
-	RouteBackendMetrics                 bool          `yaml:"route-backend-metrics"`
-	RouteCreationMetrics                bool          `yaml:"route-creation-metrics"`
-	MetricsUseExpDecaySample            bool          `yaml:"metrics-exp-decay-sample"`
-	HistogramMetricBucketsString        string        `yaml:"histogram-metric-buckets"`
-	HistogramMetricBuckets              []float64     `yaml:"-"`
-	DisableMetricsCompat                bool          `yaml:"disable-metrics-compat"`
-	ApplicationLog                      string        `yaml:"application-log"`
-	ApplicationLogLevel                 log.Level     `yaml:"-"`
-	ApplicationLogLevelString           string        `yaml:"application-log-level"`
-	ApplicationLogPrefix                string        `yaml:"application-log-prefix"`
-	ApplicationLogJSONEnabled           bool          `yaml:"application-log-json-enabled"`
-	AccessLog                           string        `yaml:"access-log"`
-	AccessLogDisabled                   bool          `yaml:"access-log-disabled"`
-	AccessLogJSONEnabled                bool          `yaml:"access-log-json-enabled"`
-	AccessLogStripQuery                 bool          `yaml:"access-log-strip-query"`
-	SuppressRouteUpdateLogs             bool          `yaml:"suppress-route-update-logs"`
+	EnablePrometheusMetrics             bool      `yaml:"enable-prometheus-metrics"`
+	OpenTracing                         string    `yaml:"opentracing"`
+	OpenTracingInitialSpan              string    `yaml:"opentracing-initial-span"`
+	OpenTracingExcludedProxyTags        string    `yaml:"opentracing-excluded-proxy-tags"`
+	OpenTracingDisableFilterSpans       bool      `yaml:"opentracing-disable-filter-spans"`
+	OpentracingLogFilterLifecycleEvents bool      `yaml:"opentracing-log-filter-lifecycle-events"`
+	OpentracingLogStreamEvents          bool      `yaml:"opentracing-log-stream-events"`
+	OpentracingBackendNameTag           bool      `yaml:"opentracing-backend-name-tag"`
+	MetricsListener                     string    `yaml:"metrics-listener"`
+	MetricsPrefix                       string    `yaml:"metrics-prefix"`
+	EnableProfile                       bool      `yaml:"enable-profile"`
+	BlockProfileRate                    int       `yaml:"block-profile-rate"`
+	MutexProfileFraction                int       `yaml:"mutex-profile-fraction"`
+	MemProfileRate                      int       `yaml:"memory-profile-rate"`
+	FlightRecorderTargetURL             string    `yaml:"flight-recorder-target-url"`
+	DebugGcMetrics                      bool      `yaml:"debug-gc-metrics"`
+	RuntimeMetrics                      bool      `yaml:"runtime-metrics"`
+	ServeRouteMetrics                   bool      `yaml:"serve-route-metrics"`
+	ServeRouteCounter                   bool      `yaml:"serve-route-counter"`
+	ServeHostMetrics                    bool      `yaml:"serve-host-metrics"`
+	ServeHostCounter                    bool      `yaml:"serve-host-counter"`
+	ServeMethodMetric                   bool      `yaml:"serve-method-metric"`
+	ServeStatusCodeMetric               bool      `yaml:"serve-status-code-metric"`
+	BackendHostMetrics                  bool      `yaml:"backend-host-metrics"`
+	AllFiltersMetrics                   bool      `yaml:"all-filters-metrics"`
+	CombinedResponseMetrics             bool      `yaml:"combined-response-metrics"`
+	RouteResponseMetrics                bool      `yaml:"route-response-metrics"`
+	RouteBackendErrorCounters           bool      `yaml:"route-backend-error-counters"`
+	RouteStreamErrorCounters            bool      `yaml:"route-stream-error-counters"`
+	RouteBackendMetrics                 bool      `yaml:"route-backend-metrics"`
+	RouteCreationMetrics                bool      `yaml:"route-creation-metrics"`
+	MetricsUseExpDecaySample            bool      `yaml:"metrics-exp-decay-sample"`
+	HistogramMetricBucketsString        string    `yaml:"histogram-metric-buckets"`
+	HistogramMetricBuckets              []float64 `yaml:"-"`
+	DisableMetricsCompat                bool      `yaml:"disable-metrics-compat"`
+	ApplicationLog                      string    `yaml:"application-log"`
+	ApplicationLogLevel                 log.Level `yaml:"-"`
+	ApplicationLogLevelString           string    `yaml:"application-log-level"`
+	ApplicationLogPrefix                string    `yaml:"application-log-prefix"`
+	ApplicationLogJSONEnabled           bool      `yaml:"application-log-json-enabled"`
+	AccessLog                           string    `yaml:"access-log"`
+	AccessLogDisabled                   bool      `yaml:"access-log-disabled"`
+	AccessLogJSONEnabled                bool      `yaml:"access-log-json-enabled"`
+	AccessLogStripQuery                 bool      `yaml:"access-log-strip-query"`
+	SuppressRouteUpdateLogs             bool      `yaml:"suppress-route-update-logs"`
 
 	// route sources:
 	EtcdUrls           string               `yaml:"etcd-urls"`
@@ -383,10 +379,6 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.BlockProfileRate, "block-profile-rate", 0, "block profile sample rate, see runtime.SetBlockProfileRate")
 	flag.IntVar(&cfg.MutexProfileFraction, "mutex-profile-fraction", 0, "mutex profile fraction rate, see runtime.SetMutexProfileFraction")
 	flag.IntVar(&cfg.MemProfileRate, "memory-profile-rate", 0, "memory profile rate, see runtime.SetMemProfileRate, keeps default 512 kB")
-	flag.BoolVar(&cfg.EnableFlightRecorder, "enable-flight-recorder", false, "enable flightrecorder Go tracer")
-	flag.IntVar(&cfg.FlightRecorderSize, "flight-recorder-size", 0, "max flight-recorder trace data size")
-	flag.DurationVar(&cfg.FlightRecorderPeriod, "flight-recorder-period", 0, "sets the approximate time duration that the flight recorder's circular buffer represents.")
-	flag.DurationVar(&cfg.FlightRecorderProxyTookTooLong, "flight-recorder-proxy-took-too-long", 0, "sets the threshold, if proxy took longer than that the flight recorder will write out a trace.")
 	flag.StringVar(&cfg.FlightRecorderTargetURL, "flight-recorder-target-url", "", "sets the flight recorder target URL that is used to write out the trace to.")
 	flag.BoolVar(&cfg.DebugGcMetrics, "debug-gc-metrics", false, "enables reporting of the Go garbage collector statistics exported in debug.GCStats")
 	flag.BoolVar(&cfg.RuntimeMetrics, "runtime-metrics", true, "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats")
@@ -755,10 +747,6 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableProfile:                       c.EnableProfile,
 		BlockProfileRate:                    c.BlockProfileRate,
 		MutexProfileFraction:                c.MutexProfileFraction,
-		EnableFlightRecorder:                c.EnableFlightRecorder,
-		FlightRecorderSize:                  c.FlightRecorderSize,
-		FlightRecorderPeriod:                c.FlightRecorderPeriod,
-		FlightRecorderProxyTookTooLong:      c.FlightRecorderProxyTookTooLong,
 		FlightRecorderTargetURL:             c.FlightRecorderTargetURL,
 		EnableDebugGcMetrics:                c.DebugGcMetrics,
 		EnableRuntimeMetrics:                c.RuntimeMetrics,

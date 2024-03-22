@@ -324,9 +324,6 @@ type Params struct {
 	// FlightRecorderTargetURL is the target to write the trace
 	// to. Supported targets are http URL and file URL.
 	FlightRecorderTargetURL string
-
-	// FlightRecorderProxyTookTooLong defines the threshold when to write out a trace
-	FlightRecorderProxyTookTooLong time.Duration
 }
 
 type (
@@ -396,34 +393,33 @@ type PriorityRoute interface {
 // Proxy instances implement Skipper proxying functionality. For
 // initializing, see the WithParams the constructor and Params.
 type Proxy struct {
-	experimentalUpgrade            bool
-	experimentalUpgradeAudit       bool
-	accessLogDisabled              bool
-	maxLoops                       int
-	defaultHTTPStatus              int
-	routing                        *routing.Routing
-	registry                       *routing.EndpointRegistry
-	fadein                         *fadeIn
-	heathlyEndpoints               *healthyEndpoints
-	roundTripper                   http.RoundTripper
-	priorityRoutes                 []PriorityRoute
-	flags                          Flags
-	metrics                        metrics.Metrics
-	quit                           chan struct{}
-	flushInterval                  time.Duration
-	breakers                       *circuit.Registry
-	limiters                       *ratelimit.Registry
-	log                            logging.Logger
-	tracing                        *proxyTracing
-	upgradeAuditLogOut             io.Writer
-	upgradeAuditLogErr             io.Writer
-	auditLogHook                   chan struct{}
-	clientTLS                      *tls.Config
-	hostname                       string
-	onPanicSometimes               rate.Sometimes
-	flightRecorder                 *trace.FlightRecorder
-	flightRecorderURL              *url.URL
-	flightRecorderProxyTookTooLong time.Duration
+	experimentalUpgrade      bool
+	experimentalUpgradeAudit bool
+	accessLogDisabled        bool
+	maxLoops                 int
+	defaultHTTPStatus        int
+	routing                  *routing.Routing
+	registry                 *routing.EndpointRegistry
+	fadein                   *fadeIn
+	heathlyEndpoints         *healthyEndpoints
+	roundTripper             http.RoundTripper
+	priorityRoutes           []PriorityRoute
+	flags                    Flags
+	metrics                  metrics.Metrics
+	quit                     chan struct{}
+	flushInterval            time.Duration
+	breakers                 *circuit.Registry
+	limiters                 *ratelimit.Registry
+	log                      logging.Logger
+	tracing                  *proxyTracing
+	upgradeAuditLogOut       io.Writer
+	upgradeAuditLogErr       io.Writer
+	auditLogHook             chan struct{}
+	clientTLS                *tls.Config
+	hostname                 string
+	onPanicSometimes         rate.Sometimes
+	flightRecorder           *trace.FlightRecorder
+	flightRecorderURL        *url.URL
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -828,30 +824,29 @@ func WithParams(p Params) *Proxy {
 			rnd:              rand.New(loadbalancer.NewLockedSource()),
 			endpointRegistry: p.EndpointRegistry,
 		},
-		heathlyEndpoints:               healthyEndpointsChooser,
-		roundTripper:                   p.CustomHttpRoundTripperWrap(tr),
-		priorityRoutes:                 p.PriorityRoutes,
-		flags:                          p.Flags,
-		metrics:                        m,
-		quit:                           quit,
-		flushInterval:                  p.FlushInterval,
-		experimentalUpgrade:            p.ExperimentalUpgrade,
-		experimentalUpgradeAudit:       p.ExperimentalUpgradeAudit,
-		maxLoops:                       p.MaxLoopbacks,
-		breakers:                       p.CircuitBreakers,
-		limiters:                       p.RateLimiters,
-		log:                            &logging.DefaultLog{},
-		defaultHTTPStatus:              defaultHTTPStatus,
-		tracing:                        newProxyTracing(p.OpenTracing),
-		accessLogDisabled:              p.AccessLogDisabled,
-		upgradeAuditLogOut:             os.Stdout,
-		upgradeAuditLogErr:             os.Stderr,
-		clientTLS:                      tr.TLSClientConfig,
-		hostname:                       hostname,
-		onPanicSometimes:               rate.Sometimes{First: 3, Interval: 1 * time.Minute},
-		flightRecorder:                 p.FlightRecorder,
-		flightRecorderURL:              frURL,
-		flightRecorderProxyTookTooLong: p.FlightRecorderProxyTookTooLong,
+		heathlyEndpoints:         healthyEndpointsChooser,
+		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
+		priorityRoutes:           p.PriorityRoutes,
+		flags:                    p.Flags,
+		metrics:                  m,
+		quit:                     quit,
+		flushInterval:            p.FlushInterval,
+		experimentalUpgrade:      p.ExperimentalUpgrade,
+		experimentalUpgradeAudit: p.ExperimentalUpgradeAudit,
+		maxLoops:                 p.MaxLoopbacks,
+		breakers:                 p.CircuitBreakers,
+		limiters:                 p.RateLimiters,
+		log:                      &logging.DefaultLog{},
+		defaultHTTPStatus:        defaultHTTPStatus,
+		tracing:                  newProxyTracing(p.OpenTracing),
+		accessLogDisabled:        p.AccessLogDisabled,
+		upgradeAuditLogOut:       os.Stdout,
+		upgradeAuditLogErr:       os.Stderr,
+		clientTLS:                tr.TLSClientConfig,
+		hostname:                 hostname,
+		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
+		flightRecorder:           p.FlightRecorder,
+		flightRecorderURL:        frURL,
 	}
 }
 
@@ -860,7 +855,7 @@ func (p *Proxy) writeTraceIfTooSlow(ctx *context) {
 		return
 	}
 
-	d := p.flightRecorderProxyTookTooLong
+	var d time.Duration
 	if e, ok := ctx.StateBag()[filters.TraceName]; ok {
 		d = e.(time.Duration)
 	}
@@ -1668,7 +1663,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) Close() error {
 	close(p.quit)
 	p.registry.Close()
-	p.flightRecorder.Stop()
+	if p.flightRecorder != nil {
+		p.flightRecorder.Stop()
+	}
+
 	return nil
 }
 

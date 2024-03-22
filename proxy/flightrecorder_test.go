@@ -52,8 +52,20 @@ func TestFlightRecorder(t *testing.T) {
 	rr := eskip.MustParse(doc)
 
 	pr := proxytest.WithParams(fr, proxy.Params{
-		FlightRecorder: flightRecorder,
+		FlightRecorder:          flightRecorder,
+		FlightRecorderTargetURL: service.URL,
 	}, rr...)
-	_ = pr
-	pr.Client().Get(pr.URL)
+	defer pr.Close()
+
+	rsp, err := pr.Client().Get(pr.URL)
+	if err != nil {
+		t.Fatalf("Failed to GET %q: %v", pr.URL, err)
+	}
+
+	switch rsp.StatusCode {
+	case 200, 201, 204:
+		// ok
+	default:
+		t.Fatalf("Failed to get status OK: %d", rsp.StatusCode)
+	}
 }
