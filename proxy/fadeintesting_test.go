@@ -538,6 +538,7 @@ func endpointStartTest(
 
 		c := startClient(t, p)
 		defer c.close()
+
 		c.warmUp()
 
 		add := randomURLs(t, addEndpoints)

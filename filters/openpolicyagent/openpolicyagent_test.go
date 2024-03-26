@@ -13,14 +13,13 @@ import (
 	"time"
 
 	"github.com/open-policy-agent/opa/ast"
+	"github.com/open-policy-agent/opa/storage/inmem"
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	opaconf "github.com/open-policy-agent/opa/config"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
-	"github.com/open-policy-agent/opa/storage/inmem"
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -384,16 +383,23 @@ func TestTracing(t *testing.T) {
 	inst, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.NoError(t, err)
 
-	tracer := &tracingtest.Tracer{}
-	parent := tracer.StartSpan("start_span")
-	ctx := opentracing.ContextWithSpan(context.Background(), parent)
-	span, _ := inst.StartSpanFromContext(ctx)
-	span.Finish()
-	parent.Finish()
+	tracer := &tracingtest.OtelTracer{}
+	ctx, parent := tracer.Start(context.Background(), "start_span")
+	span, _ := inst.startSpanFromContextWithTracer(tracer, ctx)
+	span.End()
+	parent.End()
 
 	recspan, ok := tracer.FindSpan("open-policy-agent")
 	assert.True(t, ok, "No span was created for open policy agent")
-	assert.Equal(t, map[string]interface{}{"opa.bundle_name": "test", "opa.label.id": inst.manager.Labels()["id"], "opa.label.version": inst.manager.Labels()["version"]}, recspan.Tags)
+	assert.Equal(
+		t,
+		map[string]interface{}{
+			"opa.bundle_name":   "test",
+			"opa.label.id":      inst.manager.Labels()["id"],
+			"opa.label.version": inst.manager.Labels()["version"],
+		},
+		recspan.Attributes,
+	)
 }
 
 func TestEval(t *testing.T) {
@@ -407,21 +413,20 @@ func TestEval(t *testing.T) {
 	inst, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.NoError(t, err)
 
-	tracer := &tracingtest.Tracer{}
-	span := tracer.StartSpan("open-policy-agent")
-	ctx := opentracing.ContextWithSpan(context.Background(), span)
+	tracer := &tracingtest.OtelTracer{}
+	ctx, span := tracer.Start(context.Background(), "open-policy-agent")
 
-	result, err := inst.Eval(ctx, &authv3.CheckRequest{})
+	result, err := inst.Eval(ctx, span, &authv3.CheckRequest{})
 	assert.NoError(t, err)
 
 	allowed, err := result.IsAllowed()
 	assert.NoError(t, err)
 	assert.False(t, allowed)
 
-	span.Finish()
+	span.End()
 	testspan, ok := tracer.FindSpan("open-policy-agent")
 	assert.True(t, ok)
-	assert.Equal(t, result.DecisionID, testspan.Tags["opa.decision_id"])
+	assert.Equal(t, result.DecisionID, testspan.Attributes["opa.decision_id"])
 }
 
 func TestResponses(t *testing.T) {
@@ -435,8 +440,8 @@ func TestResponses(t *testing.T) {
 	inst, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.NoError(t, err)
 
-	tracer := &tracingtest.Tracer{}
-	span := tracer.StartSpan("open-policy-agent")
+	tracer := &tracingtest.OtelTracer{}
+	_, span := tracer.Start(context.Background(), "open-policy-agent")
 	metrics := &metricstest.MockMetrics{}
 
 	fc := &filtertest.Context{FMetrics: metrics}
@@ -447,10 +452,10 @@ func TestResponses(t *testing.T) {
 	metrics.WithCounters(func(counters map[string]int64) {
 		assert.Equal(t, int64(1), counters["decision.err.test"])
 	})
-	span.Finish()
+	span.End()
 	testspan, ok := tracer.FindSpan("open-policy-agent")
 	assert.True(t, ok, "span not found")
-	assert.Contains(t, testspan.Tags, "error")
+	assert.Contains(t, testspan.Attributes, "error")
 
 	fc = &filtertest.Context{FMetrics: metrics}
 	inst.ServeInvalidDecisionError(fc, span, nil, fmt.Errorf("something happened"))

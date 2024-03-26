@@ -4,36 +4,75 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
-func TestStateBagToTag(t *testing.T) {
+func TestStateBagToOtelAttribute(t *testing.T) {
 	req := &http.Request{Header: http.Header{}}
 
-	span := tracingtest.NewSpan("start_span")
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
-	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
+	tr := &tracingtest.OtelTracer{}
+	sCtx, span := tr.Start(req.Context(), "start_span")
+	req = req.WithContext(sCtx)
+
+	req = req.WithContext(tracing.ContextWithSpan(req.Context(), span))
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}, FTracer: tr}
 
 	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
 	require.NoError(t, err)
 
 	f.Request(ctx)
+	span.End()
 
-	assert.Equal(t, "val", span.Tags["tag"])
+	s, ok := span.(*tracingtest.OtelSpan)
+	if !ok {
+		t.Fatal("Expected *tracingtest.OtelSpan")
+	}
+	assert.Equal(t, "val", s.Attributes["tag"])
+}
+
+func TestStateBagToTag(t *testing.T) {
+	req := &http.Request{Header: http.Header{}}
+	tr := &tracing.TracerWrapper{Ot: &tracingtest.OtTracer{}}
+	sCtx, span := tr.Start(req.Context(), "start_span")
+	req = req.WithContext(sCtx)
+
+	req = req.WithContext(tracing.ContextWithSpan(req.Context(), span))
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}, FTracer: tr}
+
+	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
+	require.NoError(t, err)
+
+	f.Request(ctx)
+	span.End()
+
+	s, ok := span.(*tracing.SpanWrapper)
+	if !ok {
+		t.Fatal("Expected span to be of type *tracing.SpanWrapper")
+	}
+	otSpan, ok := s.Ot.(*tracingtest.OtSpan)
+	if !ok {
+		t.Fatal("Expected span.Ot to be of type *tracingtest.Span")
+	}
+
+	assert.Equal(t, "val", otSpan.Tags["tag"])
 }
 
 func TestStateBagToTagAllocs(t *testing.T) {
 	req := &http.Request{Header: http.Header{}}
 
-	span := tracingtest.NewSpan("start_span")
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
-	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
+	tr := noop.NewTracerProvider().Tracer("start_tracer")
+	sCtx, span := tr.Start(req.Context(), "start_span")
+	req = req.WithContext(sCtx)
+
+	req = req.WithContext(tracing.ContextWithSpan(req.Context(), span))
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}, FTracer: tr}
 
 	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
 	require.NoError(t, err)
@@ -96,14 +135,37 @@ func TestStateBagToTag_CreateFilter(t *testing.T) {
 	}
 }
 
-func BenchmarkStateBagToTag_StringValue(b *testing.B) {
+func BenchmarkStateBagToOtelAttribute_StringValue(b *testing.B) {
 	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
 	require.NoError(b, err)
 
 	span := tracingtest.NewSpan("start_span")
 
 	req := &http.Request{Header: http.Header{}}
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+	req = req.WithContext(tracing.ContextWithSpan(req.Context(), span))
+
+	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
+	f.Request(ctx)
+
+	require.Equal(b, "val", span.Attributes["tag"])
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		f.Request(ctx)
+	}
+}
+
+func BenchmarkStateBagToTag_StringValue(b *testing.B) {
+	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
+	require.NoError(b, err)
+
+	span := tracingtest.NewOtSpan("start_span")
+	sw := &tracing.SpanWrapper{Ot: span}
+
+	req := &http.Request{Header: http.Header{}}
+	req = req.WithContext(tracing.ContextWithSpan(req.Context(), sw))
 
 	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
 	f.Request(ctx)

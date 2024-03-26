@@ -9,11 +9,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/trace"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -43,10 +43,10 @@ type context struct {
 	executionCounter     int
 	startServe           time.Time
 	metrics              *filterMetrics
-	tracer               opentracing.Tracer
-	initialSpan          opentracing.Span
-	proxySpan            opentracing.Span
-	parentSpan           opentracing.Span
+	tracer               trace.Tracer
+	initialSpan          trace.Span
+	proxySpan            trace.Span
+	parentSpan           trace.Span
 	proxy                *Proxy
 	routeLookup          *routing.RouteLookup
 	cancelBackendContext stdlibcontext.CancelFunc
@@ -212,8 +212,10 @@ func (c *context) OriginalResponse() *http.Response    { return c.originalRespon
 func (c *context) OutgoingHost() string                { return c.outgoingHost }
 func (c *context) SetOutgoingHost(h string)            { c.outgoingHost = h }
 func (c *context) Metrics() filters.Metrics            { return c.metrics }
-func (c *context) Tracer() opentracing.Tracer          { return c.tracer }
-func (c *context) ParentSpan() opentracing.Span        { return c.parentSpan }
+func (c *context) Tracer() trace.Tracer                { return c.tracer }
+func (c *context) ParentSpan() trace.Span              { return c.parentSpan }
+
+func (c *context) WithRequest(r *http.Request) { c.request = r }
 
 func (c *context) Logger() filters.FilterContextLogger {
 	if c.logger == nil {
@@ -287,17 +289,19 @@ func (c *context) Split() (filters.FilterContext, error) {
 		c.Logger().Errorf("context: failed to clone request: %v", err)
 		return nil, err
 	}
-	serverSpan := opentracing.SpanFromContext(originalRequest.Context())
-	cr = cr.WithContext(opentracing.ContextWithSpan(cr.Context(), serverSpan))
+	serverSpan := tracing.SpanFromContext(originalRequest.Context(), c.tracer)
+	cr = cr.WithContext(tracing.ContextWithSpan(cr.Context(), serverSpan))
 	cr = cr.WithContext(routing.NewContext(cr.Context()))
+
 	originalRequest.Body = body
 	cc.request = cr
 	return cc, nil
 }
 
 func (c *context) Loopback() {
-	loopSpan := c.Tracer().StartSpan(c.proxy.tracing.initialOperationName, opentracing.ChildOf(c.ParentSpan().Context()))
-	defer loopSpan.Finish()
+	_, loopSpan := c.Tracer().Start(c.request.Context(), c.proxy.tracing.initialOperationName)
+
+	defer loopSpan.End()
 	err := c.proxy.do(c, loopSpan)
 	if c.response != nil && c.response.Body != nil {
 		if _, err := io.Copy(io.Discard, c.response.Body); err != nil {
@@ -310,7 +314,7 @@ func (c *context) Loopback() {
 	}
 	if c.proxySpan != nil {
 		c.proxy.tracing.setTag(c.proxySpan, "shadow", "true")
-		c.proxySpan.Finish()
+		c.proxySpan.End()
 	}
 
 	perr, ok := err.(*proxyError)

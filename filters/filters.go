@@ -8,7 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -47,6 +47,10 @@ type FilterContext interface {
 	// The incoming request object. It is forwarded to the route endpoint
 	// with its properties changed by the filters.
 	Request() *http.Request
+
+	// Set a new request object in the context. This is useful when its necessary to make small changes
+	// to the request, like set a new request context.
+	WithRequest(*http.Request)
 
 	// The response object. It is returned to the client with its
 	// properties changed by the filters.
@@ -107,11 +111,11 @@ type FilterContext interface {
 	// Allow filters to collect metrics other than the default metrics (Filter Request, Filter Response methods)
 	Metrics() Metrics
 
-	// Allow filters to add Tags, Baggage to the trace or set the ComponentName.
-	Tracer() opentracing.Tracer
+	// Allow filters to add Tags, Baggage to open tracing trace or set the ComponentName.
+	Tracer() trace.Tracer
 
-	// Allow filters to create their own spans
-	ParentSpan() opentracing.Span
+	// Allow filters to create their own open tracing spans
+	ParentSpan() trace.Span
 
 	// Returns a clone of the FilterContext including a brand new request object.
 	// The stream body of the new request is shared with the original.

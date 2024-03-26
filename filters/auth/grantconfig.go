@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/secrets"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 )
 
@@ -119,8 +119,10 @@ type OAuthConfig struct {
 	// MaxIdleConnectionsPerHost used for tokeninfo, access-token and refresh-token endpoint.
 	MaxIdleConnectionsPerHost int
 
-	// Tracer used for tokeninfo, access-token and refresh-token endpoint.
-	Tracer opentracing.Tracer
+	// Tracer is an abstraction around different tracers. Currently skipper can
+	// operate both with OpenTracing and OpenTelemetry. This tracer traces the communication
+	// with access-token and refresh-token endpoints.
+	Tracer trace.Tracer
 }
 
 var (
@@ -188,7 +190,7 @@ func (c *OAuthConfig) Init() error {
 			ResponseHeaderTimeout:   c.ConnectionTimeout,
 			TLSHandshakeTimeout:     c.ConnectionTimeout,
 			MaxIdleConnsPerHost:     c.MaxIdleConnectionsPerHost,
-			Tracer:                  c.Tracer,
+			OtelTracer:              c.Tracer,
 			OpentracingComponentTag: "skipper",
 			OpentracingSpanName:     "grantauth",
 		})

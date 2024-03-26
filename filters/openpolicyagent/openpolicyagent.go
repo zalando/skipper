@@ -27,7 +27,8 @@ import (
 	"github.com/open-policy-agent/opa/storage/inmem"
 	iCache "github.com/open-policy-agent/opa/topdown/cache"
 	opatracing "github.com/open-policy-agent/opa/tracing"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -35,7 +36,6 @@ import (
 	"github.com/zalando/skipper/filters/flowid"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal/envoy"
 	"github.com/zalando/skipper/routing"
-	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -106,6 +106,13 @@ func WithReadBodyBufferSize(n int64) func(*OpenPolicyAgentRegistry) error {
 func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.cleanInterval = interval
+		return nil
+	}
+}
+
+func WithTracer(t trace.Tracer) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		opatracing.RegisterHTTPTracing(&tracingFactory{tracer: t})
 		return nil
 	}
 }
@@ -544,35 +551,20 @@ func (opa *OpenPolicyAgentInstance) EnvoyPluginConfig() envoy.PluginConfig {
 	return defaultConfig
 }
 
-func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracing.Tracer, parent opentracing.Span, ctx context.Context) (opentracing.Span, context.Context) {
+func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr trace.Tracer, ctx context.Context) (trace.Span, context.Context) {
+	sCtx, span := tr.Start(ctx, "open-policy-agent")
 
-	var span opentracing.Span
-	if parent != nil {
-		span = tr.StartSpan("open-policy-agent", opentracing.ChildOf(parent.Context()))
-	} else {
-		span = tracing.CreateSpan("open-policy-agent", ctx, tr)
-	}
-
-	span.SetTag("opa.bundle_name", opa.bundleName)
+	span.SetAttributes(attribute.String("opa.bundle_name", opa.bundleName))
 
 	for label, value := range opa.manager.Labels() {
-		span.SetTag("opa.label."+label, value)
+		span.SetAttributes(attribute.String("opa.label."+label, value))
 	}
 
-	return span, opentracing.ContextWithSpan(ctx, span)
+	return span, sCtx
 }
 
-func (opa *OpenPolicyAgentInstance) StartSpanFromFilterContext(fc filters.FilterContext) (opentracing.Span, context.Context) {
-	return opa.startSpanFromContextWithTracer(fc.Tracer(), fc.ParentSpan(), fc.Request().Context())
-}
-
-func (opa *OpenPolicyAgentInstance) StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Context) {
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		return opa.startSpanFromContextWithTracer(span.Tracer(), span, ctx)
-	}
-
-	return opa.startSpanFromContextWithTracer(opentracing.GlobalTracer(), nil, ctx)
+func (opa *OpenPolicyAgentInstance) StartSpanFromFilterContext(fc filters.FilterContext) (trace.Span, context.Context) {
+	return opa.startSpanFromContextWithTracer(fc.Tracer(), fc.Request().Context())
 }
 
 func (opa *OpenPolicyAgentInstance) MetricsKey(key string) string {

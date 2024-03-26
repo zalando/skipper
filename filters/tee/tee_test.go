@@ -16,6 +16,7 @@ import (
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
+	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
 
@@ -202,7 +203,7 @@ func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
 
 	registry := make(filters.Registry)
 	registry.Register(WithOptions(Options{
-		Tracer:   tracer,
+		Tracer:   &tracing.TracerWrapper{Ot: tracer},
 		NoFollow: false,
 	}))
 

@@ -5,10 +5,11 @@ import (
 	"time"
 
 	"github.com/aryszka/jobqueue"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/tracing"
 )
 
 type (
@@ -320,8 +321,8 @@ func request(q *scheduler.Queue, key string, ctx filters.FilterContext) {
 
 	done, err := q.Wait()
 	if err != nil {
-		if span := opentracing.SpanFromContext(ctx.Request().Context()); span != nil {
-			ext.Error.Set(span, true)
+		if span := tracing.SpanFromContext(ctx.Request().Context(), ctx.Tracer()); span != nil {
+			span.SetAttributes(attribute.Bool(tracing.ErrorTag, true))
 		}
 		switch err {
 		case jobqueue.ErrStackFull:

@@ -20,12 +20,12 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
-	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"github.com/zalando/skipper/filters"
 	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/secrets"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 )
 
@@ -91,7 +91,7 @@ type OidcOptions struct {
 	MaxIdleConns   int
 	CookieValidity time.Duration
 	Timeout        time.Duration
-	Tracer         opentracing.Tracer
+	Tracer         trace.Tracer
 }
 
 type (
@@ -1032,7 +1032,7 @@ func (f *tokenOidcFilter) initClient() *snet.Client {
 		ResponseHeaderTimeout:   f.oidcOptions.Timeout,
 		TLSHandshakeTimeout:     f.oidcOptions.Timeout,
 		MaxIdleConnsPerHost:     f.oidcOptions.MaxIdleConns,
-		Tracer:                  f.oidcOptions.Tracer,
+		OtelTracer:              f.oidcOptions.Tracer,
 		OpentracingComponentTag: "skipper",
 		OpentracingSpanName:     "distributedClaims",
 	})

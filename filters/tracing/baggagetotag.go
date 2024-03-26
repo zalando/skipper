@@ -1,8 +1,9 @@
 package tracing
 
 import (
-	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -51,18 +52,18 @@ func NewBaggageToTagFilter() filters.Spec {
 }
 
 func (f baggageToTagFilter) Request(ctx filters.FilterContext) {
-
-	span := opentracing.SpanFromContext(ctx.Request().Context())
+	reqCtx := ctx.Request().Context()
+	span := tracing.SpanFromContext(reqCtx, ctx.Tracer())
 	if span == nil {
 		return
 	}
-	baggageItem := span.BaggageItem(f.baggageItemName)
 
-	if baggageItem == "" {
+	baggageItem := tracing.GetBaggageMember(reqCtx, span, f.baggageItemName)
+	if baggageItem.Value() == "" {
 		return
 	}
 
-	span.SetTag(f.tagName, baggageItem)
+	span.SetAttributes(attribute.String(f.tagName, baggageItem.Value()))
 }
 
 func (baggageToTagFilter) Response(ctx filters.FilterContext) {}

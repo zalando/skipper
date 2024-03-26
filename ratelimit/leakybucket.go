@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/tracing"
 )
 
 type ClusterLeakyBucket struct {
@@ -76,13 +77,13 @@ func (b *ClusterLeakyBucket) Add(ctx context.Context, label string, increment in
 	}
 
 	now := b.now()
-	span := b.startSpan(ctx)
-	defer span.Finish()
+	ctx, span := b.startSpan(ctx)
+	defer span.End()
 	defer b.metrics.MeasureSince(leakyBucketMetricLatency, now)
 
 	added, retry, err = b.add(ctx, label, increment, now)
 	if err != nil {
-		ext.Error.Set(span, true)
+		span.SetAttributes(attribute.Bool(tracing.ErrorTag, true))
 	}
 	return
 }
@@ -111,14 +112,9 @@ func (b *ClusterLeakyBucket) getBucketId(label string) string {
 	return leakyBucketRedisKeyPrefix + getHashedKey(b.labelPrefix+label)
 }
 
-func (b *ClusterLeakyBucket) startSpan(ctx context.Context) (span opentracing.Span) {
-	parent := opentracing.SpanFromContext(ctx)
-	if parent != nil {
-		span = b.ringClient.StartSpan(leakyBucketSpanName, opentracing.ChildOf(parent.Context()))
-	} else {
-		span = opentracing.NoopTracer{}.StartSpan("")
-	}
-	ext.Component.Set(span, "skipper")
-	ext.SpanKind.Set(span, "client")
-	return
+func (b *ClusterLeakyBucket) startSpan(ctx context.Context) (context.Context, trace.Span) {
+	ctx, span := b.ringClient.StartSpan(ctx, leakyBucketSpanName)
+	span.SetAttributes(attribute.String(tracing.ComponentTag, "skipper"))
+	span.SetAttributes(attribute.String(tracing.SpanKindTag, "client"))
+	return ctx, span
 }

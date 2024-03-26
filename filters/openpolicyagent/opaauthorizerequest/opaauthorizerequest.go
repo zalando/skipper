@@ -105,7 +105,7 @@ type opaAuthorizeRequestFilter struct {
 func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	req := fc.Request()
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
-	defer span.Finish()
+	defer span.End()
 
 	var rawBodyBytes []byte
 	if f.bodyParsing {
@@ -124,7 +124,7 @@ func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	authzreq := envoy.AdaptToExtAuthRequest(req, f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes)
 
 	start := time.Now()
-	result, err := f.opa.Eval(ctx, authzreq)
+	result, err := f.opa.Eval(ctx, span, authzreq)
 	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
 
 	var jsonErr *json.SyntaxError

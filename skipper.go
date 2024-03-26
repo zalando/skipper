@@ -22,6 +22,8 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -681,7 +683,12 @@ type Options struct {
 
 	// OpenTracingTracer allows pre-created tracer to be passed on to skipper. Providing the
 	// tracer instance overrides options provided under OpenTracing property.
+	// DEPRECATED use OpenTelemetryTracer instead.
 	OpenTracingTracer ot.Tracer
+
+	// OpenTelemetryTracer allows pre-created tracer to be passed on to skipper. Providing the
+	// tracer instance overrides options provided under OpenTracing property.
+	OpenTelemetryTracer trace.Tracer
 
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
@@ -1167,24 +1174,20 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	return config, nil
 }
 
-func (o *Options) openTracingTracerInstance() (ot.Tracer, error) {
+func (o *Options) tracerInstance() (trace.Tracer, error) {
+	if o.OpenTelemetryTracer != nil {
+		return o.OpenTelemetryTracer, nil
+	}
+
 	if o.OpenTracingTracer != nil {
-		return o.OpenTracingTracer, nil
+		return &tracing.TracerWrapper{Ot: o.OpenTracingTracer}, nil
 	}
 
 	if len(o.OpenTracing) > 0 {
 		return tracing.InitTracer(o.OpenTracing)
 	} else {
-		// always have a tracer available, so filter authors can rely on the
-		// existence of a tracer
-		tracer, err := tracing.LoadTracingPlugin(o.PluginDirs, []string{"noop"})
-		if err != nil {
-			return nil, err
-		} else if tracer == nil {
-			// LoadTracingPlugin unfortunately may return nil tracer
-			return nil, fmt.Errorf("failed to load tracing plugin from %v", o.PluginDirs)
-		}
-		return tracer, nil
+		log.Warning("no tracing arguments provided, using noop tracer plugin")
+		return noop.NewTracerProvider().Tracer("noop"), nil
 	}
 }
 
@@ -1521,24 +1524,26 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	tracer, err := o.openTracingTracerInstance()
+	tracer, err := o.tracerInstance()
 	if err != nil {
 		return err
 	}
 
-	// tee filters override with initialized tracer
-	o.CustomFilters = append(o.CustomFilters,
-		// tee()
-		teefilters.WithOptions(teefilters.Options{
-			Tracer:   tracer,
-			NoFollow: false,
-		}),
-		// teenf()
-		teefilters.WithOptions(teefilters.Options{
-			NoFollow: true,
-			Tracer:   tracer,
-		}),
-	)
+	// tee filters override if we have a tracer
+	if len(o.OpenTracing) > 0 {
+		o.CustomFilters = append(o.CustomFilters,
+			// tee()
+			teefilters.WithOptions(teefilters.Options{
+				Tracer:   tracer,
+				NoFollow: false,
+			}),
+			// teenf()
+			teefilters.WithOptions(teefilters.Options{
+				NoFollow: true,
+				Tracer:   tracer,
+			}),
+		)
+	}
 
 	if o.OAuthTokeninfoURL != "" {
 		tio := auth.TokeninfoOptions{
@@ -1818,7 +1823,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(
 			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
-			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval))
+			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
+			openpolicyagent.WithTracer(tracer))
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
@@ -2062,7 +2068,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	proxyParams.OpenTracing = &proxy.OpenTracingParams{
-		Tracer:             tracer,
+		OtelTracer:         tracer,
 		InitialSpan:        o.OpenTracingInitialSpan,
 		ExcludeTags:        o.OpenTracingExcludedProxyTags,
 		DisableFilterSpans: o.OpenTracingDisableFilterSpans,

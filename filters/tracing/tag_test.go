@@ -4,17 +4,17 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestTracingTagNil(t *testing.T) {
 	context := &filtertest.Context{
 		FRequest: &http.Request{},
 	}
-	context.FRequest = context.FRequest.WithContext(opentracing.ContextWithSpan(context.FRequest.Context(), nil))
+	context.FRequest = context.FRequest.WithContext(tracing.ContextWithSpan(context.FRequest.Context(), nil))
 
 	s := NewTag()
 	f, err := s.CreateFilter([]interface{}{"test_tag", "foo"})
@@ -24,7 +24,7 @@ func TestTracingTagNil(t *testing.T) {
 
 	f.Request(context)
 
-	span := opentracing.SpanFromContext(context.Request().Context())
+	span := tracing.SpanFromContext(context.Request().Context(), context.Tracer())
 	if span != nil {
 		t.Errorf("span should be nil, but is '%v'", span)
 	}
@@ -55,7 +55,7 @@ func TestTagCreateFilter(t *testing.T) {
 }
 
 func TestTracingTag(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := &tracingtest.OtelTracer{}
 
 	for _, ti := range []struct {
 		name     string
@@ -120,11 +120,11 @@ func TestTracingTag(t *testing.T) {
 	},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			span := tracer.StartSpan("proxy").(*mocktracer.MockSpan)
-			defer span.Finish()
+			ctx, span := tracer.Start(ti.context.FRequest.Context(), "proxy")
+			defer span.End()
 
 			requestContext := &filtertest.Context{
-				FRequest: ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span)),
+				FRequest: ti.context.FRequest.WithContext(ctx),
 			}
 
 			f, err := ti.spec.CreateFilter([]interface{}{"test_tag", ti.value})
@@ -138,8 +138,12 @@ func TestTracingTag(t *testing.T) {
 
 			f.Response(requestContext)
 
-			if got := span.Tag("test_tag"); got != ti.expected {
-				t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
+			if mockSpan, ok := span.(*tracingtest.OtelSpan); ok {
+				if got := mockSpan.Attributes["test_tag"]; got != ti.expected {
+					t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
+				}
+			} else {
+				t.Fatal("Unexpected result of tracingtest.OtelSpan convertion. ok: ", ok, " Span: ", mockSpan)
 			}
 		})
 	}

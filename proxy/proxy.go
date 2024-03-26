@@ -21,10 +21,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
 
 	ot "github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -120,8 +121,12 @@ const (
 )
 
 type OpenTracingParams struct {
-	// Tracer holds the tracer enabled for this proxy instance
+	// OtTracer holds the open telemetry tracer enabled for this proxy instance
+	// DEPRECATED, use TracerWrapper.
 	Tracer ot.Tracer
+
+	// OtelTracer holds the opentracing tracer enabled for this proxy instance
+	OtelTracer trace.Tracer
 
 	// InitialSpan can override the default initial, pre-routing, span name.
 	// Default: "ingress".
@@ -606,9 +611,9 @@ func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (
 		rr.Header.Add("Authorization", fmt.Sprintf("Basic %s", upBase64))
 	}
 
-	ctxspan := ot.SpanFromContext(r.Context())
+	ctxspan := tracing.SpanFromContext(r.Context(), ctx.Tracer())
 	if ctxspan != nil {
-		rr = rr.WithContext(ot.ContextWithSpan(rr.Context(), ctxspan))
+		rr = rr.WithContext(tracing.ContextWithSpan(rr.Context(), ctxspan))
 	}
 
 	if _, ok := stateBag[filters.BackendIsProxyKey]; ok {
@@ -642,13 +647,15 @@ func proxyFromContext(req *http.Request) (*url.URL, error) {
 
 type skipperDialer struct {
 	net.Dialer
-	f func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+	f      func(ctx stdlibcontext.Context, network, addr string) (net.Conn, error)
+	tracer trace.Tracer
 }
 
-func newSkipperDialer(d net.Dialer) *skipperDialer {
+func newSkipperDialer(d net.Dialer, tracer trace.Tracer) *skipperDialer {
 	return &skipperDialer{
 		Dialer: d,
 		f:      d.DialContext,
+		tracer: tracer,
 	}
 }
 
@@ -657,13 +664,14 @@ func newSkipperDialer(d net.Dialer) *skipperDialer {
 // or timeout, or a timeout from http, which is not in general
 // not possible to retry.
 func (dc *skipperDialer) DialContext(ctx stdlibcontext.Context, network, addr string) (net.Conn, error) {
-	span := ot.SpanFromContext(ctx)
+	span := tracing.SpanFromContext(ctx, dc.tracer)
+
 	if span != nil {
-		span.LogKV("dial_context", "start")
+		span.AddEvent("dial_context", trace.WithAttributes(attribute.String("dial_context", "start")))
 	}
 	con, err := dc.f(ctx, network, addr)
 	if span != nil {
-		span.LogKV("dial_context", "done")
+		span.AddEvent("dial_context", trace.WithAttributes(attribute.String("dial_context", "done")))
 	}
 	if err != nil {
 		return nil, &proxyError{
@@ -717,12 +725,20 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 
+	var tracer trace.Tracer
+	if p.OpenTracing != nil {
+		if p.OpenTracing.OtelTracer == nil && p.OpenTracing.Tracer != nil {
+			p.OpenTracing.OtelTracer = &tracing.TracerWrapper{Ot: p.OpenTracing.Tracer}
+		}
+		tracer = p.OpenTracing.OtelTracer
+	}
+
 	tr := &http.Transport{
 		DialContext: newSkipperDialer(net.Dialer{
 			Timeout:   p.Timeout,
 			KeepAlive: p.KeepAlive,
 			DualStack: p.DualStack,
-		}).DialContext,
+		}, tracer).DialContext,
 		TLSHandshakeTimeout:   p.TLSHandshakeTimeout,
 		ResponseHeaderTimeout: p.ResponseHeaderTimeout,
 		ExpectContinueTimeout: p.ExpectContinueTimeout,
@@ -796,6 +812,9 @@ func WithParams(p Params) *Proxy {
 			endpointRegistry: p.EndpointRegistry,
 		}
 	}
+
+	trr := newOtelTransport(tr, tracer)
+
 	return &Proxy{
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
@@ -804,7 +823,7 @@ func WithParams(p Params) *Proxy {
 			endpointRegistry: p.EndpointRegistry,
 		},
 		heathlyEndpoints:         healthyEndpointsChooser,
-		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
+		roundTripper:             p.CustomHttpRoundTripperWrap(trr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,
 		metrics:                  m,
@@ -825,6 +844,25 @@ func WithParams(p Params) *Proxy {
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 	}
+}
+
+type otelTransport struct {
+	tr     *http.Transport
+	tracer trace.Tracer
+}
+
+func newOtelTransport(tr *http.Transport, tracer trace.Tracer) http.RoundTripper {
+	return &otelTransport{
+		tr:     tr,
+		tracer: tracer,
+	}
+}
+
+func (tr *otelTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx := req.Context()
+	span := tracing.SpanFromContext(ctx, tr.tracer)
+	req = tracing.Inject(ctx, req, span, tr.tracer)
+	return tr.tr.RoundTrip(req)
 }
 
 // applies filters to a request
@@ -950,7 +988,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	if !ok {
 		spanName = "proxy"
 	}
-	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.tracing.tracer)
+
+	var reqContext stdlibcontext.Context
+	reqContext, ctx.proxySpan = p.tracing.Start(req.Context(), spanName)
 
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
@@ -960,34 +1000,32 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		setTag(ctx.proxySpan, HTTPUrlTag, u.String())
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
-	carrier := ot.HTTPHeadersCarrier(req.Header)
-	_ = p.tracing.tracer.Inject(ctx.proxySpan.Context(), ot.HTTPHeaders, carrier)
-
-	req = req.WithContext(ot.ContextWithSpan(req.Context(), ctx.proxySpan))
+	req = tracing.Inject(reqContext, req, ctx.proxySpan, p.tracing.Tracer)
 
 	p.metrics.IncCounter("outgoing." + req.Proto)
-	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
-	req = injectClientTrace(req, ctx.proxySpan)
+	p.tracing.logEvent(ctx.proxySpan, "http_roundtrip", StartEvent)
+	req = p.injectClientTrace(req, ctx.proxySpan)
 
 	response, err := roundTripper.RoundTrip(req)
 	if endpointMetrics != nil {
 		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
 	}
-	ctx.proxySpan.LogKV("http_roundtrip", EndEvent)
+
+	p.tracing.logEvent(ctx.proxySpan, "http_roundtrip", EndEvent)
 	if err != nil {
 		if errors.Is(err, skpio.ErrBlocked) {
-			p.tracing.setTag(ctx.proxySpan, BlockTag, true)
-			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(http.StatusBadRequest))
+			p.tracing.setTag(ctx.proxySpan, BlockTag, "true")
+			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, fmt.Sprint(uint16(http.StatusBadRequest)))
 			return nil, &proxyError{err: err, code: http.StatusBadRequest}
 		}
-		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
+		p.tracing.setTag(ctx.proxySpan, ErrorTag, "true")
 
 		// Check if the request has been cancelled or timed out
 		// The roundtrip error `err` may be different:
 		// - for `Canceled` it could be either the same `context canceled` or `unexpected EOF` (net.OpError)
 		// - for `DeadlineExceeded` it is net.Error(timeout=true, temporary=true) wrapping this `context deadline exceeded`
-		if cerr := req.Context().Err(); cerr != nil {
-			ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(cerr.Error()))
+		if cerr := reqContext.Err(); cerr != nil {
+			p.tracing.logErrorEvent(ctx.proxySpan, ensureUTF8(cerr.Error()))
 			if cerr == stdlibcontext.Canceled {
 				return nil, &proxyError{err: cerr, code: 499}
 			} else if cerr == stdlibcontext.DeadlineExceeded {
@@ -995,7 +1033,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 			}
 		}
 
-		ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(err.Error()))
+		p.tracing.logErrorEvent(ctx.proxySpan, ensureUTF8(err.Error()))
 		if perr, ok := err.(*proxyError); ok {
 			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
 			return nil, perr
@@ -1007,14 +1045,14 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 			} else {
 				status = http.StatusServiceUnavailable
 			}
-			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
+			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, fmt.Sprint(uint16(status)))
 			//lint:ignore SA1019 Temporary is deprecated in Go 1.18, but keep it for now (https://github.com/zalando/skipper/issues/1992)
 			return nil, &proxyError{err: fmt.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary='%v': %w", req.URL.Host, nerr.Timeout(), nerr.Temporary(), err), code: status}
 		}
 
 		return nil, &proxyError{err: fmt.Errorf("unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
 	}
-	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(response.StatusCode))
+	p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, fmt.Sprint(uint16(response.StatusCode)))
 	if response.Uncompressed {
 		p.metrics.IncCounter("experimental.uncompressed")
 	}
@@ -1107,7 +1145,7 @@ func stack() []byte {
 	}
 }
 
-func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
+func (p *Proxy) do(ctx *context, parentSpan trace.Span) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			p.onPanicSometimes.Do(func() {
@@ -1154,7 +1192,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		p.makeErrorResponse(ctx, errRouteLookupFailed)
 		return errRouteLookupFailed
 	}
-	parentSpan.SetTag(SkipperRouteIDTag, route.Id)
+	parentSpan.SetAttributes(attribute.String(SkipperRouteIDTag, route.Id))
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
@@ -1173,14 +1211,14 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
-		loopSpan := tracing.CreateSpan("loopback", ctx.request.Context(), p.tracing.tracer)
+		_, loopSpan := p.tracing.Start(ctx.request.Context(), "loopback")
 		p.tracing.
 			setTag(loopSpan, SpanKindTag, SpanKindServer).
 			setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
 		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
 		ctx.parentSpan = loopSpan
 
-		defer loopSpan.Finish()
+		defer loopSpan.End()
 
 		if err := p.do(loopCTX, loopSpan); err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
@@ -1208,7 +1246,10 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 		done, allow := p.checkBreaker(ctx)
 		if !allow {
-			tracing.LogKV("circuit_breaker", "open", ctx.request.Context())
+			span := tracing.SpanFromContext(ctx.request.Context(), p.tracing.Tracer)
+			if span != nil {
+				p.tracing.logEvent(span, "circuit_breaker", "open")
+			}
 			p.makeErrorResponse(ctx, errCircuitBreakerOpen)
 			p.applyFiltersOnError(ctx, processedFilters)
 			return errCircuitBreakerOpen
@@ -1236,11 +1277,14 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 			if retryable(ctx, perr) {
 				if ctx.proxySpan != nil {
-					ctx.proxySpan.Finish()
+					ctx.proxySpan.End()
 					ctx.proxySpan = nil
 				}
 
-				tracing.LogKV("retry", ctx.route.Id, ctx.Request().Context())
+				span := tracing.SpanFromContext(ctx.request.Context(), p.tracing.Tracer)
+				if span != nil {
+					p.tracing.logEvent(span, "retry", ctx.route.Id)
+				}
 
 				perr = nil
 				var perr2 *proxyError
@@ -1310,7 +1354,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.setTag(ctx.proxySpan, ClientRequestStateTag, ClientRequestCanceled)
 	}
 
-	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, uint16(ctx.response.StatusCode))
+	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, fmt.Sprint(uint16(ctx.response.StatusCode)))
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
@@ -1321,7 +1365,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
 		ctx.Logger().Debugf("error while copying the response stream: %v", err)
-		p.tracing.setTag(ctx.proxySpan, ErrorTag, true)
+		p.tracing.setTag(ctx.proxySpan, ErrorTag, "true")
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
@@ -1351,11 +1395,11 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	}
 
 	if err == errRouteLookupFailed {
-		ctx.initialSpan.LogKV("event", "error", "message", errRouteLookup.Error())
+		p.tracing.logErrorEvent(ctx.proxySpan, errRouteLookup.Error())
 	}
 
-	p.tracing.setTag(ctx.initialSpan, ErrorTag, true)
-	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, ctx.response.StatusCode)
+	p.tracing.setTag(ctx.initialSpan, ErrorTag, "true")
+	p.tracing.setTag(ctx.initialSpan, HTTPStatusCodeTag, fmt.Sprint(ctx.response.StatusCode))
 
 	if p.flags.Debug() {
 		di := &debugInfo{
@@ -1475,17 +1519,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.metrics.IncCounter("incoming." + r.Proto)
 	var ctx *context
 
-	var span ot.Span
-	if wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header)); err != nil {
-		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName)
-	} else {
-		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
-	}
+	rCtx, span := p.tracing.Start(tracing.Extract(p.tracing.Tracer, r), p.tracing.initialOperationName)
+	r = r.WithContext(rCtx)
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
-			ctx.proxySpan.Finish()
+			ctx.proxySpan.End()
 		}
-		span.Finish()
+		span.End()
 	}()
 
 	defer func() {
@@ -1531,14 +1571,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		setTag(span, SpanKindTag, SpanKindServer).
 		setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
 	p.setCommonSpanInfo(r.URL, r, span)
-	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))
 
 	ctx = newContext(lw, r, p)
 	ctx.startServe = time.Now()
-	ctx.tracer = p.tracing.tracer
-	ctx.initialSpan = span
 	ctx.parentSpan = span
+	ctx.tracer = p.tracing.Tracer
+	ctx.initialSpan = span
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -1589,7 +1628,7 @@ func (p *Proxy) Close() error {
 	return nil
 }
 
-func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
+func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s trace.Span) {
 	p.tracing.
 		setTag(s, ComponentTag, "skipper").
 		setTag(s, HTTPMethodTag, r.Method).
@@ -1602,44 +1641,44 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 }
 
 // TODO(sszuecs): copy from net.Client, we should refactor this to use net.Client
-func injectClientTrace(req *http.Request, span ot.Span) *http.Request {
+func (p *Proxy) injectClientTrace(req *http.Request, span trace.Span) *http.Request {
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(httptrace.DNSStartInfo) {
-			span.LogKV("DNS", "start")
+			p.tracing.logEvent(span, "DNS", "start")
 		},
 		DNSDone: func(httptrace.DNSDoneInfo) {
-			span.LogKV("DNS", "end")
+			p.tracing.logEvent(span, "DNS", "end")
 		},
 		ConnectStart: func(string, string) {
-			span.LogKV("connect", "start")
+			p.tracing.logEvent(span, "connect", "start")
 		},
 		ConnectDone: func(string, string, error) {
-			span.LogKV("connect", "end")
+			p.tracing.logEvent(span, "connect", "end")
 		},
 		TLSHandshakeStart: func() {
-			span.LogKV("TLS", "start")
+			p.tracing.logEvent(span, "TLS", "start")
 		},
 		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			span.LogKV("TLS", "end")
+			p.tracing.logEvent(span, "TLS", "end")
 		},
 		GetConn: func(string) {
-			span.LogKV("get_conn", "start")
+			p.tracing.logEvent(span, "get_conn", "start")
 		},
 		GotConn: func(httptrace.GotConnInfo) {
-			span.LogKV("get_conn", "end")
+			p.tracing.logEvent(span, "get_conn", "end")
 		},
 		WroteHeaders: func() {
-			span.LogKV("wrote_headers", "done")
+			p.tracing.logEvent(span, "wrote_headers", "done")
 		},
 		WroteRequest: func(wri httptrace.WroteRequestInfo) {
 			if wri.Err != nil {
-				span.LogKV("wrote_request", ensureUTF8(wri.Err.Error()))
+				p.tracing.logEvent(span, "wrote_request", ensureUTF8(wri.Err.Error()))
 			} else {
-				span.LogKV("wrote_request", "done")
+				p.tracing.logEvent(span, "wrote_request", "done")
 			}
 		},
 		GotFirstResponseByte: func() {
-			span.LogKV("got_first_byte", "done")
+			p.tracing.logEvent(span, "got_first_byte", "done")
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))

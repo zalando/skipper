@@ -3,9 +3,10 @@ package tracing
 import (
 	"fmt"
 
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -59,16 +60,12 @@ func (f *stateBagToTagFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	span := opentracing.SpanFromContext(ctx.Request().Context())
+	span := tracing.SpanFromContext(ctx.Request().Context(), ctx.Tracer())
 	if span == nil {
 		return
 	}
 
-	if _, ok := value.(string); ok {
-		span.SetTag(f.tagName, value)
-	} else {
-		span.SetTag(f.tagName, fmt.Sprint(value))
-	}
+	span.SetAttributes(attribute.String(f.tagName, fmt.Sprint(value)))
 }
 
 func (*stateBagToTagFilter) Response(ctx filters.FilterContext) {}

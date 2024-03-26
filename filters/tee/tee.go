@@ -9,11 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/net"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -46,8 +45,8 @@ type Options struct {
 	// Timeout specifies a time limit for requests made by tee filter.
 	Timeout time.Duration
 
-	// Tracer is the opentracing tracer to use in the client
-	Tracer opentracing.Tracer
+	// Tracer is the open telemetry tracer to use in the client
+	Tracer trace.Tracer
 
 	// MaxIdleConns defaults to 100
 	MaxIdleConns int
@@ -171,6 +170,7 @@ func WithOptions(o Options) filters.Spec {
 	if o.IdleConnTimeout == 0 {
 		o.IdleConnTimeout = defaultIdleConnTimeout
 	}
+
 	return &teeSpec{options: o}
 }
 
@@ -306,7 +306,7 @@ func (spec *teeSpec) CreateFilter(config []interface{}) (filters.Filter, error) 
 			MaxIdleConns:            spec.options.MaxIdleConns,
 			MaxIdleConnsPerHost:     spec.options.MaxIdleConnsPerHost,
 			IdleConnTimeout:         spec.options.IdleConnTimeout,
-			Tracer:                  spec.options.Tracer,
+			OtelTracer:              spec.options.Tracer,
 			OpentracingComponentTag: "skipper",
 			OpentracingSpanName:     spec.Name(),
 		})

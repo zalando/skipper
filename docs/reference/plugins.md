@@ -430,17 +430,10 @@ func (g *geoip) Match(r *http.Request) bool {
 }
 ```
 
-## OpenTracing plugins
+## Tracing plugins
 
 The tracers, except for `noop`, are built as Go Plugins. A tracing plugin can
 be loaded with `-opentracing NAME` as parameter to skipper.
-
-Implementations of OpenTracing API can be found in the
-https://github.com/skipper-plugins/opentracing repository.
-
-All plugins must have a function named `InitTracer` with the following signature
-
-    func([]string) (opentracing.Tracer, error)
 
 The parameters passed are all arguments for the plugin, i.e. everything after the first
 word from skipper's -opentracing parameter. E.g. when the -opentracing parameter is
@@ -451,6 +444,24 @@ word from skipper's -opentracing parameter. E.g. when the -opentracing parameter
 as arguments.
 
 The tracer plugin implementation is responsible to parse the received arguments.
+
+Tracer plugins need to follow either OpenTelemetry specification or OpenTracing specification. OpenTelemetry is preferable since OpenTracing will be deprecated in the next few months.
+
+### OpenTelemetry
+
+All opentelemetry plugins must have a function named `InitTracer` with the following signature
+
+    func([]string) (opentelemetry.Tracer, error)
+
+### OpenTracing
+
+Implementations of OpenTracing API can be found in the
+https://github.com/skipper-plugins/opentracing repository.
+
+All opentracing plugins must have a function named `InitTracer` with the following signature
+
+    func([]string) (opentracing.Tracer, error)
+
 
 An example plugin looks like
 ```go
