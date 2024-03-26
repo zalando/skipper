@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -477,9 +478,15 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 	return hh
 }
 
-type flusher struct {
-	w flushedResponseWriter
-}
+type (
+	flushWriter interface {
+		io.Writer
+		http.Flusher
+	}
+	flusher struct {
+		w flushWriter
+	}
+)
 
 func (f *flusher) Write(p []byte) (n int, err error) {
 	n, err = f.w.Write(p)
@@ -489,10 +496,18 @@ func (f *flusher) Write(p []byte) (n int, err error) {
 	return
 }
 
-func copyStream(to flushedResponseWriter, from io.Reader) (int64, error) {
-	b := make([]byte, proxyBufferSize)
+var bufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, proxyBufferSize)
+		return &b
+	},
+}
 
-	return io.CopyBuffer(&flusher{to}, from, b)
+func copyStream(to flushWriter, from io.Reader) (int64, error) {
+	b := bufPool.Get().(*[]byte)
+	defer bufPool.Put(b)
+
+	return io.CopyBuffer(&flusher{to}, from, *b)
 }
 
 func schemeFromRequest(r *http.Request) string {
