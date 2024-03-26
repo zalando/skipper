@@ -83,6 +83,7 @@ type Config struct {
 	BlockProfileRate                    int       `yaml:"block-profile-rate"`
 	MutexProfileFraction                int       `yaml:"mutex-profile-fraction"`
 	MemProfileRate                      int       `yaml:"memory-profile-rate"`
+	FlightRecorderTargetURL             string    `yaml:"flight-recorder-target-url"`
 	DebugGcMetrics                      bool      `yaml:"debug-gc-metrics"`
 	RuntimeMetrics                      bool      `yaml:"runtime-metrics"`
 	ServeRouteMetrics                   bool      `yaml:"serve-route-metrics"`
@@ -378,6 +379,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.BlockProfileRate, "block-profile-rate", 0, "block profile sample rate, see runtime.SetBlockProfileRate")
 	flag.IntVar(&cfg.MutexProfileFraction, "mutex-profile-fraction", 0, "mutex profile fraction rate, see runtime.SetMutexProfileFraction")
 	flag.IntVar(&cfg.MemProfileRate, "memory-profile-rate", 0, "memory profile rate, see runtime.SetMemProfileRate, keeps default 512 kB")
+	flag.StringVar(&cfg.FlightRecorderTargetURL, "flight-recorder-target-url", "", "sets the flight recorder target URL that is used to write out the trace to.")
 	flag.BoolVar(&cfg.DebugGcMetrics, "debug-gc-metrics", false, "enables reporting of the Go garbage collector statistics exported in debug.GCStats")
 	flag.BoolVar(&cfg.RuntimeMetrics, "runtime-metrics", true, "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats")
 	flag.BoolVar(&cfg.ServeRouteMetrics, "serve-route-metrics", false, "enables reporting total serve time metrics for each route")
@@ -745,6 +747,7 @@ func (c *Config) ToOptions() skipper.Options {
 		EnableProfile:                       c.EnableProfile,
 		BlockProfileRate:                    c.BlockProfileRate,
 		MutexProfileFraction:                c.MutexProfileFraction,
+		FlightRecorderTargetURL:             c.FlightRecorderTargetURL,
 		EnableDebugGcMetrics:                c.DebugGcMetrics,
 		EnableRuntimeMetrics:                c.RuntimeMetrics,
 		EnableServeRouteMetrics:             c.ServeRouteMetrics,

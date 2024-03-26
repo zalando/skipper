@@ -189,6 +189,7 @@ func Filters() []filters.Spec {
 		diag.NewNormalResponseLatency(),
 		diag.NewHistogramRequestLatency(),
 		diag.NewHistogramResponseLatency(),
+		diag.NewTrace(),
 		tee.NewTee(),
 		tee.NewTeeDeprecated(),
 		tee.NewTeeNoFollow(),

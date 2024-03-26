@@ -264,6 +264,7 @@ const (
 	NormalResponseLatencyName                  = "normalResponseLatency"
 	HistogramRequestLatencyName                = "histogramRequestLatency"
 	HistogramResponseLatencyName               = "histogramResponseLatency"
+	TraceName                                  = "trace"
 	LogBodyName                                = "logBody"
 	LogHeaderName                              = "logHeader"
 	TeeName                                    = "tee"
