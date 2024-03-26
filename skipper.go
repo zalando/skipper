@@ -820,6 +820,10 @@ type Options struct {
 	// OAuth2GrantInsecure omits Secure attribute of the token cookie and uses http scheme for callback url.
 	OAuth2GrantInsecure bool
 
+	// OAuthGrantConfig specifies configuration for OAuth grant flow.
+	// A new instance will be created from OAuth* options when not specified.
+	OAuthGrantConfig *auth.OAuthConfig
+
 	// CompressEncodings, if not empty replace default compression encodings
 	CompressEncodings []string
 
@@ -955,6 +959,33 @@ func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 		BackendTrafficAlgorithm:           o.KubernetesBackendTrafficAlgorithm,
 		DefaultLoadBalancerAlgorithm:      o.KubernetesDefaultLoadBalancerAlgorithm,
 	}
+}
+
+func (o *Options) OAuthGrantOptions() *auth.OAuthConfig {
+	oauthConfig := &auth.OAuthConfig{}
+
+	oauthConfig.AuthURL = o.OAuth2AuthURL
+	oauthConfig.TokenURL = o.OAuth2TokenURL
+	oauthConfig.RevokeTokenURL = o.OAuth2RevokeTokenURL
+	oauthConfig.TokeninfoURL = o.OAuthTokeninfoURL
+	oauthConfig.SecretFile = o.OAuth2SecretFile
+	oauthConfig.ClientID = o.OAuth2ClientID
+	oauthConfig.ClientSecret = o.OAuth2ClientSecret
+	oauthConfig.ClientIDFile = o.OAuth2ClientIDFile
+	oauthConfig.ClientSecretFile = o.OAuth2ClientSecretFile
+	oauthConfig.CallbackPath = o.OAuth2CallbackPath
+	oauthConfig.AuthURLParameters = o.OAuth2AuthURLParameters
+	oauthConfig.Secrets = o.SecretsRegistry
+	oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
+	oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
+	oauthConfig.GrantTokeninfoKeys = o.OAuth2GrantTokeninfoKeys
+	oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
+	oauthConfig.TokenCookieRemoveSubdomains = &o.OAuth2TokenCookieRemoveSubdomains
+	oauthConfig.Insecure = o.OAuth2GrantInsecure
+	oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout
+	oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
+
+	return oauthConfig
 }
 
 type serverErrorLogWriter struct{}
@@ -1772,37 +1803,22 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		o.TLSMinVersion = tls.VersionTLS12
 	}
 
-	oauthConfig := &auth.OAuthConfig{}
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow */ {
-		grantSecrets := secrets.NewSecretPaths(o.CredentialsUpdateInterval)
-		defer grantSecrets.Close()
+		oauthConfig := o.OAuthGrantConfig
+		if oauthConfig == nil {
+			oauthConfig = o.OAuthGrantOptions()
+			o.OAuthGrantConfig = oauthConfig
 
-		oauthConfig.AuthURL = o.OAuth2AuthURL
-		oauthConfig.TokenURL = o.OAuth2TokenURL
-		oauthConfig.RevokeTokenURL = o.OAuth2RevokeTokenURL
-		oauthConfig.TokeninfoURL = o.OAuthTokeninfoURL
-		oauthConfig.SecretFile = o.OAuth2SecretFile
-		oauthConfig.ClientID = o.OAuth2ClientID
-		oauthConfig.ClientSecret = o.OAuth2ClientSecret
-		oauthConfig.ClientIDFile = o.OAuth2ClientIDFile
-		oauthConfig.ClientSecretFile = o.OAuth2ClientSecretFile
-		oauthConfig.CallbackPath = o.OAuth2CallbackPath
-		oauthConfig.AuthURLParameters = o.OAuth2AuthURLParameters
-		oauthConfig.SecretsProvider = grantSecrets
-		oauthConfig.Secrets = o.SecretsRegistry
-		oauthConfig.AccessTokenHeaderName = o.OAuth2AccessTokenHeaderName
-		oauthConfig.TokeninfoSubjectKey = o.OAuth2TokeninfoSubjectKey
-		oauthConfig.GrantTokeninfoKeys = o.OAuth2GrantTokeninfoKeys
-		oauthConfig.TokenCookieName = o.OAuth2TokenCookieName
-		oauthConfig.TokenCookieRemoveSubdomains = &o.OAuth2TokenCookieRemoveSubdomains
-		oauthConfig.Insecure = o.OAuth2GrantInsecure
-		oauthConfig.ConnectionTimeout = o.OAuthTokeninfoTimeout
-		oauthConfig.MaxIdleConnectionsPerHost = o.IdleConnectionsPerHost
-		oauthConfig.Tracer = tracer
+			grantSecrets := secrets.NewSecretPaths(o.CredentialsUpdateInterval)
+			defer grantSecrets.Close()
 
-		if err := oauthConfig.Init(); err != nil {
-			log.Errorf("Failed to initialize oauth grant filter: %v.", err)
-			return err
+			oauthConfig.SecretsProvider = grantSecrets
+			oauthConfig.Tracer = tracer
+
+			if err := oauthConfig.Init(); err != nil {
+				log.Errorf("Failed to initialize oauth grant filter: %v.", err)
+				return err
+			}
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
@@ -1972,7 +1988,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	ro.PreProcessors = append(ro.PreProcessors, schedulerRegistry.PreProcessor())
 
 	if o.EnableOAuth2GrantFlow /* explicitly enable grant flow when callback route was not disabled */ {
-		ro.PreProcessors = append(ro.PreProcessors, oauthConfig.NewGrantPreprocessor())
+		ro.PreProcessors = append(ro.PreProcessors, o.OAuthGrantConfig.NewGrantPreprocessor())
 	}
 
 	if o.EnableOpenPolicyAgent {

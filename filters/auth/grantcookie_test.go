@@ -18,10 +18,9 @@ const (
 )
 
 func newGrantCookies(t *testing.T, config *OAuthConfig, host string, token oauth2.Token) []*http.Cookie {
-	cookie, err := createCookie(config, host, &token)
+	cookies, err := config.GrantCookieEncoder.Update(&http.Request{Host: host}, &token)
 	require.NoError(t, err)
-
-	return []*http.Cookie{cookie}
+	return cookies
 }
 
 func NewGrantCookies(t *testing.T, config *OAuthConfig) []*http.Cookie {

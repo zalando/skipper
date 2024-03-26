@@ -12,6 +12,52 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type CookieEncoder interface {
+	// Update creates a set of cookies that encodes the token and deletes previously existing cookies if necessary.
+	// When token is nil it only returns cookies to delete.
+	Update(request *http.Request, token *oauth2.Token) ([]*http.Cookie, error)
+
+	// Read extracts the token from the request cookies.
+	Read(request *http.Request) (*oauth2.Token, error)
+}
+
+// EncryptedCookieEncoder is a CookieEncoder that encrypts the token before storing it in a cookie.
+type EncryptedCookieEncoder struct {
+	Encryption       secrets.Encryption
+	CookieName       string
+	RemoveSubdomains int
+	Insecure         bool
+}
+
+var _ CookieEncoder = &EncryptedCookieEncoder{}
+
+func (ce *EncryptedCookieEncoder) Update(request *http.Request, token *oauth2.Token) ([]*http.Cookie, error) {
+	if token != nil {
+		c, err := ce.createCookie(request.Host, token)
+		if err != nil {
+			return nil, err
+		}
+		return []*http.Cookie{c}, nil
+	} else {
+		c := ce.createDeleteCookie(request.Host)
+		return []*http.Cookie{c}, nil
+	}
+}
+
+func (ce *EncryptedCookieEncoder) Read(request *http.Request) (*oauth2.Token, error) {
+	c, err := ce.extractCookie(request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &oauth2.Token{
+		AccessToken:  c.AccessToken,
+		TokenType:    "Bearer",
+		RefreshToken: c.RefreshToken,
+		Expiry:       c.Expiry,
+	}, nil
+}
+
 type cookie struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
@@ -19,29 +65,19 @@ type cookie struct {
 	Domain       string    `json:"domain,omitempty"`
 }
 
-func decodeCookie(cookieHeader string, config *OAuthConfig) (c *cookie, err error) {
+func (ce *EncryptedCookieEncoder) decodeCookie(cookieHeader string) (c *cookie, err error) {
 	var eb []byte
 	if eb, err = base64.StdEncoding.DecodeString(cookieHeader); err != nil {
 		return
 	}
 
-	var encryption secrets.Encryption
-	if encryption, err = config.Secrets.GetEncrypter(secretsRefreshInternal, config.SecretFile); err != nil {
-		return
-	}
-
 	var b []byte
-	if b, err = encryption.Decrypt(eb); err != nil {
+	if b, err = ce.Encryption.Decrypt(eb); err != nil {
 		return
 	}
 
 	err = json.Unmarshal(b, &c)
 	return
-}
-
-func (c *cookie) isAccessTokenExpired() bool {
-	now := time.Now()
-	return now.After(c.Expiry)
 }
 
 // allowedForHost checks if provided host matches cookie domain
@@ -61,14 +97,14 @@ func (c *cookie) allowedForHost(host string) bool {
 // cookie of the same name.
 // The grant token cookie is extracted so it does not get exposed to untrusted downstream
 // services.
-func extractCookie(request *http.Request, config *OAuthConfig) (*cookie, error) {
+func (ce *EncryptedCookieEncoder) extractCookie(request *http.Request) (*cookie, error) {
 	cookies := request.Cookies()
 	for i, c := range cookies {
-		if c.Name != config.TokenCookieName {
+		if c.Name != ce.CookieName {
 			continue
 		}
 
-		decoded, err := decodeCookie(c.Value, config)
+		decoded, err := ce.decodeCookie(c.Value)
 		if err == nil && decoded.allowedForHost(request.Host) {
 			request.Header.Del("Cookie")
 			for j, c := range cookies {
@@ -84,20 +120,20 @@ func extractCookie(request *http.Request, config *OAuthConfig) (*cookie, error) 
 
 // createDeleteCookie creates a cookie, which instructs the client to clear the grant
 // token cookie when used with a Set-Cookie header.
-func createDeleteCookie(config *OAuthConfig, host string) *http.Cookie {
+func (ce *EncryptedCookieEncoder) createDeleteCookie(host string) *http.Cookie {
 	return &http.Cookie{
-		Name:     config.TokenCookieName,
+		Name:     ce.CookieName,
 		Value:    "",
 		Path:     "/",
-		Domain:   extractDomainFromHost(host, *config.TokenCookieRemoveSubdomains),
+		Domain:   extractDomainFromHost(host, ce.RemoveSubdomains),
 		MaxAge:   -1,
-		Secure:   !config.Insecure,
+		Secure:   !ce.Insecure,
 		HttpOnly: true,
 	}
 }
 
-func createCookie(config *OAuthConfig, host string, t *oauth2.Token) (*http.Cookie, error) {
-	domain := extractDomainFromHost(host, *config.TokenCookieRemoveSubdomains)
+func (ce *EncryptedCookieEncoder) createCookie(host string, t *oauth2.Token) (*http.Cookie, error) {
+	domain := extractDomainFromHost(host, ce.RemoveSubdomains)
 	c := &cookie{
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,
@@ -110,12 +146,7 @@ func createCookie(config *OAuthConfig, host string, t *oauth2.Token) (*http.Cook
 		return nil, err
 	}
 
-	encryption, err := config.Secrets.GetEncrypter(secretsRefreshInternal, config.SecretFile)
-	if err != nil {
-		return nil, err
-	}
-
-	eb, err := encryption.Encrypt(b)
+	eb, err := ce.Encryption.Encrypt(b)
 	if err != nil {
 		return nil, err
 	}
@@ -128,12 +159,12 @@ func createCookie(config *OAuthConfig, host string, t *oauth2.Token) (*http.Cook
 	// Since we don't know the actual refresh token expiry, set it to
 	// 30 days as a good compromise.
 	return &http.Cookie{
-		Name:     config.TokenCookieName,
+		Name:     ce.CookieName,
 		Value:    b64,
 		Path:     "/",
 		Domain:   domain,
 		Expires:  t.Expiry.Add(time.Hour * 24 * 30),
-		Secure:   !config.Insecure,
+		Secure:   !ce.Insecure,
 		HttpOnly: true,
 	}, nil
 }

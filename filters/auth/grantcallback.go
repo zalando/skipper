@@ -90,20 +90,23 @@ func (f *grantCallbackFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	c, err := createCookie(f.config, req.Host, token)
+	cookies, err := f.config.GrantCookieEncoder.Update(req, token)
 	if err != nil {
 		ctx.Logger().Errorf("Failed to create OAuth grant cookie: %v.", err)
 		serverError(ctx)
 		return
 	}
 
-	ctx.Serve(&http.Response{
+	resp := &http.Response{
 		StatusCode: http.StatusTemporaryRedirect,
 		Header: http.Header{
-			"Location":   []string{state.RequestURL},
-			"Set-Cookie": []string{c.String()},
+			"Location": []string{state.RequestURL},
 		},
-	})
+	}
+	for _, c := range cookies {
+		resp.Header.Add("Set-Cookie", c.String())
+	}
+	ctx.Serve(resp)
 }
 
 func (f *grantCallbackFilter) Response(ctx filters.FilterContext) {}
