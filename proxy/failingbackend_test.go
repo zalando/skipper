@@ -1,10 +1,21 @@
 package proxy_test
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"runtime"
 	"testing"
+	"time"
+
+	"golang.org/x/sync/errgroup"
+
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/proxy/proxytest"
 )
 
 type failingBackend struct {
@@ -200,5 +211,58 @@ func TestFailingBackend(t *testing.T) {
 	if err := req(false, false); err != nil {
 		t.Error(err)
 		return
+	}
+}
+
+// TestGoIssue53808 tests that proxy does not panic due to a broken backend.
+// See https://github.com/golang/go/issues/53808
+func TestGoIssue53808(t *testing.T) {
+	brokenBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, bfw, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Fatalf("hijack failed: %v", err)
+		}
+		bfw.WriteString("HTTP/1.1 200 OK\r\n")
+		bfw.WriteString("Content-Length: 10\r\n\r\n")
+		// body truncated
+		bfw.Flush()
+
+		conn.Close()
+	}))
+	defer brokenBackend.Close()
+
+	p := proxytest.Config{
+		Routes: eskip.MustParse(fmt.Sprintf(`* -> "%s"`, brokenBackend.URL)),
+		ProxyParams: proxy.Params{
+			// Can not use zero because it is changed to the default value
+			// so use a very small value instead
+			ExpectContinueTimeout: 1 * time.Nanosecond,
+		},
+	}.Create()
+	defer p.Close()
+
+	client := p.Client()
+
+	const contentLength = 100
+	body := make([]byte, contentLength)
+
+	var g errgroup.Group
+	g.SetLimit(runtime.NumCPU())
+
+	for i := 0; i <= 10_000; i++ {
+		g.Go(func() error {
+			req, _ := http.NewRequest("PUT", p.URL, bytes.NewReader(body))
+			// activate use of *expectContinueReader
+			req.Header.Set("Expect", "100-continue")
+			// without Content-Length, the proxy will panic
+			// at a different place inside of net/http.(*transferWriter).writeBody
+			req.ContentLength = contentLength
+
+			resp, err := client.Do(req)
+			if err == nil {
+				resp.Body.Close()
+			}
+			return nil // ignore errors
+		})
 	}
 }

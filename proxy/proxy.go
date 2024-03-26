@@ -550,9 +550,9 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	return &e
 }
 
-// creates an outgoing http request to be forwarded to the route endpoint
+// Creates and stores into context an outgoing http request to be forwarded to the route endpoint
 // based on the augmented incoming request
-func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Request, routing.Metrics, error) {
+func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (routing.Metrics, error) {
 	var endpointMetrics routing.Metrics
 	r := ctx.request
 	rt := ctx.route
@@ -584,7 +584,7 @@ func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (
 
 	rr, err := http.NewRequestWithContext(requestContext, r.Method, u.String(), body)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	rr.ContentLength = r.ContentLength
@@ -615,7 +615,9 @@ func (p *Proxy) mapRequest(ctx *context, requestContext stdlibcontext.Context) (
 		rr = forwardToProxy(r, rr)
 	}
 
-	return rr, endpointMetrics, nil
+	ctx.outgoingRequest = rr
+
+	return endpointMetrics, nil
 }
 
 type proxyUrlContextKey struct{}
@@ -919,10 +921,11 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
-	req, endpointMetrics, err := p.mapRequest(ctx, requestContext)
+	endpointMetrics, err := p.mapRequest(ctx, requestContext)
 	if err != nil {
 		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
 	}
+	req := ctx.outgoingRequest
 
 	if res, ok := p.rejectBackend(ctx, req); ok {
 		return res, nil
@@ -1191,10 +1194,10 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			return err
 		}
 
-		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
+		ctx.setResponse(loopCTX.response)
 		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
-		debugReq, _, err := p.mapRequest(ctx, ctx.request.Context())
+		_, err := p.mapRequest(ctx, ctx.request.Context())
 		if err != nil {
 			perr := &proxyError{err: err}
 			p.makeErrorResponse(ctx, perr)
@@ -1202,8 +1205,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			return perr
 		}
 
-		ctx.outgoingDebugRequest = debugReq
-		ctx.setResponse(&http.Response{Header: make(http.Header)}, p.flags.PreserveOriginal())
+		ctx.setResponse(&http.Response{Header: make(http.Header)})
 	} else {
 
 		done, allow := p.checkBreaker(ctx)
@@ -1269,7 +1271,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			done(rsp.StatusCode < http.StatusInternalServerError)
 		}
 
-		ctx.setResponse(rsp, p.flags.PreserveOriginal())
+		ctx.setResponse(rsp)
 		p.metrics.MeasureBackend(ctx.route.Id, backendStart)
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
 	}
@@ -1291,7 +1293,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 		dbgResponse(ctx.responseWriter, &debugInfo{
 			route:    &ctx.route.Route,
 			incoming: ctx.originalRequest,
-			outgoing: ctx.outgoingDebugRequest,
+			outgoing: ctx.outgoingRequest,
 			response: ctx.response,
 		})
 
@@ -1360,7 +1362,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	if p.flags.Debug() {
 		di := &debugInfo{
 			incoming: ctx.originalRequest,
-			outgoing: ctx.outgoingDebugRequest,
+			outgoing: ctx.outgoingRequest,
 			response: ctx.response,
 			err:      err,
 		}
@@ -1516,11 +1518,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			logging.LogAccess(entry, additionalData)
 		}
-
-		// This flush is required in I/O error
-		if !ctx.successfulUpgrade {
-			lw.Flush()
-		}
 	}()
 
 	if p.flags.patchPath() {
@@ -1539,15 +1536,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
 	ctx.parentSpan = span
-
-	defer func() {
-		if ctx.response != nil && ctx.response.Body != nil {
-			err := ctx.response.Body.Close()
-			if err != nil {
-				ctx.Logger().Errorf("error during closing the response body: %v", err)
-			}
-		}
-	}()
 
 	err := p.do(ctx, span)
 
@@ -1575,8 +1563,25 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// This flush is required in I/O error
+	if !ctx.successfulUpgrade {
+		ctx.responseWriter.Flush()
+	}
+
 	if ctx.cancelBackendContext != nil {
 		ctx.cancelBackendContext()
+	}
+
+	if ctx.outgoingRequest != nil && ctx.outgoingRequest.Body != nil {
+		if err := ctx.outgoingRequest.Body.Close(); err != nil {
+			ctx.Logger().Errorf("Failed to close outgoing request body: %v", err)
+		}
+	}
+
+	if ctx.response != nil && ctx.response.Body != nil {
+		if err := ctx.response.Body.Close(); err != nil {
+			ctx.Logger().Errorf("Failed to close response body: %v", err)
+		}
 	}
 }
 
