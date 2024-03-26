@@ -181,7 +181,7 @@ func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, c
 		if skipEndpoint(ctx, endpointIndex) {
 			continue
 		}
-		load := ctx.LBEndpoints[endpointIndex].Metrics.InflightRequests()
+		load := ctx.Route.LBEndpoints[endpointIndex].Metrics.InflightRequests()
 		// We know there must be an endpoint whose load <= average load.
 		// Since targetLoad >= average load (balancerFactor >= 1), there must also be an endpoint with load <= targetLoad.
 		if float64(load) <= targetLoad {
