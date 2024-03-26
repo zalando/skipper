@@ -63,30 +63,42 @@ func TestPHCWithoutRequests(t *testing.T) {
 	}
 
 	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
-		t.Run(algorithm, func(t *testing.T) {
-			endpointRegistry := defaultEndpointRegistry()
-			doc := fmt.Sprintf(`* -> <%s, "%s", "%s", "%s">`,
-				algorithm, services[0].URL, services[1].URL, services[2].URL)
+		balanceFactors := []bool{false}
+		if algorithm == "consistentHash" {
+			balanceFactors = []bool{false, true}
+		}
 
-			tp, err := newTestProxyWithParams(doc, Params{
-				EnablePassiveHealthCheck: true,
-				EndpointRegistry:         endpointRegistry,
+		for _, balanceFactor := range balanceFactors {
+			t.Run(fmt.Sprintf("%s_%t", algorithm, balanceFactor), func(t *testing.T) {
+				endpointRegistry := defaultEndpointRegistry()
+
+				balanceFactorStr := ""
+				if balanceFactor {
+					balanceFactorStr = ` -> consistentHashBalanceFactor(1.25)`
+				}
+				doc := fmt.Sprintf(`* %s -> <%s, "%s", "%s", "%s">`,
+					balanceFactorStr, algorithm, services[0].URL, services[1].URL, services[2].URL)
+
+				tp, err := newTestProxyWithParams(doc, Params{
+					EnablePassiveHealthCheck: true,
+					EndpointRegistry:         endpointRegistry,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer tp.close()
+
+				ps := httptest.NewServer(tp.proxy)
+				defer ps.Close()
+
+				rsp := sendGetRequest(t, ps, 0)
+				assert.Equal(t, http.StatusOK, rsp.StatusCode)
+				rsp.Body.Close()
+
+				time.Sleep(10 * period)
+				/* this test is needed to check PHC will not crash without requests sent during period at all */
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tp.close()
-
-			ps := httptest.NewServer(tp.proxy)
-			defer ps.Close()
-
-			rsp := sendGetRequest(t, ps, 0)
-			assert.Equal(t, http.StatusOK, rsp.StatusCode)
-			rsp.Body.Close()
-
-			time.Sleep(10 * period)
-			/* this test is needed to check PHC will not crash without requests sent during period at all */
-		})
+		}
 	}
 }
 
@@ -125,26 +137,38 @@ func TestPHCForMultipleHealthyEndpoints(t *testing.T) {
 	}
 
 	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
-		t.Run(algorithm, func(t *testing.T) {
-			endpointRegistry := defaultEndpointRegistry()
-			doc := fmt.Sprintf(`* -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s">`,
-				algorithm, services[0].URL, services[1].URL, services[2].URL)
+		balanceFactors := []bool{false}
+		if algorithm == "consistentHash" {
+			balanceFactors = []bool{false, true}
+		}
 
-			tp, err := newTestProxyWithParams(doc, Params{
-				EnablePassiveHealthCheck: true,
-				EndpointRegistry:         endpointRegistry,
+		for _, balanceFactor := range balanceFactors {
+			t.Run(fmt.Sprintf("%s_%t", algorithm, balanceFactor), func(t *testing.T) {
+				endpointRegistry := defaultEndpointRegistry()
+
+				balanceFactorStr := ""
+				if balanceFactor {
+					balanceFactorStr = ` -> consistentHashBalanceFactor(1.25)`
+				}
+				doc := fmt.Sprintf(`* -> consistentHashKey("${request.header.ConsistentHashKey}") %s -> <%s, "%s", "%s", "%s">`,
+					balanceFactorStr, algorithm, services[0].URL, services[1].URL, services[2].URL)
+
+				tp, err := newTestProxyWithParams(doc, Params{
+					EnablePassiveHealthCheck: true,
+					EndpointRegistry:         endpointRegistry,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer tp.close()
+
+				ps := httptest.NewServer(tp.proxy)
+				defer ps.Close()
+
+				failedReqs := sendGetRequests(t, ps)
+				assert.Equal(t, 0, failedReqs)
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tp.close()
-
-			ps := httptest.NewServer(tp.proxy)
-			defer ps.Close()
-
-			failedReqs := sendGetRequests(t, ps)
-			assert.Equal(t, 0, failedReqs)
-		})
+		}
 	}
 }
 
@@ -164,25 +188,37 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 	}
 
 	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
-		t.Run(algorithm, func(t *testing.T) {
-			endpointRegistry := defaultEndpointRegistry()
-			doc := fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s">`,
-				algorithm, services[0].URL, services[1].URL, services[2].URL)
+		balanceFactors := []bool{false}
+		if algorithm == "consistentHash" {
+			balanceFactors = []bool{false, true}
+		}
 
-			tp, err := newTestProxyWithParams(doc, Params{
-				EnablePassiveHealthCheck: true,
-				EndpointRegistry:         endpointRegistry,
+		for _, balanceFactor := range balanceFactors {
+			t.Run(fmt.Sprintf("%s_%t", algorithm, balanceFactor), func(t *testing.T) {
+				endpointRegistry := defaultEndpointRegistry()
+
+				balanceFactorStr := ""
+				if balanceFactor {
+					balanceFactorStr = ` -> consistentHashBalanceFactor(1.25)`
+				}
+				doc := fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") %s -> <%s, "%s", "%s", "%s">`,
+					balanceFactorStr, algorithm, services[0].URL, services[1].URL, services[2].URL)
+
+				tp, err := newTestProxyWithParams(doc, Params{
+					EnablePassiveHealthCheck: true,
+					EndpointRegistry:         endpointRegistry,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer tp.close()
+
+				ps := httptest.NewServer(tp.proxy)
+				defer ps.Close()
+
+				failedReqs := sendGetRequests(t, ps)
+				assert.InDelta(t, 0.33*rtFailureProbability*(1.0-rtFailureProbability)*float64(nRequests), failedReqs, 0.1*float64(nRequests))
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tp.close()
-
-			ps := httptest.NewServer(tp.proxy)
-			defer ps.Close()
-
-			failedReqs := sendGetRequests(t, ps)
-			assert.InDelta(t, 0.33*rtFailureProbability*(1.0-rtFailureProbability)*float64(nRequests), failedReqs, 0.1*float64(nRequests))
-		})
+		}
 	}
 }
