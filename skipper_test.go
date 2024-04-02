@@ -509,7 +509,7 @@ func TestDataClients(t *testing.T) {
 		StatusChecks:                    []string{"http://127.0.0.1:8091/metrics", "http://127.0.0.1:8092"},
 	}
 
-	dcs, err := createDataClients(o, nil)
+	dcs, _, err := createDataClients(o, nil)
 	if err != nil {
 		t.Fatalf("Failed to createDataclients: %v", err)
 	}
@@ -534,7 +534,7 @@ func TestDataClients(t *testing.T) {
 	ro := routing.Options{
 		SignalFirstLoad: true,
 		FilterRegistry:  fr,
-		DataClients:     dcs, //[]routing.DataClient{dc},
+		DataClients:     dcs,
 		PostProcessors: []routing.PostProcessor{
 			loadbalancer.NewAlgorithmProvider(),
 			endpointRegistry,
