@@ -180,8 +180,8 @@ Path("/api/:id") -> lua("function request(ctx, params); print(ctx.path_param.id)
 
 ## StateBag
 
-The state bag can be used to pass values from one filter to another in the same
-chain. It is shared by all filters in one request.
+The state bag can be used to pass string, number and table values from one filter to another in the same
+chain. It is shared by all filters in one request (lua table values are only available to lua filters).
 ```lua
 function request(ctx, params)
     -- the value of "mykey" will be available to all filters in the chain now:
