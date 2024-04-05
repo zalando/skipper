@@ -609,6 +609,8 @@ func getStateBag(f filters.FilterContext) func(*lua.LState) int {
 			s.Push(lua.LNumber(res))
 		case float64:
 			s.Push(lua.LNumber(res))
+		case *lua.LTable:
+			s.Push(res) // load *lua.LTable as is
 		default:
 			return 0
 		}
@@ -626,6 +628,8 @@ func setStateBag(f filters.FilterContext) func(*lua.LState) int {
 			res = string(val.(lua.LString))
 		case lua.LTNumber:
 			res = float64(val.(lua.LNumber))
+		case lua.LTTable:
+			res = val // store *lua.LTable as is
 		default:
 			// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
 			// s.RaiseError("unsupported state bag value type %v, need a string or a number", val.Type())

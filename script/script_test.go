@@ -822,18 +822,22 @@ func ExampleGetMissingStateBag() {
 	// nil
 }
 
-const SetUnsupportedStateBag = `
+const SetStateBagTable = `
 function request(ctx, params)
-	ctx.state_bag.unsupported = {}
-	print("ok")
-end`
+	ctx.state_bag.table = {foo="bar"}
+end
 
-func ExampleSetUnsupportedStateBag() {
+function response(ctx, params)
+	print(ctx.state_bag.table.foo)
+end
+`
+
+func ExampleSetStateBagTable() {
 	runExample(&testContext{
-		script: SetUnsupportedStateBag,
+		script: SetStateBagTable,
 	})
 	// Output:
-	// ok
+	// bar
 }
 
 func newFilter(opts LuaOptions, script string, params ...string) (filters.Filter, error) {
