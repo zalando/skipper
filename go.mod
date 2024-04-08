@@ -7,7 +7,7 @@ require (
 	github.com/andybalholm/brotli v1.1.0
 	github.com/aryszka/jobqueue v0.0.3
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/cespare/xxhash/v2 v2.2.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cjoudrey/gluahttp v0.0.0-20201111170219-25003d9adfa9
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
 	github.com/coreos/go-oidc v2.2.1+incompatible
