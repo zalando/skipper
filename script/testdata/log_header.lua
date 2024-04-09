@@ -18,16 +18,16 @@ function response(ctx, params)
 	end
 end
 
-function headers_as_table(iter)
+function headers_as_table(header)
 	local t = {}
-	for k, v in iter() do
+	for k, _ in header() do
 		if k:lower() == "authorization" then
 			table.insert(t, k)
 			table.insert(t, ": TRUNCATED\r\n")
 		else
 			table.insert(t, k)
 			table.insert(t, ": ")
-			table.insert(t, v)
+			table.insert(t, table.concat(header.values(k), " "))
 			table.insert(t, "\r\n")
 		end
 	end

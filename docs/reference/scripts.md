@@ -137,6 +137,32 @@ ctx.request.header["Authorization"] = nil -- delete authorization header
 
 Response headers `ctx.response.header` work the same way - this is of course only valid in the `response()` phase.
 
+### Multiple header values
+
+Request and response header tables provide access to a first value of a header.
+
+To access multiple values use `add` and `values` methods:
+
+```lua
+function request(ctx, params)
+	ctx.request.header.add("X-Foo", "Bar")
+	ctx.request.header.add("X-Foo", "Baz")
+
+	-- all X-Foo values
+	for _, v in pairs(ctx.request.header.values("X-Foo")) do
+		print(v)
+	end
+
+	-- all values
+	for k, _ in ctx.request.header() do
+		for _, v in pairs(ctx.request.header.values(k)) do
+			print(k, "=", v)
+		end
+	end
+end
+```
+
+
 ## Other request fields
 
 * `backend_url` - (read only) returns the backend url specified in the route
