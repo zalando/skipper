@@ -8,8 +8,9 @@ COPY . .
 
 RUN dnf install -q -y make clang tar gzip       && \
     update-alternatives --install /usr/bin/cc cc /usr/bin/clang 20 && \
-    curl -o go.linux-amd64.tar.gz -LO https://go.dev/dl/go1.22.1.linux-amd64.tar.gz && \
-    sha256sum go.linux-amd64.tar.gz | grep -q aab8e15785c997ae20f9c88422ee35d962c4562212bb0f879d052a35c8307c7f && \
+    curl -o go.linux-amd64.tar.gz -LO https://go.dev/dl/go1.21.8.linux-amd64.tar.gz && \
+    #sha256sum go.linux-amd64.tar.gz | grep -q aab8e15785c997ae20f9c88422ee35d962c4562212bb0f879d052a35c8307c7f && \
+    sha256sum go.linux-amd64.tar.gz | grep -q c489adaf3b7571b73dceee1008de77f0ef7ba63582d14f745d5fc8d573c1dea7 && \
     tar -C /root -xzf go.linux-amd64.tar.gz && \
     ls -l /root && \
     go version && \

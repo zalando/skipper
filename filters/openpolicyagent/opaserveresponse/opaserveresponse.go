@@ -97,7 +97,7 @@ type opaServeResponseFilter struct {
 
 func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
-	defer span.Finish()
+	defer span.End()
 	req := fc.Request()
 
 	var rawBodyBytes []byte
@@ -117,7 +117,7 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	authzreq := envoy.AdaptToExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes)
 
 	start := time.Now()
-	result, err := f.opa.Eval(ctx, authzreq)
+	result, err := f.opa.Eval(ctx, span, authzreq)
 	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
 	if err != nil {
 		f.opa.ServeInvalidDecisionError(fc, span, result, err)

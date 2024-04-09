@@ -11,20 +11,20 @@ import (
 	"github.com/opentracing/opentracing-go/log"
 )
 
-// Tracer is an implementation of opentracing.Tracer for testing. It records
+// OtTracer is an implementation of opentracing.OtTracer for testing. It records
 // the defined spans during a series of operations.
-type Tracer struct {
+type OtTracer struct {
 
 	// TraceContent represents the tracing content passed along the wire.
 	// The test tracer considers it an opaque value and doesn't modify it.
 	TraceContent string
 
 	// RecordedSpans contains the collected spans.
-	RecordedSpans []*Span
+	RecordedSpans []*OtSpan
 }
 
-// Span is an implementation of the opentracing.Span interface for testing.
-type Span struct {
+// OtSpan is an implementation of the opentracing.OtSpan interface for testing.
+type OtSpan struct {
 
 	// Trace contains the current trace as string.
 	Trace string
@@ -41,11 +41,11 @@ type Span struct {
 	operationName string
 	Tags          map[string]interface{}
 	baggage       map[string]string
-	tracer        *Tracer
+	tracer        *OtTracer
 }
 
-func NewSpan(operation string) *Span {
-	return &Span{
+func NewOtSpan(operation string) *OtSpan {
+	return &OtSpan{
 		operationName: operation,
 		Tags:          make(map[string]interface{}),
 		baggage:       make(map[string]string),
@@ -53,8 +53,8 @@ func NewSpan(operation string) *Span {
 }
 
 // FindAllSpans returns all the spans with the defined operation name.
-func (t *Tracer) FindAllSpans(operationName string) []*Span {
-	var spans []*Span
+func (t *OtTracer) FindAllSpans(operationName string) []*OtSpan {
+	var spans []*OtSpan
 	for _, s := range t.RecordedSpans {
 		if s.operationName == operationName {
 			spans = append(spans, s)
@@ -66,7 +66,7 @@ func (t *Tracer) FindAllSpans(operationName string) []*Span {
 
 // FindSpan returns the first span with the defined operation name and true,
 // if at least one was collected, otherwise nil and false.
-func (t *Tracer) FindSpan(operationName string) (*Span, bool) {
+func (t *OtTracer) FindSpan(operationName string) (*OtSpan, bool) {
 	all := t.FindAllSpans(operationName)
 	if len(all) > 0 {
 		return all[0], true
@@ -77,13 +77,13 @@ func (t *Tracer) FindSpan(operationName string) (*Span, bool) {
 
 // Reset clears the recorded spans and sets the trace content to defined
 // value.
-func (t *Tracer) Reset(traceContent string) {
+func (t *OtTracer) Reset(traceContent string) {
 	t.TraceContent = traceContent
 	t.RecordedSpans = nil
 }
 
-func (t *Tracer) createSpanBase() *Span {
-	return &Span{
+func (t *OtTracer) createSpanBase() *OtSpan {
+	return &OtSpan{
 		Trace:     t.TraceContent,
 		StartTime: time.Now(),
 		tracer:    t,
@@ -94,7 +94,7 @@ func (t *Tracer) createSpanBase() *Span {
 
 // Create, start, and return a new Span with the given `operationName` and
 // incorporate the given StartSpanOption `opts`.
-func (t *Tracer) StartSpan(operationName string, opts ...tracing.StartSpanOption) tracing.Span {
+func (t *OtTracer) StartSpan(operationName string, opts ...tracing.StartSpanOption) tracing.Span {
 	sso := tracing.StartSpanOptions{}
 	for _, o := range opts {
 		o.Apply(&sso)
@@ -109,7 +109,7 @@ func (t *Tracer) StartSpan(operationName string, opts ...tracing.StartSpanOption
 // propagation within `carrier`.
 //
 // It sets the X-Trace-Header to the value of TraceContent.
-func (t *Tracer) Inject(sm tracing.SpanContext, format interface{}, carrier interface{}) error {
+func (t *OtTracer) Inject(sm tracing.SpanContext, format interface{}, carrier interface{}) error {
 	http.Header(carrier.(tracing.HTTPHeadersCarrier)).Set("X-Trace-Header", t.TraceContent)
 	return nil
 }
@@ -117,7 +117,7 @@ func (t *Tracer) Inject(sm tracing.SpanContext, format interface{}, carrier inte
 // Extract() returns a SpanContext instance given `format` and `carrier`.
 //
 // It copies the X-Trace-Header value to the TraceContent field.
-func (t *Tracer) Extract(format interface{}, carrier interface{}) (tracing.SpanContext, error) {
+func (t *OtTracer) Extract(format interface{}, carrier interface{}) (tracing.SpanContext, error) {
 	val := http.Header(carrier.(tracing.HTTPHeadersCarrier)).Get("X-Trace-Header")
 	if val != "" {
 		t.TraceContent = val
@@ -125,7 +125,7 @@ func (t *Tracer) Extract(format interface{}, carrier interface{}) (tracing.SpanC
 		s.Refs = []tracing.SpanReference{
 			{
 				Type:              tracing.ChildOfRef,
-				ReferencedContext: &Span{Trace: val},
+				ReferencedContext: &OtSpan{Trace: val},
 			},
 		}
 		return s, nil
@@ -135,16 +135,16 @@ func (t *Tracer) Extract(format interface{}, carrier interface{}) (tracing.SpanC
 
 // ForeachBaggageItem grants access to all baggage items stored in the
 // SpanContext.
-func (s *Span) ForeachBaggageItem(func(k, v string) bool) {}
+func (s *OtSpan) ForeachBaggageItem(func(k, v string) bool) {}
 
 // Sets the end timestamp and finalizes Span state.
-func (s *Span) Finish() {
+func (s *OtSpan) Finish() {
 	s.FinishWithOptions(tracing.FinishOptions{})
 }
 
 // FinishWithOptions is like Finish() but with explicit control over
 // timestamps and log data.
-func (s *Span) FinishWithOptions(opts tracing.FinishOptions) {
+func (s *OtSpan) FinishWithOptions(opts tracing.FinishOptions) {
 	s.FinishTime = time.Now()
 	s.tracer.RecordedSpans = append(s.tracer.RecordedSpans, s)
 }
@@ -152,18 +152,18 @@ func (s *Span) FinishWithOptions(opts tracing.FinishOptions) {
 // Context() yields the SpanContext for this Span. Note that the return
 // value of Context() is still valid after a call to Span.Finish(), as is
 // a call to Span.Context() after a call to Span.Finish().
-func (s *Span) Context() tracing.SpanContext {
+func (s *OtSpan) Context() tracing.SpanContext {
 	return s
 }
 
 // Sets or changes the operation name.
-func (s *Span) SetOperationName(operationName string) tracing.Span {
+func (s *OtSpan) SetOperationName(operationName string) tracing.Span {
 	s.operationName = operationName
 	return s
 }
 
 // Adds a tag to the span.
-func (s *Span) SetTag(key string, value interface{}) tracing.Span {
+func (s *OtSpan) SetTag(key string, value interface{}) tracing.Span {
 	s.Tags[key] = value
 	return s
 }
@@ -171,36 +171,36 @@ func (s *Span) SetTag(key string, value interface{}) tracing.Span {
 // LogFields is an efficient and type-checked way to record key:value
 // logging data about a Span, though the programming interface is a little
 // more verbose than LogKV().
-func (*Span) LogFields(...log.Field) {}
+func (*OtSpan) LogFields(...log.Field) {}
 
 // LogKV is a concise, readable way to record key:value logging data about
 // a Span, though unfortunately this also makes it less efficient and less
 // type-safe than LogFields().
-func (*Span) LogKV(...interface{}) {}
+func (*OtSpan) LogKV(...interface{}) {}
 
 // SetBaggageItem sets a key:value pair on this Span and its SpanContext
 // that also propagates to descendants of this Span.
-func (s *Span) SetBaggageItem(restrictedKey, value string) tracing.Span {
+func (s *OtSpan) SetBaggageItem(restrictedKey, value string) tracing.Span {
 	s.baggage[restrictedKey] = value
 	return s
 }
 
 // Gets the value for a baggage item given its key. Returns the empty string
 // if the value isn't found in this Span.
-func (s *Span) BaggageItem(key string) string {
+func (s *OtSpan) BaggageItem(key string) string {
 	return s.baggage[key]
 }
 
 // Provides access to the Tracer that created this Span.
-func (s *Span) Tracer() tracing.Tracer {
+func (s *OtSpan) Tracer() tracing.Tracer {
 	return s.tracer
 }
 
 // Deprecated: use LogFields or LogKV
-func (*Span) LogEvent(string) {}
+func (*OtSpan) LogEvent(string) {}
 
 // Deprecated: use LogFields or LogKV
-func (*Span) LogEventWithPayload(string, interface{}) {}
+func (*OtSpan) LogEventWithPayload(string, interface{}) {}
 
 // Deprecated: use LogFields or LogKV
-func (*Span) Log(tracing.LogData) {}
+func (*OtSpan) Log(tracing.LogData) {}

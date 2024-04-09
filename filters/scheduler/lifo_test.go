@@ -5,23 +5,24 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	"github.com/aryszka/jobqueue"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestNewLIFO(t *testing.T) {
@@ -442,38 +443,6 @@ func TestNewLIFO(t *testing.T) {
 	}
 }
 
-type testTracer struct {
-	*mocktracer.MockTracer
-	spans int32
-}
-
-func (t *testTracer) Reset() {
-	atomic.StoreInt32(&t.spans, 0)
-	t.MockTracer.Reset()
-}
-
-func (t *testTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
-	atomic.AddInt32(&t.spans, 1)
-	return t.MockTracer.StartSpan(operationName, opts...)
-}
-
-func (t *testTracer) FinishedSpans() []*mocktracer.MockSpan {
-	timeout := time.After(1 * time.Second)
-	retry := time.NewTicker(100 * time.Millisecond)
-	defer retry.Stop()
-	for {
-		finished := t.MockTracer.FinishedSpans()
-		if len(finished) == int(atomic.LoadInt32(&t.spans)) {
-			return finished
-		}
-		select {
-		case <-retry.C:
-		case <-timeout:
-			return nil
-		}
-	}
-}
-
 func TestLifoErrors(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		time.Sleep(time.Second)
@@ -508,10 +477,10 @@ func TestLifoErrors(t *testing.T) {
 
 	<-rt.FirstLoad()
 
-	tracer := &testTracer{MockTracer: mocktracer.New()}
+	tracer := &tracingtest.OtelTracer{}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
-		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
 	})
 	defer pr.Close()
 
@@ -520,24 +489,28 @@ func TestLifoErrors(t *testing.T) {
 
 	requestSpike(t, 20, ts.URL)
 
-	codes := make(map[uint16]int)
-	for _, span := range tracer.FinishedSpans() {
-		if span.OperationName == "ingress" {
-			code := span.Tag("http.status_code").(uint16)
-			codes[code]++
-			if code >= 500 {
-				assert.Equal(t, true, span.Tag("error"))
-			} else {
-				assert.Nil(t, span.Tag("error"))
-			}
+	codes := make(map[string]int)
+
+	for _, span := range tracer.FindAllSpans("ingress") {
+		code := span.Attributes[string(semconv.HTTPStatusCodeKey)].(string)
+
+		codes[code]++
+		c, err := strconv.Atoi(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c >= 500 {
+			assert.Equal(t, true, span.Attributes[tracing.ErrorTag])
+		} else {
+			assert.Nil(t, span.Attributes[tracing.ErrorTag])
 		}
 	}
 
-	assert.Equal(t, map[uint16]int{
+	assert.Equal(t, map[string]int{
 		// 20 request in total, of which:
-		200: 5, // went straight to the backend
-		502: 7, // were queued and timed out as backend latency is greater than scheduling timeout
-		503: 8, // were refused due to full queue
+		"200": 5, // went straight to the backend
+		"502": 7, // were queued and timed out as backend latency is greater than scheduling timeout
+		"503": 8, // were refused due to full queue
 	}, codes)
 
 	reg.UpdateMetrics()

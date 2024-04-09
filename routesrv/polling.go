@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
-	ot "github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -38,7 +39,7 @@ type poller struct {
 	cloneRoute     []*eskip.Clone
 
 	// visibility
-	tracer  ot.Tracer
+	tracer  trace.Tracer
 	metrics metrics.Metrics
 }
 
@@ -52,7 +53,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 
 	var lastRoutesById map[string]string
 	for {
-		span := tracing.CreateSpan("poll_routes", context.TODO(), p.tracer)
+		_, span := p.tracer.Start(context.Background(), "poll_routes")
 
 		routes, err := p.client.LoadAll()
 		routes = p.process(routes)
@@ -63,33 +64,37 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			log.WithError(err).Error(LogRoutesFetchingFailed)
 			p.metrics.IncCounter("routes.fetch_errors")
 
-			span.SetTag("error", true)
-			span.LogKV(
-				"event", "error",
-				"message", fmt.Sprintf("%s: %s", LogRoutesFetchingFailed, err),
+			span.SetAttributes(attribute.Bool(tracing.ErrorTag, true))
+			span.AddEvent(
+				"error",
+				trace.WithAttributes(attribute.String(
+					"message",
+					fmt.Sprintf("%s: %s", LogRoutesFetchingFailed, err),
+				)),
 			)
 		case routesCount == 0:
 			log.Info(LogRoutesEmpty)
 			p.metrics.IncCounter("routes.empty")
-			span.SetTag("routes.count", routesCount)
+			span.SetAttributes(attribute.Int("routes.count", routesCount))
 		case routesCount > 0:
 			routesBytes, routesHash, initialized, updated := p.b.formatAndSet(routes)
 			logger := log.WithFields(log.Fields{"count": routesCount, "bytes": routesBytes, "hash": routesHash})
 			if initialized {
 				logger.Info(LogRoutesInitialized)
-				span.SetTag("routes.initialized", true)
+				span.SetAttributes(attribute.Bool("routes.initialized", true))
 				p.setGaugeToCurrentTime("routes.initialized_timestamp")
 			}
 			if updated {
 				logger.Info(LogRoutesUpdated)
-				span.SetTag("routes.updated", true)
+				span.SetAttributes(attribute.Bool("routes.updated", true))
 				p.setGaugeToCurrentTime("routes.updated_timestamp")
 				p.metrics.UpdateGauge("routes.total", float64(routesCount))
 				p.metrics.UpdateGauge("routes.byte", float64(routesBytes))
 			}
-			span.SetTag("routes.count", routesCount)
-			span.SetTag("routes.bytes", routesBytes)
-			span.SetTag("routes.hash", routesHash)
+
+			span.SetAttributes(attribute.Int("routes.count", routesCount))
+			span.SetAttributes(attribute.Int("routes.bytes", routesBytes))
+			span.SetAttributes(attribute.String("routes.hash", routesHash))
 
 			if updated && log.IsLevelEnabled(log.DebugLevel) {
 				routesById := mapRoutes(routes)
@@ -98,7 +103,7 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 			}
 		}
 
-		span.Finish()
+		span.End()
 
 		select {
 		case <-p.quit:

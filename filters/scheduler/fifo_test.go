@@ -11,8 +11,8 @@ import (
 	"testing/iotest"
 	"time"
 
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/sirupsen/logrus"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -296,10 +296,10 @@ func TestFifoWithBody(t *testing.T) {
 			rt := routing.New(ro)
 			defer rt.Close()
 			<-rt.FirstLoad()
-			tracer := &testTracer{MockTracer: mocktracer.New()}
+			tracer := nooptrace.NewTracerProvider().Tracer("noop tracer")
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
-				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+				OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
 			})
 			defer pr.Close()
 			ts := stdlibhttptest.NewServer(pr)
@@ -508,10 +508,10 @@ func TestFifo(t *testing.T) {
 			defer rt.Close()
 			<-rt.FirstLoad()
 
-			tracer := &testTracer{MockTracer: mocktracer.New()}
+			tracer := nooptrace.NewTracerProvider().Tracer("noop tracer")
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
-				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+				OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
 			})
 			defer pr.Close()
 
@@ -635,11 +635,10 @@ func TestFifoConstantRouteUpdates(t *testing.T) {
 			rt := routing.New(ro)
 			defer rt.Close()
 			<-rt.FirstLoad()
-
-			tracer := &testTracer{MockTracer: mocktracer.New()}
+			tracer := nooptrace.NewTracerProvider().Tracer("noop tracer")
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
-				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+				OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
 			})
 			defer pr.Close()
 

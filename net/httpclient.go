@@ -13,9 +13,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/secrets"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
@@ -186,9 +190,14 @@ type Options struct {
 	// https://golang.org/pkg/net/http/#Transport.ExpectContinueTimeout,
 	// if not set or set to 0, its using Options.Timeout.
 	ExpectContinueTimeout time.Duration
-
 	// Tracer instance, can be nil to not enable tracing
+	// DEPRECATED, use TracerWrapper instead.
 	Tracer opentracing.Tracer
+	// TracerWrapper instance, tracer wrapper is an abstraction around
+	// the different types of tracers skipper operates with. Currently
+	// skipper operates with OpenTelemetry and OpenTracing. In case
+	// this option is nil tracing will not be enabled.
+	OtelTracer trace.Tracer
 	// OpentracingComponentTag sets component tag for all requests
 	OpentracingComponentTag string
 	// OpentracingSpanName sets span name for all requests
@@ -215,7 +224,7 @@ type Transport struct {
 	once          sync.Once
 	quit          chan struct{}
 	tr            *http.Transport
-	tracer        opentracing.Tracer
+	tracer        trace.Tracer
 	spanName      string
 	componentName string
 	bearerToken   string
@@ -227,8 +236,12 @@ type Transport struct {
 // not leak a goroutine.
 func NewTransport(options Options) *Transport {
 	// set default tracer
-	if options.Tracer == nil {
-		options.Tracer = &opentracing.NoopTracer{}
+	if options.Tracer == nil && options.OtelTracer == nil {
+		options.OtelTracer = noop.NewTracerProvider().Tracer("Noop tracer")
+	}
+
+	if options.OtelTracer == nil && options.Tracer != nil {
+		options.OtelTracer = &tracing.TracerWrapper{Ot: options.Tracer}
 	}
 
 	// set timeout defaults
@@ -278,7 +291,7 @@ func NewTransport(options Options) *Transport {
 		once:   sync.Once{},
 		quit:   make(chan struct{}),
 		tr:     htransport,
-		tracer: options.Tracer,
+		tracer: options.OtelTracer,
 	}
 
 	if t.tracer != nil {
@@ -359,86 +372,80 @@ func (t *Transport) CloseIdleConnections() {
 // tracing: DNS, TCP/IP, TLS handshake, connection pool access. Client
 // traces are added as logs into the created span.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	var span opentracing.Span
+	var span trace.Span
 	if t.spanName != "" {
 		req, span = t.injectSpan(req)
-		defer span.Finish()
+		defer span.End()
 		req = injectClientTrace(req, span)
-		span.LogKV("http_do", "start")
+		span.AddEvent("http_do", trace.WithAttributes(attribute.String("http_do", "start")))
 	}
 	if t.bearerToken != "" {
 		req.Header.Set("Authorization", "Bearer "+t.bearerToken)
 	}
 	rsp, err := t.tr.RoundTrip(req)
 	if span != nil {
-		span.LogKV("http_do", "stop")
+		span.AddEvent("http_do", trace.WithAttributes(attribute.String("http_do", "stop")))
 		if rsp != nil {
-			ext.HTTPStatusCode.Set(span, uint16(rsp.StatusCode))
+			span.SetAttributes(semconv.HTTPStatusCode(rsp.StatusCode))
 		}
 	}
 
 	return rsp, err
 }
 
-func (t *Transport) injectSpan(req *http.Request) (*http.Request, opentracing.Span) {
-	parentSpan := opentracing.SpanFromContext(req.Context())
-	var span opentracing.Span
-	if parentSpan != nil {
-		req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
-		span = t.tracer.StartSpan(t.spanName, opentracing.ChildOf(parentSpan.Context()))
-	} else {
-		span = t.tracer.StartSpan(t.spanName)
-	}
+func (t *Transport) injectSpan(req *http.Request) (*http.Request, trace.Span) {
+	ctx, span := t.tracer.Start(req.Context(), t.spanName)
+	req = req.WithContext(ctx)
 
 	// add Tags
-	ext.Component.Set(span, t.componentName)
-	ext.HTTPUrl.Set(span, req.URL.String())
-	ext.HTTPMethod.Set(span, req.Method)
-	ext.SpanKind.Set(span, "client")
+	span.SetAttributes(attribute.String(tracing.ComponentTag, t.componentName))
+	span.SetAttributes(semconv.HTTPURL(req.URL.String()))
+	span.SetAttributes(semconv.HTTPMethod(req.Method))
+	span.SetAttributes(attribute.String(tracing.SpanKindTag, "client"))
 
-	_ = t.tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+	req = tracing.Inject(ctx, req, span, t.tracer)
 
 	return req, span
 }
 
-func injectClientTrace(req *http.Request, span opentracing.Span) *http.Request {
+func injectClientTrace(req *http.Request, span trace.Span) *http.Request {
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(httptrace.DNSStartInfo) {
-			span.LogKV("DNS", "start")
+			span.AddEvent("DNS", trace.WithAttributes(attribute.String("DNS", "start")))
 		},
 		DNSDone: func(httptrace.DNSDoneInfo) {
-			span.LogKV("DNS", "end")
+			span.AddEvent("DNS", trace.WithAttributes(attribute.String("DNS", "stop")))
 		},
 		ConnectStart: func(string, string) {
-			span.LogKV("connect", "start")
+			span.AddEvent("connect", trace.WithAttributes(attribute.String("connect", "start")))
 		},
 		ConnectDone: func(string, string, error) {
-			span.LogKV("connect", "end")
+			span.AddEvent("connect", trace.WithAttributes(attribute.String("connect", "end")))
 		},
 		TLSHandshakeStart: func() {
-			span.LogKV("TLS", "start")
+			span.AddEvent("TLS", trace.WithAttributes(attribute.String("TLS", "start")))
 		},
 		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			span.LogKV("TLS", "end")
+			span.AddEvent("TLS", trace.WithAttributes(attribute.String("TLS", "end")))
 		},
 		GetConn: func(string) {
-			span.LogKV("get_conn", "start")
+			span.AddEvent("get_conn", trace.WithAttributes(attribute.String("get_conn", "start")))
 		},
 		GotConn: func(httptrace.GotConnInfo) {
-			span.LogKV("get_conn", "end")
+			span.AddEvent("get_conn", trace.WithAttributes(attribute.String("get_conn", "end")))
 		},
 		WroteHeaders: func() {
-			span.LogKV("wrote_headers", "done")
+			span.AddEvent("wrote_headers", trace.WithAttributes(attribute.String("wrote_headers", "done")))
 		},
 		WroteRequest: func(wri httptrace.WroteRequestInfo) {
 			if wri.Err != nil {
-				span.LogKV("wrote_request", ensureUTF8(wri.Err.Error()))
+				span.AddEvent("wrote_request", trace.WithAttributes(attribute.String("wrote_request", ensureUTF8(wri.Err.Error()))))
 			} else {
-				span.LogKV("wrote_request", "done")
+				span.AddEvent("wrote_request", trace.WithAttributes(attribute.String("wrote_request", "done")))
 			}
 		},
 		GotFirstResponseByte: func() {
-			span.LogKV("got_first_byte", "done")
+			span.AddEvent("got_first_byte", trace.WithAttributes(attribute.String("got_first_byte", "done")))
 		},
 	}
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))

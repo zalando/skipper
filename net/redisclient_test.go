@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/zalando/skipper/net/redistest"
+	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
 
@@ -155,7 +156,7 @@ func TestRedisClient(t *testing.T) {
 			name: "With tracer",
 			options: &RedisOptions{
 				Addrs:  []string{redisAddr},
-				Tracer: tracer,
+				Tracer: &tracing.TracerWrapper{Ot: tracer},
 			},
 			wantErr: false,
 		},
@@ -211,8 +212,8 @@ func TestRedisClient(t *testing.T) {
 			}
 
 			if tt.options.Tracer != nil {
-				span := cli.StartSpan("test")
-				span.Finish()
+				_, span := cli.StartSpan(context.Background(), "test")
+				span.End()
 			}
 
 			if tt.options.ConnMetricsInterval != defaultConnMetricsInterval {

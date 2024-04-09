@@ -27,6 +27,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/scheduler"
 	"github.com/zalando/skipper/secrets/certregistry"
+	"github.com/zalando/skipper/tracing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 
 	"github.com/stretchr/testify/assert"
@@ -110,15 +111,20 @@ func TestOptionsFilterRegistry(t *testing.T) {
 }
 
 func TestOptionsOpenTracingTracerInstanceOverridesOpenTracing(t *testing.T) {
-	tracer := &tracingtest.Tracer{}
+	tracer := &tracingtest.OtTracer{}
 	o := Options{
 		OpenTracingTracer: tracer,
 		OpenTracing:       []string{"noop"},
 	}
 
-	tr, err := o.openTracingTracerInstance()
+	o.tracerInstance()
+
+	tr, err := o.tracerInstance()
 	assert.NoError(t, err)
-	assert.Same(t, tracer, tr)
+
+	tw, ok := tr.(*tracing.TracerWrapper)
+	assert.True(t, ok)
+	assert.Same(t, tracer, tw.Ot)
 }
 
 func TestOptionsOpenTracingTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t *testing.T) {
@@ -126,7 +132,7 @@ func TestOptionsOpenTracingTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t
 		OpenTracing: []string{"noop"},
 	}
 
-	tr, err := o.openTracingTracerInstance()
+	tr, err := o.tracerInstance()
 	assert.NoError(t, err)
 	assert.NotNil(t, tr)
 }
@@ -134,7 +140,17 @@ func TestOptionsOpenTracingTracerInstanceFallbacksToOpenTracingWhenTracerIsNil(t
 func TestOptionsOpenTracingTracerInstanceReturnsErrorWhenNoTracerConfigIsSpecified(t *testing.T) {
 	o := Options{}
 
-	tr, err := o.openTracingTracerInstance()
+	tr, err := o.tracerInstance()
+	assert.NoError(t, err)
+	assert.NotNil(t, tr)
+}
+
+func TestOptionsOpenTracingTracerInstanceReturnsErrorWhenInvalidConfigIsSpecified(t *testing.T) {
+	o := Options{
+		OpenTracing: []string{"invalid"},
+	}
+
+	tr, err := o.tracerInstance()
 	assert.Error(t, err)
 	assert.Nil(t, tr)
 }
@@ -545,11 +561,12 @@ func TestDataClients(t *testing.T) {
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracingtest.Tracer{}
+	tracer := &tracingtest.OtelTracer{}
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
-		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+		OpenTracing: &proxy.OpenTracingParams{OtelTracer: tracer},
 	})
+
 	defer pr.Close()
 	lb := stdlibhttptest.NewServer(pr)
 	defer lb.Close()

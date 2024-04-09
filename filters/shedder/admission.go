@@ -9,13 +9,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 func getIntArg(a interface{}) (int, error) {
@@ -94,7 +96,7 @@ const (
 )
 
 type Options struct {
-	Tracer opentracing.Tracer
+	Tracer trace.Tracer
 }
 
 type admissionControlPre struct{}
@@ -164,7 +166,7 @@ func (spec *admissionControlPost) Do(routes []*routing.Route) []*routing.Route {
 }
 
 type AdmissionControlSpec struct {
-	tracer opentracing.Tracer
+	tracer trace.Tracer
 }
 
 type admissionControl struct {
@@ -175,7 +177,7 @@ type admissionControl struct {
 
 	metrics      metrics.Metrics
 	metricSuffix string
-	tracer       opentracing.Tracer
+	tracer       trace.Tracer
 
 	mode                 mode
 	windowSize           int
@@ -195,7 +197,7 @@ type admissionControl struct {
 func NewAdmissionControl(o Options) filters.Spec {
 	tracer := o.Tracer
 	if tracer == nil {
-		tracer = &opentracing.NoopTracer{}
+		tracer = noop.NewTracerProvider().Tracer("Noop tracer")
 	}
 	return &AdmissionControlSpec{
 		tracer: tracer,
@@ -410,13 +412,14 @@ func (ac *admissionControl) shouldReject() bool {
 }
 
 func (ac *admissionControl) Request(ctx filters.FilterContext) {
-	span := ac.startSpan(ctx.Request().Context())
-	defer span.Finish()
+	span, sCtx := ac.startSpan(ctx.Request().Context())
+	ctx.WithRequest(ctx.Request().WithContext(sCtx))
+	defer span.End()
 	ac.metrics.IncCounter(counterPrefix + "total." + ac.metricSuffix)
 
 	if ac.shouldReject() {
 		ac.metrics.IncCounter(counterPrefix + "reject." + ac.metricSuffix)
-		ext.Error.Set(span, true)
+		span.SetAttributes(attribute.Bool(tracing.ErrorTag, true))
 
 		ctx.StateBag()[admissionControlKey] = admissionControlValue
 
@@ -451,14 +454,11 @@ func (ac *admissionControl) Response(ctx filters.FilterContext) {
 	ac.counter.Add(1)
 }
 
-func (ac *admissionControl) startSpan(ctx context.Context) (span opentracing.Span) {
-	parent := opentracing.SpanFromContext(ctx)
-	if parent != nil {
-		span = ac.tracer.StartSpan(admissionControlSpanName, opentracing.ChildOf(parent.Context()))
-		ext.Component.Set(span, "skipper")
-		ext.SpanKind.Set(span, "shedder")
-		span.SetTag("mode", ac.mode.String())
-	}
+func (ac *admissionControl) startSpan(ctx context.Context) (span trace.Span, sCtx context.Context) {
+	sCtx, span = ac.tracer.Start(ctx, admissionControlSpanName)
+	span.SetAttributes(attribute.String(tracing.ComponentTag, "skipper"))
+	span.SetAttributes(attribute.String(tracing.SpanKindTag, "shedder"))
+	span.SetAttributes(attribute.String("mode", ac.mode.String()))
 	return
 }
 

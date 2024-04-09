@@ -1,4 +1,4 @@
-// Package tracing handles opentracing support for skipper
+// Package tracing handles opentelemetry and opentracing support for skipper
 //
 // Implementations of Opentracing API can be found in the https://github.com/skipper-plugins.
 // It follows how to implement a new tracer plugin for this interface.
@@ -47,12 +47,18 @@
 // and copied to the given as -plugindir (by default, "./plugins").
 //
 // Then it can be loaded with -opentracing basic as parameter to skipper.
+//
+// Also note that the API always return and receive opentelemetry.Tracer, to use opentracing
+// within skipper its necessary to embedd it into a TracerWrapper, this type will implement
+// opentelemetry.Tracer interface but will instead call opentracing.Tracer under the hood
+// making it possible to pass and receive opentracing.Tracer to and from skipper.
 package tracing
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"plugin"
 
@@ -61,6 +67,11 @@ import (
 	"github.com/zalando/skipper/tracing/tracers/instana"
 	"github.com/zalando/skipper/tracing/tracers/jaeger"
 	"github.com/zalando/skipper/tracing/tracers/lightstep"
+	"github.com/zalando/skipper/tracing/tracers/otel"
+	otelapi "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	originstana "github.com/instana/go-sensor"
 	origlightstep "github.com/lightstep/lightstep-tracer-go"
@@ -68,32 +79,49 @@ import (
 	origjaeger "github.com/uber/jaeger-client-go"
 )
 
-// InitTracer initializes an opentracing tracer. The first option item is the
-// tracer implementation name.
-func InitTracer(opts []string) (tracer ot.Tracer, err error) {
+// InitTracer initializes an opentelemetry tracer. The first option item is the
+// tracer implementation name. If the first option is not "otel" InitTracer will
+// initialize a opentracing tracer and embedd it into a TracerWrapper that will
+// convert calls from opentelemetry API to opentracing API when necessary.
+func InitTracer(opts []string) (tracer trace.Tracer, err error) {
 	if len(opts) == 0 {
-		return nil, errors.New("opentracing: the implementation parameter is mandatory")
+		return nil, errors.New("tracing: the implementation parameter is mandatory")
 	}
 	var impl string
 	impl, opts = opts[0], opts[1:]
 
 	switch impl {
+	case "otel":
+		ctx := context.Background()
+		return otel.InitTracer(ctx, opts)
 	case "noop":
-		return &ot.NoopTracer{}, nil
+		return &TracerWrapper{Ot: &ot.NoopTracer{}}, nil
 	case "basic":
-		return basic.InitTracer(opts)
+		var err error
+		tracer := &TracerWrapper{}
+		tracer.Ot, err = basic.InitTracer(opts)
+		return tracer, err
 	case "instana":
-		return instana.InitTracer(opts)
+		var err error
+		tracer := &TracerWrapper{}
+		tracer.Ot, err = instana.InitTracer(opts)
+		return tracer, err
 	case "jaeger":
-		return jaeger.InitTracer(opts)
+		var err error
+		tracer := &TracerWrapper{}
+		tracer.Ot, err = jaeger.InitTracer(opts)
+		return tracer, err
 	case "lightstep":
-		return lightstep.InitTracer(opts)
+		var err error
+		tracer := &TracerWrapper{}
+		tracer.Ot, err = lightstep.InitTracer(opts)
+		return tracer, err
 	default:
 		return nil, fmt.Errorf("tracer '%s' not supported", impl)
 	}
 }
 
-func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, err error) {
+func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer trace.Tracer, err error) {
 	for _, dir := range pluginDirs {
 		tracer, err = LoadPlugin(dir, opts)
 		if err == nil {
@@ -103,9 +131,12 @@ func LoadTracingPlugin(pluginDirs []string, opts []string) (tracer ot.Tracer, er
 	return nil, err
 }
 
-// LoadPlugin loads the given opentracing plugin and returns an opentracing.Tracer
+// LoadPlugin loads the given opentracing plugin and returns an opentelemetry.Tracer
+// be aware that in case your system only uses opentracing.Tracer, it will be necessary
+// to use the TracerWrapper also provided in this package. TacerWrapper converts calls
+// from opentelemetry.Tracer to opentracing.Tracer.
 // DEPRECATED, use LoadTracingPlugin
-func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
+func LoadPlugin(pluginDir string, opts []string) (trace.Tracer, error) {
 	if len(opts) == 0 {
 		return nil, errors.New("opentracing: the implementation parameter is mandatory")
 	}
@@ -113,7 +144,7 @@ func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	impl, opts = opts[0], opts[1:]
 
 	if impl == "noop" {
-		return &ot.NoopTracer{}, nil
+		return &TracerWrapper{Ot: &ot.NoopTracer{}}, nil
 	}
 
 	pluginFile := filepath.Join(pluginDir, impl+".so") // FIXME this is Linux and other ELF...
@@ -125,9 +156,18 @@ func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lookup module symbol failed for %s: %s", impl, err)
 	}
-	fn, ok := sym.(func([]string) (ot.Tracer, error))
+	fn, ok := sym.(func([]string) (trace.Tracer, error))
 	if !ok {
-		return nil, fmt.Errorf("module %s's InitTracer function has wrong signature", impl)
+		otfn, ok := sym.(func([]string) (ot.Tracer, error))
+		if !ok {
+			return nil, fmt.Errorf("module %s's InitTracer function has wrong signature", impl)
+		}
+
+		t, err := otfn(opts)
+		if err != nil {
+			return nil, fmt.Errorf("module %s returned: %s", impl, err)
+		}
+		return &TracerWrapper{Ot: t}, nil
 	}
 	tracer, err := fn(opts)
 	if err != nil {
@@ -136,44 +176,187 @@ func LoadPlugin(pluginDir string, opts []string) (ot.Tracer, error) {
 	return tracer, nil
 }
 
-// CreateSpan creates a started span from an optional given parent from context
-func CreateSpan(name string, ctx context.Context, openTracer ot.Tracer) ot.Span {
-	parentSpan := ot.SpanFromContext(ctx)
-	if parentSpan == nil {
-		return openTracer.StartSpan(name)
-	}
-	return openTracer.StartSpan(name, ot.ChildOf(parentSpan.Context()))
-}
-
-// LogKV will add a log to the span from the given context
-func LogKV(k, v string, ctx context.Context) {
-	if span := ot.SpanFromContext(ctx); span != nil {
-		span.LogKV(k, v)
-	}
-}
-
-// GetTraceID retrieves TraceID from HTTP request, for example to search for this trace
+// GetSpanID retrieves SpanID from HTTP request, for example to search for this span
 // in the UI of your tracing solution and to get more context about it
-func GetTraceID(span ot.Span) string {
+func GetSpanID(span trace.Span) string {
 	if span == nil {
 		return ""
 	}
 
-	spanContext := span.Context()
-	if spanContext == nil {
+	if sw, ok := span.(*SpanWrapper); ok {
+
+		spanContext := sw.Ot.Context()
+		if spanContext == nil {
+			return ""
+		}
+
+		switch spanContextType := spanContext.(type) {
+		case origbasic.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.SpanID)
+		case originstana.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.SpanID)
+		case origjaeger.SpanContext:
+			return spanContextType.TraceID().String()
+		case origlightstep.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.SpanID)
+		}
+	}
+
+	return span.SpanContext().SpanID().String()
+}
+
+// GetTraceID retrieves TraceID from HTTP request, for example to search for this trace
+// in the UI of your tracing solution and to get more context about it
+func GetTraceID(span trace.Span) string {
+	if span == nil {
 		return ""
 	}
 
-	switch spanContextType := spanContext.(type) {
-	case origbasic.SpanContext:
-		return fmt.Sprintf("%x", spanContextType.TraceID)
-	case originstana.SpanContext:
-		return fmt.Sprintf("%x", spanContextType.TraceID)
-	case origjaeger.SpanContext:
-		return spanContextType.TraceID().String()
-	case origlightstep.SpanContext:
-		return fmt.Sprintf("%x", spanContextType.TraceID)
+	if sw, ok := span.(*SpanWrapper); ok {
+
+		spanContext := sw.Ot.Context()
+		if spanContext == nil {
+			return ""
+		}
+
+		switch spanContextType := spanContext.(type) {
+		case origbasic.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.TraceID)
+		case originstana.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.TraceID)
+		case origjaeger.SpanContext:
+			return spanContextType.TraceID().String()
+		case origlightstep.SpanContext:
+			return fmt.Sprintf("%x", spanContextType.TraceID)
+		}
 	}
 
-	return ""
+	if span.SpanContext().TraceID().IsValid() {
+		return span.SpanContext().TraceID().String()
+	} else {
+		return ""
+	}
+}
+
+// SpanFromContext retrieves a span from a context, this span can either be a
+// SpanWrapper or a open telemetry SDK span.
+func SpanFromContext(ctx context.Context, tracer trace.Tracer) trace.Span {
+	if tracer == nil {
+		return nil
+	}
+
+	_, ok := tracer.(*TracerWrapper)
+	if ok {
+		s := ot.SpanFromContext(ctx)
+		if s == nil {
+			return nil
+		}
+		return &SpanWrapper{Ot: s}
+	}
+
+	// There is a possibility that otel.SpanFromContext returns a otel.noopSpan{}
+	// This might be an unexpected behaviour to our code because ot.SpanFromContext
+	// in the same situation would return nil.
+	// NoopSpan has empty spanContext, to check if this is a noop span just check if TraceID/SpanID
+	// exists.
+	s := trace.SpanFromContext(ctx)
+	if !s.SpanContext().HasTraceID() {
+		return nil
+	}
+	return s
+}
+
+// ContextWithSpan is the oposite of SpanFromContext, it will store a span into the context.
+func ContextWithSpan(ctx context.Context, span trace.Span) context.Context {
+	if span == nil {
+		return ctx
+	}
+
+	sw, ok := span.(*SpanWrapper)
+	if ok {
+		return ot.ContextWithSpan(ctx, sw.Ot)
+	}
+
+	return trace.ContextWithSpan(ctx, span)
+}
+
+// Extract will extract any inter-process stored in the request like previous
+// spans or baggage items created by other services and store it in the context
+// being returned.
+func Extract(tracer trace.Tracer, req *http.Request) context.Context {
+	if tracer == nil {
+		return req.Context()
+	}
+
+	t, ok := tracer.(*TracerWrapper)
+	if !ok {
+		carrier := propagation.HeaderCarrier(req.Header)
+		ctx := otelapi.GetTextMapPropagator().Extract(req.Context(), carrier)
+		return ctx
+	}
+
+	wireContext, err := t.Ot.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(req.Header))
+	if err != nil {
+		return req.Context()
+	}
+	return context.WithValue(req.Context(), wireContextKey, wireContext)
+}
+
+// Inject in the oposite of Extract. It will inject any inter-process information into a
+// *http.Request so this information can be propagated to other services.
+func Inject(ctx context.Context, req *http.Request, span trace.Span, tracer trace.Tracer) *http.Request {
+	if span == nil || tracer == nil {
+		return req
+	}
+
+	t, ok := tracer.(*TracerWrapper)
+	if !ok {
+		carrier := propagation.HeaderCarrier(req.Header)
+		otelapi.GetTextMapPropagator().Inject(ctx, carrier)
+		return req.WithContext(ctx)
+	}
+
+	sp, ok := span.(*SpanWrapper)
+	if !ok {
+		return req.WithContext(ctx)
+	}
+	carrier := ot.HTTPHeadersCarrier(req.Header)
+	_ = t.Ot.Inject(sp.Ot.Context(), ot.HTTPHeaders, carrier)
+
+	return req.WithContext(ot.ContextWithSpan(ctx, sp.Ot))
+}
+
+// GetBaggageMember gets a BaggageItem from the context. This works both for TracerWrapper and
+// open telemetry.
+func GetBaggageMember(ctx context.Context, span trace.Span, key string) baggage.Member {
+	sw, ok := span.(*SpanWrapper)
+	if !ok {
+		return baggage.FromContext(ctx).Member(key)
+	}
+
+	bagItem := sw.Ot.BaggageItem(key)
+	m, err := baggage.NewMemberRaw(key, bagItem)
+	if err != nil {
+		return m
+	}
+	return m
+}
+
+// SetBaggageMember sets a BaggageItem to the context. This is the oposite of GetBaggageMember.
+func SetBaggageMember(ctx context.Context, span trace.Span, key string, value string) (context.Context, error) {
+	sw, ok := span.(*SpanWrapper)
+	if !ok {
+		member, err := baggage.NewMember(key, value)
+		if err != nil {
+			return ctx, err
+		}
+		b, err := baggage.FromContext(ctx).SetMember(member)
+		if err != nil {
+			return ctx, err
+		}
+		return baggage.ContextWithBaggage(ctx, b), nil
+	}
+
+	sw.Ot.SetBaggageItem(key, value)
+	return ContextWithSpan(ctx, span), nil
 }

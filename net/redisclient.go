@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/opentracing/opentracing-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 
 	xxhash "github.com/cespare/xxhash/v2"
 	rendezvous "github.com/dgryski/go-rendezvous"
@@ -69,8 +70,8 @@ type RedisOptions struct {
 	// MetricsPrefix is the prefix for redis ring client metrics,
 	// defaults to "swarm.redis." if not set
 	MetricsPrefix string
-	// Tracer provides OpenTracing for Redis queries.
-	Tracer opentracing.Tracer
+	// Tracer provides OpenTelemetry for Redis queries.
+	Tracer trace.Tracer
 	// Log is the logger that is used
 	Log logging.Logger
 
@@ -89,7 +90,7 @@ type RedisRingClient struct {
 	metrics       metrics.Metrics
 	metricsPrefix string
 	options       *RedisOptions
-	tracer        opentracing.Tracer
+	tracer        trace.Tracer
 	quit          chan struct{}
 	once          sync.Once
 	closed        bool
@@ -204,7 +205,7 @@ func NewRedisRingClient(ro *RedisOptions) *RedisRingClient {
 		once:    sync.Once{},
 		quit:    make(chan struct{}),
 		metrics: metrics.Default,
-		tracer:  &opentracing.NoopTracer{},
+		tracer:  nooptrace.NewTracerProvider().Tracer("noop tracer"),
 	}
 
 	ringOptions := &redis.RingOptions{
@@ -372,8 +373,16 @@ func (r *RedisRingClient) StartMetricsCollection() {
 	}()
 }
 
-func (r *RedisRingClient) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
-	return r.tracer.StartSpan(operationName, opts...)
+func (r *RedisRingClient) StartSpan(
+	ctx context.Context,
+	name string,
+	opts ...trace.SpanStartOption,
+) (context.Context, trace.Span) {
+	return r.tracer.Start(ctx, name, opts...)
+}
+
+func (r *RedisRingClient) Tracer() trace.Tracer {
+	return r.tracer
 }
 
 func (r *RedisRingClient) Close() {

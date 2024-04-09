@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http/httpguts"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/tracing"
 )
 
 const (
@@ -20,7 +22,7 @@ const (
 type WebhookOptions struct {
 	Timeout      time.Duration
 	MaxIdleConns int
-	Tracer       opentracing.Tracer
+	Tracer       trace.Tracer
 }
 
 type (
@@ -39,7 +41,10 @@ var webhookAuthClient map[string]*authClient = make(map[string]*authClient)
 // to validate authorization for requests via an
 // external web hook.
 func NewWebhook(timeout time.Duration) filters.Spec {
-	return WebhookWithOptions(WebhookOptions{Timeout: timeout, Tracer: opentracing.NoopTracer{}})
+	return WebhookWithOptions(WebhookOptions{
+		Timeout: timeout,
+		Tracer:  &tracing.TracerWrapper{Ot: opentracing.NoopTracer{}},
+	})
 }
 
 // WebhookWithOptions creates a new auth filter specification
