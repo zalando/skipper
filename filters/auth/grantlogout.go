@@ -125,7 +125,7 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 
 	req := ctx.Request()
 
-	c, err := extractCookie(req, f.config)
+	token, err := f.config.GrantCookieEncoder.Read(req)
 	if err != nil {
 		unauthorized(
 			ctx,
@@ -136,7 +136,7 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	if c.AccessToken == "" && c.RefreshToken == "" {
+	if token.AccessToken == "" && token.RefreshToken == "" {
 		unauthorized(
 			ctx,
 			"",
@@ -153,15 +153,15 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 	}
 
 	var accessTokenRevokeError, refreshTokenRevokeError error
-	if c.AccessToken != "" {
-		accessTokenRevokeError = f.revokeTokenType(authConfig, accessTokenType, c.AccessToken)
+	if token.AccessToken != "" {
+		accessTokenRevokeError = f.revokeTokenType(authConfig, accessTokenType, token.AccessToken)
 		if accessTokenRevokeError != nil {
 			ctx.Logger().Errorf("%v", accessTokenRevokeError)
 		}
 	}
 
-	if c.RefreshToken != "" {
-		refreshTokenRevokeError = f.revokeTokenType(authConfig, refreshTokenType, c.RefreshToken)
+	if token.RefreshToken != "" {
+		refreshTokenRevokeError = f.revokeTokenType(authConfig, refreshTokenType, token.RefreshToken)
 		if refreshTokenRevokeError != nil {
 			ctx.Logger().Errorf("%v", refreshTokenRevokeError)
 		}
@@ -173,6 +173,12 @@ func (f *grantLogoutFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *grantLogoutFilter) Response(ctx filters.FilterContext) {
-	deleteCookie := createDeleteCookie(f.config, ctx.Request().Host)
-	ctx.Response().Header.Add("Set-Cookie", deleteCookie.String())
+	cookies, err := f.config.GrantCookieEncoder.Update(ctx.Request(), nil)
+	if err != nil {
+		ctx.Logger().Errorf("Failed to delete cookies: %v.", err)
+		return
+	}
+	for _, c := range cookies {
+		ctx.Response().Header.Add("Set-Cookie", c.String())
+	}
 }
