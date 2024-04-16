@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 
+	"github.com/ghodss/yaml"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/jwt"
 )
@@ -14,7 +16,8 @@ type (
 	jwtMetricsSpec struct{}
 
 	jwtMetricsFilter struct {
-		claims [][2]string
+		IgnoreStatusCodes []int            `json:"ignore_status_codes",omitempty`
+		Claims            map[string][]any `json:"claims",omitempty`
 	}
 )
 
@@ -27,20 +30,20 @@ func (s *jwtMetricsSpec) Name() string {
 }
 
 func (s *jwtMetricsSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args)%2 != 0 {
+	f := &jwtMetricsFilter{
+		IgnoreStatusCodes: []int{http.StatusUnauthorized, http.StatusForbidden},
+	}
+
+	if len(args) == 1 {
+		if config, ok := args[0].(string); !ok {
+			return nil, filters.ErrInvalidFilterParameters
+		} else if err := yaml.Unmarshal([]byte(config), f); err != nil {
+			return nil, fmt.Errorf(">>%w", err)
+		}
+	} else if len(args) > 1 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-	f := &jwtMetricsFilter{
-		claims: make([][2]string, 0, len(args)/2),
-	}
-	for i := 0; i < len(args); i += 2 {
-		key, keyOk := args[i].(string)
-		value, valueOk := args[i+1].(string)
-		if !keyOk || !valueOk {
-			return nil, filters.ErrInvalidFilterParameters
-		}
-		f.claims = append(f.claims, [2]string{key, value})
-	}
+
 	return f, nil
 }
 
@@ -49,9 +52,8 @@ func (f *jwtMetricsFilter) Request(ctx filters.FilterContext) {}
 func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
 	response := ctx.Response()
 
-	switch response.StatusCode {
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return // ignore request that failed authentication
+	if slices.Contains(f.IgnoreStatusCodes, response.StatusCode) {
+		return
 	}
 
 	request := ctx.Request()
@@ -77,11 +79,15 @@ func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	hasAnyClaim := false
-	for _, claim := range f.claims {
-		key, expected := claim[0], claim[1]
-		if value, ok := token.Claims[key]; ok && value == expected {
-			hasAnyClaim = true
+	hasAnyClaim := len(f.Claims) == 0
+	for key, values := range f.Claims {
+		if value, ok := token.Claims[key]; ok {
+			for _, v := range values {
+				if value == v {
+					hasAnyClaim = true
+					break
+				}
+			}
 		}
 	}
 

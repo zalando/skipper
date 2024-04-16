@@ -15,7 +15,7 @@ import (
 )
 
 func TestJwtMetrics(t *testing.T) {
-	args := eskip.MustParseFilters(`jwtMetrics("iss", "foo", "sub", "bar")`)[0].Args
+	args := eskip.MustParseFilters(`jwtMetrics("{claims: {iss: [foo, qux], sub: [bar]}, ignore_status_codes: [401, 403, 404]}")`)[0].Args
 
 	spec := auth.NewJwtMetrics()
 	filter, err := spec.CreateFilter(args)
@@ -37,6 +37,12 @@ func TestJwtMetrics(t *testing.T) {
 			name:     "ignores 403 response",
 			request:  &http.Request{Method: "GET", Host: "foo.test"},
 			response: &http.Response{StatusCode: http.StatusUnauthorized},
+			expected: map[string]int64{},
+		},
+		{
+			name:     "ignores custom response",
+			request:  &http.Request{Method: "GET", Host: "foo.test"},
+			response: &http.Response{StatusCode: http.StatusNotFound},
 			expected: map[string]int64{},
 		},
 		{
@@ -123,8 +129,8 @@ func TestJwtMetricsArgs(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		for _, def := range []string{
 			`jwtMetrics()`,
-			`jwtMetrics("iss", "foo")`,
-			`jwtMetrics("iss", "foo", "iss", "bar")`,
+			`jwtMetrics("{claims: {iss: [foo], sub: [bar]}}")`,
+			`jwtMetrics("{claims: {iss: [foo, bar]}}")`,
 		} {
 			t.Run(def, func(t *testing.T) {
 				args := eskip.MustParseFilters(def)[0].Args
