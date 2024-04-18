@@ -295,6 +295,7 @@ const (
 	GrantLogoutName                            = "grantLogout"
 	GrantClaimsQueryName                       = "grantClaimsQuery"
 	JwtValidationName                          = "jwtValidation"
+	JwtMetricsName                             = "jwtMetrics"
 	OAuthOidcUserInfoName                      = "oauthOidcUserInfo"
 	OAuthOidcAnyClaimsName                     = "oauthOidcAnyClaims"
 	OAuthOidcAllClaimsName                     = "oauthOidcAllClaims"
