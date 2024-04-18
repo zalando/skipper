@@ -79,6 +79,25 @@ route1: *
     -> <shunt>;
 ```
 
+## annotate
+
+Annotate the route, subsequent annotations using the same key will overwrite the value.
+Other subsequent filters can use annotations to make decisions and should document the key and value they use.
+
+Parameters:
+
+* key (string)
+* value (string)
+
+Example:
+
+```
+route1: *
+    -> annotate("never", "gonna give you up")
+    -> annotate("never", "gonna let you down")
+    -> <shunt>;
+```
+
 ## HTTP Headers
 ### preserveHost
 
