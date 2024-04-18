@@ -208,6 +208,7 @@ func (r Registry) Register(s Spec) {
 const (
 	BackendIsProxyName                         = "backendIsProxy"
 	CommentName                                = "comment"
+	AnnotateName                               = "annotate"
 	ModRequestHeaderName                       = "modRequestHeader"
 	SetRequestHeaderName                       = "setRequestHeader"
 	AppendRequestHeaderName                    = "appendRequestHeader"
