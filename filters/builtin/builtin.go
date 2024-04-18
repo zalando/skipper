@@ -117,6 +117,7 @@ func Filters() []filters.Spec {
 	return []filters.Spec{
 		NewBackendIsProxy(),
 		NewComment(),
+		NewAnnotate(),
 		NewRequestHeader(),
 		NewSetRequestHeader(),
 		NewAppendRequestHeader(),
