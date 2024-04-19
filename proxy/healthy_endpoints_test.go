@@ -20,10 +20,11 @@ const (
 
 func defaultEndpointRegistry() *routing.EndpointRegistry {
 	return routing.NewEndpointRegistry(routing.RegistryOptions{
-		PassiveHealthCheckEnabled:     true,
-		StatsResetPeriod:              period,
-		MinRequests:                   10,
-		MaxHealthCheckDropProbability: 1.0,
+		PassiveHealthCheck: &routing.PassiveHealthCheck{
+			Period:             period,
+			MinRequests:        10,
+			MaxDropProbability: 1.0,
+		},
 	})
 }
 
@@ -49,11 +50,8 @@ func sendGetRequests(t *testing.T, ps *httptest.Server) (failed int) {
 }
 
 func setupProxy(t *testing.T, doc string) (*testProxy, *httptest.Server) {
-	endpointRegistry := defaultEndpointRegistry()
-
 	tp, err := newTestProxyWithParams(doc, Params{
-		EnablePassiveHealthCheck: true,
-		EndpointRegistry:         endpointRegistry,
+		EndpointRegistry: defaultEndpointRegistry(),
 	})
 	require.NoError(t, err)
 
@@ -106,12 +104,10 @@ func TestPHCForSingleHealthyEndpoint(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer service.Close()
-	endpointRegistry := defaultEndpointRegistry()
 
 	doc := fmt.Sprintf(`* -> "%s"`, service.URL)
 	tp, err := newTestProxyWithParams(doc, Params{
-		EnablePassiveHealthCheck: true,
-		EndpointRegistry:         endpointRegistry,
+		EndpointRegistry: defaultEndpointRegistry(),
 	})
 	if err != nil {
 		t.Fatal(err)

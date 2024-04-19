@@ -93,10 +93,8 @@ func newEntry() *entry {
 }
 
 type EndpointRegistry struct {
-	lastSeenTimeout               time.Duration
-	statsResetPeriod              time.Duration
-	minRequests                   int64
-	maxHealthCheckDropProbability float64
+	lastSeenTimeout    time.Duration
+	passiveHealthCheck *PassiveHealthCheck
 
 	quit chan struct{}
 
@@ -107,11 +105,8 @@ type EndpointRegistry struct {
 var _ PostProcessor = &EndpointRegistry{}
 
 type RegistryOptions struct {
-	LastSeenTimeout               time.Duration
-	PassiveHealthCheckEnabled     bool
-	StatsResetPeriod              time.Duration
-	MinRequests                   int64
-	MaxHealthCheckDropProbability float64
+	LastSeenTimeout    time.Duration
+	PassiveHealthCheck *PassiveHealthCheck
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
@@ -151,7 +146,7 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 }
 
 func (r *EndpointRegistry) updateStats() {
-	ticker := time.NewTicker(r.statsResetPeriod)
+	ticker := time.NewTicker(r.passiveHealthCheck.Period)
 
 	for {
 		r.data.Range(func(key, value any) bool {
@@ -164,9 +159,9 @@ func (r *EndpointRegistry) updateStats() {
 
 			failed := e.totalFailedRoundTrips[curSlot].Load()
 			requests := e.totalRequests[curSlot].Load()
-			if requests > r.minRequests {
+			if requests > r.passiveHealthCheck.MinRequests {
 				failedRoundTripsRatio := float64(failed) / float64(requests)
-				e.healthCheckDropProbability.Store(min(failedRoundTripsRatio, r.maxHealthCheckDropProbability))
+				e.healthCheckDropProbability.Store(min(failedRoundTripsRatio, r.passiveHealthCheck.MaxDropProbability))
 			} else {
 				e.healthCheckDropProbability.Store(0.0)
 			}
@@ -193,17 +188,15 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 	}
 
 	registry := &EndpointRegistry{
-		lastSeenTimeout:               o.LastSeenTimeout,
-		statsResetPeriod:              o.StatsResetPeriod,
-		minRequests:                   o.MinRequests,
-		maxHealthCheckDropProbability: o.MaxHealthCheckDropProbability,
+		lastSeenTimeout:    o.LastSeenTimeout,
+		passiveHealthCheck: o.PassiveHealthCheck,
 
 		quit: make(chan struct{}),
 
 		now:  time.Now,
 		data: sync.Map{},
 	}
-	if o.PassiveHealthCheckEnabled {
+	if o.PassiveHealthCheck != nil {
 		go registry.updateStats()
 	}
 
@@ -217,6 +210,10 @@ func (r *EndpointRegistry) GetMetrics(hostPort string) Metrics {
 		e, _ = r.data.LoadOrStore(hostPort, newEntry())
 	}
 	return e.(*entry)
+}
+
+func (r *EndpointRegistry) GetPassiveHealthCheck() *PassiveHealthCheck {
+	return r.passiveHealthCheck
 }
 
 func (r *EndpointRegistry) allMetrics() map[string]Metrics {
