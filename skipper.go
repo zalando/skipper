@@ -1934,17 +1934,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	})
 	defer schedulerRegistry.Close()
 
-	passiveHealthCheckEnabled, passiveHealthCheck, err := proxy.InitPassiveHealthChecker(o.PassiveHealthCheck)
+	passiveHealthCheck, err := proxy.InitPassiveHealthChecker(o.PassiveHealthCheck)
 	if err != nil {
 		return err
 	}
 
 	// create a routing engine
 	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
-		PassiveHealthCheckEnabled:     passiveHealthCheckEnabled,
-		StatsResetPeriod:              passiveHealthCheck.Period,
-		MinRequests:                   passiveHealthCheck.MinRequests,
-		MaxHealthCheckDropProbability: passiveHealthCheck.MaxDropProbability,
+		PassiveHealthCheck: passiveHealthCheck,
 	})
 	ro := routing.Options{
 		FilterRegistry:  o.filterRegistry(),
@@ -2011,8 +2008,6 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	proxyParams := proxy.Params{
 		Routing:                    routing,
 		EndpointRegistry:           endpointRegistry,
-		EnablePassiveHealthCheck:   passiveHealthCheckEnabled,
-		PassiveHealthCheck:         passiveHealthCheck,
 		Flags:                      proxyFlags,
 		PriorityRoutes:             o.PriorityRoutes,
 		IdleConnectionsPerHost:     o.IdleConnectionsPerHost,
