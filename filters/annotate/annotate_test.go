@@ -1,4 +1,4 @@
-package builtin_test
+package annotate_test
 
 import (
 	"testing"
@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/annotate"
 	"github.com/zalando/skipper/filters/filtertest"
 )
 
 func TestAnnotate(t *testing.T) {
-	spec := builtin.NewAnnotate()
+	spec := annotate.New()
 
 	for _, tc := range []struct {
 		name     string
@@ -46,13 +46,13 @@ func TestAnnotate(t *testing.T) {
 				filter.Request(ctx)
 			}
 
-			assert.Equal(t, tc.expected, builtin.GetAnnotations(ctx))
+			assert.Equal(t, tc.expected, annotate.GetAnnotations(ctx))
 		})
 	}
 }
 
 func TestAnnotateArgs(t *testing.T) {
-	spec := builtin.NewAnnotate()
+	spec := annotate.New()
 
 	t.Run("valid", func(t *testing.T) {
 		for _, def := range []string{
