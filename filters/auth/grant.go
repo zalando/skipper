@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/annotate"
 	"golang.org/x/oauth2"
 )
 
@@ -84,12 +88,25 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 		return
 	}
 
-	ctx.Serve(&http.Response{
-		StatusCode: http.StatusTemporaryRedirect,
-		Header: http.Header{
-			"Location": []string{authConfig.AuthCodeURL(state, config.GetAuthURLParameters(redirect)...)},
-		},
-	})
+	authCodeURL := authConfig.AuthCodeURL(state, config.GetAuthURLParameters(redirect)...)
+
+	if lrs, ok := annotate.GetAnnotations(ctx)["oauthGrant.loginRedirectStub"]; ok {
+		lrs = strings.ReplaceAll(lrs, "{{authCodeURL}}", authCodeURL)
+		ctx.Serve(&http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Length": []string{strconv.Itoa(len(lrs))},
+			},
+			Body: io.NopCloser(strings.NewReader(lrs)),
+		})
+	} else {
+		ctx.Serve(&http.Response{
+			StatusCode: http.StatusTemporaryRedirect,
+			Header: http.Header{
+				"Location": []string{authCodeURL},
+			},
+		})
+	}
 }
 
 func (f *grantFilter) refreshToken(token *oauth2.Token, req *http.Request) (*oauth2.Token, error) {

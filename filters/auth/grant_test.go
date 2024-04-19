@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -999,4 +1000,33 @@ func TestGrantInsecure(t *testing.T) {
 			assert.False(t, c.Secure, "Cookie should be insecure")
 		}
 	}
+}
+
+func TestGrantLoginRedirectStub(t *testing.T) {
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+
+	const stubContent = "stub content"
+
+	routes := eskip.MustParse(fmt.Sprintf(`*
+		-> annotate("oauthGrant.loginRedirectStub", "%s")
+		-> oauthGrant()
+		-> status(204)
+		-> <shunt>
+	`, stubContent))
+
+	proxy, client := newAuthProxy(t, config, routes)
+	defer proxy.Close()
+
+	rsp, body, err := client.GetBody(proxy.URL + "/test")
+	require.NoError(t, err)
+
+	assert.Equal(t, rsp.StatusCode, http.StatusOK)
+	assert.Equal(t, int64(len(stubContent)), rsp.ContentLength)
+	assert.Equal(t, stubContent, string(body))
 }
