@@ -22,14 +22,14 @@ const (
 	period    = 100 * time.Millisecond
 )
 
-func defaultEndpointRegistry() *routing.EndpointRegistry {
-	return routing.NewEndpointRegistry(routing.RegistryOptions{
-		PassiveHealthCheckEnabled:     true,
-		StatsResetPeriod:              period,
-		MinRequests:                   2,
-		MaxHealthCheckDropProbability: 0.95,
-		MinHealthCheckDropProbability: 0.01,
-	})
+func defaultPassiveHealthCheck() *routing.PassiveHealthCheck {
+	return &routing.PassiveHealthCheck{
+		Period:                     period,
+		MinRequests:                2,
+		MaxDropProbability:         0.95,
+		MinDropProbability:         0.01,
+		MaxUnhealthyEndpointsRatio: 1.0,
+	}
 }
 
 func sendGetRequest(t *testing.T, ps *httptest.Server, consistentHashKey int) *http.Response {
@@ -62,14 +62,10 @@ func fireVegeta(t *testing.T, ps *httptest.Server, freq int, per time.Duration, 
 
 func setupProxy(t *testing.T, doc string) (*metricstest.MockMetrics, *httptest.Server) {
 	m := &metricstest.MockMetrics{}
-	endpointRegistry := defaultEndpointRegistry()
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{PassiveHealthCheck: defaultPassiveHealthCheck()})
 	proxyParams := Params{
-		EnablePassiveHealthCheck: true,
-		EndpointRegistry:         endpointRegistry,
-		Metrics:                  m,
-		PassiveHealthCheck: &PassiveHealthCheck{
-			MaxUnhealthyEndpointsRatio: 1.0,
-		},
+		EndpointRegistry: endpointRegistry,
+		Metrics:          m,
 	}
 
 	return m, setupProxyWithCustomProxyParams(t, doc, proxyParams)
@@ -78,12 +74,8 @@ func setupProxy(t *testing.T, doc string) (*metricstest.MockMetrics, *httptest.S
 func setupProxyWithCustomEndpointRegisty(t *testing.T, doc string, endpointRegistry *routing.EndpointRegistry) (*metricstest.MockMetrics, *httptest.Server) {
 	m := &metricstest.MockMetrics{}
 	proxyParams := Params{
-		EnablePassiveHealthCheck: true,
-		EndpointRegistry:         endpointRegistry,
-		Metrics:                  m,
-		PassiveHealthCheck: &PassiveHealthCheck{
-			MaxUnhealthyEndpointsRatio: 1.0,
-		},
+		EndpointRegistry: endpointRegistry,
+		Metrics:          m,
 	}
 
 	return m, setupProxyWithCustomProxyParams(t, doc, proxyParams)
@@ -151,15 +143,18 @@ func TestPHCWithoutRequests(t *testing.T) {
 
 func TestPHCForSingleHealthyEndpoint(t *testing.T) {
 	servicesString := setupServices(t, 1, 0)
-	endpointRegistry := defaultEndpointRegistry()
+	endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+		PassiveHealthCheck: &routing.PassiveHealthCheck{
+			MaxUnhealthyEndpointsRatio: 1.0,
+			MaxDropProbability:         0.95,
+			MinRequests:                2,
+			Period:                     period,
+		},
+	})
 
 	doc := fmt.Sprintf(`* -> %s`, servicesString)
 	tp, err := newTestProxyWithParams(doc, Params{
-		EnablePassiveHealthCheck: true,
-		EndpointRegistry:         endpointRegistry,
-		PassiveHealthCheck: &PassiveHealthCheck{
-			MaxUnhealthyEndpointsRatio: 1.0,
-		},
+		EndpointRegistry: endpointRegistry,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -227,11 +222,13 @@ func TestPHC(t *testing.T) {
 
 			t.Run("consistentHash", func(t *testing.T) {
 				consistantHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
-					PassiveHealthCheckEnabled:     true,
-					StatsResetPeriod:              1 * time.Second,
-					MinRequests:                   1, // with 2 test case fails on github actions
-					MaxHealthCheckDropProbability: 0.95,
-					MinHealthCheckDropProbability: 0.01,
+					PassiveHealthCheck: &routing.PassiveHealthCheck{
+						Period:                     1 * time.Second,
+						MinRequests:                1, // with 2 test case fails on github actions
+						MaxDropProbability:         0.95,
+						MinDropProbability:         0.01,
+						MaxUnhealthyEndpointsRatio: 1.0,
+					},
 				})
 				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, %s>`,
 					servicesString), consistantHashCustomEndpointRegistry)
@@ -245,11 +242,13 @@ func TestPHC(t *testing.T) {
 
 			t.Run("consistent hash with balance factor", func(t *testing.T) {
 				consistantHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
-					PassiveHealthCheckEnabled:     true,
-					StatsResetPeriod:              1 * time.Second,
-					MinRequests:                   1, // with 2 test case fails on github actions
-					MaxHealthCheckDropProbability: 0.95,
-					MinHealthCheckDropProbability: 0.01,
+					PassiveHealthCheck: &routing.PassiveHealthCheck{
+						Period:                     1 * time.Second,
+						MinRequests:                1, // with 2 test case fails on github actions
+						MaxDropProbability:         0.95,
+						MinDropProbability:         0.01,
+						MaxUnhealthyEndpointsRatio: 1.0,
+					},
 				})
 				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, %s>`,
 					servicesString), consistantHashCustomEndpointRegistry)
@@ -301,14 +300,11 @@ func TestPHCMaxUnhealthyEndpointsRatioParam(t *testing.T) {
 
 	servicesString := setupServices(t, healthy, unhealthy)
 	mockMetrics := &metricstest.MockMetrics{}
-	endpointRegistry := defaultEndpointRegistry()
+	passiveHealthCheck := defaultPassiveHealthCheck()
+	passiveHealthCheck.MaxUnhealthyEndpointsRatio = maxUnhealthyEndpointsRatio
 	proxyParams := Params{
-		EnablePassiveHealthCheck: true,
-		EndpointRegistry:         endpointRegistry,
-		Metrics:                  mockMetrics,
-		PassiveHealthCheck: &PassiveHealthCheck{
-			MaxUnhealthyEndpointsRatio: maxUnhealthyEndpointsRatio,
-		},
+		EndpointRegistry: routing.NewEndpointRegistry(routing.RegistryOptions{PassiveHealthCheck: passiveHealthCheck}),
+		Metrics:          mockMetrics,
 	}
 	ps := setupProxyWithCustomProxyParams(t, fmt.Sprintf(`* -> backendTimeout("20ms") -> <random, %s>`,
 		servicesString), proxyParams)

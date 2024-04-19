@@ -95,11 +95,8 @@ func newEntry() *entry {
 }
 
 type EndpointRegistry struct {
-	lastSeenTimeout               time.Duration
-	statsResetPeriod              time.Duration
-	minRequests                   int64
-	minHealthCheckDropProbability float64
-	maxHealthCheckDropProbability float64
+	lastSeenTimeout    time.Duration
+	passiveHealthCheck *PassiveHealthCheck
 
 	quit chan struct{}
 
@@ -110,12 +107,8 @@ type EndpointRegistry struct {
 var _ PostProcessor = &EndpointRegistry{}
 
 type RegistryOptions struct {
-	LastSeenTimeout               time.Duration
-	PassiveHealthCheckEnabled     bool
-	StatsResetPeriod              time.Duration
-	MinRequests                   int64
-	MinHealthCheckDropProbability float64
-	MaxHealthCheckDropProbability float64
+	LastSeenTimeout    time.Duration
+	PassiveHealthCheck *PassiveHealthCheck
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
@@ -155,7 +148,7 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 }
 
 func (r *EndpointRegistry) updateStats() {
-	ticker := time.NewTicker(r.statsResetPeriod)
+	ticker := time.NewTicker(r.passiveHealthCheck.Period)
 
 	for {
 		r.data.Range(func(key, value any) bool {
@@ -169,11 +162,11 @@ func (r *EndpointRegistry) updateStats() {
 			newDropProbability := 0.0
 			failed := e.totalFailedRoundTrips[curSlot].Load()
 			requests := e.totalRequests[curSlot].Load()
-			if requests > r.minRequests {
+			if requests > r.passiveHealthCheck.MinRequests {
 				failedRoundTripsRatio := float64(failed) / float64(requests)
-				if failedRoundTripsRatio > r.minHealthCheckDropProbability {
+				if failedRoundTripsRatio > r.passiveHealthCheck.MinDropProbability {
 					log.Infof("Passive health check: marking %q as unhealthy due to failed round trips ratio: %0.2f", key, failedRoundTripsRatio)
-					newDropProbability = min(failedRoundTripsRatio, r.maxHealthCheckDropProbability)
+					newDropProbability = min(failedRoundTripsRatio, r.passiveHealthCheck.MaxDropProbability)
 				}
 			}
 			e.healthCheckDropProbability.Store(newDropProbability)
@@ -200,18 +193,15 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 	}
 
 	registry := &EndpointRegistry{
-		lastSeenTimeout:               o.LastSeenTimeout,
-		statsResetPeriod:              o.StatsResetPeriod,
-		minRequests:                   o.MinRequests,
-		minHealthCheckDropProbability: o.MinHealthCheckDropProbability,
-		maxHealthCheckDropProbability: o.MaxHealthCheckDropProbability,
+		lastSeenTimeout:    o.LastSeenTimeout,
+		passiveHealthCheck: o.PassiveHealthCheck,
 
 		quit: make(chan struct{}),
 
 		now:  time.Now,
 		data: sync.Map{},
 	}
-	if o.PassiveHealthCheckEnabled {
+	if o.PassiveHealthCheck != nil {
 		go registry.updateStats()
 	}
 
@@ -225,6 +215,10 @@ func (r *EndpointRegistry) GetMetrics(hostPort string) Metrics {
 		e, _ = r.data.LoadOrStore(hostPort, newEntry())
 	}
 	return e.(*entry)
+}
+
+func (r *EndpointRegistry) GetPassiveHealthCheck() *PassiveHealthCheck {
+	return r.passiveHealthCheck
 }
 
 func (r *EndpointRegistry) allMetrics() map[string]Metrics {

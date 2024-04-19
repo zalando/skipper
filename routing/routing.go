@@ -46,6 +46,28 @@ func (o MatchingOptions) ignoreTrailingSlash() bool {
 	return o&IgnoreTrailingSlash > 0
 }
 
+type PassiveHealthCheck struct {
+	// The period of time after which the endpointregistry begins to calculate endpoints statistics
+	// from scratch
+	Period time.Duration
+
+	// The minimum number of total requests that should be sent to an endpoint in a single period to
+	// potentially opt out the endpoint from the list of healthy endpoints
+	MinRequests int64
+
+	// The minimal ratio of failed requests in a single period to potentially opt out the endpoint
+	// from the list of healthy endpoints. This ratio is equal to the minimal non-zero probability of
+	// dropping endpoint out from load balancing for every specific request
+	MinDropProbability float64
+
+	// The maximum probability of unhealthy endpoint to be dropped out from load balancing for every specific request
+	MaxDropProbability float64
+
+	// MaxUnhealthyEndpointsRatio is the maximum ratio of unhealthy endpoints in the list of all endpoints PHC will check
+	// in case of all endpoints are unhealthy
+	MaxUnhealthyEndpointsRatio float64
+}
+
 // DataClient instances provide data sources for
 // route definitions.
 type DataClient interface {
