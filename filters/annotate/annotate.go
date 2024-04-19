@@ -1,4 +1,4 @@
-package builtin
+package annotate
 
 import (
 	"fmt"
@@ -16,10 +16,10 @@ type (
 
 const annotateStateBagKey = "filter." + filters.AnnotateName
 
-// NewAnnotate is a filter to annotate a filter chain.
+// New creates filters to annotate a filter chain.
 // It stores its key and value arguments into the filter context.
 // Use [GetAnnotations] to retrieve the annotations from the context.
-func NewAnnotate() filters.Spec {
+func New() filters.Spec {
 	return annotateSpec{}
 }
 
