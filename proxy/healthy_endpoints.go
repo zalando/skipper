@@ -3,6 +3,7 @@ package proxy
 import (
 	"math/rand"
 
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -11,7 +12,7 @@ type healthyEndpoints struct {
 	endpointRegistry *routing.EndpointRegistry
 }
 
-func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []routing.LBEndpoint) []routing.LBEndpoint {
+func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []routing.LBEndpoint, metrics metrics.Metrics) []routing.LBEndpoint {
 	if h == nil {
 		return endpoints
 	}
@@ -24,6 +25,7 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 		if p < dropProbability {
 			ctx.Logger().Infof("Dropping endpoint %q due to passive health check: p=%0.2f, dropProbability=%0.2f",
 				e.Host, p, dropProbability)
+			metrics.IncCounter("routing.endpoint.drop.loadbalancer")
 		} else {
 			filtered = append(filtered, e)
 		}
