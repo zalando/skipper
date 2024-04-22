@@ -1584,6 +1584,10 @@ Examples:
 
 ```
 jwtMetrics("{issuers: ['https://example.com', 'https://example.org']}")
+
+// opt-out
+annotate("oauth.disabled", "this endpoint is public") ->
+jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutAnnotations: [oauth.disabled]}")
 ```
 
 

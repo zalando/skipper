@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/annotate"
 	"github.com/zalando/skipper/jwt"
 )
 
@@ -15,7 +16,8 @@ type (
 	jwtMetricsSpec struct{}
 
 	jwtMetricsFilter struct {
-		Issuers []string `json:"issuers,omitempty"`
+		Issuers           []string `json:"issuers,omitempty"`
+		OptOutAnnotations []string `json:"optOutAnnotations,omitempty"`
 	}
 )
 
@@ -46,6 +48,15 @@ func (s *jwtMetricsSpec) CreateFilter(args []interface{}) (filters.Filter, error
 func (f *jwtMetricsFilter) Request(ctx filters.FilterContext) {}
 
 func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
+	if len(f.OptOutAnnotations) > 0 {
+		annotations := annotate.GetAnnotations(ctx)
+		for _, annotation := range f.OptOutAnnotations {
+			if _, ok := annotations[annotation]; ok {
+				return // opt-out
+			}
+		}
+	}
+
 	response := ctx.Response()
 
 	if response.StatusCode >= 400 && response.StatusCode < 500 {
