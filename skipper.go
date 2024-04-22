@@ -1309,9 +1309,8 @@ func listenAndServeQuit(
 	}
 
 	if o.EnableConnMetricsServer {
-		m := metrics.Default
 		srv.ConnState = func(conn net.Conn, state http.ConnState) {
-			m.IncCounter(fmt.Sprintf("lb-conn-%s", state))
+			mtr.IncCounter(fmt.Sprintf("lb-conn-%s", state))
 		}
 	}
 
@@ -1521,6 +1520,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	if mtr == nil {
 		mtr = metrics.NewMetrics(mtrOpts)
 	}
+	// set global instance for backwards compatibility
 	metrics.Default = mtr
 
 	// *DEPRECATED* client tracking parameter
@@ -2010,10 +2010,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
 		Routing:                    routing,
-		EndpointRegistry:           endpointRegistry,
-		EnablePassiveHealthCheck:   passiveHealthCheckEnabled,
-		PassiveHealthCheck:         passiveHealthCheck,
 		Flags:                      proxyFlags,
+		Metrics:                    mtr,
 		PriorityRoutes:             o.PriorityRoutes,
 		IdleConnectionsPerHost:     o.IdleConnectionsPerHost,
 		CloseIdleConnsPeriod:       o.CloseIdleConnsPeriod,
@@ -2034,6 +2032,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ClientTLS:                  o.ClientTLS,
 		CustomHttpRoundTripperWrap: o.CustomHttpRoundTripperWrap,
 		RateLimiters:               ratelimitRegistry,
+		EndpointRegistry:           endpointRegistry,
+		EnablePassiveHealthCheck:   passiveHealthCheckEnabled,
+		PassiveHealthCheck:         passiveHealthCheck,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
