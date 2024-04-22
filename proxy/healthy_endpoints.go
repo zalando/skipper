@@ -11,7 +11,7 @@ type healthyEndpoints struct {
 	endpointRegistry *routing.EndpointRegistry
 }
 
-func (h *healthyEndpoints) filterHealthyEndpoints(endpoints []routing.LBEndpoint, rt *routing.Route) []routing.LBEndpoint {
+func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []routing.LBEndpoint) []routing.LBEndpoint {
 	if h == nil {
 		return endpoints
 	}
@@ -20,8 +20,10 @@ func (h *healthyEndpoints) filterHealthyEndpoints(endpoints []routing.LBEndpoint
 
 	filtered := make([]routing.LBEndpoint, 0, len(endpoints))
 	for _, e := range endpoints {
-		if p < e.Metrics.HealthCheckDropProbability() {
-			/* drop */
+		dropProbability := e.Metrics.HealthCheckDropProbability()
+		if p < dropProbability {
+			ctx.Logger().Infof("Dropping endpoint %q due to passive health check: p=%0.2f, dropProbability=%0.2f",
+				e.Host, p, dropProbability)
 		} else {
 			filtered = append(filtered, e)
 		}
