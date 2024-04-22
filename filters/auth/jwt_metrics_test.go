@@ -3,155 +3,212 @@ package auth_test
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/auth"
-	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/metrics/metricstest"
+	"github.com/zalando/skipper/proxy"
+	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/routing"
 )
 
 func TestJwtMetrics(t *testing.T) {
-	spec := auth.NewJwtMetrics()
-
 	for _, tc := range []struct {
 		name     string
-		def      string
+		filters  string
 		request  *http.Request
-		response *http.Response
+		status   int
 		expected map[string]int64
 	}{
 		{
 			name:     "ignores 401 response",
-			def:      `jwtMetrics("{issuers: [foo, bar]}")`,
+			filters:  `jwtMetrics("{issuers: [foo, bar]}")`,
 			request:  &http.Request{Method: "GET", Host: "foo.test"},
-			response: &http.Response{StatusCode: http.StatusUnauthorized},
+			status:   http.StatusUnauthorized,
 			expected: map[string]int64{},
 		},
 		{
 			name:     "ignores 403 response",
-			def:      `jwtMetrics("{issuers: [foo, bar]}")`,
+			filters:  `jwtMetrics("{issuers: [foo, bar]}")`,
 			request:  &http.Request{Method: "GET", Host: "foo.test"},
-			response: &http.Response{StatusCode: http.StatusForbidden},
+			status:   http.StatusForbidden,
 			expected: map[string]int64{},
 		},
 		{
 			name:     "ignores 404 response",
-			def:      `jwtMetrics("{issuers: [foo, bar]}")`,
+			filters:  `jwtMetrics("{issuers: [foo, bar]}")`,
 			request:  &http.Request{Method: "GET", Host: "foo.test"},
-			response: &http.Response{StatusCode: http.StatusNotFound},
+			status:   http.StatusNotFound,
 			expected: map[string]int64{},
 		},
 		{
-			name:     "missing-token",
-			def:      `jwtMetrics("{issuers: [foo, bar]}")`,
-			request:  &http.Request{Method: "GET", Host: "foo.test"},
-			response: &http.Response{StatusCode: http.StatusOK},
+			name:    "missing-token",
+			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test"},
+			status:  http.StatusOK,
 			expected: map[string]int64{
-				"GET.foo_test.200.missing-token": 1,
+				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
 			},
 		},
 		{
-			name: "invalid-token-type",
-			def:  `jwtMetrics("{issuers: [foo, bar]}")`,
+			name:    "invalid-token-type",
+			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{"Basic foobarbaz"}},
 			},
-			response: &http.Response{StatusCode: http.StatusOK},
+			status: http.StatusOK,
 			expected: map[string]int64{
-				"GET.foo_test.200.invalid-token-type": 1,
+				"jwtMetrics.custom.GET.foo_test.200.invalid-token-type": 1,
 			},
 		},
 		{
-			name: "invalid-token",
-			def:  `jwtMetrics("{issuers: [foo, bar]}")`,
+			name:    "invalid-token",
+			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{"Bearer invalid-token"}},
 			},
-			response: &http.Response{StatusCode: http.StatusOK},
+			status: http.StatusOK,
 			expected: map[string]int64{
-				"GET.foo_test.200.invalid-token": 1,
+				"jwtMetrics.custom.GET.foo_test.200.invalid-token": 1,
 			},
 		},
 		{
-			name: "missing-issuer",
-			def:  `jwtMetrics("{issuers: [foo, bar]}")`,
+			name:    "missing-issuer",
+			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
 					"Bearer header." + marshalBase64JSON(t, map[string]any{"sub": "baz"}) + ".signature",
 				}},
 			},
-			response: &http.Response{StatusCode: http.StatusOK},
+			status: http.StatusOK,
 			expected: map[string]int64{
-				"GET.foo_test.200.missing-issuer": 1,
+				"jwtMetrics.custom.GET.foo_test.200.missing-issuer": 1,
 			},
 		},
 		{
-			name: "invalid-issuer",
-			def:  `jwtMetrics("{issuers: [foo, bar]}")`,
+			name:    "invalid-issuer",
+			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
 					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "baz"}) + ".signature",
 				}},
 			},
-			response: &http.Response{StatusCode: http.StatusOK},
+			status: http.StatusOK,
 			expected: map[string]int64{
-				"GET.foo_test.200.invalid-issuer": 1,
+				"jwtMetrics.custom.GET.foo_test.200.invalid-issuer": 1,
 			},
 		},
 		{
-			name: "no invalid-issuer for empty issuers",
-			def:  `jwtMetrics()`,
+			name:    "no invalid-issuer for empty issuers",
+			filters: `jwtMetrics()`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
 					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "baz"}) + ".signature",
 				}},
 			},
-			response: &http.Response{StatusCode: http.StatusOK},
+			status:   http.StatusOK,
 			expected: map[string]int64{},
 		},
 		{
-			name: "no invalid-issuer when matches first",
-			def:  `jwtMetrics("{issuers: [foo, bar]}")`,
+			name:    "no invalid-issuer when matches first",
+			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
 					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "foo"}) + ".signature",
 				}},
 			},
-			response: &http.Response{StatusCode: http.StatusOK},
+			status:   http.StatusOK,
 			expected: map[string]int64{},
 		},
 		{
-			name: "no invalid-issuer when matches second",
-			def:  `jwtMetrics("{issuers: [foo, bar]}")`,
+			name:    "no invalid-issuer when matches second",
+			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
 					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "bar"}) + ".signature",
 				}},
 			},
-			response: &http.Response{StatusCode: http.StatusOK},
+			status:   http.StatusOK,
 			expected: map[string]int64{},
+		},
+		{
+			name:    "missing-token without opt-out",
+			filters: `jwtMetrics("{issuers: [foo, bar], optOutAnnotations: [oauth.disabled]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test"},
+			status:  http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
+			},
+		},
+		{
+			name: "no metrics when opted-out",
+			filters: `
+				annotate("oauth.disabled", "this endpoint is public") ->
+				jwtMetrics("{issuers: [foo, bar], optOutAnnotations: [oauth.disabled, jwtMetrics.disabled]}")
+			`,
+			request:  &http.Request{Method: "GET", Host: "foo.test"},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name: "no metrics when opted-out by alternative annotation",
+			filters: `
+				annotate("jwtMetrics.disabled", "skip jwt metrics collection") ->
+				jwtMetrics("{issuers: [foo, bar], optOutAnnotations: [oauth.disabled, jwtMetrics.disabled]}")
+			`,
+			request:  &http.Request{Method: "GET", Host: "foo.test"},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name: "counts missing-token when annotation does not match",
+			filters: `
+				annotate("foo", "bar") ->
+				jwtMetrics("{issuers: [foo, bar], optOutAnnotations: [oauth.disabled, jwtMetrics.disabled]}")
+			`,
+			request: &http.Request{Method: "GET", Host: "foo.test"},
+			status:  http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			args := eskip.MustParseFilters(tc.def)[0].Args
+			m := &metricstest.MockMetrics{}
+			defer m.Close()
 
-			filter, err := spec.CreateFilter(args)
+			fr := builtin.MakeRegistry()
+			fr.Register(auth.NewJwtMetrics())
+			p := proxytest.Config{
+				RoutingOptions: routing.Options{
+					FilterRegistry: fr,
+				},
+				Routes: eskip.MustParse(fmt.Sprintf(`* -> %s -> status(%d) -> <shunt>`, tc.filters, tc.status)),
+				ProxyParams: proxy.Params{
+					Metrics: m,
+				},
+			}.Create()
+			defer p.Close()
+
+			u, err := url.Parse(p.URL)
 			require.NoError(t, err)
+			tc.request.URL = u
 
-			metrics := &metricstest.MockMetrics{}
-			ctx := &filtertest.Context{
-				FRequest: tc.request,
-				FMetrics: metrics,
-			}
-			filter.Request(ctx)
-			ctx.FResponse = tc.response
-			filter.Response(ctx)
+			resp, err := p.Client().Do(tc.request)
+			require.NoError(t, err)
+			resp.Body.Close()
 
-			metrics.WithCounters(func(counters map[string]int64) {
+			m.WithCounters(func(counters map[string]int64) {
+				// add incoming counter to simplify comparison
+				tc.expected["incoming.HTTP/1.1"] = 1
+
 				assert.Equal(t, tc.expected, counters)
 			})
 		})
