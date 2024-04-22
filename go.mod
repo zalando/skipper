@@ -25,7 +25,7 @@ require (
 	github.com/hashicorp/memberlist v0.5.1
 	github.com/instana/go-sensor v1.62.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
-	github.com/miekg/dns v1.1.58
+	github.com/miekg/dns v1.1.59
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/opa v0.63.0
 	github.com/open-policy-agent/opa-envoy-plugin v0.63.0-envoy
