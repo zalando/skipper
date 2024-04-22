@@ -1643,6 +1643,11 @@ you pass the `-enable-oauth2-grant-flow` flag.
 The filter may be used with the [grantClaimsQuery](#grantclaimsquery) filter to perform
 authz and access control.
 
+The filter also supports javascript login redirect stub that can be used e.g. to store location hash.
+To enable the stub, add preceding [annotate](#annotate) filter with `oauthGrant.loginRedirectStub` key and
+HTML content that will be served to the client instead of `307 Temporary Redirect` to the authorization URL.
+The filter will replace `{{authCodeURL}}` placeholder in the content with the actual authorization URL.
+
 See the [tutorial](../tutorials/auth.md#oauth2-authorization-grant-flow) for step-by-step
 instructions.
 
@@ -1651,6 +1656,27 @@ Examples:
 ```
 all:
     *
+    -> oauthGrant()
+    -> "http://localhost:9090";
+```
+
+```
+single_page_app:
+    *
+    -> annotate("oauthGrant.loginRedirectStub", `
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <title>Redirecting...</title>
+              <script>
+                if (window.location.hash !== null) {
+                  localStorage.setItem('original-location-hash', window.location.hash);
+                }
+                window.location.replace('{{authCodeURL}}');
+              </script>
+            </head>
+          </html>
+    `)
     -> oauthGrant()
     -> "http://localhost:9090";
 ```
