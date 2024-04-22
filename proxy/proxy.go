@@ -217,6 +217,10 @@ type Params struct {
 	// Control flags. See the Flags values.
 	Flags Flags
 
+	// Metrics collector.
+	// If not specified proxy uses global metrics.Default.
+	Metrics metrics.Metrics
+
 	// And optional list of priority routes to be used for matching
 	// before the general lookup tree.
 	PriorityRoutes []PriorityRoute
@@ -766,7 +770,11 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 
-	m := metrics.Default
+	m := p.Metrics
+	if m == nil {
+		m = metrics.Default
+	}
+
 	if p.Flags.Debug() {
 		m = metrics.Void
 	}
