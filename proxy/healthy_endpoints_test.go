@@ -13,9 +13,8 @@ import (
 )
 
 const (
-	nRequests            = 15_000
-	rtFailureProbability = 0.8
-	period               = 100 * time.Millisecond
+	nRequests = 15_000
+	period    = 100 * time.Millisecond
 )
 
 func defaultEndpointRegistry() *routing.EndpointRegistry {
@@ -178,7 +177,7 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 			defer tp.close()
 			defer ps.Close()
 			failedReqs := sendGetRequests(t, ps)
-			assert.InDelta(t, 0.33*rtFailureProbability*(1.0-rtFailureProbability)*float64(nRequests), failedReqs, 0.1*float64(nRequests))
+			assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
 		})
 	}
 
@@ -188,6 +187,6 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 		defer tp.close()
 		defer ps.Close()
 		failedReqs := sendGetRequests(t, ps)
-		assert.InDelta(t, 0.33*rtFailureProbability*(1.0-rtFailureProbability)*float64(nRequests), failedReqs, 0.1*float64(nRequests))
+		assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
 	})
 }
