@@ -47,6 +47,8 @@ const (
 	DefaultMaxRequestBodySize   = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing = 100 * DefaultMaxRequestBodySize
 	defaultBodyBufferSize       = 8192 * 1024
+
+	spanNameEval = "open-policy-agent"
 )
 
 type OpenPolicyAgentRegistry struct {
@@ -404,9 +406,13 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 	return buf.Bytes(), nil
 }
 
+func buildTracingOptions(tracer opentracing.Tracer, bundleName string, manager *plugins.Manager) opatracing.Options {
+	return opatracing.NewOptions(WithTracingOptTracer(tracer), WithTracingOptBundleName(bundleName), WithTracingOptManager(manager))
+}
+
 func (registry *OpenPolicyAgentRegistry) withTracingOptions(bundleName string) func(*plugins.Manager) {
 	return func(m *plugins.Manager) {
-		options := opatracing.NewOptions(
+		options := buildTracingOptions(
 			registry.tracer,
 			bundleName,
 			m,
@@ -567,10 +573,14 @@ func (opa *OpenPolicyAgentInstance) EnvoyPluginConfig() envoy.PluginConfig {
 }
 
 func setSpanTags(span opentracing.Span, bundleName string, manager *plugins.Manager) {
-	span.SetTag("opa.bundle_name", bundleName)
+	if bundleName != "" {
+		span.SetTag("opa.bundle_name", bundleName)
+	}
 
-	for label, value := range manager.Labels() {
-		span.SetTag("opa.label."+label, value)
+	if manager != nil {
+		for label, value := range manager.Labels() {
+			span.SetTag("opa.label."+label, value)
+		}
 	}
 }
 
@@ -578,9 +588,9 @@ func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracin
 
 	var span opentracing.Span
 	if parent != nil {
-		span = tr.StartSpan("open-policy-agent", opentracing.ChildOf(parent.Context()))
+		span = tr.StartSpan(spanNameEval, opentracing.ChildOf(parent.Context()))
 	} else {
-		span = tracing.CreateSpan("open-policy-agent", ctx, tr)
+		span = tracing.CreateSpan(spanNameEval, ctx, tr)
 	}
 
 	setSpanTags(span, opa.bundleName, opa.manager)

@@ -6,11 +6,12 @@ import (
 	"github.com/open-policy-agent/opa/plugins"
 	opatracing "github.com/open-policy-agent/opa/tracing"
 	"github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/proxy"
 )
 
 const (
-	spanName = "open-policy-agent.http"
+	spanNameHttpOut = "open-policy-agent.http"
 )
 
 func init() {
@@ -27,37 +28,41 @@ type transport struct {
 	wrapped http.RoundTripper
 }
 
-func (*tracingFactory) NewTransport(tr http.RoundTripper, opts opatracing.Options) http.RoundTripper {
-	var tracer opentracing.Tracer
+func WithTracingOptTracer(tracer opentracing.Tracer) func(*transport) {
+	return func(t *transport) {
+		t.tracer = tracer
+	}
+}
 
-	if len(opts) < 3 {
-		panic("insufficient tracing options provided for outbound http calls from Open Policy Agent")
+func WithTracingOptBundleName(bundleName string) func(*transport) {
+	return func(t *transport) {
+		t.bundleName = bundleName
+	}
+}
+
+func WithTracingOptManager(manager *plugins.Manager) func(*transport) {
+	return func(t *transport) {
+		t.manager = manager
+	}
+}
+
+func (*tracingFactory) NewTransport(tr http.RoundTripper, opts opatracing.Options) http.RoundTripper {
+	log := &logging.DefaultLog{}
+
+	wrapper := &transport{
+		wrapped: tr,
 	}
 
-	if opts[0] != nil {
-		var ok bool
-		tracer, ok = opts[0].(opentracing.Tracer)
+	for _, o := range opts {
+		opt, ok := o.(func(*transport))
 		if !ok {
-			panic("invalid type for first argument of tracing options, expected opentracing.Tracer")
+			log.Warn("invalid type for OPA tracing option, expected func(*transport), tracing information might be incomplete")
+		} else {
+			opt(wrapper)
 		}
 	}
 
-	bundleName, ok := opts[1].(string)
-	if !ok {
-		panic("invalid type for second argument of tracing options, expected string")
-	}
-
-	manager, ok := opts[2].(*plugins.Manager)
-	if !ok {
-		panic("invalid type third argument of tracing options, expected *plugins.Manager")
-	}
-
-	return &transport{
-		tracer:     tracer,
-		bundleName: bundleName,
-		manager:    manager,
-		wrapped:    tr,
-	}
+	return wrapper
 }
 
 func (*tracingFactory) NewHandler(f http.Handler, label string, opts opatracing.Options) http.Handler {
@@ -70,9 +75,9 @@ func (tr *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var span opentracing.Span
 
 	if parentSpan != nil {
-		span = parentSpan.Tracer().StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
+		span = parentSpan.Tracer().StartSpan(spanNameHttpOut, opentracing.ChildOf(parentSpan.Context()))
 	} else if tr.tracer != nil {
-		span = tr.tracer.StartSpan(spanName)
+		span = tr.tracer.StartSpan(spanNameHttpOut)
 	}
 
 	if span != nil {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/open-policy-agent/opa/config"
 	"github.com/open-policy-agent/opa/plugins"
-	opatracing "github.com/open-policy-agent/opa/tracing"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/tracing/tracingtest"
@@ -84,12 +83,12 @@ func TestTracingFactory(t *testing.T) {
 			f := &tracingFactory{}
 			tracer.Reset("")
 
-			tr := f.NewTransport(&MockTransport{tc.resp, tc.resperr}, opatracing.Options{tc.tracer, "bundle", &plugins.Manager{
+			tr := f.NewTransport(&MockTransport{tc.resp, tc.resperr}, buildTracingOptions(tc.tracer, "bundle", &plugins.Manager{
 				ID: "manager-id",
 				Config: &config.Config{
 					Labels: map[string]string{"label": "value"},
 				},
-			}})
+			}))
 
 			if tc.parentSpan != nil {
 				ctx := opentracing.ContextWithSpan(context.Background(), tc.parentSpan)

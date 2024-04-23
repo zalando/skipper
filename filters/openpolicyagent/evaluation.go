@@ -11,7 +11,6 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/server"
-	"github.com/open-policy-agent/opa/tracing"
 	"github.com/opentracing/opentracing-go"
 )
 
@@ -58,7 +57,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, err
 	}
 
-	err = envoyauth.Eval(ctx, opa, inputValue, result, rego.DistributedTracingOpts(tracing.Options{opa}))
+	err = envoyauth.Eval(ctx, opa, inputValue, result, rego.DistributedTracingOpts(buildTracingOptions(opa.registry.tracer, opa.bundleName, opa.manager)))
 	if err != nil {
 		return nil, err
 	}
