@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -166,6 +168,9 @@ func (r *EndpointRegistry) updateStats() {
 			requests := e.totalRequests[curSlot].Load()
 			if requests > r.minRequests {
 				failedRoundTripsRatio := float64(failed) / float64(requests)
+				if failedRoundTripsRatio > 0.0 {
+					log.Infof("Passive health check: marking %q as unhealthy due to failed round trips ratio: %0.2f", key, failedRoundTripsRatio)
+				}
 				e.healthCheckDropProbability.Store(min(failedRoundTripsRatio, r.maxHealthCheckDropProbability))
 			} else {
 				e.healthCheckDropProbability.Store(0.0)
