@@ -540,7 +540,7 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
-	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(endpoints, rt)
+	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(ctx, endpoints)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
