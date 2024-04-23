@@ -25,7 +25,7 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 		if p < dropProbability {
 			ctx.Logger().Infof("Dropping endpoint %q due to passive health check: p=%0.2f, dropProbability=%0.2f",
 				e.Host, p, dropProbability)
-			metrics.IncCounter("routing.endpoint.drop.loadbalancer")
+			metrics.IncCounter("passive-health-check.endpoints.dropped")
 		} else {
 			filtered = append(filtered, e)
 		}

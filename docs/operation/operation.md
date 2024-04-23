@@ -923,9 +923,9 @@ while choosing the endpoint for the given request
 
 ### Metrics
 
-A set of metrics will be exposed to track passive health checks:
+A set of metrics will be exposed to track passive health check:
 
-* `routing.endpoint.drop.loadbalancer`: Number of all endpoints dropped before load balancing a request, so after N requests and M endpoints are being dropped this counter would be N*M.
+* `passive-health-check.endpoints.dropped`: Number of all endpoints dropped before load balancing a request, so after N requests and M endpoints are being dropped this counter would be N*M.
 
 ## Memory consumption
 
