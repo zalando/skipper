@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -47,18 +48,23 @@ func sendGetRequests(t *testing.T, ps *httptest.Server) (failed int) {
 	return
 }
 
-func setupProxy(t *testing.T, doc string) (*testProxy, *httptest.Server) {
+func setupProxy(t *testing.T, doc string) (*metricstest.MockMetrics, *httptest.Server) {
 	endpointRegistry := defaultEndpointRegistry()
+	m := &metricstest.MockMetrics{}
 
 	tp, err := newTestProxyWithParams(doc, Params{
 		EnablePassiveHealthCheck: true,
 		EndpointRegistry:         endpointRegistry,
+		Metrics:                  m,
 	})
 	require.NoError(t, err)
 
 	ps := httptest.NewServer(tp.proxy)
 
-	return tp, ps
+	t.Cleanup(tp.close)
+	t.Cleanup(ps.Close)
+
+	return m, ps
 }
 
 func TestPHCWithoutRequests(t *testing.T) {
@@ -73,10 +79,8 @@ func TestPHCWithoutRequests(t *testing.T) {
 
 	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
 		t.Run(algorithm, func(t *testing.T) {
-			tp, ps := setupProxy(t, fmt.Sprintf(`* -> <%s, "%s", "%s", "%s">`,
+			_, ps := setupProxy(t, fmt.Sprintf(`* -> <%s, "%s", "%s", "%s">`,
 				algorithm, services[0].URL, services[1].URL, services[2].URL))
-			defer tp.close()
-			defer ps.Close()
 			rsp := sendGetRequest(t, ps, 0)
 			assert.Equal(t, http.StatusOK, rsp.StatusCode)
 			rsp.Body.Close()
@@ -87,10 +91,8 @@ func TestPHCWithoutRequests(t *testing.T) {
 	}
 
 	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		tp, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
+		_, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
 			services[0].URL, services[1].URL, services[2].URL))
-		defer tp.close()
-		defer ps.Close()
 		rsp := sendGetRequest(t, ps, 0)
 		assert.Equal(t, http.StatusOK, rsp.StatusCode)
 		rsp.Body.Close()
@@ -136,20 +138,16 @@ func TestPHCForMultipleHealthyEndpoints(t *testing.T) {
 
 	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
 		t.Run(algorithm, func(t *testing.T) {
-			tp, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s">`,
+			_, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s">`,
 				algorithm, services[0].URL, services[1].URL, services[2].URL))
-			defer tp.close()
-			defer ps.Close()
 			failedReqs := sendGetRequests(t, ps)
 			assert.Equal(t, 0, failedReqs)
 		})
 	}
 
 	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		tp, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
+		_, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
 			services[0].URL, services[1].URL, services[2].URL))
-		defer tp.close()
-		defer ps.Close()
 		failedReqs := sendGetRequests(t, ps)
 		assert.Equal(t, 0, failedReqs)
 	})
@@ -172,20 +170,19 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 
 	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
 		t.Run(algorithm, func(t *testing.T) {
-			tp, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s">`,
+			mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s">`,
 				algorithm, services[0].URL, services[1].URL, services[2].URL))
-			defer tp.close()
-			defer ps.Close()
 			failedReqs := sendGetRequests(t, ps)
 			assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
+			mockMetrics.WithCounters(func(counters map[string]int64) {
+				assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(nRequests)) // allow 30% error
+			})
 		})
 	}
 
 	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		tp, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
+		_, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
 			services[0].URL, services[1].URL, services[2].URL))
-		defer tp.close()
-		defer ps.Close()
 		failedReqs := sendGetRequests(t, ps)
 		assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
 	})
