@@ -57,7 +57,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, err
 	}
 
-	err = envoyauth.Eval(ctx, opa, inputValue, result, rego.DistributedTracingOpts(buildTracingOptions(opa.registry.tracer, opa.bundleName, opa.manager)))
+	err = envoyauth.Eval(ctx, opa, inputValue, result, rego.DistributedTracingOpts(opa.DistributedTracing()))
 	if err != nil {
 		return nil, err
 	}

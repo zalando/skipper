@@ -766,7 +766,7 @@ func (opa *OpenPolicyAgentInstance) Config() *config.Config { return opa.opaConf
 
 // DistributedTracing is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) DistributedTracing() opatracing.Options {
-	return opatracing.NewOptions(opa.registry.tracer, opa.bundleName, opa.manager)
+	return buildTracingOptions(opa.registry.tracer, opa.bundleName, opa.manager)
 }
 
 // logging.Logger that does not pollute info with debug logs
