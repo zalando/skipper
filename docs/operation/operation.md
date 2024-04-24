@@ -921,6 +921,12 @@ The parameters of `-passive-health-check` option are:
 + `max-drop-probabilty=<float more than/equal to 0 and less than/equal to 1>` - the maximum possible probability of unhealthy endpoint being not considered
 while choosing the endpoint for the given request
 
+### Metrics
+
+A set of metrics will be exposed to track passive health check:
+
+* `passive-health-check.endpoints.dropped`: Number of all endpoints dropped before load balancing a request, so after N requests and M endpoints are being dropped this counter would be N*M.
+
 ## Memory consumption
 
 While Skipper is generally not memory bound, some features may require

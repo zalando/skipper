@@ -540,7 +540,7 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
-	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(ctx, endpoints)
+	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -1193,9 +1193,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		if err := p.do(loopCTX, loopSpan); err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
 			ctx.response = loopCTX.response
-			if err != nil {
-				p.applyFiltersOnError(ctx, processedFilters)
-			}
+			p.applyFiltersOnError(ctx, processedFilters)
 			return err
 		}
 
