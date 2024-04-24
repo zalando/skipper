@@ -381,20 +381,17 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (t *Transport) injectSpan(req *http.Request) (*http.Request, opentracing.Span) {
-	parentSpan := opentracing.SpanFromContext(req.Context())
-	var span opentracing.Span
-	if parentSpan != nil {
+	spanOpts := []opentracing.StartSpanOption{opentracing.Tags{
+		string(ext.Component):  t.componentName,
+		string(ext.SpanKind):   "client",
+		string(ext.HTTPMethod): req.Method,
+		string(ext.HTTPUrl):    req.URL.String(),
+	}}
+	if parentSpan := opentracing.SpanFromContext(req.Context()); parentSpan != nil {
 		req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
-		span = t.tracer.StartSpan(t.spanName, opentracing.ChildOf(parentSpan.Context()))
-	} else {
-		span = t.tracer.StartSpan(t.spanName)
+		spanOpts = append(spanOpts, opentracing.ChildOf(parentSpan.Context()))
 	}
-
-	// add Tags
-	ext.Component.Set(span, t.componentName)
-	ext.HTTPUrl.Set(span, req.URL.String())
-	ext.HTTPMethod.Set(span, req.Method)
-	ext.SpanKind.Set(span, "client")
+	span := t.tracer.StartSpan(t.spanName, spanOpts...)
 
 	_ = t.tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 
