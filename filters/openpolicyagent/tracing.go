@@ -56,7 +56,7 @@ func (*tracingFactory) NewTransport(tr http.RoundTripper, opts opatracing.Option
 	for _, o := range opts {
 		opt, ok := o.(func(*transport))
 		if !ok {
-			log.Warn("invalid type for OPA tracing option, expected func(*transport), tracing information might be incomplete")
+			log.Warnf("invalid type for OPA tracing option, expected func(*transport) got %T, tracing information might be incomplete", o)
 		} else {
 			opt(wrapper)
 		}
