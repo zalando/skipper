@@ -2,9 +2,9 @@ package openpolicyagent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"time"
-
+	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	"github.com/open-policy-agent/opa-envoy-plugin/opa/decisionlog"
@@ -13,6 +13,8 @@ import (
 	"github.com/open-policy-agent/opa/server"
 	"github.com/open-policy-agent/opa/tracing"
 	"github.com/opentracing/opentracing-go"
+	_struct "google.golang.org/protobuf/types/known/structpb"
+	"time"
 )
 
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
@@ -22,6 +24,8 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate decision ID.")
 		return nil, err
 	}
+
+	setDecisionIdInRequest(req, decisionId)
 
 	result, stopeval, err := envoyauth.NewEvalResult(withDecisionID(decisionId))
 	if err != nil {
@@ -64,6 +68,46 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	}
 
 	return result, nil
+}
+
+func setDecisionIdInRequest(req *ext_authz_v3.CheckRequest, decisionId string) {
+	if metaDataContextDoesNotExist(req) {
+		req.Attributes.MetadataContext = formFilterMetadata(decisionId)
+	} else {
+		req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = formOpenPolicyAgentMetaDataObject(decisionId)
+	}
+}
+
+func metaDataContextDoesNotExist(req *ext_authz_v3.CheckRequest) bool {
+	return req.Attributes.MetadataContext == nil
+}
+
+func formFilterMetadata(decisionId string) *ext_authz_v3_core.Metadata {
+	metaData := &ext_authz_v3_core.Metadata{
+		FilterMetadata: map[string]*_struct.Struct{
+			"open_policy_agent": {
+				Fields: map[string]*_struct.Value{
+					"decision_id": {
+						Kind: &_struct.Value_StringValue{StringValue: decisionId},
+					},
+				},
+			},
+		},
+	}
+	return metaData
+}
+
+func formOpenPolicyAgentMetaDataObject(decisionId string) *_struct.Struct {
+	nestedStruct := &_struct.Struct{}
+	nestedStruct.Fields = make(map[string]*_struct.Value)
+
+	innerFields := make(map[string]interface{})
+	innerFields["decision_id"] = decisionId
+
+	innerBytes, _ := json.Marshal(innerFields)
+	_ = json.Unmarshal(innerBytes, &nestedStruct)
+
+	return nestedStruct
 }
 
 func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {

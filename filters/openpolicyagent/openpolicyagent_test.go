@@ -63,11 +63,14 @@ func TestInterpolateTemplate(t *testing.T) {
 
 func TestLoadEnvoyMetadata(t *testing.T) {
 	cfg := &OpenPolicyAgentInstanceConfig{}
-	WithEnvoyMetadataBytes([]byte(`
+	err := WithEnvoyMetadataBytes([]byte(`
 	{
 		"filter_metadata": {
 			"envoy.filters.http.header_to_metadata": {
 				"policy_type": "ingress"
+			},
+			"open_policy_agent" : {
+				"decision_id" : "3b567656-bf28-4a63-a4c4-14407fbd9544"
 			}
 		}
 	}
@@ -79,6 +82,13 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 				Fields: map[string]*_struct.Value{
 					"policy_type": {
 						Kind: &_struct.Value_StringValue{StringValue: "ingress"},
+					},
+				},
+			},
+			"open_policy_agent": {
+				Fields: map[string]*_struct.Value{
+					"decision_id": {
+						Kind: &_struct.Value_StringValue{StringValue: "3b567656-bf28-4a63-a4c4-14407fbd9544"},
 					},
 				},
 			},
