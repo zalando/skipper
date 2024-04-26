@@ -403,6 +403,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
+
 			fr.Register(ftSpec)
 			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
 			fr.Register(ftSpec)

@@ -960,8 +960,7 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	}
 
 	proxySpanOpts := []ot.StartSpanOption{ot.Tags{
-		SpanKindTag:       SpanKindClient,
-		SkipperRouteIDTag: ctx.route.Id,
+		SpanKindTag: SpanKindClient,
 	}}
 	if parentSpan := ot.SpanFromContext(req.Context()); parentSpan != nil {
 		proxySpanOpts = append(proxySpanOpts, ot.ChildOf(parentSpan.Context()))
@@ -970,7 +969,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
-	p.tracing.setTag(ctx.proxySpan, HTTPUrlTag, u.String())
+	p.tracing.
+		setTag(ctx.proxySpan, HTTPUrlTag, u.String()).
+		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id)
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
@@ -1188,14 +1189,13 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		loopCTX := ctx.clone()
 
 		loopSpanOpts := []ot.StartSpanOption{ot.Tags{
-			SpanKindTag:       SpanKindServer,
-			SkipperRouteIDTag: ctx.route.Id,
+			SpanKindTag: SpanKindServer,
 		}}
 		if parentSpan := ot.SpanFromContext(ctx.request.Context()); parentSpan != nil {
 			loopSpanOpts = append(loopSpanOpts, ot.ChildOf(parentSpan.Context()))
 		}
 		loopSpan := p.tracing.tracer.StartSpan("loopback", loopSpanOpts...)
-
+		p.tracing.setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
 		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
 		ctx.parentSpan = loopSpan
 
@@ -1493,8 +1493,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var ctx *context
 
 	spanOpts := []ot.StartSpanOption{ot.Tags{
-		SpanKindTag:     SpanKindServer,
-		HTTPRemoteIPTag: stripPort(r.RemoteAddr),
+		SpanKindTag: SpanKindServer,
 	}}
 	if wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header)); err == nil {
 		spanOpts = append(spanOpts, ext.RPCServerOption(wireContext))
@@ -1547,6 +1546,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
 	}
 
+	p.tracing.setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))
