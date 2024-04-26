@@ -71,24 +71,26 @@ func (*tracingFactory) NewHandler(f http.Handler, label string, opts opatracing.
 
 func (tr *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-	parentSpan := opentracing.SpanFromContext(ctx)
-	var span opentracing.Span
 
-	if parentSpan != nil {
-		span = parentSpan.Tracer().StartSpan(spanNameHttpOut, opentracing.ChildOf(parentSpan.Context()))
+	spanOpts := []opentracing.StartSpanOption{opentracing.Tags{
+		proxy.HTTPMethodTag: req.Method,
+		proxy.HTTPUrlTag:    req.URL.String(),
+		proxy.HostnameTag:   req.Host,
+		proxy.HTTPPathTag:   req.URL.Path,
+		proxy.ComponentTag:  "skipper",
+		proxy.SpanKindTag:   proxy.SpanKindClient,
+	}}
+
+	var span opentracing.Span
+	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {
+		spanOpts = append(spanOpts, opentracing.ChildOf(parentSpan.Context()))
+		span = parentSpan.Tracer().StartSpan(spanNameHttpOut, spanOpts...)
 	} else if tr.tracer != nil {
-		span = tr.tracer.StartSpan(spanNameHttpOut)
+		span = tr.tracer.StartSpan(spanNameHttpOut, spanOpts...)
 	}
 
 	if span != nil {
 		defer span.Finish()
-
-		span.SetTag(proxy.HTTPMethodTag, req.Method)
-		span.SetTag(proxy.HTTPUrlTag, req.URL.String())
-		span.SetTag(proxy.HostnameTag, req.Host)
-		span.SetTag(proxy.HTTPPathTag, req.URL.Path)
-		span.SetTag(proxy.ComponentTag, "skipper")
-		span.SetTag(proxy.SpanKindTag, proxy.SpanKindClient)
 
 		setSpanTags(span, tr.bundleName, tr.manager)
 		req = req.WithContext(opentracing.ContextWithSpan(ctx, span))

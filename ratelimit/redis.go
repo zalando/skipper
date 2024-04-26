@@ -84,14 +84,14 @@ func parentSpan(ctx context.Context) opentracing.Span {
 	return opentracing.SpanFromContext(ctx)
 }
 
-func (c *clusterLimitRedis) setCommonTags(span opentracing.Span) {
-	if span != nil {
-		ext.Component.Set(span, "skipper")
-		ext.SpanKind.Set(span, "client")
-		span.SetTag("ratelimit_type", c.typ)
-		span.SetTag("group", c.group)
-		span.SetTag("max_hits", c.maxHits)
-		span.SetTag("window", c.window.String())
+func (c *clusterLimitRedis) commonTags() opentracing.Tags {
+	return opentracing.Tags{
+		string(ext.Component): "skipper",
+		string(ext.SpanKind):  "client",
+		"ratelimit_type":      c.typ,
+		"group":               c.group,
+		"max_hits":            c.maxHits,
+		"window":              c.window.String(),
 	}
 }
 
@@ -114,10 +114,9 @@ func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 
 	var span opentracing.Span
 	if parentSpan := parentSpan(ctx); parentSpan != nil {
-		span = c.ringClient.StartSpan(allowSpanName, opentracing.ChildOf(parentSpan.Context()))
+		span = c.ringClient.StartSpan(allowSpanName, opentracing.ChildOf(parentSpan.Context()), c.commonTags())
 		defer span.Finish()
 	}
-	c.setCommonTags(span)
 
 	allow, err := c.allow(ctx, clearText)
 	failed := err != nil
@@ -227,10 +226,9 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 
 	var span opentracing.Span
 	if parentSpan := parentSpan(ctx); parentSpan != nil {
-		span = c.ringClient.StartSpan(oldestScoreSpanName, opentracing.ChildOf(parentSpan.Context()))
+		span = c.ringClient.StartSpan(oldestScoreSpanName, opentracing.ChildOf(parentSpan.Context()), c.commonTags())
 		defer span.Finish()
 	}
-	c.setCommonTags(span)
 
 	res, err := c.ringClient.ZRangeByScoreWithScoresFirst(ctx, key, 0.0, float64(now.UnixNano()), 0, 1)
 

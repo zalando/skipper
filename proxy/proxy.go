@@ -958,14 +958,19 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	if !ok {
 		spanName = "proxy"
 	}
-	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.tracing.tracer)
+
+	proxySpanOpts := []ot.StartSpanOption{ot.Tags{
+		SpanKindTag:       SpanKindClient,
+		SkipperRouteIDTag: ctx.route.Id,
+	}}
+	if parentSpan := ot.SpanFromContext(req.Context()); parentSpan != nil {
+		proxySpanOpts = append(proxySpanOpts, ot.ChildOf(parentSpan.Context()))
+	}
+	ctx.proxySpan = p.tracing.tracer.StartSpan(spanName, proxySpanOpts...)
 
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
-	p.tracing.
-		setTag(ctx.proxySpan, SpanKindTag, SpanKindClient).
-		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id).
-		setTag(ctx.proxySpan, HTTPUrlTag, u.String())
+	p.tracing.setTag(ctx.proxySpan, HTTPUrlTag, u.String())
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
@@ -1181,10 +1186,16 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
-		loopSpan := tracing.CreateSpan("loopback", ctx.request.Context(), p.tracing.tracer)
-		p.tracing.
-			setTag(loopSpan, SpanKindTag, SpanKindServer).
-			setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
+
+		loopSpanOpts := []ot.StartSpanOption{ot.Tags{
+			SpanKindTag:       SpanKindServer,
+			SkipperRouteIDTag: ctx.route.Id,
+		}}
+		if parentSpan := ot.SpanFromContext(ctx.request.Context()); parentSpan != nil {
+			loopSpanOpts = append(loopSpanOpts, ot.ChildOf(parentSpan.Context()))
+		}
+		loopSpan := p.tracing.tracer.StartSpan("loopback", loopSpanOpts...)
+
 		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
 		ctx.parentSpan = loopSpan
 
@@ -1481,12 +1492,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.metrics.IncCounter("incoming." + r.Proto)
 	var ctx *context
 
-	var span ot.Span
-	if wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header)); err != nil {
-		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName)
-	} else {
-		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
+	spanOpts := []ot.StartSpanOption{ot.Tags{
+		SpanKindTag:     SpanKindServer,
+		HTTPRemoteIPTag: stripPort(r.RemoteAddr),
+	}}
+	if wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header)); err == nil {
+		spanOpts = append(spanOpts, ext.RPCServerOption(wireContext))
 	}
+	span := p.tracing.tracer.StartSpan(p.tracing.initialOperationName, spanOpts...)
+
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
 			ctx.proxySpan.Finish()
@@ -1533,9 +1547,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
 	}
 
-	p.tracing.
-		setTag(span, SpanKindTag, SpanKindServer).
-		setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))
