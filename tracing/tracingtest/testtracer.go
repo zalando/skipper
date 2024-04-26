@@ -102,6 +102,9 @@ func (t *Tracer) StartSpan(operationName string, opts ...tracing.StartSpanOption
 	s := t.createSpanBase()
 	s.operationName = operationName
 	s.Refs = sso.References
+	for k, v := range sso.Tags {
+		s.Tags[k] = v
+	}
 	return s
 }
 
