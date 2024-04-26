@@ -122,8 +122,9 @@ func (c *clusterLimitRedis) Allow(ctx context.Context, clearText string) bool {
 	failed := err != nil
 	if failed {
 		allow = !c.failClosed
-		setError(span)
-		c.logError("Failed to determine if operation is allowed: %v", err)
+		msgFmt := "Failed to determine if operation is allowed: %v"
+		setError(span, fmt.Sprintf(msgFmt, err))
+		c.logError(msgFmt, err)
 	}
 	if span != nil {
 		span.SetTag("allowed", allow)
@@ -207,9 +208,10 @@ func (c *clusterLimitRedis) Delta(clearText string) time.Duration {
 	return d
 }
 
-func setError(span opentracing.Span) {
+func setError(span opentracing.Span, msg string) {
 	if span != nil {
 		ext.Error.Set(span, true)
+		span.LogKV("log", msg)
 	}
 }
 
@@ -233,7 +235,7 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 	res, err := c.ringClient.ZRangeByScoreWithScoresFirst(ctx, key, 0.0, float64(now.UnixNano()), 0, 1)
 
 	if err != nil {
-		setError(span)
+		setError(span, fmt.Sprintf("Failed to execute ZRangeByScoreWithScoresFirst: %v", err))
 		return time.Time{}, err
 	}
 
@@ -243,13 +245,14 @@ func (c *clusterLimitRedis) oldest(ctx context.Context, clearText string) (time.
 
 	s, ok := res.(string)
 	if !ok {
-		setError(span)
-		return time.Time{}, errors.New("failed to evaluate redis data")
+		msg := "failed to evaluate redis data"
+		setError(span, msg)
+		return time.Time{}, errors.New(msg)
 	}
 
 	oldest, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		setError(span)
+		setError(span, fmt.Sprintf("failed to convert value to int64: %v", err))
 		return time.Time{}, fmt.Errorf("failed to convert value to int64: %w", err)
 	}
 
