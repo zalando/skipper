@@ -1835,7 +1835,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(
 			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
-			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval))
+			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
+			openpolicyagent.WithTracer(tracer))
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)

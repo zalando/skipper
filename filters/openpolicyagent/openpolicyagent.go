@@ -47,6 +47,8 @@ const (
 	DefaultMaxRequestBodySize   = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing = 100 * DefaultMaxRequestBodySize
 	defaultBodyBufferSize       = 8192 * 1024
+
+	spanNameEval = "open-policy-agent"
 )
 
 type OpenPolicyAgentRegistry struct {
@@ -69,6 +71,8 @@ type OpenPolicyAgentRegistry struct {
 	maxMemoryBodyParsingSem *semaphore.Weighted
 	maxRequestBodyBytes     int64
 	bodyReadBufferSize      int64
+
+	tracer opentracing.Tracer
 }
 
 type OpenPolicyAgentFilter interface {
@@ -106,6 +110,13 @@ func WithReadBodyBufferSize(n int64) func(*OpenPolicyAgentRegistry) error {
 func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.cleanInterval = interval
+		return nil
+	}
+}
+
+func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.tracer = tracer
 		return nil
 	}
 }
@@ -395,6 +406,22 @@ func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte
 	return buf.Bytes(), nil
 }
 
+func buildTracingOptions(tracer opentracing.Tracer, bundleName string, manager *plugins.Manager) opatracing.Options {
+	return opatracing.NewOptions(WithTracingOptTracer(tracer), WithTracingOptBundleName(bundleName), WithTracingOptManager(manager))
+}
+
+func (registry *OpenPolicyAgentRegistry) withTracingOptions(bundleName string) func(*plugins.Manager) {
+	return func(m *plugins.Manager) {
+		options := buildTracingOptions(
+			registry.tracer,
+			bundleName,
+			m,
+		)
+
+		plugins.WithDistributedTracingOpts(options)(m)
+	}
+}
+
 // new returns a new OPA object.
 func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
@@ -412,7 +439,8 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
 	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName})
-	manager, err := plugins.New(configBytes, id, store, configLabelsInfo(*opaConfig), plugins.Logger(logger))
+	manager, err := plugins.New(configBytes, id, store, configLabelsInfo(*opaConfig), plugins.Logger(logger), registry.withTracingOptions(bundleName))
+
 	if err != nil {
 		return nil, err
 	}
@@ -544,20 +572,28 @@ func (opa *OpenPolicyAgentInstance) EnvoyPluginConfig() envoy.PluginConfig {
 	return defaultConfig
 }
 
+func setSpanTags(span opentracing.Span, bundleName string, manager *plugins.Manager) {
+	if bundleName != "" {
+		span.SetTag("opa.bundle_name", bundleName)
+	}
+
+	if manager != nil {
+		for label, value := range manager.Labels() {
+			span.SetTag("opa.label."+label, value)
+		}
+	}
+}
+
 func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracing.Tracer, parent opentracing.Span, ctx context.Context) (opentracing.Span, context.Context) {
 
 	var span opentracing.Span
 	if parent != nil {
-		span = tr.StartSpan("open-policy-agent", opentracing.ChildOf(parent.Context()))
+		span = tr.StartSpan(spanNameEval, opentracing.ChildOf(parent.Context()))
 	} else {
-		span = tracing.CreateSpan("open-policy-agent", ctx, tr)
+		span = tracing.CreateSpan(spanNameEval, ctx, tr)
 	}
 
-	span.SetTag("opa.bundle_name", opa.bundleName)
-
-	for label, value := range opa.manager.Labels() {
-		span.SetTag("opa.label."+label, value)
-	}
+	setSpanTags(span, opa.bundleName, opa.manager)
 
 	return span, opentracing.ContextWithSpan(ctx, span)
 }
@@ -730,7 +766,7 @@ func (opa *OpenPolicyAgentInstance) Config() *config.Config { return opa.opaConf
 
 // DistributedTracing is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) DistributedTracing() opatracing.Options {
-	return opatracing.NewOptions(opa)
+	return buildTracingOptions(opa.registry.tracer, opa.bundleName, opa.manager)
 }
 
 // logging.Logger that does not pollute info with debug logs
