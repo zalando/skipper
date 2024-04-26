@@ -347,19 +347,17 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							input.parsed_body.target_id == "123456"
 						}	
 						
-						decisionIdPresent {
-							input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id
-						}
+						decision_id := input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id
 
 						allow_object_decision_id_in_header = response {
-							input.parsed_path = [ "allow", "structured" ]
-							decisionIdPresent
-							response := {
-								"allowed": true,
-								"response_headers_to_add": {
-									"decision-id": input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id
-								}
-							}
+						    input.parsed_path = ["allow", "structured"]
+						    decision_id 
+						    response := {
+						        "allowed": true,
+						        "response_headers_to_add": {
+						            "decision-id": decision_id
+						        }
+						    }
 						}
 						`,
 				}),
