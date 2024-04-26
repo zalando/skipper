@@ -625,7 +625,7 @@ func (opa *OpenPolicyAgentInstance) startSpanFromContextWithTracer(tr opentracin
 }
 
 func (opa *OpenPolicyAgentInstance) StartSpanFromFilterContext(fc filters.FilterContext) (opentracing.Span, context.Context) {
-	return opa.startSpanFromContextWithTracer(fc.Tracer(), fc.ParentSpan(), fc.Request().Context())
+	return opa.StartSpanFromContext(fc.Request().Context())
 }
 
 func (opa *OpenPolicyAgentInstance) StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Context) {
