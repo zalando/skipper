@@ -13,7 +13,7 @@ import (
 	"github.com/open-policy-agent/opa/server"
 	"github.com/open-policy-agent/opa/tracing"
 	"github.com/opentracing/opentracing-go"
-	_struct "google.golang.org/protobuf/types/known/structpb"
+	pbstruct "google.golang.org/protobuf/types/known/structpb"
 	"time"
 )
 
@@ -84,11 +84,11 @@ func metaDataContextDoesNotExist(req *ext_authz_v3.CheckRequest) bool {
 
 func formFilterMetadata(decisionId string) *ext_authz_v3_core.Metadata {
 	metaData := &ext_authz_v3_core.Metadata{
-		FilterMetadata: map[string]*_struct.Struct{
+		FilterMetadata: map[string]*pbstruct.Struct{
 			"open_policy_agent": {
-				Fields: map[string]*_struct.Value{
+				Fields: map[string]*pbstruct.Value{
 					"decision_id": {
-						Kind: &_struct.Value_StringValue{StringValue: decisionId},
+						Kind: &pbstruct.Value_StringValue{StringValue: decisionId},
 					},
 				},
 			},
@@ -97,9 +97,9 @@ func formFilterMetadata(decisionId string) *ext_authz_v3_core.Metadata {
 	return metaData
 }
 
-func formOpenPolicyAgentMetaDataObject(decisionId string) *_struct.Struct {
-	nestedStruct := &_struct.Struct{}
-	nestedStruct.Fields = make(map[string]*_struct.Value)
+func formOpenPolicyAgentMetaDataObject(decisionId string) *pbstruct.Struct {
+	nestedStruct := &pbstruct.Struct{}
+	nestedStruct.Fields = make(map[string]*pbstruct.Value)
 
 	innerFields := make(map[string]interface{})
 	innerFields["decision_id"] = decisionId
