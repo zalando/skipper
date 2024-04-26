@@ -108,9 +108,16 @@ type FilterContext interface {
 	Metrics() Metrics
 
 	// Allow filters to add Tags, Baggage to the trace or set the ComponentName.
+	//
+	// Deprecated: OpenTracing is deprecated, see https://github.com/zalando/skipper/issues/2104.
+	// Use opentracing.SpanFromContext(ctx.Request().Context()).Tracer() to get the proxy span Tracer.
 	Tracer() opentracing.Tracer
 
 	// Allow filters to create their own spans
+	//
+	// Deprecated: OpenTracing is deprecated, see https://github.com/zalando/skipper/issues/2104.
+	// Filter spans should be children of the proxy span,
+	// use opentracing.SpanFromContext(ctx.Request().Context()) to get the proxy span.
 	ParentSpan() opentracing.Span
 
 	// Returns a clone of the FilterContext including a brand new request object.
