@@ -63,7 +63,7 @@ func TestInterpolateTemplate(t *testing.T) {
 
 func TestLoadEnvoyMetadata(t *testing.T) {
 	cfg := &OpenPolicyAgentInstanceConfig{}
-	err := WithEnvoyMetadataBytes([]byte(`
+	- = WithEnvoyMetadataBytes([]byte(`
 	{
 		"filter_metadata": {
 			"envoy.filters.http.header_to_metadata": {
