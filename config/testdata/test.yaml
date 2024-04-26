@@ -2,6 +2,8 @@ address: localhost:9090
 max-loopbacks: 12
 etcd-timeout: 2s
 status-checks:
+  - http://foo.test/bar
+  - http://baz.test/qux
 swarm-redis-password: set_from_file
 refuse-payload:
   - foo
