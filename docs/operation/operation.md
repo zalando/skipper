@@ -925,7 +925,7 @@ while choosing the endpoint for the given request
 
 A set of metrics will be exposed to track passive health check:
 
-* Counter `passive-health-check.requests.dropped`: Number of all endpoints dropped before load balancing a request, so after N requests and M endpoints are being dropped this counter would be N*M.
+* Counter `passive-health-check.requests.failures.mitigated`: Number of all possible requests failures mitigated by passive health check, so after N requests and M endpoints this counter could be N*M in worst case scenario (all endpoints aren't healty).
 * Gauge `passive-health-check.endpoints.dropped`: Number of unhealthy/filtered endpoints
 
 ## Memory consumption
