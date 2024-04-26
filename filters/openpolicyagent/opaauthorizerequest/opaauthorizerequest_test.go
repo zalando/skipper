@@ -19,6 +19,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/tracing/tracingtest"
 
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/filters/openpolicyagent"
@@ -400,7 +401,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				openpolicyagent.WithConfigTemplate(config),
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
 			fr.Register(ftSpec)
 			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
