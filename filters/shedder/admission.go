@@ -456,7 +456,6 @@ func (ac *admissionControl) startSpan(ctx context.Context) (span opentracing.Spa
 	if parent != nil {
 		span = ac.tracer.StartSpan(admissionControlSpanName, opentracing.ChildOf(parent.Context()))
 		ext.Component.Set(span, "skipper")
-		ext.SpanKind.Set(span, "shedder")
 		span.SetTag("mode", ac.mode.String())
 	}
 	return
