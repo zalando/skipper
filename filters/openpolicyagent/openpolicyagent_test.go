@@ -16,6 +16,7 @@ import (
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
+	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	opaconf "github.com/open-policy-agent/opa/config"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
@@ -29,7 +30,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 	"google.golang.org/protobuf/encoding/protojson"
-	_struct "google.golang.org/protobuf/types/known/structpb"
+	pbstruct "google.golang.org/protobuf/types/known/structpb"
 )
 
 type MockOpenPolicyAgentFilter struct {
@@ -77,18 +78,18 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 	`))(cfg)
 
 	expectedBytes, err := protojson.Marshal(&ext_authz_v3_core.Metadata{
-		FilterMetadata: map[string]*_struct.Struct{
+		FilterMetadata: map[string]*pbstruct.Struct{
 			"envoy.filters.http.header_to_metadata": {
-				Fields: map[string]*_struct.Value{
+				Fields: map[string]*pbstruct.Value{
 					"policy_type": {
-						Kind: &_struct.Value_StringValue{StringValue: "ingress"},
+						Kind: &pbstruct.Value_StringValue{StringValue: "ingress"},
 					},
 				},
 			},
 			"open_policy_agent": {
-				Fields: map[string]*_struct.Value{
+				Fields: map[string]*pbstruct.Value{
 					"decision_id": {
-						Kind: &_struct.Value_StringValue{StringValue: "3b567656-bf28-4a63-a4c4-14407fbd9544"},
+						Kind: &pbstruct.Value_StringValue{StringValue: "3b567656-bf28-4a63-a4c4-14407fbd9544"},
 					},
 				},
 			},
@@ -421,7 +422,13 @@ func TestEval(t *testing.T) {
 	span := tracer.StartSpan("open-policy-agent")
 	ctx := opentracing.ContextWithSpan(context.Background(), span)
 
-	result, err := inst.Eval(ctx, &authv3.CheckRequest{})
+	result, err := inst.Eval(ctx, &authv3.CheckRequest{
+		Attributes: &ext_authz_v3.AttributeContext{
+			Request:           nil,
+			ContextExtensions: nil,
+			MetadataContext:   nil,
+		},
+	})
 	assert.NoError(t, err)
 
 	allowed, err := result.IsAllowed()
