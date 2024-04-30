@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=default
-FROM registry.opensource.zalan.do/library/alpine-3:latest AS default
+FROM registry.opensource.zalan.do/library/amazonlinux-2023:latest AS default
 FROM ${BASE_IMAGE}
 LABEL maintainer="Team Gateway&Proxy @ Zalando SE <team-gwproxy@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates
