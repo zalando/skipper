@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -20,6 +21,15 @@ import (
 )
 
 func TestJwtMetrics(t *testing.T) {
+	testAuthServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer foobarbaz" {
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+			w.Write([]byte(`{"foo": "bar"}`))
+		}
+	}))
+	defer testAuthServer.Close()
+
 	for _, tc := range []struct {
 		name     string
 		filters  string
@@ -148,7 +158,7 @@ func TestJwtMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "no metrics when opted-out",
+			name: "no metrics when opted-out by annotation",
 			filters: `
 				annotate("oauth.disabled", "this endpoint is public") ->
 				jwtMetrics("{issuers: [foo, bar], optOutAnnotations: [oauth.disabled, jwtMetrics.disabled]}")
@@ -179,6 +189,38 @@ func TestJwtMetrics(t *testing.T) {
 				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
 			},
 		},
+		{
+			name: "no metrics when opted-out by state bag",
+			// oauthTokeninfoAnyKV stores token info in the state bag using the key "tokeninfo"
+			filters: `
+				oauthTokeninfoAnyKV("foo", "bar") ->
+				jwtMetrics("{issuers: [foo, bar], optOutStateBag: [tokeninfo]}")
+			`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{
+					"Bearer foobarbaz",
+				}},
+			},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name: "counts invalid-token when state bag does not match",
+			// oauthTokeninfoAnyKV stores token info in the state bag using the key "tokeninfo"
+			filters: `
+				oauthTokeninfoAnyKV("foo", "bar") ->
+				jwtMetrics("{issuers: [foo, bar], optOutStateBag: [does.not.match]}")
+			`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{
+					"Bearer foobarbaz",
+				}},
+			},
+			status: http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.invalid-token": 1,
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &metricstest.MockMetrics{}
@@ -186,6 +228,7 @@ func TestJwtMetrics(t *testing.T) {
 
 			fr := builtin.MakeRegistry()
 			fr.Register(auth.NewJwtMetrics())
+			fr.Register(auth.NewOAuthTokeninfoAnyKVWithOptions(auth.TokeninfoOptions{URL: testAuthServer.URL}))
 			p := proxytest.Config{
 				RoutingOptions: routing.Options{
 					FilterRegistry: fr,
@@ -204,6 +247,7 @@ func TestJwtMetrics(t *testing.T) {
 			resp, err := p.Client().Do(tc.request)
 			require.NoError(t, err)
 			resp.Body.Close()
+			require.Equal(t, tc.status, resp.StatusCode)
 
 			m.WithCounters(func(counters map[string]int64) {
 				// add incoming counter to simplify comparison
