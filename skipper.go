@@ -1945,6 +1945,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		PassiveHealthCheckEnabled:     passiveHealthCheckEnabled,
 		StatsResetPeriod:              passiveHealthCheck.Period,
 		MinRequests:                   passiveHealthCheck.MinRequests,
+		MinHealthCheckDropProbability: passiveHealthCheck.MinDropProbability,
 		MaxHealthCheckDropProbability: passiveHealthCheck.MaxDropProbability,
 	})
 	ro := routing.Options{
