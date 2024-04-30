@@ -154,6 +154,11 @@ type PassiveHealthCheck struct {
 	// potentially opt out the endpoint from the list of healthy endpoints
 	MinRequests int64
 
+	// The minimal ratio of failed requests in a single period to potentially opt out the endpoint
+	// from the list of healthy endpoints. This ratio is equal to the minimal non-zero probability of
+	// dropping endpoint out from load balancing for every specific request
+	MinDropProbability float64
+
 	// The maximum probability of unhealthy endpoint to be dropped out from load balancing for every specific request
 	MaxDropProbability float64
 }
@@ -186,6 +191,15 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 				return false, nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
 			}
 			result.MinRequests = int64(minRequests)
+		case "min-drop-probability":
+			minDropProbability, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+			}
+			if minDropProbability < 0 || minDropProbability > 1 {
+				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+			}
+			result.MinDropProbability = minDropProbability
 		case "max-drop-probability":
 			maxDropProbability, err := strconv.ParseFloat(value, 64)
 			if err != nil {
@@ -202,8 +216,11 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 		keysInitialized[key] = struct{}{}
 	}
 
-	if len(keysInitialized) != 3 {
+	if len(keysInitialized) != 4 {
 		return false, nil, fmt.Errorf("passive health check: missing required parameters")
+	}
+	if result.MinDropProbability >= result.MaxDropProbability {
+		return false, nil, fmt.Errorf("passive health check: minDropProbability should be less than maxDropProbability")
 	}
 	return true, result, nil
 }

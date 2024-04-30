@@ -24,6 +24,7 @@ func defaultEndpointRegistry() *routing.EndpointRegistry {
 		StatsResetPeriod:              period,
 		MinRequests:                   10,
 		MaxHealthCheckDropProbability: 1.0,
+		MinHealthCheckDropProbability: 0.01,
 	})
 }
 
