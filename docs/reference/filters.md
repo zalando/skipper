@@ -1585,9 +1585,14 @@ Examples:
 ```
 jwtMetrics("{issuers: ['https://example.com', 'https://example.org']}")
 
-// opt-out
+// opt-out by annotation
 annotate("oauth.disabled", "this endpoint is public") ->
 jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutAnnotations: [oauth.disabled]}")
+
+// opt-out by state bag:
+// oauthTokeninfo* and oauthGrant filters store token info in the state bag using "tokeninfo" key.
+oauthTokeninfoAnyKV("foo", "bar") ->
+jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutStateBag: [tokeninfo]}")
 ```
 
 

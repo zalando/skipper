@@ -18,6 +18,7 @@ type (
 	jwtMetricsFilter struct {
 		Issuers           []string `json:"issuers,omitempty"`
 		OptOutAnnotations []string `json:"optOutAnnotations,omitempty"`
+		OptOutStateBag    []string `json:"optOutStateBag,omitempty"`
 	}
 )
 
@@ -52,6 +53,15 @@ func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
 		annotations := annotate.GetAnnotations(ctx)
 		for _, annotation := range f.OptOutAnnotations {
 			if _, ok := annotations[annotation]; ok {
+				return // opt-out
+			}
+		}
+	}
+
+	if len(f.OptOutStateBag) > 0 {
+		sb := ctx.StateBag()
+		for _, key := range f.OptOutStateBag {
+			if _, ok := sb[key]; ok {
 				return // opt-out
 			}
 		}
