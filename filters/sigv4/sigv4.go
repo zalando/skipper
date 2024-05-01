@@ -16,6 +16,8 @@ import (
 	"github.com/zalando/skipper/filters"
 )
 
+// TODO: add logging
+// TODO: extract constants from code
 type sigV4Spec struct{}
 type sigV4Filter struct {
 	secretKey string
@@ -121,9 +123,7 @@ func generateCanonicalEntities(entities map[string][]string, format string) []st
 
 	for _, key := range entityKeys {
 		key = strings.ToLower(key)
-		sort.Strings(entities[key]) // TODO: check specs
-
-		// Combine header values with a comma if there are multiple values for the same key
+		sort.Strings(entities[key])                         // TODO: check specs
 		queryParamValue := strings.Join(entities[key], ",") //TODO: check specs
 		canonicalEntitySlice = append(canonicalEntitySlice, fmt.Sprintf(format, getEncodedPath(key), getEncodedPath(queryParamValue)))
 	}
@@ -148,7 +148,7 @@ func generateCanonicalRequest(method, endpoint string, headers map[string][]stri
 		getEncodedPath(endpoint),
 		canonicalQueryParams,
 		canonicalHeaders,
-		signedHeaders[:len(signedHeaders)-1], // ??
+		signedHeaders[:len(signedHeaders)-1], // TODO: find what is this in specs
 		canonicalPayLoad,
 	}, "\n")
 
@@ -192,12 +192,4 @@ func generateSigningKey(secretKey string, region string, service string) string 
 
 func calculateSignature(stringToSign string, signingKey string) string {
 	return hexEncode(hmacSHA256(signingKey, stringToSign))
-}
-
-func signRequestWithoutBody(ctx filters.FilterContext) {
-
-}
-
-func signRequestWithBody(ctx filters.FilterContext, body []byte) {
-
 }
