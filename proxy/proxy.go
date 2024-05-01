@@ -154,6 +154,11 @@ type PassiveHealthCheck struct {
 	// potentially opt out the endpoint from the list of healthy endpoints
 	MinRequests int64
 
+	// The minimal ratio of failed requests in a single period to potentially opt out the endpoint
+	// from the list of healthy endpoints. This ratio is equal to the minimal non-zero probability of
+	// dropping endpoint out from load balancing for every specific request
+	MinDropProbability float64
+
 	// The maximum probability of unhealthy endpoint to be dropped out from load balancing for every specific request
 	MaxDropProbability float64
 }
@@ -186,6 +191,15 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 				return false, nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
 			}
 			result.MinRequests = int64(minRequests)
+		case "min-drop-probability":
+			minDropProbability, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+			}
+			if minDropProbability < 0 || minDropProbability > 1 {
+				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+			}
+			result.MinDropProbability = minDropProbability
 		case "max-drop-probability":
 			maxDropProbability, err := strconv.ParseFloat(value, 64)
 			if err != nil {
@@ -202,8 +216,11 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 		keysInitialized[key] = struct{}{}
 	}
 
-	if len(keysInitialized) != 3 {
+	if len(keysInitialized) != 4 {
 		return false, nil, fmt.Errorf("passive health check: missing required parameters")
+	}
+	if result.MinDropProbability >= result.MaxDropProbability {
+		return false, nil, fmt.Errorf("passive health check: minDropProbability should be less than maxDropProbability")
 	}
 	return true, result, nil
 }
@@ -216,6 +233,10 @@ type Params struct {
 
 	// Control flags. See the Flags values.
 	Flags Flags
+
+	// Metrics collector.
+	// If not specified proxy uses global metrics.Default.
+	Metrics metrics.Metrics
 
 	// And optional list of priority routes to be used for matching
 	// before the general lookup tree.
@@ -536,7 +557,7 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
-	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(endpoints, rt)
+	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -766,7 +787,11 @@ func WithParams(p Params) *Proxy {
 		}
 	}
 
-	m := metrics.Default
+	m := p.Metrics
+	if m == nil {
+		m = metrics.Default
+	}
+
 	if p.Flags.Debug() {
 		m = metrics.Void
 	}
@@ -950,14 +975,20 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	if !ok {
 		spanName = "proxy"
 	}
-	ctx.proxySpan = tracing.CreateSpan(spanName, req.Context(), p.tracing.tracer)
+
+	proxySpanOpts := []ot.StartSpanOption{ot.Tags{
+		SpanKindTag: SpanKindClient,
+	}}
+	if parentSpan := ot.SpanFromContext(req.Context()); parentSpan != nil {
+		proxySpanOpts = append(proxySpanOpts, ot.ChildOf(parentSpan.Context()))
+	}
+	ctx.proxySpan = p.tracing.tracer.StartSpan(spanName, proxySpanOpts...)
 
 	u := cloneURL(req.URL)
 	u.RawQuery = ""
 	p.tracing.
-		setTag(ctx.proxySpan, SpanKindTag, SpanKindClient).
-		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id).
-		setTag(ctx.proxySpan, HTTPUrlTag, u.String())
+		setTag(ctx.proxySpan, HTTPUrlTag, u.String()).
+		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id)
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)
@@ -1173,10 +1204,15 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
 		loopCTX := ctx.clone()
-		loopSpan := tracing.CreateSpan("loopback", ctx.request.Context(), p.tracing.tracer)
-		p.tracing.
-			setTag(loopSpan, SpanKindTag, SpanKindServer).
-			setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
+
+		loopSpanOpts := []ot.StartSpanOption{ot.Tags{
+			SpanKindTag: SpanKindServer,
+		}}
+		if parentSpan := ot.SpanFromContext(ctx.request.Context()); parentSpan != nil {
+			loopSpanOpts = append(loopSpanOpts, ot.ChildOf(parentSpan.Context()))
+		}
+		loopSpan := p.tracing.tracer.StartSpan("loopback", loopSpanOpts...)
+		p.tracing.setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
 		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
 		ctx.parentSpan = loopSpan
 
@@ -1185,9 +1221,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		if err := p.do(loopCTX, loopSpan); err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
 			ctx.response = loopCTX.response
-			if err != nil {
-				p.applyFiltersOnError(ctx, processedFilters)
-			}
+			p.applyFiltersOnError(ctx, processedFilters)
 			return err
 		}
 
@@ -1475,12 +1509,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.metrics.IncCounter("incoming." + r.Proto)
 	var ctx *context
 
-	var span ot.Span
-	if wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header)); err != nil {
-		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName)
-	} else {
-		span = p.tracing.tracer.StartSpan(p.tracing.initialOperationName, ext.RPCServerOption(wireContext))
+	spanOpts := []ot.StartSpanOption{ot.Tags{
+		SpanKindTag: SpanKindServer,
+	}}
+	if wireContext, err := p.tracing.tracer.Extract(ot.HTTPHeaders, ot.HTTPHeadersCarrier(r.Header)); err == nil {
+		spanOpts = append(spanOpts, ext.RPCServerOption(wireContext))
 	}
+	span := p.tracing.tracer.StartSpan(p.tracing.initialOperationName, spanOpts...)
+
 	defer func() {
 		if ctx != nil && ctx.proxySpan != nil {
 			ctx.proxySpan.Finish()
@@ -1527,9 +1563,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
 	}
 
-	p.tracing.
-		setTag(span, SpanKindTag, SpanKindServer).
-		setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
+	p.tracing.setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
 	p.setCommonSpanInfo(r.URL, r, span)
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))

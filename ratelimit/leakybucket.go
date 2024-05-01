@@ -112,13 +112,12 @@ func (b *ClusterLeakyBucket) getBucketId(label string) string {
 }
 
 func (b *ClusterLeakyBucket) startSpan(ctx context.Context) (span opentracing.Span) {
-	parent := opentracing.SpanFromContext(ctx)
-	if parent != nil {
-		span = b.ringClient.StartSpan(leakyBucketSpanName, opentracing.ChildOf(parent.Context()))
-	} else {
-		span = opentracing.NoopTracer{}.StartSpan("")
+	spanOpts := []opentracing.StartSpanOption{opentracing.Tags{
+		string(ext.Component): "skipper",
+		string(ext.SpanKind):  "client",
+	}}
+	if parent := opentracing.SpanFromContext(ctx); parent != nil {
+		spanOpts = append(spanOpts, opentracing.ChildOf(parent.Context()))
 	}
-	ext.Component.Set(span, "skipper")
-	ext.SpanKind.Set(span, "client")
-	return
+	return b.ringClient.StartSpan(leakyBucketSpanName, spanOpts...)
 }

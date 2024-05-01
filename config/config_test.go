@@ -62,15 +62,14 @@ func TestEnvOverrides_SwarmRedisPassword(t *testing.T) {
 	}
 }
 
-func defaultConfig() *Config {
-	return &Config{
-		ConfigFile:                              "testdata/test.yaml",
+func defaultConfig(with func(*Config)) *Config {
+	cfg := &Config{
 		Flags:                                   nil,
-		Address:                                 "localhost:8080",
-		StatusChecks:                            nil,
+		Address:                                 ":9090",
+		StatusChecks:                            commaListFlag(),
 		ExpectedBytesPerRequest:                 50 * 1024,
 		SupportListener:                         ":9911",
-		MaxLoopbacks:                            12,
+		MaxLoopbacks:                            proxy.DefaultMaxLoopbacks,
 		DefaultHTTPStatus:                       404,
 		MaxAuditBody:                            1024,
 		MaxMatcherBufferSize:                    2097152,
@@ -92,7 +91,7 @@ func defaultConfig() *Config {
 		ApplicationLogLevelString:               "INFO",
 		ApplicationLogPrefix:                    "[APP]",
 		EtcdPrefix:                              "/skipper",
-		EtcdTimeout:                             2 * time.Second,
+		EtcdTimeout:                             time.Second,
 		AppendFilters:                           &defaultFiltersFlags{},
 		PrependFilters:                          &defaultFiltersFlags{},
 		DisabledFilters:                         commaListFlag(),
@@ -138,7 +137,6 @@ func defaultConfig() *Config {
 		ServeMethodMetric:                       true,
 		ServeStatusCodeMetric:                   true,
 		SwarmRedisURLs:                          commaListFlag(),
-		SwarmRedisPassword:                      "set_from_file",
 		SwarmRedisDialTimeout:                   25 * time.Millisecond,
 		SwarmRedisReadTimeout:                   25 * time.Millisecond,
 		SwarmRedisWriteTimeout:                  25 * time.Millisecond,
@@ -156,7 +154,6 @@ func defaultConfig() *Config {
 		ForwardedHeadersList:                    commaListFlag(),
 		ForwardedHeadersExcludeCIDRList:         commaListFlag(),
 		ClusterRatelimitMaxGroupShards:          1,
-		RefusePayload:                           multiFlag{"foo", "bar", "baz"},
 		ValidateQuery:                           true,
 		ValidateQueryLog:                        true,
 		LuaModules:                              commaListFlag(),
@@ -166,44 +163,40 @@ func defaultConfig() *Config {
 		OpenPolicyAgentMaxRequestBodySize:       openpolicyagent.DefaultMaxRequestBodySize,
 		OpenPolicyAgentMaxMemoryBodyParsing:     openpolicyagent.DefaultMaxMemoryBodyParsing,
 	}
-}
-
-func defaultConfigWithoutNil() *Config {
-	cfg := defaultConfig()
-	cfg.StatusChecks = newListFlag("", "")
+	with(cfg)
 	return cfg
 }
 
 func TestToOptions(t *testing.T) {
-	c := defaultConfigWithoutNil()
+	c := defaultConfig(func(c *Config) {
+		// ProxyFlags
+		c.Insecure = true          // 1
+		c.ProxyPreserveHost = true // 4
+		c.RemoveHopHeaders = true  // 16
+		c.RfcPatchPath = true      // 32
 
-	// ProxyFlags
-	c.Insecure = true          // 1
-	c.ProxyPreserveHost = true // 4
-	c.RemoveHopHeaders = true  // 16
-	c.RfcPatchPath = true      // 32
+		// config
+		c.EtcdUrls = "127.0.0.1:5555"
+		c.WhitelistedHealthCheckCIDR = "127.0.0.0/8,10.0.0.0/8"
+		c.ForwardedHeadersList = commaListFlag("X-Forwarded-For,X-Forwarded-Host,X-Forwarded-Method,X-Forwarded-Uri,X-Forwarded-Port=,X-Forwarded-Proto=http")
+		c.ForwardedHeadersList.Set("X-Forwarded-For,X-Forwarded-Host,X-Forwarded-Method,X-Forwarded-Uri,X-Forwarded-Port=,X-Forwarded-Proto=http")
+		c.HostPatch = net.HostPatch{
+			ToLower:           true,
+			RemoteTrailingDot: true,
+		}
+		c.RefusePayload = append(c.RefusePayload, "refuse")
+		c.ValidateQuery = true
+		c.ValidateQueryLog = true
 
-	// config
-	c.EtcdUrls = "127.0.0.1:5555"
-	c.WhitelistedHealthCheckCIDR = "127.0.0.0/8,10.0.0.0/8"
-	c.ForwardedHeadersList = commaListFlag("X-Forwarded-For,X-Forwarded-Host,X-Forwarded-Method,X-Forwarded-Uri,X-Forwarded-Port=,X-Forwarded-Proto=http")
-	c.ForwardedHeadersList.Set("X-Forwarded-For,X-Forwarded-Host,X-Forwarded-Method,X-Forwarded-Uri,X-Forwarded-Port=,X-Forwarded-Proto=http")
-	c.HostPatch = net.HostPatch{
-		ToLower:           true,
-		RemoteTrailingDot: true,
-	}
-	c.RefusePayload = append(c.RefusePayload, "refuse")
-	c.ValidateQuery = true
-	c.ValidateQueryLog = true
-
-	c.CloneRoute = routeChangerConfig{}
-	if err := c.CloneRoute.Set("/foo/bar/"); err != nil {
-		t.Fatalf("Failed to set: %v", err)
-	}
-	c.EditRoute = routeChangerConfig{}
-	if err := c.EditRoute.Set("/foo/bar/"); err != nil {
-		t.Fatalf("Failed to set: %v", err)
-	}
+		c.CloneRoute = routeChangerConfig{}
+		if err := c.CloneRoute.Set("/foo/bar/"); err != nil {
+			t.Fatalf("Failed to set: %v", err)
+		}
+		c.EditRoute = routeChangerConfig{}
+		if err := c.EditRoute.Set("/foo/bar/"); err != nil {
+			t.Fatalf("Failed to set: %v", err)
+		}
+	})
 
 	if err := validate(c); err != nil {
 		t.Fatalf("Failed to validate config: %v", err)
@@ -322,22 +315,39 @@ func Test_NewConfigWithArgs(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "test only valid flag overwrite yaml file",
-			args:    []string{"skipper", "-config-file=testdata/test.yaml", "-address=localhost:8080", "-refuse-payload=baz"},
-			want:    defaultConfig(),
-			wantErr: false,
+			name: "test only valid flag overwrite yaml file",
+			args: []string{"skipper", "-config-file=testdata/test.yaml", "-address=localhost:8080", "-refuse-payload=baz"},
+			want: defaultConfig(func(c *Config) {
+				c.ConfigFile = "testdata/test.yaml"
+				c.Address = "localhost:8080"
+				c.MaxLoopbacks = 12
+				c.EtcdTimeout = 2 * time.Second
+				c.StatusChecks = &listFlag{
+					sep:     ",",
+					allowed: map[string]bool{},
+					value:   "http://foo.test/bar,http://baz.test/qux",
+					values:  []string{"http://foo.test/bar", "http://baz.test/qux"},
+				}
+				c.SwarmRedisPassword = "set_from_file"
+				c.RefusePayload = multiFlag{"foo", "bar", "baz"}
+			}),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := NewConfig()
 			err := cfg.ParseArgs(tt.args[0], tt.args[1:])
+
 			if (err != nil) != tt.wantErr {
-				t.Errorf("config.NewConfig() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("config.NewConfig() error: %v, wantErr: %v", err, tt.wantErr)
 			}
 
 			if !tt.wantErr {
-				if cmp.Equal(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}), cmpopts.IgnoreUnexported(Config{}), cmpopts.IgnoreFields(Config{}, "Flags")) == false {
-					t.Errorf("config.NewConfig() got vs. want:\n%v", cmp.Diff(cfg, tt.want, cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}), cmpopts.IgnoreUnexported(Config{}), cmpopts.IgnoreFields(Config{}, "Flags")))
+				d := cmp.Diff(cfg, tt.want,
+					cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}),
+					cmpopts.IgnoreUnexported(Config{}), cmpopts.IgnoreFields(Config{}, "Flags"),
+				)
+				if d != "" {
+					t.Errorf("config.NewConfig() want vs got:\n%s", d)
 				}
 			}
 		})

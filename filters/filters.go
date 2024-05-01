@@ -108,9 +108,16 @@ type FilterContext interface {
 	Metrics() Metrics
 
 	// Allow filters to add Tags, Baggage to the trace or set the ComponentName.
+	//
+	// Deprecated: OpenTracing is deprecated, see https://github.com/zalando/skipper/issues/2104.
+	// Use opentracing.SpanFromContext(ctx.Request().Context()).Tracer() to get the Tracer.
 	Tracer() opentracing.Tracer
 
 	// Allow filters to create their own spans
+	//
+	// Deprecated: OpenTracing is deprecated, see https://github.com/zalando/skipper/issues/2104.
+	// Filter spans should be children of the request span,
+	// use opentracing.SpanFromContext(ctx.Request().Context()) to get it.
 	ParentSpan() opentracing.Span
 
 	// Returns a clone of the FilterContext including a brand new request object.
@@ -208,6 +215,7 @@ func (r Registry) Register(s Spec) {
 const (
 	BackendIsProxyName                         = "backendIsProxy"
 	CommentName                                = "comment"
+	AnnotateName                               = "annotate"
 	ModRequestHeaderName                       = "modRequestHeader"
 	SetRequestHeaderName                       = "setRequestHeader"
 	AppendRequestHeaderName                    = "appendRequestHeader"
@@ -294,6 +302,7 @@ const (
 	GrantLogoutName                            = "grantLogout"
 	GrantClaimsQueryName                       = "grantClaimsQuery"
 	JwtValidationName                          = "jwtValidation"
+	JwtMetricsName                             = "jwtMetrics"
 	OAuthOidcUserInfoName                      = "oauthOidcUserInfo"
 	OAuthOidcAnyClaimsName                     = "oauthOidcAnyClaims"
 	OAuthOidcAllClaimsName                     = "oauthOidcAllClaims"

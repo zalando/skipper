@@ -465,7 +465,10 @@ func getRequestValue(f filters.FilterContext) func(*lua.LState) int {
 		switch key {
 		case "header":
 			if header == nil {
-				header = s.CreateTable(0, 0)
+				header = s.CreateTable(0, 2)
+				header.RawSetString("add", s.NewFunction(addRequestHeader(f)))
+				header.RawSetString("values", s.NewFunction(requestHeaderValues(f)))
+
 				mt := s.CreateTable(0, 3)
 				mt.RawSetString("__index", s.NewFunction(getRequestHeader(f)))
 				mt.RawSetString("__newindex", s.NewFunction(setRequestHeader(f)))
@@ -556,7 +559,10 @@ func getResponseValue(f filters.FilterContext) func(*lua.LState) int {
 		switch key {
 		case "header":
 			if header == nil {
-				header = s.CreateTable(0, 0)
+				header = s.CreateTable(0, 2)
+				header.RawSetString("add", s.NewFunction(addResponseHeader(f)))
+				header.RawSetString("values", s.NewFunction(responseHeaderValues(f)))
+
 				mt := s.CreateTable(0, 3)
 				mt.RawSetString("__index", s.NewFunction(getResponseHeader(f)))
 				mt.RawSetString("__newindex", s.NewFunction(setResponseHeader(f)))
@@ -609,6 +615,8 @@ func getStateBag(f filters.FilterContext) func(*lua.LState) int {
 			s.Push(lua.LNumber(res))
 		case float64:
 			s.Push(lua.LNumber(res))
+		case *lua.LTable:
+			s.Push(res) // load *lua.LTable as is
 		default:
 			return 0
 		}
@@ -626,6 +634,8 @@ func setStateBag(f filters.FilterContext) func(*lua.LState) int {
 			res = string(val.(lua.LString))
 		case lua.LTNumber:
 			res = float64(val.(lua.LNumber))
+		case lua.LTTable:
+			res = val // store *lua.LTable as is
 		default:
 			// TODO(sszuecs): https://github.com/zalando/skipper/issues/1487
 			// s.RaiseError("unsupported state bag value type %v, need a string or a number", val.Type())
@@ -670,6 +680,30 @@ func setRequestHeader(f filters.FilterContext) func(*lua.LState) int {
 			f.Request().Header.Set(hdr, val)
 		}
 		return 0
+	}
+}
+
+func addRequestHeader(f filters.FilterContext) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		value := s.ToString(-1)
+		name := s.ToString(-2)
+		if name != "" && value != "" {
+			f.Request().Header.Add(name, value)
+		}
+		return 0
+	}
+}
+
+func requestHeaderValues(f filters.FilterContext) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		name := s.ToString(-1)
+		values := f.Request().Header.Values(name)
+		res := s.CreateTable(len(values), 0)
+		for _, v := range values {
+			res.Append(lua.LString(v))
+		}
+		s.Push(res)
+		return 1
 	}
 }
 
@@ -748,6 +782,30 @@ func setResponseHeader(f filters.FilterContext) func(*lua.LState) int {
 			f.Response().Header.Set(hdr, val)
 		}
 		return 0
+	}
+}
+
+func addResponseHeader(f filters.FilterContext) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		value := s.ToString(-1)
+		name := s.ToString(-2)
+		if name != "" && value != "" {
+			f.Response().Header.Add(name, value)
+		}
+		return 0
+	}
+}
+
+func responseHeaderValues(f filters.FilterContext) func(*lua.LState) int {
+	return func(s *lua.LState) int {
+		name := s.ToString(-1)
+		values := f.Response().Header.Values(name)
+		res := s.CreateTable(len(values), 0)
+		for _, v := range values {
+			res.Append(lua.LString(v))
+		}
+		s.Push(res)
+		return 1
 	}
 }
 

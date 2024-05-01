@@ -181,7 +181,7 @@ func (ch *consistentHash) boundedLoadSearch(key string, balanceFactor float64, c
 		if skipEndpoint(ctx, endpointIndex) {
 			continue
 		}
-		load := ctx.LBEndpoints[endpointIndex].Metrics.InflightRequests()
+		load := ctx.Route.LBEndpoints[endpointIndex].Metrics.InflightRequests()
 		// We know there must be an endpoint whose load <= average load.
 		// Since targetLoad >= average load (balancerFactor >= 1), there must also be an endpoint with load <= targetLoad.
 		if float64(load) <= targetLoad {
@@ -199,8 +199,11 @@ func (ch *consistentHash) Apply(ctx *routing.LBContext) routing.LBEndpoint {
 		return ctx.LBEndpoints[0]
 	}
 
+	// The index returned from this call is taken from hash ring which is built from data about
+	// all endpoints, including fading in, unhealthy, etc. ones. The index stored in hash ring is
+	// the index of the endpoint in the original list of endpoints.
 	choice := ch.chooseConsistentHashEndpoint(ctx)
-	return ctx.LBEndpoints[choice]
+	return ctx.Route.LBEndpoints[choice]
 }
 
 func (ch *consistentHash) chooseConsistentHashEndpoint(ctx *routing.LBContext) int {

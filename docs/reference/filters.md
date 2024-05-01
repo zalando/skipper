@@ -79,6 +79,25 @@ route1: *
     -> <shunt>;
 ```
 
+## annotate
+
+Annotate the route, subsequent annotations using the same key will overwrite the value.
+Other subsequent filters can use annotations to make decisions and should document the key and value they use.
+
+Parameters:
+
+* key (string)
+* value (string)
+
+Example:
+
+```
+route1: *
+    -> annotate("never", "gonna give you up")
+    -> annotate("never", "gonna let you down")
+    -> <shunt>;
+```
+
 ## HTTP Headers
 ### preserveHost
 
@@ -1537,6 +1556,45 @@ Examples:
 jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 ```
 
+#### jwtMetrics
+
+> This filter is experimental and may change in the future, please see tests for example usage.
+
+The filter parses (but does not validate) JWT token from `Authorization` request header on response path if status is not 4xx
+and increments the following counters:
+
+* `missing-token`: request does not have `Authorization` header
+* `invalid-token-type`: `Authorization` header value is not a `Bearer` type
+* `invalid-token`: `Authorization` header does not contain a JWT token
+* `missing-issuer`: JWT token does not have `iss` claim
+* `invalid-issuer`: JWT token does not have any of the configured issuers
+
+Each counter name uses concatenation of request method, escaped hostname and response status as a prefix, e.g.:
+
+```
+jwtMetrics.custom.GET.example_org.200.invalid-token
+```
+
+and therefore requires approximately `count(HTTP methods) * count(Hosts) * count(Statuses) * 8` bytes of additional memory.
+
+The filter requires single string argument that is parsed as YAML.
+For convenience use [flow style format](https://yaml.org/spec/1.2.2/#chapter-7-flow-style-productions).
+
+Examples:
+
+```
+jwtMetrics("{issuers: ['https://example.com', 'https://example.org']}")
+
+// opt-out by annotation
+annotate("oauth.disabled", "this endpoint is public") ->
+jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutAnnotations: [oauth.disabled]}")
+
+// opt-out by state bag:
+// oauthTokeninfo* and oauthGrant filters store token info in the state bag using "tokeninfo" key.
+oauthTokeninfoAnyKV("foo", "bar") ->
+jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutStateBag: [tokeninfo]}")
+```
+
 
 ### Forward Token Data
 #### forwardToken
@@ -1594,6 +1652,11 @@ you pass the `-enable-oauth2-grant-flow` flag.
 The filter may be used with the [grantClaimsQuery](#grantclaimsquery) filter to perform
 authz and access control.
 
+The filter also supports javascript login redirect stub that can be used e.g. to store location hash.
+To enable the stub, add preceding [annotate](#annotate) filter with `oauthGrant.loginRedirectStub` key and
+HTML content that will be served to the client instead of `307 Temporary Redirect` to the authorization URL.
+The filter will replace `{{authCodeURL}}` placeholder in the content with the actual authorization URL.
+
 See the [tutorial](../tutorials/auth.md#oauth2-authorization-grant-flow) for step-by-step
 instructions.
 
@@ -1602,6 +1665,27 @@ Examples:
 ```
 all:
     *
+    -> oauthGrant()
+    -> "http://localhost:9090";
+```
+
+```
+single_page_app:
+    *
+    -> annotate("oauthGrant.loginRedirectStub", `
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <title>Redirecting...</title>
+              <script>
+                if (window.location.hash !== null) {
+                  localStorage.setItem('original-location-hash', window.location.hash);
+                }
+                window.location.replace('{{authCodeURL}}');
+              </script>
+            </head>
+          </html>
+    `)
     -> oauthGrant()
     -> "http://localhost:9090";
 ```

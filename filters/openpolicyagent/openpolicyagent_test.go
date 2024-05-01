@@ -16,7 +16,6 @@ import (
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
-	_struct "github.com/golang/protobuf/ptypes/struct"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	opaconf "github.com/open-policy-agent/opa/config"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
@@ -30,6 +29,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 	"google.golang.org/protobuf/encoding/protojson"
+	_struct "google.golang.org/protobuf/types/known/structpb"
 )
 
 type MockOpenPolicyAgentFilter struct {
@@ -68,7 +68,7 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 		"filter_metadata": {
 			"envoy.filters.http.header_to_metadata": {
 				"policy_type": "ingress"
-			}	
+			}
 		}
 	}
 	`))(cfg)
@@ -99,7 +99,7 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 		opasdktest.MockBundle("/bundles/test", map[string]string{
 			"main.rego": `
 				package envoy.authz
-	
+
 				default allow = false
 			`,
 		}),
@@ -144,14 +144,14 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 		opasdktest.MockBundle("/bundles/test", map[string]string{
 			"main.rego": `
 				package envoy.authz
-	
+
 				default allow = false
 			`,
 		}),
 		opasdktest.MockBundle("/bundles/use_body", map[string]string{
 			"main.rego": `
 				package envoy.authz
-	
+
 				default allow = false
 
 				allow { input.parsed_body }
@@ -160,7 +160,7 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 		opasdktest.MockBundle("/bundles/anotherbundlename", map[string]string{
 			"main.rego": `
 				package envoy.authz
-	
+
 				default allow = false
 			`,
 		}),
@@ -178,7 +178,7 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 			}
 		},
 		"plugins": {
-			"envoy_ext_authz_grpc": {    
+			"envoy_ext_authz_grpc": {
 				"path": "/envoy/authz/allow",
 				"dry-run": false,
 				"skip-request-body-parse": false
