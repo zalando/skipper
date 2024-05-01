@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/annotate"
 	"golang.org/x/oauth2"
 )
 
@@ -84,22 +88,31 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 		return
 	}
 
-	ctx.Serve(&http.Response{
-		StatusCode: http.StatusTemporaryRedirect,
-		Header: http.Header{
-			"Location": []string{authConfig.AuthCodeURL(state, config.GetAuthURLParameters(redirect)...)},
-		},
-	})
+	authCodeURL := authConfig.AuthCodeURL(state, config.GetAuthURLParameters(redirect)...)
+
+	if lrs, ok := annotate.GetAnnotations(ctx)["oauthGrant.loginRedirectStub"]; ok {
+		lrs = strings.ReplaceAll(lrs, "{{authCodeURL}}", authCodeURL)
+		ctx.Serve(&http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Length": []string{strconv.Itoa(len(lrs))},
+			},
+			Body: io.NopCloser(strings.NewReader(lrs)),
+		})
+	} else {
+		ctx.Serve(&http.Response{
+			StatusCode: http.StatusTemporaryRedirect,
+			Header: http.Header{
+				"Location": []string{authCodeURL},
+			},
+		})
+	}
 }
 
-func (f *grantFilter) refreshToken(c *cookie, req *http.Request) (*oauth2.Token, error) {
+func (f *grantFilter) refreshToken(token *oauth2.Token, req *http.Request) (*oauth2.Token, error) {
 	// Set the expiry of the token to the past to trigger oauth2.TokenSource
 	// to refresh the access token.
-	token := &oauth2.Token{
-		AccessToken:  c.AccessToken,
-		RefreshToken: c.RefreshToken,
-		Expiry:       time.Now().Add(-time.Minute),
-	}
+	token.Expiry = time.Now().Add(-time.Minute)
 
 	ctx := providerContext(f.config)
 
@@ -114,12 +127,12 @@ func (f *grantFilter) refreshToken(c *cookie, req *http.Request) (*oauth2.Token,
 	return tokenSource.Token()
 }
 
-func (f *grantFilter) refreshTokenIfRequired(c *cookie, ctx filters.FilterContext) (*oauth2.Token, error) {
-	canRefresh := c.RefreshToken != ""
+func (f *grantFilter) refreshTokenIfRequired(t *oauth2.Token, ctx filters.FilterContext) (*oauth2.Token, error) {
+	canRefresh := t.RefreshToken != ""
 
-	if c.isAccessTokenExpired() {
+	if time.Now().After(t.Expiry) {
 		if canRefresh {
-			token, err := f.refreshToken(c, ctx.Request())
+			token, err := f.refreshToken(t, ctx.Request())
 			if err == nil {
 				// Remember that this token was just successfully refreshed
 				// so that we can send an updated cookie in the response.
@@ -130,12 +143,7 @@ func (f *grantFilter) refreshTokenIfRequired(c *cookie, ctx filters.FilterContex
 			return nil, errExpiredToken
 		}
 	} else {
-		return &oauth2.Token{
-			AccessToken:  c.AccessToken,
-			TokenType:    "Bearer",
-			RefreshToken: c.RefreshToken,
-			Expiry:       c.Expiry,
-		}, nil
+		return t, nil
 	}
 }
 
@@ -179,15 +187,13 @@ func (f *grantFilter) setupToken(token *oauth2.Token, tokeninfo map[string]inter
 }
 
 func (f *grantFilter) Request(ctx filters.FilterContext) {
-	req := ctx.Request()
-
-	c, err := extractCookie(req, f.config)
+	token, err := f.config.GrantCookieEncoder.Read(ctx.Request())
 	if err == http.ErrNoCookie {
 		loginRedirect(ctx, f.config)
 		return
 	}
 
-	token, err := f.refreshTokenIfRequired(c, ctx)
+	token, err = f.refreshTokenIfRequired(token, ctx)
 	if err != nil {
 		// Refresh failed and we no longer have a valid access token.
 		loginRedirect(ctx, f.config)
@@ -221,11 +227,13 @@ func (f *grantFilter) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	c, err := createCookie(f.config, ctx.Request().Host, token)
+	cookies, err := f.config.GrantCookieEncoder.Update(ctx.Request(), token)
 	if err != nil {
 		ctx.Logger().Errorf("Failed to generate cookie: %v.", err)
 		return
 	}
 
-	ctx.Response().Header.Add("Set-Cookie", c.String())
+	for _, c := range cookies {
+		ctx.Response().Header.Add("Set-Cookie", c.String())
+	}
 }

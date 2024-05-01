@@ -9,19 +9,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/filters/builtin"
-	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
+	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 )
 
 func TestMetricsUncompressed(t *testing.T) {
-	dm := metrics.Default
-	t.Cleanup(func() { metrics.Default = dm })
-
 	m := &metricstest.MockMetrics{}
-	metrics.Default = m
 
 	// will update routes after proxy address is known
 	dc := testdataclient.New(nil)
@@ -31,6 +27,9 @@ func TestMetricsUncompressed(t *testing.T) {
 		RoutingOptions: routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 			DataClients:    []routing.DataClient{dc},
+		},
+		ProxyParams: proxy.Params{
+			Metrics: m,
 		},
 	}.Create()
 	defer p.Close()

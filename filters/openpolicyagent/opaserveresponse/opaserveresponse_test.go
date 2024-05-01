@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"path"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/tracing/tracingtest"
 
 	"github.com/zalando/skipper/filters/openpolicyagent"
 )
@@ -128,9 +128,6 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
-			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte("Welcome!"))
-			}))
 
 			opaControlPlane := opasdktest.MustNewServer(
 				opasdktest.MockBundle("/bundles/"+ti.bundleName, map[string]string{
@@ -243,7 +240,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				}
 			}`, opaControlPlane.URL(), ti.regoQuery))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
 			ftSpec := NewOpaServeResponseSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 			fr.Register(ftSpec)
 			ftSpec = NewOpaServeResponseWithReqBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
@@ -257,7 +254,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			_, err := ftSpec.CreateFilter(filterArgs)
 			assert.NoErrorf(t, err, "error in creating filter: %v", err)
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") -> "%s"`, ti.filterName, ti.bundleName, ti.contextExtensions, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") -> <shunt>`, ti.filterName, ti.bundleName, ti.contextExtensions))
 
 			proxy := proxytest.New(fr, r...)
 			reqURL, err := url.Parse(proxy.URL)

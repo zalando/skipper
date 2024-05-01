@@ -137,6 +137,32 @@ ctx.request.header["Authorization"] = nil -- delete authorization header
 
 Response headers `ctx.response.header` work the same way - this is of course only valid in the `response()` phase.
 
+### Multiple header values
+
+Request and response header tables provide access to a first value of a header.
+
+To access multiple values use `add` and `values` methods:
+
+```lua
+function request(ctx, params)
+	ctx.request.header.add("X-Foo", "Bar")
+	ctx.request.header.add("X-Foo", "Baz")
+
+	-- all X-Foo values
+	for _, v in pairs(ctx.request.header.values("X-Foo")) do
+		print(v)
+	end
+
+	-- all values
+	for k, _ in ctx.request.header() do
+		for _, v in pairs(ctx.request.header.values(k)) do
+			print(k, "=", v)
+		end
+	end
+end
+```
+
+
 ## Other request fields
 
 * `backend_url` - (read only) returns the backend url specified in the route
@@ -180,8 +206,8 @@ Path("/api/:id") -> lua("function request(ctx, params); print(ctx.path_param.id)
 
 ## StateBag
 
-The state bag can be used to pass values from one filter to another in the same
-chain. It is shared by all filters in one request.
+The state bag can be used to pass string, number and table values from one filter to another in the same
+chain. It is shared by all filters in one request (lua table values are only available to lua filters).
 ```lua
 function request(ctx, params)
     -- the value of "mykey" will be available to all filters in the chain now:

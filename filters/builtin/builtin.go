@@ -6,6 +6,7 @@ package builtin
 import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/accesslog"
+	"github.com/zalando/skipper/filters/annotate"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/circuit"
 	"github.com/zalando/skipper/filters/consistenthash"
@@ -117,6 +118,7 @@ func Filters() []filters.Spec {
 	return []filters.Spec{
 		NewBackendIsProxy(),
 		NewComment(),
+		annotate.New(),
 		NewRequestHeader(),
 		NewSetRequestHeader(),
 		NewAppendRequestHeader(),
