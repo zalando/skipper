@@ -294,8 +294,17 @@ func TestPHCForMultipleHealthyAndMultipleUnhealthyEndpoints(t *testing.T) {
 	services := setupServices(t, 2, 2)
 	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
 		t.Run(algorithm, func(t *testing.T) {
-			mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s", "%s">`,
-				algorithm, services[0].URL, services[1].URL, services[2].URL, services[3].URL))
+
+			endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+				PassiveHealthCheckEnabled:     true,
+				StatsResetPeriod:              period,
+				MinRequests:                   2, // with 3 test case fails
+				MaxHealthCheckDropProbability: 1.0,
+				MinHealthCheckDropProbability: 0.01,
+			})
+
+			mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s", "%s">`,
+				algorithm, services[0].URL, services[1].URL, services[2].URL, services[3].URL), endpointRegistry)
 			failedReqs := sendGetRequests(t, ps)
 			assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
 			mockMetrics.WithCounters(func(counters map[string]int64) {
@@ -305,8 +314,15 @@ func TestPHCForMultipleHealthyAndMultipleUnhealthyEndpoints(t *testing.T) {
 	}
 
 	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		_, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s", "%s">`,
-			services[0].URL, services[1].URL, services[2].URL, services[3].URL))
+		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+			PassiveHealthCheckEnabled:     true,
+			StatsResetPeriod:              period,
+			MinRequests:                   2, // with 3 test case fails
+			MaxHealthCheckDropProbability: 1.0,
+			MinHealthCheckDropProbability: 0.01,
+		})
+		_, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s", "%s">`,
+			services[0].URL, services[1].URL, services[2].URL, services[3].URL), endpointRegistry)
 		failedReqs := sendGetRequests(t, ps)
 		assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
 	})
