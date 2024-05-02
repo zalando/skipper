@@ -197,6 +197,11 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 			assert.InDelta(t, 0, float64(failedRequests), 0.1*float64(va.TotalRequests()))
 			mockMetrics.WithCounters(func(counters map[string]int64) {
 				assert.InDelta(t, float64(va.TotalRequests()), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(va.TotalRequests())) // allow 30% error
+				// We multiply by 1.0 because that's the number of unhealthy endpoints
+				assert.InDelta(t, float64(nRequests)*1.0, float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(nRequests)) // allow 30% error
+			})
+			mockMetrics.WithCounters(func(counters map[string]int64) {
+				assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
 			})
 		})
 	}
@@ -309,6 +314,9 @@ func TestPHCForMultipleHealthyAndMultipleUnhealthyEndpoints(t *testing.T) {
 			assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
 			mockMetrics.WithCounters(func(counters map[string]int64) {
 				assert.InDelta(t, float64(nRequests)*2.0, float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(nRequests)) // allow 30% error
+			})
+			mockMetrics.WithCounters(func(counters map[string]int64) {
+				assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
 			})
 		})
 	}
