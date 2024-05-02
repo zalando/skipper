@@ -916,6 +916,7 @@ You need to define all parameters on your side, there are no defaults, and skipp
 However, Skipper will run without this feature, if no `-passive-health-check` is provided at all.
 
 The parameters of `-passive-health-check` option are:
+
 + `period=<duration>` - the duration of stats reset period
 + `min-requests=<int>` - the minimum number of requests per `period` per backend endpoint required to activate PHC for this endpoint
 + `min-drop-probabilty=<0.0 <= p <= 1.0>` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
