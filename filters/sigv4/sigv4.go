@@ -7,8 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -20,7 +18,7 @@ import (
 // TODO: extract constants from code
 type sigV4Spec struct{}
 type sigV4Filter struct {
-	secretKey string
+	accessKey string
 	region    string
 	service   string
 }
@@ -37,7 +35,7 @@ func (c *sigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 3 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
-	secretKey, ok := args[0].(string)
+	accessKey, ok := args[0].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -53,7 +51,7 @@ func (c *sigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	return &sigV4Filter{
-		secretKey: secretKey,
+		accessKey: accessKey,
 		region:    region,
 		service:   service,
 	}, nil
@@ -75,14 +73,14 @@ func (f *sigV4Filter) Request(ctx filters.FilterContext) {
 		if err != nil {
 			//TODO: handle error
 		}
-		generateSignature(ctx, body, f.secretKey, f.region, f.service)
+		generateSignature(ctx, body, f.accessKey, f.region, f.service)
 	}
 	ctx.Request().Body = io.NopCloser(bytes.NewReader(body)) //ATTN: custom close() and read() set by skipper or previous filters are lost
 }
 
 func (f *sigV4Filter) Response(ctx filters.FilterContext) {}
 
-func generateSignature(ctx filters.FilterContext, body []byte, secretKey string, region string, service string) string {
+func generateSignature(ctx filters.FilterContext, body []byte, accessKey string, region string, service string) string {
 	req := ctx.Request()
 	method := req.Method
 	endpoint := req.URL
@@ -93,7 +91,7 @@ func generateSignature(ctx filters.FilterContext, body []byte, secretKey string,
 
 	stringToSign := generateStringToSign(canonicalRequest, region, service)
 
-	signingKey := generateSigningKey(secretKey, region, service)
+	signingKey := generateSigningKey(accessKey, region, service)
 
 	signature := calculateSignature(stringToSign, signingKey)
 
@@ -125,7 +123,7 @@ func generateCanonicalEntities(entities map[string][]string, format string) []st
 		key = strings.ToLower(key)
 		sort.Strings(entities[key])                         // TODO: check specs
 		queryParamValue := strings.Join(entities[key], ",") //TODO: check specs
-		canonicalEntitySlice = append(canonicalEntitySlice, fmt.Sprintf(format, getEncodedPath(key), getEncodedPath(queryParamValue)))
+		canonicalEntitySlice = append(canonicalEntitySlice, fmt.Sprintf(format, getEncodedPath(key, false), getEncodedPath(queryParamValue, false)))
 	}
 	return canonicalEntitySlice
 }
@@ -145,7 +143,7 @@ func generateCanonicalRequest(method, endpoint string, headers map[string][]stri
 
 	canonicalRequest := strings.Join([]string{
 		method,
-		getEncodedPath(endpoint),
+		getEncodedPath(endpoint, false),
 		canonicalQueryParams,
 		canonicalHeaders,
 		signedHeaders[:len(signedHeaders)-1], // TODO: find what is this in specs
@@ -172,13 +170,29 @@ func hmacSHA256(key string, data string) string {
 	return string(hmac.Sum(nil))
 }
 
-func getEncodedPath(endpoint string) string {
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		log.Fatal("Error parsing URL:", err)
-		return ""
+// amazon style encode of uri taken from https://github.com/aws/smithy-go/blob/v0.4.0/httpbinding/path_replace.go#L82
+func getEncodedPath(path string, encodeSep bool) string {
+	var noEscape [256]bool
+	for i := 0; i < len(noEscape); i++ {
+		// AWS expects every character except these to be escaped
+		noEscape[i] = (i >= 'A' && i <= 'Z') ||
+			(i >= 'a' && i <= 'z') ||
+			(i >= '0' && i <= '9') ||
+			i == '-' ||
+			i == '.' ||
+			i == '_' ||
+			i == '~'
 	}
-	return u.EscapedPath()
+	var buf bytes.Buffer
+	for i := 0; i < len(path); i++ {
+		c := path[i]
+		if noEscape[c] || (c == '/' && !encodeSep) {
+			buf.WriteByte(c)
+		} else {
+			fmt.Fprintf(&buf, "%%%02X", c)
+		}
+	}
+	return buf.String()
 }
 
 func generateSigningKey(secretKey string, region string, service string) string {
