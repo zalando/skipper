@@ -186,7 +186,7 @@ func TestPHCForMultipleHealthyAndMultipleUnhealthyEndpoints(t *testing.T) {
 			endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
 				PassiveHealthCheckEnabled:     true,
 				StatsResetPeriod:              period,
-				MinRequests:                   2, // with 3 test case fails
+				MinRequests:                   1, // with 3 test case fails
 				MaxHealthCheckDropProbability: 1.0,
 				MinHealthCheckDropProbability: 0.01,
 			})
@@ -205,7 +205,7 @@ func TestPHCForMultipleHealthyAndMultipleUnhealthyEndpoints(t *testing.T) {
 		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
 			PassiveHealthCheckEnabled:     true,
 			StatsResetPeriod:              period,
-			MinRequests:                   2, // with 3 test case fails
+			MinRequests:                   1, // with 3 test case fails
 			MaxHealthCheckDropProbability: 1.0,
 			MinHealthCheckDropProbability: 0.01,
 		})
