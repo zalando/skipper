@@ -70,9 +70,6 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 			"envoy.filters.http.header_to_metadata": {
 				"policy_type": "ingress"
 			},
-			"open_policy_agent" : {
-				"decision_id" : "3b567656-bf28-4a63-a4c4-14407fbd9544"
-			}
 		}
 	}
 	`))(cfg)
@@ -83,13 +80,6 @@ func TestLoadEnvoyMetadata(t *testing.T) {
 				Fields: map[string]*pbstruct.Value{
 					"policy_type": {
 						Kind: &pbstruct.Value_StringValue{StringValue: "ingress"},
-					},
-				},
-			},
-			"open_policy_agent": {
-				Fields: map[string]*pbstruct.Value{
-					"decision_id": {
-						Kind: &pbstruct.Value_StringValue{StringValue: "3b567656-bf28-4a63-a4c4-14407fbd9544"},
 					},
 				},
 			},

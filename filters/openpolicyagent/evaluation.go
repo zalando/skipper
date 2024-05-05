@@ -2,7 +2,6 @@ package openpolicyagent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
@@ -70,43 +69,21 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 }
 
 func setDecisionIdInRequest(req *ext_authz_v3.CheckRequest, decisionId string) {
-	if metaDataContextDoesNotExist(req) {
-		req.Attributes.MetadataContext = formFilterMetadata(decisionId)
-	} else {
-		req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = formOpenPolicyAgentMetaDataObject(decisionId)
+	if req.Attributes.MetadataContext == nil {
+		req.Attributes.MetadataContext = &ext_authz_v3_core.Metadata{
+			FilterMetadata: map[string]*pbstruct.Struct{},
+		}
 	}
-}
-
-func metaDataContextDoesNotExist(req *ext_authz_v3.CheckRequest) bool {
-	return req.Attributes.MetadataContext == nil
-}
-
-func formFilterMetadata(decisionId string) *ext_authz_v3_core.Metadata {
-	metaData := &ext_authz_v3_core.Metadata{
-		FilterMetadata: map[string]*pbstruct.Struct{
-			"open_policy_agent": {
-				Fields: map[string]*pbstruct.Value{
-					"decision_id": {
-						Kind: &pbstruct.Value_StringValue{StringValue: decisionId},
-					},
-				},
-			},
-		},
-	}
-	return metaData
+	req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = formOpenPolicyAgentMetaDataObject(decisionId)
 }
 
 func formOpenPolicyAgentMetaDataObject(decisionId string) *pbstruct.Struct {
-	nestedStruct := &pbstruct.Struct{}
-	nestedStruct.Fields = make(map[string]*pbstruct.Value)
 
 	innerFields := make(map[string]interface{})
 	innerFields["decision_id"] = decisionId
 
-	innerBytes, _ := json.Marshal(innerFields)
-	_ = json.Unmarshal(innerBytes, &nestedStruct)
-
-	return nestedStruct
+	openPolicyAgentMetaDataObject, _ := pbstruct.NewStruct(innerFields)
+	return openPolicyAgentMetaDataObject
 }
 
 func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
