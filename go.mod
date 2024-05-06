@@ -36,7 +36,7 @@ require (
 	github.com/redis/go-redis/v9 v9.5.1
 	github.com/sarslanhan/cronmask v0.0.0-20230801193303-54e29300a091
 	github.com/sirupsen/logrus v1.9.3
-	github.com/sony/gobreaker v0.5.0
+	github.com/sony/gobreaker v1.0.0
 	github.com/stretchr/testify v1.9.0
 	github.com/szuecs/rate-limit-buffer v0.9.0
 	github.com/testcontainers/testcontainers-go v0.30.0
