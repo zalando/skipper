@@ -493,6 +493,7 @@ func (c *Client) Delete(id string) error {
 
 func (c *Client) UpsertAll(routes []*eskip.Route) error {
 	for _, r := range routes {
+		//lint:ignore SA1019 due to backward compatibility
 		r.Id = eskip.GenerateIfNeeded(r.Id)
 		err := c.Upsert(r)
 		if err != nil {

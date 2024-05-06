@@ -5,13 +5,13 @@ package eskip
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/filters/flowid"
 )
 
 const duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
@@ -712,29 +712,28 @@ func ParsePredicates(p string) ([]*Predicate, error) {
 	return ps, nil
 }
 
-const randomIdLength = 16
-
-var routeIdRx = regexp.MustCompile(`\W`)
+const (
+	randomIdLength = 16
+	// does not contain underscore to produce compatible output with previously used flow id generator
+	alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
 
 // generate weak random id for a route if
 // it doesn't have one.
+//
+// Deprecated: do not use, generate valid route id that matches [a-zA-Z_] yourself.
 func GenerateIfNeeded(existingId string) string {
 	if existingId != "" {
 		return existingId
 	}
 
-	// using this to avoid adding a new dependency.
-	g, err := flowid.NewStandardGenerator(randomIdLength)
-	if err != nil {
-		return existingId
-	}
-	id, err := g.Generate()
-	if err != nil {
-		return existingId
+	var sb strings.Builder
+	sb.WriteString("route")
+
+	for i := 0; i < randomIdLength; i++ {
+		ai := rand.Intn(len(alphabet))
+		sb.WriteByte(alphabet[ai])
 	}
 
-	// replace characters that are not allowed
-	// for eskip route ids.
-	id = routeIdRx.ReplaceAllString(id, "x")
-	return "route" + id
+	return sb.String()
 }
