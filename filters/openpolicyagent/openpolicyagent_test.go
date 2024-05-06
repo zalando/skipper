@@ -16,7 +16,6 @@ import (
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
-	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	opaconf "github.com/open-policy-agent/opa/config"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
@@ -413,7 +412,7 @@ func TestEval(t *testing.T) {
 	ctx := opentracing.ContextWithSpan(context.Background(), span)
 
 	result, err := inst.Eval(ctx, &authv3.CheckRequest{
-		Attributes: &ext_authz_v3.AttributeContext{
+		Attributes: &authv3.AttributeContext{
 			Request:           nil,
 			ContextExtensions: nil,
 			MetadataContext:   nil,
