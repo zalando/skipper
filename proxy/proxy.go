@@ -563,8 +563,10 @@ func setRequestURLForDynamicBackend(u *url.URL, stateBag map[string]interface{})
 func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	rt := ctx.route
 	endpoints := rt.LBEndpoints
+	beforefiltering := len(endpoints)
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
 	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
+	p.metrics.UpdateGauge("passive-health-check.endpoints.dropped", float64(beforefiltering-len(endpoints)))
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
