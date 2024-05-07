@@ -907,13 +907,17 @@ in previous period are, the stronger reduction is) amount of requests compared t
 
 Having this, we expect less requests to fail because a lot of them would be sent to endpoints that seem to be healthy instead.
 
-To enable this feature, you need to provide `-passive-health-check` option having all forementioned parameters
-(`period`, `min-requests`, `min-drop-probability`, `max-drop-probability`) defined,
-for instance: `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9`.
+To enable this feature, you need to provide `-passive-health-check` option having forementioned parameters
+(`period`, `min-requests`, `min-drop-probability`, `max-drop-probability`) defined.
+`period`, `min-requests`, `max-drop-probability` are required parameters, it is not possible for PHC to be enabled without
+them explicitly defined by user. `min-drop-probability` is implicitly defined as `0.0` if not explicitly set by user.
+Valid examples of `-passive-health-check` are:
 
-You need to define all parameters on your side, there are no defaults, and skipper will not run if PHC params are passed only partially.
++ `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9`
++ `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9`
 
-However, Skipper will run without this feature, if no `-passive-health-check` is provided at all.
+If `-passive-health-check` option is provided, but some required parameters are not defined, Skipper will not start.
+Skipper will run without this feature, if no `-passive-health-check` is provided at all.
 
 The parameters of `-passive-health-check` option are:
 

@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -169,10 +170,16 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 	}
 
 	result := &PassiveHealthCheck{}
-	keysInitialized := make(map[string]struct{})
+	requiredParams := map[string]struct{}{
+		"period":               {},
+		"max-drop-probability": {},
+		"min-requests":         {},
+	}
 
 	for key, value := range o {
+		delete(requiredParams, key)
 		switch key {
+		/* required parameters */
 		case "period":
 			period, err := time.ParseDuration(value)
 			if err != nil {
@@ -191,15 +198,6 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 				return false, nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
 			}
 			result.MinRequests = int64(minRequests)
-		case "min-drop-probability":
-			minDropProbability, err := strconv.ParseFloat(value, 64)
-			if err != nil {
-				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
-			}
-			if minDropProbability < 0 || minDropProbability > 1 {
-				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
-			}
-			result.MinDropProbability = minDropProbability
 		case "max-drop-probability":
 			maxDropProbability, err := strconv.ParseFloat(value, 64)
 			if err != nil {
@@ -209,15 +207,24 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 				return false, nil, fmt.Errorf("passive health check: invalid maxDropProbability value: %s", value)
 			}
 			result.MaxDropProbability = maxDropProbability
+
+		/* optional parameters */
+		case "min-drop-probability":
+			minDropProbability, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+			}
+			if minDropProbability < 0 || minDropProbability > 1 {
+				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+			}
+			result.MinDropProbability = minDropProbability
 		default:
 			return false, nil, fmt.Errorf("passive health check: invalid parameter: key=%s,value=%s", key, value)
 		}
-
-		keysInitialized[key] = struct{}{}
 	}
 
-	if len(keysInitialized) != 4 {
-		return false, nil, fmt.Errorf("passive health check: missing required parameters")
+	if len(requiredParams) != 0 {
+		return false, nil, fmt.Errorf("passive health check: missing required parameters %+v", maps.Keys(requiredParams))
 	}
 	if result.MinDropProbability >= result.MaxDropProbability {
 		return false, nil, fmt.Errorf("passive health check: minDropProbability should be less than maxDropProbability")
