@@ -1560,7 +1560,7 @@ jwtValidation("https://login.microsoftonline.com/{tenantId}/v2.0")
 
 > This filter is experimental and may change in the future, please see tests for example usage.
 
-The filter parses (but does not validate) JWT token from `Authorization` request header on response path if status is not 4xx
+The filter parses (but does not validate) JWT token from `Authorization` request header on response path
 and increments the following counters:
 
 * `missing-token`: request does not have `Authorization` header
@@ -1576,6 +1576,8 @@ jwtMetrics.custom.GET.example_org.200.invalid-token
 ```
 
 and therefore requires approximately `count(HTTP methods) * count(Hosts) * count(Statuses) * 8` bytes of additional memory.
+
+The filter does nothing if response status is 4xx or route is opt-out via annotation or state bag value.
 
 The filter requires single string argument that is parsed as YAML.
 For convenience use [flow style format](https://yaml.org/spec/1.2.2/#chapter-7-flow-style-productions).
