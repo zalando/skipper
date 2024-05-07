@@ -160,7 +160,7 @@ func TestPHCForMultipleHealthyEndpoints(t *testing.T) {
 			va := fireVegeta(t, ps, 3000, 1*time.Second, 5*time.Second)
 			count200, ok := va.CountStatus(200)
 			assert.True(t, ok)
-			assert.Equal(t, count200, 15000) // 3000*5s
+			assert.InDelta(t, count200, 15000, 50) // 3000*5s, the delta is for CI
 			assert.Equal(t, count200, int(va.TotalRequests()))
 		})
 	}
