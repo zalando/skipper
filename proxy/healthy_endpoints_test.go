@@ -219,10 +219,13 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 	})
 
 	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		_, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
+		mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
 			services[0], services[1], services[2]))
 		failedReqs := sendGetRequests(t, ps)
 		assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(nRequests)) // allow 30% error
+		})
 	})
 }
 
@@ -277,9 +280,12 @@ func TestPHCForMultipleHealthyAndMultipleUnhealthyEndpoints(t *testing.T) {
 			MaxHealthCheckDropProbability: 0.95,
 			MinHealthCheckDropProbability: 0.01,
 		})
-		_, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s", "%s">`,
+		mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s", "%s">`,
 			services[0], services[1], services[2], services[3]), endpointRegistry)
 		failedReqs := sendGetRequests(t, ps)
 		assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
+		mockMetrics.WithCounters(func(counters map[string]int64) {
+			assert.InDelta(t, 2*float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.6*float64(nRequests))
+		})
 	})
 }
