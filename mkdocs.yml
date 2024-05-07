@@ -11,7 +11,6 @@ nav:
         - Plugins: reference/plugins.md
         - Architecture: reference/architecture.md
         - Development: reference/development.md
-        - Video - How to build: tutorials/video-howto-build.md
         - Data Clients:
             - Eskip File: data-clients/eskip-file.md
             - Remote Eskip: data-clients/eskip-remote.md
