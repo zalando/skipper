@@ -196,20 +196,21 @@ func TestSign_buildCanonicalHeaders(t *testing.T) {
 
 func TestSigV4(t *testing.T) {
 	sigV4 := sigV4Filter{
-		accessKey:              "AKID",
 		region:                 "us-east-1",
 		service:                "dynamodb",
 		disableHeaderHoisting:  false,
 		disableURIPathEscaping: false,
 		disableSessionToken:    false,
-		sessionToken:           "SESSION",
-		secretKey:              "SECRET",
-		time:                   time.Unix(0, 0),
 	}
 
 	//expectedDate := "19700101T000000Z"
 	expectedSig := "AWS4-HMAC-SHA256 Credential=AKID/19700101/us-east-1/dynamodb/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-date;x-amz-meta-other-header;x-amz-meta-other-header_with_underscore;x-amz-security-token;x-amz-target, Signature=a518299330494908a70222cec6899f6f32f297f8595f6df1776d998936652ad9"
 	headers := &http.Header{}
+	headers.Add("x-amz-accesskey", "AKID")
+	headers.Add("x-amz-secret", "SECRET")
+	headers.Add("x-amz-session", "SESSION")
+	headers.Add("x-amz-time", time.Unix(0, 0).Format(time.RFC3339))
+
 	headers.Add("X-Amz-Target", "prefix.Operation")
 	headers.Add("Content-Type", "application/x-amz-json-1.0")
 	headers.Add("X-Amz-Meta-Other-Header", "some-value=!@#$%^&* (+)")

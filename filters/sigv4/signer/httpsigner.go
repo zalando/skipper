@@ -29,16 +29,14 @@ type Signer struct {
 }
 
 type httpSigner struct {
-	Request      *http.Request
-	ServiceName  string
-	Region       string
-	Time         internal.SigningTime
-	Credentials  internal.Credentials
-	KeyDerivator keyDerivator
-	IsPreSign    bool
-
-	PayloadHash string
-
+	Request                *http.Request
+	ServiceName            string
+	Region                 string
+	Time                   internal.SigningTime
+	Credentials            internal.Credentials
+	KeyDerivator           keyDerivator
+	IsPreSign              bool
+	PayloadHash            string
 	DisableHeaderHoisting  bool
 	DisableURIPathEscaping bool
 	DisableSessionToken    bool
