@@ -214,7 +214,7 @@ func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
 		failedReqs := sendGetRequests(t, ps)
 		assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
 		mockMetrics.WithCounters(func(counters map[string]int64) {
-			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.6*float64(nRequests)) // allow 60% error
+			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(nRequests)) // allow 30% error
 		})
 	})
 
