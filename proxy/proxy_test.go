@@ -2452,7 +2452,23 @@ func TestInitPassiveHealthChecker(t *testing.T) {
 			},
 			expectedEnabled: false,
 			expectedParams:  nil,
-			expectedError:   fmt.Errorf("passive health check: missing required parameters"),
+			expectedError:   fmt.Errorf("passive health check: missing required parameters [max-drop-probability]"),
+		},
+		{
+			inputArg: map[string]string{
+				"period":               "1m",
+				"min-requests":         "10",
+				"max-drop-probability": "0.9",
+				/* using default max-drop-probability */
+			},
+			expectedEnabled: true,
+			expectedParams: &PassiveHealthCheck{
+				Period:             1 * time.Minute,
+				MinRequests:        10,
+				MaxDropProbability: 0.9,
+				MinDropProbability: 0.0,
+			},
+			expectedError: nil,
 		},
 	} {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
