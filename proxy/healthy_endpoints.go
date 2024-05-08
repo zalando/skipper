@@ -34,5 +34,10 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 	if len(filtered) == 0 {
 		return endpoints
 	}
+
+	if len(filtered) < len(endpoints) {
+		metrics.IncCounter("passive-health-check.requests.passed")
+	}
+
 	return filtered
 }
