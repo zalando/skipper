@@ -1,4 +1,4 @@
-package signer
+package sigv4
 
 import (
 	"bytes"
@@ -15,15 +15,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
-	internal "github.com/zalando/skipper/filters/sigv4/internal/signer"
+	internal "github.com/zalando/skipper/filters/signer/internal"
 )
 
 func TestSignRequest(t *testing.T) {
 	var testCredentials = internal.Credentials{AccessKeyID: "AKID", SecretAccessKey: "SECRET", SessionToken: "SESSION"}
 	req, body := buildRequest("dynamodb", "us-east-1", "{}")
 	signer := NewSigner()
-	ctx := &filtertest.Context{}
-	err := signer.SignHTTP(ctx, testCredentials, req, body, "dynamodb", "us-east-1", time.Unix(0, 0))
+	ctx := &filtertest.Context{
+		FRequest: &http.Request{},
+	}
+	optfn := func(options *SignerOptions) {
+		options.Ctx = ctx.FRequest.Context()
+	}
+	err := signer.SignHTTP(testCredentials, req, body, "dynamodb", "us-east-1", time.Unix(0, 0), optfn)
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
@@ -70,8 +75,17 @@ func TestSigner_SignHTTP_NoReplaceRequestBody(t *testing.T) {
 	s := NewSigner()
 
 	origBody := req.Body
-	ctx := &filtertest.Context{}
-	err := s.SignHTTP(ctx, testCredentials, req, bodyHash, "dynamodb", "us-east-1", time.Now())
+	ctx := &filtertest.Context{
+		FRequest: &http.Request{
+			Header: http.Header{
+				"X-Foo": []string{"foo"},
+			},
+		},
+	}
+	optfn := func(options *SignerOptions) {
+		options.Ctx = ctx.FRequest.Context()
+	}
+	err := s.SignHTTP(testCredentials, req, bodyHash, "dynamodb", "us-east-1", time.Now(), optfn)
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
@@ -203,25 +217,86 @@ func TestSigV4(t *testing.T) {
 		disableSessionToken:    false,
 	}
 
-	//expectedDate := "19700101T000000Z"
-	expectedSig := "AWS4-HMAC-SHA256 Credential=AKID/19700101/us-east-1/dynamodb/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-date;x-amz-meta-other-header;x-amz-meta-other-header_with_underscore;x-amz-security-token;x-amz-target, Signature=a518299330494908a70222cec6899f6f32f297f8595f6df1776d998936652ad9"
-	headers := &http.Header{}
-	headers.Add("x-amz-accesskey", "AKID")
-	headers.Add("x-amz-secret", "SECRET")
-	headers.Add("x-amz-session", "SESSION")
-	headers.Add("x-amz-time", time.Unix(0, 0).Format(time.RFC3339))
+	tests := []struct {
+		accessKey         string
+		secret            string
+		session           string
+		timeOfSigning     string
+		expectedSignature string
+		name              string
+	}{
+		{
+			accessKey:         "",
+			secret:            "some-invalid-secret",
+			session:           "some-invalid-session",
+			timeOfSigning:     "2012-11-01T22:08:41+00:00",
+			expectedSignature: "",
+			name:              "No_access_key_supplied",
+		},
+		{
+			accessKey:         "some-invalid-accesskey",
+			secret:            "",
+			session:           "some-invalid-session",
+			timeOfSigning:     "2012-11-01T22:08:41+00:00",
+			expectedSignature: "",
+			name:              "No_secret_key_provided",
+		},
+		{
+			accessKey:         "some-access-key",
+			secret:            "some-invalid-secret",
+			session:           "",
+			timeOfSigning:     "2012-11-01T22:08:41+00:00",
+			expectedSignature: "",
+			name:              "No_session_key_supplied",
+		},
+		{
+			accessKey:         "some-access-key",
+			secret:            "some-invalid-secret",
+			session:           "some-invalid-session",
+			timeOfSigning:     "",
+			expectedSignature: "",
+			name:              "No_time_of_signing_supplied",
+		},
+		{
+			accessKey:         "some-access-key",
+			secret:            "some-invalid-secret",
+			session:           "some-invalid-session",
+			timeOfSigning:     "2012-11-01T22:08:41+00",
+			expectedSignature: "",
+			name:              "incorrect_format_of_time_of_signing_supplied",
+		},
+		{
+			accessKey:         "AKID",
+			secret:            "SECRET",
+			session:           "SESSION",
+			timeOfSigning:     "1970-01-01T00:00:00Z",
+			expectedSignature: "AWS4-HMAC-SHA256 Credential=AKID/19700101/us-east-1/dynamodb/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-date;x-amz-meta-other-header;x-amz-meta-other-header_with_underscore;x-amz-security-token;x-amz-target, Signature=a518299330494908a70222cec6899f6f32f297f8595f6df1776d998936652ad9",
+			name:              "all_headers_supplied",
+		},
+	}
 
-	headers.Add("X-Amz-Target", "prefix.Operation")
-	headers.Add("Content-Type", "application/x-amz-json-1.0")
-	headers.Add("X-Amz-Meta-Other-Header", "some-value=!@#$%^&* (+)")
-	headers.Add("X-Amz-Meta-Other-Header_With_Underscore", "some-value=!@#$%^&* (+)")
-	headers.Add("X-Amz-Meta-Other-Header_With_Underscore", "some-value=!@#$%^&* (+)")
-	ctx := buildfilterContext(sigV4.service, sigV4.region, "POST", strings.NewReader("{}"), "//example.org/bucket/key-._~,!@#$%^&*()", *headers)
-	sigV4.Request(ctx)
-	signature := ctx.Request().Header[authorizationHeader][0]
-	b, _ := io.ReadAll(ctx.Request().Body)
-	print(string(b))
-	assert.Equal(t, expectedSig, signature)
+	for _, test := range tests {
+		expectedSig := test.expectedSignature
+		headers := &http.Header{}
+		headers.Add("x-amz-accesskey", test.accessKey)
+		headers.Add("x-amz-secret", test.secret)
+		headers.Add("x-amz-session", test.session)
+		headers.Add("x-amz-time", test.timeOfSigning)
+
+		headers.Add("X-Amz-Target", "prefix.Operation")
+		headers.Add("Content-Type", "application/x-amz-json-1.0")
+		headers.Add("X-Amz-Meta-Other-Header", "some-value=!@#$%^&* (+)")
+		headers.Add("X-Amz-Meta-Other-Header_With_Underscore", "some-value=!@#$%^&* (+)")
+		headers.Add("X-Amz-Meta-Other-Header_With_Underscore", "some-value=!@#$%^&* (+)")
+		ctx := buildfilterContext(sigV4.service, sigV4.region, "POST", strings.NewReader("{}"), "//example.org/bucket/key-._~,!@#$%^&*()", *headers)
+
+		sigV4.Request(ctx)
+
+		signature := ctx.Request().Header.Get(internal.AuthorizationHeader)
+		b, _ := io.ReadAll(ctx.Request().Body)
+		assert.Equal(t, string(b), "{}") // test that body remains intact
+		assert.Equal(t, expectedSig, signature, fmt.Sprintf("%s - test failed", test.name))
+	}
 
 }
 

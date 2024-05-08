@@ -6,37 +6,26 @@ import (
 	"time"
 )
 
-// A Credentials is the AWS credentials value for individual credential fields.
-type Credentials struct {
-	// AWS Access key ID
-	AccessKeyID string
+type derivedKeyCache struct {
+	values map[string]derivedKey
+	mutex  sync.RWMutex
+}
 
-	// AWS Secret Access Key
-	SecretAccessKey string
+type derivedKey struct {
+	AccessKey  string
+	Date       time.Time
+	Credential []byte
+}
 
-	// AWS Session Token
-	SessionToken string
-
-	// Source of the credentials
-	Source string
-
-	// States if the credentials can expire or not.
-	CanExpire bool
-
-	// The time the credentials will expire at. Should be ignored if CanExpire
-	// is false.
-	Expires time.Time
+// SigningKeyDeriver derives a signing key from a set of credentials
+type SigningKeyDeriver struct {
+	cache derivedKeyCache
 }
 
 func NewSigningKeyDeriver() *SigningKeyDeriver {
 	return &SigningKeyDeriver{
 		cache: newDerivedKeyCache(),
 	}
-}
-
-// SigningKeyDeriver derives a signing key from a set of credentials
-type SigningKeyDeriver struct {
-	cache derivedKeyCache
 }
 
 // DeriveKey returns a derived signing key from the given credentials to be used with SigV4 signing.
@@ -59,21 +48,6 @@ func (s *derivedKeyCache) get(key string, credentials Credentials, signingTime t
 		return cacheEntry.Credential, true
 	}
 	return nil, false
-}
-
-func isSameDay(x, y time.Time) bool {
-	xYear, xMonth, xDay := x.Date()
-	yYear, yMonth, yDay := y.Date()
-
-	if xYear != yYear {
-		return false
-	}
-
-	if xMonth != yMonth {
-		return false
-	}
-
-	return xDay == yDay
 }
 
 func (s *derivedKeyCache) retrieveFromCache(key string) (derivedKey, bool) {
@@ -120,15 +94,4 @@ func newDerivedKeyCache() derivedKeyCache {
 	return derivedKeyCache{
 		values: make(map[string]derivedKey),
 	}
-}
-
-type derivedKeyCache struct {
-	values map[string]derivedKey
-	mutex  sync.RWMutex
-}
-
-type derivedKey struct {
-	AccessKey  string
-	Date       time.Time
-	Credential []byte
 }

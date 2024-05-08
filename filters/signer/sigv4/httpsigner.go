@@ -1,6 +1,7 @@
-package signer
+package sigv4
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -13,8 +14,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/filters"
-	internal "github.com/zalando/skipper/filters/sigv4/internal/signer"
+	internal "github.com/zalando/skipper/filters/signer/internal"
 )
 
 type keyDerivator interface {
@@ -184,7 +184,7 @@ func (s *httpSigner) Build() (signedRequest, error) {
 		rawQuery.WriteString("&X-Amz-Signature=")
 		rawQuery.WriteString(signingSignature)
 	} else {
-		headers[authorizationHeader] = append(headers[authorizationHeader][:0], buildAuthorizationHeader(credentialStr, signedHeadersStr, signingSignature))
+		headers[internal.AuthorizationHeader] = append(headers[internal.AuthorizationHeader][:0], buildAuthorizationHeader(credentialStr, signedHeadersStr, signingSignature))
 	}
 
 	req.URL.RawQuery = rawQuery.String()
@@ -225,7 +225,7 @@ type signedRequest struct {
 
 func (s *httpSigner) buildStringToSign(credentialScope, canonicalRequestString string) string {
 	return strings.Join([]string{
-		signingAlgorithm,
+		internal.SigningAlgorithm,
 		s.Time.TimeFormat(),
 		credentialScope,
 		hex.EncodeToString(makeHash(sha256.New(), []byte(canonicalRequestString))),
@@ -245,12 +245,12 @@ func buildAuthorizationHeader(credentialStr, signedHeadersStr, signingSignature 
 	const commaSpace = ", "
 
 	var parts strings.Builder
-	parts.Grow(len(signingAlgorithm) + 1 +
+	parts.Grow(len(internal.SigningAlgorithm) + 1 +
 		len(credential) + len(credentialStr) + 2 +
 		len(signedHeaders) + len(signedHeadersStr) + 2 +
 		len(signature) + len(signingSignature),
 	)
-	parts.WriteString(signingAlgorithm)
+	parts.WriteString(internal.SigningAlgorithm)
 	parts.WriteRune(' ')
 	parts.WriteString(credential)
 	parts.WriteString(credentialStr)
@@ -285,7 +285,7 @@ func (s *httpSigner) setRequiredSigningFields(headers http.Header, query url.Val
 	amzDate := s.Time.TimeFormat()
 
 	if s.IsPreSign {
-		query.Set(internal.AmzAlgorithmKey, signingAlgorithm)
+		query.Set(internal.AmzAlgorithmKey, internal.SigningAlgorithm)
 		sessionToken := s.Credentials.SessionToken
 		if !s.DisableSessionToken && len(sessionToken) > 0 {
 			query.Set("X-Amz-Security-Token", sessionToken)
@@ -303,7 +303,7 @@ func (s *httpSigner) setRequiredSigningFields(headers http.Header, query url.Val
 }
 
 // The passed in request will be modified in place.
-func (s Signer) SignHTTP(ctx filters.FilterContext, credentials internal.Credentials, r *http.Request, payloadHash string, service string, region string, signingTime time.Time, optFns ...func(options *SignerOptions)) error {
+func (s Signer) SignHTTP(credentials internal.Credentials, r *http.Request, payloadHash string, service string, region string, signingTime time.Time, optFns ...func(options *SignerOptions)) error {
 	options := s.options
 
 	for _, fn := range optFns {
@@ -328,7 +328,7 @@ func (s Signer) SignHTTP(ctx filters.FilterContext, credentials internal.Credent
 		return err
 	}
 
-	LogSigningInfo(ctx, &options, &signedRequest, false)
+	LogSigningInfo(&options, &signedRequest, false)
 
 	return nil
 }
@@ -346,7 +346,7 @@ func (s *httpSigner) BuildCanonicalString(method, uri, query, signedHeaders, can
 
 func (s *httpSigner) BuildStringToSign(credentialScope, canonicalRequestString string) string {
 	return strings.Join([]string{
-		signingAlgorithm,
+		internal.SigningAlgorithm,
 		s.Time.TimeFormat(),
 		credentialScope,
 		hex.EncodeToString(makeHash(sha256.New(), []byte(canonicalRequestString))),
@@ -370,7 +370,7 @@ type SignerOptions struct {
 	DisableURIPathEscaping bool
 
 	// The logger to send log messages to.
-	Logger log.Logger
+	Ctx context.Context
 
 	// Enable logging of signed requests.
 	// This will enable logging of the canonical request, the string to sign, and for presigning the subsequent
@@ -383,7 +383,7 @@ type SignerOptions struct {
 	DisableSessionToken bool
 }
 
-func LogSigningInfo(ctx filters.FilterContext, options *SignerOptions, request *signedRequest, isPresign bool) {
+func LogSigningInfo(options *SignerOptions, request *signedRequest, isPresign bool) {
 	if !options.LogSigning {
 		return
 	}
@@ -391,7 +391,7 @@ func LogSigningInfo(ctx filters.FilterContext, options *SignerOptions, request *
 	if isPresign {
 		signedURLMsg = fmt.Sprintf(logSignedURLMsg, request.Request.URL.String())
 	}
-	logger := log.WithContext(ctx.Request().Context())
+	logger := log.WithContext(options.Ctx)
 	logger.Logf(log.DebugLevel, logSignInfoMsg, request.CanonicalString, request.StringToSign, signedURLMsg)
 }
 

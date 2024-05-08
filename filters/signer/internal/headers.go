@@ -1,6 +1,11 @@
 package signer
 
-import "strings"
+import (
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+)
 
 // AllowedQueryHoisting is a whitelist for Build query headers. The boolean value
 // represents whether or not it is a pattern.
@@ -127,4 +132,102 @@ func (w AllowList) IsValid(value string) bool {
 // IsValid for AllowList checks if the value is within the AllowList
 func (b ExcludeList) IsValid(value string) bool {
 	return !b.Rule.IsValid(value)
+}
+
+func BuildCanonicalHeaders(host string, rule Rule, header http.Header, length int64) (signed http.Header, signedHeaders, canonicalHeadersStr string) {
+	signed = make(http.Header)
+
+	var headers []string
+	const hostHeader = "host"
+	headers = append(headers, hostHeader)
+	signed[hostHeader] = append(signed[hostHeader], host)
+
+	const contentLengthHeader = "content-length"
+	if length > 0 {
+		headers = append(headers, contentLengthHeader)
+		signed[contentLengthHeader] = append(signed[contentLengthHeader], strconv.FormatInt(length, 10))
+	}
+
+	for k, v := range header {
+		if !rule.IsValid(k) {
+			continue // ignored header
+		}
+		if strings.EqualFold(k, contentLengthHeader) {
+			// prevent signing already handled content-length header.
+			continue
+		}
+
+		lowerCaseKey := strings.ToLower(k)
+		if _, ok := signed[lowerCaseKey]; ok {
+			// include additional values
+			signed[lowerCaseKey] = append(signed[lowerCaseKey], v...)
+			continue
+		}
+
+		headers = append(headers, lowerCaseKey)
+		signed[lowerCaseKey] = v
+	}
+	sort.Strings(headers)
+
+	signedHeaders = strings.Join(headers, ";")
+
+	var canonicalHeaders strings.Builder
+	n := len(headers)
+	const colon = ':'
+	for i := 0; i < n; i++ {
+		if headers[i] == hostHeader {
+			canonicalHeaders.WriteString(hostHeader)
+			canonicalHeaders.WriteRune(colon)
+			canonicalHeaders.WriteString(StripExcessSpaces(host))
+		} else {
+			canonicalHeaders.WriteString(headers[i])
+			canonicalHeaders.WriteRune(colon)
+			// Trim out leading, trailing, and dedup inner spaces from signed header values.
+			values := signed[headers[i]]
+			for j, v := range values {
+				cleanedValue := strings.TrimSpace(StripExcessSpaces(v))
+				canonicalHeaders.WriteString(cleanedValue)
+				if j < len(values)-1 {
+					canonicalHeaders.WriteRune(',')
+				}
+			}
+		}
+		canonicalHeaders.WriteRune('\n')
+	}
+	canonicalHeadersStr = canonicalHeaders.String()
+
+	return signed, signedHeaders, canonicalHeadersStr
+}
+
+// SanitizeHostForHeader removes default port from host and updates request.Host
+func SanitizeHostForHeader(r *http.Request) {
+	host := getHost(r)
+	port := portOnly(host)
+	if port != "" && isDefaultPort(r.URL.Scheme, port) {
+		r.Host = stripPort(host)
+	}
+}
+
+type Rule interface {
+	IsValid(value string) bool
+}
+
+type Rules []Rule
+
+type ExcludeList struct {
+	Rule
+}
+
+// MapRule generic Rule for maps
+type MapRule map[string]struct{}
+
+var IgnoredHeaders = Rules{
+	ExcludeList{
+		MapRule{
+			"Authorization":   struct{}{},
+			"User-Agent":      struct{}{},
+			"X-Amzn-Trace-Id": struct{}{},
+			"Expect":          struct{}{},
+		},
+	},
 }

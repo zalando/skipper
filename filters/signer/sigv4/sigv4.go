@@ -1,4 +1,4 @@
-package signer
+package sigv4
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	internal "github.com/zalando/skipper/filters/sigv4/internal/signer"
+	internal "github.com/zalando/skipper/filters/signer/internal"
 )
 
 type sigV4Spec struct {
@@ -36,8 +36,6 @@ type sigV4Spec struct {
 	disableSessionToken bool
 }
 
-const signingAlgorithm = "AWS4-HMAC-SHA256"
-const authorizationHeader = "Authorization"
 const accessKeyHeader = "x-amz-accesskey"
 const secretHeader = "x-amz-secret"
 const sessionHeader = "x-amz-session"
@@ -72,12 +70,8 @@ type sigV4Filter struct {
 		present the token elsewhere.
 		disableSessionToken bool
 */
-func New(disableHeaderHoisting bool, disableURIPathEscaping bool, disableSessionToken bool) filters.Spec {
-	return &sigV4Spec{
-		disableHeaderHoisting:  disableHeaderHoisting,
-		disableURIPathEscaping: disableHeaderHoisting,
-		disableSessionToken:    disableSessionToken,
-	}
+func New() filters.Spec {
+	return &sigV4Spec{}
 }
 
 func (*sigV4Spec) Name() string {
@@ -85,7 +79,7 @@ func (*sigV4Spec) Name() string {
 }
 
 func (c *sigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 2 {
+	if len(args) != 5 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -99,12 +93,27 @@ func (c *sigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	disableHeaderHoisting, ok := args[2].(bool)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	disableURIPathEscaping, ok := args[3].(bool)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	disableSessionToken, ok := args[4].(bool)
+	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
 	return &sigV4Filter{
 		region:                 region,
 		service:                service,
-		disableHeaderHoisting:  c.disableHeaderHoisting,
-		disableURIPathEscaping: c.disableURIPathEscaping,
-		disableSessionToken:    c.disableSessionToken,
+		disableHeaderHoisting:  disableHeaderHoisting,
+		disableURIPathEscaping: disableURIPathEscaping,
+		disableSessionToken:    disableSessionToken,
 	}, nil
 }
 
@@ -162,9 +171,10 @@ func (f *sigV4Filter) Request(ctx filters.FilterContext) {
 		options.DisableHeaderHoisting = f.disableHeaderHoisting
 		options.DisableSessionToken = f.disableSessionToken
 		options.DisableURIPathEscaping = f.disableSessionToken
+		options.Ctx = ctx.Request().Context()
 	}
 	//modifies request inplace
-	signer.SignHTTP(ctx, creds, req, hashedBody, f.service, f.region, time, optfn)
+	signer.SignHTTP(creds, req, hashedBody, f.service, f.region, time, optfn)
 
 	ctx.Request().Body = io.NopCloser(body) //ATTN: custom close() and read() set by skipper or previous filters are lost
 }
@@ -179,7 +189,7 @@ func hashRequest(ctx filters.FilterContext, body io.Reader) (string, io.Reader) 
 	}
 	var buf bytes.Buffer
 	tee := io.TeeReader(body, &buf)
-	_, err := io.Copy(h, tee) // read in memory
+	_, err := io.Copy(h, tee) // read body in-memory
 	if err != nil {
 		logger.Logf(log.DebugLevel, "an error occured while reading the body %v", err.Error())
 		return "", nil
