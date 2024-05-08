@@ -23,7 +23,11 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, err
 	}
 
-	setDecisionIdInRequest(req, decisionId)
+	err = setDecisionIdInRequest(req, decisionId)
+	if err != nil {
+		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to set decision ID in Request.")
+		return nil, err
+	}
 
 	result, stopeval, err := envoyauth.NewEvalResult(withDecisionID(decisionId))
 	if err != nil {
@@ -68,22 +72,28 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	return result, nil
 }
 
-func setDecisionIdInRequest(req *ext_authz_v3.CheckRequest, decisionId string) {
+func setDecisionIdInRequest(req *ext_authz_v3.CheckRequest, decisionId string) error {
 	if req.Attributes.MetadataContext == nil {
 		req.Attributes.MetadataContext = &ext_authz_v3_core.Metadata{
 			FilterMetadata: map[string]*pbstruct.Struct{},
 		}
 	}
-	req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = formOpenPolicyAgentMetaDataObject(decisionId)
+	filterMeta, err := formOpenPolicyAgentMetaDataObject(decisionId)
+
+	if err == nil {
+		req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = filterMeta
+	}
+	return err
 }
 
-func formOpenPolicyAgentMetaDataObject(decisionId string) *pbstruct.Struct {
+func formOpenPolicyAgentMetaDataObject(decisionId string) (*pbstruct.Struct, error) {
 
 	innerFields := make(map[string]interface{})
 	innerFields["decision_id"] = decisionId
 
-	openPolicyAgentMetaDataObject, _ := pbstruct.NewStruct(innerFields)
-	return openPolicyAgentMetaDataObject
+	openPolicyAgentMetaDataObject, err := pbstruct.NewStruct(innerFields)
+
+	return openPolicyAgentMetaDataObject, err
 }
 
 func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
