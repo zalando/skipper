@@ -95,7 +95,13 @@ func TestSigner_SignHTTP_NoReplaceRequestBody(t *testing.T) {
 	}
 }
 
+/*
+This test is being skipped since for skipper, we cannot dervive AWS host from req.
+see https://github.com/zalando/skipper/pull/3070/files#diff-59e00c1e2a1a8ea3f9e5b4111f5c0b56cd7f81b1b14d8148f1dae146958d2c45R154
+for change. We still keep this test to debug any unusual behaviours
+*/
 func TestRequestHost(t *testing.T) {
+	t.Skip()
 	req, _ := buildRequest("dynamodb", "us-east-1", "{}")
 	req.URL.RawQuery = "Foo=z&Foo=o&Foo=m&Foo=a"
 	req.Host = "myhost"

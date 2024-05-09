@@ -146,11 +146,12 @@ func (s *httpSigner) Build() (signedRequest, error) {
 			query[k] = urlValues[k]
 		}
 	}
-
-	host := req.URL.Host
+	//this is not valid way to extract host as skipper never recieves aws host in req.URL. We should set it explicitly
+	/*host := req.URL.Host
 	if len(req.Host) > 0 {
 		host = req.Host
-	}
+	}*/
+	host := s.ServiceName + "." + s.Region + ".amazonaws.com"
 
 	signedHeaders, signedHeadersStr, canonicalHeaderStr := s.buildCanonicalHeaders(host, internal.IgnoredHeaders, unsignedHeaders, s.Request.ContentLength)
 

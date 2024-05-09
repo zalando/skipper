@@ -15,27 +15,7 @@ import (
 	internal "github.com/zalando/skipper/filters/signer/internal"
 )
 
-type sigV4Spec struct {
-	// Disables the Signer's moving HTTP header key/value pairs from the HTTP
-	// request header to the request's query string. This is most commonly used
-	// with pre-signed requests preventing headers from being added to the
-	// request's query string.
-	disableHeaderHoisting bool
-
-	// Disables the automatic escaping of the URI path of the request for the
-	// siganture's canonical string's path. For services that do not need additional
-	// escaping then use this to disable the signer escaping the path.
-	//
-	// S3 is an example of a service that does not need additional escaping.
-	//
-	// http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
-	disableURIPathEscaping bool
-
-	// Disables setting the session token on the request as part of signing
-	// through X-Amz-Security-Token. This is needed for variations of v4 that
-	// present the token elsewhere.
-	disableSessionToken bool
-}
+type sigV4Spec struct{}
 
 const accessKeyHeader = "x-amz-accesskey"
 const secretHeader = "x-amz-secret"
@@ -50,27 +30,6 @@ type sigV4Filter struct {
 	disableSessionToken    bool
 }
 
-/*
-	 	Disables the Signer's moving HTTP header key/value pairs from the HTTP
-		request header to the request's query string. This is most commonly used
-		with pre-signed requests preventing headers from being added to the
-		request's query string.
-		disableHeaderHoisting bool
-
-		Disables the automatic escaping of the URI path of the request for the
-		siganture's canonical string's path. For services that do not need additional
-		escaping then use this to disable the signer escaping the path.
-
-		S3 is an example of a service that does not need additional escaping.
-
-		http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
-		disableURIPathEscaping bool
-
-		Disables setting the session token on the request as part of signing
-		through X-Amz-Security-Token. This is needed for variations of v4 that
-		present the token elsewhere.
-		disableSessionToken bool
-*/
 func New() filters.Spec {
 	return &sigV4Spec{}
 }
