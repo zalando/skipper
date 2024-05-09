@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,18 +94,33 @@ func (c *sigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	disableHeaderHoisting, ok := args[2].(bool)
+	disableHeaderHoistingStr, ok := args[2].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	disableURIPathEscaping, ok := args[3].(bool)
+	disableURIPathEscapingStr, ok := args[3].(string)
 	if !ok {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	disableSessionToken, ok := args[4].(bool)
+	disableSessionTokenStr, ok := args[4].(string)
 	if !ok {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	disableHeaderHoisting, err := strconv.ParseBool(disableHeaderHoistingStr)
+	if err != nil {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	disableURIPathEscaping, err := strconv.ParseBool(disableURIPathEscapingStr)
+	if err != nil {
+		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	disableSessionToken, err := strconv.ParseBool(disableSessionTokenStr)
+	if err != nil {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -125,7 +141,8 @@ that body size by all requests at any point of time is not more than the memory 
 */
 func (f *sigV4Filter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
-	logger := log.WithContext(ctx.Request().Context())
+
+	logger := log.WithContext(req.Context())
 
 	signer := NewSigner()
 
