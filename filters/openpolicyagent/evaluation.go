@@ -78,12 +78,13 @@ func setDecisionIdInRequest(req *ext_authz_v3.CheckRequest, decisionId string) e
 			FilterMetadata: map[string]*pbstruct.Struct{},
 		}
 	}
-	filterMeta, err := formOpenPolicyAgentMetaDataObject(decisionId)
 
-	if err == nil {
-		req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = filterMeta
+	filterMeta, err := formOpenPolicyAgentMetaDataObject(decisionId)
+	if err != nil {
+		return err
 	}
-	return err
+	req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = filterMeta
+	return nil
 }
 
 func formOpenPolicyAgentMetaDataObject(decisionId string) (*pbstruct.Struct, error) {
@@ -91,9 +92,7 @@ func formOpenPolicyAgentMetaDataObject(decisionId string) (*pbstruct.Struct, err
 	innerFields := make(map[string]interface{})
 	innerFields["decision_id"] = decisionId
 
-	openPolicyAgentMetaDataObject, err := pbstruct.NewStruct(innerFields)
-
-	return openPolicyAgentMetaDataObject, err
+	return pbstruct.NewStruct(innerFields)
 }
 
 func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
