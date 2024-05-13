@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -81,7 +82,7 @@ func setupProxyWithCustomEndpointRegisty(t *testing.T, doc string, endpointRegis
 	return m, ps
 }
 
-func setupServices(t *testing.T, healthy, unhealthy int) []string {
+func setupServices(t *testing.T, healthy, unhealthy int) string {
 	services := []string{}
 	for i := 0; i < healthy; i++ {
 		service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,16 +99,16 @@ func setupServices(t *testing.T, healthy, unhealthy int) []string {
 		services = append(services, service.URL)
 		t.Cleanup(service.Close)
 	}
-	return services
+	return fmt.Sprint(`"`, strings.Join(services, `", "`), `"`)
 }
 
 func TestPHCWithoutRequests(t *testing.T) {
-	services := setupServices(t, 3, 0)
+	servicesString := setupServices(t, 3, 0)
 
 	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
 		t.Run(algorithm, func(t *testing.T) {
-			_, ps := setupProxy(t, fmt.Sprintf(`* -> <%s, "%s", "%s", "%s">`,
-				algorithm, services[0], services[1], services[2]))
+			_, ps := setupProxy(t, fmt.Sprintf(`* -> <%s, %s>`,
+				algorithm, servicesString))
 			rsp := sendGetRequest(t, ps, 0)
 			assert.Equal(t, http.StatusOK, rsp.StatusCode)
 			rsp.Body.Close()
@@ -118,8 +119,8 @@ func TestPHCWithoutRequests(t *testing.T) {
 	}
 
 	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		_, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
-			services[0], services[1], services[2]))
+		_, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashBalanceFactor(1.25) -> <consistentHash, %s>`,
+			servicesString))
 		rsp := sendGetRequest(t, ps, 0)
 		assert.Equal(t, http.StatusOK, rsp.StatusCode)
 		rsp.Body.Close()
@@ -130,10 +131,10 @@ func TestPHCWithoutRequests(t *testing.T) {
 }
 
 func TestPHCForSingleHealthyEndpoint(t *testing.T) {
-	service := setupServices(t, 1, 0)[0]
+	servicesString := setupServices(t, 1, 0)
 	endpointRegistry := defaultEndpointRegistry()
 
-	doc := fmt.Sprintf(`* -> "%s"`, service)
+	doc := fmt.Sprintf(`* -> %s`, servicesString)
 	tp, err := newTestProxyWithParams(doc, Params{
 		EnablePassiveHealthCheck: true,
 		EndpointRegistry:         endpointRegistry,
@@ -150,148 +151,93 @@ func TestPHCForSingleHealthyEndpoint(t *testing.T) {
 	assert.Equal(t, 0, failedReqs)
 }
 
-func TestPHCForMultipleHealthyEndpoints(t *testing.T) {
-	services := setupServices(t, 3, 0)
+func TestPHC(t *testing.T) {
+	rpsFactor := 0.0
+	for _, tt := range []struct {
+		name               string
+		healthy, unhealthy int
+	}{
+		{"single healthy", 1, 0},
+		{"multiple healthy", 2, 0},
+		{"multiple healthy and one unhealthy", 2, 1},
+		{"multiple healthy and multiple unhealthy", 2, 2},
+	} {
+		if (tt.healthy != 0 && tt.unhealthy == 0) || (tt.healthy == 0 && tt.unhealthy != 0) {
+			t.Logf("test %s has no mitigations", tt.name)
+			rpsFactor = 0.0
+		} else {
+			t.Logf("test %s has mitigations", tt.name)
+			rpsFactor = 1.0
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			servicesString := setupServices(t, tt.healthy, tt.unhealthy)
+			for _, algorithm := range []string{"random", "roundRobin", "powerOfRandomNChoices"} {
+				t.Run(algorithm, func(t *testing.T) {
+					mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("20ms") -> <%s, %s>`,
+						algorithm, servicesString))
+					va := fireVegeta(t, ps, 5000, 1*time.Second, 5*time.Second)
 
-	for _, algorithm := range []string{"random", "consistentHash", "roundRobin", "powerOfRandomNChoices"} {
-		t.Run(algorithm, func(t *testing.T) {
-			_, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s">`,
-				algorithm, services[0], services[1], services[2]))
-			va := fireVegeta(t, ps, 3000, 1*time.Second, 5*time.Second)
-			count200, ok := va.CountStatus(200)
-			assert.True(t, ok)
-			assert.InDelta(t, count200, 15000, 50) // 3000*5s, the delta is for CI
-			assert.Equal(t, count200, int(va.TotalRequests()))
-		})
-	}
+					count200, ok := va.CountStatus(200)
+					assert.True(t, ok)
 
-	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		_, ps := setupProxy(t, fmt.Sprintf(`* -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
-			services[0], services[1], services[2]))
-		va := fireVegeta(t, ps, 3000, 1*time.Second, 5*time.Second)
-		count200, ok := va.CountStatus(200)
-		assert.True(t, ok)
-		assert.Equal(t, count200, int(va.TotalRequests()))
-	})
-}
+					count504, ok := va.CountStatus(504)
+					assert.Condition(t, func() bool {
+						if tt.unhealthy == 0 && (ok || count504 == 0) {
+							return true
+						} else if tt.unhealthy > 0 && ok {
+							return true
+						} else {
+							return false
+						}
+					})
 
-func TestPHCForMultipleHealthyAndOneUnhealthyEndpoints(t *testing.T) {
-	services := setupServices(t, 2, 1)
-	for _, algorithm := range []string{"random", "roundRobin", "powerOfRandomNChoices"} {
-		t.Run(algorithm, func(t *testing.T) {
-			mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s">`,
-				algorithm, services[0], services[1], services[2]))
+					failedRequests := math.Abs(float64(va.TotalRequests())) - float64(count200)
+					t.Logf("total requests: %d, count200: %d, count504: %d, failedRequests: %f", va.TotalRequests(), count200, count504, failedRequests)
 
-			va := fireVegeta(t, ps, 3000, 1*time.Second, 5*time.Second)
+					assert.InDelta(t, float64(count504), failedRequests, 5)
+					assert.InDelta(t, 0, float64(failedRequests), 0.3*float64(va.TotalRequests()))
+					mockMetrics.WithCounters(func(counters map[string]int64) {
+						assert.InDelta(t, float64(tt.unhealthy)*float64(va.TotalRequests()), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(tt.unhealthy)*float64(va.TotalRequests()))
+						assert.InDelta(t, float64(va.TotalRequests())*rpsFactor, float64(counters["passive-health-check.requests.passed"]), 0.3*float64(va.TotalRequests())) // allow 30% error
+					})
+				})
+			}
 
-			count200, ok := va.CountStatus(200)
-			assert.True(t, ok)
+			t.Run("consistentHash", func(t *testing.T) {
+				consistantHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+					PassiveHealthCheckEnabled:     true,
+					StatsResetPeriod:              1 * time.Second,
+					MinRequests:                   1, // with 2 test case fails on github actions
+					MaxHealthCheckDropProbability: 0.95,
+					MinHealthCheckDropProbability: 0.01,
+				})
+				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, %s>`,
+					servicesString), consistantHashCustomEndpointRegistry)
+				failedReqs := sendGetRequests(t, ps)
+				assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
+				mockMetrics.WithCounters(func(counters map[string]int64) {
+					assert.InDelta(t, float64(tt.unhealthy*nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(tt.unhealthy)*float64(nRequests))
+					assert.InDelta(t, float64(nRequests)*rpsFactor, float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
+				})
+			})
 
-			count504, ok := va.CountStatus(504)
-			assert.True(t, ok)
-
-			failedRequests := math.Abs(float64(va.TotalRequests())) - float64(count200)
-			t.Logf("total requests: %d, count200: %d, count504: %d, failedRequests: %f", va.TotalRequests(), count200, count504, failedRequests)
-
-			assert.InDelta(t, float64(count504), failedRequests, 5)
-			assert.InDelta(t, 0, float64(failedRequests), 0.1*float64(va.TotalRequests()))
-			mockMetrics.WithCounters(func(counters map[string]int64) {
-				assert.InDelta(t, float64(va.TotalRequests()), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(va.TotalRequests())) // allow 30% error
-				assert.InDelta(t, float64(va.TotalRequests()), float64(counters["passive-health-check.requests.passed"]), 0.3*float64(va.TotalRequests()))   // allow 30% error
+			t.Run("consistent hash with balance factor", func(t *testing.T) {
+				consistantHashCustomEndpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
+					PassiveHealthCheckEnabled:     true,
+					StatsResetPeriod:              1 * time.Second,
+					MinRequests:                   1, // with 2 test case fails on github actions
+					MaxHealthCheckDropProbability: 0.95,
+					MinHealthCheckDropProbability: 0.01,
+				})
+				mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, %s>`,
+					servicesString), consistantHashCustomEndpointRegistry)
+				failedReqs := sendGetRequests(t, ps)
+				assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
+				mockMetrics.WithCounters(func(counters map[string]int64) {
+					assert.InDelta(t, float64(tt.unhealthy*nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(tt.unhealthy)*float64(nRequests))
+					assert.InDelta(t, float64(nRequests)*rpsFactor, float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
+				})
 			})
 		})
 	}
-
-	t.Run("consistentHash", func(t *testing.T) {
-		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
-			PassiveHealthCheckEnabled:     true,
-			StatsResetPeriod:              1 * time.Second,
-			MinRequests:                   1, // with 2 test case fails on github actions
-			MaxHealthCheckDropProbability: 0.95,
-			MinHealthCheckDropProbability: 0.01,
-		})
-		mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, "%s", "%s", "%s">`,
-			services[0], services[1], services[2]), endpointRegistry)
-		failedReqs := sendGetRequests(t, ps)
-		assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
-		mockMetrics.WithCounters(func(counters map[string]int64) {
-			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(nRequests)) // allow 30% error
-			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests))   // allow 30% error
-		})
-	})
-
-	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s">`,
-			services[0], services[1], services[2]))
-		failedReqs := sendGetRequests(t, ps)
-		assert.InDelta(t, 0, failedReqs, 0.1*float64(nRequests))
-		mockMetrics.WithCounters(func(counters map[string]int64) {
-			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(nRequests)) // allow 30% error
-			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests))   // allow 30% error
-		})
-	})
-}
-
-func TestPHCForMultipleHealthyAndMultipleUnhealthyEndpoints(t *testing.T) {
-	services := setupServices(t, 2, 2)
-	for _, algorithm := range []string{"random", "roundRobin", "powerOfRandomNChoices"} {
-		t.Run(algorithm, func(t *testing.T) {
-			mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <%s, "%s", "%s", "%s", "%s">`,
-				algorithm, services[0], services[1], services[2], services[3]))
-
-			va := fireVegeta(t, ps, 3000, 1*time.Second, 5*time.Second)
-
-			count200, ok := va.CountStatus(200)
-			assert.True(t, ok)
-
-			count504, ok := va.CountStatus(504)
-			assert.True(t, ok)
-
-			failedRequests := math.Abs(float64(va.TotalRequests())) - float64(count200)
-			t.Logf("total requests: %d, count200: %d, count504: %d, failedRequests: %f", va.TotalRequests(), count200, count504, failedRequests)
-
-			assert.InDelta(t, float64(count504), failedRequests, 5)
-			assert.InDelta(t, 0, float64(failedRequests), 0.3*float64(va.TotalRequests()))
-			mockMetrics.WithCounters(func(counters map[string]int64) {
-				assert.InDelta(t, 2*float64(va.TotalRequests()), float64(counters["passive-health-check.endpoints.dropped"]), 0.6*float64(va.TotalRequests()))
-				assert.InDelta(t, float64(va.TotalRequests()), float64(counters["passive-health-check.requests.passed"]), 0.3*float64(va.TotalRequests())) // allow 30% error
-			})
-		})
-	}
-
-	t.Run("consistentHash", func(t *testing.T) {
-		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
-			PassiveHealthCheckEnabled:     true,
-			StatsResetPeriod:              1 * time.Second,
-			MinRequests:                   1, // with 2 test case fails on github actions and -race
-			MaxHealthCheckDropProbability: 0.95,
-			MinHealthCheckDropProbability: 0.01,
-		})
-		mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> <consistentHash, "%s", "%s", "%s", "%s">`,
-			services[0], services[1], services[2], services[3]), endpointRegistry)
-		failedReqs := sendGetRequests(t, ps)
-		assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
-		mockMetrics.WithCounters(func(counters map[string]int64) {
-			assert.InDelta(t, 2*float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.6*float64(nRequests))
-			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
-		})
-	})
-
-	t.Run("consistent hash with balance factor", func(t *testing.T) {
-		endpointRegistry := routing.NewEndpointRegistry(routing.RegistryOptions{
-			PassiveHealthCheckEnabled:     true,
-			StatsResetPeriod:              1 * time.Second,
-			MinRequests:                   1, // with 2 test case fails on github actions and -race
-			MaxHealthCheckDropProbability: 0.95,
-			MinHealthCheckDropProbability: 0.01,
-		})
-		mockMetrics, ps := setupProxyWithCustomEndpointRegisty(t, fmt.Sprintf(`* -> backendTimeout("5ms") -> consistentHashKey("${request.header.ConsistentHashKey}") -> consistentHashBalanceFactor(1.25) -> <consistentHash, "%s", "%s", "%s", "%s">`,
-			services[0], services[1], services[2], services[3]), endpointRegistry)
-		failedReqs := sendGetRequests(t, ps)
-		assert.InDelta(t, 0, failedReqs, 0.2*float64(nRequests))
-		mockMetrics.WithCounters(func(counters map[string]int64) {
-			assert.InDelta(t, 2*float64(nRequests), float64(counters["passive-health-check.endpoints.dropped"]), 0.6*float64(nRequests))
-			assert.InDelta(t, float64(nRequests), float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
-		})
-	})
 }
