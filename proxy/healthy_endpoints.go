@@ -8,8 +8,9 @@ import (
 )
 
 type healthyEndpoints struct {
-	rnd              *rand.Rand
-	endpointRegistry *routing.EndpointRegistry
+	rnd                        *rand.Rand
+	endpointRegistry           *routing.EndpointRegistry
+	maxUnhealthyEndpointsRatio float64
 }
 
 func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []routing.LBEndpoint, metrics metrics.Metrics) []routing.LBEndpoint {
@@ -19,6 +20,8 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 
 	p := h.rnd.Float64()
 
+	unhealthyEndpointsCount := 0
+	maxUnhealthyEndpointsCount := float64(len(endpoints)) * h.maxUnhealthyEndpointsRatio
 	filtered := make([]routing.LBEndpoint, 0, len(endpoints))
 	for _, e := range endpoints {
 		dropProbability := e.Metrics.HealthCheckDropProbability()
@@ -26,8 +29,13 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 			ctx.Logger().Infof("Dropping endpoint %q due to passive health check: p=%0.2f, dropProbability=%0.2f",
 				e.Host, p, dropProbability)
 			metrics.IncCounter("passive-health-check.endpoints.dropped")
+			unhealthyEndpointsCount++
 		} else {
 			filtered = append(filtered, e)
+		}
+
+		if float64(unhealthyEndpointsCount) > maxUnhealthyEndpointsCount {
+			return endpoints
 		}
 	}
 

@@ -904,15 +904,20 @@ the Skipper takes a look at previous period and if the amount of requests in the
 and failed requests ratio is more than `min-drop-probability` for the given endpoints
 then Skipper will send reduced (the more `max-drop-probability` and failed requests ratio
 in previous period are, the stronger reduction is) amount of requests compared to amount sent without PHC.
+If the ratio of unhealthy endpoints is more than `max-unhealthy-endpoints-ratio` then PHC becomes fail-open. This effectively means
+if there are too many unhealthy endpoints PHC does not try to mitigate them any more and requests are sent like there is no PHC at all.
 
 Having this, we expect less requests to fail because a lot of them would be sent to endpoints that seem to be healthy instead.
 
 To enable this feature, you need to provide `-passive-health-check` option having forementioned parameters
-(`period`, `min-requests`, `min-drop-probability`, `max-drop-probability`) defined.
+(`period`, `min-requests`, `min-drop-probability`, `max-drop-probability`, `max-unhealthy-endpoints-ratio`) defined.
 `period`, `min-requests`, `max-drop-probability` are required parameters, it is not possible for PHC to be enabled without
 them explicitly defined by user. `min-drop-probability` is implicitly defined as `0.0` if not explicitly set by user.
+`max-unhealthy-endpoints-ratio` is defined as `1.0` if not explicitly set by user.
 Valid examples of `-passive-health-check` are:
 
++ `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9,max-unhealthy-endpoints-ratio=0.3`
++ `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9,max-unhealthy-endpoints-ratio=0.3`
 + `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9`
 + `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9`
 
@@ -923,9 +928,10 @@ The parameters of `-passive-health-check` option are:
 
 + `period=<duration>` - the duration of stats reset period
 + `min-requests=<int>` - the minimum number of requests per `period` per backend endpoint required to activate PHC for this endpoint
-+ `min-drop-probabilty=<0.0 <= p <= 1.0>` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
-+ `max-drop-probabilty=<0.0 <= p <= 1.0>` - the maximum possible probability of unhealthy endpoint being not considered
++ `min-drop-probabilty=[0.0 <= p < max-drop-probability)` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
++ `max-drop-probabilty=(min-drop-probability < p <= 1.0]` - the maximum possible probability of unhealthy endpoint being not considered
 while choosing the endpoint for the given request
++ `max-unhealthy-endpoints-ratio=[0.0 <= r <= 1.0]` - the maximum ratio of unhealthy endpoints for PHC to try to mitigate ongoing requests
 
 ### Metrics
 

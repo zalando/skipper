@@ -61,17 +61,36 @@ func fireVegeta(t *testing.T, ps *httptest.Server, freq int, per time.Duration, 
 }
 
 func setupProxy(t *testing.T, doc string) (*metricstest.MockMetrics, *httptest.Server) {
-	return setupProxyWithCustomEndpointRegisty(t, doc, defaultEndpointRegistry())
+	m := &metricstest.MockMetrics{}
+	endpointRegistry := defaultEndpointRegistry()
+	proxyParams := Params{
+		EnablePassiveHealthCheck: true,
+		EndpointRegistry:         endpointRegistry,
+		Metrics:                  m,
+		PassiveHealthCheck: &PassiveHealthCheck{
+			MaxUnhealthyEndpointsRatio: 1.0,
+		},
+	}
+
+	return m, setupProxyWithCustomProxyParams(t, doc, proxyParams)
 }
 
 func setupProxyWithCustomEndpointRegisty(t *testing.T, doc string, endpointRegistry *routing.EndpointRegistry) (*metricstest.MockMetrics, *httptest.Server) {
 	m := &metricstest.MockMetrics{}
-
-	tp, err := newTestProxyWithParams(doc, Params{
+	proxyParams := Params{
 		EnablePassiveHealthCheck: true,
 		EndpointRegistry:         endpointRegistry,
 		Metrics:                  m,
-	})
+		PassiveHealthCheck: &PassiveHealthCheck{
+			MaxUnhealthyEndpointsRatio: 1.0,
+		},
+	}
+
+	return m, setupProxyWithCustomProxyParams(t, doc, proxyParams)
+}
+
+func setupProxyWithCustomProxyParams(t *testing.T, doc string, proxyParams Params) *httptest.Server {
+	tp, err := newTestProxyWithParams(doc, proxyParams)
 	require.NoError(t, err)
 
 	ps := httptest.NewServer(tp.proxy)
@@ -79,7 +98,7 @@ func setupProxyWithCustomEndpointRegisty(t *testing.T, doc string, endpointRegis
 	t.Cleanup(tp.close)
 	t.Cleanup(ps.Close)
 
-	return m, ps
+	return ps
 }
 
 func setupServices(t *testing.T, healthy, unhealthy int) string {
@@ -138,6 +157,9 @@ func TestPHCForSingleHealthyEndpoint(t *testing.T) {
 	tp, err := newTestProxyWithParams(doc, Params{
 		EnablePassiveHealthCheck: true,
 		EndpointRegistry:         endpointRegistry,
+		PassiveHealthCheck: &PassiveHealthCheck{
+			MaxUnhealthyEndpointsRatio: 1.0,
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -240,4 +262,74 @@ func TestPHC(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestPHCNoHealthyEndpoints(t *testing.T) {
+	const (
+		healthy   = 0
+		unhealthy = 4
+	)
+
+	servicesString := setupServices(t, healthy, unhealthy)
+	mockMetrics, ps := setupProxy(t, fmt.Sprintf(`* -> backendTimeout("20ms") -> <random, %s>`,
+		servicesString))
+	va := fireVegeta(t, ps, 5000, 1*time.Second, 5*time.Second)
+
+	count200, ok := va.CountStatus(200)
+	assert.False(t, ok)
+
+	count504, ok := va.CountStatus(504)
+	assert.True(t, ok)
+
+	failedRequests := math.Abs(float64(va.TotalRequests())) - float64(count200)
+	t.Logf("total requests: %d, count200: %d, count504: %d, failedRequests: %f", va.TotalRequests(), count200, count504, failedRequests)
+
+	assert.InDelta(t, float64(count504), failedRequests, 5)
+	assert.InDelta(t, float64(va.TotalRequests()), float64(failedRequests), 0.1*float64(va.TotalRequests()))
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		assert.InDelta(t, float64(unhealthy)*float64(va.TotalRequests()), float64(counters["passive-health-check.endpoints.dropped"]), 0.3*float64(unhealthy)*float64(va.TotalRequests()))
+		assert.InDelta(t, 0.0, float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
+	})
+}
+
+func TestPHCMaxUnhealthyEndpointsRatioParam(t *testing.T) {
+	const (
+		healthy                    = 0
+		unhealthy                  = 4
+		maxUnhealthyEndpointsRatio = 0.49 // slightly less than 0.5 to avoid equality and looking up the third endpoint
+	)
+
+	servicesString := setupServices(t, healthy, unhealthy)
+	mockMetrics := &metricstest.MockMetrics{}
+	endpointRegistry := defaultEndpointRegistry()
+	proxyParams := Params{
+		EnablePassiveHealthCheck: true,
+		EndpointRegistry:         endpointRegistry,
+		Metrics:                  mockMetrics,
+		PassiveHealthCheck: &PassiveHealthCheck{
+			MaxUnhealthyEndpointsRatio: maxUnhealthyEndpointsRatio,
+		},
+	}
+	ps := setupProxyWithCustomProxyParams(t, fmt.Sprintf(`* -> backendTimeout("20ms") -> <random, %s>`,
+		servicesString), proxyParams)
+	va := fireVegeta(t, ps, 5000, 1*time.Second, 5*time.Second)
+
+	count200, ok := va.CountStatus(200)
+	assert.False(t, ok)
+
+	count504, ok := va.CountStatus(504)
+	assert.True(t, ok)
+
+	failedRequests := math.Abs(float64(va.TotalRequests())) - float64(count200)
+	t.Logf("total requests: %d, count200: %d, count504: %d, failedRequests: %f", va.TotalRequests(), count200, count504, failedRequests)
+
+	assert.InDelta(t, float64(count504), failedRequests, 5)
+	assert.InDelta(t, float64(va.TotalRequests()), float64(failedRequests), 0.1*float64(va.TotalRequests()))
+	mockMetrics.WithCounters(func(counters map[string]int64) {
+		assert.InDelta(t, maxUnhealthyEndpointsRatio*float64(unhealthy)*float64(va.TotalRequests()),
+			float64(counters["passive-health-check.endpoints.dropped"]),
+			0.3*maxUnhealthyEndpointsRatio*float64(unhealthy)*float64(va.TotalRequests()),
+		)
+		assert.InDelta(t, 0.0, float64(counters["passive-health-check.requests.passed"]), 0.3*float64(nRequests)) // allow 30% error
+	})
 }
