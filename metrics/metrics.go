@@ -194,6 +194,10 @@ type Options struct {
 	// library.
 	// A new registry is created if this option is nil.
 	PrometheusRegistry *prometheus.Registry
+
+	// EnablePrometheusStartLabel adds start label to each prometheus counter with the value of counter creation
+	// timestamp as unix nanoseconds.
+	EnablePrometheusStartLabel bool
 }
 
 var (

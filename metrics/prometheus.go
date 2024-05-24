@@ -9,6 +9,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -295,7 +297,11 @@ func (p *Prometheus) registerMetrics() {
 }
 
 func (p *Prometheus) CreateHandler() http.Handler {
-	return promhttp.HandlerFor(p.registry, promhttp.HandlerOpts{})
+	var gatherer prometheus.Gatherer = p.registry
+	if p.opts.EnablePrometheusStartLabel {
+		gatherer = withStartLabelGatherer{p.registry}
+	}
+	return promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 }
 
 func (p *Prometheus) getHandler() http.Handler {
@@ -457,3 +463,24 @@ func (p *Prometheus) IncErrorsStreaming(routeID string) {
 }
 
 func (p *Prometheus) Close() {}
+
+// withStartLabelGatherer adds a "start" label to all counters with
+// the value of counter creation timestamp as unix nanoseconds.
+type withStartLabelGatherer struct {
+	*prometheus.Registry
+}
+
+func (g withStartLabelGatherer) Gather() ([]*dto.MetricFamily, error) {
+	metricFamilies, err := g.Registry.Gather()
+	for _, metricFamily := range metricFamilies {
+		if metricFamily.GetType() == dto.MetricType_COUNTER {
+			for _, metric := range metricFamily.Metric {
+				metric.Label = append(metric.Label, &dto.LabelPair{
+					Name:  proto.String("start"),
+					Value: proto.String(fmt.Sprintf("%d", metric.Counter.CreatedTimestamp.AsTime().UnixNano())),
+				})
+			}
+		}
+	}
+	return metricFamilies, err
+}
