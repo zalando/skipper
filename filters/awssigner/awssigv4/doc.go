@@ -2,10 +2,10 @@
 
 Package sigv4 signs requests using aws signature version 4 mechanism. see https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html
 
-# Filter sigv4
+# Filter awsSigv4
 
 Example usage -
-	`editorRoute: * -> sigv4("dynamodb" , "us-east-1", false, false, false) -> "https://dynamodb.us-east-1.amazonaws.com";`
+	`editorRoute: * -> awsSigv4("dynamodb" , "us-east-1", false, false, false) -> "https://dynamodb.us-east-1.amazonaws.com";`
 
 	This filter expects
 	- Service
