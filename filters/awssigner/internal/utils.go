@@ -1,4 +1,4 @@
-package signer
+package awssigner
 
 import (
 	"strings"

@@ -49,4 +49,4 @@ This filter reads the body in memory. This is needed to generate signature as pe
 This filter resets `read` and `close` implementations of body to default. So in case a filter before this filter has some custom implementations of thse methods, they would be overwritten.
 */
 
-package sigv4
+package awssigv4

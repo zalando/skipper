@@ -1,4 +1,4 @@
-package sigv4
+package awssigv4
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	internal "github.com/zalando/skipper/filters/signer/internal"
+	internal "github.com/zalando/skipper/filters/awssigner/internal"
 )
 
 type keyDerivator interface {

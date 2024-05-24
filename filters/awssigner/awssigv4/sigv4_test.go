@@ -1,4 +1,4 @@
-package sigv4
+package awssigv4
 
 import (
 	"bytes"
@@ -14,8 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
+	internal "github.com/zalando/skipper/filters/awssigner/internal"
 	"github.com/zalando/skipper/filters/filtertest"
-	internal "github.com/zalando/skipper/filters/signer/internal"
 )
 
 func TestSignRequest(t *testing.T) {
@@ -215,7 +215,7 @@ func TestSign_buildCanonicalHeaders(t *testing.T) {
 }
 
 func TestSigV4(t *testing.T) {
-	sigV4 := sigV4Filter{
+	sigV4 := awsSigV4Filter{
 		region:                 "us-east-1",
 		service:                "dynamodb",
 		disableHeaderHoisting:  false,

@@ -1,9 +1,10 @@
-package sigv4
+package awssigv4
 
 import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -12,17 +13,17 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/filters"
-	internal "github.com/zalando/skipper/filters/signer/internal"
+	internal "github.com/zalando/skipper/filters/awssigner/internal"
 )
 
-type sigV4Spec struct{}
+type awsSigV4Spec struct{}
 
 const accessKeyHeader = "x-amz-accesskey"
 const secretHeader = "x-amz-secret"
 const sessionHeader = "x-amz-session"
 const timeHeader = "x-amz-time"
 
-type sigV4Filter struct {
+type awsSigV4Filter struct {
 	region                 string
 	service                string
 	disableHeaderHoisting  bool
@@ -31,14 +32,14 @@ type sigV4Filter struct {
 }
 
 func New() filters.Spec {
-	return &sigV4Spec{}
+	return &awsSigV4Spec{}
 }
 
-func (*sigV4Spec) Name() string {
-	return filters.SigV4
+func (*awsSigV4Spec) Name() string {
+	return filters.AWSSigV4Name
 }
 
-func (c *sigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
+func (c *awsSigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	if len(args) != 5 {
 		return nil, filters.ErrInvalidFilterParameters
 	}
@@ -83,7 +84,7 @@ func (c *sigV4Spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &sigV4Filter{
+	return &awsSigV4Filter{
 		region:                 region,
 		service:                service,
 		disableHeaderHoisting:  disableHeaderHoisting,
@@ -98,7 +99,7 @@ In case a non empty is body is present in request,
 the body is read and signed. The body is later reassigned to request. Operators should ensure
 that body size by all requests at any point of time is not more than the memory limit of skipper.
 */
-func (f *sigV4Filter) Request(ctx filters.FilterContext) {
+func (f *awsSigV4Filter) Request(ctx filters.FilterContext) {
 	req := ctx.Request()
 
 	logger := log.WithContext(req.Context())
@@ -132,9 +133,9 @@ func (f *sigV4Filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	hashedBody, body := hashRequest(ctx, req.Body)
-	if hashedBody == "" {
-		logger.Log(log.ErrorLevel, "error occured while hashing the body")
+	hashedBody, body, err := hashRequest(ctx, req.Body)
+	if err != nil {
+		logger.Log(log.ErrorLevel, fmt.Sprintf("error occured while hashing the body %s", err.Error()))
 		return
 	}
 	creds := internal.Credentials{
@@ -155,22 +156,28 @@ func (f *sigV4Filter) Request(ctx filters.FilterContext) {
 	ctx.Request().Body = io.NopCloser(body) //ATTN: custom close() and read() set by skipper or previous filters are lost
 }
 
-func (f *sigV4Filter) Response(ctx filters.FilterContext) {}
+func (f *awsSigV4Filter) Response(ctx filters.FilterContext) {}
 
-func hashRequest(ctx filters.FilterContext, body io.Reader) (string, io.Reader) {
-	logger := log.WithContext(ctx.Request().Context())
+func hashRequest(ctx filters.FilterContext, body io.Reader) (string, io.Reader, error) {
 	h := sha256.New()
 	if body == nil {
 		body = strings.NewReader("{}") // as per specs https://github.com/aws/aws-sdk-go-v2/blob/main/aws/signer/v4/v4.go#L261
+		_, err := io.Copy(h, body)     // read body in-memory
+		if err != nil {
+
+			return "", nil, err
+		}
+		return hex.EncodeToString(h.Sum(nil)), nil, nil
+	} else {
+		var buf bytes.Buffer
+		tee := io.TeeReader(body, &buf)
+		_, err := io.Copy(h, tee) // read body in-memory
+		if err != nil {
+			return "", nil, err
+		}
+		return hex.EncodeToString(h.Sum(nil)), &buf, nil
 	}
-	var buf bytes.Buffer
-	tee := io.TeeReader(body, &buf)
-	_, err := io.Copy(h, tee) // read body in-memory
-	if err != nil {
-		logger.Logf(log.DebugLevel, "an error occured while reading the body %v", err.Error())
-		return "", nil
-	}
-	return hex.EncodeToString(h.Sum(nil)), &buf
+
 }
 
 func getAndRemoveHeader(ctx filters.FilterContext, headerName string, req *http.Request) string {
