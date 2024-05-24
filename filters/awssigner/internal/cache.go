@@ -30,7 +30,7 @@ func NewSigningKeyDeriver() *SigningKeyDeriver {
 
 // DeriveKey returns a derived signing key from the given credentials to be used with SigV4 signing.
 func (k *SigningKeyDeriver) DeriveKey(credential Credentials, service, region string, signingTime SigningTime) []byte {
-	return k.cache.Get(credential, service, region, signingTime)
+	return k.cache.getSigningKey(credential, service, region, signingTime)
 }
 
 func lookupKey(service, region string) string {
@@ -57,7 +57,7 @@ func (s *derivedKeyCache) retrieveFromCache(key string) (derivedKey, bool) {
 	return derivedKey{}, false
 }
 
-func (s *derivedKeyCache) Get(credentials Credentials, service, region string, signingTime SigningTime) []byte {
+func (s *derivedKeyCache) getSigningKey(credentials Credentials, service, region string, signingTime SigningTime) []byte {
 	key := lookupKey(service, region)
 	s.mutex.RLock()
 	if cred, ok := s.get(key, credentials, signingTime.Time); ok {
