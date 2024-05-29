@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
@@ -31,11 +33,12 @@ func TestJwtMetrics(t *testing.T) {
 	defer testAuthServer.Close()
 
 	for _, tc := range []struct {
-		name     string
-		filters  string
-		request  *http.Request
-		status   int
-		expected map[string]int64
+		name        string
+		filters     string
+		request     *http.Request
+		status      int
+		expected    map[string]int64
+		expectedTag string
 	}{
 		{
 			name:     "ignores 401 response",
@@ -66,6 +69,7 @@ func TestJwtMetrics(t *testing.T) {
 			expected: map[string]int64{
 				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
 			},
+			expectedTag: "missing-token",
 		},
 		{
 			name:    "invalid-token-type",
@@ -77,6 +81,7 @@ func TestJwtMetrics(t *testing.T) {
 			expected: map[string]int64{
 				"jwtMetrics.custom.GET.foo_test.200.invalid-token-type": 1,
 			},
+			expectedTag: "invalid-token-type",
 		},
 		{
 			name:    "invalid-token",
@@ -88,6 +93,7 @@ func TestJwtMetrics(t *testing.T) {
 			expected: map[string]int64{
 				"jwtMetrics.custom.GET.foo_test.200.invalid-token": 1,
 			},
+			expectedTag: "invalid-token",
 		},
 		{
 			name:    "missing-issuer",
@@ -101,6 +107,7 @@ func TestJwtMetrics(t *testing.T) {
 			expected: map[string]int64{
 				"jwtMetrics.custom.GET.foo_test.200.missing-issuer": 1,
 			},
+			expectedTag: "missing-issuer",
 		},
 		{
 			name:    "invalid-issuer",
@@ -114,6 +121,7 @@ func TestJwtMetrics(t *testing.T) {
 			expected: map[string]int64{
 				"jwtMetrics.custom.GET.foo_test.200.invalid-issuer": 1,
 			},
+			expectedTag: "invalid-issuer",
 		},
 		{
 			name:    "no invalid-issuer for empty issuers",
@@ -156,6 +164,7 @@ func TestJwtMetrics(t *testing.T) {
 			expected: map[string]int64{
 				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
 			},
+			expectedTag: "missing-token",
 		},
 		{
 			name: "no metrics when opted-out by annotation",
@@ -188,6 +197,7 @@ func TestJwtMetrics(t *testing.T) {
 			expected: map[string]int64{
 				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
 			},
+			expectedTag: "missing-token",
 		},
 		{
 			name: "no metrics when opted-out by state bag",
@@ -220,11 +230,13 @@ func TestJwtMetrics(t *testing.T) {
 			expected: map[string]int64{
 				"jwtMetrics.custom.GET.foo_test.200.invalid-token": 1,
 			},
+			expectedTag: "invalid-token",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &metricstest.MockMetrics{}
 			defer m.Close()
+			tracer := mocktracer.New()
 
 			fr := builtin.MakeRegistry()
 			fr.Register(auth.NewJwtMetrics())
@@ -236,6 +248,10 @@ func TestJwtMetrics(t *testing.T) {
 				Routes: eskip.MustParse(fmt.Sprintf(`* -> %s -> status(%d) -> <shunt>`, tc.filters, tc.status)),
 				ProxyParams: proxy.Params{
 					Metrics: m,
+					OpenTracing: &proxy.OpenTracingParams{
+						Tracer:             tracer,
+						DisableFilterSpans: true,
+					},
 				},
 			}.Create()
 			defer p.Close()
@@ -248,6 +264,16 @@ func TestJwtMetrics(t *testing.T) {
 			require.NoError(t, err)
 			resp.Body.Close()
 			require.Equal(t, tc.status, resp.StatusCode)
+
+			// wait for the span to be finished
+			require.Eventually(t, func() bool { return len(tracer.FinishedSpans()) == 1 }, time.Second, 100*time.Millisecond)
+
+			span := tracer.FinishedSpans()[0]
+			if tc.expectedTag == "" {
+				assert.Nil(t, span.Tag("jwt"))
+			} else {
+				assert.Equal(t, tc.expectedTag, span.Tag("jwt"))
+			}
 
 			m.WithCounters(func(counters map[string]int64) {
 				// add incoming counter to simplify comparison
