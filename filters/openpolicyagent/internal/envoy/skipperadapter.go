@@ -1,14 +1,16 @@
 package envoy
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 )
 
-func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metadata, contextExtensions map[string]string, rawBody []byte) *ext_authz_v3.CheckRequest {
+func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metadata, contextExtensions map[string]string, rawBody []byte) (*ext_authz_v3.CheckRequest, error) {
 
 	headers := make(map[string]string, len(req.Header))
 	for h, vv := range req.Header {
@@ -17,7 +19,7 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 		headers[strings.ToLower(h)] = strings.Join(vv, ", ")
 	}
 
-	return &ext_authz_v3.CheckRequest{
+	ereq := &ext_authz_v3.CheckRequest{
 		Attributes: &ext_authz_v3.AttributeContext{
 			Request: &ext_authz_v3.AttributeContext_Request{
 				Http: &ext_authz_v3.AttributeContext_HttpRequest{
@@ -32,4 +34,10 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 			MetadataContext:   metadata,
 		},
 	}
+
+	if !utf8.ValidString(ereq.Attributes.Request.Http.Path) {
+		return nil, fmt.Errorf("invalid utf8 in path: %q", ereq.Attributes.Request.Http.Path)
+	}
+
+	return ereq, nil
 }
