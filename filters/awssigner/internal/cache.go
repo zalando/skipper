@@ -33,6 +33,7 @@ func (k *SigningKeyDeriver) DeriveKey(credential Credentials, service, region st
 	return k.cache.getSigningKey(credential, service, region, signingTime)
 }
 
+// copied from https://github.com/aws/aws-sdk-go-v2/blob/v1.25.0/aws/signer/internal/v4/cache.go#L11
 func lookupKey(service, region string) string {
 	var s strings.Builder
 	s.Grow(len(region) + len(service) + 3)
