@@ -35,7 +35,7 @@ Service type | supported | workaround
 --- | --- | ---
 ClusterIP | yes | ---
 NodePort | yes | ---
-ExternalName | no, [related issue](https://github.com/zalando/skipper/issues/549) | [use deployment with routestring](../data-clients/route-string.md#proxy-to-a-given-url)
+ExternalName | yes | ---
 LoadBalancer | no | it should not, because Kubernetes cloud-controller-manager will maintain it
 
 
