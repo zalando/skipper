@@ -1,6 +1,6 @@
 /*
 
-Package sigv4 signs requests using aws signature version 4 mechanism. see https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html
+Package awssigv4 signs requests using aws signature version 4 mechanism. see https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html
 
 # Filter awsSigv4
 
