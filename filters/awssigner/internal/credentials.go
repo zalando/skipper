@@ -1,7 +1,7 @@
 package awssigner
 
 import (
-	"strings"
+	"path"
 	"time"
 )
 
@@ -28,10 +28,9 @@ type Credentials struct {
 }
 
 func BuildCredentialScope(signingTime SigningTime, region, service string) string {
-	return strings.Join([]string{
+	return path.Join(
 		signingTime.ShortTimeFormat(),
 		region,
 		service,
-		"aws4_request",
-	}, "/")
+		"aws4_request")
 }
