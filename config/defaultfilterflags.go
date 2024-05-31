@@ -2,16 +2,18 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/zalando/skipper/eskip"
 )
 
 type defaultFiltersFlags struct {
+	values  []string
 	filters []*eskip.Filter
 }
 
 func (dpf defaultFiltersFlags) String() string {
-	return "<default filters>"
+	return strings.Join(dpf.values, " -> ")
 }
 
 func (dpf *defaultFiltersFlags) Set(value string) error {
@@ -20,14 +22,27 @@ func (dpf *defaultFiltersFlags) Set(value string) error {
 		return fmt.Errorf("failed to parse default filters: %w", err)
 	}
 
-	dpf.filters = fs
+	dpf.values = append(dpf.values, value)
+	dpf.filters = append(dpf.filters, fs...)
+
 	return nil
 }
 
 func (dpf *defaultFiltersFlags) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var value string
-	if err := unmarshal(&value); err != nil {
-		return err
+	values := make([]string, 1)
+	if err := unmarshal(&values); err != nil {
+		// Try to unmarshal as string for backwards compatibility.
+		// UnmarshalYAML allows calling unmarshal more than once.
+		if err := unmarshal(&values[0]); err != nil {
+			return err
+		}
 	}
-	return dpf.Set(value)
+	dpf.values = nil
+	dpf.filters = nil
+	for _, v := range values {
+		if err := dpf.Set(v); err != nil {
+			return err
+		}
+	}
+	return nil
 }
