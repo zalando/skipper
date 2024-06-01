@@ -2074,7 +2074,7 @@ This filter expects
 This filter reads the body in memory. This is needed to generate signature as per Signature V4 specs. Special considerations need to be taken when operating the skipper with concurrent requests.
 
 
-##### Overwriting io.ReadCloser
+#### Overwriting io.ReadCloser
 This filter resets `read` and `close` implementations of body to default. So in case a filter before this filter has some custom implementations of thse methods, they would be overwritten.
 
 
