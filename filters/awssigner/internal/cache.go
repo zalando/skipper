@@ -68,8 +68,8 @@ func (s *derivedKeyCache) getSigningKey(credentials Credentials, service, region
 	s.mutex.RUnlock()
 
 	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	if cred, ok := s.get(key, credentials, signingTime.Time); ok {
-		s.mutex.Unlock()
 		return cred
 	}
 	cred := deriveKey(credentials.SecretAccessKey, service, region, signingTime)
@@ -79,8 +79,6 @@ func (s *derivedKeyCache) getSigningKey(credentials Credentials, service, region
 		Credential: cred,
 	}
 	s.values[key] = entry
-	s.mutex.Unlock()
-
 	return cred
 }
 

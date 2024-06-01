@@ -117,7 +117,7 @@ func (f *awsSigV4Filter) Request(ctx filters.FilterContext) {
 	}
 
 	sessionToken := getAndRemoveHeader(ctx, sessionHeader, req)
-	if sessionToken == "" {
+	if sessionToken == "" && !f.disableSessionToken {
 		return
 	}
 
@@ -184,7 +184,7 @@ func getAndRemoveHeader(ctx filters.FilterContext, headerName string, req *http.
 	logger := log.WithContext(ctx.Request().Context())
 	headerValue := req.Header.Get(headerName)
 	if headerValue == "" {
-		logger.Logf(log.ErrorLevel, "%s header is missing", headerName)
+		logger.Logf(log.ErrorLevel, "%q header is missing", headerName)
 		return ""
 	} else {
 		req.Header.Del(headerName)

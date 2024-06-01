@@ -3,8 +3,9 @@
 Package awssigv4 signs requests using aws signature version 4 mechanism. see https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html
 
 # Filter awsSigv4
+awsSigv4 filter can be defined on a route as `awsSigv4("<service>, "<region>", <DisableHeaderHoisting>, <DisableURIPathEscaping>, <DisableSessionToken>)`
 
-Example usage -
+An example of route with awsSigv4 filter is
 	`editorRoute: * -> awsSigv4("dynamodb" , "us-east-1", false, false, false) -> "https://dynamodb.us-east-1.amazonaws.com";`
 
 	This filter expects
@@ -16,11 +17,11 @@ Example usage -
 		AWS region where service is located. Please refer valid service names from service endpoint.
 		For example if service endpoint is https://dynamodb.us-east-1.amazonaws.com, then region is us-east-1.
 
-	-DisableHeaderHoisting
+	- DisableHeaderHoisting
 		Disables the Signer's moving HTTP header key/value pairs from the HTTP request header to the request's query string. This is most commonly used
 		with pre-signed requests preventing headers from being added to the request's query string.
 
-	-DisableURIPathEscaping
+	- DisableURIPathEscaping
 		Disables the automatic escaping of the URI path of the request for the siganture's canonical string's path. For services that do not need additional
 		escaping then use this to disable the signer escaping the path. S3 is an example of a service that does not need additional escaping.
 		http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
