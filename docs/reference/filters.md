@@ -3263,7 +3263,7 @@ tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 
 ### tracingTagFromResponse
 
-This filter works just like [tracingTag](#tracingTag), but is applied after the request was processed. In particular, [template placeholders](#template-placeholders) referencing the response can be used in the parameters.
+This filter works just like [tracingTag](#tracingtag), but is applied after the request was processed. In particular, [template placeholders](#template-placeholders) referencing the response can be used in the parameters.
 
 ### tracingSpanName
 
