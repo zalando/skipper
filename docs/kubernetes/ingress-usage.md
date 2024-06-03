@@ -4,8 +4,8 @@ This documentation is meant for people deploying to Kubernetes
 Clusters and describes to use Ingress and low level and high level
 features Skipper provides.
 
-[RouteGroups](routegroups.md), skipper Kubernetes native routing
-object that supports all skipper features. If you need to create more
+[RouteGroups](routegroups.md), Skipper Kubernetes native routing
+object that supports all Skipper features. If you need to create more
 than one route to your application, RouteGroups should be the default
 choice, instead of ingress.  The documentation contains a section with
 [mapping](routegroups.md#mapping-from-ingress-to-routegroups) Ingress
@@ -107,7 +107,7 @@ spec:
     If multiple ingresses define the same host and the same predicates, traffic routing may become non-deterministic.
 
 Consider the following two ingresses which have the same hostname and therefore
-overlap. In skipper the routing of this is currently undefined as skipper
+overlap. In Skipper the routing of this is currently undefined as skipper
 doesn't pick one over the other, but just creates routes (possible overlapping)
 for each of the ingresses.
 
@@ -165,18 +165,18 @@ Ingress paths can be interpreted in five different modes:
 1. `pathType: Prefix` results in [PathSubtree predicate](../reference/predicates.md#pathsubtree))
 2. `pathType: Exact` results in [Path predicate](../reference/predicates.md#path))
 3. `pathType: ImplementationSpecific`
-   1. based on the kubernetes ingress specification
+   1. based on the Kubernetes ingress specification
    2. as plain regular expression
    3. as a path prefix (same as `pathType: Prefix` and results in [PathSubtree](../reference/predicates.md#pathsubtree))
 
-The default is 3.1 the kubernetes ingress mode. It can be changed by startup option `-kubernetes-path-mode`
+The default is 3.1 the Kubernetes ingress mode. It can be changed by startup option `-kubernetes-path-mode`
 to any of the other modes. The individual ingress rules can also override the
 default behavior with the `zalando.org/skipper-ingress-path-mode` annotation. You can
 also set for each path rule a different Kubernetes `pathType` like `Prefix` and `Exact`.
 
 E.g.:
 
-    zalando.org/skipper-ingress-path-mode: path-prefix # skipper specific
+    zalando.org/skipper-ingress-path-mode: path-prefix # Skipper specific
     pathType: Prefix # ingress v1
 
 ### Kubernetes ingress specification base path
@@ -190,7 +190,7 @@ path.
 ### Plain regular expression
 
 When the path mode is set to `path-regexp`, the ingress path is interpreted similar
-to the default kubernetes ingress specification way, but is not prepended by the `^`
+to the default Kubernetes ingress specification way, but is not prepended by the `^`
 control character.
 
 ### Path prefix
@@ -243,7 +243,7 @@ Custom routes is a way of extending the default routes configured for
 an ingress resource.
 
 Sometimes you just want to return a header, redirect or even static
-html content. You can return from skipper without doing a proxy call
+html content. You can return from Skipper without doing a proxy call
 to a backend, if you end your filter chain with `<shunt>`. The use of
 `<shunt>` recommends the use in combination with `status()` filter, to
 not respond with the default http code, which defaults to 404.  To
@@ -255,7 +255,7 @@ priority.
 Custom routes specified in ingress will always add the `Host()`
 [predicate](../reference/predicates.md#host) to match the host header specified in
 the ingress `rules:`. If there is a `path:` definition in your
-ingress, then it will be based on the skipper command line parameter
+ingress, then it will be based on the Skipper command line parameter
 `-kubernetes-path-mode` set one of these predicates:
 
 - [Path()](../reference/predicates.md#path)
@@ -451,7 +451,7 @@ A possible solution is to use skipper's [RouteGroups](routegroups.md).
 
 ## Filters - Basic HTTP manipulations
 
-HTTP manipulations are done by using skipper filters. Changes can be
+HTTP manipulations are done by using Skipper filters. Changes can be
 done in the request path, meaning request to your backend or in the
 response path to the client, which made the request.
 
@@ -564,7 +564,7 @@ Examples:
 
 ### Flow Id to trace request flows
 
-To trace request flows skipper can generate a unique Flow Id for every
+To trace request flows Skipper can generate a unique Flow Id for every
 HTTP request that it receives. You can then find the trace of the
 request in all your access logs.  Skipper sets the X-Flow-Id header to
 a unique value. Read more about this in our
@@ -697,7 +697,7 @@ filters](../reference/filters.md#rate-limit) section and in our
 
 The example shows 20 calls per hour per client, based on
 X-Forwarded-For header or IP in case there is no X-Forwarded-For header
-set, are allowed to each skipper instance for the given ingress.
+set, are allowed to each Skipper instance for the given ingress.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
