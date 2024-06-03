@@ -4,21 +4,21 @@ This documentation is meant for people deploying to Kubernetes
 Clusters and describes to use Ingress and low level and high level
 features Skipper provides.
 
-[RouteGroups](routegroups.md), a relatively new feature, also
-support each of these features, with an alternative format that
-supports them in a more native way. The documentation contains a
-section with
-[mapping](routegroups.md#mapping-from-ingress-to-routegroups)
-Ingress to RouteGroups.
+[RouteGroups](routegroups.md), skipper Kubernetes native routing
+object that supports all skipper features. If you need to create more
+than one route to your application, RouteGroups should be the default
+choice, instead of ingress.  The documentation contains a section with
+[mapping](routegroups.md#mapping-from-ingress-to-routegroups) Ingress
+to RouteGroups.
 
 ## Skipper Ingress Annotations
 
 Annotation | example data | usage
 --- | --- | ---
-zalando.org/backend-weights | `{"my-app-1": 80, "my-app-2": 20}` | blue-green deployments
+zalando.org/backend-weights | `{"my-app-1": 80, "my-app-2": 20}` | blue-green deployments, see also [StackSet](https://github.com/zalando-incubator/stackset-controller) for more high-level integration
 zalando.org/skipper-filter | `consecutiveBreaker(15)` | arbitrary filters
 zalando.org/skipper-predicate | `QueryParam("version", "^alpha$")` | arbitrary predicates
-zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | extra custom routes
+zalando.org/skipper-routes | `Method("OPTIONS") -> status(200) -> <shunt>` | extra custom routes, please consider using [RouteGroups](routegroups.md) instead
 zalando.org/ratelimit | `ratelimit(50, "1m")` | deprecated, use zalando.org/skipper-filter instead
 zalando.org/skipper-ingress-redirect | `"true"` | change the default HTTPS redirect behavior for specific ingresses (true/false)
 zalando.org/skipper-ingress-redirect-code | `301` | change the default HTTPS redirect code for specific ingresses
@@ -30,6 +30,7 @@ zalando.org/skipper-ingress-path-mode | `path-prefix` | (*deprecated*) please us
 
 Ingress backend definitions are services, which have different
 [service types](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services---service-types).
+ClusterIP should be the default for all backend applications that expose via ingress.
 
 Service type | supported | workaround
 --- | --- | ---
@@ -168,14 +169,15 @@ Ingress paths can be interpreted in five different modes:
    2. as plain regular expression
    3. as a path prefix (same as `pathType: Prefix` and results in [PathSubtree](../reference/predicates.md#pathsubtree))
 
-The default is 3.1 the kubernetes ingress mode. It can be changed by a startup option
-to any of the other modes, and the individual ingress rules can also override the
-default behavior with the zalando.org/skipper-ingress-path-mode annotation. You can
+The default is 3.1 the kubernetes ingress mode. It can be changed by startup option `-kubernetes-path-mode`
+to any of the other modes. The individual ingress rules can also override the
+default behavior with the `zalando.org/skipper-ingress-path-mode` annotation. You can
 also set for each path rule a different Kubernetes `pathType` like `Prefix` and `Exact`.
 
 E.g.:
 
-    zalando.org/skipper-ingress-path-mode: path-prefix
+    zalando.org/skipper-ingress-path-mode: path-prefix # skipper specific
+    pathType: Prefix # ingress v1
 
 ### Kubernetes ingress specification base path
 
@@ -351,7 +353,7 @@ directly with a HTTP status code 200:
 
 ```
 zalando.org/skipper-routes: |
-  Path("/") -> setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
+  PathRegexp("/") -> setResponseHeader("X", "bar") -> inlineContent("<html><body>hello</body></html>") -> status(200) -> <shunt>
 ```
 
 Keep in mind that you need a valid backend definition to backends
@@ -399,8 +401,8 @@ Host(/^app-default[.]example[.]org$/) && Method("OPTIONS") ->
 
 ### Multiple routes
 
-You can also set multiple routes, but you have to set the names of the
-route as defined in eskip:
+You can also set multiple routes, but you have to set the IDs
+(`routename1`, `routename2`) of the route as defined in eskip:
 
 ```
 zalando.org/skipper-routes: |
@@ -548,22 +550,17 @@ by the filters mentioned above.
 
 ### Diagnosis - Throttling Bandwidth - Latency
 
-For diagnosis purpose there are filters that enable you to throttle
+For diagnosis purpose there are more than 20 filters that enable you to throttle
 the bandwidth or add latency. For the full list of filters see our
-[diag filter godoc page](https://godoc.org/github.com/zalando/skipper/filters/diag).
+[diagnostics filters](../reference/filters.md#diagnostics).
+Examples:
 
     bandwidth(30) // incoming in kb/s
     backendBandwidth(30) // outgoing in kb/s
     backendLatency(120) // in ms
-
-Filter documentation:
-
-- [latency](../reference/filters.md#latency)
-- [bandwidth](../reference/filters.md#bandwidth)
-- [chunks](../reference/filters.md#chunks)
-- [backendlatency](../reference/filters.md#backendlatency)
-- [backendChunks](../reference/filters.md#backendchunks)
-- [randomcontent](../reference/filters.md#randomcontent)
+    normalRequestLatency("10ms", "5ms") // normal distribution for request latency as time duration string
+    logHeader("request") // log all request headers
+    logBody("response", 1024) // log up to 1024 Bytes of the response body
 
 ### Flow Id to trace request flows
 
@@ -572,7 +569,7 @@ HTTP request that it receives. You can then find the trace of the
 request in all your access logs.  Skipper sets the X-Flow-Id header to
 a unique value. Read more about this in our
 [flowid filter](../reference/filters.md#flowid)
-and [godoc](https://godoc.org/github.com/zalando/skipper/filters/flowid).
+and [godoc](https://pkg.go.dev/github.com/zalando/skipper/filters/flowid).
 
      flowId("reuse")
 
@@ -648,6 +645,33 @@ spec:
         pathType: ImplementationSpecific
 ```
 
+#### Admission Control
+
+The [admissionControl](../reference/filters.md#admissioncontrol)
+filter is a dynamic circuit breaker that works based on HTTP error
+codes observed by backends. It will dynamically adjust the shedding of
+load to the maximum throughput possible.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    zalando.org/skipper-filter: admissionControl("myapp", "active", "1s", 5, 10, 0.95, 0.9, 0.5)
+  name: app
+spec:
+  rules:
+  - host: app-default.example.org
+    http:
+      paths:
+      - backend:
+          service:
+            name: app-svc
+            port:
+              number: 80
+        pathType: ImplementationSpecific
+```
+
 
 ### Ratelimits
 
@@ -665,9 +689,9 @@ side as described above.
 
 Ratelimits are enforced per route.
 
-More details you will find in [ratelimit
-package](https://godoc.org/github.com/zalando/skipper/filters/ratelimit)
-and in our [ratelimit tutorial](../tutorials/ratelimit.md).
+More details you will find in [rate limit
+filters](../reference/filters.md#rate-limit) section and in our
+[ratelimit tutorial](../tutorials/ratelimit.md).
 
 #### Client Ratelimits
 
@@ -705,7 +729,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-filter: clientRatelimit(20, "1h", "auth")
+    zalando.org/skipper-filter: clientRatelimit(20, "1h", "authorization")
   name: app
 spec:
   rules:
@@ -849,6 +873,7 @@ If you want to test a new replacement of a production service with
 production load, you can copy incoming requests to your new endpoint
 and ignore the responses from your new backend. This can be done by
 the [tee()](../reference/filters.md#tee) and [teenf()](../reference/filters.md#teenf) filters.
+See also our [shadow traffic tutorial](../tutorials.mdshadow-traffic.md).
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -936,16 +961,23 @@ spec:
         pathType: ImplementationSpecific
 ```
 
-### IP Whitelisting
+### IP Allow Listing
 
-This ingress route will only allow traffic from networks 1.2.3.0/24 and 195.168.0.0/17
+This ingress route will only allow traffic from networks 1.2.3.0/24
+and 195.168.0.0/17 Before you use this in production please understand
+your deployment and check the difference between the following
+options:
+
+- [ClientIP](../reference/predicates.md#clientip)
+- [Source](../reference/predicates.md#source)
+- [SourceFromLast](../reference/predicates.md#sourcefromlast)
 
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-    zalando.org/skipper-predicate: Source("1.2.3.0/24", "195.168.0.0/17")
+    zalando.org/skipper-predicate: ClientIP("1.2.3.0/24", "195.168.0.0/17")
   name: app
 spec:
   rules:
@@ -1113,7 +1145,7 @@ For more advanced blue-green deployments, check out our [stackset-controller](ht
 
 ## Chaining Filters and Predicates
 
-You can set multiple filters in a chain similar to the [eskip format](https://godoc.org/github.com/zalando/skipper/eskip).
+You can set multiple filters in a chain similar to the [eskip format](https://pkg.go.dev/github.com/zalando/skipper/eskip).
 
 ```yaml
 apiVersion: networking.k8s.io/v1
