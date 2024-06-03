@@ -11,6 +11,7 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/server"
+	"github.com/open-policy-agent/opa/topdown"
 	"github.com/opentracing/opentracing-go"
 )
 
@@ -36,6 +37,11 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	var input map[string]interface{}
 	defer func() {
 		stopeval()
+		if topdown.IsCancel(err) {
+			// If the evaluation was canceled, we don't want to log the decision.
+			return
+		}
+
 		err := opa.logDecision(ctx, input, result, err)
 		if err != nil {
 			opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to log decision to control plane.")

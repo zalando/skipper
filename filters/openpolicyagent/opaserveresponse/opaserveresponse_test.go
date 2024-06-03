@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"path"
 	"strings"
 	"testing"
 
@@ -38,7 +36,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow",
-			requestPath:     "allow",
+			requestPath:     "/allow",
 			expectedStatus:  http.StatusInternalServerError,
 			expectedBody:    "",
 			expectedHeaders: make(http.Header),
@@ -48,7 +46,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow",
-			requestPath:     "forbidden",
+			requestPath:     "/forbidden",
 			expectedStatus:  http.StatusForbidden,
 			expectedHeaders: make(http.Header),
 		},
@@ -57,7 +55,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/invalid_path",
-			requestPath:     "allow",
+			requestPath:     "/allow",
 			expectedStatus:  http.StatusInternalServerError,
 			expectedBody:    "",
 			expectedHeaders: make(http.Header),
@@ -67,7 +65,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
-			requestPath:     "allow/structured",
+			requestPath:     "/allow/structured",
 			expectedStatus:  http.StatusOK,
 			expectedBody:    "Welcome from policy!",
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
@@ -77,7 +75,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
-			requestPath:     "allow/production",
+			requestPath:     "/allow/production",
 			expectedStatus:  http.StatusOK,
 			expectedBody:    "Welcome to production evaluation!",
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
@@ -87,7 +85,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
-			requestPath:     "allow/test",
+			requestPath:     "/allow/test",
 			expectedStatus:  http.StatusForbidden,
 			expectedBody:    "Unauthorized Request",
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"no"}},
@@ -97,7 +95,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object_structured_body",
-			requestPath:     "allow/structured",
+			requestPath:     "/allow/structured",
 			expectedStatus:  http.StatusInternalServerError,
 			expectedBody:    "",
 			expectedHeaders: map[string][]string{},
@@ -107,7 +105,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:        "opaServeResponse",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_object_contextextensions",
-			requestPath:       "allow/structured",
+			requestPath:       "/allow/structured",
 			contextExtensions: "hello: world",
 			expectedStatus:    http.StatusOK,
 			expectedHeaders:   map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
@@ -118,12 +116,22 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:      "opaServeResponseWithReqBody",
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object_req_body",
-			requestPath:     "allow/allow_object_req_body",
+			requestPath:     "/allow/allow_object_req_body",
 			requestHeaders:  map[string][]string{"content-type": {"application/json"}},
 			body:            `{"hello":"world"}`,
 			expectedStatus:  http.StatusOK,
 			expectedBody:    `{"hello":"world"}`,
 			expectedHeaders: map[string][]string{},
+		},
+		{
+			msg:             "Invalid UTF-8 in Path",
+			filterName:      "opaServeResponse",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow",
+			requestPath:     "/allow/%c0%ae%c0%ae",
+			expectedStatus:  http.StatusBadRequest,
+			expectedBody:    "",
+			expectedHeaders: make(http.Header),
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -257,11 +265,8 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") -> <shunt>`, ti.filterName, ti.bundleName, ti.contextExtensions))
 
 			proxy := proxytest.New(fr, r...)
-			reqURL, err := url.Parse(proxy.URL)
-			assert.NoErrorf(t, err, "Failed to parse url %s: %v", proxy.URL, err)
 
-			reqURL.Path = path.Join(reqURL.Path, ti.requestPath)
-			req, err := http.NewRequest("GET", reqURL.String(), strings.NewReader(ti.body))
+			req, err := http.NewRequest("GET", proxy.URL+ti.requestPath, strings.NewReader(ti.body))
 			assert.NoError(t, err)
 			for name, values := range ti.requestHeaders {
 				for _, value := range values {
@@ -284,7 +289,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			defer rsp.Body.Close()
 			body, err := io.ReadAll(rsp.Body)
 			assert.NoError(t, err)
-			assert.Equal(t, ti.expectedBody, string(body), "HTTP Headers do not match")
+			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 		})
 	}
 }
