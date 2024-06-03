@@ -873,7 +873,7 @@ If you want to test a new replacement of a production service with
 production load, you can copy incoming requests to your new endpoint
 and ignore the responses from your new backend. This can be done by
 the [tee()](../reference/filters.md#tee) and [teenf()](../reference/filters.md#teenf) filters.
-See also our [shadow traffic tutorial](../tutorials.md#shadow-traffic).
+See also our [shadow traffic tutorial](../tutorials/shadow-traffic.md).
 
 ```yaml
 apiVersion: networking.k8s.io/v1
