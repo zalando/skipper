@@ -70,6 +70,7 @@ type Config struct {
 
 	// logging, metrics, profiling, tracing:
 	EnablePrometheusMetrics             bool      `yaml:"enable-prometheus-metrics"`
+	EnablePrometheusStartLabel          bool      `yaml:"enable-prometheus-start-label"`
 	OpenTracing                         string    `yaml:"opentracing"`
 	OpenTracingInitialSpan              string    `yaml:"opentracing-initial-span"`
 	OpenTracingExcludedProxyTags        string    `yaml:"opentracing-excluded-proxy-tags"`
@@ -378,6 +379,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.BlockProfileRate, "block-profile-rate", 0, "block profile sample rate, see runtime.SetBlockProfileRate")
 	flag.IntVar(&cfg.MutexProfileFraction, "mutex-profile-fraction", 0, "mutex profile fraction rate, see runtime.SetMutexProfileFraction")
 	flag.IntVar(&cfg.MemProfileRate, "memory-profile-rate", 0, "memory profile rate, see runtime.SetMemProfileRate, keeps default 512 kB")
+	flag.BoolVar(&cfg.EnablePrometheusStartLabel, "enable-prometheus-start-label", false, "adds start label to each prometheus counter with the value of counter creation timestamp as unix nanoseconds")
 	flag.BoolVar(&cfg.DebugGcMetrics, "debug-gc-metrics", false, "enables reporting of the Go garbage collector statistics exported in debug.GCStats")
 	flag.BoolVar(&cfg.RuntimeMetrics, "runtime-metrics", true, "enables reporting of the Go runtime statistics exported in runtime and specifically runtime.MemStats")
 	flag.BoolVar(&cfg.ServeRouteMetrics, "serve-route-metrics", false, "enables reporting total serve time metrics for each route")
@@ -734,6 +736,7 @@ func (c *Config) ToOptions() skipper.Options {
 
 		// logging, metrics, profiling, tracing:
 		EnablePrometheusMetrics:             c.EnablePrometheusMetrics,
+		EnablePrometheusStartLabel:          c.EnablePrometheusStartLabel,
 		OpenTracing:                         strings.Split(c.OpenTracing, " "),
 		OpenTracingInitialSpan:              c.OpenTracingInitialSpan,
 		OpenTracingExcludedProxyTags:        strings.Split(c.OpenTracingExcludedProxyTags, ","),

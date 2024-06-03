@@ -716,6 +716,10 @@ type Options struct {
 	// use the MetricsFlavours option.
 	EnablePrometheusMetrics bool
 
+	// EnablePrometheusStartLabel adds start label to each prometheus counter with the value of counter creation
+	// timestamp as unix nanoseconds.
+	EnablePrometheusStartLabel bool
+
 	// An instance of a Prometheus registry. It allows registering and serving custom metrics when skipper is used as a
 	// library.
 	// A new registry is created if this option is nil.
@@ -1514,6 +1518,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		HistogramBuckets:                   o.HistogramMetricBuckets,
 		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
 		PrometheusRegistry:                 o.PrometheusRegistry,
+		EnablePrometheusStartLabel:         o.EnablePrometheusStartLabel,
 	}
 
 	mtr := o.MetricsBackend
