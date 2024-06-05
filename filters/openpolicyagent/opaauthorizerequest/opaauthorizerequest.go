@@ -151,6 +151,7 @@ func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)
 		return
 	}
+	span.SetTag("opa.decision.allowed", allowed)
 	if !allowed {
 		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.deny"))
 		f.opa.ServeResponse(fc, span, result)
