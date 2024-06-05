@@ -14,8 +14,16 @@ pipeline:
   - desc: Vulnerability & capability check
     cmd: |
       make deps govulncheck capslock
+- id: dco
+  vm_config:
+    type: linux
+  type: script
+  commands:
+  - desc: DCO check
+    cmd: |
+      make dco
 - id: build
-  depends_on: []
+  depends_on: [dco]
   vm_config:
     type: linux
     image: "cdp-runtime/go"

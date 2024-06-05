@@ -183,3 +183,12 @@ cover: .coverprofile-all ## coverage test and show it in your browser
 .PHONY: show-cover
 show-cover: .coverprofile-all
 	go tool cover -html .coverprofile-all
+
+.PHONY: dco
+dco: ## check Developer Certificate of Origin (DCO, see http://developercertificate.org/)
+	@for commit in $$(git rev-list origin..HEAD) ; \
+	do \
+		git log --format='%b' -n 1 $$commit | \
+		grep -q "$$(git log --format='Signed-off-by: %an <%ae>' -n 1 $$commit)" \
+		|| { echo "DCO check failed for $$commit" ; exit 1; } ; \
+	done
