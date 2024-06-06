@@ -26,7 +26,7 @@ func (h *healthyEndpoints) filterHealthyEndpoints(ctx *context, endpoints []rout
 	for _, e := range endpoints {
 		dropProbability := e.Metrics.HealthCheckDropProbability()
 		if p < dropProbability {
-			ctx.Logger().Infof("Dropping endpoint %q due to passive health check: p=%0.2f, dropProbability=%0.2f",
+			ctx.Logger().Debugf("Dropping endpoint %q due to passive health check: p=%0.2f, dropProbability=%0.2f",
 				e.Host, p, dropProbability)
 			metrics.IncCounter("passive-health-check.endpoints.dropped")
 			unhealthyEndpointsCount++
