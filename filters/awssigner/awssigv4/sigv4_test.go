@@ -306,6 +306,86 @@ func TestSigV4(t *testing.T) {
 
 }
 
+func TestSigV4WithDisabledSessionToken(t *testing.T) {
+
+	tests := []struct {
+		accessKey           string
+		secret              string
+		session             string
+		timeOfSigning       string
+		expectedSignature   string
+		name                string
+		disableSessionToken bool
+	}{
+		{
+			accessKey:           "some-token",
+			secret:              "some-invalid-secret",
+			session:             "",
+			timeOfSigning:       "2012-11-01T22:08:41+00:00",
+			expectedSignature:   "",
+			disableSessionToken: false,
+			name:                "session_token_expected_but_not_supplied",
+		},
+		{
+			accessKey:           "AKID",
+			secret:              "SECRET",
+			session:             "",
+			timeOfSigning:       "1970-01-01T00:00:00Z",
+			expectedSignature:   "AWS4-HMAC-SHA256 Credential=AKID/19700101/us-east-1/dynamodb/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-date;x-amz-meta-other-header;x-amz-meta-other-header_with_underscore;x-amz-session;x-amz-target, Signature=70ec16babd243ae915f100d0b63d5a0da2ff63c31d8631f1048b0441ab26743a",
+			disableSessionToken: true,
+			name:                "session_token_not_expected_and_not_supplied", // x-amz-session header is treated as normal header and used to calculate signature
+		},
+		{
+			accessKey:           "AKID",
+			secret:              "SECRET",
+			session:             "SESSION",
+			timeOfSigning:       "1970-01-01T00:00:00Z",
+			expectedSignature:   "AWS4-HMAC-SHA256 Credential=AKID/19700101/us-east-1/dynamodb/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-date;x-amz-meta-other-header;x-amz-meta-other-header_with_underscore;x-amz-security-token;x-amz-target, Signature=a4366bfb9558097b242ac243bf0e099267cbb657362495b5031c509644b2c3e9",
+			disableSessionToken: false,
+			name:                "session_token_expected_and_supplied", // x-amz-session header is treated as session header and is removed after reading
+		},
+		{
+			accessKey:           "AKID",
+			secret:              "SECRET",
+			session:             "SESSION",
+			timeOfSigning:       "1970-01-01T00:00:00Z",
+			expectedSignature:   "AWS4-HMAC-SHA256 Credential=AKID/19700101/us-east-1/dynamodb/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-date;x-amz-meta-other-header;x-amz-meta-other-header_with_underscore;x-amz-session;x-amz-target, Signature=2ee2d824eaead96cdec798f87530ce5269b59679038945608cfedf2d3622ad86",
+			disableSessionToken: true,
+			name:                "session_token_not_expected_and_supplied", // x-amz-session header is treated as normal header and used to calculate signature
+		},
+	}
+	for _, test := range tests {
+		sigV4 := awsSigV4Filter{
+			region:                 "us-east-1",
+			service:                "dynamodb",
+			disableHeaderHoisting:  false,
+			disableURIPathEscaping: false,
+		}
+		sigV4.disableSessionToken = test.disableSessionToken
+		expectedSig := test.expectedSignature
+		headers := &http.Header{}
+		headers.Add("x-amz-accesskey", test.accessKey)
+		headers.Add("x-amz-secret", test.secret)
+		headers.Add("x-amz-session", test.session)
+		headers.Add("x-amz-time", test.timeOfSigning)
+
+		headers.Add("X-Amz-Target", "prefix.Operation")
+		headers.Add("Content-Type", "application/x-amz-json-1.0")
+		headers.Add("X-Amz-Meta-Other-Header", "some-value=!@#$%^&* (+)")
+		headers.Add("X-Amz-Meta-Other-Header_With_Underscore", "some-value=!@#$%^&* (+)")
+		headers.Add("X-Amz-Meta-Other-Header_With_Underscore", "some-value=!@#$%^&* (+)")
+		ctx := buildfilterContext(sigV4.service, sigV4.region, "POST", strings.NewReader("{}"), "", *headers)
+
+		sigV4.Request(ctx)
+
+		signature := ctx.Request().Header.Get(internal.AuthorizationHeader)
+		b, _ := io.ReadAll(ctx.Request().Body)
+		assert.Equal(t, string(b), "{}") // test that body remains intact
+		assert.Equal(t, expectedSig, signature, fmt.Sprintf("%s - test failed", test.name))
+	}
+
+}
+
 func buildfilterContext(serviceName string, region string, method string, body *strings.Reader, queryParams string, headers http.Header) filters.FilterContext {
 	endpoint := "https://" + serviceName + "." + region + ".amazonaws.com"
 

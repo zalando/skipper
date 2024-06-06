@@ -115,10 +115,12 @@ func (f *awsSigV4Filter) Request(ctx filters.FilterContext) {
 	if secretKey == "" {
 		return
 	}
-
-	sessionToken := getAndRemoveHeader(ctx, sessionHeader, req)
-	if sessionToken == "" && !f.disableSessionToken {
-		return
+	sessionToken := ""
+	if !f.disableSessionToken {
+		sessionToken = getAndRemoveHeader(ctx, sessionHeader, req)
+		if sessionToken == "" {
+			return
+		}
 	}
 
 	timeStr := getAndRemoveHeader(ctx, timeHeader, req)
@@ -147,7 +149,7 @@ func (f *awsSigV4Filter) Request(ctx filters.FilterContext) {
 	optfn := func(options *SignerOptions) {
 		options.DisableHeaderHoisting = f.disableHeaderHoisting
 		options.DisableSessionToken = f.disableSessionToken
-		options.DisableURIPathEscaping = f.disableSessionToken
+		options.DisableURIPathEscaping = f.disableURIPathEscaping
 		options.Ctx = ctx.Request().Context()
 	}
 	//modifies request inplace
@@ -161,8 +163,8 @@ func (f *awsSigV4Filter) Response(ctx filters.FilterContext) {}
 func hashRequest(ctx filters.FilterContext, body io.Reader) (string, io.Reader, error) {
 	h := sha256.New()
 	if body == nil {
-		body = strings.NewReader("{}") // as per specs https://github.com/aws/aws-sdk-go-v2/blob/main/aws/signer/v4/v4.go#L261
-		_, err := io.Copy(h, body)     // read body in-memory
+		body = strings.NewReader("") // as per specs https://github.com/aws/aws-sdk-go-v2/blob/main/aws/signer/v4/v4.go#L261
+		_, err := io.Copy(h, body)   // read body in-memory
 		if err != nil {
 
 			return "", nil, err
