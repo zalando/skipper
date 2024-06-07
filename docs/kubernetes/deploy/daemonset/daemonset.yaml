@@ -51,7 +51,6 @@ spec:
           - "-experimental-upgrade"
           - "-metrics-exp-decay-sample"
           - "-reverse-source-predicate"
-          - "-lb-healthcheck-interval=3s"
           - "-metrics-flavour=codahale,prometheus"
           - "-enable-connection-metrics"
           - "-max-audit-body=0"
