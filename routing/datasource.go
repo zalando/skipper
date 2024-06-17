@@ -548,17 +548,25 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		case defs := <-updatesRelay:
 			o.Log.Info("route settings received")
 
+			o.Log.Debug("routeMatcher: applying preProcessors")
 			for i := range o.PreProcessors {
+				o.Log.Debugf("routeMatcher: preProcessor %d", i)
 				defs = o.PreProcessors[i].Do(defs)
 			}
+			o.Log.Debug("routeMatcher: preProcessors applied")
 
 			routes, invalidRoutes := processRouteDefs(o, o.FilterRegistry, defs)
 
+			o.Log.Debug("routeMatcher: applying postProcessors")
 			for i := range o.PostProcessors {
+				o.Log.Debugf("routeMatcher: postProcessor %d", i)
 				routes = o.PostProcessors[i].Do(routes)
 			}
+			o.Log.Debug("routeMatcher: postProcessors applied")
 
+			o.Log.Debug("routeMatcher: create newMatcher")
 			m, errs := newMatcher(routes, o.MatchingOptions)
+			o.Log.Debug("routeMatcher: newMatcher created")
 
 			invalidRouteIds := make(map[string]struct{})
 			validRoutes := []*eskip.Route{}
@@ -566,14 +574,17 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			for _, err := range errs {
 				o.Log.Error(err)
 				invalidRouteIds[err.ID] = struct{}{}
+				o.Log.Debugf("routeMatcher: invalidRouteID %s", err.ID)
 			}
 
 			for i := range routes {
 				r := routes[i]
 				if _, found := invalidRouteIds[r.Id]; found {
 					invalidRoutes = append(invalidRoutes, &r.Route)
+					o.Log.Debugf("routeMatcher: invalidRoute %s dropped", r.Id)
 				} else {
 					validRoutes = append(validRoutes, &r.Route)
+					o.Log.Debugf("routeMatcher: validRoute %s added", r.Id)
 				}
 			}
 

@@ -345,7 +345,9 @@ func (r *Routing) startReceivingUpdates(o Options) {
 		for {
 			select {
 			case rt := <-c:
+				r.log.Debug("receiveUpdate: store new route table")
 				r.routeTable.Store(rt)
+				r.log.Debug("receiveUpdate: route table stored")
 				if !r.firstLoadSignaled {
 					dc--
 					if dc == 0 {
@@ -355,8 +357,10 @@ func (r *Routing) startReceivingUpdates(o Options) {
 				}
 				r.log.Info("route settings applied")
 				if r.metrics != nil { // existing codebases might not supply metrics instance
+					r.log.Debug("receiveUpdate: update metrics")
 					r.metrics.UpdateGauge("routes.total", float64(len(rt.validRoutes)))
 					r.metrics.UpdateGauge("routes.updated_timestamp", float64(rt.created.Unix()))
+					r.log.Debug("receiveUpdate: metrics updated")
 				}
 			case <-r.quit:
 				var rt *routeTable
