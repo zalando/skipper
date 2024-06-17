@@ -547,6 +547,8 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 	for id := 1; ; id++ {
 		select {
 		case defs := <-updatesRelay:
+			start := time.Now()
+
 			o.Log.Infof("route settings received, id: %d", id)
 
 			for i := range o.PreProcessors {
@@ -588,7 +590,7 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 				routes:        routes,
 				validRoutes:   validRoutes,
 				invalidRoutes: invalidRoutes,
-				created:       time.Now().UTC(),
+				created:       start,
 			}
 			updatesRelay = nil
 			outRelay = out
