@@ -511,6 +511,7 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (rout
 }
 
 type routeTable struct {
+	id            int
 	m             *matcher
 	once          sync.Once
 	routes        []*Route // only used for closing
@@ -543,10 +544,10 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		updatesRelay <-chan []*eskip.Route
 	)
 	updatesRelay = updates
-	for {
+	for id := 1; ; id++ {
 		select {
 		case defs := <-updatesRelay:
-			o.Log.Info("route settings received")
+			o.Log.Infof("route settings received, id: %d", id)
 
 			for i := range o.PreProcessors {
 				defs = o.PreProcessors[i].Do(defs)
@@ -582,6 +583,7 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			})
 
 			rt = &routeTable{
+				id:            id,
 				m:             m,
 				routes:        routes,
 				validRoutes:   validRoutes,
