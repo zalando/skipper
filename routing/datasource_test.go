@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
 	"github.com/zalando/skipper/routing"
@@ -56,10 +58,12 @@ func TestNoMultipleTreePredicates(t *testing.T) {
 			}
 
 			erred := false
+			o := &routing.Options{
+				FilterRegistry: make(filters.Registry),
+			}
 			pr := make(map[string]routing.PredicateSpec)
-			fr := make(filters.Registry)
 			for _, d := range defs {
-				if _, err := routing.ExportProcessRouteDef(pr, fr, d); err != nil {
+				if _, err := routing.ExportProcessRouteDef(o, pr, d); err != nil {
 					erred = true
 					break
 				}
@@ -119,8 +123,11 @@ func TestProcessRouteDefErrors(t *testing.T) {
 			}
 			fr := make(filters.Registry)
 			fr.Register(builtin.NewSetPath())
+			o := &routing.Options{
+				FilterRegistry: fr,
+			}
 			for _, d := range defs {
-				_, err := routing.ExportProcessRouteDef(pr, fr, d)
+				_, err := routing.ExportProcessRouteDef(o, pr, d)
 				if err == nil || err.Error() != ti.err {
 					t.Errorf("expected error '%s'. Got: '%s'", ti.err, err)
 				}
@@ -298,6 +305,41 @@ func TestLogging(t *testing.T) {
 	})
 }
 
+func TestMetrics(t *testing.T) {
+	t.Run("create filter latency", func(t *testing.T) {
+		client, err := testdataclient.NewDoc(`
+			r0: * -> slowCreate("100ms") -> slowCreate("200ms") -> slowCreate("100ms") -> <shunt>;
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+
+		metrics := &metricstest.MockMetrics{
+			Now: time.Now(),
+		}
+		fr := make(filters.Registry)
+		fr.Register(slowCreateSpec{})
+
+		r := routing.New(routing.Options{
+			DataClients:     []routing.DataClient{client},
+			FilterRegistry:  fr,
+			Metrics:         metrics,
+			SignalFirstLoad: true,
+		})
+		defer r.Close()
+		<-r.FirstLoad()
+
+		metrics.WithMeasures(func(m map[string][]time.Duration) {
+			assert.InEpsilonSlice(t, []time.Duration{
+				100 * time.Millisecond,
+				200 * time.Millisecond,
+				100 * time.Millisecond,
+			}, m["filter.slowCreate.create"], 0.1)
+		})
+	})
+}
+
 type weightedPredicateSpec struct {
 	name   string
 	weight int
@@ -319,3 +361,21 @@ func (w weightedPredicateSpec) Create([]interface{}) (routing.Predicate, error) 
 func (w weightedPredicateSpec) Weight() int {
 	return w.weight
 }
+
+type (
+	slowCreateSpec   struct{}
+	slowCreateFilter struct{}
+)
+
+func (s slowCreateSpec) Name() string { return "slowCreate" }
+
+func (s slowCreateSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	d, _ := time.ParseDuration(args[0].(string))
+
+	time.Sleep(d)
+
+	return slowCreateFilter{}, nil
+}
+
+func (s slowCreateFilter) Request(ctx filters.FilterContext) {}
+func (s slowCreateFilter) Response(filters.FilterContext)    {}

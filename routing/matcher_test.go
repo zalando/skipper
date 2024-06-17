@@ -101,7 +101,7 @@ func docToRoutes(doc string) ([]*Route, error) {
 	if err != nil {
 		return nil, err
 	}
-	routes, _ := processRouteDefs(Options{Predicates: []PredicateSpec{&truePredicate{}}}, nil, defs)
+	routes, _ := processRouteDefs(&Options{Predicates: []PredicateSpec{&truePredicate{}}}, defs)
 	return routes, nil
 }
 
@@ -193,7 +193,7 @@ func generateRoutes(paths []string) []*Route {
 		defs[i] = &eskip.Route{Id: fmt.Sprintf("route%d", i), Path: p, Backend: p}
 	}
 
-	routes, _ := processRouteDefs(Options{}, nil, defs)
+	routes, _ := processRouteDefs(&Options{}, defs)
 	return routes
 }
 

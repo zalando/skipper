@@ -62,6 +62,7 @@ type Metrics interface {
 	IncFloatCounterBy(key string, value float64)
 	// Additional methods
 	MeasureRouteLookup(start time.Time)
+	MeasureFilterCreate(filterName string, start time.Time)
 	MeasureFilterRequest(filterName string, start time.Time)
 	MeasureAllFiltersRequest(routeId string, start time.Time)
 	MeasureBackend(routeId string, start time.Time)
