@@ -353,7 +353,7 @@ func (r *Routing) startReceivingUpdates(o Options) {
 						r.firstLoadSignaled = true
 					}
 				}
-				r.log.Info("route settings applied")
+				r.log.Infof("route settings applied, id: %d", rt.id)
 				if r.metrics != nil { // existing codebases might not supply metrics instance
 					r.metrics.UpdateGauge("routes.total", float64(len(rt.validRoutes)))
 					r.metrics.UpdateGauge("routes.updated_timestamp", float64(rt.created.Unix()))
