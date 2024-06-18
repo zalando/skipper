@@ -345,13 +345,50 @@ type Route struct {
 
 	// LBEndpoints stores one or more backend endpoint in case of
 	// load balancing backends.
-	LBEndpoints []string
+	LBEndpoints []*LBEndpoint
 
 	// Name is deprecated and not used.
 	Name string
 
 	// Namespace is deprecated and not used.
 	Namespace string
+}
+
+func NewLBEndpoints(eps []string) []*LBEndpoint {
+	if len(eps) == 0 {
+		return nil
+	}
+	result := make([]*LBEndpoint, len(eps))
+
+	for i := 0; i < len(eps); i++ {
+		result[i] = &LBEndpoint{
+			Address: eps[i],
+		}
+	}
+
+	return result
+}
+
+func LBEndpointString(eps []*LBEndpoint) []string {
+	if len(eps) == 0 {
+		return nil
+	}
+	result := make([]string, len(eps))
+
+	for i := 0; i < len(eps); i++ {
+		result[i] = eps[i].String()
+	}
+
+	return result
+}
+
+type LBEndpoint struct {
+	Address string
+	Zone    string
+}
+
+func (ep LBEndpoint) String() string {
+	return ep.Address
 }
 
 type RoutePredicate func(*Route) bool
@@ -424,7 +461,7 @@ func (r *Route) Copy() *Route {
 	}
 
 	if len(r.LBEndpoints) > 0 {
-		c.LBEndpoints = make([]string, len(r.LBEndpoints))
+		c.LBEndpoints = make([]*LBEndpoint, len(r.LBEndpoints))
 		copy(c.LBEndpoints, r.LBEndpoints)
 	}
 
@@ -595,7 +632,7 @@ func newRouteDefinition(r *parsedRoute) (*Route, error) {
 	rd.Shunt = r.shunt
 	rd.Backend = r.backend
 	rd.LBAlgorithm = r.lbAlgorithm
-	rd.LBEndpoints = r.lbEndpoints
+	rd.LBEndpoints = NewLBEndpoints(r.lbEndpoints)
 
 	switch {
 	case r.shunt:

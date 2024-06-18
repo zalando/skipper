@@ -88,7 +88,7 @@ func TestMarshalUnmarshalJSON(t *testing.T) {
 		},
 		{
 			"lb backend",
-			[]*Route{{Id: "beef", BackendType: LBBackend, LBAlgorithm: "yolo", LBEndpoints: []string{"localhost"}}},
+			[]*Route{{Id: "beef", BackendType: LBBackend, LBAlgorithm: "yolo", LBEndpoints: []*LBEndpoint{{Address: "localhost"}}}},
 			`[{"id":"beef","backend":{"type":"lb","algorithm":"yolo","endpoints":["localhost"]}}]`,
 		},
 		{

@@ -162,7 +162,7 @@ func (b *fadeInBackend) route() *eskip.Route {
 	}
 
 	for _, i := range b.instances {
-		r.LBEndpoints = append(r.LBEndpoints, i.server.URL)
+		r.LBEndpoints = append(r.LBEndpoints, &eskip.LBEndpoint{Address: i.server.URL})
 		if !i.created.IsZero() {
 			r.Filters = append(r.Filters, &eskip.Filter{
 				Name: filters.EndpointCreatedName,

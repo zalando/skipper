@@ -35,7 +35,7 @@ func TestSelectAlgorithm(t *testing.T) {
 		r := &routing.Route{
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
-				LBEndpoints: []string{"https://www.example.org"},
+				LBEndpoints: []*eskip.LBEndpoint{{Address: "https://www.example.org"}},
 			},
 		}
 
@@ -65,7 +65,7 @@ func TestSelectAlgorithm(t *testing.T) {
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
 				LBAlgorithm: "roundRobin",
-				LBEndpoints: []string{"https://www.example.org"},
+				LBEndpoints: []*eskip.LBEndpoint{{Address: "https://www.example.org"}},
 			},
 		}
 
@@ -95,7 +95,7 @@ func TestSelectAlgorithm(t *testing.T) {
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
 				LBAlgorithm: "consistentHash",
-				LBEndpoints: []string{"https://www.example.org"},
+				LBEndpoints: []*eskip.LBEndpoint{{Address: "https://www.example.org"}},
 			},
 		}
 
@@ -125,7 +125,7 @@ func TestSelectAlgorithm(t *testing.T) {
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
 				LBAlgorithm: "random",
-				LBEndpoints: []string{"https://www.example.org"},
+				LBEndpoints: []*eskip.LBEndpoint{{Address: "https://www.example.org"}},
 			},
 		}
 
@@ -155,7 +155,7 @@ func TestSelectAlgorithm(t *testing.T) {
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
 				LBAlgorithm: "powerOfRandomNChoices",
-				LBEndpoints: []string{"https://www.example.org"},
+				LBEndpoints: []*eskip.LBEndpoint{{Address: "https://www.example.org"}},
 			},
 		}
 
@@ -183,7 +183,7 @@ func TestSelectAlgorithm(t *testing.T) {
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
 				LBAlgorithm: "fooBar",
-				LBEndpoints: []string{"https://www.example.org"},
+				LBEndpoints: []*eskip.LBEndpoint{{Address: "https://www.example.org"}},
 			},
 		}
 
@@ -214,13 +214,13 @@ func TestSelectAlgorithm(t *testing.T) {
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
 				LBAlgorithm: "roundRobin",
-				LBEndpoints: []string{"://www.example.org"},
+				LBEndpoints: []*eskip.LBEndpoint{{Address: "://www.example.org"}},
 			},
 		}
 
 		rr := p.Do([]*routing.Route{r})
 		if len(rr) != 0 {
-			t.Fatal("failed to drop invalid LB route")
+			t.Fatalf("failed to drop invalid LB route: %s", rr[0].String())
 		}
 	})
 }
@@ -270,7 +270,7 @@ func TestApply(t *testing.T) {
 				Route: eskip.Route{
 					BackendType: eskip.LBBackend,
 					LBAlgorithm: tt.algorithmName,
-					LBEndpoints: eps,
+					LBEndpoints: eskip.NewLBEndpoints(eps),
 				},
 			}
 			rt := p.Do([]*routing.Route{r})
@@ -304,7 +304,7 @@ func TestConsistentHashSearch(t *testing.T) {
 			Route: eskip.Route{
 				BackendType: eskip.LBBackend,
 				LBAlgorithm: ConsistentHash.String(),
-				LBEndpoints: endpoints,
+				LBEndpoints: eskip.NewLBEndpoints(endpoints),
 			},
 		}
 		p.Do([]*routing.Route{r})
@@ -344,7 +344,7 @@ func TestConsistentHashBoundedLoadSearch(t *testing.T) {
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,
 			LBAlgorithm: ConsistentHash.String(),
-			LBEndpoints: endpoints,
+			LBEndpoints: eskip.NewLBEndpoints(endpoints),
 		},
 	}})[0]
 
@@ -397,7 +397,7 @@ func TestConsistentHashKey(t *testing.T) {
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,
 			LBAlgorithm: ConsistentHash.String(),
-			LBEndpoints: endpoints,
+			LBEndpoints: eskip.NewLBEndpoints(endpoints),
 		},
 	}})[0]
 
@@ -424,7 +424,7 @@ func TestConsistentHashBoundedLoadDistribution(t *testing.T) {
 		Route: eskip.Route{
 			BackendType: eskip.LBBackend,
 			LBAlgorithm: ConsistentHash.String(),
-			LBEndpoints: endpoints,
+			LBEndpoints: eskip.NewLBEndpoints(endpoints),
 		},
 	}})[0]
 

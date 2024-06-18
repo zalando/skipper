@@ -65,7 +65,7 @@ func Copy(r *Route) *Route {
 	c.BackendType = r.BackendType
 	c.Backend = r.Backend
 	c.LBAlgorithm = r.LBAlgorithm
-	c.LBEndpoints = make([]string, len(r.LBEndpoints))
+	c.LBEndpoints = make([]*LBEndpoint, len(r.LBEndpoints))
 	copy(c.LBEndpoints, r.LBEndpoints)
 	return c
 }
