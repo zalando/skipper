@@ -70,7 +70,7 @@ func initializeEndpoints(endpointAges []float64, algorithmName string, fadeInDur
 	registry := routing.NewEndpointRegistry(routing.RegistryOptions{})
 	eskipRoute := eskip.Route{BackendType: eskip.LBBackend, LBAlgorithm: algorithmName}
 	for i := range eps {
-		eskipRoute.LBEndpoints = append(eskipRoute.LBEndpoints, eps[i])
+		eskipRoute.LBEndpoints = append(eskipRoute.LBEndpoints, &eskip.LBEndpoint{Address: eps[i]})
 		registry.GetMetrics(eps[i]).SetDetected(detectionTimes[i])
 	}
 
