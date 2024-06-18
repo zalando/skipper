@@ -99,14 +99,14 @@ func TestEq(t *testing.T) {
 	}, {
 		title: "non-eq lb endpoint count",
 		routes: []*Route{
-			{BackendType: LBBackend, LBEndpoints: []string{"", ""}},
-			{BackendType: LBBackend, LBEndpoints: []string{""}},
+			{BackendType: LBBackend, LBEndpoints: []*LBEndpoint{{Address: "https://one.example.org"}, {Address: "https://one.example.org"}}},
+			{BackendType: LBBackend, LBEndpoints: []*LBEndpoint{{Address: "https://one.example.org"}}},
 		},
 	}, {
 		title: "non-eq lb endpoints",
 		routes: []*Route{
-			{BackendType: LBBackend, LBEndpoints: []string{"https://one.example.org"}},
-			{BackendType: LBBackend, LBEndpoints: []string{"https://two.example.org"}},
+			{BackendType: LBBackend, LBEndpoints: []*LBEndpoint{{Address: "https://one.example.org"}}},
+			{BackendType: LBBackend, LBEndpoints: []*LBEndpoint{{Address: "https://two.example.org"}}},
 		},
 	}, {
 		title: "all eq",
@@ -116,14 +116,14 @@ func TestEq(t *testing.T) {
 			Filters:     []*Filter{{Name: "foo", Args: []interface{}{3, 4}}},
 			BackendType: LBBackend,
 			LBAlgorithm: "random",
-			LBEndpoints: []string{"https://one.example.org", "https://two.example.org"},
+			LBEndpoints: []*LBEndpoint{{Address: "https://one.example.org"}, {Address: "https://two.example.org"}},
 		}, {
 			Id:          "foo",
 			Predicates:  []*Predicate{{Name: "Foo", Args: []interface{}{1, 2}}},
 			Filters:     []*Filter{{Name: "foo", Args: []interface{}{3, 4}}},
 			BackendType: LBBackend,
 			LBAlgorithm: "random",
-			LBEndpoints: []string{"https://one.example.org", "https://two.example.org"},
+			LBEndpoints: []*LBEndpoint{{Address: "https://one.example.org"}, {Address: "https://two.example.org"}},
 		}},
 		expect: true,
 	}, {
@@ -282,7 +282,7 @@ func TestCanonical(t *testing.T) {
 		expect: &Route{BackendType: NetworkBackend, Backend: "https://www.example.org"},
 	}, {
 		title:  "clear LB when different type",
-		route:  &Route{LBEndpoints: []string{"https://one.example.org", "https://two.example.org"}},
+		route:  &Route{LBEndpoints: []*LBEndpoint{{Address: "https://one.example.org"}, {Address: "https://two.example.org"}}},
 		expect: &Route{},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
