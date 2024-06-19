@@ -21,6 +21,7 @@ import (
 	"github.com/open-policy-agent/opa/config"
 	"github.com/open-policy-agent/opa/logging"
 	"github.com/open-policy-agent/opa/plugins"
+	"github.com/open-policy-agent/opa/plugins/bundle"
 	"github.com/open-policy-agent/opa/plugins/discovery"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/runtime"
@@ -480,25 +481,50 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 // Start asynchronously starts the policy engine's plugins that download
 // policies, report status, etc.
 func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Duration) error {
-	err := opa.manager.Start(ctx)
+	discoveryPlugin := discovery.Lookup(opa.manager)
+	bundlePlugin := bundle.Lookup(opa.manager)
 
+	done := make(chan struct{})
+	defer close(done)
+	failed := make(chan error)
+	defer close(failed)
+
+	discoveryPlugin.RegisterListener("startuplistener", func(status bundle.Status) {
+		if len(status.Errors) > 0 {
+			failed <- fmt.Errorf("discovery download failed: %w", errors.Join(status.Errors...))
+		}
+	})
+
+	bundlePlugin.Register("startuplistener", func(status bundle.Status) {
+		if len(status.Errors) > 0 {
+			failed <- fmt.Errorf("bundle activation failed: %w", errors.Join(status.Errors...))
+		}
+	})
+	defer bundlePlugin.Unregister("startuplistener")
+
+	opa.manager.RegisterPluginStatusListener("startuplistener", func(status map[string]*plugins.Status) {
+		for _, pluginstatus := range status {
+			if pluginstatus != nil && pluginstatus.State != plugins.StateOK {
+				return
+			}
+		}
+		close(done)
+	})
+	defer opa.manager.UnregisterPluginStatusListener("startuplistener")
+
+	err := opa.manager.Start(ctx)
 	if err != nil {
 		return err
 	}
 
-	// check readiness of all plugins
-	pluginsReady := func() bool {
-		for _, status := range opa.manager.PluginStatus() {
-			if status != nil && status.State != plugins.StateOK {
-				return false
-			}
-		}
-		return true
-	}
+	select {
+	case <-done:
+		return nil
+	case err := <-failed:
+		opa.Close(ctx)
 
-	err = waitFunc(ctx, pluginsReady, 100*time.Millisecond)
-
-	if err != nil {
+		return err
+	case <-ctx.Done():
 		for pluginName, status := range opa.manager.PluginStatus() {
 			if status != nil && status.State != plugins.StateOK {
 				opa.Logger().WithFields(map[string]interface{}{
@@ -511,7 +537,6 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 		opa.Close(ctx)
 		return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, err)
 	}
-	return nil
 }
 
 func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
