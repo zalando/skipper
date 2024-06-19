@@ -151,6 +151,7 @@ type proxyMetricTest struct {
 var proxyMetricsTests = []proxyMetricTest{
 	// T1 - Measure routing
 	{KeyRouteLookup, func(m Metrics) { m.MeasureRouteLookup(time.Now()) }},
+	{fmt.Sprintf(KeyFilterCreate, "afilter"), func(m Metrics) { m.MeasureFilterCreate("afilter", time.Now()) }},
 	// T2 - Measure filter request
 	{fmt.Sprintf(KeyFilterRequest, "foo"), func(m Metrics) { m.MeasureFilterRequest("foo", time.Now()) }},
 	// T3 - Measure all filters request

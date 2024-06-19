@@ -14,6 +14,7 @@ import (
 const (
 	KeyRouteLookup                = "routelookup"
 	KeyRouteFailure               = "routefailure"
+	KeyFilterCreate               = "filter.%s.create"
 	KeyFilterRequest              = "filter.%s.request"
 	KeyFiltersRequest             = "allfilters.request.%s"
 	KeyAllFiltersRequestCombined  = "allfilters.combined.request"
@@ -129,6 +130,10 @@ func (c *CodaHale) measureSince(key string, start time.Time) {
 
 func (c *CodaHale) MeasureRouteLookup(start time.Time) {
 	c.measureSince(KeyRouteLookup, start)
+}
+
+func (c *CodaHale) MeasureFilterCreate(filterName string, start time.Time) {
+	c.measureSince(fmt.Sprintf(KeyFilterCreate, filterName), start)
 }
 
 func (c *CodaHale) MeasureFilterRequest(filterName string, start time.Time) {

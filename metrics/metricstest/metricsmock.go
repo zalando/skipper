@@ -1,6 +1,7 @@
 package metricstest
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -110,6 +111,13 @@ func (m *MockMetrics) IncFloatCounterBy(key string, value float64) {
 
 func (m *MockMetrics) MeasureRouteLookup(start time.Time) {
 	// implement me
+}
+
+func (m *MockMetrics) MeasureFilterCreate(filterName string, start time.Time) {
+	key := fmt.Sprintf("%sfilter.%s.create", m.Prefix, filterName)
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[key] = append(m.measures[key], time.Since(start))
+	})
 }
 
 func (m *MockMetrics) MeasureFilterRequest(filterName string, start time.Time) {
