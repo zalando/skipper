@@ -10,6 +10,7 @@ import (
 	"github.com/open-policy-agent/opa/plugins"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
@@ -43,6 +44,7 @@ func TestTracingFactory(t *testing.T) {
 			},
 			tracer:     nil,
 			parentSpan: tracer.StartSpan("open-policy-agent"),
+			resp:       &http.Response{StatusCode: http.StatusOK},
 		},
 		{
 			name: "Sub-span created with parent span without tracer set",
@@ -54,6 +56,7 @@ func TestTracingFactory(t *testing.T) {
 			},
 			tracer:     tracer,
 			parentSpan: tracer.StartSpan("open-policy-agent"),
+			resp:       &http.Response{StatusCode: http.StatusOK},
 		},
 		{
 			name: "Sub-span created without parent span",
@@ -64,6 +67,7 @@ func TestTracingFactory(t *testing.T) {
 				URL:    &url.URL{Path: "/test", Scheme: "http", Host: "example.com"},
 			},
 			tracer: tracer,
+			resp:   &http.Response{StatusCode: http.StatusOK},
 		},
 		{
 			name: "Span contains error information",
@@ -75,6 +79,17 @@ func TestTracingFactory(t *testing.T) {
 			},
 			tracer:  tracer,
 			resperr: assert.AnError,
+		},
+		{
+			name: "Response has a 4xx response",
+			req: &http.Request{
+				Header: map[string][]string{},
+				Method: "GET",
+				Host:   "example.com",
+				URL:    &url.URL{Path: "/test", Scheme: "http", Host: "example.com"},
+			},
+			tracer: tracer,
+			resp:   &http.Response{StatusCode: http.StatusUnauthorized},
 		},
 	}
 
@@ -105,6 +120,11 @@ func TestTracingFactory(t *testing.T) {
 
 			if tc.resperr == nil {
 				assert.NoError(t, err)
+				if tc.resp.StatusCode > 399 {
+					assert.Equal(t, true, createdSpan.Tags["error"], "Error tag was not set")
+				}
+
+				assert.Equal(t, tc.resp.StatusCode, createdSpan.Tags[proxy.HTTPStatusCodeTag], "http status tag was not set")
 			} else {
 				assert.Equal(t, true, createdSpan.Tags["error"], "Error tag was not set")
 				assert.Equal(t, tc.resperr, err, "Error was not propagated")

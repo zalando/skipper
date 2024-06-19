@@ -89,21 +89,32 @@ func (tr *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		span = tr.tracer.StartSpan(spanNameHttpOut, spanOpts...)
 	}
 
-	if span != nil {
-		defer span.Finish()
-
-		setSpanTags(span, tr.bundleName, tr.manager)
-		req = req.WithContext(opentracing.ContextWithSpan(ctx, span))
-
-		carrier := opentracing.HTTPHeadersCarrier(req.Header)
-		span.Tracer().Inject(span.Context(), opentracing.HTTPHeaders, carrier)
+	if span == nil {
+		return tr.wrapped.RoundTrip(req)
 	}
+
+	defer span.Finish()
+
+	setSpanTags(span, tr.bundleName, tr.manager)
+	req = req.WithContext(opentracing.ContextWithSpan(ctx, span))
+
+	carrier := opentracing.HTTPHeadersCarrier(req.Header)
+	span.Tracer().Inject(span.Context(), opentracing.HTTPHeaders, carrier)
 
 	resp, err := tr.wrapped.RoundTrip(req)
-	if err != nil && span != nil {
+
+	if err != nil {
 		span.SetTag("error", true)
 		span.LogKV("event", "error", "message", err.Error())
+		return resp, err
 	}
 
-	return resp, err
+	span.SetTag(proxy.HTTPStatusCodeTag, resp.StatusCode)
+
+	if resp.StatusCode > 399 {
+		span.SetTag("error", true)
+		span.LogKV("event", "error", "message", resp.Status)
+	}
+
+	return resp, nil
 }
