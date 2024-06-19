@@ -30,6 +30,7 @@ type Prometheus struct {
 	routeLookupM               *prometheus.HistogramVec
 	routeErrorsM               *prometheus.CounterVec
 	responseM                  *prometheus.HistogramVec
+	filterCreateM              *prometheus.HistogramVec
 	filterRequestM             *prometheus.HistogramVec
 	filterAllRequestM          *prometheus.HistogramVec
 	filterAllCombinedRequestM  *prometheus.HistogramVec
@@ -85,6 +86,14 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "Duration in seconds of a response.",
 		Buckets:   opts.HistogramBuckets,
 	}, []string{"code", "method", "route"})
+
+	filterCreate := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promFilterSubsystem,
+		Name:      "create_duration_seconds",
+		Help:      "Duration in seconds of filter creation.",
+		Buckets:   opts.HistogramBuckets,
+	}, []string{"filter"})
 
 	filterRequest := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -229,6 +238,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		routeLookupM:               routeLookup,
 		routeErrorsM:               routeErrors,
 		responseM:                  response,
+		filterCreateM:              filterCreate,
 		filterRequestM:             filterRequest,
 		filterAllRequestM:          filterAllRequest,
 		filterAllCombinedRequestM:  filterAllCombinedRequest,
@@ -350,6 +360,11 @@ func (p *Prometheus) UpdateGauge(key string, v float64) {
 func (p *Prometheus) MeasureRouteLookup(start time.Time) {
 	t := p.sinceS(start)
 	p.routeLookupM.WithLabelValues().Observe(t)
+}
+
+func (p *Prometheus) MeasureFilterCreate(filterName string, start time.Time) {
+	t := p.sinceS(start)
+	p.filterCreateM.WithLabelValues(filterName).Observe(t)
 }
 
 // MeasureFilterRequest satisfies Metrics interface.
