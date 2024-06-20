@@ -67,7 +67,6 @@ spec:
           - "-experimental-upgrade"
           - "-metrics-exp-decay-sample"
           - "-reverse-source-predicate"
-          - "-lb-healthcheck-interval=3s"
           - "-metrics-flavour=prometheus"
           - "-enable-connection-metrics"
           - "-enable-route-lifo-metrics"

@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -154,8 +155,17 @@ type PassiveHealthCheck struct {
 	// potentially opt out the endpoint from the list of healthy endpoints
 	MinRequests int64
 
+	// The minimal ratio of failed requests in a single period to potentially opt out the endpoint
+	// from the list of healthy endpoints. This ratio is equal to the minimal non-zero probability of
+	// dropping endpoint out from load balancing for every specific request
+	MinDropProbability float64
+
 	// The maximum probability of unhealthy endpoint to be dropped out from load balancing for every specific request
 	MaxDropProbability float64
+
+	// MaxUnhealthyEndpointsRatio is the maximum ratio of unhealthy endpoints in the list of all endpoints PHC will check
+	// in case of all endpoints are unhealthy
+	MaxUnhealthyEndpointsRatio float64
 }
 
 func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, error) {
@@ -163,11 +173,20 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 		return false, &PassiveHealthCheck{}, nil
 	}
 
-	result := &PassiveHealthCheck{}
-	keysInitialized := make(map[string]struct{})
+	result := &PassiveHealthCheck{
+		MinDropProbability:         0.0,
+		MaxUnhealthyEndpointsRatio: 1.0,
+	}
+	requiredParams := map[string]struct{}{
+		"period":               {},
+		"max-drop-probability": {},
+		"min-requests":         {},
+	}
 
 	for key, value := range o {
+		delete(requiredParams, key)
 		switch key {
+		/* required parameters */
 		case "period":
 			period, err := time.ParseDuration(value)
 			if err != nil {
@@ -195,15 +214,36 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 				return false, nil, fmt.Errorf("passive health check: invalid maxDropProbability value: %s", value)
 			}
 			result.MaxDropProbability = maxDropProbability
+
+		/* optional parameters */
+		case "min-drop-probability":
+			minDropProbability, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+			}
+			if minDropProbability < 0 || minDropProbability > 1 {
+				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+			}
+			result.MinDropProbability = minDropProbability
+		case "max-unhealthy-endpoints-ratio":
+			maxUnhealthyEndpointsRatio, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return false, nil, fmt.Errorf("passive health check: invalid maxUnhealthyEndpointsRatio value: %q", value)
+			}
+			if maxUnhealthyEndpointsRatio < 0 || maxUnhealthyEndpointsRatio > 1 {
+				return false, nil, fmt.Errorf("passive health check: invalid maxUnhealthyEndpointsRatio value: %q", value)
+			}
+			result.MaxUnhealthyEndpointsRatio = maxUnhealthyEndpointsRatio
 		default:
 			return false, nil, fmt.Errorf("passive health check: invalid parameter: key=%s,value=%s", key, value)
 		}
-
-		keysInitialized[key] = struct{}{}
 	}
 
-	if len(keysInitialized) != 3 {
-		return false, nil, fmt.Errorf("passive health check: missing required parameters")
+	if len(requiredParams) != 0 {
+		return false, nil, fmt.Errorf("passive health check: missing required parameters %+v", maps.Keys(requiredParams))
+	}
+	if result.MinDropProbability >= result.MaxDropProbability {
+		return false, nil, fmt.Errorf("passive health check: minDropProbability should be less than maxDropProbability")
 	}
 	return true, result, nil
 }
@@ -800,8 +840,9 @@ func WithParams(p Params) *Proxy {
 	var healthyEndpointsChooser *healthyEndpoints
 	if p.EnablePassiveHealthCheck {
 		healthyEndpointsChooser = &healthyEndpoints{
-			rnd:              rand.New(loadbalancer.NewLockedSource()),
-			endpointRegistry: p.EndpointRegistry,
+			rnd:                        rand.New(loadbalancer.NewLockedSource()),
+			endpointRegistry:           p.EndpointRegistry,
+			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
 	return &Proxy{

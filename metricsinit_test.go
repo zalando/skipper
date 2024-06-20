@@ -57,6 +57,7 @@ func TestInitOrderAndDefault(t *testing.T) {
 				"period":               "1m",
 				"min-requests":         "10",
 				"max-drop-probability": "0.9",
+				"min-drop-probability": "0.05",
 			},
 		}
 

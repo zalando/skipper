@@ -4,10 +4,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/metrics"
 )
 
@@ -1052,4 +1056,62 @@ func TestPrometheusMetrics(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrometheusMetricsStartTimestamp(t *testing.T) {
+	pm := metrics.NewPrometheus(metrics.Options{
+		EnablePrometheusStartLabel: true,
+		EnableServeHostCounter:     true,
+	})
+	path := "/awesome-metrics"
+
+	mux := http.NewServeMux()
+	pm.RegisterHandler(path, mux)
+
+	before := time.Now()
+
+	pm.MeasureServe("route1", "foo.test", "GET", 200, time.Now().Add(-15*time.Millisecond))
+	pm.MeasureServe("route1", "bar.test", "POST", 201, time.Now().Add(-15*time.Millisecond))
+	pm.MeasureServe("route1", "bar.test", "POST", 201, time.Now().Add(-15*time.Millisecond))
+	pm.IncRoutingFailures()
+	pm.IncRoutingFailures()
+	pm.IncRoutingFailures()
+
+	after := time.Now()
+
+	req := httptest.NewRequest("GET", path, nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	resp := w.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	t.Logf("Metrics response:\n%s", body)
+
+	// Prometheus client does not allow to mock counter creation timestamps,
+	// see https://github.com/prometheus/client_golang/issues/1354
+	//
+	// checkMetric tests that timestamp is within [before, after] range.
+	checkMetric := func(pattern string) {
+		t.Helper()
+
+		re := regexp.MustCompile(pattern)
+
+		matches := re.FindSubmatch(body)
+		require.NotNil(t, matches, "Metrics response does not match: %s", pattern)
+		require.Len(t, matches, 2)
+
+		ts, err := strconv.ParseInt(string(matches[1]), 10, 64)
+		require.NoError(t, err)
+
+		assert.GreaterOrEqual(t, ts, before.UnixNano())
+		assert.LessOrEqual(t, ts, after.UnixNano())
+	}
+
+	checkMetric(`skipper_serve_host_count{code="200",host="foo_test",method="GET",start="(\d+)"} 1`)
+	checkMetric(`skipper_serve_host_count{code="201",host="bar_test",method="POST",start="(\d+)"} 2`)
+	checkMetric(`skipper_route_error_total{start="(\d+)"} 3`)
 }

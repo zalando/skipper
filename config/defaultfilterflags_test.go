@@ -5,85 +5,154 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 )
 
-func Test_defaultFiltersFlags_String(t *testing.T) {
+func TestDefaultFiltersFlagsSet(t *testing.T) {
+	oneFilter := eskip.MustParseFilters(`tee("https://www.zalando.de/")`)
+	manyFilters := eskip.MustParseFilters(`ratelimit(5, "10s") -> tee("https://www.zalando.de/")`)
+	manyMoreFilters := eskip.MustParseFilters(`ratelimit(5, "10s") -> tee("https://www.zalando.de/") -> inlineContent("OK\n")`)
+
 	tests := []struct {
-		name    string
-		filters []*eskip.Filter
-		want    string
+		name       string
+		args       []string
+		yaml       string
+		want       []*eskip.Filter
+		wantString string
 	}{
 		{
-			name:    "test string",
-			filters: []*eskip.Filter{},
-			want:    "<default filters>",
+			name:       "test no filter",
+			args:       nil,
+			want:       nil,
+			wantString: "",
+		},
+		{
+			name:       "test empty filter",
+			args:       []string{""},
+			yaml:       "",
+			want:       nil,
+			wantString: "",
+		},
+		{
+			name:       "test one filter",
+			args:       []string{`tee("https://www.zalando.de/")`},
+			yaml:       `field: tee("https://www.zalando.de/")`,
+			want:       oneFilter,
+			wantString: `tee("https://www.zalando.de/")`,
+		},
+		{
+			name:       "test many filters in one value",
+			args:       []string{`ratelimit(5, "10s") -> tee("https://www.zalando.de/")`},
+			yaml:       `field: ratelimit(5, "10s") -> tee("https://www.zalando.de/")`,
+			want:       manyFilters,
+			wantString: `ratelimit(5, "10s") -> tee("https://www.zalando.de/")`,
+		},
+		{
+			name: "test multiple values",
+			args: []string{`ratelimit(5, "10s") -> tee("https://www.zalando.de/")`, `inlineContent("OK\n")`},
+			yaml: `
+field:
+  - ratelimit(5, "10s") -> tee("https://www.zalando.de/")
+  - inlineContent("OK\n")
+`,
+			want:       manyMoreFilters,
+			wantString: `ratelimit(5, "10s") -> tee("https://www.zalando.de/") -> inlineContent("OK\n")`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dpf := &defaultFiltersFlags{
-				filters: tt.filters,
+			cfg := struct {
+				Field *defaultFiltersFlags
+			}{
+				Field: &defaultFiltersFlags{},
 			}
-			if got := dpf.String(); got != tt.want {
-				t.Errorf("defaultFiltersFlags.String() = %v, want %v", got, tt.want)
+
+			var err error
+			for _, arg := range tt.args {
+				err = cfg.Field.Set(arg)
+				if err != nil {
+					break
+				}
+			}
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantString, cfg.Field.String())
+			assert.Equal(t, tt.want, cfg.Field.filters)
+
+			if tt.yaml != "" {
+				err := yaml.Unmarshal([]byte(tt.yaml), &cfg)
+				require.NoError(t, err)
+
+				assert.Equal(t, tt.want, cfg.Field.filters)
 			}
 		})
 	}
 }
 
-func Test_defaultFiltersFlags_Set(t *testing.T) {
-	oneFilter, _ := eskip.ParseFilters(`tee("https://www.zalando.de/")`)
-	manyFilters, _ := eskip.ParseFilters(`ratelimit(5, "10s") -> tee("https://www.zalando.de/")`)
+func TestDefaultFiltersFlagsInvalidFlag(t *testing.T) {
 	tests := []struct {
-		name    string
-		args    string
-		want    []*eskip.Filter
-		wantErr bool
+		name string
+		args []string
 	}{
 		{
-			name:    "test no filter",
-			args:    "",
-			want:    nil,
-			wantErr: false,
+			name: "test single filter",
+			args: []string{"invalid-filter"},
 		},
 		{
-			name:    "test error filter",
-			args:    "invalid-filter",
-			wantErr: true,
-		},
-		{
-			name:    "test one filter",
-			args:    `tee("https://www.zalando.de/")`,
-			want:    oneFilter,
-			wantErr: false,
-		},
-		{
-			name:    "test many filters",
-			args:    `ratelimit(5, "10s") -> tee("https://www.zalando.de/")`,
-			want:    manyFilters,
-			wantErr: false,
+			name: "test multiple filters",
+			args: []string{`status(204)`, "invalid-filter"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dpf := &defaultFiltersFlags{}
-			if err := dpf.Set(tt.args); (err != nil) != tt.wantErr {
-				t.Errorf("defaultFiltersFlags.Set() error = %v, wantErr %v", err, tt.wantErr)
+			cfg := struct {
+				Field *defaultFiltersFlags
+			}{
+				Field: &defaultFiltersFlags{},
 			}
-			if !tt.wantErr {
-				if len(tt.want) != len(dpf.filters) {
-					t.Errorf("defaultFiltersFlags size mismatch got %d want %d", len(dpf.filters), len(tt.want))
-				}
 
-				if err := yaml.Unmarshal([]byte(tt.args), dpf); err != nil {
-					t.Errorf("defaultFiltersFlags.UnmarshalYAML() error = %v, wantErr %v", err, tt.wantErr)
-				}
-
-				if len(tt.want) != len(dpf.filters) {
-					t.Errorf("defaultFiltersFlags from yaml size mismatch got %d want %d", len(dpf.filters), len(tt.want))
+			var err error
+			for _, arg := range tt.args {
+				err = cfg.Field.Set(arg)
+				if err != nil {
+					break
 				}
 			}
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestDefaultFiltersFlagsInvalidYaml(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "test one value",
+			yaml: `field: invalid-filter`,
+		},
+		{
+			name: "test multiple values",
+			yaml: `
+field:
+  - ratelimit(5, "10s") -> tee("https://www.zalando.de/")
+  - invalid-filter
+	`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := struct {
+				Field *defaultFiltersFlags
+			}{
+				Field: &defaultFiltersFlags{},
+			}
+
+			err := yaml.Unmarshal([]byte(tt.yaml), &cfg)
+			require.Error(t, err)
 		})
 	}
 }

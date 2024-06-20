@@ -23,16 +23,16 @@ jobs:
       packages: write # to push packages
     steps:
       - name: Checkout
-        uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+      - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
           go-version: '^1.21'
           check-latest: true
 
       - name: Login to Github Container Registry
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -54,7 +54,7 @@ jobs:
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -70,7 +70,7 @@ jobs:
             type=semver,pattern=v{{major}}.{{minor}}
 
       - name: Build and push
-        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: ./packaging
           build-args: BASE_IMAGE=golang:alpine

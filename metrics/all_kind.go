@@ -23,71 +23,93 @@ func (a *All) MeasureSince(key string, start time.Time) {
 	a.prometheus.MeasureSince(key, start)
 	a.codaHale.MeasureSince(key, start)
 }
+
 func (a *All) IncCounter(key string) {
 	a.prometheus.IncCounter(key)
 	a.codaHale.IncCounter(key)
 }
+
 func (a *All) IncCounterBy(key string, value int64) {
 	a.prometheus.IncCounterBy(key, value)
 	a.codaHale.IncCounterBy(key, value)
 }
+
 func (a *All) IncFloatCounterBy(key string, value float64) {
 	a.prometheus.IncFloatCounterBy(key, value)
 	a.codaHale.IncFloatCounterBy(key, value)
 }
+
 func (a *All) UpdateGauge(key string, v float64) {
 	a.prometheus.UpdateGauge(key, v)
 	a.codaHale.UpdateGauge(key, v)
 }
+
 func (a *All) MeasureRouteLookup(start time.Time) {
 	a.prometheus.MeasureRouteLookup(start)
 	a.codaHale.MeasureRouteLookup(start)
 }
+
+func (a *All) MeasureFilterCreate(filterName string, start time.Time) {
+	a.prometheus.MeasureFilterCreate(filterName, start)
+	a.codaHale.MeasureFilterCreate(filterName, start)
+}
+
 func (a *All) MeasureFilterRequest(filterName string, start time.Time) {
 	a.prometheus.MeasureFilterRequest(filterName, start)
 	a.codaHale.MeasureFilterRequest(filterName, start)
 }
+
 func (a *All) MeasureAllFiltersRequest(routeId string, start time.Time) {
 	a.prometheus.MeasureAllFiltersRequest(routeId, start)
 	a.codaHale.MeasureAllFiltersRequest(routeId, start)
 }
+
 func (a *All) MeasureBackend(routeId string, start time.Time) {
 	a.prometheus.MeasureBackend(routeId, start)
 	a.codaHale.MeasureBackend(routeId, start)
 }
+
 func (a *All) MeasureBackendHost(routeBackendHost string, start time.Time) {
 	a.prometheus.MeasureBackendHost(routeBackendHost, start)
 	a.codaHale.MeasureBackendHost(routeBackendHost, start)
 }
+
 func (a *All) MeasureFilterResponse(filterName string, start time.Time) {
 	a.prometheus.MeasureFilterResponse(filterName, start)
 	a.codaHale.MeasureFilterResponse(filterName, start)
 }
+
 func (a *All) MeasureAllFiltersResponse(routeId string, start time.Time) {
 	a.prometheus.MeasureAllFiltersResponse(routeId, start)
 	a.codaHale.MeasureAllFiltersResponse(routeId, start)
 }
+
 func (a *All) MeasureResponse(code int, method string, routeId string, start time.Time) {
 	a.prometheus.MeasureResponse(code, method, routeId, start)
 	a.codaHale.MeasureResponse(code, method, routeId, start)
 }
+
 func (a *All) MeasureServe(routeId, host, method string, code int, start time.Time) {
 	a.prometheus.MeasureServe(routeId, host, method, code, start)
 	a.codaHale.MeasureServe(routeId, host, method, code, start)
 }
+
 func (a *All) IncRoutingFailures() {
 	a.prometheus.IncRoutingFailures()
 	a.codaHale.IncRoutingFailures()
 }
+
 func (a *All) IncErrorsBackend(routeId string) {
 	a.prometheus.IncErrorsBackend(routeId)
 	a.codaHale.IncErrorsBackend(routeId)
 }
+
 func (a *All) MeasureBackend5xx(t time.Time) {
 	a.prometheus.MeasureBackend5xx(t)
 	a.codaHale.MeasureBackend5xx(t)
 
 }
+
 func (a *All) IncErrorsStreaming(routeId string) {
 	a.prometheus.IncErrorsStreaming(routeId)
 	a.codaHale.IncErrorsStreaming(routeId)

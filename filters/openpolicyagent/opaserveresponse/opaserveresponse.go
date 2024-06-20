@@ -2,6 +2,7 @@ package opaserveresponse
 
 import (
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/zalando/skipper/filters"
@@ -114,7 +115,11 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 		req.Body = body
 	}
 
-	authzreq := envoy.AdaptToExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes)
+	authzreq, err := envoy.AdaptToExtAuthRequest(fc.Request(), f.opa.InstanceConfig().GetEnvoyMetadata(), f.envoyContextExtensions, rawBodyBytes)
+	if err != nil {
+		f.opa.HandleEvaluationError(fc, span, nil, err, !f.opa.EnvoyPluginConfig().DryRun, http.StatusBadRequest)
+		return
+	}
 
 	start := time.Now()
 	result, err := f.opa.Eval(ctx, authzreq)

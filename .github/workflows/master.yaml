@@ -12,8 +12,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
           go-version: "^1.21"
@@ -31,7 +31,7 @@ jobs:
       - name: Convert coverage to lcov
         uses: jandelgado/gcov2lcov-action@c680c0f7c7442485f1749eb2a13e54a686e76eb5
       - name: Coveralls
-        uses: coverallsapp/github-action@3dfc5567390f6fa9267c0ee9c251e4c8c3f18949
+        uses: coverallsapp/github-action@643bc377ffa44ace6394b2b5d0d3950076de9f63
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: coverage.lcov

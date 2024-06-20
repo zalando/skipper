@@ -901,31 +901,44 @@ Passive Health Check(PHC).
 PHC works the following way: the entire uptime is divided in chunks of `period`, per every period Skipper calculates
 the total amount of requests and amount of requests failed per every endpoint. While next period is going on,
 the Skipper takes a look at previous period and if the amount of requests in the previous period is more than `min-requests`
-for the given endpoints then Skipper will send reduced (the more `max-drop-probability`
-and failed requests ratio in previous period are, the stronger reduction is)
-amount of requests compared to amount sent without PHC.
+and failed requests ratio is more than `min-drop-probability` for the given endpoints
+then Skipper will send reduced (the more `max-drop-probability` and failed requests ratio
+in previous period are, the stronger reduction is) amount of requests compared to amount sent without PHC.
+If the ratio of unhealthy endpoints is more than `max-unhealthy-endpoints-ratio` then PHC becomes fail-open. This effectively means
+if there are too many unhealthy endpoints PHC does not try to mitigate them any more and requests are sent like there is no PHC at all.
 
 Having this, we expect less requests to fail because a lot of them would be sent to endpoints that seem to be healthy instead.
 
-To enable this feature, you need to provide `-passive-health-check` option having all forementioned parameters
-(`period`, `min-requests`, `max-drop-probability`) defined,
-for instance: `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9`.
+To enable this feature, you need to provide `-passive-health-check` option having forementioned parameters
+(`period`, `min-requests`, `min-drop-probability`, `max-drop-probability`, `max-unhealthy-endpoints-ratio`) defined.
+`period`, `min-requests`, `max-drop-probability` are required parameters, it is not possible for PHC to be enabled without
+them explicitly defined by user. `min-drop-probability` is implicitly defined as `0.0` if not explicitly set by user.
+`max-unhealthy-endpoints-ratio` is defined as `1.0` if not explicitly set by user.
+Valid examples of `-passive-health-check` are:
 
-You need to define all parameters on your side, there are no defaults, and skipper will not run if PHC params are passed only partially.
++ `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9,max-unhealthy-endpoints-ratio=0.3`
++ `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9,max-unhealthy-endpoints-ratio=0.3`
++ `-passive-health-check=period=1s,min-requests=10,min-drop-probability=0.05,max-drop-probability=0.9`
++ `-passive-health-check=period=1s,min-requests=10,max-drop-probability=0.9`
 
-However, Skipper will run without this feature, if no `-passive-health-check` is provided at all.
+If `-passive-health-check` option is provided, but some required parameters are not defined, Skipper will not start.
+Skipper will run without this feature, if no `-passive-health-check` is provided at all.
 
 The parameters of `-passive-health-check` option are:
+
 + `period=<duration>` - the duration of stats reset period
 + `min-requests=<int>` - the minimum number of requests per `period` per backend endpoint required to activate PHC for this endpoint
-+ `max-drop-probabilty=<float more than/equal to 0 and less than/equal to 1>` - the maximum possible probability of unhealthy endpoint being not considered
++ `min-drop-probabilty=[0.0 <= p < max-drop-probability)` - the minimum possible probability of unhealthy endpoint being not considered while choosing the endpoint for the given request. The same value is in fact used as minimal failed requests ratio for PHC to be enabled for this endpoint
++ `max-drop-probabilty=(min-drop-probability < p <= 1.0]` - the maximum possible probability of unhealthy endpoint being not considered
 while choosing the endpoint for the given request
++ `max-unhealthy-endpoints-ratio=[0.0 <= r <= 1.0]` - the maximum ratio of unhealthy endpoints for PHC to try to mitigate ongoing requests
 
 ### Metrics
 
 A set of metrics will be exposed to track passive health check:
 
 * `passive-health-check.endpoints.dropped`: Number of all endpoints dropped before load balancing a request, so after N requests and M endpoints are being dropped this counter would be N*M.
+* `passive-health-check.requests.passed`: Number of unique requests where PHC was able to avoid sending them to unhealthy endpoints.
 
 ## Memory consumption
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/annotate"
 	"github.com/zalando/skipper/jwt"
@@ -18,6 +19,7 @@ type (
 	jwtMetricsFilter struct {
 		Issuers           []string `json:"issuers,omitempty"`
 		OptOutAnnotations []string `json:"optOutAnnotations,omitempty"`
+		OptOutStateBag    []string `json:"optOutStateBag,omitempty"`
 	}
 )
 
@@ -57,6 +59,15 @@ func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
 		}
 	}
 
+	if len(f.OptOutStateBag) > 0 {
+		sb := ctx.StateBag()
+		for _, key := range f.OptOutStateBag {
+			if _, ok := sb[key]; ok {
+				return // opt-out
+			}
+		}
+	}
+
 	response := ctx.Response()
 
 	if response.StatusCode >= 400 && response.StatusCode < 500 {
@@ -65,33 +76,40 @@ func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
 
 	request := ctx.Request()
 
-	metrics := ctx.Metrics()
-	metricsPrefix := fmt.Sprintf("%s.%s.%d.", request.Method, escapeMetricKeySegment(request.Host), response.StatusCode)
+	count := func(metric string) {
+		prefix := fmt.Sprintf("%s.%s.%d.", request.Method, escapeMetricKeySegment(request.Host), response.StatusCode)
+
+		ctx.Metrics().IncCounter(prefix + metric)
+
+		if span := opentracing.SpanFromContext(ctx.Request().Context()); span != nil {
+			span.SetTag("jwt", metric)
+		}
+	}
 
 	ahead := request.Header.Get("Authorization")
 	if ahead == "" {
-		metrics.IncCounter(metricsPrefix + "missing-token")
+		count("missing-token")
 		return
 	}
 
 	tv := strings.TrimPrefix(ahead, "Bearer ")
 	if tv == ahead {
-		metrics.IncCounter(metricsPrefix + "invalid-token-type")
+		count("invalid-token-type")
 		return
 	}
 
 	if len(f.Issuers) > 0 {
 		token, err := jwt.Parse(tv)
 		if err != nil {
-			metrics.IncCounter(metricsPrefix + "invalid-token")
+			count("invalid-token")
 			return
 		}
 
 		// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.1
 		if issuer, ok := token.Claims["iss"].(string); !ok {
-			metrics.IncCounter(metricsPrefix + "missing-issuer")
+			count("missing-issuer")
 		} else if !slices.Contains(f.Issuers, issuer) {
-			metrics.IncCounter(metricsPrefix + "invalid-issuer")
+			count("invalid-issuer")
 		}
 	}
 }

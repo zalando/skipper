@@ -32,7 +32,6 @@ Kubernetes use cases:
           - "-proxy-preserve-host"
           - "-enable-ratelimits"
           - "-experimental-upgrade"
-          - "-lb-healthcheck-interval=3s"
           - "-metrics-flavour=prometheus"
           - "-metrics-exp-decay-sample"
           - "-serve-host-metrics"

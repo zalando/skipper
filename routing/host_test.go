@@ -51,14 +51,16 @@ func benchmarkPredicateHost(b *testing.B, predicateFmt string) {
 
 	ha := host.NewAny()
 	pr := map[string]routing.PredicateSpec{ha.Name(): ha}
-	fr := make(filters.Registry)
+	o := &routing.Options{
+		FilterRegistry: make(filters.Registry),
+	}
 
 	var routes []*routing.Route
 	for i := 0; i < R; i++ {
 		p := strings.ReplaceAll(predicateFmt, "{i}", fmt.Sprintf("%d", i))
 		def := eskip.MustParse(fmt.Sprintf(`r%d: %s -> <shunt>;`, i, p))
 
-		route, err := routing.ExportProcessRouteDef(pr, fr, def[0])
+		route, err := routing.ExportProcessRouteDef(o, pr, def[0])
 		if err != nil {
 			b.Fatal(err)
 		}

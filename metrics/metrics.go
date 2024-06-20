@@ -62,6 +62,7 @@ type Metrics interface {
 	IncFloatCounterBy(key string, value float64)
 	// Additional methods
 	MeasureRouteLookup(start time.Time)
+	MeasureFilterCreate(filterName string, start time.Time)
 	MeasureFilterRequest(filterName string, start time.Time)
 	MeasureAllFiltersRequest(routeId string, start time.Time)
 	MeasureBackend(routeId string, start time.Time)
@@ -194,6 +195,10 @@ type Options struct {
 	// library.
 	// A new registry is created if this option is nil.
 	PrometheusRegistry *prometheus.Registry
+
+	// EnablePrometheusStartLabel adds start label to each prometheus counter with the value of counter creation
+	// timestamp as unix nanoseconds.
+	EnablePrometheusStartLabel bool
 }
 
 var (

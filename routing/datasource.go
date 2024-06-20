@@ -208,8 +208,8 @@ func splitBackend(r *eskip.Route) (string, string, error) {
 
 // creates a filter instance based on its definition and its
 // specification in the filter registry.
-func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]PredicateSpec) (filters.Filter, error) {
-	spec, ok := fr[def.Name]
+func createFilter(o *Options, def *eskip.Filter, cpm map[string]PredicateSpec) (filters.Filter, error) {
+	spec, ok := o.FilterRegistry[def.Name]
 	if !ok {
 		if isTreePredicate(def.Name) || def.Name == predicates.HostName || def.Name == predicates.PathRegexpName || def.Name == predicates.MethodName || def.Name == predicates.HeaderName || def.Name == predicates.HeaderRegexpName {
 			return nil, fmt.Errorf("trying to use %q as filter, but it is only available as predicate", def.Name)
@@ -222,7 +222,14 @@ func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]Predica
 		return nil, fmt.Errorf("filter %q not found", def.Name)
 	}
 
+	start := time.Now()
+
 	f, err := spec.CreateFilter(def.Args)
+
+	if o.Metrics != nil { // measure regardless of the error
+		o.Metrics.MeasureFilterCreate(def.Name, start)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create filter %q: %w", spec.Name(), err)
 	}
@@ -231,10 +238,10 @@ func createFilter(fr filters.Registry, def *eskip.Filter, cpm map[string]Predica
 
 // creates filter instances based on their definition
 // and the filter registry.
-func createFilters(fr filters.Registry, defs []*eskip.Filter, cpm map[string]PredicateSpec) ([]*RouteFilter, error) {
+func createFilters(o *Options, defs []*eskip.Filter, cpm map[string]PredicateSpec) ([]*RouteFilter, error) {
 	fs := make([]*RouteFilter, 0, len(defs))
 	for i, def := range defs {
-		f, err := createFilter(fr, def, cpm)
+		f, err := createFilter(o, def, cpm)
 		if err != nil {
 			return nil, err
 		}
@@ -456,13 +463,13 @@ func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 }
 
 // processes a route definition for the routing table
-func processRouteDef(cpm map[string]PredicateSpec, fr filters.Registry, def *eskip.Route) (*Route, error) {
+func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route) (*Route, error) {
 	scheme, host, err := splitBackend(def)
 	if err != nil {
 		return nil, err
 	}
 
-	fs, err := createFilters(fr, def.Filters, cpm)
+	fs, err := createFilters(o, def.Filters, cpm)
 	if err != nil {
 		return nil, err
 	}
@@ -496,10 +503,10 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 }
 
 // processes a set of route definitions for the routing table
-func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route) {
+func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route) {
 	cpm := mapPredicates(o.Predicates)
 	for _, def := range defs {
-		route, err := processRouteDef(cpm, fr, def)
+		route, err := processRouteDef(o, cpm, def)
 		if err == nil {
 			routes = append(routes, route)
 		} else {
@@ -511,6 +518,7 @@ func processRouteDefs(o Options, fr filters.Registry, defs []*eskip.Route) (rout
 }
 
 type routeTable struct {
+	id            int
 	m             *matcher
 	once          sync.Once
 	routes        []*Route // only used for closing
@@ -541,18 +549,22 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 		rt           *routeTable
 		outRelay     chan<- *routeTable
 		updatesRelay <-chan []*eskip.Route
+		updateId     int
 	)
 	updatesRelay = updates
 	for {
 		select {
 		case defs := <-updatesRelay:
-			o.Log.Info("route settings received")
+			updateId++
+			start := time.Now()
+
+			o.Log.Infof("route settings received, id: %d", updateId)
 
 			for i := range o.PreProcessors {
 				defs = o.PreProcessors[i].Do(defs)
 			}
 
-			routes, invalidRoutes := processRouteDefs(o, o.FilterRegistry, defs)
+			routes, invalidRoutes := processRouteDefs(&o, defs)
 
 			for i := range o.PostProcessors {
 				routes = o.PostProcessors[i].Do(routes)
@@ -582,11 +594,12 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			})
 
 			rt = &routeTable{
+				id:            updateId,
 				m:             m,
 				routes:        routes,
 				validRoutes:   validRoutes,
 				invalidRoutes: invalidRoutes,
-				created:       time.Now().UTC(),
+				created:       start,
 			}
 			updatesRelay = nil
 			outRelay = out
