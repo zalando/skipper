@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -174,6 +175,7 @@ func TestToOptions(t *testing.T) {
 		c.ProxyPreserveHost = true // 4
 		c.RemoveHopHeaders = true  // 16
 		c.RfcPatchPath = true      // 32
+		c.ExcludeInsecureCipherSuites = true
 
 		// config
 		c.EtcdUrls = "127.0.0.1:5555"
@@ -230,6 +232,15 @@ func TestToOptions(t *testing.T) {
 	}
 	if len(opt.EditRoute) != 1 {
 		t.Errorf("Failed to get expected edit route: %s", c.EditRoute)
+	}
+	if opt.CipherSuites == nil {
+		t.Errorf("Failed to get the filtered cipher suites")
+	} else {
+		for _, i := range tls.InsecureCipherSuites() {
+			if slices.Contains(opt.CipherSuites, i.ID) {
+				t.Errorf("Insecure cipher found in list: %s", i.Name)
+			}
+		}
 	}
 }
 
