@@ -405,6 +405,23 @@ func TestMinTLSVersion(t *testing.T) {
 	})
 }
 
+func TestExcludeInsecureCipherSuites(t *testing.T) {
+
+	t.Run("test default", func(t *testing.T) {
+		cfg := new(Config)
+		if cfg.filterCipherSuites() != nil {
+			t.Error("No cipher suites should be filtered by default")
+		}
+	})
+	t.Run("test excluded insecure cipher suites", func(t *testing.T) {
+		cfg := new(Config)
+		cfg.ExcludeInsecureCipherSuites = true
+		if cfg.filterCipherSuites() == nil {
+			t.Error(`Failed to get list of filtered cipher suites`)
+		}
+	})
+}
+
 type testFormatter struct {
 	messages map[string]log.Level
 }

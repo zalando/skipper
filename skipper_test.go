@@ -186,6 +186,13 @@ func TestOptionsTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), c.MinVersion)
 	require.Equal(t, []tls.Certificate{cert, cert2}, c.Certificates)
+
+	// TLS Cipher Suites
+	o = &Options{CipherSuites: []uint16{1}}
+	c, err = o.tlsConfig(cr)
+	require.NoError(t, err)
+	assert.Equal(t, len(c.CipherSuites), 1)
+
 }
 
 func TestOptionsTLSConfigInvalidPaths(t *testing.T) {
