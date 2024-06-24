@@ -466,6 +466,15 @@ The second argument is parsed as YAML, cannot be nested and values need to be st
 
 In Rego this can be used like this `input.attributes.contextExtensions["com.mycompany.myprop"] == "my value"`
 
+### Decision ID in Policies
+
+Each evaluation yields a distinct decision, identifiable by its unique decision ID.
+This decision ID can be located within the input at:
+
+`input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id`
+
+Typical use cases are either propagation of the decision ID to downstream systems or returning it as part of the response. As an example this can allow to trouble shoot deny requests by looking up details using the full decision in a control plane.
+
 ### Quick Start Rego Playground
 
 A quick way without setting up Backend APIs is to use the [Rego Playground](https://play.openpolicyagent.org/).

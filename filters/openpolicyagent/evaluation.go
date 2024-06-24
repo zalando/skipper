@@ -3,8 +3,7 @@ package openpolicyagent
 import (
 	"context"
 	"fmt"
-	"time"
-
+	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	"github.com/open-policy-agent/opa-envoy-plugin/opa/decisionlog"
@@ -13,6 +12,8 @@ import (
 	"github.com/open-policy-agent/opa/server"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/opentracing/opentracing-go"
+	pbstruct "google.golang.org/protobuf/types/known/structpb"
+	"time"
 )
 
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
@@ -20,6 +21,12 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	decisionId, err := opa.idGenerator.Generate()
 	if err != nil {
 		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to generate decision ID.")
+		return nil, err
+	}
+
+	err = setDecisionIdInRequest(req, decisionId)
+	if err != nil {
+		opa.Logger().WithFields(map[string]interface{}{"err": err}).Error("Unable to set decision ID in Request.")
 		return nil, err
 	}
 
@@ -69,6 +76,29 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 	}
 
 	return result, nil
+}
+
+func setDecisionIdInRequest(req *ext_authz_v3.CheckRequest, decisionId string) error {
+	if req.Attributes.MetadataContext == nil {
+		req.Attributes.MetadataContext = &ext_authz_v3_core.Metadata{
+			FilterMetadata: map[string]*pbstruct.Struct{},
+		}
+	}
+
+	filterMeta, err := formOpenPolicyAgentMetaDataObject(decisionId)
+	if err != nil {
+		return err
+	}
+	req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = filterMeta
+	return nil
+}
+
+func formOpenPolicyAgentMetaDataObject(decisionId string) (*pbstruct.Struct, error) {
+
+	innerFields := make(map[string]interface{})
+	innerFields["decision_id"] = decisionId
+
+	return pbstruct.NewStruct(innerFields)
 }
 
 func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input interface{}, result *envoyauth.EvalResult, err error) error {
