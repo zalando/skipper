@@ -1343,6 +1343,35 @@ Examples:
 oauthTokeninfoAllKV("k1", "v1", "k2", "v2")
 ```
 
+#### oauthTokeninfoValidate
+
+> This filter is experimental and may change in the future, please see tests for example usage.
+
+The filter obtains token info and allows request if there was no error
+otherwise it responds with `401 Unauthorized` status and configured response body.
+
+It does nothing if any preceding filter already validated the token or if route is annotated with configured annotations.
+
+It is useful as a default filter to ensure each request has a valid token.
+[jwtMetrics](#jwtmetrics) filter may be used to discover routes serving requests without a valid token.
+
+The filter requires single string argument that is parsed as YAML.
+For convenience use [flow style format](https://yaml.org/spec/1.2.2/#chapter-7-flow-style-productions).
+
+Examples:
+
+```
+// without opt-out annotation validates the token
+oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], unauthorizedResponse: 'Authentication required, see https://auth.test/foo'}")
+```
+
+```
+// with opt-out annotation does not validate the token
+annotate("oauth.disabled", "this endpoint is public") ->
+oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], unauthorizedResponse: 'Authentication required, see https://auth.test/foo'}")
+```
+
+
 ### Tokenintrospection
 
 Tokenintrospection handled by another service.

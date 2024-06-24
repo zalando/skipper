@@ -2,11 +2,16 @@ package auth
 
 import (
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/annotate"
 )
 
 const (
@@ -50,6 +55,14 @@ type (
 		client tokeninfoClient
 		scopes []string
 		kv     kv
+	}
+
+	tokeninfoValidateFilter struct {
+		client tokeninfoClient
+		config struct {
+			OptOutAnnotations    []string `json:"optOutAnnotations,omitempty"`
+			UnauthorizedResponse string   `json:"unauthorizedResponse,omitempty"`
+		}
 	}
 )
 
@@ -150,6 +163,13 @@ func NewOAuthTokeninfoAnyKVWithOptions(to TokeninfoOptions) filters.Spec {
 	}
 }
 
+func NewOAuthTokeninfoValidate(to TokeninfoOptions) filters.Spec {
+	return &tokeninfoSpec{
+		typ:     checkOAuthTokeninfoValidate,
+		options: to,
+	}
+}
+
 // NewOAuthTokeninfoAnyKV creates a new auth filter specification
 // to validate authorization for requests. Current implementation uses
 // Bearer tokens to authorize requests and checks that the token
@@ -192,6 +212,8 @@ func (s *tokeninfoSpec) Name() string {
 		return filters.OAuthTokeninfoAnyKVName
 	case checkOAuthTokeninfoAllKV:
 		return filters.OAuthTokeninfoAllKVName
+	case checkOAuthTokeninfoValidate:
+		return filters.OAuthTokeninfoValidateName
 	}
 	return AuthUnknown
 }
@@ -216,6 +238,18 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	ac, err := s.options.getTokeninfoClient()
 	if err != nil {
 		return nil, filters.ErrInvalidFilterParameters
+	}
+
+	if s.typ == checkOAuthTokeninfoValidate {
+		if len(sargs) != 1 {
+			return nil, fmt.Errorf("requires single string argument")
+		}
+
+		f := &tokeninfoValidateFilter{client: ac}
+		if err := yaml.Unmarshal([]byte(sargs[0]), &f.config); err != nil {
+			return nil, fmt.Errorf("failed to parse configuration")
+		}
+		return f, nil
 	}
 
 	f := &tokeninfoFilter{typ: s.typ, client: ac, kv: make(map[string][]string)}
@@ -395,3 +429,46 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 }
 
 func (f *tokeninfoFilter) Response(filters.FilterContext) {}
+
+func (f *tokeninfoValidateFilter) Request(ctx filters.FilterContext) {
+	if _, ok := ctx.StateBag()[tokeninfoCacheKey]; ok {
+		return // tokeninfo was already validated by a preceding filter
+	}
+
+	if len(f.config.OptOutAnnotations) > 0 {
+		annotations := annotate.GetAnnotations(ctx)
+		for _, annotation := range f.config.OptOutAnnotations {
+			if _, ok := annotations[annotation]; ok {
+				return // opt-out from validation
+			}
+		}
+	}
+
+	token, ok := getToken(ctx.Request())
+	if !ok {
+		f.serveUnauthorized(ctx)
+		return
+	}
+
+	tokeninfo, err := f.client.getTokeninfo(token, ctx)
+	if err != nil {
+		f.serveUnauthorized(ctx)
+		return
+	}
+
+	uid, _ := tokeninfo[uidKey].(string)
+	authorized(ctx, uid)
+	ctx.StateBag()[tokeninfoCacheKey] = tokeninfo
+}
+
+func (f *tokeninfoValidateFilter) serveUnauthorized(ctx filters.FilterContext) {
+	ctx.Serve(&http.Response{
+		StatusCode: http.StatusUnauthorized,
+		Header: http.Header{
+			"Content-Length": []string{strconv.Itoa(len(f.config.UnauthorizedResponse))},
+		},
+		Body: io.NopCloser(strings.NewReader(f.config.UnauthorizedResponse)),
+	})
+}
+
+func (f *tokeninfoValidateFilter) Response(filters.FilterContext) {}

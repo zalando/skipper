@@ -287,6 +287,7 @@ const (
 	OAuthTokeninfoAllScopeName                 = "oauthTokeninfoAllScope"
 	OAuthTokeninfoAnyKVName                    = "oauthTokeninfoAnyKV"
 	OAuthTokeninfoAllKVName                    = "oauthTokeninfoAllKV"
+	OAuthTokeninfoValidateName                 = "oauthTokeninfoValidate"
 	OAuthTokenintrospectionAnyClaimsName       = "oauthTokenintrospectionAnyClaims"
 	OAuthTokenintrospectionAllClaimsName       = "oauthTokenintrospectionAllClaims"
 	OAuthTokenintrospectionAnyKVName           = "oauthTokenintrospectionAnyKV"

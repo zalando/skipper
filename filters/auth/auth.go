@@ -17,6 +17,7 @@ const (
 	checkOAuthTokeninfoAllScopes
 	checkOAuthTokeninfoAnyKV
 	checkOAuthTokeninfoAllKV
+	checkOAuthTokeninfoValidate
 	checkOAuthTokenintrospectionAnyClaims
 	checkOAuthTokenintrospectionAllClaims
 	checkOAuthTokenintrospectionAnyKV

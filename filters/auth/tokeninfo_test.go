@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,9 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/annotate"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy/proxytest"
 )
@@ -573,5 +576,140 @@ func TestOAuthTokeninfoAllocs(t *testing.T) {
 	})
 	if allocs != 0.0 {
 		t.Errorf("Expected zero allocations, got %f", allocs)
+	}
+}
+
+func TestOAuthTokeninfoValidate(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("OK"))
+	}))
+	defer backend.Close()
+
+	const validAuthHeader = "Bearer foobarbaz"
+
+	var authRequestsTotal atomic.Int32
+	testAuthServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authRequestsTotal.Add(1)
+		if r.Header.Get("Authorization") != validAuthHeader {
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+			w.Write([]byte(`{"uid": "foobar", "scope":["foo", "bar"]}`))
+		}
+	}))
+	defer testAuthServer.Close()
+
+	tio := TokeninfoOptions{
+		URL:     testAuthServer.URL,
+		Timeout: testAuthTimeout,
+	}
+
+	for _, tc := range []struct {
+		name               string
+		precedingFilters   string
+		authHeader         string
+		expectStatus       int
+		expectAuthRequests int32
+	}{
+		{
+			name:               "reject missing token",
+			authHeader:         "",
+			expectStatus:       http.StatusUnauthorized,
+			expectAuthRequests: 0,
+		},
+		{
+			name:               "reject invalid token",
+			authHeader:         "Bearer invalid",
+			expectStatus:       http.StatusUnauthorized,
+			expectAuthRequests: 1,
+		},
+		{
+			name:               "reject invalid token type",
+			authHeader:         "Basic foobarbaz",
+			expectStatus:       http.StatusUnauthorized,
+			expectAuthRequests: 0,
+		},
+		{
+			name:               "reject missing token when opt-out is invalid",
+			precedingFilters:   `annotate("oauth.invalid", "invalid opt-out")`,
+			authHeader:         "",
+			expectStatus:       http.StatusUnauthorized,
+			expectAuthRequests: 0,
+		},
+		{
+			name:               "allow valid token",
+			authHeader:         validAuthHeader,
+			expectStatus:       http.StatusOK,
+			expectAuthRequests: 1,
+		},
+		{
+			name:               "allow already validated by a preceding filter",
+			precedingFilters:   `oauthTokeninfoAllScope("foo", "bar")`,
+			authHeader:         validAuthHeader,
+			expectStatus:       http.StatusOK,
+			expectAuthRequests: 1, // called once by oauthTokeninfoAllScope
+		},
+		{
+			name:               "allow missing token when opted-out",
+			precedingFilters:   `annotate("oauth.disabled", "this endpoint is public")`,
+			authHeader:         "",
+			expectStatus:       http.StatusOK,
+			expectAuthRequests: 0,
+		},
+		{
+			name:               "allow invalid token when opted-out",
+			precedingFilters:   `annotate("oauth.disabled", "this endpoint is public")`,
+			authHeader:         "Bearer invalid",
+			expectStatus:       http.StatusOK,
+			expectAuthRequests: 0,
+		},
+		{
+			name:               "allow invalid token type when opted-out",
+			precedingFilters:   `annotate("oauth.disabled", "this endpoint is public")`,
+			authHeader:         "Basic foobarbaz",
+			expectStatus:       http.StatusOK,
+			expectAuthRequests: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fr := make(filters.Registry)
+			fr.Register(annotate.New())
+			fr.Register(NewOAuthTokeninfoAllScopeWithOptions(tio))
+			fr.Register(NewOAuthTokeninfoValidate(tio))
+
+			const unauthorizedResponse = `Authentication required, see https://auth.test/foo`
+
+			filters := `oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], unauthorizedResponse: '` + unauthorizedResponse + `'}")`
+			if tc.precedingFilters != "" {
+				filters = tc.precedingFilters + " -> " + filters
+			}
+
+			p := proxytest.New(fr, eskip.MustParse(fmt.Sprintf(`* -> %s -> "%s"`, filters, backend.URL))...)
+			defer p.Close()
+
+			authRequestsBefore := authRequestsTotal.Load()
+
+			req, err := http.NewRequest("GET", p.URL, nil)
+			require.NoError(t, err)
+
+			if tc.authHeader != "" {
+				req.Header.Set(authHeaderName, tc.authHeader)
+			}
+
+			resp, err := p.Client().Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectStatus, resp.StatusCode)
+			assert.Equal(t, tc.expectAuthRequests, authRequestsTotal.Load()-authRequestsBefore)
+
+			if resp.StatusCode == http.StatusUnauthorized {
+				assert.Equal(t, resp.ContentLength, int64(len(unauthorizedResponse)))
+
+				b, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+
+				assert.Equal(t, unauthorizedResponse, string(b))
+			}
+		})
 	}
 }
