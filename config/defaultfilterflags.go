@@ -21,10 +21,10 @@ func (dpf *defaultFiltersFlags) Set(value string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse default filters: %w", err)
 	}
-
-	dpf.values = append(dpf.values, value)
-	dpf.filters = append(dpf.filters, fs...)
-
+	if len(fs) > 0 {
+		dpf.values = append(dpf.values, value)
+		dpf.filters = append(dpf.filters, fs...)
+	}
 	return nil
 }
 

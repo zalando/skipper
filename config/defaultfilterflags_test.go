@@ -60,6 +60,19 @@ field:
 			want:       manyMoreFilters,
 			wantString: `ratelimit(5, "10s") -> tee("https://www.zalando.de/") -> inlineContent("OK\n")`,
 		},
+		{
+			name: "test multiple with empty filters in between",
+			args: []string{
+				`    `, // whitespaces only
+				`ratelimit(5, "10s")`,
+				`// not a filter, just an eskip comment`,
+				`tee("https://www.zalando.de/")`,
+				``, // empty
+			},
+			yaml:       `field: ratelimit(5, "10s") -> tee("https://www.zalando.de/")`,
+			want:       manyFilters,
+			wantString: `ratelimit(5, "10s") -> tee("https://www.zalando.de/")`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
