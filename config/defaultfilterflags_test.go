@@ -69,7 +69,14 @@ field:
 				`tee("https://www.zalando.de/")`,
 				``, // empty
 			},
-			yaml:       `field: ratelimit(5, "10s") -> tee("https://www.zalando.de/")`,
+			yaml: `
+field:
+  - '    ' # whitespaces only
+  - ratelimit(5, "10s")
+  - // not a filter, just an eskip comment
+  - tee("https://www.zalando.de/")
+  - '' # empty
+`,
 			want:       manyFilters,
 			wantString: `ratelimit(5, "10s") -> tee("https://www.zalando.de/")`,
 		},
