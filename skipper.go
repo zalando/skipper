@@ -1591,6 +1591,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			auth.NewOAuthTokeninfoAnyScopeWithOptions(tio),
 			auth.NewOAuthTokeninfoAllKVWithOptions(tio),
 			auth.NewOAuthTokeninfoAnyKVWithOptions(tio),
+			auth.NewOAuthTokeninfoValidate(tio),
 		)
 	}
 
