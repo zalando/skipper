@@ -74,6 +74,29 @@ func TestPrometheusMetrics(t *testing.T) {
 			expCode: http.StatusOK,
 		},
 		{
+			name: "Filter creation latency",
+			addMetrics: func(pm *metrics.Prometheus) {
+				pm.MeasureFilterCreate("filter1", time.Now().Add(-15*time.Millisecond))
+			},
+			expMetrics: []string{
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="0.005"} 0`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="0.01"} 0`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="0.025"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="0.05"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="0.1"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="0.25"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="0.5"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="1"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="2.5"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="5"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="10"} 1`,
+				`skipper_filter_create_duration_seconds_bucket{filter="filter1",le="+Inf"} 1`,
+				`skipper_filter_create_duration_seconds_sum{filter="filter1"} 0.015`,
+				`skipper_filter_create_duration_seconds_count{filter="filter1"} 1`,
+			},
+			expCode: http.StatusOK,
+		},
+		{
 			name: "Measuring the filter requests should get the duration of the filter requests.",
 			addMetrics: func(pm *metrics.Prometheus) {
 				pm.MeasureFilterRequest("filter1", time.Now().Add(-15*time.Millisecond))
