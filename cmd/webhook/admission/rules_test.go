@@ -36,7 +36,8 @@ func TestRuleAdmitter(t *testing.T) {
 			allowed: false,
 			message: `Missing application label, see https://example.test/reference/labels-selectors/#application, ` +
 				`zalando.org/skipper-filter: oauthTokeninfoAnyScope filter uses "uid" scope, see https://opensource.zalando.com/skipper/reference/filters/#oauthtokeninfoanyscope, ` +
-				`zalando.org/skipper-routes: oauthTokeninfoAnyScope filter uses "uid" scope, see https://opensource.zalando.com/skipper/reference/filters/#oauthtokeninfoanyscope`,
+				`zalando.org/skipper-routes: oauthTokeninfoAnyScope filter uses "uid" scope, see https://opensource.zalando.com/skipper/reference/filters/#oauthtokeninfoanyscope, ` +
+				`Ingress rules must use alias.cluster-domain.test cluster domain`,
 		},
 		{
 			name:    "allowed routegroup",
@@ -48,7 +49,8 @@ func TestRuleAdmitter(t *testing.T) {
 			input:   "testdata/rules/routegroup-rejected.yaml",
 			allowed: false,
 			message: `Missing application label, see https://example.test/reference/labels-selectors/#application, ` +
-				`oauthTokeninfoAnyScope filter uses "uid" scope, see https://opensource.zalando.com/skipper/reference/filters/#oauthtokeninfoanyscope`,
+				`oauthTokeninfoAnyScope filter uses "uid" scope, see https://opensource.zalando.com/skipper/reference/filters/#oauthtokeninfoanyscope, ` +
+				`RouteGroup must use alias.cluster-domain.test cluster domain`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

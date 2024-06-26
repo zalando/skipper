@@ -7,6 +7,8 @@ metadata:
 spec:
   hosts:
     - example.org
+    # hosts in .cluster-domain.test domain must be in .alias.cluster-domain.test
+    - foo.alias-test.cluster-domain.test
   backends:
     - name: app
       type: service

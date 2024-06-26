@@ -8,6 +8,7 @@ metadata:
 spec:
   hosts:
     - example.org
+    - foo.alias.cluster-domain.test
   backends:
     - name: app
       type: service

@@ -33,3 +33,15 @@ rules:
         .exists(r, has(r.filters) && r.filters.map(f, f.eskipFilter())
           .exists(f, f.name == "oauthTokeninfoAnyScope" && size(f.args) > 1 && "uid" in f.args)
         )
+
+  - reject: "Ingress rules must use alias.cluster-domain.test cluster domain"
+    when: |
+      object.kind == "Ingress" &&
+      object.spec.rules
+        .exists(r, r.host.endsWith(".cluster-domain.test") && !r.host.endsWith("alias.cluster-domain.test"))
+
+  - reject: "RouteGroup must use alias.cluster-domain.test cluster domain"
+    when: |
+      object.kind == "RouteGroup" &&
+      object.spec.hosts
+        .exists(h, h.endsWith(".cluster-domain.test") && !h.endsWith("alias.cluster-domain.test"))

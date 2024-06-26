@@ -22,3 +22,14 @@ spec:
                 name: bar
                 port:
                   name: baz
+    # hosts in .cluster-domain.test domain must be in .alias.cluster-domain.test
+    - host: foo.alias-test.cluster-domain.test
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bar
+                port:
+                  name: baz

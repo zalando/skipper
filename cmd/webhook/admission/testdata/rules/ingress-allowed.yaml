@@ -21,3 +21,13 @@ spec:
                 name: bar
                 port:
                   name: baz
+    - host: foo.alias.cluster-domain.test
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bar
+                port:
+                  name: baz
