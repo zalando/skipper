@@ -280,6 +280,7 @@ func (p *Prometheus) registerMetrics() {
 	p.registry.MustRegister(p.routeLookupM)
 	p.registry.MustRegister(p.responseM)
 	p.registry.MustRegister(p.routeErrorsM)
+	p.registry.MustRegister(p.filterCreateM)
 	p.registry.MustRegister(p.filterRequestM)
 	p.registry.MustRegister(p.filterAllRequestM)
 	p.registry.MustRegister(p.filterAllCombinedRequestM)
