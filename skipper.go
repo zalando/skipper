@@ -614,6 +614,9 @@ type Options struct {
 	// TLSMinVersion to set the minimal TLS version for all TLS configurations
 	TLSMinVersion uint16
 
+	// CipherSuites sets the list of cipher suites to use for TLS 1.2
+	CipherSuites []uint16
+
 	// Flush interval for upgraded Proxy connections
 	BackendFlushInterval time.Duration
 
@@ -1174,6 +1177,10 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 
 	config := &tls.Config{
 		MinVersion: o.TLSMinVersion,
+	}
+
+	if o.CipherSuites != nil {
+		config.CipherSuites = o.CipherSuites
 	}
 
 	if cr != nil {

@@ -219,6 +219,9 @@ type Config struct {
 	// TLS version
 	TLSMinVersion string `yaml:"tls-min-version"`
 
+	// Exclude insecure cipher suites
+	ExcludeInsecureCipherSuites bool `yaml:"exclude-insecure-cipher-suites"`
+
 	// TLS Config
 	KubernetesEnableTLS bool `yaml:"kubernetes-enable-tls"`
 
@@ -517,6 +520,9 @@ func NewConfig() *Config {
 	// TLS version
 	flag.StringVar(&cfg.TLSMinVersion, "tls-min-version", defaultMinTLSVersion, "minimal TLS Version to be used in server, proxy and client connections")
 
+	// Exclude insecure cipher suites
+	flag.BoolVar(&cfg.ExcludeInsecureCipherSuites, "exclude-insecure-cipher-suites", false, "excludes insecure cipher suites")
+
 	// API Monitoring:
 	flag.BoolVar(&cfg.ApiUsageMonitoringEnable, "enable-api-usage-monitoring", false, "enables the apiUsageMonitoring filter")
 	flag.StringVar(&cfg.ApiUsageMonitoringRealmKeys, "api-usage-monitoring-realm-keys", "", "name of the property in the JWT payload that contains the authority realm")
@@ -715,6 +721,7 @@ func (c *Config) ToOptions() skipper.Options {
 		DebugListener:             c.DebugListener,
 		CertPathTLS:               c.CertPathTLS,
 		KeyPathTLS:                c.KeyPathTLS,
+		CipherSuites:              c.filterCipherSuites(),
 		MaxLoopbacks:              c.MaxLoopbacks,
 		DefaultHTTPStatus:         c.DefaultHTTPStatus,
 		ReverseSourcePredicate:    c.ReverseSourcePredicate,
@@ -1029,6 +1036,19 @@ func (c *Config) getMinTLSVersion() uint16 {
 	}
 	log.Infof("No valid minimal TLS version confiured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
 	return tlsVersionTable[defaultMinTLSVersion]
+}
+
+func (c *Config) filterCipherSuites() []uint16 {
+	if !c.ExcludeInsecureCipherSuites {
+		return nil
+	}
+
+	cipherSuites := make([]uint16, 0)
+	for _, suite := range tls.CipherSuites() {
+		cipherSuites = append(cipherSuites, suite.ID)
+	}
+
+	return cipherSuites
 }
 
 func (c *Config) parseHistogramBuckets() ([]float64, error) {
