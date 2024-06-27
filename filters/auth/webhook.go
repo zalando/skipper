@@ -93,7 +93,7 @@ func (ws *webhookSpec) CreateFilter(args []interface{}) (filters.Filter, error) 
 	var ac *authClient
 	var err error
 	if ac, ok = webhookAuthClient[s]; !ok {
-		ac, err = newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer)
+		ac, err = newAuthClient(s, webhookSpanName, ws.options.Timeout, ws.options.MaxIdleConns, ws.options.Tracer, true)
 		if err != nil {
 			return nil, filters.ErrInvalidFilterParameters
 		}
@@ -121,7 +121,13 @@ func (f *webhookFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	// errors, redirects, auth errors, webhook errors
+	// redirect
+	if err == nil && resp.StatusCode == http.StatusFound {
+		redirect(ctx, "", invalidAccess, resp.Header.Get("Location"), filters.WebhookName)
+		return
+	}
+
+	// errors, auth errors, webhook errors
 	if err != nil || resp.StatusCode >= 300 {
 		unauthorized(ctx, "", invalidAccess, f.authClient.url.Hostname(), filters.WebhookName)
 		return

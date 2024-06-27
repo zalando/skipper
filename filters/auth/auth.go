@@ -105,6 +105,7 @@ func reject(
 	reason rejectReason,
 	hostname,
 	debuginfo string,
+	destination string,
 ) {
 	if debuginfo == "" {
 		ctx.Logger().Debugf(
@@ -125,6 +126,10 @@ func reject(
 		Header:     make(map[string][]string),
 	}
 
+	if status == http.StatusFound && destination != "" {
+		rsp.Header.Add("Location", destination)
+	}
+
 	if hostname != "" {
 		// https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.4.2
 		rsp.Header.Add("WWW-Authenticate", hostname)
@@ -133,12 +138,16 @@ func reject(
 	ctx.Serve(rsp)
 }
 
+func redirect(ctx filters.FilterContext, username string, reason rejectReason, destination, debuginfo string) {
+	reject(ctx, http.StatusFound, username, reason, "", debuginfo, destination)
+}
+
 func unauthorized(ctx filters.FilterContext, username string, reason rejectReason, hostname, debuginfo string) {
-	reject(ctx, http.StatusUnauthorized, username, reason, hostname, debuginfo)
+	reject(ctx, http.StatusUnauthorized, username, reason, hostname, debuginfo, "")
 }
 
 func forbidden(ctx filters.FilterContext, username string, reason rejectReason, debuginfo string) {
-	reject(ctx, http.StatusForbidden, username, reason, "", debuginfo)
+	reject(ctx, http.StatusForbidden, username, reason, "", debuginfo, "")
 }
 
 func authorized(ctx filters.FilterContext, username string) {
