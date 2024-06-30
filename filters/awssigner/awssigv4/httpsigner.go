@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"hash"
 	"net/http"
 	"net/url"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	internal "github.com/zalando/skipper/filters/awssigner/internal"
 )
 
@@ -324,13 +322,10 @@ func (s Signer) SignHTTP(credentials internal.Credentials, r *http.Request, payl
 		KeyDerivator:           s.keyDerivator,
 	}
 
-	signedRequest, err := signer.Build()
+	_, err := signer.Build()
 	if err != nil {
 		return err
 	}
-
-	LogSigningInfo(&options, &signedRequest, false)
-
 	return nil
 }
 
@@ -383,25 +378,3 @@ type SignerOptions struct {
 	// present the token elsewhere.
 	DisableSessionToken bool
 }
-
-func LogSigningInfo(options *SignerOptions, request *signedRequest, isPresign bool) {
-	if !options.LogSigning {
-		return
-	}
-	signedURLMsg := ""
-	if isPresign {
-		signedURLMsg = fmt.Sprintf(logSignedURLMsg, request.Request.URL.String())
-	}
-	logger := log.WithContext(options.Ctx)
-	logger.Logf(log.DebugLevel, logSignInfoMsg, request.CanonicalString, request.StringToSign, signedURLMsg)
-}
-
-const logSignInfoMsg = `Request Signature:
----[ CANONICAL STRING  ]-----------------------------
-%s
----[ STRING TO SIGN ]--------------------------------
-%s%s
------------------------------------------------------`
-const logSignedURLMsg = `
----[ SIGNED URL ]------------------------------------
-%s`

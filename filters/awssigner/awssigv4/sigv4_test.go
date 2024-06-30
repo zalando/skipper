@@ -386,6 +386,28 @@ func TestSigV4WithDisabledSessionToken(t *testing.T) {
 
 }
 
+func TestSigV4WithNoBody(t *testing.T) {
+	sigV4 := awsSigV4Filter{
+		region:                 "us-east-1",
+		service:                "dynamodb",
+		disableHeaderHoisting:  false,
+		disableURIPathEscaping: false,
+		disableSessionToken:    false,
+	}
+	expectedSignature := "AWS4-HMAC-SHA256 Credential=AKID/19700101/us-east-1/dynamodb/aws4_request, SignedHeaders=host;x-amz-date;x-amz-security-token, Signature=f779ebb258e1692ca97a514c3a9fb99ad1b6f8869608f43ff66bc00d2c0400f5"
+	headers := &http.Header{}
+	headers.Add("x-amz-accesskey", "AKID")
+	headers.Add("x-amz-secret", "SECRET")
+	headers.Add("x-amz-session", "SESSION")
+	headers.Add("x-amz-time", "1970-01-01T00:00:00Z")
+	ctx := buildfilterContext(sigV4.service, sigV4.region, "POST", strings.NewReader(""), "", *headers)
+	sigV4.Request(ctx)
+	signature := ctx.Request().Header.Get(internal.AuthorizationHeader)
+	b, _ := io.ReadAll(ctx.Request().Body)
+	assert.Equal(t, string(b), "") // test that body remains intact
+	assert.Equal(t, expectedSignature, signature, "test with no body has failed")
+}
+
 func buildfilterContext(serviceName string, region string, method string, body *strings.Reader, queryParams string, headers http.Header) filters.FilterContext {
 	endpoint := "https://" + serviceName + "." + region + ".amazonaws.com"
 

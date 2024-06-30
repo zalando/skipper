@@ -128,7 +128,7 @@ func (f *awsSigV4Filter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	time, err := time.Parse(time.RFC3339, timeStr) //2012-11-01T22:08:41+00:00
+	time, err := time.Parse(time.RFC3339, timeStr)
 
 	if err != nil {
 		logger.Log(log.ErrorLevel, "time was not in RFC3339 format")
@@ -163,8 +163,8 @@ func (f *awsSigV4Filter) Response(ctx filters.FilterContext) {}
 func hashRequest(ctx filters.FilterContext, body io.Reader) (string, io.Reader, error) {
 	h := sha256.New()
 	if body == nil {
-		body = strings.NewReader("") // as per specs https://github.com/aws/aws-sdk-go-v2/blob/main/aws/signer/v4/v4.go#L261
-		_, err := io.Copy(h, body)   // read body in-memory
+		body = strings.NewReader("")
+		_, err := io.Copy(h, body)
 		if err != nil {
 
 			return "", nil, err
@@ -173,13 +173,12 @@ func hashRequest(ctx filters.FilterContext, body io.Reader) (string, io.Reader, 
 	} else {
 		var buf bytes.Buffer
 		tee := io.TeeReader(body, &buf)
-		_, err := io.Copy(h, tee) // read body in-memory
+		_, err := io.Copy(h, tee)
 		if err != nil {
 			return "", nil, err
 		}
 		return hex.EncodeToString(h.Sum(nil)), &buf, nil
 	}
-
 }
 
 func getAndRemoveHeader(ctx filters.FilterContext, headerName string, req *http.Request) string {
