@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -163,7 +162,7 @@ func (f *awsSigV4Filter) Response(ctx filters.FilterContext) {}
 func hashRequest(ctx filters.FilterContext, body io.Reader) (string, io.Reader, error) {
 	h := sha256.New()
 	if body == nil {
-		body = strings.NewReader("")
+		body = http.NoBody
 		_, err := io.Copy(h, body)
 		if err != nil {
 
