@@ -9,6 +9,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      all-go-mod-patch-and-minor:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
   - package-ecosystem: "github-actions"
     directory: "/" # For GitHub Actions, set the directory to / to check for workflow files in .github/workflows
     schedule:
