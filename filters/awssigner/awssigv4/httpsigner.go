@@ -323,10 +323,7 @@ func (s Signer) SignHTTP(credentials internal.Credentials, r *http.Request, payl
 	}
 
 	_, err := signer.Build()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (s *httpSigner) BuildCanonicalString(method, uri, query, signedHeaders, canonicalHeaders string) string {
