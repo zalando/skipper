@@ -368,6 +368,11 @@ type Params struct {
 	// FlightRecorderTargetURL is the target to write the trace
 	// to. Supported targets are http URL and file URL.
 	FlightRecorderTargetURL string
+
+	// FlightRecorderPeriod is the time.Duration that is used for
+	// a slow skipper. If skipper is detected to be slow it tries
+	// to write out a trace as configured by the FlightRecorderTargetURL.
+	FlightRecorderPeriod time.Duration
 }
 
 type (
@@ -464,6 +469,7 @@ type Proxy struct {
 	onPanicSometimes         rate.Sometimes
 	flightRecorder           *trace.FlightRecorder
 	flightRecorderURL        *url.URL
+	flightRecorderPeriod     time.Duration
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -896,6 +902,7 @@ func WithParams(p Params) *Proxy {
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
 		flightRecorder:           p.FlightRecorder,
 		flightRecorderURL:        frURL,
+		flightRecorderPeriod:     p.FlightRecorderPeriod,
 	}
 }
 
@@ -904,7 +911,7 @@ func (p *Proxy) writeTraceIfTooSlow(ctx *context) {
 		return
 	}
 
-	var d time.Duration
+	d := p.flightRecorderPeriod
 	if e, ok := ctx.StateBag()[filters.TraceName]; ok {
 		d = e.(time.Duration)
 	}

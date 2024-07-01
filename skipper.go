@@ -2041,18 +2041,20 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	routing := routing.New(ro)
 	defer routing.Close()
 
+	frPeriod := defaultFlightRecorderPeriod
 	var fr *trace.FlightRecorder
 	if o.FlightRecorderTargetURL != "" {
 		fr = trace.NewFlightRecorder()
 
 		if o.FlightRecorderPeriod != 0 {
-			fr.SetPeriod(o.FlightRecorderPeriod)
-		} else {
-			fr.SetPeriod(defaultFlightRecorderPeriod)
+			frPeriod = o.FlightRecorderPeriod
 		}
+		fr.SetPeriod(frPeriod)
 
+		frSize := defaultFlightRecorderSize
 		if o.FlightRecorderSize != 0 {
 			fr.SetSize(o.FlightRecorderSize)
+			frSize = o.FlightRecorderSize
 		} else {
 			fr.SetSize(defaultFlightRecorderSize)
 		}
@@ -2062,9 +2064,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			log.Errorf("Failed to start FlightRecorder: %v", err)
 			fr.Stop()
 			fr = nil
+		} else {
+			log.Infof("FlightRecorder started with config (%s, %d) target: %s", frPeriod, frSize, o.FlightRecorderTargetURL)
 		}
 	}
-	log.Infof("FlightRecorder: %v", fr)
 
 	proxyFlags := proxy.Flags(o.ProxyOptions) | o.ProxyFlags
 	proxyParams := proxy.Params{
@@ -2096,6 +2099,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		PassiveHealthCheck:         passiveHealthCheck,
 		FlightRecorder:             fr,
 		FlightRecorderTargetURL:    o.FlightRecorderTargetURL,
+		FlightRecorderPeriod:       frPeriod,
 	}
 
 	if o.EnableBreakers || len(o.BreakerSettings) > 0 {
