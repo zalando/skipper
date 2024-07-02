@@ -343,6 +343,7 @@ const (
 	FifoWithBodyName                           = "fifoWithBody"
 	LifoName                                   = "lifo"
 	LifoGroupName                              = "lifoGroup"
+	RetryName                                  = "retry"
 	RfcPathName                                = "rfcPath"
 	RfcHostName                                = "rfcHost"
 	BearerInjectorName                         = "bearerinjector"
