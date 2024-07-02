@@ -29,7 +29,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/tracing/tracingtest"
 	"google.golang.org/protobuf/encoding/protojson"
-	pbstruct "google.golang.org/protobuf/types/known/structpb"
+	_struct "google.golang.org/protobuf/types/known/structpb"
 )
 
 type MockOpenPolicyAgentFilter struct {
@@ -63,22 +63,22 @@ func TestInterpolateTemplate(t *testing.T) {
 
 func TestLoadEnvoyMetadata(t *testing.T) {
 	cfg := &OpenPolicyAgentInstanceConfig{}
-	_ = WithEnvoyMetadataBytes([]byte(`
+	WithEnvoyMetadataBytes([]byte(`
 	{
 		"filter_metadata": {
 			"envoy.filters.http.header_to_metadata": {
 				"policy_type": "ingress"
-			},
+			}
 		}
 	}
 	`))(cfg)
 
 	expectedBytes, err := protojson.Marshal(&ext_authz_v3_core.Metadata{
-		FilterMetadata: map[string]*pbstruct.Struct{
+		FilterMetadata: map[string]*_struct.Struct{
 			"envoy.filters.http.header_to_metadata": {
-				Fields: map[string]*pbstruct.Value{
+				Fields: map[string]*_struct.Value{
 					"policy_type": {
-						Kind: &pbstruct.Value_StringValue{StringValue: "ingress"},
+						Kind: &_struct.Value_StringValue{StringValue: "ingress"},
 					},
 				},
 			},
@@ -411,13 +411,7 @@ func TestEval(t *testing.T) {
 	span := tracer.StartSpan("open-policy-agent")
 	ctx := opentracing.ContextWithSpan(context.Background(), span)
 
-	result, err := inst.Eval(ctx, &authv3.CheckRequest{
-		Attributes: &authv3.AttributeContext{
-			Request:           nil,
-			ContextExtensions: nil,
-			MetadataContext:   nil,
-		},
-	})
+	result, err := inst.Eval(ctx, &authv3.CheckRequest{})
 	assert.NoError(t, err)
 
 	allowed, err := result.IsAllowed()
