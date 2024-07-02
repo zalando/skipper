@@ -207,6 +207,11 @@ type Options struct {
 
 	// Log is used for error logging
 	Log logging.Logger
+
+	// BeforeSend is a hook function that runs just before executing RoundTrip(*http.Request)
+	BeforeSend func(*http.Request)
+	// AfterResponse is a hook function that runs just after executing RoundTrip(*http.Request)
+	AfterResponse func(*http.Response, error)
 }
 
 // Transport wraps an http.Transport and adds support for tracing and
@@ -219,6 +224,8 @@ type Transport struct {
 	spanName      string
 	componentName string
 	bearerToken   string
+	beforeSend    func(*http.Request)
+	afterResponse func(*http.Response, error)
 }
 
 // NewTransport creates a wrapped http.Transport, with regular DNS
@@ -275,10 +282,12 @@ func NewTransport(options Options) *Transport {
 	}
 
 	t := &Transport{
-		once:   sync.Once{},
-		quit:   make(chan struct{}),
-		tr:     htransport,
-		tracer: options.Tracer,
+		once:          sync.Once{},
+		quit:          make(chan struct{}),
+		tr:            htransport,
+		tracer:        options.Tracer,
+		beforeSend:    options.BeforeSend,
+		afterResponse: options.AfterResponse,
 	}
 
 	if t.tracer != nil {
@@ -342,6 +351,8 @@ func (t *Transport) shallowCopy() *Transport {
 		spanName:      t.spanName,
 		componentName: t.componentName,
 		bearerToken:   t.bearerToken,
+		beforeSend:    t.beforeSend,
+		afterResponse: t.afterResponse,
 	}
 }
 
@@ -369,7 +380,13 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.bearerToken != "" {
 		req.Header.Set("Authorization", "Bearer "+t.bearerToken)
 	}
+	if t.beforeSend != nil {
+		t.beforeSend(req)
+	}
 	rsp, err := t.tr.RoundTrip(req)
+	if t.afterResponse != nil {
+		t.afterResponse(rsp, err)
+	}
 	if span != nil {
 		span.LogKV("http_do", "stop")
 		if rsp != nil {
@@ -388,10 +405,10 @@ func (t *Transport) injectSpan(req *http.Request) (*http.Request, opentracing.Sp
 		string(ext.HTTPUrl):    req.URL.String(),
 	}}
 	if parentSpan := opentracing.SpanFromContext(req.Context()); parentSpan != nil {
-		req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
 		spanOpts = append(spanOpts, opentracing.ChildOf(parentSpan.Context()))
 	}
 	span := t.tracer.StartSpan(t.spanName, spanOpts...)
+	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
 
 	_ = t.tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 
