@@ -339,7 +339,7 @@ func TestOpaActivationTimeOutWithDiscoveryPointingWrongBundle(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
 	assert.Equal(t, 0, len(registry.instances))
 }
 
@@ -353,7 +353,7 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
 	assert.Equal(t, 0, len(registry.instances))
 }
 
@@ -695,4 +695,32 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+func TestOpaActivationFailureWithInvalidDiscovery(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/invalid-discovery")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.NotNil(t, instance)
+	assert.Error(t, err) //ToDo has to be a error from the listener, not timeout
+	assert.Equal(t, 1, len(registry.instances))
+}
+
+func TestOpaActivationFailureWithValidDiscoveryInvalidBundle(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("invalid-bundle-name", *cfg, "testfilter")
+	assert.NotNil(t, instance)
+	assert.Error(t, err) //ToDo has to be a error from the listener, not timeout
+	assert.Equal(t, 1, len(registry.instances))
 }
