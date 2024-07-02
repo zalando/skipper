@@ -179,6 +179,7 @@ func (c *OAuthConfig) Init() error {
 			c.ConnectionTimeout,
 			c.MaxIdleConnectionsPerHost,
 			c.Tracer,
+			false,
 		)
 		if err != nil {
 			return err
