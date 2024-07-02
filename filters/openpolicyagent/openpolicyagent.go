@@ -490,22 +490,34 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 		}
 	})
 
+	var unregisterBundleListener func()
+	var registerBundleListenerOnce sync.Once
+
 	opa.manager.RegisterPluginStatusListener("startuplistener", func(status map[string]*plugins.Status) {
-		for pluginname, pluginstatus := range status {
-			if pluginname == "bundle" { //To make sure bundle plugin is present to register the listener
-				bundlePlugin := bundle.Lookup(opa.manager)
+		for pluginName, pluginStatus := range status {
 
-				bundlePlugin.Register("startuplistener", func(status bundle.Status) {
-					if len(status.Errors) > 0 {
-						failed <- fmt.Errorf("bundle activation failed: %w", errors.Join(status.Errors...))
-					}
-				})
-				defer bundlePlugin.Unregister("startuplistener")
-			}
-
-			if pluginstatus != nil && pluginstatus.State != plugins.StateOK {
+			if pluginStatus != nil && pluginStatus.State != plugins.StateOK {
 				return
 			}
+
+			if pluginName == "bundle" { //To make sure bundle plugin is present to register the listener
+				registerBundleListenerOnce.Do(func() {
+					bundlePlugin := bundle.Lookup(opa.manager)
+					if bundlePlugin != nil {
+						bundlePlugin.Register("startuplistener", func(status bundle.Status) {
+							if len(status.Errors) > 0 {
+								failed <- fmt.Errorf("bundle activation failed: %w", errors.Join(status.Errors...))
+							}
+						})
+						unregisterBundleListener = func() {
+							bundlePlugin.Unregister("startuplistener")
+						}
+					} else {
+						unregisterBundleListener = func() {}
+					}
+				})
+			}
+
 		}
 		close(done)
 	})
@@ -518,13 +530,25 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 
 	select {
 	case <-done:
+		if unregisterBundleListener != nil {
+			unregisterBundleListener()
+		}
 		return nil
 	case err := <-failed:
 		opa.Close(ctx)
 
+		if unregisterBundleListener != nil {
+			unregisterBundleListener()
+		}
+
 		return err
 	case <-ctx.Done():
 		timeoutErr := ctx.Err()
+
+		if unregisterBundleListener != nil {
+			unregisterBundleListener()
+		}
+
 		for pluginName, status := range opa.manager.PluginStatus() {
 			if status != nil && status.State != plugins.StateOK {
 				opa.Logger().WithFields(map[string]interface{}{
