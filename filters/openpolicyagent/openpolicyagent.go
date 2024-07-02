@@ -490,38 +490,36 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 		}
 	})
 
-	var unregisterBundleListener func()
 	var registerBundleListenerOnce sync.Once
 
-	opa.manager.RegisterPluginStatusListener("startuplistener", func(status map[string]*plugins.Status) {
-		for pluginName, pluginStatus := range status {
+	// Register listener for "bundle" plugin
+	opa.manager.RegisterPluginStatusListener("bundlelistener", func(status map[string]*plugins.Status) {
+		if _, exists := status["bundle"]; exists {
+			registerBundleListenerOnce.Do(func() {
+				bundlePlugin := bundle.Lookup(opa.manager)
+				if bundlePlugin != nil {
+					bundlePlugin.Register("startuplistener", func(status bundle.Status) {
+						if len(status.Errors) > 0 {
+							failed <- fmt.Errorf("bundle activation failed: %w", errors.Join(status.Errors...))
+						}
+					})
 
+				}
+			})
+		}
+	})
+	defer opa.manager.UnregisterPluginStatusListener("bundlelistener")
+
+	// Register listener for general plugin status checks
+	opa.manager.RegisterPluginStatusListener("generalStartUpListener", func(status map[string]*plugins.Status) {
+		for _, pluginStatus := range status {
 			if pluginStatus != nil && pluginStatus.State != plugins.StateOK {
 				return
 			}
-
-			if pluginName == "bundle" { //To make sure bundle plugin is present to register the listener
-				registerBundleListenerOnce.Do(func() {
-					bundlePlugin := bundle.Lookup(opa.manager)
-					if bundlePlugin != nil {
-						bundlePlugin.Register("startuplistener", func(status bundle.Status) {
-							if len(status.Errors) > 0 {
-								failed <- fmt.Errorf("bundle activation failed: %w", errors.Join(status.Errors...))
-							}
-						})
-						unregisterBundleListener = func() {
-							bundlePlugin.Unregister("startuplistener")
-						}
-					} else {
-						unregisterBundleListener = func() {}
-					}
-				})
-			}
-
 		}
-		close(done)
+		done <- struct{}{}
 	})
-	defer opa.manager.UnregisterPluginStatusListener("startuplistener")
+	defer opa.manager.UnregisterPluginStatusListener("generalStartUpListener")
 
 	err := opa.manager.Start(ctx)
 	if err != nil {
@@ -530,24 +528,13 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 
 	select {
 	case <-done:
-		if unregisterBundleListener != nil {
-			unregisterBundleListener()
-		}
 		return nil
 	case err := <-failed:
 		opa.Close(ctx)
 
-		if unregisterBundleListener != nil {
-			unregisterBundleListener()
-		}
-
 		return err
 	case <-ctx.Done():
 		timeoutErr := ctx.Err()
-
-		if unregisterBundleListener != nil {
-			unregisterBundleListener()
-		}
 
 		for pluginName, status := range opa.manager.PluginStatus() {
 			if status != nil && status.State != plugins.StateOK {
