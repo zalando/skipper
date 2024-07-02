@@ -478,7 +478,6 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 // policies, report status, etc.
 func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Duration) error {
 	discoveryPlugin := discovery.Lookup(opa.manager)
-	bundlePlugin := bundle.Lookup(opa.manager)
 
 	done := make(chan struct{})
 	defer close(done)
@@ -491,15 +490,19 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 		}
 	})
 
-	bundlePlugin.Register("startuplistener", func(status bundle.Status) {
-		if len(status.Errors) > 0 {
-			failed <- fmt.Errorf("bundle activation failed: %w", errors.Join(status.Errors...))
-		}
-	})
-	defer bundlePlugin.Unregister("startuplistener")
-
 	opa.manager.RegisterPluginStatusListener("startuplistener", func(status map[string]*plugins.Status) {
-		for _, pluginstatus := range status {
+		for pluginname, pluginstatus := range status {
+			if pluginname == "bundle" { //To make sure bundle plugin is present to register the listener
+				bundlePlugin := bundle.Lookup(opa.manager)
+
+				bundlePlugin.Register("startuplistener", func(status bundle.Status) {
+					if len(status.Errors) > 0 {
+						failed <- fmt.Errorf("bundle activation failed: %w", errors.Join(status.Errors...))
+					}
+				})
+				defer bundlePlugin.Unregister("startuplistener")
+			}
+
 			if pluginstatus != nil && pluginstatus.State != plugins.StateOK {
 				return
 			}
@@ -521,17 +524,21 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 
 		return err
 	case <-ctx.Done():
+		timeoutErr := ctx.Err()
 		for pluginName, status := range opa.manager.PluginStatus() {
 			if status != nil && status.State != plugins.StateOK {
 				opa.Logger().WithFields(map[string]interface{}{
 					"plugin_name":   pluginName,
 					"plugin_state":  status.State,
 					"error_message": status.Message,
-				}).Error("Open policy agent plugin did not start in time")
+				}).Error("Open policy agent plugin: %v did not start in time", pluginName)
 			}
 		}
 		opa.Close(ctx)
-		return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, err)
+		if timeoutErr != nil {
+			return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, timeoutErr)
+		}
+		return fmt.Errorf("one or more open policy agent plugins failed to start in %v", timeout)
 	}
 }
 
@@ -540,25 +547,6 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 		opa.manager.Stop(ctx)
 		opa.stopped = true
 	})
-}
-
-func waitFunc(ctx context.Context, fun func() bool, interval time.Duration) error {
-	if fun() {
-		return nil
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timed out while starting: %w", ctx.Err())
-		case <-ticker.C:
-			if fun() {
-				return nil
-			}
-		}
-	}
 }
 
 func configLabelsInfo(opaConfig config.Config) func(*plugins.Manager) {
