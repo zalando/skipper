@@ -22,6 +22,7 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/trace"
 	"golang.org/x/time/rate"
 
 	ot "github.com/opentracing/opentracing-go"
@@ -360,6 +361,18 @@ type Params struct {
 
 	// PassiveHealthCheck defines the parameters for the healthy endpoints checker.
 	PassiveHealthCheck *PassiveHealthCheck
+
+	// FlightRecorder is a started instance of https://pkg.go.dev/golang.org/x/exp/trace#FlightRecorder
+	FlightRecorder *trace.FlightRecorder
+
+	// FlightRecorderTargetURL is the target to write the trace
+	// to. Supported targets are http URL and file URL.
+	FlightRecorderTargetURL string
+
+	// FlightRecorderPeriod is the time.Duration that is used for
+	// a slow skipper. If skipper is detected to be slow it tries
+	// to write out a trace as configured by the FlightRecorderTargetURL.
+	FlightRecorderPeriod time.Duration
 }
 
 type (
@@ -454,6 +467,9 @@ type Proxy struct {
 	clientTLS                *tls.Config
 	hostname                 string
 	onPanicSometimes         rate.Sometimes
+	flightRecorder           *trace.FlightRecorder
+	flightRecorderURL        *url.URL
+	flightRecorderPeriod     time.Duration
 }
 
 // proxyError is used to wrap errors during proxying and to indicate
@@ -845,6 +861,17 @@ func WithParams(p Params) *Proxy {
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
+
+	var frURL *url.URL
+	if p.FlightRecorder != nil {
+		var err error
+		frURL, err = url.Parse(p.FlightRecorderTargetURL)
+		if err != nil {
+			p.FlightRecorder.Stop()
+			p.FlightRecorder = nil
+		}
+	}
+
 	return &Proxy{
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
@@ -873,6 +900,63 @@ func WithParams(p Params) *Proxy {
 		clientTLS:                tr.TLSClientConfig,
 		hostname:                 hostname,
 		onPanicSometimes:         rate.Sometimes{First: 3, Interval: 1 * time.Minute},
+		flightRecorder:           p.FlightRecorder,
+		flightRecorderURL:        frURL,
+		flightRecorderPeriod:     p.FlightRecorderPeriod,
+	}
+}
+
+func (p *Proxy) writeTraceIfTooSlow(ctx *context) {
+	if p.flightRecorder == nil || p.flightRecorderURL == nil {
+		return
+	}
+
+	d := p.flightRecorderPeriod
+	if e, ok := ctx.StateBag()[filters.TraceName]; ok {
+		d = e.(time.Duration)
+	}
+	if d < 1*time.Microsecond {
+		return
+	}
+
+	p.log.Infof("write trace if too slow: %s > %s", time.Since(ctx.startServe), d)
+	if time.Since(ctx.startServe) > d {
+		var b bytes.Buffer
+		_, err := p.flightRecorder.WriteTo(&b)
+		if err != nil {
+			p.log.Errorf("Failed to write flightrecorder data: %v", err)
+			return
+		}
+
+		switch p.flightRecorderURL.Scheme {
+		case "file":
+			if err := os.WriteFile(p.flightRecorderURL.Path, b.Bytes(), 0o644); err != nil {
+				p.log.Errorf("Failed to write file trace.out: %v", err)
+				return
+			} else {
+				p.log.Infof("FlightRecorder wrote %d bytes to trace file %q", b.Len(), p.flightRecorderURL.Path)
+			}
+		case "http", "https":
+			req, err := http.NewRequest("PUT", p.flightRecorderURL.String(), &b)
+			if err != nil {
+				p.log.Errorf("Failed to create request to %q to send a trace: %v", p.flightRecorderURL.String(), err)
+			}
+
+			rsp, err := p.roundTripper.RoundTrip(req)
+			if err != nil {
+				p.log.Errorf("Failed to write trace to %q: %v", p.flightRecorderURL.String(), err)
+			} else {
+				rsp.Body.Close()
+			}
+			switch rsp.StatusCode {
+			case 200, 201, 204:
+				p.log.Infof("Successful send of a trace to %q", p.flightRecorderURL.String())
+			default:
+				p.log.Errorf("Failed to get successful response from %s: (%d) %s", p.flightRecorderURL.String(), rsp.StatusCode, rsp.Status)
+			}
+		default:
+			p.log.Errorf("Failed to write trace, unknown FlightRecorderURL scheme %q", p.flightRecorderURL.Scheme)
+		}
 	}
 }
 
@@ -1023,6 +1107,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
+
+	p.writeTraceIfTooSlow(ctx)
 
 	response, err := roundTripper.RoundTrip(req)
 	if endpointMetrics != nil {
@@ -1644,6 +1730,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) Close() error {
 	close(p.quit)
 	p.registry.Close()
+	if p.flightRecorder != nil {
+		p.flightRecorder.Stop()
+	}
+
 	return nil
 }
 
