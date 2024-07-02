@@ -193,6 +193,8 @@ type Options struct {
 	OpentracingComponentTag string
 	// OpentracingSpanName sets span name for all requests
 	OpentracingSpanName string
+	// OTelPeerService sets span attribute peer.service to OTelPeerService for all requests
+	OTelPeerService string
 
 	// BearerTokenFile injects bearer token read from file, which
 	// file path is the given string. In case SecretsReader is
@@ -219,6 +221,7 @@ type Transport struct {
 	spanName      string
 	componentName string
 	bearerToken   string
+	peerService   string
 }
 
 // NewTransport creates a wrapped http.Transport, with regular DNS
@@ -288,6 +291,9 @@ func NewTransport(options Options) *Transport {
 		if options.OpentracingSpanName != "" {
 			t = WithSpanName(t, options.OpentracingSpanName)
 		}
+		if options.OTelPeerService != "" {
+			t = WithPeerService(t, options.OTelPeerService)
+		}
 	}
 
 	go func() {
@@ -320,6 +326,14 @@ func WithSpanName(t *Transport, spanName string) *Transport {
 func WithComponentTag(t *Transport, componentName string) *Transport {
 	tt := t.shallowCopy()
 	tt.componentName = componentName
+	return tt
+}
+
+// WithPeerService sets the peer.service, if you have an enabled
+// tracing Transport.
+func WithPeerService(t *Transport, peerService string) *Transport {
+	tt := t.shallowCopy()
+	tt.peerService = peerService
 	return tt
 }
 
@@ -387,6 +401,12 @@ func (t *Transport) injectSpan(req *http.Request) (*http.Request, opentracing.Sp
 		string(ext.HTTPMethod): req.Method,
 		string(ext.HTTPUrl):    req.URL.String(),
 	}}
+	if t.peerService != "" {
+		spanOpts = append(spanOpts, opentracing.Tags{
+			string(ext.PeerService): t.peerService,
+		})
+
+	}
 	if parentSpan := opentracing.SpanFromContext(req.Context()); parentSpan != nil {
 		req = req.WithContext(opentracing.ContextWithSpan(req.Context(), parentSpan))
 		spanOpts = append(spanOpts, opentracing.ChildOf(parentSpan.Context()))

@@ -75,6 +75,16 @@ func TestClient(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "With tracer and span name and peer service",
+			options: Options{
+				Tracer:                  tracer,
+				OpentracingComponentTag: "mytag",
+				OpentracingSpanName:     "foo",
+				OTelPeerService:         "bar-application",
+			},
+			wantErr: false,
+		},
+		{
 			name:      "With token",
 			options:   Options{},
 			tokenFile: "token",

@@ -54,6 +54,7 @@ func ExampleClient() {
 		Tracer:                     tracer,
 		OpentracingComponentTag:    "testclient",
 		OpentracingSpanName:        "clientSpan",
+		OTelPeerService:            "backend-application",
 		BearerTokenRefreshInterval: 10 * time.Second,
 		BearerTokenFile:            "/tmp/foo.token",
 		IdleConnTimeout:            2 * time.Second,
@@ -99,6 +100,7 @@ func ExampleClient_withTransport() {
 		Tracer:                     tracer,
 		OpentracingComponentTag:    "testclient",
 		OpentracingSpanName:        "clientSpan",
+		OTelPeerService:            "backend-application",
 		BearerTokenRefreshInterval: 10 * time.Second,
 		BearerTokenFile:            "/tmp/foo.token",
 	})
@@ -138,6 +140,7 @@ func ExampleClient_fileSecretsReader() {
 		Tracer:                  tracer,
 		OpentracingComponentTag: "testclient",
 		OpentracingSpanName:     "clientSpan",
+		OTelPeerService:         "backend-application",
 		SecretsReader:           sp,
 		IdleConnTimeout:         2 * time.Second,
 	})
@@ -171,6 +174,7 @@ func ExampleClient_staticSecret() {
 		Tracer:                  tracer,
 		OpentracingComponentTag: "testclient",
 		OpentracingSpanName:     "clientSpan",
+		OTelPeerService:         "backend-application",
 		SecretsReader:           secrets.StaticSecret(sec),
 		IdleConnTimeout:         2 * time.Second,
 	})
@@ -212,6 +216,7 @@ func ExampleClient_customTracer() {
 	cli := net.NewClient(net.Options{
 		Tracer:              &customTracer{mockTracer},
 		OpentracingSpanName: "clientSpan",
+		OTelPeerService:     "backend-application",
 	})
 	defer cli.Close()
 
@@ -250,6 +255,7 @@ func ExampleClient_staticDelegateSecret() {
 		Tracer:                  tracer,
 		OpentracingComponentTag: "testclient",
 		OpentracingSpanName:     "clientSpan",
+		OTelPeerService:         "backend-application",
 		SecretsReader: secrets.NewStaticDelegateSecret(
 			newTestSecretsReader(
 				map[string][]byte{
@@ -291,6 +297,7 @@ func ExampleClient_hostSecret() {
 		Tracer:                  tracer,
 		OpentracingComponentTag: "testclient",
 		OpentracingSpanName:     "clientSpan",
+		OTelPeerService:         "backend-application",
 		SecretsReader: secrets.NewHostSecret(
 			newTestSecretsReader(
 				map[string][]byte{
