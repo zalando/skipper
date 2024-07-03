@@ -491,15 +491,15 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	// Register listener for "bundle" plugin
 	opa.manager.RegisterPluginStatusListener("bundlelistener", func(status map[string]*plugins.Status) {
 		if _, exists := status["bundle"]; exists {
-			registerBundleListenerOnce.Do(func() {
-				bundlePlugin := bundle.Lookup(opa.manager)
-				if bundlePlugin != nil {
+			bundlePlugin := bundle.Lookup(opa.manager)
+			if bundlePlugin != nil {
+				registerBundleListenerOnce.Do(func() {
 					bundlePlugin.Register("startuplistener", func(status bundle.Status) {
 						handleStatusErrors(status, failed, "bundle plugin")
 					})
 
-				}
-			})
+				})
+			}
 		}
 	})
 	defer opa.manager.UnregisterPluginStatusListener("bundlelistener")

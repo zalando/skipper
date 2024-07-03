@@ -242,7 +242,7 @@ func TestRegistry(t *testing.T) {
 	assert.Error(t, err, "should not work after close")
 }
 
-func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
+func TestOpaEngineStartFailureWithWrongBundle(t *testing.T) {
 	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
@@ -258,7 +258,7 @@ func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
 
 	err = engine.Start(ctx, cfg.startupTimeout)
 	assert.True(t, engine.stopped)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
+	assert.Contains(t, err.Error(), "bundle plugin failed: bundle_error")
 }
 
 func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
@@ -339,7 +339,7 @@ func TestOpaActivationTimeOutWithDiscoveryPointingWrongBundle(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
+	assert.Contains(t, err.Error(), "bundle plugin failed: bundle_error")
 	assert.Equal(t, 0, len(registry.instances))
 }
 
