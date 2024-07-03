@@ -480,14 +480,10 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	discoveryPlugin := discovery.Lookup(opa.manager)
 
 	done := make(chan struct{})
-	defer close(done)
-	failed := make(chan error)
-	defer close(failed)
+	failed := make(chan error, 1)
 
 	discoveryPlugin.RegisterListener("startuplistener", func(status bundle.Status) {
-		if len(status.Errors) > 0 {
-			failed <- fmt.Errorf("discovery download failed: %w", errors.Join(status.Errors...))
-		}
+		handleStatusErrors(status, failed, "discovery plugin")
 	})
 
 	var registerBundleListenerOnce sync.Once
@@ -499,9 +495,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 				bundlePlugin := bundle.Lookup(opa.manager)
 				if bundlePlugin != nil {
 					bundlePlugin.Register("startuplistener", func(status bundle.Status) {
-						if len(status.Errors) > 0 {
-							failed <- fmt.Errorf("bundle activation failed: %w", errors.Join(status.Errors...))
-						}
+						handleStatusErrors(status, failed, "bundle plugin")
 					})
 
 				}
@@ -824,4 +818,14 @@ func (l *QuietLogger) Error(fmt string, a ...interface{}) {
 
 func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
 	l.target.Warn(fmt, a)
+}
+
+func handleStatusErrors(status bundle.Status, failed chan error, prefix string) {
+	if len(status.Errors) > 0 {
+		failed <- fmt.Errorf("%s failed: %w", prefix, errors.Join(status.Errors...))
+	}
+
+	if status.Code != "" {
+		failed <- fmt.Errorf("%s failed: %s", prefix, status.Code)
+	}
 }
