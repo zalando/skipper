@@ -42,6 +42,16 @@ lifecycle:
       command: ["sleep","20"]
 ```
 
+or use sleep in kubelet without the need of the binary `sleep` in your
+container:
+
+```yaml
+lifecycle:
+  preStop:
+    sleep:
+      seconds: 20
+```
+
 20 seconds should be enough to fade your Pod out of the endpoints list
 and Skipper's routing table.
 
