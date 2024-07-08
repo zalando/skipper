@@ -118,7 +118,7 @@ func (r Rules) IsValid(value string) bool {
 	return false
 }
 
-// IsValid for the map Rule satisfies whether it exists in the map
+// IsValid for the MapRule satisfies whether it exists in the map
 func (m MapRule) IsValid(value string) bool {
 	_, ok := m[value]
 	return ok
@@ -129,7 +129,7 @@ func (w AllowList) IsValid(value string) bool {
 	return w.Rule.IsValid(value)
 }
 
-// IsValid for AllowList checks if the value is within the AllowList
+// IsValid for ExcludeList checks if the value is not within the ExcludeList
 func (b ExcludeList) IsValid(value string) bool {
 	return !b.Rule.IsValid(value)
 }
