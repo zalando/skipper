@@ -824,11 +824,11 @@ func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
 }
 
 func handleStatusErrors(status bundle.Status, failed chan error, prefix string) {
-	if len(status.Errors) > 0 {
-		failed <- fmt.Errorf("%s failed: %w", prefix, errors.Join(status.Errors...))
-	}
-
 	if status.Code != "" {
-		failed <- fmt.Errorf("%s failed: %s", prefix, status.Code)
+		if len(status.Errors) > 0 {
+			failed <- fmt.Errorf("%s failed: %s, errors: %w", prefix, status.Code, errors.Join(status.Errors...))
+		} else {
+			failed <- fmt.Errorf("%s failed: %s", prefix, status.Code)
+		}
 	}
 }
