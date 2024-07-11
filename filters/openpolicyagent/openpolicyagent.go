@@ -477,18 +477,21 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 // Start asynchronously starts the policy engine's plugins that download
 // policies, report status, etc.
 func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Duration) error {
+
 	discoveryPlugin := discovery.Lookup(opa.manager)
 
 	done := make(chan struct{})
 	failed := make(chan error, 1)
 
-	discoveryPlugin.RegisterListener("startuplistener", func(status bundle.Status) {
-		handleStatusErrors(status, failed, "discovery plugin")
+	var registerDiscoveryListenerOnce sync.Once
+	registerDiscoveryListenerOnce.Do(func() {
+		discoveryPlugin.RegisterListener("startuplistener", func(status bundle.Status) {
+			handleStatusErrors(status, failed, "discovery plugin")
+		})
 	})
 
-	var registerBundleListenerOnce sync.Once
-
 	// Register listener for "bundle" plugin
+	var registerBundleListenerOnce sync.Once
 	opa.manager.RegisterPluginStatusListener("bundlelistener", func(status map[string]*plugins.Status) {
 		if _, exists := status["bundle"]; exists {
 			bundlePlugin := bundle.Lookup(opa.manager)
