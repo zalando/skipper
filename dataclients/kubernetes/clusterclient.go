@@ -503,8 +503,12 @@ func (c *clusterClient) loadEndpointSlices() (map[definitions.ResourceID]*skippe
 func collectReadyEndpoints(endpointSlices *endpointSliceList) map[definitions.ResourceID]*skipperEndpointSlice {
 	mapSlices := make(map[definitions.ResourceID][]*endpointSlice)
 	for _, endpointSlice := range endpointSlices.Items {
-		resID := endpointSlice.ToResourceID() // service resource ID
-		mapSlices[resID] = append(mapSlices[resID], endpointSlice)
+		// https://github.com/zalando/skipper/issues/3151
+		// endpointslices can have nil ports
+		if endpointSlice.Ports != nil {
+			resID := endpointSlice.ToResourceID() // service resource ID
+			mapSlices[resID] = append(mapSlices[resID], endpointSlice)
+		}
 	}
 
 	result := make(map[definitions.ResourceID]*skipperEndpointSlice)
