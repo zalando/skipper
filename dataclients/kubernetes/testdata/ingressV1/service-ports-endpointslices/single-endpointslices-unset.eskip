@@ -1,0 +1,5 @@
+kube_default__myapp_ingress__example_org____myapp_service:
+  Host("^(example[.]org[.]?(:[0-9]+)?)$")
+  -> status(502)
+  -> inlineContent("no endpoints")
+  -> <shunt>;
