@@ -3,10 +3,8 @@ package openpolicyagent
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"os"
@@ -488,7 +486,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	var registerDiscoveryListenerOnce sync.Once
 	registerDiscoveryListenerOnce.Do(func() {
 		discoveryPlugin.RegisterListener("startuplistener", func(status bundle.Status) {
-			handleDiscoveryStatusErrors(status, ctx, discoveryPlugin, failed)
+			handleStatusErrors(status, failed, "discovery plugin")
 		})
 	})
 
@@ -500,9 +498,8 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 			if bundlePlugin != nil {
 				registerBundleListenerOnce.Do(func() {
 					bundlePlugin.Register("startuplistener", func(status bundle.Status) {
-						handleBundleStatusErrors(status, ctx, bundlePlugin, failed)
+						handleStatusErrors(status, failed, "bundle plugin")
 					})
-
 				})
 			}
 		}
@@ -825,78 +822,40 @@ func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
 	l.target.Warn(fmt, a)
 }
 
-var temporaryErrors = []json.Number{
-	json.Number("503"), // service unavailable
-	json.Number("500"), // internal error
-	json.Number("502"), // bad gateway
-	json.Number("504"), // gateway timeout
-	json.Number("429"), // too many requests
-	json.Number("408"), // request timeout
+var temporaryErrorHTTPCodes = []int64{
+	429, // too many requests
+	408, // request timeout
 }
-
-var retryLock = sync.Mutex{}
-var discoveryRetryCounter int
-var bundleRetryCounter int
 
 func handleStatusErrors(
 	status bundle.Status,
 	failed chan error,
 	prefix string,
-	retryCounter *int,
-	pluginTrigger func() error,
 ) {
-	if status.Code != "" || len(status.Errors) > 0 {
-		for _, code := range temporaryErrors {
-			if status.HTTPCode == code {
-				retryLock.Lock()
-				*retryCounter++
-				retries := *retryCounter
-				retryLock.Unlock()
+	if status.Code != "" || len(status.Errors) > 0 { //ToDo refine error handling to cover all the cases with detailed messages
+		if status.HTTPCode == "" {
+			failed <- fmt.Errorf("%s failed: %s", prefix, status.Code)
+			return
+		}
+		code, err := status.HTTPCode.Int64()
+		if err == nil && (code >= 400 && code < 500) && !isTemporaryError(code) {
+			// Fail for error codes in the range 400-500 excluding temporary errors
+			failed <- fmt.Errorf("%s failed: %s", prefix, status.Code)
+			return
+		}
+	}
 
-				if retries <= 3 { //ToDO error handling is not yet correct here.
-					log.Warnf("Status code is %s, triggering %s download (attempt %d)\n", status.HTTPCode, prefix, retries)
-					if err := pluginTrigger(); err != nil {
-						failed <- fmt.Errorf("failed to trigger %s download: %v", prefix, err)
-					}
-					return
-				} else {
-					log.Errorf("Status code is %s, max retry attempts: 3 reached", status.HTTPCode)
-					resetRetryCounter(retryCounter)
-					failed <- fmt.Errorf("%s plugin failed after %d attempts: %s", prefix, retries, status.Code)
-					return
-				}
-			}
-		}
-		if len(status.Errors) > 0 {
-			failed <- fmt.Errorf("%s plugin failed: %s, errors: %w", prefix, status.Code, errors.Join(status.Errors...))
-		} else {
-			failed <- fmt.Errorf("%s plugin failed: %s", prefix, status.Code)
-		}
+	if len(status.Errors) > 0 {
+		failed <- fmt.Errorf("%s failed: %w", prefix, errors.Join(status.Errors...))
+		return
 	}
 }
 
-func handleDiscoveryStatusErrors(status bundle.Status, ctx context.Context, plugin *discovery.Discovery, failed chan error) {
-	handleStatusErrors(
-		status,
-		failed,
-		"discovery",
-		&discoveryRetryCounter,
-		func() error { return plugin.Trigger(ctx) },
-	)
-}
-
-func handleBundleStatusErrors(status bundle.Status, ctx context.Context, plugin *bundle.Plugin, failed chan error) {
-	handleStatusErrors(
-		status,
-		failed,
-		"bundle",
-		&bundleRetryCounter,
-		func() error { return plugin.Trigger(ctx) },
-	)
-}
-
-func resetRetryCounter(retryCounter *int) {
-	retryLock.Lock()
-	defer retryLock.Unlock()
-	*retryCounter = 0
+func isTemporaryError(code int64) bool {
+	for _, tempCode := range temporaryErrorHTTPCodes {
+		if code == tempCode {
+			return true
+		}
+	}
+	return false
 }
