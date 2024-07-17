@@ -2065,6 +2065,49 @@ so if requests on average have 100KB and the maximum memory is set to 100MB, on 
 
 The filter also honors the `skip-request-body-parse` of the corresponding [configuration](https://www.openpolicyagent.org/docs/latest/envoy-introduction/#configuration) that the OPA plugin uses.
 
+### awsSigv4
+
+This filter signs request using [AWS Sig V4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html_) algorithm. The requests must provide following headers in order for this filter to generate a valid signature.
+- `x-amz-accesskey`  header must contain a valid AWS access key 
+- `x-amz-secret` header must contain a valid secret for AWS client being used.
+- `x-amz-time` header must contain the time in RFC3339 format which this filter can use to generate signature and `X-Amz-Date` header on signed request. This time stamp is considered as the time stamp of generated signature.
+- `x-amz-session` must contain valid AWS session token ([see](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html#using-temp-creds-sdk)) to be set as `X-Amz-Security-Token` in signed request when `DisableSessionToken` parameter defined on route is set to false. 
+
+Filter removes these headers after reading the values. Once the signature is generated, it is appended to existing Authorization header or if there is no exisiting Authorization header, added as new and forwarded to AWS service.
+
+awsSigv4 filter can be defined on a route as `awsSigv4("<service>, "<region>", <DisableHeaderHoisting>, <DisableURIPathEscaping>, <DisableSessionToken>)`
+
+An example of route with awsSigv4 filter is
+	`editorRoute: * -> awsSigv4("dynamodb" , "us-east-1", false, false, false) -> "https://dynamodb.us-east-1.amazonaws.com";`
+
+This filter expects
+- `Service` An aws service name. Please refer valid service names from service endpoint.
+		For example if service endpoint is https://dynamodb.us-east-1.amazonaws.com, then service is dynamodb
+
+- `Region` AWS region where service is located. Please refer valid service names from service endpoint.
+		For example if service endpoint is https://dynamodb.us-east-1.amazonaws.com, then region is us-east-1.
+
+- `DisableHeaderHoisting` Disables the Signer's moving HTTP header key/value pairs from the HTTP request header to the request's query string. This is most commonly used
+		with pre-signed requests preventing headers from being added to the request's query string.
+
+- `DisableURIPathEscaping` Disables the automatic escaping of the URI path of the request for the siganture's canonical string's path. For services that do not need additional
+		escaping then use this to disable the signer escaping the path. S3 is an example of a service that does not need additional escaping.
+		http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
+
+- `DisableSessionToken` Disables setting the session token on the request as part of signing through X-Amz-Security-Token. This is needed for variations of v4 that
+		present the token elsewhere.
+
+	
+
+#### Memory consideration
+This filter reads the body in memory. This is needed to generate signature as per Signature V4 specs. Special considerations need to be taken when operating the skipper with concurrent requests.
+
+
+#### Overwriting io.ReadCloser
+This filter resets `read` and `close` implementations of body to default. So in case a filter before this filter has some custom implementations of thse methods, they would be overwritten.
+
+
+
 ## Cookie Handling
 ### dropRequestCookie
 

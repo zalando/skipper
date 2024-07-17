@@ -362,6 +362,7 @@ const (
 	OpaServeResponseName                       = "opaServeResponse"
 	OpaServeResponseWithReqBodyName            = "opaServeResponseWithReqBody"
 	TLSName                                    = "tlsPassClientCertificates"
+	AWSSigV4Name                               = "awsSigv4"
 
 	// Undocumented filters
 	HealthCheckName        = "healthcheck"
