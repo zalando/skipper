@@ -1,6 +1,7 @@
 package net
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +11,9 @@ import (
 	"time"
 
 	"github.com/AlexanderYastrebov/noleak"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing/tracers/basic"
 )
@@ -204,6 +208,7 @@ func TestClient(t *testing.T) {
 }
 
 func TestTransport(t *testing.T) {
+	mtracer := mocktracer.New()
 	tracer, err := basic.InitTracer(nil)
 	if err != nil {
 		t.Fatalf("Failed to get a tracer: %v", err)
@@ -211,12 +216,15 @@ func TestTransport(t *testing.T) {
 	defer tracer.Close()
 
 	for _, tt := range []struct {
-		name        string
-		options     Options
-		spanName    string
-		bearerToken string
-		req         *http.Request
-		wantErr     bool
+		name                 string
+		options              Options
+		spanName             string
+		bearerToken          string
+		req                  *http.Request
+		wantErr              bool
+		checkRequestOnServer func(*http.Request) error
+		checkRequest         func(*http.Request) error
+		checkResponse        func(*http.Response) error
 	}{
 		{
 			name:    "All defaults, with request should have a response",
@@ -248,6 +256,82 @@ func TestTransport(t *testing.T) {
 			req:         httptest.NewRequest("GET", "http://example.com/", nil),
 			wantErr:     false,
 		},
+		{
+			name: "With hooks, should have request header and respose changed",
+			options: Options{
+				BeforeSend: func(req *http.Request) {
+					if req != nil {
+						req.Header.Set("X-Foo", "bar")
+					}
+				},
+				AfterResponse: func(rsp *http.Response, err error) {
+					if rsp != nil {
+						rsp.StatusCode = 255
+					}
+				},
+			},
+			req:     httptest.NewRequest("GET", "http://example.com/", nil),
+			wantErr: false,
+			checkRequestOnServer: func(req *http.Request) error {
+				if v := req.Header.Get("X-Foo"); v != "bar" {
+					return fmt.Errorf(`failed to patch request want "X-Foo": "bar", but got: %s`, v)
+				}
+				return nil
+			},
+			checkResponse: func(rsp *http.Response) error {
+				if rsp.StatusCode != 255 {
+					return fmt.Errorf("failed to get status code 255, got: %d", rsp.StatusCode)
+				}
+				return nil
+			},
+		},
+		{
+			name: "With hooks and opentracing, should have request header and response changed",
+			options: Options{
+				Tracer: mtracer,
+				BeforeSend: func(req *http.Request) {
+					if req != nil {
+						if span := opentracing.SpanFromContext(req.Context()); span != nil {
+							span.SetTag(string(ext.PeerService), "my-app")
+							*req = *req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+							return
+						}
+					}
+				},
+				AfterResponse: func(rsp *http.Response, err error) {
+					if rsp != nil {
+						if span := opentracing.SpanFromContext(rsp.Request.Context()); span != nil {
+							span.SetTag("my.status", 255)
+							*rsp.Request = *rsp.Request.WithContext(opentracing.ContextWithSpan(rsp.Request.Context(), span))
+							return
+						}
+					}
+				},
+			},
+			spanName: "myspan",
+			req:      httptest.NewRequest("GET", "http://example.com/", nil),
+			wantErr:  false,
+			checkRequest: func(req *http.Request) error {
+				if span := opentracing.SpanFromContext(req.Context()); span != nil {
+					peerService := mtracer.FinishedSpans()[0].Tags()[string(ext.PeerService)]
+					if peerService != "my-app" {
+						return fmt.Errorf(`failed to get Tag %s value: "my-app", got %q`, ext.PeerService, peerService)
+					}
+					return nil
+				}
+				return fmt.Errorf("failed get span from request")
+			},
+			checkResponse: func(rsp *http.Response) error {
+				if span := opentracing.SpanFromContext(rsp.Request.Context()); span != nil {
+					status := mtracer.FinishedSpans()[0].Tags()["my.status"]
+					if status != 255 {
+						return fmt.Errorf(`failed to get Tag "my.status" value: "255", got %d`, status)
+					}
+					return nil
+				}
+				return fmt.Errorf("failed get span from request")
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := startTestServer(func(r *http.Request) {
@@ -259,17 +343,24 @@ func TestTransport(t *testing.T) {
 					return
 				}
 
-				if tt.spanName != "" && tt.options.Tracer != nil {
-					if r.Header.Get("Ot-Tracer-Sampled") == "" ||
-						r.Header.Get("Ot-Tracer-Traceid") == "" ||
-						r.Header.Get("Ot-Tracer-Spanid") == "" {
-						t.Errorf("One of the OT Tracer headers are missing: %v", r.Header)
+				if tt.spanName != "" {
+					if tt.options.Tracer == tracer {
+						if r.Header.Get("Ot-Tracer-Sampled") == "" ||
+							r.Header.Get("Ot-Tracer-Traceid") == "" ||
+							r.Header.Get("Ot-Tracer-Spanid") == "" {
+							t.Errorf("One of the OT Tracer headers are missing: %v", r.Header)
+						}
 					}
 				}
-
 				if tt.bearerToken != "" {
 					if r.Header.Get("Authorization") != "Bearer "+string(testToken) {
 						t.Errorf("Failed to have a token, but want to have it, got: %v, want: %v", r.Header.Get("Authorization"), "Bearer "+tt.bearerToken)
+					}
+				}
+
+				if tt.checkRequestOnServer != nil {
+					if err := tt.checkRequestOnServer(r); err != nil {
+						t.Errorf("Failed to check request: %v", err)
 					}
 				}
 			})
@@ -289,10 +380,21 @@ func TestTransport(t *testing.T) {
 			if tt.req != nil {
 				tt.req.URL.Host = s.Listener.Addr().String()
 			}
-			_, err := rt.RoundTrip(tt.req)
+			rsp, err := rt.RoundTrip(tt.req)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Transport.RoundTrip() error = %v, wantErr %v", err, tt.wantErr)
 				return
+			}
+			if tt.checkRequest != nil {
+				if err := tt.checkRequest(rsp.Request); err != nil {
+					t.Errorf("Failed to check request: %v", err)
+				}
+			}
+
+			if tt.checkResponse != nil {
+				if err := tt.checkResponse(rsp); err != nil {
+					t.Errorf("Failed to check response: %v", err)
+				}
 			}
 		})
 	}
