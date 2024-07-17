@@ -832,22 +832,21 @@ func handleStatusErrors(
 	failed chan error,
 	prefix string,
 ) {
-	if status.Code != "" || len(status.Errors) > 0 { //ToDo refine error handling to cover all the cases with detailed messages
+	if status.Code == "bundle_error" {
 		if status.HTTPCode == "" {
-			failed <- fmt.Errorf("%s failed: %s", prefix, status.Code)
+			failed <- formatStatusError(prefix, status)
 			return
 		}
 		code, err := status.HTTPCode.Int64()
-		if err == nil && (code >= 400 && code < 500) && !isTemporaryError(code) {
-			// Fail for error codes in the range 400-500 excluding temporary errors
-			failed <- fmt.Errorf("%s failed: %s", prefix, status.Code)
+		if err == nil && code >= 400 && code < 500 && !isTemporaryError(code) {
+			//Fail for error codes in the range 400-500 excluding temporary errors
+			failed <- formatStatusError(prefix, status)
 			return
 		}
-	}
-
-	if len(status.Errors) > 0 {
-		failed <- fmt.Errorf("%s failed: %w", prefix, errors.Join(status.Errors...))
-		return
+		if err != nil {
+			failed <- formatStatusError(prefix, status)
+			return
+		}
 	}
 }
 
@@ -858,4 +857,23 @@ func isTemporaryError(code int64) bool {
 		}
 	}
 	return false
+}
+
+func formatStatusError(prefix string, status bundle.Status) error {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%s failed:", prefix))
+	b.WriteString(fmt.Sprintf(" Name: %s", status.Name))
+	if status.Code != "" {
+		b.WriteString(fmt.Sprintf(", Code: %s", status.Code))
+	}
+	if status.Message != "" {
+		b.WriteString(fmt.Sprintf(", Message: %s", status.Message))
+	}
+	if status.HTTPCode != "" {
+		b.WriteString(fmt.Sprintf(", HTTPCode: %s", status.HTTPCode))
+	}
+	if len(status.Errors) > 0 {
+		b.WriteString(fmt.Sprintf(", Errors: %v", status.Errors))
+	}
+	return errors.New(b.String())
 }

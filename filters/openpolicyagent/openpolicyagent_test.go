@@ -258,7 +258,7 @@ func TestOpaEngineStartFailureWithWrongBundle(t *testing.T) {
 
 	err = engine.Start(ctx, cfg.startupTimeout)
 	assert.True(t, engine.stopped)
-	assert.Contains(t, err.Error(), "bundle plugin failed: bundle_error")
+	assert.Contains(t, err.Error(), "bundle plugin failed: Name: bundles/non-existing-bundle, Code: bundle_error, Message: server replied with Not Found, HTTPCode: 404")
 }
 
 func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
@@ -339,7 +339,7 @@ func TestOpaActivationTimeOutWithDiscoveryPointingWrongBundle(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "bundle plugin failed: bundle_error")
+	assert.Contains(t, err.Error(), "bundle plugin failed: Name: bundles/non-existing-bundle, Code: bundle_error, Message: server replied with Not Found, HTTPCode: 404")
 	assert.Equal(t, 0, len(registry.instances))
 }
 
@@ -707,5 +707,5 @@ func TestOpaActivationFailureWithInvalidDiscovery(t *testing.T) {
 
 	_, err = registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Error(t, err)
-	assert.Equal(t, "discovery plugin failed: bundle_error", err.Error())
+	assert.Equal(t, "discovery plugin failed: Name: discovery, Code: bundle_error, Message: server replied with Not Found, HTTPCode: 404", err.Error())
 }
