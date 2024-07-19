@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/golang/protobuf/ptypes/any"
+	"google.golang.org/protobuf/proto"
+	_struct "google.golang.org/protobuf/types/known/structpb"
 	"io"
 	"net/http"
 	"os"
@@ -205,7 +208,30 @@ func WithStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentInstanceConf
 }
 
 func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.Metadata {
-	return cfg.envoyMetadata
+	if cfg.envoyMetadata == nil {
+		return nil
+	}
+	return DeepCopy(cfg.envoyMetadata)
+}
+
+// DeepCopy Method to deep copy the Metadata object
+func DeepCopy(m *ext_authz_v3_core.Metadata) *ext_authz_v3_core.Metadata {
+	// Deep copy of FilterMetadata
+	filterMetadataCopy := make(map[string]*_struct.Struct)
+	for k, v := range m.FilterMetadata {
+		filterMetadataCopy[k] = proto.Clone(v).(*_struct.Struct)
+	}
+
+	// Deep copy of TypedFilterMetadata
+	typedFilterMetadataCopy := make(map[string]*any.Any)
+	for k, v := range m.TypedFilterMetadata {
+		typedFilterMetadataCopy[k] = proto.Clone(v).(*any.Any)
+	}
+
+	return &ext_authz_v3_core.Metadata{
+		FilterMetadata:      filterMetadataCopy,
+		TypedFilterMetadata: typedFilterMetadataCopy,
+	}
 }
 
 func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) (*OpenPolicyAgentInstanceConfig, error) {

@@ -73,7 +73,7 @@ func setDecisionIdInRequest(req *ext_authz_v3.CheckRequest, decisionId string) {
 	if metaDataContextDoesNotExist(req) {
 		req.Attributes.MetadataContext = formFilterMetadata(decisionId)
 	} else {
-		req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = formOpenPolicyAgentMetaDataObject(decisionId)
+		req.Attributes.MetadataContext.FilterMetadata["open_policy_agent"] = FormOpenPolicyAgentMetaDataObject(decisionId)
 	}
 }
 
@@ -96,7 +96,7 @@ func formFilterMetadata(decisionId string) *ext_authz_v3_core.Metadata {
 	return metaData
 }
 
-func formOpenPolicyAgentMetaDataObject(decisionId string) *pbstruct.Struct {
+func FormOpenPolicyAgentMetaDataObject(decisionId string) *pbstruct.Struct {
 	nestedStruct := &pbstruct.Struct{}
 	nestedStruct.Fields = make(map[string]*pbstruct.Value)
 

@@ -92,6 +92,12 @@ func (tr *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if span != nil {
 		defer span.Finish()
 
+		span.SetTag(proxy.HTTPMethodTag, req.Method)
+		span.SetTag(proxy.HTTPUrlTag, req.URL.String())
+		span.SetTag(proxy.HostnameTag, req.Host)
+		span.SetTag(proxy.HTTPPathTag, req.URL.Path)
+		span.SetTag(proxy.ComponentTag, "skipper")
+		span.SetTag(proxy.SpanKindTag, proxy.SpanKindClient)
 		setSpanTags(span, tr.bundleName, tr.manager)
 		req = req.WithContext(opentracing.ContextWithSpan(ctx, span))
 

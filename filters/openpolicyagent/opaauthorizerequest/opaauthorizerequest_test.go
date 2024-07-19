@@ -402,7 +402,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
 
 			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
-			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
+			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 			fr.Register(ftSpec)
 			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
 			fr.Register(ftSpec)

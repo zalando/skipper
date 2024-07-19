@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"io"
 	"net/http"
 	"os"
@@ -705,4 +706,33 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+func TestDeepCopy(t *testing.T) {
+	// Create a sample Metadata object
+	original := &ext_authz_v3_core.Metadata{
+		FilterMetadata: map[string]*_struct.Struct{
+			"envoy.filters.http.header_to_metadata": {
+				Fields: map[string]*_struct.Value{
+					"policy_type": {Kind: &_struct.Value_StringValue{StringValue: "ingress"}},
+				},
+			},
+		},
+	}
+
+	// Perform deep copy
+	copied := DeepCopy(original)
+
+	// Check if the copied object is deeply equal to the original
+	if !proto.Equal(original, copied) {
+		t.Errorf("Deep copy failed: copied object is not equal to the original")
+	}
+
+	// Modify the copied object
+	copied.FilterMetadata["open_policy_agent"] = FormOpenPolicyAgentMetaDataObject("decisionId")
+
+	// Check if the original object is unchanged
+	if proto.Equal(original, copied) {
+		t.Errorf("Deep copy failed: changes in the copied object affected the original")
+	}
 }
