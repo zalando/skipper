@@ -270,6 +270,20 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			backendHeaders:  make(http.Header),
 			removeHeaders:   make(http.Header),
 		},
+		{
+			msg:               "Invalid UTF-8 in Path",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow/%c0%ae%c0%ae",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusBadRequest,
+			expectedBody:      "",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
