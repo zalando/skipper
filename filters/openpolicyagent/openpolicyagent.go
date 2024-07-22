@@ -523,12 +523,6 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	}
 
 	select {
-	case <-done:
-		return nil
-	case err := <-failed:
-		opa.Close(ctx)
-
-		return err
 	case <-ctx.Done():
 		timeoutErr := ctx.Err()
 
@@ -546,6 +540,13 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 			return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, timeoutErr)
 		}
 		return fmt.Errorf("one or more open policy agent plugins failed to start in %v", timeout)
+
+	case <-done:
+		return nil
+	case err := <-failed:
+		opa.Close(ctx)
+
+		return err
 	}
 }
 
@@ -822,7 +823,7 @@ func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
 	l.target.Warn(fmt, a)
 }
 
-var temporaryErrorHTTPCodes = []int64{
+var temporaryClientErrorHTTPCodes = []int64{
 	429, // too many requests
 	408, // request timeout
 }
@@ -838,10 +839,15 @@ func handleStatusErrors(
 			return
 		}
 		code, err := status.HTTPCode.Int64()
-		if err == nil && code >= 400 && code < 500 && !isTemporaryError(code) {
-			//Fail for error codes in the range 400-500 excluding temporary errors
-			failed <- formatStatusError(prefix, status)
-			return
+		if err == nil {
+			if code >= 400 && code < 500 && !isTemporaryError(code) {
+				// Fail for error codes in the range 400-500 excluding temporary errors
+				failed <- formatStatusError(prefix, status)
+				return
+			} else if code >= 500 {
+				// Do not fail for 5xx errors and keep retrying
+				return
+			}
 		}
 		if err != nil {
 			failed <- formatStatusError(prefix, status)
@@ -851,7 +857,7 @@ func handleStatusErrors(
 }
 
 func isTemporaryError(code int64) bool {
-	for _, tempCode := range temporaryErrorHTTPCodes {
+	for _, tempCode := range temporaryClientErrorHTTPCodes {
 		if code == tempCode {
 			return true
 		}

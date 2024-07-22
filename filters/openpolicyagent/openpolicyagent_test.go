@@ -712,31 +712,39 @@ func TestOpaActivationFailureWithInvalidDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryRetryTemporaryError429(t *testing.T) {
-	testDiscoveryBundleTemporaryError(t, http.StatusTooManyRequests, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
+	testDiscoveryBundleError(t, http.StatusTooManyRequests, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
 }
 
 func TestDiscoveryRetryTemporaryError408(t *testing.T) {
-	testDiscoveryBundleTemporaryError(t, http.StatusRequestTimeout, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
+	testDiscoveryBundleError(t, http.StatusRequestTimeout, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
 }
 
-func TestDiscoveryFailure503BundleError(t *testing.T) {
-	testDiscoveryBundleTemporaryError(t, http.StatusServiceUnavailable, "discovery plugin failed: Name: bundle, Code: bundle_error, Message: server replied with Service Unavailable, HTTPCode: 503")
+func TestDiscoveryRetry5xx(t *testing.T) {
+	testDiscoveryBundleError(t, http.StatusInternalServerError, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
+}
+
+func TestDiscoveryFailure403BundleError(t *testing.T) {
+	testDiscoveryBundleError(t, http.StatusForbidden, "discovery plugin failed: Name: discovery, Code: bundle_error, Message: server replied with Forbidden, HTTPCode: 403")
 }
 
 func TestResourceBundleRetryTemporaryError429(t *testing.T) {
-	testResourceBundleTemporaryError(t, http.StatusTooManyRequests, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
+	testResourceBundleError(t, http.StatusTooManyRequests, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
 }
 
 func TestResourceBundleRetryTemporaryError408(t *testing.T) {
-	testResourceBundleTemporaryError(t, http.StatusRequestTimeout, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
+	testResourceBundleError(t, http.StatusRequestTimeout, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
 }
 
-func TestResourceBundleFailure503BundleError(t *testing.T) {
-	testResourceBundleTemporaryError(t, http.StatusServiceUnavailable, "bundle plugin failed: Name: bundle, Code: bundle_error, Message: server replied with Service Unavailable, HTTPCode: 503")
+func TestResourceBundleRetry5xx(t *testing.T) {
+	testResourceBundleError(t, http.StatusInternalServerError, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
+}
+
+func TestResourceBundleFailure403BundleError(t *testing.T) {
+	testResourceBundleError(t, http.StatusForbidden, "bundle plugin failed: Name: test, Code: bundle_error, Message: server replied with Forbidden, HTTPCode: 403")
 }
 
 // Helper function to test discovery bundle temporary errors
-func testDiscoveryBundleTemporaryError(t *testing.T, statusCode int, expectedError string) {
+func testDiscoveryBundleError(t *testing.T, statusCode int, expectedError string) {
 	mockDiscoveryBundleServer := mockBundleServerWithStatus("/bundles/discovery", statusCode)
 	defer mockDiscoveryBundleServer.Close()
 
@@ -768,7 +776,7 @@ func testDiscoveryBundleTemporaryError(t *testing.T, statusCode int, expectedErr
 }
 
 // Helper function to test resource bundle temporary errors
-func testResourceBundleTemporaryError(t *testing.T, statusCode int, expectedError string) {
+func testResourceBundleError(t *testing.T, statusCode int, expectedError string) {
 	mockServer := mockBundleServerWithStatus("/bundles/test.tgz", statusCode)
 	defer mockServer.Close()
 
