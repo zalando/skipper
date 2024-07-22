@@ -1011,7 +1011,7 @@ func TestGrantLoginRedirectStub(t *testing.T) {
 
 	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
 
-	const stubContent = "stub content"
+	const stubContent = "foo {{authCodeURL}} bar {authCodeURL} baz"
 
 	routes := eskip.MustParse(fmt.Sprintf(`*
 		-> annotate("oauthGrant.loginRedirectStub", "%s")
@@ -1027,6 +1027,12 @@ func TestGrantLoginRedirectStub(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, rsp.StatusCode, http.StatusOK)
-	assert.Equal(t, int64(len(stubContent)), rsp.ContentLength)
-	assert.Equal(t, stubContent, string(body))
+
+	authCodeUrl := rsp.Header.Get("X-Auth-Code-Url")
+	assert.True(t, strings.HasPrefix(authCodeUrl, provider.URL))
+
+	expectedContent := fmt.Sprintf("foo %s bar %s baz", authCodeUrl, authCodeUrl)
+
+	assert.Equal(t, int64(len(expectedContent)), rsp.ContentLength)
+	assert.Equal(t, expectedContent, string(body))
 }

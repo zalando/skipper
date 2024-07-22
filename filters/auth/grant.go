@@ -92,10 +92,12 @@ func loginRedirectWithOverride(ctx filters.FilterContext, config *OAuthConfig, o
 
 	if lrs, ok := annotate.GetAnnotations(ctx)["oauthGrant.loginRedirectStub"]; ok {
 		lrs = strings.ReplaceAll(lrs, "{{authCodeURL}}", authCodeURL)
+		lrs = strings.ReplaceAll(lrs, "{authCodeURL}", authCodeURL)
 		ctx.Serve(&http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
-				"Content-Length": []string{strconv.Itoa(len(lrs))},
+				"Content-Length":  []string{strconv.Itoa(len(lrs))},
+				"X-Auth-Code-Url": []string{authCodeURL},
 			},
 			Body: io.NopCloser(strings.NewReader(lrs)),
 		})
