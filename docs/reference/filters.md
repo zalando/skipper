@@ -1685,8 +1685,9 @@ authz and access control.
 
 The filter also supports javascript login redirect stub that can be used e.g. to store location hash.
 To enable the stub, add preceding [annotate](#annotate) filter with `oauthGrant.loginRedirectStub` key and
-HTML content that will be served to the client instead of `307 Temporary Redirect` to the authorization URL.
-The filter will replace `{{authCodeURL}}` placeholder in the content with the actual authorization URL.
+content that will be served to the client with `200 OK` status instead of `307 Temporary Redirect` to the authorization URL.
+The filter will replace `{authCodeURL}` (and `{{authCodeURL}}`) placeholders in the content with the actual authorization URL
+and add `X-Auth-Code-Url` response header with the same value.
 
 See the [tutorial](../tutorials/auth.md#oauth2-authorization-grant-flow) for step-by-step
 instructions.
@@ -1712,7 +1713,7 @@ single_page_app:
                 if (window.location.hash !== null) {
                   localStorage.setItem('original-location-hash', window.location.hash);
                 }
-                window.location.replace('{{authCodeURL}}');
+                window.location.replace('{authCodeURL}');
               </script>
             </head>
           </html>
@@ -2068,10 +2069,10 @@ The filter also honors the `skip-request-body-parse` of the corresponding [confi
 ### awsSigv4
 
 This filter signs request using [AWS Sig V4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html_) algorithm. The requests must provide following headers in order for this filter to generate a valid signature.
-- `x-amz-accesskey`  header must contain a valid AWS access key 
+- `x-amz-accesskey`  header must contain a valid AWS access key
 - `x-amz-secret` header must contain a valid secret for AWS client being used.
 - `x-amz-time` header must contain the time in RFC3339 format which this filter can use to generate signature and `X-Amz-Date` header on signed request. This time stamp is considered as the time stamp of generated signature.
-- `x-amz-session` must contain valid AWS session token ([see](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html#using-temp-creds-sdk)) to be set as `X-Amz-Security-Token` in signed request when `DisableSessionToken` parameter defined on route is set to false. 
+- `x-amz-session` must contain valid AWS session token ([see](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html#using-temp-creds-sdk)) to be set as `X-Amz-Security-Token` in signed request when `DisableSessionToken` parameter defined on route is set to false.
 
 Filter removes these headers after reading the values. Once the signature is generated, it is appended to existing Authorization header or if there is no exisiting Authorization header, added as new and forwarded to AWS service.
 
@@ -2097,7 +2098,7 @@ This filter expects
 - `DisableSessionToken` Disables setting the session token on the request as part of signing through X-Amz-Security-Token. This is needed for variations of v4 that
 		present the token elsewhere.
 
-	
+
 
 #### Memory consideration
 This filter reads the body in memory. This is needed to generate signature as per Signature V4 specs. Special considerations need to be taken when operating the skipper with concurrent requests.
