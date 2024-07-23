@@ -2,17 +2,19 @@ package opaserveresponse
 
 import (
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
-	"testing"
-
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/tracing/tracingtest"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"testing"
 
 	"github.com/zalando/skipper/filters/openpolicyagent"
 )
@@ -312,4 +314,79 @@ func TestCreateFilterArguments(t *testing.T) {
 
 	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", "extra: value", "superfluous argument"})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
+}
+
+func BenchmarkOPAResponse(b *testing.B) {
+	b.Run("opa-response-minimal", func(b *testing.B) {
+		opaControlPlane := opasdktest.MustNewServer(
+			opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
+				"main.rego": `
+					package envoy.authz
+
+					default allow = true
+					default headers := {"content-type": "application/json"}
+					default status_code := 200
+					body := json.marshal({
+						"email": input.parsed_body.email,
+					})
+				}`,
+			}),
+		)
+
+		f, err := createOpaFilter(opaControlPlane)
+		assert.NoError(b, err)
+
+		url, err := url.Parse("http://opa-authorized.test/somepath")
+		assert.NoError(b, err)
+
+		ctx := &filtertest.Context{
+			FStateBag: map[string]interface{}{},
+			FResponse: &http.Response{},
+			FRequest: &http.Request{
+				Header: map[string][]string{
+					"Authorization": {"Bearer FOOBAR"},
+					"Content-Type":  {"application/json"},
+				},
+				URL:  url,
+				Body: io.NopCloser(strings.NewReader(`{"email": "someone@example.org"}`)),
+			},
+			FMetrics: &metricstest.MockMetrics{},
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			f.Request(ctx)
+		}
+	})
+}
+
+func createOpaFilter(opaControlPlane *opasdktest.Server) (filters.Filter, error) {
+	config := []byte(fmt.Sprintf(`{
+			"services": {
+				"test": {
+					"url": %q
+				}
+			},
+			"bundles": {
+				"test": {
+					"resource": "/bundles/somebundle.tar.gz"
+				}
+			},
+			"labels": {
+				"environment": "test"
+			},
+			"plugins": {
+				"envoy_ext_authz_grpc": {    
+					"path": %q,
+					"dry-run": false    
+				}
+			}
+		}`, opaControlPlane.URL(), "envoy/authz/allow"))
+
+	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
+	spec := NewOpaServeResponseWithReqBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	f, err := spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
+	return f, err
 }
