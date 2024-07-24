@@ -20,6 +20,9 @@ type (
 		Issuers           []string `json:"issuers,omitempty"`
 		OptOutAnnotations []string `json:"optOutAnnotations,omitempty"`
 		OptOutStateBag    []string `json:"optOutStateBag,omitempty"`
+		OptOutHosts       []string `json:"optOutHosts,omitempty"`
+
+		optOutHostsCompiled []*regexp.Regexp
 	}
 )
 
@@ -44,6 +47,13 @@ func (s *jwtMetricsSpec) CreateFilter(args []interface{}) (filters.Filter, error
 		return nil, fmt.Errorf("requires single string argument")
 	}
 
+	for _, host := range f.OptOutHosts {
+		if r, err := regexp.Compile(host); err != nil {
+			return nil, fmt.Errorf("failed to compile opt-out host pattern: %q", host)
+		} else {
+			f.optOutHostsCompiled = append(f.optOutHostsCompiled, r)
+		}
+	}
 	return f, nil
 }
 
@@ -63,6 +73,15 @@ func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
 		sb := ctx.StateBag()
 		for _, key := range f.OptOutStateBag {
 			if _, ok := sb[key]; ok {
+				return // opt-out
+			}
+		}
+	}
+
+	if len(f.optOutHostsCompiled) > 0 {
+		host := ctx.Request().Host
+		for _, r := range f.optOutHostsCompiled {
+			if r.MatchString(host) {
 				return // opt-out
 			}
 		}

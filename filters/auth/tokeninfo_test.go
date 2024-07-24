@@ -603,9 +603,16 @@ func TestOAuthTokeninfoValidate(t *testing.T) {
 		Timeout: testAuthTimeout,
 	}
 
+	const (
+		unauthorizedResponse = `Authentication required, see https://auth.test/foo`
+
+		oauthTokeninfoValidateDef = `oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], optOutHosts: [ '^.+[.]domain[.]test$', '^exact[.]test$' ], unauthorizedResponse: '` + unauthorizedResponse + `'}")`
+	)
+
 	for _, tc := range []struct {
 		name               string
 		precedingFilters   string
+		host               string
 		authHeader         string
 		expectStatus       int
 		expectAuthRequests int32
@@ -669,6 +676,27 @@ func TestOAuthTokeninfoValidate(t *testing.T) {
 			expectStatus:       http.StatusOK,
 			expectAuthRequests: 0,
 		},
+		{
+			name:               "allow missing token when request host matches opted-out domain",
+			host:               "foo.domain.test",
+			authHeader:         "",
+			expectStatus:       http.StatusOK,
+			expectAuthRequests: 0,
+		},
+		{
+			name:               "allow missing token when request second level host matches opted-out domain",
+			host:               "foo.bar.domain.test",
+			authHeader:         "",
+			expectStatus:       http.StatusOK,
+			expectAuthRequests: 0,
+		},
+		{
+			name:               "allow missing token when request host matches opted-out host exactly",
+			host:               "exact.test",
+			authHeader:         "",
+			expectStatus:       http.StatusOK,
+			expectAuthRequests: 0,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fr := make(filters.Registry)
@@ -676,9 +704,7 @@ func TestOAuthTokeninfoValidate(t *testing.T) {
 			fr.Register(NewOAuthTokeninfoAllScopeWithOptions(tio))
 			fr.Register(NewOAuthTokeninfoValidate(tio))
 
-			const unauthorizedResponse = `Authentication required, see https://auth.test/foo`
-
-			filters := `oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], unauthorizedResponse: '` + unauthorizedResponse + `'}")`
+			filters := oauthTokeninfoValidateDef
 			if tc.precedingFilters != "" {
 				filters = tc.precedingFilters + " -> " + filters
 			}
@@ -690,6 +716,10 @@ func TestOAuthTokeninfoValidate(t *testing.T) {
 
 			req, err := http.NewRequest("GET", p.URL, nil)
 			require.NoError(t, err)
+
+			if tc.host != "" {
+				req.Host = tc.host
+			}
 
 			if tc.authHeader != "" {
 				req.Header.Set(authHeaderName, tc.authHeader)
@@ -712,4 +742,48 @@ func TestOAuthTokeninfoValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOAuthTokeninfoValidateArgs(t *testing.T) {
+	tio := TokeninfoOptions{
+		URL:     "https://auth.test",
+		Timeout: testAuthTimeout,
+	}
+	spec := NewOAuthTokeninfoValidate(tio)
+
+	t.Run("valid", func(t *testing.T) {
+		for _, def := range []string{
+			`oauthTokeninfoValidate("{}")`,
+			`oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], optOutHosts: [ '^.+[.]domain[.]test$', '^exact[.]test$' ]}")`,
+			`oauthTokeninfoValidate("{unauthorizedResponse: 'Authentication required, see https://auth.test/foo'}")`,
+			`oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], optOutHosts: [ '^.+[.]domain[.]test$', '^exact[.]test$' ], unauthorizedResponse: 'Authentication required, see https://auth.test/foo'}")`,
+		} {
+			t.Run(def, func(t *testing.T) {
+				f := eskip.MustParseFilters(def)[0]
+				require.Equal(t, spec.Name(), f.Name)
+
+				_, err := spec.CreateFilter(f.Args)
+				assert.NoError(t, err)
+			})
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		for _, def := range []string{
+			`oauthTokeninfoValidate()`,
+			`oauthTokeninfoValidate("iss")`,
+			`oauthTokeninfoValidate(1)`,
+			`oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled]}", "extra arg")`,
+			`oauthTokeninfoValidate("{optOutHosts: [ '[' ]}")`, // invalid regexp
+		} {
+			t.Run(def, func(t *testing.T) {
+				f := eskip.MustParseFilters(def)[0]
+				require.Equal(t, spec.Name(), f.Name)
+
+				_, err := spec.CreateFilter(f.Args)
+				t.Logf("%v", err)
+				assert.Error(t, err)
+			})
+		}
+	})
 }

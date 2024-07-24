@@ -1371,6 +1371,10 @@ annotate("oauth.disabled", "this endpoint is public") ->
 oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], unauthorizedResponse: 'Authentication required, see https://auth.test/foo'}")
 ```
 
+```
+// does not validate the token when request host matches one of the patterns:
+oauthTokeninfoValidate("{optOutAnnotations: [oauth.disabled], optOutHosts: ['^.+[.]domain[.]test$', '^exact.test$'], unauthorizedResponse: 'Authentication required, see https://auth.test/foo'}")
+```
 
 ### Tokenintrospection
 
@@ -1606,7 +1610,7 @@ jwtMetrics.custom.GET.example_org.200.invalid-token
 
 and therefore requires approximately `count(HTTP methods) * count(Hosts) * count(Statuses) * 8` bytes of additional memory.
 
-The filter does nothing if response status is 4xx or route is opt-out via annotation or state bag value.
+The filter does nothing if response status is 4xx or route is opt-out via annotation, state bag value or request host pattern.
 
 The filter requires single string argument that is parsed as YAML.
 For convenience use [flow style format](https://yaml.org/spec/1.2.2/#chapter-7-flow-style-productions).
@@ -1615,17 +1619,25 @@ Examples:
 
 ```
 jwtMetrics("{issuers: ['https://example.com', 'https://example.org']}")
+```
 
+```
 // opt-out by annotation
 annotate("oauth.disabled", "this endpoint is public") ->
 jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutAnnotations: [oauth.disabled]}")
+```
 
+```
 // opt-out by state bag:
 // oauthTokeninfo* and oauthGrant filters store token info in the state bag using "tokeninfo" key.
 oauthTokeninfoAnyKV("foo", "bar") ->
 jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutStateBag: [tokeninfo]}")
 ```
 
+```
+// opt-out by matching request host pattern:
+jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutHosts: ['^.+[.]domain[.]test$', '^exact.test$']}")
+```
 
 ### Forward Token Data
 #### forwardToken

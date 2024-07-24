@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -62,7 +63,9 @@ type (
 		config struct {
 			OptOutAnnotations    []string `json:"optOutAnnotations,omitempty"`
 			UnauthorizedResponse string   `json:"unauthorizedResponse,omitempty"`
+			OptOutHosts          []string `json:"optOutHosts,omitempty"`
 		}
+		optOutHostsCompiled []*regexp.Regexp
 	}
 )
 
@@ -244,12 +247,7 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		if len(sargs) != 1 {
 			return nil, fmt.Errorf("requires single string argument")
 		}
-
-		f := &tokeninfoValidateFilter{client: ac}
-		if err := yaml.Unmarshal([]byte(sargs[0]), &f.config); err != nil {
-			return nil, fmt.Errorf("failed to parse configuration")
-		}
-		return f, nil
+		return createTokeninfoValidateFilter(ac, sargs[0])
 	}
 
 	f := &tokeninfoFilter{typ: s.typ, client: ac, kv: make(map[string][]string)}
@@ -273,6 +271,22 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
+	return f, nil
+}
+
+func createTokeninfoValidateFilter(client tokeninfoClient, arg string) (filters.Filter, error) {
+	f := &tokeninfoValidateFilter{client: client}
+	if err := yaml.Unmarshal([]byte(arg), &f.config); err != nil {
+		return nil, fmt.Errorf("failed to parse configuration")
+	}
+
+	for _, host := range f.config.OptOutHosts {
+		if r, err := regexp.Compile(host); err != nil {
+			return nil, fmt.Errorf("failed to compile opt-out host pattern: %q", host)
+		} else {
+			f.optOutHostsCompiled = append(f.optOutHostsCompiled, r)
+		}
+	}
 	return f, nil
 }
 
@@ -439,6 +453,15 @@ func (f *tokeninfoValidateFilter) Request(ctx filters.FilterContext) {
 		annotations := annotate.GetAnnotations(ctx)
 		for _, annotation := range f.config.OptOutAnnotations {
 			if _, ok := annotations[annotation]; ok {
+				return // opt-out from validation
+			}
+		}
+	}
+
+	if len(f.optOutHostsCompiled) > 0 {
+		host := ctx.Request().Host
+		for _, r := range f.optOutHostsCompiled {
+			if r.MatchString(host) {
 				return // opt-out from validation
 			}
 		}

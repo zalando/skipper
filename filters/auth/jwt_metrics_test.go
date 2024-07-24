@@ -23,8 +23,10 @@ import (
 )
 
 func TestJwtMetrics(t *testing.T) {
+	const validAuthHeader = "Bearer foobarbaz"
+
 	testAuthServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer foobarbaz" {
+		if r.Header.Get("Authorization") != validAuthHeader {
 			w.WriteHeader(http.StatusUnauthorized)
 		} else {
 			w.Write([]byte(`{"foo": "bar"}`))
@@ -208,7 +210,7 @@ func TestJwtMetrics(t *testing.T) {
 			`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
-					"Bearer foobarbaz",
+					validAuthHeader,
 				}},
 			},
 			status:   http.StatusOK,
@@ -223,7 +225,44 @@ func TestJwtMetrics(t *testing.T) {
 			`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
-					"Bearer foobarbaz",
+					validAuthHeader,
+				}},
+			},
+			status: http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.invalid-token": 1,
+			},
+			expectedTag: "invalid-token",
+		},
+		{
+			name:     "no metrics when host matches opted-out domain",
+			filters:  `jwtMetrics("{issuers: [foo, bar], optOutHosts: [ '^.+[.]domain[.]test$', '^exact[.]test$' ]}")`,
+			request:  &http.Request{Method: "GET", Host: "foo.domain.test"},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name:     "no metrics when second level host matches opted-out domain",
+			filters:  `jwtMetrics("{issuers: [foo, bar], optOutHosts: [ '^.+[.]domain[.]test$', '^exact[.]test$' ]}")`,
+			request:  &http.Request{Method: "GET", Host: "foo.bar.domain.test"},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name:     "no metrics when host matches opted-out host exactly",
+			filters:  `jwtMetrics("{issuers: [foo, bar], optOutHosts: [ '^.+[.]domain[.]test$', '^exact[.]test$' ]}")`,
+			request:  &http.Request{Method: "GET", Host: "exact.test"},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name: "counts invalid-token when host does not match",
+			filters: `
+				jwtMetrics("{issuers: [foo, bar], optOutHosts: [ '^.+[.]domain[.]test$', '^exact[.]test$' ]}")
+			`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{
+					validAuthHeader,
 				}},
 			},
 			status: http.StatusOK,
@@ -294,9 +333,10 @@ func TestJwtMetricsArgs(t *testing.T) {
 			`jwtMetrics("{issuers: [foo, bar]}")`,
 		} {
 			t.Run(def, func(t *testing.T) {
-				args := eskip.MustParseFilters(def)[0].Args
+				f := eskip.MustParseFilters(def)[0]
+				require.Equal(t, spec.Name(), f.Name)
 
-				_, err := spec.CreateFilter(args)
+				_, err := spec.CreateFilter(f.Args)
 				assert.NoError(t, err)
 			})
 		}
@@ -307,11 +347,14 @@ func TestJwtMetricsArgs(t *testing.T) {
 			`jwtMetrics("iss")`,
 			`jwtMetrics(1)`,
 			`jwtMetrics("iss", 1)`,
+			`jwtMetrics("{optOutHosts: [ '[' ]}")`, // invalid regexp
 		} {
 			t.Run(def, func(t *testing.T) {
-				args := eskip.MustParseFilters(def)[0].Args
+				f := eskip.MustParseFilters(def)[0]
+				require.Equal(t, spec.Name(), f.Name)
 
-				_, err := spec.CreateFilter(args)
+				_, err := spec.CreateFilter(f.Args)
+				t.Logf("%v", err)
 				assert.Error(t, err)
 			})
 		}
