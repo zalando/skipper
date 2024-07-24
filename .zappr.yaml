@@ -18,3 +18,4 @@ pull-request:
       - documentation
       - dependencies
 X-Zalando-Team: "teapot"
+X-Zalando-Type: code
