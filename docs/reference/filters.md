@@ -1580,7 +1580,7 @@ secureOauthTokenintrospectionAllKV("issuerURL", "", "", "k1", "v1", "k2", "v2")
 
 The filter parses bearer jwt token from Authorization header and validates the signature using public keys
 discovered via /.well-known/openid-configuration endpoint. Takes issuer url as single parameter.
-The filter stores token claims into the state bag where they can be used by oidcClaimsQuery() or forwardTokenPart()
+The filter stores token claims into the state bag where they can be used by [oidcClaimsQuery](#oidcclaimsquery), [forwardToken](#forwardtoken) or [forwardTokenField](#forwardtokenfield) filters.
 
 
 Examples:
