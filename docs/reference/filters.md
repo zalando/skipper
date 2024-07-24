@@ -5,7 +5,7 @@ The parameters can be strings, regex or float64 / int
 * `string` is a string surrounded by double quotes (`"`)
 * `regex` is a regular expression, surrounded by `/`, e.g. `/^www\.example\.org(:\d+)?$/`
 * `int` / `float64` are usual (decimal) numbers like `401` or `1.23456`
-* `time` is a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
+* `time` is a string in double quotes, parsable by [time.Duration](https://godoc.org/time#ParseDuration))
 
 Filters are a generic tool and can change HTTP header and body in the request and response path.
 Filter can be chained using the arrow operator `->`.
@@ -593,7 +593,7 @@ Enable adding artificial latency
 
 Parameters:
 
-* latency in milliseconds (int) or in `time` as a string in double quotes, parseable by [time.Duration](https://godoc.org/time#ParseDuration))
+* latency in milliseconds (int) or in `time` as a string in double quotes, parsable by [time.Duration](https://godoc.org/time#ParseDuration))
 
 Example:
 
@@ -1264,7 +1264,7 @@ this filter.
 The filter accepts variable number of string arguments, which are used to
 validate the incoming token from the `Authorization: Bearer <token>`
 header. There are two rejection scenarios for this filter. If the token
-is not successfully validated by the oauth server, then a 401 Unauthorised
+is not successfully validated by the oauth server, then a 401 Unauthorized
 response will be returned. However, if the token is successfully validated
 but the required scope match isn't satisfied, then a 403 Forbidden response
 will be returned. If any of the configured scopes from the filter is found
@@ -1285,7 +1285,7 @@ this filter.
 The filter accepts variable number of string arguments, which are used to
 validate the incoming token from the `Authorization: Bearer <token>`
 header. There are two rejection scenarios for this filter. If the token
-is not successfully validated by the oauth server, then a 401 Unauthorised
+is not successfully validated by the oauth server, then a 401 Unauthorized
 response will be returned. However, if the token is successfully validated
 but the required scope match isn't satisfied, then a 403 Forbidden response
 will be returned. If all of the configured scopes from the filter are found
@@ -1307,7 +1307,7 @@ The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
 `Authorization: Bearer <token>` header. There are two rejection scenarios
 for this filter. If the token is not successfully validated by the oauth
-server, then a 401 Unauthorised response will be returned. However,
+server, then a 401 Unauthorized response will be returned. However,
 if the token is successfully validated but the required scope match
 isn't satisfied, then a 403 Forbidden response will be returned.
 If any of the configured key value pairs from the filter is found
@@ -1330,7 +1330,7 @@ The filter accepts an even number of variable arguments of type
 string, which are used to validate the incoming token from the
 `Authorization: Bearer <token>` header. There are two rejection
 scenarios for this filter. If the token is not successfully validated
-by the oauth server, then a 401 Unauthorised response will be
+by the oauth server, then a 401 Unauthorized response will be
 returned. However, if the token is successfully validated but
 the required scope match isn't satisfied, then a 403 Forbidden response
 will be returned. If all of the configured key value pairs from
@@ -1979,7 +1979,7 @@ The data flow in case the policy disallows the request looks like this
 
 ```ascii
              ┌──────────────────┐               ┌────────────────────┐
- (1) Request │     Skipper      │               │ Target Applicatio  │
+ (1) Request │     Skipper      │               │ Target Application │
 ─────────────┤                  ├──────────────►│                    │
              │                  │               │                    │
  (4) Response│   (2)│   ▲ (3)   │               │                    │
@@ -2210,9 +2210,9 @@ open state. If all succeed, it goes to closed state again.
 Parameters:
 
 * number of consecutive failures to open (int)
-* timeout (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* timeout (time string, parsable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 * half-open requests (int) - optional
-* idle-ttl (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* idle-ttl (time string, parsable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
@@ -2230,9 +2230,9 @@ Parameters:
 
 * number of consecutive failures to open (int)
 * sliding window (int)
-* timeout (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* timeout (time string, parsable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 * half-open requests (int) - optional
-* idle-ttl (time string, parseable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
+* idle-ttl (time string, parsable by [time.Duration](https://godoc.org/time#ParseDuration)) - optional
 
 See also the [circuit breaker docs](https://godoc.org/github.com/zalando/skipper/circuit).
 
