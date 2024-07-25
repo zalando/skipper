@@ -823,9 +823,14 @@ func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
 	l.target.Warn(fmt, a)
 }
 
-var temporaryClientErrorHTTPCodes = []int64{
-	429, // too many requests
-	408, // request timeout
+var temporaryClientErrorHTTPCodes = map[int64]struct{}{
+	429: {}, // too many requests
+	408: {}, // request timeout
+}
+
+func isTemporaryError(code int64) bool {
+	_, exists := temporaryClientErrorHTTPCodes[code]
+	return exists
 }
 
 func handleStatusErrors(
@@ -856,30 +861,7 @@ func handleStatusErrors(
 	}
 }
 
-func isTemporaryError(code int64) bool {
-	for _, tempCode := range temporaryClientErrorHTTPCodes {
-		if code == tempCode {
-			return true
-		}
-	}
-	return false
-}
-
 func formatStatusError(prefix string, status bundle.Status) error {
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("%s failed:", prefix))
-	b.WriteString(fmt.Sprintf(" Name: %s", status.Name))
-	if status.Code != "" {
-		b.WriteString(fmt.Sprintf(", Code: %s", status.Code))
-	}
-	if status.Message != "" {
-		b.WriteString(fmt.Sprintf(", Message: %s", status.Message))
-	}
-	if status.HTTPCode != "" {
-		b.WriteString(fmt.Sprintf(", HTTPCode: %s", status.HTTPCode))
-	}
-	if len(status.Errors) > 0 {
-		b.WriteString(fmt.Sprintf(", Errors: %v", status.Errors))
-	}
-	return errors.New(b.String())
+	return fmt.Errorf("%s failed: Name: %s, Code: %s, Message: %s, HTTPCode: %s, Errors: %v",
+		prefix, status.Name, status.Code, status.Message, status.HTTPCode, status.Errors)
 }

@@ -708,7 +708,7 @@ func TestOpaActivationFailureWithInvalidDiscovery(t *testing.T) {
 
 	_, err = registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Error(t, err)
-	assert.Equal(t, "discovery plugin failed: Name: discovery, Code: bundle_error, Message: server replied with Not Found, HTTPCode: 404", err.Error())
+	assert.Equal(t, "discovery plugin failed: Name: discovery, Code: bundle_error, Message: server replied with Not Found, HTTPCode: 404, Errors: []", err.Error())
 }
 
 func TestDiscoveryRetryTemporaryError429(t *testing.T) {
