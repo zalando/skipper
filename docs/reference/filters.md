@@ -1237,6 +1237,7 @@ headers to copy as an optional second argument to the filter.
 Responses from the webhook will be treated as follows:
 
 * Authorized if the status code is less than 300
+* Redirection, using the `Location` header, if the status code is 302
 * Forbidden if the status code is 403
 * Unauthorized for remaining status codes
 
