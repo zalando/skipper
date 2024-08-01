@@ -485,26 +485,28 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 
 	var registerDiscoveryListenerOnce sync.Once
 	registerDiscoveryListenerOnce.Do(func() {
-		discoveryPlugin.RegisterListener("startuplistener", func(status bundle.Status) {
+		discoveryPlugin.RegisterListener("skipper-instance-startup-discovery", func(status bundle.Status) {
 			handleStatusErrors(status, failed, "discovery plugin")
 		})
 	})
+	defer discoveryPlugin.Unregister("skipper-instance-startup-discovery")
 
 	// Register listener for "bundle" status
 	var registerBundleListenerOnce sync.Once
-	opa.manager.RegisterPluginStatusListener("bundlelistener", func(status map[string]*plugins.Status) {
+	opa.manager.RegisterPluginStatusListener("skipper-instance-startup-plugin", func(status map[string]*plugins.Status) {
 		if _, exists := status["bundle"]; exists {
 			bundlePlugin := bundle.Lookup(opa.manager)
 			if bundlePlugin != nil {
 				registerBundleListenerOnce.Do(func() {
-					bundlePlugin.Register("startuplistener", func(status bundle.Status) {
+					bundlePlugin.Register("skipper-instance-startup-bundle", func(status bundle.Status) {
 						handleStatusErrors(status, failed, "bundle plugin")
 					})
 				})
+				defer bundlePlugin.Unregister("skipper-instance-startup-bundle")
 			}
 		}
 	})
-	defer opa.manager.UnregisterPluginStatusListener("bundlelistener")
+	defer opa.manager.UnregisterPluginStatusListener("skipper-instance-startup-plugin")
 
 	// Register listener for general plugin status checks
 	opa.manager.RegisterPluginStatusListener("generalStartUpListener", func(status map[string]*plugins.Status) {
@@ -513,7 +515,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 				return
 			}
 		}
-		done <- struct{}{}
+		close(done)
 	})
 	defer opa.manager.UnregisterPluginStatusListener("generalStartUpListener")
 
