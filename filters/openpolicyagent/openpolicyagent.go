@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"os"
@@ -205,7 +206,10 @@ func WithStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentInstanceConf
 }
 
 func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.Metadata {
-	return cfg.envoyMetadata
+	if cfg.envoyMetadata != nil {
+		return proto.Clone(cfg.envoyMetadata).(*ext_authz_v3_core.Metadata)
+	}
+	return nil
 }
 
 func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) (*OpenPolicyAgentInstanceConfig, error) {

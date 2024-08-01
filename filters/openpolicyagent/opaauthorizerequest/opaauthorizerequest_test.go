@@ -256,6 +256,21 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			removeHeaders:   make(http.Header),
 		},
 		{
+			msg:             "Decision id in request header",
+			filterName:      "opaAuthorizeRequest",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_object_decision_id_in_header",
+			requestMethod:   "POST",
+			body:            `{ "target_id" : "123456" }`,
+			requestHeaders:  map[string][]string{"content-type": {"application/json"}},
+			requestPath:     "/allow/structured",
+			expectedStatus:  http.StatusOK,
+			expectedBody:    "Welcome!",
+			expectedHeaders: map[string][]string{"Decision-Id": {"some-random-decision-id-generated-during-evaluation"}},
+			backendHeaders:  make(http.Header),
+			removeHeaders:   make(http.Header),
+		},
+		{
 			msg:               "Invalid UTF-8 in Path",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
@@ -345,8 +360,21 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 						allow_body {
 							input.parsed_body.target_id == "123456"
-						}						
-					`,
+						}	
+						
+						decision_id := input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id
+
+						allow_object_decision_id_in_header = response {
+						    input.parsed_path = ["allow", "structured"]
+						    decision_id 
+						    response := {
+						        "allowed": true,
+						        "response_headers_to_add": {
+						            "decision-id": decision_id
+						        }
+						    }
+						}
+						`,
 				}),
 			)
 
@@ -374,10 +402,23 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				}
 			}`, opaControlPlane.URL(), ti.regoQuery))
 
+			envoyMetaDataConfig := []byte(`{
+				"filter_metadata": {
+					"envoy.filters.http.header_to_metadata": {
+						"policy_type": "ingress"
+					}
+				}
+			}`)
+
+			opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
+			opts = append(opts,
+				openpolicyagent.WithConfigTemplate(config),
+				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
+
 			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
-			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
 			fr.Register(ftSpec)
-			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
 			fr.Register(ftSpec)
 
 			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") %s -> "%s"`, ti.filterName, ti.bundleName, ti.contextExtensions, ti.extraeskip, clientServer.URL))
@@ -436,7 +477,12 @@ func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.He
 			return false
 		}
 
-		assert.ElementsMatch(t, expectedValues, actualValues)
+		// since decision id is randomly generated we are just checking for not nil
+		if headerName == "Decision-Id" {
+			assert.NotNil(t, actualValues)
+		} else {
+			assert.ElementsMatch(t, expectedValues, actualValues)
+		}
 	}
 	return true
 }
