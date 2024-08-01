@@ -1550,7 +1550,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer func() {
 		accessLogEnabled, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
-
 		if !ok {
 			if p.accessLogDisabled {
 				accessLogEnabled = &disabledAccessLog
@@ -1573,6 +1572,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
+			if len(accessLogEnabled.MaskedQueryParams) > 0 {
+				if additionalData == nil {
+					additionalData = make(map[string]interface{})
+				}
+
+				additionalData[logging.KeyMaskedQueryParams] = accessLogEnabled.MaskedQueryParams
+			}
 
 			logging.LogAccess(entry, additionalData)
 		}
