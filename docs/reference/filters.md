@@ -2081,6 +2081,7 @@ The filter also honors the `skip-request-body-parse` of the corresponding [confi
 ### awsSigv4
 
 This filter signs request using [AWS Sig V4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html_) algorithm. The requests must provide following headers in order for this filter to generate a valid signature.
+
 - `x-amz-accesskey`  header must contain a valid AWS access key
 - `x-amz-secret` header must contain a valid secret for AWS client being used.
 - `x-amz-time` header must contain the time in RFC3339 format which this filter can use to generate signature and `X-Amz-Date` header on signed request. This time stamp is considered as the time stamp of generated signature.
@@ -2093,7 +2094,8 @@ awsSigv4 filter can be defined on a route as `awsSigv4("<service>, "<region>", <
 An example of route with awsSigv4 filter is
 	`editorRoute: * -> awsSigv4("dynamodb" , "us-east-1", false, false, false) -> "https://dynamodb.us-east-1.amazonaws.com";`
 
-This filter expects
+This filter expects:
+
 - `Service` An aws service name. Please refer valid service names from service endpoint.
 		For example if service endpoint is https://dynamodb.us-east-1.amazonaws.com, then service is dynamodb
 
