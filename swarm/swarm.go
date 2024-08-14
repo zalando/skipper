@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"time"
 
@@ -156,7 +157,7 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 	}
 	o.KubernetesOptions.KubernetesAPIBaseURL = u
 
-	if o.SwarmPort == 0 || o.SwarmPort >= 65535 {
+	if o.SwarmPort == 0 || o.SwarmPort == math.MaxUint16 {
 		log.Errorf("Wrong SwarmPort %d, set to default %d instead", o.SwarmPort, DefaultPort)
 		o.SwarmPort = DefaultPort
 	}

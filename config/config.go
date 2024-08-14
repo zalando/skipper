@@ -959,7 +959,7 @@ func (c *Config) ToOptions() skipper.Options {
 		options.ProxyFlags |= proxy.PatchPath
 	}
 
-	if c.Certificates != nil && len(c.Certificates) > 0 {
+	if len(c.Certificates) > 0 {
 		options.ClientTLS = &tls.Config{
 			Certificates: c.Certificates,
 			MinVersion:   c.getMinTLSVersion(),

@@ -199,7 +199,7 @@ func TestPassTLSClientCert_PEM(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, "http://example.com/foo", nil)
 			require.NoError(t, err)
 
-			if test.certContents != nil && len(test.certContents) > 0 {
+			if len(test.certContents) > 0 {
 				req.TLS = buildTLSWith(test.certContents)
 			}
 
