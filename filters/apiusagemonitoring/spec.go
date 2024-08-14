@@ -235,7 +235,7 @@ func (s *apiUsageMonitoringSpec) buildPathInfoListFromConfiguration(apis []*apiC
 			continue
 		}
 
-		if api.PathTemplates == nil || len(api.PathTemplates) == 0 {
+		if len(api.PathTemplates) == 0 {
 			s.warnf("args[%d] ignored: does not specify any path template", apiIndex)
 			continue
 		}
