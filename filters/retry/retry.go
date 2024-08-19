@@ -1,10 +1,12 @@
 package retry
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 
 	"github.com/zalando/skipper/filters"
+	skpio "github.com/zalando/skipper/io"
 	"gopkg.in/yaml.v2"
 )
 
@@ -80,3 +82,16 @@ func (rf *RetryFilter) Response(filters.FilterContext) {}
 func (rf *RetryFilter) Request(ctx filters.FilterContext) {
 	ctx.StateBag()[filters.RetryName] = rf.Check
 }
+
+func (rf *RetryFilter) OnRequest(ctx filters.FilterContext) error {
+	_, ok := ctx.StateBag()[filters.RetryName]
+	if ok {
+		var retryBuffer *skpio.CopyBodyStream
+		retryBuffer = skpio.NewCopyBodyStream(int(ctx.Request().ContentLength), &bytes.Buffer{}, ctx.Request().Body)
+		ctx.Request().Body = retryBuffer
+
+	}
+	return nil
+}
+
+func (rf *RetryFilter) OnResponse(ctx filters.FilterContext) error { return nil }

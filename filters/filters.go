@@ -39,6 +39,8 @@ const (
 
 // FilterContext object providing state and information that is unique to a request.
 type FilterContext interface {
+	ResponseController() *http.ResponseController
+
 	// The response writer object belonging to the incoming request. Used by
 	// filters that handle the requests themselves.
 	// Deprecated: use Response() or Serve()
@@ -189,6 +191,12 @@ type Filter interface {
 type FilterCloser interface {
 	Filter
 	io.Closer
+}
+
+type BackendFilter interface {
+	Filter
+	OnRequest(ctx FilterContext) error
+	OnResponse(ctx FilterContext) error
 }
 
 // Spec objects are specifications for filters. When initializing the routes,

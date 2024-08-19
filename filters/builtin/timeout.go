@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"context"
 	"time"
 
 	"github.com/zalando/skipper/filters"
@@ -94,3 +95,20 @@ func (t *timeout) Request(ctx filters.FilterContext) {
 }
 
 func (*timeout) Response(filters.FilterContext) {}
+
+func (t *timeout) OnRequest(ctx filters.FilterContext) error {
+	switch t.typ {
+	case backendTimeout:
+		backendContext := ctx.Request().Context()
+
+		context.WithTimeout(backendContext, t.timeout)
+	case readTimeout:
+		return ctx.ResponseController().SetReadDeadline(time.Now().Add(t.timeout))
+
+	case writeTimeout:
+	}
+
+	return nil
+}
+
+func (t *timeout) OnResponse(ctx filters.FilterContext) error { return nil }
