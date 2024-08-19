@@ -136,6 +136,12 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	}
 	span.SetTag("opa.decision.allowed", allowed)
 
+	if allowed {
+		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.allow"))
+	} else {
+		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.deny"))
+	}
+
 	f.opa.ServeResponse(fc, span, result)
 }
 
