@@ -107,6 +107,13 @@ func (l *testLog) String() string {
 	return l.buf.String()
 }
 
+func (l *testLog) Reset() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.buf.Reset()
+}
+
 func (l *testLog) Close() {
 	log.SetOutput(l.oldOut)
 	log.SetLevel(l.oldLevel)

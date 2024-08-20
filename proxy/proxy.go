@@ -1050,11 +1050,12 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 			}
 		}
 
-		ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(err.Error()))
+		errMessage := err.Error()
+		ctx.proxySpan.LogKV("event", "error", "message", ensureUTF8(errMessage))
+
 		if perr, ok := err.(*proxyError); ok {
 			perr.err = fmt.Errorf("failed to do backend roundtrip to %s: %w", req.URL.Host, perr.err)
 			return nil, perr
-
 		} else if nerr, ok := err.(net.Error); ok {
 			var status int
 			if nerr.Timeout() {
@@ -1065,6 +1066,17 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 			p.tracing.setTag(ctx.proxySpan, HTTPStatusCodeTag, uint16(status))
 			//lint:ignore SA1019 Temporary is deprecated in Go 1.18, but keep it for now (https://github.com/zalando/skipper/issues/1992)
 			return nil, &proxyError{err: fmt.Errorf("net.Error during backend roundtrip to %s: timeout=%v temporary='%v': %w", req.URL.Host, nerr.Timeout(), nerr.Temporary(), err), code: status}
+		}
+
+		switch errMessage {
+		case // net/http/internal/chunked.go
+			"header line too long",
+			"chunked encoding contains too much non-data",
+			"malformed chunked encoding",
+			"empty hex number for chunk length",
+			"invalid byte in chunk length",
+			"http chunk length too large":
+			return nil, &proxyError{code: http.StatusBadRequest, err: fmt.Errorf("failed to do backend roundtrip due to invalid request: %w", err)}
 		}
 
 		return nil, &proxyError{err: fmt.Errorf("unexpected error from Go stdlib net/http package during roundtrip: %w", err)}
