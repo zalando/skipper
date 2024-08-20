@@ -1036,3 +1036,39 @@ func TestGrantLoginRedirectStub(t *testing.T) {
 	assert.Equal(t, int64(len(expectedContent)), rsp.ContentLength)
 	assert.Equal(t, expectedContent, string(body))
 }
+
+func TestGrantLoginRedirectForRequestWithTrailingQuestionMark(t *testing.T) {
+	const (
+		applicationDomain = "foo.skipper.test"
+		callbackPath      = "/a-callback"
+	)
+
+	dnstest.LoopbackNames(t, applicationDomain)
+
+	provider := newGrantTestAuthServer(testToken, testAccessCode)
+	defer provider.Close()
+
+	tokeninfo := newGrantTestTokeninfo(testToken, "")
+	defer tokeninfo.Close()
+
+	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
+	config.CallbackPath = callbackPath
+
+	routes := eskip.MustParse(`* -> oauthGrant() -> status(204) -> <shunt>`)
+
+	proxy, client := newAuthProxy(t, config, routes, applicationDomain)
+	defer proxy.Close()
+
+	// When requested with trailing question mark
+	rsp, err := client.Get(proxy.URL + "?")
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+
+	require.Equal(t, rsp.StatusCode, http.StatusTemporaryRedirect)
+
+	location, err := url.Parse(rsp.Header.Get("Location"))
+	require.NoError(t, err)
+
+	// Then redirect_uri does not contain a trailing question mark
+	assert.Equal(t, proxy.URL+callbackPath, location.Query().Get("redirect_uri"))
+}

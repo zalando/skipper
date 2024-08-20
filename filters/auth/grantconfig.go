@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -370,10 +371,11 @@ func (c *OAuthConfig) RedirectURLs(req *http.Request) (redirect, original string
 
 	original = u.String()
 
-	u.Path = c.CallbackPath
-	u.RawQuery = ""
-
-	redirect = u.String()
+	redirect = (&url.URL{
+		Scheme: u.Scheme,
+		Host:   u.Host,
+		Path:   c.CallbackPath,
+	}).String()
 
 	return
 }
