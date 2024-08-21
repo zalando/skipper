@@ -87,16 +87,22 @@ func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	if len(args) == 4 {
-		minValue, ok := args[2].(int)
+		minValue, ok := args[2].(float64)
 		if !ok {
 			return nil, filters.ErrInvalidFilterParameters
 		}
-		maxValue, ok := args[3].(int)
+		maxValue, ok := args[3].(float64)
 		if !ok {
 			return nil, filters.ErrInvalidFilterParameters
 		}
+		minVal := int(minValue)
+		maxVal := int(maxValue)
+		if minVal < 0 || maxVal > 599 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+
 		f.condition = func(rsp *http.Response) bool {
-			return minValue <= rsp.StatusCode && rsp.StatusCode <= maxValue
+			return minVal <= rsp.StatusCode && rsp.StatusCode <= maxVal
 		}
 	}
 

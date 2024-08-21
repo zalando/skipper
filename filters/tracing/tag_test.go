@@ -138,15 +138,9 @@ func TestTagCreateFilter(t *testing.T) {
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
-			name: "create filter with two args want 3 args",
+			name: "create filter with two args want 4 args",
 			spec: NewTagFromResponseIfStatus(),
 			args: []interface{}{"foo", "bar"},
-			want: filters.ErrInvalidFilterParameters,
-		},
-		{
-			name: "create filter with three args wrong args",
-			spec: NewTagFromResponseIfStatus(),
-			args: []interface{}{"foo", "bar", 5},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
@@ -162,15 +156,27 @@ func TestTagCreateFilter(t *testing.T) {
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
-			name: "create filter with three args wrong args",
+			name: "create filter with four args wrong args",
 			spec: NewTagFromResponseIfStatus(),
 			args: []interface{}{"foo", "bar", "300", 500},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
-			name: "create filter with three args wrong args",
+			name: "create filter with four args wrong args",
 			spec: NewTagFromResponseIfStatus(),
 			args: []interface{}{"foo", "bar", "300", "500"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with four args wrong args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar", 300, 600},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with four args wrong args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar", -1, 400},
 			want: filters.ErrInvalidFilterParameters,
 		},
 	} {
