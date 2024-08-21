@@ -3352,6 +3352,15 @@ tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 
 This filter works just like [tracingTag](#tracingtag), but is applied after the request was processed. In particular, [template placeholders](#template-placeholders) referencing the response can be used in the parameters.
 
+### tracingTagFromResponseIfStatus
+
+Example: set error tag to true in case response status code is `>= 500` and `<= 599`
+
+```
+tracingTagFromResponseIfStatus("error", "true", 500, 599)
+```
+
+
 ### tracingSpanName
 
 This filter sets the name of the outgoing (client span) in opentracing. The default name is "proxy". Example:
