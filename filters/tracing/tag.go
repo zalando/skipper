@@ -1,6 +1,9 @@
 package tracing
 
 import (
+	"net/http"
+	"strconv"
+
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -10,11 +13,21 @@ type tagSpec struct {
 	typ string
 }
 
+type tagFilterType int
+
+const (
+	tagRequest tagFilterType = iota + 1
+	tagResponse
+	tagResponseCondition
+)
+
 type tagFilter struct {
-	tagFromResponse bool
+	typ tagFilterType
 
 	tagName  string
 	tagValue *eskip.Template
+
+	condition func(*http.Response) bool
 }
 
 // NewTag creates a filter specification for the tracingTag filter.
@@ -27,12 +40,34 @@ func NewTagFromResponse() filters.Spec {
 	return &tagSpec{typ: filters.TracingTagFromResponseName}
 }
 
+func NewTagFromResponseIfStatus() filters.Spec {
+	return &tagSpec{typ: filters.TracingTagFromResponseIfStatusName}
+}
+
 func (s *tagSpec) Name() string {
 	return s.typ
 }
 
 func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	if len(args) != 2 {
+	var typ tagFilterType
+
+	switch s.typ {
+	case filters.TracingTagName:
+		if len(args) != 2 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		typ = tagRequest
+	case filters.TracingTagFromResponseName:
+		if len(args) != 2 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		typ = tagResponse
+	case filters.TracingTagFromResponseIfStatusName:
+		if len(args) != 3 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		typ = tagResponseCondition
+	default:
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
@@ -46,23 +81,60 @@ func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return &tagFilter{
-		tagFromResponse: s.typ == filters.TracingTagFromResponseName,
-
+	f := &tagFilter{
+		typ:      typ,
 		tagName:  tagName,
 		tagValue: eskip.NewTemplate(tagValue),
-	}, nil
+	}
+
+	if len(args) == 3 {
+		conditionString, ok := args[2].(string)
+		if !ok || len(conditionString) < 2 {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+		condValueStr := conditionString[1:]
+		condValue, err := strconv.Atoi(condValueStr)
+		if err != nil {
+			return nil, filters.ErrInvalidFilterParameters
+		}
+
+		b := conditionString[0]
+		switch b {
+		case '<':
+			f.condition = func(rsp *http.Response) bool {
+				return rsp.StatusCode < condValue
+			}
+		case '>':
+			f.condition = func(rsp *http.Response) bool {
+				return rsp.StatusCode > condValue
+			}
+		case '=':
+			f.condition = func(rsp *http.Response) bool {
+				return rsp.StatusCode == condValue
+			}
+		default:
+			return nil, filters.ErrInvalidFilterParameters
+		}
+
+	}
+
+	return f, nil
 }
 
 func (f *tagFilter) Request(ctx filters.FilterContext) {
-	if !f.tagFromResponse {
+	if f.typ == tagRequest {
 		f.setTag(ctx)
 	}
 }
 
 func (f *tagFilter) Response(ctx filters.FilterContext) {
-	if f.tagFromResponse {
+	switch f.typ {
+	case tagResponse:
 		f.setTag(ctx)
+	case tagResponseCondition:
+		if f.condition(ctx.Response()) {
+			f.setTag(ctx)
+		}
 	}
 }
 

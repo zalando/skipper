@@ -37,20 +37,142 @@ func TestTagName(t *testing.T) {
 	if NewTagFromResponse().Name() != filters.TracingTagFromResponseName {
 		t.Error("Wrong tag spec name")
 	}
+	if NewTagFromResponseIfStatus().Name() != filters.TracingTagFromResponseIfStatusName {
+		t.Error("Wrong tag spec name")
+	}
 }
 
 func TestTagCreateFilter(t *testing.T) {
-	spec := tagSpec{}
-	if _, err := spec.CreateFilter(nil); err != filters.ErrInvalidFilterParameters {
-		t.Errorf("Create filter without args should return error")
-	}
+	for _, tt := range []struct {
+		name string
+		args []interface{}
+		spec filters.Spec
+		want error
+	}{
+		{
+			name: "create filter with unknown filter",
+			spec: &tagSpec{},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with no args",
+			spec: NewTag(),
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with no args",
+			spec: NewTagFromResponse(),
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with no args",
+			spec: NewTagFromResponseIfStatus(),
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with one args",
+			spec: NewTag(),
+			args: []interface{}{"foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with one args",
+			spec: NewTagFromResponse(),
+			args: []interface{}{"foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with one args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with two args one wrong",
+			spec: NewTag(),
+			args: []interface{}{"foo", 3},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with two args one wrong",
+			spec: NewTagFromResponse(),
+			args: []interface{}{"foo", 3},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with two args one wrong",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", 3},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with two args one wrong",
+			spec: NewTag(),
+			args: []interface{}{3, "foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with two args one wrong",
+			spec: NewTagFromResponse(),
+			args: []interface{}{3, "foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with two args one wrong",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{3, "foo"},
+			want: filters.ErrInvalidFilterParameters,
+		},
 
-	if _, err := spec.CreateFilter([]interface{}{3, "foo"}); err != filters.ErrInvalidFilterParameters {
-		t.Errorf("Create filter without first arg is string should return error")
-	}
-
-	if _, err := spec.CreateFilter([]interface{}{"foo", 3}); err != filters.ErrInvalidFilterParameters {
-		t.Errorf("Create filter without second arg is string should return error")
+		// special
+		{
+			name: "create filter with three args want 2",
+			spec: NewTag(),
+			args: []interface{}{"foo", "bar", "qux"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with three args want 2",
+			spec: NewTagFromResponse(),
+			args: []interface{}{"foo", "bar", "qux"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with two args want 3 args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with three args wrong args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar", 5},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with three args wrong args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar", ">"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with three args wrong args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar", "==500"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with three args wrong args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar", "500"},
+			want: filters.ErrInvalidFilterParameters,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := tt.spec.CreateFilter(tt.args); err != tt.want {
+				t.Errorf("Failed to create filter: Want %v, got %v", tt.want, err)
+			}
+		})
 	}
 }
 
@@ -60,21 +182,23 @@ func TestTracingTag(t *testing.T) {
 	for _, ti := range []struct {
 		name     string
 		spec     filters.Spec
-		value    string
+		values   []string
 		context  *filtertest.Context
+		tagName  string
 		expected interface{}
 	}{{
 		"plain key value",
 		NewTag(),
-		"test_value",
+		[]string{"test_tag", "test_value"},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 		},
+		"test_tag",
 		"test_value",
 	}, {
 		"tag from header",
 		NewTag(),
-		"${request.header.X-Flow-Id}",
+		[]string{"test_tag", "${request.header.X-Flow-Id}"},
 		&filtertest.Context{
 			FRequest: &http.Request{
 				Header: http.Header{
@@ -82,11 +206,12 @@ func TestTracingTag(t *testing.T) {
 				},
 			},
 		},
+		"test_tag",
 		"foo",
 	}, {
 		"tag from response",
 		NewTagFromResponse(),
-		"${response.header.X-Fallback}",
+		[]string{"test_tag", "${response.header.X-Fallback}"},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
@@ -95,19 +220,57 @@ func TestTracingTag(t *testing.T) {
 				},
 			},
 		},
+		"test_tag",
+		"true",
+	}, {
+		"tag from response if condition is true",
+		NewTagFromResponseIfStatus(),
+		[]string{"Error", "true", ">499"},
+		&filtertest.Context{
+			FRequest: &http.Request{},
+			FResponse: &http.Response{
+				StatusCode: 500,
+			},
+		},
+		"Error",
+		"true",
+	}, {
+		"tag from response if condition is true",
+		NewTagFromResponseIfStatus(),
+		[]string{"Error", "true", "=500"},
+		&filtertest.Context{
+			FRequest: &http.Request{},
+			FResponse: &http.Response{
+				StatusCode: 500,
+			},
+		},
+		"Error",
+		"true",
+	}, {
+		"tag from response if condition is true",
+		NewTagFromResponseIfStatus(),
+		[]string{"Error", "true", "<505"},
+		&filtertest.Context{
+			FRequest: &http.Request{},
+			FResponse: &http.Response{
+				StatusCode: 500,
+			},
+		},
+		"Error",
 		"true",
 	}, {
 		"tag from missing header",
 		NewTag(),
-		"${request.header.missing}",
+		[]string{"test_tag", "${request.header.missing}"},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 		},
+		"test_tag",
 		nil,
 	}, {
 		"tracingTag is not processed on response",
 		NewTag(),
-		"${response.header.X-Fallback}",
+		[]string{"test_tag", "${response.header.X-Fallback}"},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
@@ -116,6 +279,7 @@ func TestTracingTag(t *testing.T) {
 				},
 			},
 		},
+		"test_tag",
 		nil,
 	},
 	} {
@@ -127,7 +291,11 @@ func TestTracingTag(t *testing.T) {
 				FRequest: ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span)),
 			}
 
-			f, err := ti.spec.CreateFilter([]interface{}{"test_tag", ti.value})
+			values := make([]interface{}, 0)
+			for _, v := range ti.values {
+				values = append(values, v)
+			}
+			f, err := ti.spec.CreateFilter(values)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,8 +306,8 @@ func TestTracingTag(t *testing.T) {
 
 			f.Response(requestContext)
 
-			if got := span.Tag("test_tag"); got != ti.expected {
-				t.Errorf("unexpected tag value '%v' != '%v'", got, ti.expected)
+			if got := span.Tag(ti.tagName); got != ti.expected {
+				t.Errorf("unexpected tag %q value '%v' != '%v'", ti.tagName, got, ti.expected)
 			}
 		})
 	}
