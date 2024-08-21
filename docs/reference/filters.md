@@ -3354,10 +3354,10 @@ This filter works just like [tracingTag](#tracingtag), but is applied after the 
 
 ### tracingTagFromResponseIfStatus
 
-Example: set Error tag to true in case status code is >=500
+Example: set error tag to true in case response status code is `>= 500` and `<= 599`
 
 ```
-tracingTagFromResponseIfStatus("Error", "true", ">499)
+tracingTagFromResponseIfStatus("error", "true", 500, 599)
 ```
 
 

@@ -150,21 +150,27 @@ func TestTagCreateFilter(t *testing.T) {
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
-			name: "create filter with three args wrong args",
+			name: "create filter with three args want 4",
 			spec: NewTagFromResponseIfStatus(),
-			args: []interface{}{"foo", "bar", ">"},
+			args: []interface{}{"foo", "bar", 300},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with four args wrong args",
+			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar", 300, "500"},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "create filter with three args wrong args",
 			spec: NewTagFromResponseIfStatus(),
-			args: []interface{}{"foo", "bar", "==500"},
+			args: []interface{}{"foo", "bar", "300", 500},
 			want: filters.ErrInvalidFilterParameters,
 		},
 		{
 			name: "create filter with three args wrong args",
 			spec: NewTagFromResponseIfStatus(),
-			args: []interface{}{"foo", "bar", "500"},
+			args: []interface{}{"foo", "bar", "300", "500"},
 			want: filters.ErrInvalidFilterParameters,
 		},
 	} {
@@ -182,14 +188,14 @@ func TestTracingTag(t *testing.T) {
 	for _, ti := range []struct {
 		name     string
 		spec     filters.Spec
-		values   []string
+		values   []interface{}
 		context  *filtertest.Context
 		tagName  string
 		expected interface{}
 	}{{
 		"plain key value",
 		NewTag(),
-		[]string{"test_tag", "test_value"},
+		[]interface{}{"test_tag", "test_value"},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 		},
@@ -198,7 +204,7 @@ func TestTracingTag(t *testing.T) {
 	}, {
 		"tag from header",
 		NewTag(),
-		[]string{"test_tag", "${request.header.X-Flow-Id}"},
+		[]interface{}{"test_tag", "${request.header.X-Flow-Id}"},
 		&filtertest.Context{
 			FRequest: &http.Request{
 				Header: http.Header{
@@ -211,7 +217,7 @@ func TestTracingTag(t *testing.T) {
 	}, {
 		"tag from response",
 		NewTagFromResponse(),
-		[]string{"test_tag", "${response.header.X-Fallback}"},
+		[]interface{}{"test_tag", "${response.header.X-Fallback}"},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
@@ -225,7 +231,7 @@ func TestTracingTag(t *testing.T) {
 	}, {
 		"tag from response if condition is true",
 		NewTagFromResponseIfStatus(),
-		[]string{"Error", "true", ">499"},
+		[]interface{}{"Error", "true", 500, 599},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
@@ -237,7 +243,7 @@ func TestTracingTag(t *testing.T) {
 	}, {
 		"tag from response if condition is true",
 		NewTagFromResponseIfStatus(),
-		[]string{"Error", "true", "=500"},
+		[]interface{}{"Error", "true", 500, 500},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
@@ -249,19 +255,31 @@ func TestTracingTag(t *testing.T) {
 	}, {
 		"tag from response if condition is true",
 		NewTagFromResponseIfStatus(),
-		[]string{"Error", "true", "<505"},
+		[]interface{}{"Error", "true", 500, 599},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
-				StatusCode: 500,
+				StatusCode: 599,
 			},
 		},
 		"Error",
 		"true",
+	}, {
+		"do not tag from response if condition is false",
+		NewTagFromResponseIfStatus(),
+		[]interface{}{"Error", "true", 500, 599},
+		&filtertest.Context{
+			FRequest: &http.Request{},
+			FResponse: &http.Response{
+				StatusCode: 499,
+			},
+		},
+		"Error",
+		nil,
 	}, {
 		"tag from missing header",
 		NewTag(),
-		[]string{"test_tag", "${request.header.missing}"},
+		[]interface{}{"test_tag", "${request.header.missing}"},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 		},
@@ -270,7 +288,7 @@ func TestTracingTag(t *testing.T) {
 	}, {
 		"tracingTag is not processed on response",
 		NewTag(),
-		[]string{"test_tag", "${response.header.X-Fallback}"},
+		[]interface{}{"test_tag", "${response.header.X-Fallback}"},
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{

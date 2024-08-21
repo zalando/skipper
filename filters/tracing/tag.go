@@ -2,7 +2,6 @@ package tracing
 
 import (
 	"net/http"
-	"strconv"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/eskip"
@@ -63,7 +62,7 @@ func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 		typ = tagResponse
 	case filters.TracingTagFromResponseIfStatusName:
-		if len(args) != 3 {
+		if len(args) != 4 {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 		typ = tagResponseCondition
@@ -87,35 +86,18 @@ func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		tagValue: eskip.NewTemplate(tagValue),
 	}
 
-	if len(args) == 3 {
-		conditionString, ok := args[2].(string)
-		if !ok || len(conditionString) < 2 {
+	if len(args) == 4 {
+		minValue, ok := args[2].(int)
+		if !ok {
 			return nil, filters.ErrInvalidFilterParameters
 		}
-		condValueStr := conditionString[1:]
-		condValue, err := strconv.Atoi(condValueStr)
-		if err != nil {
+		maxValue, ok := args[3].(int)
+		if !ok {
 			return nil, filters.ErrInvalidFilterParameters
 		}
-
-		b := conditionString[0]
-		switch b {
-		case '<':
-			f.condition = func(rsp *http.Response) bool {
-				return rsp.StatusCode < condValue
-			}
-		case '>':
-			f.condition = func(rsp *http.Response) bool {
-				return rsp.StatusCode > condValue
-			}
-		case '=':
-			f.condition = func(rsp *http.Response) bool {
-				return rsp.StatusCode == condValue
-			}
-		default:
-			return nil, filters.ErrInvalidFilterParameters
+		f.condition = func(rsp *http.Response) bool {
+			return minValue <= rsp.StatusCode && rsp.StatusCode <= maxValue
 		}
-
 	}
 
 	return f, nil
