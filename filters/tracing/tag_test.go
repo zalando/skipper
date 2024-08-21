@@ -6,6 +6,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 )
@@ -193,15 +194,13 @@ func TestTracingTag(t *testing.T) {
 
 	for _, ti := range []struct {
 		name     string
-		spec     filters.Spec
-		values   []interface{}
+		doc      string
 		context  *filtertest.Context
 		tagName  string
 		expected interface{}
 	}{{
 		"plain key value",
-		NewTag(),
-		[]interface{}{"test_tag", "test_value"},
+		`tracingTag("test_tag", "test_value")`,
 		&filtertest.Context{
 			FRequest: &http.Request{},
 		},
@@ -209,8 +208,7 @@ func TestTracingTag(t *testing.T) {
 		"test_value",
 	}, {
 		"tag from header",
-		NewTag(),
-		[]interface{}{"test_tag", "${request.header.X-Flow-Id}"},
+		`tracingTag("test_tag", "${request.header.X-Flow-Id}")`,
 		&filtertest.Context{
 			FRequest: &http.Request{
 				Header: http.Header{
@@ -222,8 +220,7 @@ func TestTracingTag(t *testing.T) {
 		"foo",
 	}, {
 		"tag from response",
-		NewTagFromResponse(),
-		[]interface{}{"test_tag", "${response.header.X-Fallback}"},
+		`tracingTagFromResponse("test_tag", "${response.header.X-Fallback}")`,
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
@@ -236,56 +233,51 @@ func TestTracingTag(t *testing.T) {
 		"true",
 	}, {
 		"tag from response if condition is true",
-		NewTagFromResponseIfStatus(),
-		[]interface{}{"Error", "true", 500, 599},
+		`tracingTagFromResponseIfStatus("error", "true", 500, 599)`,
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
 				StatusCode: 500,
 			},
 		},
-		"Error",
+		"error",
 		"true",
 	}, {
 		"tag from response if condition is true",
-		NewTagFromResponseIfStatus(),
-		[]interface{}{"Error", "true", 500, 500},
+		`tracingTagFromResponseIfStatus("error", "true", 500, 500)`,
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
 				StatusCode: 500,
 			},
 		},
-		"Error",
+		"error",
 		"true",
 	}, {
 		"tag from response if condition is true",
-		NewTagFromResponseIfStatus(),
-		[]interface{}{"Error", "true", 500, 599},
+		`tracingTagFromResponseIfStatus("error", "true", 500, 599)`,
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
 				StatusCode: 599,
 			},
 		},
-		"Error",
+		"error",
 		"true",
 	}, {
 		"do not tag from response if condition is false",
-		NewTagFromResponseIfStatus(),
-		[]interface{}{"Error", "true", 500, 599},
+		`tracingTagFromResponseIfStatus("error", "true", 500, 599)`,
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
 				StatusCode: 499,
 			},
 		},
-		"Error",
+		"error",
 		nil,
 	}, {
 		"tag from missing header",
-		NewTag(),
-		[]interface{}{"test_tag", "${request.header.missing}"},
+		`tracingTag("test_tag", "${request.header.missing}")`,
 		&filtertest.Context{
 			FRequest: &http.Request{},
 		},
@@ -293,8 +285,7 @@ func TestTracingTag(t *testing.T) {
 		nil,
 	}, {
 		"tracingTag is not processed on response",
-		NewTag(),
-		[]interface{}{"test_tag", "${response.header.X-Fallback}"},
+		`tracingTag("test_tag", "${request.header.X-Fallback}")`,
 		&filtertest.Context{
 			FRequest: &http.Request{},
 			FResponse: &http.Response{
@@ -315,13 +306,20 @@ func TestTracingTag(t *testing.T) {
 				FRequest: ti.context.FRequest.WithContext(opentracing.ContextWithSpan(ti.context.FRequest.Context(), span)),
 			}
 
-			values := make([]interface{}, 0)
-			for _, v := range ti.values {
-				values = append(values, v)
+			fEskip := eskip.MustParseFilters(ti.doc)[0]
+
+			fr := make(filters.Registry)
+			fr.Register(NewTag())
+			fr.Register(NewTagFromResponse())
+			fr.Register(NewTagFromResponseIfStatus())
+
+			spec, ok := fr[fEskip.Name]
+			if !ok {
+				t.Fatalf("Failed to find filter spec: %q", fEskip.Name)
 			}
-			f, err := ti.spec.CreateFilter(values)
+			f, err := spec.CreateFilter(fEskip.Args)
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("Failed to create filter %q with %v: %v", fEskip.Name, fEskip.Args, err)
 			}
 
 			f.Request(requestContext)
