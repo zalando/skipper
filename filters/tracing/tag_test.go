@@ -177,6 +177,12 @@ func TestTagCreateFilter(t *testing.T) {
 		{
 			name: "create filter with four args wrong args",
 			spec: NewTagFromResponseIfStatus(),
+			args: []interface{}{"foo", "bar", 500, 400},
+			want: filters.ErrInvalidFilterParameters,
+		},
+		{
+			name: "create filter with four args wrong args",
+			spec: NewTagFromResponseIfStatus(),
 			args: []interface{}{"foo", "bar", -1, 400},
 			want: filters.ErrInvalidFilterParameters,
 		},

@@ -97,7 +97,7 @@ func (s *tagSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 		minVal := int(minValue)
 		maxVal := int(maxValue)
-		if minVal < 0 || maxVal > 599 {
+		if minVal < 0 || maxVal > 599 || minVal > maxVal {
 			return nil, filters.ErrInvalidFilterParameters
 		}
 
