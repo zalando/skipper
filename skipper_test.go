@@ -89,24 +89,42 @@ func findAddress() (string, error) {
 }
 
 func TestOptionsFilterRegistry(t *testing.T) {
-	o := &Options{
-		CustomFilters: []filters.Spec{auth.NewBearerInjector(nil)},
-	}
-	fr := o.filterRegistry()
+	t.Run("custom filters", func(t *testing.T) {
+		o := &Options{
+			CustomFilters: []filters.Spec{auth.NewBearerInjector(nil)},
+		}
+		fr := o.filterRegistry()
 
-	assert.Contains(t, fr, filters.SetRequestHeaderName)
-	assert.Contains(t, fr, filters.LuaName)
-	assert.Contains(t, fr, filters.BearerInjectorName)
+		assert.Contains(t, fr, filters.SetRequestHeaderName)
+		assert.Contains(t, fr, filters.LuaName)
+		assert.Contains(t, fr, filters.BearerInjectorName)
+	})
 
-	o = &Options{
-		CustomFilters:   []filters.Spec{auth.NewBearerInjector(nil)},
-		DisabledFilters: []string{filters.LuaName, filters.BearerInjectorName},
-	}
-	fr = o.filterRegistry()
+	t.Run("disabled filters", func(t *testing.T) {
+		o := &Options{
+			CustomFilters:   []filters.Spec{auth.NewBearerInjector(nil)},
+			DisabledFilters: []string{filters.LuaName, filters.BearerInjectorName},
+		}
+		fr := o.filterRegistry()
 
-	assert.Contains(t, fr, filters.SetRequestHeaderName)
-	assert.NotContains(t, fr, filters.LuaName)
-	assert.NotContains(t, fr, filters.BearerInjectorName)
+		assert.Contains(t, fr, filters.SetRequestHeaderName)
+		assert.NotContains(t, fr, filters.LuaName)
+		assert.NotContains(t, fr, filters.BearerInjectorName)
+	})
+
+	t.Run("register filters", func(t *testing.T) {
+		o := &Options{
+			CustomFilters: []filters.Spec{auth.NewBearerInjector(nil)},
+			RegisterFilters: func(registry filters.Registry) {
+				registry.Register(auth.NewWebhook(0))
+			},
+		}
+		fr := o.filterRegistry()
+
+		assert.Contains(t, fr, filters.SetRequestHeaderName)
+		assert.Contains(t, fr, filters.BearerInjectorName)
+		assert.Contains(t, fr, filters.WebhookName)
+	})
 }
 
 func TestOptionsOpenTracingTracerInstanceOverridesOpenTracing(t *testing.T) {

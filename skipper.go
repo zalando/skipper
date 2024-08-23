@@ -130,6 +130,10 @@ type Options struct {
 	// List of custom filter specifications.
 	CustomFilters []filters.Spec
 
+	// RegisterFilters callback can be used to register additional filters.
+	// Built-in and custom filters are registered before the callback is called.
+	RegisterFilters func(registry filters.Registry)
+
 	// Urls of nodes in an etcd cluster, storing route definitions.
 	EtcdUrls []string
 
@@ -1141,7 +1145,8 @@ func initLog(o Options) error {
 }
 
 // filterRegistry creates a filter registry with the builtin and
-// custom filter specs registered excluding disabled filters
+// custom filter specs registered excluding disabled filters.
+// If [Options.RegisterFilters] callback is set, it will be called.
 func (o *Options) filterRegistry() filters.Registry {
 	registry := make(filters.Registry)
 
@@ -1160,6 +1165,10 @@ func (o *Options) filterRegistry() filters.Registry {
 		if _, ok := disabledFilters[f.Name()]; !ok {
 			registry.Register(f)
 		}
+	}
+
+	if o.RegisterFilters != nil {
+		o.RegisterFilters(registry)
 	}
 
 	return registry
