@@ -117,6 +117,10 @@ func TestOptionsFilterRegistry(t *testing.T) {
 			CustomFilters: []filters.Spec{auth.NewBearerInjector(nil)},
 			RegisterFilters: func(registry filters.Registry) {
 				registry.Register(auth.NewWebhook(0))
+
+				// Check that built-in and CustomFilters are already registered
+				assert.Contains(t, registry, filters.SetRequestHeaderName)
+				assert.Contains(t, registry, filters.BearerInjectorName)
 			},
 		}
 		fr := o.filterRegistry()
