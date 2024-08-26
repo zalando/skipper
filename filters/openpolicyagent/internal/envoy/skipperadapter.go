@@ -12,6 +12,10 @@ import (
 
 func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metadata, contextExtensions map[string]string, rawBody []byte) (*ext_authz_v3.CheckRequest, error) {
 
+	if !utf8.ValidString(req.URL.Path) {
+		return nil, fmt.Errorf("invalid utf8 in path: %q", req.URL.Path)
+	}
+
 	headers := make(map[string]string, len(req.Header))
 	for h, vv := range req.Header {
 		// This makes headers in the input compatible with what Envoy does, i.e. allows to use policy fragments designed for envoy
@@ -25,7 +29,7 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 				Http: &ext_authz_v3.AttributeContext_HttpRequest{
 					Host:    req.Host,
 					Method:  req.Method,
-					Path:    req.URL.Path,
+					Path:    req.URL.RequestURI(),
 					Headers: headers,
 					RawBody: rawBody,
 				},
@@ -33,10 +37,6 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 			ContextExtensions: contextExtensions,
 			MetadataContext:   metadata,
 		},
-	}
-
-	if !utf8.ValidString(ereq.Attributes.Request.Http.Path) {
-		return nil, fmt.Errorf("invalid utf8 in path: %q", ereq.Attributes.Request.Http.Path)
 	}
 
 	return ereq, nil

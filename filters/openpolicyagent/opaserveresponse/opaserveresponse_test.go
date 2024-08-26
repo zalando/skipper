@@ -71,6 +71,16 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
 		},
 		{
+			msg:             "Allow With Structured Rules and Query Params",
+			filterName:      "opaServeResponse",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_object",
+			requestPath:     "/allow/structured/with-query?pass=yes",
+			expectedStatus:  http.StatusOK,
+			expectedBody:    "Welcome from policy!",
+			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
+		},
+		{
 			msg:             "Allow With opa.runtime execution",
 			filterName:      "opaServeResponse",
 			bundleName:      "somebundle.tar.gz",
@@ -157,6 +167,17 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 						  
 						allow_object = response {
 							input.parsed_path = [ "allow", "structured" ]
+							response := {
+								"allowed": true,
+								"headers": {"x-ext-auth-allow": "yes"},
+								"body": "Welcome from policy!",
+								"http_status": 200
+							}
+						}
+
+						allow_object = response {
+							input.parsed_path = [ "allow", "structured", "with-query" ]
+							input.parsed_query.pass == ["yes"]
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},

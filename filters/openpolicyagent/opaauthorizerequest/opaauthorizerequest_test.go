@@ -58,6 +58,20 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			removeHeaders:     make(http.Header),
 		},
 		{
+			msg:               "Allow Requests with query parameters",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow-with-query?pass=yes&q2=v2",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
 			msg:               "Allow Matching Context Extension",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
@@ -89,6 +103,19 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow",
 			requestPath:       "/forbidden",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusForbidden,
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Simple Forbidden with Query Parameters",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow-with-query?tofail=true",
 			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusForbidden,
@@ -309,6 +336,11 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 						allow {
 							input.parsed_path = [ "allow" ]
+						}
+
+						allow {
+							input.parsed_path = [ "allow-with-query" ]
+							input.parsed_query.pass == ["yes"]
 						}
 
 						allow_context_extensions {
