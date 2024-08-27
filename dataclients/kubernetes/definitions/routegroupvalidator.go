@@ -27,7 +27,7 @@ func ValidateRouteGroups(rgl *RouteGroupList) error {
 	for _, rg := range rgl.Items {
 		errs = append(errs, defaultRouteGroupValidator.Validate(rg))
 	}
-	return errorsJoin(errs...)
+	return errors.Join(errs...)
 }
 
 func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
@@ -41,7 +41,7 @@ func (rgv *RouteGroupValidator) Validate(item *RouteGroupItem) error {
 	errs = append(errs, rgv.validateBackends(item))
 	errs = append(errs, rgv.validateHosts(item))
 
-	return errorsJoin(errs...)
+	return errors.Join(errs...)
 }
 
 // TODO: we need to pass namespace/name in all errors
@@ -76,7 +76,7 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 		}
 	}
 
-	return errorsJoin(errs...)
+	return errors.Join(errs...)
 }
 
 func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
@@ -91,7 +91,7 @@ func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 			}
 		}
 	}
-	return errorsJoin(errs...)
+	return errors.Join(errs...)
 }
 
 func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
@@ -108,7 +108,7 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 			}
 		}
 	}
-	return errorsJoin(errs...)
+	return errors.Join(errs...)
 }
 
 func (rgv *RouteGroupValidator) validateHosts(item *RouteGroupItem) error {
@@ -120,7 +120,7 @@ func (rgv *RouteGroupValidator) validateHosts(item *RouteGroupItem) error {
 		}
 		uniqueHosts[host] = struct{}{}
 	}
-	return errorsJoin(errs...)
+	return errors.Join(errs...)
 }
 
 // TODO: we need to pass namespace/name in all errors
