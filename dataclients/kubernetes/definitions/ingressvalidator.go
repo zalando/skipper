@@ -1,6 +1,7 @@
 package definitions
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/zalando/skipper/eskip"
@@ -15,7 +16,7 @@ func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 	errs = append(errs, igv.validatePredicateAnnotation(item.Metadata.Annotations))
 	errs = append(errs, igv.validateRoutesAnnotation(item.Metadata.Annotations))
 
-	return errorsJoin(errs...)
+	return errors.Join(errs...)
 }
 
 func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
