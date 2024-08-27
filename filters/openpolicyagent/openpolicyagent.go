@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/config"
-	"github.com/open-policy-agent/opa/dependencies"
 	"github.com/open-policy-agent/opa/logging"
 	"github.com/open-policy-agent/opa/plugins"
 	"github.com/open-policy-agent/opa/plugins/discovery"
@@ -709,24 +708,15 @@ func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request)
 	if body != nil && !opa.EnvoyPluginConfig().SkipRequestBodyParse &&
 		req.ContentLength <= int64(opa.maxBodyBytes) {
 
-		bases, err := dependencies.Base(opa.Compiler(), opa.EnvoyPluginConfig().ParsedQuery)
-		if err != nil {
-			return req.Body, nil, func() {}, nil
+		wrapper := newBufferedBodyReader(req.Body, opa.maxBodyBytes, opa.bodyReadBufferSize)
+
+		requestedBodyBytes := bodyUpperBound(req.ContentLength, opa.maxBodyBytes)
+		if !opa.registry.maxMemoryBodyParsingSem.TryAcquire(requestedBodyBytes) {
+			return req.Body, nil, func() {}, ErrTotalBodyBytesExceeded
 		}
 
-		for _, base := range bases {
-			if base.HasPrefix(ast.MustParseRef("input.parsed_body")) {
-				wrapper := newBufferedBodyReader(req.Body, opa.maxBodyBytes, opa.bodyReadBufferSize)
-
-				requestedBodyBytes := bodyUpperBound(req.ContentLength, opa.maxBodyBytes)
-				if !opa.registry.maxMemoryBodyParsingSem.TryAcquire(requestedBodyBytes) {
-					return req.Body, nil, func() {}, ErrTotalBodyBytesExceeded
-				}
-
-				rawBody, err := wrapper.fillBuffer(req.ContentLength)
-				return wrapper, rawBody, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
-			}
-		}
+		rawBody, err := wrapper.fillBuffer(req.ContentLength)
+		return wrapper, rawBody, func() { opa.registry.maxMemoryBodyParsingSem.Release(requestedBodyBytes) }, err
 	}
 
 	return req.Body, nil, func() {}, nil
