@@ -126,8 +126,20 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	fc.Metrics().MeasureSince(f.opa.MetricsKey("eval_time"), start)
 	if err != nil {
 		f.opa.ServeInvalidDecisionError(fc, span, result, err)
-
 		return
+	}
+
+	allowed, err := result.IsAllowed()
+	if err != nil {
+		f.opa.ServeInvalidDecisionError(fc, span, result, err)
+		return
+	}
+	span.SetTag("opa.decision.allowed", allowed)
+
+	if allowed {
+		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.allow"))
+	} else {
+		fc.Metrics().IncCounter(f.opa.MetricsKey("decision.deny"))
 	}
 
 	f.opa.ServeResponse(fc, span, result)
