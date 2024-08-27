@@ -58,11 +58,25 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			removeHeaders:     make(http.Header),
 		},
 		{
+			msg:               "Allow Requests with trailing ? in URL",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow?",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
 			msg:               "Allow Requests with query parameters",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow-with-query?pass=yes&q2=v2",
+			requestPath:       "/allow-with-query?pass=yes&id=1&id=2",
 			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusOK,
@@ -341,6 +355,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 						allow {
 							input.parsed_path = [ "allow-with-query" ]
 							input.parsed_query.pass == ["yes"]
+							input.parsed_query.id == ["1", "2"]
 						}
 
 						allow_context_extensions {
