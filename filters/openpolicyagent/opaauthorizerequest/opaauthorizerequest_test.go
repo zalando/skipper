@@ -545,6 +545,54 @@ func BenchmarkAuthorizeRequest(b *testing.B) {
 		}
 	})
 
+	b.Run("authorize-request-with-body", func(b *testing.B) {
+		opaControlPlane := opasdktest.MustNewServer(
+			opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
+				"main.rego": `
+					package envoy.authz
+
+					import rego.v1
+
+					default allow = false
+
+					allow if {
+						endswith(input.parsed_body.email, "@zalando.de")
+					}
+				`,
+			}),
+		)
+
+		f, err := createBodyBasedOpaFilter(opaControlPlane)
+		assert.NoError(b, err)
+
+		url, err := url.Parse("http://opa-authorized.test/somepath")
+		assert.NoError(b, err)
+
+		body := `{"email": "bench-test@zalando.de"}`
+		ctx := &filtertest.Context{
+			FStateBag: map[string]interface{}{},
+			FResponse: &http.Response{},
+			FRequest: &http.Request{
+				Method: "POST",
+				Header: map[string][]string{
+					"Authorization": {"Bearer FOOBAR"},
+					"Content-Type":  {"application/json"},
+				},
+				URL:           url,
+				Body:          io.NopCloser(strings.NewReader(body)),
+				ContentLength: int64(len(body)),
+			},
+			FMetrics: &metricstest.MockMetrics{},
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			f.Request(ctx)
+		}
+	})
+
 	b.Run("authorize-request-jwt-validation", func(b *testing.B) {
 
 		publicKey, err := os.ReadFile(certPath)
@@ -639,30 +687,39 @@ func BenchmarkAuthorizeRequest(b *testing.B) {
 }
 
 func createOpaFilter(opaControlPlane *opasdktest.Server) (filters.Filter, error) {
-	config := []byte(fmt.Sprintf(`{
-			"services": {
-				"test": {
-					"url": %q
-				}
-			},
-			"bundles": {
-				"test": {
-					"resource": "/bundles/{{ .bundlename }}"
-				}
-			},
-			"labels": {
-				"environment": "test"
-			},
-			"plugins": {
-				"envoy_ext_authz_grpc": {    
-					"path": %q,
-					"dry-run": false    
-				}
-			}
-		}`, opaControlPlane.URL(), "envoy/authz/allow"))
-
+	config := generateConfig(opaControlPlane, "envoy/authz/allow")
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
-	f, err := spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
-	return f, err
+	return spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
+}
+
+func createBodyBasedOpaFilter(opaControlPlane *opasdktest.Server) (filters.Filter, error) {
+	config := generateConfig(opaControlPlane, "envoy/authz/allow")
+	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
+	spec := NewOpaAuthorizeRequestWithBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	return spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
+}
+
+func generateConfig(opaControlPlane *opasdktest.Server, path string) []byte {
+	return []byte(fmt.Sprintf(`{
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"bundles": {
+			"test": {
+				"resource": "/bundles/{{ .bundlename }}"
+			}
+		},
+		"labels": {
+			"environment": "test"
+		},
+		"plugins": {
+			"envoy_ext_authz_grpc": {    
+				"path": %q,
+				"dry-run": false    
+			}
+		}
+	}`, opaControlPlane.URL(), path))
 }
