@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -200,6 +201,10 @@ func (c *OAuthConfig) Init() error {
 
 	c.flowState = newFlowState(c.Secrets, c.SecretFile)
 
+	if c.ClientID == "" {
+		c.ClientID, _ = os.LookupEnv("OAUTH2_CLIENT_ID")
+	}
+
 	if c.ClientID != "" {
 		c.getClientId = func(*http.Request) (string, error) {
 			return c.ClientID, nil
@@ -225,6 +230,10 @@ func (c *OAuthConfig) Init() error {
 		}
 	} else {
 		return ErrMissingClientID
+	}
+
+	if c.ClientSecret == "" {
+		c.ClientSecret, _ = os.LookupEnv("OAUTH2_CLIENT_ID")
 	}
 
 	if c.ClientSecret != "" {
