@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -242,19 +243,29 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		validity = defaultCookieValidity
 	}
 
+	oidcClientId := sargs[paramClientID]
+	if oidcClientId == "" {
+		oidcClientId, _ = os.LookupEnv("OIDC_CLIENT_ID")
+	}
+
+	oidcClientSecret := sargs[paramClientSecret]
+	if oidcClientSecret == "" {
+		oidcClientSecret, _ = os.LookupEnv("OIDC_CLIENT_SECRET")
+	}
+
 	f := &tokenOidcFilter{
 		typ:          s.typ,
 		redirectPath: redirectURL.Path,
 		config: &oauth2.Config{
-			ClientID:     sargs[paramClientID],
-			ClientSecret: sargs[paramClientSecret],
+			ClientID:     oidcClientId,
+			ClientSecret: oidcClientSecret,
 			RedirectURL:  sargs[paramCallbackURL], // self endpoint
 			Endpoint:     provider.Endpoint(),
 			Scopes:       []string{oidc.ScopeOpenID}, // mandatory scope by spec
 		},
 		provider: provider,
 		verifier: provider.Verifier(&oidc.Config{
-			ClientID: sargs[paramClientID],
+			ClientID: oidcClientId,
 		}),
 		validity:           validity,
 		cookiename:         generatedCookieName,
