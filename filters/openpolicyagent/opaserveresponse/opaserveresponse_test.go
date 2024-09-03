@@ -17,7 +17,7 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent"
 )
 
-func TestAuthorizeRequestFilter(t *testing.T) {
+func TestServerResponseFilter(t *testing.T) {
 	for _, ti := range []struct {
 		msg               string
 		filterName        string
@@ -66,6 +66,16 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_object",
 			requestPath:     "/allow/structured",
+			expectedStatus:  http.StatusOK,
+			expectedBody:    "Welcome from policy!",
+			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
+		},
+		{
+			msg:             "Allow With Structured Rules and empty query string in path",
+			filterName:      "opaServeResponse",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow_object",
+			requestPath:     "/allow/structured/with-empty-query-string?",
 			expectedStatus:  http.StatusOK,
 			expectedBody:    "Welcome from policy!",
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
@@ -143,6 +153,16 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			expectedBody:    "",
 			expectedHeaders: make(http.Header),
 		},
+		{
+			msg:             "Invalid UTF-8 in Query String",
+			filterName:      "opaServeResponse",
+			bundleName:      "somebundle.tar.gz",
+			regoQuery:       "envoy/authz/allow",
+			requestPath:     "/allow?%c0%ae=%c0%ae%c0%ae",
+			expectedStatus:  http.StatusBadRequest,
+			expectedBody:    "",
+			expectedHeaders: make(http.Header),
+		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
@@ -167,6 +187,17 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 						  
 						allow_object = response {
 							input.parsed_path = [ "allow", "structured" ]
+							response := {
+								"allowed": true,
+								"headers": {"x-ext-auth-allow": "yes"},
+								"body": "Welcome from policy!",
+								"http_status": 200
+							}
+						}
+
+						allow_object = response {
+							input.parsed_path = [ "allow", "structured", "with-empty-query-string" ]
+							input.parsed_query == {}
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
