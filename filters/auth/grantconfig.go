@@ -233,7 +233,7 @@ func (c *OAuthConfig) Init() error {
 	}
 
 	if c.ClientSecret == "" {
-		c.ClientSecret, _ = os.LookupEnv("OAUTH2_CLIENT_ID")
+		c.ClientSecret, _ = os.LookupEnv("OAUTH2_CLIENT_SECRET")
 	}
 
 	if c.ClientSecret != "" {
