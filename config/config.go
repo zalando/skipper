@@ -481,8 +481,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.Oauth2RevokeTokenURL, "oauth2-revoke-token-url", "", "the url where the access and refresh tokens can be revoked when logging out")
 	flag.StringVar(&cfg.Oauth2TokeninfoURL, "oauth2-tokeninfo-url", "", "sets the default tokeninfo URL to query information about an incoming OAuth2 token in oauth2Tokeninfo filters")
 	flag.StringVar(&cfg.Oauth2SecretFile, "oauth2-secret-file", "", "sets the filename with the encryption key for the authentication cookie and grant flow state stored in secrets registry")
-	flag.StringVar(&cfg.Oauth2ClientID, "oauth2-client-id", "", "sets the OAuth2 client id of the current service, used to exchange the access code")
-	flag.StringVar(&cfg.Oauth2ClientSecret, "oauth2-client-secret", "", "sets the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code")
+	flag.StringVar(&cfg.Oauth2ClientID, "oauth2-client-id", "", "sets the OAuth2 client id of the current service, used to exchange the access code. Can be an empty string if env variable OAUTH2_CLIENT_ID is set.")
+	flag.StringVar(&cfg.Oauth2ClientSecret, "oauth2-client-secret", "", "sets the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code. Can be an empty string if env variable OAUTH2_CLIENT_SECRET is set.")
 	flag.StringVar(&cfg.Oauth2ClientIDFile, "oauth2-client-id-file", "", "sets the path of the file containing the OAuth2 client id of the current service, used to exchange the access code. "+
 		"File name may contain {host} placeholder which will be replaced by the request host")
 	flag.StringVar(&cfg.Oauth2ClientSecretFile, "oauth2-client-secret-file", "", "sets the path of the file containing the OAuth2 client secret associated with the oauth2-client-id, used to exchange the access code. "+
