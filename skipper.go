@@ -2102,6 +2102,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		mux.Handle("/debug/pprof", metricsHandler)
 		mux.Handle("/debug/pprof/", metricsHandler)
 
+		mux.Handle("/endpoints", endpointRegistry)
+
 		log.Infof("support listener on %s", supportListener)
 		go func() {
 			/* #nosec */

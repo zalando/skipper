@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -192,6 +193,17 @@ func (r *EndpointRegistry) updateStats() {
 
 func (r *EndpointRegistry) Close() {
 	close(r.quit)
+}
+
+func (r *EndpointRegistry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	case http.MethodPut:
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte("Accepted"))
+	}
 }
 
 func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
