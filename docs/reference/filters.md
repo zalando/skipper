@@ -1835,8 +1835,8 @@ oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secr
 The filter needs the following parameters:
 
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
-* **Client ID** This value is obtained from the provider upon registration of the application. Can be also passed in via ```OIDC_CLIENT_ID``` env variable.
-* **Client Secret**  Also obtained from the provider. Can be also passed in via ```OIDC_CLIENT_SECRET``` env variable.
+* **Client ID** This value is obtained from the provider upon registration of the application. Falls back to```OIDC_CLIENT_ID``` env variable for empty value.
+* **Client Secret**  Also obtained from the provider. Falls back to ```OIDC_CLIENT_SECRET``` env variable for empty value.
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.
