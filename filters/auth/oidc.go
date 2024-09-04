@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -89,10 +88,12 @@ const (
 )
 
 type OidcOptions struct {
-	MaxIdleConns   int
-	CookieValidity time.Duration
-	Timeout        time.Duration
-	Tracer         opentracing.Tracer
+	MaxIdleConns     int
+	CookieValidity   time.Duration
+	Timeout          time.Duration
+	Tracer           opentracing.Tracer
+	OidcClientId     string
+	OidcClientSecret string
 }
 
 type (
@@ -245,12 +246,12 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 	oidcClientId := sargs[paramClientID]
 	if oidcClientId == "" {
-		oidcClientId, _ = os.LookupEnv("OIDC_CLIENT_ID")
+		oidcClientId = s.options.OidcClientId
 	}
 
 	oidcClientSecret := sargs[paramClientSecret]
 	if oidcClientSecret == "" {
-		oidcClientSecret, _ = os.LookupEnv("OIDC_CLIENT_SECRET")
+		oidcClientSecret = s.options.OidcClientSecret
 	}
 
 	f := &tokenOidcFilter{

@@ -981,7 +981,13 @@ func (o *Options) OAuthGrantOptions() *auth.OAuthConfig {
 	oauthConfig.TokeninfoURL = o.OAuthTokeninfoURL
 	oauthConfig.SecretFile = o.OAuth2SecretFile
 	oauthConfig.ClientID = o.OAuth2ClientID
+	if oauthConfig.ClientID == "" {
+		oauthConfig.ClientID, _ = os.LookupEnv("OAUTH2_CLIENT_ID")
+	}
 	oauthConfig.ClientSecret = o.OAuth2ClientSecret
+	if oauthConfig.ClientSecret == "" {
+		oauthConfig.ClientSecret, _ = os.LookupEnv("OAUTH2_CLIENT_SECRET")
+	}
 	oauthConfig.ClientIDFile = o.OAuth2ClientIDFile
 	oauthConfig.ClientSecretFile = o.OAuth2ClientSecretFile
 	oauthConfig.CallbackPath = o.OAuth2CallbackPath
@@ -1672,11 +1678,15 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	)
 
 	if o.OIDCSecretsFile != "" {
+		oidcClientId, _ := os.LookupEnv("OIDC_CLIENT_ID")
+		oidcClientSecret, _ := os.LookupEnv("OIDC_CLIENT_SECRET")
 		opts := auth.OidcOptions{
-			CookieValidity: o.OIDCCookieValidity,
-			Timeout:        o.OIDCDistributedClaimsTimeout,
-			MaxIdleConns:   o.IdleConnectionsPerHost,
-			Tracer:         tracer,
+			CookieValidity:   o.OIDCCookieValidity,
+			Timeout:          o.OIDCDistributedClaimsTimeout,
+			MaxIdleConns:     o.IdleConnectionsPerHost,
+			Tracer:           tracer,
+			OidcClientId:     oidcClientId,
+			OidcClientSecret: oidcClientSecret,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
