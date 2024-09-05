@@ -1736,25 +1736,25 @@ single_page_app:
 
 Skipper arguments:
 
-| Argument | Required? | Description |
-| -------- | --------- | ----------- |
-| `-enable-oauth2-grant-flow` | **yes** | toggle flag to enable the `oauthGrant()` filter. Must be set if you use the filter in routes. Example: `-enable-oauth2-grant-flow` |
-| `-oauth2-auth-url` | **yes** | URL of the OAuth2 provider's authorize endpoint. Example: `-oauth2-auth-url=https://identity.example.com/oauth2/authorize` |
-| `-oauth2-token-url` | **yes** | URL of the OAuth2 provider's token endpoint. Example: `-oauth2-token-url=https://identity.example.com/oauth2/token` |
-| `-oauth2-tokeninfo-url` | **yes** | URL of the OAuth2 provider's tokeninfo endpoint. Example: `-oauth2-tokeninfo-url=https://identity.example.com/oauth2/tokeninfo` |
-| `-oauth2-secret-file` | **yes** | path to the file containing the secret for encrypting and decrypting the grant token cookie (the secret can be anything). Example: `-oauth2-secret-file=/path/to/secret` |
-| `-oauth2-client-id-file` | conditional | path to the file containing the OAuth2 client ID. Required if you have not set `-oauth2-client-id`. Example: `-oauth2-client-id-file=/path/to/client_id` |
-| `-oauth2-client-secret-file` | conditional | path to the file containing the OAuth2 client secret. Required if you have not set `-oauth2-client-secret`. Example: `-oauth2-client-secret-file=/path/to/client_secret` |
-| `-oauth2-client-id` | conditional | OAuth2 client ID for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-id-file`. Example: `-oauth2-client-id=myclientid` |
-| `-oauth2-client-secret` | conditional | OAuth2 client secret for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-secret-file`. Example: `-oauth2-client-secret=myclientsecret` |
-| `-credentials-update-interval` | no | the time interval for updating client id and client secret from files. Example: `-credentials-update-interval=30s` |
-| `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Example: `-oauth2-access-token-header-name=X-Grant-Authorization` |
-| `-oauth2-grant-tokeninfo-keys` | no | comma separated list of keys to preserve in OAuth2 Grant Flow tokeninfo. Default: empty, preserves all tokeninfo keys. Example: `-oauth2-grant-tokeninfo-keys=scope,realm,expires_in` |
-| `-oauth2-auth-url-parameters` | no | any additional URL query parameters to set for the OAuth2 provider's authorize and token endpoint calls. Example: `-oauth2-auth-url-parameters=key1=foo,key2=bar` |
-| `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback` |
-| `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`. Example: `-oauth2-token-cookie-name=SESSION` |
-| `-oauth2-token-cookie-remove-subdomains` | no | the number of subdomains to remove from the callback request hostname to obtain token cookie domain. Default: `1`. Example: `-oauth2-token-cookie-remove-subdomains=0` |
-| `-oauth2-grant-insecure` | no | omits `Secure` attribute of the token cookie and uses `http` scheme for callback url. Default: `false` |
+| Argument | Required? | Description                                                                                                                                                                                                          |
+| -------- | --------- |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-enable-oauth2-grant-flow` | **yes** | toggle flag to enable the `oauthGrant()` filter. Must be set if you use the filter in routes. Example: `-enable-oauth2-grant-flow`                                                                                   |
+| `-oauth2-auth-url` | **yes** | URL of the OAuth2 provider's authorize endpoint. Example: `-oauth2-auth-url=https://identity.example.com/oauth2/authorize`                                                                                           |
+| `-oauth2-token-url` | **yes** | URL of the OAuth2 provider's token endpoint. Example: `-oauth2-token-url=https://identity.example.com/oauth2/token`                                                                                                  |
+| `-oauth2-tokeninfo-url` | **yes** | URL of the OAuth2 provider's tokeninfo endpoint. Example: `-oauth2-tokeninfo-url=https://identity.example.com/oauth2/tokeninfo`                                                                                      |
+| `-oauth2-secret-file` | **yes** | path to the file containing the secret for encrypting and decrypting the grant token cookie (the secret can be anything). Example: `-oauth2-secret-file=/path/to/secret`                                             |
+| `-oauth2-client-id-file` | conditional | path to the file containing the OAuth2 client ID. Required if you have not set `-oauth2-client-id`. Example: `-oauth2-client-id-file=/path/to/client_id`                                                             |
+| `-oauth2-client-secret-file` | conditional | path to the file containing the OAuth2 client secret. Required if you have not set `-oauth2-client-secret`. Example: `-oauth2-client-secret-file=/path/to/client_secret`                                             |
+| `-oauth2-client-id` | conditional | OAuth2 client ID for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-id-file` or `OAUTH2_CLIENT_ID` env variable. Example: `-oauth2-client-id=myclientid`                     |
+| `-oauth2-client-secret` | conditional | OAuth2 client secret for authenticating with your OAuth2 provider. Required if you have not set `-oauth2-client-secret-file` or `OAUTH2_CLIENT_SECRET` env variable. Example: `-oauth2-client-secret=myclientsecret` |
+| `-credentials-update-interval` | no | the time interval for updating client id and client secret from files. Example: `-credentials-update-interval=30s`                                                                                                   |
+| `-oauth2-access-token-header-name` | no | the name of the request header where the user's bearer token should be set. Example: `-oauth2-access-token-header-name=X-Grant-Authorization`                                                                        |
+| `-oauth2-grant-tokeninfo-keys` | no | comma separated list of keys to preserve in OAuth2 Grant Flow tokeninfo. Default: empty, preserves all tokeninfo keys. Example: `-oauth2-grant-tokeninfo-keys=scope,realm,expires_in`                                |
+| `-oauth2-auth-url-parameters` | no | any additional URL query parameters to set for the OAuth2 provider's authorize and token endpoint calls. Example: `-oauth2-auth-url-parameters=key1=foo,key2=bar`                                                    |
+| `-oauth2-callback-path` | no | path of the Skipper route containing the `grantCallback()` filter for accepting an authorization code and using it to get an access token. Example: `-oauth2-callback-path=/oauth/callback`                          |
+| `-oauth2-token-cookie-name` | no | the name of the cookie where the access tokens should be stored in encrypted form. Default: `oauth-grant`. Example: `-oauth2-token-cookie-name=SESSION`                                                              |
+| `-oauth2-token-cookie-remove-subdomains` | no | the number of subdomains to remove from the callback request hostname to obtain token cookie domain. Default: `1`. Example: `-oauth2-token-cookie-remove-subdomains=0`                                               |
+| `-oauth2-grant-insecure` | no | omits `Secure` attribute of the token cookie and uses `http` scheme for callback url. Default: `false`                                                                                                               |
 
 #### grantCallback
 
@@ -1835,8 +1835,8 @@ oauthOidcUserInfo("https://oidc-provider.example.com", "client_id", "client_secr
 The filter needs the following parameters:
 
 * **OpenID Connect Provider URL** For example Google OpenID Connect is available on `https://accounts.google.com`
-* **Client ID** This value is obtained from the provider upon registration of the application.
-* **Client Secret**  Also obtained from the provider
+* **Client ID** This value is obtained from the provider upon registration of the application. Falls back to```OIDC_CLIENT_ID``` env variable for empty value.
+* **Client Secret**  Also obtained from the provider. Falls back to ```OIDC_CLIENT_SECRET``` env variable for empty value.
 * **Callback URL** The entire path to the callback from the provider on which the token will be received.
     It can be any value which is a subpath on which the filter is applied.
 * **Scopes** The OpenID scopes separated by spaces which need to be specified when requesting the token from the provider.

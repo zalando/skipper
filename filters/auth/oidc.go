@@ -88,10 +88,12 @@ const (
 )
 
 type OidcOptions struct {
-	MaxIdleConns   int
-	CookieValidity time.Duration
-	Timeout        time.Duration
-	Tracer         opentracing.Tracer
+	MaxIdleConns     int
+	CookieValidity   time.Duration
+	Timeout          time.Duration
+	Tracer           opentracing.Tracer
+	OidcClientId     string
+	OidcClientSecret string
 }
 
 type (
@@ -242,19 +244,29 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		validity = defaultCookieValidity
 	}
 
+	oidcClientId := sargs[paramClientID]
+	if oidcClientId == "" {
+		oidcClientId = s.options.OidcClientId
+	}
+
+	oidcClientSecret := sargs[paramClientSecret]
+	if oidcClientSecret == "" {
+		oidcClientSecret = s.options.OidcClientSecret
+	}
+
 	f := &tokenOidcFilter{
 		typ:          s.typ,
 		redirectPath: redirectURL.Path,
 		config: &oauth2.Config{
-			ClientID:     sargs[paramClientID],
-			ClientSecret: sargs[paramClientSecret],
+			ClientID:     oidcClientId,
+			ClientSecret: oidcClientSecret,
 			RedirectURL:  sargs[paramCallbackURL], // self endpoint
 			Endpoint:     provider.Endpoint(),
 			Scopes:       []string{oidc.ScopeOpenID}, // mandatory scope by spec
 		},
 		provider: provider,
 		verifier: provider.Verifier(&oidc.Config{
-			ClientID: sargs[paramClientID],
+			ClientID: oidcClientId,
 		}),
 		validity:           validity,
 		cookiename:         generatedCookieName,
