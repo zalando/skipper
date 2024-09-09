@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/annotate"
@@ -49,6 +48,8 @@ type (
 	tokeninfoSpec struct {
 		typ     roleCheckType
 		options TokeninfoOptions
+
+		tokeninfoValidateYamlConfigParser *yamlConfigParser[tokeninfoValidateFilterConfig]
 	}
 
 	tokeninfoFilter struct {
@@ -60,11 +61,16 @@ type (
 
 	tokeninfoValidateFilter struct {
 		client tokeninfoClient
-		config struct {
-			OptOutAnnotations    []string `json:"optOutAnnotations,omitempty"`
-			UnauthorizedResponse string   `json:"unauthorizedResponse,omitempty"`
-			OptOutHosts          []string `json:"optOutHosts,omitempty"`
-		}
+		config *tokeninfoValidateFilterConfig
+	}
+
+	// tokeninfoValidateFilterConfig implements [yamlConfig],
+	// make sure it is not modified after initialization.
+	tokeninfoValidateFilterConfig struct {
+		OptOutAnnotations    []string `json:"optOutAnnotations,omitempty"`
+		UnauthorizedResponse string   `json:"unauthorizedResponse,omitempty"`
+		OptOutHosts          []string `json:"optOutHosts,omitempty"`
+
 		optOutHostsCompiled []*regexp.Regexp
 	}
 )
@@ -167,9 +173,12 @@ func NewOAuthTokeninfoAnyKVWithOptions(to TokeninfoOptions) filters.Spec {
 }
 
 func NewOAuthTokeninfoValidate(to TokeninfoOptions) filters.Spec {
+	p := newYamlConfigParser[tokeninfoValidateFilterConfig](64)
 	return &tokeninfoSpec{
 		typ:     checkOAuthTokeninfoValidate,
 		options: to,
+
+		tokeninfoValidateYamlConfigParser: &p,
 	}
 }
 
@@ -244,10 +253,11 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	if s.typ == checkOAuthTokeninfoValidate {
-		if len(sargs) != 1 {
-			return nil, fmt.Errorf("requires single string argument")
+		config, err := s.tokeninfoValidateYamlConfigParser.parseSingleArg(args)
+		if err != nil {
+			return nil, err
 		}
-		return createTokeninfoValidateFilter(ac, sargs[0])
+		return &tokeninfoValidateFilter{client: ac, config: config}, nil
 	}
 
 	f := &tokeninfoFilter{typ: s.typ, client: ac, kv: make(map[string][]string)}
@@ -271,22 +281,6 @@ func (s *tokeninfoSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return f, nil
-}
-
-func createTokeninfoValidateFilter(client tokeninfoClient, arg string) (filters.Filter, error) {
-	f := &tokeninfoValidateFilter{client: client}
-	if err := yaml.Unmarshal([]byte(arg), &f.config); err != nil {
-		return nil, fmt.Errorf("failed to parse configuration")
-	}
-
-	for _, host := range f.config.OptOutHosts {
-		if r, err := regexp.Compile(host); err != nil {
-			return nil, fmt.Errorf("failed to compile opt-out host pattern: %q", host)
-		} else {
-			f.optOutHostsCompiled = append(f.optOutHostsCompiled, r)
-		}
-	}
 	return f, nil
 }
 
@@ -444,6 +438,17 @@ func (f *tokeninfoFilter) Request(ctx filters.FilterContext) {
 
 func (f *tokeninfoFilter) Response(filters.FilterContext) {}
 
+func (c *tokeninfoValidateFilterConfig) initialize() error {
+	for _, host := range c.OptOutHosts {
+		if r, err := regexp.Compile(host); err != nil {
+			return fmt.Errorf("failed to compile opt-out host pattern: %q", host)
+		} else {
+			c.optOutHostsCompiled = append(c.optOutHostsCompiled, r)
+		}
+	}
+	return nil
+}
+
 func (f *tokeninfoValidateFilter) Request(ctx filters.FilterContext) {
 	if _, ok := ctx.StateBag()[tokeninfoCacheKey]; ok {
 		return // tokeninfo was already validated by a preceding filter
@@ -458,9 +463,9 @@ func (f *tokeninfoValidateFilter) Request(ctx filters.FilterContext) {
 		}
 	}
 
-	if len(f.optOutHostsCompiled) > 0 {
+	if len(f.config.optOutHostsCompiled) > 0 {
 		host := ctx.Request().Host
-		for _, r := range f.optOutHostsCompiled {
+		for _, r := range f.config.optOutHostsCompiled {
 			if r.MatchString(host) {
 				return // opt-out from validation
 			}

@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ghodss/yaml"
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/annotate"
@@ -14,8 +13,12 @@ import (
 )
 
 type (
-	jwtMetricsSpec struct{}
+	jwtMetricsSpec struct {
+		yamlConfigParser[jwtMetricsFilter]
+	}
 
+	// jwtMetricsFilter implements [yamlConfig],
+	// make sure it is not modified after initialization.
 	jwtMetricsFilter struct {
 		Issuers           []string `json:"issuers,omitempty"`
 		OptOutAnnotations []string `json:"optOutAnnotations,omitempty"`
@@ -27,7 +30,9 @@ type (
 )
 
 func NewJwtMetrics() filters.Spec {
-	return &jwtMetricsSpec{}
+	return &jwtMetricsSpec{
+		newYamlConfigParser[jwtMetricsFilter](64),
+	}
 }
 
 func (s *jwtMetricsSpec) Name() string {
@@ -35,26 +40,21 @@ func (s *jwtMetricsSpec) Name() string {
 }
 
 func (s *jwtMetricsSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	f := &jwtMetricsFilter{}
-
-	if len(args) == 1 {
-		if config, ok := args[0].(string); !ok {
-			return nil, fmt.Errorf("requires single string argument")
-		} else if err := yaml.Unmarshal([]byte(config), f); err != nil {
-			return nil, fmt.Errorf("failed to parse configuration")
-		}
-	} else if len(args) > 1 {
-		return nil, fmt.Errorf("requires single string argument")
+	if len(args) == 0 {
+		return &jwtMetricsFilter{}, nil
 	}
+	return s.parseSingleArg(args)
+}
 
+func (f *jwtMetricsFilter) initialize() error {
 	for _, host := range f.OptOutHosts {
 		if r, err := regexp.Compile(host); err != nil {
-			return nil, fmt.Errorf("failed to compile opt-out host pattern: %q", host)
+			return fmt.Errorf("failed to compile opt-out host pattern: %q", host)
 		} else {
 			f.optOutHostsCompiled = append(f.optOutHostsCompiled, r)
 		}
 	}
-	return f, nil
+	return nil
 }
 
 func (f *jwtMetricsFilter) Request(ctx filters.FilterContext) {}
