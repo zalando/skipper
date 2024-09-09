@@ -56,7 +56,7 @@ func validateURLForInvalidUTF8(u *url.URL) error {
 
 	decodedQuery, err := url.QueryUnescape(u.RawQuery)
 	if err != nil {
-		return fmt.Errorf("error decoding query string: %w", err)
+		return fmt.Errorf("error unescaping query string %q: %w", u.RawQuery, err)
 	}
 
 	if !utf8.ValidString(decodedQuery) {
