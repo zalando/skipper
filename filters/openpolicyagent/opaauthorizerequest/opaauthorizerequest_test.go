@@ -93,7 +93,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow-with-query?pass=yes&id=1&id=2",
+			requestPath:       "/allow-with-query?pass=yes&id=1&id=2&msg=help%20me",
 			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusOK,
@@ -411,6 +411,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							input.parsed_path = [ "allow-with-query" ]
 							input.parsed_query.pass == ["yes"]
 							input.parsed_query.id == ["1", "2"]
+							input.parsed_query.msg == ["help me"]
 						}
 
 						allow_context_extensions {
