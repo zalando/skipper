@@ -29,7 +29,7 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 				Http: &ext_authz_v3.AttributeContext_HttpRequest{
 					Host:    req.Host,
 					Method:  req.Method,
-					Path:    buildPathWithQueryParams(req),
+					Path:    req.URL.RequestURI(),
 					Headers: headers,
 					RawBody: rawBody,
 				},
@@ -40,13 +40,6 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 	}
 
 	return ereq, nil
-}
-
-func buildPathWithQueryParams(req *http.Request) string {
-	if req.URL.RawQuery == "" {
-		return url.PathEscape(req.URL.Path)
-	}
-	return url.PathEscape(req.URL.Path) + "?" + req.URL.RawQuery
 }
 
 func validateURLForInvalidUTF8(u *url.URL) error {
