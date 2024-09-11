@@ -368,3 +368,17 @@ func marshalBase64JSON(t *testing.T, v any) string {
 	}
 	return base64.RawURLEncoding.EncodeToString(d)
 }
+
+func BenchmarkJwtMetrics_CreateFilter(b *testing.B) {
+	spec := auth.NewJwtMetrics()
+	args := []any{`{issuers: [foo, bar], optOutAnnotations: [oauth.disabled], optOutHosts: [ '^.+[.]domain[.]test$' ]}`}
+
+	_, err := spec.CreateFilter(args)
+	require.NoError(b, err)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = spec.CreateFilter(args)
+	}
+}
