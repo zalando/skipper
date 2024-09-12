@@ -880,26 +880,29 @@ func WithParams(p Params) *Proxy {
 			p.FlightRecorder = nil
 		} else {
 			go func() {
-				d := 7 * 24 * time.Hour
+				weekly := 7 * 24 * time.Hour
+				timer := time.NewTimer(weekly)
+				defer timer.Stop()
+
 				last := time.Now().Add(-time.Hour)
 
 				for {
 					select {
 					case <-frChannel:
 						// range through all notifications until 1ms there is no notification
-						d = time.Millisecond
+						// reset timer to write trace after handling all the notifications
+						timer.Reset(time.Millisecond)
 						continue
 					case <-quit:
 						p.FlightRecorder.Stop()
 						return
-					case <-time.After(d):
+					case <-timer.C:
 						if time.Since(last) >= time.Hour {
 							writeTrace(p.FlightRecorder, frURL, log, tr)
 						}
 						last = time.Now()
 
-						// reset d
-						d = 7 * 24 * time.Hour
+						timer.Reset(weekly)
 					}
 				}
 			}()
