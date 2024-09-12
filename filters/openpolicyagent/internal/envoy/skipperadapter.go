@@ -3,6 +3,7 @@ package envoy
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -11,6 +12,9 @@ import (
 )
 
 func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metadata, contextExtensions map[string]string, rawBody []byte) (*ext_authz_v3.CheckRequest, error) {
+	if err := validateURLForInvalidUTF8(req.URL); err != nil {
+		return nil, fmt.Errorf("invalid url: %w", err)
+	}
 
 	headers := make(map[string]string, len(req.Header))
 	for h, vv := range req.Header {
@@ -25,7 +29,7 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 				Http: &ext_authz_v3.AttributeContext_HttpRequest{
 					Host:    req.Host,
 					Method:  req.Method,
-					Path:    req.URL.Path,
+					Path:    req.URL.RequestURI(),
 					Headers: headers,
 					RawBody: rawBody,
 				},
@@ -35,9 +39,22 @@ func AdaptToExtAuthRequest(req *http.Request, metadata *ext_authz_v3_core.Metada
 		},
 	}
 
-	if !utf8.ValidString(ereq.Attributes.Request.Http.Path) {
-		return nil, fmt.Errorf("invalid utf8 in path: %q", ereq.Attributes.Request.Http.Path)
+	return ereq, nil
+}
+
+func validateURLForInvalidUTF8(u *url.URL) error {
+	if !utf8.ValidString(u.Path) {
+		return fmt.Errorf("invalid utf8 in path: %q", u.Path)
 	}
 
-	return ereq, nil
+	decodedQuery, err := url.QueryUnescape(u.RawQuery)
+	if err != nil {
+		return fmt.Errorf("error unescaping query string %q: %w", u.RawQuery, err)
+	}
+
+	if !utf8.ValidString(decodedQuery) {
+		return fmt.Errorf("invalid utf8 in query: %q", u.RawQuery)
+	}
+
+	return nil
 }
