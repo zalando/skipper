@@ -2,6 +2,7 @@ package opaauthorizerequest
 
 import (
 	"fmt"
+	"github.com/zalando/skipper/filters/builtin"
 	"io"
 	"log"
 	"net/http"
@@ -29,7 +30,8 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 	for _, ti := range []struct {
 		msg               string
 		filterName        string
-		extraeskip        string
+		extraeskipBefore  string
+		extraeskipAfter   string
 		bundleName        string
 		regoQuery         string
 		requestPath       string
@@ -58,11 +60,68 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			removeHeaders:     make(http.Header),
 		},
 		{
+			msg:               "Allow Requests with spaces in path",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/my%20path",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Allow Requests with request path overridden by the setPath filter",
+			filterName:        "opaAuthorizeRequest",
+			extraeskipBefore:  `setPath("/allow") ->`,
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/some-random-path-that-would-fail",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Allow Requests with query parameters",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow-with-query?pass=yes&id=1&id=2&msg=help%20me",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
 			msg:               "Allow Matching Context Extension",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow_context_extensions",
 			requestPath:       "/allow",
+			requestMethod:     "GET",
+			contextExtensions: "com.mycompany.myprop: myvalue",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Allow Requests with an empty query string",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_context_extensions",
+			requestPath:       "/path-with-empty-query?",
 			requestMethod:     "GET",
 			contextExtensions: "com.mycompany.myprop: myvalue",
 			expectedStatus:    http.StatusOK,
@@ -89,6 +148,19 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			bundleName:        "somebundle.tar.gz",
 			regoQuery:         "envoy/authz/allow",
 			requestPath:       "/forbidden",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusForbidden,
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Simple Forbidden with Query Parameters",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow-with-query?tofail=true",
 			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusForbidden,
@@ -242,7 +314,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 		{
 			msg:             "Chained OPA filter with body",
 			filterName:      "opaAuthorizeRequestWithBody",
-			extraeskip:      `-> opaAuthorizeRequestWithBody("somebundle.tar.gz")`,
+			extraeskipAfter: `-> opaAuthorizeRequestWithBody("somebundle.tar.gz")`,
 			bundleName:      "somebundle.tar.gz",
 			regoQuery:       "envoy/authz/allow_body",
 			requestMethod:   "POST",
@@ -284,6 +356,20 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			backendHeaders:    make(http.Header),
 			removeHeaders:     make(http.Header),
 		},
+		{
+			msg:               "Invalid UTF-8 in Query",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/allow?%c0%ae=%c0%ae%c0%ae",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusBadRequest,
+			expectedBody:      "",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
@@ -309,6 +395,23 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 						allow {
 							input.parsed_path = [ "allow" ]
+							input.parsed_query = {}
+						}
+
+						allow {
+							input.parsed_path = [ "my path" ]
+						}
+
+						allow {
+							input.parsed_path = [ "/path-with-empty-query" ]
+							input.parsed_query = {}
+						}
+
+						allow {
+							input.parsed_path = [ "allow-with-query" ]
+							input.parsed_query.pass == ["yes"]
+							input.parsed_query.id == ["1", "2"]
+							input.parsed_query.msg == ["help me"]
 						}
 
 						allow_context_extensions {
@@ -420,8 +523,9 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			fr.Register(ftSpec)
 			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
 			fr.Register(ftSpec)
+			fr.Register(builtin.NewSetPath())
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") %s -> "%s"`, ti.filterName, ti.bundleName, ti.contextExtensions, ti.extraeskip, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s %s("%s", "%s") %s -> "%s"`, ti.extraeskipBefore, ti.filterName, ti.bundleName, ti.contextExtensions, ti.extraeskipAfter, clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 
