@@ -32,11 +32,6 @@ func (f normalizePath) Request(ctx filters.FilterContext) {
 	}
 	normalizedPath := "/" + strings.Join(filteredSegments, "/")
 
-	// Ensure there's no trailing slash, unless the path is just "/"
-	if len(normalizedPath) > 1 && strings.HasSuffix(normalizedPath, "/") {
-		normalizedPath = normalizedPath[:len(normalizedPath)-1]
-	}
-
 	req.URL.Path = normalizedPath
 }
 

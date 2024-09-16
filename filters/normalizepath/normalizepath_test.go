@@ -42,4 +42,18 @@ func TestNormalizePath(t *testing.T) {
 			t.Errorf("failed to normalize the path: %s", req.URL.Path)
 		}
 	}
+
+	// Ensure that root paths work as expected
+	req := &http.Request{URL: &url.URL{Path: "/"}}
+	ctx := &filtertest.Context{
+		FRequest: req,
+	}
+	f, err := NewNormalizePath().CreateFilter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Request(ctx)
+	if req.URL.Path != "/" {
+		t.Errorf("unexpected URL path change: %s, expected /", req.URL.Path)
+	}
 }
