@@ -947,6 +947,10 @@ func (p *Proxy) writeTraceIfTooSlow(ctx *context, span ot.Span) {
 	took := time.Since(ctx.startServe)
 	span.SetTag("proxy.took", took)
 
+	if p.flightRecorder == nil {
+		return
+	}
+
 	d := p.flightRecorderPeriod
 	if d < 1*time.Millisecond && d > took {
 		return
