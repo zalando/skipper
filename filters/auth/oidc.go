@@ -85,6 +85,7 @@ const (
 	paramAuthCodeOpts
 	paramUpstrHeaders
 	paramSubdomainsToRemove
+	paramCookieName
 )
 
 type OidcOptions struct {
@@ -201,22 +202,27 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	h := sha256.New()
-	for i, s := range sargs {
-		// CallbackURL not taken into account for cookie hashing for additional sub path ingresses
-		if i == paramCallbackURL {
-			continue
+	var cookieName string
+	if len(sargs) > paramCookieName && sargs[paramCookieName] != "" {
+		cookieName = sargs[paramCookieName]
+	} else {
+		h := sha256.New()
+		for i, s := range sargs {
+			// CallbackURL not taken into account for cookie hashing for additional sub path ingresses
+			if i == paramCallbackURL {
+				continue
+			}
+			// SubdomainsToRemove not taken into account for cookie hashing for additional sub-domain ingresses
+			if i == paramSubdomainsToRemove {
+				continue
+			}
+			h.Write([]byte(s))
 		}
-		// SubdomainsToRemove not taken into account for cookie hashing for additional sub-domain ingresses
-		if i == paramSubdomainsToRemove {
-			continue
-		}
-		h.Write([]byte(s))
+		byteSlice := h.Sum(nil)
+		sargsHash := fmt.Sprintf("%x", byteSlice)[:8]
+		cookieName = oauthOidcCookieName + sargsHash + "-"
 	}
-	byteSlice := h.Sum(nil)
-	sargsHash := fmt.Sprintf("%x", byteSlice)[:8]
-	generatedCookieName := oauthOidcCookieName + sargsHash + "-"
-	log.Debugf("Generated Cookie Name: %s", generatedCookieName)
+	log.Debugf("Cookie Name: %s", cookieName)
 
 	redirectURL, err := url.Parse(sargs[paramCallbackURL])
 	if err != nil || sargs[paramCallbackURL] == "" {
@@ -269,7 +275,7 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 			ClientID: oidcClientId,
 		}),
 		validity:           validity,
-		cookiename:         generatedCookieName,
+		cookiename:         cookieName,
 		encrypter:          encrypter,
 		compressor:         newDeflatePoolCompressor(flate.BestCompression),
 		subdomainsToRemove: subdomainsToRemove,
