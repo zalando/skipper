@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/eskip"
@@ -239,7 +238,7 @@ func (r *EndpointRegistry) ListHandler(w http.ResponseWriter, req *http.Request)
 		result.Len = count
 		items, err := json.Marshal(result)
 		if err != nil {
-			logrus.Errorf("Failed to marshal members: %v", err)
+			log.Errorf("Failed to marshal members: %v", err)
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(http.StatusText(http.StatusNotFound)))
 			return
@@ -285,7 +284,7 @@ func (r *EndpointRegistry) PutHandler(w http.ResponseWriter, req *http.Request) 
 	var m Member
 	err = json.Unmarshal(data, &m)
 	if err != nil {
-		logrus.Infof("Failed to unmarshal members: %v", err)
+		log.Infof("Failed to unmarshal members: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(http.StatusText(http.StatusBadRequest)))
 		return
@@ -294,7 +293,7 @@ func (r *EndpointRegistry) PutHandler(w http.ResponseWriter, req *http.Request) 
 	svcName := req.PathValue("svc")
 	m.Name = svcName
 	r.members.Store(svcName, &m)
-	logrus.Infof("PUT: stored %s -> %+v", svcName, m)
+	log.Infof("PUT: stored %s -> %+v", svcName, m)
 
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(http.StatusText(http.StatusAccepted)))
