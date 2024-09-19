@@ -27,6 +27,7 @@ const (
 	servicePortEnvVar      = "KUBERNETES_SERVICE_PORT"
 	httpRedirectRouteID    = "kube__redirect"
 	defaultEastWestDomain  = "skipper.cluster.local"
+	minEndpointsByZone     = 3
 )
 
 // PathMode values are used to control the ingress path interpretation. The path mode can
@@ -261,6 +262,10 @@ type Options struct {
 
 	// ForwardBackendURL allows to use <forward> backend via kubernetes, for example routegroup backend `type: forward`.
 	ForwardBackendURL string
+
+	// TopologyZone
+	// TODO: explain its use
+	TopologyZone string
 }
 
 // Client is a Skipper DataClient implementation used to create routes based on Kubernetes Ingress settings.
@@ -599,18 +604,18 @@ func (c *Client) fetchDefaultFilterConfigs() defaultFilters {
 
 // GetEndpointAddresses returns the list of all addresses for the given service
 // loaded by previous call to LoadAll or LoadUpdate.
-func (c *Client) GetEndpointAddresses(ns, name string) []string {
+func (c *Client) GetEndpointAddresses(zone, ns, name string) []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.state == nil {
 		return nil
 	}
-	return c.state.getEndpointAddresses(ns, name)
+	return c.state.getEndpointAddresses(zone, ns, name)
 }
 
 // LoadEndpointAddresses returns the list of all addresses for the given service.
-func (c *Client) LoadEndpointAddresses(namespace, name string) ([]string, error) {
-	return c.ClusterClient.loadEndpointAddresses(namespace, name)
+func (c *Client) LoadEndpointAddresses(zone, namespace, name string) ([]string, error) {
+	return c.ClusterClient.loadEndpointAddresses(zone, namespace, name)
 }
 
 func compareStringList(a, b []string) []string {

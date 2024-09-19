@@ -42,6 +42,7 @@ type routeGroupContext struct {
 	defaultLoadBalancerAlgorithm string
 	forwardBackendURL            string
 	certificateRegistry          *certregistry.CertRegistry
+	zone                         string
 }
 
 type routeContext struct {
@@ -188,6 +189,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	}
 
 	eps := ctx.state.GetEndpointsByTarget(
+		ctx.zone,
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		s.Meta.Name,
 		"TCP",
@@ -574,6 +576,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
 				forwardBackendURL:            r.options.ForwardBackendURL,
 				certificateRegistry:          cr,
+				zone:                         r.options.TopologyZone,
 			}
 
 			ri, err := transformRouteGroup(ctx)
