@@ -711,6 +711,7 @@ func TestOIDCSetup(t *testing.T) {
 		expectCookieDomain string
 		filterCookies      []string
 		extraClaims        jwt.MapClaims
+		expectCookieName   string
 	}{{
 		msg:             "wrong provider",
 		filter:          `oauthOidcAnyClaims("no url", "", "", "{{ .RedirectURL }}", "", "")`,
@@ -848,6 +849,16 @@ func TestOIDCSetup(t *testing.T) {
 		expected:           200,
 		expectCookieDomain: "bar.foo.skipper.test",
 		filterCookies:      []string{"badheader", "malformed"},
+	}, {
+		msg:              "custom cookie name",
+		filter:           `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "", "", "", "", "custom-cookie")`,
+		expected:         200,
+		expectCookieName: "custom-cookie",
+	}, {
+		msg:              "default cookie name when not specified",
+		filter:           `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
+		expected:         200,
+		expectCookieName: "skipperOauthOidc",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -975,6 +986,12 @@ func TestOIDCSetup(t *testing.T) {
 						if v == c.Name {
 							assert.True(t, c.Value == "")
 						}
+					}
+
+					// Check for custom cookie name
+					if tc.expectCookieName != "" {
+						assert.True(t, strings.HasPrefix(c.Name, tc.expectCookieName),
+							"Cookie name should start with %s, but got %s", tc.expectCookieName, c.Name)
 					}
 				}
 			}
