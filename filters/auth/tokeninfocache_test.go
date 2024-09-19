@@ -99,8 +99,8 @@ func TestTokeninfoCache(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(1), authRequests)
-	assert.Equal(t, info["uid"], token)
-	assert.Equal(t, info["expires_in"], float64(600), "expected TokenTTLSeconds")
+	assert.Equal(t, token, info["uid"])
+	assert.Equal(t, float64(600), info["expires_in"], "expected TokenTTLSeconds")
 
 	// Second request after "sleeping" fractional number of seconds
 	const delay = float64(5.7)
@@ -110,8 +110,8 @@ func TestTokeninfoCache(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(1), authRequests, "expected no request to auth sever")
-	assert.Equal(t, info["uid"], token)
-	assert.Equal(t, info["expires_in"], float64(595), "expected TokenTTLSeconds - truncate(delay)")
+	assert.Equal(t, token, info["uid"])
+	assert.Equal(t, float64(595), info["expires_in"], "expected TokenTTLSeconds - truncate(delay)")
 
 	// Third request after "sleeping" longer than cache TTL
 	clock.add(CacheTTL)
@@ -120,8 +120,8 @@ func TestTokeninfoCache(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(2), authRequests, "expected new request to auth sever")
-	assert.Equal(t, info["uid"], token)
-	assert.Equal(t, info["expires_in"], float64(294), "expected truncate(TokenTTLSeconds - CacheTTL - delay)")
+	assert.Equal(t, token, info["uid"])
+	assert.Equal(t, float64(294), info["expires_in"], "expected truncate(TokenTTLSeconds - CacheTTL - delay)")
 
 	// Fourth request with a new token evicts cached value
 	token = newTestTokeninfoToken(clock.now()).String()
@@ -130,8 +130,8 @@ func TestTokeninfoCache(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(3), authRequests, "expected new request to auth sever")
-	assert.Equal(t, info["uid"], token)
-	assert.Equal(t, info["expires_in"], float64(600), "expected TokenTTLSeconds")
+	assert.Equal(t, token, info["uid"])
+	assert.Equal(t, float64(600), info["expires_in"], "expected TokenTTLSeconds")
 }
 
 // Tests race between reading and writing cache for the same token
