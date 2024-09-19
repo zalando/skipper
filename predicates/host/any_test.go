@@ -106,3 +106,33 @@ func TestHostAnyMatch(t *testing.T) {
 		})
 	}
 }
+
+var matchSink bool
+
+func BenchmarkHostAny(b *testing.B) {
+	for _, n := range []int{1, 2, 5, 10, 20, 50, 100} {
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			s := NewAny()
+			args := make([]any, n)
+			for i := 0; i < n; i++ {
+				args[i] = fmt.Sprintf("example%d.org", i)
+			}
+			p, err := s.Create(args)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			req := &http.Request{Host: args[len(args)/2].(string)}
+			matchSink = p.Match(req)
+			if !matchSink {
+				b.Fatal("expected to match")
+			}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				matchSink = p.Match(req)
+			}
+		})
+	}
+}
