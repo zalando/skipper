@@ -42,7 +42,7 @@ func TestClientGetEndpointAddresses(t *testing.T) {
 
 		// client.LoadAll() is not called
 
-		addrs := client.GetEndpointAddresses("namespace1", "service1")
+		addrs := client.GetEndpointAddresses("", "namespace1", "service1")
 		assert.Nil(t, addrs)
 	})
 
@@ -55,13 +55,13 @@ func TestClientGetEndpointAddresses(t *testing.T) {
 		_, err := client.LoadAll()
 		require.NoError(t, err)
 
-		addrs := client.GetEndpointAddresses("namespace1", "service1")
+		addrs := client.GetEndpointAddresses("", "namespace1", "service1")
 		assert.Equal(t, []string{"42.0.1.2", "42.0.1.3"}, addrs)
 
 		// test subsequent call returns the expected values even when previous result was modified
 		addrs[0] = "modified"
 
-		addrs = client.GetEndpointAddresses("namespace1", "service1")
+		addrs = client.GetEndpointAddresses("", "namespace1", "service1")
 		assert.Equal(t, []string{"42.0.1.2", "42.0.1.3"}, addrs)
 	})
 
@@ -76,13 +76,13 @@ func TestClientGetEndpointAddresses(t *testing.T) {
 		_, err := client.LoadAll()
 		require.NoError(t, err)
 
-		addrs := client.GetEndpointAddresses("namespace1", "service1")
+		addrs := client.GetEndpointAddresses("", "namespace1", "service1")
 		assert.Equal(t, []string{"42.0.1.1", "42.0.1.2", "42.0.1.3", "42.0.1.4"}, addrs)
 
 		// test subsequent call returns the expected values even when previous result was modified
 		addrs[0] = "modified"
 
-		addrs = client.GetEndpointAddresses("namespace1", "service1")
+		addrs = client.GetEndpointAddresses("", "namespace1", "service1")
 		assert.Equal(t, []string{"42.0.1.1", "42.0.1.2", "42.0.1.3", "42.0.1.4"}, addrs)
 	})
 }
@@ -94,7 +94,7 @@ func TestClientLoadEndpointAddresses(t *testing.T) {
 			"testdata/ingressV1/ingress-data/lb-target-multi.yaml",
 		)
 
-		addrs, err := client.LoadEndpointAddresses("namespace1", "service1")
+		addrs, err := client.LoadEndpointAddresses("", "namespace1", "service1")
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"42.0.1.2", "42.0.1.3"}, addrs)
 	})
@@ -107,7 +107,7 @@ func TestClientLoadEndpointAddresses(t *testing.T) {
 			"testdata/ingressV1/ingress-data/lb-target-multi-multiple-endpointslices-conditions-all-ready.yaml",
 		)
 
-		addrs, err := client.LoadEndpointAddresses("namespace1", "service1")
+		addrs, err := client.LoadEndpointAddresses("", "namespace1", "service1")
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"42.0.1.1", "42.0.1.2", "42.0.1.3", "42.0.1.4"}, addrs)
 	})

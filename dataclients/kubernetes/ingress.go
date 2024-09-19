@@ -45,6 +45,7 @@ type ingressContext struct {
 	defaultFilters      defaultFilters
 	certificateRegistry *certregistry.CertRegistry
 	calculateTraffic    func([]*weightedIngressBackend) map[string]backendTraffic
+	zone                string
 }
 
 type ingress struct {
