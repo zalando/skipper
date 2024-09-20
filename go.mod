@@ -49,7 +49,7 @@ require (
 	github.com/yuin/gopher-lua v1.1.1
 	go4.org/netipx v0.0.0-20220925034521-797b0c90d8ab
 	golang.org/x/crypto v0.27.0
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
+	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
 	golang.org/x/net v0.29.0
 	golang.org/x/oauth2 v0.23.0
 	golang.org/x/sync v0.8.0
@@ -169,10 +169,10 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/automaxprocs v1.5.3 // indirect
-	golang.org/x/mod v0.19.0 // indirect
+	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
-	golang.org/x/tools v0.23.0 // indirect
+	golang.org/x/tools v0.25.0 // indirect
 	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
@@ -182,4 +182,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-go 1.22
+go 1.22.0
+
+toolchain go1.23.0
