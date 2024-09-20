@@ -18,11 +18,7 @@ func TestMain(m *testing.M) {
 
 func cleanupAuthClients() {
 	for _, c := range tokeninfoAuthClient {
-		if ac, ok := c.(*authClient); ok {
-			ac.Close()
-		} else if cc, ok := c.(*tokeninfoCache); ok {
-			cc.client.(*authClient).Close()
-		}
+		c.Close()
 	}
 
 	for _, c := range issuerAuthClient {
