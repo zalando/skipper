@@ -249,6 +249,8 @@ func BenchmarkTokeninfoCache(b *testing.B) {
 
 			if bi.parallelism != 0 {
 				b.SetParallelism(bi.parallelism)
+			} else {
+				b.SetParallelism(1)
 			}
 
 			b.ReportAllocs()
