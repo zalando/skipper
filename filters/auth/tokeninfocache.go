@@ -61,16 +61,19 @@ func (c *tokeninfoCache) cached(token string) map[string]any {
 	now := c.now()
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	if e, ok := c.cache[token]; ok {
 		if now.Before(e.expiresAt) {
 			c.history.MoveToFront(e.href)
+			cachedInfo := e.info
+			c.mu.Unlock()
+
 			// It might be ok to return cached value
 			// without adjusting "expires_in" to avoid copy
+			// if caller never modifies the result and
 			// when "expires_in" did not change (same second)
 			// or for small TTL values
-			info := shallowCopyOf(e.info)
+			info := shallowCopyOf(cachedInfo)
 
 			elapsed := now.Sub(e.cachedAt).Truncate(time.Second).Seconds()
 			info[expiresInField] = info[expiresInField].(float64) - elapsed
@@ -81,6 +84,9 @@ func (c *tokeninfoCache) cached(token string) map[string]any {
 			c.history.Remove(e.href)
 		}
 	}
+
+	c.mu.Unlock()
+
 	return nil
 }
 
