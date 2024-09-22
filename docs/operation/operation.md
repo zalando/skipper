@@ -124,6 +124,16 @@ combinations of idle timeouts can lead to a few unexpected HTTP 502.
     -idle-timeout-server duration
         maximum idle connections per backend host (default 1m0s)
 
+This configures maximum number of requests served by server connections:
+
+    -keepalive-requests-server int
+        sets maximum number of requests for http server connections. The connection is closed after serving this number of requests. Default is 0 for unlimited.
+
+This configures maximum age for server connections:
+
+    -keepalive-server duration
+        sets maximum age for http server connections. The connection is closed after it existed for this duration. Default is 0 for unlimited.
+
 This will set MaxHeaderBytes in
 [http.Server](https://golang.org/pkg/net/http/#Server) to limit the
 size of the http header from your clients.
