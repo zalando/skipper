@@ -493,7 +493,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 			handleStatusErrors(status, failed, "discovery plugin")
 		})
 	})
-	defer discoveryPlugin.Unregister("skipper-instance-startup-discovery")
+	//defer discoveryPlugin.Unregister("skipper-instance-startup-discovery")
 
 	// Register listener for "bundle" status
 	var registerBundleListenerOnce sync.Once
