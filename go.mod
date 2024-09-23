@@ -27,11 +27,11 @@ require (
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.62
 	github.com/oklog/ulid v1.3.1
-	github.com/open-policy-agent/opa v0.67.1
-	github.com/open-policy-agent/opa-envoy-plugin v0.67.1-envoy
+	github.com/open-policy-agent/opa v0.68.0
+	github.com/open-policy-agent/opa-envoy-plugin v0.68.0-envoy-4
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/prometheus/client_golang v1.20.3
+	github.com/prometheus/client_golang v1.20.4
 	github.com/prometheus/client_model v0.6.1
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
 	github.com/redis/go-redis/v9 v9.6.1
@@ -78,7 +78,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b // indirect
-	github.com/containerd/containerd v1.7.20 // indirect
+	github.com/containerd/containerd v1.7.21 // indirect
 	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
@@ -128,7 +128,8 @@ require (
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect
-	github.com/moby/sys/user v0.1.0 // indirect
+	github.com/moby/sys/user v0.3.0 // indirect
+	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -169,14 +170,14 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/automaxprocs v1.5.3 // indirect
-	golang.org/x/mod v0.19.0 // indirect
+	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
-	golang.org/x/tools v0.23.0 // indirect
+	golang.org/x/tools v0.24.0 // indirect
 	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
-	google.golang.org/grpc v1.65.0 // indirect
+	google.golang.org/grpc v1.66.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	oras.land/oras-go/v2 v2.3.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
