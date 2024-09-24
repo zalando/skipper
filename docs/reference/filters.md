@@ -3303,9 +3303,17 @@ Syntax:
 tracingBaggageToTag("<baggage_item_name>", "<tag_name>")
 ```
 
-Example: If a trace consists of baggage item named `foo` with a value `bar`. Adding below filter will add a tag named `baz` with value `bar`
+Example:
+
+If a trace consists of a baggage item named `foo` with a value of `bar`,
+then adding the filter below will add a tag named `baz` with the value `bar`:
 ```
 tracingBaggageToTag("foo", "baz")
+```
+
+A single-argument variant uses the baggage item name as the tag name, i.e., it will add a tag named `foo` with the value `bar`:
+```
+tracingBaggageToTag("foo")
 ```
 
 ### stateBagToTag
