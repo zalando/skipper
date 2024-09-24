@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: skipper-demo
+  labels:
+    application: skipper-demo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 9090
+      name: external
+  selector:
+    application: skipper-demo
