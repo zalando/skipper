@@ -2,6 +2,7 @@ package routesrv
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -77,6 +78,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/health", bs)
 	mux.Handle("/routes", b)
+
 	supportHandler := http.NewServeMux()
 	supportHandler.Handle("/metrics", metricsHandler)
 	supportHandler.Handle("/metrics/", metricsHandler)
@@ -113,6 +115,11 @@ func New(opts skipper.Options) (*RouteServer, error) {
 		mux.Handle("/swarm/redis/shards", rh)
 	}
 
+	if opts.KubernetesZoneAwareEnabled {
+		log.Infof("Expose /endpoints for zone aware traffic")
+		mux.HandleFunc("GET /endpoints", b.endpointsGetHandler)
+	}
+
 	rs.server = &http.Server{
 		Addr:              opts.Address,
 		Handler:           mux,
@@ -128,10 +135,18 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	}
 
 	rs.poller = &poller{
-		client:         dataclient,
-		timeout:        opts.SourcePollTimeout,
-		b:              b,
-		quit:           make(chan struct{}),
+		client:  dataclient,
+		timeout: opts.SourcePollTimeout,
+		b:       b,
+		quit:    make(chan struct{}),
+		updateEndpoints: func() ([]byte, error) {
+			epMap := dataclient.GetEndpointsMap()
+			epMapBytes, err := json.Marshal(epMap)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal EndpointsMap: %w", err)
+			}
+			return epMapBytes, nil
+		},
 		defaultFilters: opts.DefaultFilters,
 		editRoute:      opts.EditRoute,
 		cloneRoute:     opts.CloneRoute,

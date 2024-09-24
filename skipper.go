@@ -286,6 +286,12 @@ type Options struct {
 	// KubernetesRedisServicePort to be used to lookup ring shards dynamically
 	KubernetesRedisServicePort int
 
+	// KubernetesZoneAwareEnabled
+	KubernetesZoneAwareEnabled bool
+
+	// KubernetesEndpointsURL
+	KubernetesEndpointsURL string
+
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
@@ -1992,6 +1998,9 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		MinRequests:                   passiveHealthCheck.MinRequests,
 		MinHealthCheckDropProbability: passiveHealthCheck.MinDropProbability,
 		MaxHealthCheckDropProbability: passiveHealthCheck.MaxDropProbability,
+		ZoneAwareEnabled:              o.KubernetesZoneAwareEnabled,
+		EndpointsUpdatePeriod:         10 * time.Second,
+		EndpointsURL:                  o.KubernetesEndpointsURL,
 	})
 	ro := routing.Options{
 		FilterRegistry:  o.filterRegistry(),

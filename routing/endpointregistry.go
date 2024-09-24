@@ -1,6 +1,11 @@
 package routing
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -8,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/net"
 )
 
 const defaultLastSeenTimeout = 1 * time.Minute
@@ -94,9 +100,15 @@ func newEntry() *entry {
 	return result
 }
 
+type member struct {
+	endpoint string
+	zone     string
+}
+
 type EndpointRegistry struct {
 	lastSeenTimeout               time.Duration
 	statsResetPeriod              time.Duration
+	endpointsUpdatePeriod         time.Duration
 	minRequests                   int64
 	minHealthCheckDropProbability float64
 	maxHealthCheckDropProbability float64
@@ -105,6 +117,10 @@ type EndpointRegistry struct {
 
 	now  func() time.Time
 	data sync.Map // map[string]*entry
+
+	endpoints       sync.Map // map[string][]*kubernetes.Endpoint
+	endpointsClient *net.Client
+	endpointsURL    *url.URL
 }
 
 var _ PostProcessor = &EndpointRegistry{}
@@ -116,6 +132,9 @@ type RegistryOptions struct {
 	MinRequests                   int64
 	MinHealthCheckDropProbability float64
 	MaxHealthCheckDropProbability float64
+	ZoneAwareEnabled              bool
+	EndpointsUpdatePeriod         time.Duration
+	EndpointsURL                  string
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
@@ -156,6 +175,7 @@ func (r *EndpointRegistry) Do(routes []*Route) []*Route {
 
 func (r *EndpointRegistry) updateStats() {
 	ticker := time.NewTicker(r.statsResetPeriod)
+	defer ticker.Stop()
 
 	for {
 		r.data.Range(func(key, value any) bool {
@@ -190,6 +210,81 @@ func (r *EndpointRegistry) updateStats() {
 	}
 }
 
+type EndpointsMap map[string][]*Endpoint
+
+type Endpoint struct {
+	Address string `json:"addr"`
+	Zone    string `json:"zone"`
+	Port    int    `json:"port"`
+}
+
+func (r *EndpointRegistry) fetchEndpoints() (EndpointsMap, error) {
+
+	req, err := http.NewRequest("GET", r.endpointsURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fetch endpoints request: %w", err)
+	}
+
+	rsp, err := r.endpointsClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fetch endpoints: %w", err)
+	}
+	defer rsp.Body.Close()
+
+	// TODO(sszuecs): whatever we have in routesrv as API response we need to adapt here
+	buf, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body: %w", err)
+	}
+	log.Debugf("Go %s", buf)
+
+	var result EndpointsMap
+	err = json.Unmarshal(buf, &result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal into kubernetes.EndpointsMap: %w", err)
+	}
+	return result, nil
+}
+
+func (r *EndpointRegistry) updateEndpoints() {
+	ticker := time.NewTicker(r.endpointsUpdatePeriod)
+	defer ticker.Stop()
+
+	for {
+		mapMembers, err := r.fetchEndpoints()
+		if err != nil {
+			log.Errorf("Failed to fetch endpoints: %v", err)
+		} else {
+			active := make(map[string]struct{})
+			log.Infof("Got %d members", len(mapMembers))
+
+			// create/update
+			for svc, members := range mapMembers {
+				r.endpoints.Store(svc, members)
+				active[svc] = struct{}{}
+				for _, member := range members {
+					println("service:", svc, "with addr:", member.Address, "in zone", member.Zone, "with port", member.Port)
+				}
+			}
+
+			// cleanup endpoints
+			r.endpoints.Range(func(a, _ any) bool {
+				svc := a.(string)
+				if _, ok := active[svc]; !ok {
+					r.endpoints.Delete(svc)
+				}
+				return true
+			})
+		}
+
+		select {
+		case <-r.quit:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 func (r *EndpointRegistry) Close() {
 	close(r.quit)
 }
@@ -199,12 +294,23 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 		o.LastSeenTimeout = defaultLastSeenTimeout
 	}
 
+	var epURL *url.URL
+	if u, err := url.Parse(o.EndpointsURL); err != nil {
+		log.Errorf("Failed to parse %q: %v", o.EndpointsURL, err)
+		log.Infof("Disable zone awareness endpoint updating")
+		o.ZoneAwareEnabled = false
+	} else {
+		epURL = u
+	}
+
 	registry := &EndpointRegistry{
 		lastSeenTimeout:               o.LastSeenTimeout,
 		statsResetPeriod:              o.StatsResetPeriod,
 		minRequests:                   o.MinRequests,
 		minHealthCheckDropProbability: o.MinHealthCheckDropProbability,
 		maxHealthCheckDropProbability: o.MaxHealthCheckDropProbability,
+		endpointsURL:                  epURL,
+		endpointsUpdatePeriod:         5 * time.Second,
 
 		quit: make(chan struct{}),
 
@@ -213,6 +319,15 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 	}
 	if o.PassiveHealthCheckEnabled {
 		go registry.updateStats()
+	}
+	if o.ZoneAwareEnabled {
+		registry.endpointsClient = net.NewClient(net.Options{
+			MaxIdleConnsPerHost: 3,
+			MaxIdleConns:        10,
+			IdleConnTimeout:     10 * time.Second,
+		})
+
+		go registry.updateEndpoints()
 	}
 
 	return registry
