@@ -841,7 +841,6 @@ func WithParams(p Params) *Proxy {
 	if p.EnablePassiveHealthCheck {
 		healthyEndpointsChooser = &healthyEndpoints{
 			rnd:                        rand.New(loadbalancer.NewLockedSource()),
-			endpointRegistry:           p.EndpointRegistry,
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
