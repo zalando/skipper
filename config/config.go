@@ -243,6 +243,8 @@ type Config struct {
 	ReadHeaderTimeoutServer      time.Duration `yaml:"read-header-timeout-server"`
 	WriteTimeoutServer           time.Duration `yaml:"write-timeout-server"`
 	IdleTimeoutServer            time.Duration `yaml:"idle-timeout-server"`
+	KeepaliveServer              time.Duration `yaml:"keepalive-server"`
+	KeepaliveRequestsServer      int           `yaml:"keepalive-requests-server"`
 	MaxHeaderBytes               int           `yaml:"max-header-bytes"`
 	EnableConnMetricsServer      bool          `yaml:"enable-connection-metrics"`
 	TimeoutBackend               time.Duration `yaml:"timeout-backend"`
@@ -544,6 +546,8 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.ReadHeaderTimeoutServer, "read-header-timeout-server", 60*time.Second, "set ReadHeaderTimeout for http server connections")
 	flag.DurationVar(&cfg.WriteTimeoutServer, "write-timeout-server", 60*time.Second, "set WriteTimeout for http server connections")
 	flag.DurationVar(&cfg.IdleTimeoutServer, "idle-timeout-server", 60*time.Second, "set IdleTimeout for http server connections")
+	flag.DurationVar(&cfg.KeepaliveServer, "keepalive-server", 0*time.Second, "sets maximum age for http server connections. The connection is closed after it existed for this duration. Default is 0 for unlimited.")
+	flag.IntVar(&cfg.KeepaliveRequestsServer, "keepalive-requests-server", 0, "sets maximum number of requests for http server connections. The connection is closed after serving this number of requests. Default is 0 for unlimited.")
 	flag.IntVar(&cfg.MaxHeaderBytes, "max-header-bytes", http.DefaultMaxHeaderBytes, "set MaxHeaderBytes for http server connections")
 	flag.BoolVar(&cfg.EnableConnMetricsServer, "enable-connection-metrics", false, "enables connection metrics for http server connections")
 	flag.DurationVar(&cfg.TimeoutBackend, "timeout-backend", 60*time.Second, "sets the TCP client connection timeout for backend connections")
@@ -879,6 +883,8 @@ func (c *Config) ToOptions() skipper.Options {
 		ReadHeaderTimeoutServer:      c.ReadHeaderTimeoutServer,
 		WriteTimeoutServer:           c.WriteTimeoutServer,
 		IdleTimeoutServer:            c.IdleTimeoutServer,
+		KeepaliveServer:              c.KeepaliveServer,
+		KeepaliveRequestsServer:      c.KeepaliveRequestsServer,
 		MaxHeaderBytes:               c.MaxHeaderBytes,
 		EnableConnMetricsServer:      c.EnableConnMetricsServer,
 		TimeoutBackend:               c.TimeoutBackend,

@@ -360,6 +360,14 @@ type Options struct {
 	// Defines IdleTimeout for server http connections.
 	IdleTimeoutServer time.Duration
 
+	// KeepaliveServer configures maximum age for server http connections.
+	// The connection is closed after it existed for this duration.
+	KeepaliveServer time.Duration
+
+	// KeepaliveRequestsServer configures maximum number of requests for server http connections.
+	// The connection is closed after serving this number of requests.
+	KeepaliveRequestsServer int
+
 	// Defines MaxHeaderBytes for server http connections.
 	MaxHeaderBytes int
 
@@ -1334,11 +1342,16 @@ func listenAndServeQuit(
 		ErrorLog:          newServerErrorLog(),
 	}
 
-	if o.EnableConnMetricsServer {
-		srv.ConnState = func(conn net.Conn, state http.ConnState) {
-			mtr.IncCounter(fmt.Sprintf("lb-conn-%s", state))
-		}
+	cm := &skpnet.ConnManager{
+		Keepalive:         o.KeepaliveServer,
+		KeepaliveRequests: o.KeepaliveRequestsServer,
 	}
+
+	if o.EnableConnMetricsServer {
+		cm.Metrics = mtr
+	}
+
+	cm.Configure(srv)
 
 	log.Infof("Listen on %v", address)
 
