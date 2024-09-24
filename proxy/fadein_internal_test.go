@@ -92,7 +92,7 @@ func initializeEndpoints(endpointAges []float64, algorithmName string, fadeInDur
 		registry.GetMetrics(eps[i]).SetDetected(detectionTimes[i])
 	}
 
-	proxy := &Proxy{registry: registry, fadein: &fadeIn{rnd: rand.New(loadbalancer.NewLockedSource()), endpointRegistry: registry}, quit: make(chan struct{})}
+	proxy := &Proxy{registry: registry, fadein: &fadeIn{rnd: rand.New(loadbalancer.NewLockedSource())}, quit: make(chan struct{})}
 	return route, proxy, eps
 }
 
