@@ -841,7 +841,6 @@ func WithParams(p Params) *Proxy {
 	if p.EnablePassiveHealthCheck {
 		healthyEndpointsChooser = &healthyEndpoints{
 			rnd:                        rand.New(loadbalancer.NewLockedSource()),
-			endpointRegistry:           p.EndpointRegistry,
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
@@ -849,8 +848,7 @@ func WithParams(p Params) *Proxy {
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
 		fadein: &fadeIn{
-			rnd:              rand.New(loadbalancer.NewLockedSource()),
-			endpointRegistry: p.EndpointRegistry,
+			rnd: rand.New(loadbalancer.NewLockedSource()),
 		},
 		heathlyEndpoints:         healthyEndpointsChooser,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),

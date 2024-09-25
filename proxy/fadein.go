@@ -9,8 +9,7 @@ import (
 )
 
 type fadeIn struct {
-	rnd              *rand.Rand
-	endpointRegistry *routing.EndpointRegistry
+	rnd *rand.Rand
 }
 
 func (f *fadeIn) fadeInScore(lifetime time.Duration, duration time.Duration, exponent float64) float64 {

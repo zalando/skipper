@@ -9,7 +9,6 @@ import (
 
 type healthyEndpoints struct {
 	rnd                        *rand.Rand
-	endpointRegistry           *routing.EndpointRegistry
 	maxUnhealthyEndpointsRatio float64
 }
 
