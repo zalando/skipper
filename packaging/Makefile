@@ -13,6 +13,7 @@ GOARCH             ?= amd64
 GOARM              ?=
 BUILD_FLAGS        ?= -v -trimpath
 COMMIT_HASH        = $(shell git rev-parse --short HEAD)
+REVISION           = $(shell git rev-parse HEAD)
 
 default: docker-build
 
@@ -36,11 +37,19 @@ clean:
 	rm -rf $(BINARIES) build/
 
 docker.build: clean $(BINARIES)
-	docker build -t $(IMAGE) --build-arg BUILD_FOLDER=. --build-arg TARGETPLATFORM= .
+	docker build -t $(IMAGE) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg REVISION=$(REVISION) \
+		--build-arg BUILD_FOLDER=. \
+		--build-arg TARGETPLATFORM= \
+		.
 
 docker-build: docker.build.amd64 docker.build.arm64 docker.build.armv7
 docker.build.amd64: clean build.linux.amd64 docker.build.enable
-	docker buildx build -t $(IMAGE) --platform linux/amd64 -f Dockerfile --load .
+	docker buildx build -t $(IMAGE) --platform linux/amd64 \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg REVISION=$(REVISION) \
+		-f Dockerfile --load .
 docker.build.arm64: clean build.linux.arm64 docker.build.enable
 	docker buildx build -t $(ARM64_IMAGE) --platform linux/arm64 -f Dockerfile.arm64 --load .
 docker.build.armv7: clean build.linux.armv7 docker.build.enable
@@ -57,7 +66,10 @@ docker.push.armv7: docker.build.armv7
 # build multi-arch container image using a trusted multi-arch base image
 docker.push.multiarch: clean build.linux docker.build.enable
 	docker buildx build --rm -t $(MULTIARCH_IMAGE) --platform linux/amd64,linux/arm64 --push \
-	  --build-arg BASE_IMAGE=container-registry.zalando.net/library/alpine-3:latest .
+		--build-arg BASE_IMAGE=container-registry.zalando.net/library/alpine-3:latest \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg REVISION=$(REVISION) \
+		.
 
 # https://docs.docker.com/build/working-with-build/
 # ~/.docker/config.json add: "experimental": "enabled",
