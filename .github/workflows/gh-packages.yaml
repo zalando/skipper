@@ -68,6 +68,9 @@ jobs:
           tags: |
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.vendor="Zalando SE"
 
       - name: Build and push
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85
