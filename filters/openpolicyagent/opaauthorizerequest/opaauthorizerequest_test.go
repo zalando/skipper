@@ -89,6 +89,20 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			removeHeaders:     make(http.Header),
 		},
 		{
+			msg:               "Allow Request based on http path",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_with_http_path",
+			requestPath:       "/some/api/path?q1=v1&msg=help%20me",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
 			msg:               "Allow Requests with query parameters",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
@@ -120,10 +134,10 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			msg:               "Allow Requests with an empty query string",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow_context_extensions",
+			regoQuery:         "envoy/authz/allow_with_path_having_empty_query",
 			requestPath:       "/path-with-empty-query?",
 			requestMethod:     "GET",
-			contextExtensions: "com.mycompany.myprop: myvalue",
+			contextExtensions: "",
 			expectedStatus:    http.StatusOK,
 			expectedBody:      "Welcome!",
 			expectedHeaders:   make(http.Header),
@@ -398,12 +412,16 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							input.parsed_query = {}
 						}
 
+						allow_with_http_path {
+							input.attributes.request.http.path == "/some/api/path?q1=v1&msg=help%20me"
+						}
+
 						allow {
 							input.parsed_path = [ "my path" ]
 						}
 
-						allow {
-							input.parsed_path = [ "/path-with-empty-query" ]
+						allow_with_path_having_empty_query {
+							input.parsed_path = [ "path-with-empty-query" ]
 							input.parsed_query = {}
 						}
 
