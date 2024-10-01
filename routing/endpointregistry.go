@@ -121,6 +121,7 @@ type EndpointRegistry struct {
 	endpoints       sync.Map // map[string][]*kubernetes.Endpoint
 	endpointsClient *net.Client
 	endpointsURL    *url.URL
+	zone            string
 }
 
 var _ PostProcessor = &EndpointRegistry{}
@@ -135,6 +136,7 @@ type RegistryOptions struct {
 	ZoneAwareEnabled              bool
 	EndpointsUpdatePeriod         time.Duration
 	EndpointsURL                  string
+	Zone                          string
 }
 
 func (r *EndpointRegistry) Do(routes []*Route) []*Route {
@@ -218,6 +220,18 @@ type Endpoint struct {
 	Port    int    `json:"port"`
 }
 
+func (r *EndpointRegistry) GetEndpoints(svc string) ([]*Endpoint, bool) {
+	dat, ok := r.endpoints.Load(svc)
+	if !ok {
+		return nil, false
+	}
+	members, ok := dat.([]*Endpoint)
+	if !ok {
+		return nil, false
+	}
+	return members, true
+}
+
 func (r *EndpointRegistry) fetchEndpoints() (EndpointsMap, error) {
 
 	req, err := http.NewRequest("GET", r.endpointsURL.String(), nil)
@@ -260,10 +274,31 @@ func (r *EndpointRegistry) updateEndpoints() {
 
 			// create/update
 			for svc, members := range mapMembers {
-				r.endpoints.Store(svc, members)
 				active[svc] = struct{}{}
 				for _, member := range members {
-					println("service:", svc, "with addr:", member.Address, "in zone", member.Zone, "with port", member.Port)
+					log.Debugf("service: %s, with addr: %s, in zone: %s, with port: %d", svc, member.Address, member.Zone, member.Port)
+				}
+
+				// constraint: to make sense we have >=2 zones and 3 pods in each as minimum
+				if len(members) >= 6 {
+					filteredMembers := make([]*Endpoint, 0)
+					for _, member := range members {
+						if member.Zone == r.zone {
+							filteredMembers = append(filteredMembers, member)
+						}
+					}
+					// constraint: 3 pods in zone
+					if len(filteredMembers) >= 3 {
+						r.endpoints.Store(svc, filteredMembers)
+						log.Infof("Endpointregistry zone aware service: %s with %d endpoints in zone: %s", svc, len(filteredMembers), r.zone)
+					} else {
+						log.Infof("Endpointregistry zone aware service fallback to all zones: %s too few 3 >= %d endpoints found in zone %s", svc, len(filteredMembers), r.zone)
+						r.endpoints.Store(svc, members)
+					}
+
+				} else {
+					log.Infof("Endpointregistry zone aware service fallback to all zones: %s too few 6 >= %d endpoints found", svc, len(members))
+					r.endpoints.Store(svc, members)
 				}
 			}
 
@@ -311,6 +346,7 @@ func NewEndpointRegistry(o RegistryOptions) *EndpointRegistry {
 		maxHealthCheckDropProbability: o.MaxHealthCheckDropProbability,
 		endpointsURL:                  epURL,
 		endpointsUpdatePeriod:         5 * time.Second,
+		zone:                          o.Zone,
 
 		quit: make(chan struct{}),
 

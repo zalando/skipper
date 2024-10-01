@@ -409,7 +409,7 @@ type Endpoint struct {
 }
 
 func endpointMapName(ns, name string, port int) string {
-	return fmt.Sprintf("%s/%s_%d", ns, name, port)
+	return fmt.Sprintf("%s/%s/%d", ns, name, port)
 }
 
 func (c *Client) GetEndpointsMap() EndpointsMap {

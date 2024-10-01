@@ -292,6 +292,9 @@ type Options struct {
 	// KubernetesEndpointsURL
 	KubernetesEndpointsURL string
 
+	// KubernetesPodZone
+	KubernetesPodZone string
+
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
@@ -2001,6 +2004,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		ZoneAwareEnabled:              o.KubernetesZoneAwareEnabled,
 		EndpointsUpdatePeriod:         10 * time.Second,
 		EndpointsURL:                  o.KubernetesEndpointsURL,
+		Zone:                          o.KubernetesPodZone,
 	})
 	ro := routing.Options{
 		FilterRegistry:  o.filterRegistry(),

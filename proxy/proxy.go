@@ -360,6 +360,12 @@ type Params struct {
 
 	// PassiveHealthCheck defines the parameters for the healthy endpoints checker.
 	PassiveHealthCheck *PassiveHealthCheck
+
+	// ZoneAwareEndpoints
+	ZoneAwareEndpoints bool
+
+	// Zone
+	Zone string
 }
 
 type (
@@ -438,6 +444,7 @@ type Proxy struct {
 	registry                 *routing.EndpointRegistry
 	fadein                   *fadeIn
 	heathlyEndpoints         *healthyEndpoints
+	zoneAwareEndpoints       *zoneAwareEndpoints
 	roundTripper             http.RoundTripper
 	priorityRoutes           []PriorityRoute
 	flags                    Flags
@@ -581,6 +588,7 @@ func (p *Proxy) selectEndpoint(ctx *context) *routing.LBEndpoint {
 	endpoints := rt.LBEndpoints
 	endpoints = p.fadein.filterFadeIn(endpoints, rt)
 	endpoints = p.heathlyEndpoints.filterHealthyEndpoints(ctx, endpoints, p.metrics)
+	endpoints = p.zoneAwareEndpoints.filterZoneEndpoints(ctx, endpoints)
 
 	lbctx := &routing.LBContext{
 		Request:     ctx.request,
@@ -841,10 +849,18 @@ func WithParams(p Params) *Proxy {
 	if p.EnablePassiveHealthCheck {
 		healthyEndpointsChooser = &healthyEndpoints{
 			rnd:                        rand.New(loadbalancer.NewLockedSource()),
-			endpointRegistry:           p.EndpointRegistry,
 			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
 		}
 	}
+
+	var zoneAwareEP *zoneAwareEndpoints
+	if p.ZoneAwareEndpoints {
+		zoneAwareEP = &zoneAwareEndpoints{
+			zone:             p.Zone,
+			endpointRegistry: p.EndpointRegistry,
+		}
+	}
+
 	return &Proxy{
 		routing:  p.Routing,
 		registry: p.EndpointRegistry,
@@ -853,6 +869,7 @@ func WithParams(p Params) *Proxy {
 			endpointRegistry: p.EndpointRegistry,
 		},
 		heathlyEndpoints:         healthyEndpointsChooser,
+		zoneAwareEndpoints:       zoneAwareEP,
 		roundTripper:             p.CustomHttpRoundTripperWrap(tr),
 		priorityRoutes:           p.PriorityRoutes,
 		flags:                    p.Flags,

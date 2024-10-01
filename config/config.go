@@ -176,6 +176,7 @@ type Config struct {
 	KubernetesRedisServicePort              int                                `yaml:"kubernetes-redis-service-port"`
 	KubernetesZoneAwareEnabled              bool                               `yaml:"kubernetes-zone-aware"`
 	KubernetesEndpointsURL                  string                             `yaml:"kubernetes-endpoints-url"`
+	KubernetesPodZone                       string                             `yaml:"kubernetes-pod-zone"`
 	KubernetesBackendTrafficAlgorithmString string                             `yaml:"kubernetes-backend-traffic-algorithm"`
 	KubernetesBackendTrafficAlgorithm       kubernetes.BackendTrafficAlgorithm `yaml:"-"`
 	KubernetesDefaultLoadBalancerAlgorithm  string                             `yaml:"kubernetes-default-lb-algorithm"`
@@ -478,6 +479,7 @@ func NewConfig() *Config {
 
 	flag.BoolVar(&cfg.KubernetesZoneAwareEnabled, "kubernetes-zone-aware", false, "Enables Kubernetes zone aware routes, requires -kubernetes-endpoints-url")
 	flag.StringVar(&cfg.KubernetesEndpointsURL, "kubernetes-endpoints-url", "", "Sets URL to lookup /endpoints from routesrv")
+	flag.StringVar(&cfg.KubernetesPodZone, "kubernetes-pod-zone", "", "Sets the Zone of the pod, you should set it via Kuibernetes donwards API to enable skipper to know in which zone it runs.")
 
 	flag.StringVar(&cfg.KubernetesBackendTrafficAlgorithmString, "kubernetes-backend-traffic-algorithm", kubernetes.TrafficPredicateAlgorithm.String(), "sets the algorithm to be used for traffic splitting between backends: traffic-predicate or traffic-segment-predicate")
 	flag.StringVar(&cfg.KubernetesDefaultLoadBalancerAlgorithm, "kubernetes-default-lb-algorithm", kubernetes.DefaultLoadBalancerAlgorithm, "sets the default algorithm to be used for load balancing between backend endpoints, available options: roundRobin, consistentHash, random, powerOfRandomNChoices")
@@ -838,6 +840,7 @@ func (c *Config) ToOptions() skipper.Options {
 		KubernetesRedisServicePort:             c.KubernetesRedisServicePort,
 		KubernetesZoneAwareEnabled:             c.KubernetesZoneAwareEnabled,
 		KubernetesEndpointsURL:                 c.KubernetesEndpointsURL,
+		KubernetesPodZone:                      c.KubernetesPodZone,
 		KubernetesBackendTrafficAlgorithm:      c.KubernetesBackendTrafficAlgorithm,
 		KubernetesDefaultLoadBalancerAlgorithm: c.KubernetesDefaultLoadBalancerAlgorithm,
 
