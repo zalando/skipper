@@ -327,6 +327,15 @@ type Options struct {
 	// KubernetesTopologyZone if set to non empty string it is used to filter endpointslice endpoints by this value.
 	KubernetesTopologyZone string
 
+	// KubernetesEndpointsURL URL to fetch zone aware endpoints from
+	KubernetesEndpointsURL string
+
+	// KubernetesZoneAwareEnabled enable zone awareness
+	KubernetesZoneAwareEnabled bool
+
+	// KubernetesPodZone
+	KubernetesPodZone string
+
 	// KubernetesForceService overrides the default Skipper functionality to route traffic using Kubernetes Endpoints,
 	// instead using Kubernetes Services.
 	KubernetesForceService bool
@@ -2279,6 +2288,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		MinRequests:                   passiveHealthCheck.MinRequests,
 		MinHealthCheckDropProbability: passiveHealthCheck.MinDropProbability,
 		MaxHealthCheckDropProbability: passiveHealthCheck.MaxDropProbability,
+		ZoneAwareEnabled:              o.KubernetesZoneAwareEnabled,
+		EndpointsUpdatePeriod:         10 * time.Second,
+		EndpointsURL:                  o.KubernetesEndpointsURL,
+		Zone:                          o.KubernetesPodZone,
 	})
 	ro := routing.Options{
 		FilterRegistry:  o.filterRegistry(),
