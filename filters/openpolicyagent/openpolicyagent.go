@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"text/template"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	"github.com/google/uuid"
@@ -46,7 +47,7 @@ const (
 
 	DefaultMaxRequestBodySize   = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing = 100 * DefaultMaxRequestBodySize
-	defaultBodyBufferSize       = 8192 * 1024
+	DefaultBodyBufferSize       = 8 * 1024 // 8 KB
 
 	spanNameEval = "open-policy-agent"
 )
@@ -129,7 +130,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 		lastused:            make(map[*OpenPolicyAgentInstance]time.Time),
 		quit:                make(chan struct{}),
 		maxRequestBodyBytes: DefaultMaxMemoryBodyParsing,
-		bodyReadBufferSize:  defaultBodyBufferSize,
+		bodyReadBufferSize:  DefaultBodyBufferSize,
 	}
 
 	for _, opt := range opts {

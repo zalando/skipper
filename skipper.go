@@ -939,6 +939,7 @@ type Options struct {
 	OpenPolicyAgentCleanerInterval      time.Duration
 	OpenPolicyAgentStartupTimeout       time.Duration
 	OpenPolicyAgentMaxRequestBodySize   int64
+	OpenPolicyAgentBodyReadBufferSize   int64
 	OpenPolicyAgentMaxMemoryBodyParsing int64
 
 	PassiveHealthCheck map[string]string
@@ -1880,6 +1881,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(
 			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
+			openpolicyagent.WithReadBodyBufferSize(o.OpenPolicyAgentBodyReadBufferSize),
 			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
 			openpolicyagent.WithTracer(tracer))
 		defer opaRegistry.Close()
