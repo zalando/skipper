@@ -251,7 +251,7 @@ func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
 	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
 	assert.NoError(t, err)
 
-	engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, DefaultBodyBufferSize)
+	engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
 	assert.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.startupTimeout)
@@ -534,7 +534,7 @@ func TestBodyExtraction(t *testing.T) {
 			msg:            "Read body ",
 			body:           `{ "welcome": "world" }`,
 			maxBodySize:    1024,
-			readBodyBuffer: DefaultBodyBufferSize,
+			readBodyBuffer: DefaultRequestBodyBufferSize,
 			bodyInPolicy:   `{ "welcome": "world" }`,
 		},
 		{

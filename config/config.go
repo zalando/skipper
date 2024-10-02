@@ -284,14 +284,14 @@ type Config struct {
 	LuaModules *listFlag `yaml:"lua-modules"`
 	LuaSources *listFlag `yaml:"lua-sources"`
 
-	EnableOpenPolicyAgent               bool          `yaml:"enable-open-policy-agent"`
-	OpenPolicyAgentConfigTemplate       string        `yaml:"open-policy-agent-config-template"`
-	OpenPolicyAgentEnvoyMetadata        string        `yaml:"open-policy-agent-envoy-metadata"`
-	OpenPolicyAgentCleanerInterval      time.Duration `yaml:"open-policy-agent-cleaner-interval"`
-	OpenPolicyAgentStartupTimeout       time.Duration `yaml:"open-policy-agent-startup-timeout"`
-	OpenPolicyAgentBodyReadBufferSize   int64         `yaml:"open-policy-agent-body-read-buffer-size"`
-	OpenPolicyAgentMaxRequestBodySize   int64         `yaml:"open-policy-agent-max-request-body-size"`
-	OpenPolicyAgentMaxMemoryBodyParsing int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
+	EnableOpenPolicyAgent                bool          `yaml:"enable-open-policy-agent"`
+	OpenPolicyAgentConfigTemplate        string        `yaml:"open-policy-agent-config-template"`
+	OpenPolicyAgentEnvoyMetadata         string        `yaml:"open-policy-agent-envoy-metadata"`
+	OpenPolicyAgentCleanerInterval       time.Duration `yaml:"open-policy-agent-cleaner-interval"`
+	OpenPolicyAgentStartupTimeout        time.Duration `yaml:"open-policy-agent-startup-timeout"`
+	OpenPolicyAgentRequestBodyBufferSize int64         `yaml:"open-policy-agent-request-body-buffer-size"`
+	OpenPolicyAgentMaxRequestBodySize    int64         `yaml:"open-policy-agent-max-request-body-size"`
+	OpenPolicyAgentMaxMemoryBodyParsing  int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
 
 	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
 }
@@ -514,7 +514,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.OpenPolicyAgentCleanerInterval, "open-policy-agent-cleaner-interval", openpolicyagent.DefaultCleanIdlePeriod, "Duration in seconds to wait before cleaning up unused opa instances")
 	flag.DurationVar(&cfg.OpenPolicyAgentStartupTimeout, "open-policy-agent-startup-timeout", openpolicyagent.DefaultOpaStartupTimeout, "Maximum duration in seconds to wait for the open policy agent to start up")
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxRequestBodySize, "open-policy-agent-max-request-body-size", openpolicyagent.DefaultMaxRequestBodySize, "Maximum number of bytes from a http request body that are passed as input to the policy")
-	flag.Int64Var(&cfg.OpenPolicyAgentBodyReadBufferSize, "open-policy-agent-body-read-buffer-size", openpolicyagent.DefaultBodyBufferSize, "Read buffer size for the request body")
+	flag.Int64Var(&cfg.OpenPolicyAgentRequestBodyBufferSize, "open-policy-agent-request-body-buffer-size", openpolicyagent.DefaultRequestBodyBufferSize, "Read buffer size for the request body")
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxMemoryBodyParsing, "open-policy-agent-max-memory-body-parsing", openpolicyagent.DefaultMaxMemoryBodyParsing, "Total number of bytes used to parse http request bodies across all requests. Once the limit is met, requests will be rejected.")
 
 	// TLS client certs
@@ -928,14 +928,14 @@ func (c *Config) ToOptions() skipper.Options {
 		LuaModules: c.LuaModules.values,
 		LuaSources: c.LuaSources.values,
 
-		EnableOpenPolicyAgent:               c.EnableOpenPolicyAgent,
-		OpenPolicyAgentConfigTemplate:       c.OpenPolicyAgentConfigTemplate,
-		OpenPolicyAgentEnvoyMetadata:        c.OpenPolicyAgentEnvoyMetadata,
-		OpenPolicyAgentCleanerInterval:      c.OpenPolicyAgentCleanerInterval,
-		OpenPolicyAgentStartupTimeout:       c.OpenPolicyAgentStartupTimeout,
-		OpenPolicyAgentMaxRequestBodySize:   c.OpenPolicyAgentMaxRequestBodySize,
-		OpenPolicyAgentBodyReadBufferSize:   c.OpenPolicyAgentBodyReadBufferSize,
-		OpenPolicyAgentMaxMemoryBodyParsing: c.OpenPolicyAgentMaxMemoryBodyParsing,
+		EnableOpenPolicyAgent:                c.EnableOpenPolicyAgent,
+		OpenPolicyAgentConfigTemplate:        c.OpenPolicyAgentConfigTemplate,
+		OpenPolicyAgentEnvoyMetadata:         c.OpenPolicyAgentEnvoyMetadata,
+		OpenPolicyAgentCleanerInterval:       c.OpenPolicyAgentCleanerInterval,
+		OpenPolicyAgentStartupTimeout:        c.OpenPolicyAgentStartupTimeout,
+		OpenPolicyAgentMaxRequestBodySize:    c.OpenPolicyAgentMaxRequestBodySize,
+		OpenPolicyAgentRequestBodyBufferSize: c.OpenPolicyAgentRequestBodyBufferSize,
+		OpenPolicyAgentMaxMemoryBodyParsing:  c.OpenPolicyAgentMaxMemoryBodyParsing,
 
 		PassiveHealthCheck: c.PassiveHealthCheck.values,
 	}

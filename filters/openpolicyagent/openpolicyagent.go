@@ -45,9 +45,9 @@ const (
 	defaultShutdownGracePeriod = 30 * time.Second
 	DefaultOpaStartupTimeout   = 30 * time.Second
 
-	DefaultMaxRequestBodySize   = 1 << 20 // 1 MB
-	DefaultMaxMemoryBodyParsing = 100 * DefaultMaxRequestBodySize
-	DefaultBodyBufferSize       = 8 * 1024 // 8 KB
+	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
+	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
+	DefaultRequestBodyBufferSize = 8 * 1024 // 8 KB
 
 	spanNameEval = "open-policy-agent"
 )
@@ -130,7 +130,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 		lastused:            make(map[*OpenPolicyAgentInstance]time.Time),
 		quit:                make(chan struct{}),
 		maxRequestBodyBytes: DefaultMaxMemoryBodyParsing,
-		bodyReadBufferSize:  DefaultBodyBufferSize,
+		bodyReadBufferSize:  DefaultRequestBodyBufferSize,
 	}
 
 	for _, opt := range opts {
