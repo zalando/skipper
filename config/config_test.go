@@ -163,6 +163,7 @@ func defaultConfig(with func(*Config)) *Config {
 		OpenPolicyAgentStartupTimeout:           30 * time.Second,
 		OpenPolicyAgentMaxRequestBodySize:       openpolicyagent.DefaultMaxRequestBodySize,
 		OpenPolicyAgentMaxMemoryBodyParsing:     openpolicyagent.DefaultMaxMemoryBodyParsing,
+		OpenPolicyAgentRequestBodyBufferSize:    openpolicyagent.DefaultRequestBodyBufferSize,
 	}
 	with(cfg)
 	return cfg
