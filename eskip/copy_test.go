@@ -42,7 +42,7 @@ func TestCopy(t *testing.T) {
 			checkFilter(t, c.Filters[i], r.Filters[i])
 		}
 
-		r.LBEndpoints[0] = "test-slice-identity"
+		r.LBEndpoints[0] = &LBEndpoint{Address: "test-slice-identity"}
 		if c.LBEndpoints[0] == r.LBEndpoints[0] {
 			t.Error("failed to copy LB endpoints")
 		}
@@ -132,7 +132,10 @@ func TestCopy(t *testing.T) {
 				},
 				BackendType: LBBackend,
 				LBAlgorithm: "roundRobin",
-				LBEndpoints: []string{"10.0.0.1:80", "10.0.0.2:80"},
+				LBEndpoints: []*LBEndpoint{
+					{Address: "10.0.0.1:80"},
+					{Address: "10.0.0.2:80"},
+				},
 			}
 
 			c := Copy(r)
@@ -154,7 +157,10 @@ func TestCopy(t *testing.T) {
 				},
 				BackendType: LBBackend,
 				LBAlgorithm: "roundRobin",
-				LBEndpoints: []string{"10.0.1.1:80", "10.0.1.2:80"},
+				LBEndpoints: []*LBEndpoint{
+					{Address: "10.0.1.1:80"},
+					{Address: "10.0.1.2:80"},
+				},
 			}, {
 				Id: "route2",
 				Predicates: []*Predicate{
@@ -169,7 +175,10 @@ func TestCopy(t *testing.T) {
 				},
 				BackendType: LBBackend,
 				LBAlgorithm: "roundRobin",
-				LBEndpoints: []string{"10.0.2.1:80", "10.0.2.2:80"},
+				LBEndpoints: []*LBEndpoint{
+					{Address: "10.0.2.1:80"},
+					{Address: "10.0.2.2:80"},
+				},
 			}, {
 				Id: "route3",
 				Predicates: []*Predicate{
@@ -184,7 +193,10 @@ func TestCopy(t *testing.T) {
 				},
 				BackendType: LBBackend,
 				LBAlgorithm: "roundRobin",
-				LBEndpoints: []string{"10.0.3.1:80", "10.0.3.2:80"},
+				LBEndpoints: []*LBEndpoint{
+					{Address: "10.0.3.1:80"},
+					{Address: "10.0.3.2:80"},
+				},
 			}}
 
 			c := CopyRoutes(r)

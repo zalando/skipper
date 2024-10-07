@@ -255,7 +255,7 @@ func TestLBBackend(t *testing.T) {
 		code:  `* -> <"https://example.org">`,
 		expectedResult: []*Route{{
 			BackendType: LBBackend,
-			LBEndpoints: []string{"https://example.org"},
+			LBEndpoints: []*LBEndpoint{{Address: "https://example.org"}},
 		}},
 	}, {
 		title: "multiple endpoints, default algorithm",
@@ -264,10 +264,10 @@ func TestLBBackend(t *testing.T) {
 		             "https://example3.org">`,
 		expectedResult: []*Route{{
 			BackendType: LBBackend,
-			LBEndpoints: []string{
-				"https://example1.org",
-				"https://example2.org",
-				"https://example3.org",
+			LBEndpoints: []*LBEndpoint{
+				{Address: "https://example1.org"},
+				{Address: "https://example2.org"},
+				{Address: "https://example3.org"},
 			},
 		}},
 	}, {
@@ -276,7 +276,7 @@ func TestLBBackend(t *testing.T) {
 		expectedResult: []*Route{{
 			BackendType: LBBackend,
 			LBAlgorithm: "algFoo",
-			LBEndpoints: []string{"https://example.org"},
+			LBEndpoints: []*LBEndpoint{{Address: "https://example.org"}},
 		}},
 	}, {
 		title: "multiple endpoints, default algorithm",
@@ -287,10 +287,10 @@ func TestLBBackend(t *testing.T) {
 		expectedResult: []*Route{{
 			BackendType: LBBackend,
 			LBAlgorithm: "algFoo",
-			LBEndpoints: []string{
-				"https://example1.org",
-				"https://example2.org",
-				"https://example3.org",
+			LBEndpoints: []*LBEndpoint{
+				{Address: "https://example1.org"},
+				{Address: "https://example2.org"},
+				{Address: "https://example3.org"},
 			},
 		}},
 	}, {
@@ -303,10 +303,10 @@ func TestLBBackend(t *testing.T) {
 			Filters:     []*Filter{{Name: "foo"}},
 			BackendType: LBBackend,
 			LBAlgorithm: "algFoo",
-			LBEndpoints: []string{
-				"https://example1.org",
-				"https://example2.org",
-				"https://example3.org",
+			LBEndpoints: []*LBEndpoint{
+				{Address: "https://example1.org"},
+				{Address: "https://example2.org"},
+				{Address: "https://example3.org"},
 			},
 		}},
 	}} {

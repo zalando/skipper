@@ -73,7 +73,7 @@ func TestConcurrencySingleRoute(t *testing.T) {
 	route := &eskip.Route{
 		Id:          "foo",
 		BackendType: eskip.LBBackend,
-		LBEndpoints: backends,
+		LBEndpoints: eskip.NewLBEndpoints(backends),
 		LBAlgorithm: "roundRobin",
 	}
 
@@ -175,7 +175,7 @@ func TestConstantlyUpdatingRoutes(t *testing.T) {
 		{
 			Id:          "foo",
 			BackendType: eskip.LBBackend,
-			LBEndpoints: backends,
+			LBEndpoints: eskip.NewLBEndpoints(backends),
 			LBAlgorithm: "roundRobin",
 		},
 	}
@@ -287,7 +287,7 @@ func TestConcurrencyMultipleRoutes(t *testing.T) {
 			Id:          app,
 			Path:        fmt.Sprintf("/%s", app),
 			BackendType: eskip.LBBackend,
-			LBEndpoints: backends[app],
+			LBEndpoints: eskip.NewLBEndpoints(backends[app]),
 			LBAlgorithm: "roundRobin",
 		})
 	}
