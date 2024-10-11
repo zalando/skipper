@@ -278,7 +278,7 @@ func (c *clusterClient) getJSON(uri string, a interface{}) error {
 
 	if rsp.StatusCode != http.StatusOK {
 		log.Tracef("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
-		return fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
+		return fmt.Errorf("request to %s failed, status: %d, %s", uri, rsp.StatusCode, rsp.Status)
 	}
 
 	b := bytes.NewBuffer(nil)
