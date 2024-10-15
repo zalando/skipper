@@ -1,8 +1,9 @@
 package accesslog
 
 import (
-	"github.com/google/go-cmp/cmp"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -18,31 +19,31 @@ func TestAccessLogDisabled(t *testing.T) {
 		{
 			msg:    "false-value-enables-access-log",
 			state:  []interface{}{"false"},
-			result: AccessLogFilter{true, nil},
+			result: AccessLogFilter{Enable: true, Prefixes: nil},
 			err:    nil,
 		},
 		{
 			msg:    "true-value-disables-access-log",
 			state:  []interface{}{"true"},
-			result: AccessLogFilter{false, nil},
+			result: AccessLogFilter{Enable: false, Prefixes: nil},
 			err:    nil,
 		},
 		{
 			msg:    "unknown-argument-leads-to-error",
 			state:  []interface{}{"unknownValue"},
-			result: AccessLogFilter{true, nil},
+			result: AccessLogFilter{Enable: true, Prefixes: nil},
 			err:    filters.ErrInvalidFilterParameters,
 		},
 		{
 			msg:    "no-arguments-lead-to-error",
 			state:  []interface{}{},
-			result: AccessLogFilter{true, nil},
+			result: AccessLogFilter{Enable: true, Prefixes: nil},
 			err:    filters.ErrInvalidFilterParameters,
 		},
 		{
 			msg:    "multiple-arguments-lead-to-error",
 			state:  []interface{}{"true", "second"},
-			result: AccessLogFilter{true, nil},
+			result: AccessLogFilter{Enable: true, Prefixes: nil},
 			err:    filters.ErrInvalidFilterParameters,
 		},
 	} {
