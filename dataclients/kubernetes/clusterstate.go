@@ -19,6 +19,7 @@ type clusterState struct {
 	endpointSlices       map[definitions.ResourceID]*skipperEndpointSlice
 	secrets              map[definitions.ResourceID]*secret
 	cachedEndpoints      map[endpointID][]string
+	ridToEpID            map[definitions.ResourceID]endpointID
 	enableEndpointSlices bool
 }
 
@@ -49,13 +50,17 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 	return s, nil
 }
 
-// GetEndpointsByService returns the skipper endpoints for kubernetes endpoints or endpointslices.
-func (state *clusterState) GetEndpointsByService(namespace, name, protocol string, servicePort *servicePort) []string {
-	epID := endpointID{
+func getEpID(namespace, name, protocol string, servicePort *servicePort) endpointID {
+	return endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
 		TargetPort: servicePort.TargetPort.String(),
 	}
+}
+
+// GetEndpointsByService returns the skipper endpoints for kubernetes endpoints or endpointslices.
+func (state *clusterState) GetEndpointsByService(namespace, name, protocol string, servicePort *servicePort) []string {
+	epID := getEpID(namespace, name, protocol, servicePort)
 
 	state.mu.Lock()
 	defer state.mu.Unlock()
