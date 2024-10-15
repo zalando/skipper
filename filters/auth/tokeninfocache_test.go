@@ -12,6 +12,7 @@ import (
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/metrics/metricstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,7 @@ type tokeninfoClientFunc func(string, filters.FilterContext) (map[string]any, er
 func (f tokeninfoClientFunc) getTokeninfo(token string, ctx filters.FilterContext) (map[string]any, error) {
 	return f(token, ctx)
 }
+func (f tokeninfoClientFunc) Close() {}
 
 type testTokeninfoToken string
 
@@ -58,6 +60,7 @@ func (c *testClock) now() time.Time {
 func TestTokeninfoCache(t *testing.T) {
 	const (
 		TokenTTLSeconds = 600
+		CacheSize       = 1
 		CacheTTL        = 300 * time.Second // less than TokenTTLSeconds
 	)
 
@@ -79,15 +82,19 @@ func TestTokeninfoCache(t *testing.T) {
 	}))
 	defer authServer.Close()
 
+	m := &metricstest.MockMetrics{}
+	defer m.Close()
+
 	o := TokeninfoOptions{
 		URL:       authServer.URL + "/oauth2/tokeninfo",
-		CacheSize: 1,
+		CacheSize: CacheSize,
 		CacheTTL:  CacheTTL,
+		Metrics:   m,
 	}
 	c, err := o.newTokeninfoClient()
 	require.NoError(t, err)
 
-	defer c.(*tokeninfoCache).client.(*authClient).Close()
+	defer c.Close()
 	c.(*tokeninfoCache).now = clock.now
 
 	ctx := &filtertest.Context{FRequest: &http.Request{}}
@@ -111,7 +118,7 @@ func TestTokeninfoCache(t *testing.T) {
 
 	assert.Equal(t, int32(1), authRequests, "expected no request to auth sever")
 	assert.Equal(t, token, info["uid"])
-	assert.Equal(t, float64(595), info["expires_in"], "expected TokenTTLSeconds - truncate(delay)")
+	assert.Equal(t, float64(594), info["expires_in"], "expected truncate(TokenTTLSeconds - delay)")
 
 	// Third request after "sleeping" longer than cache TTL
 	clock.add(CacheTTL)
@@ -123,7 +130,7 @@ func TestTokeninfoCache(t *testing.T) {
 	assert.Equal(t, token, info["uid"])
 	assert.Equal(t, float64(294), info["expires_in"], "expected truncate(TokenTTLSeconds - CacheTTL - delay)")
 
-	// Fourth request with a new token evicts cached value
+	// Fourth request with a new token
 	token = newTestTokeninfoToken(clock.now()).String()
 
 	info, err = c.getTokeninfo(token, ctx)
@@ -132,6 +139,19 @@ func TestTokeninfoCache(t *testing.T) {
 	assert.Equal(t, int32(3), authRequests, "expected new request to auth sever")
 	assert.Equal(t, token, info["uid"])
 	assert.Equal(t, float64(600), info["expires_in"], "expected TokenTTLSeconds")
+
+	// Force eviction and verify cache size is within limits
+	c.(*tokeninfoCache).evict()
+	m.WithGauges(func(g map[string]float64) {
+		assert.Equal(t, float64(CacheSize), g["tokeninfocache.count"])
+	})
+
+	// Force eviction after all entries expired and verify cache is empty
+	clock.add(CacheTTL + time.Second)
+	c.(*tokeninfoCache).evict()
+	m.WithGauges(func(g map[string]float64) {
+		assert.Equal(t, float64(0), g["tokeninfocache.count"])
+	})
 }
 
 // Tests race between reading and writing cache for the same token
@@ -152,7 +172,8 @@ func TestTokeninfoCacheUpdateRace(t *testing.T) {
 		return map[string]any{"requestNumber": requestNumber, "uid": token, "expires_in": float64(600)}, nil
 	})
 
-	c := newTokeninfoCache(mc, 1, time.Hour)
+	c := newTokeninfoCache(mc, nil, 1, time.Hour)
+	defer c.Close()
 
 	const token = "atoken"
 
@@ -234,7 +255,8 @@ func BenchmarkTokeninfoCache(b *testing.B) {
 				return tokenValues[token], nil
 			})
 
-			c := newTokeninfoCache(mc, bi.cacheSize, time.Hour)
+			c := newTokeninfoCache(mc, nil, bi.cacheSize, time.Hour)
+			defer c.Close()
 
 			var tokens []string
 			for i := 0; i < bi.tokens; i++ {
