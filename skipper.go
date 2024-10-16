@@ -944,14 +944,15 @@ type Options struct {
 	// filters.
 	LuaSources []string
 
-	EnableOpenPolicyAgent                bool
-	OpenPolicyAgentConfigTemplate        string
-	OpenPolicyAgentEnvoyMetadata         string
-	OpenPolicyAgentCleanerInterval       time.Duration
-	OpenPolicyAgentStartupTimeout        time.Duration
-	OpenPolicyAgentMaxRequestBodySize    int64
-	OpenPolicyAgentRequestBodyBufferSize int64
-	OpenPolicyAgentMaxMemoryBodyParsing  int64
+	EnableOpenPolicyAgent                          bool
+	OpenPolicyAgentConfigTemplate                  string
+	OpenPolicyAgentEnvoyMetadata                   string
+	OpenPolicyAgentCleanerInterval                 time.Duration
+	OpenPolicyAgentStartupTimeout                  time.Duration
+	OpenPolicyAgentMaxRequestBodySize              int64
+	OpenPolicyAgentRequestBodyBufferSize           int64
+	OpenPolicyAgentMaxMemoryBodyParsing            int64
+	EnableOpenPolicyAgentPreevaluationOptimization bool
 
 	PassiveHealthCheck map[string]string
 }
