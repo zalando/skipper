@@ -3,17 +3,17 @@ package openpolicyagent
 import (
 	"context"
 	"fmt"
+	"time"
+
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	"github.com/open-policy-agent/opa-envoy-plugin/opa/decisionlog"
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/server"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/opentracing/opentracing-go"
 	pbstruct "google.golang.org/protobuf/types/known/structpb"
-	"time"
 )
 
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
@@ -70,7 +70,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, err
 	}
 
-	err = envoyauth.Eval(ctx, opa, inputValue, result, rego.DistributedTracingOpts(opa.DistributedTracing()))
+	err = envoyauth.Eval(ctx, opa, inputValue, result)
 	if err != nil {
 		return nil, err
 	}
