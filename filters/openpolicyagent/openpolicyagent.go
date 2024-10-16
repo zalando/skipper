@@ -364,16 +364,18 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 }
 
 type OpenPolicyAgentInstance struct {
-	manager                *plugins.Manager
-	instanceConfig         OpenPolicyAgentInstanceConfig
-	opaConfig              *config.Config
-	bundleName             string
-	preparedQuery          *rego.PreparedEvalQuery
-	preparedQueryDoOnce    *sync.Once
-	interQueryBuiltinCache iCache.InterQueryCache
-	once                   sync.Once
-	stopped                bool
-	registry               *OpenPolicyAgentRegistry
+	manager                       *plugins.Manager
+	instanceConfig                OpenPolicyAgentInstanceConfig
+	opaConfig                     *config.Config
+	bundleName                    string
+	preparedQuery                 *rego.PreparedEvalQuery
+	preparedQueryDoOnce           *sync.Once
+	interQueryBuiltinCache        iCache.InterQueryCache
+	once                          sync.Once
+	stopped                       bool
+	registry                      *OpenPolicyAgentRegistry
+	registerBundleListenerOnce    *sync.Once
+	registerDiscoveryListenerOnce *sync.Once
 
 	maxBodyBytes       int64
 	bodyReadBufferSize int64
@@ -470,7 +472,9 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 		preparedQueryDoOnce:    new(sync.Once),
 		interQueryBuiltinCache: iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
 
-		idGenerator: uniqueIDGenerator,
+		idGenerator:                   uniqueIDGenerator,
+		registerDiscoveryListenerOnce: new(sync.Once),
+		registerBundleListenerOnce:    new(sync.Once),
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
@@ -487,8 +491,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	done := make(chan struct{})
 	failed := make(chan error, 1)
 
-	var registerDiscoveryListenerOnce sync.Once
-	registerDiscoveryListenerOnce.Do(func() {
+	opa.registerDiscoveryListenerOnce.Do(func() {
 		discoveryPlugin.RegisterListener("skipper-instance-startup-discovery", func(status bundle.Status) {
 			handleStatusErrors(status, failed, "discovery plugin")
 		})
@@ -496,12 +499,12 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	defer discoveryPlugin.Unregister("skipper-instance-startup-discovery")
 
 	// Register listener for "bundle" status
-	var registerBundleListenerOnce sync.Once
+
 	opa.manager.RegisterPluginStatusListener("skipper-instance-startup-plugin", func(status map[string]*plugins.Status) {
 		if _, exists := status["bundle"]; exists {
 			bundlePlugin := bundle.Lookup(opa.manager)
 			if bundlePlugin != nil {
-				registerBundleListenerOnce.Do(func() {
+				opa.registerBundleListenerOnce.Do(func() {
 					bundlePlugin.Register("skipper-instance-startup-bundle", func(status bundle.Status) {
 						handleStatusErrors(status, failed, "bundle plugin")
 					})
