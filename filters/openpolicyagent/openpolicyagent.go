@@ -504,12 +504,15 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 		if _, exists := status["bundle"]; exists {
 			bundlePlugin := bundle.Lookup(opa.manager)
 			if bundlePlugin != nil {
+				print("Registering bundle exists\n")
 				opa.registerBundleListenerOnce.Do(func() {
+					print("Registering bundle listener\n")
 					bundlePlugin.Register("skipper-instance-startup-bundle", func(status bundle.Status) {
+						print("Handling bundle status\n")
 						handleStatusErrors(status, failed, "bundle plugin")
 					})
 				})
-				defer bundlePlugin.Unregister("skipper-instance-startup-bundle")
+				//defer bundlePlugin.Unregister("skipper-instance-startup-bundle")
 			}
 		}
 	})
