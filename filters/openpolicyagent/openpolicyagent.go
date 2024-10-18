@@ -55,6 +55,7 @@ const (
 	GeneralPluginStatusStartupListener = "general-plugin-status-startup"
 	DiscoveryPluginStartupListener     = "skipper-instance-startup-discovery"
 	PluginStatusStartupListener        = "skipper-instance-startup-plugin"
+	BundlePluginStartupListener        = "skipper-instance-startup-bundle"
 )
 
 type OpenPolicyAgentRegistry struct {
@@ -500,7 +501,6 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 		discoveryPlugin.RegisterListener(DiscoveryPluginStartupListener, func(status bundle.Status) {
 			handleStatusErrors(status, failed, "discovery plugin")
 		})
-		//defer discoveryPlugin.Unregister(DiscoveryPluginStartupListener) //ToDo
 	})
 
 	opa.manager.RegisterPluginStatusListener(PluginStatusStartupListener, func(status map[string]*plugins.Status) {
@@ -508,10 +508,8 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 			bundlePlugin := bundle.Lookup(opa.manager)
 			if bundlePlugin != nil {
 				opa.registerBundleListenerOnce.Do(func() {
-					const BundlePluginStartupListener = "skipper-instance-startup-bundle"
 					bundlePlugin.Register(BundlePluginStartupListener, func(status bundle.Status) {
 						handleStatusErrors(status, failed, "bundle plugin")
-						//defer bundlePlugin.Unregister(BundlePluginStartupListener)   //ToDo
 					})
 				})
 			}
@@ -527,6 +525,13 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 			}
 		}
 		close(done)
+
+		//unregister discovery and bundle plugin listeners, post successful plugin startup
+		discoveryPlugin.Unregister(DiscoveryPluginStartupListener)
+		bundlePlugin := bundle.Lookup(opa.manager)
+		if bundlePlugin != nil {
+			bundlePlugin.Unregister(BundlePluginStartupListener)
+		}
 	})
 	defer opa.manager.UnregisterPluginStatusListener(GeneralPluginStatusStartupListener)
 
