@@ -217,7 +217,8 @@ type Config struct {
 	Certificates   []tls.Certificate `yaml:"-"`
 
 	// TLS version
-	TLSMinVersion string `yaml:"tls-min-version"`
+	TLSMinVersion string             `yaml:"tls-min-version"`
+	TLSClientAuth tls.ClientAuthType `yaml:"tls-client-auth"`
 
 	// Exclude insecure cipher suites
 	ExcludeInsecureCipherSuites bool `yaml:"exclude-insecure-cipher-suites"`
@@ -523,6 +524,9 @@ func NewConfig() *Config {
 
 	// TLS version
 	flag.StringVar(&cfg.TLSMinVersion, "tls-min-version", defaultMinTLSVersion, "minimal TLS Version to be used in server, proxy and client connections")
+	flag.Func("tls-client-auth", "TLS client authentication policy for server, one of: "+
+		"NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven or RequireAndVerifyClientCert. "+
+		"See https://pkg.go.dev/crypto/tls#ClientAuthType for details.", cfg.setTLSClientAuth)
 
 	// Exclude insecure cipher suites
 	flag.BoolVar(&cfg.ExcludeInsecureCipherSuites, "exclude-insecure-cipher-suites", false, "excludes insecure cipher suites")
@@ -727,6 +731,7 @@ func (c *Config) ToOptions() skipper.Options {
 		DebugListener:             c.DebugListener,
 		CertPathTLS:               c.CertPathTLS,
 		KeyPathTLS:                c.KeyPathTLS,
+		TLSClientAuth:             c.TLSClientAuth,
 		CipherSuites:              c.filterCipherSuites(),
 		MaxLoopbacks:              c.MaxLoopbacks,
 		DefaultHTTPStatus:         c.DefaultHTTPStatus,
@@ -1045,6 +1050,21 @@ func (c *Config) getMinTLSVersion() uint16 {
 	}
 	log.Infof("No valid minimal TLS version confiured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
 	return tlsVersionTable[defaultMinTLSVersion]
+}
+
+func (c *Config) setTLSClientAuth(s string) error {
+	var ok bool
+	c.TLSClientAuth, ok = map[string]tls.ClientAuthType{
+		"NoClientCert":               tls.NoClientCert,
+		"RequestClientCert":          tls.RequestClientCert,
+		"RequireAnyClientCert":       tls.RequireAnyClientCert,
+		"VerifyClientCertIfGiven":    tls.VerifyClientCertIfGiven,
+		"RequireAndVerifyClientCert": tls.RequireAndVerifyClientCert,
+	}[s]
+	if !ok {
+		return fmt.Errorf("unsupported TLS client authentication type")
+	}
+	return nil
 }
 
 func (c *Config) filterCipherSuites() []uint16 {
