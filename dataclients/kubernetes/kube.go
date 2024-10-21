@@ -400,6 +400,45 @@ func mapRoutes(routes []*eskip.Route) (map[string]*eskip.Route, []*eskip.Route) 
 	return routesById, uniqueRoutes
 }
 
+type EndpointsMap map[string][]*Endpoint
+
+type Endpoint struct {
+	Address string `json:"addr"`
+	Zone    string `json:"zone"`
+	Port    int    `json:"port"`
+}
+
+func endpointMapName(ns, name string, port int) string {
+	return fmt.Sprintf("%s/%s/%d", ns, name, port)
+}
+
+func (c *Client) GetEndpointsMap() EndpointsMap {
+	if c.state == nil {
+		return nil
+	}
+	result := make(EndpointsMap)
+
+	c.mu.Lock()
+	for resID, epSlice := range c.state.endpointSlices {
+		for _, port := range epSlice.Ports {
+			id := endpointMapName(resID.Namespace, resID.Name, port.Port)
+			eps := make([]*Endpoint, 0, len(epSlice.Endpoints))
+
+			for _, ep := range epSlice.Endpoints {
+				eps = append(eps, &Endpoint{
+					Address: ep.Address,
+					Zone:    ep.Zone,
+					Port:    port.Port,
+				})
+			}
+			result[id] = eps
+		}
+	}
+	c.mu.Unlock()
+
+	return result
+}
+
 func (c *Client) loadAndConvert() ([]*eskip.Route, error) {
 	c.mu.Lock()
 	state, err := c.ClusterClient.fetchClusterState()

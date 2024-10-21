@@ -100,6 +100,7 @@ func convertPathRuleV1(
 		return nil, err
 	}
 
+	protocol := "http"
 	servicePort, err := svc.getServicePortV1(svcPort)
 	if err != nil {
 		// service definition is wrong or no pods
@@ -113,7 +114,6 @@ func convertPathRuleV1(
 	} else if forceKubernetesService {
 		eps = []string{serviceNameBackend(svcName, ns, servicePort)}
 	} else {
-		protocol := "http"
 		if p, ok := metadata.Annotations[skipperBackendProtocolAnnotationKey]; ok {
 			protocol = p
 		}
@@ -155,6 +155,12 @@ func convertPathRuleV1(
 		LBAlgorithm: getLoadBalancerAlgorithm(metadata, defaultLoadBalancerAlgorithm),
 		HostRegexps: hostRegexp,
 	}
+	// zone aware
+	// TODO(sszuecs): lookup and store in clusterState ridToEpID
+	//epID := getEpID(ns, name, protocol, servicePort)
+	// r.Id
+	// ic.state.
+
 	setPathV1(pathMode, r, prule.PathType, prule.Path)
 	traffic.apply(r)
 	return r, nil

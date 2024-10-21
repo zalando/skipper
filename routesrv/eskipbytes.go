@@ -65,6 +65,9 @@ type eskipBytes struct {
 	tracer  ot.Tracer
 	metrics metrics.Metrics
 	now     func() time.Time
+
+	// zone aware
+	epMap []byte
 }
 
 // formatAndSet takes a slice of routes and stores them eskip-formatted
@@ -109,6 +112,11 @@ func (e *eskipBytes) compressLocked(data []byte) []byte {
 		return nil
 	}
 	return buf.Bytes()
+}
+
+func (e *eskipBytes) endpointsGetHandler(rw http.ResponseWriter, r *http.Request) {
+	rw.WriteHeader(200)
+	rw.Write(e.epMap)
 }
 
 func (e *eskipBytes) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
