@@ -40,13 +40,13 @@ func eqArgs(left, right []interface{}) bool {
 	return true
 }
 
-func eqStrings(left, right []string) bool {
+func eqLBEndpoints(left, right []*LBEndpoint) bool {
 	if len(left) != len(right) {
 		return false
 	}
 
 	for i := range left {
-		if left[i] != right[i] {
+		if left[i].Address != right[i].Address || left[i].Zone != right[i].Zone {
 			return false
 		}
 	}
@@ -103,7 +103,7 @@ func eq2(left, right *Route) bool {
 		return false
 	}
 
-	if !eqStrings(lc.LBEndpoints, rc.LBEndpoints) {
+	if !eqLBEndpoints(lc.LBEndpoints, rc.LBEndpoints) {
 		return false
 	}
 
@@ -255,9 +255,11 @@ func Canonical(r *Route) *Route {
 	case LBBackend:
 		// using the LB fields only when apply:
 		c.LBAlgorithm = r.LBAlgorithm
-		c.LBEndpoints = make([]string, len(r.LBEndpoints))
+		c.LBEndpoints = make([]*LBEndpoint, len(r.LBEndpoints))
 		copy(c.LBEndpoints, r.LBEndpoints)
-		sort.Strings(c.LBEndpoints)
+		sort.Slice(c.LBEndpoints, func(i, j int) bool {
+			return c.LBEndpoints[i].Address < c.LBEndpoints[j].Address
+		})
 	}
 
 	// Name and Namespace stripped
