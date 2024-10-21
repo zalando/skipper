@@ -15,15 +15,17 @@ import (
 )
 
 const headerToCopy = "X-Copy-Header"
+const webhookRedirectLocation = "https://example.com/auth"
 
 func TestWebhook(t *testing.T) {
 	for _, ti := range []struct {
-		msg         string
-		token       string
-		expected    int
-		authorized  bool
-		timeout     bool
-		copyHeaders bool
+		msg            string
+		token          string
+		expected       int
+		authorized     bool
+		timeout        bool
+		copyHeaders    bool
+		expectRedirect bool
 	}{{
 		msg:         "invalid-token-should-be-unauthorized",
 		token:       "invalid-token",
@@ -47,6 +49,12 @@ func TestWebhook(t *testing.T) {
 		token:      testWebhookInvalidScopeToken,
 		expected:   http.StatusForbidden,
 		authorized: false,
+	}, {
+		msg:            "auth-redirects-should-be-sent",
+		token:          testWebhookRedirectToken,
+		expected:       http.StatusFound,
+		expectRedirect: true,
+		authorized:     false,
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +86,10 @@ func TestWebhook(t *testing.T) {
 				tok := r.Header.Get(authHeaderName)
 				tok = tok[len(authHeaderPrefix):]
 				switch tok {
+				case testWebhookRedirectToken:
+					w.Header().Set("Location", webhookRedirectLocation)
+					w.WriteHeader(http.StatusFound)
+					return
 				case testToken:
 					w.WriteHeader(http.StatusOK)
 					fmt.Fprintln(w, "OK - Got token: "+tok)
@@ -125,7 +137,7 @@ func TestWebhook(t *testing.T) {
 			}
 			req.Header.Set(authHeaderName, authHeaderPrefix+ti.token)
 
-			rsp, err := proxy.Client().Do(req)
+			rsp, err := proxy.ClientWithoutRedirectFollow().Do(req)
 			if err != nil {
 				t.Fatalf("failed to get response: %v", err)
 			}
@@ -139,6 +151,13 @@ func TestWebhook(t *testing.T) {
 
 			if rsp.StatusCode != ti.expected {
 				t.Fatalf("unexpected status code: %v != %v %d %s", rsp.StatusCode, ti.expected, n, buf)
+			}
+
+			// check that the location header is forwarded for a redirect
+			if ti.expectRedirect {
+				if loc := rsp.Header.Get("Location"); loc != webhookRedirectLocation {
+					t.Fatalf("expected webhook location header to be forwarded: %v != %v", loc, webhookRedirectLocation)
+				}
 			}
 
 			// check that the header was passed forward to the backend request, if it should have been
