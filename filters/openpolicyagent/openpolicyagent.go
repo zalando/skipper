@@ -17,6 +17,7 @@ import (
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	"github.com/google/uuid"
+	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/config"
 	"github.com/open-policy-agent/opa/logging"
@@ -74,6 +75,8 @@ type OpenPolicyAgentRegistry struct {
 	bodyReadBufferSize      int64
 
 	tracer opentracing.Tracer
+
+	preevaluationOptimization bool
 }
 
 type OpenPolicyAgentFilter interface {
@@ -118,6 +121,13 @@ func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) er
 func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.tracer = tracer
+		return nil
+	}
+}
+
+func WithPreevaluationOptimization(enable bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.preevaluationOptimization = enable
 		return nil
 	}
 }
@@ -369,6 +379,7 @@ type OpenPolicyAgentInstance struct {
 	bundleName             string
 	preparedQuery          *rego.PreparedEvalQuery
 	preparedQueryDoOnce    *sync.Once
+	preparedQueryErr       error
 	interQueryBuiltinCache iCache.InterQueryCache
 	once                   sync.Once
 	stopped                bool
@@ -740,20 +751,9 @@ func (opa *OpenPolicyAgentInstance) Runtime() *ast.Term { return opa.manager.Inf
 // Logger is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) Logger() logging.Logger { return opa.manager.Logger() }
 
-// PreparedQueryDoOnce is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) PreparedQueryDoOnce() *sync.Once { return opa.preparedQueryDoOnce }
-
 // InterQueryBuiltinCache is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) InterQueryBuiltinCache() iCache.InterQueryCache {
 	return opa.interQueryBuiltinCache
-}
-
-// PreparedQuery is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) PreparedQuery() *rego.PreparedEvalQuery { return opa.preparedQuery }
-
-// SetPreparedQuery is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) SetPreparedQuery(q *rego.PreparedEvalQuery) {
-	opa.preparedQuery = q
 }
 
 // Config is an implementation of the envoyauth.EvalContext interface
@@ -762,6 +762,27 @@ func (opa *OpenPolicyAgentInstance) Config() *config.Config { return opa.opaConf
 // DistributedTracing is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) DistributedTracing() opatracing.Options {
 	return buildTracingOptions(opa.registry.tracer, opa.bundleName, opa.manager)
+}
+
+// CreatePreparedQueryOnce is an implementation of the envoyauth.EvalContext interface
+func (opa *OpenPolicyAgentInstance) CreatePreparedQueryOnce(opts envoyauth.PrepareQueryOpts) (*rego.PreparedEvalQuery, error) {
+	opa.preparedQueryDoOnce.Do(func() {
+		regoOpts := append(opts.Opts, rego.DistributedTracingOpts(opa.DistributedTracing()))
+
+		prepareOpts := opts.PrepareOpts
+
+		if opa.registry.preevaluationOptimization {
+			prepareOpts = append(prepareOpts, rego.WithPartialEval())
+		}
+
+		pq, err := rego.New(regoOpts...).
+			PrepareForEval(context.Background(), prepareOpts...)
+
+		opa.preparedQuery = &pq
+		opa.preparedQueryErr = err
+	})
+
+	return opa.preparedQuery, opa.preparedQueryErr
 }
 
 // logging.Logger that does not pollute info with debug logs
