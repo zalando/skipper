@@ -29,7 +29,7 @@ jobs:
       - run: make capslock
       - run: make coverprofile
       - name: Convert coverage to lcov
-        uses: jandelgado/gcov2lcov-action@69ef3d59a24cc6e062516a73d8be123e85b15cc0
+        uses: jandelgado/gcov2lcov-action@4e1989767862652e6ca8d3e2e61aabe6d43be28b
       - name: Coveralls
         uses: coverallsapp/github-action@4cdef0b2dbe0c9aa26bed48edb868db738625e79
         with:
