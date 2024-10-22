@@ -732,6 +732,7 @@ func (c *Config) ToOptions() skipper.Options {
 		CertPathTLS:               c.CertPathTLS,
 		KeyPathTLS:                c.KeyPathTLS,
 		TLSClientAuth:             c.TLSClientAuth,
+		TLSMinVersion:             c.getMinTLSVersion(),
 		CipherSuites:              c.filterCipherSuites(),
 		MaxLoopbacks:              c.MaxLoopbacks,
 		DefaultHTTPStatus:         c.DefaultHTTPStatus,
