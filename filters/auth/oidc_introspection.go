@@ -139,8 +139,13 @@ func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
 		return
 	}
 
-	sub := token.Claims["sub"].(string)
-	authorized(ctx, sub)
+	sub, ok := token.Claims["sub"]
+	if ok {
+		authorized(ctx, sub.(string))
+	} else {
+		sub := token.Subject
+		authorized(ctx, sub)
+	}
 }
 
 func (filter *oidcIntrospectionFilter) Response(filters.FilterContext) {}
