@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/eskip"
 )
 
@@ -15,6 +16,10 @@ func createHostRx(hosts ...string) string {
 
 	hrx := make([]string, len(hosts))
 	for i, host := range hosts {
+		if strings.HasPrefix(host, "*.") {
+			log.Debugf("Host %q starts with '*.'; replacing with regex", host)
+			host = strings.Replace(host, "*", "[a-z0-9]+((-[a-z0-9]+)?)*", 1)
+		}
 		// trailing dots and port are not allowed in kube
 		// ingress spec, so we can append optional setting
 		// without check
