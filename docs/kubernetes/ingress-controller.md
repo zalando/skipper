@@ -276,7 +276,7 @@ Prerequisites:
 manifests: `git clone https://github.com/zalando/skipper.git`
 1. You should enter the cloned directory: `cd skipper`
 1. You have to choose how to install skipper-ingress. You can install
-it as [dameonset](#dameonset) or as [deployment](#deployment).
+it as [daemonset](#daemonset) or as [deployment](#deployment).
 
 Beware, in order to get traffic from the internet, we would need to
 have a load balancer in front to direct all traffic to skipper. Skipper
@@ -290,7 +290,7 @@ definition.
 
 ### Deployment style
 
-Follow the deployment style you like: [dameonset](#dameonset) or [deployment](#deployment).
+Follow the deployment style you like: [daemonset](#daemonset) or [deployment](#deployment).
 
 #### Daemonset
 
