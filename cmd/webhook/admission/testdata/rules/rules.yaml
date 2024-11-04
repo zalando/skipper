@@ -1,0 +1,47 @@
+rules:
+  - reject: Missing application label, see https://example.test/reference/labels-selectors/#application
+    when: |
+      object.kind in ["Ingress", "RouteGroup"] && (
+        !has(object.metadata.labels) ||
+        !has(object.metadata.labels.application) ||
+        object.metadata.labels.application == ''
+      )
+
+  - reject: 'zalando.org/skipper-filter: oauthTokeninfoAnyScope filter uses "uid" scope, see https://opensource.zalando.com/skipper/reference/filters/#oauthtokeninfoanyscope'
+    when: |
+      object.kind == "Ingress" &&
+      has(object.metadata.annotations) &&
+      object.metadata.annotations["zalando.org/skipper-filter"] != "" &&
+      object.metadata.annotations["zalando.org/skipper-filter"].eskipFilters()
+        .exists(f, f.name == "oauthTokeninfoAnyScope" && size(f.args) > 1 && "uid" in f.args)
+
+  - reject: 'zalando.org/skipper-routes: oauthTokeninfoAnyScope filter uses "uid" scope, see https://opensource.zalando.com/skipper/reference/filters/#oauthtokeninfoanyscope'
+    when: |
+      object.kind == "Ingress" &&
+      has(object.metadata.annotations) &&
+      object.metadata.annotations["zalando.org/skipper-routes"] != "" &&
+      object.metadata.annotations["zalando.org/skipper-routes"].eskipRoutes()
+        .exists(r, has(r.filters) && r.filters
+          .exists(f, f.name == "oauthTokeninfoAnyScope" && size(f.args) > 1 && "uid" in f.args)
+        )
+
+  - reject: 'oauthTokeninfoAnyScope filter uses "uid" scope, see https://opensource.zalando.com/skipper/reference/filters/#oauthtokeninfoanyscope'
+    when: |
+      object.kind == "RouteGroup" &&
+      has(object.spec.routes) &&
+      object.spec.routes
+        .exists(r, has(r.filters) && r.filters.map(f, f.eskipFilter())
+          .exists(f, f.name == "oauthTokeninfoAnyScope" && size(f.args) > 1 && "uid" in f.args)
+        )
+
+  - reject: "Ingress rules must use alias.cluster-domain.test cluster domain"
+    when: |
+      object.kind == "Ingress" &&
+      object.spec.rules
+        .exists(r, r.host.endsWith(".cluster-domain.test") && !r.host.endsWith("alias.cluster-domain.test"))
+
+  - reject: "RouteGroup must use alias.cluster-domain.test cluster domain"
+    when: |
+      object.kind == "RouteGroup" &&
+      object.spec.hosts
+        .exists(h, h.endsWith(".cluster-domain.test") && !h.endsWith("alias.cluster-domain.test"))

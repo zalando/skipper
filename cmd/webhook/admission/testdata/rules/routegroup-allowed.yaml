@@ -1,0 +1,20 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: foo
+  namespace: foo
+  labels:
+    application: foo
+spec:
+  hosts:
+    - example.org
+    - foo.alias.cluster-domain.test
+  backends:
+    - name: app
+      type: service
+      serviceName: app-svc
+      servicePort: 80
+  routes:
+    - path: /
+      backends:
+        - backendName: app

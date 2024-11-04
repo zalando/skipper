@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: foo
+  namespace: foo
+  labels:
+    application: foo
+  annotations:
+    zalando.org/skipper-filter: setRequestHeader("X-Foo", "Bar")
+    zalando.org/skipper-routes: |
+      p: Method("PATCH") -> "http://example.org";
+spec:
+  rules:
+    - host: www.example.org
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bar
+                port:
+                  name: baz
+    - host: foo.alias.cluster-domain.test
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bar
+                port:
+                  name: baz

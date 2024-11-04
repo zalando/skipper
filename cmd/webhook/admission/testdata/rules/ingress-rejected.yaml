@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: foo
+  namespace: foo
+  # no application label
+  annotations:
+    # oauthTokeninfoAnyScope with uid scope
+    zalando.org/skipper-filter: oauthTokeninfoAnyScope("uid", "foo.read")
+    zalando.org/skipper-routes: |
+      p: Method("PATCH") -> status(405) -> <shunt>;
+      o: Method("OPTIONS") -> oauthTokeninfoAnyScope("uid", "foo.opts") -> <shunt>;
+spec:
+  rules:
+    - host: www.example.org
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bar
+                port:
+                  name: baz
+    # hosts in .cluster-domain.test domain must be in .alias.cluster-domain.test
+    - host: foo.alias-test.cluster-domain.test
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bar
+                port:
+                  name: baz

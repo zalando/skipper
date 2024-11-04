@@ -21,16 +21,18 @@ const (
 )
 
 type config struct {
-	debug    bool
-	certFile string
-	keyFile  string
-	address  string
+	debug     bool
+	certFile  string
+	keyFile   string
+	rulesFile string
+	address   string
 }
 
 func (c *config) parse() {
 	flag.BoolVar(&c.debug, "debug", false, "Enable debug logging")
 	flag.StringVar(&c.certFile, "tls-cert-file", os.Getenv("CERT_FILE"), "File containing the certificate for HTTPS")
 	flag.StringVar(&c.keyFile, "tls-key-file", os.Getenv("KEY_FILE"), "File containing the private key for HTTPS")
+	flag.StringVar(&c.rulesFile, "rules-file", "", "File containing validation rules")
 	flag.StringVar(&c.address, "address", defaultHTTPSAddress, "The address to listen on")
 	flag.Parse()
 
@@ -60,6 +62,14 @@ func main() {
 	handler.Handle("/ingresses", admission.Handler(ingressAdmitter))
 	handler.Handle("/metrics", promhttp.Handler())
 	handler.HandleFunc("/healthz", healthCheck)
+
+	if cfg.rulesFile != "" {
+		ruleAdmitter, err := admission.NewRuleAdmitterFrom(cfg.rulesFile)
+		if err != nil {
+			log.Fatalf("Failed to create rule admitter from %s: %v", cfg.rulesFile, err)
+		}
+		handler.Handle("/rules", admission.Handler(ruleAdmitter))
+	}
 
 	// One can use generate_cert.go in https://golang.org/pkg/crypto/tls
 	// to generate cert.pem and key.pem.
