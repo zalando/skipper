@@ -19,7 +19,7 @@ require (
 	github.com/docker/go-connections v0.5.0
 	github.com/envoyproxy/go-control-plane v0.13.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/golang-jwt/jwt/v4 v4.5.0
+	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.5.1
