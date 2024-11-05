@@ -31,6 +31,10 @@ type poller struct {
 	timeout time.Duration
 	quit    chan struct{}
 
+	// zone awareness
+	updateEndpoints func() ([]byte, error)
+	//epMap           []byte
+
 	// Preprocessors
 	defaultFilters *eskip.DefaultFilters
 	oauth2Config   *auth.OAuthConfig
@@ -99,6 +103,13 @@ func (p *poller) poll(wg *sync.WaitGroup) {
 		}
 
 		span.Finish()
+
+		epMapBytes, err := p.updateEndpoints()
+		if err != nil {
+			log.Errorf("Failed to update endpoints: %v", err)
+		} else {
+			p.b.epMap = epMapBytes
+		}
 
 		select {
 		case <-p.quit:
