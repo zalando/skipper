@@ -1211,6 +1211,7 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 
 	if cr != nil {
 		config.GetCertificate = cr.GetCertFromHello
+		config.GetConfigForClient = cr.GetConfigFromHello
 	}
 
 	if o.CertPathTLS == "" && o.KeyPathTLS == "" {
