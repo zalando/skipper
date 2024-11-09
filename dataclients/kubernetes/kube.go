@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -383,6 +384,25 @@ func ParsePathMode(s string) (PathMode, error) {
 	}
 }
 
+// ParseTLSClientAuth parses the string representations of different
+// client auth types.
+func ParseTLSClientAuth(s string) (tls.ClientAuthType, error) {
+	switch s {
+	case "noclientcert":
+		return tls.NoClientCert, nil
+	case "requestclientcert":
+		return tls.RequestClientCert, nil
+	case "requireanyclientcert":
+		return tls.RequireAnyClientCert, nil
+	case "verifyclientcertifgiven":
+		return tls.VerifyClientCertIfGiven, nil
+	case "requireandverifyclientcert":
+		return tls.RequireAndVerifyClientCert, nil
+	default:
+		return 0, fmt.Errorf("invalid client auth type string: %s", s)
+	}
+}
+
 func mapRoutes(routes []*eskip.Route) (map[string]*eskip.Route, []*eskip.Route) {
 	var uniqueRoutes []*eskip.Route
 	routesById := make(map[string]*eskip.Route)
@@ -615,6 +635,15 @@ func addTLSCertToRegistry(cr *certregistry.CertRegistry, logger *logger, hosts [
 		err := cr.ConfigureCertificate(host, cert)
 		if err != nil {
 			logger.Errorf("Failed to configure certificate: %v", err)
+		}
+	}
+}
+
+func addTLSConfigToRegistry(cr *certregistry.CertRegistry, logger *logger, hosts []string, tlsConfig *tls.Config) {
+	for _, host := range hosts {
+		err := cr.ConfigureTLSConfig(host, tlsConfig)
+		if err != nil {
+			logger.Errorf("Failed to configure TLS config: %v", err)
 		}
 	}
 }
