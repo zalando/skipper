@@ -63,6 +63,30 @@ func (r *CertRegistry) ConfigureCertificate(host string, cert *tls.Certificate) 
 	}
 }
 
+// ConfigureTLSConfig configures a tls config for the host.
+func (r *CertRegistry) ConfigureTLSConfig(host string, config *tls.Config) error {
+	if config == nil {
+		return fmt.Errorf("cannot configure nil tls config")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	curr, found := r.lookup[host]
+
+	if found && curr.Config != nil {
+		log.Infof("updating tls config for host - %s", host)
+		r.lookup[host].Config = config
+		return nil
+	} else {
+		log.Infof("adding tls config for host - %s", host)
+		r.lookup[host] = &CertRegistryEntry{
+			Config: config,
+		}
+		return nil
+	}
+}
+
 // GetCertFromHello reads the SNI from a TLS client and returns the appropriate certificate.
 // If no certificate is found for the host it will return nil.
 func (r *CertRegistry) GetCertFromHello(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
