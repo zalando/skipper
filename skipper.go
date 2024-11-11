@@ -1210,7 +1210,7 @@ func (o *Options) tlsConfig(cr *certregistry.CertRegistry) (*tls.Config, error) 
 	}
 
 	if cr != nil {
-		config.GetCertificate = cr.GetCertFromHello
+		cr.SetDefaultTLSConfig(config)
 		config.GetConfigForClient = cr.GetConfigFromHello
 	}
 

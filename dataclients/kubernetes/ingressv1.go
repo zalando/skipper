@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"regexp"
@@ -318,13 +317,12 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 		ic.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
 		return
 	}
-	addTLSCertToRegistry(ic.certificateRegistry, ic.logger, hostlist, secret)
 
 	// Set tls config for all hosts defined in the ingress
-	tlsConfig := &tls.Config{
+	tlsConfig := &certregistry.Config{
 		ClientAuth: ic.tlsClientAuth,
 	}
-	addTLSConfigToRegistry(ic.certificateRegistry, ic.logger, hostlist, tlsConfig)
+	addTLSConfigToRegistry(ic.certificateRegistry, ic.logger, hostlist, tlsConfig, secret)
 }
 
 // converts the default backend if any
