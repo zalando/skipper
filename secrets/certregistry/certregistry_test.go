@@ -156,11 +156,11 @@ func TestCertRegistry(t *testing.T) {
 	t.Run("sync new certificate", func(t *testing.T) {
 		cr := NewCertRegistry()
 		cr.ConfigureCertificate(validHostname, validCert)
-		cert, found := cr.lookup[validHostname]
+		entry, found := cr.lookup[validHostname]
 		if !found {
 			t.Error("failed to read certificate")
 		}
-		if cert.Leaf == nil {
+		if entry.Certificate.Leaf == nil {
 			t.Error("synced cert should have a parsed leaf")
 		}
 	})
@@ -178,10 +178,10 @@ func TestCertRegistry(t *testing.T) {
 
 		cr := NewCertRegistry()
 		cr.ConfigureCertificate(validHostname, validCert)
-		cert1 := cr.lookup[validHostname]
+		entry1 := cr.lookup[validHostname]
 		cr.ConfigureCertificate(validHostname, newValidCert)
-		cert2 := cr.lookup[validHostname]
-		if equalCert(cert1, cert2) {
+		entry2 := cr.lookup[validHostname]
+		if equalCert(entry1.Certificate, entry2.Certificate) {
 			t.Error("host cert was not updated")
 		}
 

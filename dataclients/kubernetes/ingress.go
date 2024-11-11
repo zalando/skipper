@@ -23,6 +23,7 @@ const (
 	skipperLoadBalancerAnnotationKey    = "zalando.org/skipper-loadbalancer"
 	skipperBackendProtocolAnnotationKey = "zalando.org/skipper-backend-protocol"
 	pathModeAnnotationKey               = "zalando.org/skipper-ingress-path-mode"
+	tlsClientAuthAnnotationKey          = "zalando.org/skipper-client-auth"
 	ingressOriginName                   = "ingress"
 	tlsSecretType                       = "kubernetes.io/tls"
 	tlsSecretDataCrt                    = "tls.crt"
@@ -38,6 +39,7 @@ type ingressContext struct {
 	extraRoutes         []*eskip.Route
 	backendWeights      map[string]float64
 	pathMode            PathMode
+	tlsClientAuth       tls.ClientAuthType
 	redirect            *redirectInfo
 	hostRoutes          map[string][]*eskip.Route
 	defaultFilters      defaultFilters
@@ -51,6 +53,7 @@ type ingress struct {
 	allowedExternalNames         []*regexp.Regexp
 	kubernetesEastWestDomain     string
 	pathMode                     PathMode
+	clientAuth                   tls.ClientAuthType
 	httpsRedirectCode            int
 	kubernetesEnableEastWest     bool
 	provideHTTPSRedirect         bool
@@ -289,6 +292,21 @@ func pathMode(m *definitions.Metadata, globalDefault PathMode, logger *logger) P
 		}
 	}
 	return pathMode
+}
+
+// parse tls client auth type from annotation or fallback to global default
+func tlsClientAuth(m *definitions.Metadata, globalDefault tls.ClientAuthType, logger *logger) tls.ClientAuthType {
+	clientAuth := globalDefault
+
+	if clientAuthString, ok := m.Annotations[tlsClientAuthAnnotationKey]; ok {
+		if c, err := ParseTLSClientAuth(clientAuthString); err != nil {
+			logger.Errorf("Failed to get tls client auth: %v", err)
+		} else {
+			logger.Debugf("Set tls client auth to %s", c)
+			clientAuth = c
+		}
+	}
+	return clientAuth
 }
 
 func (ing *ingress) addCatchAllRoutes(host string, r *eskip.Route, redirect *redirectInfo) []*eskip.Route {

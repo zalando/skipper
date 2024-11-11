@@ -317,7 +317,12 @@ func (ing *ingress) addSpecIngressTLSV1(ic *ingressContext, ingtls *definitions.
 		ic.logger.Errorf("Failed to find secret %s in namespace %s", secretID.Name, secretID.Namespace)
 		return
 	}
-	addTLSCertToRegistry(ic.certificateRegistry, ic.logger, hostlist, secret)
+
+	// Set tls config for all hosts defined in the ingress
+	tlsConfig := &certregistry.Config{
+		ClientAuth: ic.tlsClientAuth,
+	}
+	addTLSConfigToRegistry(ic.certificateRegistry, ic.logger, hostlist, tlsConfig, secret)
 }
 
 // converts the default backend if any
@@ -435,6 +440,7 @@ func (ing *ingress) ingressV1Route(
 		extraRoutes:         extraRoutes(i.Metadata),
 		backendWeights:      backendWeights(i.Metadata, logger),
 		pathMode:            pathMode(i.Metadata, ing.pathMode, logger),
+		tlsClientAuth:       tlsClientAuth(i.Metadata, ing.clientAuth, logger),
 		redirect:            redirect,
 		hostRoutes:          hostRoutes,
 		defaultFilters:      df,

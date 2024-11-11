@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -383,6 +384,25 @@ func ParsePathMode(s string) (PathMode, error) {
 	}
 }
 
+// ParseTLSClientAuth parses the string representations of different
+// client auth types.
+func ParseTLSClientAuth(s string) (tls.ClientAuthType, error) {
+	switch s {
+	case "noclientcert":
+		return tls.NoClientCert, nil
+	case "requestclientcert":
+		return tls.RequestClientCert, nil
+	case "requireanyclientcert":
+		return tls.RequireAnyClientCert, nil
+	case "verifyclientcertifgiven":
+		return tls.VerifyClientCertIfGiven, nil
+	case "requireandverifyclientcert":
+		return tls.RequireAndVerifyClientCert, nil
+	default:
+		return 0, fmt.Errorf("invalid client auth type string: %s", s)
+	}
+}
+
 func mapRoutes(routes []*eskip.Route) (map[string]*eskip.Route, []*eskip.Route) {
 	var uniqueRoutes []*eskip.Route
 	routesById := make(map[string]*eskip.Route)
@@ -603,18 +623,18 @@ func compareStringList(a, b []string) []string {
 	return c
 }
 
-// addTLSCertToRegistry adds a TLS certificate to the certificate registry per host using the provided
-// Kubernetes TLS secret
-func addTLSCertToRegistry(cr *certregistry.CertRegistry, logger *logger, hosts []string, secret *secret) {
+// addTLSConfigToRegistry adds a TLS Config to the registry per host using the provided config and secret.
+func addTLSConfigToRegistry(cr *certregistry.CertRegistry, logger *logger, hosts []string, config *certregistry.Config, secret *secret) {
 	cert, err := generateTLSCertFromSecret(secret)
 	if err != nil {
 		logger.Errorf("Failed to generate TLS certificate from secret: %v", err)
 		return
 	}
 	for _, host := range hosts {
-		err := cr.ConfigureCertificate(host, cert)
+		config.Certificate = *cert
+		err := cr.SetTLSConfig(host, config)
 		if err != nil {
-			logger.Errorf("Failed to configure certificate: %v", err)
+			logger.Errorf("Failed to configure TLS config: %v", err)
 		}
 	}
 }
