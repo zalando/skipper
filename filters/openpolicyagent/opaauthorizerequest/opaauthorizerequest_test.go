@@ -183,6 +183,32 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			removeHeaders:     make(http.Header),
 		},
 		{
+			msg:               "Simple Forbidden with Fragment URL",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_with_path_having_empty_query_with_fragment",
+			requestPath:       "/allow-with-fragment#fragment",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusForbidden,
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
+			msg:               "Simple Forbidden with Fragment URL with Query Parameters",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_with_path_having_query_with_fragment",
+			requestPath:       "/allow-with-fragment#fragment?toFail=true",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusForbidden,
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
+		{
 			msg:               "Allow With Structured Rules",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
@@ -425,6 +451,16 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							input.parsed_query = {}
 						}
 
+						allow_with_path_having_empty_query_with_fragment {
+							input.parsed_path = [ "allow-with-fragment#fragment" ]
+							input.parsed_query = {}
+						}
+
+						allow_with_path_having_query_with_fragment {
+							input.parsed_path = [ "allow-with-fragment#fragment" ]
+							input.parsed_query = {}
+						}
+
 						allow {
 							input.parsed_path = [ "allow-with-query" ]
 							input.parsed_query.pass == ["yes"]
@@ -579,6 +615,18 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 		})
 	}
+}
+
+func TestAuthorizeRequestFilterInputHeaders(t *testing.T) {
+
+}
+
+func TestAuthorizeRequestFilterInputQueryParams(t *testing.T) {
+
+}
+
+func TestAuthorizeRequestFilterInputPath(t *testing.T) {
+
 }
 
 func TestCreateFilterArguments(t *testing.T) {
