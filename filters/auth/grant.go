@@ -175,11 +175,7 @@ func (f *grantFilter) setupToken(token *oauth2.Token, tokeninfo map[string]inter
 
 	// By piggy-backing on the OIDC token container,
 	// we gain downstream compatibility with the oidcClaimsQuery filter.
-	ctx.StateBag()[oidcClaimsCacheKey] = tokenContainer{
-		OAuth2Token: token,
-		Subject:     subject,
-		Claims:      tokeninfo,
-	}
+	SetOIDCClaims(ctx, tokeninfo)
 
 	// Set the tokeninfo also in the tokeninfoCacheKey state bag, so we
 	// can reuse e.g. the forwardToken() filter.
