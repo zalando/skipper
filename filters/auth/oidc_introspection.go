@@ -42,6 +42,12 @@ func NewOIDCQueryClaimsFilter() filters.Spec {
 	}
 }
 
+func MakeTokenContainer(h map[string]interface{}) tokenContainer {
+	return tokenContainer{
+		Claims: h,
+	}
+}
+
 func (spec *oidcIntrospectionSpec) Name() string {
 	switch spec.typ {
 	case checkOIDCQueryClaims:
