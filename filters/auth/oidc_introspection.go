@@ -42,8 +42,8 @@ func NewOIDCQueryClaimsFilter() filters.Spec {
 	}
 }
 
-func MakeTokenContainer(h map[string]interface{}) tokenContainer {
-	return tokenContainer{
+func SetOIDCClaims(ctx filters.FilterContext, h map[string]interface{}) {
+	ctx.StateBag()[oidcClaimsCacheKey] = tokenContainer{
 		Claims: h,
 	}
 }
