@@ -139,11 +139,12 @@ func TestCreateOIDCQueryClaimsFilter(t *testing.T) {
 
 func TestOIDCQueryClaimsFilter(t *testing.T) {
 	for _, tc := range []struct {
-		msg       string
-		path      string
-		expected  int
-		expectErr bool
-		args      []interface{}
+		msg          string
+		path         string
+		expected     int
+		expectErr    bool
+		args         []interface{}
+		removeClaims []string
 	}{
 		{
 			msg: "secure sub/path not permitted",
@@ -164,6 +165,17 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 			path:      "/login/page",
 			expected:  200,
 			expectErr: false,
+		},
+		{
+			msg: "secure sub/path is not permitted",
+			args: []interface{}{
+				"/login:groups.#[==\"AppX-Test-Users\"]",
+				"/:@_:email%\"*@example.org\"",
+			},
+			path:         "/login/page",
+			expected:     401,
+			expectErr:    false,
+			removeClaims: []string{"sub"},
 		},
 		{
 			msg: "generic user path permitted",
@@ -292,7 +304,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
 			}
 			reqURL.Path = tc.path
-			oidcServer := createOIDCServer(proxy.URL+"/redirect", validClient, "mysec", jwt.MapClaims{"groups": []string{"CD-Administrators", "Purchasing-Department", "AppX-Test-Users", "white space"}})
+			oidcServer := createOIDCServer(proxy.URL+"/redirect", validClient, "mysec", jwt.MapClaims{"groups": []string{"CD-Administrators", "Purchasing-Department", "AppX-Test-Users", "white space"}}, tc.removeClaims)
 			defer oidcServer.Close()
 			t.Logf("oidc/auth server URL: %s", oidcServer.URL)
 			// create filter
