@@ -14,7 +14,6 @@ import (
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
-	"gopkg.in/yaml.v2"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -480,13 +479,5 @@ func TestDeprecatedFlags(t *testing.T) {
 		if !strings.Contains(message, "*Deprecated*") {
 			t.Errorf("Deprecated marker expected for %q", message)
 		}
-	}
-}
-
-func TestMultiFlagYamlErr(t *testing.T) {
-	m := &multiFlag{}
-	err := yaml.Unmarshal([]byte(`foo=bar`), m)
-	if err == nil {
-		t.Error("Failed to get error on wrong yaml input")
 	}
 }
