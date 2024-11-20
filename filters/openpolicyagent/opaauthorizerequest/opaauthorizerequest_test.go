@@ -596,8 +596,6 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 	for _, ti := range []struct {
 		msg               string
 		filterName        string
-		extraeskipBefore  string
-		extraeskipAfter   string
 		bundleName        string
 		regoQuery         string
 		requestPath       string
@@ -621,9 +619,6 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 			contextExtensions: "",
 			body:              `{ "key" : "value" }`,
 			requestHeaders: http.Header{
-				//":authority":        []string{"example-app"},
-				//":method":           []string{"GET"},
-				//":path":             []string{"/users/profile/charlie"},
 				"accept":            []string{"*/*"},
 				"authorization":     []string{"Basic Y2hhcmxpZTpwYXNzdzByZA=="},
 				"user-agent":        []string{"curl/7.68.0-DEV"},
@@ -634,17 +629,15 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 			},
 			expectedStatus:  http.StatusOK,
 			expectedBody:    "Welcome!",
-			expectedHeaders: make(http.Header),
-			backendHeaders:  make(http.Header),
-			removeHeaders:   make(http.Header),
+			expectedHeaders: map[string][]string{"user-agent": {"curl/7.68.0-DEV"}},
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
 			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("Welcome!"))
-				assert.True(t, isHeadersPresent(t, ti.backendHeaders, r.Header), "Enriched request header is absent.")
-				assert.True(t, isHeadersAbsent(t, ti.removeHeaders, r.Header), "Unwanted HTTP Headers present.")
+
+				assert.True(t, isHeadersPresent(t, ti.expectedHeaders, r.Header), "Request headers dropped at OPA")
 
 				body, err := io.ReadAll(r.Body)
 				if err != nil {
@@ -718,7 +711,7 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 			fr.Register(ftSpec)
 			fr.Register(builtin.NewSetPath())
 
-			r := eskip.MustParse(fmt.Sprintf(`* -> %s %s("%s", "%s") %s -> "%s"`, ti.extraeskipBefore, ti.filterName, ti.bundleName, ti.contextExtensions, ti.extraeskipAfter, clientServer.URL))
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s("%s", "%s") -> "%s"`, ti.filterName, ti.bundleName, ti.contextExtensions, clientServer.URL))
 
 			proxy := proxytest.New(fr, r...)
 
@@ -746,8 +739,6 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
 
-			assert.True(t, isHeadersPresent(t, ti.expectedHeaders, rsp.Header), "HTTP Headers do not match")
-
 			defer rsp.Body.Close()
 			body, err := io.ReadAll(rsp.Body)
 			assert.NoError(t, err)
@@ -758,7 +749,8 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 
 func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.Header) bool {
 	for headerName, expectedValues := range expectedHeaders {
-		actualValues, headerFound := headers[headerName]
+		actualValues, headerFound := headers[http.CanonicalHeaderKey(headerName)]
+
 		if !headerFound {
 			return false
 		}
