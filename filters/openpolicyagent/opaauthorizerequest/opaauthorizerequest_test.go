@@ -617,6 +617,170 @@ func TestCreateFilterArguments(t *testing.T) {
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 }
 
+func TestAuthorizeRequestInputContract(t *testing.T) {
+	for _, ti := range []struct {
+		msg               string
+		filterName        string
+		extraeskipBefore  string
+		extraeskipAfter   string
+		bundleName        string
+		regoQuery         string
+		requestPath       string
+		requestMethod     string
+		requestHeaders    http.Header
+		body              string
+		contextExtensions string
+		expectedBody      string
+		expectedHeaders   http.Header
+		expectedStatus    int
+		backendHeaders    http.Header
+		removeHeaders     http.Header
+	}{
+		{
+			msg:               "Input contract validation",
+			filterName:        "opaAuthorizeRequestWithBody",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow",
+			requestPath:       "/users/profile/amal?param=1",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			body:              `{ "key" : "value" }`,
+			requestHeaders: http.Header{
+				//":authority":        []string{"example-app"},
+				//":method":           []string{"GET"},
+				//":path":             []string{"/users/profile/charlie"},
+				"accept":            []string{"*/*"},
+				"authorization":     []string{"Basic Y2hhcmxpZTpwYXNzdzByZA=="},
+				"user-agent":        []string{"curl/7.68.0-DEV"},
+				"x-ext-auth-allow":  []string{"yes"},
+				"x-forwarded-proto": []string{"http"},
+				"x-request-id":      []string{"1455bbb0-0623-4810-a2c6-df73ffd8863a"},
+				"content-type":      {"application/json"},
+			},
+			expectedStatus:  http.StatusOK,
+			expectedBody:    "Welcome!",
+			expectedHeaders: make(http.Header),
+			backendHeaders:  make(http.Header),
+			removeHeaders:   make(http.Header),
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			t.Logf("Running test for %v", ti)
+			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte("Welcome!"))
+				assert.True(t, isHeadersPresent(t, ti.backendHeaders, r.Header), "Enriched request header is absent.")
+				assert.True(t, isHeadersAbsent(t, ti.removeHeaders, r.Header), "Unwanted HTTP Headers present.")
+
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				assert.Equal(t, ti.body, string(body))
+			}))
+			defer clientServer.Close()
+
+			opaControlPlane := opasdktest.MustNewServer(
+				opasdktest.MockBundle("/bundles/"+ti.bundleName, map[string]string{
+					"main.rego": `
+						package envoy.authz
+
+						default allow = false
+
+						allow {
+							input.attributes.request.http.path == "/users/profile/amal?param=1"
+							input.parsed_path == ["users", "profile", "amal"]
+							input.parsed_query == {"param": ["1"]}
+							input.attributes.request.http.headers["x-request-id"] == "1455bbb0-0623-4810-a2c6-df73ffd8863a"
+							input.attributes.metadataContext.filterMetadata["envoy.filters.http.header_to_metadata"].policy_type == "ingress"
+							opa.runtime().config.labels.environment == "test"
+							input.parsed_body.key == "value"
+						}
+					`,
+				}),
+			)
+
+			fr := make(filters.Registry)
+
+			config := []byte(fmt.Sprintf(`{
+				"services": {
+					"test": {
+						"url": %q
+					}
+				},
+				"bundles": {
+					"test": {
+						"resource": "/bundles/{{ .bundlename }}"
+					}
+				},
+				"labels": {
+					"environment": "test"
+				},
+				"plugins": {
+					"envoy_ext_authz_grpc": {    
+						"path": %q,
+						"dry-run": false    
+					}
+				}
+			}`, opaControlPlane.URL(), ti.regoQuery))
+
+			envoyMetaDataConfig := []byte(`{
+				"filter_metadata": {
+					"envoy.filters.http.header_to_metadata": {
+						"policy_type": "ingress"
+					}
+				}
+			}`)
+
+			opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
+			opts = append(opts,
+				openpolicyagent.WithConfigTemplate(config),
+				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
+
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
+			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
+			fr.Register(ftSpec)
+			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
+			fr.Register(ftSpec)
+			fr.Register(builtin.NewSetPath())
+
+			r := eskip.MustParse(fmt.Sprintf(`* -> %s %s("%s", "%s") %s -> "%s"`, ti.extraeskipBefore, ti.filterName, ti.bundleName, ti.contextExtensions, ti.extraeskipAfter, clientServer.URL))
+
+			proxy := proxytest.New(fr, r...)
+
+			var bodyReader io.Reader
+			if ti.body != "" {
+				bodyReader = strings.NewReader(ti.body)
+			}
+
+			req, err := http.NewRequest(ti.requestMethod, proxy.URL+ti.requestPath, bodyReader)
+			for name, values := range ti.removeHeaders {
+				for _, value := range values {
+					req.Header.Add(name, value) //adding the headers to validate removal.
+				}
+			}
+			for name, values := range ti.requestHeaders {
+				for _, value := range values {
+					req.Header.Add(name, value)
+				}
+			}
+
+			assert.NoError(t, err)
+
+			rsp, err := proxy.Client().Do(req)
+			assert.NoError(t, err)
+
+			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
+
+			assert.True(t, isHeadersPresent(t, ti.expectedHeaders, rsp.Header), "HTTP Headers do not match")
+
+			defer rsp.Body.Close()
+			body, err := io.ReadAll(rsp.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
+		})
+	}
+}
+
 func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.Header) bool {
 	for headerName, expectedValues := range expectedHeaders {
 		actualValues, headerFound := headers[headerName]
