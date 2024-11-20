@@ -208,6 +208,13 @@ type Options struct {
 	// appended to routes identified as to KubernetesEastWestRangeDomains.
 	KubernetesEastWestRangePredicates []*eskip.Predicate
 
+	// KubernetesEastWestRangeAnnotationPredicates same as KubernetesAnnotationPredicates but will append to
+	// routes that has KubernetesEastWestRangeDomains suffix.
+	KubernetesEastWestRangeAnnotationPredicates []AnnotationPredicates
+
+	// KubernetesAnnotationPredicates set a list predicates for each annotation key and value
+	KubernetesAnnotationPredicates []AnnotationPredicates
+
 	// DefaultFiltersDir enables default filters mechanism and sets the location of the default filters.
 	// The provided filters are then applied to all routes.
 	DefaultFiltersDir string

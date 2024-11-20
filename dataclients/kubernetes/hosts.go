@@ -81,3 +81,12 @@ func isExternalAddressAllowed(allowedDomains []*regexp.Regexp, address string) b
 
 	return isExternalDomainAllowed(allowedDomains, u.Hostname())
 }
+
+func isEastWestHost(host string, eastWestRangeDomains []string) bool {
+	for _, domainSuffix := range eastWestRangeDomains {
+		if strings.HasSuffix(host, domainSuffix) {
+			return true
+		}
+	}
+	return false
+}
