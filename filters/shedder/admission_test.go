@@ -626,8 +626,6 @@ func TestAdmissionControlSetsSpansTags(t *testing.T) {
 
 	fr := make(filters.Registry)
 	fr.Register(fspec)
-	fr.Register(builtin.NewSetRequestHeader())
-	fr.Register(builtin.NewStatus())
 
 	dc := testdataclient.New([]*eskip.Route{r})
 	defer dc.Close()
