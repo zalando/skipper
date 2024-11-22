@@ -22,6 +22,7 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/scheduler"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestCreateFifoName(t *testing.T) {
@@ -296,7 +297,7 @@ func TestFifoWithBody(t *testing.T) {
 			rt := routing.New(ro)
 			defer rt.Close()
 			<-rt.FirstLoad()
-			tracer := &testTracer{MockTracer: mocktracer.New()}
+			tracer := &tracingtest.MockTracer{MockTracer: mocktracer.New()}
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
 				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
@@ -508,7 +509,7 @@ func TestFifo(t *testing.T) {
 			defer rt.Close()
 			<-rt.FirstLoad()
 
-			tracer := &testTracer{MockTracer: mocktracer.New()}
+			tracer := &tracingtest.MockTracer{MockTracer: mocktracer.New()}
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
 				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
@@ -636,7 +637,7 @@ func TestFifoConstantRouteUpdates(t *testing.T) {
 			defer rt.Close()
 			<-rt.FirstLoad()
 
-			tracer := &testTracer{MockTracer: mocktracer.New()}
+			tracer := &tracingtest.MockTracer{MockTracer: mocktracer.New()}
 			pr := proxy.WithParams(proxy.Params{
 				Routing:     rt,
 				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
