@@ -370,6 +370,13 @@ func sum(a []int64) int64 {
 	return result
 }
 
+func (ac *admissionControl) setCommonTags(span opentracing.Span) {
+	span.SetTag("admissionControl.group", ac.metricSuffix)
+	span.SetTag("admissionControl.mode", ac.mode.String())
+	span.SetTag("admissionControl.duration", ac.d.String())
+	span.SetTag("admissionControl.windowSize", ac.windowSize)
+}
+
 // calculates P_{reject} see https://opensource.zalando.com/skipper/reference/filters/#admissioncontrol
 func (ac *admissionControl) pReject() float64 {
 	var rejectP float64
@@ -412,6 +419,8 @@ func (ac *admissionControl) shouldReject() bool {
 func (ac *admissionControl) Request(ctx filters.FilterContext) {
 	span := ac.startSpan(ctx.Request().Context())
 	defer span.Finish()
+
+	ac.setCommonTags(span)
 	ac.metrics.IncCounter(counterPrefix + "total." + ac.metricSuffix)
 
 	if ac.shouldReject() {
