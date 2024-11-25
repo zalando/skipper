@@ -9,18 +9,22 @@ import (
 )
 
 type MockTracer struct {
-	*mocktracer.MockTracer
-	spans int32
+	mockTracer *mocktracer.MockTracer
+	spans      atomic.Int32
+}
+
+func NewMockTracer() *MockTracer {
+	return &MockTracer{mockTracer: &mocktracer.MockTracer{}}
 }
 
 func (t *MockTracer) Reset() {
-	atomic.StoreInt32(&t.spans, 0)
-	t.MockTracer.Reset()
+	t.spans.Store(0)
+	t.mockTracer.Reset()
 }
 
 func (t *MockTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
-	atomic.AddInt32(&t.spans, 1)
-	return t.MockTracer.StartSpan(operationName, opts...)
+	t.spans.Add(1)
+	return t.mockTracer.StartSpan(operationName, opts...)
 }
 
 func (t *MockTracer) FinishedSpans() []*mocktracer.MockSpan {
@@ -28,8 +32,8 @@ func (t *MockTracer) FinishedSpans() []*mocktracer.MockSpan {
 	retry := time.NewTicker(100 * time.Millisecond)
 	defer retry.Stop()
 	for {
-		finished := t.MockTracer.FinishedSpans()
-		if len(finished) == int(atomic.LoadInt32(&t.spans)) {
+		finished := t.mockTracer.FinishedSpans()
+		if len(finished) == int(t.spans.Load()) {
 			return finished
 		}
 		select {
@@ -38,4 +42,12 @@ func (t *MockTracer) FinishedSpans() []*mocktracer.MockSpan {
 			return nil
 		}
 	}
+}
+
+func (t *MockTracer) Inject(sm opentracing.SpanContext, format interface{}, carrier interface{}) error {
+	return t.mockTracer.Inject(sm, format, carrier)
+}
+
+func (t *MockTracer) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
+	return t.mockTracer.Extract(format, carrier)
 }

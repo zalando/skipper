@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/aryszka/jobqueue"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy"
@@ -475,7 +474,7 @@ func TestLifoErrors(t *testing.T) {
 
 	<-rt.FirstLoad()
 
-	tracer := &tracingtest.MockTracer{MockTracer: mocktracer.New()}
+	tracer := tracingtest.NewMockTracer()
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
 		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
