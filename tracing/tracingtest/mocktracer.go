@@ -44,10 +44,10 @@ func (t *MockTracer) FinishedSpans() []*mocktracer.MockSpan {
 	}
 }
 
-func (t *MockTracer) Inject(sm opentracing.SpanContext, format interface{}, carrier interface{}) error {
+func (t *MockTracer) Inject(sm opentracing.SpanContext, format any, carrier any) error {
 	return t.mockTracer.Inject(sm, format, carrier)
 }
 
-func (t *MockTracer) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
+func (t *MockTracer) Extract(format any, carrier any) (opentracing.SpanContext, error) {
 	return t.mockTracer.Extract(format, carrier)
 }
