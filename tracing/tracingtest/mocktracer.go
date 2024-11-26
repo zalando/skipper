@@ -13,8 +13,8 @@ type MockTracer struct {
 	spans      atomic.Int32
 }
 
-func NewMockTracer() *MockTracer {
-	return &MockTracer{mockTracer: &mocktracer.MockTracer{}}
+func NewTracer() *MockTracer {
+	return &MockTracer{mockTracer: mocktracer.New()}
 }
 
 func (t *MockTracer) Reset() {

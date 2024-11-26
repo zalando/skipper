@@ -474,7 +474,7 @@ func TestLifoErrors(t *testing.T) {
 
 	<-rt.FirstLoad()
 
-	tracer := tracingtest.NewMockTracer()
+	tracer := tracingtest.NewTracer()
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
 		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},

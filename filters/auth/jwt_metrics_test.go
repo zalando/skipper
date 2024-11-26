@@ -8,9 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
-	"time"
 
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
@@ -20,6 +18,7 @@ import (
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestJwtMetrics(t *testing.T) {
@@ -275,7 +274,7 @@ func TestJwtMetrics(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &metricstest.MockMetrics{}
 			defer m.Close()
-			tracer := mocktracer.New()
+			tracer := tracingtest.NewTracer()
 
 			fr := builtin.MakeRegistry()
 			fr.Register(auth.NewJwtMetrics())
@@ -304,8 +303,7 @@ func TestJwtMetrics(t *testing.T) {
 			resp.Body.Close()
 			require.Equal(t, tc.status, resp.StatusCode)
 
-			// wait for the span to be finished
-			require.Eventually(t, func() bool { return len(tracer.FinishedSpans()) == 1 }, time.Second, 100*time.Millisecond)
+			require.Equal(t, 1, len(tracer.FinishedSpans()))
 
 			span := tracer.FinishedSpans()[0]
 			if tc.expectedTag == "" {

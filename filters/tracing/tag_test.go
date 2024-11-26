@@ -9,6 +9,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 func TestTracingTagNil(t *testing.T) {
@@ -196,7 +197,7 @@ func TestTagCreateFilter(t *testing.T) {
 }
 
 func TestTracingTag(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 
 	for _, ti := range []struct {
 		name     string

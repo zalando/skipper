@@ -87,7 +87,7 @@ func TestTracingIngressSpan(t *testing.T) {
 	routeID := "ingressRoute"
 	doc := fmt.Sprintf(`%s: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, routeID, s.URL)
 
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	params := Params{
 		OpenTracing: &OpenTracingParams{
 			Tracer: tracer,
@@ -117,9 +117,6 @@ func TestTracingIngressSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// client may get response before proxy finishes span
-	time.Sleep(10 * time.Millisecond)
-
 	span, ok := findSpan(tracer, "ingress")
 	if !ok {
 		t.Fatal("ingress span not found")
@@ -143,7 +140,7 @@ func TestTracingIngressSpanShunt(t *testing.T) {
 	routeID := "ingressShuntRoute"
 	doc := fmt.Sprintf(`%s: Path("/hello") -> setPath("/bye") -> setQuery("void") -> status(205) -> <shunt>`, routeID)
 
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	params := Params{
 		OpenTracing: &OpenTracingParams{
 			Tracer: tracer,
@@ -174,9 +171,6 @@ func TestTracingIngressSpanShunt(t *testing.T) {
 	}
 	defer rsp.Body.Close()
 	io.Copy(io.Discard, rsp.Body)
-
-	// client may get response before proxy finishes span
-	time.Sleep(10 * time.Millisecond)
 
 	span, ok := findSpan(tracer, "ingress")
 	if !ok {
@@ -214,7 +208,7 @@ func TestTracingIngressSpanLoopback(t *testing.T) {
 %s: Path("/loop2") -> setPath("/loop1") -> <loopback>;
 `, shuntRouteID, loop1RouteID, loop2RouteID)
 
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	params := Params{
 		OpenTracing: &OpenTracingParams{
 			Tracer: tracer,
@@ -246,9 +240,6 @@ func TestTracingIngressSpanLoopback(t *testing.T) {
 	defer rsp.Body.Close()
 	io.Copy(io.Discard, rsp.Body)
 	t.Logf("got response %d", rsp.StatusCode)
-
-	// client may get response before proxy finishes span
-	time.Sleep(10 * time.Millisecond)
 
 	sp, ok := findSpanByRouteID(tracer, loop2RouteID)
 	if !ok {
@@ -375,7 +366,7 @@ func TestTracingProxySpan(t *testing.T) {
 	defer s.Close()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> setPath("/bye") -> setQuery("void") -> "%s"`, s.URL)
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 
 	t.Setenv("HOSTNAME", "proxy.tracing.test")
 
@@ -398,9 +389,6 @@ func TestTracingProxySpan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// client may get response before proxy finishes span
-	time.Sleep(10 * time.Millisecond)
 
 	span, ok := findSpan(tracer, "proxy")
 	if !ok {
@@ -532,7 +520,7 @@ func TestFilterTracing(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tracer := mocktracer.New()
+			tracer := tracingtest.NewTracer()
 			tc.params.Tracer = tracer
 			tracing := newProxyTracing(tc.params)
 
@@ -574,7 +562,7 @@ func spanLogs(span *mocktracer.MockSpan) string {
 }
 
 func TestEnabledLogStreamEvents(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	tracing := newProxyTracing(&OpenTracingParams{
 		Tracer:          tracer,
 		LogStreamEvents: true,
@@ -593,7 +581,7 @@ func TestEnabledLogStreamEvents(t *testing.T) {
 }
 
 func TestDisabledLogStreamEvents(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	tracing := newProxyTracing(&OpenTracingParams{
 		Tracer:          tracer,
 		LogStreamEvents: false,
@@ -612,7 +600,7 @@ func TestDisabledLogStreamEvents(t *testing.T) {
 }
 
 func TestSetEnabledTags(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	tracing := newProxyTracing(&OpenTracingParams{
 		Tracer:      tracer,
 		ExcludeTags: []string{},
@@ -636,7 +624,7 @@ func TestSetEnabledTags(t *testing.T) {
 }
 
 func TestSetDisabledTags(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	tracing := newProxyTracing(&OpenTracingParams{
 		Tracer: tracer,
 		ExcludeTags: []string{
@@ -668,7 +656,7 @@ func TestSetDisabledTags(t *testing.T) {
 }
 
 func TestLogEventWithEmptySpan(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	tracing := newProxyTracing(&OpenTracingParams{
 		Tracer: tracer,
 	})
@@ -679,7 +667,7 @@ func TestLogEventWithEmptySpan(t *testing.T) {
 }
 
 func TestSetTagWithEmptySpan(t *testing.T) {
-	tracer := mocktracer.New()
+	tracer := tracingtest.NewTracer()
 	tracing := newProxyTracing(&OpenTracingParams{
 		Tracer: tracer,
 	})
@@ -688,7 +676,7 @@ func TestSetTagWithEmptySpan(t *testing.T) {
 	tracing.setTag(nil, "test", "val")
 }
 
-func findSpan(tracer *mocktracer.MockTracer, name string) (*mocktracer.MockSpan, bool) {
+func findSpan(tracer *tracingtest.MockTracer, name string) (*mocktracer.MockSpan, bool) {
 	for _, s := range tracer.FinishedSpans() {
 		if s.OperationName == name {
 			return s, true
@@ -697,7 +685,7 @@ func findSpan(tracer *mocktracer.MockTracer, name string) (*mocktracer.MockSpan,
 	return nil, false
 }
 
-func findSpanByRouteID(tracer *mocktracer.MockTracer, routeID string) (*mocktracer.MockSpan, bool) {
+func findSpanByRouteID(tracer *tracingtest.MockTracer, routeID string) (*mocktracer.MockSpan, bool) {
 	for _, s := range tracer.FinishedSpans() {
 		if s.Tag(SkipperRouteIDTag) == routeID {
 			return s, true
