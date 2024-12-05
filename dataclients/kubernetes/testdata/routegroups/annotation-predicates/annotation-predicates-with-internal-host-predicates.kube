@@ -1,0 +1,19 @@
+kubernetesAnnotationPredicates:
+  - key: zalando.org/zone
+    value: zone1
+    predicates:
+      - name: "False"
+        args: []
+eastWestRangeDomains:
+    - "ingress.cluster.local"
+eastWestRangePredicatesAppend:
+    - name: "ClientIP"
+      args: ["10.2.0.0/16"]
+kubernetesEastWestRangeAnnotationPredicates:
+  - key: zalando.org/zone
+    value: internal
+    predicates:
+      - name: "InternalZone"
+        args: ["internal-zone"]
+      - name: "True"
+        args: []

@@ -1,0 +1,100 @@
+kube_default__myapp1__app1_alias1_test____myapp:
+	Host("^(app1[.]alias1[.]test[.]?(:[0-9]+)?)$")
+	&& Zone("zone1")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp1_r1_0__app1_alias1_test____:
+	Host("^(app1[.]alias1[.]test[.]?(:[0-9]+)?)$")
+	&& Path("/zone1")
+	&& Zone("zone1")
+	&& True()
+    -> "https://app1.route.test";
+
+kube_default__myapp1__app1_alias2_ingress_cluster_local____myapp:
+	Host("^(app1-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp1_r1_0__app1_alias2_ingress_cluster_local____:
+	Host("^(app1-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& Path("/zone1")
+    -> "https://app1.route.test";
+
+
+kube_default__myapp2__app2_alias1_test____myapp:
+	Host("^(app2[.]alias1[.]test[.]?(:[0-9]+)?)$")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp2__app2_alias2_ingress_cluster_local____myapp:
+	Host("^(app2-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp2_r1_0__app2_alias1_test____:
+	Host("^(app2[.]alias1[.]test[.]?(:[0-9]+)?)$")
+	&& Path("/internal-zone")
+	-> "https://app2.route.test";
+
+kube_default__myapp2_r1_0__app2_alias2_ingress_cluster_local____:
+	Host("^(app2-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& Path("/internal-zone")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> "https://app2.route.test";
+
+kube_default__myapp3__app3_alias1_ingress_cluster_local____myapp:
+	Host("^(app3-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp3__app3_alias2_ingress_cluster_local____myapp:
+	Host("^(app3-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp3_r1_0__app3_alias1_ingress_cluster_local____:
+	Host("^(app3-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& Path("/internal-zone")
+	&& True()
+	-> "https://app3.route.test";
+
+kube_default__myapp3_r1_0__app3_alias2_ingress_cluster_local____:
+	Host("^(app3-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& Path("/internal-zone")
+	&& True()
+	-> "https://app3.route.test";
+
+kube_default__myapp4__app4_alias1_ingress_cluster_local____myapp:
+	Host("^(app4-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp4__app4_alias2_ingress_cluster_local____myapp:
+	Host("^(app4-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp4_r1_0__app4_alias1_ingress_cluster_local____:
+	Host("^(app4-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& Path("/internal-zone")
+	-> "https://app4.route.test";
+
+kube_default__myapp4_r1_0__app4_alias2_ingress_cluster_local____:
+	Host("^(app4-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& Path("/internal-zone")
+	-> "https://app4.route.test";

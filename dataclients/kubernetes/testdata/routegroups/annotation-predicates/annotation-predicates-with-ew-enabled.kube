@@ -1,0 +1,9 @@
+kubernetesAnnotationPredicates:
+  - key: zalando.org/zone
+    value: zone1
+    predicates:
+      - name: "False"
+        args: []
+eastWest: true
+eastWestRangeDomains:
+    - "ingress.cluster.local"

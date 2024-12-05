@@ -1,0 +1,16 @@
+kubernetesAnnotationPredicates:
+  - key: zalando.org/zone
+    value: zone1
+    predicates:
+      - name: "False"
+        args: [] 
+  - key: zalando.org/zone
+    value: zone3
+    predicates:
+      - name: "True"
+        args: []
+  - key: zalando.org/zone
+    value: zone4
+    predicates:
+      - name: "Traffic"
+        args: ["10"]

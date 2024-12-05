@@ -1,0 +1,36 @@
+kube_rg__default__myapp1__all__0_0:
+	Host("^(zone1[.]test[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	&& False()
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg____zone1_test__catchall__0_0: Host("^(zone1[.]test[.]?(:[0-9]+)?)$") && False() -> <shunt>;
+
+kube_rg__default__myapp2__all__0_0:
+	Host("^(zone2[.]test[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg____zone2_test__catchall__0_0: Host("^(zone2[.]test[.]?(:[0-9]+)?)$") -> <shunt>;
+
+kube_rg__default__myapp3__all__0_0:
+	Host("^(zone3[.]test[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg____zone3_test__catchall__0_0: Host("^(zone3[.]test[.]?(:[0-9]+)?)$") && True() -> <shunt>;
+
+kube_rg__default__myapp4__all__0_0:
+	Host("^(zone4[.]test[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	&& Traffic("10")
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__default__myapp4__all__1_0:
+	Host("^(zone4[.]test[.]?(:[0-9]+)?)$") 
+	&& PathSubtree("/shunt") 
+	&& Traffic("10")
+	-> <shunt>;
+
+kube_rg____zone4_test__catchall__0_0: Host("^(zone4[.]test[.]?(:[0-9]+)?)$") && Traffic("10") -> <shunt>;
