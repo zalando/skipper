@@ -2,11 +2,13 @@ package routing_test
 
 import (
 	"fmt"
+	"os"
 	"runtime/metrics"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/benburkert/pbench"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
@@ -290,7 +292,11 @@ func benchmarkIncInflightRequests(b *testing.B, name string, goroutines int) {
 	const key string = "some key"
 	const mapSize int = 10000
 
-	b.Run(name, func(b *testing.B) {
+	percentileBench := pbench.New(b)
+	percentileBench.ReportPercentile(0.95)
+	percentileBench.ReportPercentile(0.99)
+
+	percentileBench.Run(name, func(b *pbench.B) {
 		r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		now := time.Now()
 
@@ -300,23 +306,23 @@ func benchmarkIncInflightRequests(b *testing.B, name string, goroutines int) {
 		r.GetMetrics(key).IncInflightRequest()
 		r.GetMetrics(key).SetDetected(now)
 
-		wg := sync.WaitGroup{}
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				metrics := r.GetMetrics(key)
-				for n := 0; n < b.N/goroutines; n++ {
-					metrics.IncInflightRequest()
-				}
-			}()
-		}
-		wg.Wait()
 
-		printTotalMutexWaitTime(b)
+		oldGOMAXPROCS := os.Getenv("GOMAXPROCS")
+		defer os.Setenv("GOMAXPROCS", oldGOMAXPROCS)
+		os.Setenv("GOMAXPROCS", "1")
+		b.SetParallelism(goroutines)
+
+		b.RunParallel(func(pb *pbench.PB) {
+			metrics := r.GetMetrics(key)
+			for pb.Next() {
+				metrics.IncInflightRequest()
+			}
+		})
 	})
+
+	printTotalMutexWaitTime(b)
 }
 
 func BenchmarkIncInflightRequests(b *testing.B) {
@@ -330,7 +336,11 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 	const key string = "some key"
 	const mapSize int = 10000
 
-	b.Run(name, func(b *testing.B) {
+	percentileBench := pbench.New(b)
+	percentileBench.ReportPercentile(0.95)
+	percentileBench.ReportPercentile(0.99)
+
+	percentileBench.Run(name, func(b *pbench.B) {
 		r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		now := time.Now()
 		for i := 1; i < mapSize; i++ {
@@ -340,24 +350,24 @@ func benchmarkGetInflightRequests(b *testing.B, name string, goroutines int) {
 		r.GetMetrics(key).SetDetected(now)
 
 		var dummy int64
-		wg := sync.WaitGroup{}
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				metrics := r.GetMetrics(key)
-				for n := 0; n < b.N/goroutines; n++ {
-					dummy = metrics.InflightRequests()
-				}
-			}()
-		}
-		dummy++
-		wg.Wait()
 
-		printTotalMutexWaitTime(b)
+		oldGOMAXPROCS := os.Getenv("GOMAXPROCS")
+		defer os.Setenv("GOMAXPROCS", oldGOMAXPROCS)
+		os.Setenv("GOMAXPROCS", "1")
+		b.SetParallelism(goroutines)
+
+		b.RunParallel(func(pb *pbench.PB) {
+			metrics := r.GetMetrics(key)
+			for pb.Next() {
+				dummy = metrics.InflightRequests()
+			}
+		})
+		dummy++
 	})
+
+	printTotalMutexWaitTime(b)
 }
 
 func BenchmarkGetInflightRequests(b *testing.B) {
@@ -371,7 +381,11 @@ func benchmarkGetDetectedTime(b *testing.B, name string, goroutines int) {
 	const key string = "some key"
 	const mapSize int = 10000
 
-	b.Run(name, func(b *testing.B) {
+	percentileBench := pbench.New(b)
+	percentileBench.ReportPercentile(0.95)
+	percentileBench.ReportPercentile(0.99)
+
+	percentileBench.Run(name, func(b *pbench.B) {
 		r := routing.NewEndpointRegistry(routing.RegistryOptions{})
 		now := time.Now()
 		for i := 1; i < mapSize; i++ {
@@ -384,21 +398,24 @@ func benchmarkGetDetectedTime(b *testing.B, name string, goroutines int) {
 		wg := sync.WaitGroup{}
 		b.ResetTimer()
 		b.ReportAllocs()
-		for i := 0; i < goroutines; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				metrics := r.GetMetrics(key)
-				for n := 0; n < b.N/goroutines; n++ {
-					dummy = metrics.DetectedTime()
-				}
-			}()
-		}
+
+		oldGOMAXPROCS := os.Getenv("GOMAXPROCS")
+		defer os.Setenv("GOMAXPROCS", oldGOMAXPROCS)
+		os.Setenv("GOMAXPROCS", "1")
+		b.SetParallelism(goroutines)
+
+		b.RunParallel(func(pb *pbench.PB) {
+			metrics := r.GetMetrics(key)
+			for pb.Next() {
+				dummy = metrics.DetectedTime()
+			}
+		})
+
 		dummy = dummy.Add(time.Second)
 		wg.Wait()
-
-		printTotalMutexWaitTime(b)
 	})
+
+	printTotalMutexWaitTime(b)
 }
 
 func BenchmarkGetDetectedTime(b *testing.B) {
