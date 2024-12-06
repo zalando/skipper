@@ -230,6 +230,8 @@ const (
 	AppendContextResponseHeaderName            = "appendContextResponseHeader"
 	CopyRequestHeaderName                      = "copyRequestHeader"
 	CopyResponseHeaderName                     = "copyResponseHeader"
+	EncodeRequestHeaderName                    = "encodeRequestHeader"
+	EncodeResponseHeaderName                   = "encodeResponseHeader"
 	ModPathName                                = "modPath"
 	SetPathName                                = "setPath"
 	RedirectToName                             = "redirectTo"
