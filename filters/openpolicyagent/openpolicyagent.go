@@ -21,6 +21,7 @@ import (
 	"github.com/open-policy-agent/opa/config"
 	"github.com/open-policy-agent/opa/logging"
 	"github.com/open-policy-agent/opa/plugins"
+	"github.com/open-policy-agent/opa/plugins/bundle"
 	"github.com/open-policy-agent/opa/plugins/discovery"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/runtime"
@@ -50,6 +51,11 @@ const (
 	DefaultRequestBodyBufferSize = 8 * 1024 // 8 KB
 
 	spanNameEval = "open-policy-agent"
+
+	GeneralPluginStatusStartupListener = "general-plugin-status-startup"
+	DiscoveryPluginStartupListener     = "skipper-instance-startup-discovery"
+	PluginStatusStartupListener        = "skipper-instance-startup-plugin"
+	BundlePluginStartupListener        = "skipper-instance-startup-bundle"
 )
 
 type OpenPolicyAgentRegistry struct {
@@ -363,16 +369,18 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 }
 
 type OpenPolicyAgentInstance struct {
-	manager                *plugins.Manager
-	instanceConfig         OpenPolicyAgentInstanceConfig
-	opaConfig              *config.Config
-	bundleName             string
-	preparedQuery          *rego.PreparedEvalQuery
-	preparedQueryDoOnce    *sync.Once
-	interQueryBuiltinCache iCache.InterQueryCache
-	once                   sync.Once
-	stopped                bool
-	registry               *OpenPolicyAgentRegistry
+	manager                       *plugins.Manager
+	instanceConfig                OpenPolicyAgentInstanceConfig
+	opaConfig                     *config.Config
+	bundleName                    string
+	preparedQuery                 *rego.PreparedEvalQuery
+	preparedQueryDoOnce           *sync.Once
+	interQueryBuiltinCache        iCache.InterQueryCache
+	once                          sync.Once
+	stopped                       bool
+	registry                      *OpenPolicyAgentRegistry
+	registerBundleListenerOnce    *sync.Once
+	registerDiscoveryListenerOnce *sync.Once
 
 	maxBodyBytes       int64
 	bodyReadBufferSize int64
@@ -469,7 +477,9 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 		preparedQueryDoOnce:    new(sync.Once),
 		interQueryBuiltinCache: iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
 
-		idGenerator: uniqueIDGenerator,
+		idGenerator:                   uniqueIDGenerator,
+		registerDiscoveryListenerOnce: new(sync.Once),
+		registerBundleListenerOnce:    new(sync.Once),
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
@@ -480,38 +490,77 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 // Start asynchronously starts the policy engine's plugins that download
 // policies, report status, etc.
 func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Duration) error {
-	err := opa.manager.Start(ctx)
 
+	discoveryPlugin := discovery.Lookup(opa.manager)
+
+	done := make(chan struct{})
+	failed := make(chan error, 1)
+
+	opa.registerDiscoveryListenerOnce.Do(func() {
+
+		discoveryPlugin.RegisterListener(DiscoveryPluginStartupListener, func(status bundle.Status) {
+			handleStatusErrors(status, failed, "discovery plugin")
+		})
+		//defer discoveryPlugin.Unregister(DiscoveryPluginStartupListener) //ToDo
+	})
+
+	opa.manager.RegisterPluginStatusListener(PluginStatusStartupListener, func(status map[string]*plugins.Status) {
+		if _, exists := status["bundle"]; exists {
+			bundlePlugin := bundle.Lookup(opa.manager)
+			if bundlePlugin != nil {
+				opa.registerBundleListenerOnce.Do(func() {
+					bundlePlugin.Register(BundlePluginStartupListener, func(status bundle.Status) {
+						handleStatusErrors(status, failed, "bundle plugin")
+						//defer bundlePlugin.Unregister(BundlePluginStartupListener)   //ToDo
+					})
+				})
+			}
+		}
+	})
+	defer opa.manager.UnregisterPluginStatusListener(PluginStatusStartupListener)
+
+	// Register listener for general plugin status checks
+	opa.manager.RegisterPluginStatusListener(GeneralPluginStatusStartupListener, func(status map[string]*plugins.Status) {
+		for _, pluginStatus := range status {
+			if pluginStatus != nil && pluginStatus.State != plugins.StateOK {
+				return
+			}
+		}
+		close(done)
+	})
+	defer opa.manager.UnregisterPluginStatusListener(GeneralPluginStatusStartupListener)
+
+	err := opa.manager.Start(ctx)
 	if err != nil {
 		return err
 	}
 
-	// check readiness of all plugins
-	pluginsReady := func() bool {
-		for _, status := range opa.manager.PluginStatus() {
-			if status != nil && status.State != plugins.StateOK {
-				return false
-			}
-		}
-		return true
-	}
+	select {
+	case <-ctx.Done():
+		timeoutErr := ctx.Err()
 
-	err = waitFunc(ctx, pluginsReady, 100*time.Millisecond)
-
-	if err != nil {
 		for pluginName, status := range opa.manager.PluginStatus() {
 			if status != nil && status.State != plugins.StateOK {
 				opa.Logger().WithFields(map[string]interface{}{
 					"plugin_name":   pluginName,
 					"plugin_state":  status.State,
 					"error_message": status.Message,
-				}).Error("Open policy agent plugin did not start in time")
+				}).Error("Open policy agent plugin: %v did not start in time", pluginName)
 			}
 		}
 		opa.Close(ctx)
-		return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, err)
+		if timeoutErr != nil {
+			return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, timeoutErr)
+		}
+		return fmt.Errorf("one or more open policy agent plugins failed to start in %v", timeout)
+
+	case <-done:
+		return nil
+	case err := <-failed:
+		opa.Close(ctx)
+
+		return err
 	}
-	return nil
 }
 
 func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
@@ -519,25 +568,6 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 		opa.manager.Stop(ctx)
 		opa.stopped = true
 	})
-}
-
-func waitFunc(ctx context.Context, fun func() bool, interval time.Duration) error {
-	if fun() {
-		return nil
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timed out while starting: %w", ctx.Err())
-		case <-ticker.C:
-			if fun() {
-				return nil
-			}
-		}
-	}
 }
 
 func configLabelsInfo(opaConfig config.Config) func(*plugins.Manager) {
@@ -795,4 +825,47 @@ func (l *QuietLogger) Error(fmt string, a ...interface{}) {
 
 func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
 	l.target.Warn(fmt, a)
+}
+
+var temporaryClientErrorHTTPCodes = map[int64]struct{}{
+	429: {}, // too many requests
+	408: {}, // request timeout
+}
+
+func isTemporaryError(code int64) bool {
+	_, exists := temporaryClientErrorHTTPCodes[code]
+	return exists
+}
+
+func handleStatusErrors(
+	status bundle.Status,
+	failed chan error,
+	prefix string,
+) {
+	if status.Code == "bundle_error" {
+		if status.HTTPCode == "" {
+			failed <- formatStatusError(prefix, status)
+			return
+		}
+		code, err := status.HTTPCode.Int64()
+		if err == nil {
+			if code >= 400 && code < 500 && !isTemporaryError(code) {
+				// Fail for error codes in the range 400-500 excluding temporary errors
+				failed <- formatStatusError(prefix, status)
+				return
+			} else if code >= 500 {
+				// Do not fail for 5xx errors and keep retrying
+				return
+			}
+		}
+		if err != nil {
+			failed <- formatStatusError(prefix, status)
+			return
+		}
+	}
+}
+
+func formatStatusError(prefix string, status bundle.Status) error {
+	return fmt.Errorf("%s failed: Name: %s, Code: %s, Message: %s, HTTPCode: %s, Errors: %v",
+		prefix, status.Name, status.Code, status.Message, status.HTTPCode, status.Errors)
 }
