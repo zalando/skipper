@@ -623,6 +623,7 @@ const (
 
 	certPath = "../../../skptesting/cert.pem"
 	keyPath  = "../../../skptesting/key.pem"
+	dataPath = "../../../skptesting/data.json"
 )
 
 func BenchmarkAuthorizeRequest(b *testing.B) {
@@ -806,11 +807,131 @@ func BenchmarkAuthorizeRequest(b *testing.B) {
 			assert.False(b, ctx.FServed)
 		}
 	})
+
+	b.Run("authorize-request-jwt-validation-with-pre-evaluation", func(b *testing.B) {
+
+		publicKey, err := os.ReadFile(certPath)
+		if err != nil {
+			log.Fatalf("Failed to read public key: %v", err)
+		}
+
+		dataFile, err := os.ReadFile(dataPath)
+		if err != nil {
+			log.Fatalf("Failed to read data.json: %v", err)
+		}
+
+		opaControlPlane := opasdktest.MustNewServer(
+			opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
+				"main.rego": fmt.Sprintf(`
+					package envoy.authz
+
+					import future.keywords.if
+
+					default allow = false
+
+					public_key_cert := %q
+
+					bearer_token := t if {
+						v := input.attributes.request.http.headers.authorization
+						startswith(v, "Bearer ")
+						t := substring(v, count("Bearer "), -1)
+					}
+
+					allow if {
+						[valid, _, payload] :=  io.jwt.decode_verify(bearer_token, {
+							"cert": public_key_cert,
+							"aud": "nqz3xhorr5"
+						})
+					
+						valid
+						sub := payload.sub
+						has_user_logged_in(sub)
+						is_admin(sub)
+						has_some_read_permission(sub)
+					}
+
+					has_user_logged_in(sub) {
+						data.users[sub].history[_].action == "login"
+					}
+
+					is_admin(sub) {
+						data.users[sub].role == "admin"
+					}
+
+					has_some_read_permission(sub) {
+                     	count(data.users[sub].permissions["read"]) > 0
+					}
+
+				`, publicKey),
+				"data.json": string(dataFile),
+			}),
+		)
+
+		f, err := createOpaFilterWithPreEvaluation(opaControlPlane)
+		assert.NoError(b, err)
+
+		url, err := url.Parse("http://opa-authorized.test/somepath")
+		assert.NoError(b, err)
+
+		claims := jwt.MapClaims{
+			"iss":   "https://some.identity.acme.com",
+			"sub":   "5974934733",
+			"aud":   "nqz3xhorr5",
+			"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
+			"exp":   time.Now().Add(tokenExp).UTC().Unix(),
+			"email": "someone@example.org",
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
+		privKey, err := os.ReadFile(keyPath)
+		if err != nil {
+			log.Fatalf("Failed to read priv key: %v", err)
+		}
+
+		key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privKey))
+		if err != nil {
+			log.Fatalf("Failed to parse RSA PEM: %v", err)
+		}
+
+		// Sign and get the complete encoded token as a string using the secret
+		signedToken, err := token.SignedString(key)
+		if err != nil {
+			log.Fatalf("Failed to sign token: %v", err)
+		}
+
+		ctx := &filtertest.Context{
+			FStateBag: map[string]interface{}{},
+			FResponse: &http.Response{},
+			FRequest: &http.Request{
+				Header: map[string][]string{
+					"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
+				},
+				URL: url,
+			},
+			FMetrics: &metricstest.MockMetrics{},
+		}
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			f.Request(ctx)
+			assert.False(b, ctx.FServed)
+		}
+	})
 }
 
 func createOpaFilter(opaControlPlane *opasdktest.Server) (filters.Filter, error) {
 	config := generateConfig(opaControlPlane, "envoy/authz/allow")
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
+	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	return spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
+}
+
+func createOpaFilterWithPreEvaluation(opaControlPlane *opasdktest.Server) (filters.Filter, error) {
+	config := generateConfig(opaControlPlane, "envoy/authz/allow")
+	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithPreevaluationOptimization(true))
 	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
 }
