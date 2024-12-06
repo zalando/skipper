@@ -112,6 +112,7 @@ pipeline:
       pipx inject mkdocs-material markdown-include
   - desc: build docs
     cmd: |
+      sleep 36000
       build-docs
   artifacts:
   - type: docs
