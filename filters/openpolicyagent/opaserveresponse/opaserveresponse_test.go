@@ -77,7 +77,7 @@ func TestServerResponseFilter(t *testing.T) {
 			regoQuery:       "envoy/authz/allow_object",
 			requestPath:     "/allow/structured/with-empty-query-string?",
 			expectedStatus:  http.StatusOK,
-			expectedBody:    "Welcome from policy!",
+			expectedBody:    "Welcome from policy with empty query string!",
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
 		},
 		{
@@ -87,7 +87,7 @@ func TestServerResponseFilter(t *testing.T) {
 			regoQuery:       "envoy/authz/allow_object",
 			requestPath:     "/allow/structured/with-query?pass=yes",
 			expectedStatus:  http.StatusOK,
-			expectedBody:    "Welcome from policy!",
+			expectedBody:    "Welcome from policy with query params!",
 			expectedHeaders: map[string][]string{"X-Ext-Auth-Allow": {"yes"}},
 		},
 		{
@@ -172,21 +172,21 @@ func TestServerResponseFilter(t *testing.T) {
 					"main.rego": `
 						package envoy.authz
 
-						default allow = false
+						default allow := false
 
 						allow {
-							input.parsed_path = [ "allow" ]
+							input.parsed_path == [ "allow" ]
 						}	
 						
-						default allow_object = {
+						default allow_object := {
 							"allowed": false,
 							"headers": {"x-ext-auth-allow": "no"},
 							"body": "Unauthorized Request",
 							"http_status": 403
 						}
 						  
-						allow_object = response {
-							input.parsed_path = [ "allow", "structured" ]
+						allow_object := response {
+							input.parsed_path == [ "allow", "structured" ]
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
@@ -195,30 +195,30 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object = response {
-							input.parsed_path = [ "allow", "structured", "with-empty-query-string" ]
+						allow_object := response {
+							input.parsed_path == [ "allow", "structured", "with-empty-query-string" ]
 							input.parsed_query == {}
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
-								"body": "Welcome from policy!",
+								"body": "Welcome from policy with empty query string!",
 								"http_status": 200
 							}
 						}
 
-						allow_object = response {
-							input.parsed_path = [ "allow", "structured", "with-query" ]
+						allow_object := response {
+							input.parsed_path == [ "allow", "structured", "with-query" ]
 							input.parsed_query.pass == ["yes"]
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
-								"body": "Welcome from policy!",
+								"body": "Welcome from policy with query params!",
 								"http_status": 200
 							}
 						}
 						
-						allow_object = response {
-							input.parsed_path = [ "allow", "production" ]
+						allow_object := response {
+							input.parsed_path == [ "allow", "production" ]
 							opa.runtime().config.labels.environment == "production"
 							response := {
 								"allowed": true,
@@ -228,8 +228,8 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object = response {
-							input.parsed_path = [ "allow", "test" ]
+						allow_object := response {
+							input.parsed_path == [ "allow", "test" ]
 							opa.runtime().config.labels.environment == "test"
 							response := {
 								"allowed": true,
@@ -239,8 +239,8 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object_structured_body = response {
-							input.parsed_path = [ "allow", "structured" ]
+						allow_object_structured_body := response {
+							input.parsed_path == [ "allow", "structured" ]
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
@@ -249,8 +249,8 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object_contextextensions = response {
-							input.parsed_path = [ "allow", "structured" ]
+						allow_object_contextextensions := response {
+							input.parsed_path == [ "allow", "structured" ]
 							response := {
 								"allowed": true,
 								"headers": {"x-ext-auth-allow": "yes"},
@@ -259,7 +259,7 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object_req_body = response {
+						allow_object_req_body := response {
 							response := {
 								"allowed": true,
 								"headers": {},
