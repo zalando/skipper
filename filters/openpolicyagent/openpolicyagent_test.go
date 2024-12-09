@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +22,10 @@ import (
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	opaconf "github.com/open-policy-agent/opa/v1/config"
+	"github.com/open-policy-agent/opa/v1/download"
+	"github.com/open-policy-agent/opa/v1/plugins"
+	"github.com/open-policy-agent/opa/v1/plugins/bundle"
+	"github.com/open-policy-agent/opa/v1/plugins/discovery"
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/open-policy-agent/opa/v1/storage/inmem"
 	"github.com/opentracing/opentracing-go"
@@ -183,7 +189,7 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 		},
 		"plugins": {
 			"envoy_ext_authz_grpc": {
-				"path": "/envoy/authz/allow",
+				"path": "envoy/authz/allow",
 				"dry-run": false,
 				"skip-request-body-parse": false
 			}
@@ -194,89 +200,194 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 }
 
 func TestRegistry(t *testing.T) {
-	_, config := mockControlPlaneWithResourceBundle()
-
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
-
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	assert.NoError(t, err)
-
-	inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-
-	registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
-
-	inst2, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-	assert.Equal(t, inst1, inst2, "same instance is reused after release")
-
-	inst3, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-	assert.Equal(t, inst2, inst3, "same instance is reused multiple times")
-
-	registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
-
-	//Allow clean up
-	time.Sleep(2 * time.Second)
-
-	inst_different_bundle, err := registry.NewOpenPolicyAgentInstance("anotherbundlename", *cfg, "testfilter")
-	assert.NoError(t, err)
-
-	inst4, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-	assert.NotEqual(t, inst1, inst4, "after cleanup a new instance should be created")
-
-	//Trigger cleanup via post processor
-	registry.Do([]*routing.Route{
+	testCases := []opaInstanceStartupTestCase{
 		{
-			Filters: []*routing.RouteFilter{{Filter: &MockOpenPolicyAgentFilter{opa: inst_different_bundle}}},
+			overridePeriodicTriggers: true,
+			expectedTriggerMode:      plugins.TriggerManual,
+			discoveryBundle:          "bundles/discovery",
 		},
-	})
+		{
+			overridePeriodicTriggers: false,
+			expectedTriggerMode:      plugins.DefaultTriggerMode,
+			discoveryBundle:          "bundles/discovery",
+		},
+		{
+			overridePeriodicTriggers: true,
+			expectedTriggerMode:      plugins.TriggerManual,
+			resourceBundle:           true,
+		},
+		{
 
-	// Allow clean up
-	time.Sleep(2 * time.Second)
+			overridePeriodicTriggers: false,
+			expectedTriggerMode:      plugins.DefaultTriggerMode,
+			resourceBundle:           true,
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			var config []byte
+			if tc.discoveryBundle != "" {
+				_, config = mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
+			} else if tc.resourceBundle {
+				_, config = mockControlPlaneWithResourceBundle()
+			}
 
-	inst5, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-	assert.NotEqual(t, inst4, inst5, "after cleanup a new instance should be created")
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-	registry.Close()
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	_, err = registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.Error(t, err, "should not work after close")
+			inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			if tc.discoveryBundle != "" {
+				assertTriggerMode(t, tc.expectedTriggerMode, inst1.manager.Plugin("discovery"))
+			}
+			assertTriggerMode(t, tc.expectedTriggerMode, inst1.manager.Plugin("bundle"))
+
+			registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
+
+			inst2, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+			assert.Equal(t, inst1, inst2, "same instance is reused after release")
+
+			inst3, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+			assert.Equal(t, inst2, inst3, "same instance is reused multiple times")
+
+			registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
+
+			//Allow clean up
+			time.Sleep(3 * time.Second)
+
+			inst_different_bundle, err := registry.NewOpenPolicyAgentInstance("anotherbundlename", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			inst4, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+			assert.NotEqual(t, inst1, inst4, "after cleanup a new instance should be created")
+
+			//Trigger cleanup via post processor
+			registry.Do([]*routing.Route{
+				{
+					Filters: []*routing.RouteFilter{{Filter: &MockOpenPolicyAgentFilter{opa: inst_different_bundle}}},
+				},
+			})
+
+			// Allow clean up
+			time.Sleep(3 * time.Second)
+
+			inst5, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+			assert.NotEqual(t, inst4, inst5, "after cleanup a new instance should be created")
+
+			registry.Close()
+
+			_, err = registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.Error(t, err, "should not work after close")
+		})
 }
 
-func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
+func assertTriggerMode(t *testing.T, expectedMode plugins.TriggerMode, plgn plugins.Plugin) {
+	if discoveryPlugin, ok := plgn.(*discovery.Discovery); ok {
+		assert.Equal(t, expectedMode, *discoveryPlugin.TriggerMode())
+	}
+	if bundlePlugin, ok := plgn.(*bundle.Plugin); ok {
+		for _, bundle := range bundlePlugin.Config().Bundles {
+			assert.Equal(t, expectedMode, *bundle.Trigger)
+		}
+	}
+}
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+func TestOpaEngineStartFailure(t *testing.T) {
+	testCases := []opaInstanceStartupTestCase{
+		{overridePeriodicTriggers: true, expectedError: "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found"},
+		{overridePeriodicTriggers: false, expectedError: "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded"},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
-	assert.NoError(t, err)
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-	engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+			assert.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.startupTimeout)
-	defer cancel()
+			engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
+			assert.NoError(t, err)
 
-	err = engine.Start(ctx, cfg.startupTimeout)
-	assert.True(t, engine.stopped)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
+			ctx, cancel := context.WithTimeout(context.Background(), cfg.startupTimeout)
+			defer cancel()
+
+			if tc.overridePeriodicTriggers {
+				err = engine.StartAndTriggerPlugins(ctx)
+			} else {
+				err = engine.Start(ctx, cfg.startupTimeout)
+			}
+
+			assert.True(t, engine.stopped)
+			assert.Contains(t, err.Error(), tc.expectedError)
+		})
+}
+
+func TestPluginTriggerIntervalCalculation(t *testing.T) {
+	interval := pluginTriggerIntervalWithJitter(10*time.Second, 0*time.Millisecond)
+	assert.Equal(t, 10*time.Second, interval)
+
+	interval = pluginTriggerIntervalWithJitter(10*time.Second, 1000*time.Millisecond)
+	assert.NotEqual(t, 10*time.Second, interval)
+
+	start := time.Now()
+	assert.WithinDuration(t, start.Add(10*time.Second), start.Add(interval), 500*time.Millisecond)
+}
+
+func TestBundleDownloadRetry(t *testing.T) {
+	testCases := []struct {
+		err       error
+		retryable bool
+	}{
+		{download.HTTPError{StatusCode: 429}, true},
+		{download.HTTPError{StatusCode: 500}, true},
+		{download.HTTPError{StatusCode: 404}, false},
+		{errors.New("some error"), false},
+		{nil, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%v:%v", tc.err, tc.retryable), func(t *testing.T) {
+			httpError := download.HTTPError{}
+			retryable := asRetryableHttpError(tc.err, &httpError)
+
+			assert.Equal(t, tc.retryable, retryable)
+		})
+	}
 }
 
 func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
+	testCases := []opaInstanceStartupTestCase{
+		{
+			overridePeriodicTriggers: true,
+			discoveryBundle:          "bundles/discovery",
+		},
+		{
+			overridePeriodicTriggers: false,
+			discoveryBundle:          "bundles/discovery",
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NotNil(t, instance)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(registry.instances))
+			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NotNil(t, instance)
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(registry.instances))
+		})
 }
 
 func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
@@ -315,66 +426,134 @@ func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 }
 
 func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
-	configWithUnknownService := []byte(`{
+	testCases := []opaInstanceStartupTestCase{
+		{
+			overridePeriodicTriggers: true,
+			expectedError:            "invalid configuration for discovery",
+		},
+		{
+			overridePeriodicTriggers: false,
+			expectedError:            "invalid configuration for discovery",
+		},
+	}
+	runWithTestCases(t, testCases, func(t *testing.T, tc opaInstanceStartupTestCase) {
+		configWithUnknownService := []byte(`{
 		"discovery": {
 			"name": "discovery",
 			"resource": "discovery",
 			"service": "test"
 		}}`)
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+		registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService), WithStartupTimeout(1*time.Second))
-	assert.NoError(t, err)
+		cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService), WithStartupTimeout(1*time.Second))
+		assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "invalid configuration for discovery")
-	assert.Equal(t, 0, len(registry.instances))
+		instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+		assert.Nil(t, instance)
+		assert.Contains(t, err.Error(), tc.expectedError)
+		assert.Equal(t, 0, len(registry.instances))
+	})
 }
 
-func TestOpaActivationTimeOutWithDiscoveryPointingWrongBundle(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
+func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
+	testCases := []opaInstanceStartupTestCase{
+		{
+			overridePeriodicTriggers: true,
+			expectedError:            "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found",
+		},
+		{
+			overridePeriodicTriggers: false,
+			expectedError:            "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+			assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
-	assert.Equal(t, 0, len(registry.instances))
+			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.Nil(t, instance)
+			assert.Equal(t, 0, len(registry.instances))
+
+			assert.Contains(t, err.Error(), tc.expectedError)
+
+		})
 }
 
 func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-parsing-error")
+	testCases := []opaInstanceStartupTestCase{
+		{
+			overridePeriodicTriggers: true,
+			discoveryBundle:          "/bundles/discovery-with-parsing-error",
+			expectedError:            "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Internal Server Error",
+		},
+		{
+			overridePeriodicTriggers: false,
+			discoveryBundle:          "/bundles/discovery-with-parsing-error",
+			expectedError:            "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+			assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
-	assert.Equal(t, 0, len(registry.instances))
+			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.Nil(t, instance)
+			assert.Contains(t, err.Error(), tc.expectedError)
+			assert.Equal(t, 0, len(registry.instances))
+		})
 }
 
 func TestStartup(t *testing.T) {
-	_, config := mockControlPlaneWithResourceBundle()
+	testCases := []opaInstanceStartupTestCase{
+		{
+			overridePeriodicTriggers: true,
+			discoveryBundle:          "bundles/discovery",
+		},
+		{
+			overridePeriodicTriggers: false,
+			discoveryBundle:          "bundles/discovery",
+		},
+		{
+			overridePeriodicTriggers: true,
+			resourceBundle:           true,
+		},
+		{
+			overridePeriodicTriggers: false,
+			resourceBundle:           true,
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			var config []byte
+			if tc.discoveryBundle != "" {
+				_, config = mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
+			} else if tc.resourceBundle {
+				_, config = mockControlPlaneWithResourceBundle()
+			}
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
+			inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
 
-	target := envoy.PluginConfig{Path: "/envoy/authz/allow", DryRun: false}
-	target.ParseQuery()
-	assert.Equal(t, target, inst1.EnvoyPluginConfig())
+			target := envoy.PluginConfig{Path: "envoy/authz/allow", DryRun: false}
+			target.ParseQuery()
+			assert.Equal(t, target, inst1.EnvoyPluginConfig())
+		})
 }
 
 func TestTracing(t *testing.T) {
@@ -401,37 +580,63 @@ func TestTracing(t *testing.T) {
 }
 
 func TestEval(t *testing.T) {
-	_, config := mockControlPlaneWithResourceBundle()
-
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
-
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	assert.NoError(t, err)
-
-	inst, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-
-	tracer := tracingtest.NewTracer()
-	span := tracer.StartSpan("open-policy-agent")
-	ctx := opentracing.ContextWithSpan(context.Background(), span)
-
-	result, err := inst.Eval(ctx, &authv3.CheckRequest{
-		Attributes: &authv3.AttributeContext{
-			Request:           nil,
-			ContextExtensions: nil,
-			MetadataContext:   nil,
+	testCases := []opaInstanceStartupTestCase{
+		{
+			overridePeriodicTriggers: true,
+			discoveryBundle:          "bundles/discovery",
 		},
-	})
-	assert.NoError(t, err)
+		{
+			overridePeriodicTriggers: false,
+			discoveryBundle:          "bundles/discovery",
+		},
+		{
+			overridePeriodicTriggers: true,
+			resourceBundle:           true,
+		},
+		{
+			overridePeriodicTriggers: false,
+			resourceBundle:           true,
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			var config []byte
+			if tc.discoveryBundle != "" {
+				_, config = mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
+			} else if tc.resourceBundle {
+				_, config = mockControlPlaneWithResourceBundle()
+			}
 
-	allowed, err := result.IsAllowed()
-	assert.NoError(t, err)
-	assert.False(t, allowed)
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-	span.Finish()
-	testspan := tracer.FindSpan("open-policy-agent")
-	require.NotNil(t, testspan)
-	assert.Equal(t, result.DecisionID, testspan.Tag("opa.decision_id"))
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
+
+			inst, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			tracer := tracingtest.NewTracer()
+			span := tracer.StartSpan("open-policy-agent")
+			ctx := opentracing.ContextWithSpan(context.Background(), span)
+
+			result, err := inst.Eval(ctx, &authv3.CheckRequest{
+				Attributes: &authv3.AttributeContext{
+					Request:           nil,
+					ContextExtensions: nil,
+					MetadataContext:   nil,
+				},
+			})
+			assert.NoError(t, err)
+
+			allowed, err := result.IsAllowed()
+			assert.NoError(t, err)
+			assert.False(t, allowed)
+
+			span.Finish()
+			testspan := tracer.FindSpan("open-policy-agent")
+			require.NotNil(t, testspan)
+			assert.Equal(t, result.DecisionID, testspan.Tag("opa.decision_id"))
+		})
 }
 
 func TestResponses(t *testing.T) {
@@ -705,4 +910,28 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+type opaInstanceStartupTestCase struct {
+	overridePeriodicTriggers bool
+	expectedError            string
+	expectedTriggerMode      plugins.TriggerMode
+	discoveryBundle          string
+	resourceBundle           bool
+}
+
+func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test func(t *testing.T, tc opaInstanceStartupTestCase)) {
+	for _, tc := range cases {
+		sb := strings.Builder{}
+		sb.WriteString(fmt.Sprintf("override-period-triggers=%v", tc.overridePeriodicTriggers))
+		if tc.discoveryBundle != "" {
+			sb.WriteString(fmt.Sprintf(";discovery=%v", tc.discoveryBundle))
+		}
+		if tc.resourceBundle {
+			sb.WriteString(";resource-bundle")
+		}
+		t.Run(sb.String(), func(t *testing.T) {
+			test(t, tc)
+		})
+	}
 }
