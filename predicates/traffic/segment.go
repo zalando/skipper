@@ -9,8 +9,13 @@ import (
 )
 
 type (
-	segmentSpec      struct{}
-	segmentPredicate struct{ min, max float64 }
+	segmentSpec struct {
+		randFloat64 func() float64
+	}
+	segmentPredicate struct {
+		randFloat64 func() float64
+		min, max    float64
+	}
 )
 
 type contextKey struct{}
@@ -19,7 +24,7 @@ var randomValue contextKey
 
 // NewSegment creates a new traffic segment predicate specification
 func NewSegment() routing.WeightedPredicateSpec {
-	return &segmentSpec{}
+	return &segmentSpec{rand.Float64}
 }
 
 func (*segmentSpec) Name() string {
@@ -42,12 +47,12 @@ func (*segmentSpec) Name() string {
 //	r50: Path("/test") && TrafficSegment(0.0, 0.5) -> <shunt>;
 //	r30: Path("/test") && TrafficSegment(0.5, 0.8) -> <shunt>;
 //	r20: Path("/test") && TrafficSegment(0.8, 1.0) -> <shunt>;
-func (*segmentSpec) Create(args []any) (routing.Predicate, error) {
+func (s *segmentSpec) Create(args []any) (routing.Predicate, error) {
 	if len(args) != 2 {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	p, ok := &segmentPredicate{}, false
+	p, ok := &segmentPredicate{randFloat64: s.randFloat64}, false
 
 	if p.min, ok = args[0].(float64); !ok || p.min < 0 || p.min > 1 {
 		return nil, predicates.ErrInvalidPredicateParameters
@@ -72,7 +77,7 @@ func (*segmentSpec) Weight() int {
 }
 
 func (p *segmentPredicate) Match(req *http.Request) bool {
-	r := routing.FromContext(req.Context(), randomValue, rand.Float64)
+	r := routing.FromContext(req.Context(), randomValue, p.randFloat64)
 	// min == max defines a never-matching interval and always yields false
 	return p.min <= r && r < p.max
 }
