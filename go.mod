@@ -4,7 +4,7 @@ require (
 	github.com/AlexanderYastrebov/noleak v0.0.0-20230711175737-345842f874fb
 	github.com/MicahParks/keyfunc v1.9.0
 	github.com/abbot/go-http-auth v0.4.0
-	github.com/andybalholm/brotli v1.1.0
+	github.com/andybalholm/brotli v1.1.1
 	github.com/aryszka/jobqueue v0.0.3
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -17,7 +17,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
 	github.com/dimfeld/httppath v0.0.0-20170720192232-ee938bf73598
 	github.com/docker/go-connections v0.5.0
-	github.com/envoyproxy/go-control-plane v0.13.0
+	github.com/envoyproxy/go-control-plane v0.13.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-cmp v0.6.0
@@ -31,31 +31,31 @@ require (
 	github.com/open-policy-agent/opa-envoy-plugin v0.68.0-envoy-4
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	github.com/redis/go-redis/v9 v9.6.1
+	github.com/redis/go-redis/v9 v9.7.0
 	github.com/sarslanhan/cronmask v0.0.0-20230801193303-54e29300a091
 	github.com/sirupsen/logrus v1.9.3
 	github.com/sony/gobreaker v1.0.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/szuecs/rate-limit-buffer v0.9.0
-	github.com/testcontainers/testcontainers-go v0.33.0
-	github.com/tidwall/gjson v1.17.3
+	github.com/testcontainers/testcontainers-go v0.34.0
+	github.com/tidwall/gjson v1.18.0
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
 	github.com/yookoala/gofast v0.8.0
 	github.com/yuin/gopher-lua v1.1.1
 	go4.org/netipx v0.0.0-20220925034521-797b0c90d8ab
-	golang.org/x/crypto v0.27.0
+	golang.org/x/crypto v0.30.0
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
-	golang.org/x/net v0.29.0
-	golang.org/x/oauth2 v0.23.0
-	golang.org/x/sync v0.8.0
-	golang.org/x/term v0.24.0
-	golang.org/x/time v0.6.0
-	google.golang.org/protobuf v1.34.2
+	golang.org/x/net v0.32.0
+	golang.org/x/oauth2 v0.24.0
+	golang.org/x/sync v0.10.0
+	golang.org/x/term v0.27.0
+	golang.org/x/time v0.8.0
+	google.golang.org/protobuf v1.35.2
 	gopkg.in/go-jose/go-jose.v2 v2.6.3
 	gopkg.in/yaml.v2 v2.4.0
 	layeh.com/gopher-json v0.0.0-20201124131017-552bb3c4c3bf
@@ -82,7 +82,7 @@ require (
 	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
-	github.com/cpuguy83/dockercfg v0.3.1 // indirect
+	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
@@ -91,7 +91,7 @@ require (
 	github.com/docker/docker v27.1.1+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
-	github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -171,8 +171,8 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/automaxprocs v1.5.3 // indirect
 	golang.org/x/mod v0.20.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094 // indirect
