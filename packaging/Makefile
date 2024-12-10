@@ -2,7 +2,7 @@
 
 VERSION            ?= $(shell git rev-parse HEAD)
 REGISTRY           ?= registry-write.opensource.zalan.do/teapot
-BINARIES           ?= skipper webhook eskip routesrv
+BINARIES           ?= skipper eskip routesrv
 IMAGE              ?= $(REGISTRY)/skipper:$(VERSION)
 ARM64_IMAGE        ?= $(REGISTRY)/skipper-arm64:$(VERSION)
 ARM_IMAGE          ?= $(REGISTRY)/skipper-armv7:$(VERSION)
@@ -26,9 +26,6 @@ skipper:
 
 eskip:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build $(BUILD_FLAGS) -o eskip ../cmd/eskip/*.go
-
-webhook:
-	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build $(BUILD_FLAGS) -o webhook ../cmd/webhook/*.go
 
 routesrv:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOARM) CGO_ENABLED=$(CGO_ENABLED) go build $(BUILD_FLAGS) -o routesrv ../cmd/routesrv/*.go
