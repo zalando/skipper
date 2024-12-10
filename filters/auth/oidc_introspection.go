@@ -42,6 +42,12 @@ func NewOIDCQueryClaimsFilter() filters.Spec {
 	}
 }
 
+func SetOIDCClaims(ctx filters.FilterContext, h map[string]interface{}) {
+	ctx.StateBag()[oidcClaimsCacheKey] = tokenContainer{
+		Claims: h,
+	}
+}
+
 func (spec *oidcIntrospectionSpec) Name() string {
 	switch spec.typ {
 	case checkOIDCQueryClaims:
