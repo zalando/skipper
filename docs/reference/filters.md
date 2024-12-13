@@ -115,6 +115,8 @@ Example:
 route1: * -> preserveHost("true") -> "http://backend.example.org";
 ```
 
+Default `proxyPreserveHost` behavior can be configured by `-proxy-preserve-host` flag which is `false` by default.
+
 ### modRequestHeader
 
 Replace all matched regex expressions in the given header.
