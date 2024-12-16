@@ -3361,14 +3361,24 @@ tracingTag("http.flow_id", "${request.header.X-Flow-Id}")
 
 ### tracingTagFromResponse
 
-This filter works just like [tracingTag](#tracingtag), but is applied after the request was processed. In particular, [template placeholders](#template-placeholders) referencing the response can be used in the parameters.
+This filter works just like [tracingTag](#tracingtag), but is applied after the request was processed.
+In particular, [template placeholders](#template-placeholders) referencing the response can be used in the tag value.
 
 ### tracingTagFromResponseIfStatus
 
-Example: set error tag to true in case response status code is `>= 500` and `<= 599`
+This filter works like [tracingTagFromResponse](#tracingtagfromresponse)
+but only for responses having status code from the specified range.
+
+Example: set error tag to true in case response status code is `>= 500` and `<= 599`:
 
 ```
 tracingTagFromResponseIfStatus("error", "true", 500, 599)
+```
+
+Example: set user id tag for ratelimited requests:
+
+```
+tracingTagFromResponseIfStatus("user.id", "${request.header.X-User-Id}", 429, 429) -> clusterClientRatelimit("user-id", 10, "1m", "X-User-Id")
 ```
 
 
