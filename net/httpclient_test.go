@@ -1,13 +1,17 @@
 package net
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/AlexanderYastrebov/noleak"
@@ -425,4 +429,371 @@ func TestClientClosesIdleConnections(t *testing.T) {
 		t.Fatalf("unexpected status code: %s", rsp.Status)
 	}
 	rsp.Body.Close()
+}
+
+func TestClientRetry(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		method string
+		body   string
+	}{
+		{
+			name:   "test GET",
+			method: "GET",
+		},
+		{
+			name:   "test POST",
+			method: "POST",
+			body:   "hello POST",
+		},
+		{
+			name:   "test PATCH",
+			method: "PATCH",
+			body:   "hello PATCH",
+		},
+		{
+			name:   "test PUT",
+			method: "PUT",
+			body:   "hello PUT",
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			i := 0
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if i == 0 {
+					i++
+					w.WriteHeader(http.StatusBadGateway)
+					return
+				}
+
+				got, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatalf("got no data")
+				}
+				s := string(got)
+				if tt.body != s {
+					t.Fatalf("Failed to get the right data want: %q, got: %q", tt.body, s)
+				}
+
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer backend.Close()
+
+			noleak.Check(t)
+
+			cli := NewClient(Options{})
+			defer cli.Close()
+
+			buf := bytes.NewBufferString(tt.body)
+			req, err := http.NewRequest(tt.method, backend.URL, buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rsp, err := cli.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rsp.StatusCode != http.StatusBadGateway {
+				t.Fatalf("unexpected status code: %v", rsp.StatusCode)
+			}
+
+			rsp, err = cli.Retry(req)
+			if err != nil {
+				t.Fatalf("Failed to execute retry: %v", err)
+			}
+
+			if rsp.StatusCode != http.StatusOK {
+				t.Fatalf("unexpected status code: %v", rsp.StatusCode)
+			}
+			rsp.Body.Close()
+		})
+	}
+}
+
+func TestClientRetryConcurrentRequests(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		method string
+		body   string
+	}{
+		{
+			name:   "test GET",
+			method: "GET",
+		},
+		{
+			name:   "test POST",
+			method: "POST",
+			body:   "hello POST",
+		},
+		{
+			name:   "test PATCH",
+			method: "PATCH",
+			body:   "hello PATCH",
+		},
+		{
+			name:   "test PUT",
+			method: "PUT",
+			body:   "hello PUT",
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			i := 0
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/ignore" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+
+				if i == 0 {
+					i++
+					io.ReadAll(r.Body)
+					w.WriteHeader(http.StatusBadGateway)
+					return
+				}
+
+				got, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatalf("got no data")
+				}
+				s := string(got)
+				if tt.body != s {
+					t.Fatalf("Failed to get the right data want: %q, got: %q", tt.body, s)
+				}
+
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer backend.Close()
+
+			noleak.Check(t)
+
+			cli := NewClient(Options{})
+			defer cli.Close()
+
+			quit := make(chan struct{})
+			go func() {
+				for {
+					select {
+					case <-quit:
+						return
+					default:
+					}
+					cli.Get(backend.URL + "/ignore")
+				}
+			}()
+
+			buf := bytes.NewBufferString(tt.body)
+			req, err := http.NewRequest(tt.method, backend.URL, buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rsp, err := cli.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rsp.StatusCode != http.StatusBadGateway {
+				t.Fatalf("unexpected status code: %v", rsp.StatusCode)
+			}
+
+			rsp, err = cli.Retry(req)
+			if err != nil {
+				t.Fatalf("Failed to execute retry: %v", err)
+			}
+			if rsp.StatusCode != http.StatusOK {
+				t.Fatalf("unexpected status code: %v", rsp.StatusCode)
+			}
+			rsp.Body.Close()
+
+			close(quit)
+		})
+	}
+}
+
+func TestClientRetryFailConcurrentRequests(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		method string
+		body   string
+	}{
+		{
+			name:   "test GET",
+			method: "GET",
+		},
+		{
+			name:   "test POST",
+			method: "POST",
+			body:   "hello POST",
+		},
+		{
+			name:   "test PATCH",
+			method: "PATCH",
+			body:   "hello PATCH",
+		},
+		{
+			name:   "test PUT",
+			method: "PUT",
+			body:   "hello PUT",
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			i := 0
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/ignore" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+
+				if i < 3 {
+					i++
+					io.ReadAll(r.Body)
+					w.WriteHeader(http.StatusBadGateway)
+					return
+				}
+
+				got, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatalf("got no data")
+				}
+				s := string(got)
+				if tt.body != s {
+					t.Fatalf("Failed to get the right data want: %q, got: %q", tt.body, s)
+				}
+
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer backend.Close()
+
+			noleak.Check(t)
+
+			cli := NewClient(Options{})
+			defer cli.Close()
+
+			quit := make(chan struct{})
+			go func() {
+				for {
+					select {
+					case <-quit:
+						return
+					default:
+					}
+					cli.Get(backend.URL + "/ignore")
+				}
+			}()
+
+			buf := bytes.NewBufferString(tt.body)
+			req, err := http.NewRequest(tt.method, backend.URL, buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rsp, err := cli.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rsp.StatusCode != http.StatusBadGateway {
+				t.Fatalf("unexpected status code: %s", rsp.Status)
+			}
+
+			for i := 0; i < 2; i++ {
+				rsp, err = cli.Retry(req)
+				if err != nil {
+					t.Fatalf("Failed to execute retry: %v", err)
+				}
+				if rsp.StatusCode != http.StatusBadGateway {
+					t.Fatalf("unexpected status code: %s", rsp.Status)
+				}
+			}
+
+			rsp, err = cli.Retry(req)
+			if err != nil {
+				t.Fatalf("Failed to execute retry: %v", err)
+			}
+			if rsp.StatusCode != http.StatusOK {
+				t.Fatalf("unexpected status code: %s", rsp.Status)
+			}
+			rsp.Body.Close()
+
+			close(quit)
+		})
+	}
+}
+
+func TestClientRetryBodyHalfReader(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		method string
+		body   string
+	}{
+		{
+			name:   "test GET",
+			method: "GET",
+		},
+		{
+			name:   "test POST",
+			method: "POST",
+			body:   "hello POST",
+		},
+		{
+			name:   "test PATCH",
+			method: "PATCH",
+			body:   "hello PATCH",
+		},
+		{
+			name:   "test PUT",
+			method: "PUT",
+			body:   "hello PUT",
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			i := 0
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if i == 0 {
+					i++
+					w.WriteHeader(http.StatusBadGateway)
+					return
+				}
+
+				got, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatalf("got no data")
+				}
+
+				s := string(got)
+				if len(s) != 0 {
+					t.Fatalf("Failed to get the right data got: %q", s)
+				}
+
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer backend.Close()
+
+			noleak.Check(t)
+
+			cli := NewClient(Options{})
+			defer cli.Close()
+
+			b := bytes.NewBufferString(tt.body)
+			buf := iotest.HalfReader(b)
+
+			req, err := http.NewRequest(tt.method, backend.URL, buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rsp, err := cli.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rsp.StatusCode != http.StatusBadGateway {
+				t.Fatalf("unexpected status code: %s", rsp.Status)
+			}
+
+			rsp, err = cli.Retry(req)
+			if err != nil {
+				if !errors.Is(err, errRequestNotFound) {
+					t.Fatalf("Failed to execute retry: %v", err)
+				} else {
+					return
+				}
+			}
+
+			if rsp.StatusCode != http.StatusOK {
+				t.Fatalf("unexpected status code: %s", rsp.Status)
+			}
+			rsp.Body.Close()
+		})
+	}
 }
