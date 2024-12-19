@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
@@ -243,7 +244,7 @@ func TestRegistry(t *testing.T) {
 	assert.Error(t, err, "should not work after close")
 }
 
-func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
+func TestOpaEngineStartFailureWithWrongBundle(t *testing.T) {
 	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
 	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
@@ -259,7 +260,7 @@ func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
 
 	err = engine.Start(ctx, cfg.startupTimeout)
 	assert.True(t, engine.stopped)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
+	assert.Contains(t, err.Error(), "bundle plugin failed: Name: bundles/non-existing-bundle, Code: bundle_error, Message: server replied with Not Found, HTTPCode: 404")
 }
 
 func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
@@ -340,7 +341,7 @@ func TestOpaActivationTimeOutWithDiscoveryPointingWrongBundle(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
+	assert.Contains(t, err.Error(), "bundle plugin failed: Name: bundles/non-existing-bundle, Code: bundle_error, Message: server replied with Not Found, HTTPCode: 404")
 	assert.Equal(t, 0, len(registry.instances))
 }
 
@@ -354,7 +355,7 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
 	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
+	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded")
 	assert.Equal(t, 0, len(registry.instances))
 }
 
@@ -702,4 +703,148 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+func TestOpaActivationFailureWithInvalidDiscovery(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/invalid-discovery")
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	assert.NoError(t, err)
+
+	_, err = registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Error(t, err)
+	assert.Equal(t, "discovery plugin failed: Name: discovery, Code: bundle_error, Message: server replied with Not Found, HTTPCode: 404, Errors: []", err.Error())
+}
+
+func TestDiscoveryRetryErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		statusCode    int
+		expectedError string
+	}{
+		{"TemporaryError429", http.StatusTooManyRequests, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded"},
+		{"TemporaryError408", http.StatusRequestTimeout, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded"},
+		{"Retry5xx", http.StatusInternalServerError, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded"},
+		{"Failure403BundleError", http.StatusForbidden, "discovery plugin failed: Name: discovery, Code: bundle_error, Message: server replied with Forbidden, HTTPCode: 403"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testDiscoveryBundleError(t, tt.statusCode, tt.expectedError)
+		})
+	}
+}
+
+func TestResourceBundleRetryErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		statusCode    int
+		expectedError string
+	}{
+		{"TemporaryError429", http.StatusTooManyRequests, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded"},
+		{"TemporaryError408", http.StatusRequestTimeout, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded"},
+		{"Retry5xx", http.StatusInternalServerError, "one or more open policy agent plugins failed to start in 1s with error: context deadline exceeded"},
+		{"Failure403BundleError", http.StatusForbidden, "bundle plugin failed: Name: test, Code: bundle_error, Message: server replied with Forbidden, HTTPCode: 403"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testResourceBundleError(t, tt.statusCode, tt.expectedError)
+		})
+	}
+}
+
+// Helper function to test discovery bundle temporary errors
+func testDiscoveryBundleError(t *testing.T, statusCode int, expectedError string) {
+	mockDiscoveryBundleServer := mockBundleServerWithStatus("/bundles/discovery", statusCode)
+	defer mockDiscoveryBundleServer.Close()
+
+	// Create the plugin configuration
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"labels": {
+			"environment": "envValue"
+		},
+		"discovery": {
+			"name": "discovery",
+			"resource": "/bundles/discovery",
+			"service": "test"
+		}
+	}`, mockDiscoveryBundleServer.URL))
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Nil(t, instance)
+	assert.Contains(t, err.Error(), expectedError)
+}
+
+// Helper function to test resource bundle temporary errors
+func testResourceBundleError(t *testing.T, statusCode int, expectedError string) {
+	mockServer := mockBundleServerWithStatus("/bundles/test.tgz", statusCode)
+	defer mockServer.Close()
+
+	// Create the OPA control plane with the discovery bundle
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/discovery", map[string]string{
+			"data.json": fmt.Sprintf(`{
+				"discovery": {
+					"bundles": {
+						"test": {
+							"persist": false,
+							"resource": "bundles/test.tgz",
+							"service": "styra-bundles"
+						}
+					},
+					"services": {
+						"styra-bundles": {
+							"url": "%s"
+						}
+					}
+				}
+			}`, mockServer.URL),
+		}),
+	)
+
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"discovery": {
+				"url": %q
+			}
+		},
+		"labels": {
+			"environment": "envValue"
+		},
+		"discovery": {
+			"name": "discovery",
+			"resource": "/bundles/discovery",
+			"service": "discovery"
+		}
+	}`, opaControlPlane.URL()))
+
+	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+
+	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+	assert.NoError(t, err)
+
+	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+	assert.Nil(t, instance)
+	assert.Contains(t, err.Error(), expectedError)
+}
+
+func mockBundleServerWithStatus(path string, statusCode int) *httptest.Server {
+	handler := http.NewServeMux()
+	handler.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, http.StatusText(statusCode), statusCode)
+	})
+	return httptest.NewServer(handler)
 }
