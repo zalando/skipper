@@ -17,8 +17,14 @@ func newFakeKubernetesNodeInfoClient(url string) nodeInfoClient {
 		log.Fatalf("failed to create kubernetes client: %v", err)
 	}
 
+	_, err = cli.LoadAll()
+	if err != nil {
+		log.Fatalf("Failed LoadAll kubernetes client: %v", err)
+	}
+
 	return &nodeInfoClientKubernetes{
 		client:    cli,
+		name:      defaultName,
 		namespace: DefaultNamespace,
 		port:      DefaultPort,
 	}
@@ -32,8 +38,7 @@ func TestGetKubeNodeInfo(t *testing.T) {
 	c := newFakeKubernetesNodeInfoClient(s.URL)
 	infos, err := c.GetNodeInfo()
 	if err != nil {
-		t.Errorf("Failed to get nodeinfos: %v", err)
-		return
+		t.Fatalf("Failed to get nodeinfos: %v", err)
 	}
 	if len(infos) < 1 {
 		t.Errorf("Failed to get nodeinfos: %d", len(infos))

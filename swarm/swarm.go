@@ -54,7 +54,7 @@ const (
 	DefaultMaxMessageBuffer = 1 << 22
 	// DefaultPort is used as default to connect to other
 	// known swarm peers.
-	DefaultPort = 9990
+	DefaultPort = uint16(9990)
 	// DefaultLeaveTimeout is the default timeout to wait for responses
 	// for a leave message send by this instance to other peers.
 	DefaultLeaveTimeout = time.Duration(5 * time.Second)
