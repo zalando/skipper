@@ -2,6 +2,7 @@ package opaauthorizerequest
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/filters/builtin"
 	"io"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benburkert/pbench"
 	"github.com/golang-jwt/jwt/v4"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
 	"github.com/stretchr/testify/assert"
@@ -625,11 +627,57 @@ const (
 	keyPath  = "../../../skptesting/key.pem"
 )
 
+// BenchmarkAuthorizeRequest benchmarks various authorization scenarios with and without decision logging.
+//
+// Usage:
+// To run a specific scenario with or without decision logging:
+//
+//	go test -bench=BenchmarkAuthorizeRequest/<scenario>/{no-decision-logs|with-decision-logs}
+//
+// Example:
+//
+//	go test -bench 'BenchmarkAuthorizeRequest/minimal/without-decision-logging'
+//
+// Running with multiple GOMAXPROCS values (parallel CPU execution):
+// Use the -cpu flag to simulate the benchmark under different levels of CPU parallelism:
+//
+//	go test -bench 'BenchmarkAuthorizeRequest/minimal/no-decision-logs' -cpu 1,2,4,8
+//
+// Note: Refer to the code for the latest available scenarios.
 func BenchmarkAuthorizeRequest(b *testing.B) {
-	b.Run("authorize-request-minimal", func(b *testing.B) {
-		opaControlPlane := opasdktest.MustNewServer(
-			opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
-				"main.rego": `
+
+	scenarios := []struct {
+		name          string
+		benchmarkFunc func(pb *pbench.B, decisionLogging bool)
+	}{
+		{"minimal", benchmarkMinimal},
+		{"with-body", benchmarkAllowWithReqBody},
+		{"jwt-validation", benchmarkJwtValidation},
+	}
+
+	for _, scenario := range scenarios {
+		b.Run(scenario.name, func(tb *testing.B) {
+			pb := pbench.New(tb)
+			pb.ReportPercentile(0.5)
+			pb.ReportPercentile(0.99)
+			pb.ReportPercentile(0.995)
+			pb.ReportPercentile(0.999)
+
+			pb.Run("no-decision-logs", func(pb *pbench.B) {
+				scenario.benchmarkFunc(pb, false)
+			})
+
+			pb.Run("with-decision-logs", func(pb *pbench.B) {
+				scenario.benchmarkFunc(pb, true)
+			})
+		})
+	}
+}
+
+func benchmarkMinimal(b *pbench.B, decisionLogging bool) {
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
+			"main.rego": `
 					package envoy.authz
 
 					default allow = false
@@ -638,39 +686,42 @@ func BenchmarkAuthorizeRequest(b *testing.B) {
 						input.parsed_path = [ "allow" ]
 					}
 				`,
-			}),
-		)
+		}),
+	)
 
-		f, err := createOpaFilter(opaControlPlane)
-		assert.NoError(b, err)
+	decisionLogConsumer := newDecisionConsumer()
+	defer decisionLogConsumer.Close()
 
-		url, err := url.Parse("http://opa-authorized.test/somepath")
-		assert.NoError(b, err)
+	f, err := createOpaFilter(opaControlPlane, decisionLogConsumer, decisionLogging)
+	require.NoError(b, err)
 
-		ctx := &filtertest.Context{
-			FStateBag: map[string]interface{}{},
-			FResponse: &http.Response{},
-			FRequest: &http.Request{
-				Header: map[string][]string{
-					"Authorization": {"Bearer FOOBAR"},
-				},
-				URL: url,
+	requestUrl, err := url.Parse("http://opa-authorized.test/somepath")
+	require.NoError(b, err)
+
+	ctx := &filtertest.Context{
+		FStateBag: map[string]interface{}{},
+		FResponse: &http.Response{},
+		FRequest: &http.Request{
+			Header: map[string][]string{
+				"Authorization": {"Bearer FOOBAR"},
 			},
-			FMetrics: &metricstest.MockMetrics{},
-		}
+			URL: requestUrl,
+		},
+		FMetrics: &metricstest.MockMetrics{},
+	}
 
-		b.ResetTimer()
-		b.ReportAllocs()
-
-		for i := 0; i < b.N; i++ {
+	b.ResetTimer()
+	b.RunParallel(func(pb *pbench.PB) {
+		for pb.Next() {
 			f.Request(ctx)
 		}
 	})
+}
 
-	b.Run("authorize-request-with-body", func(b *testing.B) {
-		opaControlPlane := opasdktest.MustNewServer(
-			opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
-				"main.rego": `
+func benchmarkAllowWithReqBody(b *pbench.B, decisionLogging bool) {
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
+			"main.rego": `
 					package envoy.authz
 
 					import rego.v1
@@ -681,50 +732,51 @@ func BenchmarkAuthorizeRequest(b *testing.B) {
 						endswith(input.parsed_body.email, "@zalando.de")
 					}
 				`,
-			}),
-		)
+		}),
+	)
 
-		f, err := createBodyBasedOpaFilter(opaControlPlane)
-		assert.NoError(b, err)
+	decisionLogConsumer := newDecisionConsumer()
+	defer decisionLogConsumer.Close()
 
-		url, err := url.Parse("http://opa-authorized.test/somepath")
-		assert.NoError(b, err)
+	f, err := createBodyBasedOpaFilter(opaControlPlane, decisionLogConsumer, decisionLogging)
+	require.NoError(b, err)
 
-		body := `{"email": "bench-test@zalando.de"}`
-		ctx := &filtertest.Context{
-			FStateBag: map[string]interface{}{},
-			FResponse: &http.Response{},
-			FRequest: &http.Request{
-				Method: "POST",
-				Header: map[string][]string{
-					"Authorization": {"Bearer FOOBAR"},
-					"Content-Type":  {"application/json"},
-				},
-				URL:           url,
-				Body:          io.NopCloser(strings.NewReader(body)),
-				ContentLength: int64(len(body)),
+	requestUrl, err := url.Parse("http://opa-authorized.test/somepath")
+	require.NoError(b, err)
+
+	body := `{"email": "bench-test@zalando.de"}`
+	ctx := &filtertest.Context{
+		FStateBag: map[string]interface{}{},
+		FResponse: &http.Response{},
+		FRequest: &http.Request{
+			Method: "POST",
+			Header: map[string][]string{
+				"Authorization": {"Bearer FOOBAR"},
+				"Content-Type":  {"application/json"},
 			},
-			FMetrics: &metricstest.MockMetrics{},
-		}
+			URL:           requestUrl,
+			Body:          io.NopCloser(strings.NewReader(body)),
+			ContentLength: int64(len(body)),
+		},
+		FMetrics: &metricstest.MockMetrics{},
+	}
 
-		b.ResetTimer()
-		b.ReportAllocs()
-
-		for i := 0; i < b.N; i++ {
+	b.ResetTimer()
+	b.RunParallel(func(pb *pbench.PB) {
+		for pb.Next() {
 			f.Request(ctx)
 		}
 	})
+}
 
-	b.Run("authorize-request-jwt-validation", func(b *testing.B) {
+func benchmarkJwtValidation(b *pbench.B, decisionLogging bool) {
 
-		publicKey, err := os.ReadFile(certPath)
-		if err != nil {
-			log.Fatalf("Failed to read public key: %v", err)
-		}
+	publicKey, err := os.ReadFile(certPath)
+	require.NoError(b, err, "Failed to read public key from %s", certPath)
 
-		opaControlPlane := opasdktest.MustNewServer(
-			opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
-				"main.rego": fmt.Sprintf(`
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/somebundle.tar.gz", map[string]string{
+			"main.rego": fmt.Sprintf(`
 					package envoy.authz
 
 					import future.keywords.if
@@ -750,98 +802,126 @@ func BenchmarkAuthorizeRequest(b *testing.B) {
 						payload.sub == "5974934733"
 					}				
 				`, publicKey),
-			}),
-		)
+		}),
+	)
 
-		f, err := createOpaFilter(opaControlPlane)
-		assert.NoError(b, err)
+	decisionLogConsumer := newDecisionConsumer()
+	defer decisionLogConsumer.Close()
 
-		url, err := url.Parse("http://opa-authorized.test/somepath")
-		assert.NoError(b, err)
+	f, err := createOpaFilter(opaControlPlane, decisionLogConsumer, decisionLogging)
+	require.NoError(b, err)
 
-		claims := jwt.MapClaims{
-			"iss":   "https://some.identity.acme.com",
-			"sub":   "5974934733",
-			"aud":   "nqz3xhorr5",
-			"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
-			"exp":   time.Now().Add(tokenExp).UTC().Unix(),
-			"email": "someone@example.org",
-		}
+	requestUrl, err := url.Parse("http://opa-authorized.test/somepath")
+	require.NoError(b, err)
 
-		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	claims := jwt.MapClaims{
+		"iss":   "https://some.identity.acme.com",
+		"sub":   "5974934733",
+		"aud":   "nqz3xhorr5",
+		"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
+		"exp":   time.Now().Add(tokenExp).UTC().Unix(),
+		"email": "someone@example.org",
+	}
 
-		privKey, err := os.ReadFile(keyPath)
-		if err != nil {
-			log.Fatalf("Failed to read priv key: %v", err)
-		}
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
-		key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privKey))
-		if err != nil {
-			log.Fatalf("Failed to parse RSA PEM: %v", err)
-		}
+	privKey, err := os.ReadFile(keyPath)
+	if err != nil {
+		log.Fatalf("Failed to read priv key: %v", err)
+	}
 
-		// Sign and get the complete encoded token as a string using the secret
-		signedToken, err := token.SignedString(key)
-		if err != nil {
-			log.Fatalf("Failed to sign token: %v", err)
-		}
+	key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privKey))
+	if err != nil {
+		log.Fatalf("Failed to parse RSA PEM: %v", err)
+	}
 
-		ctx := &filtertest.Context{
-			FStateBag: map[string]interface{}{},
-			FResponse: &http.Response{},
-			FRequest: &http.Request{
-				Header: map[string][]string{
-					"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
-				},
-				URL: url,
+	// Sign and get the complete encoded token as a string using the secret
+	signedToken, err := token.SignedString(key)
+	if err != nil {
+		log.Fatalf("Failed to sign token: %v", err)
+	}
+
+	ctx := &filtertest.Context{
+		FStateBag: map[string]interface{}{},
+		FResponse: &http.Response{},
+		FRequest: &http.Request{
+			Header: map[string][]string{
+				"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
 			},
-			FMetrics: &metricstest.MockMetrics{},
-		}
+			URL: requestUrl,
+		},
+		FMetrics: &metricstest.MockMetrics{},
+	}
 
-		b.ResetTimer()
-		b.ReportAllocs()
-
-		for i := 0; i < b.N; i++ {
+	b.ResetTimer()
+	b.RunParallel(func(pb *pbench.PB) {
+		for pb.Next() {
 			f.Request(ctx)
 			assert.False(b, ctx.FServed)
 		}
 	})
 }
 
-func createOpaFilter(opaControlPlane *opasdktest.Server) (filters.Filter, error) {
-	config := generateConfig(opaControlPlane, "envoy/authz/allow")
+func newDecisionConsumer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+}
+
+func createOpaFilter(opaControlPlane *opasdktest.Server, consumer *httptest.Server, decisionLogging bool) (filters.Filter, error) {
+	config := generateConfig(opaControlPlane, "envoy/authz/allow", consumer, decisionLogging)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
 }
 
-func createBodyBasedOpaFilter(opaControlPlane *opasdktest.Server) (filters.Filter, error) {
-	config := generateConfig(opaControlPlane, "envoy/authz/allow")
+func createBodyBasedOpaFilter(opaControlPlane *opasdktest.Server, consumer *httptest.Server, decisionLogging bool) (filters.Filter, error) {
+	config := generateConfig(opaControlPlane, "envoy/authz/allow", consumer, decisionLogging)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestWithBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{"somebundle.tar.gz"})
 }
 
-func generateConfig(opaControlPlane *opasdktest.Server, path string) []byte {
+func generateConfig(
+	opaControlPlane *opasdktest.Server,
+	path string,
+	decisionLogConsumer *httptest.Server,
+	decisionLogging bool) []byte {
+
+	var decisionPlugin string
+	if decisionLogging {
+		decisionPlugin = `
+			"decision_logs": {
+				"console": false,
+				"service": "decision_svc",
+			},
+		`
+	}
+
 	return []byte(fmt.Sprintf(`{
 		"services": {
-			"test": {
+			"bundle_svc": {
+				"url": %q
+			},
+			"decision_svc": {
 				"url": %q
 			}
 		},
 		"bundles": {
 			"test": {
+				"service": "bundle_svc",
 				"resource": "/bundles/{{ .bundlename }}"
 			}
 		},
 		"labels": {
 			"environment": "test"
 		},
+		%s
 		"plugins": {
 			"envoy_ext_authz_grpc": {    
 				"path": %q,
 				"dry-run": false    
 			}
 		}
-	}`, opaControlPlane.URL(), path))
+	}`, opaControlPlane.URL(), decisionLogConsumer.URL, decisionPlugin, path))
 }
