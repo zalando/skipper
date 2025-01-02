@@ -11,22 +11,11 @@ import (
 	"github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/secrets"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
-
-func waitForSpanViaMockTracer(mockTracer *mocktracer.MockTracer) {
-	for i := 0; i < 20; i++ {
-		if n := len(mockTracer.FinishedSpans()); n > 0 {
-			logrus.Printf("found %d spans", n)
-			return
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	logrus.Println("no span found")
-}
 
 func ExampleTransport() {
 	tracer := lightstep.NewTracer(lightstep.Options{})
@@ -221,7 +210,7 @@ func (t *customTracer) StartSpan(operationName string, opts ...opentracing.Start
 }
 
 func ExampleClient_customTracer() {
-	mockTracer := mocktracer.New()
+	mockTracer := tracingtest.NewTracer()
 	cli := net.NewClient(net.Options{
 		Tracer:              &customTracer{mockTracer},
 		OpentracingSpanName: "clientSpan",
@@ -232,10 +221,6 @@ func ExampleClient_customTracer() {
 	defer srv.Close()
 
 	cli.Get("http://" + srv.Listener.Addr().String() + "/")
-
-	// wait for the span to be finished
-	waitForSpanViaMockTracer(mockTracer)
-
 	fmt.Printf("customtag: %s", mockTracer.FinishedSpans()[0].Tags()["customtag"])
 
 	// Output:
@@ -343,7 +328,7 @@ func ExampleClient_hostSecret() {
 }
 
 func ExampleClient_withBeforeSendHook() {
-	mockTracer := mocktracer.New()
+	mockTracer := tracingtest.NewTracer()
 	peerService := "my-peer-service"
 	cli := net.NewClient(net.Options{
 		Tracer:                  &customTracer{mockTracer},
@@ -369,10 +354,6 @@ func ExampleClient_withBeforeSendHook() {
 	defer srv.Close()
 
 	cli.Get("http://" + srv.Listener.Addr().String() + "/")
-
-	// wait for the span to be finished
-	waitForSpanViaMockTracer(mockTracer)
-
 	fmt.Printf("request tag %q set to %q", string(ext.PeerService), mockTracer.FinishedSpans()[0].Tags()[string(ext.PeerService)])
 
 	// Output:
@@ -381,7 +362,7 @@ func ExampleClient_withBeforeSendHook() {
 }
 
 func ExampleClient_withAfterResponseHook() {
-	mockTracer := mocktracer.New()
+	mockTracer := tracingtest.NewTracer()
 	cli := net.NewClient(net.Options{
 		Tracer:                     &customTracer{mockTracer},
 		OpentracingComponentTag:    "testclient",
@@ -410,9 +391,6 @@ func ExampleClient_withAfterResponseHook() {
 	if err != nil {
 		log.Fatalf("Failed to get: %v", err)
 	}
-
-	// wait for the span to be finished
-	waitForSpanViaMockTracer(mockTracer)
 
 	fmt.Printf("response code: %d\n", rsp.StatusCode)
 	fmt.Printf("span status.code: %d", mockTracer.FinishedSpans()[0].Tags()["status.code"])

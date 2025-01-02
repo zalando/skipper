@@ -46,18 +46,20 @@ type ingressContext struct {
 }
 
 type ingress struct {
-	eastWestRangeDomains         []string
-	eastWestRangePredicates      []*eskip.Predicate
-	allowedExternalNames         []*regexp.Regexp
-	kubernetesEastWestDomain     string
-	pathMode                     PathMode
-	httpsRedirectCode            int
-	kubernetesEnableEastWest     bool
-	provideHTTPSRedirect         bool
-	disableCatchAllRoutes        bool
-	forceKubernetesService       bool
-	backendTrafficAlgorithm      BackendTrafficAlgorithm
-	defaultLoadBalancerAlgorithm string
+	eastWestRangeDomains                        []string
+	eastWestRangePredicates                     []*eskip.Predicate
+	allowedExternalNames                        []*regexp.Regexp
+	kubernetesEastWestDomain                    string
+	pathMode                                    PathMode
+	httpsRedirectCode                           int
+	kubernetesEnableEastWest                    bool
+	provideHTTPSRedirect                        bool
+	disableCatchAllRoutes                       bool
+	forceKubernetesService                      bool
+	backendTrafficAlgorithm                     BackendTrafficAlgorithm
+	defaultLoadBalancerAlgorithm                string
+	kubernetesAnnotationPredicates              []AnnotationPredicates
+	kubernetesEastWestRangeAnnotationPredicates []AnnotationPredicates
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -70,18 +72,20 @@ func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 
 func newIngress(o Options) *ingress {
 	return &ingress{
-		provideHTTPSRedirect:         o.ProvideHTTPSRedirect,
-		httpsRedirectCode:            o.HTTPSRedirectCode,
-		disableCatchAllRoutes:        o.DisableCatchAllRoutes,
-		pathMode:                     o.PathMode,
-		kubernetesEnableEastWest:     o.KubernetesEnableEastWest,
-		kubernetesEastWestDomain:     o.KubernetesEastWestDomain,
-		eastWestRangeDomains:         o.KubernetesEastWestRangeDomains,
-		eastWestRangePredicates:      o.KubernetesEastWestRangePredicates,
-		allowedExternalNames:         o.AllowedExternalNames,
-		forceKubernetesService:       o.ForceKubernetesService,
-		backendTrafficAlgorithm:      o.BackendTrafficAlgorithm,
-		defaultLoadBalancerAlgorithm: o.DefaultLoadBalancerAlgorithm,
+		provideHTTPSRedirect:                        o.ProvideHTTPSRedirect,
+		httpsRedirectCode:                           o.HTTPSRedirectCode,
+		disableCatchAllRoutes:                       o.DisableCatchAllRoutes,
+		pathMode:                                    o.PathMode,
+		kubernetesEnableEastWest:                    o.KubernetesEnableEastWest,
+		kubernetesEastWestDomain:                    o.KubernetesEastWestDomain,
+		eastWestRangeDomains:                        o.KubernetesEastWestRangeDomains,
+		eastWestRangePredicates:                     o.KubernetesEastWestRangePredicates,
+		allowedExternalNames:                        o.AllowedExternalNames,
+		forceKubernetesService:                      o.ForceKubernetesService,
+		backendTrafficAlgorithm:                     o.BackendTrafficAlgorithm,
+		defaultLoadBalancerAlgorithm:                o.DefaultLoadBalancerAlgorithm,
+		kubernetesAnnotationPredicates:              o.KubernetesAnnotationPredicates,
+		kubernetesEastWestRangeAnnotationPredicates: o.KubernetesEastWestRangeAnnotationPredicates,
 	}
 }
 
@@ -178,12 +182,14 @@ func applyAnnotationPredicates(m PathMode, r *eskip.Route, annotation string) er
 	return nil
 }
 
-func addExtraRoutes(ic *ingressContext, ruleHost, path, pathType, eastWestDomain string, enableEastWest bool) {
+func (ing *ingress) addExtraRoutes(ic *ingressContext, ruleHost, path, pathType string) {
 	hosts := []string{createHostRx(ruleHost)}
 	var ns, name string
 	name = ic.ingressV1.Metadata.Name
 	ns = ic.ingressV1.Metadata.Namespace
-
+	eastWestDomain := ing.kubernetesEastWestDomain
+	enableEastWest := ing.kubernetesEnableEastWest
+	ewHost := isEastWestHost(ruleHost, ing.eastWestRangeDomains)
 	// add extra routes from optional annotation
 	for extraIndex, r := range ic.extraRoutes {
 		route := *r
@@ -196,6 +202,11 @@ func addExtraRoutes(ic *ingressContext, ruleHost, path, pathType, eastWestDomain
 			extraIndex)
 		setPathV1(ic.pathMode, &route, pathType, path)
 		if n := countPathPredicates(&route); n <= 1 {
+			if ewHost {
+				addAnnotationPredicates(ing.kubernetesEastWestRangeAnnotationPredicates, ic.ingressV1.Metadata.Annotations, &route)
+			} else {
+				addAnnotationPredicates(ing.kubernetesAnnotationPredicates, ic.ingressV1.Metadata.Annotations, &route)
+			}
 			ic.addHostRoute(ruleHost, &route)
 			ic.redirect.updateHost(ruleHost)
 		} else {

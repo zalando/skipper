@@ -148,7 +148,9 @@ func TestTrafficSegmentSplit(t *testing.T) {
 		RoutingOptions: routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 			Predicates: []routing.PredicateSpec{
-				traffic.NewSegment(),
+				// Use fixed random sequence to deflake the test,
+				// see https://github.com/zalando/skipper/issues/2665
+				traffic.WithRandFloat64(traffic.NewSegment(), newTestRandFloat64()),
 			},
 		},
 		Routes: eskip.MustParse(`

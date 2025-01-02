@@ -1,0 +1,52 @@
+kube_default__myapp1__zone1_test____myapp:
+	Host("^(zone1[.]test[.]?(:[0-9]+)?)$")
+	&& False()
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp2__zone2_test____myapp:
+	Host("^(zone2[.]test[.]?(:[0-9]+)?)$")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp3__zone3_test____myapp:
+	Host("^(zone3[.]test[.]?(:[0-9]+)?)$")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp4__zone4_test____myapp:
+	Host("^(zone4[.]test[.]?(:[0-9]+)?)$")
+	&& Foo("xyz")
+	&& Bar("123")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp5__zone5_test____myapp:
+	Host("^(zone5[.]test[.]?(:[0-9]+)?)$")
+	&& Zone("zone5")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp5_r1_0__zone5_test____: 
+	Host("^(zone5[.]test[.]?(:[0-9]+)?)$") 
+	&& Path("/zone5")
+	&& Zone("zone5")
+    -> "https://zone5.route.test";
+
+kube_default__myapp6__zone6_rule1_test____myapp:
+	Host("^(zone6[.]rule1[.]test[.]?(:[0-9]+)?)$")
+	&& Zone("zone6")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp6_r1_0__zone6_rule1_test____: 
+	Host("^(zone6[.]rule1[.]test[.]?(:[0-9]+)?)$") 
+	&& Path("/zone6")
+	&& Zone("zone6")
+    -> "https://zone6.route.test";
+
+kube_default__myapp6__zone6_rule2_test____myapp:
+	Host("^(zone6[.]rule2[.]test[.]?(:[0-9]+)?)$")
+	&& Zone("zone6")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp6_r1_0__zone6_rule2_test____: 
+	Host("^(zone6[.]rule2[.]test[.]?(:[0-9]+)?)$") 
+	&& Path("/zone6")
+	&& Zone("zone6")
+    -> "https://zone6.route.test";

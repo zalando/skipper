@@ -13,9 +13,9 @@ import (
 	"github.com/AlexanderYastrebov/noleak"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/secrets"
 	"github.com/zalando/skipper/tracing/tracers/basic"
+	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
 var testToken = []byte("mytoken1")
@@ -208,7 +208,7 @@ func TestClient(t *testing.T) {
 }
 
 func TestTransport(t *testing.T) {
-	mtracer := mocktracer.New()
+	mtracer := tracingtest.NewTracer()
 	tracer, err := basic.InitTracer(nil)
 	if err != nil {
 		t.Fatalf("Failed to get a tracer: %v", err)

@@ -13,15 +13,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
+	"github.com/zalando/skipper/tracing/tracingtest"
 	"golang.org/x/time/rate"
 )
 
@@ -592,6 +595,93 @@ func TestAdmissionControlCleanupMultipleFilters(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdmissionControlSetsSpansTags(t *testing.T) {
+	tracer := tracingtest.NewTracer()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	fspec := NewAdmissionControl(Options{Tracer: tracer})
+	spec, ok := fspec.(*AdmissionControlSpec)
+	if !ok {
+		t.Fatal("FilterSpec is not a AdmissionControlSpec")
+	}
+	preProcessor := spec.PreProcessor()
+	postProcessor := spec.PostProcessor()
+
+	args := make([]interface{}, 0, 6)
+	args = append(args, "testmetric", "active", "10ms", 5, 1, 0.1, 0.95, 0.5)
+	f, err := spec.CreateFilter(args)
+	if err != nil {
+		t.Fatalf("error creating filter: %v", err)
+		return
+	}
+	f.(*admissionControl).Close()
+
+	r := &eskip.Route{Filters: []*eskip.Filter{{Name: spec.Name(), Args: args}}, Backend: backend.URL}
+
+	fr := make(filters.Registry)
+	fr.Register(fspec)
+
+	dc := testdataclient.New([]*eskip.Route{r})
+	defer dc.Close()
+
+	proxy := proxytest.WithParamsAndRoutingOptions(fr,
+		proxy.Params{
+			OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+		},
+		routing.Options{
+			DataClients:    []routing.DataClient{dc},
+			PostProcessors: []routing.PostProcessor{postProcessor},
+			PreProcessors:  []routing.PreProcessor{preProcessor},
+		})
+	defer proxy.Close()
+
+	client := proxy.Client()
+	req, err := http.NewRequest("GET", proxy.URL, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = client.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	acSpanFound := false
+	finishedSpans := tracer.FinishedSpans()
+	for _, span := range finishedSpans {
+		if span.OperationName == "admission_control" {
+			acSpanFound = true
+			tags := span.Tags()
+
+			duration, found := tags["admissionControl.duration"]
+			assert.True(t, found)
+			assert.Equal(t, "10ms", duration)
+
+			windowSize, found := tags["admissionControl.windowSize"]
+			assert.True(t, found)
+			assert.Equal(t, 5, windowSize)
+
+			group, found := tags["admissionControl.group"]
+			assert.True(t, found)
+			assert.Equal(t, "testmetric", group)
+
+			mode, found := tags["admissionControl.mode"]
+			assert.True(t, found)
+			assert.Equal(t, "active", mode)
+
+			mode, found = tags["mode"]
+			assert.True(t, found)
+			assert.Equal(t, "active", mode)
+		}
+	}
+	assert.True(t, acSpanFound)
 }
 
 type validationPostProcessorNumberOfFilters struct {

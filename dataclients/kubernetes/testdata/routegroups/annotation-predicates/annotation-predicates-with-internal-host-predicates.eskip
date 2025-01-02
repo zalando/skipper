@@ -1,0 +1,115 @@
+kube_rg__default__myapp1__all__0_0:
+	Host("^(app1[.]test[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	&& False()
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__default__myapp1__all__1_0:
+	Host("^(app1[.]test[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/shunt")
+	&& False()
+	-> <shunt>;
+
+kube_rg____app1_test__catchall__0_0: Host("^(app1[.]test[.]?(:[0-9]+)?)$") && False() -> <shunt>;
+
+kube_rg__internal_default__myapp1__all__0_0:
+	Host("^(app1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	&& ClientIP("10.2.0.0/16")
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__internal_default__myapp1__all__1_0:
+	Host("^(app1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/shunt")
+	&& ClientIP("10.2.0.0/16")
+	-> <shunt>;
+
+kube_rg__internal___app1_ingress_cluster_local__catchall__0_0: Host("^(app1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$") && ClientIP("10.2.0.0/16") -> <shunt>;
+
+
+kube_rg__default__myapp2__all__0_0:
+	Host("^(app2[.]test[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__default__myapp2__all__1_0:
+	Host("^(app2[.]test[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/shunt")
+	-> <shunt>;
+
+kube_rg____app2_test__catchall__0_0: Host("^(app2[.]test[.]?(:[0-9]+)?)$") -> <shunt>;
+
+kube_rg__internal_default__myapp2__all__0_0:
+	Host("^(app2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__internal_default__myapp2__all__1_0:
+	Host("^(app2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/shunt")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <shunt>;
+
+kube_rg__internal___app2_ingress_cluster_local__catchall__0_0:
+	Host("^(app2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <shunt>;
+
+kube_rg__internal_default__myapp3__all__0_0:
+	Host("^(app3-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?|app3-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__internal_default__myapp3__all__1_0:
+	Host("^(app3-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?|app3-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/shunt")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <shunt>;
+
+kube_rg__internal___app3_alias1_ingress_cluster_local__catchall__0_0:
+	Host("^(app3-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <shunt>;
+
+kube_rg__internal___app3_alias2_ingress_cluster_local__catchall__0_0:
+	Host("^(app3-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& InternalZone("internal-zone")
+	&& True()
+	-> <shunt>;
+
+kube_rg__internal_default__myapp4__all__0_0:
+	Host("^(app4-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?|app4-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/")
+	&& ClientIP("10.2.0.0/16")
+	-> <roundRobin, "http://10.2.9.103:7272", "http://10.2.9.104:7272">;
+
+kube_rg__internal_default__myapp4__all__1_0:
+	Host("^(app4-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?|app4-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& PathSubtree("/shunt")
+	&& ClientIP("10.2.0.0/16")
+	-> <shunt>;
+
+kube_rg__internal___app4_alias1_ingress_cluster_local__catchall__0_0:
+	Host("^(app4-alias1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	-> <shunt>;
+
+kube_rg__internal___app4_alias2_ingress_cluster_local__catchall__0_0:
+	Host("^(app4-alias2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	-> <shunt>;

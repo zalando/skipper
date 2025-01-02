@@ -1,0 +1,43 @@
+kube_default__myapp1__zone1_rule1_test____myapp:
+	Host("^(zone1[.]rule1[.]test[.]?(:[0-9]+)?)$")
+	&& Zone("zone1")
+	&& True()
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp1_r1_0__zone1_rule1_test____:
+	Host("^(zone1[.]rule1[.]test[.]?(:[0-9]+)?)$")
+	&& Path("/zone1")
+	&& Zone("zone1")
+	&& True()
+    -> "https://zone1.route.test";
+
+kube_default__myapp1__zone1_rule2_ingress_cluster_local____myapp:
+	Host("^(zone1-rule2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp1_r1_0__zone1_rule2_ingress_cluster_local____:
+	Host("^(zone1-rule2[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& Path("/zone1")
+    -> "https://zone1.route.test";
+
+kubeew_default__myapp1__zone1_rule1_test____myapp:
+	Host("^(myapp1[.]default[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& True()
+	&& Zone("zone1")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kubeew_default__myapp1__zone1_rule2_ingress_cluster_local____myapp:
+	Host("^(myapp1[.]default[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kubeew_default__myapp1_r1_0__zone1_rule1_test____:
+	Host("^(myapp1[.]default[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& Path("/zone1")
+	&& True()
+	&& Zone("zone1")
+	-> "https://zone1.route.test";
+
+kubeew_default__myapp1_r1_0__zone1_rule2_ingress_cluster_local____:
+	Host("^(myapp1[.]default[.]skipper[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& Path("/zone1")
+	-> "https://zone1.route.test";

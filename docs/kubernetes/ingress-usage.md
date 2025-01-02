@@ -270,6 +270,8 @@ You will get an error in Skipper logs, similar to:
 [APP]time="2019-01-02T13:30:16Z" level=error msg="Failed to add route having 2 path routes: Path(\"/foo/bar\") -> inlineContent(\"custom route\") -> status(200) -> <shunt>"
 ```
 
+> **Note:** Predicates coming from `zalando.org/skipper-predicate` won't be appended to routes generated from `zalando.org/skipper-routes`
+
 ### Redirects
 
 #### Overwrite the current ingress with a redirect

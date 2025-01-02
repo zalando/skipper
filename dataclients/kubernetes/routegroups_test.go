@@ -61,3 +61,7 @@ func TestRouteGroupDefaultLoadBalancerAlgorithm(t *testing.T) {
 func TestRouteGroupTLS(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/tls")
 }
+
+func TestAnnotationPredicates(t *testing.T) {
+	kubernetestest.FixturesToTest(t, "testdata/routegroups/annotation-predicates")
+}

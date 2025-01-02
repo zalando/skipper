@@ -11,7 +11,6 @@ import (
 	"testing/iotest"
 	"time"
 
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/eskip"
@@ -296,10 +295,8 @@ func TestFifoWithBody(t *testing.T) {
 			rt := routing.New(ro)
 			defer rt.Close()
 			<-rt.FirstLoad()
-			tracer := &testTracer{MockTracer: mocktracer.New()}
 			pr := proxy.WithParams(proxy.Params{
-				Routing:     rt,
-				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+				Routing: rt,
 			})
 			defer pr.Close()
 			ts := stdlibhttptest.NewServer(pr)
@@ -508,10 +505,8 @@ func TestFifo(t *testing.T) {
 			defer rt.Close()
 			<-rt.FirstLoad()
 
-			tracer := &testTracer{MockTracer: mocktracer.New()}
 			pr := proxy.WithParams(proxy.Params{
-				Routing:     rt,
-				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+				Routing: rt,
 			})
 			defer pr.Close()
 
@@ -636,10 +631,8 @@ func TestFifoConstantRouteUpdates(t *testing.T) {
 			defer rt.Close()
 			<-rt.FirstLoad()
 
-			tracer := &testTracer{MockTracer: mocktracer.New()}
 			pr := proxy.WithParams(proxy.Params{
-				Routing:     rt,
-				OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
+				Routing: rt,
 			})
 			defer pr.Close()
 

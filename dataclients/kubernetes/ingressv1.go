@@ -210,16 +210,11 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 	if err != nil {
 		ic.logger.Errorf("Failed to apply annotation predicates: %v", err)
 	}
+
 	ic.addHostRoute(host, endpointsRoute)
 
 	redirect := ic.redirect
-	ewRangeMatch := false
-	for _, s := range ing.eastWestRangeDomains {
-		if strings.HasSuffix(host, s) {
-			ewRangeMatch = true
-			break
-		}
-	}
+	ewRangeMatch := isEastWestHost(host, ing.eastWestRangeDomains)
 	if !(ewRangeMatch || strings.HasSuffix(host, ing.kubernetesEastWestDomain) && ing.kubernetesEastWestDomain != "") {
 		switch {
 		case redirect.ignore:
@@ -234,6 +229,10 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 			ic.addHostRoute(host, createIngressEnableHTTPSRedirect(endpointsRoute, redirect.code))
 			redirect.setHost(host)
 		}
+
+		addAnnotationPredicates(ing.kubernetesAnnotationPredicates, meta.Annotations, endpointsRoute)
+	} else {
+		addAnnotationPredicates(ing.kubernetesEastWestRangeAnnotationPredicates, meta.Annotations, endpointsRoute)
 	}
 
 	if ing.kubernetesEnableEastWest {
@@ -279,7 +278,7 @@ func (ing *ingress) addSpecRuleV1(ic *ingressContext, ru *definitions.RuleV1) er
 	trafficPerPathRule := computeBackendWeightsV1(ic.calculateTraffic, ic.backendWeights, ru)
 
 	for _, prule := range ru.Http.Paths {
-		addExtraRoutes(ic, ru.Host, prule.Path, prule.PathType, ing.kubernetesEastWestDomain, ing.kubernetesEnableEastWest)
+		ing.addExtraRoutes(ic, ru.Host, prule.Path, prule.PathType)
 		if trafficPerPathRule[prule].allowed() {
 			err := ing.addEndpointsRuleV1(ic, ru.Host, prule, trafficPerPathRule[prule])
 			if err != nil {
