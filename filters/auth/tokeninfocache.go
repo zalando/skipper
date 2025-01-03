@@ -19,6 +19,7 @@ type (
 		cache map[string]*entry
 		// least recently used token at the end
 		history *list.List // *entry
+		hand    *list.Element
 	}
 
 	entry struct {
@@ -27,7 +28,8 @@ type (
 		expiresAt time.Time
 		info      map[string]any
 		// reference in the history
-		href *list.Element
+		href    *list.Element
+		visited bool
 	}
 )
 
@@ -65,7 +67,7 @@ func (c *tokeninfoCache) cached(token string) map[string]any {
 
 	if e, ok := c.cache[token]; ok {
 		if now.Before(e.expiresAt) {
-			c.history.MoveToFront(e.href)
+			e.visited = true
 			cachedInfo := e.info
 			c.mu.Unlock()
 
@@ -111,8 +113,27 @@ func (c *tokeninfoCache) tryCache(token string, info map[string]any) {
 		e.cachedAt = now
 		e.expiresAt = expiresAt
 		e.info = info
-		c.history.MoveToFront(e.href)
+		e.visited = true
 		return
+	}
+
+	if len(c.cache) == c.size {
+		o := c.hand
+		if o == nil {
+			o = c.history.Back() // assert c.size > 0
+		}
+
+		for o.Value.(*entry).visited {
+			o.Value.(*entry).visited = false
+			o = o.Prev()
+			if o == nil {
+				o = c.history.Back()
+			}
+		}
+
+		c.hand = o.Prev()
+		removed := c.history.Remove(o)
+		delete(c.cache, removed.(*entry).token)
 	}
 
 	// create
@@ -124,13 +145,6 @@ func (c *tokeninfoCache) tryCache(token string, info map[string]any) {
 	}
 	e.href = c.history.PushFront(e)
 	c.cache[token] = e
-
-	// remove least used
-	if len(c.cache) > c.size {
-		leastUsed := c.history.Back()
-		delete(c.cache, leastUsed.Value.(*entry).token)
-		c.history.Remove(leastUsed)
-	}
 }
 
 // Returns the lifetime of the access token if present.
