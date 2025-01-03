@@ -18,10 +18,11 @@ type (
 		mu    sync.Mutex
 		cache map[string]*entry
 		// least recently used token at the end
-		history *list.List
+		history *list.List // *entry
 	}
 
 	entry struct {
+		token     string
 		cachedAt  time.Time
 		expiresAt time.Time
 		info      map[string]any
@@ -115,17 +116,19 @@ func (c *tokeninfoCache) tryCache(token string, info map[string]any) {
 	}
 
 	// create
-	c.cache[token] = &entry{
+	e := &entry{
+		token:     token,
 		cachedAt:  now,
 		expiresAt: expiresAt,
 		info:      info,
-		href:      c.history.PushFront(token),
 	}
+	e.href = c.history.PushFront(e)
+	c.cache[token] = e
 
 	// remove least used
 	if len(c.cache) > c.size {
 		leastUsed := c.history.Back()
-		delete(c.cache, leastUsed.Value.(string))
+		delete(c.cache, leastUsed.Value.(*entry).token)
 		c.history.Remove(leastUsed)
 	}
 }
