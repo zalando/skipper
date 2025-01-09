@@ -210,6 +210,7 @@ func newAuthProxy(t *testing.T, config *auth.OAuthConfig, routes []*eskip.Route,
 	fr.Register(config.NewGrantCallback())
 	fr.Register(config.NewGrantClaimsQuery())
 	fr.Register(config.NewGrantLogout())
+	fr.Register(auth.NewOIDCQueryClaimsFilter())
 
 	pc := proxytest.Config{
 		RoutingOptions: routing.Options{
@@ -331,6 +332,7 @@ func TestGrantFlow(t *testing.T) {
 	config := newGrantTestConfig(tokeninfo.URL, provider.URL)
 
 	routes := eskip.MustParse(`* -> oauthGrant()
+		-> oidcClaimsQuery("/:sub")
 		-> status(204)
 		-> setResponseHeader("Backend-Request-Cookie", "${request.header.Cookie}")
 		-> <shunt>

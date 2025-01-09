@@ -1,32 +1,32 @@
 package auth
 
 import (
-	"container/list"
+	"maps"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics"
 )
 
 type (
 	tokeninfoCache struct {
-		client tokeninfoClient
-		size   int
-		ttl    time.Duration
-		now    func() time.Time
+		client  tokeninfoClient
+		metrics metrics.Metrics
+		size    int
+		ttl     time.Duration
+		now     func() time.Time
 
-		mu    sync.Mutex
-		cache map[string]*entry
-		// least recently used token at the end
-		history *list.List
+		cache sync.Map     // map[string]*entry
+		count atomic.Int64 // estimated number of cached entries, see https://github.com/golang/go/issues/20680
+		quit  chan struct{}
 	}
 
 	entry struct {
-		cachedAt  time.Time
-		expiresAt time.Time
-		info      map[string]any
-		// reference in the history
-		href *list.Element
+		expiresAt     time.Time
+		info          map[string]any
+		infoExpiresAt time.Time
 	}
 )
 
@@ -34,15 +34,22 @@ var _ tokeninfoClient = &tokeninfoCache{}
 
 const expiresInField = "expires_in"
 
-func newTokeninfoCache(client tokeninfoClient, size int, ttl time.Duration) *tokeninfoCache {
-	return &tokeninfoCache{
+func newTokeninfoCache(client tokeninfoClient, metrics metrics.Metrics, size int, ttl time.Duration) *tokeninfoCache {
+	c := &tokeninfoCache{
 		client:  client,
+		metrics: metrics,
 		size:    size,
 		ttl:     ttl,
 		now:     time.Now,
-		cache:   make(map[string]*entry, size),
-		history: list.New(),
+		quit:    make(chan struct{}),
 	}
+	go c.evictLoop()
+	return c
+}
+
+func (c *tokeninfoCache) Close() {
+	c.client.Close()
+	close(c.quit)
 }
 
 func (c *tokeninfoCache) getTokeninfo(token string, ctx filters.FilterContext) (map[string]any, error) {
@@ -58,35 +65,21 @@ func (c *tokeninfoCache) getTokeninfo(token string, ctx filters.FilterContext) (
 }
 
 func (c *tokeninfoCache) cached(token string) map[string]any {
-	now := c.now()
-
-	c.mu.Lock()
-
-	if e, ok := c.cache[token]; ok {
+	if v, ok := c.cache.Load(token); ok {
+		now := c.now()
+		e := v.(*entry)
 		if now.Before(e.expiresAt) {
-			c.history.MoveToFront(e.href)
-			cachedInfo := e.info
-			c.mu.Unlock()
-
 			// It might be ok to return cached value
 			// without adjusting "expires_in" to avoid copy
 			// if caller never modifies the result and
 			// when "expires_in" did not change (same second)
 			// or for small TTL values
-			info := shallowCopyOf(cachedInfo)
+			info := maps.Clone(e.info)
 
-			elapsed := now.Sub(e.cachedAt).Truncate(time.Second).Seconds()
-			info[expiresInField] = info[expiresInField].(float64) - elapsed
+			info[expiresInField] = e.infoExpiresAt.Sub(now).Truncate(time.Second).Seconds()
 			return info
-		} else {
-			// remove expired
-			delete(c.cache, token)
-			c.history.Remove(e.href)
 		}
 	}
-
-	c.mu.Unlock()
-
 	return nil
 }
 
@@ -95,38 +88,62 @@ func (c *tokeninfoCache) tryCache(token string, info map[string]any) {
 	if expiresIn <= 0 {
 		return
 	}
-	if c.ttl > 0 && expiresIn > c.ttl {
-		expiresIn = c.ttl
-	}
 
 	now := c.now()
-	expiresAt := now.Add(expiresIn)
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if e, ok := c.cache[token]; ok {
-		// update
-		e.cachedAt = now
-		e.expiresAt = expiresAt
-		e.info = info
-		c.history.MoveToFront(e.href)
-		return
+	e := &entry{
+		info:          info,
+		infoExpiresAt: now.Add(expiresIn),
 	}
 
-	// create
-	c.cache[token] = &entry{
-		cachedAt:  now,
-		expiresAt: expiresAt,
-		info:      info,
-		href:      c.history.PushFront(token),
+	if c.ttl > 0 && expiresIn > c.ttl {
+		e.expiresAt = now.Add(c.ttl)
+	} else {
+		e.expiresAt = e.infoExpiresAt
 	}
 
-	// remove least used
-	if len(c.cache) > c.size {
-		leastUsed := c.history.Back()
-		delete(c.cache, leastUsed.Value.(string))
-		c.history.Remove(leastUsed)
+	if _, loaded := c.cache.Swap(token, e); !loaded {
+		c.count.Add(1)
+	}
+}
+
+func (c *tokeninfoCache) evictLoop() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.quit:
+			return
+		case <-ticker.C:
+			c.evict()
+		}
+	}
+}
+
+func (c *tokeninfoCache) evict() {
+	now := c.now()
+	// Evict expired entries
+	c.cache.Range(func(key, value any) bool {
+		e := value.(*entry)
+		if now.After(e.expiresAt) {
+			if c.cache.CompareAndDelete(key, value) {
+				c.count.Add(-1)
+			}
+		}
+		return true
+	})
+
+	// Evict random entries until the cache size is within limits
+	if c.count.Load() > int64(c.size) {
+		c.cache.Range(func(key, value any) bool {
+			if c.cache.CompareAndDelete(key, value) {
+				c.count.Add(-1)
+			}
+			return c.count.Load() > int64(c.size)
+		})
+	}
+
+	if c.metrics != nil {
+		c.metrics.UpdateGauge("tokeninfocache.count", float64(c.count.Load()))
 	}
 }
 
@@ -140,12 +157,4 @@ func expiresIn(info map[string]any) time.Duration {
 		}
 	}
 	return 0
-}
-
-func shallowCopyOf(info map[string]any) map[string]any {
-	m := make(map[string]any, len(info))
-	for k, v := range info {
-		m[k] = v
-	}
-	return m
 }

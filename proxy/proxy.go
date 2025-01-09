@@ -1211,10 +1211,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	route, params := p.lookupRoute(ctx)
 	p.metrics.MeasureRouteLookup(lookupStart)
 	if route == nil {
-		if !p.flags.Debug() {
-			p.metrics.IncRoutingFailures()
-		}
-
+		p.metrics.IncRoutingFailures()
 		ctx.Logger().Debugf("could not find a route for %v", ctx.request.URL)
 		p.makeErrorResponse(ctx, errRouteLookupFailed)
 		return errRouteLookupFailed

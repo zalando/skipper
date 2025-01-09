@@ -16,6 +16,7 @@ updates:
     ignore:
       - dependency-name: "github.com/open-policy-agent/opa"
       - dependency-name: "github.com/open-policy-agent/opa-envoy-plugin"
+      - dependency-name: "github.com/envoyproxy/go-control-plane"
   - package-ecosystem: "github-actions"
     directory: "/" # For GitHub Actions, set the directory to / to check for workflow files in .github/workflows
     schedule:

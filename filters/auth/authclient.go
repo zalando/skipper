@@ -32,6 +32,7 @@ type authClient struct {
 
 type tokeninfoClient interface {
 	getTokeninfo(token string, ctx filters.FilterContext) (map[string]any, error)
+	Close()
 }
 
 var _ tokeninfoClient = &authClient{}

@@ -63,7 +63,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			msg:               "Allow Requests with spaces in path",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow",
+			regoQuery:         "envoy/authz/allow_with_space_in_path",
 			requestPath:       "/my%20path",
 			requestMethod:     "GET",
 			contextExtensions: "",
@@ -106,7 +106,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			msg:               "Allow Requests with query parameters",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow",
+			regoQuery:         "envoy/authz/allow_with_query",
 			requestPath:       "/allow-with-query?pass=yes&id=1&id=2&msg=help%20me",
 			requestMethod:     "GET",
 			contextExtensions: "",
@@ -173,8 +173,8 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			msg:               "Simple Forbidden with Query Parameters",
 			filterName:        "opaAuthorizeRequest",
 			bundleName:        "somebundle.tar.gz",
-			regoQuery:         "envoy/authz/allow",
-			requestPath:       "/allow-with-query?tofail=true",
+			regoQuery:         "envoy/authz/deny_with_query",
+			requestPath:       "/allow-me?tofail=true",
 			requestMethod:     "GET",
 			contextExtensions: "",
 			expectedStatus:    http.StatusForbidden,
@@ -384,6 +384,20 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			backendHeaders:    make(http.Header),
 			removeHeaders:     make(http.Header),
 		},
+		{
+			msg:               "Allow Requests ignoring fragment",
+			filterName:        "opaAuthorizeRequest",
+			bundleName:        "somebundle.tar.gz",
+			regoQuery:         "envoy/authz/allow_with_path_having_fragment",
+			requestPath:       "/path-with-empty-query#fragment?",
+			requestMethod:     "GET",
+			contextExtensions: "",
+			expectedStatus:    http.StatusOK,
+			expectedBody:      "Welcome!",
+			expectedHeaders:   make(http.Header),
+			backendHeaders:    make(http.Header),
+			removeHeaders:     make(http.Header),
+		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
@@ -405,31 +419,42 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 					"main.rego": `
 						package envoy.authz
 
-						default allow = false
+						default allow := false
+						default deny_with_query := false
 
 						allow {
-							input.parsed_path = [ "allow" ]
-							input.parsed_query = {}
+							input.parsed_path == [ "allow" ]
+							input.parsed_query == {}
 						}
 
 						allow_with_http_path {
 							input.attributes.request.http.path == "/some/api/path?q1=v1&msg=help%20me"
 						}
 
-						allow {
-							input.parsed_path = [ "my path" ]
+						allow_with_space_in_path {
+							input.parsed_path == [ "my path" ]
 						}
 
 						allow_with_path_having_empty_query {
-							input.parsed_path = [ "path-with-empty-query" ]
-							input.parsed_query = {}
+							input.parsed_path == [ "path-with-empty-query" ]
+							input.parsed_query == {}
 						}
 
-						allow {
-							input.parsed_path = [ "allow-with-query" ]
+						allow_with_query {
+							input.parsed_path == [ "allow-with-query" ]
 							input.parsed_query.pass == ["yes"]
 							input.parsed_query.id == ["1", "2"]
 							input.parsed_query.msg == ["help me"]
+						}
+
+						deny_with_query {
+							input.attributes.request.http.path == "/allow-me?tofail=true"
+							not input.parsed_query.tofail == ["true"]
+						}
+
+						allow_with_path_having_fragment {
+							input.parsed_path == [ "path-with-empty-query" ]
+							input.attributes.request.http.path == "/path-with-empty-query"
 						}
 
 						allow_context_extensions {
@@ -440,15 +465,15 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							opa.runtime().config.labels.environment == "test"
 						}
 						
-						default allow_object = {
+						default allow_object := {
 							"allowed": false,
 							"headers": {"x-ext-auth-allow": "no"},
 							"body": "Unauthorized Request",
 							"http_status": 401
 						}
 						  
-						allow_object = response {
-							input.parsed_path = [ "allow", "structured" ]
+						allow_object := response {
+							input.parsed_path == [ "allow", "structured" ]
 							response := {
 								"allowed": true,
 								"headers": {
@@ -477,7 +502,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							"headers": "bogus string instead of object"
 						}
 
-						default allow_body = false
+						default allow_body := false
 
 						allow_body {
 							input.parsed_body.target_id == "123456"
@@ -485,7 +510,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 						
 						decision_id := input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id
 
-						allow_object_decision_id_in_header = response {
+						allow_object_decision_id_in_header := response {
 						    input.parsed_path = ["allow", "structured"]
 						    decision_id 
 						    response := {

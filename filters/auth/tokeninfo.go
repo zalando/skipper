@@ -12,6 +12,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/annotate"
+	"github.com/zalando/skipper/metrics"
 )
 
 const (
@@ -32,9 +33,10 @@ type TokeninfoOptions struct {
 	Timeout      time.Duration
 	MaxIdleConns int
 	Tracer       opentracing.Tracer
+	Metrics      metrics.Metrics
 
 	// CacheSize configures the maximum number of cached tokens.
-	// The cache evicts least recently used items first.
+	// The cache periodically evicts random items when number of cached tokens exceeds CacheSize.
 	// Zero value disables tokeninfo cache.
 	CacheSize int
 
@@ -100,7 +102,7 @@ func (o *TokeninfoOptions) newTokeninfoClient() (tokeninfoClient, error) {
 	}
 
 	if o.CacheSize > 0 {
-		c = newTokeninfoCache(c, o.CacheSize, o.CacheTTL)
+		c = newTokeninfoCache(c, o.Metrics, o.CacheSize, o.CacheTTL)
 	}
 	return c, nil
 }
