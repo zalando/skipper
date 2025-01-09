@@ -5,6 +5,8 @@ import (
 	"errors"
 	"github.com/opentracing/opentracing-go"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/propagators/b3"
+	ottrace "go.opentelemetry.io/contrib/propagators/ot"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otelBridge "go.opentelemetry.io/otel/bridge/opentracing"
@@ -16,12 +18,36 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const (
-	defComponentName     = "skipper"
-	defaultGRPMaxMsgSize = 16 * 1024 * 1000
+	HostNameKey           = "hostname"
+	LSHostNameKey         = "lightstep.hostname"
+	LSEnvironmentKey      = "environment"
+	LSComponentNameKey    = "lightstep.component_name"
+	DefaultEndpoint       = "ingest.lightstep.com:443"
+	DefaultServiceName    = "skipper"
+	DefaultServiceVersion = "0.1.0"
+	DefaultEnvironment    = "dev"
+	DefaultTracerName     = "otel-lightstep-bridge"
+	DefaultComponentName  = "skipper"
+)
+
+var (
+	serviceName        = os.Getenv("LS_SERVICE_NAME")
+	urlPath            = "traces/otlp/v0.9"
+	serviceVersion     = os.Getenv("LS_SERVICE_VERSION")
+	endpoint           = os.Getenv("LS_SATELLITE_URL")
+	lsToken            = os.Getenv("LS_ACCESS_TOKEN")
+	lsEnvironment      = os.Getenv("LS_ENVIRONMENT")
+	hostname, _        = os.Hostname()
+	batchTimeout       = 2500 * time.Millisecond
+	processorQueueSize = 10000
+	batchSize          = 512
+	exportTimeout      = 5000 * time.Millisecond
 )
 
 type Options struct {
@@ -30,7 +56,7 @@ type Options struct {
 	Environment    string
 	UseHttp        bool
 	UseGrpc        bool
-	PlainText      bool
+	UsePlainText   bool
 	ComponentName  string
 	ServiceName    string
 	ServiceVersion string
@@ -55,7 +81,7 @@ func parseOptions(opts []string) (Options, error) {
 			useHttp = true
 		case "use-grpc":
 			useGrpc = true
-		case "plaintext":
+		case "use-plain-text":
 			usePlainText = true
 		case "component-name":
 			componentName = val
@@ -63,6 +89,30 @@ func parseOptions(opts []string) (Options, error) {
 			serviceName = val
 		case "service-version":
 			serviceVersion = val
+		case "batch-timeout":
+			intVal, err := strconv.Atoi(val)
+			if err != nil {
+				return Options{}, errors.New("failed to parse batch-timeout as int")
+			}
+			batchTimeout = time.Duration(intVal) * time.Millisecond
+		case "processor-queue-size":
+			intVal, err := strconv.Atoi(val)
+			if err != nil {
+				return Options{}, errors.New("failed to parse processor-queue-size as int")
+			}
+			processorQueueSize = intVal
+		case "batch-size":
+			intVal, err := strconv.Atoi(val)
+			if err != nil {
+				return Options{}, errors.New("failed to parse batch-size as int")
+			}
+			batchSize = intVal
+		case "export-timeout":
+			intVal, err := strconv.Atoi(val)
+			if err != nil {
+				return Options{}, errors.New("failed to parse export-timeout as int")
+			}
+			exportTimeout = time.Duration(intVal) * time.Millisecond
 		}
 	}
 
@@ -72,21 +122,12 @@ func parseOptions(opts []string) (Options, error) {
 		Environment:    environment,
 		UseHttp:        useHttp,
 		UseGrpc:        useGrpc,
-		PlainText:      usePlainText,
+		UsePlainText:   usePlainText,
 		ComponentName:  componentName,
 		ServiceName:    serviceName,
 		ServiceVersion: serviceVersion,
 	}, nil
 }
-
-var (
-	serviceName    = os.Getenv("LS_SERVICE_NAME")
-	urlPath        = "traces/otlp/v0.9"
-	serviceVersion = os.Getenv("LS_SERVICE_VERSION")
-	endpoint       = os.Getenv("LS_SATELLITE_URL")
-	lsToken        = os.Getenv("LS_ACCESS_TOKEN")
-	lsEnvironment  = os.Getenv("LS_ENVIRONMENT")
-)
 
 // setupOTelSDK bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
@@ -113,8 +154,10 @@ func setupOTelSDK(ctx context.Context, opts Options) (shutdown func(context.Cont
 	// Set up propagator.
 	otel.SetTextMapPropagator(
 		propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{},
-			propagation.Baggage{},
+			//propagation.TraceContext{},
+			//propagation.Baggage{},
+			ottrace.OT{},
+			b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader|b3.B3SingleHeader)),
 		),
 	)
 
@@ -125,30 +168,35 @@ func setupOTelSDK(ctx context.Context, opts Options) (shutdown func(context.Cont
 		return
 	}
 
-	tracerProvider := newTraceProvider(exp, opts)
+	tracerProvider, err := newTraceProvider(exp, opts)
 	if err != nil {
 		handleErr(err)
 		return
 	}
+
 	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
 	otel.SetTracerProvider(tracerProvider)
 
 	return
 }
 
-func newExporter(ctx context.Context, o Options) (*otlptrace.Exporter, error) {
+func newExporter(ctx context.Context, opt Options) (*otlptrace.Exporter, error) {
 
-	if len(o.Collector) > 0 {
-		endpoint = o.Collector
+	if len(opt.Collector) > 0 {
+		endpoint = opt.Collector
 		log.Infof("Using custom LS endpoint %s/%s", endpoint, urlPath)
 	} else if len(endpoint) == 0 {
-		endpoint = "ingest.lightstep.com:443"
+		endpoint = DefaultEndpoint
 		log.Infof("Using default LS endpoint %s/%s", endpoint, urlPath)
 	}
 
-	if len(o.AccessToken) > 0 {
-		lsToken = o.AccessToken
+	if len(opt.AccessToken) > 0 {
+		lsToken = opt.AccessToken
 		log.Infof("Using custom LS token")
+	}
+
+	if len(lsToken) == 0 {
+		return nil, errors.New("missing Lightstep access token")
 	}
 
 	var headers = map[string]string{
@@ -157,11 +205,11 @@ func newExporter(ctx context.Context, o Options) (*otlptrace.Exporter, error) {
 
 	var client otlptrace.Client
 
-	if o.UseGrpc {
+	if opt.UseGrpc {
 		var tOpt []otlptracegrpc.Option
 		tOpt = append(tOpt, otlptracegrpc.WithHeaders(headers))
 		tOpt = append(tOpt, otlptracegrpc.WithEndpoint(endpoint))
-		if o.PlainText {
+		if opt.UsePlainText {
 			tOpt = append(tOpt, otlptracegrpc.WithInsecure())
 		}
 		client = otlptracegrpc.NewClient(tOpt...)
@@ -170,7 +218,7 @@ func newExporter(ctx context.Context, o Options) (*otlptrace.Exporter, error) {
 		tOpt = append(tOpt, otlptracehttp.WithHeaders(headers))
 		tOpt = append(tOpt, otlptracehttp.WithEndpoint(endpoint))
 		tOpt = append(tOpt, otlptracehttp.WithURLPath(urlPath))
-		if o.PlainText {
+		if opt.UsePlainText {
 			tOpt = append(tOpt, otlptracehttp.WithInsecure())
 		}
 		client = otlptracehttp.NewClient(tOpt...)
@@ -179,13 +227,19 @@ func newExporter(ctx context.Context, o Options) (*otlptrace.Exporter, error) {
 	return otlptrace.New(ctx, client)
 }
 
-func newTraceProvider(exp *otlptrace.Exporter, opt Options) *sdktrace.TracerProvider {
+func newTraceProvider(exp *otlptrace.Exporter, opt Options) (*sdktrace.TracerProvider, error) {
+
+	var componentName = DefaultComponentName
+	if len(opt.ComponentName) > 0 {
+		componentName = opt.ComponentName
+		log.Infof("Using custom component name %s", componentName)
+	}
 
 	if len(opt.ServiceName) > 0 {
 		serviceName = opt.ServiceName
 		log.Infof("Using custom service name %s", serviceName)
 	} else if len(serviceName) == 0 {
-		serviceName = "skipper"
+		serviceName = DefaultServiceName
 		log.Infof("Using default service name %s", serviceName)
 	}
 
@@ -193,7 +247,7 @@ func newTraceProvider(exp *otlptrace.Exporter, opt Options) *sdktrace.TracerProv
 		serviceVersion = opt.ServiceVersion
 		log.Infof("Using custom service version %s", serviceVersion)
 	} else if len(serviceVersion) == 0 {
-		serviceVersion = "0.1.0"
+		serviceVersion = DefaultServiceVersion
 		log.Infof("Using default service version %s", serviceVersion)
 	}
 
@@ -201,29 +255,39 @@ func newTraceProvider(exp *otlptrace.Exporter, opt Options) *sdktrace.TracerProv
 		lsEnvironment = opt.Environment
 		log.Infof("Using custom environment %s", lsEnvironment)
 	} else if len(lsEnvironment) == 0 {
-		lsEnvironment = "dev"
+		lsEnvironment = DefaultEnvironment
 		log.Infof("Using default environment %s", lsEnvironment)
 	}
 
-	r, rErr :=
+	r, err :=
 		resource.Merge(
 			resource.Default(),
 			resource.NewWithAttributes(
 				semconv.SchemaURL,
 				semconv.ServiceNameKey.String(serviceName),
 				semconv.ServiceVersionKey.String(serviceVersion),
-				attribute.String("environment", lsEnvironment),
+				attribute.String(LSEnvironmentKey, lsEnvironment),
+				attribute.String(LSComponentNameKey, componentName),
+				// TODO does not work
+				attribute.String(LSHostNameKey, hostname),
+				attribute.String(HostNameKey, hostname),
 			),
 		)
 
-	if rErr != nil {
-		panic(rErr)
+	if err != nil {
+		return nil, err
 	}
 
 	return sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
+		sdktrace.WithBatcher(
+			exp,
+			sdktrace.WithBatchTimeout(batchTimeout),
+			sdktrace.WithMaxExportBatchSize(batchSize),
+			sdktrace.WithMaxQueueSize(processorQueueSize),
+			sdktrace.WithExportTimeout(exportTimeout),
+		),
 		sdktrace.WithResource(r),
-	)
+	), nil
 }
 
 func InitTracer(opts []string) opentracing.Tracer {
@@ -237,11 +301,11 @@ func InitTracer(opts []string) opentracing.Tracer {
 	}
 
 	provider := otel.GetTracerProvider()
-	otelTracer := provider.Tracer("otel-ls-brigde")
+	otelTracer := provider.Tracer(DefaultTracerName)
 	bridgeTracer, wrapperTracerProvider := otelBridge.NewTracerPair(otelTracer)
 	otel.SetTracerProvider(wrapperTracerProvider)
 
-	log.Infof("OpenTelemetry bridge tracer initialized")
+	log.Infof("OpenTelemetry Lightstep bridge tracer initialized")
 
 	return bridgeTracer
 }
