@@ -53,7 +53,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/tracing/tracers/otel"
+	"github.com/zalando/skipper/tracing/tracers/lightstepotelbridge"
 	"path/filepath"
 	"plugin"
 
@@ -87,8 +87,8 @@ func InitTracer(opts []string) (tracer ot.Tracer, err error) {
 		return instana.InitTracer(opts)
 	case "jaeger":
 		return jaeger.InitTracer(opts)
-	case "otel":
-		return otel.InitTracer(opts), nil
+	case "lightstep-otel-bridge":
+		return lightstepotelbridge.InitTracer(opts), nil
 	case "lightstep":
 		return lightstep.InitTracer(opts)
 	default:
