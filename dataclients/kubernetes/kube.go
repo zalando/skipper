@@ -109,8 +109,9 @@ type Options struct {
 	// healthcheck endpoint can be accessed from internal IPs on any hostname, with the path
 	// /kube-system/healthz.
 	//
-	// When used in a custom configuration, the current filter registry needs to include the status()
-	// filter, and the available predicates need to include the Source() predicate.
+	// When used in a custom configuration, the current filter registry needs to include
+	// the status(), inlineContent() and disableAccessLog() filters, and the available predicates need to include
+	// the Shutdown(), Source() and SourceFromLast() predicates.
 	ProvideHealthcheck bool
 
 	// ProvideHTTPSRedirect, when set, tells the data client to append an HTTPS redirect route to the
@@ -466,8 +467,8 @@ func shuntRoute(r *eskip.Route) {
 
 func healthcheckRoutes(reverseSourcePredicate bool) []*eskip.Route {
 	template := template.Must(template.New("healthcheck").Parse(`
-		kube__healthz_up:   Path("/kube-system/healthz") && {{.Source}}({{.SourceCIDRs}}) -> {{.DisableAccessLog}} status(200) -> <shunt>;
-		kube__healthz_down: Path("/kube-system/healthz") && {{.Source}}({{.SourceCIDRs}}) && Shutdown() -> status(503) -> <shunt>;
+		kube__healthz_up:   Path("/kube-system/healthz") && {{.Source}}({{.SourceCIDRs}}) -> {{.DisableAccessLog}} inlineContent("OK\n") -> <shunt>;
+		kube__healthz_down: Path("/kube-system/healthz") && {{.Source}}({{.SourceCIDRs}}) && Shutdown() -> status(503) -> inlineContent("Shutting down\n") -> <shunt>;
 	`))
 
 	params := struct {

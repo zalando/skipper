@@ -1493,32 +1493,32 @@ func TestHealthcheckRoutes(t *testing.T) {
 			logLevel:               log.InfoLevel,
 			reverseSourcePredicate: false,
 			expected: `
-				kube__healthz_up:   Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> disableAccessLog(200) -> status(200) -> <shunt>;
-				kube__healthz_down: Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+				kube__healthz_up:   Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> disableAccessLog(200) -> inlineContent("OK\n") -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> inlineContent("Shutting down\n") -> <shunt>;
 			`,
 		},
 		{
 			logLevel:               log.InfoLevel,
 			reverseSourcePredicate: true,
 			expected: `
-				kube__healthz_up:   Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> disableAccessLog(200) -> status(200) -> <shunt>;
-				kube__healthz_down: Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+				kube__healthz_up:   Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> disableAccessLog(200) -> inlineContent("OK\n") -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> inlineContent("Shutting down\n") -> <shunt>;
 			`,
 		},
 		{
 			logLevel:               log.DebugLevel,
 			reverseSourcePredicate: false,
 			expected: `
-				kube__healthz_up:   Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> status(200) -> <shunt>;
-				kube__healthz_down: Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+				kube__healthz_up:   Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> inlineContent("OK\n") -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && Source("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> inlineContent("Shutting down\n") -> <shunt>;
 			`,
 		},
 		{
 			logLevel:               log.DebugLevel,
 			reverseSourcePredicate: true,
 			expected: `
-				kube__healthz_up:   Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> status(200) -> <shunt>;
-				kube__healthz_down: Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> <shunt>;
+				kube__healthz_up:   Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") -> inlineContent("OK\n") -> <shunt>;
+				kube__healthz_down: Path("/kube-system/healthz") && SourceFromLast("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "127.0.0.1/8", "fd00::/8", "::1/128") && Shutdown() -> status(503) -> inlineContent("Shutting down\n") -> <shunt>;
 			`,
 		},
 	} {
