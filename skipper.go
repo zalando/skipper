@@ -1630,6 +1630,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			Timeout:      o.OAuthTokeninfoTimeout,
 			MaxIdleConns: o.IdleConnectionsPerHost,
 			Tracer:       tracer,
+			Metrics:      mtr,
 			CacheSize:    o.OAuthTokeninfoCacheSize,
 			CacheTTL:     o.OAuthTokeninfoCacheTTL,
 		}
