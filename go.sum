@@ -349,10 +349,10 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/onsi/gomega v1.19.0 h1:4ieX6qQjPP/BfC3mpsAtIGGlxTWPeA3Inl/7DtXw1tw=
 github.com/onsi/gomega v1.19.0/go.mod h1:LY+I3pBVzYsTBU1AnDwOSxaYi9WoWiqgwooUqq9yPro=
-github.com/open-policy-agent/opa v1.0.0 h1:fZsEwxg1knpPvUn0YDJuJZBcbVg4G3zKpWa3+CnYK+I=
-github.com/open-policy-agent/opa v1.0.0/go.mod h1:+JyoH12I0+zqyC1iX7a2tmoQlipwAEGvOhVJMhmy+rM=
-github.com/open-policy-agent/opa-envoy-plugin v1.0.0-envoy h1:HUuR33CLBoHJM8Cn75qUiFripmTqq+po7XmZYt7p9Qc=
-github.com/open-policy-agent/opa-envoy-plugin v1.0.0-envoy/go.mod h1:fIp3GJ/Mza5coH9ErwmEiCuBeJR3CKz7Q7p09kicPxA=
+github.com/open-policy-agent/opa v0.70.0 h1:B3cqCN2iQAyKxK6+GI+N40uqkin+wzIrM7YA60t9x1U=
+github.com/open-policy-agent/opa v0.70.0/go.mod h1:Y/nm5NY0BX0BqjBriKUiV81sCl8XOjjvqQG7dXrggtI=
+github.com/open-policy-agent/opa-envoy-plugin v0.70.0-envoy-1 h1:nWKvCOUAKYpnvRmjbdcL32dGVPG/eyRa/MeQa3Es+hY=
+github.com/open-policy-agent/opa-envoy-plugin v0.70.0-envoy-1/go.mod h1:S+CuCmO3Wk+SnAmjPl69tUB3G8iUgXUH+Jrl56Wje/U=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.0 h1:8SG7/vwALn54lVB/0yZ/MMwhFrPYtpEHQb2IpWsCzug=

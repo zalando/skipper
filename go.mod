@@ -27,8 +27,8 @@ require (
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.62
 	github.com/oklog/ulid v1.3.1
-	github.com/open-policy-agent/opa v1.0.0
-	github.com/open-policy-agent/opa-envoy-plugin v1.0.0-envoy
+	github.com/open-policy-agent/opa v0.70.0
+	github.com/open-policy-agent/opa-envoy-plugin v0.70.0-envoy-1
 	github.com/opentracing/basictracer-go v1.1.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/prometheus/client_golang v1.20.5
