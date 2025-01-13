@@ -1,0 +1,152 @@
+{
+  "users": {
+    "5974934733": {
+      "name": "John Amal",
+      "role": "admin",
+      "permissions": {
+        "read": [
+          "file1",
+          "file2"
+        ],
+        "write": [
+          "file3"
+        ]
+      },
+      "history": [
+        {
+          "action": "login",
+          "timestamp": "2024-12-08T10:00:00Z"
+        },
+        {
+          "action": "upload",
+          "timestamp": "2024-12-08T11:00:00Z"
+        },
+        {
+          "action": "logout",
+          "timestamp": "2024-12-08T12:00:00Z"
+        }
+      ]
+    },
+    "7836491938": {
+      "name": "Jane Nayana",
+      "role": "user",
+      "permissions": {
+        "read": [
+          "file1"
+        ],
+        "write": []
+      },
+      "history": [
+        {
+          "action": "login",
+          "timestamp": "2024-12-08T09:30:00Z"
+        },
+        {
+          "action": "download",
+          "timestamp": "2024-12-08T10:30:00Z"
+        }
+      ]
+    },
+    "8237491821": {
+      "name": "Nimal Johnson",
+      "role": "manager",
+      "permissions": {
+        "read": [
+          "file2",
+          "file3"
+        ],
+        "write": [
+          "file1"
+        ]
+      },
+      "history": [
+        {
+          "action": "login",
+          "timestamp": "2024-12-08T08:00:00Z"
+        },
+        {
+          "action": "upload",
+          "timestamp": "2024-12-08T08:15:00Z"
+        }
+      ]
+    },
+    "9823749823": {
+      "name": "Bob Sunil",
+      "role": "guest",
+      "permissions": {
+        "read": [
+          "file1"
+        ],
+        "write": []
+      },
+      "history": [
+        {
+          "action": "login",
+          "timestamp": "2024-12-08T08:30:00Z"
+        }
+      ]
+    },
+    "1928374650": {
+      "name": "Nihal Smith",
+      "role": "admin",
+      "permissions": {
+        "read": [
+          "file1",
+          "file2",
+          "file3"
+        ],
+        "write": [
+          "file1"
+        ]
+      },
+      "history": [
+        {
+          "action": "login",
+          "timestamp": "2024-12-08T08:35:00Z"
+        },
+        {
+          "action": "update",
+          "timestamp": "2024-12-08T09:00:00Z"
+        }
+      ]
+    },
+    "8472637450": {
+      "name": "Kamal Lee",
+      "role": "user",
+      "permissions": {
+        "read": [
+          "file2"
+        ],
+        "write": [
+          "file2"
+        ]
+      },
+      "history": [
+        {
+          "action": "login",
+          "timestamp": "2024-12-08T09:10:00Z"
+        },
+        {
+          "action": "edit",
+          "timestamp": "2024-12-08T09:15:00Z"
+        }
+      ]
+    },
+    "5748392048": {
+      "name": "Johnson Siril",
+      "role": "guest",
+      "permissions": {
+        "read": [
+          "file3"
+        ],
+        "write": []
+      },
+      "history": [
+        {
+          "action": "login",
+          "timestamp": "2024-12-08T09:25:00Z"
+        }
+      ]
+    }
+  }
+}
