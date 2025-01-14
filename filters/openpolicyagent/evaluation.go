@@ -3,6 +3,8 @@ package openpolicyagent
 import (
 	"context"
 	"fmt"
+	"time"
+
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
@@ -13,7 +15,8 @@ import (
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/opentracing/opentracing-go"
 	pbstruct "google.golang.org/protobuf/types/known/structpb"
-	"time"
+
+	_ "github.com/open-policy-agent/opa/features/wasm"
 )
 
 func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.CheckRequest) (*envoyauth.EvalResult, error) {
@@ -70,7 +73,15 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, err
 	}
 
-	err = envoyauth.Eval(ctx, opa, inputValue, result, rego.DistributedTracingOpts(opa.DistributedTracing()))
+	opts := []func(*rego.Rego){rego.DistributedTracingOpts(opa.DistributedTracing())}
+
+	for _, r := range opa.manager.GetWasmResolvers() {
+		for _, e := range r.Entrypoints() {
+			opts = append(opts, rego.Resolver(e, r))
+		}
+	}
+
+	err = envoyauth.Eval(ctx, opa, inputValue, result, opts...)
 	if err != nil {
 		return nil, err
 	}
