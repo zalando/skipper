@@ -126,7 +126,7 @@ spec:
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracingtest.Tracer{}
+	tracer := tracingtest.NewTracer()
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
 		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
@@ -301,7 +301,7 @@ spec:
 	rt := routing.New(ro)
 	defer rt.Close()
 	<-rt.FirstLoad()
-	tracer := &tracingtest.Tracer{}
+	tracer := tracingtest.NewTracer()
 	pr := proxy.WithParams(proxy.Params{
 		Routing:     rt,
 		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},

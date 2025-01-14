@@ -16,7 +16,9 @@ import (
 func TestStateBagToTag(t *testing.T) {
 	req := &http.Request{Header: http.Header{}}
 
-	span := tracingtest.NewSpan("start_span")
+	tracer := tracingtest.NewTracer()
+	span := tracer.StartSpan("start_span").(*tracingtest.MockSpan)
+
 	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
 	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
 
@@ -25,13 +27,18 @@ func TestStateBagToTag(t *testing.T) {
 
 	f.Request(ctx)
 
-	assert.Equal(t, "val", span.Tags["tag"])
+	span.Finish()
+
+	assert.Equal(t, "val", span.Tag("tag"))
 }
 
 func TestStateBagToTagAllocs(t *testing.T) {
 	req := &http.Request{Header: http.Header{}}
 
-	span := tracingtest.NewSpan("start_span")
+	tracer := tracingtest.NewTracer()
+	span := tracer.StartSpan("start_span")
+	defer span.Finish()
+
 	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
 	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
 
@@ -100,7 +107,9 @@ func BenchmarkStateBagToTag_StringValue(b *testing.B) {
 	f, err := NewStateBagToTag().CreateFilter([]interface{}{"item", "tag"})
 	require.NoError(b, err)
 
-	span := tracingtest.NewSpan("start_span")
+	tracer := tracingtest.NewTracer()
+	span := tracer.StartSpan("start_span").(*tracingtest.MockSpan)
+	defer span.Finish()
 
 	req := &http.Request{Header: http.Header{}}
 	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
@@ -108,7 +117,7 @@ func BenchmarkStateBagToTag_StringValue(b *testing.B) {
 	ctx := &filtertest.Context{FRequest: req, FStateBag: map[string]interface{}{"item": "val"}}
 	f.Request(ctx)
 
-	require.Equal(b, "val", span.Tags["tag"])
+	require.Equal(b, "val", span.Tag("tag"))
 
 	b.ReportAllocs()
 	b.ResetTimer()

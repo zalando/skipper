@@ -25,7 +25,8 @@ func TestBaggageItemNameToTag(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			req := &http.Request{Header: http.Header{}}
 
-			span := tracingtest.NewSpan("start_span")
+			tracer := tracingtest.NewTracer()
+			span := tracer.StartSpan("start_span").(*tracingtest.MockSpan)
 			span.SetBaggageItem(ti.baggageItemName, ti.baggageItemValue)
 			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
 			ctx := &filtertest.Context{FRequest: req}
@@ -38,7 +39,9 @@ func TestBaggageItemNameToTag(t *testing.T) {
 
 			f.Request(ctx)
 
-			if tagValue := span.Tags[ti.tagName]; ti.baggageItemValue != tagValue {
+			span.Finish()
+
+			if tagValue := span.Tag(ti.tagName); ti.baggageItemValue != tagValue {
 				t.Error("couldn't set span tag from baggage item")
 			}
 		})
@@ -99,7 +102,8 @@ func TestFallbackToBaggageNameForTag(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			req := &http.Request{Header: http.Header{}}
 
-			span := tracingtest.NewSpan("start_span")
+			tracer := tracingtest.NewTracer()
+			span := tracer.StartSpan("start_span").(*tracingtest.MockSpan)
 			span.SetBaggageItem(ti.baggageItemName, ti.baggageItemValue)
 			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
 			ctx := &filtertest.Context{FRequest: req}
@@ -112,7 +116,9 @@ func TestFallbackToBaggageNameForTag(t *testing.T) {
 
 			f.Request(ctx)
 
-			if tagValue := span.Tags[ti.baggageItemName]; ti.baggageItemValue != tagValue {
+			span.Finish()
+
+			if tagValue := span.Tag(ti.baggageItemName); ti.baggageItemValue != tagValue {
 				t.Error("couldn't set span tag from baggage item")
 			}
 		})

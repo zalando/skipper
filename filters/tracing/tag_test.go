@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -306,7 +305,7 @@ func TestTracingTag(t *testing.T) {
 	},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			span := tracer.StartSpan("proxy").(*mocktracer.MockSpan)
+			span := tracer.StartSpan("proxy").(*tracingtest.MockSpan)
 			defer span.Finish()
 
 			requestContext := &filtertest.Context{
