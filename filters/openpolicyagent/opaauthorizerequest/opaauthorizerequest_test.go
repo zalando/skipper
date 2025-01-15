@@ -464,14 +464,14 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 						allow_runtime_environment {
 							opa.runtime().config.labels.environment == "test"
 						}
-						
+
 						default allow_object := {
 							"allowed": false,
 							"headers": {"x-ext-auth-allow": "no"},
 							"body": "Unauthorized Request",
 							"http_status": 401
 						}
-						  
+
 						allow_object := response {
 							input.parsed_path == [ "allow", "structured" ]
 							response := {
@@ -506,13 +506,13 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 						allow_body {
 							input.parsed_body.target_id == "123456"
-						}	
-						
+						}
+
 						decision_id := input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id
 
 						allow_object_decision_id_in_header := response {
 						    input.parsed_path = ["allow", "structured"]
-						    decision_id 
+						    decision_id
 						    response := {
 						        "allowed": true,
 						        "response_headers_to_add": {
@@ -541,9 +541,9 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 					"environment": "test"
 				},
 				"plugins": {
-					"envoy_ext_authz_grpc": {    
+					"envoy_ext_authz_grpc": {
 						"path": %q,
-						"dry-run": false    
+						"dry-run": false
 					}
 				}
 			}`, opaControlPlane.URL(), ti.regoQuery))
@@ -561,7 +561,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				openpolicyagent.WithConfigTemplate(config),
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()))
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
 			fr.Register(ftSpec)
 			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
@@ -769,11 +769,11 @@ func BenchmarkAuthorizeRequest(b *testing.B) {
 							"cert": public_key_cert,
 							"aud": "nqz3xhorr5"
 						})
-					
+
 						valid
-						
+
 						payload.sub == "5974934733"
-					}				
+					}
 				`, publicKey),
 			}),
 		)
@@ -863,9 +863,9 @@ func generateConfig(opaControlPlane *opasdktest.Server, path string) []byte {
 			"environment": "test"
 		},
 		"plugins": {
-			"envoy_ext_authz_grpc": {    
+			"envoy_ext_authz_grpc": {
 				"path": %q,
-				"dry-run": false    
+				"dry-run": false
 			}
 		}
 	}`, opaControlPlane.URL(), path))

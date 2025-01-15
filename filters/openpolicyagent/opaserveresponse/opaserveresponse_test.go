@@ -176,15 +176,15 @@ func TestServerResponseFilter(t *testing.T) {
 
 						allow {
 							input.parsed_path == [ "allow" ]
-						}	
-						
+						}
+
 						default allow_object := {
 							"allowed": false,
 							"headers": {"x-ext-auth-allow": "no"},
 							"body": "Unauthorized Request",
 							"http_status": 403
 						}
-						  
+
 						allow_object := response {
 							input.parsed_path == [ "allow", "structured" ]
 							response := {
@@ -216,7 +216,7 @@ func TestServerResponseFilter(t *testing.T) {
 								"http_status": 200
 							}
 						}
-						
+
 						allow_object := response {
 							input.parsed_path == [ "allow", "production" ]
 							opa.runtime().config.labels.environment == "production"
@@ -289,7 +289,7 @@ func TestServerResponseFilter(t *testing.T) {
 					}
 				},
 				"plugins": {
-					"envoy_ext_authz_grpc": {    
+					"envoy_ext_authz_grpc": {
 						"path": %q,
 						"dry-run": false,
 						"skip-request-body-parse": false
@@ -300,7 +300,7 @@ func TestServerResponseFilter(t *testing.T) {
 				}
 			}`, opaControlPlane.URL(), ti.regoQuery))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()))
 			ftSpec := NewOpaServeResponseSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 			fr.Register(ftSpec)
 			ftSpec = NewOpaServeResponseWithReqBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))

@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"crypto/md5"
 	"fmt"
 	"io"
 	"math/rand"
@@ -19,60 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-const traceHeader = "X-Trace-Header"
-
-func TestTracingFromWire(t *testing.T) {
-	traceContent := fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
-	s := startTestServer(nil, 0, func(r *http.Request) {
-		th, ok := r.Header[traceHeader]
-		if !ok {
-			t.Errorf("missing %s request header", traceHeader)
-		} else {
-			if th[0] != traceContent {
-				t.Errorf("wrong X-Trace-Header content: %s", th[0])
-			}
-		}
-	})
-	defer s.Close()
-
-	u, _ := url.ParseRequestURI("https://www.example.org/hello")
-	r := &http.Request{
-		URL:    u,
-		Method: "GET",
-		Header: make(http.Header),
-	}
-	r.Header.Set(traceHeader, traceContent)
-	w := httptest.NewRecorder()
-
-	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	tracer := &tracingtest.Tracer{}
-	params := Params{
-		OpenTracing: &OpenTracingParams{
-			Tracer: tracer,
-		},
-		Flags: FlagsNone,
-	}
-
-	tp, err := newTestProxyWithParams(doc, params)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	defer tp.close()
-
-	tp.proxy.ServeHTTP(w, r)
-
-	if len(tracer.RecordedSpans) == 0 {
-		t.Fatal("no span recorded...")
-	}
-	if tracer.RecordedSpans[0].Trace != traceContent {
-		t.Errorf("trace not found, got `%s` instead", tracer.RecordedSpans[0].Trace)
-	}
-	if len(tracer.RecordedSpans[0].Refs) == 0 {
-		t.Errorf("no references found, this is a root span")
-	}
-}
 
 func TestTracingIngressSpan(t *testing.T) {
 	s := startTestServer(nil, 0, func(r *http.Request) {
@@ -117,8 +62,8 @@ func TestTracingIngressSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	span, ok := findSpan(tracer, "ingress")
-	if !ok {
+	span := tracer.FindSpan("ingress")
+	if span == nil {
 		t.Fatal("ingress span not found")
 	}
 
@@ -172,8 +117,8 @@ func TestTracingIngressSpanShunt(t *testing.T) {
 	defer rsp.Body.Close()
 	io.Copy(io.Discard, rsp.Body)
 
-	span, ok := findSpan(tracer, "ingress")
-	if !ok {
+	span := tracer.FindSpan("ingress")
+	if span == nil {
 		t.Fatal("ingress span not found")
 	}
 
@@ -264,17 +209,7 @@ func TestTracingIngressSpanLoopback(t *testing.T) {
 }
 
 func TestTracingSpanName(t *testing.T) {
-	traceContent := fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
-	s := startTestServer(nil, 0, func(r *http.Request) {
-		th, ok := r.Header[traceHeader]
-		if !ok {
-			t.Errorf("missing %s request header", traceHeader)
-		} else {
-			if th[0] != traceContent {
-				t.Errorf("wrong X-Trace-Header content: %s", th[0])
-			}
-		}
-	})
+	s := startTestServer(nil, 0, func(r *http.Request) {})
 	defer s.Close()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
@@ -286,7 +221,7 @@ func TestTracingSpanName(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> tracingSpanName("test-span") -> "%s"`, s.URL)
-	tracer := &tracingtest.Tracer{TraceContent: traceContent}
+	tracer := tracingtest.NewTracer()
 	params := Params{
 		OpenTracing: &OpenTracingParams{
 			Tracer: tracer,
@@ -303,23 +238,13 @@ func TestTracingSpanName(t *testing.T) {
 
 	tp.proxy.ServeHTTP(w, r)
 
-	if _, ok := tracer.FindSpan("test-span"); !ok {
+	if span := tracer.FindSpan("test-span"); span == nil {
 		t.Error("setting the span name failed")
 	}
 }
 
 func TestTracingInitialSpanName(t *testing.T) {
-	traceContent := fmt.Sprintf("%x", md5.New().Sum([]byte(time.Now().String())))
-	s := startTestServer(nil, 0, func(r *http.Request) {
-		th, ok := r.Header[traceHeader]
-		if !ok {
-			t.Errorf("missing %s request header", traceHeader)
-		} else {
-			if th[0] != traceContent {
-				t.Errorf("wrong X-Trace-Header content: %s", th[0])
-			}
-		}
-	})
+	s := startTestServer(nil, 0, func(r *http.Request) {})
 	defer s.Close()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
@@ -331,7 +256,7 @@ func TestTracingInitialSpanName(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	doc := fmt.Sprintf(`hello: Path("/hello") -> "%s"`, s.URL)
-	tracer := &tracingtest.Tracer{TraceContent: traceContent}
+	tracer := tracingtest.NewTracer()
 	params := Params{
 		OpenTracing: &OpenTracingParams{
 			Tracer:      tracer,
@@ -349,7 +274,7 @@ func TestTracingInitialSpanName(t *testing.T) {
 
 	tp.proxy.ServeHTTP(w, r)
 
-	if _, ok := tracer.FindSpan("test-initial-span"); !ok {
+	if span := tracer.FindSpan("test-initial-span"); span == nil {
 		t.Error("setting the span name failed")
 	}
 }
@@ -390,8 +315,8 @@ func TestTracingProxySpan(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	span, ok := findSpan(tracer, "proxy")
-	if !ok {
+	span := tracer.FindSpan("proxy")
+	if span == nil {
 		t.Fatal("proxy span not found")
 	}
 
@@ -437,7 +362,7 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 
 	const docFmt = `r: * -> <roundRobin, "%s", "%s">;`
 	doc := fmt.Sprintf(docFmt, s0.URL, s1.URL)
-	tracer := &tracingtest.Tracer{}
+	tracer := tracingtest.NewTracer()
 	tp, err := newTestProxyWithParams(doc, Params{OpenTracing: &OpenTracingParams{Tracer: tracer}})
 	if err != nil {
 		t.Fatal(err)
@@ -445,7 +370,7 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 	defer tp.close()
 
 	testFallback := func() bool {
-		tracer.Reset("")
+		tracer.Reset()
 		req, err := http.NewRequest("GET", "https://www.example.org", nil)
 		if err != nil {
 			t.Fatal(err)
@@ -453,7 +378,13 @@ func TestTracingProxySpanWithRetry(t *testing.T) {
 
 		tp.proxy.ServeHTTP(httptest.NewRecorder(), req)
 
-		proxySpans := tracer.FindAllSpans("proxy")
+		var proxySpans []*tracingtest.MockSpan
+		for _, span := range tracer.FinishedSpans() {
+			if span.OperationName == "proxy" {
+				proxySpans = append(proxySpans, span)
+			}
+		}
+
 		if len(proxySpans) != 2 {
 			t.Log("invalid count of proxy spans", len(proxySpans))
 			return false
@@ -551,7 +482,7 @@ func TestFilterTracing(t *testing.T) {
 	}
 }
 
-func spanLogs(span *mocktracer.MockSpan) string {
+func spanLogs(span *tracingtest.MockSpan) string {
 	var logs []string
 	for _, e := range span.Logs() {
 		for _, f := range e.Fields {
@@ -573,7 +504,7 @@ func TestEnabledLogStreamEvents(t *testing.T) {
 	tracing.logStreamEvent(span, "test-filter", StartEvent)
 	tracing.logStreamEvent(span, "test-filter", EndEvent)
 
-	mockSpan := span.(*mocktracer.MockSpan)
+	mockSpan := span.(*tracingtest.MockSpan)
 
 	if len(mockSpan.Logs()) != 2 {
 		t.Errorf("filter lifecycle events were not logged although it was enabled")
@@ -592,7 +523,7 @@ func TestDisabledLogStreamEvents(t *testing.T) {
 	tracing.logStreamEvent(span, "test-filter", StartEvent)
 	tracing.logStreamEvent(span, "test-filter", EndEvent)
 
-	mockSpan := span.(*mocktracer.MockSpan)
+	mockSpan := span.(*tracingtest.MockSpan)
 
 	if len(mockSpan.Logs()) != 0 {
 		t.Errorf("filter lifecycle events were logged although it was disabled")
@@ -611,7 +542,7 @@ func TestSetEnabledTags(t *testing.T) {
 	tracing.setTag(span, HTTPStatusCodeTag, 200)
 	tracing.setTag(span, ComponentTag, "skipper")
 
-	mockSpan := span.(*mocktracer.MockSpan)
+	mockSpan := span.(*tracingtest.MockSpan)
 
 	tags := mockSpan.Tags()
 
@@ -638,7 +569,7 @@ func TestSetDisabledTags(t *testing.T) {
 	tracing.setTag(span, ComponentTag, "skipper")
 	tracing.setTag(span, SkipperRouteIDTag, "long_route_id")
 
-	mockSpan := span.(*mocktracer.MockSpan)
+	mockSpan := span.(*tracingtest.MockSpan)
 
 	tags := mockSpan.Tags()
 
@@ -676,16 +607,7 @@ func TestSetTagWithEmptySpan(t *testing.T) {
 	tracing.setTag(nil, "test", "val")
 }
 
-func findSpan(tracer *tracingtest.MockTracer, name string) (*mocktracer.MockSpan, bool) {
-	for _, s := range tracer.FinishedSpans() {
-		if s.OperationName == name {
-			return s, true
-		}
-	}
-	return nil, false
-}
-
-func findSpanByRouteID(tracer *tracingtest.MockTracer, routeID string) (*mocktracer.MockSpan, bool) {
+func findSpanByRouteID(tracer *tracingtest.MockTracer, routeID string) (*tracingtest.MockSpan, bool) {
 	for _, s := range tracer.FinishedSpans() {
 		if s.Tag(SkipperRouteIDTag) == routeID {
 			return s, true
@@ -694,21 +616,21 @@ func findSpanByRouteID(tracer *tracingtest.MockTracer, routeID string) (*mocktra
 	return nil, false
 }
 
-func verifyTag(t *testing.T, span *mocktracer.MockSpan, name string, expected interface{}) {
+func verifyTag(t *testing.T, span *tracingtest.MockSpan, name string, expected interface{}) {
 	t.Helper()
 	if got := span.Tag(name); got != expected {
 		t.Errorf("unexpected '%s' tag value: '%v' != '%v'", name, got, expected)
 	}
 }
 
-func verifyNoTag(t *testing.T, span *mocktracer.MockSpan, name string) {
+func verifyNoTag(t *testing.T, span *tracingtest.MockSpan, name string) {
 	t.Helper()
 	if got, ok := span.Tags()[name]; ok {
 		t.Errorf("unexpected '%s' tag: '%v'", name, got)
 	}
 }
 
-func verifyHasTag(t *testing.T, span *mocktracer.MockSpan, name string) {
+func verifyHasTag(t *testing.T, span *tracingtest.MockSpan, name string) {
 	t.Helper()
 	if got, ok := span.Tags()[name]; !ok || got == "" {
 		t.Errorf("expected '%s' tag", name)
