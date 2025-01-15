@@ -1,0 +1,43 @@
+kube_default__myapp1__zone1_test____myapp:
+	Host("^(zone1[.]test[.]?(:[0-9]+)?)$")
+	&& True()
+	-> comment("zalando.org/skipper-filter [1]")
+	-> comment("zalando.org/skipper-filter [2]")
+	-> comment("zalando.org/zone=zone1 [1]")
+	-> comment("foo [1]")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp1_r1_0__zone1_test____:
+	Host("^(zone1[.]test[.]?(:[0-9]+)?)$")
+	&& Path("/r1")
+	&& True()
+	-> comment("zalando.org/skipper-routes [1]")
+	-> comment("zalando.org/zone=zone1 [1]")
+	-> comment("foo [1]")
+	-> "https://zone1.test";
+
+
+kube_default__myapp1__zone1_ingress_cluster_local____myapp:
+	Host("^(zone1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& ClientIP("10.2.0.0/16")
+	&& Weight(10)
+	-> comment("zalando.org/skipper-filter [1]")
+	-> comment("zalando.org/skipper-filter [2]")
+	-> comment("zalando.org/zone=zone1 [1] east-west")
+	-> comment("foo=bar [1] east-west")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;
+
+kube_default__myapp1_r1_0__zone1_ingress_cluster_local____:
+	Host("^(zone1[.]ingress[.]cluster[.]local[.]?(:[0-9]+)?)$")
+	&& Path("/r1")
+	&& ClientIP("10.2.0.0/16")
+	&& Weight(10)
+	-> comment("zalando.org/skipper-routes [1]")
+	-> comment("zalando.org/zone=zone1 [1] east-west")
+	-> comment("foo=bar [1] east-west")
+	-> "https://zone1.test";
+
+
+kube_default__myapp2__zone2_test____myapp:
+	Host("^(zone2[.]test[.]?(:[0-9]+)?)$")
+	-> <roundRobin, "http://10.2.9.103:8080", "http://10.2.9.104:8080">;

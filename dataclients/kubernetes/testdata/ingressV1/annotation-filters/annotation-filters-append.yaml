@@ -1,0 +1,90 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp1
+  namespace: default
+  annotations:
+    foo: bar
+    zalando.org/zone: zone1
+    zalando.org/skipper-filter: |
+      comment("zalando.org/skipper-filter [1]") ->
+      comment("zalando.org/skipper-filter [2]")
+    zalando.org/skipper-routes: |
+      r1: Path("/r1")
+      -> comment("zalando.org/skipper-routes [1]")
+      -> "https://zone1.test";
+spec:
+  rules:
+    - host: zone1.test
+      http:
+        paths:
+          - backend:
+              service:
+                name: myapp
+                port:
+                  number: 8080
+            pathType: ImplementationSpecific
+    - host: zone1.ingress.cluster.local
+      http:
+        paths:
+          - backend:
+              service:
+                name: myapp
+                port:
+                  number: 8080
+            pathType: ImplementationSpecific
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp2
+  namespace: default
+  annotations:
+    zalando.org/zone: unknown
+spec:
+  rules:
+    - host: zone2.test
+      http:
+        paths:
+          - backend:
+              service:
+                name: myapp
+                port:
+                  number: 8080
+            pathType: ImplementationSpecific
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application: myapp
+  name: myapp
+spec:
+  clusterIP: 10.3.190.97
+  ports:
+    - name: foo
+      port: 8080
+      protocol: TCP
+      targetPort: web
+    - name: web
+      port: 80
+      protocol: TCP
+      targetPort: foo
+  selector:
+    application: myapp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    application: myapp
+  name: myapp
+subsets:
+  - addresses:
+      - ip: 10.2.9.103
+      - ip: 10.2.9.104
+    ports:
+      - name: foo
+        port: 8080
+        protocol: TCP

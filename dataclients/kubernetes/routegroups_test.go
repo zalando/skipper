@@ -62,6 +62,8 @@ func TestRouteGroupTLS(t *testing.T) {
 	kubernetestest.FixturesToTest(t, "testdata/routegroups/tls")
 }
 
-func TestAnnotationPredicates(t *testing.T) {
-	kubernetestest.FixturesToTest(t, "testdata/routegroups/annotation-predicates")
+func TestRouteGroupAnnotationConfig(t *testing.T) {
+	kubernetestest.FixturesToTest(t,
+		"testdata/routegroups/annotation-predicates",
+		"testdata/routegroups/annotation-filters")
 }

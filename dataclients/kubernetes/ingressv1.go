@@ -230,9 +230,11 @@ func (ing *ingress) addEndpointsRuleV1(ic *ingressContext, host string, prule *d
 			redirect.setHost(host)
 		}
 
-		addAnnotationPredicates(ing.kubernetesAnnotationPredicates, meta.Annotations, endpointsRoute)
+		appendAnnotationPredicates(ing.kubernetesAnnotationPredicates, meta.Annotations, endpointsRoute)
+		appendAnnotationFilters(ing.kubernetesAnnotationFiltersAppend, meta.Annotations, endpointsRoute)
 	} else {
-		addAnnotationPredicates(ing.kubernetesEastWestRangeAnnotationPredicates, meta.Annotations, endpointsRoute)
+		appendAnnotationPredicates(ing.kubernetesEastWestRangeAnnotationPredicates, meta.Annotations, endpointsRoute)
+		appendAnnotationFilters(ing.kubernetesEastWestRangeAnnotationFiltersAppend, meta.Annotations, endpointsRoute)
 	}
 
 	if ing.kubernetesEnableEastWest {

@@ -1,0 +1,46 @@
+#
+# Test that multiple annotations:
+#   * append filters in the configured order
+#   * append different filters for east-west domain
+#   * append both filters and predicates
+#
+kubernetesAnnotationFiltersAppend:
+  - key: zalando.org/zone
+    value: zone1
+    filters:
+      - name: comment
+        args: ["zalando.org/zone=zone1 [1]"]
+  - key: foo
+    value: bar
+    filters:
+      - name: comment
+        args: ["foo [1]"]
+kubernetesEastWestRangeAnnotationFiltersAppend:
+  - key: zalando.org/zone
+    value: zone1
+    filters:
+      - name: comment
+        args: ["zalando.org/zone=zone1 [1] east-west"]
+  - key: foo
+    value: bar
+    filters:
+      - name: comment
+        args: ["foo=bar [1] east-west"]
+
+kubernetesAnnotationPredicates:
+  - key: zalando.org/zone
+    value: zone1
+    predicates:
+      - name: True
+kubernetesEastWestRangeAnnotationPredicates:
+  - key: zalando.org/zone
+    value: zone1
+    predicates:
+      - name: Weight
+        args: [10.0]
+
+eastWestRangeDomains:
+    - ingress.cluster.local
+eastWestRangePredicatesAppend:
+    - name: ClientIP
+      args: ["10.2.0.0/16"]

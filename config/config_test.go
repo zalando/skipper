@@ -495,117 +495,190 @@ func TestMultiFlagYamlErr(t *testing.T) {
 	}
 }
 
-func TestAnnotationPredicatesParsingInvalid(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		input []string
-	}{
-		{
-			name:  "wrong predicate",
-			input: []string{`to-add-predicate=true="Fo_o("123")"`},
-		},
-		{
-			name:  "wrong predicate and empty value",
-			input: []string{"", `to-add-predicate=true="Fo_o()"`},
-		},
-		{
-			name:  "duplicate",
-			input: []string{`to-add-predicate=true=Foo("123")`, `to-add-predicate=true=Bar("456")`},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseAnnotationPredicates(tc.input)
-			require.Error(t, err)
-		})
-	}
+func TestParseAnnotationConfigInvalid(t *testing.T) {
+	t.Run("parseAnnotationPredicates", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			input []string
+		}{
+			{
+				name:  "wrong predicate",
+				input: []string{`to-add-predicate=true="Fo_o("123")"`},
+			},
+			{
+				name:  "wrong predicate and empty value",
+				input: []string{"", `to-add-predicate=true="Fo_o()"`},
+			},
+			{
+				name:  "duplicate",
+				input: []string{`to-add-predicate=true=Foo("123")`, `to-add-predicate=true=Bar("456")`},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := parseAnnotationPredicates(tc.input)
+				assert.Error(t, err)
+			})
+		}
+	})
+
+	t.Run("parseAnnotationFilters", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			input []string
+		}{
+			{
+				name:  "invalid filter",
+				input: []string{`foo=bar=invalid-filter()`},
+			},
+			{
+				name:  "invalid filter and empty value",
+				input: []string{"", `foo=bar=invalid-filter()`},
+			},
+			{
+				name:  "duplicate",
+				input: []string{`foo=bar=baz("123")`, `foo=bar=qux("456")`},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := parseAnnotationFilters(tc.input)
+				assert.Error(t, err)
+			})
+		}
+	})
 }
 
-func TestAnnotationPredicatesParsingValid(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		input    []string
-		expected []kubernetes.AnnotationPredicates
-	}{
-		{
-			name:     "empty",
-			input:    []string{},
-			expected: nil,
-		},
-		{
-			name:     "empty string",
-			input:    []string{""},
-			expected: nil,
-		},
-		{
-			name: "empty string and a valid value",
-			input: []string{
-				"",
-				`to-add-predicate=true=Foo("123")`,
+func TestParseAnnotationConfig(t *testing.T) {
+	t.Run("parseAnnotationPredicates", func(t *testing.T) {
+
+		for _, tc := range []struct {
+			name     string
+			input    []string
+			expected []kubernetes.AnnotationPredicates
+		}{
+			{
+				name:     "empty",
+				input:    []string{},
+				expected: nil,
 			},
-			expected: []kubernetes.AnnotationPredicates{
-				{
-					Key:   "to-add-predicate",
-					Value: "true",
-					Predicates: []*eskip.Predicate{
-						{
-							Name: "Foo",
-							Args: []any{"123"},
-						},
+			{
+				name:     "empty string",
+				input:    []string{""},
+				expected: nil,
+			},
+			{
+				name: "empty string and a valid value",
+				input: []string{
+					"",
+					`to-add-predicate=true=Foo("123")`,
+				},
+				expected: []kubernetes.AnnotationPredicates{
+					{
+						Key:        "to-add-predicate",
+						Value:      "true",
+						Predicates: eskip.MustParsePredicates(`Foo("123")`),
 					},
 				},
 			},
-		},
-		{
-			name:  "single",
-			input: []string{`to-add-predicate=true=Foo("123")`},
-			expected: []kubernetes.AnnotationPredicates{
-				{
-					Key:   "to-add-predicate",
-					Value: "true",
-					Predicates: []*eskip.Predicate{
-						{
-							Name: "Foo",
-							Args: []any{"123"},
-						},
+			{
+				name:  "single",
+				input: []string{`to-add-predicate=true=Foo("123")`},
+				expected: []kubernetes.AnnotationPredicates{
+					{
+						Key:        "to-add-predicate",
+						Value:      "true",
+						Predicates: eskip.MustParsePredicates(`Foo("123")`),
 					},
 				},
 			},
-		},
-		{
-			name:  "multiple",
-			input: []string{`to-add-predicate=true=Foo("123")`, `to-add-predicate=false=Bar("456") && Foo("789")`},
-			expected: []kubernetes.AnnotationPredicates{
-				{
-					Key:   "to-add-predicate",
-					Value: "true",
-					Predicates: []*eskip.Predicate{
-						{
-							Name: "Foo",
-							Args: []any{"123"},
-						},
+			{
+				name:  "multiple",
+				input: []string{`to-add-predicate=true=Foo("123")`, `to-add-predicate=false=Bar("456") && Foo("789")`},
+				expected: []kubernetes.AnnotationPredicates{
+					{
+						Key:        "to-add-predicate",
+						Value:      "true",
+						Predicates: eskip.MustParsePredicates(`Foo("123")`),
 					},
-				},
-				{
-					Key:   "to-add-predicate",
-					Value: "false",
-					Predicates: []*eskip.Predicate{
-						{
-							Name: "Bar",
-							Args: []any{"456"},
-						},
-						{
-							Name: "Foo",
-							Args: []any{"789"},
-						},
+					{
+						Key:        "to-add-predicate",
+						Value:      "false",
+						Predicates: eskip.MustParsePredicates(`Bar("456") && Foo("789")`),
 					},
 				},
 			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			val, err := parseAnnotationPredicates(tc.input)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, val)
-		})
-	}
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				val, err := parseAnnotationPredicates(tc.input)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, val)
+			})
+		}
+	})
+
+	t.Run("parseAnnotationFilters", func(t *testing.T) {
+
+		for _, tc := range []struct {
+			name     string
+			input    []string
+			expected []kubernetes.AnnotationFilters
+		}{
+			{
+				name:     "empty",
+				input:    []string{},
+				expected: nil,
+			},
+			{
+				name:     "empty string",
+				input:    []string{""},
+				expected: nil,
+			},
+			{
+				name: "empty string and a valid value",
+				input: []string{
+					"",
+					`foo=true=baz("123=456")`,
+				},
+				expected: []kubernetes.AnnotationFilters{
+					{
+						Key:     "foo",
+						Value:   "true",
+						Filters: eskip.MustParseFilters(`baz("123=456")`),
+					},
+				},
+			},
+			{
+				name:  "single",
+				input: []string{`foo=true=baz("123=456")`},
+				expected: []kubernetes.AnnotationFilters{
+					{
+						Key:     "foo",
+						Value:   "true",
+						Filters: eskip.MustParseFilters(`baz("123=456")`),
+					},
+				},
+			},
+			{
+				name:  "multiple",
+				input: []string{`foo=true=baz("123=456")`, `foo=false=bar("456") -> foo("789")`},
+				expected: []kubernetes.AnnotationFilters{
+					{
+						Key:     "foo",
+						Value:   "true",
+						Filters: eskip.MustParseFilters(`baz("123=456")`),
+					},
+					{
+						Key:     "foo",
+						Value:   "false",
+						Filters: eskip.MustParseFilters(`bar("456") -> foo("789")`),
+					},
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				val, err := parseAnnotationFilters(tc.input)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, val)
+			})
+		}
+	})
 }

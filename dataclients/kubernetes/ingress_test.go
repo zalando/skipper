@@ -20,6 +20,12 @@ func TestIngressV1Fixtures(t *testing.T) {
 		"testdata/ingressV1/traffic",
 		"testdata/ingressV1/traffic-segment",
 		"testdata/ingressV1/loadbalancer-algorithm",
+	)
+}
+
+func TestIngressV1AnnotationConfig(t *testing.T) {
+	kubernetestest.FixturesToTest(t,
 		"testdata/ingressV1/annotation-predicates",
+		"testdata/ingressV1/annotation-filters",
 	)
 }
