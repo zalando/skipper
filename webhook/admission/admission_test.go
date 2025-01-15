@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
+	"github.com/zalando/skipper/filters/builtin"
 )
 
 const (
@@ -87,9 +88,10 @@ func TestUnsupportedContentType(t *testing.T) {
 
 func TestRouteGroupAdmitter(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		inputFile string
-		message   string
+		name               string
+		inputFile          string
+		message            string
+		withFilterRegistry bool
 	}{
 		{
 			name:      "allowed",
@@ -103,6 +105,12 @@ func TestRouteGroupAdmitter(t *testing.T) {
 		{
 			name:      "valid eskip filters",
 			inputFile: "rg-with-valid-eskip-filters.json",
+		},
+		{
+			name:               "valid eskip filters but not supported",
+			inputFile:          "rg-with-valid-eskip-filters-but-not-supported.json",
+			message:            `filter \"test\" is not supported`,
+			withFilterRegistry: true,
 		},
 		{
 			name:      "invalid eskip filters",
@@ -157,7 +165,15 @@ func TestRouteGroupAdmitter(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
-			rgAdm := &RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}}
+
+			var rgValidator *definitions.RouteGroupValidator
+			if tc.withFilterRegistry {
+				rgValidator = &definitions.RouteGroupValidator{FiltersRegistry: builtin.MakeRegistry()}
+			} else {
+				rgValidator = &definitions.RouteGroupValidator{}
+			}
+
+			rgAdm := &RouteGroupAdmitter{RouteGroupValidator: rgValidator}
 
 			h := Handler(rgAdm)
 			h(w, req)
@@ -175,9 +191,10 @@ func TestRouteGroupAdmitter(t *testing.T) {
 
 func TestIngressAdmitter(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		inputFile string
-		message   string
+		name               string
+		inputFile          string
+		message            string
+		withFilterRegistry bool
 	}{
 		{
 			name:      "allowed without annotations",
@@ -191,6 +208,16 @@ func TestIngressAdmitter(t *testing.T) {
 			name:      "invalid eskip filters",
 			inputFile: "invalid-filters.json",
 			message:   `invalid \"zalando.org/skipper-filter\" annotation: parse failed after token this, position 4: syntax error`,
+		},
+		{
+			name:               "Filter not found in filter registry",
+			inputFile:          "invalid-filter-name.json",
+			message:            `filter \"play\" is not supported`,
+			withFilterRegistry: true,
+		},
+		{
+			name:      "Filter not found in filter registry but valid eskip filters",
+			inputFile: "invalid-filter-name.json",
 		},
 		{
 			name:      "invalid eskip predicates",
@@ -221,7 +248,15 @@ func TestIngressAdmitter(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
-			ingressAdm := &IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}}
+
+			var ingressValidator *definitions.IngressV1Validator
+			if tc.withFilterRegistry {
+				ingressValidator = &definitions.IngressV1Validator{FiltersRegistry: builtin.MakeRegistry()}
+			} else {
+				ingressValidator = &definitions.IngressV1Validator{}
+			}
+
+			ingressAdm := &IngressAdmitter{IngressValidator: ingressValidator}
 
 			h := Handler(ingressAdm)
 			h(w, req)
