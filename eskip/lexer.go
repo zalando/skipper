@@ -35,11 +35,11 @@ const (
 )
 
 var (
-	invalidCharacter = errors.New("invalid character")
-	incompleteToken  = errors.New("incomplete token")
-	unexpectedToken  = errors.New("unexpected token")
-	void             = errors.New("void")
-	eof              = errors.New("eof")
+	errInvalidCharacter = errors.New("invalid character")
+	errIncompleteToken  = errors.New("incomplete token")
+	errUnexpectedToken  = errors.New("unexpected token")
+	errVoid             = errors.New("void")
+	errEOF              = errors.New("eof")
 )
 
 var (
@@ -192,7 +192,7 @@ func scanRegexpLiteral(code string) (t token, rest string, err error) {
 	t.id = regexpliteral
 	t.val, rest = scanRegexp(code[1:])
 	if len(rest) == 0 {
-		err = incompleteToken
+		err = errIncompleteToken
 		return
 	}
 
@@ -204,13 +204,13 @@ func scanRegexpLiteral(code string) (t token, rest string, err error) {
 func scanRegexpOrComment(code string) (t token, rest string, err error) {
 	if len(code) < 2 {
 		rest = code
-		err = invalidCharacter
+		err = errInvalidCharacter
 		return
 	}
 
 	if code[1] == '/' {
 		rest = scanComment(code)
-		err = void
+		err = errVoid
 		return
 	}
 
@@ -221,7 +221,7 @@ func scanStringLiteral(delimiter byte, code string) (t token, rest string, err e
 	t.id = stringliteral
 	t.val, rest = scanEscaped(delimiter, code[1:])
 	if len(rest) == 0 {
-		err = incompleteToken
+		err = errIncompleteToken
 		return
 	}
 
@@ -264,7 +264,7 @@ func scanNumber(code string) (t token, rest string, err error) {
 	})
 
 	if isDecimalChar(t.val[len(t.val)-1]) {
-		err = incompleteToken
+		err = errIncompleteToken
 		return
 	}
 
@@ -331,22 +331,22 @@ func scan(code string) (token, string, error) {
 		return scanSymbol(code)
 	}
 
-	return token{}, "", unexpectedToken
+	return token{}, "", errUnexpectedToken
 }
 
 func (l *eskipLex) next() (token, error) {
 	l.code = scanWhitespace(l.code)
 	if len(l.code) == 0 {
-		return token{}, eof
+		return token{}, errEOF
 	}
 
 	t, rest, err := scan(l.code)
-	if err == unexpectedToken {
+	if err == errUnexpectedToken {
 		return token{}, err
 	}
 	l.code = rest
 
-	if err == void {
+	if err == errVoid {
 		return l.next()
 	}
 
@@ -366,7 +366,7 @@ func (l *eskipLex) Lex(lval *eskipSymType) int {
 	}
 
 	t, err := l.next()
-	if err == eof {
+	if err == errEOF {
 		return -1
 	}
 

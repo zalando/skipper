@@ -28,7 +28,7 @@ type loadResult struct {
 	parseErrors map[string]error
 }
 
-var invalidRouteExpression = errors.New("one or more invalid route expressions")
+var errInvalidRouteExpression = errors.New("one or more invalid route expressions")
 
 // store all loaded routes, even if invalid, and store the
 // parse errors if any.
@@ -67,7 +67,7 @@ func checkParseErrors(lr loadResult) error {
 		printStderr(id, perr)
 	}
 
-	return invalidRouteExpression
+	return errInvalidRouteExpression
 }
 
 // load, parse routes and print parse errors if any.
@@ -146,7 +146,7 @@ func printCmd(a cmdArgs) error {
 	}
 
 	if len(lr.parseErrors) > 0 {
-		return invalidRouteExpression
+		return errInvalidRouteExpression
 	}
 
 	return nil

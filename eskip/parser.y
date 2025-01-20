@@ -13,9 +13,6 @@
 // limitations under the License.
 
 %{
-//lint:file-ignore ST1016 This is a generated file.
-//lint:file-ignore SA4006 This is a generated file.
-
 package eskip
 
 import "strconv"

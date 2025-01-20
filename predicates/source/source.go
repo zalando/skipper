@@ -60,7 +60,7 @@ const (
 	NameClientIP = predicates.ClientIPName
 )
 
-var InvalidArgsError = errors.New("invalid arguments")
+var errInvalidArgs = errors.New("invalid arguments")
 
 type sourcePred int
 
@@ -96,7 +96,7 @@ func (s *spec) Name() string {
 
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) == 0 {
-		return nil, InvalidArgsError
+		return nil, errInvalidArgs
 	}
 
 	var cidrs []string
@@ -104,7 +104,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		if s, ok := args[i].(string); ok {
 			cidrs = append(cidrs, s)
 		} else {
-			return nil, InvalidArgsError
+			return nil, errInvalidArgs
 		}
 	}
 
