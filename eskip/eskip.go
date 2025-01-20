@@ -17,8 +17,8 @@ import (
 const duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
 
 var (
-	duplicatePathTreePredicateError = errors.New("duplicate path tree predicate")
-	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
+	errDuplicatePathTreePredicate = errors.New("duplicate path tree predicate")
+	errDuplicateMethodPredicate   = errors.New("duplicate method predicate")
 )
 
 // NewEditor creates an Editor PreProcessor, that matches routes and
@@ -484,7 +484,7 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 		switch p.Name {
 		case "Path":
 			if pathSet {
-				return duplicatePathTreePredicateError
+				return errDuplicatePathTreePredicate
 			}
 
 			if args, err = getStringArgs(p, 1); err == nil {
@@ -501,7 +501,7 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 			}
 		case "Method":
 			if methodSet {
-				return duplicateMethodPredicateError
+				return errDuplicateMethodPredicate
 			}
 
 			if args, err = getStringArgs(p, 1); err == nil {

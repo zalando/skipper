@@ -13,7 +13,7 @@ type writeClient interface {
 	DeleteAllIf(routes []*eskip.Route, cond eskip.RoutePredicate) error
 }
 
-var invalidOutput = errors.New("invalid output")
+var errInvalidOutput = errors.New("invalid output")
 
 func createWriteClient(out *medium) (writeClient, error) {
 	// no output, no client
@@ -29,5 +29,5 @@ func createWriteClient(out *medium) (writeClient, error) {
 			Insecure:   insecure,
 			OAuthToken: out.oauthToken})
 	}
-	return nil, invalidOutput
+	return nil, errInvalidOutput
 }

@@ -52,7 +52,7 @@ func createReadClient(m *medium) (readClient, error) {
 		return &idsReader{ids: m.ids}, nil
 
 	default:
-		return nil, invalidInputType
+		return nil, errInvalidInputType
 	}
 }
 

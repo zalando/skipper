@@ -202,7 +202,7 @@ func TestValidatesDocument(t *testing.T) {
 	}
 
 	_, err = c.LoadAll()
-	if err != invalidResponseDocument {
+	if err != errInvalidResponseDocument {
 		t.Error("failed to fail")
 	}
 }
@@ -399,7 +399,7 @@ func TestUpsertNoId(t *testing.T) {
 	}
 
 	err = c.Upsert(&eskip.Route{})
-	if err != missingRouteId {
+	if err != errMissingRouteId {
 		t.Error("failed to fail")
 	}
 }
@@ -480,7 +480,7 @@ func TestDeleteNoId(t *testing.T) {
 	}
 
 	err = c.Delete("")
-	if err != missingRouteId {
+	if err != errMissingRouteId {
 		t.Error("failed to fail")
 	}
 }

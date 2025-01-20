@@ -55,9 +55,9 @@ func (w *noopWriter) Write(b []byte) (int, error) {
 }
 
 var (
-	invalidNumberOfArgs = errors.New("invalid number of args")
-	missingOAuthToken   = errors.New("missing OAuth token")
-	invalidIndentStr    = errors.New("invalid indent. Must match regexp \\s")
+	errInvalidNumberOfArgs = errors.New("invalid number of args")
+	errMissingOAuthToken   = errors.New("missing OAuth token")
+	errInvalidIndentStr    = errors.New("invalid indent. Must match regexp \\s")
 )
 
 // parsing vars for flags:
@@ -175,7 +175,7 @@ func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
 	}
 
 	if oauthToken == "" {
-		return nil, missingOAuthToken
+		return nil, errMissingOAuthToken
 	}
 
 	if innkeeperUrl == "" {
@@ -197,7 +197,7 @@ func processInnkeeperArgs(innkeeperUrl, oauthToken string) (*medium, error) {
 func processFileArg() (*medium, error) {
 	nonFlagArgs := flags.Args()
 	if len(nonFlagArgs) > 1 {
-		return nil, invalidNumberOfArgs
+		return nil, errInvalidNumberOfArgs
 	}
 
 	if len(nonFlagArgs) == 0 {
@@ -212,7 +212,7 @@ func processFileArg() (*medium, error) {
 // if pretty print then check that indent matches pattern
 func processIndentStr() error {
 	if pretty && !(regexp.MustCompile(`^[\s]*$`).MatchString(indentStr)) {
-		return invalidIndentStr
+		return errInvalidIndentStr
 	}
 	return nil
 

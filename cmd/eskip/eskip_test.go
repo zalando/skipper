@@ -13,14 +13,14 @@ func TestGetCommandSuccess(t *testing.T) {
 
 func TestGetCommandFail(t *testing.T) {
 	_, err := getCommand([]string{"some", "hello"})
-	if err != invalidCommand {
+	if err != errInvalidCommand {
 		t.Error("hello is an invalid command")
 	}
 }
 
 func TestGetCommandEmpty(t *testing.T) {
 	_, err := getCommand([]string{"some"})
-	if err != missingCommand {
+	if err != errMissingCommand {
 		t.Error("empty should fail ")
 	}
 }

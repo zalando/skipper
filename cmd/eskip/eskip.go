@@ -52,8 +52,8 @@ var commands = map[command]commandFunc{
 	ver:    versionCmd}
 
 var (
-	missingCommand = errors.New("missing command")
-	invalidCommand = errors.New("invalid command")
+	errMissingCommand = errors.New("missing command")
+	errInvalidCommand = errors.New("invalid command")
 )
 
 var stdout io.Writer = os.Stdout
@@ -90,18 +90,18 @@ func exit(err error)     { exitErrHint(err, false) }
 // second argument must be the ('sub') command.
 func getCommand(args []string) (command, error) {
 	if len(args) < 2 {
-		return "", missingCommand
+		return "", errMissingCommand
 	}
 
 	cmd := command(args[1])
 	if cmd[0] == '-' {
-		return "", missingCommand
+		return "", errMissingCommand
 	}
 
 	if _, ok := commands[cmd]; ok {
 		return cmd, nil
 	} else {
-		return "", invalidCommand
+		return "", errInvalidCommand
 	}
 }
 

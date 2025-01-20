@@ -57,9 +57,9 @@ type medium struct {
 }
 
 var (
-	tooManyInputs    = errors.New("too many inputs")
-	invalidInputType = errors.New("invalid input type")
-	missingInput     = errors.New("missing input")
+	errTooManyInputs    = errors.New("too many inputs")
+	errInvalidInputType = errors.New("invalid input type")
+	errMissingInput     = errors.New("missing input")
 )
 
 // validate medium from args, and check if it can be used
@@ -67,7 +67,7 @@ var (
 // (check and print)
 func validateSelectRead(media []*medium) (a cmdArgs, err error) {
 	if len(media) > 1 {
-		err = tooManyInputs
+		err = errTooManyInputs
 		return
 	}
 
@@ -78,7 +78,7 @@ func validateSelectRead(media []*medium) (a cmdArgs, err error) {
 
 	switch media[0].typ {
 	case inlineIds, patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
-		err = invalidInputType
+		err = errInvalidInputType
 		return
 	}
 
@@ -89,19 +89,19 @@ func validateSelectRead(media []*medium) (a cmdArgs, err error) {
 // validate media from args, and check if input was specified.
 func validateSelectWrite(media []*medium) (a cmdArgs, err error) {
 	if len(media) == 0 {
-		err = missingInput
+		err = errMissingInput
 		return
 	}
 
 	if len(media) > 2 {
-		err = tooManyInputs
+		err = errTooManyInputs
 		return
 	}
 
 	for _, m := range media {
 		switch media[0].typ {
 		case inlineIds, patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
-			err = invalidInputType
+			err = errInvalidInputType
 			return
 		}
 
@@ -113,7 +113,7 @@ func validateSelectWrite(media []*medium) (a cmdArgs, err error) {
 	}
 
 	if a.in == nil {
-		err = missingInput
+		err = errMissingInput
 	}
 
 	return
@@ -121,19 +121,19 @@ func validateSelectWrite(media []*medium) (a cmdArgs, err error) {
 
 func validateSelectDelete(media []*medium) (a cmdArgs, err error) {
 	if len(media) == 0 {
-		err = missingInput
+		err = errMissingInput
 		return
 	}
 
 	if len(media) > 2 {
-		err = tooManyInputs
+		err = errTooManyInputs
 		return
 	}
 
 	for _, m := range media {
 		switch media[0].typ {
 		case patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
-			err = invalidInputType
+			err = errInvalidInputType
 			return
 		}
 
@@ -145,7 +145,7 @@ func validateSelectDelete(media []*medium) (a cmdArgs, err error) {
 	}
 
 	if a.in == nil {
-		err = missingInput
+		err = errMissingInput
 	}
 
 	return
@@ -156,11 +156,11 @@ func validateSelectPatch(media []*medium) (a cmdArgs, err error) {
 		switch m.typ {
 		case patchPrepend, patchPrependFile, patchAppend, patchAppendFile:
 		case inlineIds:
-			err = invalidInputType
+			err = errInvalidInputType
 			return
 		default:
 			if a.in != nil {
-				err = tooManyInputs
+				err = errTooManyInputs
 				return
 			}
 

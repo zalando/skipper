@@ -15,7 +15,7 @@ const (
 	cmdPatch = "patch"
 )
 
-var invalidCommand = errors.New("invalid command")
+var errInvalidCommand = errors.New("invalid command")
 
 func usage() string {
 	return `version <major|minor|patch> <currentVersion>`
@@ -23,14 +23,14 @@ func usage() string {
 
 func command() (string, string, error) {
 	if len(os.Args) != 3 {
-		return "", "", invalidCommand
+		return "", "", errInvalidCommand
 	}
 
 	switch os.Args[1] {
 	case cmdMajor, cmdMinor, cmdPatch:
 		return os.Args[1], os.Args[2], nil
 	default:
-		return "", "", invalidCommand
+		return "", "", errInvalidCommand
 	}
 }
 

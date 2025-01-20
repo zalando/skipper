@@ -46,8 +46,8 @@ type encoder interface {
 }
 
 var (
-	supportedEncodings  = []string{"gzip", "deflate", "br"}
-	unsupportedEncoding = errors.New("unsupported encoding")
+	supportedEncodings     = []string{"gzip", "deflate", "br"}
+	errUnsupportedEncoding = errors.New("unsupported encoding")
 )
 
 var defaultCompressMIME = []string{
@@ -159,7 +159,7 @@ func NewCompressWithOptions(options CompressOptions) (filters.Spec, error) {
 	m := map[string]int{}
 	for i, v := range options.Encodings {
 		if !stringsContain(supportedEncodings, v) {
-			return nil, unsupportedEncoding
+			return nil, errUnsupportedEncoding
 		}
 		m[v] = i
 	}
@@ -303,7 +303,7 @@ func responseHeader(r *http.Response, enc string) {
 // these functions are only called from inside the package, and the
 // encoding should be selected from a predefined set.
 func unsupported() {
-	panic(unsupportedEncoding)
+	panic(errUnsupportedEncoding)
 }
 
 func newEncoder(enc string, level int) (encoder, error) {

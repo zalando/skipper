@@ -85,7 +85,7 @@ func decoder(enc string, r io.Reader) io.Reader {
 	case "deflate":
 		return flate.NewReader(r)
 	default:
-		panic(unsupportedEncoding)
+		panic(errUnsupportedEncoding)
 	}
 }
 

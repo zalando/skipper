@@ -118,7 +118,7 @@ func TestProcessArgs(t *testing.T) {
 		// innkeeper-url missing token
 		[]string{"-innkeeper-url", "https://innkeeper.example.org"},
 		true,
-		missingOAuthToken,
+		errMissingOAuthToken,
 		nil,
 	}, {
 
@@ -166,7 +166,7 @@ func TestProcessArgs(t *testing.T) {
 		// too many files
 		[]string{"file1", "file2"},
 		true,
-		invalidNumberOfArgs,
+		errInvalidNumberOfArgs,
 		nil,
 	}, {
 
