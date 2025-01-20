@@ -200,7 +200,7 @@ func TestIngressAdmitter(t *testing.T) {
 		{
 			name:      "invalid eskip routes",
 			inputFile: "invalid-routes.json",
-			message:   `invalid \"zalando.org/skipper-routes\" annotation: invalid predicate count arg`,
+			message:   `invalid \"zalando.org/skipper-routes\" annotation: invalid route \"r1\": Header predicate expects 2 string arguments`,
 		},
 		{
 			name:      "invalid eskip filters and predicates",
