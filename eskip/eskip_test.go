@@ -72,7 +72,12 @@ func TestParse(t *testing.T) {
 		"invalid method predicate",
 		`Path("/endpoint") && Method("GET", "POST") -> "https://www.example.org"`,
 		nil,
-		"invalid predicate count arg",
+		`invalid route "": Method predicate expects 1 string argument`,
+	}, {
+		"invalid header predicate",
+		`foo: Path("/endpoint") && Header("Foo") -> "https://www.example.org";`,
+		nil,
+		`invalid route "foo": Header predicate expects 2 string arguments`,
 	}, {
 		"host regexps",
 		`Host(/^www[.]/) && Host(/[.]org$/) -> "https://www.example.org"`,

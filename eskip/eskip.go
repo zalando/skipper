@@ -17,8 +17,6 @@ import (
 const duplicateHeaderPredicateErrorFmt = "duplicate header predicate: %s"
 
 var (
-	invalidPredicateArgError        = errors.New("invalid predicate arg")
-	invalidPredicateArgCountError   = errors.New("invalid predicate count arg")
 	duplicatePathTreePredicateError = errors.New("duplicate path tree predicate")
 	duplicateMethodPredicateError   = errors.New("duplicate method predicate")
 )
@@ -446,17 +444,25 @@ func (t BackendType) String() string {
 }
 
 // Expects exactly n arguments of type string, or fails.
-func getStringArgs(n int, args []interface{}) ([]string, error) {
-	if len(args) != n {
-		return nil, invalidPredicateArgCountError
+func getStringArgs(p *Predicate, n int) ([]string, error) {
+	failure := func() ([]string, error) {
+		if n == 1 {
+			return nil, fmt.Errorf("%s predicate expects 1 string argument", p.Name)
+		} else {
+			return nil, fmt.Errorf("%s predicate expects %d string arguments", p.Name, n)
+		}
+	}
+
+	if len(p.Args) != n {
+		return failure()
 	}
 
 	sargs := make([]string, n)
-	for i, a := range args {
+	for i, a := range p.Args {
 		if sa, ok := a.(string); ok {
 			sargs[i] = sa
 		} else {
-			return nil, invalidPredicateArgError
+			return failure()
 		}
 	}
 
@@ -475,26 +481,22 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 	)
 
 	for _, p := range proute.predicates {
-		if err != nil {
-			return err
-		}
-
 		switch p.Name {
 		case "Path":
 			if pathSet {
 				return duplicatePathTreePredicateError
 			}
 
-			if args, err = getStringArgs(1, p.Args); err == nil {
+			if args, err = getStringArgs(p, 1); err == nil {
 				route.Path = args[0]
 				pathSet = true
 			}
 		case "Host":
-			if args, err = getStringArgs(1, p.Args); err == nil {
+			if args, err = getStringArgs(p, 1); err == nil {
 				route.HostRegexps = append(route.HostRegexps, args[0])
 			}
 		case "PathRegexp":
-			if args, err = getStringArgs(1, p.Args); err == nil {
+			if args, err = getStringArgs(p, 1); err == nil {
 				route.PathRegexps = append(route.PathRegexps, args[0])
 			}
 		case "Method":
@@ -502,12 +504,12 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 				return duplicateMethodPredicateError
 			}
 
-			if args, err = getStringArgs(1, p.Args); err == nil {
+			if args, err = getStringArgs(p, 1); err == nil {
 				route.Method = args[0]
 				methodSet = true
 			}
 		case "HeaderRegexp":
-			if args, err = getStringArgs(2, p.Args); err == nil {
+			if args, err = getStringArgs(p, 2); err == nil {
 				if route.HeaderRegexps == nil {
 					route.HeaderRegexps = make(map[string][]string)
 				}
@@ -515,7 +517,7 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 				route.HeaderRegexps[args[0]] = append(route.HeaderRegexps[args[0]], args[1])
 			}
 		case "Header":
-			if args, err = getStringArgs(2, p.Args); err == nil {
+			if args, err = getStringArgs(p, 2); err == nil {
 				if route.Headers == nil {
 					route.Headers = make(map[string]string)
 				}
@@ -531,9 +533,13 @@ func applyPredicates(route *Route, proute *parsedRoute) error {
 		default:
 			route.Predicates = append(route.Predicates, p)
 		}
+
+		if err != nil {
+			return fmt.Errorf("invalid route %q: %w", proute.id, err)
+		}
 	}
 
-	return err
+	return nil
 }
 
 // Converts a parsing route objects to the exported route definition with
