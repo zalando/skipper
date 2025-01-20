@@ -46,20 +46,22 @@ type ingressContext struct {
 }
 
 type ingress struct {
-	eastWestRangeDomains                        []string
-	eastWestRangePredicates                     []*eskip.Predicate
-	allowedExternalNames                        []*regexp.Regexp
-	kubernetesEastWestDomain                    string
-	pathMode                                    PathMode
-	httpsRedirectCode                           int
-	kubernetesEnableEastWest                    bool
-	provideHTTPSRedirect                        bool
-	disableCatchAllRoutes                       bool
-	forceKubernetesService                      bool
-	backendTrafficAlgorithm                     BackendTrafficAlgorithm
-	defaultLoadBalancerAlgorithm                string
-	kubernetesAnnotationPredicates              []AnnotationPredicates
-	kubernetesEastWestRangeAnnotationPredicates []AnnotationPredicates
+	eastWestRangeDomains                           []string
+	eastWestRangePredicates                        []*eskip.Predicate
+	allowedExternalNames                           []*regexp.Regexp
+	kubernetesEastWestDomain                       string
+	pathMode                                       PathMode
+	httpsRedirectCode                              int
+	kubernetesEnableEastWest                       bool
+	provideHTTPSRedirect                           bool
+	disableCatchAllRoutes                          bool
+	forceKubernetesService                         bool
+	backendTrafficAlgorithm                        BackendTrafficAlgorithm
+	defaultLoadBalancerAlgorithm                   string
+	kubernetesAnnotationPredicates                 []AnnotationPredicates
+	kubernetesAnnotationFiltersAppend              []AnnotationFilters
+	kubernetesEastWestRangeAnnotationPredicates    []AnnotationPredicates
+	kubernetesEastWestRangeAnnotationFiltersAppend []AnnotationFilters
 }
 
 var nonWord = regexp.MustCompile(`\W`)
@@ -72,20 +74,22 @@ func (ic *ingressContext) addHostRoute(host string, route *eskip.Route) {
 
 func newIngress(o Options) *ingress {
 	return &ingress{
-		provideHTTPSRedirect:                        o.ProvideHTTPSRedirect,
-		httpsRedirectCode:                           o.HTTPSRedirectCode,
-		disableCatchAllRoutes:                       o.DisableCatchAllRoutes,
-		pathMode:                                    o.PathMode,
-		kubernetesEnableEastWest:                    o.KubernetesEnableEastWest,
-		kubernetesEastWestDomain:                    o.KubernetesEastWestDomain,
-		eastWestRangeDomains:                        o.KubernetesEastWestRangeDomains,
-		eastWestRangePredicates:                     o.KubernetesEastWestRangePredicates,
-		allowedExternalNames:                        o.AllowedExternalNames,
-		forceKubernetesService:                      o.ForceKubernetesService,
-		backendTrafficAlgorithm:                     o.BackendTrafficAlgorithm,
-		defaultLoadBalancerAlgorithm:                o.DefaultLoadBalancerAlgorithm,
-		kubernetesAnnotationPredicates:              o.KubernetesAnnotationPredicates,
-		kubernetesEastWestRangeAnnotationPredicates: o.KubernetesEastWestRangeAnnotationPredicates,
+		provideHTTPSRedirect:                           o.ProvideHTTPSRedirect,
+		httpsRedirectCode:                              o.HTTPSRedirectCode,
+		disableCatchAllRoutes:                          o.DisableCatchAllRoutes,
+		pathMode:                                       o.PathMode,
+		kubernetesEnableEastWest:                       o.KubernetesEnableEastWest,
+		kubernetesEastWestDomain:                       o.KubernetesEastWestDomain,
+		eastWestRangeDomains:                           o.KubernetesEastWestRangeDomains,
+		eastWestRangePredicates:                        o.KubernetesEastWestRangePredicates,
+		allowedExternalNames:                           o.AllowedExternalNames,
+		forceKubernetesService:                         o.ForceKubernetesService,
+		backendTrafficAlgorithm:                        o.BackendTrafficAlgorithm,
+		defaultLoadBalancerAlgorithm:                   o.DefaultLoadBalancerAlgorithm,
+		kubernetesAnnotationPredicates:                 o.KubernetesAnnotationPredicates,
+		kubernetesAnnotationFiltersAppend:              o.KubernetesAnnotationFiltersAppend,
+		kubernetesEastWestRangeAnnotationPredicates:    o.KubernetesEastWestRangeAnnotationPredicates,
+		kubernetesEastWestRangeAnnotationFiltersAppend: o.KubernetesEastWestRangeAnnotationFiltersAppend,
 	}
 }
 
@@ -203,9 +207,11 @@ func (ing *ingress) addExtraRoutes(ic *ingressContext, ruleHost, path, pathType 
 		setPathV1(ic.pathMode, &route, pathType, path)
 		if n := countPathPredicates(&route); n <= 1 {
 			if ewHost {
-				addAnnotationPredicates(ing.kubernetesEastWestRangeAnnotationPredicates, ic.ingressV1.Metadata.Annotations, &route)
+				appendAnnotationPredicates(ing.kubernetesEastWestRangeAnnotationPredicates, ic.ingressV1.Metadata.Annotations, &route)
+				appendAnnotationFilters(ing.kubernetesEastWestRangeAnnotationFiltersAppend, ic.ingressV1.Metadata.Annotations, &route)
 			} else {
-				addAnnotationPredicates(ing.kubernetesAnnotationPredicates, ic.ingressV1.Metadata.Annotations, &route)
+				appendAnnotationPredicates(ing.kubernetesAnnotationPredicates, ic.ingressV1.Metadata.Annotations, &route)
+				appendAnnotationFilters(ing.kubernetesAnnotationFiltersAppend, ic.ingressV1.Metadata.Annotations, &route)
 			}
 			ic.addHostRoute(ruleHost, &route)
 			ic.redirect.updateHost(ruleHost)

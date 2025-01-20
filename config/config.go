@@ -149,38 +149,42 @@ type Config struct {
 	RefusePayload    multiFlag `yaml:"refuse-payload"`
 
 	// Kubernetes:
-	KubernetesIngress                                 bool                               `yaml:"kubernetes"`
-	KubernetesInCluster                               bool                               `yaml:"kubernetes-in-cluster"`
-	KubernetesURL                                     string                             `yaml:"kubernetes-url"`
-	KubernetesTokenFile                               string                             `yaml:"kubernetes-token-file"`
-	KubernetesHealthcheck                             bool                               `yaml:"kubernetes-healthcheck"`
-	KubernetesHTTPSRedirect                           bool                               `yaml:"kubernetes-https-redirect"`
-	KubernetesHTTPSRedirectCode                       int                                `yaml:"kubernetes-https-redirect-code"`
-	KubernetesDisableCatchAllRoutes                   bool                               `yaml:"kubernetes-disable-catchall-routes"`
-	KubernetesIngressClass                            string                             `yaml:"kubernetes-ingress-class"`
-	KubernetesRouteGroupClass                         string                             `yaml:"kubernetes-routegroup-class"`
-	WhitelistedHealthCheckCIDR                        string                             `yaml:"whitelisted-healthcheck-cidr"`
-	KubernetesPathModeString                          string                             `yaml:"kubernetes-path-mode"`
-	KubernetesPathMode                                kubernetes.PathMode                `yaml:"-"`
-	KubernetesNamespace                               string                             `yaml:"kubernetes-namespace"`
-	KubernetesEnableEndpointSlices                    bool                               `yaml:"enable-kubernetes-endpointslices"`
-	KubernetesEnableEastWest                          bool                               `yaml:"enable-kubernetes-east-west"`
-	KubernetesEastWestDomain                          string                             `yaml:"kubernetes-east-west-domain"`
-	KubernetesEastWestRangeDomains                    *listFlag                          `yaml:"kubernetes-east-west-range-domains"`
-	KubernetesEastWestRangePredicatesString           string                             `yaml:"kubernetes-east-west-range-predicates"`
-	KubernetesEastWestRangeAnnotationPredicatesString multiFlag                          `yaml:"kubernetes-east-west-range-annotation-predicates"`
-	KubernetesAnnotationPredicatesString              multiFlag                          `yaml:"kubernetes-annotation-predicates"`
-	KubernetesEastWestRangeAnnotationPredicates       []kubernetes.AnnotationPredicates  `yaml:"-"`
-	KubernetesAnnotationPredicates                    []kubernetes.AnnotationPredicates  `yaml:"-"`
-	KubernetesEastWestRangePredicates                 []*eskip.Predicate                 `yaml:"-"`
-	KubernetesOnlyAllowedExternalNames                bool                               `yaml:"kubernetes-only-allowed-external-names"`
-	KubernetesAllowedExternalNames                    regexpListFlag                     `yaml:"kubernetes-allowed-external-names"`
-	KubernetesRedisServiceNamespace                   string                             `yaml:"kubernetes-redis-service-namespace"`
-	KubernetesRedisServiceName                        string                             `yaml:"kubernetes-redis-service-name"`
-	KubernetesRedisServicePort                        int                                `yaml:"kubernetes-redis-service-port"`
-	KubernetesBackendTrafficAlgorithmString           string                             `yaml:"kubernetes-backend-traffic-algorithm"`
-	KubernetesBackendTrafficAlgorithm                 kubernetes.BackendTrafficAlgorithm `yaml:"-"`
-	KubernetesDefaultLoadBalancerAlgorithm            string                             `yaml:"kubernetes-default-lb-algorithm"`
+	KubernetesIngress                                    bool                               `yaml:"kubernetes"`
+	KubernetesInCluster                                  bool                               `yaml:"kubernetes-in-cluster"`
+	KubernetesURL                                        string                             `yaml:"kubernetes-url"`
+	KubernetesTokenFile                                  string                             `yaml:"kubernetes-token-file"`
+	KubernetesHealthcheck                                bool                               `yaml:"kubernetes-healthcheck"`
+	KubernetesHTTPSRedirect                              bool                               `yaml:"kubernetes-https-redirect"`
+	KubernetesHTTPSRedirectCode                          int                                `yaml:"kubernetes-https-redirect-code"`
+	KubernetesDisableCatchAllRoutes                      bool                               `yaml:"kubernetes-disable-catchall-routes"`
+	KubernetesIngressClass                               string                             `yaml:"kubernetes-ingress-class"`
+	KubernetesRouteGroupClass                            string                             `yaml:"kubernetes-routegroup-class"`
+	WhitelistedHealthCheckCIDR                           string                             `yaml:"whitelisted-healthcheck-cidr"`
+	KubernetesPathModeString                             string                             `yaml:"kubernetes-path-mode"`
+	KubernetesPathMode                                   kubernetes.PathMode                `yaml:"-"`
+	KubernetesNamespace                                  string                             `yaml:"kubernetes-namespace"`
+	KubernetesEnableEndpointSlices                       bool                               `yaml:"enable-kubernetes-endpointslices"`
+	KubernetesEnableEastWest                             bool                               `yaml:"enable-kubernetes-east-west"`
+	KubernetesEastWestDomain                             string                             `yaml:"kubernetes-east-west-domain"`
+	KubernetesEastWestRangeDomains                       *listFlag                          `yaml:"kubernetes-east-west-range-domains"`
+	KubernetesEastWestRangePredicatesString              string                             `yaml:"kubernetes-east-west-range-predicates"`
+	KubernetesEastWestRangeAnnotationPredicatesString    multiFlag                          `yaml:"kubernetes-east-west-range-annotation-predicates"`
+	KubernetesEastWestRangeAnnotationFiltersAppendString multiFlag                          `yaml:"kubernetes-east-west-range-annotation-filters-append"`
+	KubernetesAnnotationPredicatesString                 multiFlag                          `yaml:"kubernetes-annotation-predicates"`
+	KubernetesAnnotationFiltersAppendString              multiFlag                          `yaml:"kubernetes-annotation-filters-append"`
+	KubernetesEastWestRangeAnnotationPredicates          []kubernetes.AnnotationPredicates  `yaml:"-"`
+	KubernetesEastWestRangeAnnotationFiltersAppend       []kubernetes.AnnotationFilters     `yaml:"-"`
+	KubernetesAnnotationPredicates                       []kubernetes.AnnotationPredicates  `yaml:"-"`
+	KubernetesAnnotationFiltersAppend                    []kubernetes.AnnotationFilters     `yaml:"-"`
+	KubernetesEastWestRangePredicates                    []*eskip.Predicate                 `yaml:"-"`
+	KubernetesOnlyAllowedExternalNames                   bool                               `yaml:"kubernetes-only-allowed-external-names"`
+	KubernetesAllowedExternalNames                       regexpListFlag                     `yaml:"kubernetes-allowed-external-names"`
+	KubernetesRedisServiceNamespace                      string                             `yaml:"kubernetes-redis-service-namespace"`
+	KubernetesRedisServiceName                           string                             `yaml:"kubernetes-redis-service-name"`
+	KubernetesRedisServicePort                           int                                `yaml:"kubernetes-redis-service-port"`
+	KubernetesBackendTrafficAlgorithmString              string                             `yaml:"kubernetes-backend-traffic-algorithm"`
+	KubernetesBackendTrafficAlgorithm                    kubernetes.BackendTrafficAlgorithm `yaml:"-"`
+	KubernetesDefaultLoadBalancerAlgorithm               string                             `yaml:"kubernetes-default-lb-algorithm"`
 
 	// Default filters
 	DefaultFiltersDir string `yaml:"default-filters-dir"`
@@ -475,7 +479,9 @@ func NewConfig() *Config {
 	flag.Var(cfg.KubernetesEastWestRangeDomains, "kubernetes-east-west-range-domains", "set the the cluster internal domains for east west traffic. Identified routes to such domains will include the -kubernetes-east-west-range-predicates")
 	flag.StringVar(&cfg.KubernetesEastWestRangePredicatesString, "kubernetes-east-west-range-predicates", "", "set the predicates that will be appended to routes identified as to -kubernetes-east-west-range-domains")
 	flag.Var(&cfg.KubernetesAnnotationPredicatesString, "kubernetes-annotation-predicates", "configures predicates appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-predicates='zone-a=true=Foo() && Bar()' will add 'Foo() && Bar()' predicates to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-predicates.")
+	flag.Var(&cfg.KubernetesAnnotationFiltersAppendString, "kubernetes-annotation-filters-append", "configures filters appended to non east-west routes of annotated resources. E.g. -kubernetes-annotation-filters-append='zone-a=true=foo() -> bar()' will add 'foo() -> bar()' filters to all non east-west routes of ingress or routegroup annotated with 'zone-a: true'. For east-west routes use -kubernetes-east-west-range-annotation-filters-append.")
 	flag.Var(&cfg.KubernetesEastWestRangeAnnotationPredicatesString, "kubernetes-east-west-range-annotation-predicates", "similar to -kubernetes-annotation-predicates configures predicates appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
+	flag.Var(&cfg.KubernetesEastWestRangeAnnotationFiltersAppendString, "kubernetes-east-west-range-annotation-filters-append", "similar to -kubernetes-annotation-filters-append configures filters appended to east-west routes of annotated resources. See also -kubernetes-east-west-range-domains.")
 	flag.BoolVar(&cfg.KubernetesOnlyAllowedExternalNames, "kubernetes-only-allowed-external-names", false, "only accept external name services, route group network backends and route group explicit LB endpoints from an allow list defined by zero or more -kubernetes-allowed-external-name flags")
 	flag.Var(&cfg.KubernetesAllowedExternalNames, "kubernetes-allowed-external-name", "set zero or more regular expressions from which at least one should be matched by the external name services, route group network addresses and explicit endpoints domain names")
 	flag.StringVar(&cfg.KubernetesRedisServiceNamespace, "kubernetes-redis-service-namespace", "", "Sets namespace for redis to be used to lookup endpoints")
@@ -623,9 +629,19 @@ func validate(c *Config) error {
 		return fmt.Errorf("invalid annotation predicates: %q, %w", c.KubernetesAnnotationPredicatesString, err)
 	}
 
+	_, err = parseAnnotationFilters(c.KubernetesAnnotationFiltersAppendString)
+	if err != nil {
+		return fmt.Errorf("invalid annotation filters: %q, %w", c.KubernetesAnnotationFiltersAppendString, err)
+	}
+
 	_, err = parseAnnotationPredicates(c.KubernetesEastWestRangeAnnotationPredicatesString)
 	if err != nil {
 		return fmt.Errorf("invalid east-west annotation predicates: %q, %w", c.KubernetesEastWestRangeAnnotationPredicatesString, err)
+	}
+
+	_, err = parseAnnotationFilters(c.KubernetesEastWestRangeAnnotationFiltersAppendString)
+	if err != nil {
+		return fmt.Errorf("invalid east-west annotation filters: %q, %w", c.KubernetesEastWestRangeAnnotationFiltersAppendString, err)
 	}
 
 	_, err = kubernetes.ParseBackendTrafficAlgorithm(c.KubernetesBackendTrafficAlgorithmString)
@@ -691,7 +707,9 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	c.KubernetesPathMode, _ = kubernetes.ParsePathMode(c.KubernetesPathModeString)
 	c.KubernetesEastWestRangePredicates, _ = eskip.ParsePredicates(c.KubernetesEastWestRangePredicatesString)
 	c.KubernetesAnnotationPredicates, _ = parseAnnotationPredicates(c.KubernetesAnnotationPredicatesString)
+	c.KubernetesAnnotationFiltersAppend, _ = parseAnnotationFilters(c.KubernetesAnnotationFiltersAppendString)
 	c.KubernetesEastWestRangeAnnotationPredicates, _ = parseAnnotationPredicates(c.KubernetesEastWestRangeAnnotationPredicatesString)
+	c.KubernetesEastWestRangeAnnotationFiltersAppend, _ = parseAnnotationFilters(c.KubernetesEastWestRangeAnnotationFiltersAppendString)
 	c.KubernetesBackendTrafficAlgorithm, _ = kubernetes.ParseBackendTrafficAlgorithm(c.KubernetesBackendTrafficAlgorithmString)
 	c.HistogramMetricBuckets, _ = c.parseHistogramBuckets()
 
@@ -834,33 +852,35 @@ func (c *Config) ToOptions() skipper.Options {
 		WaitFirstRouteLoad: c.WaitFirstRouteLoad,
 
 		// Kubernetes:
-		Kubernetes:                                  c.KubernetesIngress,
-		KubernetesInCluster:                         c.KubernetesInCluster,
-		KubernetesURL:                               c.KubernetesURL,
-		KubernetesTokenFile:                         c.KubernetesTokenFile,
-		KubernetesHealthcheck:                       c.KubernetesHealthcheck,
-		KubernetesHTTPSRedirect:                     c.KubernetesHTTPSRedirect,
-		KubernetesHTTPSRedirectCode:                 c.KubernetesHTTPSRedirectCode,
-		KubernetesDisableCatchAllRoutes:             c.KubernetesDisableCatchAllRoutes,
-		KubernetesIngressClass:                      c.KubernetesIngressClass,
-		KubernetesRouteGroupClass:                   c.KubernetesRouteGroupClass,
-		WhitelistedHealthCheckCIDR:                  whitelistCIDRS,
-		KubernetesPathMode:                          c.KubernetesPathMode,
-		KubernetesNamespace:                         c.KubernetesNamespace,
-		KubernetesEnableEndpointslices:              c.KubernetesEnableEndpointSlices,
-		KubernetesEnableEastWest:                    c.KubernetesEnableEastWest,
-		KubernetesEastWestDomain:                    c.KubernetesEastWestDomain,
-		KubernetesEastWestRangeDomains:              c.KubernetesEastWestRangeDomains.values,
-		KubernetesEastWestRangePredicates:           c.KubernetesEastWestRangePredicates,
-		KubernetesEastWestRangeAnnotationPredicates: c.KubernetesEastWestRangeAnnotationPredicates,
-		KubernetesAnnotationPredicates:              c.KubernetesAnnotationPredicates,
-		KubernetesOnlyAllowedExternalNames:          c.KubernetesOnlyAllowedExternalNames,
-		KubernetesAllowedExternalNames:              c.KubernetesAllowedExternalNames,
-		KubernetesRedisServiceNamespace:             c.KubernetesRedisServiceNamespace,
-		KubernetesRedisServiceName:                  c.KubernetesRedisServiceName,
-		KubernetesRedisServicePort:                  c.KubernetesRedisServicePort,
-		KubernetesBackendTrafficAlgorithm:           c.KubernetesBackendTrafficAlgorithm,
-		KubernetesDefaultLoadBalancerAlgorithm:      c.KubernetesDefaultLoadBalancerAlgorithm,
+		Kubernetes:                                     c.KubernetesIngress,
+		KubernetesInCluster:                            c.KubernetesInCluster,
+		KubernetesURL:                                  c.KubernetesURL,
+		KubernetesTokenFile:                            c.KubernetesTokenFile,
+		KubernetesHealthcheck:                          c.KubernetesHealthcheck,
+		KubernetesHTTPSRedirect:                        c.KubernetesHTTPSRedirect,
+		KubernetesHTTPSRedirectCode:                    c.KubernetesHTTPSRedirectCode,
+		KubernetesDisableCatchAllRoutes:                c.KubernetesDisableCatchAllRoutes,
+		KubernetesIngressClass:                         c.KubernetesIngressClass,
+		KubernetesRouteGroupClass:                      c.KubernetesRouteGroupClass,
+		WhitelistedHealthCheckCIDR:                     whitelistCIDRS,
+		KubernetesPathMode:                             c.KubernetesPathMode,
+		KubernetesNamespace:                            c.KubernetesNamespace,
+		KubernetesEnableEndpointslices:                 c.KubernetesEnableEndpointSlices,
+		KubernetesEnableEastWest:                       c.KubernetesEnableEastWest,
+		KubernetesEastWestDomain:                       c.KubernetesEastWestDomain,
+		KubernetesEastWestRangeDomains:                 c.KubernetesEastWestRangeDomains.values,
+		KubernetesEastWestRangePredicates:              c.KubernetesEastWestRangePredicates,
+		KubernetesEastWestRangeAnnotationPredicates:    c.KubernetesEastWestRangeAnnotationPredicates,
+		KubernetesEastWestRangeAnnotationFiltersAppend: c.KubernetesEastWestRangeAnnotationFiltersAppend,
+		KubernetesAnnotationPredicates:                 c.KubernetesAnnotationPredicates,
+		KubernetesAnnotationFiltersAppend:              c.KubernetesAnnotationFiltersAppend,
+		KubernetesOnlyAllowedExternalNames:             c.KubernetesOnlyAllowedExternalNames,
+		KubernetesAllowedExternalNames:                 c.KubernetesAllowedExternalNames,
+		KubernetesRedisServiceNamespace:                c.KubernetesRedisServiceNamespace,
+		KubernetesRedisServiceName:                     c.KubernetesRedisServiceName,
+		KubernetesRedisServicePort:                     c.KubernetesRedisServicePort,
+		KubernetesBackendTrafficAlgorithm:              c.KubernetesBackendTrafficAlgorithm,
+		KubernetesDefaultLoadBalancerAlgorithm:         c.KubernetesDefaultLoadBalancerAlgorithm,
 
 		// API Monitoring:
 		ApiUsageMonitoringEnable:                c.ApiUsageMonitoringEnable,
@@ -1173,42 +1193,70 @@ func (c *Config) checkDeprecated(configKeys map[string]interface{}, options ...s
 }
 
 func parseAnnotationPredicates(s []string) ([]kubernetes.AnnotationPredicates, error) {
-	var annotationPredicates []kubernetes.AnnotationPredicates
+	return parseAnnotationConfig(s, func(annotationKey, annotationValue, value string) (kubernetes.AnnotationPredicates, error) {
+		predicates, err := eskip.ParsePredicates(value)
+		if err != nil {
+			var zero kubernetes.AnnotationPredicates
+			return zero, err
+		}
+		return kubernetes.AnnotationPredicates{
+			Key:        annotationKey,
+			Value:      annotationValue,
+			Predicates: predicates,
+		}, nil
+	})
+}
 
-	for _, annotationPredicate := range s {
-		if annotationPredicate == "" {
+func parseAnnotationFilters(s []string) ([]kubernetes.AnnotationFilters, error) {
+	return parseAnnotationConfig(s, func(annotationKey, annotationValue, value string) (kubernetes.AnnotationFilters, error) {
+		filters, err := eskip.ParseFilters(value)
+		if err != nil {
+			var zero kubernetes.AnnotationFilters
+			return zero, err
+		}
+		return kubernetes.AnnotationFilters{
+			Key:     annotationKey,
+			Value:   annotationValue,
+			Filters: filters,
+		}, nil
+	})
+}
+
+// parseAnnotationConfig parses a slice of strings in the "annotationKey=annotationValue=value" format
+// by calling parseValue function to convert (annotationKey, annotationValue, value) tuple into T.
+// Empty input strings are skipped and duplicate annotationKey-annotationValue pairs are rejected with error.
+func parseAnnotationConfig[T any](kvvs []string, parseValue func(annotationKey, annotationValue, value string) (T, error)) ([]T, error) {
+	var result []T
+	seenKVs := make(map[string]struct{})
+	for _, kvv := range kvvs {
+		if kvv == "" {
 			continue
 		}
 
-		annotationKey, rest, found := strings.Cut(annotationPredicate, "=")
+		annotationKey, rest, found := strings.Cut(kvv, "=")
 		if !found {
-			return nil, fmt.Errorf("invalid annotation predicate flag: %q, failed to get annotation key", annotationPredicate)
+			return nil, fmt.Errorf("invalid annotation flag: %q, failed to get annotation key", kvv)
 		}
 
-		annotationValue, predicates, found := strings.Cut(rest, "=")
+		annotationValue, value, found := strings.Cut(rest, "=")
 		if !found {
-			return nil, fmt.Errorf("invalid annotation predicate flag: %q, faild to get annotation value", annotationPredicate)
+			return nil, fmt.Errorf("invalid annotation flag: %q, failed to get annotation value", kvv)
 		}
 
-		predicateList, err := eskip.ParsePredicates(predicates)
+		v, err := parseValue(annotationKey, annotationValue, value)
 		if err != nil {
-			return nil, fmt.Errorf("invalid annotation predicate flag: %q, %w", annotationPredicate, err)
+			return nil, fmt.Errorf("invalid annotation flag value: %q, %w", kvv, err)
 		}
 
-		// We throw an err because having duplicate annotation keys will override each others
-		for _, ap := range annotationPredicates {
-			if ap.Key == annotationKey && ap.Value == annotationValue {
-				return nil, fmt.Errorf("invalid annotation predicate flag: %q, duplicate annotation key and value", annotationPredicate)
-			}
+		// Reject duplicate annotation key-value pairs
+		kv := annotationKey + "=" + annotationValue
+		if _, ok := seenKVs[kv]; ok {
+			return nil, fmt.Errorf("invalid annotation flag: %q, duplicate annotation key-value %q", kvv, kv)
+		} else {
+			seenKVs[kv] = struct{}{}
 		}
 
-		annotationPredicates = append(annotationPredicates, kubernetes.AnnotationPredicates{
-			Key:        annotationKey,
-			Value:      annotationValue,
-			Predicates: predicateList,
-		})
+		result = append(result, v)
 	}
-
-	return annotationPredicates, nil
-
+	return result, nil
 }

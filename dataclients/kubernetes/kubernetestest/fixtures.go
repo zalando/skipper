@@ -32,29 +32,31 @@ type fixtureSet struct {
 }
 
 type kubeOptionsParser struct {
-	IngressV1                                   bool                              `yaml:"ingressv1"`
-	EastWest                                    bool                              `yaml:"eastWest"`
-	EastWestDomain                              string                            `yaml:"eastWestDomain"`
-	EastWestRangeDomains                        []string                          `yaml:"eastWestRangeDomains"`
-	EastWestRangePredicates                     []*eskip.Predicate                `yaml:"eastWestRangePredicatesAppend"`
-	HTTPSRedirect                               bool                              `yaml:"httpsRedirect"`
-	HTTPSRedirectCode                           int                               `yaml:"httpsRedirectCode"`
-	DisableCatchAllRoutes                       bool                              `yaml:"disableCatchAllRoutes"`
-	BackendNameTracingTag                       bool                              `yaml:"backendNameTracingTag"`
-	OnlyAllowedExternalNames                    bool                              `yaml:"onlyAllowedExternalNames"`
-	AllowedExternalNames                        []string                          `yaml:"allowedExternalNames"`
-	IngressClass                                string                            `yaml:"kubernetes-ingress-class"`
-	KubernetesEnableEndpointSlices              bool                              `yaml:"enable-kubernetes-endpointslices"`
-	KubernetesEnableTLS                         bool                              `yaml:"kubernetes-enable-tls"`
-	IngressesLabels                             map[string]string                 `yaml:"kubernetes-ingresses-label-selector"`
-	ServicesLabels                              map[string]string                 `yaml:"kubernetes-services-label-selector"`
-	EndpointsLabels                             map[string]string                 `yaml:"kubernetes-endpoints-label-selector"`
-	EndpointsliceLabels                         map[string]string                 `yaml:"kubernetes-endpointslice-label-selector"`
-	ForceKubernetesService                      bool                              `yaml:"force-kubernetes-service"`
-	BackendTrafficAlgorithm                     string                            `yaml:"backend-traffic-algorithm"`
-	DefaultLoadBalancerAlgorithm                string                            `yaml:"default-lb-algorithm"`
-	KubernetesAnnotationPredicates              []kubernetes.AnnotationPredicates `yaml:"kubernetesAnnotationPredicates"`
-	KubernetesEastWestRangeAnnotationPredicates []kubernetes.AnnotationPredicates `yaml:"kubernetesEastWestRangeAnnotationPredicates"`
+	IngressV1                                      bool                              `yaml:"ingressv1"`
+	EastWest                                       bool                              `yaml:"eastWest"`
+	EastWestDomain                                 string                            `yaml:"eastWestDomain"`
+	EastWestRangeDomains                           []string                          `yaml:"eastWestRangeDomains"`
+	EastWestRangePredicates                        []*eskip.Predicate                `yaml:"eastWestRangePredicatesAppend"`
+	HTTPSRedirect                                  bool                              `yaml:"httpsRedirect"`
+	HTTPSRedirectCode                              int                               `yaml:"httpsRedirectCode"`
+	DisableCatchAllRoutes                          bool                              `yaml:"disableCatchAllRoutes"`
+	BackendNameTracingTag                          bool                              `yaml:"backendNameTracingTag"`
+	OnlyAllowedExternalNames                       bool                              `yaml:"onlyAllowedExternalNames"`
+	AllowedExternalNames                           []string                          `yaml:"allowedExternalNames"`
+	IngressClass                                   string                            `yaml:"kubernetes-ingress-class"`
+	KubernetesEnableEndpointSlices                 bool                              `yaml:"enable-kubernetes-endpointslices"`
+	KubernetesEnableTLS                            bool                              `yaml:"kubernetes-enable-tls"`
+	IngressesLabels                                map[string]string                 `yaml:"kubernetes-ingresses-label-selector"`
+	ServicesLabels                                 map[string]string                 `yaml:"kubernetes-services-label-selector"`
+	EndpointsLabels                                map[string]string                 `yaml:"kubernetes-endpoints-label-selector"`
+	EndpointsliceLabels                            map[string]string                 `yaml:"kubernetes-endpointslice-label-selector"`
+	ForceKubernetesService                         bool                              `yaml:"force-kubernetes-service"`
+	BackendTrafficAlgorithm                        string                            `yaml:"backend-traffic-algorithm"`
+	DefaultLoadBalancerAlgorithm                   string                            `yaml:"default-lb-algorithm"`
+	KubernetesAnnotationPredicates                 []kubernetes.AnnotationPredicates `yaml:"kubernetesAnnotationPredicates"`
+	KubernetesAnnotationFiltersAppend              []kubernetes.AnnotationFilters    `yaml:"kubernetesAnnotationFiltersAppend"`
+	KubernetesEastWestRangeAnnotationPredicates    []kubernetes.AnnotationPredicates `yaml:"kubernetesEastWestRangeAnnotationPredicates"`
+	KubernetesEastWestRangeAnnotationFiltersAppend []kubernetes.AnnotationFilters    `yaml:"kubernetesEastWestRangeAnnotationFiltersAppend"`
 }
 
 func baseNoExt(n string) string {
@@ -232,7 +234,9 @@ func testFixture(t *testing.T, f fixtureSet) {
 		o.KubernetesEastWestRangeDomains = kop.EastWestRangeDomains
 		o.KubernetesEastWestRangePredicates = kop.EastWestRangePredicates
 		o.KubernetesAnnotationPredicates = kop.KubernetesAnnotationPredicates
+		o.KubernetesAnnotationFiltersAppend = kop.KubernetesAnnotationFiltersAppend
 		o.KubernetesEastWestRangeAnnotationPredicates = kop.KubernetesEastWestRangeAnnotationPredicates
+		o.KubernetesEastWestRangeAnnotationFiltersAppend = kop.KubernetesEastWestRangeAnnotationFiltersAppend
 		o.ProvideHTTPSRedirect = kop.HTTPSRedirect
 		o.HTTPSRedirectCode = kop.HTTPSRedirectCode
 		o.DisableCatchAllRoutes = kop.DisableCatchAllRoutes
@@ -302,7 +306,7 @@ func testFixture(t *testing.T, f fixtureSet) {
 			t.Logf("routes: %d, expected: %d", len(routes), len(expectedRoutes))
 			t.Logf("got:\n%s", eskip.String(eskip.CanonicalList(routes)...))
 			t.Logf("expected:\n%s", eskip.String(eskip.CanonicalList(expectedRoutes)...))
-			t.Logf("diff\n%s:", cmp.Diff(
+			t.Logf("diff:\n%s", cmp.Diff(
 				eskip.Print(eskip.PrettyPrintInfo{Pretty: true}, eskip.CanonicalList(expectedRoutes)...),
 				eskip.Print(eskip.PrettyPrintInfo{Pretty: true}, eskip.CanonicalList(routes)...),
 			))

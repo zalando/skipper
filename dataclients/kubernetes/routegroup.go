@@ -592,7 +592,8 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 			}
 
 			for _, route := range ri {
-				addAnnotationPredicates(r.options.KubernetesAnnotationPredicates, rg.Metadata.Annotations, route)
+				appendAnnotationPredicates(r.options.KubernetesAnnotationPredicates, rg.Metadata.Annotations, route)
+				appendAnnotationFilters(r.options.KubernetesAnnotationFiltersAppend, rg.Metadata.Annotations, route)
 			}
 
 			rs = append(rs, ri...)
@@ -634,7 +635,8 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 
 			applyEastWestRangePredicates(internalRi, r.options.KubernetesEastWestRangePredicates)
 			for _, route := range internalRi {
-				addAnnotationPredicates(r.options.KubernetesEastWestRangeAnnotationPredicates, rg.Metadata.Annotations, route)
+				appendAnnotationPredicates(r.options.KubernetesEastWestRangeAnnotationPredicates, rg.Metadata.Annotations, route)
+				appendAnnotationFilters(r.options.KubernetesEastWestRangeAnnotationFiltersAppend, rg.Metadata.Annotations, route)
 			}
 
 			if internalCtx.certificateRegistry != nil {

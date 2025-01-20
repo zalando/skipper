@@ -272,8 +272,15 @@ type Options struct {
 	// routes that has KubernetesEastWestRangeDomains suffix.
 	KubernetesEastWestRangeAnnotationPredicates []kubernetes.AnnotationPredicates
 
-	// KubernetesAnnotationPredicates set a list predicates for each annotation key and value
+	// KubernetesEastWestRangeAnnotationFiltersAppend same as KubernetesAnnotationFiltersAppend but will append to
+	// routes that has KubernetesEastWestRangeDomains suffix.
+	KubernetesEastWestRangeAnnotationFiltersAppend []kubernetes.AnnotationFilters
+
+	// KubernetesAnnotationPredicates sets predicates to append for each annotation key and value
 	KubernetesAnnotationPredicates []kubernetes.AnnotationPredicates
+
+	// KubernetesAnnotationFiltersAppend sets filters to append for each annotation key and value
+	KubernetesAnnotationFiltersAppend []kubernetes.AnnotationFilters
 
 	// KubernetesOnlyAllowedExternalNames will enable validation of ingress external names and route groups network
 	// backend addresses, explicit LB endpoints validation against the list of patterns in
@@ -958,39 +965,41 @@ type Options struct {
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
 	return kubernetes.Options{
-		AllowedExternalNames:                        o.KubernetesAllowedExternalNames,
-		BackendNameTracingTag:                       o.OpenTracingBackendNameTag,
-		DefaultFiltersDir:                           o.DefaultFiltersDir,
-		KubernetesInCluster:                         o.KubernetesInCluster,
-		KubernetesURL:                               o.KubernetesURL,
-		TokenFile:                                   o.KubernetesTokenFile,
-		KubernetesNamespace:                         o.KubernetesNamespace,
-		KubernetesEnableEastWest:                    o.KubernetesEnableEastWest,
-		KubernetesEnableEndpointslices:              o.KubernetesEnableEndpointslices,
-		KubernetesEastWestDomain:                    o.KubernetesEastWestDomain,
-		KubernetesEastWestRangeDomains:              o.KubernetesEastWestRangeDomains,
-		KubernetesEastWestRangePredicates:           o.KubernetesEastWestRangePredicates,
-		KubernetesEastWestRangeAnnotationPredicates: o.KubernetesEastWestRangeAnnotationPredicates,
-		KubernetesAnnotationPredicates:              o.KubernetesAnnotationPredicates,
-		HTTPSRedirectCode:                           o.KubernetesHTTPSRedirectCode,
-		DisableCatchAllRoutes:                       o.KubernetesDisableCatchAllRoutes,
-		IngressClass:                                o.KubernetesIngressClass,
-		IngressLabelSelectors:                       o.KubernetesIngressLabelSelectors,
-		ServicesLabelSelectors:                      o.KubernetesServicesLabelSelectors,
-		EndpointsLabelSelectors:                     o.KubernetesEndpointsLabelSelectors,
-		SecretsLabelSelectors:                       o.KubernetesSecretsLabelSelectors,
-		RouteGroupsLabelSelectors:                   o.KubernetesRouteGroupsLabelSelectors,
-		OnlyAllowedExternalNames:                    o.KubernetesOnlyAllowedExternalNames,
-		OriginMarker:                                o.EnableRouteCreationMetrics,
-		PathMode:                                    o.KubernetesPathMode,
-		ProvideHealthcheck:                          o.KubernetesHealthcheck,
-		ProvideHTTPSRedirect:                        o.KubernetesHTTPSRedirect,
-		ReverseSourcePredicate:                      o.ReverseSourcePredicate,
-		RouteGroupClass:                             o.KubernetesRouteGroupClass,
-		WhitelistedHealthCheckCIDR:                  o.WhitelistedHealthCheckCIDR,
-		ForceKubernetesService:                      o.KubernetesForceService,
-		BackendTrafficAlgorithm:                     o.KubernetesBackendTrafficAlgorithm,
-		DefaultLoadBalancerAlgorithm:                o.KubernetesDefaultLoadBalancerAlgorithm,
+		AllowedExternalNames:                           o.KubernetesAllowedExternalNames,
+		BackendNameTracingTag:                          o.OpenTracingBackendNameTag,
+		DefaultFiltersDir:                              o.DefaultFiltersDir,
+		KubernetesInCluster:                            o.KubernetesInCluster,
+		KubernetesURL:                                  o.KubernetesURL,
+		TokenFile:                                      o.KubernetesTokenFile,
+		KubernetesNamespace:                            o.KubernetesNamespace,
+		KubernetesEnableEastWest:                       o.KubernetesEnableEastWest,
+		KubernetesEnableEndpointslices:                 o.KubernetesEnableEndpointslices,
+		KubernetesEastWestDomain:                       o.KubernetesEastWestDomain,
+		KubernetesEastWestRangeDomains:                 o.KubernetesEastWestRangeDomains,
+		KubernetesEastWestRangePredicates:              o.KubernetesEastWestRangePredicates,
+		KubernetesEastWestRangeAnnotationPredicates:    o.KubernetesEastWestRangeAnnotationPredicates,
+		KubernetesEastWestRangeAnnotationFiltersAppend: o.KubernetesEastWestRangeAnnotationFiltersAppend,
+		KubernetesAnnotationPredicates:                 o.KubernetesAnnotationPredicates,
+		KubernetesAnnotationFiltersAppend:              o.KubernetesAnnotationFiltersAppend,
+		HTTPSRedirectCode:                              o.KubernetesHTTPSRedirectCode,
+		DisableCatchAllRoutes:                          o.KubernetesDisableCatchAllRoutes,
+		IngressClass:                                   o.KubernetesIngressClass,
+		IngressLabelSelectors:                          o.KubernetesIngressLabelSelectors,
+		ServicesLabelSelectors:                         o.KubernetesServicesLabelSelectors,
+		EndpointsLabelSelectors:                        o.KubernetesEndpointsLabelSelectors,
+		SecretsLabelSelectors:                          o.KubernetesSecretsLabelSelectors,
+		RouteGroupsLabelSelectors:                      o.KubernetesRouteGroupsLabelSelectors,
+		OnlyAllowedExternalNames:                       o.KubernetesOnlyAllowedExternalNames,
+		OriginMarker:                                   o.EnableRouteCreationMetrics,
+		PathMode:                                       o.KubernetesPathMode,
+		ProvideHealthcheck:                             o.KubernetesHealthcheck,
+		ProvideHTTPSRedirect:                           o.KubernetesHTTPSRedirect,
+		ReverseSourcePredicate:                         o.ReverseSourcePredicate,
+		RouteGroupClass:                                o.KubernetesRouteGroupClass,
+		WhitelistedHealthCheckCIDR:                     o.WhitelistedHealthCheckCIDR,
+		ForceKubernetesService:                         o.KubernetesForceService,
+		BackendTrafficAlgorithm:                        o.KubernetesBackendTrafficAlgorithm,
+		DefaultLoadBalancerAlgorithm:                   o.KubernetesDefaultLoadBalancerAlgorithm,
 	}
 }
 
