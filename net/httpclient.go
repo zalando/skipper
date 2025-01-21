@@ -1,7 +1,9 @@
 package net
 
 import (
+	"bytes"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	skpio "github.com/zalando/skipper/io"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/secrets"
 )
@@ -23,15 +26,18 @@ const (
 	defaultRefreshInterval = 5 * time.Minute
 )
 
+var errRequestNotFound = errors.New("request not found")
+
 // Client adds additional features like Bearer token injection, and
 // opentracing to the wrapped http.Client with the same interface as
 // http.Client from the stdlib.
 type Client struct {
-	once   sync.Once
-	client http.Client
-	tr     *Transport
-	log    logging.Logger
-	sr     secrets.SecretsReader
+	once         sync.Once
+	client       http.Client
+	tr           *Transport
+	log          logging.Logger
+	sr           secrets.SecretsReader
+	retryBuffers *sync.Map
 }
 
 // NewClient creates a wrapped http.Client and uses Transport to
@@ -67,9 +73,10 @@ func NewClient(o Options) *Client {
 			Transport:     tr,
 			CheckRedirect: o.CheckRedirect,
 		},
-		tr:  tr,
-		log: o.Log,
-		sr:  sr,
+		tr:           tr,
+		log:          o.Log,
+		sr:           sr,
+		retryBuffers: &sync.Map{},
 	}
 
 	return c
@@ -125,7 +132,31 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 			req.Header.Set("Authorization", "Bearer "+string(b))
 		}
 	}
+	if req.Body != nil && req.Body != http.NoBody && req.ContentLength > 0 {
+		retryBuffer := skpio.NewCopyBodyStream(int(req.ContentLength), &bytes.Buffer{}, req.Body)
+		c.retryBuffers.Store(req, retryBuffer)
+		req.Body = retryBuffer
+	}
 	return c.client.Do(req)
+}
+
+func (c *Client) Retry(req *http.Request) (*http.Response, error) {
+	if req.Body == nil || req.Body == http.NoBody {
+		return c.Do(req)
+	}
+
+	buf, ok := c.retryBuffers.LoadAndDelete(req)
+	if !ok {
+		return nil, fmt.Errorf("no retry possible, %w: %s %s", errRequestNotFound, req.Method, req.URL)
+	}
+
+	retryBuffer, ok := buf.(*skpio.CopyBodyStream)
+	if !ok {
+		return nil, fmt.Errorf("no retry possible, no retry buffer for request: %s %s", req.Method, req.URL)
+	}
+	req.Body = retryBuffer.GetBody()
+
+	return c.Do(req)
 }
 
 // CloseIdleConnections delegates the call to the underlying

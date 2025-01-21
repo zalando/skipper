@@ -16,6 +16,7 @@ import (
 	"github.com/zalando/skipper/filters/fadein"
 	"github.com/zalando/skipper/filters/flowid"
 	logfilter "github.com/zalando/skipper/filters/log"
+	"github.com/zalando/skipper/filters/retry"
 	"github.com/zalando/skipper/filters/rfc"
 	"github.com/zalando/skipper/filters/scheduler"
 	"github.com/zalando/skipper/filters/sed"
@@ -232,6 +233,7 @@ func Filters() []filters.Spec {
 		fadein.NewEndpointCreated(),
 		consistenthash.NewConsistentHashKey(),
 		consistenthash.NewConsistentHashBalanceFactor(),
+		retry.NewRetry(),
 		tls.New(),
 	}
 }
