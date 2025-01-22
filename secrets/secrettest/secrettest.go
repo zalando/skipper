@@ -42,11 +42,9 @@ func (tr *TestRegistry) GetEncrypter(refreshInterval time.Duration, s string) (s
 }
 
 type TestingSecretSource struct {
-	getCount  int
 	secretKey string
 }
 
 func (s *TestingSecretSource) GetSecret() ([][]byte, error) {
-	s.getCount++
 	return [][]byte{[]byte(s.secretKey)}, nil
 }

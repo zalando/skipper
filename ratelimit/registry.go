@@ -22,8 +22,6 @@ const (
 type Registry struct {
 	sync.Mutex
 	once      sync.Once
-	closed    bool
-	defaults  Settings
 	global    Settings
 	lookup    map[Settings]*Ratelimit
 	swarm     Swarmer
@@ -52,7 +50,6 @@ func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings)
 
 	r := &Registry{
 		once:      sync.Once{},
-		defaults:  defaults,
 		global:    defaults,
 		lookup:    make(map[Settings]*Ratelimit),
 		swarm:     swarm,
@@ -72,7 +69,6 @@ func NewSwarmRegistry(swarm Swarmer, ro *net.RedisOptions, settings ...Settings)
 // Close teardown Registry and dependent resources
 func (r *Registry) Close() {
 	r.once.Do(func() {
-		r.closed = true
 		r.redisRing.Close()
 		for _, rl := range r.lookup {
 			rl.Close()

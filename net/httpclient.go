@@ -30,7 +30,6 @@ type Client struct {
 	once   sync.Once
 	client http.Client
 	tr     *Transport
-	log    logging.Logger
 	sr     secrets.SecretsReader
 }
 
@@ -67,9 +66,8 @@ func NewClient(o Options) *Client {
 			Transport:     tr,
 			CheckRedirect: o.CheckRedirect,
 		},
-		tr:  tr,
-		log: o.Log,
-		sr:  sr,
+		tr: tr,
+		sr: sr,
 	}
 
 	return c

@@ -23,7 +23,6 @@ import (
 // RouteServer is used to serve eskip-formatted routes,
 // that originate from the polled data source.
 type RouteServer struct {
-	metrics       metrics.Metrics
 	server        *http.Server
 	supportServer *http.Server
 	poller        *poller
@@ -53,9 +52,7 @@ func New(opts skipper.Options) (*RouteServer, error) {
 	m := metrics.NewMetrics(mopt)
 	metricsHandler := metrics.NewHandler(mopt, m)
 
-	rs := &RouteServer{
-		metrics: m,
-	}
+	rs := &RouteServer{}
 
 	opentracingOpts := opts.OpenTracing
 	if len(opentracingOpts) == 0 {

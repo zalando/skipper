@@ -137,15 +137,13 @@ func (j *jumpHash) Get(k string) string {
 // Multi-probe consistent hashing - mpchash
 // https://arxiv.org/pdf/1505.00062.pdf
 type multiprobe struct {
-	hash   *mpchash.Multi
-	shards []string
+	hash *mpchash.Multi
 }
 
 func NewMultiprobe(shards []string) redis.ConsistentHash {
 	return &multiprobe{
 		// 2 seeds and k=21 got from library
-		hash:   mpchash.New(shards, siphash64seed, [2]uint64{1, 2}, 21),
-		shards: shards,
+		hash: mpchash.New(shards, siphash64seed, [2]uint64{1, 2}, 21),
 	}
 }
 
