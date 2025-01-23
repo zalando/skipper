@@ -125,7 +125,7 @@ type Config struct {
 	EtcdPassword       string               `yaml:"etcd-password"`
 	RoutesFile         string               `yaml:"routes-file"`
 	RoutesURLs         *listFlag            `yaml:"routes-urls"`
-	InlineRoutes       string               `yaml:"inline-routes"`
+	InlineRoutes       multiFlag            `yaml:"inline-routes"`
 	AppendFilters      *defaultFiltersFlags `yaml:"default-filters-append"`
 	PrependFilters     *defaultFiltersFlags `yaml:"default-filters-prepend"`
 	DisabledFilters    *listFlag            `yaml:"disabled-filters"`
@@ -434,7 +434,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.EtcdPassword, "etcd-password", "", "optional password for basic authentication with etcd")
 	flag.StringVar(&cfg.RoutesFile, "routes-file", "", "file containing route definitions")
 	flag.Var(cfg.RoutesURLs, "routes-urls", "comma separated URLs to route definitions in eskip format")
-	flag.StringVar(&cfg.InlineRoutes, "inline-routes", "", "inline routes in eskip format")
+	flag.Var(&cfg.InlineRoutes, "inline-routes", "inline routes in eskip format. Can be specified multiple times")
 	flag.Int64Var(&cfg.SourcePollTimeout, "source-poll-timeout", int64(3000), "polling timeout of the routing data sources, in milliseconds")
 	flag.Var(cfg.AppendFilters, "default-filters-append", "set of default filters to apply to append to all filters of all routes")
 	flag.Var(cfg.PrependFilters, "default-filters-prepend", "set of default filters to apply to prepend to all filters of all routes")
@@ -833,16 +833,16 @@ func (c *Config) ToOptions() skipper.Options {
 		SuppressRouteUpdateLogs:             c.SuppressRouteUpdateLogs,
 
 		// route sources:
-		EtcdUrls:        eus,
-		EtcdPrefix:      c.EtcdPrefix,
-		EtcdWaitTimeout: c.EtcdTimeout,
-		EtcdInsecure:    c.EtcdInsecure,
-		EtcdOAuthToken:  c.EtcdOAuthToken,
-		EtcdUsername:    c.EtcdUsername,
-		EtcdPassword:    c.EtcdPassword,
-		WatchRoutesFile: c.RoutesFile,
-		RoutesURLs:      c.RoutesURLs.values,
-		InlineRoutes:    c.InlineRoutes,
+		EtcdUrls:         eus,
+		EtcdPrefix:       c.EtcdPrefix,
+		EtcdWaitTimeout:  c.EtcdTimeout,
+		EtcdInsecure:     c.EtcdInsecure,
+		EtcdOAuthToken:   c.EtcdOAuthToken,
+		EtcdUsername:     c.EtcdUsername,
+		EtcdPassword:     c.EtcdPassword,
+		WatchRoutesFile:  c.RoutesFile,
+		RoutesURLs:       c.RoutesURLs.values,
+		InlineRoutesList: c.InlineRoutes,
 		DefaultFilters: &eskip.DefaultFilters{
 			Prepend: c.PrependFilters.filters,
 			Append:  c.AppendFilters.filters,

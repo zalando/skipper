@@ -7,6 +7,8 @@
 package routestring
 
 import (
+	"fmt"
+
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/routing"
 )
@@ -22,7 +24,20 @@ func New(r string) (routing.DataClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	return &routes{parsed: parsed}, nil
+}
 
+// NewList creates a data client that parses a list of strings of eskip routes and
+// serves it for the routing package.
+func NewList(rs []string) (routing.DataClient, error) {
+	var parsed []*eskip.Route
+	for i, r := range rs {
+		pr, err := eskip.Parse(r)
+		if err != nil {
+			return nil, fmt.Errorf("#%d: %w", i, err)
+		}
+		parsed = append(parsed, pr...)
+	}
 	return &routes{parsed: parsed}, nil
 }
 

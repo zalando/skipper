@@ -12,7 +12,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/zalando/skipper"
-	"github.com/zalando/skipper/config"
 )
 
 var (
@@ -55,19 +54,21 @@ func run_server() {
 		os.Exit(-1)
 	}
 
-	cfg := config.NewConfig()
-	cfg.InlineRoutes = `r: * -> status(200) -> inlineContent("ok") -> <shunt>`
-	cfg.ApplicationLogLevel = logrus.PanicLevel
-	cfg.AccessLogDisabled = true
-	cfg.ApplicationLog = "/dev/null"
-	cfg.Address = addr
-	cfg.SupportListener = "127.0.0.1:0"
+	logrus.SetLevel(logrus.PanicLevel)
+
+	opts := skipper.Options{
+		InlineRoutes:         `r: * -> status(200) -> inlineContent("ok") -> <shunt>`,
+		AccessLogDisabled:    true,
+		ApplicationLogOutput: "/dev/null",
+		Address:              addr,
+		SupportListener:      "127.0.0.1:0",
+	}
 
 	go func() {
-		log.Fatal(skipper.Run(cfg.ToOptions()))
+		log.Fatal(skipper.Run(opts))
 	}()
 
-	address = cfg.Address
+	address = opts.Address
 }
 
 func FuzzServer(data []byte) int {

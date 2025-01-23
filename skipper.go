@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -322,8 +323,13 @@ type Options struct {
 	// RouteURLs are URLs pointing to route definitions, in eskip format, with change watching enabled.
 	RoutesURLs []string
 
-	// InlineRoutes can define routes as eskip text.
+	// InlineRoutes defines a set of routes as eskip format.
+	// Use InlineRoutesList to specify multiple sets of routes.
 	InlineRoutes string
+
+	// InlineRoutesList is similar to InlineRoutes used to specify multiple sets of routes.
+	// InlineRoutes and InlineRoutesList are combined and processed together.
+	InlineRoutesList []string
 
 	// Polling timeout of the routing data sources.
 	SourcePollTimeout time.Duration
@@ -1088,12 +1094,16 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 		}
 	}
 
+	inlineRoutes := slices.Clone(o.InlineRoutesList)
 	if o.InlineRoutes != "" {
-		ir, err := routestring.New(o.InlineRoutes)
+		inlineRoutes = append(inlineRoutes, o.InlineRoutes)
+	}
+
+	if len(inlineRoutes) > 0 {
+		ir, err := routestring.NewList(inlineRoutes)
 		if err != nil {
 			return nil, fmt.Errorf("error while parsing inline routes: %w", err)
 		}
-
 		clients = append(clients, ir)
 	}
 
