@@ -239,8 +239,8 @@ spec:
 Please consider using [RouteGroups](routegroups.md), instead of custom
 routes!
 
-Custom routes is a way of extending the default routes configured for
-an ingress resource.
+Custom routes extend default routes configured for an ingress resource and
+are specified via `zalando.org/skipper-routes` annotation.
 
 Sometimes you just want to return a header, redirect or even static
 html content. You can return from Skipper without doing a proxy call
@@ -270,7 +270,10 @@ You will get an error in Skipper logs, similar to:
 [APP]time="2019-01-02T13:30:16Z" level=error msg="Failed to add route having 2 path routes: Path(\"/foo/bar\") -> inlineContent(\"custom route\") -> status(200) -> <shunt>"
 ```
 
-> **Note:** Predicates coming from `zalando.org/skipper-predicate` won't be appended to routes generated from `zalando.org/skipper-routes`
+> **Warning:**
+> Predicates from `zalando.org/skipper-predicate` and filters from `zalando.org/skipper-filter` annotations
+> won't be appended to routes from `zalando.org/skipper-routes` annotation.
+
 
 ### Redirects
 
