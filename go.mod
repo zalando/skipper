@@ -22,10 +22,10 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/hashicorp/memberlist v0.5.2
-	github.com/instana/go-sensor v1.66.1
+	github.com/hashicorp/memberlist v0.5.3
+	github.com/instana/go-sensor v1.66.2
 	github.com/lightstep/lightstep-tracer-go v0.26.0
-	github.com/miekg/dns v1.1.62
+	github.com/miekg/dns v1.1.63
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/opa v0.70.0
 	github.com/open-policy-agent/opa-envoy-plugin v0.70.0-envoy-1
@@ -55,7 +55,7 @@ require (
 	golang.org/x/sync v0.10.0
 	golang.org/x/term v0.28.0
 	golang.org/x/time v0.9.0
-	google.golang.org/protobuf v1.36.3
+	google.golang.org/protobuf v1.36.4
 	gopkg.in/go-jose/go-jose.v2 v2.6.3
 	gopkg.in/yaml.v2 v2.4.0
 	layeh.com/gopher-json v0.0.0-20201124131017-552bb3c4c3bf
