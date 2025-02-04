@@ -521,6 +521,16 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 	return hh
 }
 
+func sizeOfHeader(h http.Header) (size int) {
+	for k, vv := range h {
+		size += len(k)
+		for _, v := range vv {
+			size += len(v)
+		}
+	}
+	return
+}
+
 type flusher struct {
 	w flushedResponseWriter
 }
@@ -1366,6 +1376,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	start := time.Now()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
+	headerSize := sizeOfHeader(ctx.responseWriter.Header())
 
 	if err := ctx.Request().Context().Err(); err != nil {
 		// deadline exceeded or canceled in stdlib, client closed request
@@ -1379,7 +1390,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
-	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
+	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, strconv.FormatInt(int64(headerSize), 10))
 
 	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
