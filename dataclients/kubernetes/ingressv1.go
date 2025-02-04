@@ -118,7 +118,7 @@ func convertPathRuleV1(
 			protocol = p
 		}
 
-		eps = state.GetEndpointsByService(ns, svcName, protocol, servicePort)
+		eps = state.GetEndpointsByService(ic.zone, ns, svcName, protocol, servicePort)
 	}
 	if len(eps) == 0 {
 		ic.logger.Tracef("Target endpoints not found, shuntroute for %s:%s", svcName, svcPort)
@@ -371,6 +371,7 @@ func (ing *ingress) convertDefaultBackendV1(
 		}
 
 		eps = state.GetEndpointsByService(
+			ic.zone,
 			ns,
 			svcName,
 			protocol,
