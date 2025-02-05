@@ -3,8 +3,8 @@ package openpolicyagent
 import (
 	"net/http"
 
-	"github.com/open-policy-agent/opa/plugins"
-	opatracing "github.com/open-policy-agent/opa/tracing"
+	"github.com/open-policy-agent/opa/v1/plugins"
+	opatracing "github.com/open-policy-agent/opa/v1/tracing"
 	"github.com/opentracing/opentracing-go"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/proxy"

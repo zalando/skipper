@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/plugins"
-	"github.com/open-policy-agent/opa/util"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/plugins"
+	"github.com/open-policy-agent/opa/v1/util"
 )
 
 // Factory defines the interface OPA uses to instantiate a plugin.
