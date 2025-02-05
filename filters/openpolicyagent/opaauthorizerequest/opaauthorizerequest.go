@@ -167,12 +167,13 @@ func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	}
 	removeRequestHeaders(fc, headersToRemove)
 
-	headers, err := result.GetResponseHTTPHeaders()
+	headerToAdd, err := result.GetResponseEnvoyHeaderValueOptions()
 	if err != nil {
 		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)
 		return
 	}
-	addRequestHeaders(fc, headers)
+
+	addRequestHeaders(fc, headerToAdd)
 
 	if responseHeaders, err := result.GetResponseHTTPHeadersToAdd(); err != nil {
 		f.opa.HandleInvalidDecisionError(fc, span, result, err, !f.opa.EnvoyPluginConfig().DryRun)
@@ -188,14 +189,14 @@ func removeRequestHeaders(fc filters.FilterContext, headersToRemove []string) {
 	}
 }
 
-func addRequestHeaders(fc filters.FilterContext, headers http.Header) {
-	for key, values := range headers {
-		for _, value := range values {
-			// This is the default behavior from https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/core/v3/base.proto#config-core-v3-headervalueoption
-			fc.Request().Header.Add(key, value)
-		}
+func addRequestHeaders(fc filters.FilterContext, headerOptions []*ext_authz_v3_core.HeaderValueOption) {
+	for _, option := range headerOptions {
+		key := option.GetHeader().GetKey()
+		value := option.GetHeader().GetValue()
+		fc.Request().Header.Add(key, value)
 	}
 }
+
 func (f *opaAuthorizeRequestFilter) Response(fc filters.FilterContext) {
 	if headers, ok := fc.StateBag()[responseHeadersKey].([]*ext_authz_v3_core.HeaderValueOption); ok {
 		addResponseHeaders(fc, headers)
