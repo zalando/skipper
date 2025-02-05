@@ -154,9 +154,11 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 			"main.rego": `
 				package envoy.authz
 
+				import rego.v1
+
 				default allow = false
 
-				allow { input.parsed_body }
+				allow if { input.parsed_body }
 			`,
 		}),
 		opasdktest.MockBundle("/bundles/anotherbundlename", map[string]string{
