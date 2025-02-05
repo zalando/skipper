@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	opasdktest "github.com/open-policy-agent/opa/sdk/test"
+	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
