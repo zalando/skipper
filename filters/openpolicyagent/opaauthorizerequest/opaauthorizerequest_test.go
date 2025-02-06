@@ -2,6 +2,7 @@ package opaauthorizerequest
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/filters/builtin"
 	"io"
 	"log"
@@ -644,13 +645,10 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 			contextExtensions: "",
 			body:              `{ "key" : "value" }`,
 			requestHeaders: http.Header{
-				"accept":            []string{"*/*"},
-				"authorization":     []string{"Basic Y2hhcmxpZTpwYXNzdzByZA=="},
-				"user-agent":        []string{"curl/7.68.0-DEV"},
-				"x-ext-auth-allow":  []string{"yes"},
-				"x-forwarded-proto": []string{"http"},
-				"x-request-id":      []string{"1455bbb0-0623-4810-a2c6-df73ffd8863a"},
-				"content-type":      {"application/json"},
+				"accept":       []string{"*/*"},
+				"user-agent":   []string{"curl/7.68.0-DEV"},
+				"x-request-id": []string{"1455bbb0-0623-4810-a2c6-df73ffd8863a"},
+				"content-type": {"application/json"},
 			},
 			expectedStatus:  http.StatusOK,
 			expectedBody:    "Welcome!",
@@ -662,12 +660,8 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 			clientServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("Welcome!"))
 
-				assert.True(t, isHeadersPresent(t, ti.expectedHeaders, r.Header), "Request headers dropped at OPA")
-
 				body, err := io.ReadAll(r.Body)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 				assert.Equal(t, ti.body, string(body))
 			}))
 			defer clientServer.Close()
@@ -683,11 +677,16 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 							input.attributes.request.http.path == "/users/profile/amal?param=1"
 							input.parsed_path == ["users", "profile", "amal"]
 							input.parsed_query == {"param": ["1"]}
+							input.attributes.request.http.headers["accept"] == "*/*"
+							input.attributes.request.http.headers["user-agent"] == "curl/7.68.0-DEV"
 							input.attributes.request.http.headers["x-request-id"] == "1455bbb0-0623-4810-a2c6-df73ffd8863a"
+							input.attributes.request.http.headers["content-type"] == "application/json"
 							input.attributes.metadataContext.filterMetadata["envoy.filters.http.header_to_metadata"].policy_type == "ingress"
 							opa.runtime().config.labels.environment == "test"
 							input.parsed_body.key == "value"
 						}
+						
+						headers := input.attributes.request.http.headers
 					`,
 				}),
 			)
@@ -746,27 +745,23 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 			}
 
 			req, err := http.NewRequest(ti.requestMethod, proxy.URL+ti.requestPath, bodyReader)
-			for name, values := range ti.removeHeaders {
-				for _, value := range values {
-					req.Header.Add(name, value) //adding the headers to validate removal.
-				}
-			}
+
+			require.NoError(t, err)
+
 			for name, values := range ti.requestHeaders {
 				for _, value := range values {
 					req.Header.Add(name, value)
 				}
 			}
 
-			assert.NoError(t, err)
-
 			rsp, err := proxy.Client().Do(req)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, ti.expectedStatus, rsp.StatusCode, "HTTP status does not match")
 
 			defer rsp.Body.Close()
 			body, err := io.ReadAll(rsp.Body)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, ti.expectedBody, string(body), "HTTP Body does not match")
 		})
 	}
@@ -774,7 +769,7 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 
 func isHeadersPresent(t *testing.T, expectedHeaders http.Header, headers http.Header) bool {
 	for headerName, expectedValues := range expectedHeaders {
-		actualValues, headerFound := headers[http.CanonicalHeaderKey(headerName)]
+		actualValues, headerFound := headers[headerName]
 
 		if !headerFound {
 			return false
