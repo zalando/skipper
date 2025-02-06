@@ -685,8 +685,6 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 							opa.runtime().config.labels.environment == "test"
 							input.parsed_body.key == "value"
 						}
-						
-						headers := input.attributes.request.http.headers
 					`,
 				}),
 			)
@@ -728,7 +726,7 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 				openpolicyagent.WithConfigTemplate(config),
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(&tracingtest.Tracer{}))
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()))
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
 			fr.Register(ftSpec)
 			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
