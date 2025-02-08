@@ -167,7 +167,7 @@ func TestOIDCQueryClaimsFilter(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			msg: "secure sub/path is not permitted",
+			msg: "missing sub claim is not permitted",
 			args: []interface{}{
 				"/login:groups.#[==\"AppX-Test-Users\"]",
 				"/:@_:email%\"*@example.org\"",
