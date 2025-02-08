@@ -141,7 +141,7 @@ func (filter *oidcIntrospectionFilter) Request(ctx filters.FilterContext) {
 
 	sub, ok := token.Claims["sub"].(string)
 	if !ok {
-		unauthorized(ctx, sub, invalidSub, "", "")
+		unauthorized(ctx, r.Host, invalidSub, "", "")
 		return
 	}
 
