@@ -3,6 +3,7 @@ package jwt
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -91,5 +92,28 @@ func BenchmarkParse(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		parseSink, _ = Parse(value)
+	}
+}
+
+func BenchmarkParse_malicious(b *testing.B) {
+	cases := []struct {
+		name  string
+		value string
+	}{
+		{
+			name:  "all periods",
+			value: strings.Repeat(".", http.DefaultMaxHeaderBytes),
+		}, {
+			name:  "two trailing periods",
+			value: strings.Repeat("a", http.DefaultMaxHeaderBytes-2) + "..",
+		},
+	}
+	for _, bc := range cases {
+		b.Run(bc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				parseSink, _ = Parse(bc.value)
+			}
+		})
 	}
 }
