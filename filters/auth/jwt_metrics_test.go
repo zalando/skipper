@@ -14,6 +14,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/auth"
 	"github.com/zalando/skipper/filters/builtin"
+	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/proxy/proxytest"
@@ -359,7 +360,7 @@ func TestJwtMetricsArgs(t *testing.T) {
 	})
 }
 
-func marshalBase64JSON(t *testing.T, v any) string {
+func marshalBase64JSON(t testing.TB, v any) string {
 	d, err := json.Marshal(v)
 	if err != nil {
 		t.Fatalf("failed to marshal json: %v, %v", v, err)
@@ -378,5 +379,42 @@ func BenchmarkJwtMetrics_CreateFilter(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = spec.CreateFilter(args)
+	}
+}
+
+func BenchmarkJwtMetrics(b *testing.B) {
+	spec := auth.NewJwtMetrics()
+	args := []any{`{issuers: [foo, bar], optOutAnnotations: [oauth.disabled], optOutHosts: [ '^.+[.]domain[.]test$' ]}`}
+
+	f, err := spec.CreateFilter(args)
+	require.NoError(b, err)
+
+	m := &metricstest.MockMetrics{}
+	defer m.Close()
+
+	ctx := &filtertest.Context{
+		FRequest: &http.Request{
+			Method: "GET", Host: "foo.test",
+			Header: http.Header{
+				"Authorization": []string{
+					"Bearer header." + marshalBase64JSON(b, map[string]any{"iss": "baz"}) + ".signature",
+				},
+			},
+		},
+		FResponse: &http.Response{StatusCode: http.StatusOK},
+		FMetrics:  m,
+	}
+
+	f.Request(ctx)
+	f.Response(ctx)
+	m.WithCounters(func(counters map[string]int64) {
+		require.Equal(b, map[string]int64{"GET.foo_test.200.invalid-issuer": 1}, counters)
+	})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.Request(ctx)
+		f.Response(ctx)
 	}
 }
