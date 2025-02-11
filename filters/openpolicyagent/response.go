@@ -64,7 +64,22 @@ func (opa *OpenPolicyAgentInstance) ServeResponse(fc filters.FilterContext, span
 		return
 	}
 
-	resp.Header, err = result.GetResponseHTTPHeaders()
+	headerOptions, err := result.GetResponseEnvoyHeaderValueOptions()
+	if err != nil {
+		opa.ServeInvalidDecisionError(fc, span, result, err)
+		return
+	}
+
+	if resp.Header == nil {
+		resp.Header = make(http.Header)
+	}
+
+	for _, option := range headerOptions {
+		key := option.GetHeader().GetKey()
+		value := option.GetHeader().GetValue()
+		resp.Header.Add(key, value)
+	}
+
 	if err != nil {
 		opa.ServeInvalidDecisionError(fc, span, result, err)
 		return
