@@ -90,8 +90,10 @@ func RemoteAddrFromLast(r *http.Request) netip.Addr {
 // RemoteHostFromLast is *deprecated* use RemoteAddrFromLast instead
 func RemoteHostFromLast(r *http.Request) net.IP {
 	ffs := r.Header.Get("X-Forwarded-For")
-	ffa := strings.Split(ffs, ",")
-	ff := ffa[len(ffa)-1]
+	ff := ffs
+	if i := strings.LastIndex(ffs, ","); i != -1 {
+		ff = ffs[i+1:]
+	}
 	if ff != "" {
 		if ip := parse(strings.TrimSpace(ff)); ip != nil {
 			return ip
