@@ -147,8 +147,11 @@ func TestRemoteHostFromLast(t *testing.T) {
 		{"no header2", "1.2.3.4", net.IPv4(1, 2, 3, 4), []string{}},
 		{"no header3", "100.200.300.400", nil, []string{}},
 		{"no header4", "127.0.0.1:8080", net.IPv4(127, 0, 0, 1), []string{}},
+		{"empty header", "127.0.0.1", net.IPv4(127, 0, 0, 1), []string{""}},
 		{"single header", "127.0.0.1", net.IPv4(172, 16, 0, 1), []string{"172.16.0.1"}},
-		{"invalid  header", "127.0.0.1", net.IPv4(127, 0, 0, 1), []string{"invalid header"}},
+		{"invalid header", "127.0.0.1", net.IPv4(127, 0, 0, 1), []string{"invalid header"}},
+		{"invalid header entry", "127.0.0.1", net.IPv4(127, 0, 0, 1), []string{"172.16.0.1", "invalid header"}},
+		{"empty header entry", "127.0.0.1", net.IPv4(127, 0, 0, 1), []string{"172.16.0.1", ""}},
 		{"multiple entries", "127.0.0.1", net.IPv4(8, 7, 6, 5), []string{"172.16.0.1", "1.2.3.4", "8.7.6.5"}},
 		{"2 entries", "127.0.0.1", net.IPv4(8, 7, 6, 5), []string{"1.2.3.4", "8.7.6.5"}},
 		{"single header2", "127.0.0.1", net.IPv4(8, 7, 6, 5), []string{"8.7.6.5"}},
@@ -167,11 +170,40 @@ func TestRemoteHostFromLast(t *testing.T) {
 }
 
 func BenchmarkRemoteHostFromLast(b *testing.B) {
-	r := &http.Request{RemoteAddr: "1.2.3.4"}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		RemoteHostFromLast(r)
-	}
+	b.Run("no header", func(b *testing.B) {
+		b.ReportAllocs()
+		r := &http.Request{
+			RemoteAddr: "1.2.3.4",
+		}
+
+		for i := 0; i < b.N; i++ {
+			_ = RemoteHostFromLast(r)
+		}
+	})
+
+	b.Run("single value", func(b *testing.B) {
+		b.ReportAllocs()
+		r := &http.Request{
+			RemoteAddr: "1.2.3.4",
+			Header:     http.Header{"X-Forwarded-For": []string{"4.3.2.1"}},
+		}
+
+		for i := 0; i < b.N; i++ {
+			_ = RemoteHostFromLast(r)
+		}
+	})
+
+	b.Run("many values", func(b *testing.B) {
+		b.ReportAllocs()
+		r := &http.Request{
+			RemoteAddr: "1.2.3.4",
+			Header:     http.Header{"X-Forwarded-For": []string{"4.3.2.1" + strings.Repeat(", 4.3.2.1", 10)}},
+		}
+
+		for i := 0; i < b.N; i++ {
+			_ = RemoteHostFromLast(r)
+		}
+	})
 }
 
 func TestParseIPCIDRs(t *testing.T) {
