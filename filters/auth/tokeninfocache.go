@@ -69,11 +69,8 @@ func (c *tokeninfoCache) cached(token string) map[string]any {
 		now := c.now()
 		e := v.(*entry)
 		if now.Before(e.expiresAt) {
-			// It might be ok to return cached value
-			// without adjusting "expires_in" to avoid copy
-			// if caller never modifies the result and
-			// when "expires_in" did not change (same second)
-			// or for small TTL values
+			// Clone cached value because callers may modify it,
+			// see e.g. [OAuthConfig.GrantTokeninfoKeys] and [grantFilter.setupToken].
 			info := maps.Clone(e.info)
 
 			info[expiresInField] = e.infoExpiresAt.Sub(now).Truncate(time.Second).Seconds()
