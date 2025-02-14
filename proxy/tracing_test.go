@@ -76,8 +76,10 @@ func TestTracingIngressSpan(t *testing.T) {
 	verifyTag(t, span, HostnameTag, "ingress.tracing.test")
 	verifyTag(t, span, HTTPPathTag, "/hello")
 	verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
+	verifyTag(t, span, HTTPRequestHeaderCeil, int64(128))
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
 	verifyTag(t, span, HTTPStatusCodeTag, uint16(200))
+	verifyNoTag(t, span, HTTPResponseBodyCeil)
 	verifyHasTag(t, span, HTTPRemoteIPTag)
 }
 
@@ -131,8 +133,10 @@ func TestTracingIngressSpanShunt(t *testing.T) {
 	verifyTag(t, span, HostnameTag, "ingress-shunt.tracing.test")
 	verifyTag(t, span, HTTPPathTag, "/hello")
 	verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
+	verifyTag(t, span, HTTPRequestHeaderCeil, int64(128))
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
 	verifyTag(t, span, HTTPStatusCodeTag, uint16(205))
+	verifyNoTag(t, span, HTTPResponseBodyCeil)
 	verifyHasTag(t, span, HTTPRemoteIPTag)
 }
 
@@ -204,7 +208,9 @@ func TestTracingIngressSpanLoopback(t *testing.T) {
 		verifyTag(t, span, HostnameTag, "ingress-loop.tracing.test")
 		verifyTag(t, span, HTTPPathTag, paths[rid])
 		verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
+		verifyTag(t, span, HTTPRequestHeaderCeil, int64(128))
 		verifyTag(t, span, FlowIDTag, "test-flow-id")
+		verifyNoTag(t, span, HTTPResponseBodyCeil)
 	}
 }
 
@@ -286,7 +292,8 @@ func TestTracingProxySpan(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK\n"))
 	}))
 	defer s.Close()
 
@@ -310,10 +317,11 @@ func TestTracingProxySpan(t *testing.T) {
 	}
 	req.Header.Set("X-Flow-Id", "test-flow-id")
 
-	_, err = http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+	resp.Body.Close()
 
 	span := tracer.FindSpan("proxy")
 	if span == nil {
@@ -330,8 +338,10 @@ func TestTracingProxySpan(t *testing.T) {
 	verifyTag(t, span, HostnameTag, "proxy.tracing.test")
 	verifyTag(t, span, HTTPPathTag, "/bye")
 	verifyTag(t, span, HTTPHostTag, backendAddr)
+	verifyTag(t, span, HTTPRequestHeaderCeil, int64(128))
 	verifyTag(t, span, FlowIDTag, "test-flow-id")
-	verifyTag(t, span, HTTPStatusCodeTag, uint16(204))
+	verifyTag(t, span, HTTPStatusCodeTag, uint16(200))
+	verifyTag(t, span, HTTPResponseBodyCeil, int64(4))
 	verifyNoTag(t, span, HTTPRemoteIPTag)
 }
 
@@ -635,4 +645,22 @@ func verifyHasTag(t *testing.T, span *tracingtest.MockSpan, name string) {
 	if got, ok := span.Tags()[name]; !ok || got == "" {
 		t.Errorf("expected '%s' tag", name)
 	}
+}
+
+func TestCeilPow2(t *testing.T) {
+	assert.Equal(t, int64(0), ceilPow2(0))
+	assert.Equal(t, int64(1), ceilPow2(1))
+	assert.Equal(t, int64(2), ceilPow2(2))
+	assert.Equal(t, int64(4), ceilPow2(3))
+	assert.Equal(t, int64(4), ceilPow2(4))
+	assert.Equal(t, int64(8), ceilPow2(5))
+	assert.Equal(t, int64(8), ceilPow2(6))
+	assert.Equal(t, int64(8), ceilPow2(7))
+	assert.Equal(t, int64(8), ceilPow2(8))
+	assert.Equal(t, int64(16), ceilPow2(9))
+
+	assert.Equal(t, int64(16384), ceilPow2(10_000))
+	assert.Equal(t, int64(16384), ceilPow2(16_000))
+	assert.Equal(t, int64(32768), ceilPow2(16_385))
+	assert.Equal(t, int64(32768), ceilPow2(20_000))
 }

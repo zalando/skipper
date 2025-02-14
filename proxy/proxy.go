@@ -521,6 +521,16 @@ func cloneHeaderExcluding(h http.Header, excludeList map[string]bool) http.Heade
 	return hh
 }
 
+func sizeOfHeader(h http.Header) (size int) {
+	for k, vv := range h {
+		size += len(k)
+		for _, v := range vv {
+			size += len(v)
+		}
+	}
+	return
+}
+
 type flusher struct {
 	w flushedResponseWriter
 }
@@ -1382,6 +1392,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
 
 	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
+	p.tracing.setTag(ctx.proxySpan, HTTPResponseBodyCeil, ceilPow2(n))
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
@@ -1660,7 +1671,9 @@ func (p *Proxy) setCommonSpanInfo(u *url.URL, r *http.Request, s ot.Span) {
 		setTag(s, HTTPMethodTag, r.Method).
 		setTag(s, HostnameTag, p.hostname).
 		setTag(s, HTTPPathTag, u.Path).
-		setTag(s, HTTPHostTag, r.Host)
+		setTag(s, HTTPHostTag, r.Host).
+		setTag(s, HTTPRequestHeaderCeil, ceilPow2(int64(sizeOfHeader(r.Header))))
+
 	if val := r.Header.Get("X-Flow-Id"); val != "" {
 		p.tracing.setTag(s, FlowIDTag, val)
 	}

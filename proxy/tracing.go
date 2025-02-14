@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"math"
+
 	ot "github.com/opentracing/opentracing-go"
 
 	"github.com/zalando/skipper/tracing"
@@ -19,6 +21,8 @@ const (
 	HTTPPathTag           = "http.path"
 	HTTPUrlTag            = "http.url"
 	HTTPStatusCodeTag     = "http.status_code"
+	HTTPResponseBodyCeil  = "http.response.body_ceil"
+	HTTPRequestHeaderCeil = "http.request.header_ceil"
 	SkipperRouteIDTag     = "skipper.route_id"
 	SpanKindTag           = "span.kind"
 
@@ -134,4 +138,8 @@ func (t *filterTracing) logEnd(filterName string) {
 	if t != nil && t.logEvents {
 		t.span.LogKV(filterName, EndEvent)
 	}
+}
+
+func ceilPow2(n int64) int64 {
+	return int64(math.Pow(2, math.Ceil(math.Log2(float64(n)))))
 }
