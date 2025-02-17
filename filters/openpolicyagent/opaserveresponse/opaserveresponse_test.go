@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	opasdktest "github.com/open-policy-agent/opa/sdk/test"
+	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -172,9 +172,11 @@ func TestServerResponseFilter(t *testing.T) {
 					"main.rego": `
 						package envoy.authz
 
+						import rego.v1
+
 						default allow := false
 
-						allow {
+						allow if {
 							input.parsed_path == [ "allow" ]
 						}
 
@@ -185,7 +187,7 @@ func TestServerResponseFilter(t *testing.T) {
 							"http_status": 403
 						}
 
-						allow_object := response {
+						allow_object := response if {
 							input.parsed_path == [ "allow", "structured" ]
 							response := {
 								"allowed": true,
@@ -195,7 +197,7 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object := response {
+						allow_object := response if {
 							input.parsed_path == [ "allow", "structured", "with-empty-query-string" ]
 							input.parsed_query == {}
 							response := {
@@ -206,7 +208,7 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object := response {
+						allow_object := response if {
 							input.parsed_path == [ "allow", "structured", "with-query" ]
 							input.parsed_query.pass == ["yes"]
 							response := {
@@ -217,7 +219,7 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object := response {
+						allow_object := response if {
 							input.parsed_path == [ "allow", "production" ]
 							opa.runtime().config.labels.environment == "production"
 							response := {
@@ -228,7 +230,7 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object := response {
+						allow_object := response if {
 							input.parsed_path == [ "allow", "test" ]
 							opa.runtime().config.labels.environment == "test"
 							response := {
@@ -239,7 +241,7 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object_structured_body := response {
+						allow_object_structured_body := response if {
 							input.parsed_path == [ "allow", "structured" ]
 							response := {
 								"allowed": true,
@@ -249,7 +251,7 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object_contextextensions := response {
+						allow_object_contextextensions := response if {
 							input.parsed_path == [ "allow", "structured" ]
 							response := {
 								"allowed": true,
@@ -259,7 +261,7 @@ func TestServerResponseFilter(t *testing.T) {
 							}
 						}
 
-						allow_object_req_body := response {
+						allow_object_req_body := response if {
 							response := {
 								"allowed": true,
 								"headers": {},

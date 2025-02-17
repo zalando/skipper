@@ -9,9 +9,10 @@ import (
 	ext_authz_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	"github.com/open-policy-agent/opa-envoy-plugin/opa/decisionlog"
-	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/server"
-	"github.com/open-policy-agent/opa/topdown"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/plugins/logs"
+	"github.com/open-policy-agent/opa/v1/server"
+	"github.com/open-policy-agent/opa/v1/topdown"
 	"github.com/opentracing/opentracing-go"
 	pbstruct "google.golang.org/protobuf/types/known/structpb"
 )
@@ -59,7 +60,7 @@ func (opa *OpenPolicyAgentInstance) Eval(ctx context.Context, req *ext_authz_v3.
 		return nil, fmt.Errorf("check request timed out before query execution: %w", ctx.Err())
 	}
 
-	logger := opa.manager.Logger().WithFields(map[string]interface{}{"decision-id": result.DecisionID})
+	logger := opa.Logger().WithFields(map[string]interface{}{"decision-id": result.DecisionID})
 	input, err = envoyauth.RequestToInput(req, logger, nil, opa.EnvoyPluginConfig().SkipRequestBodyParse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert request to input: %w", err)
@@ -111,7 +112,12 @@ func (opa *OpenPolicyAgentInstance) logDecision(ctx context.Context, input inter
 		info.Path = opa.EnvoyPluginConfig().Path
 	}
 
-	return decisionlog.LogDecision(ctx, opa.manager, info, result, err)
+	plugin := logs.Lookup(opa.manager)
+	if plugin == nil {
+		return nil
+	}
+
+	return decisionlog.LogDecision(ctx, plugin, info, result, err)
 }
 
 func withDecisionID(decisionID string) func(*envoyauth.EvalResult) {
