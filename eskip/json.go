@@ -37,7 +37,7 @@ func newJSONRoute(r *Route) *jsonRoute {
 			Type:      cr.BackendType.String(),
 			Address:   cr.Backend,
 			Algorithm: cr.LBAlgorithm,
-			Endpoints: cr.LBEndpoints,
+			Endpoints: LBEndpointString(cr.LBEndpoints),
 		}
 	}
 
@@ -94,7 +94,7 @@ func (r *Route) UnmarshalJSON(b []byte) error {
 		}
 	case LBBackend:
 		r.LBAlgorithm = jr.Backend.Algorithm
-		r.LBEndpoints = jr.Backend.Endpoints
+		r.LBEndpoints = NewLBEndpoints(jr.Backend.Endpoints)
 		if len(r.LBEndpoints) == 0 {
 			r.LBEndpoints = nil
 		}
