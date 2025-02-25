@@ -50,7 +50,7 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 }
 
 // GetEndpointsByService returns the skipper endpoints for kubernetes endpoints or endpointslices.
-func (state *clusterState) GetEndpointsByService(namespace, name, protocol string, servicePort *servicePort) []string {
+func (state *clusterState) GetEndpointsByService(zone, namespace, name, protocol string, servicePort *servicePort) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -66,7 +66,7 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 	var targets []string
 	if state.enableEndpointSlices {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServicePort("TCP", protocol, servicePort)
+			targets = eps.targetsByServicePort(zone, "TCP", protocol, servicePort)
 		} else {
 			return nil
 		}
@@ -84,7 +84,7 @@ func (state *clusterState) GetEndpointsByService(namespace, name, protocol strin
 }
 
 // getEndpointAddresses returns the list of all addresses for the given service using endpoints or endpointslices.
-func (state *clusterState) getEndpointAddresses(namespace, name string) []string {
+func (state *clusterState) getEndpointAddresses(zone, namespace, name string) []string {
 	rID := newResourceID(namespace, name)
 
 	state.mu.Lock()
@@ -93,7 +93,11 @@ func (state *clusterState) getEndpointAddresses(namespace, name string) []string
 	var addresses []string
 	if state.enableEndpointSlices {
 		if eps, ok := state.endpointSlices[rID]; ok {
-			addresses = eps.addresses()
+			if zone != "" {
+				addresses = eps.addressesByZone(zone)
+			} else {
+				addresses = eps.addresses()
+			}
 		} else {
 			return nil
 		}
@@ -110,7 +114,7 @@ func (state *clusterState) getEndpointAddresses(namespace, name string) []string
 }
 
 // GetEndpointsByTarget returns the skipper endpoints for kubernetes endpoints or endpointslices.
-func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, scheme string, target *definitions.BackendPort) []string {
+func (state *clusterState) GetEndpointsByTarget(zone, namespace, name, protocol, scheme string, target *definitions.BackendPort) []string {
 	epID := endpointID{
 		ResourceID: newResourceID(namespace, name),
 		Protocol:   protocol,
@@ -126,7 +130,7 @@ func (state *clusterState) GetEndpointsByTarget(namespace, name, protocol, schem
 	var targets []string
 	if state.enableEndpointSlices {
 		if eps, ok := state.endpointSlices[epID.ResourceID]; ok {
-			targets = eps.targetsByServiceTarget(protocol, scheme, target)
+			targets = eps.targetsByServiceTarget(zone, protocol, scheme, target)
 		} else {
 			return nil
 		}
