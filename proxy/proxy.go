@@ -15,7 +15,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -1160,23 +1160,11 @@ func newRatelimitError(settings ratelimit.Settings, retryAfter int) *proxyError 
 	}
 }
 
-// copied from debug.PrintStack
-func stack() []byte {
-	buf := make([]byte, 1024)
-	for {
-		n := runtime.Stack(buf, false)
-		if n < len(buf) {
-			return buf[:n]
-		}
-		buf = make([]byte, 2*len(buf))
-	}
-}
-
 func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			p.onPanicSometimes.Do(func() {
-				ctx.Logger().Errorf("stacktrace of panic caused by: %v:\n%s", r, stack())
+				ctx.Logger().Errorf("stacktrace of panic caused by: %v:\n%s", r, debug.Stack())
 			})
 
 			perr := &proxyError{
