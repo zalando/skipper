@@ -3,6 +3,7 @@ package opaauthorizerequest
 import (
 	_ "embed"
 	"fmt"
+	"github.com/benburkert/pbench"
 	"github.com/golang-jwt/jwt/v4"
 	opasdktest "github.com/open-policy-agent/opa/sdk/test"
 	"github.com/stretchr/testify/assert"
@@ -252,21 +253,20 @@ func BenchmarkJwtValidation(b *testing.B) {
 	signedToken, err := token.SignedString(key)
 	require.NoError(b, err, "Failed to sign token")
 
-	ctx := &filtertest.Context{
-		FStateBag: map[string]interface{}{},
-		FResponse: &http.Response{},
-		FRequest: &http.Request{
-			Header: map[string][]string{
-				"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
-			},
-			URL: reqUrl,
-		},
-		FMetrics: &metricstest.MockMetrics{},
-	}
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
+			ctx := &filtertest.Context{
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{},
+				FRequest: &http.Request{
+					Header: map[string][]string{
+						"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
+					},
+					URL: reqUrl,
+				},
+				FMetrics: &metricstest.MockMetrics{},
+			}
 			f.Request(ctx)
 			assert.False(b, ctx.FServed)
 		}
@@ -326,6 +326,74 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 			f.Request(ctx)
 			assert.False(b, ctx.FServed)
 		}
+	})
+}
+
+// BenchmarkWithPercentiles is an example benchmark that demonstrates how to measure
+// and report latency percentiles in OPA filter benchmark tests.
+//
+// It uses a minimal policy with decision logging enabled and reports
+// p50, p95, p99, and p999 latency percentiles to provide insights into
+// the distribution of request latencies, especially the impact of
+// decision logging.
+//
+// To run this benchmark, use the following command:
+// go test -bench=^BenchmarkWithPercentiles$ -benchmem ./filters/openpolicyagent/opaauthorizerequest
+func BenchmarkWithPercentiles(b *testing.B) {
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle(testBundleEndpoint, map[string]string{
+			"main.rego": `
+					package envoy.authz
+
+					default allow = false
+
+					allow {
+						input.parsed_path = [ "allow" ]
+					}
+				`,
+		}),
+	)
+	defer opaControlPlane.Stop()
+
+	decisionLogsConsumer := newDecisionConsumer()
+	defer decisionLogsConsumer.Close()
+
+	filterOpts := FilterOptions{
+		OpaControlPlaneUrl:  opaControlPlane.URL(),
+		DecisionConsumerUrl: decisionLogsConsumer.URL,
+		DecisionPath:        testDecisionPath,
+		BundleName:          testBundleName,
+		DecisionLogging:     true,
+		ContextExtensions:   "",
+	}
+	f, err := createOpaFilter(filterOpts)
+	require.NoError(b, err)
+
+	reqUrl, err := url.Parse("http://opa-authorized.test/allow")
+	require.NoError(b, err)
+
+	ctx := &filtertest.Context{
+		FStateBag: map[string]interface{}{},
+		FResponse: &http.Response{},
+		FRequest: &http.Request{
+			URL: reqUrl,
+		},
+		FMetrics: &metricstest.MockMetrics{},
+	}
+
+	pb := pbench.New(b)
+	pb.ReportPercentile(0.5)
+	pb.ReportPercentile(0.95)
+	pb.ReportPercentile(0.99)
+	pb.ReportPercentile(0.999)
+
+	pb.Run("minimal-with-decision-logs", func(b *pbench.B) {
+		b.RunParallel(func(pb *pbench.PB) {
+			for pb.Next() {
+				f.Request(ctx)
+				assert.False(b, ctx.FServed)
+			}
+		})
 	})
 }
 
