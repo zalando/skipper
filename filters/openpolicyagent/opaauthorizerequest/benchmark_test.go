@@ -77,18 +77,17 @@ func BenchmarkMinimalPolicy(b *testing.B) {
 	reqUrl, err := url.Parse("http://opa-authorized.test/allow")
 	require.NoError(b, err)
 
-	ctx := &filtertest.Context{
-		FStateBag: map[string]interface{}{},
-		FResponse: &http.Response{},
-		FRequest: &http.Request{
-			URL: reqUrl,
-		},
-		FMetrics: &metricstest.MockMetrics{},
-	}
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
+			ctx := &filtertest.Context{
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{},
+				FRequest: &http.Request{
+					URL: reqUrl,
+				},
+				FMetrics: &metricstest.MockMetrics{},
+			}
 			f.Request(ctx)
 			assert.False(b, ctx.FServed)
 		}
@@ -128,19 +127,19 @@ func BenchmarkMinimalPolicyWithDecisionLogs(b *testing.B) {
 	reqUrl, err := url.Parse("http://opa-authorized.test/allow")
 	require.NoError(b, err)
 
-	ctx := &filtertest.Context{
-		FStateBag: map[string]interface{}{},
-		FResponse: &http.Response{},
-		FRequest: &http.Request{
-			URL: reqUrl,
-		},
-		FMetrics: &metricstest.MockMetrics{},
-	}
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
+			ctx := &filtertest.Context{
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{},
+				FRequest: &http.Request{
+					URL: reqUrl,
+				},
+				FMetrics: &metricstest.MockMetrics{},
+			}
 			f.Request(ctx)
+			assert.False(b, ctx.FServed)
 		}
 	})
 }
@@ -171,24 +170,25 @@ func BenchmarkAllowWithReqBody(b *testing.B) {
 	require.NoError(b, err)
 
 	body := `{"email": "bench-test@zalando.de"}`
-	ctx := &filtertest.Context{
-		FStateBag: map[string]interface{}{},
-		FResponse: &http.Response{},
-		FRequest: &http.Request{
-			Method: "POST",
-			Header: map[string][]string{
-				"Content-Type": {"application/json"},
-			},
-			URL:           reqUrl,
-			Body:          io.NopCloser(strings.NewReader(body)),
-			ContentLength: int64(len(body)),
-		},
-		FMetrics: &metricstest.MockMetrics{},
-	}
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
+			ctx := &filtertest.Context{
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{},
+				FRequest: &http.Request{
+					Method: "POST",
+					Header: map[string][]string{
+						"Content-Type": {"application/json"},
+					},
+					URL:           reqUrl,
+					Body:          io.NopCloser(strings.NewReader(body)),
+					ContentLength: int64(len(body)),
+				},
+				FMetrics: &metricstest.MockMetrics{},
+			}
 			f.Request(ctx)
+			assert.False(b, ctx.FServed)
 		}
 	})
 
@@ -311,19 +311,18 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 	requestUrl, err := url.Parse("http://opa-authorized.test/allow")
 	assert.NoError(b, err)
 
-	ctx := &filtertest.Context{
-		FStateBag: map[string]interface{}{},
-		FResponse: &http.Response{},
-		FRequest: &http.Request{
-			URL:    requestUrl,
-			Method: "GET",
-		},
-		FMetrics: &metricstest.MockMetrics{},
-	}
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
+			ctx := &filtertest.Context{
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{},
+				FRequest: &http.Request{
+					URL:    requestUrl,
+					Method: "GET",
+				},
+				FMetrics: &metricstest.MockMetrics{},
+			}
 			f.Request(ctx)
 			assert.False(b, ctx.FServed)
 		}
@@ -337,8 +336,8 @@ func newDecisionConsumer() *httptest.Server {
 }
 
 func newOpaControlPlaneServingBundle(bundlePath, bundleName string, b *testing.B) *httptest.Server {
-	if !strings.HasSuffix(bundlePath, ".tar.gz") {
-		b.Fatalf("bundle file %q does not have .tar.gz extension", bundlePath)
+	if !(strings.HasSuffix(bundlePath, ".tar.gz") || strings.HasSuffix(bundlePath, ".tgz")) {
+		b.Fatalf("bundle file %q does not have the expected .tar.gz or .tgz extension", bundlePath)
 	}
 
 	fileData, err := os.ReadFile(bundlePath)
