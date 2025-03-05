@@ -2,7 +2,7 @@ package opaauthorizerequest
 
 import (
 	"fmt"
-	opasdktest "github.com/open-policy-agent/opa/sdk/test"
+	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/eskip"
@@ -412,49 +412,51 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 					"main.rego": `
 						package envoy.authz
 
+						import rego.v1
+
 						default allow := false
 						default deny_with_query := false
 
-						allow {
+						allow if {
 							input.parsed_path == [ "allow" ]
 							input.parsed_query == {}
 						}
 
-						allow_with_http_path {
+						allow_with_http_path if {
 							input.attributes.request.http.path == "/some/api/path?q1=v1&msg=help%20me"
 						}
 
-						allow_with_space_in_path {
+						allow_with_space_in_path if{
 							input.parsed_path == [ "my path" ]
 						}
 
-						allow_with_path_having_empty_query {
+						allow_with_path_having_empty_query if {
 							input.parsed_path == [ "path-with-empty-query" ]
 							input.parsed_query == {}
 						}
 
-						allow_with_query {
+						allow_with_query if {
 							input.parsed_path == [ "allow-with-query" ]
 							input.parsed_query.pass == ["yes"]
 							input.parsed_query.id == ["1", "2"]
 							input.parsed_query.msg == ["help me"]
 						}
 
-						deny_with_query {
+						deny_with_query if {
 							input.attributes.request.http.path == "/allow-me?tofail=true"
 							not input.parsed_query.tofail == ["true"]
 						}
 
-						allow_with_path_having_fragment {
+						allow_with_path_having_fragment if {
 							input.parsed_path == [ "path-with-empty-query" ]
 							input.attributes.request.http.path == "/path-with-empty-query"
 						}
 
-						allow_context_extensions {
+						allow_context_extensions if {
 							input.attributes.contextExtensions["com.mycompany.myprop"] == "myvalue"
 						}
 
-						allow_runtime_environment {
+						allow_runtime_environment if {
 							opa.runtime().config.labels.environment == "test"
 						}
 
@@ -465,7 +467,7 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 							"http_status": 401
 						}
 
-						allow_object := response {
+						allow_object := response if {
 							input.parsed_path == [ "allow", "structured" ]
 							response := {
 								"allowed": true,
@@ -497,13 +499,13 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 
 						default allow_body := false
 
-						allow_body {
+						allow_body if {
 							input.parsed_body.target_id == "123456"
 						}
 
 						decision_id := input.attributes.metadataContext.filterMetadata.open_policy_agent.decision_id
 
-						allow_object_decision_id_in_header := response {
+						allow_object_decision_id_in_header := response if {
 						    input.parsed_path = ["allow", "structured"]
 						    decision_id
 						    response := {
@@ -663,9 +665,11 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 					"main.rego": `
 						package envoy.authz
 
+						import rego.v1
+
 						default allow = false
 
-						allow {
+						allow if {
 							input.attributes.request.http.path == "/users/profile/amal?param=1"
 							input.parsed_path == ["users", "profile", "amal"]
 							input.parsed_query == {"param": ["1"]}

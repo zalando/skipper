@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/open-policy-agent/opa/config"
-	"github.com/open-policy-agent/opa/plugins"
+	"github.com/open-policy-agent/opa/v1/config"
+	"github.com/open-policy-agent/opa/v1/plugins"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
