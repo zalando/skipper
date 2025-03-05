@@ -41,6 +41,7 @@ type routeGroupContext struct {
 	calculateTraffic             func([]*definitions.BackendReference) map[string]backendTraffic
 	defaultLoadBalancerAlgorithm string
 	certificateRegistry          *certregistry.CertRegistry
+	zone                         string
 }
 
 type routeContext struct {
@@ -187,6 +188,7 @@ func applyServiceBackend(ctx *routeGroupContext, backend *definitions.SkipperBac
 	}
 
 	eps := ctx.state.GetEndpointsByTarget(
+		ctx.zone,
 		namespaceString(ctx.routeGroup.Metadata.Namespace),
 		s.Meta.Name,
 		"TCP",
@@ -569,6 +571,7 @@ func (r *routeGroups) convert(s *clusterState, df defaultFilters, loggingEnabled
 				calculateTraffic:             getBackendTrafficCalculator[*definitions.BackendReference](r.options.BackendTrafficAlgorithm),
 				defaultLoadBalancerAlgorithm: r.options.DefaultLoadBalancerAlgorithm,
 				certificateRegistry:          cr,
+				zone:                         r.options.TopologyZone,
 			}
 
 			ri, err := transformRouteGroup(ctx)
