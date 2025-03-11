@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/golang-jwt/jwt/v4"
-	opasdktest "github.com/open-policy-agent/opa/sdk/test"
+	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/filters"
@@ -60,9 +60,11 @@ func BenchmarkMinimalPolicy(b *testing.B) {
 			"main.rego": `
 					package envoy.authz
 
+					import rego.v1
+
 					default allow = false
 
-					allow {
+					allow if {
 						input.parsed_path = [ "allow" ]
 					}
 				`,
@@ -100,9 +102,11 @@ func BenchmarkMinimalPolicyWithDecisionLogs(b *testing.B) {
 			"main.rego": `
 					package envoy.authz
 
+					import rego.v1
+
 					default allow = false
 
-					allow {
+					allow if {
 						input.parsed_path = [ "allow" ]
 					}
 				`,
@@ -200,7 +204,7 @@ func BenchmarkJwtValidation(b *testing.B) {
 			"main.rego": fmt.Sprintf(`
 					package envoy.authz
 
-					import future.keywords.if
+					import rego.v1
 
 					default allow = false
 
