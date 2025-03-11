@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qux
+  namespace: foo
+spec:
+  rules:
+  - host: "*.example.org"
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: qux
+            port:
+              name: baz
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qux
+  namespace: foo
+spec:
+  clusterIP: 10.3.190.97
+  ports:
+  - name: baz
+    port: 8181
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    application: myapp
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    application: myapp
+  name: qux
+  namespace: foo
+subsets:
+- addresses:
+  - ip: 10.2.9.103
+  - ip: 10.2.9.104
+  ports:
+  - name: baz
+    port: 8080
+    protocol: TCP
