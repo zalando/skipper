@@ -112,13 +112,16 @@ func TestRouteString(t *testing.T) {
 			BackendType: DynamicBackend},
 		`* -> filter0("Line 1\r\nLine 2") -> <dynamic>`,
 	}, {
-		&Route{Method: "GET", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997"}},
+		&Route{Method: "GET", BackendType: LBBackend, LBEndpoints: []*LBEndpoint{{Address: "http://127.0.0.1:9997"}}},
 		`Method("GET") -> <"http://127.0.0.1:9997">`,
 	}, {
-		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997"}},
+		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []*LBEndpoint{{Address: "http://127.0.0.1:9997"}}},
 		`Method("GET") -> <random, "http://127.0.0.1:9997">`,
 	}, {
-		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []string{"http://127.0.0.1:9997", "http://127.0.0.1:9998"}},
+		&Route{Method: "GET", LBAlgorithm: "random", BackendType: LBBackend, LBEndpoints: []*LBEndpoint{
+			{Address: "http://127.0.0.1:9997"},
+			{Address: "http://127.0.0.1:9998"},
+		}},
 		`Method("GET") -> <random, "http://127.0.0.1:9997", "http://127.0.0.1:9998">`,
 	}, {
 		// test slash escaping
