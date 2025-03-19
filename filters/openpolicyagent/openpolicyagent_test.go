@@ -14,14 +14,14 @@ import (
 
 	pbstruct "google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/open-policy-agent/opa/ast"
+	"github.com/open-policy-agent/opa/v1/ast"
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
-	opaconf "github.com/open-policy-agent/opa/config"
-	opasdktest "github.com/open-policy-agent/opa/sdk/test"
-	"github.com/open-policy-agent/opa/storage/inmem"
+	opaconf "github.com/open-policy-agent/opa/v1/config"
+	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
+	"github.com/open-policy-agent/opa/v1/storage/inmem"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -153,10 +153,12 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 		opasdktest.MockBundle("/bundles/use_body", map[string]string{
 			"main.rego": `
 				package envoy.authz
+				
+				import rego.v1
 
 				default allow = false
 
-				allow { input.parsed_body }
+				allow if { input.parsed_body }
 			`,
 		}),
 		opasdktest.MockBundle("/bundles/anotherbundlename", map[string]string{
