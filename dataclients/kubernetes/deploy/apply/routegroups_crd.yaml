@@ -5,7 +5,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.15.0
   name: routegroups.zalando.org
 spec:
   group: zalando.org
@@ -134,10 +134,12 @@ spec:
               hosts:
                 description: List of hostnames for the RouteGroup
                 items:
-                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                  maxLength: 255
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                   type: string
                 minItems: 1
                 type: array
+                x-kubernetes-list-type: set
               routes:
                 description: Routes describe how a matching HTTP request is handled
                   and where it is forwarded to
@@ -218,10 +220,12 @@ spec:
                         The values in this list must match the host name(s) used for
                         the RouteGroup in order to terminate TLS for the host(s).
                       items:
-                        pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                        maxLength: 255
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                         type: string
                       minItems: 1
                       type: array
+                      x-kubernetes-list-type: set
                     secretName:
                       description: |-
                         SecretName is the name of the secret used to terminate TLS traffic.
