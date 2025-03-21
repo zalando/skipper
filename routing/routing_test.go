@@ -955,11 +955,19 @@ func TestSignalFirstLoad(t *testing.T) {
 	})
 
 	t.Run("multiple data clients", func(t *testing.T) {
-		dc1 := testdataclient.New([]*eskip.Route{{}})
+		const pollTimeout = 12 * time.Millisecond
+
+		dc1 := testdataclient.New([]*eskip.Route{{Id: "r1", Backend: "https://foo.example.org"}})
 		defer dc1.Close()
 
-		dc2 := testdataclient.New([]*eskip.Route{{}})
+		dc2 := testdataclient.New([]*eskip.Route{{Id: "r2", Backend: "https://bar.example.org"}})
 		defer dc2.Close()
+
+		// Schedule r1 update right away and delay r2 update
+		go func() {
+			dc1.Update([]*eskip.Route{{Id: "r1", Backend: "https://baz.example.org"}}, nil)
+		}()
+		dc2.WithLoadAllDelay(10 * pollTimeout)
 
 		l := loggingtest.New()
 		defer l.Close()
@@ -968,25 +976,15 @@ func TestSignalFirstLoad(t *testing.T) {
 			SignalFirstLoad: true,
 			FilterRegistry:  builtin.MakeRegistry(),
 			DataClients:     []routing.DataClient{dc1, dc2},
-			PollTimeout:     12 * time.Millisecond,
+			PollTimeout:     pollTimeout,
 			Log:             l,
 		})
 		defer rt.Close()
 
-		select {
-		case <-rt.FirstLoad():
-			t.Error("the first load signal was not blocking")
-		default:
-		}
+		<-rt.FirstLoad()
 
-		if err := l.WaitForN("route settings applied", 2, 12*time.Millisecond); err != nil {
-			t.Error("failed to receive route settings", err)
-		}
-
-		select {
-		case <-rt.FirstLoad():
-		default:
-			t.Error("the first load signal was blocking")
+		if validRoutes := rt.Get().ValidRoutes(); len(validRoutes) != 2 {
+			t.Errorf("expected 2 valid routes, got: %v", validRoutes)
 		}
 	})
 }
