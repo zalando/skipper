@@ -398,20 +398,20 @@ func (r *Routing) FirstLoad() <-chan struct{} {
 // against is found, the feature is experimental and its exported interface may
 // change.
 type RouteLookup struct {
-	matcher *matcher
+	rt *routeTable
 }
 
 // Do executes the lookup against the captured routing table. Equivalent to
 // Routing.Route().
 func (rl *RouteLookup) Do(req *http.Request) (*Route, map[string]string) {
-	return rl.matcher.match(req)
+	return rl.rt.m.match(req)
 }
 
 // Get returns a captured generation of the lookup table. This feature is
 // experimental. See the description of the RouteLookup type.
 func (r *Routing) Get() *RouteLookup {
 	rt := r.routeTable.Load().(*routeTable)
-	return &RouteLookup{matcher: rt.m}
+	return &RouteLookup{rt: rt}
 }
 
 // Close closes routing, routeTable and stops statemachine for receiving routes.
