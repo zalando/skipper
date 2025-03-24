@@ -163,16 +163,23 @@ but appends the provided value to the already existing ones.
 
 ### dropRequestHeader
 
-Removes a header from the request
+Removes a header or a specific value from the request.
 
 Parameters:
 
 * header name (string)
+* header value (string) - optional
 
 Example:
 
 ```
 foo: * -> dropRequestHeader("User-Agent") -> "https://backend.example.org";
+```
+
+Drop exactly matching value and keep others:
+
+```
+foo: * -> dropRequestHeader("Connection", "Upgrade") -> "https://backend.example.org";
 ```
 
 ### modResponseHeader
