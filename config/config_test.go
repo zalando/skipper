@@ -120,6 +120,7 @@ func defaultConfig(with func(*Config)) *Config {
 		WebhookTimeout:                          2 * time.Second,
 		OidcDistributedClaimsTimeout:            2 * time.Second,
 		OIDCCookieValidity:                      time.Hour,
+		OIDCCookieRemoveSubdomains:              1,
 		CredentialPaths:                         commaListFlag(),
 		CredentialsUpdateInterval:               10 * time.Minute,
 		ApiUsageMonitoringClientKeys:            "sub",

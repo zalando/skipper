@@ -89,12 +89,13 @@ const (
 )
 
 type OidcOptions struct {
-	MaxIdleConns     int
-	CookieValidity   time.Duration
-	Timeout          time.Duration
-	Tracer           opentracing.Tracer
-	OidcClientId     string
-	OidcClientSecret string
+	MaxIdleConns           int
+	CookieRemoveSubdomains *int
+	CookieValidity         time.Duration
+	Timeout                time.Duration
+	Tracer                 opentracing.Tracer
+	OidcClientId           string
+	OidcClientSecret       string
 }
 
 type (
@@ -235,14 +236,17 @@ func (s *tokenOidcSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 	}
 
 	subdomainsToRemove := 1
+	if s.options.CookieRemoveSubdomains != nil {
+		subdomainsToRemove = *s.options.CookieRemoveSubdomains
+	}
 	if len(sargs) > paramSubdomainsToRemove && sargs[paramSubdomainsToRemove] != "" {
 		subdomainsToRemove, err = strconv.Atoi(sargs[paramSubdomainsToRemove])
 		if err != nil {
 			return nil, err
 		}
-		if subdomainsToRemove < 0 {
-			return nil, fmt.Errorf("domain level cannot be negative '%s'", sargs[paramSubdomainsToRemove])
-		}
+	}
+	if subdomainsToRemove < 0 {
+		return nil, fmt.Errorf("domain level cannot be negative '%d'", subdomainsToRemove)
 	}
 
 	validity := s.options.CookieValidity

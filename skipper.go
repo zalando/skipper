@@ -873,6 +873,10 @@ type Options struct {
 	// OIDCDistributedClaimsTimeout sets timeout duration while calling Distributed Claims endpoint.
 	OIDCDistributedClaimsTimeout time.Duration
 
+	// OIDCCookieRemoveSubdomains sets the number of subdomains to remove from
+	// the callback request hostname to obtain token cookie domain.
+	OIDCCookieRemoveSubdomains int
+
 	// SecretsRegistry to store and load secretsencrypt
 	SecretsRegistry *secrets.Registry
 
@@ -1716,12 +1720,13 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		oidcClientId, _ := os.LookupEnv("OIDC_CLIENT_ID")
 		oidcClientSecret, _ := os.LookupEnv("OIDC_CLIENT_SECRET")
 		opts := auth.OidcOptions{
-			CookieValidity:   o.OIDCCookieValidity,
-			Timeout:          o.OIDCDistributedClaimsTimeout,
-			MaxIdleConns:     o.IdleConnectionsPerHost,
-			Tracer:           tracer,
-			OidcClientId:     oidcClientId,
-			OidcClientSecret: oidcClientSecret,
+			CookieRemoveSubdomains: &o.OIDCCookieRemoveSubdomains,
+			CookieValidity:         o.OIDCCookieValidity,
+			Timeout:                o.OIDCDistributedClaimsTimeout,
+			MaxIdleConns:           o.IdleConnectionsPerHost,
+			Tracer:                 tracer,
+			OidcClientId:           oidcClientId,
+			OidcClientSecret:       oidcClientSecret,
 		}
 
 		o.CustomFilters = append(o.CustomFilters,
