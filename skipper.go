@@ -619,9 +619,13 @@ type Options struct {
 	// from the request URI in the access logs.
 	AccessLogStripQuery bool
 
-	// AccessLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
+	// AccessLogJsonFormatter, when set and JSON logging is enabled, is passed along to the underlying
 	// Logrus logger for access logs. To enable structured logging, use AccessLogJSONEnabled.
+	// Deprecated: use [AccessLogFormatter].
 	AccessLogJsonFormatter *log.JSONFormatter
+
+	// AccessLogFormatter, when set is passed along to the underlying Logrus logger for access logs.
+	AccessLogFormatter log.Formatter
 
 	DebugListener string
 
@@ -1177,6 +1181,7 @@ func initLog(o Options) error {
 		AccessLogJSONEnabled:        o.AccessLogJSONEnabled,
 		AccessLogStripQuery:         o.AccessLogStripQuery,
 		AccessLogJsonFormatter:      o.AccessLogJsonFormatter,
+		AccessLogFormatter:          o.AccessLogFormatter,
 	})
 
 	return nil
