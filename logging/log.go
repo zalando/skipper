@@ -44,7 +44,11 @@ type Options struct {
 
 	// AccessLogJsonFormatter, when set and JSON logging is enabled, is passed along to to the underlying
 	// Logrus logger for access logs. To enable structured logging, use AccessLogJSONEnabled.
+	// Deprecated: use [AccessLogFormatter].
 	AccessLogJsonFormatter *logrus.JSONFormatter
+
+	// AccessLogFormatter, when set is passed along to the underlying Logrus logger for access logs.
+	AccessLogFormatter logrus.Formatter
 }
 
 func (f *prefixFormatter) Format(e *logrus.Entry) ([]byte, error) {
@@ -74,7 +78,9 @@ func initApplicationLog(o Options) {
 
 func initAccessLog(o Options) {
 	l := logrus.New()
-	if o.AccessLogJSONEnabled {
+	if o.AccessLogFormatter != nil {
+		l.Formatter = o.AccessLogFormatter
+	} else if o.AccessLogJSONEnabled {
 		if o.AccessLogJsonFormatter != nil {
 			l.Formatter = o.AccessLogJsonFormatter
 		} else {

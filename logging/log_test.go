@@ -121,3 +121,28 @@ func TestApplicationLogJSONWithCustomFormatter(t *testing.T) {
 		t.Errorf("unexpected field count")
 	}
 }
+
+type customFormatter struct {
+	innerFormatter *log.JSONFormatter
+}
+
+func (f *customFormatter) Format(entry *log.Entry) ([]byte, error) {
+	originalBytes, err := f.innerFormatter.Format(entry)
+	if err != nil {
+		return nil, err
+	}
+	newBytes := bytes.NewBuffer(originalBytes)
+	newBytes.WriteString(" - Custom Suffix")
+	return newBytes.Bytes(), nil
+}
+
+func TestAccessLogFormatterTakesPrecedence(t *testing.T) {
+	var buf bytes.Buffer
+	f := &customFormatter{innerFormatter: &log.JSONFormatter{}}
+	Init(Options{AccessLogOutput: &buf, AccessLogFormatter: f})
+	LogAccess(&AccessEntry{StatusCode: http.StatusTeapot}, nil)
+	s := buf.String()
+	if !strings.Contains(s, " - Custom Suffix") {
+		t.Error("failed to use custom access log output")
+	}
+}
