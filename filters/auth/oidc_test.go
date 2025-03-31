@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"compress/flate"
 	"crypto/rsa"
 	"crypto/x509"
@@ -718,6 +719,7 @@ func TestOIDCSetup(t *testing.T) {
 		hostname           string
 		filter             string
 		queries            []string
+		cookies            []*http.Cookie
 		expected           int
 		expectRequest      string
 		expectNoCookies    bool
@@ -872,11 +874,20 @@ func TestOIDCSetup(t *testing.T) {
 		filter:           `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
 		expected:         200,
 		expectCookieName: "skipperOauthOidc",
+	}, {
+		msg:                "cookies should be forwarded",
+		hostname:           "skipper.test",
+		filter:             `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
+		cookies:            []*http.Cookie{{Name: "please-forward", Value: "me", Domain: "skipper.test", MaxAge: 7200}},
+		expected:           200,
+		expectRequest:      "please-forward=me",
+		expectCookieDomain: "skipper.test",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requestDump, _ := httputil.DumpRequest(r, false)
 				assert.Contains(t, string(requestDump), tc.expectRequest, "expected request not fulfilled")
+				assert.NotContains(t, string(requestDump), cmp.Or(tc.expectCookieName, oauthOidcCookieName), "oidc cookie should be dropped")
 				w.Write([]byte("OK"))
 			}))
 			defer backend.Close()
@@ -961,6 +972,10 @@ func TestOIDCSetup(t *testing.T) {
 			client := http.Client{
 				Timeout: 1 * time.Second,
 				Jar:     newInsecureCookieJar(),
+			}
+
+			for _, c := range tc.cookies {
+				client.Jar.SetCookies(reqURL, []*http.Cookie{c})
 			}
 
 			// trigger OpenID Connect Authorization Code Flow
