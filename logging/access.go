@@ -170,5 +170,9 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		logData[k] = v
 	}
 
-	accessLog.WithFields(logData).Infoln()
+	logEntry := accessLog.WithFields(logData)
+	if entry.Request != nil {
+		logEntry = logEntry.WithContext(entry.Request.Context())
+	}
+	logEntry.Infoln()
 }
