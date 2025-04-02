@@ -959,14 +959,17 @@ type Options struct {
 	// filters.
 	LuaSources []string
 
-	EnableOpenPolicyAgent                bool
-	OpenPolicyAgentConfigTemplate        string
-	OpenPolicyAgentEnvoyMetadata         string
-	OpenPolicyAgentCleanerInterval       time.Duration
-	OpenPolicyAgentStartupTimeout        time.Duration
-	OpenPolicyAgentMaxRequestBodySize    int64
-	OpenPolicyAgentRequestBodyBufferSize int64
-	OpenPolicyAgentMaxMemoryBodyParsing  int64
+	EnableOpenPolicyAgent                       bool
+	EnableOpenPolicyAgentOverridePeriodTriggers bool
+	OpenPolicyAgentConfigTemplate               string
+	OpenPolicyAgentEnvoyMetadata                string
+	OpenPolicyAgentCleanerInterval              time.Duration
+	OpenPolicyAgentPluginTriggerInterval        time.Duration
+	OpenPolicyAgentMaxPluginTriggerJitter       time.Duration
+	OpenPolicyAgentStartupTimeout               time.Duration
+	OpenPolicyAgentMaxRequestBodySize           int64
+	OpenPolicyAgentRequestBodyBufferSize        int64
+	OpenPolicyAgentMaxMemoryBodyParsing         int64
 
 	PassiveHealthCheck map[string]string
 }
@@ -1914,7 +1917,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
 			openpolicyagent.WithReadBodyBufferSize(o.OpenPolicyAgentRequestBodyBufferSize),
 			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
-			openpolicyagent.WithTracer(tracer))
+			openpolicyagent.WithTracer(tracer),
+			openpolicyagent.WithOverridePeriodPluginTriggers(o.EnableOpenPolicyAgentOverridePeriodTriggers),
+			openpolicyagent.WithPluginTriggerInterval(o.OpenPolicyAgentPluginTriggerInterval),
+			openpolicyagent.WithMaxPluginTriggerJitter(o.OpenPolicyAgentMaxPluginTriggerJitter))
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
