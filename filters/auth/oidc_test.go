@@ -62,6 +62,19 @@ func newInsecureCookieJar() *insecureCookieJar {
 }
 
 func (jar *insecureCookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	cookieMap := make(map[string]*http.Cookie)
+	for _, c := range jar.store[u.Hostname()] {
+		cookieMap[c.Name] = c
+	}
+	for _, c := range cookies {
+		cookieMap[c.Name] = c
+	}
+
+	cookies = make([]*http.Cookie, 0, len(cookieMap))
+	for _, c := range cookieMap {
+		cookies = append(cookies, c)
+	}
+
 	jar.store[u.Hostname()] = cookies
 }
 func (jar *insecureCookieJar) Cookies(u *url.URL) []*http.Cookie {
