@@ -71,6 +71,25 @@ func TestWithSuccessfulAuth(t *testing.T) {
 	}
 }
 
+func TestWithMissingAuthFile(t *testing.T) {
+	spec := NewBasicAuth()
+	f, err := spec.CreateFilter([]interface{}{"testdata/missingfile"})
+	if err != nil {
+		t.Error(err)
+	}
+
+	req, err := http.NewRequest("GET", "https://www.example.org/", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx := &filtertest.Context{FRequest: req}
+	f.Request(ctx)
+	if ctx.Served() && ctx.Response().StatusCode != 401 {
+		t.Errorf("Authentication should fail when missing htpasswd file. Expected status code %d, got %d", http.StatusUnauthorized, ctx.Response().StatusCode)
+	}
+}
+
 func TestCreateFilterBasicAuthErrorCases(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
