@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"compress/flate"
 	"crypto/rsa"
 	"crypto/x509"
@@ -62,6 +63,19 @@ func newInsecureCookieJar() *insecureCookieJar {
 }
 
 func (jar *insecureCookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	cookieMap := make(map[string]*http.Cookie)
+	for _, c := range jar.store[u.Hostname()] {
+		cookieMap[c.Name] = c
+	}
+	for _, c := range cookies {
+		cookieMap[c.Name] = c
+	}
+
+	cookies = make([]*http.Cookie, 0, len(cookieMap))
+	for _, c := range cookieMap {
+		cookies = append(cookies, c)
+	}
+
 	jar.store[u.Hostname()] = cookies
 }
 func (jar *insecureCookieJar) Cookies(u *url.URL) []*http.Cookie {
@@ -705,6 +719,7 @@ func TestOIDCSetup(t *testing.T) {
 		hostname           string
 		filter             string
 		queries            []string
+		cookies            []*http.Cookie
 		expected           int
 		expectRequest      string
 		expectNoCookies    bool
@@ -859,11 +874,20 @@ func TestOIDCSetup(t *testing.T) {
 		filter:           `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
 		expected:         200,
 		expectCookieName: "skipperOauthOidc",
+	}, {
+		msg:                "cookies should be forwarded",
+		hostname:           "skipper.test",
+		filter:             `oauthOidcUserInfo("{{ .OIDCServerURL }}", "valid-client", "mysec", "{{ .RedirectURL }}", "", "")`,
+		cookies:            []*http.Cookie{{Name: "please-forward", Value: "me", Domain: "skipper.test", MaxAge: 7200}},
+		expected:           200,
+		expectRequest:      "please-forward=me",
+		expectCookieDomain: "skipper.test",
 	}} {
 		t.Run(tc.msg, func(t *testing.T) {
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requestDump, _ := httputil.DumpRequest(r, false)
 				assert.Contains(t, string(requestDump), tc.expectRequest, "expected request not fulfilled")
+				assert.NotContains(t, string(requestDump), cmp.Or(tc.expectCookieName, oauthOidcCookieName), "oidc cookie should be dropped")
 				w.Write([]byte("OK"))
 			}))
 			defer backend.Close()
@@ -949,6 +973,7 @@ func TestOIDCSetup(t *testing.T) {
 				Timeout: 1 * time.Second,
 				Jar:     newInsecureCookieJar(),
 			}
+			client.Jar.SetCookies(reqURL, tc.cookies)
 
 			// trigger OpenID Connect Authorization Code Flow
 			resp, err := client.Do(req)
