@@ -788,9 +788,14 @@ func (f *tokenOidcFilter) Request(ctx filters.FilterContext) {
 	)
 	r := ctx.Request()
 
-	for _, cookie := range r.Cookies() {
+	// Retrieve skipperOauthOidc cookie for processing and remove it from downstream request
+	rCookies := r.Cookies()
+	r.Header.Del("Cookie")
+	for _, cookie := range rCookies {
 		if strings.HasPrefix(cookie.Name, f.cookiename) {
 			cookies = append(cookies, cookie)
+		} else {
+			r.AddCookie(cookie)
 		}
 	}
 	sessionCookie := mergerCookies(cookies)
