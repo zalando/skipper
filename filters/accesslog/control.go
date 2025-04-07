@@ -1,6 +1,9 @@
 package accesslog
 
-import "github.com/zalando/skipper/filters"
+import (
+	"github.com/zalando/skipper/filters"
+	"maps"
+)
 
 const (
 	// Deprecated, use filters.DisableAccessLogName instead
@@ -22,13 +25,18 @@ type AccessLogFilter struct {
 	Enable bool
 	// Prefixes contains the list of response code prefixes.
 	Prefixes []int
-	// MaskedQueryParams contains the list of query parameters (keys) that are masked/obfuscated in the access log.
-	MaskedQueryParams []string
+	// MaskedQueryParams contains the set of query parameters (keys) that are masked/obfuscated in the access log.
+	MaskedQueryParams map[string]bool
 }
 
 func (al *AccessLogFilter) Request(ctx filters.FilterContext) {
 	bag := ctx.StateBag()
-	bag[AccessLogEnabledKey] = al
+	if f, ok := bag[AccessLogEnabledKey]; ok {
+		a := f.(AccessLogFilter)
+		maps.Copy(a.MaskedQueryParams, al.MaskedQueryParams)
+	} else {
+		bag[AccessLogEnabledKey] = al
+	}
 }
 
 func (*AccessLogFilter) Response(filters.FilterContext) {}
@@ -109,10 +117,10 @@ func (al *maskAccessLogQuery) CreateFilter(args []interface{}) (filters.Filter, 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	keys := make([]string, len(args))
+	keys := make(map[string]bool, len(args))
 	for i := range args {
 		if key, ok := args[i].(string); ok && key != "" {
-			keys[i] = key
+			keys[key] = true
 		} else {
 			return nil, filters.ErrInvalidFilterParameters
 		}

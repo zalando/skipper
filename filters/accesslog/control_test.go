@@ -63,14 +63,14 @@ func TestAccessLogControl(t *testing.T) {
 			msg:     "mask-access-log-query",
 			state:   NewMaskAccessLogQuery(),
 			args:    []interface{}{"key_1"},
-			result:  AccessLogFilter{Enable: true, MaskedQueryParams: []string{"key_1"}},
+			result:  AccessLogFilter{Enable: true, MaskedQueryParams: map[string]bool{"key_1": true}},
 			isError: false,
 		},
 		{
 			msg:     "mask-access-log-query-convert-int",
 			state:   NewMaskAccessLogQuery(),
 			args:    []interface{}{1},
-			result:  AccessLogFilter{Enable: true, MaskedQueryParams: []string{"key_1"}},
+			result:  AccessLogFilter{},
 			isError: true,
 		},
 	} {
