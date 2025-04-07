@@ -2,6 +2,7 @@ package logging
 
 import (
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"strings"
@@ -116,18 +117,18 @@ func stripQueryString(u string) string {
 
 // maskQueryParams masks (i.e., hashing) specific query parameters in the provided request's URI.
 // Returns the obfuscated URI.
-func maskQueryParams(req *http.Request, maskedQueryParams []string) string {
+func maskQueryParams(req *http.Request, maskedQueryParams map[string]bool) string {
 	strippedURI := stripQueryString(req.RequestURI)
 
 	params := req.URL.Query()
-	for i := range maskedQueryParams {
-		val := params.Get(maskedQueryParams[i])
+	for k := range maps.Keys(maskedQueryParams) {
+		val := params.Get(k)
 		if val == "" {
 			continue
 		}
 
 		hashed := hash(val)
-		params.Set(maskedQueryParams[i], fmt.Sprintf("%d", hashed))
+		params.Set(k, fmt.Sprintf("%d", hashed))
 	}
 
 	return fmt.Sprintf("%s?%s", strippedURI, params.Encode())
@@ -172,7 +173,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		uri = entry.Request.RequestURI
 		if stripQuery {
 			uri = stripQueryString(uri)
-		} else if keys, ok := additional[KeyMaskedQueryParams].([]string); ok {
+		} else if keys, ok := additional[KeyMaskedQueryParams].(map[string]bool); ok {
 			if len(keys) > 0 {
 				uri = maskQueryParams(entry.Request, keys)
 			}
