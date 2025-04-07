@@ -93,3 +93,53 @@ func TestAccessLogControl(t *testing.T) {
 		})
 	}
 }
+
+func TestAccessLogMaskedParametersMerging(t *testing.T) {
+	for _, ti := range []struct {
+		msg    string
+		state  filters.Spec
+		args   [][]any
+		result AccessLogFilter
+	}{
+		{
+			msg:   "should merge masked query params from multiple filters",
+			state: NewMaskAccessLogQuery(),
+			args: [][]any{
+				[]any{"key_1"},
+				[]any{"key_2"},
+			},
+			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]bool{"key_1": true, "key_2": true}},
+		},
+		{
+			msg:   "should overwrite already masked params",
+			state: NewMaskAccessLogQuery(),
+			args: [][]any{
+				[]any{"key_1"},
+				[]any{"key_1"},
+				[]any{"key_1"},
+			},
+			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]bool{"key_1": true}},
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+
+			filters := make([]filters.Filter, len(ti.args))
+			for i, a := range ti.args {
+				f, err := ti.state.CreateFilter(a)
+				require.NoError(t, err, "Expected no error creating filter")
+				filters[i] = f
+			}
+
+			var ctx filtertest.Context
+			ctx.FStateBag = make(map[string]any)
+
+			for _, f := range filters {
+				f.Request(&ctx)
+			}
+
+			bag := ctx.StateBag()
+			filter := bag[AccessLogEnabledKey]
+			assert.Equal(t, filter, &ti.result, "access log state is not equal to expected")
+		})
+	}
+}
