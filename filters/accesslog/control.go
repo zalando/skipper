@@ -32,7 +32,7 @@ type AccessLogFilter struct {
 func (al *AccessLogFilter) Request(ctx filters.FilterContext) {
 	bag := ctx.StateBag()
 	if f, ok := bag[AccessLogEnabledKey]; ok {
-		a := f.(AccessLogFilter)
+		a := f.(*AccessLogFilter)
 		maps.Copy(a.MaskedQueryParams, al.MaskedQueryParams)
 	} else {
 		bag[AccessLogEnabledKey] = al
