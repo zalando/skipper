@@ -1,9 +1,9 @@
 package accesslog
 
 import (
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
@@ -78,12 +78,8 @@ func TestAccessLogControl(t *testing.T) {
 			f, err := ti.state.CreateFilter(ti.args)
 
 			if ti.isError {
-				if err == nil {
-					t.Errorf("Unexpected error creating filter %v", err)
-					return
-				} else {
-					return
-				}
+				require.Error(t, err, "Expected error creating filter")
+				return
 			}
 
 			var ctx filtertest.Context
@@ -92,9 +88,8 @@ func TestAccessLogControl(t *testing.T) {
 			f.Request(&ctx)
 			bag := ctx.StateBag()
 			filter := bag[AccessLogEnabledKey]
-			if diff := cmp.Diff(filter, &ti.result); diff != "" {
-				t.Errorf("access log state is not equal to expected '%v' got %v", ti.result, bag[AccessLogEnabledKey])
-			}
+
+			assert.Equal(t, filter, &ti.result, "access log state is not equal to expected")
 		})
 	}
 }
