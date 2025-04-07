@@ -105,8 +105,8 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 			msg:   "should merge masked query params from multiple filters",
 			state: NewMaskAccessLogQuery(),
 			args: [][]any{
-				[]any{"key_1"},
-				[]any{"key_2"},
+				{"key_1"},
+				{"key_2"},
 			},
 			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]bool{"key_1": true, "key_2": true}},
 		},
@@ -114,9 +114,9 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 			msg:   "should overwrite already masked params",
 			state: NewMaskAccessLogQuery(),
 			args: [][]any{
-				[]any{"key_1"},
-				[]any{"key_1"},
-				[]any{"key_1"},
+				{"key_1"},
+				{"key_1"},
+				{"key_1"},
 			},
 			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]bool{"key_1": true}},
 		},
