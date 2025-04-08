@@ -20,10 +20,12 @@ type (
 	// jwtMetricsFilter implements [yamlConfig],
 	// make sure it is not modified after initialization.
 	jwtMetricsFilter struct {
-		Issuers           []string `json:"issuers,omitempty"`
-		OptOutAnnotations []string `json:"optOutAnnotations,omitempty"`
-		OptOutStateBag    []string `json:"optOutStateBag,omitempty"`
-		OptOutHosts       []string `json:"optOutHosts,omitempty"`
+		// Issuers is *DEPRECATED* and will be removed in the future. Use the Claims field instead.
+		Issuers           []string            `json:"issuers,omitempty"`
+		OptOutAnnotations []string            `json:"optOutAnnotations,omitempty"`
+		OptOutStateBag    []string            `json:"optOutStateBag,omitempty"`
+		OptOutHosts       []string            `json:"optOutHosts,omitempty"`
+		Claims            []map[string]string `json:"claims,omitempty"`
 
 		optOutHostsCompiled []*regexp.Regexp
 	}
@@ -117,19 +119,37 @@ func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	if len(f.Issuers) > 0 {
-		token, err := jwt.Parse(tv)
-		if err != nil {
-			count("invalid-token")
-			return
-		}
+	token, err := jwt.Parse(tv)
+	if err != nil {
+		count("invalid-token")
+		return
+	}
 
+	if len(f.Issuers) > 0 {
 		// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.1
 		if issuer, ok := token.Claims["iss"].(string); !ok {
 			count("missing-issuer")
 		} else if !slices.Contains(f.Issuers, issuer) {
 			count("invalid-issuer")
 		}
+	}
+
+	match := false
+	for _, claim := range f.Claims {
+		for key, value := range claim {
+			if tokenValue, ok := token.Claims[key].(string); ok && tokenValue == value {
+				match = true
+			} else {
+				match = false
+				break
+			}
+		}
+		if match {
+			break
+		}
+	}
+	if !match && len(f.Claims) > 0 {
+		count("invalid-claims")
 	}
 }
 

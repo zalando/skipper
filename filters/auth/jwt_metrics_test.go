@@ -74,6 +74,16 @@ func TestJwtMetrics(t *testing.T) {
 			expectedTag: "missing-token",
 		},
 		{
+			name:    "missing-token with claims",
+			filters: `jwtMetrics("{claims:[{iss:foo}, {iss:bar}]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test"},
+			status:  http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
+			},
+			expectedTag: "missing-token",
+		},
+		{
 			name:    "invalid-token-type",
 			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
