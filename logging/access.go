@@ -126,9 +126,7 @@ func maskQueryParams(req *http.Request, maskedQueryParams map[string]struct{}) s
 		if val == "" {
 			continue
 		}
-
-		hashed := hash(val)
-		params.Set(k, fmt.Sprintf("%d", hashed))
+		params.Set(k, fmt.Sprintf("%d", hash(val)))
 	}
 
 	return fmt.Sprintf("%s?%s", strippedURI, params.Encode())
