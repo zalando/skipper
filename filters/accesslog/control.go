@@ -26,7 +26,7 @@ type AccessLogFilter struct {
 	// Prefixes contains the list of response code prefixes.
 	Prefixes []int
 	// MaskedQueryParams contains the set of query parameters (keys) that are masked/obfuscated in the access log.
-	MaskedQueryParams map[string]bool
+	MaskedQueryParams map[string]struct{}
 }
 
 func (al *AccessLogFilter) Request(ctx filters.FilterContext) {
@@ -117,10 +117,10 @@ func (al *maskAccessLogQuery) CreateFilter(args []interface{}) (filters.Filter, 
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	keys := make(map[string]bool, len(args))
+	keys := make(map[string]struct{}, len(args))
 	for i := range args {
 		if key, ok := args[i].(string); ok && key != "" {
-			keys[key] = true
+			keys[key] = struct{}{}
 		} else {
 			return nil, filters.ErrInvalidFilterParameters
 		}

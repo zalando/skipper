@@ -122,7 +122,7 @@ func TestAccessLogFormatJSONWithAdditionalData(t *testing.T) {
 }
 
 func TestAccessLogFormatJSONWithMaskedQueryParameters(t *testing.T) {
-	additional := map[string]interface{}{KeyMaskedQueryParams: map[string]bool{"foo": true}}
+	additional := map[string]interface{}{KeyMaskedQueryParams: map[string]struct{}{"foo": struct{}{}}}
 
 	params := url.Values{}
 	params.Add("foo", "bar")

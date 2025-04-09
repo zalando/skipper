@@ -63,7 +63,7 @@ func TestAccessLogControl(t *testing.T) {
 			msg:     "mask-access-log-query",
 			state:   NewMaskAccessLogQuery(),
 			args:    []interface{}{"key_1"},
-			result:  AccessLogFilter{Enable: true, MaskedQueryParams: map[string]bool{"key_1": true}},
+			result:  AccessLogFilter{Enable: true, MaskedQueryParams: map[string]struct{}{"key_1": struct{}{}}},
 			isError: false,
 		},
 		{
@@ -108,7 +108,7 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 				{"key_1"},
 				{"key_2"},
 			},
-			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]bool{"key_1": true, "key_2": true}},
+			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]struct{}{"key_1": struct{}{}, "key_2": struct{}{}}},
 		},
 		{
 			msg:   "should overwrite already masked params",
@@ -118,7 +118,7 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 				{"key_1"},
 				{"key_1"},
 			},
-			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]bool{"key_1": true}},
+			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]struct{}{"key_1": struct{}{}}},
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
