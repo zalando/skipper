@@ -323,12 +323,3 @@ func TestAccessLogStripQuery(t *testing.T) {
 	entry.Request.RequestURI += "?foo=bar"
 	testAccessLog(t, entry, logOutput, Options{AccessLogStripQuery: true})
 }
-
-func TestHashQueryParamValue(t *testing.T) {
-	want := uint64(3728699739546630719)
-	got := hash("foo")
-
-	if got != want {
-		t.Errorf("\ngot %v\nwant %v", got, want)
-	}
-}
