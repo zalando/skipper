@@ -74,6 +74,16 @@ func TestJwtMetrics(t *testing.T) {
 			expectedTag: "missing-token",
 		},
 		{
+			name:    "missing-token with claims",
+			filters: `jwtMetrics("{claims: [{iss: foo}, {iss: bar}]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test"},
+			status:  http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.missing-token": 1,
+			},
+			expectedTag: "missing-token",
+		},
+		{
 			name:    "invalid-token-type",
 			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
@@ -86,8 +96,32 @@ func TestJwtMetrics(t *testing.T) {
 			expectedTag: "invalid-token-type",
 		},
 		{
+			name:    "invalid-token-type with claims",
+			filters: `jwtMetrics("{claims: [{iss: foo}, {iss: bar}]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{"Basic foobarbaz"}},
+			},
+			status: http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.invalid-token-type": 1,
+			},
+			expectedTag: "invalid-token-type",
+		},
+		{
 			name:    "invalid-token",
 			filters: `jwtMetrics("{issuers: [foo, bar]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{"Bearer invalid-token"}},
+			},
+			status: http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.invalid-token": 1,
+			},
+			expectedTag: "invalid-token",
+		},
+		{
+			name:    "invalid-token with claims",
+			filters: `jwtMetrics("{claims: [{iss: foo}, {iss: bar}]}")`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{"Bearer invalid-token"}},
 			},
@@ -126,7 +160,21 @@ func TestJwtMetrics(t *testing.T) {
 			expectedTag: "invalid-issuer",
 		},
 		{
-			name:    "no invalid-issuer for empty issuers",
+			name:    "invalid-claims with one claim key",
+			filters: `jwtMetrics("{claims: [{iss: foo}, {iss: bar}]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{
+					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "baz"}) + ".signature",
+				}},
+			},
+			status: http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.invalid-claims": 1,
+			},
+			expectedTag: "invalid-claims",
+		},
+		{
+			name:    "no invalid-issuer for empty issuers/claims",
 			filters: `jwtMetrics()`,
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
@@ -153,6 +201,53 @@ func TestJwtMetrics(t *testing.T) {
 			request: &http.Request{Method: "GET", Host: "foo.test",
 				Header: http.Header{"Authorization": []string{
 					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "bar"}) + ".signature",
+				}},
+			},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name:    "no invalid-claims when matches first",
+			filters: `jwtMetrics("{claims: [{iss: foo, bat: ball}, {iss: bar}]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{
+					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "foo", "bat": "ball"}) + ".signature",
+				}},
+			},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name:    "no invalid-claims when matches second",
+			filters: `jwtMetrics("{claims: [{iss: foo, bar: baz}, {iss: bar}]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{
+					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "bar"}) + ".signature",
+				}},
+			},
+			status:   http.StatusOK,
+			expected: map[string]int64{},
+		},
+		{
+			name:    "invalid-claims when no full claim matches",
+			filters: `jwtMetrics("{claims: [{iss: foo, bar: baz}, {iss: bar}]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{
+					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "foo", "bar": "bat"}) + ".signature",
+				}},
+			},
+			status: http.StatusOK,
+			expected: map[string]int64{
+				"jwtMetrics.custom.GET.foo_test.200.invalid-claims": 1,
+			},
+			expectedTag: "invalid-claims",
+		},
+		{
+			name:    "no invalid-claims when full claim matches and token has extra keys",
+			filters: `jwtMetrics("{claims: [{iss: foo, bar: baz}, {iss: bar}]}")`,
+			request: &http.Request{Method: "GET", Host: "foo.test",
+				Header: http.Header{"Authorization": []string{
+					"Bearer header." + marshalBase64JSON(t, map[string]any{"iss": "foo", "bar": "baz", "bat": "ball"}) + ".signature",
 				}},
 			},
 			status:   http.StatusOK,
