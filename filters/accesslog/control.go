@@ -118,8 +118,8 @@ func (al *maskAccessLogQuery) CreateFilter(args []interface{}) (filters.Filter, 
 	}
 
 	keys := make(map[string]struct{}, len(args))
-	for i := range args {
-		if key, ok := args[i].(string); ok && key != "" {
+	for _, arg := range args {
+		if key, ok := arg.(string); ok && key != "" {
 			keys[key] = struct{}{}
 		} else {
 			return nil, filters.ErrInvalidFilterParameters
