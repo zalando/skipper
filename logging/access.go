@@ -117,7 +117,7 @@ func stripQueryString(u string) string {
 
 // maskQueryParams masks (i.e., hashing) specific query parameters in the provided request's URI.
 // Returns the obfuscated URI.
-func maskQueryParams(req *http.Request, maskedQueryParams map[string]bool) string {
+func maskQueryParams(req *http.Request, maskedQueryParams map[string]struct{}) string {
 	strippedURI := stripQueryString(req.RequestURI)
 
 	params := req.URL.Query()
@@ -173,7 +173,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		uri = entry.Request.RequestURI
 		if stripQuery {
 			uri = stripQueryString(uri)
-		} else if keys, ok := additional[KeyMaskedQueryParams].(map[string]bool); ok {
+		} else if keys, ok := additional[KeyMaskedQueryParams].(map[string]struct{}); ok {
 			if len(keys) > 0 {
 				uri = maskQueryParams(entry.Request, keys)
 			}
