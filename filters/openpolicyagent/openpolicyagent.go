@@ -330,7 +330,7 @@ func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
 }
 
 func (registry *OpenPolicyAgentRegistry) startPluginTriggerDaemon() {
-	ticker := time.NewTicker(pluginTriggerIntervalWithJitter(registry.pluginTriggerInterval, registry.maxPluginTriggerJitter))
+	ticker := time.NewTicker(registry.pluginTriggerIntervalWithJitter())
 	defer ticker.Stop()
 
 	for {
@@ -345,17 +345,17 @@ func (registry *OpenPolicyAgentRegistry) startPluginTriggerDaemon() {
 			for _, opa := range instances {
 				opa.triggerPlugins(context.Background())
 			}
-			ticker.Reset(pluginTriggerIntervalWithJitter(registry.pluginTriggerInterval, registry.maxPluginTriggerJitter))
+			ticker.Reset(registry.pluginTriggerIntervalWithJitter())
 		}
 	}
 }
 
 // Prevent different opa instances from triggering plugins (f.ex. downloading new bundles) at the same time
-func pluginTriggerIntervalWithJitter(interval, maxJitter time.Duration) time.Duration {
-	if maxJitter > 0 {
-		return interval + time.Duration(rand.Int63n(int64(maxJitter))) - maxJitter/2
+func (registry *OpenPolicyAgentRegistry) pluginTriggerIntervalWithJitter() time.Duration {
+	if registry.maxPluginTriggerJitter > 0 {
+		return registry.pluginTriggerInterval + time.Duration(rand.Int63n(int64(registry.maxPluginTriggerJitter))) - registry.maxPluginTriggerJitter/2
 	}
-	return interval
+	return registry.pluginTriggerInterval
 }
 
 // Do implements routing.PostProcessor and cleans unused OPA instances

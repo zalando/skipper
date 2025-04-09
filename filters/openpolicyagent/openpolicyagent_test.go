@@ -333,12 +333,13 @@ func TestOpaEngineStartFailure(t *testing.T) {
 }
 
 func TestPluginTriggerIntervalCalculation(t *testing.T) {
-	interval := pluginTriggerIntervalWithJitter(10*time.Second, 0*time.Millisecond)
+	registry := NewOpenPolicyAgentRegistry(WithPluginTriggerInterval(10*time.Second), WithMaxPluginTriggerJitter(0*time.Millisecond))
+	interval := registry.pluginTriggerIntervalWithJitter()
 	assert.Equal(t, 10*time.Second, interval)
 
-	interval = pluginTriggerIntervalWithJitter(10*time.Second, 1000*time.Millisecond)
+	registry = NewOpenPolicyAgentRegistry(WithPluginTriggerInterval(10*time.Second), WithMaxPluginTriggerJitter(1000*time.Millisecond))
+	interval = registry.pluginTriggerIntervalWithJitter()
 	assert.NotEqual(t, 10*time.Second, interval)
-
 	start := time.Now()
 	assert.WithinDuration(t, start.Add(10*time.Second), start.Add(interval), 500*time.Millisecond)
 }
