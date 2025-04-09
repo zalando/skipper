@@ -171,10 +171,8 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		uri = entry.Request.RequestURI
 		if stripQuery {
 			uri = stripQueryString(uri)
-		} else if keys, ok := additional[KeyMaskedQueryParams].(map[string]struct{}); ok {
-			if len(keys) > 0 {
-				uri = maskQueryParams(entry.Request, keys)
-			}
+		} else if keys, ok := additional[KeyMaskedQueryParams].(map[string]struct{}); ok && len(keys) > 0 {
+			uri = maskQueryParams(entry.Request, keys)
 		}
 
 		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
