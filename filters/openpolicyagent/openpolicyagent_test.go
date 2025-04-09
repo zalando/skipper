@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
@@ -131,7 +132,8 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 	config := []byte(fmt.Sprintf(`{
 		"services": {
 			"test": {
-				"url": %q
+				"url": %q,
+				"response_header_timeout_seconds": 1
 			}
 		},
 		"labels": {
@@ -341,7 +343,12 @@ func TestPluginTriggerIntervalCalculation(t *testing.T) {
 	assert.WithinDuration(t, start.Add(10*time.Second), start.Add(interval), 500*time.Millisecond)
 }
 
-func TestBundleDownloadRetry(t *testing.T) {
+func TestRetryableErrors(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
+	registry := NewOpenPolicyAgentRegistry()
+	cfg, _ := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	instance, _ := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+
 	testCases := []struct {
 		err       error
 		retryable bool
@@ -355,10 +362,85 @@ func TestBundleDownloadRetry(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%v:%v", tc.err, tc.retryable), func(t *testing.T) {
-			httpError := download.HTTPError{}
-			retryable := asRetryableHttpError(tc.err, &httpError)
+			retryable := instance.isRetryable(tc.err)
 
 			assert.Equal(t, tc.retryable, retryable)
+		})
+	}
+}
+
+func TestOpaActivationFailureWithRetry(t *testing.T) {
+	slowResponse := 1005 * time.Millisecond
+	testCases := []struct {
+		status  int
+		latency *time.Duration
+		error   string
+	}{
+		{
+			status:  503,
+			latency: &slowResponse,
+			error:   "context cancelled while triggering plugins: context deadline exceeded, last retry returned: request failed: Get \"%v/bundles/discovery\": net/http: timeout awaiting response headers",
+		},
+		{
+			status: 429,
+			error:  "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Too Many Requests",
+		},
+		{
+			status: 500,
+			error:  "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Internal Server Error",
+		},
+		{
+			status: 404,
+			error:  "server replied with Not Found",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("status=%v;added-latency:%v", tc.status, tc.latency), func(t *testing.T) {
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.latency != nil {
+					time.Sleep(*tc.latency)
+				}
+				w.WriteHeader(tc.status)
+			}))
+			defer server.Close()
+
+			config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": {
+				"url": %q,
+				"response_header_timeout_seconds": 1
+			}
+		},
+		"labels": {
+			"environment": "envValue"
+		},
+		"discovery": {
+			"name": "discovery",
+			"resource": %q,
+			"service": "test"
+		}
+	}`, server.URL, "/bundles/discovery"))
+
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(true))
+
+			additionalWait := 0 * time.Millisecond
+			if tc.latency != nil {
+				additionalWait += 2 * *tc.latency
+			}
+
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(500*time.Millisecond+additionalWait))
+			assert.NoError(t, err)
+
+			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.Nil(t, instance)
+
+			if strings.Contains(tc.error, "%") {
+				assert.Contains(t, err.Error(), fmt.Sprintf(tc.error, server.URL))
+			} else {
+				assert.Contains(t, err.Error(), tc.error)
+			}
 		})
 	}
 }

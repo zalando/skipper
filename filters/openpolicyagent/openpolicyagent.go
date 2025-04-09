@@ -9,6 +9,7 @@ import (
 	"maps"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -603,10 +604,7 @@ func (opa *OpenPolicyAgentInstance) StartAndTriggerPlugins(ctx context.Context) 
 		return err
 	}
 
-	ctxWithStartupTimeout, cancel := context.WithTimeout(ctx, opa.instanceConfig.startupTimeout)
-	defer cancel()
-
-	err = opa.triggerPluginsWithRetry(ctxWithStartupTimeout)
+	err = opa.triggerPluginsWithRetry(ctx)
 	if err != nil {
 		opa.Close(ctx)
 		return err
@@ -621,7 +619,6 @@ func (opa *OpenPolicyAgentInstance) StartAndTriggerPlugins(ctx context.Context) 
 }
 
 func (opa *OpenPolicyAgentInstance) triggerPluginsWithRetry(ctx context.Context) error {
-	var httpError download.HTTPError
 	var err error
 	backoff := 100 * time.Millisecond
 	retryTrigger := time.NewTimer(backoff)
@@ -634,25 +631,36 @@ func (opa *OpenPolicyAgentInstance) triggerPluginsWithRetry(ctx context.Context)
 		case <-retryTrigger.C:
 			err = opa.triggerPlugins(ctx)
 
-			retryable := asRetryableHttpError(err, &httpError)
-			if !retryable {
+			if !opa.isRetryable(err) {
 				return err
 			}
-
-			opa.Logger().WithFields(map[string]interface{}{
-				"status": httpError.StatusCode,
-			}).Warn("Triggering bundles failed. Retrying.")
-
 			backoff *= 2
-
 			retryTrigger.Reset(backoff)
 		}
 	}
 }
 
-func asRetryableHttpError(err error, httpError *download.HTTPError) bool {
-	isHttpError := errors.As(err, httpError)
-	return isHttpError && (httpError.StatusCode == 429 || httpError.StatusCode >= 500)
+func (opa *OpenPolicyAgentInstance) isRetryable(err error) bool {
+	var httpError download.HTTPError
+
+	if errors.As(err, &httpError) {
+		opa.Logger().WithFields(map[string]interface{}{
+			"error": httpError.Error(),
+		}).Warn("Triggering bundles failed. Response code %v, Retrying.", httpError.StatusCode)
+		return httpError.StatusCode == 429 || httpError.StatusCode >= 500
+	}
+
+	var urlError *url.Error
+	if errors.As(err, &urlError) {
+		retry := strings.Contains(urlError.Error(), "net/http: timeout awaiting response headers")
+		if retry {
+			opa.Logger().WithFields(map[string]interface{}{
+				"error": urlError.Error(),
+			}).Warn("Triggering bundles failed. Retrying.")
+		}
+		return retry
+	}
+	return false
 }
 
 func (opa *OpenPolicyAgentInstance) verifyAllPluginsStarted() error {
