@@ -48,12 +48,12 @@ import (
 )
 
 const (
-	DefaultCleanIdlePeriod        = 10 * time.Second
-	DefaultPluginTriggerInterval  = 60 * time.Second
-	DefaultMaxPluginTriggerJitter = 1000 * time.Millisecond
-	defaultReuseDuration          = 30 * time.Second
-	defaultShutdownGracePeriod    = 30 * time.Second
-	DefaultOpaStartupTimeout      = 30 * time.Second
+	DefaultCleanIdlePeriod      = 10 * time.Second
+	DefaultControlLoopInterval  = 60 * time.Second
+	DefaultControlLoopMaxJitter = 1000 * time.Millisecond
+	defaultReuseDuration        = 30 * time.Second
+	defaultShutdownGracePeriod  = 30 * time.Second
+	DefaultOpaStartupTimeout    = 30 * time.Second
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -86,9 +86,9 @@ type OpenPolicyAgentRegistry struct {
 
 	tracer opentracing.Tracer
 
-	overridePeriodicPluginTriggers bool
-	pluginTriggerInterval          time.Duration
-	maxPluginTriggerJitter         time.Duration
+	enableCustomControlLoop bool
+	controlLoopInterval     time.Duration
+	controlLoopMaxJitter    time.Duration
 }
 
 type OpenPolicyAgentFilter interface {
@@ -144,23 +144,23 @@ func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error 
 	}
 }
 
-func WithOverridePeriodPluginTriggers(enabled bool) func(*OpenPolicyAgentRegistry) error {
+func WithEnableCustomControlLoop(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
-		cfg.overridePeriodicPluginTriggers = enabled
+		cfg.enableCustomControlLoop = enabled
 		return nil
 	}
 }
 
-func WithPluginTriggerInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) error {
+func WithControlLoopInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
-		cfg.pluginTriggerInterval = interval
+		cfg.controlLoopInterval = interval
 		return nil
 	}
 }
 
-func WithMaxPluginTriggerJitter(jitter time.Duration) func(*OpenPolicyAgentRegistry) error {
+func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
-		cfg.maxPluginTriggerJitter = jitter
+		cfg.controlLoopMaxJitter = maxJitter
 		return nil
 	}
 }
@@ -175,8 +175,8 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 		quit:                   make(chan struct{}),
 		maxRequestBodyBytes:    DefaultMaxMemoryBodyParsing,
 		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
-		pluginTriggerInterval:  DefaultPluginTriggerInterval,
-		maxPluginTriggerJitter: DefaultMaxPluginTriggerJitter,
+		controlLoopInterval:    DefaultControlLoopInterval,
+		controlLoopMaxJitter:   DefaultControlLoopMaxJitter,
 	}
 
 	for _, opt := range opts {
@@ -189,8 +189,8 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 
 	go registry.startCleanerDaemon()
 
-	if registry.overridePeriodicPluginTriggers {
-		go registry.startPluginTriggerDaemon()
+	if registry.enableCustomControlLoop {
+		go registry.startCustomControlLoopDaemon()
 	}
 
 	return registry
@@ -328,8 +328,8 @@ func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
 	}
 }
 
-func (registry *OpenPolicyAgentRegistry) startPluginTriggerDaemon() {
-	ticker := time.NewTicker(registry.pluginTriggerIntervalWithJitter())
+func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
+	ticker := time.NewTicker(registry.controlLoopIntervalWithJitter())
 	defer ticker.Stop()
 
 	for {
@@ -348,17 +348,17 @@ func (registry *OpenPolicyAgentRegistry) startPluginTriggerDaemon() {
 					opa.triggerPlugins(ctx)
 				}()
 			}
-			ticker.Reset(registry.pluginTriggerIntervalWithJitter())
+			ticker.Reset(registry.controlLoopIntervalWithJitter())
 		}
 	}
 }
 
 // Prevent different opa instances from triggering plugins (f.ex. downloading new bundles) at the same time
-func (registry *OpenPolicyAgentRegistry) pluginTriggerIntervalWithJitter() time.Duration {
-	if registry.maxPluginTriggerJitter > 0 {
-		return registry.pluginTriggerInterval + time.Duration(rand.Int63n(int64(registry.maxPluginTriggerJitter))) - registry.maxPluginTriggerJitter/2
+func (registry *OpenPolicyAgentRegistry) controlLoopIntervalWithJitter() time.Duration {
+	if registry.controlLoopMaxJitter > 0 {
+		return registry.controlLoopInterval + time.Duration(rand.Int63n(int64(registry.controlLoopMaxJitter))) - registry.controlLoopMaxJitter/2
 	}
-	return registry.pluginTriggerInterval
+	return registry.controlLoopInterval
 }
 
 // Do implements routing.PostProcessor and cleans unused OPA instances
@@ -428,7 +428,7 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 	ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
 	defer cancel()
 
-	if registry.overridePeriodicPluginTriggers {
+	if registry.enableCustomControlLoop {
 		if err = engine.StartAndTriggerPlugins(ctx); err != nil {
 			return nil, err
 		}
@@ -525,7 +525,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName})
 
 	configHooks := hooks.New()
-	if registry.overridePeriodicPluginTriggers {
+	if registry.enableCustomControlLoop {
 		configHooks = hooks.New(&internal.ManualOverride{})
 	}
 
@@ -600,7 +600,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	return nil
 }
 
-// Start starts the policy engine's plugin manager and periodically trigger the plugins to download policies etc.
+// StartAndTriggerPlugins Start starts the policy engine's plugin manager and triggers the plugins to download policies etc.
 func (opa *OpenPolicyAgentInstance) StartAndTriggerPlugins(ctx context.Context) error {
 	err := opa.manager.Start(ctx)
 	if err != nil {

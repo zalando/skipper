@@ -294,17 +294,17 @@ type Config struct {
 	LuaModules *listFlag `yaml:"lua-modules"`
 	LuaSources *listFlag `yaml:"lua-sources"`
 
-	EnableOpenPolicyAgent                       bool          `yaml:"enable-open-policy-agent"`
-	EnableOpenPolicyAgentOverridePeriodTriggers bool          `yaml:"enable-open-policy-agent-override-period-triggers"`
-	OpenPolicyAgentConfigTemplate               string        `yaml:"open-policy-agent-config-template"`
-	OpenPolicyAgentEnvoyMetadata                string        `yaml:"open-policy-agent-envoy-metadata"`
-	OpenPolicyAgentCleanerInterval              time.Duration `yaml:"open-policy-agent-cleaner-interval"`
-	OpenPolicyAgentPluginTriggerInterval        time.Duration `yaml:"open-policy-agent-plugin-trigger-interval"`
-	OpenPolicyAgentMaxPluginTriggerJitter       time.Duration `yaml:"open-policy-agent-max-plugin-trigger-jitter"`
-	OpenPolicyAgentStartupTimeout               time.Duration `yaml:"open-policy-agent-startup-timeout"`
-	OpenPolicyAgentRequestBodyBufferSize        int64         `yaml:"open-policy-agent-request-body-buffer-size"`
-	OpenPolicyAgentMaxRequestBodySize           int64         `yaml:"open-policy-agent-max-request-body-size"`
-	OpenPolicyAgentMaxMemoryBodyParsing         int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
+	EnableOpenPolicyAgent                  bool          `yaml:"enable-open-policy-agent"`
+	EnableOpenPolicyAgentCustomControlLoop bool          `yaml:"enable-open-policy-agent-custom-control-loop"`
+	OpenPolicyAgentControlLoopInterval     time.Duration `yaml:"open-policy-agent-control-loop-interval"`
+	OpenPolicyAgentControlLoopMaxJitter    time.Duration `yaml:"open-policy-agent-control-loop-max-jitter"`
+	OpenPolicyAgentConfigTemplate          string        `yaml:"open-policy-agent-config-template"`
+	OpenPolicyAgentEnvoyMetadata           string        `yaml:"open-policy-agent-envoy-metadata"`
+	OpenPolicyAgentCleanerInterval         time.Duration `yaml:"open-policy-agent-cleaner-interval"`
+	OpenPolicyAgentStartupTimeout          time.Duration `yaml:"open-policy-agent-startup-timeout"`
+	OpenPolicyAgentRequestBodyBufferSize   int64         `yaml:"open-policy-agent-request-body-buffer-size"`
+	OpenPolicyAgentMaxRequestBodySize      int64         `yaml:"open-policy-agent-max-request-body-size"`
+	OpenPolicyAgentMaxMemoryBodyParsing    int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
 
 	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
 }
@@ -527,12 +527,12 @@ func NewConfig() *Config {
 	flag.Var(cfg.CredentialPaths, "credentials-paths", "directories or files to watch for credentials to use by bearerinjector filter")
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", 10*time.Minute, "sets the interval to update secrets")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgent, "enable-open-policy-agent", false, "enables Open Policy Agent filters")
-	flag.BoolVar(&cfg.EnableOpenPolicyAgentOverridePeriodTriggers, "enable-open-policy-agent-override-period-triggers", false, "when enabled skipper will set all plugin triggers to manual and trigger all plugins directly, which includes f.ex. to download of new bundles")
+	flag.BoolVar(&cfg.EnableOpenPolicyAgentCustomControlLoop, "enable-open-policy-agent-custom-control-loop", false, "when enabled skipper will use a custom control loop to orchestrate certain opa behaviour (like the download of new bundles) instead of relying on periodic plugin triggers")
+	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopInterval, "open-policy-agent-control-loop-interval", openpolicyagent.DefaultControlLoopInterval, "Interval between the execution of the control loop. Only applies if the custom control loop is enabled")
+	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopMaxJitter, "open-policy-agent-control-loop-max-jitter", openpolicyagent.DefaultControlLoopMaxJitter, "Maximum jitter to add to the control loop interval. Only applies if the custom control loop is enabled")
 	flag.StringVar(&cfg.OpenPolicyAgentConfigTemplate, "open-policy-agent-config-template", "", "file containing a template for an Open Policy Agent configuration file that is interpolated for each OPA filter instance")
 	flag.StringVar(&cfg.OpenPolicyAgentEnvoyMetadata, "open-policy-agent-envoy-metadata", "", "JSON file containing meta-data passed as input for compatibility with Envoy policies in the format")
 	flag.DurationVar(&cfg.OpenPolicyAgentCleanerInterval, "open-policy-agent-cleaner-interval", openpolicyagent.DefaultCleanIdlePeriod, "Duration in seconds to wait before cleaning up unused opa instances")
-	flag.DurationVar(&cfg.OpenPolicyAgentPluginTriggerInterval, "open-policy-agent-plugin-trigger-interval", openpolicyagent.DefaultPluginTriggerInterval, "Interval between triggering the opa plugins to f.ex. download new bundles. Only applies when overriding period triggers is enabled")
-	flag.DurationVar(&cfg.OpenPolicyAgentMaxPluginTriggerJitter, "open-policy-agent-max-plugin-trigger-jitter", openpolicyagent.DefaultMaxPluginTriggerJitter, "Maximum jitter to add to the plugin trigger interval. Only applies when overriding period triggers is enabled")
 	flag.DurationVar(&cfg.OpenPolicyAgentStartupTimeout, "open-policy-agent-startup-timeout", openpolicyagent.DefaultOpaStartupTimeout, "Maximum duration in seconds to wait for the open policy agent to start up")
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxRequestBodySize, "open-policy-agent-max-request-body-size", openpolicyagent.DefaultMaxRequestBodySize, "Maximum number of bytes from a http request body that are passed as input to the policy")
 	flag.Int64Var(&cfg.OpenPolicyAgentRequestBodyBufferSize, "open-policy-agent-request-body-buffer-size", openpolicyagent.DefaultRequestBodyBufferSize, "Read buffer size for the request body")
@@ -984,17 +984,17 @@ func (c *Config) ToOptions() skipper.Options {
 		LuaModules: c.LuaModules.values,
 		LuaSources: c.LuaSources.values,
 
-		EnableOpenPolicyAgent:                       c.EnableOpenPolicyAgent,
-		EnableOpenPolicyAgentOverridePeriodTriggers: c.EnableOpenPolicyAgentOverridePeriodTriggers,
-		OpenPolicyAgentConfigTemplate:               c.OpenPolicyAgentConfigTemplate,
-		OpenPolicyAgentEnvoyMetadata:                c.OpenPolicyAgentEnvoyMetadata,
-		OpenPolicyAgentCleanerInterval:              c.OpenPolicyAgentCleanerInterval,
-		OpenPolicyAgentPluginTriggerInterval:        c.OpenPolicyAgentPluginTriggerInterval,
-		OpenPolicyAgentMaxPluginTriggerJitter:       c.OpenPolicyAgentMaxPluginTriggerJitter,
-		OpenPolicyAgentStartupTimeout:               c.OpenPolicyAgentStartupTimeout,
-		OpenPolicyAgentMaxRequestBodySize:           c.OpenPolicyAgentMaxRequestBodySize,
-		OpenPolicyAgentRequestBodyBufferSize:        c.OpenPolicyAgentRequestBodyBufferSize,
-		OpenPolicyAgentMaxMemoryBodyParsing:         c.OpenPolicyAgentMaxMemoryBodyParsing,
+		EnableOpenPolicyAgent:                  c.EnableOpenPolicyAgent,
+		EnableOpenPolicyAgentCustomControlLoop: c.EnableOpenPolicyAgentCustomControlLoop,
+		OpenPolicyAgentControlLoopInterval:     c.OpenPolicyAgentControlLoopInterval,
+		OpenPolicyAgentControlLoopMaxJitter:    c.OpenPolicyAgentControlLoopMaxJitter,
+		OpenPolicyAgentConfigTemplate:          c.OpenPolicyAgentConfigTemplate,
+		OpenPolicyAgentEnvoyMetadata:           c.OpenPolicyAgentEnvoyMetadata,
+		OpenPolicyAgentCleanerInterval:         c.OpenPolicyAgentCleanerInterval,
+		OpenPolicyAgentStartupTimeout:          c.OpenPolicyAgentStartupTimeout,
+		OpenPolicyAgentMaxRequestBodySize:      c.OpenPolicyAgentMaxRequestBodySize,
+		OpenPolicyAgentRequestBodyBufferSize:   c.OpenPolicyAgentRequestBodyBufferSize,
+		OpenPolicyAgentMaxMemoryBodyParsing:    c.OpenPolicyAgentMaxMemoryBodyParsing,
 
 		PassiveHealthCheck: c.PassiveHealthCheck.values,
 	}

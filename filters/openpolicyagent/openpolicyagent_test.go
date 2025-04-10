@@ -204,25 +204,25 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 func TestRegistry(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			overridePeriodicTriggers: true,
-			expectedTriggerMode:      plugins.TriggerManual,
-			discoveryBundle:          "bundles/discovery",
+			enableCustomControlLoop: true,
+			expectedTriggerMode:     plugins.TriggerManual,
+			discoveryBundle:         "bundles/discovery",
 		},
 		{
-			overridePeriodicTriggers: false,
-			expectedTriggerMode:      plugins.DefaultTriggerMode,
-			discoveryBundle:          "bundles/discovery",
+			enableCustomControlLoop: false,
+			expectedTriggerMode:     plugins.DefaultTriggerMode,
+			discoveryBundle:         "bundles/discovery",
 		},
 		{
-			overridePeriodicTriggers: true,
-			expectedTriggerMode:      plugins.TriggerManual,
-			resourceBundle:           true,
+			enableCustomControlLoop: true,
+			expectedTriggerMode:     plugins.TriggerManual,
+			resourceBundle:          true,
 		},
 		{
 
-			overridePeriodicTriggers: false,
-			expectedTriggerMode:      plugins.DefaultTriggerMode,
-			resourceBundle:           true,
+			enableCustomControlLoop: false,
+			expectedTriggerMode:     plugins.DefaultTriggerMode,
+			resourceBundle:          true,
 		},
 	}
 	runWithTestCases(t, testCases,
@@ -234,7 +234,7 @@ func TestRegistry(t *testing.T) {
 				_, config = mockControlPlaneWithResourceBundle()
 			}
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
 			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
@@ -303,14 +303,14 @@ func assertTriggerMode(t *testing.T, expectedMode plugins.TriggerMode, plgn plug
 
 func TestOpaEngineStartFailure(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
-		{overridePeriodicTriggers: true, expectedError: "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found"},
-		{overridePeriodicTriggers: false, expectedError: "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded"},
+		{enableCustomControlLoop: true, expectedError: "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found"},
+		{enableCustomControlLoop: false, expectedError: "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded"},
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
 			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
@@ -321,7 +321,7 @@ func TestOpaEngineStartFailure(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
 			defer cancel()
 
-			if tc.overridePeriodicTriggers {
+			if tc.enableCustomControlLoop {
 				err = engine.StartAndTriggerPlugins(ctx)
 			} else {
 				err = engine.Start(ctx, registry.instanceStartupTimeout)
@@ -332,13 +332,13 @@ func TestOpaEngineStartFailure(t *testing.T) {
 		})
 }
 
-func TestPluginTriggerIntervalCalculation(t *testing.T) {
-	registry := NewOpenPolicyAgentRegistry(WithPluginTriggerInterval(10*time.Second), WithMaxPluginTriggerJitter(0*time.Millisecond))
-	interval := registry.pluginTriggerIntervalWithJitter()
+func TestControlLoopIntervalCalculation(t *testing.T) {
+	registry := NewOpenPolicyAgentRegistry(WithControlLoopInterval(10*time.Second), WithControlLoopMaxJitter(0*time.Millisecond))
+	interval := registry.controlLoopIntervalWithJitter()
 	assert.Equal(t, 10*time.Second, interval)
 
-	registry = NewOpenPolicyAgentRegistry(WithPluginTriggerInterval(10*time.Second), WithMaxPluginTriggerJitter(1000*time.Millisecond))
-	interval = registry.pluginTriggerIntervalWithJitter()
+	registry = NewOpenPolicyAgentRegistry(WithControlLoopInterval(10*time.Second), WithControlLoopMaxJitter(1000*time.Millisecond))
+	interval = registry.controlLoopIntervalWithJitter()
 	assert.NotEqual(t, 10*time.Second, interval)
 	start := time.Now()
 	assert.WithinDuration(t, start.Add(10*time.Second), start.Add(interval), 500*time.Millisecond)
@@ -428,7 +428,7 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 				additionalWait += 2 * *tc.latency
 			}
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(true))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(true))
 			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
 
@@ -447,19 +447,19 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			overridePeriodicTriggers: true,
-			discoveryBundle:          "bundles/discovery",
+			enableCustomControlLoop: true,
+			discoveryBundle:         "bundles/discovery",
 		},
 		{
-			overridePeriodicTriggers: false,
-			discoveryBundle:          "bundles/discovery",
+			enableCustomControlLoop: false,
+			discoveryBundle:         "bundles/discovery",
 		},
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
 			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
@@ -509,12 +509,12 @@ func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			overridePeriodicTriggers: true,
-			expectedError:            "invalid configuration for discovery",
+			enableCustomControlLoop: true,
+			expectedError:           "invalid configuration for discovery",
 		},
 		{
-			overridePeriodicTriggers: false,
-			expectedError:            "invalid configuration for discovery",
+			enableCustomControlLoop: false,
+			expectedError:           "invalid configuration for discovery",
 		},
 	}
 	runWithTestCases(t, testCases, func(t *testing.T, tc opaInstanceStartupTestCase) {
@@ -525,7 +525,7 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 			"service": "test"
 		}}`)
 
-		registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+		registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
 		cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService))
 		assert.NoError(t, err)
@@ -540,19 +540,19 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			overridePeriodicTriggers: true,
-			expectedError:            "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found",
+			enableCustomControlLoop: true,
+			expectedError:           "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found",
 		},
 		{
-			overridePeriodicTriggers: false,
-			expectedError:            "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
+			enableCustomControlLoop: false,
+			expectedError:           "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
 		},
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
 			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
@@ -569,21 +569,21 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			overridePeriodicTriggers: true,
-			discoveryBundle:          "/bundles/discovery-with-parsing-error",
-			expectedError:            "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Internal Server Error",
+			enableCustomControlLoop: true,
+			discoveryBundle:         "/bundles/discovery-with-parsing-error",
+			expectedError:           "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Internal Server Error",
 		},
 		{
-			overridePeriodicTriggers: false,
-			discoveryBundle:          "/bundles/discovery-with-parsing-error",
-			expectedError:            "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
+			enableCustomControlLoop: false,
+			discoveryBundle:         "/bundles/discovery-with-parsing-error",
+			expectedError:           "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
 		},
 	}
 	runWithTestCases(t, testCases,
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
 			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
@@ -598,20 +598,20 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 func TestStartup(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			overridePeriodicTriggers: true,
-			discoveryBundle:          "bundles/discovery",
+			enableCustomControlLoop: true,
+			discoveryBundle:         "bundles/discovery",
 		},
 		{
-			overridePeriodicTriggers: false,
-			discoveryBundle:          "bundles/discovery",
+			enableCustomControlLoop: false,
+			discoveryBundle:         "bundles/discovery",
 		},
 		{
-			overridePeriodicTriggers: true,
-			resourceBundle:           true,
+			enableCustomControlLoop: true,
+			resourceBundle:          true,
 		},
 		{
-			overridePeriodicTriggers: false,
-			resourceBundle:           true,
+			enableCustomControlLoop: false,
+			resourceBundle:          true,
 		},
 	}
 	runWithTestCases(t, testCases,
@@ -623,7 +623,7 @@ func TestStartup(t *testing.T) {
 				_, config = mockControlPlaneWithResourceBundle()
 			}
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
 			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
@@ -663,20 +663,20 @@ func TestTracing(t *testing.T) {
 func TestEval(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			overridePeriodicTriggers: true,
-			discoveryBundle:          "bundles/discovery",
+			enableCustomControlLoop: true,
+			discoveryBundle:         "bundles/discovery",
 		},
 		{
-			overridePeriodicTriggers: false,
-			discoveryBundle:          "bundles/discovery",
+			enableCustomControlLoop: false,
+			discoveryBundle:         "bundles/discovery",
 		},
 		{
-			overridePeriodicTriggers: true,
-			resourceBundle:           true,
+			enableCustomControlLoop: true,
+			resourceBundle:          true,
 		},
 		{
-			overridePeriodicTriggers: false,
-			resourceBundle:           true,
+			enableCustomControlLoop: false,
+			resourceBundle:          true,
 		},
 	}
 	runWithTestCases(t, testCases,
@@ -688,7 +688,7 @@ func TestEval(t *testing.T) {
 				_, config = mockControlPlaneWithResourceBundle()
 			}
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
 			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
@@ -994,17 +994,17 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 }
 
 type opaInstanceStartupTestCase struct {
-	overridePeriodicTriggers bool
-	expectedError            string
-	expectedTriggerMode      plugins.TriggerMode
-	discoveryBundle          string
-	resourceBundle           bool
+	enableCustomControlLoop bool
+	expectedError           string
+	expectedTriggerMode     plugins.TriggerMode
+	discoveryBundle         string
+	resourceBundle          bool
 }
 
 func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test func(t *testing.T, tc opaInstanceStartupTestCase)) {
 	for _, tc := range cases {
 		sb := strings.Builder{}
-		sb.WriteString(fmt.Sprintf("override-period-triggers=%v", tc.overridePeriodicTriggers))
+		sb.WriteString(fmt.Sprintf("custom-control-loop=%v", tc.enableCustomControlLoop))
 		if tc.discoveryBundle != "" {
 			sb.WriteString(fmt.Sprintf(";discovery=%v", tc.discoveryBundle))
 		}
