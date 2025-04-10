@@ -11,6 +11,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/sirupsen/logrus"
 
+	al "github.com/zalando/skipper/filters/accesslog"
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
 	logFilter "github.com/zalando/skipper/filters/log"
 )
@@ -23,10 +24,6 @@ const (
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
 	// We add the duration in ms, a requested host and a flow id and audit log
 	accessLogFormat = combinedLogFormat + " %d %s %s %s\n"
-
-	// KeyMaskedQueryParams represents the key used to store and retrieve masked query parameters
-	// from the additional data.
-	KeyMaskedQueryParams = "maskedQueryParams"
 )
 
 type accessLogFormatter struct {
@@ -171,7 +168,7 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		uri = entry.Request.RequestURI
 		if stripQuery {
 			uri = stripQueryString(uri)
-		} else if keys, ok := additional[KeyMaskedQueryParams].(map[string]struct{}); ok && len(keys) > 0 {
+		} else if keys, ok := additional[al.KeyMaskedQueryParams].(map[string]struct{}); ok && len(keys) > 0 {
 			uri = maskQueryParams(entry.Request, keys)
 		}
 
@@ -195,10 +192,9 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		"auth-user":      authUser,
 	}
 
-	delete(additional, KeyMaskedQueryParams)
-	for k, v := range additional {
-		logData[k] = v
-	}
+	delete(additional, al.KeyMaskedQueryParams)
+
+	maps.Copy(logData, additional)
 
 	logEntry := accessLog.WithFields(logData)
 	if entry.Request != nil {
