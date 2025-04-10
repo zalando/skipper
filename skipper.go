@@ -32,7 +32,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"github.com/zalando/skipper/filters/auth"
-	block "github.com/zalando/skipper/filters/block"
+	"github.com/zalando/skipper/filters/block"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
@@ -1917,6 +1917,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
 			openpolicyagent.WithReadBodyBufferSize(o.OpenPolicyAgentRequestBodyBufferSize),
 			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
+			openpolicyagent.WithInstanceStartupTimeout(o.OpenPolicyAgentStartupTimeout),
 			openpolicyagent.WithTracer(tracer),
 			openpolicyagent.WithOverridePeriodPluginTriggers(o.EnableOpenPolicyAgentOverridePeriodTriggers),
 			openpolicyagent.WithPluginTriggerInterval(o.OpenPolicyAgentPluginTriggerInterval),
@@ -1925,8 +1926,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
 		opts = append(opts,
-			openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate),
-			openpolicyagent.WithStartupTimeout(o.OpenPolicyAgentStartupTimeout))
+			openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
 		if o.OpenPolicyAgentEnvoyMetadata != "" {
 			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
 		}

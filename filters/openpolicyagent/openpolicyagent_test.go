@@ -310,21 +310,21 @@ func TestOpaEngineStartFailure(t *testing.T) {
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
 
 			engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
 			assert.NoError(t, err)
 
-			ctx, cancel := context.WithTimeout(context.Background(), cfg.startupTimeout)
+			ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
 			defer cancel()
 
 			if tc.overridePeriodicTriggers {
 				err = engine.StartAndTriggerPlugins(ctx)
 			} else {
-				err = engine.Start(ctx, cfg.startupTimeout)
+				err = engine.Start(ctx, registry.instanceStartupTimeout)
 			}
 
 			assert.True(t, engine.stopped)
@@ -423,15 +423,13 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 			"service": "test"
 		}
 	}`, server.URL, "/bundles/discovery"))
-
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(true))
-
 			additionalWait := 0 * time.Millisecond
 			if tc.latency != nil {
 				additionalWait += 2 * *tc.latency
 			}
 
-			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(500*time.Millisecond+additionalWait))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(true))
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
 
 			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
@@ -527,9 +525,9 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 			"service": "test"
 		}}`)
 
-		registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+		registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-		cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService), WithStartupTimeout(1*time.Second))
+		cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService))
 		assert.NoError(t, err)
 
 		instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
@@ -554,9 +552,9 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
 
 			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
@@ -585,9 +583,9 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOverridePeriodPluginTriggers(tc.overridePeriodicTriggers))
 
-			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
 			assert.NoError(t, err)
 
 			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")

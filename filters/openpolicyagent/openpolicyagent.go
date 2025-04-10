@@ -73,11 +73,12 @@ type OpenPolicyAgentRegistry struct {
 	instances map[string]*OpenPolicyAgentInstance
 	lastused  map[*OpenPolicyAgentInstance]time.Time
 
-	once          sync.Once
-	closed        bool
-	quit          chan struct{}
-	reuseDuration time.Duration
-	cleanInterval time.Duration
+	once                   sync.Once
+	closed                 bool
+	quit                   chan struct{}
+	reuseDuration          time.Duration
+	cleanInterval          time.Duration
+	instanceStartupTimeout time.Duration
 
 	maxMemoryBodyParsingSem *semaphore.Weighted
 	maxRequestBodyBytes     int64
@@ -129,6 +130,13 @@ func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) er
 	}
 }
 
+func WithInstanceStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.instanceStartupTimeout = timeout
+		return nil
+	}
+}
+
 func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.tracer = tracer
@@ -161,6 +169,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration:          defaultReuseDuration,
 		cleanInterval:          DefaultCleanIdlePeriod,
+		instanceStartupTimeout: DefaultOpaStartupTimeout,
 		instances:              make(map[string]*OpenPolicyAgentInstance),
 		lastused:               make(map[*OpenPolicyAgentInstance]time.Time),
 		quit:                   make(chan struct{}),
@@ -190,7 +199,6 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 type OpenPolicyAgentInstanceConfig struct {
 	envoyMetadata  *ext_authz_v3_core.Metadata
 	configTemplate []byte
-	startupTimeout time.Duration
 }
 
 func WithConfigTemplate(configTemplate []byte) func(*OpenPolicyAgentInstanceConfig) error {
@@ -239,13 +247,6 @@ func WithEnvoyMetadataFile(file string) func(*OpenPolicyAgentInstanceConfig) err
 	}
 }
 
-func WithStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentInstanceConfig) error {
-	return func(cfg *OpenPolicyAgentInstanceConfig) error {
-		cfg.startupTimeout = timeout
-		return nil
-	}
-}
-
 func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.Metadata {
 	if cfg.envoyMetadata != nil {
 		return proto.Clone(cfg.envoyMetadata).(*ext_authz_v3_core.Metadata)
@@ -254,9 +255,7 @@ func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.
 }
 
 func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) (*OpenPolicyAgentInstanceConfig, error) {
-	cfg := OpenPolicyAgentInstanceConfig{
-		startupTimeout: DefaultOpaStartupTimeout,
-	}
+	cfg := OpenPolicyAgentInstanceConfig{}
 
 	for _, opt := range opts {
 		if err := opt(&cfg); err != nil {
@@ -343,7 +342,11 @@ func (registry *OpenPolicyAgentRegistry) startPluginTriggerDaemon() {
 			registry.mu.Unlock()
 
 			for _, opa := range instances {
-				opa.triggerPlugins(context.Background())
+				func() {
+					ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
+					defer cancel()
+					opa.triggerPlugins(ctx)
+				}()
 			}
 			ticker.Reset(registry.pluginTriggerIntervalWithJitter())
 		}
@@ -422,7 +425,7 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.startupTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
 	defer cancel()
 
 	if registry.overridePeriodicPluginTriggers {
@@ -430,7 +433,7 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 			return nil, err
 		}
 	} else {
-		if err = engine.Start(ctx, config.startupTimeout); err != nil {
+		if err = engine.Start(ctx, registry.instanceStartupTimeout); err != nil {
 			return nil, err
 		}
 	}
