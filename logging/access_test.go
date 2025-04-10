@@ -2,6 +2,8 @@ package logging
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -14,6 +16,19 @@ import (
 const logOutput = `127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.1" 418 2326 "-" "-" 42 example.com - -`
 const logJSONOutput = `{"audit":"","auth-user":"","duration":42,"flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
 const logExtendedJSONOutput = `{"audit":"","auth-user":"","duration":42,"extra":"extra","flow-id":"","host":"127.0.0.1","level":"info","method":"GET","msg":"","proto":"HTTP/1.1","referer":"","requested-host":"example.com","response-size":2326,"status":418,"timestamp":"10/Oct/2000:13:55:36 -0700","uri":"/apache_pb.gif","user-agent":""}`
+
+type accessCustomFormatter struct{}
+type accessLogContextKey struct{}
+
+func (c accessCustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+
+	if entry.Context != nil {
+		if traceId, ok := entry.Context.Value(accessLogContextKey{}).(string); ok {
+			return []byte(fmt.Sprintf("%s\n", traceId)), nil
+		}
+	}
+	return []byte(fmt.Sprintf("%s\n", entry.Message)), nil
+}
 
 func testRequest() *http.Request {
 	r, _ := http.NewRequest("GET", "http://frank@example.com", nil)
@@ -60,6 +75,21 @@ func testAccessLogExtended(t *testing.T, entry *AccessEntry, additional map[stri
 
 func testAccessLogDefault(t *testing.T, entry *AccessEntry, expectedOutput string) {
 	testAccessLog(t, entry, expectedOutput, Options{})
+}
+
+func TestAccessLogWithContext(t *testing.T) {
+	entry := testAccessEntry()
+	traceId := "c4ddfe9d-a0d3-4afb-bf26-24b9588731a0"
+	entry.Request = entry.Request.WithContext(context.WithValue(entry.Request.Context(), accessLogContextKey{}, traceId))
+	expectedOutput := traceId
+
+	var buf bytes.Buffer
+	o := Options{
+		AccessLogOutput:    &buf,
+		AccessLogFormatter: &accessCustomFormatter{},
+	}
+
+	testAccessLog(t, entry, expectedOutput, o)
 }
 
 func TestAccessLogFormatFull(t *testing.T) {
