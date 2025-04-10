@@ -99,7 +99,7 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 		msg    string
 		state  filters.Spec
 		args   [][]any
-		result AccessLogFilter
+		result map[string]struct{}
 	}{
 		{
 			msg:   "should merge masked query params from multiple filters",
@@ -108,7 +108,7 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 				{"key_1"},
 				{"key_2"},
 			},
-			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]struct{}{"key_1": {}, "key_2": {}}},
+			result: map[string]struct{}{"key_1": {}, "key_2": {}},
 		},
 		{
 			msg:   "should overwrite already masked params",
@@ -118,7 +118,7 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 				{"key_1"},
 				{"key_1"},
 			},
-			result: AccessLogFilter{Enable: true, MaskedQueryParams: map[string]struct{}{"key_1": {}}},
+			result: map[string]struct{}{"key_1": {}},
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
@@ -138,8 +138,8 @@ func TestAccessLogMaskedParametersMerging(t *testing.T) {
 			}
 
 			bag := ctx.StateBag()
-			filter := bag[AccessLogEnabledKey]
-			assert.Equal(t, filter, &ti.result, "access log state is not equal to expected")
+			params := bag[AccessLogAdditionalDataKey].(map[string]interface{})[KeyMaskedQueryParams].(map[string]struct{})
+			assert.Equal(t, params, ti.result, "access log state is not equal to expected")
 		})
 	}
 }
