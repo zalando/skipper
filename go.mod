@@ -10,7 +10,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cjoudrey/gluahttp v0.0.0-20201111170219-25003d9adfa9
 	github.com/cjoudrey/gluaurl v0.0.0-20161028222611-31cbb9bef199
-	github.com/coreos/go-oidc/v3 v3.13.0
+	github.com/coreos/go-oidc/v3 v3.14.1
 	github.com/dchest/siphash v1.2.3
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0
 	github.com/dgryski/go-mpchash v0.0.0-20200819201138-7382f34c4cd1
@@ -25,7 +25,7 @@ require (
 	github.com/hashicorp/memberlist v0.5.3
 	github.com/instana/go-sensor v1.67.1
 	github.com/lightstep/lightstep-tracer-go v0.26.0
-	github.com/miekg/dns v1.1.64
+	github.com/miekg/dns v1.1.65
 	github.com/oklog/ulid v1.3.1
 	github.com/open-policy-agent/opa v1.0.1
 	github.com/open-policy-agent/opa-envoy-plugin v1.0.0-envoy
@@ -48,12 +48,12 @@ require (
 	github.com/yookoala/gofast v0.8.0
 	github.com/yuin/gopher-lua v1.1.1
 	go4.org/netipx v0.0.0-20220925034521-797b0c90d8ab
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.37.0
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
 	golang.org/x/net v0.38.0
-	golang.org/x/oauth2 v0.28.0
-	golang.org/x/sync v0.12.0
-	golang.org/x/term v0.30.0
+	golang.org/x/oauth2 v0.29.0
+	golang.org/x/sync v0.13.0
+	golang.org/x/term v0.31.0
 	golang.org/x/time v0.11.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/go-jose/go-jose.v2 v2.6.3
@@ -172,8 +172,8 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250102185135-69823020774d // indirect
@@ -185,4 +185,5 @@ require (
 )
 
 go 1.23.6
+
 toolchain go1.24.1
