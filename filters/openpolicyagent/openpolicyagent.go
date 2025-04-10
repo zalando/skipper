@@ -328,6 +328,10 @@ func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
 	}
 }
 
+// startCustomControlLoopDaemon starts a custom control loop that triggers the discovery and bundle plugin for all OPA instances in the registry.
+// The processing is done in sequence to avoid memory spikes if the bundles of multiple instances are updated at the same time.
+// The timeout for the processing of each instance is set to the startup timeout to ensure that the behavior is the same as during startup
+// It is accepted that runs can be skipped if the processing of all instances takes longer than the interval.
 func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
 	ticker := time.NewTicker(registry.controlLoopIntervalWithJitter())
 	defer ticker.Stop()
