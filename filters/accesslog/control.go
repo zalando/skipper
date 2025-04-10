@@ -17,6 +17,10 @@ const (
 
 	// AccessLogAdditionalDataKey is the key used in the state bag to pass extra data to access log
 	AccessLogAdditionalDataKey = "statebag:access_log:additional"
+
+	// KeyMaskedQueryParams is the key used to store and retrieve masked query parameters
+	// from the additional data.
+	KeyMaskedQueryParams = "maskedQueryParams"
 )
 
 // AccessLogFilter stores access log state
@@ -31,11 +35,21 @@ type AccessLogFilter struct {
 
 func (al *AccessLogFilter) Request(ctx filters.FilterContext) {
 	bag := ctx.StateBag()
-	if f, ok := bag[AccessLogEnabledKey]; ok {
-		a := f.(*AccessLogFilter)
-		maps.Copy(a.MaskedQueryParams, al.MaskedQueryParams)
-	} else {
-		bag[AccessLogEnabledKey] = al
+	bag[AccessLogEnabledKey] = al
+
+	if al.MaskedQueryParams != nil {
+		additionalData, ok := bag[AccessLogAdditionalDataKey].(map[string]interface{})
+		if !ok {
+			additionalData = make(map[string]interface{})
+			bag[AccessLogAdditionalDataKey] = additionalData
+		}
+		maskedQueryParams, ok := additionalData[KeyMaskedQueryParams].(map[string]struct{})
+		if !ok {
+			maskedQueryParams = make(map[string]struct{})
+			additionalData[KeyMaskedQueryParams] = maskedQueryParams
+		}
+		maps.Copy(maskedQueryParams, al.MaskedQueryParams)
+
 	}
 }
 

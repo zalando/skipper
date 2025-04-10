@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	al "github.com/zalando/skipper/filters/accesslog"
 	logFilter "github.com/zalando/skipper/filters/log"
 )
 
@@ -122,7 +123,7 @@ func TestAccessLogFormatJSONWithAdditionalData(t *testing.T) {
 }
 
 func TestAccessLogFormatJSONWithMaskedQueryParameters(t *testing.T) {
-	additional := map[string]interface{}{KeyMaskedQueryParams: map[string]struct{}{"foo": {}}}
+	additional := map[string]interface{}{al.KeyMaskedQueryParams: map[string]struct{}{"foo": {}}}
 
 	params := url.Values{}
 	params.Add("foo", "bar")
