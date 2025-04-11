@@ -1635,7 +1635,7 @@ jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutAnno
 
 // opt-out by annotation with claims
 annotate("oauth.disabled", "this endpoint is public") ->
-jwtMetrics("{claims: [{'iss': 'https://example.com', 'realm': 'emp'}, optOutAnnotations: [oauth.disabled]]}")
+jwtMetrics("{claims: [{'iss': 'https://example.com', 'realm': 'emp'}], optOutAnnotations: [oauth.disabled]}")
 ```
 
 ```
