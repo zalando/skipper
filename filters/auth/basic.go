@@ -1,9 +1,12 @@
 package auth
 
 import (
+	"fmt"
+	"net/http"
+	"os"
+
 	auth "github.com/abbot/go-http-auth"
 	"github.com/zalando/skipper/filters"
-	"net/http"
 )
 
 const (
@@ -63,6 +66,10 @@ func (spec *basicSpec) CreateFilter(config []interface{}) (filters.Filter, error
 		if definedName, ok := config[1].(string); ok {
 			realmName = definedName
 		}
+	}
+
+	if _, err := os.Stat(configFile); err != nil {
+		return nil, fmt.Errorf("stat failed for %q: %w", configFile, err)
 	}
 
 	htpasswd := auth.HtpasswdFileProvider(configFile)

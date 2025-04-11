@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/filtertest"
 )
@@ -69,6 +70,13 @@ func TestWithSuccessfulAuth(t *testing.T) {
 	if ctx.Served() && ctx.Response().StatusCode != 401 {
 		t.Error("Authentication not successful")
 	}
+}
+
+func TestWithMissingAuthFile(t *testing.T) {
+	spec := NewBasicAuth()
+	_, err := spec.CreateFilter([]interface{}{"testdata/missingfile"})
+	require.Error(t, err)
+	require.Equal(t, "stat failed for \"testdata/missingfile\": stat testdata/missingfile: no such file or directory", err.Error())
 }
 
 func TestCreateFilterBasicAuthErrorCases(t *testing.T) {
