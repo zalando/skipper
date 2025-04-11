@@ -1601,8 +1601,9 @@ and increments the following counters:
 * `missing-token`: request does not have `Authorization` header
 * `invalid-token-type`: `Authorization` header value is not a `Bearer` type
 * `invalid-token`: `Authorization` header does not contain a JWT token
-* `missing-issuer`: JWT token does not have `iss` claim
-* `invalid-issuer`: JWT token does not have any of the configured issuers
+* `missing-issuer`: *DEPRECATED* JWT token does not have `iss` claim
+* `invalid-issuer`: *DEPRECATED* JWT token does not have any of the configured issuers
+* `invalid-claims`: JWT token does not have any of the configured claims
 
 Each counter name uses concatenation of request method, escaped hostname and response status as a prefix, e.g.:
 
@@ -1624,9 +1625,17 @@ jwtMetrics("{issuers: ['https://example.com', 'https://example.org']}")
 ```
 
 ```
+jwtMetrics("{claims: [{'iss': 'https://example.com', 'realm': 'emp'}, {'iss': 'https://example.org', 'realm': 'org'}]}")
+```
+
+```
 // opt-out by annotation
 annotate("oauth.disabled", "this endpoint is public") ->
 jwtMetrics("{issuers: ['https://example.com', 'https://example.org'], optOutAnnotations: [oauth.disabled]}")
+
+// opt-out by annotation with claims
+annotate("oauth.disabled", "this endpoint is public") ->
+jwtMetrics("{claims: [{'iss': 'https://example.com', 'realm': 'emp'}], optOutAnnotations: [oauth.disabled]}")
 ```
 
 ```

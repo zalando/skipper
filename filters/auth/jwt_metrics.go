@@ -20,10 +20,12 @@ type (
 	// jwtMetricsFilter implements [yamlConfig],
 	// make sure it is not modified after initialization.
 	jwtMetricsFilter struct {
-		Issuers           []string `json:"issuers,omitempty"`
-		OptOutAnnotations []string `json:"optOutAnnotations,omitempty"`
-		OptOutStateBag    []string `json:"optOutStateBag,omitempty"`
-		OptOutHosts       []string `json:"optOutHosts,omitempty"`
+		// Issuers is *DEPRECATED* and will be removed in the future. Use the Claims field instead.
+		Issuers           []string         `json:"issuers,omitempty"`
+		OptOutAnnotations []string         `json:"optOutAnnotations,omitempty"`
+		OptOutStateBag    []string         `json:"optOutStateBag,omitempty"`
+		OptOutHosts       []string         `json:"optOutHosts,omitempty"`
+		Claims            []map[string]any `json:"claims,omitempty"`
 
 		optOutHostsCompiled []*regexp.Regexp
 	}
@@ -117,18 +119,35 @@ func (f *jwtMetricsFilter) Response(ctx filters.FilterContext) {
 		return
 	}
 
-	if len(f.Issuers) > 0 {
-		token, err := jwt.Parse(tv)
+	var token *jwt.Token
+	if len(f.Issuers) > 0 || len(f.Claims) > 0 {
+		t, err := jwt.Parse(tv)
 		if err != nil {
 			count("invalid-token")
 			return
 		}
+		token = t
+	}
 
+	if len(f.Issuers) > 0 {
 		// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.1
 		if issuer, ok := token.Claims["iss"].(string); !ok {
 			count("missing-issuer")
 		} else if !slices.Contains(f.Issuers, issuer) {
 			count("invalid-issuer")
+		}
+	}
+
+	if len(f.Claims) > 0 {
+		found := false
+		for _, claim := range f.Claims {
+			if containsAll(token.Claims, claim) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			count("invalid-claims")
 		}
 	}
 }
@@ -137,4 +156,14 @@ var escapeMetricKeySegmentPattern = regexp.MustCompile("[^a-zA-Z0-9_]")
 
 func escapeMetricKeySegment(s string) string {
 	return escapeMetricKeySegmentPattern.ReplaceAllLiteralString(s, "_")
+}
+
+// containsAll returns true if all key-values of b are present in a.
+func containsAll(a, b map[string]any) bool {
+	for kb, vb := range b {
+		if va, ok := a[kb]; !ok || va != vb {
+			return false
+		}
+	}
+	return true
 }
