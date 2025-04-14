@@ -1,6 +1,10 @@
 package routing
 
-import "time"
+import (
+	"time"
+
+	"github.com/zalando/skipper/eskip"
+)
 
 var (
 	ExportProcessRouteDef            = processRouteDef
@@ -13,4 +17,8 @@ var (
 
 func SetNow(r *EndpointRegistry, now func() time.Time) {
 	r.now = now
+}
+
+func (rl *RouteLookup) ValidRoutes() []*eskip.Route {
+	return rl.rt.validRoutes
 }
