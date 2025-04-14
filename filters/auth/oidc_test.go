@@ -141,7 +141,7 @@ var testOpenIDConfig = `{
 // returns a localhost instance implementation of an OpenID Connect
 // server with configendpoint, tokenendpoint, authenticationserver endpoint, userinfor
 // endpoint, jwks endpoint
-func createOIDCServer(cb, client, clientsecret string, extraClaims jwt.MapClaims) *httptest.Server {
+func createOIDCServer(cb, client, clientsecret string, extraClaims jwt.MapClaims, removeClaims []string) *httptest.Server {
 	var oidcServer *httptest.Server
 	oidcServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -247,6 +247,11 @@ func createOIDCServer(cb, client, clientsecret string, extraClaims jwt.MapClaims
 				for k, v := range extraClaims {
 					claims[k] = v
 				}
+
+				for _, k := range removeClaims {
+					delete(claims, k)
+				}
+
 				token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 				privKey, err := os.ReadFile(keyPath)
@@ -571,7 +576,7 @@ func TestNewOidc(t *testing.T) {
 }
 
 func TestCreateFilterOIDC(t *testing.T) {
-	oidcServer := createOIDCServer("", "", "", nil)
+	oidcServer := createOIDCServer("", "", "", nil, nil)
 	defer oidcServer.Close()
 
 	for _, tt := range []struct {
@@ -924,7 +929,7 @@ func TestOIDCSetup(t *testing.T) {
 
 			t.Logf("redirect URL: %s", redirectURL.String())
 
-			oidcServer := createOIDCServer(redirectURL.String(), "valid-client", "mysec", tc.extraClaims)
+			oidcServer := createOIDCServer(redirectURL.String(), "valid-client", "mysec", tc.extraClaims, nil)
 			defer oidcServer.Close()
 			t.Logf("oidc server URL: %s", oidcServer.URL)
 
