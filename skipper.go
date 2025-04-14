@@ -32,7 +32,7 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/apiusagemonitoring"
 	"github.com/zalando/skipper/filters/auth"
-	block "github.com/zalando/skipper/filters/block"
+	"github.com/zalando/skipper/filters/block"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/fadein"
 	logfilter "github.com/zalando/skipper/filters/log"
@@ -959,14 +959,17 @@ type Options struct {
 	// filters.
 	LuaSources []string
 
-	EnableOpenPolicyAgent                bool
-	OpenPolicyAgentConfigTemplate        string
-	OpenPolicyAgentEnvoyMetadata         string
-	OpenPolicyAgentCleanerInterval       time.Duration
-	OpenPolicyAgentStartupTimeout        time.Duration
-	OpenPolicyAgentMaxRequestBodySize    int64
-	OpenPolicyAgentRequestBodyBufferSize int64
-	OpenPolicyAgentMaxMemoryBodyParsing  int64
+	EnableOpenPolicyAgent                  bool
+	EnableOpenPolicyAgentCustomControlLoop bool
+	OpenPolicyAgentControlLoopInterval     time.Duration
+	OpenPolicyAgentControlLoopMaxJitter    time.Duration
+	OpenPolicyAgentConfigTemplate          string
+	OpenPolicyAgentEnvoyMetadata           string
+	OpenPolicyAgentCleanerInterval         time.Duration
+	OpenPolicyAgentStartupTimeout          time.Duration
+	OpenPolicyAgentMaxRequestBodySize      int64
+	OpenPolicyAgentRequestBodyBufferSize   int64
+	OpenPolicyAgentMaxMemoryBodyParsing    int64
 
 	PassiveHealthCheck map[string]string
 }
@@ -1914,13 +1917,16 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
 			openpolicyagent.WithReadBodyBufferSize(o.OpenPolicyAgentRequestBodyBufferSize),
 			openpolicyagent.WithCleanInterval(o.OpenPolicyAgentCleanerInterval),
-			openpolicyagent.WithTracer(tracer))
+			openpolicyagent.WithInstanceStartupTimeout(o.OpenPolicyAgentStartupTimeout),
+			openpolicyagent.WithTracer(tracer),
+			openpolicyagent.WithEnableCustomControlLoop(o.EnableOpenPolicyAgentCustomControlLoop),
+			openpolicyagent.WithControlLoopInterval(o.OpenPolicyAgentControlLoopInterval),
+			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter))
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
 		opts = append(opts,
-			openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate),
-			openpolicyagent.WithStartupTimeout(o.OpenPolicyAgentStartupTimeout))
+			openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
 		if o.OpenPolicyAgentEnvoyMetadata != "" {
 			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
 		}
