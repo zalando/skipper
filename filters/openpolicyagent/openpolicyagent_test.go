@@ -327,7 +327,7 @@ func TestOpaEngineStartFailure(t *testing.T) {
 				err = engine.Start(ctx, registry.instanceStartupTimeout)
 			}
 
-			assert.True(t, engine.stopped)
+			assert.True(t, engine.closing)
 			assert.Contains(t, err.Error(), tc.expectedError)
 		})
 }

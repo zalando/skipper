@@ -455,7 +455,7 @@ type OpenPolicyAgentInstance struct {
 	preparedQueryErr       error
 	interQueryBuiltinCache iCache.InterQueryCache
 	once                   sync.Once
-	stopped                bool
+	closing                bool
 	registry               *OpenPolicyAgentRegistry
 
 	maxBodyBytes       int64
@@ -691,7 +691,7 @@ func (opa *OpenPolicyAgentInstance) verifyAllPluginsStarted() error {
 
 func (opa *OpenPolicyAgentInstance) triggerPlugins(ctx context.Context) error {
 
-	if opa.stopped {
+	if opa.closing {
 		return nil
 	}
 	for _, pluginName := range []string{"discovery", "bundle"} {
@@ -709,8 +709,8 @@ func (opa *OpenPolicyAgentInstance) triggerPlugins(ctx context.Context) error {
 
 func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	opa.once.Do(func() {
+		opa.closing = true
 		opa.manager.Stop(ctx)
-		opa.stopped = true
 	})
 }
 
