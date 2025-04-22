@@ -39,7 +39,7 @@ func TestQueryHandler(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.URL.RawQuery = ti.query
-
+			req.RemoteAddr = "1.2.3.4:5678"
 			noop := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 			recorder := httptest.NewRecorder()
 			h := &ValidateQueryHandler{
@@ -87,7 +87,7 @@ func TestQueryLogHandler(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.URL.RawQuery = ti.query
-
+			req.RemoteAddr = "1.2.3.4:5678"
 			noop := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 			recorder := httptest.NewRecorder()
 			h := &ValidateQueryLogHandler{

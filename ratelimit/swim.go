@@ -69,8 +69,9 @@ func newClusterRateLimiterSwim(s Settings, sw Swarmer, group string) *clusterLim
 				// TODO(sszuecs): call with "go" ?
 				rl.Resize(size.s, rl.maxHits/size.n)
 			case <-rl.quit:
-				log.Debugf("%s: quit clusterRatelimit", group)
+				log.Debugf("%s: received quit signal, closing resize channel", group)
 				close(rl.resize)
+				log.Debugf("%s: quit clusterRatelimit, resize channel closed", group)
 				return
 			}
 		}
@@ -103,7 +104,11 @@ func (c *clusterLimitSwim) Allow(ctx context.Context, clearText string) bool {
 	swarmValues := c.swarm.Values(key)
 	log.Debugf("%s: clusterRatelimit swarmValues(%d) for '%s': %v", c.group, len(swarmValues), swarmPrefix+s, swarmValues)
 
-	c.resize <- resizeLimit{s: s, n: len(swarmValues)}
+	select {
+	case c.resize <- resizeLimit{s: s, n: len(swarmValues)}:
+	default:
+		log.Warnf("%s: could not send resize message, resize channel blocked or closed", c.group)
+	}
 
 	now := time.Now().UTC().UnixNano()
 	rate := c.calcTotalRequestRate(now, swarmValues)
@@ -114,7 +119,14 @@ func (c *clusterLimitSwim) Allow(ctx context.Context, clearText string) bool {
 
 func (c *clusterLimitSwim) calcTotalRequestRate(now int64, swarmValues map[string]interface{}) float64 {
 	var requestRate float64
-	maxNodeHits := math.Max(1.0, float64(c.maxHits)/(float64(len(swarmValues))))
+	// Avoid division by zero if swarmValues is empty
+	nodeCount := len(swarmValues)
+	if nodeCount == 0 {
+		log.Warnf("%s: calcTotalRequestRate called with zero swarm values", c.group)
+		return 0
+	}
+
+	maxNodeHits := math.Max(1.0, float64(c.maxHits)/float64(nodeCount))
 
 	for _, v := range swarmValues {
 		t0, ok := v.(int64)
@@ -122,7 +134,27 @@ func (c *clusterLimitSwim) calcTotalRequestRate(now int64, swarmValues map[strin
 			continue
 		}
 		delta := time.Duration(now - t0)
+		// Avoid division by zero or negative delta if time issues occur
+		if delta <= 0 {
+			log.Warnf("%s: Invalid time delta %v detected", c.group, delta)
+			requestRate += maxNodeHits
+			continue
+		}
+		// Avoid division by zero if c.window is zero (shouldn't happen with proper config)
+		if c.window <= 0 {
+			log.Errorf("%s: Invalid zero ratelimit window", c.group)
+			requestRate += maxNodeHits
+			continue
+		}
+
 		adjusted := float64(delta) / float64(c.window)
+		// Avoid division by zero if adjusted time is zero (delta < window resolution?)
+		if adjusted <= 0 {
+			log.Warnf("%s: Adjusted time window is zero or negative (%v), delta=%v, window=%v", c.group, adjusted, delta, c.window)
+			requestRate += maxNodeHits
+			continue
+		}
+
 		log.Debugf("%s: %0.2f += %0.2f / %0.2f", c.group, requestRate, maxNodeHits, adjusted)
 		requestRate += maxNodeHits / adjusted
 	}
@@ -132,8 +164,12 @@ func (c *clusterLimitSwim) calcTotalRequestRate(now int64, swarmValues map[strin
 
 // Close should be called to teardown the clusterLimitSwim.
 func (c *clusterLimitSwim) Close() {
+	// Signal the goroutine to quit
 	close(c.quit)
+
+	// Close the underlying local limiter
 	c.local.Close()
+	log.Infof("%s: clusterLimitSwim closed", c.group)
 }
 
 func (c *clusterLimitSwim) Delta(s string) time.Duration { return c.local.Delta(s) }

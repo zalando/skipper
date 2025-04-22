@@ -13,12 +13,13 @@ import (
 	"github.com/zalando/skipper/net"
 )
 
+// ClusterLeakyBucket implements a distributed leaky bucket rate limiter using Redis.
 type ClusterLeakyBucket struct {
 	capacity    int
 	emission    time.Duration
 	labelPrefix string
 	script      *net.RedisScript
-	ringClient  *net.RedisRingClient
+	redisClient *net.RedisClient
 	metrics     metrics.Metrics
 	now         func() time.Time
 }
@@ -51,16 +52,16 @@ var leakyBucketScript string
 // the capacity of the bucket is poured in all at once.
 // See https://en.wikipedia.org/wiki/Leaky_bucket
 func NewClusterLeakyBucket(r *Registry, capacity int, emission time.Duration) *ClusterLeakyBucket {
-	return newClusterLeakyBucket(r.redisRing, capacity, emission, time.Now)
+	return newClusterLeakyBucket(r.redisClient, capacity, emission, time.Now)
 }
 
-func newClusterLeakyBucket(ringClient *net.RedisRingClient, capacity int, emission time.Duration, now func() time.Time) *ClusterLeakyBucket {
+func newClusterLeakyBucket(redisClient *net.RedisClient, capacity int, emission time.Duration, now func() time.Time) *ClusterLeakyBucket {
 	return &ClusterLeakyBucket{
 		capacity:    capacity,
 		emission:    emission,
 		labelPrefix: fmt.Sprintf("%d-%v-", capacity, emission),
-		script:      ringClient.NewScript(leakyBucketScript),
-		ringClient:  ringClient,
+		script:      redisClient.NewScript(leakyBucketScript),
+		redisClient: redisClient,
 		metrics:     metrics.Default,
 		now:         now,
 	}
@@ -88,12 +89,12 @@ func (b *ClusterLeakyBucket) Add(ctx context.Context, label string, increment in
 }
 
 func (b *ClusterLeakyBucket) add(ctx context.Context, label string, increment int, now time.Time) (added bool, retry time.Duration, err error) {
-	r, err := b.ringClient.RunScript(ctx, b.script,
-		[]string{b.getBucketId(label)},
-		b.capacity,
-		b.emission.Microseconds(),
-		increment,
-		now.UnixMicro(),
+	r, err := b.redisClient.RunScript(ctx, b.script,
+		[]string{b.getBucketId(label)}, // KEYS[1] = bucket ID
+		b.capacity,                     // ARGV[1] = capacity
+		b.emission.Microseconds(),      // ARGV[2] = emission rate in microseconds
+		increment,                      // ARGV[3] = increment amount
+		now.UnixMicro(),                // ARGV[4] = current time in microseconds
 	)
 
 	if err == nil {
@@ -113,11 +114,15 @@ func (b *ClusterLeakyBucket) getBucketId(label string) string {
 
 func (b *ClusterLeakyBucket) startSpan(ctx context.Context) (span opentracing.Span) {
 	spanOpts := []opentracing.StartSpanOption{opentracing.Tags{
-		string(ext.Component): "skipper",
-		string(ext.SpanKind):  "client",
+		string(ext.Component):     "skipper",
+		string(ext.DBType):        "redis",
+		string(ext.SpanKind):      ext.SpanKindRPCClientEnum,
+		"ratelimit_type":          "clusterLeakyBucket",
+		"leakybucket_capacity":    b.capacity,
+		"leakybucket_emission_µs": b.emission.Microseconds(),
 	}}
 	if parent := opentracing.SpanFromContext(ctx); parent != nil {
 		spanOpts = append(spanOpts, opentracing.ChildOf(parent.Context()))
 	}
-	return b.ringClient.StartSpan(leakyBucketSpanName, spanOpts...)
+	return b.redisClient.StartSpan(leakyBucketSpanName, spanOpts...)
 }

@@ -13,12 +13,13 @@ func Test_newClusterRateLimiter(t *testing.T) {
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
-	myring := net.NewRedisRingClient(
+	// Unified client for both Ring and Cluster modes
+	myRedisClient := net.NewRedisClient(
 		&net.RedisOptions{
 			Addrs: []string{redisAddr},
 		},
 	)
-	defer myring.Close()
+	defer myRedisClient.Close()
 
 	fake, err := newFakeSwarm("foo01", 3*time.Second)
 	if err != nil {
@@ -35,7 +36,7 @@ func Test_newClusterRateLimiter(t *testing.T) {
 		name     string
 		settings Settings
 		swarm    Swarmer
-		ring     *net.RedisRingClient
+		client   *net.RedisClient
 		group    string
 		want     limiter
 	}{
@@ -43,7 +44,7 @@ func Test_newClusterRateLimiter(t *testing.T) {
 			name:     "no swarmer nor ring",
 			settings: Settings{},
 			swarm:    nil,
-			ring:     nil,
+			client:   nil,
 			group:    "",
 			want:     voidRatelimit{},
 		},
@@ -53,28 +54,28 @@ func Test_newClusterRateLimiter(t *testing.T) {
 				MaxHits:    10,
 				TimeWindow: 3 * time.Second,
 			},
-			swarm: nil,
-			ring:  myring,
-			group: "mygroup",
+			swarm:  nil,
+			client: myRedisClient,
+			group:  "mygroup",
 			want: &clusterLimitRedis{
-				group:      "mygroup",
-				maxHits:    10,
-				window:     3 * time.Second,
-				ringClient: myring,
+				group:       "mygroup",
+				maxHits:     10,
+				window:      3 * time.Second,
+				redisClient: myRedisClient,
 			},
 		},
 		{
 			name:     "swarmer, no ring",
 			settings: settings,
 			swarm:    fake,
-			ring:     nil,
+			client:   nil,
 			group:    "mygroup",
 			want:     newClusterRateLimiterSwim(settings, fake, "mygroup"),
 		}} {
 		t.Run(tt.name, func(t *testing.T) {
 			defer tt.want.Close()
 
-			got := newClusterRateLimiter(tt.settings, tt.swarm, tt.ring, tt.group)
+			got := newClusterRateLimiter(tt.settings, tt.swarm, tt.client, tt.group)
 			defer got.Close()
 
 			// internals in swim are created and won't be equal with reflect.Deepequal
