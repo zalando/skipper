@@ -49,7 +49,7 @@ func TestLeakyBucketAdd(t *testing.T) {
 
 func TestLeakyBucketAddMoreThanCapacity(t *testing.T) {
 	verifyAttempts(t, 1, time.Minute, 2, []attempt{
-		{+0, false, 0},  // not allowed and no retry possible
+		{+0, false, 0},  // not allowed and no retry possible (increment > capacity)
 		{+61, false, 0}, // even after a minute
 	})
 }
@@ -66,20 +66,20 @@ func verifyAttempts(t *testing.T, capacity int, emission time.Duration, incremen
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
-	ringClient := net.NewRedisRingClient(
+	redisClient := net.NewRedisClient(
 		&net.RedisOptions{
 			Addrs: []string{redisAddr},
 		},
 	)
-	defer ringClient.Close()
+	defer redisClient.Close()
 
 	now := time.Now()
-	bucket := newClusterLeakyBucket(ringClient, capacity, emission, func() time.Time { return now })
+	bucket := newClusterLeakyBucket(redisClient, capacity, emission, func() time.Time { return now })
 
 	t0 := now
 	for _, a := range attempts {
 		now = t0.Add(time.Duration(a.tplus) * time.Second)
-		added, retry, err := bucket.Add(context.Background(), "alabel", increment)
+		added, retry, err := bucket.add(context.Background(), "alabel", increment, now)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -94,15 +94,15 @@ func verifyAttempts(t *testing.T, capacity int, emission time.Duration, incremen
 }
 
 func TestLeakyBucketRedisError(t *testing.T) {
-	ringClient := net.NewRedisRingClient(
+	redisClient := net.NewRedisClient(
 		&net.RedisOptions{
 			Addrs: []string{"no-such-host.test:123"},
 		},
 	)
-	defer ringClient.Close()
+	defer redisClient.Close()
 
-	bucket := newClusterLeakyBucket(ringClient, 1, time.Minute, time.Now)
-	_, _, err := bucket.Add(context.Background(), "alabel", 1)
+	bucket := newClusterLeakyBucket(redisClient, 1, time.Minute, time.Now)
+	_, _, err := bucket.add(context.Background(), "alabel", 1, time.Now())
 
 	assert.Error(t, err)
 }
@@ -120,12 +120,12 @@ func TestLeakyBucketRedisStoredNumberPrecision(t *testing.T) {
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
-	ringClient := net.NewRedisRingClient(
+	redisClient := net.NewRedisClient(
 		&net.RedisOptions{
 			Addrs: []string{redisAddr},
 		},
 	)
-	defer ringClient.Close()
+	defer redisClient.Close()
 
 	const (
 		capacity  = 10
@@ -135,12 +135,12 @@ func TestLeakyBucketRedisStoredNumberPrecision(t *testing.T) {
 	)
 
 	now := time.Now()
-	b := newClusterLeakyBucket(ringClient, capacity, emission, func() time.Time { return now })
+	b := newClusterLeakyBucket(redisClient, capacity, emission, func() time.Time { return now })
 
-	_, _, err := b.Add(context.Background(), label, increment)
+	_, _, err := b.add(context.Background(), label, increment, now)
 	require.NoError(t, err)
 
-	v, err := ringClient.Get(context.Background(), b.getBucketId(label))
+	v, err := redisClient.Get(context.Background(), b.getBucketId(label))
 	require.NoError(t, err)
 
 	expected := now.UnixMicro() + (increment * emission).Microseconds()
