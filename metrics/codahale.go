@@ -26,6 +26,8 @@ const (
 	KeyAllFiltersResponseCombined = "allfilters.combined.response"
 	KeyResponse                   = "response.%d.%s.skipper.%s"
 	KeyResponseCombined           = "all.response.%d.%s.skipper"
+	KeyRequest                    = "request.%d.%s.skipper.%s"
+	KeyRequestCombined            = "all.request.%d.%s.skipper"
 	Key5xxsBackend                = "all.backend.5xx"
 
 	KeyErrorsBackend   = "errors.backend.%s"
@@ -169,6 +171,12 @@ func (c *CodaHale) MeasureAllFiltersResponse(routeId string, start time.Time) {
 	if c.options.EnableAllFiltersMetrics {
 		c.measureSince(fmt.Sprintf(KeyFiltersResponse, routeId), start)
 	}
+}
+
+func (c *CodaHale) MeasureRequest(code int, method string, routeId string, start time.Time, backendDuration time.Duration) {
+	method = measuredMethod(method)
+	c.updateTimer(fmt.Sprintf(KeyRequest, code, method, routeId), time.Since(start)-backendDuration)
+	c.updateTimer(fmt.Sprintf(KeyRequestCombined, code, method), time.Since(start)-backendDuration)
 }
 
 func (c *CodaHale) MeasureResponse(code int, method string, routeId string, start time.Time) {

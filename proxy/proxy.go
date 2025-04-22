@@ -1335,6 +1335,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		}
 
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
+		ctx.backendTime = time.Since(backendStart)
 		p.metrics.MeasureBackend(ctx.route.Id, backendStart)
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
 	}
@@ -1623,6 +1624,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ctx.Logger().Errorf("Failed to set write deadline: %v", e)
 		}
 	}
+
+	p.metrics.MeasureRequest(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, ctx.startServe, ctx.backendTime)
 
 	// stream response body to client
 	if err != nil {

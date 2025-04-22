@@ -148,6 +148,10 @@ func (m *MockMetrics) MeasureResponse(code int, method string, routeId string, s
 	// implement me
 }
 
+func (m *MockMetrics) MeasureRequest(code int, method string, routeId string, start time.Time, backendDuration time.Duration) {
+	// implement me
+}
+
 func (m *MockMetrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
 	// implement me
 }

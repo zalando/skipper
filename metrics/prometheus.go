@@ -19,6 +19,7 @@ const (
 	promFilterSubsystem    = "filter"
 	promProxySubsystem     = "backend"
 	promStreamingSubsystem = "streaming"
+	promRequestSubsystem   = "request"
 	promResponseSubsystem  = "response"
 	promServeSubsystem     = "serve"
 	promCustomSubsystem    = "custom"
@@ -29,6 +30,7 @@ type Prometheus struct {
 	// Metrics.
 	routeLookupM               *prometheus.HistogramVec
 	routeErrorsM               *prometheus.CounterVec
+	requestM                   *prometheus.HistogramVec
 	responseM                  *prometheus.HistogramVec
 	filterCreateM              *prometheus.HistogramVec
 	filterRequestM             *prometheus.HistogramVec
@@ -93,6 +95,14 @@ func NewPrometheus(opts Options) *Prometheus {
 		Subsystem: promResponseSubsystem,
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of a response.",
+		Buckets:   opts.HistogramBuckets,
+	}, []string{"code", "method", "route"}))
+
+	p.requestM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promRequestSubsystem,
+		Name:      "duration_seconds",
+		Help:      "Duration in seconds of a request.",
 		Buckets:   opts.HistogramBuckets,
 	}, []string{"code", "method", "route"}))
 
@@ -380,6 +390,14 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	if p.opts.EnableRouteResponseMetrics {
 		p.responseM.WithLabelValues(fmt.Sprint(code), method, routeID).Observe(t)
 	}
+}
+
+func (p *Prometheus) MeasureRequest(code int, method string, routeID string, start time.Time, backendDuration time.Duration) {
+	method = measuredMethod(method)
+	d := time.Since(start) - backendDuration
+	t := d.Seconds()
+	p.requestM.WithLabelValues(fmt.Sprint(code), method, "").Observe(t)
+	p.requestM.WithLabelValues(fmt.Sprint(code), method, routeID).Observe(t)
 }
 
 // MeasureServe satisfies Metrics interface.

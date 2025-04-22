@@ -69,6 +69,7 @@ type Metrics interface {
 	MeasureBackendHost(routeBackendHost string, start time.Time)
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
+	MeasureRequest(code int, method string, routeId string, start time.Time, backendDuration time.Duration)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
 	MeasureServe(routeId, host, method string, code int, start time.Time)
 	IncRoutingFailures()
