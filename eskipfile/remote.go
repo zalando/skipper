@@ -46,6 +46,9 @@ type RemoteWatchOptions struct {
 
 	// HTTPTimeout is the generic timeout for any phase of a single HTTP request to RemoteFile.
 	HTTPTimeout time.Duration
+
+	// CustomHttpRoundTripperWrap is a custom http.RoundTripper that can be used to wrap the default http.RoundTripper
+	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
 }
 
 // RemoteWatch creates a route configuration client with (remote) file watching. Watch doesn't follow file system nodes,
@@ -67,7 +70,7 @@ func RemoteWatch(o *RemoteWatchOptions) (routing.DataClient, error) {
 		localPath:  tempFilename.Name(),
 		threshold:  o.Threshold,
 		verbose:    o.Verbose,
-		http:       net.NewClient(net.Options{Timeout: o.HTTPTimeout}),
+		http:       net.NewClient(net.Options{Timeout: o.HTTPTimeout, CustomHttpRoundTripperWrap: o.CustomHttpRoundTripperWrap}),
 	}
 
 	if o.FailOnStartup {
