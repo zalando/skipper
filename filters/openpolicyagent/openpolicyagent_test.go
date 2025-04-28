@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +23,10 @@ import (
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	opaconf "github.com/open-policy-agent/opa/v1/config"
+	"github.com/open-policy-agent/opa/v1/download"
+	"github.com/open-policy-agent/opa/v1/plugins"
+	"github.com/open-policy-agent/opa/v1/plugins/bundle"
+	"github.com/open-policy-agent/opa/v1/plugins/discovery"
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/open-policy-agent/opa/v1/storage/inmem"
 	"github.com/opentracing/opentracing-go"
@@ -125,7 +132,8 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 	config := []byte(fmt.Sprintf(`{
 		"services": {
 			"test": {
-				"url": %q
+				"url": %q,
+				"response_header_timeout_seconds": 1
 			}
 		},
 		"labels": {
@@ -183,7 +191,7 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 		},
 		"plugins": {
 			"envoy_ext_authz_grpc": {
-				"path": "/envoy/authz/allow",
+				"path": "envoy/authz/allow",
 				"dry-run": false,
 				"skip-request-body-parse": false
 			}
@@ -194,89 +202,273 @@ func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 }
 
 func TestRegistry(t *testing.T) {
-	_, config := mockControlPlaneWithResourceBundle()
-
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
-
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	assert.NoError(t, err)
-
-	inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-
-	registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
-
-	inst2, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-	assert.Equal(t, inst1, inst2, "same instance is reused after release")
-
-	inst3, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-	assert.Equal(t, inst2, inst3, "same instance is reused multiple times")
-
-	registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
-
-	//Allow clean up
-	time.Sleep(2 * time.Second)
-
-	inst_different_bundle, err := registry.NewOpenPolicyAgentInstance("anotherbundlename", *cfg, "testfilter")
-	assert.NoError(t, err)
-
-	inst4, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-	assert.NotEqual(t, inst1, inst4, "after cleanup a new instance should be created")
-
-	//Trigger cleanup via post processor
-	registry.Do([]*routing.Route{
+	testCases := []opaInstanceStartupTestCase{
 		{
-			Filters: []*routing.RouteFilter{{Filter: &MockOpenPolicyAgentFilter{opa: inst_different_bundle}}},
+			enableCustomControlLoop: true,
+			expectedTriggerMode:     plugins.TriggerManual,
+			discoveryBundle:         "bundles/discovery",
 		},
-	})
+		{
+			enableCustomControlLoop: false,
+			expectedTriggerMode:     plugins.DefaultTriggerMode,
+			discoveryBundle:         "bundles/discovery",
+		},
+		{
+			enableCustomControlLoop: true,
+			expectedTriggerMode:     plugins.TriggerManual,
+			resourceBundle:          true,
+		},
+		{
 
-	// Allow clean up
-	time.Sleep(2 * time.Second)
+			enableCustomControlLoop: false,
+			expectedTriggerMode:     plugins.DefaultTriggerMode,
+			resourceBundle:          true,
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			var config []byte
+			if tc.discoveryBundle != "" {
+				_, config = mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
+			} else if tc.resourceBundle {
+				_, config = mockControlPlaneWithResourceBundle()
+			}
 
-	inst5, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-	assert.NotEqual(t, inst4, inst5, "after cleanup a new instance should be created")
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
-	registry.Close()
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	_, err = registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.Error(t, err, "should not work after close")
+			inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			if tc.discoveryBundle != "" {
+				assertTriggerMode(t, tc.expectedTriggerMode, inst1.manager.Plugin("discovery"))
+			}
+			assertTriggerMode(t, tc.expectedTriggerMode, inst1.manager.Plugin("bundle"))
+
+			registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
+
+			inst2, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+			assert.Equal(t, inst1, inst2, "same instance is reused after release")
+
+			inst3, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+			assert.Equal(t, inst2, inst3, "same instance is reused multiple times")
+
+			registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
+
+			//Allow clean up
+			time.Sleep(3 * time.Second)
+
+			inst_different_bundle, err := registry.NewOpenPolicyAgentInstance("anotherbundlename", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			inst4, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+			assert.NotEqual(t, inst1, inst4, "after cleanup a new instance should be created")
+
+			//Trigger cleanup via post processor
+			registry.Do([]*routing.Route{
+				{
+					Filters: []*routing.RouteFilter{{Filter: &MockOpenPolicyAgentFilter{opa: inst_different_bundle}}},
+				},
+			})
+
+			// Allow clean up
+			time.Sleep(3 * time.Second)
+
+			inst5, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+			assert.NotEqual(t, inst4, inst5, "after cleanup a new instance should be created")
+
+			registry.Close()
+
+			_, err = registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.Error(t, err, "should not work after close")
+		})
 }
 
-func TestOpaEngineStartFailureWithTimeout(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
+func assertTriggerMode(t *testing.T, expectedMode plugins.TriggerMode, plgn plugins.Plugin) {
+	if discoveryPlugin, ok := plgn.(*discovery.Discovery); ok {
+		assert.Equal(t, expectedMode, *discoveryPlugin.TriggerMode())
+	}
+	if bundlePlugin, ok := plgn.(*bundle.Plugin); ok {
+		for _, bundle := range bundlePlugin.Config().Bundles {
+			assert.Equal(t, expectedMode, *bundle.Trigger)
+		}
+	}
+}
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+func TestOpaEngineStartFailure(t *testing.T) {
+	testCases := []opaInstanceStartupTestCase{
+		{enableCustomControlLoop: true, expectedError: "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found"},
+		{enableCustomControlLoop: false, expectedError: "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded"},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
-	assert.NoError(t, err)
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
-	engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.startupTimeout)
-	defer cancel()
+			engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
+			assert.NoError(t, err)
 
-	err = engine.Start(ctx, cfg.startupTimeout)
-	assert.True(t, engine.stopped)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s")
+			ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
+			defer cancel()
+
+			if tc.enableCustomControlLoop {
+				err = engine.StartAndTriggerPlugins(ctx)
+			} else {
+				err = engine.Start(ctx, registry.instanceStartupTimeout)
+			}
+
+			assert.True(t, engine.closing)
+			assert.Contains(t, err.Error(), tc.expectedError)
+		})
+}
+
+func TestControlLoopIntervalCalculation(t *testing.T) {
+	registry := NewOpenPolicyAgentRegistry(WithControlLoopInterval(10*time.Second), WithControlLoopMaxJitter(0*time.Millisecond))
+	interval := registry.controlLoopIntervalWithJitter()
+	assert.Equal(t, 10*time.Second, interval)
+
+	registry = NewOpenPolicyAgentRegistry(WithControlLoopInterval(10*time.Second), WithControlLoopMaxJitter(1000*time.Millisecond))
+	interval = registry.controlLoopIntervalWithJitter()
+	assert.NotEqual(t, 10*time.Second, interval)
+	start := time.Now()
+	assert.WithinDuration(t, start.Add(10*time.Second), start.Add(interval), 500*time.Millisecond)
+}
+
+func TestRetryableErrors(t *testing.T) {
+	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
+	registry := NewOpenPolicyAgentRegistry()
+	cfg, _ := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+	instance, _ := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+
+	testCases := []struct {
+		err       error
+		retryable bool
+	}{
+		{download.HTTPError{StatusCode: 429}, true},
+		{download.HTTPError{StatusCode: 500}, true},
+		{download.HTTPError{StatusCode: 404}, false},
+		{errors.New("some error"), false},
+		{nil, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%v:%v", tc.err, tc.retryable), func(t *testing.T) {
+			retryable := instance.isRetryable(tc.err)
+
+			assert.Equal(t, tc.retryable, retryable)
+		})
+	}
+}
+
+func TestOpaActivationFailureWithRetry(t *testing.T) {
+	slowResponse := 1005 * time.Millisecond
+	testCases := []struct {
+		status  int
+		latency *time.Duration
+		error   string
+	}{
+		{
+			status:  503,
+			latency: &slowResponse,
+			error:   "context cancelled while triggering plugins: context deadline exceeded, last retry returned: request failed: Get \"%v/bundles/discovery\": net/http: timeout awaiting response headers",
+		},
+		{
+			status: 429,
+			error:  "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Too Many Requests",
+		},
+		{
+			status: 500,
+			error:  "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Internal Server Error",
+		},
+		{
+			status: 404,
+			error:  "server replied with Not Found",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("status=%v;added-latency:%v", tc.status, tc.latency), func(t *testing.T) {
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.latency != nil {
+					time.Sleep(*tc.latency)
+				}
+				w.WriteHeader(tc.status)
+			}))
+			defer server.Close()
+
+			config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": {
+				"url": %q,
+				"response_header_timeout_seconds": 1
+			}
+		},
+		"labels": {
+			"environment": "envValue"
+		},
+		"discovery": {
+			"name": "discovery",
+			"resource": %q,
+			"service": "test"
+		}
+	}`, server.URL, "/bundles/discovery"))
+			additionalWait := 0 * time.Millisecond
+			if tc.latency != nil {
+				additionalWait += 2 * *tc.latency
+			}
+
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(true))
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
+
+			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.Nil(t, instance)
+
+			if strings.Contains(tc.error, "%") {
+				assert.Contains(t, err.Error(), fmt.Sprintf(tc.error, server.URL))
+			} else {
+				assert.Contains(t, err.Error(), tc.error)
+			}
+		})
+	}
 }
 
 func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
+	testCases := []opaInstanceStartupTestCase{
+		{
+			enableCustomControlLoop: true,
+			discoveryBundle:         "bundles/discovery",
+		},
+		{
+			enableCustomControlLoop: false,
+			discoveryBundle:         "bundles/discovery",
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NotNil(t, instance)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(registry.instances))
+			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NotNil(t, instance)
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(registry.instances))
+		})
 }
 
 func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
@@ -315,66 +507,134 @@ func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 }
 
 func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
-	configWithUnknownService := []byte(`{
+	testCases := []opaInstanceStartupTestCase{
+		{
+			enableCustomControlLoop: true,
+			expectedError:           "invalid configuration for discovery",
+		},
+		{
+			enableCustomControlLoop: false,
+			expectedError:           "invalid configuration for discovery",
+		},
+	}
+	runWithTestCases(t, testCases, func(t *testing.T, tc opaInstanceStartupTestCase) {
+		configWithUnknownService := []byte(`{
 		"discovery": {
 			"name": "discovery",
 			"resource": "discovery",
 			"service": "test"
 		}}`)
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+		registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService), WithStartupTimeout(1*time.Second))
-	assert.NoError(t, err)
+		cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(configWithUnknownService))
+		assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "invalid configuration for discovery")
-	assert.Equal(t, 0, len(registry.instances))
+		instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+		assert.Nil(t, instance)
+		assert.Contains(t, err.Error(), tc.expectedError)
+		assert.Equal(t, 0, len(registry.instances))
+	})
 }
 
-func TestOpaActivationTimeOutWithDiscoveryPointingWrongBundle(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
+func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
+	testCases := []opaInstanceStartupTestCase{
+		{
+			enableCustomControlLoop: true,
+			expectedError:           "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found",
+		},
+		{
+			enableCustomControlLoop: false,
+			expectedError:           "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
-	assert.Equal(t, 0, len(registry.instances))
+			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.Nil(t, instance)
+			assert.Equal(t, 0, len(registry.instances))
+
+			assert.Contains(t, err.Error(), tc.expectedError)
+
+		})
 }
 
 func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
-	_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-parsing-error")
+	testCases := []opaInstanceStartupTestCase{
+		{
+			enableCustomControlLoop: true,
+			discoveryBundle:         "/bundles/discovery-with-parsing-error",
+			expectedError:           "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Internal Server Error",
+		},
+		{
+			enableCustomControlLoop: false,
+			discoveryBundle:         "/bundles/discovery-with-parsing-error",
+			expectedError:           "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config), WithStartupTimeout(1*time.Second))
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.Nil(t, instance)
-	assert.Contains(t, err.Error(), "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded")
-	assert.Equal(t, 0, len(registry.instances))
+			instance, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.Nil(t, instance)
+			assert.Contains(t, err.Error(), tc.expectedError)
+			assert.Equal(t, 0, len(registry.instances))
+		})
 }
 
 func TestStartup(t *testing.T) {
-	_, config := mockControlPlaneWithResourceBundle()
+	testCases := []opaInstanceStartupTestCase{
+		{
+			enableCustomControlLoop: true,
+			discoveryBundle:         "bundles/discovery",
+		},
+		{
+			enableCustomControlLoop: false,
+			discoveryBundle:         "bundles/discovery",
+		},
+		{
+			enableCustomControlLoop: true,
+			resourceBundle:          true,
+		},
+		{
+			enableCustomControlLoop: false,
+			resourceBundle:          true,
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			var config []byte
+			if tc.discoveryBundle != "" {
+				_, config = mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
+			} else if tc.resourceBundle {
+				_, config = mockControlPlaneWithResourceBundle()
+			}
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	assert.NoError(t, err)
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
 
-	inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
+			inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
 
-	target := envoy.PluginConfig{Path: "/envoy/authz/allow", DryRun: false}
-	target.ParseQuery()
-	assert.Equal(t, target, inst1.EnvoyPluginConfig())
+			target := envoy.PluginConfig{Path: "envoy/authz/allow", DryRun: false}
+			target.ParseQuery()
+			assert.Equal(t, target, inst1.EnvoyPluginConfig())
+		})
 }
 
 func TestTracing(t *testing.T) {
@@ -401,37 +661,63 @@ func TestTracing(t *testing.T) {
 }
 
 func TestEval(t *testing.T) {
-	_, config := mockControlPlaneWithResourceBundle()
-
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second))
-
-	cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-	assert.NoError(t, err)
-
-	inst, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
-	assert.NoError(t, err)
-
-	tracer := tracingtest.NewTracer()
-	span := tracer.StartSpan("open-policy-agent")
-	ctx := opentracing.ContextWithSpan(context.Background(), span)
-
-	result, err := inst.Eval(ctx, &authv3.CheckRequest{
-		Attributes: &authv3.AttributeContext{
-			Request:           nil,
-			ContextExtensions: nil,
-			MetadataContext:   nil,
+	testCases := []opaInstanceStartupTestCase{
+		{
+			enableCustomControlLoop: true,
+			discoveryBundle:         "bundles/discovery",
 		},
-	})
-	assert.NoError(t, err)
+		{
+			enableCustomControlLoop: false,
+			discoveryBundle:         "bundles/discovery",
+		},
+		{
+			enableCustomControlLoop: true,
+			resourceBundle:          true,
+		},
+		{
+			enableCustomControlLoop: false,
+			resourceBundle:          true,
+		},
+	}
+	runWithTestCases(t, testCases,
+		func(t *testing.T, tc opaInstanceStartupTestCase) {
+			var config []byte
+			if tc.discoveryBundle != "" {
+				_, config = mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
+			} else if tc.resourceBundle {
+				_, config = mockControlPlaneWithResourceBundle()
+			}
 
-	allowed, err := result.IsAllowed()
-	assert.NoError(t, err)
-	assert.False(t, allowed)
+			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
 
-	span.Finish()
-	testspan := tracer.FindSpan("open-policy-agent")
-	require.NotNil(t, testspan)
-	assert.Equal(t, result.DecisionID, testspan.Tag("opa.decision_id"))
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
+
+			inst, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			tracer := tracingtest.NewTracer()
+			span := tracer.StartSpan("open-policy-agent")
+			ctx := opentracing.ContextWithSpan(context.Background(), span)
+
+			result, err := inst.Eval(ctx, &authv3.CheckRequest{
+				Attributes: &authv3.AttributeContext{
+					Request:           nil,
+					ContextExtensions: nil,
+					MetadataContext:   nil,
+				},
+			})
+			assert.NoError(t, err)
+
+			allowed, err := result.IsAllowed()
+			assert.NoError(t, err)
+			assert.False(t, allowed)
+
+			span.Finish()
+			testspan := tracer.FindSpan("open-policy-agent")
+			require.NotNil(t, testspan)
+			assert.Equal(t, result.DecisionID, testspan.Tag("opa.decision_id"))
+		})
 }
 
 func TestResponses(t *testing.T) {
@@ -705,4 +991,28 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	f1()
 	f2()
+}
+
+type opaInstanceStartupTestCase struct {
+	enableCustomControlLoop bool
+	expectedError           string
+	expectedTriggerMode     plugins.TriggerMode
+	discoveryBundle         string
+	resourceBundle          bool
+}
+
+func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test func(t *testing.T, tc opaInstanceStartupTestCase)) {
+	for _, tc := range cases {
+		sb := strings.Builder{}
+		sb.WriteString(fmt.Sprintf("custom-control-loop=%v", tc.enableCustomControlLoop))
+		if tc.discoveryBundle != "" {
+			sb.WriteString(fmt.Sprintf(";discovery=%v", tc.discoveryBundle))
+		}
+		if tc.resourceBundle {
+			sb.WriteString(";resource-bundle")
+		}
+		t.Run(sb.String(), func(t *testing.T) {
+			test(t, tc)
+		})
+	}
 }

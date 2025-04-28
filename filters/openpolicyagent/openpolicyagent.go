@@ -6,8 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"text/template"
@@ -20,6 +24,8 @@ import (
 	"github.com/open-policy-agent/opa-envoy-plugin/envoyauth"
 	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/config"
+	"github.com/open-policy-agent/opa/v1/download"
+	"github.com/open-policy-agent/opa/v1/hooks"
 	"github.com/open-policy-agent/opa/v1/logging"
 	"github.com/open-policy-agent/opa/v1/plugins"
 	"github.com/open-policy-agent/opa/v1/plugins/discovery"
@@ -30,6 +36,7 @@ import (
 	iCache "github.com/open-policy-agent/opa/v1/topdown/cache"
 	opatracing "github.com/open-policy-agent/opa/v1/tracing"
 	"github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/filters/openpolicyagent/internal"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -41,10 +48,12 @@ import (
 )
 
 const (
-	DefaultCleanIdlePeriod     = 10 * time.Second
-	defaultReuseDuration       = 30 * time.Second
-	defaultShutdownGracePeriod = 30 * time.Second
-	DefaultOpaStartupTimeout   = 30 * time.Second
+	DefaultCleanIdlePeriod      = 10 * time.Second
+	DefaultControlLoopInterval  = 60 * time.Second
+	DefaultControlLoopMaxJitter = 1000 * time.Millisecond
+	defaultReuseDuration        = 30 * time.Second
+	defaultShutdownGracePeriod  = 30 * time.Second
+	DefaultOpaStartupTimeout    = 30 * time.Second
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -64,17 +73,22 @@ type OpenPolicyAgentRegistry struct {
 	instances map[string]*OpenPolicyAgentInstance
 	lastused  map[*OpenPolicyAgentInstance]time.Time
 
-	once          sync.Once
-	closed        bool
-	quit          chan struct{}
-	reuseDuration time.Duration
-	cleanInterval time.Duration
+	once                   sync.Once
+	closed                 bool
+	quit                   chan struct{}
+	reuseDuration          time.Duration
+	cleanInterval          time.Duration
+	instanceStartupTimeout time.Duration
 
 	maxMemoryBodyParsingSem *semaphore.Weighted
 	maxRequestBodyBytes     int64
 	bodyReadBufferSize      int64
 
 	tracer opentracing.Tracer
+
+	enableCustomControlLoop bool
+	controlLoopInterval     time.Duration
+	controlLoopMaxJitter    time.Duration
 }
 
 type OpenPolicyAgentFilter interface {
@@ -116,6 +130,13 @@ func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) er
 	}
 }
 
+func WithInstanceStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.instanceStartupTimeout = timeout
+		return nil
+	}
+}
+
 func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.tracer = tracer
@@ -123,15 +144,39 @@ func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error 
 	}
 }
 
+func WithEnableCustomControlLoop(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.enableCustomControlLoop = enabled
+		return nil
+	}
+}
+
+func WithControlLoopInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.controlLoopInterval = interval
+		return nil
+	}
+}
+
+func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.controlLoopMaxJitter = maxJitter
+		return nil
+	}
+}
+
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
 	registry := &OpenPolicyAgentRegistry{
-		reuseDuration:       defaultReuseDuration,
-		cleanInterval:       DefaultCleanIdlePeriod,
-		instances:           make(map[string]*OpenPolicyAgentInstance),
-		lastused:            make(map[*OpenPolicyAgentInstance]time.Time),
-		quit:                make(chan struct{}),
-		maxRequestBodyBytes: DefaultMaxMemoryBodyParsing,
-		bodyReadBufferSize:  DefaultRequestBodyBufferSize,
+		reuseDuration:          defaultReuseDuration,
+		cleanInterval:          DefaultCleanIdlePeriod,
+		instanceStartupTimeout: DefaultOpaStartupTimeout,
+		instances:              make(map[string]*OpenPolicyAgentInstance),
+		lastused:               make(map[*OpenPolicyAgentInstance]time.Time),
+		quit:                   make(chan struct{}),
+		maxRequestBodyBytes:    DefaultMaxMemoryBodyParsing,
+		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
+		controlLoopInterval:    DefaultControlLoopInterval,
+		controlLoopMaxJitter:   DefaultControlLoopMaxJitter,
 	}
 
 	for _, opt := range opts {
@@ -144,13 +189,16 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 
 	go registry.startCleanerDaemon()
 
+	if registry.enableCustomControlLoop {
+		go registry.startCustomControlLoopDaemon()
+	}
+
 	return registry
 }
 
 type OpenPolicyAgentInstanceConfig struct {
 	envoyMetadata  *ext_authz_v3_core.Metadata
 	configTemplate []byte
-	startupTimeout time.Duration
 }
 
 func WithConfigTemplate(configTemplate []byte) func(*OpenPolicyAgentInstanceConfig) error {
@@ -199,13 +247,6 @@ func WithEnvoyMetadataFile(file string) func(*OpenPolicyAgentInstanceConfig) err
 	}
 }
 
-func WithStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentInstanceConfig) error {
-	return func(cfg *OpenPolicyAgentInstanceConfig) error {
-		cfg.startupTimeout = timeout
-		return nil
-	}
-}
-
 func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.Metadata {
 	if cfg.envoyMetadata != nil {
 		return proto.Clone(cfg.envoyMetadata).(*ext_authz_v3_core.Metadata)
@@ -214,9 +255,7 @@ func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.
 }
 
 func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) (*OpenPolicyAgentInstanceConfig, error) {
-	cfg := OpenPolicyAgentInstanceConfig{
-		startupTimeout: DefaultOpaStartupTimeout,
-	}
+	cfg := OpenPolicyAgentInstanceConfig{}
 
 	for _, opt := range opts {
 		if err := opt(&cfg); err != nil {
@@ -289,6 +328,43 @@ func (registry *OpenPolicyAgentRegistry) startCleanerDaemon() {
 	}
 }
 
+// startCustomControlLoopDaemon starts a custom control loop that triggers the discovery and bundle plugin for all OPA instances in the registry.
+// The processing is done in sequence to avoid memory spikes if the bundles of multiple instances are updated at the same time.
+// The timeout for the processing of each instance is set to the startup timeout to ensure that the behavior is the same as during startup
+// It is accepted that runs can be skipped if the processing of all instances takes longer than the interval.
+func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
+	ticker := time.NewTicker(registry.controlLoopIntervalWithJitter())
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-registry.quit:
+			return
+		case <-ticker.C:
+			registry.mu.Lock()
+			instances := slices.Collect(maps.Values(registry.instances))
+			registry.mu.Unlock()
+
+			for _, opa := range instances {
+				func() {
+					ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
+					defer cancel()
+					opa.triggerPlugins(ctx)
+				}()
+			}
+			ticker.Reset(registry.controlLoopIntervalWithJitter())
+		}
+	}
+}
+
+// Prevent different opa instances from triggering plugins (f.ex. downloading new bundles) at the same time
+func (registry *OpenPolicyAgentRegistry) controlLoopIntervalWithJitter() time.Duration {
+	if registry.controlLoopMaxJitter > 0 {
+		return registry.controlLoopInterval + time.Duration(rand.Int63n(int64(registry.controlLoopMaxJitter))) - registry.controlLoopMaxJitter/2
+	}
+	return registry.controlLoopInterval
+}
+
 // Do implements routing.PostProcessor and cleans unused OPA instances
 func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.Route {
 	inUse := make(map[*OpenPolicyAgentInstance]struct{})
@@ -353,11 +429,17 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.startupTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
 	defer cancel()
 
-	if err = engine.Start(ctx, config.startupTimeout); err != nil {
-		return nil, err
+	if registry.enableCustomControlLoop {
+		if err = engine.StartAndTriggerPlugins(ctx); err != nil {
+			return nil, err
+		}
+	} else {
+		if err = engine.Start(ctx, registry.instanceStartupTimeout); err != nil {
+			return nil, err
+		}
 	}
 
 	return engine, nil
@@ -373,7 +455,7 @@ type OpenPolicyAgentInstance struct {
 	preparedQueryErr       error
 	interQueryBuiltinCache iCache.InterQueryCache
 	once                   sync.Once
-	stopped                bool
+	closing                bool
 	registry               *OpenPolicyAgentRegistry
 
 	maxBodyBytes       int64
@@ -445,13 +527,19 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
 	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName})
-	manager, err := plugins.New(configBytes, id, store, configLabelsInfo(*opaConfig), plugins.Logger(logger), registry.withTracingOptions(bundleName))
+
+	configHooks := hooks.New()
+	if registry.enableCustomControlLoop {
+		configHooks = hooks.New(&internal.ManualOverride{})
+	}
+
+	manager, err := plugins.New(configBytes, id, store, configLabelsInfo(*opaConfig), plugins.Logger(logger), registry.withTracingOptions(bundleName), plugins.WithHooks(configHooks))
 
 	if err != nil {
 		return nil, err
 	}
 
-	discovery, err := discovery.New(manager, discovery.Factories(map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}))
+	discovery, err := discovery.New(manager, discovery.Factories(map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}), discovery.Hooks(configHooks))
 	if err != nil {
 		return nil, err
 	}
@@ -516,10 +604,113 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	return nil
 }
 
+// StartAndTriggerPlugins Start starts the policy engine's plugin manager and triggers the plugins to download policies etc.
+func (opa *OpenPolicyAgentInstance) StartAndTriggerPlugins(ctx context.Context) error {
+	err := opa.manager.Start(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = opa.triggerPluginsWithRetry(ctx)
+	if err != nil {
+		opa.Close(ctx)
+		return err
+	}
+
+	err = opa.verifyAllPluginsStarted()
+	if err != nil {
+		opa.Close(ctx)
+		return err
+	}
+	return nil
+}
+
+func (opa *OpenPolicyAgentInstance) triggerPluginsWithRetry(ctx context.Context) error {
+	var err error
+	backoff := 100 * time.Millisecond
+	retryTrigger := time.NewTimer(backoff)
+	defer retryTrigger.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while triggering plugins: %w, last retry returned: %w", ctx.Err(), err)
+		case <-retryTrigger.C:
+			err = opa.triggerPlugins(ctx)
+
+			if !opa.isRetryable(err) {
+				return err
+			}
+			backoff *= 2
+			retryTrigger.Reset(backoff)
+		}
+	}
+}
+
+func (opa *OpenPolicyAgentInstance) isRetryable(err error) bool {
+	var httpError download.HTTPError
+
+	if errors.As(err, &httpError) {
+		opa.Logger().WithFields(map[string]interface{}{
+			"error": httpError.Error(),
+		}).Warn("Triggering bundles failed. Response code %v, Retrying.", httpError.StatusCode)
+		return httpError.StatusCode == 429 || httpError.StatusCode >= 500
+	}
+
+	var urlError *url.Error
+	if errors.As(err, &urlError) {
+		retry := strings.Contains(urlError.Error(), "net/http: timeout awaiting response headers")
+		if retry {
+			opa.Logger().WithFields(map[string]interface{}{
+				"error": urlError.Error(),
+			}).Warn("Triggering bundles failed. Retrying.")
+		}
+		return retry
+	}
+	return false
+}
+
+func (opa *OpenPolicyAgentInstance) verifyAllPluginsStarted() error {
+	allPluginsReady := true
+	for pluginName, status := range opa.manager.PluginStatus() {
+		if status != nil && status.State != plugins.StateOK {
+			opa.Logger().WithFields(map[string]interface{}{
+				"plugin_name":   pluginName,
+				"plugin_state":  status.State,
+				"error_message": status.Message,
+			}).Error("Open policy agent plugin failed to start %s", pluginName)
+
+			allPluginsReady = false
+		}
+	}
+	if !allPluginsReady {
+		return fmt.Errorf("open policy agent plugins failed to start")
+	}
+	return nil
+}
+
+func (opa *OpenPolicyAgentInstance) triggerPlugins(ctx context.Context) error {
+
+	if opa.closing {
+		return nil
+	}
+	for _, pluginName := range []string{"discovery", "bundle"} {
+		if plugin, ok := opa.manager.Plugin(pluginName).(plugins.Triggerable); ok {
+			if err := plugin.Trigger(ctx); err != nil {
+				return err
+			}
+
+		} else if pluginName == "bundle" { // only fail for bundle plugin as discovery plugin is optional
+			return fmt.Errorf("plugin %s not found", pluginName)
+		}
+	}
+	return nil
+}
+
 func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	opa.once.Do(func() {
+		opa.closing = true
 		opa.manager.Stop(ctx)
-		opa.stopped = true
 	})
 }
 
