@@ -98,7 +98,7 @@ func TestServeHTTP(t *testing.T) {
 		backendStatusCode          int
 		expectedResponseStatusCode int
 		expectedResponseBody       string
-		backendHeaders             map[string]string
+		backendHeaders             map[string][]string
 	}{
 		{
 			msg:               "Load balanced route",
@@ -133,7 +133,7 @@ func TestServeHTTP(t *testing.T) {
 			backendStatusCode:          http.StatusOK,
 			backendClosesConnection:    true,
 			expectedResponseStatusCode: http.StatusOK,
-			backendHeaders:             map[string]string{"X-Header": "value", "Content-Type": "application/json"},
+			backendHeaders:             map[string][]string{"X-Header": []string{"value1", "value2"}, "Content-Type": []string{"application/json"}},
 			expectedResponseBody:       "{}",
 		},
 		{
@@ -175,8 +175,10 @@ func TestServeHTTP(t *testing.T) {
 
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if ti.backendHeaders != nil {
-					for k, v := range ti.backendHeaders {
-						w.Header().Set(k, v)
+					for k, vv := range ti.backendHeaders {
+						for _, v := range vv {
+							w.Header().Add(k, v)
+						}
 					}
 				}
 				if ti.backendClosesConnection {
@@ -289,7 +291,7 @@ func TestServeHTTP(t *testing.T) {
 				}
 				if ti.backendHeaders != nil {
 					for k, v := range ti.backendHeaders {
-						assert.Equal(t, v, resp.Header.Get(k), "Should copy all headers from response")
+						assert.Equal(t, v, resp.Header.Values(k), "Should copy all headers from response")
 					}
 				}
 
