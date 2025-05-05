@@ -133,7 +133,7 @@ func TestServeHTTP(t *testing.T) {
 			backendStatusCode:          http.StatusOK,
 			backendClosesConnection:    true,
 			expectedResponseStatusCode: http.StatusOK,
-			backendHeaders:             map[string][]string{"X-Header": []string{"value1", "value2"}, "Content-Type": []string{"application/json"}},
+			backendHeaders:             map[string][]string{"X-Header": {"value1", "value2"}, "Content-Type": {"application/json"}},
 			expectedResponseBody:       "{}",
 		},
 		{
