@@ -124,6 +124,11 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		log.Debugf("Got invalid status code from backend: %d", resp.StatusCode)
+		for key, values := range resp.Header {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
 		w.WriteHeader(resp.StatusCode)
 		_, err := io.Copy(w, resp.Body)
 		if err != nil {

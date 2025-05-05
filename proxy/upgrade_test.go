@@ -98,6 +98,7 @@ func TestServeHTTP(t *testing.T) {
 		backendStatusCode          int
 		expectedResponseStatusCode int
 		expectedResponseBody       string
+		backendHeaders             map[string]string
 	}{
 		{
 			msg:               "Load balanced route",
@@ -124,6 +125,16 @@ func TestServeHTTP(t *testing.T) {
 			backendClosesConnection:    true,
 			backendStatusCode:          http.StatusSwitchingProtocols,
 			expectedResponseStatusCode: http.StatusServiceUnavailable,
+		},
+		{
+			msg:                        "Backend responds 200 with headers",
+			route:                      `route: Path("/ws") -> "%s";`,
+			method:                     http.MethodGet,
+			backendStatusCode:          http.StatusOK,
+			backendClosesConnection:    true,
+			expectedResponseStatusCode: http.StatusOK,
+			backendHeaders:             map[string]string{"X-Header": "value", "Content-Type": "application/json"},
+			expectedResponseBody:       "{}",
 		},
 		{
 			msg:                        "Closed connection 204",
@@ -163,6 +174,11 @@ func TestServeHTTP(t *testing.T) {
 			var clientConnClosed atomic.Bool
 
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if ti.backendHeaders != nil {
+					for k, v := range ti.backendHeaders {
+						w.Header().Set(k, v)
+					}
+				}
 				if ti.backendClosesConnection {
 					// Set header first as 1xx headers are sent immediately by w.WriteHeader
 					w.Header().Set("Connection", "close")
@@ -271,6 +287,12 @@ func TestServeHTTP(t *testing.T) {
 
 					assert.Equal(t, ti.expectedResponseBody, string(data))
 				}
+				if ti.backendHeaders != nil {
+					for k, v := range ti.backendHeaders {
+						assert.Equal(t, v, resp.Header.Get(k), "Should copy all headers from response")
+					}
+				}
+
 				return
 			}
 
