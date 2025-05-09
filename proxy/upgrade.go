@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -124,6 +125,7 @@ func (p *upgradeProxy) serveHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		log.Debugf("Got invalid status code from backend: %d", resp.StatusCode)
+		maps.Copy(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)
 		_, err := io.Copy(w, resp.Body)
 		if err != nil {
