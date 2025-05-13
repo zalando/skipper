@@ -1,6 +1,7 @@
 package eskipfile
 
 import (
+	"bytes"
 	"os"
 	"reflect"
 	"sync"
@@ -17,12 +18,13 @@ type watchResponse struct {
 // WatchClient implements a route configuration client with file watching. Use the Watch function to initialize
 // instances of it.
 type WatchClient struct {
-	fileName   string
-	routes     map[string]*eskip.Route
-	getAll     chan (chan<- watchResponse)
-	getUpdates chan (chan<- watchResponse)
-	quit       chan struct{}
-	once       sync.Once
+	fileName    string
+	lastContent []byte
+	routes      map[string]*eskip.Route
+	getAll      chan (chan<- watchResponse)
+	getUpdates  chan (chan<- watchResponse)
+	quit        chan struct{}
+	once        sync.Once
 }
 
 // Watch creates a route configuration client with file watching. Watch doesn't follow file system nodes, it
@@ -97,35 +99,44 @@ func cloneRoutes(r []*eskip.Route) []*eskip.Route {
 func (c *WatchClient) loadAll() watchResponse {
 	content, err := os.ReadFile(c.fileName)
 	if err != nil {
+		c.lastContent = nil
 		return watchResponse{err: err}
 	}
 
 	r, err := eskip.Parse(string(content))
 	if err != nil {
+		c.lastContent = nil
 		return watchResponse{err: err}
 	}
 
 	c.storeRoutes(r)
+	c.lastContent = content
 	return watchResponse{routes: cloneRoutes(r)}
 }
 
 func (c *WatchClient) loadUpdates() watchResponse {
 	content, err := os.ReadFile(c.fileName)
 	if err != nil {
+		c.lastContent = nil
 		if os.IsNotExist(err) {
 			deletedIDs := c.deleteAllListIDs()
 			return watchResponse{deletedIDs: deletedIDs}
 		}
-
 		return watchResponse{err: err}
+	}
+
+	if bytes.Equal(content, c.lastContent) {
+		return watchResponse{}
 	}
 
 	r, err := eskip.Parse(string(content))
 	if err != nil {
+		c.lastContent = nil
 		return watchResponse{err: err}
 	}
 
 	upsert, del := c.diffStoreRoutes(r)
+	c.lastContent = content
 	return watchResponse{routes: cloneRoutes(upsert), deletedIDs: del}
 }
 

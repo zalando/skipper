@@ -1,12 +1,14 @@
 package eskipfile
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging/loggingtest"
 	"github.com/zalando/skipper/routing"
@@ -235,4 +237,35 @@ func TestWatchUpdate(t *testing.T) {
 	test.waitAndSucceedInitial()
 	updateFile(t)
 	test.waitAndSucceedUpdated()
+}
+
+func BenchmarkWatchLoadUpdate(b *testing.B) {
+	f, err := os.CreateTemp(b.TempDir(), "routes*.eskip")
+	require.NoError(b, err)
+	b.Cleanup(func() { require.NoError(b, os.Remove(f.Name())) })
+
+	const nRoutes = 10_000
+	for i := range nRoutes {
+		_, err := f.WriteString(fmt.Sprintf(`r%d: Path("/%d") -> "https://foo%d.example.org";`, i, i, i))
+		require.NoError(b, err)
+	}
+	require.NoError(b, f.Close())
+
+	w := Watch(f.Name())
+	b.Cleanup(w.Close)
+
+	r, err := w.LoadAll()
+	require.Len(b, r, nRoutes)
+	require.NoError(b, err)
+
+	r, deletedIds, err := w.LoadUpdate()
+	require.Nil(b, r)
+	require.Empty(b, deletedIds)
+	require.NoError(b, err)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		w.LoadUpdate()
+	}
 }
