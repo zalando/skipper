@@ -326,6 +326,7 @@ func TestTracingProxySpan(t *testing.T) {
 	verifyTag(t, span, SkipperRouteIDTag, "hello")
 	verifyTag(t, span, ComponentTag, "skipper")
 	verifyTag(t, span, HTTPUrlTag, "http://"+backendAddr+"/bye") // proxy removes query
+	verifyTag(t, span, NetworkPeerAddressTag, backendAddr)
 	verifyTag(t, span, HTTPMethodTag, "GET")
 	verifyTag(t, span, HostnameTag, "proxy.tracing.test")
 	verifyTag(t, span, HTTPPathTag, "/bye")
