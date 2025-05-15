@@ -1010,7 +1010,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	u.RawQuery = ""
 	p.tracing.
 		setTag(ctx.proxySpan, HTTPUrlTag, u.String()).
-		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id)
+		setTag(ctx.proxySpan, SkipperRouteIDTag, ctx.route.Id).
+		setTag(ctx.proxySpan, NetworkPeerAddressTag, u.Host)
 	p.setCommonSpanInfo(u, req, ctx.proxySpan)
 
 	carrier := ot.HTTPHeadersCarrier(req.Header)

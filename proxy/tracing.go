@@ -18,6 +18,7 @@ const (
 	HTTPRemoteIPTag       = "http.remote_ip"
 	HTTPPathTag           = "http.path"
 	HTTPUrlTag            = "http.url"
+	NetworkPeerAddressTag = "network.peer.address"
 	HTTPStatusCodeTag     = "http.status_code"
 	SkipperRouteIDTag     = "skipper.route_id"
 	SpanKindTag           = "span.kind"
