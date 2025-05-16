@@ -526,7 +526,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
-	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName})
+	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName, "bundle-name": bundleName})
 
 	configHooks := hooks.New()
 	if registry.enableCustomControlLoop {
