@@ -9,6 +9,7 @@ package testdataclient
 
 import (
 	"errors"
+	"time"
 
 	"github.com/zalando/skipper/eskip"
 )
@@ -24,6 +25,7 @@ type Client struct {
 	upsert       []*eskip.Route
 	deletedIDs   []string
 	failNext     int
+	loadAllDelay time.Duration
 	signalUpdate chan incomingUpdate
 	quit         chan struct{}
 }
@@ -60,6 +62,8 @@ func (c *Client) LoadAll() ([]*eskip.Route, error) {
 		c.failNext--
 		return nil, errors.New("failed to get routes")
 	}
+
+	time.Sleep(c.loadAllDelay)
 
 	routes := make([]*eskip.Route, 0, len(c.routes))
 	for _, r := range c.routes {
@@ -125,6 +129,10 @@ func (c *Client) UpdateDoc(upsertDoc string, deletedIDs []string) error {
 // times as it was called.
 func (c *Client) FailNext() {
 	c.failNext++
+}
+
+func (c *Client) WithLoadAllDelay(d time.Duration) {
+	c.loadAllDelay = d
 }
 
 func (c *Client) Close() {
