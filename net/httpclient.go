@@ -210,6 +210,9 @@ type Options struct {
 	BeforeSend func(*http.Request)
 	// AfterResponse is a hook function that runs just after executing RoundTrip(*http.Request)
 	AfterResponse func(*http.Response, error)
+
+	// CustomHttpRoundTripperWrap is a hook function that wraps the http.RoundTripper
+	CustomHttpRoundTripperWrap func(http.RoundTripper) http.RoundTripper
 }
 
 // Transport wraps an http.Transport and adds support for tracing and
@@ -224,6 +227,7 @@ type Transport struct {
 	bearerToken   string
 	beforeSend    func(*http.Request)
 	afterResponse func(*http.Response, error)
+	roundTripper  http.RoundTripper
 }
 
 // NewTransport creates a wrapped http.Transport, with regular DNS
@@ -278,6 +282,12 @@ func NewTransport(options Options) *Transport {
 			ExpectContinueTimeout:  options.ExpectContinueTimeout,
 		}
 	}
+	var roundTripper http.RoundTripper
+	if options.CustomHttpRoundTripperWrap != nil {
+		roundTripper = options.CustomHttpRoundTripperWrap(htransport)
+	} else {
+		roundTripper = htransport
+	}
 
 	t := &Transport{
 		once:          sync.Once{},
@@ -286,6 +296,7 @@ func NewTransport(options Options) *Transport {
 		tracer:        options.Tracer,
 		beforeSend:    options.BeforeSend,
 		afterResponse: options.AfterResponse,
+		roundTripper:  roundTripper,
 	}
 
 	if t.tracer != nil {
@@ -381,7 +392,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.beforeSend != nil {
 		t.beforeSend(req)
 	}
-	rsp, err := t.tr.RoundTrip(req)
+	rsp, err := t.roundTripper.RoundTrip(req)
 	if t.afterResponse != nil {
 		t.afterResponse(rsp, err)
 	}
