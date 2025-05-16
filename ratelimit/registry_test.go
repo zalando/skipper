@@ -29,7 +29,7 @@ func TestRegistry(t *testing.T) {
 	}
 
 	t.Run("no settings", func(t *testing.T) {
-		r := NewRegistry(Settings{})
+		r := NewSwarmRegistry(nil, nil, Settings{})
 		defer r.Close()
 
 		rl := r.Get(Settings{})
@@ -37,7 +37,7 @@ func TestRegistry(t *testing.T) {
 	})
 	t.Run("with settings", func(t *testing.T) {
 		s := createSettings(3)
-		r := NewRegistry(s)
+		r := NewSwarmRegistry(nil, nil, s)
 		defer r.Close()
 
 		rl := r.Get(s)
