@@ -522,6 +522,24 @@ type Options struct {
 	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
 
+	// If set, detailed total skipper time metrics will be collected
+	// for each route, additionally grouped by status and method.
+	EnableSkipperLatencyRouteMetrics bool
+
+	// If set, detailed total skipper time metrics will be collected
+	// for each host, additionally grouped by status and method.
+	EnableSkipperLatencyHostMetrics bool
+
+	// If set, the detailed total skipper time metrics will contain the
+	// HTTP Response status code as a domain of the metric. It affects
+	// both route and host split metrics.
+	EnableSkipperLatencyStatusCodeMetric bool
+
+	// If set, the detailed total skipper time metrics will contain the
+	// HTTP method as a domain of the metric. It affects both route and
+	// host split metrics.
+	EnableSkipperLatencyMethodMetric bool
+
 	// If set, detailed response time metrics will be collected
 	// for each backend host
 	EnableBackendHostMetrics bool
@@ -1561,32 +1579,36 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	log.Infof("Expose metrics in %s format", metricsKind)
 	mtrOpts := metrics.Options{
-		Format:                             metricsKind,
-		Prefix:                             o.MetricsPrefix,
-		EnableDebugGcMetrics:               o.EnableDebugGcMetrics,
-		EnableRuntimeMetrics:               o.EnableRuntimeMetrics,
-		EnableServeRouteMetrics:            o.EnableServeRouteMetrics,
-		EnableServeRouteCounter:            o.EnableServeRouteCounter,
-		EnableServeHostMetrics:             o.EnableServeHostMetrics,
-		EnableServeHostCounter:             o.EnableServeHostCounter,
-		EnableServeMethodMetric:            o.EnableServeMethodMetric,
-		EnableServeStatusCodeMetric:        o.EnableServeStatusCodeMetric,
-		EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
-		EnableProfile:                      o.EnableProfile,
-		BlockProfileRate:                   o.BlockProfileRate,
-		MutexProfileFraction:               o.MutexProfileFraction,
-		MemProfileRate:                     o.MemProfileRate,
-		EnableAllFiltersMetrics:            o.EnableAllFiltersMetrics,
-		EnableCombinedResponseMetrics:      o.EnableCombinedResponseMetrics,
-		EnableRouteResponseMetrics:         o.EnableRouteResponseMetrics,
-		EnableRouteBackendErrorsCounters:   o.EnableRouteBackendErrorsCounters,
-		EnableRouteStreamingErrorsCounters: o.EnableRouteStreamingErrorsCounters,
-		EnableRouteBackendMetrics:          o.EnableRouteBackendMetrics,
-		UseExpDecaySample:                  o.MetricsUseExpDecaySample,
-		HistogramBuckets:                   o.HistogramMetricBuckets,
-		DisableCompatibilityDefaults:       o.DisableMetricsCompatibilityDefaults,
-		PrometheusRegistry:                 o.PrometheusRegistry,
-		EnablePrometheusStartLabel:         o.EnablePrometheusStartLabel,
+		Format:                               metricsKind,
+		Prefix:                               o.MetricsPrefix,
+		EnableDebugGcMetrics:                 o.EnableDebugGcMetrics,
+		EnableRuntimeMetrics:                 o.EnableRuntimeMetrics,
+		EnableServeRouteMetrics:              o.EnableServeRouteMetrics,
+		EnableServeRouteCounter:              o.EnableServeRouteCounter,
+		EnableServeHostMetrics:               o.EnableServeHostMetrics,
+		EnableServeHostCounter:               o.EnableServeHostCounter,
+		EnableServeMethodMetric:              o.EnableServeMethodMetric,
+		EnableServeStatusCodeMetric:          o.EnableServeStatusCodeMetric,
+		EnableSkipperLatencyRouteMetrics:     o.EnableSkipperLatencyRouteMetrics,
+		EnableSkipperLatencyHostMetrics:      o.EnableSkipperLatencyHostMetrics,
+		EnableSkipperLatencyStatusCodeMetric: o.EnableSkipperLatencyStatusCodeMetric,
+		EnableSkipperLatencyMethodMetric:     o.EnableSkipperLatencyMethodMetric,
+		EnableBackendHostMetrics:             o.EnableBackendHostMetrics,
+		EnableProfile:                        o.EnableProfile,
+		BlockProfileRate:                     o.BlockProfileRate,
+		MutexProfileFraction:                 o.MutexProfileFraction,
+		MemProfileRate:                       o.MemProfileRate,
+		EnableAllFiltersMetrics:              o.EnableAllFiltersMetrics,
+		EnableCombinedResponseMetrics:        o.EnableCombinedResponseMetrics,
+		EnableRouteResponseMetrics:           o.EnableRouteResponseMetrics,
+		EnableRouteBackendErrorsCounters:     o.EnableRouteBackendErrorsCounters,
+		EnableRouteStreamingErrorsCounters:   o.EnableRouteStreamingErrorsCounters,
+		EnableRouteBackendMetrics:            o.EnableRouteBackendMetrics,
+		UseExpDecaySample:                    o.MetricsUseExpDecaySample,
+		HistogramBuckets:                     o.HistogramMetricBuckets,
+		DisableCompatibilityDefaults:         o.DisableMetricsCompatibilityDefaults,
+		PrometheusRegistry:                   o.PrometheusRegistry,
+		EnablePrometheusStartLabel:           o.EnablePrometheusStartLabel,
 	}
 
 	mtr := o.MetricsBackend

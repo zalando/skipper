@@ -19,6 +19,7 @@ const (
 	promFilterSubsystem    = "filter"
 	promProxySubsystem     = "backend"
 	promStreamingSubsystem = "streaming"
+	promRequestSubsystem   = "request"
 	promResponseSubsystem  = "response"
 	promServeSubsystem     = "serve"
 	promCustomSubsystem    = "custom"
@@ -39,6 +40,7 @@ type Prometheus struct {
 	filterResponseM            *prometheus.HistogramVec
 	filterAllResponseM         *prometheus.HistogramVec
 	filterAllCombinedResponseM *prometheus.HistogramVec
+	skipperLatencyM            *prometheus.HistogramVec
 	serveRouteM                *prometheus.HistogramVec
 	serveRouteCounterM         *prometheus.CounterVec
 	serveHostM                 *prometheus.HistogramVec
@@ -175,6 +177,13 @@ func NewPrometheus(opts Options) *Prometheus {
 	if opts.EnableServeMethodMetric {
 		metrics = append(metrics, "method")
 	}
+	p.skipperLatencyM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promRequestSubsystem,
+		Name:      "duration_seconds",
+		Help:      "Duration in seconds of a request.",
+		Buckets:   opts.HistogramBuckets,
+	}, []string{"code", "method", "route"}))
 	p.serveRouteM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promServeSubsystem,
@@ -379,6 +388,28 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	}
 	if p.opts.EnableRouteResponseMetrics {
 		p.responseM.WithLabelValues(fmt.Sprint(code), method, routeID).Observe(t)
+	}
+}
+
+func (p *Prometheus) MeasureSkipperLatency(routeId, host, method string, code int, start time.Time, backendDuration time.Duration, responseDuration time.Duration) {
+	method = measuredMethod(method)
+	skipperDuration := time.Since(start) - backendDuration - responseDuration
+	t := skipperDuration.Seconds()
+
+	if p.opts.EnableSkipperLatencyRouteMetrics || p.opts.EnableSkipperLatencyHostMetrics {
+		metrics := []string{}
+		if p.opts.EnableSkipperLatencyStatusCodeMetric {
+			metrics = append(metrics, fmt.Sprint(code))
+		}
+		if p.opts.EnableSkipperLatencyMethodMetric {
+			metrics = append(metrics, method)
+		}
+		if p.opts.EnableSkipperLatencyRouteMetrics {
+			p.skipperLatencyM.WithLabelValues(append(metrics, routeId)...).Observe(t)
+		}
+		if p.opts.EnableSkipperLatencyHostMetrics {
+			p.skipperLatencyM.WithLabelValues(append(metrics, hostForKey(host))...).Observe(t)
+		}
 	}
 }
 

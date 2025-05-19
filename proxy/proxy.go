@@ -1336,6 +1336,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		}
 
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
+		ctx.roundTripDuration = time.Since(backendStart)
 		p.metrics.MeasureBackend(ctx.route.Id, backendStart)
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
 	}
@@ -1391,8 +1392,10 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
+		ctx.responseDuration = time.Since(start)
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
+	p.metrics.MeasureSkipperLatency(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe, ctx.roundTripDuration, ctx.responseDuration)
 	p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
 }
 
@@ -1479,6 +1482,15 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	ctx.responseWriter.Flush()
 	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
 
+	p.metrics.MeasureSkipperLatency(
+		id,
+		ctx.metricsHost(),
+		ctx.request.Method,
+		ctx.response.StatusCode,
+		ctx.startServe,
+		ctx.roundTripDuration,
+		ctx.responseDuration,
+	)
 	p.metrics.MeasureServe(
 		id,
 		ctx.metricsHost(),

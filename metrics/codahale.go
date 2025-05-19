@@ -27,6 +27,8 @@ const (
 	KeyResponse                   = "response.%d.%s.skipper.%s"
 	KeyResponseCombined           = "all.response.%d.%s.skipper"
 	Key5xxsBackend                = "all.backend.5xx"
+	KeyRequest                    = "request.%d.%s.skipper.%s"
+	KeyRequestCombined            = "all.request.%d.%s.skipper"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -179,6 +181,38 @@ func (c *CodaHale) MeasureResponse(code int, method string, routeId string, star
 
 	if c.options.EnableRouteResponseMetrics {
 		c.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
+	}
+}
+
+func (c *CodaHale) MeasureSkipperLatency(routeId, host, method string, code int, start time.Time, backendDuration time.Duration, responseDuration time.Duration) {
+	if !(c.options.EnableSkipperLatencyRouteMetrics || c.options.EnableSkipperLatencyHostMetrics) {
+		return
+	}
+
+	var keySkipperLatencyRoute, keySkipperLatencyHost string
+	method = measuredMethod(method)
+	hfk := hostForKey(host)
+	switch {
+	case c.options.EnableSkipperLatencyMethodMetric && c.options.EnableSkipperLatencyStatusCodeMetric:
+		keySkipperLatencyHost = fmt.Sprintf("skipperlatencyhost.%s.%s.%d", hfk, method, code)
+		keySkipperLatencyRoute = fmt.Sprintf("skipperlatencyroute.%s.%s.%d", routeId, method, code)
+	case c.options.EnableSkipperLatencyMethodMetric:
+		keySkipperLatencyHost = fmt.Sprintf("skipperlatencyhost.%s.%s", hfk, method)
+		keySkipperLatencyRoute = fmt.Sprintf("skipperlatencyroute.%s.%s", routeId, method)
+	case c.options.EnableSkipperLatencyStatusCodeMetric:
+		keySkipperLatencyHost = fmt.Sprintf("skipperlatencyhost.%s.%d", hfk, code)
+		keySkipperLatencyRoute = fmt.Sprintf("skipperlatencyroute.%s.%d", routeId, code)
+	default:
+		keySkipperLatencyHost = fmt.Sprintf("skipperlatencyhost.%s", hfk)
+		keySkipperLatencyRoute = fmt.Sprintf("skipperlatencyroute.%s", routeId)
+	}
+
+	if c.options.EnableSkipperLatencyRouteMetrics {
+		c.updateTimer(keySkipperLatencyRoute, time.Since(start)-backendDuration-responseDuration)
+	}
+
+	if c.options.EnableSkipperLatencyHostMetrics {
+		c.updateTimer(keySkipperLatencyHost, time.Since(start)-backendDuration-responseDuration)
 	}
 }
 
