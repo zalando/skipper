@@ -1489,7 +1489,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		ctx.response.StatusCode,
 		ctx.startServe,
 		ctx.roundTripDuration,
-		ctx.responseDuration,
+		0,
 	)
 	p.metrics.MeasureServe(
 		id,
