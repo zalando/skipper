@@ -40,11 +40,12 @@ type Prometheus struct {
 	filterResponseM            *prometheus.HistogramVec
 	filterAllResponseM         *prometheus.HistogramVec
 	filterAllCombinedResponseM *prometheus.HistogramVec
-	skipperLatencyM            *prometheus.HistogramVec
 	serveRouteM                *prometheus.HistogramVec
 	serveRouteCounterM         *prometheus.CounterVec
 	serveHostM                 *prometheus.HistogramVec
 	serveHostCounterM          *prometheus.CounterVec
+	skipperLatencyRouteM       *prometheus.HistogramVec
+	skipperLatencyHostM        *prometheus.HistogramVec
 	proxyBackend5xxM           *prometheus.HistogramVec
 	proxyBackendErrorsM        *prometheus.CounterVec
 	proxyStreamingErrorsM      *prometheus.CounterVec
@@ -177,13 +178,6 @@ func NewPrometheus(opts Options) *Prometheus {
 	if opts.EnableServeMethodMetric {
 		metrics = append(metrics, "method")
 	}
-	p.skipperLatencyM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: namespace,
-		Subsystem: promRequestSubsystem,
-		Name:      "duration_seconds",
-		Help:      "Duration in seconds of a request.",
-		Buckets:   opts.HistogramBuckets,
-	}, []string{"code", "method", "route"}))
 	p.serveRouteM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promServeSubsystem,
@@ -211,6 +205,28 @@ func NewPrometheus(opts Options) *Prometheus {
 		Name:      "host_count",
 		Help:      "Total number of requests of serving a host.",
 	}, []string{"code", "method", "host"}))
+
+	latencyMetrics := []string{}
+	if opts.EnableSkipperLatencyStatusCodeMetric {
+		latencyMetrics = append(latencyMetrics, "code")
+	}
+	if opts.EnableSkipperLatencyMethodMetric {
+		latencyMetrics = append(latencyMetrics, "method")
+	}
+	p.skipperLatencyRouteM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promRequestSubsystem,
+		Name:      "route_duration_seconds",
+		Help:      "Duration in seconds of a skipper latency in a route",
+		Buckets:   opts.HistogramBuckets,
+	}, append(latencyMetrics, "route")))
+	p.skipperLatencyHostM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promRequestSubsystem,
+		Name:      "host_duration_seconds",
+		Help:      "Duration in seconds of a skipper latency in a host",
+		Buckets:   opts.HistogramBuckets,
+	}, append(latencyMetrics, "host")))
 
 	p.proxyBackend5xxM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -405,10 +421,10 @@ func (p *Prometheus) MeasureSkipperLatency(routeId, host, method string, code in
 			metrics = append(metrics, method)
 		}
 		if p.opts.EnableSkipperLatencyRouteMetrics {
-			p.skipperLatencyM.WithLabelValues(append(metrics, routeId)...).Observe(t)
+			p.skipperLatencyRouteM.WithLabelValues(append(metrics, routeId)...).Observe(t)
 		}
 		if p.opts.EnableSkipperLatencyHostMetrics {
-			p.skipperLatencyM.WithLabelValues(append(metrics, hostForKey(host))...).Observe(t)
+			p.skipperLatencyHostM.WithLabelValues(append(metrics, hostForKey(host))...).Observe(t)
 		}
 	}
 }

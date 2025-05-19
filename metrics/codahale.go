@@ -27,8 +27,6 @@ const (
 	KeyResponse                   = "response.%d.%s.skipper.%s"
 	KeyResponseCombined           = "all.response.%d.%s.skipper"
 	Key5xxsBackend                = "all.backend.5xx"
-	KeyRequest                    = "request.%d.%s.skipper.%s"
-	KeyRequestCombined            = "all.request.%d.%s.skipper"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
