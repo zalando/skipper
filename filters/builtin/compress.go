@@ -232,8 +232,8 @@ func canEncodeEntity(r *http.Response, mime []string) bool {
 		return false
 	}
 
-	cc := strings.Split(r.Header.Get("Cache-Control"), ",")
-	if stringsContain(cc, "no-transform", strings.TrimSpace, strings.ToLower) {
+	cc := strings.ToLower(r.Header.Get("Cache-Control"))
+	if strings.Contains(cc, "no-transform") {
 		return false
 	}
 
@@ -251,13 +251,16 @@ func canEncodeEntity(r *http.Response, mime []string) bool {
 
 func (c *compress) acceptedEncoding(r *http.Request) string {
 	var encs encodings
-	for _, s := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
-		sp := strings.Split(s, ";")
-		if len(sp) == 0 {
+
+	for s := range splitSeq(r.Header.Get("Accept-Encoding"), ",") {
+
+		name, weight, hasWeight := strings.Cut(s, ";")
+
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name == "" {
 			continue
 		}
 
-		name := strings.ToLower(strings.TrimSpace(sp[0]))
 		prio, ok := c.encodingPriority[name]
 		if !ok {
 			continue
@@ -266,20 +269,26 @@ func (c *compress) acceptedEncoding(r *http.Request) string {
 		enc := &encoding{name, 1, prio}
 		encs = append(encs, enc)
 
-		for _, spi := range sp[1:] {
-			spi = strings.TrimSpace(spi)
-			if !strings.HasPrefix(spi, "q=") {
-				continue
-			}
-
-			q, err := strconv.ParseFloat(strings.TrimPrefix(spi, "q="), 32)
-			if err != nil {
-				continue
-			}
-
-			enc.q = float32(q)
-			break
+		if !hasWeight {
+			continue
 		}
+
+		weight = strings.TrimSpace(weight)
+		if !strings.HasPrefix(weight, "q=") {
+			continue
+		}
+
+		q, err := strconv.ParseFloat(strings.TrimPrefix(weight, "q="), 32)
+		if err != nil {
+			continue
+		}
+
+		if float32(q) < 0 || float32(q) > 1.0 {
+			continue
+		}
+
+		enc.q = float32(q)
+
 	}
 
 	if len(encs) == 0 {
@@ -288,6 +297,24 @@ func (c *compress) acceptedEncoding(r *http.Request) string {
 
 	sort.Sort(encs)
 	return encs[0].name
+}
+
+// TODO: use [strings.SplitSeq] added in go1.24 once go1.25 is released.
+func splitSeq(s string, sep string) func(yield func(string) bool) {
+	return func(yield func(string) bool) {
+		for {
+			i := strings.Index(s, sep)
+			if i < 0 {
+				break
+			}
+			frag := s[:i]
+			if !yield(frag) {
+				return
+			}
+			s = s[i+len(sep):]
+		}
+		yield(s)
+	}
 }
 
 func responseHeader(r *http.Response, enc string) {
