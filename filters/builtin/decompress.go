@@ -185,9 +185,8 @@ func (d decompress) CreateFilter([]interface{}) (filters.Filter, error) {
 func (d decompress) Request(filters.FilterContext) {}
 
 func getEncodings(header string) []string {
-	raw := strings.Split(header, ",")
 	var encs []string
-	for _, r := range raw {
+	for r := range splitSeq(header, ",") {
 		r = strings.TrimSpace(r)
 		if r != "" {
 			encs = append(encs, r)
