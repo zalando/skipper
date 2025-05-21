@@ -22,7 +22,7 @@ mkdir -p .bin
 
 curl -LsSfo ./.bin/etcd.tar.gz "${ETCD_URL}"
 
-echo "${ETCD_CHECKSUM} ./.bin/etcd.tar.gz" | sha512sum -c
+echo ${ETCD_CHECKSUM} ./.bin/etcd.tar.gz | sha512sum --check - 
 
 tar -xzf .bin/etcd.tar.gz --strip-components=1 \
     -C ./.bin "etcd-${ETCD_VERSION}-linux-amd64/etcd"
