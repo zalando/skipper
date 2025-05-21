@@ -148,6 +148,10 @@ func (m *MockMetrics) MeasureResponse(code int, method string, routeId string, s
 	// implement me
 }
 
+func (m *MockMetrics) MeasureSkipperLatency(routeId, host, method string, code int, start time.Time, backendDuration time.Duration, responseDuration time.Duration) {
+	// implement me
+}
+
 func (m *MockMetrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
 	// implement me
 }
