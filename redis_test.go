@@ -401,7 +401,7 @@ spec:
   type: ClusterIP
 `
 
-	t.Run("without kubernetes dataclient", func(t *testing.T) {
+	t.Run("without_kubernetes_dataclient", func(t *testing.T) {
 		spec := kubeSpec + createRedisEndpointsSpec(t, "10.2.0.1:6379", "10.2.0.2:6379", "10.2.0.3:6379")
 		apiServer := createApiserver(t, spec)
 
@@ -432,14 +432,15 @@ spec:
 			t.Logf("gauges: %v", g)
 
 			assert.Equal(t, 1.0, g["routes.total"], "expected only the /ready route")
-			assert.Equal(t, 3.0, g["swarm.redis.shards"])
+			// Check for live shards count as reported by the updater logic
+			assert.Equal(t, 3.0, g["swarm.redis.shards.live"])
 		})
 
 		sigs <- syscall.SIGTERM
 		assert.NoError(t, <-runResult)
 	})
 
-	t.Run("kubernetes dataclient", func(t *testing.T) {
+	t.Run("kubernetes_dataclient", func(t *testing.T) {
 		spec := kubeSpec + createRedisEndpointsSpec(t, "10.2.0.1:6379", "10.2.0.2:6379", "10.2.0.3:6379", "10.2.0.4:6379")
 		apiServer := createApiserver(t, spec)
 
@@ -469,22 +470,21 @@ spec:
 			t.Logf("gauges: %v", g)
 
 			assert.Equal(t, 1.0, g["routes.total"], "expected only the /test route")
-			assert.Equal(t, 4.0, g["swarm.redis.shards"])
+			assert.Equal(t, 4.0, g["swarm.redis.shards.live"])
 		})
 
 		sigs <- syscall.SIGTERM
 		assert.NoError(t, <-runResult)
 	})
 
-	t.Run("remote url", func(t *testing.T) {
+	t.Run("remote_url", func(t *testing.T) {
 		eps := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write([]byte(`{
-				"endpoints": [
-					{"address": "10.2.0.1:6379"}, {"address": "10.2.0.2:6379"},
-					{"address": "10.2.0.3:6379"}, {"address": "10.2.0.4:6379"},
-					{"address": "10.2.0.5:6379"}
-				]
-			}`))
+			// Return comma separated list
+			w.Write([]byte(`
+				10.2.0.1:6379, 10.2.0.2:6379,
+				10.2.0.3:6379, 10.2.0.4:6379,
+				10.2.0.5:6379
+			`))
 		}))
 		defer eps.Close()
 
@@ -511,7 +511,7 @@ spec:
 			t.Logf("gauges: %v", g)
 
 			assert.Equal(t, 1.0, g["routes.total"], "expected only the /ready route")
-			assert.Equal(t, 5.0, g["swarm.redis.shards"])
+			assert.Equal(t, 5.0, g["swarm.redis.shards.live"])
 		})
 
 		sigs <- syscall.SIGTERM
