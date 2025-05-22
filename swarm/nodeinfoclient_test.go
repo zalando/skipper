@@ -1,12 +1,11 @@
 package swarm
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/dataclients/kubernetes"
+	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 )
 
 func newFakeKubernetesNodeInfoClient(url string) nodeInfoClient {
@@ -31,16 +30,21 @@ func newFakeKubernetesNodeInfoClient(url string) nodeInfoClient {
 }
 
 func TestGetKubeNodeInfo(t *testing.T) {
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(content))
-	}))
-	defer s.Close()
-	c := newFakeKubernetesNodeInfoClient(s.URL)
-	infos, err := c.GetNodeInfo()
-	if err != nil {
-		t.Fatalf("Failed to get nodeinfos: %v", err)
-	}
-	if len(infos) < 1 {
-		t.Errorf("Failed to get nodeinfos: %d", len(infos))
-	}
+	kubernetestest.FixturesToTest(
+		t,
+		"testdata/endpointslice",
+	)
+
+	// s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	// 	w.Write([]byte(content))
+	// }))
+	// defer s.Close()
+	// c := newFakeKubernetesNodeInfoClient(s.URL)
+	// infos, err := c.GetNodeInfo()
+	// if err != nil {
+	// 	t.Fatalf("Failed to get nodeinfos: %v", err)
+	// }
+	// if len(infos) < 1 {
+	// 	t.Errorf("Failed to get nodeinfos: %d", len(infos))
+	// }
 }

@@ -1072,7 +1072,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 		for _, rf := range strings.Split(o.RoutesFile, ",") {
 			f, err := eskipfile.Open(rf)
 			if err != nil {
-				return nil, fmt.Errorf("error while opening eskip file: %w", err)
+				return nil, nil, fmt.Errorf("error while opening eskip file: %w", err)
 			}
 
 			clients = append(clients, f)
@@ -1093,7 +1093,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 				HTTPTimeout:   o.SourcePollTimeout,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("error while loading routes from url %s: %w", url, err)
+				return nil, nil, fmt.Errorf("error while loading routes from url %s: %w", url, err)
 			}
 			clients = append(clients, client)
 		}
@@ -1102,7 +1102,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	if o.InlineRoutes != "" {
 		ir, err := routestring.New(o.InlineRoutes)
 		if err != nil {
-			return nil, fmt.Errorf("error while parsing inline routes: %w", err)
+			return nil, nil, fmt.Errorf("error while parsing inline routes: %w", err)
 		}
 
 		clients = append(clients, ir)
@@ -1120,7 +1120,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("error while creating etcd client: %w", err)
+			return nil, nil, fmt.Errorf("error while creating etcd client: %w", err)
 		}
 
 		clients = append(clients, etcdClient)
@@ -1136,7 +1136,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 
 		kubernetesClient, err = kubernetes.New(kops)
 		if err != nil {
-			return nil, fmt.Errorf("error while creating kubernetes data client: %w", err)
+			return nil, nil, fmt.Errorf("error while creating kubernetes data client: %w", err)
 		}
 		clients = append(clients, kubernetesClient)
 	}
