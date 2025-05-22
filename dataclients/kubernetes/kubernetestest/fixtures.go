@@ -350,6 +350,7 @@ func FixturesToTest(t *testing.T, dirs ...string) {
 
 			dir = filepath.Join(wd, dir)
 		}
+		println("dir:",dir)
 
 		d, err := os.Open(dir)
 		if err != nil {

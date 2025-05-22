@@ -600,7 +600,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
 	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
-	flag.IntVar(&cfg.SwarmPort, "swarm-port", swarm.DefaultPort, "swarm port to use to communicate with our peers")
+	flag.IntVar(&cfg.SwarmPort, "swarm-port", int(swarm.DefaultPort), "swarm port to use to communicate with our peers")
 	flag.IntVar(&cfg.SwarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, "swarm max message buffer size to use for member list messages")
 	flag.DurationVar(&cfg.SwarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, "swarm leave timeout to use for leaving the memberlist on timeout")
 	flag.StringVar(&cfg.SwarmStaticSelf, "swarm-static-self", "", "set static swarm self node, for example 127.0.0.1:9001")

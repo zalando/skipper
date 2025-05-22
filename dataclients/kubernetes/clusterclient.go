@@ -463,6 +463,10 @@ func (c *clusterClient) loadSecrets() (map[definitions.ResourceID]*secret, error
 	return result, nil
 }
 
+func (c *clusterClient) LoadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
+	return c.loadEndpoints()
+}
+
 func (c *clusterClient) loadEndpoints() (map[definitions.ResourceID]*endpoint, error) {
 	var endpoints endpointList
 	if err := c.getJSON(c.endpointsURI+c.endpointsLabelSelectors, &endpoints); err != nil {
