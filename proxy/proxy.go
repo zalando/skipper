@@ -1230,7 +1230,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		// consume the body to prevent goroutine leaks
 		if ctx.request.Body != nil {
 			if _, err := io.Copy(io.Discard, ctx.request.Body); err != nil {
-				ctx.Logger().Errorf("error while discarding remainder request body: %v.", err)
+				ctx.Logger().Debugf("error while discarding remainder request body: %v.", err)
 			}
 		}
 		ctx.ensureDefaultResponse()
