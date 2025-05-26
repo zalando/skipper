@@ -265,3 +265,33 @@ func TestDecompress(t *testing.T) {
 		}
 	})
 }
+
+func BenchmarkGetEncodings(b *testing.B) {
+	// Define test cases with different Content-Encoding header values
+	testCases := []struct {
+		name   string
+		header string
+	}{
+		{
+			name:   "Single encoding",
+			header: "gzip",
+		},
+		{
+			name:   "Multiple encodings",
+			header: "gzip, deflate",
+		},
+		{
+			name:   "Empty header",
+			header: "",
+		},
+	}
+
+	// Run the benchmark for each test case
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				getEncodings(tc.header)
+			}
+		})
+	}
+}
