@@ -244,12 +244,11 @@ type PreProcessor interface {
 // Routing ('router') instance providing live
 // updatable request matching.
 type Routing struct {
-	routeTable        atomic.Value // of struct routeTable
-	log               logging.Logger
-	firstLoad         chan struct{}
-	firstLoadSignaled bool
-	quit              chan struct{}
-	metrics           metrics.Metrics
+	routeTable atomic.Value // of struct routeTable
+	log        logging.Logger
+	firstLoad  chan struct{}
+	quit       chan struct{}
+	metrics    metrics.Metrics
 }
 
 // New initializes a routing instance, and starts listening for route
@@ -263,7 +262,6 @@ func New(o Options) *Routing {
 	r.metrics = o.Metrics
 	if !o.SignalFirstLoad {
 		close(r.firstLoad)
-		r.firstLoadSignaled = true
 	}
 
 	initialMatcher, _ := newMatcher(nil, MatchingOptionsNone)
@@ -338,21 +336,13 @@ func (r *Routing) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Routing) startReceivingUpdates(o Options) {
-	dc := len(o.DataClients)
 	c := make(chan *routeTable)
-	go receiveRouteMatcher(o, c, r.quit)
+	go receiveRouteMatcher(o, c, r.quit, r.firstLoad)
 	go func() {
 		for {
 			select {
 			case rt := <-c:
 				r.routeTable.Store(rt)
-				if !r.firstLoadSignaled {
-					dc--
-					if dc == 0 {
-						close(r.firstLoad)
-						r.firstLoadSignaled = true
-					}
-				}
 				r.log.Infof("route settings applied, id: %d", rt.id)
 				if r.metrics != nil { // existing codebases might not supply metrics instance
 					r.metrics.UpdateGauge("routes.total", float64(len(rt.validRoutes)))

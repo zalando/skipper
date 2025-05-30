@@ -65,7 +65,8 @@ func (d *incomingData) log(l logging.Logger, suppress bool) {
 // communication error occurs, it re-requests the whole valid set, and continues polling.
 // Currently, the routes with the same id coming from different sources are merged in an
 // undeterministic way, but this may change in the future.
-func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}) {
+func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <-chan struct{}, firstLoad *sync.WaitGroup) {
+	var once sync.Once
 	initial := true
 	var ticker *time.Ticker
 	if o.PollTimeout != 0 {
@@ -96,6 +97,7 @@ func receiveFromClient(c DataClient, o Options, out chan<- *incomingData, quit <
 			continue
 		case initial || len(routes) > 0 || len(deletedIDs) > 0:
 			var incoming *incomingData
+			once.Do(firstLoad.Done)
 			if initial {
 				incoming = &incomingData{incomingReset, c, routes, nil}
 			} else {
@@ -162,13 +164,21 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
 //
 // The active set of routes from last successful update are used until the
 // next successful update.
-func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
+func receiveRouteDefs(o Options, quit <-chan struct{}, firstLoad chan<- struct{}) <-chan []*eskip.Route {
 	in := make(chan *incomingData)
 	out := make(chan []*eskip.Route)
 	defsByClient := make(map[DataClient]routeDefs)
 
+	wg := &sync.WaitGroup{}
+	wg.Add(len(o.DataClients))
+
 	for _, c := range o.DataClients {
-		go receiveFromClient(c, o, in, quit)
+		go receiveFromClient(c, o, in, quit, wg)
+	}
+
+	if o.SignalFirstLoad {
+		wg.Wait()
+		close(firstLoad)
 	}
 
 	go func() {
@@ -543,8 +553,8 @@ func (rt *routeTable) close() {
 
 // receives the next version of the routing table on the output channel,
 // when an update is received on one of the data clients.
-func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}) {
-	updates := receiveRouteDefs(o, quit)
+func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}, firstLoad chan<- struct{}) {
+	updates := receiveRouteDefs(o, quit, firstLoad)
 	var (
 		rt           *routeTable
 		outRelay     chan<- *routeTable
