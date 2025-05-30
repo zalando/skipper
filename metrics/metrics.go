@@ -70,6 +70,7 @@ type Metrics interface {
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
+	MeasureSkipperLatency(routeId, host, method string, code int, start time.Time, backendDuration time.Duration, responseDuration time.Duration)
 	MeasureServe(routeId, host, method string, code int, start time.Time)
 	IncRoutingFailures()
 	IncErrorsBackend(routeId string)
@@ -129,6 +130,24 @@ type Options struct {
 	// HTTP Response status code as a domain of the metric. It affects
 	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
+
+	// If set, detailed total skipper time metrics will be collected
+	// for each route, additionally grouped by status and method.
+	EnableSkipperLatencyRouteMetrics bool
+
+	// If set, detailed total skipper time metrics will be collected
+	// for each host, additionally grouped by status and method.
+	EnableSkipperLatencyHostMetrics bool
+
+	// If set, the detailed total skipper time metrics will contain the
+	// HTTP Response status code as a domain of the metric. It affects
+	// both route and host split metrics.
+	EnableSkipperLatencyStatusCodeMetric bool
+
+	// If set, the detailed total skipper time metrics will contain the
+	// HTTP method as a domain of the metric. It affects both route and
+	// host split metrics.
+	EnableSkipperLatencyMethodMetric bool
 
 	// If set, detailed response time metrics will be collected
 	// for each backend host
