@@ -1,7 +1,10 @@
 package swarm
 
 const content = `
+{"apiVersion":"v1","kind":"Endpoints","metadata":{"labels":{"application":"skipper-ingresss"},"namespace":"kube-system","name":"skipper-ingress"},"subsets":[{"addresses":[{"ip":"10.2.9.103"},{"ip":"10.2.9.104"}],"ports":[{"port":9990,"protocol":"TCP"}]}]}
+`
 
+const content2 = `
 {
   "kind": "PodList",
   "apiVersion": "v1",
