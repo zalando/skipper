@@ -146,34 +146,12 @@ type OpenTracingParams struct {
 	ExcludeTags []string
 }
 
-type PassiveHealthCheck struct {
-	// The period of time after which the endpointregistry begins to calculate endpoints statistics
-	// from scratch
-	Period time.Duration
-
-	// The minimum number of total requests that should be sent to an endpoint in a single period to
-	// potentially opt out the endpoint from the list of healthy endpoints
-	MinRequests int64
-
-	// The minimal ratio of failed requests in a single period to potentially opt out the endpoint
-	// from the list of healthy endpoints. This ratio is equal to the minimal non-zero probability of
-	// dropping endpoint out from load balancing for every specific request
-	MinDropProbability float64
-
-	// The maximum probability of unhealthy endpoint to be dropped out from load balancing for every specific request
-	MaxDropProbability float64
-
-	// MaxUnhealthyEndpointsRatio is the maximum ratio of unhealthy endpoints in the list of all endpoints PHC will check
-	// in case of all endpoints are unhealthy
-	MaxUnhealthyEndpointsRatio float64
-}
-
-func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, error) {
+func InitPassiveHealthChecker(o map[string]string) (*routing.PassiveHealthCheck, error) {
 	if len(o) == 0 {
-		return false, &PassiveHealthCheck{}, nil
+		return nil, nil
 	}
 
-	result := &PassiveHealthCheck{
+	result := &routing.PassiveHealthCheck{
 		MinDropProbability:         0.0,
 		MaxUnhealthyEndpointsRatio: 1.0,
 	}
@@ -190,28 +168,28 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 		case "period":
 			period, err := time.ParseDuration(value)
 			if err != nil {
-				return false, nil, fmt.Errorf("passive health check: invalid period value: %s", value)
+				return nil, fmt.Errorf("passive health check: invalid period value: %s", value)
 			}
 			if period < 0 {
-				return false, nil, fmt.Errorf("passive health check: invalid period value: %s", value)
+				return nil, fmt.Errorf("passive health check: invalid period value: %s", value)
 			}
 			result.Period = period
 		case "min-requests":
 			minRequests, err := strconv.Atoi(value)
 			if err != nil {
-				return false, nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
+				return nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
 			}
 			if minRequests < 0 {
-				return false, nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
+				return nil, fmt.Errorf("passive health check: invalid minRequests value: %s", value)
 			}
 			result.MinRequests = int64(minRequests)
 		case "max-drop-probability":
 			maxDropProbability, err := strconv.ParseFloat(value, 64)
 			if err != nil {
-				return false, nil, fmt.Errorf("passive health check: invalid maxDropProbability value: %s", value)
+				return nil, fmt.Errorf("passive health check: invalid maxDropProbability value: %s", value)
 			}
 			if maxDropProbability < 0 || maxDropProbability > 1 {
-				return false, nil, fmt.Errorf("passive health check: invalid maxDropProbability value: %s", value)
+				return nil, fmt.Errorf("passive health check: invalid maxDropProbability value: %s", value)
 			}
 			result.MaxDropProbability = maxDropProbability
 
@@ -219,33 +197,33 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 		case "min-drop-probability":
 			minDropProbability, err := strconv.ParseFloat(value, 64)
 			if err != nil {
-				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+				return nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
 			}
 			if minDropProbability < 0 || minDropProbability > 1 {
-				return false, nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
+				return nil, fmt.Errorf("passive health check: invalid minDropProbability value: %s", value)
 			}
 			result.MinDropProbability = minDropProbability
 		case "max-unhealthy-endpoints-ratio":
 			maxUnhealthyEndpointsRatio, err := strconv.ParseFloat(value, 64)
 			if err != nil {
-				return false, nil, fmt.Errorf("passive health check: invalid maxUnhealthyEndpointsRatio value: %q", value)
+				return nil, fmt.Errorf("passive health check: invalid maxUnhealthyEndpointsRatio value: %q", value)
 			}
 			if maxUnhealthyEndpointsRatio < 0 || maxUnhealthyEndpointsRatio > 1 {
-				return false, nil, fmt.Errorf("passive health check: invalid maxUnhealthyEndpointsRatio value: %q", value)
+				return nil, fmt.Errorf("passive health check: invalid maxUnhealthyEndpointsRatio value: %q", value)
 			}
 			result.MaxUnhealthyEndpointsRatio = maxUnhealthyEndpointsRatio
 		default:
-			return false, nil, fmt.Errorf("passive health check: invalid parameter: key=%s,value=%s", key, value)
+			return nil, fmt.Errorf("passive health check: invalid parameter: key=%s,value=%s", key, value)
 		}
 	}
 
 	if len(requiredParams) != 0 {
-		return false, nil, fmt.Errorf("passive health check: missing required parameters %+v", maps.Keys(requiredParams))
+		return nil, fmt.Errorf("passive health check: missing required parameters %+v", maps.Keys(requiredParams))
 	}
 	if result.MinDropProbability >= result.MaxDropProbability {
-		return false, nil, fmt.Errorf("passive health check: minDropProbability should be less than maxDropProbability")
+		return nil, fmt.Errorf("passive health check: minDropProbability should be less than maxDropProbability")
 	}
-	return true, result, nil
+	return result, nil
 }
 
 // Proxy initialization options.
@@ -354,12 +332,6 @@ type Params struct {
 	// and returns some metadata about endpoint. Information about the metadata
 	// returned from the registry could be found in routing.Metrics interface.
 	EndpointRegistry *routing.EndpointRegistry
-
-	// EnablePassiveHealthCheck enables the healthy endpoints checker
-	EnablePassiveHealthCheck bool
-
-	// PassiveHealthCheck defines the parameters for the healthy endpoints checker.
-	PassiveHealthCheck *PassiveHealthCheck
 }
 
 type (
@@ -838,10 +810,10 @@ func WithParams(p Params) *Proxy {
 	hostname := os.Getenv("HOSTNAME")
 
 	var healthyEndpointsChooser *healthyEndpoints
-	if p.EnablePassiveHealthCheck {
+	if p.EndpointRegistry.GetPassiveHealthCheck() != nil {
 		healthyEndpointsChooser = &healthyEndpoints{
 			rnd:                        rand.New(loadbalancer.NewLockedSource()),
-			maxUnhealthyEndpointsRatio: p.PassiveHealthCheck.MaxUnhealthyEndpointsRatio,
+			maxUnhealthyEndpointsRatio: p.EndpointRegistry.GetPassiveHealthCheck().MaxUnhealthyEndpointsRatio,
 		}
 	}
 	return &Proxy{
