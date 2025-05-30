@@ -69,14 +69,14 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{
-				Addrs:    []string{redisAddr},
+			redisClient := net.NewRedisClient(&net.RedisOptions{
+				Addrs:    tt.addrs,
 				Password: tt.password,
 			})
-			defer ringClient.Close()
+			defer redisClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				ringClient,
+				redisClient,
 				tt.settings.Group,
 			)
 
@@ -105,11 +105,11 @@ func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
 				Group:      groupName,
 			}
 
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
+			redisClient := net.NewRedisClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer redisClient.Close()
 			c := newClusterRateLimiterRedis(
 				clusterClientlimit,
-				ringClient,
+				redisClient,
 				clusterClientlimit.Group,
 			)
 
@@ -179,11 +179,11 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
+			redisClient := net.NewRedisClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer redisClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				ringClient,
+				redisClient,
 				tt.settings.Group,
 			)
 
@@ -241,11 +241,11 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
+			redisClient := net.NewRedisClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer redisClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				ringClient,
+				redisClient,
 				tt.settings.Group,
 			)
 
@@ -253,8 +253,10 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 				_ = c.Allow(context.Background(), tt.args)
 			}
 			got := c.Delta(tt.args)
-			if tt.want-100*time.Millisecond < got && got < tt.want+100*time.Millisecond {
-				t.Errorf("clusterLimitRedis.Delta() = %v, want %v", got, tt.want)
+			// Allow for some timing variance
+			tolerance := 200 * time.Millisecond
+			if got < tt.want-tolerance || got > tt.want+tolerance {
+				t.Errorf("clusterLimitRedis.Delta() = %v, want approx %v (tolerance %v)", got, tt.want, tolerance)
 			}
 		})
 	}
@@ -305,11 +307,11 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
+			redisClient := net.NewRedisClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer redisClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				ringClient,
+				redisClient,
 				tt.settings.Group,
 			)
 
@@ -370,11 +372,11 @@ func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ringClient := net.NewRedisRingClient(&net.RedisOptions{Addrs: []string{redisAddr}})
-			defer ringClient.Close()
+			redisClient := net.NewRedisClient(&net.RedisOptions{Addrs: []string{redisAddr}})
+			defer redisClient.Close()
 			c := newClusterRateLimiterRedis(
 				tt.settings,
-				ringClient,
+				redisClient,
 				tt.settings.Group,
 			)
 
@@ -402,12 +404,12 @@ func TestFailOpenOnRedisError(t *testing.T) {
 		Group:      "agroup",
 	}
 	// redis unavailable
-	ringClient := net.NewRedisRingClient(&net.RedisOptions{})
-	defer ringClient.Close()
+	redisClient := net.NewRedisClient(&net.RedisOptions{})
+	defer redisClient.Close()
 
 	c := newClusterRateLimiterRedis(
 		settings,
-		ringClient,
+		redisClient,
 		settings.Group,
 	)
 
