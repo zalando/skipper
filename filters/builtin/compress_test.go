@@ -479,6 +479,20 @@ func TestCompress(t *testing.T) {
 		http.Header{
 			"Content-Encoding": []string{"gzip"},
 			"Vary":             []string{"Accept-Encoding"}},
+	}, {
+		"malformed accept encoding",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(gzip.BestCompression)},
+		"x-custom, ;q=3",
+		http.Header{},
+	}, {
+		"invalid q value",
+		http.Header{},
+		3 * 8192,
+		[]interface{}{float64(gzip.BestCompression)},
+		"x-custom;q=1.1",
+		http.Header{},
 	}} {
 		t.Run(ti.msg, func(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -776,3 +790,170 @@ func BenchmarkCompressBrotli2(b *testing.B) { benchmarkCompress(b, 100, []string
 func BenchmarkCompressBrotli4(b *testing.B) { benchmarkCompress(b, 10000, []string{"br"}) }
 func BenchmarkCompressBrotli6(b *testing.B) { benchmarkCompress(b, 1000000, []string{"br"}) }
 func BenchmarkCompressBrotli8(b *testing.B) { benchmarkCompress(b, 100000000, []string{"br"}) }
+
+func BenchmarkCanEncodeEntity(b *testing.B) {
+	testCases := []struct {
+		name string
+		resp *http.Response
+		mime []string
+	}{
+		{
+			name: "Valid Content-Encoding and MIME",
+			resp: &http.Response{
+				Header: http.Header{
+					"Content-Encoding": []string{"identity"},
+					"Cache-Control":    []string{"x-test"},
+					"Content-Type":     []string{"x/custom"},
+				},
+			},
+			mime: []string{"x/custom"},
+		},
+		{
+			name: "Unsupported Content-Encoding",
+			resp: &http.Response{
+				Header: http.Header{
+					"Content-Encoding": []string{"gzip"},
+					"Cache-Control":    []string{"x-test"},
+					"Content-Type":     []string{"x/custom"},
+				},
+			},
+			mime: []string{"x/custom"},
+		},
+		{
+			name: "Empty Content-Encoding",
+			resp: &http.Response{
+				Header: http.Header{
+					"Content-Encoding": []string{""},
+					"Cache-Control":    []string{"x-test"},
+					"Content-Type":     []string{"x/custom"},
+				},
+			},
+			mime: []string{"x/custom"},
+		},
+		{
+			name: "Multiple Cache-Control without No-Transform",
+			resp: &http.Response{
+				Header: http.Header{
+					"Content-Encoding": []string{"identity"},
+					"Cache-Control":    []string{"x-test-1", "x-test"},
+					"Content-Type":     []string{"x/custom"},
+				},
+			},
+			mime: []string{"x/custom"},
+		},
+		{
+			name: "No-Transform Cache-Control",
+			resp: &http.Response{
+				Header: http.Header{
+					"Content-Encoding": []string{"identity"},
+					"Cache-Control":    []string{"no-transform"},
+					"Content-Type":     []string{"x/custom"},
+				},
+			},
+			mime: []string{"x/custom"},
+		},
+		{
+			name: "Multiple Cache-Control with No-Transform",
+			resp: &http.Response{
+				Header: http.Header{
+					"Content-Encoding": []string{"identity"},
+					"Cache-Control":    []string{"x-test", "no-transform"},
+					"Content-Type":     []string{"x/custom"},
+				},
+			},
+			mime: []string{"x/custom"},
+		},
+		{
+			name: "Content-Type with Boundary",
+			resp: &http.Response{
+				Header: http.Header{
+					"Content-Encoding": []string{"identity"},
+					"Cache-Control":    []string{"x-test"},
+					"Content-Type":     []string{"x/custom; boundary=12345"},
+				},
+			},
+			mime: []string{"x/custom"},
+		},
+		{
+			name: "Unsupported MIME Type",
+			resp: &http.Response{
+				Header: http.Header{
+					"Content-Encoding": []string{"identity"},
+					"Cache-Control":    []string{"x-test"},
+					"Content-Type":     []string{"x/custom-unsupported"},
+				},
+			},
+			mime: []string{"x/custom"},
+		},
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				canEncodeEntity(tc.resp, tc.mime)
+			}
+		})
+	}
+}
+
+func BenchmarkAcceptedEncoding(b *testing.B) {
+	testCases := []struct {
+		name           string
+		acceptEncoding string
+	}{
+		{
+			name:           "No Accept-Encoding header",
+			acceptEncoding: "",
+		},
+		{
+			name:           "Single encoding - gzip",
+			acceptEncoding: "gzip",
+		},
+		{
+			name:           "Multiple Encodings with no q value",
+			acceptEncoding: "gzip, deflate",
+		},
+		{
+			name:           "Unsupported encoding",
+			acceptEncoding: "x-custom",
+		},
+		{
+			name:           "Multiple encodings with priorities",
+			acceptEncoding: "gzip;q=0.8, deflate;q=0.9, br;q=1.0",
+		},
+		{
+			name:           "Weighted encoding with default priority",
+			acceptEncoding: "gzip;q=0.5, deflate;q=0.7",
+		},
+		{
+			name:           "Multiple encodings without prefix 'q='",
+			acceptEncoding: "gzip;q, deflate; ",
+		},
+		{
+			name:           "Encoding with wrong q value",
+			acceptEncoding: "gzip;q=1.2",
+		},
+	}
+
+	c := &compress{
+		encodingPriority: map[string]int{
+			"gzip":    1,
+			"deflate": 2,
+			"br":      0,
+		},
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			req := &http.Request{
+				Header: http.Header{
+					"Accept-Encoding": []string{tc.acceptEncoding},
+				},
+			}
+
+			for i := 0; i < b.N; i++ {
+				c.acceptedEncoding(req)
+			}
+		})
+	}
+}

@@ -592,7 +592,11 @@ type eskipLexParser struct {
 	parser eskipParserImpl
 }
 
-var parserPool sync.Pool
+var parserPool = sync.Pool{
+	New: func() interface{} {
+		return new(eskipLexParser)
+	},
+}
 
 func parseDocument(code string) ([]*parsedRoute, error) {
 	routes, _, _, err := parse(start_document, code)
@@ -610,13 +614,11 @@ func parseFilters(code string) ([]*Filter, error) {
 }
 
 func parse(start int, code string) ([]*parsedRoute, []*Predicate, []*Filter, error) {
-	lp, ok := parserPool.Get().(*eskipLexParser)
-	if !ok {
-		lp = &eskipLexParser{}
-	} else {
+	lp := parserPool.Get().(*eskipLexParser)
+	defer func() {
 		*lp = eskipLexParser{}
-	}
-	defer parserPool.Put(lp)
+		parserPool.Put(lp)
+	}()
 
 	lexer := &lp.lexer
 	lexer.init(start, code)
