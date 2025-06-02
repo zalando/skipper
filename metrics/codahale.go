@@ -182,7 +182,7 @@ func (c *CodaHale) MeasureResponse(code int, method string, routeId string, star
 	}
 }
 
-func (c *CodaHale) MeasureSkipperLatency(routeId, host, method string, code int, start time.Time, backendDuration time.Duration, responseDuration time.Duration) {
+func (c *CodaHale) MeasureSkipperLatency(routeId, host, method string, code int, skipperDuration time.Duration) {
 	if !(c.options.EnableSkipperLatencyRouteMetrics || c.options.EnableSkipperLatencyHostMetrics) {
 		return
 	}
@@ -206,11 +206,11 @@ func (c *CodaHale) MeasureSkipperLatency(routeId, host, method string, code int,
 	}
 
 	if c.options.EnableSkipperLatencyRouteMetrics {
-		c.updateTimer(keySkipperLatencyRoute, time.Since(start)-backendDuration-responseDuration)
+		c.updateTimer(keySkipperLatencyRoute, skipperDuration)
 	}
 
 	if c.options.EnableSkipperLatencyHostMetrics {
-		c.updateTimer(keySkipperLatencyHost, time.Since(start)-backendDuration-responseDuration)
+		c.updateTimer(keySkipperLatencyHost, skipperDuration)
 	}
 }
 

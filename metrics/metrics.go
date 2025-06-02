@@ -70,7 +70,7 @@ type Metrics interface {
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
-	MeasureSkipperLatency(routeId, host, method string, code int, start time.Time, backendDuration time.Duration, responseDuration time.Duration)
+	MeasureSkipperLatency(routeId, host, method string, code int, skipperDuration time.Duration)
 	MeasureServe(routeId, host, method string, code int, start time.Time)
 	IncRoutingFailures()
 	IncErrorsBackend(routeId string)

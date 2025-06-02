@@ -407,9 +407,8 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	}
 }
 
-func (p *Prometheus) MeasureSkipperLatency(routeId, host, method string, code int, start time.Time, backendDuration time.Duration, responseDuration time.Duration) {
+func (p *Prometheus) MeasureSkipperLatency(routeId, host, method string, code int, skipperDuration time.Duration) {
 	method = measuredMethod(method)
-	skipperDuration := time.Since(start) - backendDuration - responseDuration
 	t := skipperDuration.Seconds()
 
 	if p.opts.EnableSkipperLatencyRouteMetrics || p.opts.EnableSkipperLatencyHostMetrics {

@@ -89,9 +89,9 @@ func (a *All) MeasureResponse(code int, method string, routeId string, start tim
 	a.codaHale.MeasureResponse(code, method, routeId, start)
 }
 
-func (a *All) MeasureSkipperLatency(routeId, host, method string, code int, start time.Time, backendDuration time.Duration, responseDuration time.Duration) {
-	a.prometheus.MeasureSkipperLatency(routeId, host, method, code, start, backendDuration, responseDuration)
-	a.codaHale.MeasureSkipperLatency(routeId, host, method, code, start, backendDuration, responseDuration)
+func (a *All) MeasureSkipperLatency(routeId, host, method string, code int, skipperDuration time.Duration) {
+	a.prometheus.MeasureSkipperLatency(routeId, host, method, code, skipperDuration)
+	a.codaHale.MeasureSkipperLatency(routeId, host, method, code, skipperDuration)
 }
 
 func (a *All) MeasureServe(routeId, host, method string, code int, start time.Time) {

@@ -1174,7 +1174,10 @@ func stack() []byte {
 }
 
 func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
+	doTime := time.Now()
+	var backendDuration time.Duration = 0
 	defer func() {
+		ctx.skipperDuration += time.Since(doTime) - backendDuration
 		if r := recover(); r != nil {
 			p.onPanicSometimes.Do(func() {
 				ctx.Logger().Errorf("stacktrace of panic caused by: %v:\n%s", r, stack())
@@ -1336,7 +1339,7 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		}
 
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
-		ctx.roundTripDuration = time.Since(backendStart)
+		backendDuration = time.Since(backendStart)
 		p.metrics.MeasureBackend(ctx.route.Id, backendStart)
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
 	}
@@ -1354,6 +1357,14 @@ func retryable(ctx *context, perr *proxyError) bool {
 }
 
 func (p *Proxy) serveResponse(ctx *context) {
+	start := time.Now()
+	var err error
+	defer func() {
+		if err != nil {
+			ctx.skipperDuration += time.Since(start)
+		}
+	}()
+
 	if p.flags.Debug() {
 		dbgResponse(ctx.responseWriter, &debugInfo{
 			route:    &ctx.route.Route,
@@ -1364,8 +1375,6 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 		return
 	}
-
-	start := time.Now()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 
@@ -1392,14 +1401,13 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
-		ctx.responseDuration = time.Since(start)
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
-	p.metrics.MeasureSkipperLatency(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe, ctx.roundTripDuration, ctx.responseDuration)
 	p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
 }
 
 func (p *Proxy) errorResponse(ctx *context, err error) {
+	start := time.Now()
 	perr, ok := err.(*proxyError)
 	if ok && perr.handled {
 		return
@@ -1482,15 +1490,6 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	ctx.responseWriter.Flush()
 	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
 
-	p.metrics.MeasureSkipperLatency(
-		id,
-		ctx.metricsHost(),
-		ctx.request.Method,
-		ctx.response.StatusCode,
-		ctx.startServe,
-		ctx.roundTripDuration,
-		0,
-	)
 	p.metrics.MeasureServe(
 		id,
 		ctx.metricsHost(),
@@ -1498,6 +1497,7 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		ctx.response.StatusCode,
 		ctx.startServe,
 	)
+	ctx.skipperDuration += time.Since(start)
 }
 
 // strip port from addresses with hostname, ipv4 or ipv6
@@ -1613,6 +1613,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(routing.NewContext(r.Context()))
 
 	ctx = newContext(lw, r, p)
+	ctx.skipperDuration = 0
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
@@ -1627,8 +1628,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	ctx.skipperDuration = time.Since(ctx.startServe)
 	err := p.do(ctx, span)
 
+	t := time.Now()
 	// writeTimeout() filter
 	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
 		e := ctx.ResponseController().SetWriteDeadline(time.Now().Add(d))
@@ -1636,6 +1639,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ctx.Logger().Errorf("Failed to set write deadline: %v", e)
 		}
 	}
+	ctx.skipperDuration += time.Since(t)
 
 	// stream response body to client
 	if err != nil {
@@ -1644,6 +1648,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.serveResponse(ctx)
 	}
 
+	t = time.Now()
 	// fifoWtihBody() filter
 	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
 		if fs, ok := sbf.([]func()); ok {
@@ -1656,6 +1661,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if ctx.cancelBackendContext != nil {
 		ctx.cancelBackendContext()
 	}
+	ctx.skipperDuration += time.Since(t)
+	p.metrics.MeasureSkipperLatency(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.skipperDuration)
 }
 
 // Close causes the proxy to stop closing idle
