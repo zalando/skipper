@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 alpine@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c
+FROM --platform=linux/arm64 alpine@sha256:8a1f59ffb675680d47db6337b49d22281a139e9d709335b492be023728e11715
 LABEL maintainer="Team Gateway&Proxy @ Zalando SE <team-gwproxy@zalando.de>"
 RUN apk --no-cache add ca-certificates && update-ca-certificates
 ADD build/linux/arm64/skipper \
