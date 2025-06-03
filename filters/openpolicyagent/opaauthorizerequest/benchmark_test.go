@@ -291,12 +291,12 @@ func BenchmarkJwtValidation(b *testing.B) {
 // For example:
 //
 //   cd testResources
-//   opa build -b simple-opa-bundle -o simple-opa-bundle.tar.gz
+//   opa build -b simple-opa-bundle -o simple-opa-context-data.tgz
 
 // You can also use your own bundle.  If you do so, ensure that the bundleName,
 // bundlePath, and filterOpts variables are correctly configured to match your bundle.
 func BenchmarkMinimalPolicyBundle(b *testing.B) {
-	bundleName := "simple-opa-bundle.tar.gz"
+	bundleName := "simple-opa-context-data.tgz"
 	bundlePath := fmt.Sprintf("testResources/%s", bundleName)
 
 	opaControlPlane := newOpaControlPlaneServingBundle(bundlePath, bundleName, b)
@@ -331,6 +331,152 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 			assert.False(b, ctx.FServed)
 		}
 	})
+}
+
+func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
+	type benchmarkCase struct {
+		name       string
+		createFunc func(FilterOptions) (filters.Filter, error)
+	}
+
+	cases := []benchmarkCase{
+		{
+			name: "default_filter",
+			createFunc: func(opts FilterOptions) (filters.Filter, error) {
+				return createOpaFilterDiscovery(opts)
+			},
+		},
+		{
+			name: "with_data_preprocessing",
+			createFunc: func(opts FilterOptions) (filters.Filter, error) {
+				return createOpaFilterDiscovery(opts)
+			},
+		},
+	}
+
+	for _, bc := range cases {
+		b.Run(bc.name, func(b *testing.B) {
+			//bundleName := "policy.tgz"
+			//bundlePath := fmt.Sprintf("testResources/%s", bundleName)
+
+			// Start policy/data server
+			opaControlPlane := newOpaControlPlaneServingDataAndPolicyBundles(b)
+			defer opaControlPlane.Close()
+
+			//policyDataServer, policyDataURL := startPolicyAndDataServer(b)
+			//defer policyDataServer.Close()
+
+			// Start mock discovery server, pointing to the policy/data server
+			discoveryServer, _ := mockControlPlaneWithDiscoveryBundle(b, opaControlPlane.URL)
+			//defer discoveryServer.Close()
+
+			fmt.Println("opaControlPlane" + opaControlPlane.URL)
+			fmt.Println("discoveryServer" + discoveryServer.URL())
+
+			filterOpts := FilterOptions{
+				OpaControlPlaneUrl: opaControlPlane.URL,
+				DiscoveryServerUrl: discoveryServer.URL(),
+				DecisionPath:       "example/allow",
+				DecisionLogging:    false,
+				DiscoveryBundleUrl: "/bundles/discovery",
+			}
+			f, err := bc.createFunc(filterOpts)
+			require.NoError(b, err)
+
+			requestUrl, err := url.Parse("http://opa-authorized.test/allow")
+			require.NoError(b, err)
+
+			b.ResetTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					ctx := &filtertest.Context{
+						FStateBag: map[string]interface{}{},
+						FResponse: &http.Response{},
+						FRequest: &http.Request{
+							URL:    requestUrl,
+							Method: "GET",
+						},
+						FMetrics: &metricstest.MockMetrics{},
+					}
+					f.Request(ctx)
+					assert.Equal(b, 403, ctx.FResponse.StatusCode, "Expected 403 Forbidden response")
+				}
+			})
+		})
+	}
+}
+
+// startMockDiscoveryServer starts an opasdktest.Server serving the discovery bundle.
+func mockControlPlaneWithDiscoveryBundle(b *testing.B, policyDataServerURL string) (*opasdktest.Server, []byte) {
+	// Mock discovery config: points to the policy/data server.
+	discoveryConfig := map[string]interface{}{
+		"services": map[string]interface{}{
+			"test-server": map[string]interface{}{
+				"url": policyDataServerURL,
+			},
+		},
+		"bundles": map[string]interface{}{
+			"authz": map[string]interface{}{
+				"service":  "test-server",
+				"resource": "bundles/policy",
+			},
+			"context": map[string]interface{}{
+				"service":  "test-server",
+				"resource": "bundles/context-data",
+			},
+		},
+	}
+	discoveryJSON, err := json.MarshalIndent(discoveryConfig, "", "  ")
+	if err != nil {
+		b.Fatalf("failed to marshal discovery config: %v", err)
+	}
+
+	fmt.Printf("Discovery bundle JSON:\n%s\n", discoveryJSON)
+
+	// Mock discovery bundle served as a JSON file.
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/discovery", map[string]string{
+			"data.json": string(discoveryJSON),
+		}),
+	)
+
+	return opaControlPlane, discoveryJSON
+}
+
+func newOpaControlPlaneServingDataAndPolicyBundles(b *testing.B) *httptest.Server {
+	bundleFiles := map[string]string{
+		"policy":       "testResources/policy.tgz",
+		"context-data": "testResources/context-data.tgz",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("Request policy and data server: %s %s\n", r.Method, r.URL.Path)
+
+		for bundleName, bundlePath := range bundleFiles {
+			if r.URL.Path == "/bundles/"+bundleName {
+				fileData, err := os.ReadFile(bundlePath)
+				if err != nil {
+					b.Fatalf("failed to read bundle file from path %q: %v", bundlePath, err)
+				}
+				w.Header().Set("Content-Type", "application/gzip")
+				w.Header().Set("Content-Disposition", "attachment; filename="+bundleName)
+				_, err = w.Write(fileData)
+				if err != nil {
+					fmt.Printf("failed to write bundle file: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+				return
+			}
+		}
+
+		if r.URL.Path == "/logs" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+
+	return server
 }
 
 func newDecisionConsumer() *httptest.Server {
@@ -444,7 +590,7 @@ func createOpaFilterDiscovery(opts FilterOptions) (filters.Filter, error) {
 }
 
 func generateDiscoveryConfig(
-	opaControlPlane string, // URL for policy/data bundles
+	opaControlPlane string,    // URL for policy/data bundles
 	discoveryServerUrl string, // URL for discovery bundle (full base URL)
 	decisionLogConsumer string,
 	decisionPath string,
