@@ -291,12 +291,12 @@ func BenchmarkJwtValidation(b *testing.B) {
 // For example:
 //
 //   cd testResources
-//   opa build -b simple-opa-bundle -o simple-opa-context-data.tgz
+//   opa build -b simple-opa-bundle -o simple-opa-bundle.tar.gz
 
 // You can also use your own bundle.  If you do so, ensure that the bundleName,
 // bundlePath, and filterOpts variables are correctly configured to match your bundle.
 func BenchmarkMinimalPolicyBundle(b *testing.B) {
-	bundleName := "simple-opa-context-data.tgz"
+	bundleName := "simple-opa-bundle.tar.gz"
 	bundlePath := fmt.Sprintf("testResources/%s", bundleName)
 
 	opaControlPlane := newOpaControlPlaneServingBundle(bundlePath, bundleName, b)
@@ -436,8 +436,6 @@ func newOpaControlPlaneServingBundle(bundlePath, bundleName string, b *testing.B
 	}
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Request policy and data server: %s %s\n", r.Method, r.URL.Path)
-
 		if r.URL.Path == "/bundles/"+bundleName {
 			w.Header().Set("Content-Type", "application/gzip")
 			w.Header().Set("Content-Disposition", "attachment; filename="+bundleName)
@@ -446,8 +444,6 @@ func newOpaControlPlaneServingBundle(bundlePath, bundleName string, b *testing.B
 				fmt.Printf("failed to write bundle file: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 			}
-			fmt.Printf("Request policy and data server222: %s %s\n", r.Method, r.URL.Path)
-
 			return
 		}
 
@@ -586,9 +582,7 @@ func generateConfigForMultipleBundles(opaControlPlane string, decisionLogConsume
 
 type FilterOptions struct {
 	OpaControlPlaneUrl  string
-	DiscoveryServerUrl  string
 	DecisionConsumerUrl string
-	DiscoveryBundleUrl  string
 	DecisionPath        string
 	BundleName          string
 	BundleNames         []string
