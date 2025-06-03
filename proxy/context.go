@@ -51,7 +51,7 @@ type context struct {
 	routeLookup          *routing.RouteLookup
 	cancelBackendContext stdlibcontext.CancelFunc
 	logger               filters.FilterContextLogger
-	skipperDuration      time.Duration
+	timer                metrics.StopWatch
 }
 
 type filterMetrics struct {

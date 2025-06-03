@@ -17,9 +17,9 @@ const (
 	promNamespace          = "skipper"
 	promRouteSubsystem     = "route"
 	promFilterSubsystem    = "filter"
-	promProxySubsystem     = "backend"
+	promBackendSubsystem   = "backend"
 	promStreamingSubsystem = "streaming"
-	promRequestSubsystem   = "request"
+	promProxySubsystem     = "proxy"
 	promResponseSubsystem  = "response"
 	promServeSubsystem     = "serve"
 	promCustomSubsystem    = "custom"
@@ -133,7 +133,7 @@ func NewPrometheus(opts Options) *Prometheus {
 
 	p.proxyBackendM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
-		Subsystem: promProxySubsystem,
+		Subsystem: promBackendSubsystem,
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of a proxy backend.",
 		Buckets:   opts.HistogramBuckets,
@@ -141,7 +141,7 @@ func NewPrometheus(opts Options) *Prometheus {
 
 	p.proxyBackendCombinedM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
-		Subsystem: promProxySubsystem,
+		Subsystem: promBackendSubsystem,
 		Name:      "combined_duration_seconds",
 		Help:      "Duration in seconds of a proxy backend combined.",
 		Buckets:   opts.HistogramBuckets,
@@ -215,14 +215,14 @@ func NewPrometheus(opts Options) *Prometheus {
 	}
 	p.skipperLatencyRouteM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
-		Subsystem: promRequestSubsystem,
+		Subsystem: promProxySubsystem,
 		Name:      "route_duration_seconds",
 		Help:      "Duration in seconds of a skipper latency in a route",
 		Buckets:   opts.HistogramBuckets,
 	}, append(latencyMetrics, "route")))
 	p.skipperLatencyHostM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
-		Subsystem: promRequestSubsystem,
+		Subsystem: promProxySubsystem,
 		Name:      "host_duration_seconds",
 		Help:      "Duration in seconds of a skipper latency in a host",
 		Buckets:   opts.HistogramBuckets,
@@ -230,14 +230,14 @@ func NewPrometheus(opts Options) *Prometheus {
 
 	p.proxyBackend5xxM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
-		Subsystem: promProxySubsystem,
+		Subsystem: promBackendSubsystem,
 		Name:      "5xx_duration_seconds",
 		Help:      "Duration in seconds of backend 5xx.",
 		Buckets:   opts.HistogramBuckets,
 	}, []string{}))
 	p.proxyBackendErrorsM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
-		Subsystem: promProxySubsystem,
+		Subsystem: promBackendSubsystem,
 		Name:      "error_total",
 		Help:      "Total number of backend route errors.",
 	}, []string{"route"}))

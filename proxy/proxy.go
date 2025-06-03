@@ -1023,7 +1023,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
 
+	ctx.timer.Stop()
 	response, err := roundTripper.RoundTrip(req)
+	ctx.timer.Start()
+
 	if endpointMetrics != nil {
 		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
 	}
@@ -1174,10 +1177,7 @@ func stack() []byte {
 }
 
 func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
-	doTime := time.Now()
-	var backendDuration time.Duration = 0
 	defer func() {
-		ctx.skipperDuration += time.Since(doTime) - backendDuration
 		if r := recover(); r != nil {
 			p.onPanicSometimes.Do(func() {
 				ctx.Logger().Errorf("stacktrace of panic caused by: %v:\n%s", r, stack())
@@ -1339,7 +1339,6 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		}
 
 		ctx.setResponse(rsp, p.flags.PreserveOriginal())
-		backendDuration = time.Since(backendStart)
 		p.metrics.MeasureBackend(ctx.route.Id, backendStart)
 		p.metrics.MeasureBackendHost(ctx.route.Host, backendStart)
 	}
@@ -1386,7 +1385,10 @@ func (p *Proxy) serveResponse(ctx *context) {
 	ctx.responseWriter.Flush()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
 
+	ctx.timer.Stop()
 	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
+	ctx.timer.Start()
+
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
@@ -1395,7 +1397,6 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
-		ctx.skipperDuration -= time.Since(start) // remove response duration from skipper duration
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
 	p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
@@ -1482,7 +1483,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
+
+	ctx.timer.Stop()
 	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
+	ctx.timer.Start()
 
 	p.metrics.MeasureServe(
 		id,
@@ -1606,11 +1610,16 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(routing.NewContext(r.Context()))
 
 	ctx = newContext(lw, r, p)
-	ctx.skipperDuration = 0
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
 	ctx.parentSpan = span
+
+	ctx.timer.Start()
+	defer func() {
+		ctx.timer.Stop()
+		p.metrics.MeasureSkipperLatency(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.timer.Elapsed())
+	}()
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -1637,9 +1646,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		p.serveResponse(ctx)
 	}
-
-	ctx.skipperDuration += time.Since(ctx.startServe)
-	p.metrics.MeasureSkipperLatency(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.skipperDuration)
 
 	// fifoWtihBody() filter
 	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
