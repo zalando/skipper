@@ -350,6 +350,8 @@ func newOpaControlPlaneServingBundle(bundlePath, bundleName string, b *testing.B
 	}
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("Request policy and data server: %s %s\n", r.Method, r.URL.Path)
+
 		if r.URL.Path == "/bundles/"+bundleName {
 			w.Header().Set("Content-Type", "application/gzip")
 			w.Header().Set("Content-Disposition", "attachment; filename="+bundleName)
@@ -358,6 +360,8 @@ func newOpaControlPlaneServingBundle(bundlePath, bundleName string, b *testing.B
 				fmt.Printf("failed to write bundle file: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 			}
+			fmt.Printf("Request policy and data server222: %s %s\n", r.Method, r.URL.Path)
+
 			return
 		}
 
@@ -432,9 +436,70 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
 	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath))
 }
 
+func createOpaFilterDiscovery(opts FilterOptions) (filters.Filter, error) {
+	config := generateDiscoveryConfig(opts.OpaControlPlaneUrl, opts.DiscoveryServerUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging, opts.DiscoveryBundleUrl)
+	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
+	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	return spec.CreateFilter([]interface{}{opts.BundleName, opts.ContextExtensions})
+}
+
+func generateDiscoveryConfig(
+	opaControlPlane string, // URL for policy/data bundles
+	discoveryServerUrl string, // URL for discovery bundle (full base URL)
+	decisionLogConsumer string,
+	decisionPath string,
+	decisionLogging bool,
+	discoveryBundlePath string, // Path to discovery bundle (e.g., "/bundles/discovery")
+) []byte {
+	var decisionPlugin string
+	if decisionLogging {
+		decisionPlugin = `
+            "decision_logs": {
+                "console": false,
+                "service": "decision_svc",
+                "reporting": {
+                    "min_delay_seconds": 300,
+                    "max_delay_seconds": 600
+                }
+            },
+        `
+	}
+
+	return []byte(fmt.Sprintf(`{
+        "services": {
+            "bundle_svc": {
+                "url": %q
+            },
+            "discovery_svc": {
+                "url": %q
+            },
+            "decision_svc": {
+                "url": %q
+            }
+        },
+        "labels": {
+            "environment": "test"
+        },
+        %s
+        "discovery": {
+            "name": "discovery",
+            "resource": %q,
+            "service": "discovery_svc"
+        },
+        "plugins": {
+            "envoy_ext_authz_grpc": {
+                "path": %q,
+                "dry-run": false
+            }
+        }
+    }`, opaControlPlane, discoveryServerUrl, decisionLogConsumer, decisionPlugin, discoveryBundlePath, decisionPath))
+}
+
 type FilterOptions struct {
 	OpaControlPlaneUrl  string
+	DiscoveryServerUrl  string
 	DecisionConsumerUrl string
+	DiscoveryBundleUrl  string
 	DecisionPath        string
 	BundleName          string
 	DecisionLogging     bool
