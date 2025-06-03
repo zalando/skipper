@@ -39,7 +39,7 @@ func TestLetsencrypt(t *testing.T) {
 	if !validateDomain(validDomain) {
 		t.Fatalf("Failed to validate valid domain %q", validDomain)
 	}
-	le := NewLetsencrypt(true, &inmemoryCache{}, "sandor@szuecs.net", []string{validDomain})
+	le := NewLetsencrypt(&inmemoryCache{}, "sandor@szuecs.net", "https://acme-staging-v02.api.letsencrypt.org/directory", []string{validDomain})
 	defer le.Close()
 	if le.manager.Client != nil {
 		dir, err := le.manager.Client.Discover(context.TODO())
@@ -56,5 +56,6 @@ func TestLetsencrypt(t *testing.T) {
 	}
 
 	li := le.Listener()
+	defer li.Close()
 	t.Logf("listener %v", li.Addr())
 }

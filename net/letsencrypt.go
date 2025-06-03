@@ -15,7 +15,7 @@ type letsencrypt struct {
 	manager *autocert.Manager
 }
 
-func NewLetsencrypt(t bool, cache autocert.Cache, email string, domains []string) *letsencrypt {
+func NewLetsencrypt(cache autocert.Cache, email, directoryURL string, domains []string) *letsencrypt {
 	for _, s := range domains {
 		if validateDomain(s) {
 			domains = append(domains, s)
@@ -27,13 +27,11 @@ func NewLetsencrypt(t bool, cache autocert.Cache, email string, domains []string
 		Email:      email,
 		HostPolicy: autocert.HostWhitelist(domains...),
 		Prompt:     autocert.AcceptTOS,
-	}
-	if t {
-		manager.Client = &acme.Client{
-			DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
+		Client: &acme.Client{
+			DirectoryURL: directoryURL,
 			UserAgent:    "skipper-test",
 			HTTPClient:   http.DefaultClient,
-		}
+		},
 	}
 
 	return &letsencrypt{
