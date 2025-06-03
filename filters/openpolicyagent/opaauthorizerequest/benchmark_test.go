@@ -2,6 +2,7 @@ package opaauthorizerequest
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"github.com/golang-jwt/jwt/v4"
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
@@ -333,7 +334,63 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 	})
 }
 
+// BenchmarkSplitPolicyAndDataBundles measures the performance of the OPA authorization filter
+// when using a pre-compiled split policy and data bundles loaded from a .tar.gz file.
+
+// This benchmark evaluates the filter's authorization decision overhead with a
+// pre-compiled bundles, serving as a representative use case.
+
+// The sample bundles for this benchmark are located at testResources/split-bundles.
+
+// You can also use your own bundles.  If you do so, ensure that the bundlePaths,
+// and filterOpts variables are correctly configured to match your bundle and
+// the roots in your bundles do not overlap.
 func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
+	policyBundle := "policy"
+	dataBundle := "context-data"
+
+	bundleFiles := map[string]string{
+		policyBundle: "testResources/split-bundles/policy.tgz",
+		dataBundle:   "testResources/split-bundles/context-data.tgz",
+	}
+
+	opaControlPlane := newOpaControlPlaneServingDataAndPolicyBundles(b, bundleFiles)
+	defer opaControlPlane.Close()
+
+	filterOpts := FilterOptions{
+		OpaControlPlaneUrl:  opaControlPlane.URL,
+		DecisionConsumerUrl: opaControlPlane.URL,
+		DecisionPath:        "example/allow",
+		BundleNames:         []string{policyBundle, dataBundle},
+		DecisionLogging:     false,
+	}
+
+	f, err := createOpaFilterForMultipleBundles(filterOpts)
+	require.NoError(b, err)
+
+	requestUrl, err := url.Parse("http://opa-authorized.test/allow")
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			ctx := &filtertest.Context{
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{},
+				FRequest: &http.Request{
+					URL:    requestUrl,
+					Method: "GET",
+				},
+				FMetrics: &metricstest.MockMetrics{},
+			}
+			f.Request(ctx)
+			assert.Equal(b, 403, ctx.FResponse.StatusCode, "Expected 403 Forbidden response")
+		}
+	})
+
+}
+
+func BenchmarkSplitPolicyAndDataBundlesUsingDiscovery(b *testing.B) {
 	type benchmarkCase struct {
 		name       string
 		createFunc func(FilterOptions) (filters.Filter, error)
@@ -356,19 +413,17 @@ func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 
 	for _, bc := range cases {
 		b.Run(bc.name, func(b *testing.B) {
-			//bundleName := "policy.tgz"
-			//bundlePath := fmt.Sprintf("testResources/%s", bundleName)
+			bundleFiles := map[string]string{
+				"policy":       "testResources/policy.tgz",
+				"context-data": "testResources/context-data.tgz",
+			}
 
 			// Start policy/data server
-			opaControlPlane := newOpaControlPlaneServingDataAndPolicyBundles(b)
+			opaControlPlane := newOpaControlPlaneServingDataAndPolicyBundles(b, bundleFiles)
 			defer opaControlPlane.Close()
-
-			//policyDataServer, policyDataURL := startPolicyAndDataServer(b)
-			//defer policyDataServer.Close()
 
 			// Start mock discovery server, pointing to the policy/data server
 			discoveryServer, _ := mockControlPlaneWithDiscoveryBundle(b, opaControlPlane.URL)
-			//defer discoveryServer.Close()
 
 			fmt.Println("opaControlPlane" + opaControlPlane.URL)
 			fmt.Println("discoveryServer" + discoveryServer.URL())
@@ -406,7 +461,6 @@ func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 	}
 }
 
-// startMockDiscoveryServer starts an opasdktest.Server serving the discovery bundle.
 func mockControlPlaneWithDiscoveryBundle(b *testing.B, policyDataServerURL string) (*opasdktest.Server, []byte) {
 	// Mock discovery config: points to the policy/data server.
 	discoveryConfig := map[string]interface{}{
@@ -443,15 +497,9 @@ func mockControlPlaneWithDiscoveryBundle(b *testing.B, policyDataServerURL strin
 	return opaControlPlane, discoveryJSON
 }
 
-func newOpaControlPlaneServingDataAndPolicyBundles(b *testing.B) *httptest.Server {
-	bundleFiles := map[string]string{
-		"policy":       "testResources/policy.tgz",
-		"context-data": "testResources/context-data.tgz",
-	}
+func newOpaControlPlaneServingDataAndPolicyBundles(b *testing.B, bundleFiles map[string]string) *httptest.Server {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Request policy and data server: %s %s\n", r.Method, r.URL.Path)
-
 		for bundleName, bundlePath := range bundleFiles {
 			if r.URL.Path == "/bundles/"+bundleName {
 				fileData, err := os.ReadFile(bundlePath)
@@ -582,6 +630,68 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
 	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath))
 }
 
+func createOpaFilterForMultipleBundles(opts FilterOptions) (filters.Filter, error) {
+	config := generateConfigForMultipleBundles(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
+	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
+	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	return spec.CreateFilter([]interface{}{opts.BundleName, opts.ContextExtensions})
+}
+
+func generateConfigForMultipleBundles(opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool) []byte {
+	var decisionPlugin string
+	if decisionLogging {
+		decisionPlugin = `
+			"decision_logs": {
+				"console": false,
+				"service": "decision_svc",
+  				"reporting": {
+					"min_delay_seconds": 300,
+					"max_delay_seconds": 600				
+				}
+			},
+		`
+	}
+
+	return []byte(fmt.Sprintf(`{
+		"services": {
+			"bundle_svc": {
+				"url": %q
+			},
+			"decision_svc": {
+				"url": %q
+			}
+		},
+		"bundles": {
+			"policy": {
+      			"service": "bundle_svc",
+      			"resource": "/bundles/policy",
+      			"polling": {
+        			"min_delay_seconds": 600,
+					"max_delay_seconds": 1200
+      			}
+    		},
+    		"context-data": {
+      			"service": "bundle_svc",
+      			"resource": "/bundles/context-data",
+      			"polling": {
+        			"min_delay_seconds": 600,
+        			"max_delay_seconds": 1200
+      			}
+			}
+		},
+		"labels": {
+			"environment": "test"
+		},
+		%s
+		"plugins": {
+			"envoy_ext_authz_grpc": {    
+				"path": %q,
+				"dry-run": false    
+			}
+		}
+	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath))
+}
+
 func createOpaFilterDiscovery(opts FilterOptions) (filters.Filter, error) {
 	config := generateDiscoveryConfig(opts.OpaControlPlaneUrl, opts.DiscoveryServerUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging, opts.DiscoveryBundleUrl)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
@@ -648,6 +758,7 @@ type FilterOptions struct {
 	DiscoveryBundleUrl  string
 	DecisionPath        string
 	BundleName          string
+	BundleNames         []string
 	DecisionLogging     bool
 	ContextExtensions   string
 }
