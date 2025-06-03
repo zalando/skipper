@@ -1357,14 +1357,6 @@ func retryable(ctx *context, perr *proxyError) bool {
 }
 
 func (p *Proxy) serveResponse(ctx *context) {
-	start := time.Now()
-	var err error
-	defer func() {
-		if err != nil {
-			ctx.skipperDuration += time.Since(start)
-		}
-	}()
-
 	if p.flags.Debug() {
 		dbgResponse(ctx.responseWriter, &debugInfo{
 			route:    &ctx.route.Route,
@@ -1375,6 +1367,8 @@ func (p *Proxy) serveResponse(ctx *context) {
 
 		return
 	}
+
+	start := time.Now()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, StartEvent)
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 
@@ -1401,13 +1395,13 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.setTag(ctx.proxySpan, StreamBodyEvent, StreamBodyError)
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
+		ctx.skipperDuration -= time.Since(start) // remove response duration from skipper duration
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
 	}
 	p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
 }
 
 func (p *Proxy) errorResponse(ctx *context, err error) {
-	start := time.Now()
 	perr, ok := err.(*proxyError)
 	if ok && perr.handled {
 		return
@@ -1497,7 +1491,6 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 		ctx.response.StatusCode,
 		ctx.startServe,
 	)
-	ctx.skipperDuration += time.Since(start)
 }
 
 // strip port from addresses with hostname, ipv4 or ipv6
@@ -1628,10 +1621,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	ctx.skipperDuration = time.Since(ctx.startServe)
 	err := p.do(ctx, span)
 
-	t := time.Now()
 	// writeTimeout() filter
 	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
 		e := ctx.ResponseController().SetWriteDeadline(time.Now().Add(d))
@@ -1639,7 +1630,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ctx.Logger().Errorf("Failed to set write deadline: %v", e)
 		}
 	}
-	ctx.skipperDuration += time.Since(t)
 
 	// stream response body to client
 	if err != nil {
@@ -1648,7 +1638,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.serveResponse(ctx)
 	}
 
-	t = time.Now()
+	ctx.skipperDuration += time.Since(ctx.startServe)
+	p.metrics.MeasureSkipperLatency(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.skipperDuration)
+
 	// fifoWtihBody() filter
 	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
 		if fs, ok := sbf.([]func()); ok {
@@ -1661,8 +1653,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if ctx.cancelBackendContext != nil {
 		ctx.cancelBackendContext()
 	}
-	ctx.skipperDuration += time.Since(t)
-	p.metrics.MeasureSkipperLatency(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.skipperDuration)
 }
 
 // Close causes the proxy to stop closing idle
