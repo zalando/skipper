@@ -1023,7 +1023,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
 
+	ctx.timer.Stop()
 	response, err := roundTripper.RoundTrip(req)
+	ctx.timer.Start()
+
 	if endpointMetrics != nil {
 		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
 	}
@@ -1382,7 +1385,10 @@ func (p *Proxy) serveResponse(ctx *context) {
 	ctx.responseWriter.Flush()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
 
+	ctx.timer.Stop()
 	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
+	ctx.timer.Start()
+
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
 		p.metrics.IncErrorsStreaming(ctx.route.Id)
@@ -1477,7 +1483,10 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	copyHeader(ctx.responseWriter.Header(), ctx.response.Header)
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
+
+	ctx.timer.Stop()
 	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
+	ctx.timer.Start()
 
 	p.metrics.MeasureServe(
 		id,
@@ -1605,6 +1614,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
 	ctx.parentSpan = span
+
+	ctx.timer.Start()
+	defer func() {
+		ctx.timer.Stop()
+		// p.metrics.MeasureProxyLatency(ctx.metricsHost(), ctx.timer.Elapsed())
+	}()
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
