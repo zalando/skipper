@@ -339,11 +339,20 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 // This benchmark evaluates the filter's authorization decision overhead with a
 // pre-compiled bundles, serving as a representative use case.
 
-// The sample bundles for this benchmark are located at testResources/split-bundles.
+// A sample bundles for this benchmark are located at testResources/split-bundles.
+// To generate a .tgz bundle, use the following command:
+//
+//   opa build -b <bundle_directory> -o <output_file.tgz>
+//
+// For example:
+//
+//   cd testResources/split-bundles
+//   opa build -b data -o context-data.tgz
+//   opa build -b policy -o policy.tgz
 
 // You can also use your own bundles.  If you do so, ensure that the bundlePaths,
 // and filterOpts variables are correctly configured to match your bundle and
-// the roots in your bundles do not overlap.
+// the roots in .manifest files in your bundles do not overlap.
 func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 	policyBundle := "policy"
 	dataBundle := "context-data"
@@ -359,7 +368,7 @@ func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 	filterOpts := FilterOptions{
 		OpaControlPlaneUrl:  opaControlPlane.URL,
 		DecisionConsumerUrl: opaControlPlane.URL,
-		DecisionPath:        "example/allow",
+		DecisionPath:        "policy/allow",
 		BundleNames:         []string{policyBundle, dataBundle},
 		DecisionLogging:     false,
 	}
