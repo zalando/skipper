@@ -376,7 +376,7 @@ func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 	f, err := createOpaFilterForMultipleBundles(filterOpts)
 	require.NoError(b, err)
 
-	requestUrl, err := url.Parse("http://opa-authorized.test/allow")
+	requestUrl, err := url.Parse("http://opa-authorized.test/allow/alice")
 	require.NoError(b, err)
 
 	b.ResetTimer()
@@ -392,7 +392,8 @@ func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 				FMetrics: &metricstest.MockMetrics{},
 			}
 			f.Request(ctx)
-			assert.Equal(b, 403, ctx.FResponse.StatusCode, "Expected 403 Forbidden response")
+			assert.False(b, ctx.FServed)
+			assert.NotEqual(b, 403, ctx.FResponse.StatusCode, "Expected 403 Forbidden response")
 		}
 	})
 

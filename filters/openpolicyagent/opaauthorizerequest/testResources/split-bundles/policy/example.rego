@@ -3,5 +3,6 @@ package policy
 default allow = false
 
 allow if {
-    data.roles[input.user] == "admin"
+    user := input.parsed_path[1]
+    data.roles[user] == "admin"
 }
