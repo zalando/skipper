@@ -27,6 +27,9 @@ const (
 	KeyResponse                   = "response.%d.%s.skipper.%s"
 	KeyResponseCombined           = "all.response.%d.%s.skipper"
 	Key5xxsBackend                = "all.backend.5xx"
+	KeySkipperLatencyTotal        = "skipperlatency.total"
+	KeySkipperLatencyRequest      = "skipperlatency.request"
+	KeySkipperLatencyResponse     = "skipperlatency.response"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -182,35 +185,18 @@ func (c *CodaHale) MeasureResponse(code int, method string, routeId string, star
 	}
 }
 
-func (c *CodaHale) MeasureSkipperLatency(routeId, host, method string, code int, skipperDuration time.Duration) {
-	if !(c.options.EnableSkipperLatencyRouteMetrics || c.options.EnableSkipperLatencyHostMetrics) {
-		return
-	}
-
-	var keySkipperLatencyRoute, keySkipperLatencyHost string
-	method = measuredMethod(method)
-	hfk := hostForKey(host)
-	switch {
-	case c.options.EnableSkipperLatencyMethodMetric && c.options.EnableSkipperLatencyStatusCodeMetric:
-		keySkipperLatencyHost = fmt.Sprintf("skipperlatencyhost.%s.%s.%d", hfk, method, code)
-		keySkipperLatencyRoute = fmt.Sprintf("skipperlatencyroute.%s.%s.%d", routeId, method, code)
-	case c.options.EnableSkipperLatencyMethodMetric:
-		keySkipperLatencyHost = fmt.Sprintf("skipperlatencyhost.%s.%s", hfk, method)
-		keySkipperLatencyRoute = fmt.Sprintf("skipperlatencyroute.%s.%s", routeId, method)
-	case c.options.EnableSkipperLatencyStatusCodeMetric:
-		keySkipperLatencyHost = fmt.Sprintf("skipperlatencyhost.%s.%d", hfk, code)
-		keySkipperLatencyRoute = fmt.Sprintf("skipperlatencyroute.%s.%d", routeId, code)
-	default:
-		keySkipperLatencyHost = fmt.Sprintf("skipperlatencyhost.%s", hfk)
-		keySkipperLatencyRoute = fmt.Sprintf("skipperlatencyroute.%s", routeId)
-	}
-
-	if c.options.EnableSkipperLatencyRouteMetrics {
-		c.updateTimer(keySkipperLatencyRoute, skipperDuration)
-	}
-
-	if c.options.EnableSkipperLatencyHostMetrics {
-		c.updateTimer(keySkipperLatencyHost, skipperDuration)
+func (c *CodaHale) MeasureSkipperLatency(key SkipperLatencyMetricKeys, skipperDuration time.Duration) {
+	switch key {
+	case SkipperLatencyTotalKey:
+		c.updateTimer(KeySkipperLatencyTotal, skipperDuration)
+	case SkipperLatencyRequestKey:
+		if c.options.EnableSkipperLatencyRequestMetrics {
+			c.updateTimer(KeySkipperLatencyRequest, skipperDuration)
+		}
+	case SkipperLatencyResponseKey:
+		if c.options.EnableSkipperLatencyResponseMetrics {
+			c.updateTimer(KeySkipperLatencyResponse, skipperDuration)
+		}
 	}
 }
 

@@ -1024,7 +1024,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	req = injectClientTrace(req, ctx.proxySpan)
 
 	ctx.timer.Stop()
+	ctx.skipperRequestLatency = ctx.timer.Elapsed()
 	response, err := roundTripper.RoundTrip(req)
+	ctx.timer.Reset()
 	ctx.timer.Start()
 
 	if endpointMetrics != nil {
@@ -1618,7 +1620,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.timer.Start()
 	defer func() {
 		ctx.timer.Stop()
-		p.metrics.MeasureSkipperLatency(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.timer.Elapsed())
+		skipperResponseLatency := ctx.timer.Elapsed()
+		skipperLatency := ctx.skipperRequestLatency + skipperResponseLatency
+		p.metrics.MeasureSkipperLatency(metrics.SkipperLatencyTotalKey, skipperLatency)
+		p.metrics.MeasureSkipperLatency(metrics.SkipperLatencyRequestKey, ctx.skipperRequestLatency)
+		p.metrics.MeasureSkipperLatency(metrics.SkipperLatencyResponseKey, skipperResponseLatency)
 	}()
 
 	defer func() {

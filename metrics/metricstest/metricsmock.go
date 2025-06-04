@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/zalando/skipper/metrics"
 )
 
 type MockMetrics struct {
@@ -148,7 +150,7 @@ func (m *MockMetrics) MeasureResponse(code int, method string, routeId string, s
 	// implement me
 }
 
-func (m *MockMetrics) MeasureSkipperLatency(routeId, host, method string, code int, skipperDuration time.Duration) {
+func (m *MockMetrics) MeasureSkipperLatency(key metrics.SkipperLatencyMetricKeys, skipperDuration time.Duration) {
 	// implement me
 }
 

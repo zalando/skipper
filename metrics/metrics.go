@@ -52,6 +52,14 @@ func ParseMetricsKind(t string) Kind {
 	}
 }
 
+type SkipperLatencyMetricKeys string
+
+const (
+	SkipperLatencyTotalKey    SkipperLatencyMetricKeys = "skipper_latency_total"
+	SkipperLatencyRequestKey  SkipperLatencyMetricKeys = "skipper_latency_request"
+	SkipperLatencyResponseKey SkipperLatencyMetricKeys = "skipper_latency_response"
+)
+
 // Metrics is the generic interface that all the required backends
 // should implement to be an skipper metrics compatible backend.
 type Metrics interface {
@@ -70,7 +78,7 @@ type Metrics interface {
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
-	MeasureSkipperLatency(routeId, host, method string, code int, skipperDuration time.Duration)
+	MeasureSkipperLatency(key SkipperLatencyMetricKeys, skipperDuration time.Duration)
 	MeasureServe(routeId, host, method string, code int, start time.Time)
 	IncRoutingFailures()
 	IncErrorsBackend(routeId string)
@@ -131,23 +139,13 @@ type Options struct {
 	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
 
-	// If set, detailed total skipper time metrics will be collected
-	// for each route, additionally grouped by status and method.
-	EnableSkipperLatencyRouteMetrics bool
+	// If set, detailed request time skipper latency metrics
+	// will be collected.
+	EnableSkipperLatencyRequestMetrics bool
 
-	// If set, detailed total skipper time metrics will be collected
-	// for each host, additionally grouped by status and method.
-	EnableSkipperLatencyHostMetrics bool
-
-	// If set, the detailed total skipper time metrics will contain the
-	// HTTP Response status code as a domain of the metric. It affects
-	// both route and host split metrics.
-	EnableSkipperLatencyStatusCodeMetric bool
-
-	// If set, the detailed total skipper time metrics will contain the
-	// HTTP method as a domain of the metric. It affects both route and
-	// host split metrics.
-	EnableSkipperLatencyMethodMetric bool
+	// If set, detailed response time skipper latency metrics
+	// will be collected for the response.
+	EnableSkipperLatencyResponseMetrics bool
 
 	// If set, detailed response time metrics will be collected
 	// for each backend host
