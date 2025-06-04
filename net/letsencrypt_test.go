@@ -34,7 +34,6 @@ func (c *inmemoryCache) Delete(ctx context.Context, key string) error {
 }
 
 func TestLetsencrypt(t *testing.T) {
-	t.Log("foo")
 	validDomain := "szuecs.net"
 	if !validateDomain(validDomain) {
 		t.Fatalf("Failed to validate valid domain %q", validDomain)
@@ -47,7 +46,6 @@ func TestLetsencrypt(t *testing.T) {
 			t.Fatalf("Failed to discover: %v", err)
 		}
 		t.Logf("order: %s", dir.OrderURL)
-		t.Logf("dir: %+v", dir)
 		defer func() {
 			if le.manager.Client.HTTPClient != nil {
 				le.manager.Client.HTTPClient.CloseIdleConnections()
