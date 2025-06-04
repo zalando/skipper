@@ -1621,10 +1621,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		ctx.timer.Stop()
 		skipperResponseLatency := ctx.timer.Elapsed()
-		skipperLatency := ctx.skipperRequestLatency + skipperResponseLatency
-		p.metrics.MeasureSkipperLatency(metrics.SkipperLatencyTotalKey, skipperLatency)
-		p.metrics.MeasureSkipperLatency(metrics.SkipperLatencyRequestKey, ctx.skipperRequestLatency)
-		p.metrics.MeasureSkipperLatency(metrics.SkipperLatencyResponseKey, skipperResponseLatency)
+		p.metrics.MeasureSkipperLatency(ctx.skipperRequestLatency, skipperResponseLatency)
 	}()
 
 	defer func() {
