@@ -52,14 +52,6 @@ func ParseMetricsKind(t string) Kind {
 	}
 }
 
-type SkipperLatencyMetricKeys string
-
-const (
-	SkipperLatencyTotalKey    SkipperLatencyMetricKeys = "skipper_latency_total"
-	SkipperLatencyRequestKey  SkipperLatencyMetricKeys = "skipper_latency_request"
-	SkipperLatencyResponseKey SkipperLatencyMetricKeys = "skipper_latency_response"
-)
-
 // Metrics is the generic interface that all the required backends
 // should implement to be an skipper metrics compatible backend.
 type Metrics interface {
@@ -78,7 +70,7 @@ type Metrics interface {
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
-	MeasureSkipperLatency(key SkipperLatencyMetricKeys, skipperDuration time.Duration)
+	MeasureSkipperLatency(requestDuration, responseDuration time.Duration)
 	MeasureServe(routeId, host, method string, code int, start time.Time)
 	IncRoutingFailures()
 	IncErrorsBackend(routeId string)
@@ -139,12 +131,12 @@ type Options struct {
 	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
 
-	// If set, detailed request time skipper latency metrics
+	// If set, detailed request handling time taken by skipper
 	// will be collected.
 	EnableSkipperLatencyRequestMetrics bool
 
-	// If set, detailed response time skipper latency metrics
-	// will be collected for the response.
+	// If set, detailed response handling time take by skipper
+	// will be collected.
 	EnableSkipperLatencyResponseMetrics bool
 
 	// If set, detailed response time metrics will be collected

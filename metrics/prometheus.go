@@ -410,14 +410,14 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	}
 }
 
-func (p *Prometheus) MeasureSkipperLatency(key SkipperLatencyMetricKeys, skipperDuration time.Duration) {
-	t := skipperDuration.Seconds()
-	if key == SkipperLatencyTotalKey {
-		p.skipperLatencyTotalM.WithLabelValues().Observe(t)
-	} else if key == SkipperLatencyRequestKey && p.opts.EnableSkipperLatencyRequestMetrics {
-		p.skipperLatencyRequestM.WithLabelValues().Observe(t)
-	} else if key == SkipperLatencyResponseKey && p.opts.EnableSkipperLatencyResponseMetrics {
-		p.skipperLatencyResponseM.WithLabelValues().Observe(t)
+func (p *Prometheus) MeasureSkipperLatency(requestDuration, responseDuration time.Duration) {
+	skipperDuration := requestDuration + responseDuration
+	p.skipperLatencyTotalM.WithLabelValues().Observe(skipperDuration.Seconds())
+	if p.opts.EnableSkipperLatencyRequestMetrics {
+		p.skipperLatencyRequestM.WithLabelValues().Observe(requestDuration.Seconds())
+	}
+	if p.opts.EnableSkipperLatencyResponseMetrics {
+		p.skipperLatencyResponseM.WithLabelValues().Observe(responseDuration.Seconds())
 	}
 }
 

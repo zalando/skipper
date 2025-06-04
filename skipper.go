@@ -522,12 +522,12 @@ type Options struct {
 	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
 
-	// If set, detailed request time skipper latency metrics
+	// If set, detailed request handling time taken by skipper
 	// will be collected.
 	EnableSkipperLatencyRequestMetrics bool
 
-	// If set, detailed response time skipper latency metrics
-	// will be collected for the response.
+	// If set, detailed response handling time take by skipper
+	// will be collected.
 	EnableSkipperLatencyResponseMetrics bool
 
 	// If set, detailed response time metrics will be collected

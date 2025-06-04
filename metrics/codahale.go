@@ -185,18 +185,14 @@ func (c *CodaHale) MeasureResponse(code int, method string, routeId string, star
 	}
 }
 
-func (c *CodaHale) MeasureSkipperLatency(key SkipperLatencyMetricKeys, skipperDuration time.Duration) {
-	switch key {
-	case SkipperLatencyTotalKey:
-		c.updateTimer(KeySkipperLatencyTotal, skipperDuration)
-	case SkipperLatencyRequestKey:
-		if c.options.EnableSkipperLatencyRequestMetrics {
-			c.updateTimer(KeySkipperLatencyRequest, skipperDuration)
-		}
-	case SkipperLatencyResponseKey:
-		if c.options.EnableSkipperLatencyResponseMetrics {
-			c.updateTimer(KeySkipperLatencyResponse, skipperDuration)
-		}
+func (c *CodaHale) MeasureSkipperLatency(requestDuration, responseDuration time.Duration) {
+	skipperDuration := requestDuration + responseDuration
+	c.updateTimer(KeySkipperLatencyTotal, skipperDuration)
+	if c.options.EnableSkipperLatencyRequestMetrics {
+		c.updateTimer(KeySkipperLatencyRequest, requestDuration)
+	}
+	if c.options.EnableSkipperLatencyResponseMetrics {
+		c.updateTimer(KeySkipperLatencyResponse, responseDuration)
 	}
 }
 
