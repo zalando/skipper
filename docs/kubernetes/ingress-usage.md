@@ -165,11 +165,11 @@ Ingress paths can be interpreted in five different modes:
 1. `pathType: Prefix` results in [PathSubtree predicate](../reference/predicates.md#pathsubtree))
 2. `pathType: Exact` results in [Path predicate](../reference/predicates.md#path))
 3. `pathType: ImplementationSpecific`
-   1. based on the Kubernetes ingress specification
-   2. as plain regular expression
-   3. as a path prefix (same as `pathType: Prefix` and results in [PathSubtree](../reference/predicates.md#pathsubtree))
+    1. based on the Kubernetes ingress specification (**default**)
+    2. as plain regular expression
+    3. as a path prefix (same as `pathType: Prefix` and results in [PathSubtree](../reference/predicates.md#pathsubtree))
 
-The default is 3.1 the Kubernetes ingress mode. It can be changed by startup option `-kubernetes-path-mode`
+Default can be changed by startup option `-kubernetes-path-mode`
 to any of the other modes. The individual ingress rules can also override the
 default behavior with the `zalando.org/skipper-ingress-path-mode` annotation. You can
 also set for each path rule a different Kubernetes `pathType` like `Prefix` and `Exact`.
