@@ -36,6 +36,7 @@ import (
 	iCache "github.com/open-policy-agent/opa/v1/topdown/cache"
 	opatracing "github.com/open-policy-agent/opa/v1/tracing"
 	"github.com/opentracing/opentracing-go"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent/internal"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -272,6 +273,47 @@ func NewOpenPolicyAgentConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error
 	}
 
 	return &cfg, nil
+}
+
+func (registry *OpenPolicyAgentRegistry) PreProcessor() routing.PreProcessor {
+	return &openPolicyAgentRegistryPreProcessor{registry: registry}
+}
+
+// openPolicyAgentRegistryPreProcessor is a routing.PreProcessor that detects OPA bundles from routes.
+// On the first run, it downloads the bundles synchronously to ensure that OPA filter instances can be created.
+// On subsequent runs, it detects new bundles and schedules them for download and refresh asynchronously.
+type openPolicyAgentRegistryPreProcessor struct {
+	registry    *OpenPolicyAgentRegistry
+	initialized bool
+}
+
+func (p *openPolicyAgentRegistryPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
+	bundles := p.getBundles(routes)
+	if !p.initialized {
+		// This is the first run, so we need to download the bundles synchronously,
+		// i.e. we wait for the bundles to be available before returning the routes
+		// and hence signaling that Skipper is ready to process requests.
+		p.registry.createBundlesSync(bundles)
+		p.initialized = true
+	} else {
+		// On subsequent runs, we can update the bundles asynchronously.
+		// OPA filter instances should fail to create if the bundle is not yet available
+		p.registry.updateBundlesAsync(bundles)
+	}
+	return routes
+}
+
+func (p *openPolicyAgentRegistryPreProcessor) getBundles(routes []*eskip.Route) []string {
+	// TODO: collect all bundles from the routes that have OPA filters
+	return []string{"foo", "bar"}
+}
+
+func (registry *OpenPolicyAgentRegistry) updateBundlesAsync(bundles []string) {
+	fmt.Printf("Updating bundles asynchronously: %v\n", bundles)
+}
+
+func (registry *OpenPolicyAgentRegistry) createBundlesSync(bundles []string) {
+	fmt.Printf("Creating bundles synchronously: %v\n", bundles)
 }
 
 func (registry *OpenPolicyAgentRegistry) Close() {

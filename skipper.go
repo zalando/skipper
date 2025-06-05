@@ -2088,6 +2088,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	ro.PreProcessors = append(ro.PreProcessors, admissionControlSpec.PreProcessor())
 
+	if opaRegistry != nil {
+		ro.PreProcessors = append(ro.PreProcessors, opaRegistry.PreProcessor())
+	}
+
 	ro.Metrics = mtr
 
 	routing := routing.New(ro)
