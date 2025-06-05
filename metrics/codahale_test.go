@@ -525,3 +525,100 @@ func TestCodaHaleServeMetrics(t *testing.T) {
 		})
 	}
 }
+
+type latencyMetricsTestItem struct {
+	msg              string
+	requestDuration  time.Duration
+	responseDuration time.Duration
+	enabledRequest   bool
+	enabledResponse  bool
+}
+
+func TestCodaHaleSkipperLatencyMetrics(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	for _, ti := range []latencyMetricsTestItem{
+		{
+			msg:              "request and response disabled",
+			requestDuration:  100 * time.Millisecond,
+			responseDuration: 200 * time.Millisecond,
+			enabledRequest:   false,
+			enabledResponse:  false,
+		},
+		{
+			msg:              "request enabled, response disabled",
+			requestDuration:  10 * time.Millisecond,
+			responseDuration: 20 * time.Millisecond,
+			enabledRequest:   true,
+			enabledResponse:  false,
+		},
+		{
+			msg:              "request disabled, response enabled",
+			requestDuration:  300 * time.Millisecond,
+			responseDuration: 100 * time.Millisecond,
+			enabledRequest:   false,
+			enabledResponse:  true,
+		},
+		{
+			msg:              "request and response enabled",
+			requestDuration:  150 * time.Millisecond,
+			responseDuration: 200 * time.Millisecond,
+			enabledRequest:   true,
+			enabledResponse:  true,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			checkMetrics := func(m *CodaHale, key string, enabled bool, count int64, duration time.Duration) (bool, string) {
+				v := m.reg.Get(key)
+
+				switch {
+				case enabled && v == nil:
+					return false, "metric not found in the registry"
+				case !enabled && v != nil:
+					return false, "unexpected metrics"
+				case !enabled && v == nil:
+					return true, ""
+				}
+
+				tr, ok := v.(metrics.Timer)
+				if !ok {
+					return false, "invalid metric type"
+				}
+
+				trs := tr.Snapshot()
+
+				if trs.Count() != count {
+					return false, fmt.Sprintf("failed to get the right count: %d instead of %d", trs.Count(), count)
+				}
+
+				if trs.Max() > int64(duration) || trs.Min() < int64(duration) {
+					return false, "failed to get the right duration"
+				}
+
+				return true, ""
+			}
+
+			o := Options{
+				EnableSkipperLatencyRequestMetrics:  ti.enabledRequest,
+				EnableSkipperLatencyResponseMetrics: ti.enabledResponse,
+			}
+			c := NewCodaHale(o)
+			defer c.Close()
+
+			c.MeasureSkipperLatency(ti.requestDuration, ti.responseDuration)
+			time.Sleep(10 * time.Millisecond)
+
+			if ok, reason := checkMetrics(c, KeySkipperLatencyTotal, true, 1, ti.requestDuration+ti.responseDuration); !ok {
+				t.Errorf("error processing metric '%s': %s", KeySkipperLatencyTotal, reason)
+			}
+			if ok, reason := checkMetrics(c, KeySkipperLatencyRequest, ti.enabledRequest, 1, ti.requestDuration); !ok {
+				t.Errorf("error processing metric '%s': %s", KeySkipperLatencyRequest, reason)
+			}
+			if ok, reason := checkMetrics(c, KeySkipperLatencyResponse, ti.enabledResponse, 1, ti.responseDuration); !ok {
+				t.Errorf("error processing metric '%s': %s", KeySkipperLatencyResponse, reason)
+			}
+		})
+	}
+}
