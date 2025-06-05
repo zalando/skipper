@@ -1,34 +1,34 @@
-package metrics
+package proxy
 
 import "time"
 
-type StopWatch struct {
+type stopWatch struct {
 	started time.Time
 	elapsed time.Duration
 }
 
-func NewStopWatch() *StopWatch {
-	return &StopWatch{}
+func NewStopWatch() *stopWatch {
+	return &stopWatch{}
 }
 
-func (s *StopWatch) Start() {
+func (s *stopWatch) Start() {
 	if s.started.IsZero() {
 		s.started = time.Now()
 	}
 }
 
-func (s *StopWatch) Stop() {
+func (s *stopWatch) Stop() {
 	if !s.started.IsZero() {
 		s.elapsed += time.Since(s.started)
 		s.started = time.Time{}
 	}
 }
 
-func (s *StopWatch) Reset() {
+func (s *stopWatch) Reset() {
 	s.started = time.Time{}
 	s.elapsed = 0
 }
 
-func (s *StopWatch) Elapsed() time.Duration {
+func (s *stopWatch) Elapsed() time.Duration {
 	return s.elapsed
 }

@@ -1,14 +1,12 @@
-package metrics_test
+package proxy
 
 import (
 	"testing"
 	"time"
-
-	"github.com/zalando/skipper/metrics"
 )
 
 func TestStopWatch(t *testing.T) {
-	watch := metrics.NewStopWatch()
+	watch := NewStopWatch()
 
 	watch.Start()
 	time.Sleep(5 * time.Millisecond)
