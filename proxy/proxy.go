@@ -1547,7 +1547,7 @@ func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	skipperStopWatch := NewStopWatch()
+	skipperStopWatch := NewStopWatch(time.Now)
 	skipperStopWatch.Start()
 
 	lw := logging.NewLoggingWriter(w)

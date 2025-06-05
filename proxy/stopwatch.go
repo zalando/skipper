@@ -3,23 +3,27 @@ package proxy
 import "time"
 
 type stopWatch struct {
+	now     func() time.Time
 	started time.Time
 	elapsed time.Duration
 }
 
-func NewStopWatch() *stopWatch {
-	return &stopWatch{}
+func NewStopWatch(now func() time.Time) *stopWatch {
+	return &stopWatch{
+		now: now,
+	}
 }
 
 func (s *stopWatch) Start() {
 	if s.started.IsZero() {
-		s.started = time.Now()
+		s.started = s.now()
 	}
 }
 
 func (s *stopWatch) Stop() {
 	if !s.started.IsZero() {
-		s.elapsed += time.Since(s.started)
+		now := s.now()
+		s.elapsed += now.Sub(s.started)
 		s.started = time.Time{}
 	}
 }
