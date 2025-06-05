@@ -51,7 +51,7 @@ type context struct {
 	routeLookup           *routing.RouteLookup
 	cancelBackendContext  stdlibcontext.CancelFunc
 	logger                filters.FilterContextLogger
-	timer                 stopWatch
+	timer                 *stopWatch
 	skipperRequestLatency time.Duration
 }
 
@@ -138,6 +138,7 @@ func newContext(
 	w flushedResponseWriter,
 	r *http.Request,
 	p *Proxy,
+	watch *stopWatch,
 ) *context {
 	c := &context{
 		responseWriter: w,
@@ -147,6 +148,7 @@ func newContext(
 		metrics:        &filterMetrics{impl: p.metrics},
 		proxy:          p,
 		routeLookup:    p.routing.Get(),
+		timer:          watch,
 	}
 
 	if p.flags.PreserveOriginal() {

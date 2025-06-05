@@ -1547,6 +1547,9 @@ func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	skipperStopWatch := NewStopWatch()
+	skipperStopWatch.Start()
+
 	lw := logging.NewLoggingWriter(w)
 
 	p.metrics.IncCounter("incoming." + r.Proto)
@@ -1565,6 +1568,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ctx.proxySpan.Finish()
 		}
 		span.Finish()
+		ctx.timer.Stop()
+		skipperResponseLatency := ctx.timer.Elapsed()
+		p.metrics.MeasureSkipperLatency(ctx.skipperRequestLatency, skipperResponseLatency)
 	}()
 
 	defer func() {
@@ -1611,18 +1617,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))
 
-	ctx = newContext(lw, r, p)
+	ctx = newContext(lw, r, p, skipperStopWatch)
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
 	ctx.parentSpan = span
-
-	ctx.timer.Start()
-	defer func() {
-		ctx.timer.Stop()
-		skipperResponseLatency := ctx.timer.Elapsed()
-		p.metrics.MeasureSkipperLatency(ctx.skipperRequestLatency, skipperResponseLatency)
-	}()
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
