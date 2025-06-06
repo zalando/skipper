@@ -140,10 +140,17 @@ func applyIncoming(defs routeDefs, d *incomingData) routeDefs {
 	return defs
 }
 
+type mergedDefs struct {
+	routes  []*eskip.Route
+	clients map[DataClient]struct{}
+}
+
 // merges the route definitions from multiple data clients by route id
-func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
+func mergeDefs(defsByClient map[DataClient]routeDefs) mergedDefs {
+	clients := make(map[DataClient]struct{}, len(defsByClient))
 	mergeByID := make(routeDefs)
-	for _, defs := range defsByClient {
+	for c, defs := range defsByClient {
+		clients[c] = struct{}{}
 		for id, def := range defs {
 			mergeByID[id] = def
 		}
@@ -153,7 +160,7 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
 	for _, def := range mergeByID {
 		all = append(all, def)
 	}
-	return all
+	return mergedDefs{routes: all, clients: clients}
 }
 
 // receives the initial set of the route definitiosn and their
@@ -162,9 +169,9 @@ func mergeDefs(defsByClient map[DataClient]routeDefs) []*eskip.Route {
 //
 // The active set of routes from last successful update are used until the
 // next successful update.
-func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan []*eskip.Route {
+func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan mergedDefs {
 	in := make(chan *incomingData)
-	out := make(chan []*eskip.Route)
+	out := make(chan mergedDefs)
 	defsByClient := make(map[DataClient]routeDefs)
 
 	for _, c := range o.DataClients {
@@ -524,6 +531,7 @@ type routeTable struct {
 	routes        []*Route // only used for closing
 	validRoutes   []*eskip.Route
 	invalidRoutes []*eskip.Route
+	clients       map[DataClient]struct{}
 	created       time.Time
 }
 
@@ -548,18 +556,19 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 	var (
 		rt           *routeTable
 		outRelay     chan<- *routeTable
-		updatesRelay <-chan []*eskip.Route
+		updatesRelay <-chan mergedDefs
 		updateId     int
 	)
 	updatesRelay = updates
 	for {
 		select {
-		case defs := <-updatesRelay:
+		case mdefs := <-updatesRelay:
 			updateId++
 			start := time.Now()
 
 			o.Log.Infof("route settings received, id: %d", updateId)
 
+			defs := mdefs.routes
 			for i := range o.PreProcessors {
 				defs = o.PreProcessors[i].Do(defs)
 			}
@@ -599,6 +608,7 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 				routes:        routes,
 				validRoutes:   validRoutes,
 				invalidRoutes: invalidRoutes,
+				clients:       mdefs.clients,
 				created:       start,
 			}
 			updatesRelay = nil
