@@ -861,6 +861,13 @@ func TestUpdateFailsRecovers(t *testing.T) {
 	check("baz", "/baz", "https://baz-new.example.org", true)
 }
 
+type valueDataClient struct{}
+
+var _ routing.DataClient = valueDataClient{}
+
+func (v valueDataClient) LoadAll() ([]*eskip.Route, error)              { return nil, nil }
+func (v valueDataClient) LoadUpdate() ([]*eskip.Route, []string, error) { return nil, nil, nil }
+
 func TestSignalFirstLoad(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		dc := testdataclient.New([]*eskip.Route{{}})
@@ -963,6 +970,10 @@ func TestSignalFirstLoad(t *testing.T) {
 		dc2 := testdataclient.New([]*eskip.Route{{Id: "r2", Backend: "https://bar.example.org"}})
 		defer dc2.Close()
 
+		// duplicate data clients, will be removed
+		dc3 := dc1
+		dc4 := dc2
+
 		// Schedule r1 update right away and delay r2 update
 		go func() {
 			dc1.Update([]*eskip.Route{{Id: "r1", Backend: "https://baz.example.org"}}, nil)
@@ -975,7 +986,7 @@ func TestSignalFirstLoad(t *testing.T) {
 		rt := routing.New(routing.Options{
 			SignalFirstLoad: true,
 			FilterRegistry:  builtin.MakeRegistry(),
-			DataClients:     []routing.DataClient{dc1, dc2},
+			DataClients:     []routing.DataClient{dc1, dc2, dc3, dc4},
 			PollTimeout:     pollTimeout,
 			Log:             l,
 		})
@@ -986,5 +997,38 @@ func TestSignalFirstLoad(t *testing.T) {
 		if validRoutes := rt.Get().ValidRoutes(); len(validRoutes) != 2 {
 			t.Errorf("expected 2 valid routes, got: %v", validRoutes)
 		}
+
+		if clients := rt.Get().DataClients(); len(clients) != 2 {
+			t.Errorf("expected 2 dataclients (excluding duplicates), got: %v", clients)
+		}
 	})
+}
+
+func TestDuplicateDataClients(t *testing.T) {
+	l := loggingtest.New()
+	defer l.Close()
+
+	dc1 := testdataclient.New([]*eskip.Route{{Id: "r1", Backend: "https://foo.example.org"}})
+	defer dc1.Close()
+
+	dc2 := dc1 // duplicate, will be removed
+	dc3 := valueDataClient{}
+	dc4 := valueDataClient{} // duplicate, will be removed
+
+	rt := routing.New(routing.Options{
+		SignalFirstLoad: true,
+		FilterRegistry:  builtin.MakeRegistry(),
+		DataClients:     []routing.DataClient{dc1, dc2, dc3, dc4},
+		PollTimeout:     pollTimeout,
+		Log:             l,
+	})
+	defer rt.Close()
+
+	<-rt.FirstLoad()
+
+	l.WaitFor("Removed 2 duplicate data clients", 10*pollTimeout)
+
+	if clients := rt.Get().DataClients(); len(clients) != 2 {
+		t.Errorf("expected 2 dataclients, got: %v", clients)
+	}
 }
