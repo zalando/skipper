@@ -27,32 +27,32 @@ type flushedResponseWriter interface {
 }
 
 type context struct {
-	responseWriter        flushedResponseWriter
-	request               *http.Request
-	response              *http.Response
-	route                 *routing.Route
-	deprecatedServed      bool
-	servedWithResponse    bool // to support the deprecated way independently
-	successfulUpgrade     bool
-	pathParams            map[string]string
-	stateBag              map[string]interface{}
-	originalRequest       *http.Request
-	originalResponse      *http.Response
-	outgoingHost          string
-	outgoingDebugRequest  *http.Request
-	executionCounter      int
-	startServe            time.Time
-	metrics               *filterMetrics
-	tracer                opentracing.Tracer
-	initialSpan           opentracing.Span
-	proxySpan             opentracing.Span
-	parentSpan            opentracing.Span
-	proxy                 *Proxy
-	routeLookup           *routing.RouteLookup
-	cancelBackendContext  stdlibcontext.CancelFunc
-	logger                filters.FilterContextLogger
-	timer                 stopWatch
-	skipperRequestLatency time.Duration
+	responseWriter       flushedResponseWriter
+	request              *http.Request
+	response             *http.Response
+	route                *routing.Route
+	deprecatedServed     bool
+	servedWithResponse   bool // to support the deprecated way independently
+	successfulUpgrade    bool
+	pathParams           map[string]string
+	stateBag             map[string]interface{}
+	originalRequest      *http.Request
+	originalResponse     *http.Response
+	outgoingHost         string
+	outgoingDebugRequest *http.Request
+	executionCounter     int
+	startServe           time.Time
+	metrics              *filterMetrics
+	tracer               opentracing.Tracer
+	initialSpan          opentracing.Span
+	proxySpan            opentracing.Span
+	parentSpan           opentracing.Span
+	proxy                *Proxy
+	routeLookup          *routing.RouteLookup
+	cancelBackendContext stdlibcontext.CancelFunc
+	logger               filters.FilterContextLogger
+	proxyWatch           stopWatch
+	proxyRequestLatency  time.Duration
 }
 
 type filterMetrics struct {
@@ -148,7 +148,7 @@ func newContext(
 		metrics:        &filterMetrics{impl: p.metrics},
 		proxy:          p,
 		routeLookup:    p.routing.Get(),
-		timer:          *watch,
+		proxyWatch:     *watch,
 	}
 
 	if p.flags.PreserveOriginal() {

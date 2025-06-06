@@ -148,7 +148,7 @@ func (m *MockMetrics) MeasureResponse(code int, method string, routeId string, s
 	// implement me
 }
 
-func (m *MockMetrics) MeasureSkipperLatency(requestDuration, responseDuration time.Duration) {
+func (m *MockMetrics) MeasureProxy(requestDuration, responseDuration time.Duration) {
 	// implement me
 }
 

@@ -44,9 +44,9 @@ type Prometheus struct {
 	serveRouteCounterM         *prometheus.CounterVec
 	serveHostM                 *prometheus.HistogramVec
 	serveHostCounterM          *prometheus.CounterVec
-	skipperLatencyTotalM       *prometheus.HistogramVec
-	skipperLatencyRequestM     *prometheus.HistogramVec
-	skipperLatencyResponseM    *prometheus.HistogramVec
+	proxyTotalM                *prometheus.HistogramVec
+	proxyRequestM              *prometheus.HistogramVec
+	proxyResponseM             *prometheus.HistogramVec
 	proxyBackend5xxM           *prometheus.HistogramVec
 	proxyBackendErrorsM        *prometheus.CounterVec
 	proxyStreamingErrorsM      *prometheus.CounterVec
@@ -207,7 +207,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "Total number of requests of serving a host.",
 	}, []string{"code", "method", "host"}))
 
-	p.skipperLatencyTotalM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	p.proxyTotalM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promProxySubsystem,
 		Name:      "total_duration_seconds",
@@ -215,7 +215,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{}))
 
-	p.skipperLatencyRequestM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	p.proxyRequestM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promProxySubsystem,
 		Name:      "request_duration_seconds",
@@ -223,7 +223,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{}))
 
-	p.skipperLatencyResponseM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	p.proxyResponseM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promProxySubsystem,
 		Name:      "response_duration_seconds",
@@ -410,14 +410,14 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	}
 }
 
-func (p *Prometheus) MeasureSkipperLatency(requestDuration, responseDuration time.Duration) {
+func (p *Prometheus) MeasureProxy(requestDuration, responseDuration time.Duration) {
 	skipperDuration := requestDuration + responseDuration
-	p.skipperLatencyTotalM.WithLabelValues().Observe(skipperDuration.Seconds())
-	if p.opts.EnableSkipperLatencyRequestMetrics {
-		p.skipperLatencyRequestM.WithLabelValues().Observe(requestDuration.Seconds())
+	p.proxyTotalM.WithLabelValues().Observe(skipperDuration.Seconds())
+	if p.opts.EnableProxyRequestMetrics {
+		p.proxyRequestM.WithLabelValues().Observe(requestDuration.Seconds())
 	}
-	if p.opts.EnableSkipperLatencyResponseMetrics {
-		p.skipperLatencyResponseM.WithLabelValues().Observe(responseDuration.Seconds())
+	if p.opts.EnableProxyResponseMetrics {
+		p.proxyResponseM.WithLabelValues().Observe(responseDuration.Seconds())
 	}
 }
 

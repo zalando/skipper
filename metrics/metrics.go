@@ -70,7 +70,7 @@ type Metrics interface {
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
-	MeasureSkipperLatency(requestDuration, responseDuration time.Duration)
+	MeasureProxy(requestDuration, responseDuration time.Duration)
 	MeasureServe(routeId, host, method string, code int, start time.Time)
 	IncRoutingFailures()
 	IncErrorsBackend(routeId string)
@@ -133,11 +133,11 @@ type Options struct {
 
 	// If set, detailed request handling time taken by skipper
 	// will be collected.
-	EnableSkipperLatencyRequestMetrics bool
+	EnableProxyRequestMetrics bool
 
 	// If set, detailed response handling time take by skipper
 	// will be collected.
-	EnableSkipperLatencyResponseMetrics bool
+	EnableProxyResponseMetrics bool
 
 	// If set, detailed response time metrics will be collected
 	// for each backend host

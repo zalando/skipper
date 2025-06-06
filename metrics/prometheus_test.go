@@ -1048,11 +1048,11 @@ func TestPrometheusMetrics(t *testing.T) {
 		{
 			name: "Skipper latency metrics should be registered even when request and response are disabled",
 			opts: metrics.Options{
-				EnableSkipperLatencyRequestMetrics:  false,
-				EnableSkipperLatencyResponseMetrics: false,
+				EnableProxyRequestMetrics:  false,
+				EnableProxyResponseMetrics: false,
 			},
 			addMetrics: func(pm *metrics.Prometheus) {
-				pm.MeasureSkipperLatency(5*time.Millisecond, 10*time.Millisecond)
+				pm.MeasureProxy(5*time.Millisecond, 10*time.Millisecond)
 			},
 			expMetrics: []string{
 				`skipper_proxy_total_duration_seconds_bucket{le="0.005"} 0`,
@@ -1075,11 +1075,11 @@ func TestPrometheusMetrics(t *testing.T) {
 		{
 			name: "Skipper latency metrics, request enabled and response are disabled",
 			opts: metrics.Options{
-				EnableSkipperLatencyRequestMetrics:  true,
-				EnableSkipperLatencyResponseMetrics: false,
+				EnableProxyRequestMetrics:  true,
+				EnableProxyResponseMetrics: false,
 			},
 			addMetrics: func(pm *metrics.Prometheus) {
-				pm.MeasureSkipperLatency(5*time.Millisecond, 10*time.Millisecond)
+				pm.MeasureProxy(5*time.Millisecond, 10*time.Millisecond)
 			},
 			expMetrics: []string{
 				`skipper_proxy_total_duration_seconds_bucket{le="0.005"} 0`,
@@ -1116,11 +1116,11 @@ func TestPrometheusMetrics(t *testing.T) {
 		{
 			name: "Skipper latency metrics, request and response are enabled",
 			opts: metrics.Options{
-				EnableSkipperLatencyRequestMetrics:  true,
-				EnableSkipperLatencyResponseMetrics: true,
+				EnableProxyRequestMetrics:  true,
+				EnableProxyResponseMetrics: true,
 			},
 			addMetrics: func(pm *metrics.Prometheus) {
-				pm.MeasureSkipperLatency(5*time.Millisecond, 10*time.Millisecond)
+				pm.MeasureProxy(5*time.Millisecond, 10*time.Millisecond)
 			},
 			expMetrics: []string{
 				`skipper_proxy_total_duration_seconds_bucket{le="0.005"} 0`,
@@ -1171,11 +1171,11 @@ func TestPrometheusMetrics(t *testing.T) {
 		{
 			name: "Skipper latency metrics, request disabled and response enabled",
 			opts: metrics.Options{
-				EnableSkipperLatencyRequestMetrics:  false,
-				EnableSkipperLatencyResponseMetrics: true,
+				EnableProxyRequestMetrics:  false,
+				EnableProxyResponseMetrics: true,
 			},
 			addMetrics: func(pm *metrics.Prometheus) {
-				pm.MeasureSkipperLatency(5*time.Millisecond, 10*time.Millisecond)
+				pm.MeasureProxy(5*time.Millisecond, 10*time.Millisecond)
 			},
 			expMetrics: []string{
 				`skipper_proxy_total_duration_seconds_bucket{le="0.005"} 0`,

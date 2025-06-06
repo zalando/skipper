@@ -27,9 +27,9 @@ const (
 	KeyResponse                   = "response.%d.%s.skipper.%s"
 	KeyResponseCombined           = "all.response.%d.%s.skipper"
 	Key5xxsBackend                = "all.backend.5xx"
-	KeySkipperLatencyTotal        = "skipperlatency.total"
-	KeySkipperLatencyRequest      = "skipperlatency.request"
-	KeySkipperLatencyResponse     = "skipperlatency.response"
+	KeyProxyTotal                 = "proxy.total"
+	KeyProxyRequest               = "proxy.request"
+	KeyProxyResponse              = "proxy.response"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -185,14 +185,14 @@ func (c *CodaHale) MeasureResponse(code int, method string, routeId string, star
 	}
 }
 
-func (c *CodaHale) MeasureSkipperLatency(requestDuration, responseDuration time.Duration) {
+func (c *CodaHale) MeasureProxy(requestDuration, responseDuration time.Duration) {
 	skipperDuration := requestDuration + responseDuration
-	c.updateTimer(KeySkipperLatencyTotal, skipperDuration)
-	if c.options.EnableSkipperLatencyRequestMetrics {
-		c.updateTimer(KeySkipperLatencyRequest, requestDuration)
+	c.updateTimer(KeyProxyTotal, skipperDuration)
+	if c.options.EnableProxyRequestMetrics {
+		c.updateTimer(KeyProxyRequest, requestDuration)
 	}
-	if c.options.EnableSkipperLatencyResponseMetrics {
-		c.updateTimer(KeySkipperLatencyResponse, responseDuration)
+	if c.options.EnableProxyResponseMetrics {
+		c.updateTimer(KeyProxyResponse, responseDuration)
 	}
 }
 

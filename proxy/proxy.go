@@ -1023,11 +1023,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
 
-	ctx.timer.Stop()
-	ctx.skipperRequestLatency = ctx.timer.Elapsed()
+	ctx.proxyWatch.Stop()
+	ctx.proxyRequestLatency = ctx.proxyWatch.Elapsed()
 	response, err := roundTripper.RoundTrip(req)
-	ctx.timer.Reset()
-	ctx.timer.Start()
+	ctx.proxyWatch.Reset()
+	ctx.proxyWatch.Start()
 
 	if endpointMetrics != nil {
 		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
@@ -1387,9 +1387,9 @@ func (p *Proxy) serveResponse(ctx *context) {
 	ctx.responseWriter.Flush()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
 
-	ctx.timer.Stop()
+	ctx.proxyWatch.Stop()
 	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
-	ctx.timer.Start()
+	ctx.proxyWatch.Start()
 
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
@@ -1486,9 +1486,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
 
-	ctx.timer.Stop()
+	ctx.proxyWatch.Stop()
 	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
-	ctx.timer.Start()
+	ctx.proxyWatch.Start()
 
 	p.metrics.MeasureServe(
 		id,
@@ -1547,8 +1547,8 @@ func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	skipperStopWatch := NewStopWatch(time.Now)
-	skipperStopWatch.Start()
+	proxyStopWatch := newStopWatch()
+	proxyStopWatch.Start()
 
 	lw := logging.NewLoggingWriter(w)
 
@@ -1568,9 +1568,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ctx.proxySpan.Finish()
 		}
 		span.Finish()
-		ctx.timer.Stop()
-		skipperResponseLatency := ctx.timer.Elapsed()
-		p.metrics.MeasureSkipperLatency(ctx.skipperRequestLatency, skipperResponseLatency)
+		ctx.proxyWatch.Stop()
+		skipperResponseLatency := ctx.proxyWatch.Elapsed()
+		p.metrics.MeasureProxy(ctx.proxyRequestLatency, skipperResponseLatency)
 	}()
 
 	defer func() {
@@ -1617,7 +1617,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))
 
-	ctx = newContext(lw, r, p, skipperStopWatch)
+	ctx = newContext(lw, r, p, proxyStopWatch)
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span

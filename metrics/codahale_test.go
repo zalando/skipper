@@ -534,7 +534,7 @@ type latencyMetricsTestItem struct {
 	enabledResponse  bool
 }
 
-func TestCodaHaleSkipperLatencyMetrics(t *testing.T) {
+func TestCodaHaleProxyLatencyMetrics(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
@@ -601,23 +601,23 @@ func TestCodaHaleSkipperLatencyMetrics(t *testing.T) {
 			}
 
 			o := Options{
-				EnableSkipperLatencyRequestMetrics:  ti.enabledRequest,
-				EnableSkipperLatencyResponseMetrics: ti.enabledResponse,
+				EnableProxyRequestMetrics:  ti.enabledRequest,
+				EnableProxyResponseMetrics: ti.enabledResponse,
 			}
 			c := NewCodaHale(o)
 			defer c.Close()
 
-			c.MeasureSkipperLatency(ti.requestDuration, ti.responseDuration)
+			c.MeasureProxy(ti.requestDuration, ti.responseDuration)
 			time.Sleep(10 * time.Millisecond)
 
-			if ok, reason := checkMetrics(c, KeySkipperLatencyTotal, true, 1, ti.requestDuration+ti.responseDuration); !ok {
-				t.Errorf("error processing metric '%s': %s", KeySkipperLatencyTotal, reason)
+			if ok, reason := checkMetrics(c, KeyProxyTotal, true, 1, ti.requestDuration+ti.responseDuration); !ok {
+				t.Errorf("error processing metric '%s': %s", KeyProxyTotal, reason)
 			}
-			if ok, reason := checkMetrics(c, KeySkipperLatencyRequest, ti.enabledRequest, 1, ti.requestDuration); !ok {
-				t.Errorf("error processing metric '%s': %s", KeySkipperLatencyRequest, reason)
+			if ok, reason := checkMetrics(c, KeyProxyRequest, ti.enabledRequest, 1, ti.requestDuration); !ok {
+				t.Errorf("error processing metric '%s': %s", KeyProxyRequest, reason)
 			}
-			if ok, reason := checkMetrics(c, KeySkipperLatencyResponse, ti.enabledResponse, 1, ti.responseDuration); !ok {
-				t.Errorf("error processing metric '%s': %s", KeySkipperLatencyResponse, reason)
+			if ok, reason := checkMetrics(c, KeyProxyResponse, ti.enabledResponse, 1, ti.responseDuration); !ok {
+				t.Errorf("error processing metric '%s': %s", KeyProxyResponse, reason)
 			}
 		})
 	}

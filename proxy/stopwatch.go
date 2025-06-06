@@ -8,9 +8,9 @@ type stopWatch struct {
 	elapsed time.Duration
 }
 
-func NewStopWatch(now func() time.Time) *stopWatch {
+func newStopWatch() *stopWatch {
 	return &stopWatch{
-		now: now,
+		now: time.Now,
 	}
 }
 
