@@ -265,6 +265,11 @@ type RoundRobinLookuper struct {
 
 // NewRoundRobinLookuper returns a RoundRobinLookuper.
 func NewRoundRobinLookuper(n uint64) Lookuper {
+	if n == 0 {
+		// Avoid division by zero
+		log.Warn("NewRoundRobinLookuper called with n=0, defaulting to 1 bucket.")
+		n = 1
+	}
 	return &RoundRobinLookuper{c: new(uint64), n: n}
 }
 
@@ -332,7 +337,7 @@ func (s Settings) String() string {
 	case ClusterClientRatelimit:
 		return fmt.Sprintf("ratelimit(type=clusterClient,max-hits=%d,time-window=%s,group=%s)", s.MaxHits, s.TimeWindow, s.Group)
 	default:
-		return "non"
+		return "unknown"
 	}
 }
 
@@ -372,8 +377,9 @@ type Ratelimit struct {
 // Allow is used to get a decision if you should allow the call
 // with context, e.g. to support OpenTracing.
 func (l *Ratelimit) Allow(ctx context.Context, s string) bool {
-	if l == nil {
-		return true
+	if l == nil || l.impl == nil {
+		log.Warn("Allow called on nil or uninitialized Ratelimit object")
+		return true // Defaulting to fail open
 	}
 
 	return l.impl.Allow(ctx, s)
@@ -381,23 +387,31 @@ func (l *Ratelimit) Allow(ctx context.Context, s string) bool {
 
 // Close will stop any cleanup goroutines in underlying limiter implementation.
 func (l *Ratelimit) Close() {
-	l.impl.Close()
+	if l != nil && l.impl != nil {
+		l.impl.Close()
+	}
 }
 
 // RetryAfter informs how many seconds to wait for the next request
 func (l *Ratelimit) RetryAfter(s string) int {
-	if l == nil {
+	if l == nil || l.impl == nil {
 		return 0
 	}
 	return l.impl.RetryAfter(s)
 }
 
 func (l *Ratelimit) Delta(s string) time.Duration {
+	if l == nil || l.impl == nil {
+		// Return a large negative duration to indicate immediate allow if uninitialized
+		return -1 * time.Hour
+	}
 	return l.impl.Delta(s)
 }
 
 func (l *Ratelimit) Resize(s string, i int) {
-	l.impl.Resize(s, i)
+	if l != nil && l.impl != nil {
+		l.impl.Resize(s, i)
+	}
 }
 
 type voidRatelimit struct{}
@@ -427,9 +441,10 @@ func (zeroRatelimit) RetryAfter(string) int              { return zeroRetry }
 func (zeroRatelimit) Delta(string) time.Duration         { return zeroDelta }
 func (zeroRatelimit) Resize(string, int)                 {}
 
-func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratelimit {
+func newRatelimit(s Settings, sw Swarmer, redisClient *net.RedisClient) *Ratelimit {
 	var impl limiter
-	if s.MaxHits == 0 {
+	if s.MaxHits <= 0 {
+		log.Warnf("MaxHits is %d, creating a zeroRatelimit (always deny)", s.MaxHits)
 		impl = zeroRatelimit{}
 	} else {
 		switch s.Type {
@@ -439,15 +454,27 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratel
 			log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")
 			fallthrough
 		case ClientRatelimit:
+			if s.CleanInterval <= 0 {
+				s.CleanInterval = s.TimeWindow * 2
+				log.Debugf("ClientRatelimit CleanInterval not set, defaulting to %v", s.CleanInterval)
+			}
 			impl = circularbuffer.NewClientRateLimiter(s.MaxHits, s.TimeWindow, s.CleanInterval)
 		case ClusterServiceRatelimit:
 			s.CleanInterval = 0
 			fallthrough
 		case ClusterClientRatelimit:
-			impl = newClusterRateLimiter(s, sw, redisRing, s.Group)
+			impl = newClusterRateLimiter(s, sw, redisClient, s.Group)
+		case DisableRatelimit:
+			impl = voidRatelimit{}
 		default:
+			log.Warnf("Unknown ratelimit type %v specified, disabling ratelimit.", s.Type)
 			impl = voidRatelimit{}
 		}
+	}
+
+	if impl == nil {
+		log.Error("Failed to initialize limiter implementation, defaulting to voidRatelimit.")
+		impl = voidRatelimit{}
 	}
 
 	return &Ratelimit{
@@ -456,14 +483,37 @@ func newRatelimit(s Settings, sw Swarmer, redisRing *net.RedisRingClient) *Ratel
 	}
 }
 
+// Headers generates standard rate limit related HTTP headers.
 func Headers(maxHits int, timeWindow time.Duration, retryAfter int) http.Header {
-	limitPerHour := int64(maxHits) * int64(time.Hour) / int64(timeWindow)
-	return http.Header{
-		Header:           []string{strconv.FormatInt(limitPerHour, 10)},
-		RetryAfterHeader: []string{strconv.Itoa(retryAfter)},
+	// Ensure maxHits is non-negative
+	if maxHits < 0 {
+		maxHits = 0
 	}
+
+	h := make(http.Header)
+	// Use RateLimit-Limit standard header name
+	// https://datatracker.ietf.org/doc/html/draft-polli-ratelimit-headers-10#section-4.1
+	h.Set("RateLimit-Limit", strconv.Itoa(maxHits))
+	if timeWindow > time.Microsecond { // Avoid division by zero or near-zero; use microseconds for precision check
+		limitPerHour := int64(float64(maxHits) * float64(time.Hour) / float64(timeWindow))
+		h.Set(Header, strconv.FormatInt(limitPerHour, 10))
+	} else {
+		// Avoid division by zero if timeWindow is invalid
+		h.Set(Header, strconv.Itoa(maxHits)) // Just report maxHits if window is zero
+	}
+
+	if retryAfter > 0 {
+		// Use RateLimit-Reset standard header name (relative seconds)
+		// https://datatracker.ietf.org/doc/html/draft-polli-ratelimit-headers-10#section-4.3
+		h.Set("RateLimit-Reset", strconv.Itoa(retryAfter))
+		// Keep the non-standard Retry-After for compatibility
+		// For HTTP standard Retry-After (RFC 9110 section 10.2.3), it's typically used with 429 or 503
+		h.Set(RetryAfterHeader, strconv.Itoa(retryAfter))
+	}
+	return h
 }
 
+// getHashedKey generates a SHA256 hash of the input string for use as a Redis key or similar.
 func getHashedKey(clearText string) string {
 	h := sha256.Sum256([]byte(clearText))
 	return hex.EncodeToString(h[:])

@@ -147,8 +147,8 @@ func defaultConfig(with func(*Config)) *Config {
 		SwarmRedisReadTimeout:                   25 * time.Millisecond,
 		SwarmRedisWriteTimeout:                  25 * time.Millisecond,
 		SwarmRedisPoolTimeout:                   25 * time.Millisecond,
-		SwarmRedisMinConns:                      100,
-		SwarmRedisMaxConns:                      100,
+		SwarmRedisMinIdleConns:                  100,
+		SwarmRedisMaxIdleConns:                  100,
 		SwarmKubernetesNamespace:                "kube-system",
 		SwarmKubernetesLabelSelectorKey:         "application",
 		SwarmKubernetesLabelSelectorValue:       "skipper-ingress",
@@ -348,6 +348,10 @@ func Test_NewConfigWithArgs(t *testing.T) {
 					values:  []string{"http://foo.test/bar", "http://baz.test/qux"},
 				}
 				c.SwarmRedisPassword = "set_from_file"
+				// Flags specified in test.yaml are zeroed out if not provided in args again
+				c.SwarmRedisEndpointsUpdateInterval = 0
+				c.SwarmRedisConnMetricsInterval = 0
+				c.SwarmRedisMetricsPrefix = ""
 				c.RefusePayload = multiFlag{"foo", "bar", "baz"}
 			}),
 		},
@@ -361,7 +365,7 @@ func Test_NewConfigWithArgs(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				d := cmp.Diff(cfg, tt.want,
+				d := cmp.Diff(tt.want, cfg,
 					cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}),
 					cmpopts.IgnoreUnexported(Config{}), cmpopts.IgnoreFields(Config{}, "Flags"),
 				)
