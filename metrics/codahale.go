@@ -27,6 +27,9 @@ const (
 	KeyResponse                   = "response.%d.%s.skipper.%s"
 	KeyResponseCombined           = "all.response.%d.%s.skipper"
 	Key5xxsBackend                = "all.backend.5xx"
+	KeyProxyTotal                 = "proxy.total"
+	KeyProxyRequest               = "proxy.request"
+	KeyProxyResponse              = "proxy.response"
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
@@ -179,6 +182,17 @@ func (c *CodaHale) MeasureResponse(code int, method string, routeId string, star
 
 	if c.options.EnableRouteResponseMetrics {
 		c.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
+	}
+}
+
+func (c *CodaHale) MeasureProxy(requestDuration, responseDuration time.Duration) {
+	skipperDuration := requestDuration + responseDuration
+	c.updateTimer(KeyProxyTotal, skipperDuration)
+	if c.options.EnableProxyRequestMetrics {
+		c.updateTimer(KeyProxyRequest, requestDuration)
+	}
+	if c.options.EnableProxyResponseMetrics {
+		c.updateTimer(KeyProxyResponse, responseDuration)
 	}
 }
 

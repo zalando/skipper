@@ -522,6 +522,14 @@ type Options struct {
 	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
 
+	// If set, detailed request handling time taken by skipper
+	// will be collected.
+	EnableProxyRequestMetrics bool
+
+	// If set, detailed response handling time take by skipper
+	// will be collected.
+	EnableProxyResponseMetrics bool
+
 	// If set, detailed response time metrics will be collected
 	// for each backend host
 	EnableBackendHostMetrics bool
@@ -1571,6 +1579,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 		EnableServeHostCounter:             o.EnableServeHostCounter,
 		EnableServeMethodMetric:            o.EnableServeMethodMetric,
 		EnableServeStatusCodeMetric:        o.EnableServeStatusCodeMetric,
+		EnableProxyRequestMetrics:          o.EnableProxyRequestMetrics,
+		EnableProxyResponseMetrics:         o.EnableProxyResponseMetrics,
 		EnableBackendHostMetrics:           o.EnableBackendHostMetrics,
 		EnableProfile:                      o.EnableProfile,
 		BlockProfileRate:                   o.BlockProfileRate,
