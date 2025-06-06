@@ -333,6 +333,70 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 	})
 }
 
+// Assume a policy bundle is given in the testResources directory and named "policy.tgz". It will evaluate the
+// policy to compare performance with and without data pre-processing optimizations. Based on the individual policy outcome,
+// assertion can be adjusted. It currently expects a 403 Forbidden response with no proper inputs.
+func BenchmarkGivenPolicyBundleWithDataPreProcessing(b *testing.B) {
+	type benchmarkCase struct {
+		name       string
+		createFunc func(FilterOptions) (filters.Filter, error)
+	}
+
+	cases := []benchmarkCase{
+		{
+			name: "default_filter",
+			createFunc: func(opts FilterOptions) (filters.Filter, error) {
+				return createOpaFilter(opts)
+			},
+		},
+		{
+			name: "with_data_preprocessing",
+			createFunc: func(opts FilterOptions) (filters.Filter, error) {
+				return createOpaFilterWithDataProcessingOptimization(opts)
+			},
+		},
+	}
+
+	for _, bc := range cases {
+		b.Run(bc.name, func(b *testing.B) {
+			bundleName := "policy.tgz"
+			bundlePath := fmt.Sprintf("testResources/%s", bundleName)
+
+			opaControlPlane := newOpaControlPlaneServingBundle(bundlePath, bundleName, b)
+			defer opaControlPlane.Close()
+
+			filterOpts := FilterOptions{
+				OpaControlPlaneUrl: opaControlPlane.URL,
+				DecisionPath:       "main/main",
+				BundleName:         bundleName,
+				DecisionLogging:    false,
+			}
+			f, err := bc.createFunc(filterOpts)
+			require.NoError(b, err)
+
+			requestUrl, err := url.Parse("http://opa-authorized.test/allow")
+			require.NoError(b, err)
+
+			b.ResetTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					ctx := &filtertest.Context{
+						FStateBag: map[string]interface{}{},
+						FResponse: &http.Response{},
+						FRequest: &http.Request{
+							URL:    requestUrl,
+							Method: "GET",
+						},
+						FMetrics: &metricstest.MockMetrics{},
+					}
+					f.Request(ctx)
+					assert.Equal(b, 403, ctx.FResponse.StatusCode, "Expected 403 Forbidden response")
+				}
+			})
+		})
+	}
+}
+
 func newDecisionConsumer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -382,6 +446,13 @@ func createBodyBasedOpaFilter(opts FilterOptions) (filters.Filter, error) {
 	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestWithBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	return spec.CreateFilter([]interface{}{opts.BundleName, opts.ContextExtensions})
+}
+
+func createOpaFilterWithDataProcessingOptimization(opts FilterOptions) (filters.Filter, error) {
+	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
+	registry := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithEnableDataPreProcessingOptimization(true))
+	spec := NewOpaAuthorizeRequestSpec(registry, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{opts.BundleName, opts.ContextExtensions})
 }
 
