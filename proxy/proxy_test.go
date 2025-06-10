@@ -1256,6 +1256,7 @@ func TestMeasureProxyWatch(t *testing.T) {
 	}
 	m := metrics.NewMetrics(mo)
 	defer m.Close()
+
 	doc := `*  -> latency("10ms") -> backendLatency("20ms") -> status(200) -> <shunt>`
 	tp, err := newTestProxyWithParams(doc, Params{Metrics: m})
 	if err != nil {
@@ -1270,7 +1271,6 @@ func TestMeasureProxyWatch(t *testing.T) {
 		Method: "GET",
 	}
 	w := httptest.NewRecorder()
-
 	tp.proxy.ServeHTTP(w, r)
 	if w.Code != http.StatusOK {
 		t.Error("wrong status", w.Code)
@@ -1291,6 +1291,8 @@ func TestMeasureProxyWatch(t *testing.T) {
 		t.Error("Unable to unmarshal metrics response")
 	}
 	timers := data["timers"]
+
+	fmt.Println("Metrics:", timers)
 
 	// check if the metrics contain the expected values
 	if v, ok := timers["proxy.total"]; !ok {
