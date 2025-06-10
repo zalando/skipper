@@ -1,0 +1,6 @@
+{
+  "roles": {
+    "alice": "admin",
+    "bob": "viewer"
+  }
+}
