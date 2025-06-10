@@ -257,7 +257,6 @@ func (c *CodaHale) IncErrorsStreaming(routeId string) {
 }
 
 func (c *CodaHale) Close() {
-	c.reg.UnregisterAll()
 	close(c.quit)
 }
 

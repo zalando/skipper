@@ -3,7 +3,6 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -1251,6 +1250,7 @@ func TestFlusherImplementation(t *testing.T) {
 
 func TestMeasureProxyWatch(t *testing.T) {
 	mo := metrics.Options{
+		Format:                     metrics.PrometheusKind,
 		EnableProxyRequestMetrics:  true,
 		EnableProxyResponseMetrics: true,
 	}
@@ -1266,10 +1266,7 @@ func TestMeasureProxyWatch(t *testing.T) {
 	defer tp.close()
 
 	u, _ := url.ParseRequestURI("https://www.example.org/hello")
-	r := &http.Request{
-		URL:    u,
-		Method: "GET",
-	}
+	r := &http.Request{URL: u, Method: "GET"}
 	w := httptest.NewRecorder()
 	tp.proxy.ServeHTTP(w, r)
 	if w.Code != http.StatusOK {
@@ -1277,56 +1274,49 @@ func TestMeasureProxyWatch(t *testing.T) {
 	}
 
 	mh := metrics.NewHandler(mo, m)
-
 	w = httptest.NewRecorder()
 	r = httptest.NewRequest("GET", "/metrics", nil)
 	mh.ServeHTTP(w, r)
-
 	if w.Code != http.StatusOK {
 		t.Error("wrong status for metrics", w.Code)
 	}
 
-	var data map[string]map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
-		t.Error("Unable to unmarshal metrics response")
-	}
-	timers := data["timers"]
-
-	fmt.Println("Metrics:", timers)
-
-	// check if the metrics contain the expected values
-	if v, ok := timers["proxy.total"]; !ok {
-		t.Error("proxy.total metric not found")
-	} else {
-		vm, ok := v.(map[string]interface{})
-		if !ok {
-			t.Error("proxy.total metric is not a map")
-		} else if vm["count"].(float64) != 1.0 {
-			t.Error("proxy.total count is not 1, got", vm["count"])
+	data := make(map[string]float64)
+	for _, line := range strings.Split(string(w.Body.Bytes()), "\n") {
+		if strings.HasPrefix(line, "skipper_proxy_") {
+			parts := strings.Split(line, " ")
+			if len(parts) != 2 {
+				t.Error("invalid metrics line:", line)
+				continue
+			}
+			val, err := strconv.ParseFloat(parts[1], 64)
+			if err != nil {
+				t.Errorf("invalid float value in metrics line: %v", err)
+				continue
+			}
+			data[parts[0]] = val
 		}
 	}
 
-	if v, ok := timers["proxy.response"]; !ok {
-		t.Error("proxy.response metric not found")
-	} else {
-		vm, ok := v.(map[string]interface{})
-		if !ok {
-			t.Error("proxy.response metric is not a map")
-		} else if vm["count"].(float64) != 1.0 {
-			t.Error("proxy.response count is not 1, got", vm["count"])
-		}
+	if len(data) == 0 {
+		t.Error("no skipper_proxy_ metrics found")
+		return
 	}
 
-	if v, ok := timers["proxy.request"]; !ok {
-		t.Error("proxy.request metric not found")
-	} else {
-		vm, ok := v.(map[string]interface{})
-		if !ok {
-			t.Error("proxy.request metric is not a map")
-		} else if vm["count"].(float64) != 1.0 {
-			t.Error("proxy.request count is not 1, got", vm["count"])
-		}
+	if data["skipper_proxy_total_duration_seconds_count"] != 1 {
+		t.Error("expected 1 total request metric, got", data["skipper_proxy_total_requests_count"])
 	}
+	assert.InDelta(t, data["skipper_proxy_total_duration_seconds_sum"], 0.03, 0.01)
+
+	if data["skipper_proxy_request_duration_seconds_count"] != 1 {
+		t.Error("expected 1 request duration metric, got", data["skipper_proxy_request_duration_seconds_count"])
+	}
+	assert.InDelta(t, data["skipper_proxy_request_duration_seconds_sum"], 0.01, 0.01)
+
+	if data["skipper_proxy_response_duration_seconds_count"] != 1 {
+		t.Error("expected 1 response duration metric, got", data["skipper_proxy_response_duration_seconds_count"])
+	}
+	assert.InDelta(t, data["skipper_proxy_response_duration_seconds_sum"], 0.02, 0.015)
 }
 
 func TestOriginalRequestResponse(t *testing.T) {
