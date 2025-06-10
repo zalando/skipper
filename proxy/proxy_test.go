@@ -1282,7 +1282,7 @@ func TestMeasureProxyWatch(t *testing.T) {
 	}
 
 	data := make(map[string]float64)
-	for _, line := range strings.Split(string(w.Body.Bytes()), "\n") {
+	for _, line := range strings.Split(w.Body.String(), "\n") {
 		if strings.HasPrefix(line, "skipper_proxy_") {
 			parts := strings.Split(line, " ")
 			if len(parts) != 2 {
