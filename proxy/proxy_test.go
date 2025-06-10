@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -32,6 +33,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 
@@ -1244,6 +1246,84 @@ func TestFlusherImplementation(t *testing.T) {
 	}
 	if string(b) != "Hello, world!" {
 		t.Error("failed to receive response")
+	}
+}
+
+func TestMeasureProxyWatch(t *testing.T) {
+	mo := metrics.Options{
+		EnableProxyRequestMetrics:  true,
+		EnableProxyResponseMetrics: true,
+	}
+	m := metrics.NewMetrics(mo)
+	defer m.Close()
+	doc := `*  -> latency("10ms") -> backendLatency("20ms") -> status(200) -> <shunt>`
+	tp, err := newTestProxyWithParams(doc, Params{Metrics: m})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer tp.close()
+
+	u, _ := url.ParseRequestURI("https://www.example.org/hello")
+	r := &http.Request{
+		URL:    u,
+		Method: "GET",
+	}
+	w := httptest.NewRecorder()
+
+	tp.proxy.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Error("wrong status", w.Code)
+	}
+
+	mh := metrics.NewHandler(mo, m)
+
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest("GET", "/metrics", nil)
+	mh.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Error("wrong status for metrics", w.Code)
+	}
+
+	var data map[string]map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Error("Unable to unmarshal metrics response")
+	}
+	timers := data["timers"]
+
+	// check if the metrics contain the expected values
+	if v, ok := timers["proxy.total"]; !ok {
+		t.Error("proxy.total metric not found")
+	} else {
+		vm, ok := v.(map[string]interface{})
+		if !ok {
+			t.Error("proxy.total metric is not a map")
+		} else if vm["count"].(float64) != 1.0 {
+			t.Error("proxy.total count is not 1, got", vm["count"])
+		}
+	}
+
+	if v, ok := timers["proxy.response"]; !ok {
+		t.Error("proxy.response metric not found")
+	} else {
+		vm, ok := v.(map[string]interface{})
+		if !ok {
+			t.Error("proxy.response metric is not a map")
+		} else if vm["count"].(float64) != 1.0 {
+			t.Error("proxy.response count is not 1, got", vm["count"])
+		}
+	}
+
+	if v, ok := timers["proxy.request"]; !ok {
+		t.Error("proxy.request metric not found")
+	} else {
+		vm, ok := v.(map[string]interface{})
+		if !ok {
+			t.Error("proxy.request metric is not a map")
+		} else if vm["count"].(float64) != 1.0 {
+			t.Error("proxy.request count is not 1, got", vm["count"])
+		}
 	}
 }
 
