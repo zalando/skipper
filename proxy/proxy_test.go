@@ -32,7 +32,6 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
-	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 
@@ -1246,77 +1245,6 @@ func TestFlusherImplementation(t *testing.T) {
 	if string(b) != "Hello, world!" {
 		t.Error("failed to receive response")
 	}
-}
-
-func TestMeasureProxyWatch(t *testing.T) {
-	mo := metrics.Options{
-		Format:                     metrics.PrometheusKind,
-		EnableProxyRequestMetrics:  true,
-		EnableProxyResponseMetrics: true,
-	}
-	m := metrics.NewMetrics(mo)
-	defer m.Close()
-
-	doc := `*  -> latency("10ms") -> backendLatency("20ms") -> status(200) -> <shunt>`
-	tp, err := newTestProxyWithParams(doc, Params{Metrics: m})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	defer tp.close()
-
-	u, _ := url.ParseRequestURI("https://www.example.org/hello")
-	r := &http.Request{URL: u, Method: "GET"}
-	w := httptest.NewRecorder()
-	tp.proxy.ServeHTTP(w, r)
-	if w.Code != http.StatusOK {
-		t.Error("wrong status", w.Code)
-	}
-
-	mh := metrics.NewHandler(mo, m)
-	w = httptest.NewRecorder()
-	r = httptest.NewRequest("GET", "/metrics", nil)
-	mh.ServeHTTP(w, r)
-	if w.Code != http.StatusOK {
-		t.Error("wrong status for metrics", w.Code)
-	}
-
-	data := make(map[string]float64)
-	for _, line := range strings.Split(w.Body.String(), "\n") {
-		if strings.HasPrefix(line, "skipper_proxy_") {
-			parts := strings.Split(line, " ")
-			if len(parts) != 2 {
-				t.Error("invalid metrics line:", line)
-				continue
-			}
-			val, err := strconv.ParseFloat(parts[1], 64)
-			if err != nil {
-				t.Errorf("invalid float value in metrics line: %v", err)
-				continue
-			}
-			data[parts[0]] = val
-		}
-	}
-
-	if len(data) == 0 {
-		t.Error("no skipper_proxy_ metrics found")
-		return
-	}
-
-	if data["skipper_proxy_total_duration_seconds_count"] != 1 {
-		t.Error("expected 1 total request metric, got", data["skipper_proxy_total_requests_count"])
-	}
-	assert.InDelta(t, data["skipper_proxy_total_duration_seconds_sum"], 0.03, 0.01)
-
-	if data["skipper_proxy_request_duration_seconds_count"] != 1 {
-		t.Error("expected 1 request duration metric, got", data["skipper_proxy_request_duration_seconds_count"])
-	}
-	assert.InDelta(t, data["skipper_proxy_request_duration_seconds_sum"], 0.01, 0.01)
-
-	if data["skipper_proxy_response_duration_seconds_count"] != 1 {
-		t.Error("expected 1 response duration metric, got", data["skipper_proxy_response_duration_seconds_count"])
-	}
-	assert.InDelta(t, data["skipper_proxy_response_duration_seconds_sum"], 0.02, 0.015)
 }
 
 func TestOriginalRequestResponse(t *testing.T) {

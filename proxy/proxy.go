@@ -1226,7 +1226,9 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
+	ctx.proxyWatch.Stop()
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
+	ctx.proxyWatch.Start()
 
 	if ctx.deprecatedShunted() {
 		ctx.Logger().Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
@@ -1346,7 +1348,9 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	}
 
 	addBranding(ctx.response.Header)
+	ctx.proxyWatch.Stop()
 	p.applyFiltersToResponse(processedFilters, ctx)
+	ctx.proxyWatch.Start()
 	return nil
 }
 
