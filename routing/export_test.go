@@ -22,3 +22,7 @@ func SetNow(r *EndpointRegistry, now func() time.Time) {
 func (rl *RouteLookup) ValidRoutes() []*eskip.Route {
 	return rl.rt.validRoutes
 }
+
+func (rl *RouteLookup) DataClients() map[DataClient]struct{} {
+	return rl.rt.clients
+}

@@ -3,7 +3,9 @@ package routing
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -257,6 +259,19 @@ type Routing struct {
 func New(o Options) *Routing {
 	if o.Log == nil {
 		o.Log = &logging.DefaultLog{}
+	}
+
+	uniqueClients := make(map[DataClient]struct{}, len(o.DataClients))
+	for i, c := range o.DataClients {
+		if _, ok := uniqueClients[c]; ok {
+			o.Log.Errorf("Duplicate data clients are not allowed, ignoring client #%d: %T", i, c)
+			continue
+		}
+		uniqueClients[c] = struct{}{}
+	}
+	if len(uniqueClients) != len(o.DataClients) {
+		o.Log.Errorf("Ignored %d duplicate data clients", len(o.DataClients)-len(uniqueClients))
+		o.DataClients = slices.Collect(maps.Keys(uniqueClients))
 	}
 
 	r := &Routing{log: o.Log, firstLoad: make(chan struct{}), quit: make(chan struct{})}
