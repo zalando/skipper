@@ -191,7 +191,7 @@ func TestProcessRouteDefWeight(t *testing.T) {
 
 			r := defs[0]
 
-			_, weight, err := routing.ExportProcessPredicates(cpm, r.Predicates)
+			_, weight, err := routing.ExportProcessPredicates(&routing.Options{}, cpm, r.Predicates)
 			if err != nil {
 				t.Error(ti.route, err)
 
@@ -337,6 +337,49 @@ func TestMetrics(t *testing.T) {
 				100 * time.Millisecond,
 			}, m["filter.slowCreate.create"], 0.1)
 		})
+	})
+}
+
+func TestRouteValidationMetrics(t *testing.T) {
+	metrics := &metricstest.MockMetrics{}
+
+	dc, err := testdataclient.NewDoc(`
+		validRoute: Path("/foo") -> "https://example.org";
+		invalidBackend: Path("/bar") -> "invalid-url";
+		unknownFilter: Path("/baz") -> unknownFilter() -> "https://example.org";
+		unknownPredicate: UnknownPredicate() -> "https://example.org";
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dc.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetPath())
+
+	r := routing.New(routing.Options{
+		DataClients:     []routing.DataClient{dc},
+		FilterRegistry:  fr,
+		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
+		Metrics:         metrics,
+		SignalFirstLoad: true,
+	})
+	defer r.Close()
+	<-r.FirstLoad()
+
+	metrics.WithCounters(func(counters map[string]int64) {
+		if counters["route.valid"] != 1 {
+			t.Errorf("Expected 1 valid route, got %d", counters["route.valid"])
+		}
+		if counters["route.invalid.failed_backend_split"] != 1 {
+			t.Errorf("Expected 1 failed_backend_split, got %d", counters["route.invalid.failed_backend_split"])
+		}
+		if counters["route.invalid.unknown_filter"] != 1 {
+			t.Errorf("Expected 1 unknown_filter, got %d", counters["route.invalid.unknown_filter"])
+		}
+		if counters["route.invalid.unknown_predicate"] != 1 {
+			t.Errorf("Expected 1 unknown_predicate, got %d", counters["route.invalid.unknown_predicate"])
+		}
 	})
 }
 
