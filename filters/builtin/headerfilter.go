@@ -2,6 +2,8 @@ package builtin
 
 import (
 	"fmt"
+	"net/textproto"
+	"slices"
 	"strings"
 
 	"github.com/zalando/skipper/eskip"
@@ -47,7 +49,7 @@ type headerFilter struct {
 func headerFilterConfig(typ headerType, config []interface{}) (string, string, *eskip.Template, error) {
 	switch typ {
 	case dropRequestHeader, dropResponseHeader:
-		if len(config) != 1 {
+		if len(config) < 1 || len(config) > 2 {
 			return "", "", nil, filters.ErrInvalidFilterParameters
 		}
 	default:
@@ -281,7 +283,12 @@ func (f *headerFilter) Request(ctx filters.FilterContext) {
 			ctx.SetOutgoingHost(f.value)
 		}
 	case dropRequestHeader:
-		header.Del(f.key)
+		if f.value == "" {
+			header.Del(f.key)
+		} else {
+			k := textproto.CanonicalMIMEHeaderKey(f.key)
+			header[k] = slices.DeleteFunc(header[k], func(v string) bool { return v == f.value })
+		}
 	case setContextRequestHeader:
 		valueFromContext(ctx, f.key, f.value, true, header.Set)
 	case appendContextRequestHeader:
@@ -313,7 +320,12 @@ func (f *headerFilter) Response(ctx filters.FilterContext) {
 	case depResponseHeader:
 		header.Add(f.key, f.value)
 	case dropResponseHeader:
-		header.Del(f.key)
+		if f.value == "" {
+			header.Del(f.key)
+		} else {
+			k := textproto.CanonicalMIMEHeaderKey(f.key)
+			header[k] = slices.DeleteFunc(header[k], func(v string) bool { return v == f.value })
+		}
 	case setContextResponseHeader:
 		valueFromContext(ctx, f.key, f.value, false, header.Set)
 	case appendContextResponseHeader:
