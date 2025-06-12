@@ -89,6 +89,11 @@ func (a *All) MeasureResponse(code int, method string, routeId string, start tim
 	a.codaHale.MeasureResponse(code, method, routeId, start)
 }
 
+func (a *All) MeasureProxy(requestDuration, responseDuration time.Duration) {
+	a.prometheus.MeasureProxy(requestDuration, responseDuration)
+	a.codaHale.MeasureProxy(requestDuration, responseDuration)
+}
+
 func (a *All) MeasureServe(routeId, host, method string, code int, start time.Time) {
 	a.prometheus.MeasureServe(routeId, host, method, code, start)
 	a.codaHale.MeasureServe(routeId, host, method, code, start)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/proxy"
@@ -60,5 +61,37 @@ func TestMetricsUncompressed(t *testing.T) {
 		assert.Equal(t, counters["incoming.HTTP/1.1"], int64(2*N))
 		assert.Equal(t, counters["outgoing.HTTP/1.1"], int64(N))
 		assert.Equal(t, counters["experimental.uncompressed"], int64(N))
+	})
+}
+
+func TestMeasureProxyWatch(t *testing.T) {
+	m := &metricstest.MockMetrics{}
+	defer m.Close()
+
+	tp := proxytest.Config{
+		Routes: eskip.MustParse(`test: * -> latency("10ms") -> backendLatency("20ms") -> status(200) -> <shunt>`),
+		RoutingOptions: routing.Options{
+			FilterRegistry: builtin.MakeRegistry(),
+		},
+		ProxyParams: proxy.Params{
+			Metrics: m,
+		},
+	}.Create()
+	defer tp.Close()
+
+	client := tp.Client()
+	rsp, body, err := client.GetBody(tp.URL + "/hello")
+	require.NoError(t, err)
+	require.Equal(t, 200, rsp.StatusCode)
+	require.Equal(t, []byte(""), body)
+
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		assert.Equal(t, len(measures), 3)
+		assert.Len(t, measures["proxy.total.duration"], 1)
+		assert.Len(t, measures["proxy.request.duration"], 1)
+		assert.Len(t, measures["proxy.response.duration"], 1)
+		assert.InDelta(t, measures["proxy.total.duration"][0].Seconds(), 0.001, 0.001)
+		assert.InDelta(t, measures["proxy.request.duration"][0].Seconds(), 0.001, 0.001)
+		assert.InDelta(t, measures["proxy.response.duration"][0].Seconds(), 0.001, 0.001)
 	})
 }

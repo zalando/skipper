@@ -70,6 +70,7 @@ type Metrics interface {
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
+	MeasureProxy(requestDuration, responseDuration time.Duration)
 	MeasureServe(routeId, host, method string, code int, start time.Time)
 	IncRoutingFailures()
 	IncErrorsBackend(routeId string)
@@ -129,6 +130,18 @@ type Options struct {
 	// HTTP Response status code as a domain of the metric. It affects
 	// both route and host split metrics.
 	EnableServeStatusCodeMetric bool
+
+	// If set, the total request handling time taken by skipper will be
+	// collected. It measures the duration taken by skipper to process
+	// the request, from the start excluding the filters processing and
+	// until the backend round trip is started.
+	EnableProxyRequestMetrics bool
+
+	// If set, the total response handling time take by skipper will be
+	// collected. It measures the duration taken by skipper to process the
+	// response, from after the backend round trip is finished, excluding
+	// the filters processing and until the before the response is served.
+	EnableProxyResponseMetrics bool
 
 	// If set, detailed response time metrics will be collected
 	// for each backend host

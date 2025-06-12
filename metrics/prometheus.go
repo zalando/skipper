@@ -17,8 +17,9 @@ const (
 	promNamespace          = "skipper"
 	promRouteSubsystem     = "route"
 	promFilterSubsystem    = "filter"
-	promProxySubsystem     = "backend"
+	promBackendSubsystem   = "backend"
 	promStreamingSubsystem = "streaming"
+	promProxySubsystem     = "proxy"
 	promResponseSubsystem  = "response"
 	promServeSubsystem     = "serve"
 	promCustomSubsystem    = "custom"
@@ -43,6 +44,9 @@ type Prometheus struct {
 	serveRouteCounterM         *prometheus.CounterVec
 	serveHostM                 *prometheus.HistogramVec
 	serveHostCounterM          *prometheus.CounterVec
+	proxyTotalM                *prometheus.HistogramVec
+	proxyRequestM              *prometheus.HistogramVec
+	proxyResponseM             *prometheus.HistogramVec
 	proxyBackend5xxM           *prometheus.HistogramVec
 	proxyBackendErrorsM        *prometheus.CounterVec
 	proxyStreamingErrorsM      *prometheus.CounterVec
@@ -130,7 +134,7 @@ func NewPrometheus(opts Options) *Prometheus {
 
 	p.proxyBackendM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
-		Subsystem: promProxySubsystem,
+		Subsystem: promBackendSubsystem,
 		Name:      "duration_seconds",
 		Help:      "Duration in seconds of a proxy backend.",
 		Buckets:   opts.HistogramBuckets,
@@ -138,7 +142,7 @@ func NewPrometheus(opts Options) *Prometheus {
 
 	p.proxyBackendCombinedM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
-		Subsystem: promProxySubsystem,
+		Subsystem: promBackendSubsystem,
 		Name:      "combined_duration_seconds",
 		Help:      "Duration in seconds of a proxy backend combined.",
 		Buckets:   opts.HistogramBuckets,
@@ -203,16 +207,40 @@ func NewPrometheus(opts Options) *Prometheus {
 		Help:      "Total number of requests of serving a host.",
 	}, []string{"code", "method", "host"}))
 
-	p.proxyBackend5xxM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	p.proxyTotalM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promProxySubsystem,
+		Name:      "total_duration_seconds",
+		Help:      "Total duration in seconds of skipper latency.",
+		Buckets:   opts.HistogramBuckets,
+	}, []string{}))
+
+	p.proxyRequestM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promProxySubsystem,
+		Name:      "request_duration_seconds",
+		Help:      "Duration in seconds of skipper latency for request.",
+		Buckets:   opts.HistogramBuckets,
+	}, []string{}))
+
+	p.proxyResponseM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promProxySubsystem,
+		Name:      "response_duration_seconds",
+		Help:      "Duration in seconds of skipper latency for response.",
+		Buckets:   opts.HistogramBuckets,
+	}, []string{}))
+
+	p.proxyBackend5xxM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promBackendSubsystem,
 		Name:      "5xx_duration_seconds",
 		Help:      "Duration in seconds of backend 5xx.",
 		Buckets:   opts.HistogramBuckets,
 	}, []string{}))
 	p.proxyBackendErrorsM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
-		Subsystem: promProxySubsystem,
+		Subsystem: promBackendSubsystem,
 		Name:      "error_total",
 		Help:      "Total number of backend route errors.",
 	}, []string{"route"}))
@@ -379,6 +407,17 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	}
 	if p.opts.EnableRouteResponseMetrics {
 		p.responseM.WithLabelValues(fmt.Sprint(code), method, routeID).Observe(t)
+	}
+}
+
+func (p *Prometheus) MeasureProxy(requestDuration, responseDuration time.Duration) {
+	skipperDuration := requestDuration + responseDuration
+	p.proxyTotalM.WithLabelValues().Observe(skipperDuration.Seconds())
+	if p.opts.EnableProxyRequestMetrics {
+		p.proxyRequestM.WithLabelValues().Observe(requestDuration.Seconds())
+	}
+	if p.opts.EnableProxyResponseMetrics {
+		p.proxyResponseM.WithLabelValues().Observe(responseDuration.Seconds())
 	}
 }
 
