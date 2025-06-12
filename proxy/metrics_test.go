@@ -65,31 +65,13 @@ func TestMetricsUncompressed(t *testing.T) {
 }
 
 func TestMeasureProxyWatch(t *testing.T) {
-	m := &metricstest.MockMetrics{
-		Options: metricstest.MockMetricsOptions{
-			EnableProxyRequestMetrics:  true,
-			EnableProxyResponseMetrics: true,
-		},
-	}
+	m := &metricstest.MockMetrics{}
 	defer m.Close()
 
-	dc := testdataclient.New([]*eskip.Route{
-		{
-			Id: "test",
-			Filters: []*eskip.Filter{
-				{Name: "latency", Args: []interface{}{"10ms"}},
-				{Name: "backendLatency", Args: []interface{}{"20ms"}},
-				{Name: "status", Args: []interface{}{200}},
-			},
-			BackendType: eskip.ShuntBackend,
-		},
-	})
-	defer dc.Close()
-
 	tp := proxytest.Config{
+		Routes: eskip.MustParse(`test: * -> latency("10ms") -> backendLatency("20ms") -> status(200) -> <shunt>`),
 		RoutingOptions: routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
-			DataClients:    []routing.DataClient{dc},
 		},
 		ProxyParams: proxy.Params{
 			Metrics: m,

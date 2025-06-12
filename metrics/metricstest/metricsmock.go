@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-type MockMetricsOptions struct {
-	EnableProxyRequestMetrics  bool
-	EnableProxyResponseMetrics bool
-}
-
 type MockMetrics struct {
 	Prefix string
 
@@ -23,7 +18,6 @@ type MockMetrics struct {
 	gauges        map[string]float64
 	measures      map[string][]time.Duration
 	Now           time.Time
-	Options       MockMetricsOptions
 }
 
 //
@@ -160,18 +154,14 @@ func (m *MockMetrics) MeasureProxy(requestDuration, responseDuration time.Durati
 	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measures[totalDurationKey] = append(measures[totalDurationKey], totalDuration)
 	})
-	if m.Options.EnableProxyRequestMetrics {
-		requestDurationKey := fmt.Sprintf("%sproxy.request.duration", m.Prefix)
-		m.WithMeasures(func(measures map[string][]time.Duration) {
-			measures[requestDurationKey] = append(measures[requestDurationKey], requestDuration)
-		})
-	}
-	if m.Options.EnableProxyResponseMetrics {
-		responseDurationKey := fmt.Sprintf("%sproxy.response.duration", m.Prefix)
-		m.WithMeasures(func(measures map[string][]time.Duration) {
-			measures[responseDurationKey] = append(measures[responseDurationKey], responseDuration)
-		})
-	}
+	requestDurationKey := fmt.Sprintf("%sproxy.request.duration", m.Prefix)
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[requestDurationKey] = append(measures[requestDurationKey], requestDuration)
+	})
+	responseDurationKey := fmt.Sprintf("%sproxy.response.duration", m.Prefix)
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		measures[responseDurationKey] = append(measures[responseDurationKey], responseDuration)
+	})
 }
 
 func (m *MockMetrics) MeasureServe(routeId, host, method string, code int, start time.Time) {
