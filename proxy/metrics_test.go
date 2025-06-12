@@ -104,7 +104,6 @@ func TestMeasureProxyWatch(t *testing.T) {
 	require.Equal(t, []byte(""), body)
 
 	m.WithMeasures(func(measures map[string][]time.Duration) {
-		fmt.Println("Measures:", measures)
 		assert.Equal(t, len(measures), 3)
 		assert.Len(t, measures["proxy.total.duration"], 1)
 		assert.Len(t, measures["proxy.request.duration"], 1)
