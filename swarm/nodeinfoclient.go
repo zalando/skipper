@@ -1,15 +1,12 @@
 package swarm
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"net/url"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando/skipper/dataclients/kubernetes"
 )
 
 type nodeInfoClient interface {
@@ -25,7 +22,7 @@ func NewNodeInfoClient(o Options) (nodeInfoClient, func()) {
 	switch o.swarm {
 	case swarmKubernetes:
 		cli := NewNodeInfoClientKubernetes(o)
-		return cli, cli.client.Stop
+		return cli, cli.client.Close
 	case swarmStatic:
 		return o.StaticSwarm, func() {
 			log.Infof("%s left swarm", o.StaticSwarm.Self())
@@ -76,37 +73,27 @@ func (nic *nodeInfoClientFake) Self() *NodeInfo {
 }
 
 type nodeInfoClientKubernetes struct {
-	kubernetesInCluster bool
-	kubeAPIBaseURL      string
-	client              *ClientKubernetes
-	namespace           string
-	labelKey            string
-	labelVal            string
-	port                uint16
+	client    *kubernetes.Client
+	namespace string
+	name      string
+	port      uint16
 }
 
 func NewNodeInfoClientKubernetes(o Options) *nodeInfoClientKubernetes {
 	log.Debug("SWARM: NewnodeInfoClient")
-	cli, err := NewClientKubernetes(o.KubernetesOptions.KubernetesInCluster, o.KubernetesOptions.KubernetesAPIBaseURL)
-	if err != nil {
-		log.Fatalf("SWARM: failed to create kubernetes client: %v", err)
-	}
 
 	return &nodeInfoClientKubernetes{
-		client:              cli,
-		kubernetesInCluster: o.KubernetesOptions.KubernetesInCluster,
-		kubeAPIBaseURL:      o.KubernetesOptions.KubernetesAPIBaseURL,
-		namespace:           o.KubernetesOptions.Namespace,
-		labelKey:            o.KubernetesOptions.LabelSelectorKey,
-		labelVal:            o.KubernetesOptions.LabelSelectorValue,
-		port:                o.SwarmPort,
+		client:    o.KubernetesOptions.KubernetesClient,
+		namespace: o.KubernetesOptions.Namespace,
+		name:      o.KubernetesOptions.Name,
+		port:      o.SwarmPort,
 	}
 }
 
 func (c *nodeInfoClientKubernetes) Self() *NodeInfo {
 	nodes, err := c.GetNodeInfo()
 	if err != nil {
-		log.Errorf("Failed to get self: %v", err)
+		log.Errorf("Failed to get node info: %v", err)
 		return nil
 	}
 	return getSelf(nodes)
@@ -115,77 +102,33 @@ func (c *nodeInfoClientKubernetes) Self() *NodeInfo {
 // GetNodeInfo returns a list of peers to join from Kubernetes API
 // server.
 func (c *nodeInfoClientKubernetes) GetNodeInfo() ([]*NodeInfo, error) {
-	s, err := c.nodeInfoURL()
-	if err != nil {
-		log.Debugf("SWARM: failed to build request url for %s %s=%s: %s", c.namespace, c.labelKey, c.labelVal, err)
-		return nil, err
-	}
+	list := c.client.GetEndpointAddresses(c.namespace, c.name)
 
-	rsp, err := c.client.Get(s)
-	if err != nil {
-		log.Debugf("SWARM: request to %s %s=%s failed: %v", c.namespace, c.labelKey, c.labelVal, err)
-		return nil, err
-	}
-
-	defer rsp.Body.Close()
-
-	if rsp.StatusCode > http.StatusBadRequest {
-		log.Debugf("SWARM: request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
-		return nil, fmt.Errorf("request failed, status: %d, %s", rsp.StatusCode, rsp.Status)
-	}
-
-	b := bytes.NewBuffer(nil)
-	if _, err := io.Copy(b, rsp.Body); err != nil {
-		log.Debugf("SWARM: reading response body failed: %v", err)
-		return nil, err
-	}
-
-	var il itemList
-	err = json.Unmarshal(b.Bytes(), &il)
-	if err != nil {
-		return nil, err
-	}
-	nodes := make([]*NodeInfo, 0)
-	for _, i := range il.Items {
-		addr := net.ParseIP(i.Status.PodIP)
-		if addr == nil {
-			log.Errorf("SWARM: failed to parse the ip %s", i.Status.PodIP)
+	nodes := make([]*NodeInfo, 0, len(list))
+	for _, s := range list {
+		u, err := url.Parse(s)
+		if err != nil {
+			log.Errorf("SWARM: failed to parse url '%s': %v", s, err)
 			continue
 		}
-		nodes = append(nodes, &NodeInfo{Name: i.Metadata.Name, Addr: addr, Port: c.port})
+		addr := net.ParseIP(u.Hostname())
+		port, err := parsetUint16(u.Port())
+		if err != nil {
+			log.Errorf("SWARM: failed to parse port to int: %v", err)
+			continue
+		}
+		n := &NodeInfo{Name: s, Addr: addr, Port: port}
+		log.Debugf("SWARM: got nodeinfo %v", n)
+		nodes = append(nodes, n)
 	}
-	log.Debugf("SWARM: got nodeinfo %d", len(nodes))
+	log.Debugf("SWARM: got nodeinfo with %d members", len(nodes))
 	return nodes, nil
 }
 
-type metadata struct {
-	Name string `json:"name"`
-}
-
-type status struct {
-	PodIP string `json:"podIP"`
-}
-
-type item struct {
-	Metadata metadata `json:"metadata"`
-	Status   status   `json:"status"`
-}
-
-type itemList struct {
-	Items []*item `json:"items"`
-}
-
-func (c *nodeInfoClientKubernetes) nodeInfoURL() (string, error) {
-	u, err := url.Parse(c.kubeAPIBaseURL)
+func parsetUint16(s string) (uint16, error) {
+	u64, err := strconv.ParseUint(s, 10, 16)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
-	u.Path = "/api/v1/namespaces/" + url.PathEscape(c.namespace) + "/pods"
-	a := make(url.Values)
-	a.Add(c.labelKey, c.labelVal)
-	ls := make(url.Values)
-	ls.Add("labelSelector", a.Encode())
-	u.RawQuery = ls.Encode()
-
-	return u.String(), nil
+	return uint16(u64), err
 }
