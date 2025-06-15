@@ -301,6 +301,43 @@ func assertTriggerMode(t *testing.T, expectedMode plugins.TriggerMode, plgn plug
 	}
 }
 
+func TestWithEnableDataPreProcessingOptimization(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+	}{
+		{
+			name:    "With pre processing optimization",
+			enabled: true,
+		},
+		{
+			name:    "With pre processing optimization disabled",
+			enabled: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, config := mockControlPlaneWithResourceBundle()
+
+			registry := NewOpenPolicyAgentRegistry(
+				WithReuseDuration(1*time.Second),
+				WithCleanInterval(1*time.Second),
+				WithEnableDataPreProcessingOptimization(tt.enabled),
+			)
+
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
+
+			inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			assert.Equal(t, tt.enabled, registry.enableDataPreProcessingOptimization)
+			assert.Equal(t, tt.enabled, inst1.registry.enableDataPreProcessingOptimization)
+		})
+	}
+}
+
 func TestOpaEngineStartFailure(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{enableCustomControlLoop: true, expectedError: "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found"},

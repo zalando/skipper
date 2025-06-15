@@ -89,6 +89,8 @@ type OpenPolicyAgentRegistry struct {
 	enableCustomControlLoop bool
 	controlLoopInterval     time.Duration
 	controlLoopMaxJitter    time.Duration
+
+	enableDataPreProcessingOptimization bool
 }
 
 type OpenPolicyAgentFilter interface {
@@ -147,6 +149,13 @@ func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error 
 func WithEnableCustomControlLoop(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.enableCustomControlLoop = enabled
+		return nil
+	}
+}
+
+func WithEnableDataPreProcessingOptimization(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.enableDataPreProcessingOptimization = enabled
 		return nil
 	}
 }
@@ -423,7 +432,7 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 		return nil, err
 	}
 
-	engine, err := registry.new(inmem.New(), configBytes, config, filterName, bundleName,
+	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), configBytes, config, filterName, bundleName,
 		registry.maxRequestBodyBytes, registry.bodyReadBufferSize)
 	if err != nil {
 		return nil, err
