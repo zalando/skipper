@@ -971,17 +971,18 @@ type Options struct {
 	// filters.
 	LuaSources []string
 
-	EnableOpenPolicyAgent                  bool
-	EnableOpenPolicyAgentCustomControlLoop bool
-	OpenPolicyAgentControlLoopInterval     time.Duration
-	OpenPolicyAgentControlLoopMaxJitter    time.Duration
-	OpenPolicyAgentConfigTemplate          string
-	OpenPolicyAgentEnvoyMetadata           string
-	OpenPolicyAgentCleanerInterval         time.Duration
-	OpenPolicyAgentStartupTimeout          time.Duration
-	OpenPolicyAgentMaxRequestBodySize      int64
-	OpenPolicyAgentRequestBodyBufferSize   int64
-	OpenPolicyAgentMaxMemoryBodyParsing    int64
+	EnableOpenPolicyAgent                              bool
+	EnableOpenPolicyAgentCustomControlLoop             bool
+	OpenPolicyAgentControlLoopInterval                 time.Duration
+	OpenPolicyAgentControlLoopMaxJitter                time.Duration
+	EnableOpenPolicyAgentDataPreProcessingOptimization bool
+	OpenPolicyAgentConfigTemplate                      string
+	OpenPolicyAgentEnvoyMetadata                       string
+	OpenPolicyAgentCleanerInterval                     time.Duration
+	OpenPolicyAgentStartupTimeout                      time.Duration
+	OpenPolicyAgentMaxRequestBodySize                  int64
+	OpenPolicyAgentRequestBodyBufferSize               int64
+	OpenPolicyAgentMaxMemoryBodyParsing                int64
 
 	PassiveHealthCheck map[string]string
 }
@@ -1935,7 +1936,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithTracer(tracer),
 			openpolicyagent.WithEnableCustomControlLoop(o.EnableOpenPolicyAgentCustomControlLoop),
 			openpolicyagent.WithControlLoopInterval(o.OpenPolicyAgentControlLoopInterval),
-			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter))
+			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter),
+			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization))
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)

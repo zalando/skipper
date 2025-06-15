@@ -357,49 +357,72 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 // and filterOpts variables are correctly configured to match your bundle and
 // the roots in .manifest files in your bundles do not overlap.
 func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
-	policyBundle := "policy"
-	dataBundle := "context-data"
-
-	bundleFiles := map[string]string{
-		policyBundle: "testResources/split-bundles/policy.tgz",
-		dataBundle:   "testResources/split-bundles/context-data.tgz",
+	type benchmarkCase struct {
+		name       string
+		createFunc func(FilterOptions) (filters.Filter, error)
 	}
 
-	opaControlPlane := newOpaControlPlaneServingDataAndPolicyBundles(b, bundleFiles)
-	defer opaControlPlane.Close()
-
-	filterOpts := FilterOptions{
-		OpaControlPlaneUrl:  opaControlPlane.URL,
-		DecisionConsumerUrl: opaControlPlane.URL,
-		DecisionPath:        "policy/allow",
-		BundleNames:         []string{policyBundle, dataBundle},
-		DecisionLogging:     false,
+	cases := []benchmarkCase{
+		{
+			name: "default_filter",
+			createFunc: func(opts FilterOptions) (filters.Filter, error) {
+				return createOpaFilterForMultipleBundles(opts)
+			},
+		},
+		{
+			name: "with_data_preprocessing_optimization",
+			createFunc: func(opts FilterOptions) (filters.Filter, error) {
+				return createOpaFilterWithDataProcessingOptimization(opts)
+			},
+		},
 	}
 
-	f, err := createOpaFilterForMultipleBundles(filterOpts)
-	require.NoError(b, err)
-
-	requestUrl, err := url.Parse("http://opa-authorized.test/allow/alice")
-	require.NoError(b, err)
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			ctx := &filtertest.Context{
-				FStateBag: map[string]interface{}{},
-				FResponse: &http.Response{},
-				FRequest: &http.Request{
-					URL:    requestUrl,
-					Method: "GET",
-				},
-				FMetrics: &metricstest.MockMetrics{},
+	for _, bc := range cases {
+		b.Run(bc.name, func(b *testing.B) {
+			bundleFiles := map[string]string{
+				"policy":       "testResources/split-bundles/policy.tgz",
+				"context-data": "testResources/split-bundles/context-data.tgz",
 			}
-			f.Request(ctx)
-			assert.False(b, ctx.FServed)
-			assert.NotEqual(b, 403, ctx.FResponse.StatusCode, "Expected 403 Forbidden response")
-		}
-	})
 
+			opaControlPlane := newOpaControlPlaneServingDataAndPolicyBundles(b, bundleFiles)
+			defer opaControlPlane.Close()
+
+			filterOpts := FilterOptions{
+				OpaControlPlaneUrl:  opaControlPlane.URL,
+				DecisionConsumerUrl: opaControlPlane.URL,
+				DecisionPath:        "policy/allow",
+				BundleNames:         []string{"policy", "context-data"},
+				DecisionLogging:     false,
+			}
+
+			f, err := bc.createFunc(filterOpts)
+			require.NoError(b, err)
+
+			requestURL, err := url.Parse("http://opa-authorized.test/allow/alice")
+			require.NoError(b, err)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					ctx := &filtertest.Context{
+						FStateBag: map[string]interface{}{},
+						FResponse: &http.Response{},
+						FRequest: &http.Request{
+							URL:    requestURL,
+							Method: "GET",
+						},
+						FMetrics: &metricstest.MockMetrics{},
+					}
+
+					f.Request(ctx)
+					assert.False(b, ctx.FServed)
+					assert.NotEqual(b, 403, ctx.FResponse.StatusCode, "Expected 403 Forbidden response")
+				}
+			})
+		})
+	}
 }
 
 func newOpaControlPlaneServingDataAndPolicyBundles(b *testing.B, bundleFiles map[string]string) *httptest.Server {
@@ -503,6 +526,13 @@ func createOpaFilterForMultipleBundles(opts FilterOptions) (filters.Filter, erro
 	config := generateConfigForMultipleBundles(opts.BundleNames, opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
+}
+
+func createOpaFilterWithDataProcessingOptimization(opts FilterOptions) (filters.Filter, error) {
+	config := generateConfigForMultipleBundles(opts.BundleNames, opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
+	registry := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithEnableDataPreProcessingOptimization(true))
+	spec := NewOpaAuthorizeRequestSpec(registry, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
