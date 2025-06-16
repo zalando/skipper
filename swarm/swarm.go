@@ -54,7 +54,7 @@ const (
 	DefaultMaxMessageBuffer = 1 << 22
 	// DefaultPort is used as default to connect to other
 	// known swarm peers.
-	DefaultPort = 9990
+	DefaultPort = uint16(9990)
 	// DefaultLeaveTimeout is the default timeout to wait for responses
 	// for a leave message send by this instance to other peers.
 	DefaultLeaveTimeout = time.Duration(5 * time.Second)
@@ -151,13 +151,7 @@ func newStaticSwarm(o Options) (*Swarm, error) {
 func newKubernetesSwarm(o Options) (*Swarm, error) {
 	o.swarm = swarmKubernetes
 
-	u, err := buildAPIURL(o.KubernetesOptions.KubernetesInCluster, o.KubernetesOptions.KubernetesAPIBaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build kubernetes API url from url %s running in cluster %v: %w", o.KubernetesOptions.KubernetesAPIBaseURL, o.KubernetesOptions.KubernetesInCluster, err)
-	}
-	o.KubernetesOptions.KubernetesAPIBaseURL = u
-
-	if o.SwarmPort == 0 || o.SwarmPort == math.MaxUint16 {
+	if o.SwarmPort == 0 || o.SwarmPort >= math.MaxUint16 {
 		log.Errorf("Wrong SwarmPort %d, set to default %d instead", o.SwarmPort, DefaultPort)
 		o.SwarmPort = DefaultPort
 	}
@@ -167,14 +161,9 @@ func newKubernetesSwarm(o Options) (*Swarm, error) {
 		o.KubernetesOptions.Namespace = DefaultNamespace
 	}
 
-	if o.KubernetesOptions.LabelSelectorKey == "" {
-		log.Errorf("LabelSelectorKey is empty, set to default %s instead", DefaultLabelSelectorKey)
-		o.KubernetesOptions.LabelSelectorKey = DefaultLabelSelectorKey
-	}
-
-	if o.KubernetesOptions.LabelSelectorValue == "" {
-		log.Errorf("LabelSelectorValue is empty, set to default %s instead", DefaultLabelSelectorValue)
-		o.KubernetesOptions.LabelSelectorValue = DefaultLabelSelectorValue
+	if o.KubernetesOptions.Name == "" {
+		log.Errorf("Name is empty set to default %s instead", defaultName)
+		o.KubernetesOptions.Name = defaultName
 	}
 
 	if o.MaxMessageBuffer <= 0 {

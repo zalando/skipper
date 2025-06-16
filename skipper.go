@@ -1077,14 +1077,14 @@ func newServerErrorLog() *stdlog.Logger {
 	return stdlog.New(&serverErrorLogWriter{}, "", 0)
 }
 
-func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.DataClient, error) {
+func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.DataClient, *kubernetes.Client, error) {
 	var clients []routing.DataClient
 
 	if o.RoutesFile != "" {
 		for _, rf := range strings.Split(o.RoutesFile, ",") {
 			f, err := eskipfile.Open(rf)
 			if err != nil {
-				return nil, fmt.Errorf("error while opening eskip file: %w", err)
+				return nil, nil, fmt.Errorf("error while opening eskip file: %w", err)
 			}
 
 			clients = append(clients, f)
@@ -1105,7 +1105,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 				HTTPTimeout:   o.SourcePollTimeout,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("error while loading routes from url %s: %w", url, err)
+				return nil, nil, fmt.Errorf("error while loading routes from url %s: %w", url, err)
 			}
 			clients = append(clients, client)
 		}
@@ -1114,7 +1114,7 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 	if o.InlineRoutes != "" {
 		ir, err := routestring.New(o.InlineRoutes)
 		if err != nil {
-			return nil, fmt.Errorf("error while parsing inline routes: %w", err)
+			return nil, nil, fmt.Errorf("error while parsing inline routes: %w", err)
 		}
 
 		clients = append(clients, ir)
@@ -1132,24 +1132,28 @@ func createDataClients(o Options, cr *certregistry.CertRegistry) ([]routing.Data
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("error while creating etcd client: %w", err)
+			return nil, nil, fmt.Errorf("error while creating etcd client: %w", err)
 		}
 
 		clients = append(clients, etcdClient)
 	}
 
+	var (
+		kubernetesClient *kubernetes.Client
+		err              error
+	)
 	if o.Kubernetes {
 		kops := o.KubernetesDataClientOptions()
 		kops.CertificateRegistry = cr
 
-		kubernetesClient, err := kubernetes.New(kops)
+		kubernetesClient, err = kubernetes.New(kops)
 		if err != nil {
-			return nil, fmt.Errorf("error while creating kubernetes data client: %w", err)
+			return nil, nil, fmt.Errorf("error while creating kubernetes data client: %w", err)
 		}
 		clients = append(clients, kubernetesClient)
 	}
 
-	return clients, nil
+	return clients, kubernetesClient, nil
 }
 
 func getLogOutput(name string) (io.Writer, error) {
@@ -1625,7 +1629,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	}
 
 	// create data clients
-	dataClients, err := createDataClients(o, cr)
+	dataClients, kubernetesClient, err := createDataClients(o, cr)
 	if err != nil {
 		return err
 	}
@@ -1791,11 +1795,10 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			if o.Kubernetes {
 				swops.KubernetesOptions = &swarm.KubernetesOptions{
-					KubernetesInCluster:  o.KubernetesInCluster,
-					KubernetesAPIBaseURL: o.KubernetesURL,
-					Namespace:            o.SwarmKubernetesNamespace,
-					LabelSelectorKey:     o.SwarmKubernetesLabelSelectorKey,
-					LabelSelectorValue:   o.SwarmKubernetesLabelSelectorValue,
+					// TODO(sszuecs): create options
+					Name:             "skipper-ingress",
+					Namespace:        o.SwarmKubernetesNamespace,
+					KubernetesClient: kubernetesClient,
 				}
 			}
 
