@@ -343,6 +343,8 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 // pre-compiled bundles, serving as a representative use case.
 
 // A sample bundles for this benchmark are located at testResources/split-bundles.
+// To evaluate the performance of data-preprocessing optimization, use the resources at
+// testResources/data-pre-processing-visible-impact.
 // To generate a .tgz bundle, use the following command:
 //
 //   opa build -b <bundle_directory> -o <output_file.tgz>
