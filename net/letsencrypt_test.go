@@ -2,35 +2,65 @@ package net
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"testing"
+
+	"github.com/zalando/skipper/net/redistest"
 )
 
-type inmemoryCache struct {
-	m sync.Map
-}
+func TestRemoteCache(t *testing.T) {
+	redisAddr, done := redistest.NewTestRedis(t)
+	defer done()
+	if redisAddr == "" {
+		t.Fatal("Failed to create redis 1")
+	}
 
-func (c *inmemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
-	if dat, ok := c.m.Load(key); !ok {
-		return nil, fmt.Errorf("missing key %q", key)
+	redisAddr2, done2 := redistest.NewTestRedis(t)
+	defer done2()
+	if redisAddr2 == "" {
+		t.Fatal("Failed to create redis 2")
+	}
+
+	rc := remoteCache{
+		client: NewRedisRingClient(&RedisOptions{
+			Addrs: []string{redisAddr, redisAddr2},
+		}),
+	}
+	defer rc.Close()
+
+	if err := rc.Put(context.Background(), "foo", []byte("bar")); err != nil {
+		t.Fatalf("Failed to put: %v", err)
+	}
+
+	if v, err := rc.Get(context.Background(), "foo"); err != nil {
+		t.Fatalf("Failed to get: %v", err)
 	} else {
-		if data, ok := dat.([]byte); !ok {
-			return nil, fmt.Errorf("failed to convert %q to []byte", dat)
-		} else {
-			return data, nil
+		t.Logf("%T %v %s", v, v, v)
+		if string(v) != "bar" {
+			t.Fatalf("Failed to get result, got: %q", string(v))
 		}
+	}
+
+	if err := rc.Delete(context.Background(), "foo"); err != nil {
+		t.Fatalf("Failed to delete: %v", err)
 	}
 }
 
-func (c *inmemoryCache) Put(ctx context.Context, key string, data []byte) error {
-	c.m.Store(key, data)
-	return nil
-}
+func TestInmemoryCache(t *testing.T) {
+	rc := &inmemoryCache{}
 
-func (c *inmemoryCache) Delete(ctx context.Context, key string) error {
-	c.m.Delete(key)
-	return nil
+	if err := rc.Put(context.Background(), "foo", []byte("bar")); err != nil {
+		t.Fatalf("Failed to put: %v", err)
+	}
+
+	if v, err := rc.Get(context.Background(), "foo"); err != nil {
+		t.Fatalf("Failed to get: %v", err)
+	} else {
+		t.Logf("%T %v %s", v, v, v)
+	}
+
+	if err := rc.Delete(context.Background(), "foo"); err != nil {
+		t.Fatalf("Failed to delete: %v", err)
+	}
 }
 
 func TestLetsencrypt(t *testing.T) {
