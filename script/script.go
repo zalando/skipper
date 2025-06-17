@@ -19,6 +19,8 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/script/base64"
 
+	"slices"
+
 	"github.com/cjoudrey/gluahttp"
 	"github.com/cjoudrey/gluaurl"
 	gjson "layeh.com/gopher-json"
@@ -909,16 +911,11 @@ func getPathParam(f filters.FilterContext) func(*lua.LState) int {
 
 func unsupported(message string) func(*lua.LState) int {
 	return func(s *lua.LState) int {
-		s.RaiseError(message)
+		s.RaiseError(message, "")
 		return 0
 	}
 }
 
 func contains(s string, a []string) bool {
-	for _, w := range a {
-		if s == w {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(a, s)
 }
