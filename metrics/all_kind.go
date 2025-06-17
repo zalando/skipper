@@ -116,6 +116,16 @@ func (a *All) IncErrorsStreaming(routeId string) {
 
 }
 
+func (a *All) IncValidRoutes() {
+	a.prometheus.IncValidRoutes()
+	a.codaHale.IncValidRoutes()
+}
+
+func (a *All) IncInvalidRoutes(reason string) {
+	a.prometheus.IncInvalidRoutes(reason)
+	a.codaHale.IncInvalidRoutes(reason)
+}
+
 func (a *All) Close() {
 	a.codaHale.Close()
 	a.prometheus.Close()

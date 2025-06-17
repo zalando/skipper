@@ -186,4 +186,12 @@ func (m *MockMetrics) Gauge(key string) (v float64, ok bool) {
 	return
 }
 
+func (m *MockMetrics) IncValidRoutes() {
+	m.IncCounter("route.valid")
+}
+
+func (m *MockMetrics) IncInvalidRoutes(reason string) {
+	m.IncCounter("route.invalid." + reason)
+}
+
 func (m *MockMetrics) Close() {}
