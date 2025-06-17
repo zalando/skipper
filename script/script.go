@@ -911,7 +911,7 @@ func getPathParam(f filters.FilterContext) func(*lua.LState) int {
 
 func unsupported(message string) func(*lua.LState) int {
 	return func(s *lua.LState) int {
-		s.RaiseError(message, "")
+		s.RaiseError(message+"%s", "")
 		return 0
 	}
 }
