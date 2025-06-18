@@ -1341,7 +1341,8 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 		qto = o.ReadTimeoutServer
 	}
 
-	return queuelistener.Listen(queuelistener.Options{
+	return queuelistener.StackListener(queuelistener.Options{
+		//return queuelistener.Listen(queuelistener.Options{
 		Network:          "tcp",
 		Address:          address,
 		MaxConcurrency:   o.MaxTCPListenerConcurrency,

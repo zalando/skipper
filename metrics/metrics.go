@@ -81,6 +81,32 @@ type Metrics interface {
 	Close()
 }
 
+type NoMetric struct{}
+
+func (nm NoMetric) MeasureSince(string, time.Time)                      {}
+func (nm NoMetric) IncCounter(string)                                   {}
+func (nm NoMetric) IncCounterBy(string, int64)                          {}
+func (nm NoMetric) IncFloatCounterBy(string, float64)                   {}
+func (nm NoMetric) MeasureRouteLookup(time.Time)                        {}
+func (nm NoMetric) MeasureFilterCreate(string, time.Time)               {}
+func (nm NoMetric) MeasureFilterRequest(string, time.Time)              {}
+func (nm NoMetric) MeasureAllFiltersRequest(string, time.Time)          {}
+func (nm NoMetric) MeasureBackend(string, time.Time)                    {}
+func (nm NoMetric) MeasureBackendHost(string, time.Time)                {}
+func (nm NoMetric) MeasureFilterResponse(string, time.Time)             {}
+func (nm NoMetric) MeasureAllFiltersResponse(string, time.Time)         {}
+func (nm NoMetric) MeasureResponse(int, string, string, time.Time)      {}
+func (nm NoMetric) MeasureServe(string, string, string, int, time.Time) {}
+func (nm NoMetric) IncRoutingFailures()                                 {}
+func (nm NoMetric) IncErrorsBackend(string)                             {}
+func (nm NoMetric) MeasureBackend5xx(time.Time)                         {}
+func (nm NoMetric) IncErrorsStreaming(string)                           {}
+func (nm NoMetric) RegisterHandler(string, *http.ServeMux)              {}
+func (nm NoMetric) UpdateGauge(string, float64)                         {}
+func (nm NoMetric) Close()                                              {}
+
+var _ Metrics = NoMetric{}
+
 // Options for initializing metrics collection.
 type Options struct {
 	// the metrics exposing format.
