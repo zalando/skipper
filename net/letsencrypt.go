@@ -44,25 +44,25 @@ type remoteCache struct {
 	client *RedisRingClient
 }
 
-func (rs *remoteCache) Get(ctx context.Context, key string) ([]byte, error) {
-	res, err := rs.client.Get(ctx, key)
+func (rc *remoteCache) Get(ctx context.Context, key string) ([]byte, error) {
+	res, err := rc.client.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 	return []byte(res), nil
 }
 
-func (rs *remoteCache) Delete(ctx context.Context, key string) error {
-	return rs.client.Del(ctx, key)
+func (rc *remoteCache) Delete(ctx context.Context, key string) error {
+	return rc.client.Del(ctx, key)
 }
 
-func (rs *remoteCache) Put(ctx context.Context, key string, val []byte) error {
-	_, err := rs.client.Set(ctx, key, val, 0)
+func (rc *remoteCache) Put(ctx context.Context, key string, val []byte) error {
+	_, err := rc.client.Set(ctx, key, val, 0)
 	return err
 }
 
-func (rs *remoteCache) Close() {
-	rs.client.Close()
+func (rc *remoteCache) Close() {
+	rc.client.Close()
 }
 
 type letsencrypt struct {
@@ -125,7 +125,7 @@ func validateDomain(s string) bool {
 	}
 
 	i := 0
-	for _, w := range strings.Split(s, ".") {
+	for w := range strings.SplitSeq(s, ".") {
 		if !matchDomainPart.MatchString(w) {
 			return false
 		}
