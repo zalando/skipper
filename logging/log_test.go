@@ -16,7 +16,7 @@ func TestCustomOutputForApplicationLog(t *testing.T) {
 	var buf bytes.Buffer
 	Init(Options{ApplicationLogOutput: &buf})
 	msg := "Hello, world!"
-	log.Infof(msg)
+	log.Info(msg)
 	if !strings.Contains(buf.String(), msg) {
 		t.Error("failed to use custom output")
 	}
@@ -48,7 +48,7 @@ func TestApplicationLogJSONEnabled(t *testing.T) {
 	var buf bytes.Buffer
 	Init(Options{ApplicationLogOutput: &buf, ApplicationLogJSONEnabled: true})
 	msg := "Hello, world!"
-	log.Infof(msg)
+	log.Info(msg)
 
 	parsed := make(map[string]interface{})
 	err := json.Unmarshal(buf.Bytes(), &parsed)
@@ -92,7 +92,7 @@ func TestApplicationLogJSONWithCustomFormatter(t *testing.T) {
 		}})
 
 	msg := "Hello, customized world!"
-	log.Infof(msg)
+	log.Info(msg)
 
 	parsed := make(map[string]interface{})
 	err := json.Unmarshal(buf.Bytes(), &parsed)

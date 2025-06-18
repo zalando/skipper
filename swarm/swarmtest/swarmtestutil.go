@@ -78,7 +78,7 @@ func (node *TestNode) ListMembers() error {
 	}
 
 	for _, mem := range node.list.Members() {
-		log.Infof(fmt.Sprintf("Node:%s Name: %s, IP:%s", node.name, mem.Name, mem.Addr))
+		log.Infof("Node:%s Name: %s, IP:%s", node.name, mem.Name, mem.Addr)
 	}
 	return nil
 }
