@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"net/http"
@@ -23,6 +24,19 @@ import (
 	"github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/swarm"
+)
+
+// Define defaults locally within the config package
+const (
+	defaultSwarmRedisUpdateInterval      = 10 * time.Second
+	defaultSwarmRedisConnMetricsInterval = 60 * time.Second
+	defaultSwarmRedisMetricsPrefix       = "swarm.redis."
+	defaultSwarmRedisDialTimeout         = 25 * time.Millisecond
+	defaultSwarmRedisReadTimeout         = 25 * time.Millisecond
+	defaultSwarmRedisWriteTimeout        = 25 * time.Millisecond
+	defaultSwarmRedisPoolTimeout         = 25 * time.Millisecond
+	defaultSwarmRedisMinIdleConns        = 100
+	defaultSwarmRedisMaxIdleConns        = 100
 )
 
 type Config struct {
@@ -269,19 +283,32 @@ type Config struct {
 	MaxIdleConnsBackend          int           `yaml:"max-idle-connection-backend"`
 	DisableHTTPKeepalives        bool          `yaml:"disable-http-keepalives"`
 
-	// swarm:
-	EnableSwarm bool `yaml:"enable-swarm"`
-	// redis based
-	SwarmRedisURLs               *listFlag     `yaml:"swarm-redis-urls"`
-	SwarmRedisPassword           string        `yaml:"swarm-redis-password"`
-	SwarmRedisHashAlgorithm      string        `yaml:"swarm-redis-hash-algorithm"`
-	SwarmRedisDialTimeout        time.Duration `yaml:"swarm-redis-dial-timeout"`
-	SwarmRedisReadTimeout        time.Duration `yaml:"swarm-redis-read-timeout"`
-	SwarmRedisWriteTimeout       time.Duration `yaml:"swarm-redis-write-timeout"`
-	SwarmRedisPoolTimeout        time.Duration `yaml:"swarm-redis-pool-timeout"`
-	SwarmRedisMinConns           int           `yaml:"swarm-redis-min-conns"`
-	SwarmRedisMaxConns           int           `yaml:"swarm-redis-max-conns"`
-	SwarmRedisEndpointsRemoteURL string        `yaml:"swarm-redis-remote"`
+	// Swarm / Redis:
+	EnableSwarm                       bool          `yaml:"enable-swarm"`
+	SwarmRedisURLs                    *listFlag     `yaml:"swarm-redis-urls"`
+	SwarmRedisPassword                string        `yaml:"swarm-redis-password"`
+	SwarmRedisClusterMode             bool          `yaml:"swarm-redis-cluster-mode"`
+	SwarmRedisHashAlgorithm           string        `yaml:"swarm-redis-hash-algorithm"`
+	SwarmRedisDialTimeout             time.Duration `yaml:"swarm-redis-dial-timeout"`
+	SwarmRedisReadTimeout             time.Duration `yaml:"swarm-redis-read-timeout"`
+	SwarmRedisWriteTimeout            time.Duration `yaml:"swarm-redis-write-timeout"`
+	SwarmRedisPoolTimeout             time.Duration `yaml:"swarm-redis-pool-timeout"`
+	SwarmRedisIdleTimeout             time.Duration `yaml:"swarm-redis-idle-timeout"`
+	SwarmRedisMaxConnAge              time.Duration `yaml:"swarm-redis-max-conn-age"`
+	SwarmRedisMinIdleConns            int           `yaml:"swarm-redis-min-idle-conns"`
+	SwarmRedisMaxIdleConns            int           `yaml:"swarm-redis-max-idle-conns"`
+	SwarmRedisTLSEnabled              bool          `yaml:"swarm-redis-tls-enabled"`
+	SwarmRedisTLSServerName           string        `yaml:"swarm-redis-tls-server-name"`
+	SwarmRedisTLSInsecureSkipVerify   bool          `yaml:"swarm-redis-tls-insecure-skip"`
+	SwarmRedisTLSCACertPath           string        `yaml:"swarm-redis-tls-ca-cert"`
+	SwarmRedisTLSCertPath             string        `yaml:"swarm-redis-tls-cert"`
+	SwarmRedisTLSKeyPath              string        `yaml:"swarm-redis-tls-key"`
+	SwarmRedisEndpointsRemoteURL      string        `yaml:"swarm-redis-endpoints-remote-url"`
+	SwarmRedisEndpointsUpdateInterval time.Duration `yaml:"swarm-redis-endpoints-update-interval"`
+	SwarmRedisHeartbeatFrequency      time.Duration `yaml:"swarm-redis-heartbeat-frequency"`
+	SwarmRedisConnMetricsInterval     time.Duration `yaml:"swarm-redis-conn-metrics-interval"`
+	SwarmRedisMetricsPrefix           string        `yaml:"swarm-redis-metrics-prefix"`
+	SwarmRedisIdleCheckFrequency      time.Duration `yaml:"swarm-redis-idle-check-frequency"`
 	// swim based
 	SwarmKubernetesNamespace          string        `yaml:"swarm-namespace"`
 	SwarmKubernetesLabelSelectorKey   string        `yaml:"swarm-label-selector-key"`
@@ -311,6 +338,10 @@ type Config struct {
 	OpenPolicyAgentMaxMemoryBodyParsing                int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
 
 	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
+
+	// Internal field populated by ParseArgs after flags/env/config file are processed.
+	// This field itself is NOT exposed as a flag or config file option.
+	RedisOptionsForRatelimit *net.RedisOptions `yaml:"-"`
 }
 
 const (
@@ -594,25 +625,42 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.DisableHTTPKeepalives, "disable-http-keepalives", false, "forces backend to always create a new connection")
 	flag.BoolVar(&cfg.KubernetesEnableTLS, "kubernetes-enable-tls", false, "enable using kubnernetes resources to terminate tls")
 
-	// Swarm:
-	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet")
-	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", "Redis URLs as comma separated list, used for building a swarm, for example in redis based cluster ratelimits.\nUse "+redisPasswordEnv+" environment variable or 'swarm-redis-password' key in config file to set redis password")
-	flag.StringVar(&cfg.SwarmRedisHashAlgorithm, "swarm-redis-hash-algorithm", "", "sets hash algorithm to be used in redis ring client to find the shard <jump|mpchash|rendezvous|rendezvousVnodes>, defaults to github.com/redis/go-redis default")
-	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", net.DefaultDialTimeout, "set redis client dial timeout")
-	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", net.DefaultReadTimeout, "set redis socket read timeout")
-	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", net.DefaultWriteTimeout, "set redis socket write timeout")
-	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", net.DefaultPoolTimeout, "set redis get connection from pool timeout")
-	flag.IntVar(&cfg.SwarmRedisMinConns, "swarm-redis-min-conns", net.DefaultMinConns, "set min number of connections to redis")
-	flag.IntVar(&cfg.SwarmRedisMaxConns, "swarm-redis-max-conns", net.DefaultMaxConns, "set max number of connections to redis")
-	flag.StringVar(&cfg.SwarmRedisEndpointsRemoteURL, "swarm-redis-remote", "", "Remote URL to pull redis endpoints from.")
-	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swarm peer instances")
-	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swarm peer instances")
-	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swarm peer instances")
-	flag.IntVar(&cfg.SwarmPort, "swarm-port", swarm.DefaultPort, "swarm port to use to communicate with our peers")
-	flag.IntVar(&cfg.SwarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, "swarm max message buffer size to use for member list messages")
-	flag.DurationVar(&cfg.SwarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, "swarm leave timeout to use for leaving the memberlist on timeout")
-	flag.StringVar(&cfg.SwarmStaticSelf, "swarm-static-self", "", "set static swarm self node, for example 127.0.0.1:9001")
-	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", "set static swarm all nodes, for example 127.0.0.1:9002,127.0.0.1:9003")
+	// Swarm / Redis
+	flag.BoolVar(&cfg.EnableSwarm, "enable-swarm", false, "enable swarm communication between nodes in a skipper fleet (required for cluster ratelimits or swim-based discovery)")
+	flag.Var(cfg.SwarmRedisURLs, "swarm-redis-urls", "Redis URLs (comma separated) for cluster ratelimits or other Redis features. Use "+redisPasswordEnv+" environment variable or 'swarm-redis-password' key in config file to set redis password")
+	flag.StringVar(&cfg.SwarmRedisPassword, "swarm-redis-password", "", "Password for Redis connection")
+	flag.BoolVar(&cfg.SwarmRedisClusterMode, "swarm-redis-cluster-mode", false, "Enable Redis Cluster mode (instead of Ring mode)")
+	flag.StringVar(&cfg.SwarmRedisHashAlgorithm, "swarm-redis-hash-algorithm", "", "Ring mode only: Hash algorithm <jump|mpchash|rendezvous|rendezvousVnodes>, defaults to go-redis default (rendezvous)")
+	flag.DurationVar(&cfg.SwarmRedisDialTimeout, "swarm-redis-dial-timeout", defaultSwarmRedisDialTimeout, "Redis client dial timeout")
+	flag.DurationVar(&cfg.SwarmRedisReadTimeout, "swarm-redis-read-timeout", defaultSwarmRedisReadTimeout, "Redis socket read timeout")
+	flag.DurationVar(&cfg.SwarmRedisWriteTimeout, "swarm-redis-write-timeout", defaultSwarmRedisWriteTimeout, "Redis socket write timeout")
+	flag.DurationVar(&cfg.SwarmRedisPoolTimeout, "swarm-redis-pool-timeout", defaultSwarmRedisPoolTimeout, "Redis get connection from pool timeout")
+	flag.DurationVar(&cfg.SwarmRedisIdleTimeout, "swarm-redis-idle-timeout", 0, "Redis connection max idle time (0 disables)")
+	flag.DurationVar(&cfg.SwarmRedisMaxConnAge, "swarm-redis-max-conn-age", 0, "Redis connection max age (0 disables)")
+	flag.IntVar(&cfg.SwarmRedisMinIdleConns, "swarm-redis-min-idle-conns", defaultSwarmRedisMinIdleConns, "Minimum number of idle Redis connections")
+	flag.IntVar(&cfg.SwarmRedisMaxIdleConns, "swarm-redis-max-idle-conns", defaultSwarmRedisMaxIdleConns, "Maximum number of idle Redis connections (per node in cluster mode)")
+	flag.BoolVar(&cfg.SwarmRedisTLSEnabled, "swarm-redis-tls-enabled", false, "Enable TLS for Redis connection")
+	flag.StringVar(&cfg.SwarmRedisTLSServerName, "swarm-redis-tls-server-name", "", "Server name for Redis TLS verification")
+	flag.BoolVar(&cfg.SwarmRedisTLSInsecureSkipVerify, "swarm-redis-tls-insecure-skip", false, "Skip TLS verification for Redis connection")
+	flag.StringVar(&cfg.SwarmRedisTLSCACertPath, "swarm-redis-tls-ca-cert", "", "Path to CA certificate file for Redis TLS connection")
+	flag.StringVar(&cfg.SwarmRedisTLSCertPath, "swarm-redis-tls-cert", "", "Path to client certificate file for Redis TLS connection")
+	flag.StringVar(&cfg.SwarmRedisTLSKeyPath, "swarm-redis-tls-key", "", "Path to client key file for Redis TLS connection")
+	flag.StringVar(&cfg.SwarmRedisEndpointsRemoteURL, "swarm-redis-endpoints-remote-url", "", "Ring mode only: Remote URL to pull redis endpoints from.")
+	flag.DurationVar(&cfg.SwarmRedisEndpointsUpdateInterval, "swarm-redis-endpoints-update-interval", defaultSwarmRedisUpdateInterval, "Ring mode only: Update interval for remote Redis endpoints.")
+	flag.DurationVar(&cfg.SwarmRedisHeartbeatFrequency, "swarm-redis-heartbeat-frequency", 0, "Ring mode only: Frequency of PING commands to check shard availability (0 uses default)")
+	flag.DurationVar(&cfg.SwarmRedisConnMetricsInterval, "swarm-redis-conn-metrics-interval", defaultSwarmRedisConnMetricsInterval, "Frequency of updating Redis connection metrics")
+	flag.StringVar(&cfg.SwarmRedisMetricsPrefix, "swarm-redis-metrics-prefix", defaultSwarmRedisMetricsPrefix, "Prefix for Redis client metrics")
+	flag.DurationVar(&cfg.SwarmRedisIdleCheckFrequency, "swarm-redis-idle-check-frequency", 0, "Frequency for reaping idle Redis connections (informational, 0 disables if ConnMaxIdleTime is 0)")
+
+	// Swim based swarm (alternative to Redis)
+	flag.StringVar(&cfg.SwarmKubernetesNamespace, "swarm-namespace", swarm.DefaultNamespace, "Kubernetes namespace to find swim peer instances")
+	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorKey, "swarm-label-selector-key", swarm.DefaultLabelSelectorKey, "Kubernetes labelselector key to find swim peer instances")
+	flag.StringVar(&cfg.SwarmKubernetesLabelSelectorValue, "swarm-label-selector-value", swarm.DefaultLabelSelectorValue, "Kubernetes labelselector value to find swim peer instances")
+	flag.IntVar(&cfg.SwarmPort, "swarm-port", swarm.DefaultPort, "Swim port to use to communicate with our peers")
+	flag.IntVar(&cfg.SwarmMaxMessageBuffer, "swarm-max-msg-buffer", swarm.DefaultMaxMessageBuffer, "Swim max message buffer size to use for member list messages")
+	flag.DurationVar(&cfg.SwarmLeaveTimeout, "swarm-leave-timeout", swarm.DefaultLeaveTimeout, "Swim leave timeout to use for leaving the memberlist on timeout")
+	flag.StringVar(&cfg.SwarmStaticSelf, "swarm-static-self", "", "Set static swim self node, for example 127.0.0.1:9001")
+	flag.StringVar(&cfg.SwarmStaticOther, "swarm-static-other", "", "Set static swim all nodes, for example 127.0.0.1:9002,127.0.0.1:9003")
 
 	flag.IntVar(&cfg.ClusterRatelimitMaxGroupShards, "cluster-ratelimit-max-group-shards", 1, "sets the maximum number of group shards for the clusterRatelimit filter")
 
@@ -624,6 +672,50 @@ func NewConfig() *Config {
 
 	cfg.Flags = flag
 	return cfg
+}
+
+// buildRedisTLSConfig constructs a *tls.Config based on the flags.
+// Returns nil if TLS is not enabled or if configuration is incomplete/invalid.
+func (c *Config) buildRedisTLSConfig() *tls.Config {
+	if !c.SwarmRedisTLSEnabled {
+		return nil
+	}
+
+	tlsConfig := &tls.Config{
+		ServerName:         c.SwarmRedisTLSServerName,
+		InsecureSkipVerify: c.SwarmRedisTLSInsecureSkipVerify,
+		MinVersion:         c.getMinTLSVersion(), // Reuse existing TLS min version logic
+	}
+
+	// Load CA certificate
+	if c.SwarmRedisTLSCACertPath != "" {
+		caCert, err := os.ReadFile(c.SwarmRedisTLSCACertPath)
+		if err != nil {
+			log.Errorf("Failed to read Redis TLS CA certificate file '%s': %v. TLS disabled for Redis.", c.SwarmRedisTLSCACertPath, err)
+			return nil
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			log.Errorf("Failed to append Redis TLS CA certificate from '%s'. TLS disabled for Redis.", c.SwarmRedisTLSCACertPath)
+			return nil
+		}
+		tlsConfig.RootCAs = caCertPool
+	}
+
+	// Load client certificate and key
+	if c.SwarmRedisTLSCertPath != "" && c.SwarmRedisTLSKeyPath != "" {
+		clientCert, err := tls.LoadX509KeyPair(c.SwarmRedisTLSCertPath, c.SwarmRedisTLSKeyPath)
+		if err != nil {
+			log.Errorf("Failed to load Redis TLS client certificate/key pair (%s, %s): %v. TLS disabled for Redis.", c.SwarmRedisTLSCertPath, c.SwarmRedisTLSKeyPath, err)
+			return nil
+		}
+		tlsConfig.Certificates = []tls.Certificate{clientCert}
+	} else if c.SwarmRedisTLSCertPath != "" || c.SwarmRedisTLSKeyPath != "" {
+		log.Warnf("Redis TLS client certificate or key provided, but not both. Client certificate authentication will not be used.")
+	}
+
+	log.Info("Successfully configured TLS for Redis client.")
+	return tlsConfig
 }
 
 func validate(c *Config) error {
@@ -701,6 +793,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 
 		_ = yaml.Unmarshal(yamlFile, configKeys)
 
+		// Re-parse flags to allow command-line overrides
 		err = c.Flags.Parse(args)
 		if err != nil {
 			return err
@@ -713,6 +806,9 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		"enable-kubernetes-east-west",
 		"kubernetes-east-west-domain",
 		"lb-healthcheck-interval",
+		"swarm-redis-min-conns", // Deprecated by swarm-redis-min-idle-conns
+		"swarm-redis-max-conns", // Deprecated by swarm-redis-max-idle-conns
+		"swarm-redis-remote",    // Deprecated by swarm-redis-endpoints-remote-url
 	)
 
 	if err := validate(c); err != nil {
@@ -755,10 +851,60 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 	}
 
 	c.parseEnv()
+	c.buildRedisOptions()
+
 	return nil
 }
 
+// buildRedisOptions populates the internal RedisOptionsForRatelimit field.
+// This should be called after flags and env vars are parsed.
+func (c *Config) buildRedisOptions() {
+	// Only build options if Redis URLs or remote URL are provided.
+	if len(c.SwarmRedisURLs.values) == 0 && c.SwarmRedisEndpointsRemoteURL == "" {
+		log.Debug("No Redis URLs or remote endpoint URL configured, skipping Redis client options build.")
+		c.RedisOptionsForRatelimit = nil
+		return
+	}
+
+	if c.SwarmRedisEndpointsRemoteURL != "" && c.SwarmRedisClusterMode {
+		log.Warnf("swarm-redis-endpoints-remote-url is configured but swarm-redis-cluster-mode is enabled. Remote URL is ignored in cluster mode.")
+	}
+
+	redisTLSConfig := c.buildRedisTLSConfig()
+
+	ro := &net.RedisOptions{
+		Addrs:               append([]string{}, c.SwarmRedisURLs.values...),
+		RemoteURL:           c.SwarmRedisEndpointsRemoteURL,      // Ring mode only
+		UpdateInterval:      c.SwarmRedisEndpointsUpdateInterval, // Ring mode only
+		Password:            c.SwarmRedisPassword,
+		ClusterMode:         c.SwarmRedisClusterMode,   // Mode selector
+		HashAlgorithm:       c.SwarmRedisHashAlgorithm, // Ring mode only
+		DialTimeout:         c.SwarmRedisDialTimeout,
+		ReadTimeout:         c.SwarmRedisReadTimeout,
+		WriteTimeout:        c.SwarmRedisWriteTimeout,
+		PoolTimeout:         c.SwarmRedisPoolTimeout,
+		IdleTimeout:         c.SwarmRedisIdleTimeout,
+		IdleCheckFrequency:  c.SwarmRedisIdleCheckFrequency,
+		MaxConnAge:          c.SwarmRedisMaxConnAge,
+		MinIdleConns:        c.SwarmRedisMinIdleConns,
+		MaxIdleConns:        c.SwarmRedisMaxIdleConns,
+		TLSConfig:           redisTLSConfig,
+		HeartbeatFrequency:  c.SwarmRedisHeartbeatFrequency, // Ring mode only
+		ConnMetricsInterval: c.SwarmRedisConnMetricsInterval,
+		MetricsPrefix:       c.SwarmRedisMetricsPrefix,
+	}
+	ro.Log = log.StandardLogger()
+
+	c.RedisOptionsForRatelimit = ro // Store the built options
+	log.Info("Built RedisOptions structure for ratelimit registry.")
+}
+
+// ToOptions converts the Config struct into skipper.Options for initializing the core proxy.
 func (c *Config) ToOptions() skipper.Options {
+	// The c.RedisOptionsForRatelimit field is built during c.ParseArgs()
+	// It is NOT passed directly into skipper.Options here.
+	// Instead, it should be retrieved from the config object when initializing the ratelimit.Registry.
+
 	var eus []string
 	if len(c.EtcdUrls) > 0 {
 		eus = strings.Split(c.EtcdUrls, ",")
@@ -966,20 +1112,8 @@ func (c *Config) ToOptions() skipper.Options {
 		DisableHTTPKeepalives:        c.DisableHTTPKeepalives,
 		KubernetesEnableTLS:          c.KubernetesEnableTLS,
 
-		// swarm:
-		EnableSwarm: c.EnableSwarm,
-		// redis based
-		SwarmRedisURLs:               c.SwarmRedisURLs.values,
-		SwarmRedisPassword:           c.SwarmRedisPassword,
-		SwarmRedisHashAlgorithm:      c.SwarmRedisHashAlgorithm,
-		SwarmRedisDialTimeout:        c.SwarmRedisDialTimeout,
-		SwarmRedisReadTimeout:        c.SwarmRedisReadTimeout,
-		SwarmRedisWriteTimeout:       c.SwarmRedisWriteTimeout,
-		SwarmRedisPoolTimeout:        c.SwarmRedisPoolTimeout,
-		SwarmRedisMinIdleConns:       c.SwarmRedisMinConns,
-		SwarmRedisMaxIdleConns:       c.SwarmRedisMaxConns,
-		SwarmRedisEndpointsRemoteURL: c.SwarmRedisEndpointsRemoteURL,
-		// swim based
+		// Swarm config
+		EnableSwarm:                       c.EnableSwarm,
 		SwarmKubernetesNamespace:          c.SwarmKubernetesNamespace,
 		SwarmKubernetesLabelSelectorKey:   c.SwarmKubernetesLabelSelectorKey,
 		SwarmKubernetesLabelSelectorValue: c.SwarmKubernetesLabelSelectorValue,
@@ -1114,7 +1248,7 @@ func (c *Config) getMinTLSVersion() uint16 {
 	if v, ok := tlsVersionTable[c.TLSMinVersion]; ok {
 		return v
 	}
-	log.Infof("No valid minimal TLS version confiured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
+	log.Infof("No valid minimal TLS version configured (set to '%s'), fallback to default: %s", c.TLSMinVersion, defaultMinTLSVersion)
 	return tlsVersionTable[defaultMinTLSVersion]
 }
 
@@ -1211,7 +1345,7 @@ func (c *Config) checkDeprecated(configKeys map[string]interface{}, options ...s
 		_, fk := flagKeys[name]
 		if ck || fk {
 			f := c.Flags.Lookup(name)
-			log.Warnf("%s: %s", f.Name, f.Usage)
+			log.Warnf("Deprecated option used - %s: %s", f.Name, f.Usage)
 		}
 	}
 }
