@@ -33,6 +33,8 @@ const (
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
+	KeyValidRoutes     = "route.valid"
+	KeyInvalidRoutes   = "route.invalid.%s"
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
 
@@ -254,6 +256,14 @@ func (c *CodaHale) IncErrorsStreaming(routeId string) {
 	if c.options.EnableRouteStreamingErrorsCounters {
 		c.incCounter(fmt.Sprintf(KeyErrorsStreaming, routeId), 1)
 	}
+}
+
+func (c *CodaHale) IncValidRoutes() {
+	c.incCounter(KeyValidRoutes, 1)
+}
+
+func (c *CodaHale) IncInvalidRoutes(reason string) {
+	c.incCounter(fmt.Sprintf(KeyInvalidRoutes, reason), 1)
 }
 
 func (c *CodaHale) Close() {

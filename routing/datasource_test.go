@@ -1,7 +1,11 @@
 package routing_test
 
 import (
+	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +14,7 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
 	"github.com/zalando/skipper/predicates/primitive"
 	"github.com/zalando/skipper/predicates/query"
@@ -83,22 +88,22 @@ func TestProcessRouteDefErrors(t *testing.T) {
 	}{
 		{
 			`* -> True() -> <shunt>`,
-			`trying to use "True" as filter, but it is only available as predicate`,
+			`unknown_filter: trying to use "True" as filter, but it is only available as predicate`,
 		}, {
 			`* -> PathRegexp("/test") -> <shunt>`,
-			`trying to use "PathRegexp" as filter, but it is only available as predicate`,
+			`unknown_filter: trying to use "PathRegexp" as filter, but it is only available as predicate`,
 		}, {
 			`* -> Unknown("/test") -> <shunt>`,
-			`filter "Unknown" not found`,
+			`unknown_filter: filter "Unknown" not found`,
 		}, {
 			`Unknown()  ->  <shunt>`,
-			`predicate "Unknown" not found`,
+			`unknown_predicate: predicate "Unknown" not found`,
 		}, {
 			`QueryParam() -> <shunt>`,
-			`failed to create predicate "QueryParam": invalid predicate parameters`,
+			`invalid_predicate_params: failed to create predicate "QueryParam": invalid predicate parameters`,
 		}, {
 			`* -> setPath() -> <shunt>`,
-			`failed to create filter "setPath": invalid filter parameters`,
+			`invalid_filter_params: failed to create filter "setPath": invalid filter parameters`,
 		},
 	} {
 		func() {
@@ -191,7 +196,7 @@ func TestProcessRouteDefWeight(t *testing.T) {
 
 			r := defs[0]
 
-			_, weight, err := routing.ExportProcessPredicates(cpm, r.Predicates)
+			_, weight, err := routing.ExportProcessPredicates(&routing.Options{}, cpm, r.Predicates)
 			if err != nil {
 				t.Error(ti.route, err)
 
@@ -338,6 +343,132 @@ func TestMetrics(t *testing.T) {
 			}, m["filter.slowCreate.create"], 0.1)
 		})
 	})
+}
+
+func TestRouteValidationMetrics(t *testing.T) {
+	testCases := []struct {
+		name    string
+		routes  string
+		valid   int64
+		invalid map[string]int64
+	}{
+		{
+			name: "valid and invalid routes",
+			routes: `
+				validRoute: Path("/foo") -> "https://example.org";
+				invalidBackend: Path("/bar") -> "invalid-url";
+				unknownFilter: Path("/baz") -> unknownFilter() -> "https://example.org";
+				unknownPredicate: UnknownPredicate() -> "https://example.org";
+			`,
+			valid: 1,
+			invalid: map[string]int64{
+				"failed_backend_split": 1,
+				"unknown_filter":       1,
+				"unknown_predicate":    1,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run("MockMetrics", func(t *testing.T) {
+				testRouteValidationMetricsWithMock(t, tc.routes, tc.valid, tc.invalid)
+			})
+
+			t.Run("Prometheus", func(t *testing.T) {
+				testRouteValidationMetricsWithPrometheus(t, tc.routes, tc.valid, tc.invalid)
+			})
+		})
+	}
+}
+
+func testRouteValidationMetricsWithMock(t *testing.T, routes string, expectedValid int64, expectedInvalid map[string]int64) {
+	metrics := &metricstest.MockMetrics{}
+
+	dc, err := testdataclient.NewDoc(routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dc.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetPath())
+
+	r := routing.New(routing.Options{
+		DataClients:     []routing.DataClient{dc},
+		FilterRegistry:  fr,
+		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
+		Metrics:         metrics,
+		SignalFirstLoad: true,
+	})
+	defer r.Close()
+	<-r.FirstLoad()
+
+	metrics.WithCounters(func(counters map[string]int64) {
+		if counters["route.valid"] != expectedValid {
+			t.Errorf("Expected %d valid routes, got %d", expectedValid, counters["route.valid"])
+		}
+
+		for reason, expected := range expectedInvalid {
+			key := "route.invalid." + reason
+			if counters[key] != expected {
+				t.Errorf("Expected %d %s errors, got %d", expected, reason, counters[key])
+			}
+		}
+	})
+}
+
+func testRouteValidationMetricsWithPrometheus(t *testing.T, routes string, expectedValid int64, expectedInvalid map[string]int64) {
+	pm := metrics.NewPrometheus(metrics.Options{})
+	path := "/metrics"
+
+	mux := http.NewServeMux()
+	pm.RegisterHandler(path, mux)
+
+	dc, err := testdataclient.NewDoc(routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dc.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetPath())
+
+	r := routing.New(routing.Options{
+		DataClients:     []routing.DataClient{dc},
+		FilterRegistry:  fr,
+		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
+		Metrics:         pm,
+		SignalFirstLoad: true,
+	})
+	defer r.Close()
+	<-r.FirstLoad()
+
+	req := httptest.NewRequest("GET", path, nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	validPattern := fmt.Sprintf(`skipper_route_valid_routes %d`, expectedValid)
+	if !strings.Contains(string(body), validPattern) {
+		t.Errorf("Expected to find %q in metrics output", validPattern)
+	}
+
+	for reason, expected := range expectedInvalid {
+		invalidPattern := fmt.Sprintf(`skipper_route_invalid_routes{reason="%s"} %d`, reason, expected)
+		if !strings.Contains(string(body), invalidPattern) {
+			t.Errorf("Expected to find %q in metrics output", invalidPattern)
+		}
+	}
 }
 
 type weightedPredicateSpec struct {
