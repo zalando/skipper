@@ -362,6 +362,9 @@ type Options struct {
 	// by the proxy are closed.
 	CloseIdleConnsPeriod time.Duration
 
+	// TCPQueueTimeoutServer is the timeout for the accept() handling in case StackListener is used
+	TCPQueueTimeoutServer time.Duration
+
 	// Defines ReadTimeoutServer for server http connections.
 	ReadTimeoutServer time.Duration
 
@@ -1336,12 +1339,13 @@ func listen(o *Options, address string, mtr metrics.Metrics) (net.Listener, erro
 		}
 	}
 
-	qto := o.ReadHeaderTimeoutServer
+	qto := o.TCPQueueTimeoutServer
 	if qto <= 0 {
-		qto = o.ReadTimeoutServer
+		qto = time.Second
 	}
 
-	return queuelistener.Listen(queuelistener.Options{
+	return queuelistener.StackListener(queuelistener.Options{
+		//return queuelistener.Listen(queuelistener.Options{
 		Network:          "tcp",
 		Address:          address,
 		MaxConcurrency:   o.MaxTCPListenerConcurrency,
