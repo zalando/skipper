@@ -28,7 +28,7 @@ type stackListener struct {
 func StackListener(o Options) (net.Listener, error) {
 	nl, err := net.Listen(o.Network, o.Address)
 	if err != nil {
-		println("StackListener failed net.Listen:", err)
+		fmt.Errorf("StackListener failed net.Listen: %w", err)
 		return nil, err
 	}
 
@@ -81,6 +81,12 @@ func (l *stackListener) Accept() (net.Conn, error) {
 		return nil, errListenerClosed
 	case c := <-l.acceptInternal:
 		l.metrics.MeasureSince(acceptLatencyKey, c.accepted)
+		d := time.Since(c.accepted)
+		if d > l.queueTimeout {
+			l.metrics.IncCounter(queueTimeoutKey)
+			c.Conn.Close()
+			return nil, errAcceptTimeout
+		}
 		return c, nil
 	}
 }
@@ -91,7 +97,6 @@ func (l *stackListener) Addr() net.Addr {
 
 func (l *stackListener) Close() error {
 	l.once.Do(func() {
-		println("stackListener.Close()")
 		close(l.quit)
 		l.externalListener.Close()
 		close(l.acceptInternal)
@@ -131,7 +136,7 @@ func (l *stackListener) listenInternal() {
 		case <-l.quit:
 			return
 		default:
-			time.Sleep(time.Second)
+			time.Sleep(time.Second) // slow down for testing
 		}
 		cc := l.stack.Pop()
 		if cc == nil {
