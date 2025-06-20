@@ -169,7 +169,7 @@ average expected per request memory requirement, which can be set with the
 `-expected-bytes-per-request` flag.
 
 Note that the automatically inferred limit may not work as expected in an
-environment other than cgroups v1.
+environment other than cgroups v1 or cgroups v2.
 
 ### OAuth2 Tokeninfo
 
@@ -1135,16 +1135,16 @@ limited or unlimited.
 The default scheduler is an unbounded first in first out (FIFO) queue,
 that is provided by [Go's](https://golang.org/) standard library.
 
-Skipper provides 2 last in first out (LIFO) filters to change the
-scheduling behavior.
+In skipper we have two queues that are part of the scheduling
+decision:
 
-On failure conditions, Skipper will return HTTP status code:
+1. TCP accept() handler LIFO
+2. Filters: [`fifo()`](../reference/filters.md#fifo), [`lifo()`](../reference/filters.md#lifo) and
+[`lifoGroup()`](../reference/filters.md#lifogroup)
 
-- 503 if the queue is full, which is expected on the route with a failing backend
-- 502 if queue access times out, because the queue access was not fast enough
-- 500 on unknown errors, please create [an issue](https://github.com/zalando/skipper/issues/new/choose)
+![picture of skipper queues](../img/skipper-queues.png)
 
-### The problem
+### The Problem
 
 Why should you use boundaries to limit concurrency level and limit the
 queue?
@@ -1152,10 +1152,12 @@ queue?
 The short answer is resiliency. If you have one route, that is timing
 out, the request queue of skipper will pile up and consume much more
 memory, than before. This can lead to out of memory kill, which will
-affect all other routes. In [this
-comment](https://github.bus.zalan.do/teapot/issues/issues/1792#issuecomment-1315569)
-you can see the memory usage increased in [Go's](https://golang.org/)
-standard library `bufio` package.
+affect all other routes. In [this Go
+issue](https://github.com/golang/go/issues/35407) you can see the
+memory spike if you can trigger to spike in connections. An internal
+load test with different latency conditions showed usage increased in
+[Go's](https://golang.org/) standard library `bufio` package in
+recorded profiles.
 
 Why LIFO queue instead of FIFO queue?
 
@@ -1166,10 +1168,40 @@ some fraction of requests instead of timing out all requests. LIFO
 would not time out all requests within the queue, if the backend is
 capable of responding some requests fast enough.
 
-### A solution
+### Solution - TCP Accept Handler
+
+Our Go package
+[queuelistener](https://pkg.go.dev/github.com/zalando/skipper/queuelistener)
+provides the functionality to limit the number of accepted connections
+and goroutines that work on HTTP requests. This will protect the
+skipper process from out of memory kill (OOM), if you run the process
+within cgroup v1 or v2 with memory limits. This is true if you run it
+in Kubernetes. The queuelistener implements a LIFO queue between
+accepting connections and working on HTTP requests.
+
+Options to change the behavior:
+
+```
+-enable-tcp-queue
+-expected-bytes-per-request=
+-max-tcp-listener-concurrency=
+-max-tcp-listener-queue=
+```
+
+### Solution - Filters
+
+Skipper provides 2 last in first out (LIFO) filters and 1 first in
+first out filter (FIFO) to change the scheduling behavior for a route.
+
+On failure conditions, Skipper will return HTTP status code:
+
+- 503 if the queue is full, which is expected on the route with a failing backend
+- 502 if queue access times out, because the queue access was not fast enough
+- 500 on unknown errors, please create [an issue](https://github.com/zalando/skipper/issues/new/choose)
 
 Skipper has two filters [`lifo()`](../reference/filters.md#lifo) and
-[`lifoGroup()`](../reference/filters.md#lifogroup), that can limit
+[`lifoGroup()`](../reference/filters.md#lifogroup) and one
+[`fifo()`](../reference/filters.md#fifo) filter, that can limit
 the number of requests for a route.  A [documented load
 test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
 shows the behavior with an enabled `lifo(100,100,"10s")` filter for
@@ -1189,7 +1221,16 @@ interfere with other routes, if these routes are not in the same
 scheduler group. [`LifoGroup`](../reference/filters.md#lifogroup) has
 a user chosen scheduler group and
 [`lifo()`](../reference/filters.md#lifo) will get a per route unique
-scheduler group.
+scheduler group. We found out that the implementation of LIFO filters
+are showing lock contention on high traffic routes. In case you fear
+this behavior we recommend to use the FIFO filter that only use a
+semaphore to reduce lock contention.
+The [`fifo()`](../reference/filters.md#fifo) is working similar to the
+[`lifo()`](../reference/filters.md#lifo) filter.
+
+We recommend to isolate routes from each other by configuring a
+[`fifo()`](../reference/filters.md#fifo) filter by
+`-default-filters-prepend=` to add it to every route.
 
 ## URI standards interpretation
 
