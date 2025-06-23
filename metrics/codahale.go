@@ -152,6 +152,10 @@ func (c *CodaHale) MeasureAllFiltersRequest(routeId string, start time.Time) {
 	}
 }
 
+func (c *CodaHale) MeasureBackendRequestHeader(host string, size int) {
+	// not implemented, see https://github.com/zalando/skipper/issues/3530
+}
+
 func (c *CodaHale) MeasureBackend(routeId string, start time.Time) {
 	c.measureSince(KeyProxyBackendCombined, start)
 	if c.options.EnableRouteBackendMetrics {
@@ -185,6 +189,10 @@ func (c *CodaHale) MeasureResponse(code int, method string, routeId string, star
 	if c.options.EnableRouteResponseMetrics {
 		c.measureSince(fmt.Sprintf(KeyResponse, code, method, routeId), start)
 	}
+}
+
+func (c *CodaHale) MeasureResponseSize(host string, size int64) {
+	// not implemented, see https://github.com/zalando/skipper/issues/3530
 }
 
 func (c *CodaHale) MeasureProxy(requestDuration, responseDuration time.Duration) {
