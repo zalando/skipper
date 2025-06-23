@@ -23,6 +23,19 @@ const (
 
 var errInvalidWeightParams = errors.New("invalid argument for the Weight predicate")
 
+type invalidDefinitionError string
+
+func (e invalidDefinitionError) Error() string { return string(e) }
+func (e invalidDefinitionError) Code() string  { return string(e) }
+
+var (
+	errUnknownFilter          = invalidDefinitionError("unknown_filter")
+	errInvalidFilterParams    = invalidDefinitionError("invalid_filter_params")
+	errUnknownPredicate       = invalidDefinitionError("unknown_predicate")
+	errInvalidPredicateParams = invalidDefinitionError("invalid_predicate_params")
+	errFailedBackendSplit     = invalidDefinitionError("failed_backend_split")
+)
+
 func (it incomingType) String() string {
 	switch it {
 	case incomingReset:
@@ -219,26 +232,26 @@ func createFilter(o *Options, def *eskip.Filter, cpm map[string]PredicateSpec) (
 	spec, ok := o.FilterRegistry[def.Name]
 	if !ok {
 		if isTreePredicate(def.Name) || def.Name == predicates.HostName || def.Name == predicates.PathRegexpName || def.Name == predicates.MethodName || def.Name == predicates.HeaderName || def.Name == predicates.HeaderRegexpName {
-			return nil, fmt.Errorf("trying to use %q as filter, but it is only available as predicate", def.Name)
+			return nil, fmt.Errorf("%w: trying to use %q as filter, but it is only available as predicate", errUnknownFilter, def.Name)
 		}
 
 		if _, ok := cpm[def.Name]; ok {
-			return nil, fmt.Errorf("trying to use %q as filter, but it is only available as predicate", def.Name)
+			return nil, fmt.Errorf("%w: trying to use %q as filter, but it is only available as predicate", errUnknownFilter, def.Name)
 		}
 
-		return nil, fmt.Errorf("filter %q not found", def.Name)
+		return nil, fmt.Errorf("%w: filter %q not found", errUnknownFilter, def.Name)
 	}
 
 	start := time.Now()
 
 	f, err := spec.CreateFilter(def.Args)
 
-	if o.Metrics != nil { // measure regardless of the error
+	if o.Metrics != nil {
 		o.Metrics.MeasureFilterCreate(def.Name, start)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create filter %q: %w", spec.Name(), err)
+		return nil, fmt.Errorf("%w: failed to create filter %q: %w", errInvalidFilterParams, spec.Name(), err)
 	}
 	return f, nil
 }
@@ -370,7 +383,7 @@ func parseWeightPredicateArgs(args []interface{}) (int, error) {
 }
 
 // initialize predicate instances from their spec with the concrete arguments
-func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, int, error) {
+func processPredicates(o *Options, cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([]Predicate, int, error) {
 	cps := make([]Predicate, 0, len(defs))
 	var weight int
 	for _, def := range defs {
@@ -379,7 +392,7 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 			var err error
 
 			if w, err = parseWeightPredicateArgs(def.Args); err != nil {
-				return nil, 0, err
+				return nil, 0, fmt.Errorf("%w: %w", errInvalidPredicateParams, err)
 			}
 
 			weight += w
@@ -393,12 +406,12 @@ func processPredicates(cpm map[string]PredicateSpec, defs []*eskip.Predicate) ([
 
 		spec, ok := cpm[def.Name]
 		if !ok {
-			return nil, 0, fmt.Errorf("predicate %q not found", def.Name)
+			return nil, 0, fmt.Errorf("%w: predicate %q not found", errUnknownPredicate, def.Name)
 		}
 
 		cp, err := spec.Create(def.Args)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to create predicate %q: %w", spec.Name(), err)
+			return nil, 0, fmt.Errorf("%w: failed to create predicate %q: %w", errInvalidPredicateParams, spec.Name(), err)
 		}
 
 		if ws, ok := spec.(WeightedPredicateSpec); ok {
@@ -473,7 +486,7 @@ func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route) (*Route, error) {
 	scheme, host, err := splitBackend(def)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", errFailedBackendSplit, err)
 	}
 
 	fs, err := createFilters(o, def.Filters, cpm)
@@ -486,7 +499,7 @@ func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route)
 		return nil, err
 	}
 
-	cps, weight, err := processPredicates(cpm, def.Predicates)
+	cps, weight, err := processPredicates(o, cpm, def.Predicates)
 	if err != nil {
 		return nil, err
 	}
@@ -494,6 +507,10 @@ func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route)
 	r := &Route{Route: *def, Scheme: scheme, Host: host, Predicates: cps, Filters: fs, weight: weight}
 	if err := processTreePredicates(r, def.Predicates); err != nil {
 		return nil, err
+	}
+
+	if o.Metrics != nil {
+		o.Metrics.IncValidRoutes()
 	}
 
 	return r, nil
@@ -519,6 +536,13 @@ func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalid
 		} else {
 			invalidDefs = append(invalidDefs, def)
 			o.Log.Errorf("failed to process route %s: %v", def.Id, err)
+
+			var defErr invalidDefinitionError
+			if errors.As(err, &defErr) && o.Metrics != nil {
+				o.Metrics.IncInvalidRoutes(defErr.Code())
+			} else if o.Metrics != nil {
+				o.Metrics.IncInvalidRoutes("other")
+			}
 		}
 	}
 	return
