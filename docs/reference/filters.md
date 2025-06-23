@@ -2402,10 +2402,12 @@ Parameters:
 * response status code to use for a rate limited request - optional, default: 429
 
 ```
-clusterRatelimit("groupB", 20, "1m")
+clusterRatelimit("groupA", 20, "1m")
 clusterRatelimit("groupB", 300, "1h")
-clusterRatelimit("groupB", 4000, "1m", 503)
+clusterRatelimit("groupC", 4000, "1m", 503)
 ```
+
+Multiple filter definitions using the same group must use the same number of allowed requests and timeframe values.
 
 See also the [ratelimit docs](https://godoc.org/github.com/zalando/skipper/ratelimit).
 
