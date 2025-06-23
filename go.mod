@@ -34,7 +34,7 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	github.com/redis/go-redis/v9 v9.9.0
+	github.com/redis/go-redis/v9 v9.10.0
 	github.com/sarslanhan/cronmask v0.0.0-20230801193303-54e29300a091
 	github.com/sirupsen/logrus v1.9.3
 	github.com/sony/gobreaker v1.0.0
@@ -48,13 +48,13 @@ require (
 	github.com/yookoala/gofast v0.8.0
 	github.com/yuin/gopher-lua v1.1.1
 	go4.org/netipx v0.0.0-20220925034521-797b0c90d8ab
-	golang.org/x/crypto v0.38.0
+	golang.org/x/crypto v0.39.0
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
-	golang.org/x/net v0.40.0
+	golang.org/x/net v0.41.0
 	golang.org/x/oauth2 v0.30.0
-	golang.org/x/sync v0.14.0
+	golang.org/x/sync v0.15.0
 	golang.org/x/term v0.32.0
-	golang.org/x/time v0.11.0
+	golang.org/x/time v0.12.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/go-jose/go-jose.v2 v2.6.3
 	gopkg.in/yaml.v2 v2.4.0
@@ -166,10 +166,10 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
-	golang.org/x/mod v0.24.0 // indirect
+	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
-	golang.org/x/tools v0.32.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
+	golang.org/x/tools v0.33.0 // indirect
 	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
@@ -179,6 +179,4 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-go 1.23.8
-
-toolchain go1.24.1
+go 1.24.4

@@ -169,7 +169,7 @@ average expected per request memory requirement, which can be set with the
 `-expected-bytes-per-request` flag.
 
 Note that the automatically inferred limit may not work as expected in an
-environment other than cgroups v1.
+environment other than cgroups v1 or cgroups v2.
 
 ### OAuth2 Tokeninfo
 
@@ -210,6 +210,7 @@ common metrics endpoint :9911/metrics.
 
 To monitor skipper we recommend the following queries:
 
+- P99 Proxy latency: `histogram_quantile(0.99, sum(rate(skipper_proxy_total_duration_seconds_bucket{}[1m])) by (le))`
 - P99 backend latency: `histogram_quantile(0.99, sum(rate(skipper_serve_host_duration_seconds_bucket{}[1m])) by (le))`
 - HTTP 2xx rate: `histogram_quantile(0.99, sum(rate(skipper_serve_host_duration_seconds_bucket{code =~ "2.*"}[1m])) by (le) )`
 - HTTP 4xx rate: `histogram_quantile(0.99, sum(rate(skipper_serve_host_duration_seconds_bucket{code =~ "4.*"}[1m])) by (le) )`
@@ -224,6 +225,85 @@ To monitor skipper we recommend the following queries:
 - If you use Kubernetes limits or Linux cgroup CFS quotas (depends on label selector): `sum(rate(container_cpu_cfs_throttled_periods_total{container_name="skipper-ingress"}[1m]))`
 
 You may add static metrics labels like `version` using Prometheus [relabeling feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config).
+
+### Proxy Metrics
+
+Skipper Proxy Metrics provides information about the time spent by skipper in processing a request i.e., the time spent by a request inside skipper (this excludes the response application of filters to a req/res, the backend roundtrip and serving the response). The total proxy metrics are enabled by default and these metrics can be used to build KPIs / SLOs, so as to understand and monitor the performance of skipper.
+
+The Proxy Metrics exludes the filter processing as this is dependent on which filters the user decides to use for a particular route. The backend round trip time depends on the backend application and the operation being performed. And the serve response depends on the client. These are operations are not in control of skipper and are hence excluded to solely monitor the performance of Skipper.
+
+These metrics are exposed in /metrics, the example json structure looks like this:
+
+```json
+{
+  "timers" : {
+    "skipper.proxy.total": {
+      "15m.rate": 0.2,
+      "1m.rate": 0.2,
+      "5m.rate": 0.2,
+      "75%": 288375,
+      "95%": 288375,
+      "99%": 288375,
+      "99.9%": 288375,
+      "count": 1,
+      "max": 288375,
+      "mean": 288375,
+      "mean.rate": 0.7268368234069077,
+      "median": 288375,
+      "min": 288375,
+      "stddev": 0
+    },
+  }
+}
+```
+
+The proxy metrics can also be fetched in more detail, i.e., splits the proxy total metrics to get the proxy request metrics and proxy response metrics. The Proxy Request Metrics provides the duration / time taken from the start of ServeHTTP till the backend round trip. The Proxy Response Metrics provides the duration / time taken from after the backend round trip till the response is served.
+
+    -proxy-request-metrics
+        enbales the collection proxy request metrics
+    -proxy-response-metrics
+        enables the collection proxy response metrics
+
+If enabled these metrics are also exposed in /metrics, and the example json structure would like the following:
+
+```json
+{
+  "timers": {
+    "skipper.proxy.request": {
+      "15m.rate": 0.2,
+      "1m.rate": 0.2,
+      "5m.rate": 0.2,
+      "75%": 0,
+      "95%": 0,
+      "99%": 0,
+      "99.9%": 0,
+      "count": 1,
+      "max": 0,
+      "mean": 0,
+      "mean.rate": 0.7268396413261223,
+      "median": 0,
+      "min": 0,
+      "stddev": 0
+    },
+    "skipper.proxy.response": {
+      "15m.rate": 0.2,
+      "1m.rate": 0.2,
+      "5m.rate": 0.2,
+      "75%": 288375,
+      "95%": 288375,
+      "99%": 288375,
+      "99.9%": 288375,
+      "count": 1,
+      "max": 288375,
+      "mean": 288375,
+      "mean.rate": 0.7268397290232465,
+      "median": 288375,
+      "min": 288375,
+      "stddev": 0
+    },
+  }
+}
+```
 
 ### Connection metrics
 
@@ -1055,16 +1135,16 @@ limited or unlimited.
 The default scheduler is an unbounded first in first out (FIFO) queue,
 that is provided by [Go's](https://golang.org/) standard library.
 
-Skipper provides 2 last in first out (LIFO) filters to change the
-scheduling behavior.
+In skipper we have two queues that are part of the scheduling
+decision:
 
-On failure conditions, Skipper will return HTTP status code:
+1. TCP accept() handler LIFO
+2. Filters: [`fifo()`](../reference/filters.md#fifo), [`lifo()`](../reference/filters.md#lifo) and
+[`lifoGroup()`](../reference/filters.md#lifogroup)
 
-- 503 if the queue is full, which is expected on the route with a failing backend
-- 502 if queue access times out, because the queue access was not fast enough
-- 500 on unknown errors, please create [an issue](https://github.com/zalando/skipper/issues/new/choose)
+![picture of skipper queues](../img/skipper-queues.png)
 
-### The problem
+### The Problem
 
 Why should you use boundaries to limit concurrency level and limit the
 queue?
@@ -1072,10 +1152,12 @@ queue?
 The short answer is resiliency. If you have one route, that is timing
 out, the request queue of skipper will pile up and consume much more
 memory, than before. This can lead to out of memory kill, which will
-affect all other routes. In [this
-comment](https://github.bus.zalan.do/teapot/issues/issues/1792#issuecomment-1315569)
-you can see the memory usage increased in [Go's](https://golang.org/)
-standard library `bufio` package.
+affect all other routes. In [this Go
+issue](https://github.com/golang/go/issues/35407) you can see the
+memory spike if you can trigger to spike in connections. An internal
+load test with different latency conditions showed usage increased in
+[Go's](https://golang.org/) standard library `bufio` package in
+recorded profiles.
 
 Why LIFO queue instead of FIFO queue?
 
@@ -1086,10 +1168,40 @@ some fraction of requests instead of timing out all requests. LIFO
 would not time out all requests within the queue, if the backend is
 capable of responding some requests fast enough.
 
-### A solution
+### Solution - TCP Accept Handler
+
+Our Go package
+[queuelistener](https://pkg.go.dev/github.com/zalando/skipper/queuelistener)
+provides the functionality to limit the number of accepted connections
+and goroutines that work on HTTP requests. This will protect the
+skipper process from out of memory kill (OOM), if you run the process
+within cgroup v1 or v2 with memory limits. This is true if you run it
+in Kubernetes. The queuelistener implements a LIFO queue between
+accepting connections and working on HTTP requests.
+
+Options to change the behavior:
+
+```
+-enable-tcp-queue
+-expected-bytes-per-request=
+-max-tcp-listener-concurrency=
+-max-tcp-listener-queue=
+```
+
+### Solution - Filters
+
+Skipper provides 2 last in first out (LIFO) filters and 1 first in
+first out filter (FIFO) to change the scheduling behavior for a route.
+
+On failure conditions, Skipper will return HTTP status code:
+
+- 503 if the queue is full, which is expected on the route with a failing backend
+- 502 if queue access times out, because the queue access was not fast enough
+- 500 on unknown errors, please create [an issue](https://github.com/zalando/skipper/issues/new/choose)
 
 Skipper has two filters [`lifo()`](../reference/filters.md#lifo) and
-[`lifoGroup()`](../reference/filters.md#lifogroup), that can limit
+[`lifoGroup()`](../reference/filters.md#lifogroup) and one
+[`fifo()`](../reference/filters.md#fifo) filter, that can limit
 the number of requests for a route.  A [documented load
 test](https://github.com/zalando/skipper/pull/1030#issuecomment-485714338)
 shows the behavior with an enabled `lifo(100,100,"10s")` filter for
@@ -1109,7 +1221,16 @@ interfere with other routes, if these routes are not in the same
 scheduler group. [`LifoGroup`](../reference/filters.md#lifogroup) has
 a user chosen scheduler group and
 [`lifo()`](../reference/filters.md#lifo) will get a per route unique
-scheduler group.
+scheduler group. We found out that the implementation of LIFO filters
+are showing lock contention on high traffic routes. In case you fear
+this behavior we recommend to use the FIFO filter that only use a
+semaphore to reduce lock contention.
+The [`fifo()`](../reference/filters.md#fifo) is working similar to the
+[`lifo()`](../reference/filters.md#lifo) filter.
+
+We recommend to isolate routes from each other by configuring a
+[`fifo()`](../reference/filters.md#fifo) filter by
+`-default-filters-prepend=` to add it to every route.
 
 ## URI standards interpretation
 
