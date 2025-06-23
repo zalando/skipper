@@ -53,6 +53,8 @@ type Prometheus struct {
 	customHistogramM           *prometheus.HistogramVec
 	customCounterM             *prometheus.CounterVec
 	customGaugeM               *prometheus.GaugeVec
+	validRoutesM               *prometheus.CounterVec
+	invalidRoutesM             *prometheus.CounterVec
 
 	opts     Options
 	registry *prometheus.Registry
@@ -271,6 +273,20 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{"key"}))
 
+	p.validRoutesM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: promRouteSubsystem,
+		Name:      "valid_routes",
+		Help:      "Total number of successfully processed routes.",
+	}, []string{}))
+
+	p.invalidRoutesM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: promRouteSubsystem,
+		Name:      "invalid_routes",
+		Help:      "Total number of invalid routes with failure reasons.",
+	}, []string{"reason"}))
+
 	// Register prometheus runtime collectors if required.
 	if opts.EnableRuntimeMetrics {
 		register(p, collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -470,6 +486,16 @@ func (p *Prometheus) MeasureBackend5xx(start time.Time) {
 // IncErrorsStreaming satisfies Metrics interface.
 func (p *Prometheus) IncErrorsStreaming(routeID string) {
 	p.proxyStreamingErrorsM.WithLabelValues(routeID).Inc()
+}
+
+// IncValidRoutes satisfies Metrics interface.
+func (p *Prometheus) IncValidRoutes() {
+	p.validRoutesM.WithLabelValues().Inc()
+}
+
+// IncInvalidRoutes satisfies Metrics interface.
+func (p *Prometheus) IncInvalidRoutes(reason string) {
+	p.invalidRoutesM.WithLabelValues(reason).Inc()
 }
 
 func (p *Prometheus) Close() {}

@@ -78,6 +78,8 @@ type Metrics interface {
 	IncErrorsStreaming(routeId string)
 	RegisterHandler(path string, handler *http.ServeMux)
 	UpdateGauge(key string, value float64)
+	IncValidRoutes()
+	IncInvalidRoutes(reason string)
 	Close()
 }
 
