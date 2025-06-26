@@ -79,7 +79,7 @@ func verifyAttempts(t *testing.T, capacity int, emission time.Duration, incremen
 	t0 := now
 	for _, a := range attempts {
 		now = t0.Add(time.Duration(a.tplus) * time.Second)
-		added, retry, err := bucket.add(context.Background(), "alabel", increment, now)
+		added, retry, err := bucket.Add(context.Background(), "alabel", increment)
 		if err != nil {
 			t.Fatal(err)
 		}

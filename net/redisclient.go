@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -252,10 +253,17 @@ func createRemoteUpdater(url string, timeout time.Duration, logger logging.Logge
 		for _, addr := range rawAddrs {
 			trimmed := strings.TrimSpace(addr)
 			if trimmed != "" {
-				if !strings.Contains(trimmed, ":") {
-					logger.Warnf("Ignoring invalid address format from remote URL %s: '%s'", url, trimmed)
+				host, _, err := net.SplitHostPort(trimmed)
+				if err != nil {
+					logger.Warnf("Ignoring invalid address format from remote URL %s: '%s' (%v)", url, trimmed, err)
 					continue
 				}
+
+				if host == "" {
+					logger.Warnf("Ignoring invalid address format from remote URL %s: '%s' (host part is empty)", url, trimmed)
+					continue
+				}
+
 				cleanedAddrs = append(cleanedAddrs, trimmed)
 			}
 		}
@@ -372,20 +380,19 @@ func NewRedisClient(ro *RedisOptions) *RedisClient {
 		var initialAddrs []string
 		if ro.AddrUpdater != nil {
 			r.log.Info("Fetching initial addresses using AddrUpdater...")
-			address, err := ro.AddrUpdater()
+			var err error
 			// Retry logic for initial fetch
 			for i := 0; i < retryCount; i++ {
+				initialAddrs, err = ro.AddrUpdater()
 				if err == nil {
-					initialAddrs = address
 					break
 				}
 				r.log.Warnf("Failed to get initial addresses from AddrUpdater (attempt %d/%d), retrying in %v: %v", i+1, retryCount, backOffTime, err)
 				time.Sleep(backOffTime)
-				address, err = ro.AddrUpdater()
 			}
 			if err != nil {
-				r.log.Errorf("Failed to get initial addresses from AddrUpdater after %d retries: %v. Starting with empty list.", retryCount, err)
-				initialAddrs = []string{} // Start empty, updater might fix it later
+				r.log.Warnf("Failed to get initial addresses from AddrUpdater after %d retries: %v. Falling back to statically configured addresses.", retryCount, err)
+				initialAddrs = ro.Addrs
 			} else {
 				r.log.Infof("Successfully fetched initial addresses: %v", initialAddrs)
 			}
@@ -528,48 +535,59 @@ func (r *RedisClient) startUpdater(ctx context.Context) {
 			r.log.Infof("Redis Ring updater stopping due to context cancellation: %v", ctx.Err())
 			return
 		case <-ticker.C:
+			type updateResult struct {
+				addrs []string
+				err   error
+			}
+			updateChan := make(chan updateResult, 1)
+			go func() {
+				addrs, err := r.options.AddrUpdater()
+				updateChan <- updateResult{addrs: addrs, err: err}
+			}()
+
+			var newAddrsSlice []string
+			var err error
+
 			select {
 			case <-r.quit:
-				r.log.Info("Redis Ring updater received quit signal after tick.")
+				r.log.Info("Redis Ring updater received quit signal while updating.")
 				return
 			case <-ctx.Done():
-				r.log.Infof("Redis Ring updater stopping due to context cancellation after tick: %v", ctx.Err())
+				r.log.Infof("Redis Ring updater stopping due to context cancellation while updating: %v", ctx.Err())
 				return
-			default:
+			case res := <-updateChan:
+				newAddrsSlice, err = res.addrs, res.err
 			}
 
-			newAddrsSlice, err := r.options.AddrUpdater()
 			if err != nil {
 				r.log.Errorf("Failed to get updated addresses from AddrUpdater: %v", err)
 				continue // Try again on the next tick
 			}
 
+			if len(newAddrsSlice) == 0 {
+				r.log.Warn("Updater returned empty address list, not updating. Keeping previous addresses.")
+				continue // Don't update to empty list
+			}
+
 			r.mu.RLock()
-			needsUpdate := !hasAll(newAddrsSlice, currentAddrsSet)
-			currentCount := len(currentAddrsSet)
+			currentAddresses := make([]string, len(r.options.Addrs))
+			copy(currentAddresses, r.options.Addrs)
 			r.mu.RUnlock()
 
+			needsUpdate := !hasAll(newAddrsSlice, currentAddrsSet)
+
 			if needsUpdate {
-				r.log.Infof("Redis Ring updater detected address change. Old count: %d, New count: %d. Updating...", currentCount, len(newAddrsSlice))
+				r.log.Infof("Redis Ring updater detected address change. Old count: %d, New count: %d. Updating...", len(currentAddresses), len(newAddrsSlice))
 
 				r.SetAddrs(ctx, newAddrsSlice)
 
-				r.mu.Lock()
 				newSet := make(map[string]struct{}, len(newAddrsSlice))
 				for _, addr := range newAddrsSlice {
 					newSet[addr] = struct{}{}
 				}
 				currentAddrsSet = newSet
-				liveShardsCount := 0
-				if ringClient, ok := r.client.(*redis.Ring); ok && ringClient != nil {
-					liveShardsCount = ringClient.Len()
-				}
-				r.mu.Unlock()
 
 				r.log.Infof("Redis Ring addresses updated to: %v", newAddrsSlice)
-
-				r.metrics.UpdateGauge(r.metricsPrefix+"shards.live", float64(liveShardsCount))
-				r.metrics.UpdateGauge(r.metricsPrefix+"shards.configured", float64(len(newAddrsSlice)))
 
 			} else {
 				r.log.Debugf("Redis Ring addresses unchanged (%d).", len(currentAddrsSet))
@@ -610,6 +628,7 @@ func (r *RedisClient) IsAvailable() bool {
 	defer cancel()
 
 	// Retry once quickly, maybe it was a transient network blip
+	b := backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 3), ctx)
 	err = backoff.Retry(func() error {
 		pingCtx, pingCancel := context.WithTimeout(ctx, 1*time.Second) // Timeout for individual ping
 		defer pingCancel()
@@ -623,7 +642,7 @@ func (r *RedisClient) IsAvailable() bool {
 			r.log.Debugf("Failed to ping redis (%s mode), retry with backoff: %v", mode, pingErr)
 		}
 		return pingErr
-	}, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 3), ctx)) // Retry 3 times, 500ms apart
+	}, b) // Retry 3 times, 500ms apart
 
 	if err != nil {
 		mode := "Ring"
@@ -684,7 +703,8 @@ func (r *RedisClient) StartMetricsCollection(ctx context.Context) {
 				localClientForTick := r.client
 				localIsClosed := r.closed
 				localClusterMode := r.clusterMode
-				localOptionsAddrs := r.options.Addrs
+				localOptionsAddrs := make([]string, len(r.options.Addrs))
+				copy(localOptionsAddrs, r.options.Addrs)
 				r.mu.RUnlock()
 
 				if localIsClosed {
@@ -936,6 +956,9 @@ func (r *RedisClient) ZRem(ctx context.Context, key string, members ...interface
 
 // Expire executes the EXPIRE command.
 func (r *RedisClient) Expire(ctx context.Context, key string, expiration time.Duration) (bool, error) {
+	if expiration <= 0 {
+		return true, nil
+	}
 	cmdable, err := r.getCmdable()
 	if err != nil {
 		return false, err

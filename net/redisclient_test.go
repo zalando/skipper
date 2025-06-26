@@ -643,33 +643,30 @@ func TestRedisClient_RingMode_Expire(t *testing.T) {
 		name             string
 		options          *RedisOptions
 		h                map[string][]valScore
-		keyToExpire      string        // Key to apply EXPIRE to
-		expire           time.Duration // Duration for EXPIRE
-		wait             time.Duration // Time to wait after setting expire
-		expectInitial    int64         // Expected ZCard before wait
-		expectAfterWait  int64         // Expected ZCard after wait
-		expectExpireBool bool          // Expected boolean result from Expire command itself
-		wantErr          bool          // Expect error during setup, expire or ZCard
+		keyToExpire      string
+		expire           time.Duration
+		expectInitial    int64
+		expectAfterWait  int64
+		expectExpireBool bool
+		wantErr          bool
 	}{
 		{
 			name:             "Ring: Expire non-existent key",
 			options:          baseOptions,
 			keyToExpire:      "expire_nonexistent",
 			expire:           1 * time.Second,
-			wait:             50 * time.Millisecond,
-			expectInitial:    0,     // ZCard initially 0
-			expectAfterWait:  0,     // ZCard still 0
-			expectExpireBool: false, // Expire returns false if key doesn't exist
+			expectInitial:    0,
+			expectAfterWait:  0,
+			expectExpireBool: false,
 		},
 		{
 			name:        "Ring: Expire existing key, check before/after",
 			options:     baseOptions,
 			keyToExpire: "expire_k1",
 			h: map[string][]valScore{
-				"expire_k1": {{val: 10, score: 5.0}}, // Single item
+				"expire_k1": {{val: 10, score: 5.0}},
 			},
-			expire:           1 * time.Second, // Use >= 1s
-			wait:             150 * time.Millisecond,
+			expire:           1 * time.Second,
 			expectInitial:    1,
 			expectAfterWait:  0,
 			expectExpireBool: true,
@@ -681,8 +678,7 @@ func TestRedisClient_RingMode_Expire(t *testing.T) {
 			h: map[string][]valScore{
 				"expire_k2": {{val: 1, score: 1.0}, {val: 2, score: 2.0}},
 			},
-			expire:           2 * time.Second, // Use >= 1s
-			wait:             500 * time.Millisecond,
+			expire:           2 * time.Second,
 			expectInitial:    2,
 			expectAfterWait:  2,
 			expectExpireBool: true,
@@ -692,10 +688,9 @@ func TestRedisClient_RingMode_Expire(t *testing.T) {
 			options:     baseOptions,
 			keyToExpire: "expire_k3",
 			h: map[string][]valScore{
-				"expire_k3": {{val: 30, score: 3.0}}, // Single item
+				"expire_k3": {{val: 30, score: 3.0}},
 			},
 			expire:           0 * time.Second,
-			wait:             50 * time.Millisecond,
 			expectInitial:    1,
 			expectAfterWait:  1,
 			expectExpireBool: true,
@@ -725,15 +720,20 @@ func TestRedisClient_RingMode_Expire(t *testing.T) {
 			require.NoError(t, err, "Unexpected error during Expire")
 			assert.Equal(t, tt.expectExpireBool, expireRes, "Expire command returned unexpected boolean")
 
-			// Wait
-			if tt.wait > 0 {
-				time.Sleep(tt.wait)
+			if tt.expectAfterWait == 0 {
+				// We expect the key to expire.
+				assert.Eventually(t, func() bool {
+					count, err := cli.ZCard(ctx, tt.keyToExpire)
+					return err == nil && count == 0
+				}, tt.expire+(500*time.Millisecond), 100*time.Millisecond) // Poll until expired
+			} else {
+				// We expect the key to persist.
+				// A short sleep to ensure Redis has had time to process, but the key hasn't expired.
+				time.Sleep(100 * time.Millisecond)
+				finalVal, err := cli.ZCard(ctx, tt.keyToExpire)
+				require.NoError(t, err, "Unexpected error during final ZCard check")
+				assert.Equal(t, tt.expectAfterWait, finalVal, "ZCard count after wait mismatch")
 			}
-
-			// Check ZCard count after wait
-			finalVal, err := cli.ZCard(ctx, tt.keyToExpire)
-			require.NoError(t, err, "Unexpected error during final ZCard check")
-			assert.Equal(t, tt.expectAfterWait, finalVal, "ZCard count after wait mismatch")
 		})
 	}
 }
@@ -1406,12 +1406,14 @@ func TestRedisClient_RingMode_RemoteURL_Failures(t *testing.T) {
 
 			// Let background updater run once more if interval is set
 			if opts.UpdateInterval > 0 {
-				// Need RLock to safely access addrs len
-				cli.mu.RLock()
 				time.Sleep(opts.UpdateInterval * 2)
-				// Re-check availability, should remain in the expected state as the URL keeps failing
+				// Re-check availability, which handles its own locking.
 				assert.Equal(t, tt.expectAvailable, cli.IsAvailable(), "Availability changed unexpectedly after background update failure")
+
+				// Lock only for the duration of the direct field access.
+				cli.mu.RLock()
 				assert.Len(t, cli.options.Addrs, tt.expectAddrsLen, "Number of addresses changed unexpectedly after background update failure")
+				cli.mu.RUnlock()
 			}
 		})
 	}

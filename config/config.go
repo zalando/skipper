@@ -846,7 +846,7 @@ func (c *Config) ParseArgs(progname string, args []string) error {
 		c.HostPatch = net.HostPatch{
 			ToLower:           true,
 			RemovePort:        true,
-			RemoteTrailingDot: true,
+			RemoveTrailingDot: true,
 		}
 	}
 
@@ -874,11 +874,11 @@ func (c *Config) buildRedisOptions() {
 
 	ro := &net.RedisOptions{
 		Addrs:               append([]string{}, c.SwarmRedisURLs.values...),
-		RemoteURL:           c.SwarmRedisEndpointsRemoteURL,      // Ring mode only
-		UpdateInterval:      c.SwarmRedisEndpointsUpdateInterval, // Ring mode only
+		RemoteURL:           c.SwarmRedisEndpointsRemoteURL,
+		UpdateInterval:      c.SwarmRedisEndpointsUpdateInterval,
 		Password:            c.SwarmRedisPassword,
-		ClusterMode:         c.SwarmRedisClusterMode,   // Mode selector
-		HashAlgorithm:       c.SwarmRedisHashAlgorithm, // Ring mode only
+		ClusterMode:         c.SwarmRedisClusterMode,
+		HashAlgorithm:       c.SwarmRedisHashAlgorithm,
 		DialTimeout:         c.SwarmRedisDialTimeout,
 		ReadTimeout:         c.SwarmRedisReadTimeout,
 		WriteTimeout:        c.SwarmRedisWriteTimeout,
@@ -889,7 +889,7 @@ func (c *Config) buildRedisOptions() {
 		MinIdleConns:        c.SwarmRedisMinIdleConns,
 		MaxIdleConns:        c.SwarmRedisMaxIdleConns,
 		TLSConfig:           redisTLSConfig,
-		HeartbeatFrequency:  c.SwarmRedisHeartbeatFrequency, // Ring mode only
+		HeartbeatFrequency:  c.SwarmRedisHeartbeatFrequency,
 		ConnMetricsInterval: c.SwarmRedisConnMetricsInterval,
 		MetricsPrefix:       c.SwarmRedisMetricsPrefix,
 	}

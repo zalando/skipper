@@ -172,10 +172,8 @@ func (c *clusterLimitRedis) allow(ctx context.Context, clearText string) (bool, 
 	clearBefore := now.Add(-c.window).UnixNano()
 
 	// 1. Remove old entries (score is timestamp in nanoseconds)
-	_, err := c.redisClient.ZRemRangeByScore(ctx, key, 0.0, float64(clearBefore))
-	if err != nil {
-		// Don't fail immediately, maybe ZCard still works. Log the error.
-		log.Warnf("Redis ZRemRangeByScore failed for key '%s' (group '%s'): %v. Proceeding to ZCard check.", key, c.group, err)
+	if _, err := c.redisClient.ZRemRangeByScore(ctx, key, 0.0, float64(clearBefore)); err != nil {
+		return false, fmt.Errorf("ZRemRangeByScore failed for key '%s' (group '%s'): %w", key, c.group, err)
 	}
 
 	// 2. Get current count
