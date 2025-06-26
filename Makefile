@@ -158,11 +158,12 @@ osv-scanner: $(SOURCES) ## run osv-scanner see https://osv.dev/
 
 .PHONY: fmt
 fmt: $(SOURCES) ## format code
-	@gofmt -w -s $(SOURCES)
+	@gofmt -w -s $$(go list -f '{{.Dir}}' ./...) ./_test_plugins ./_test_plugins_fail
 
 .PHONY: check-fmt
 check-fmt: $(SOURCES) ## check format code
-	@if [ "$$(gofmt -s -d $(SOURCES))" != "" ]; then false; else true; fi
+	@out="$$(gofmt -s -d $$(go list -f '{{.Dir}}' ./...) ./_test_plugins ./_test_plugins_fail)"; \
+	if [ -n "$$out" ]; then echo "Code is not formatted. Please run 'make fmt'.\n$$out"; exit 1; fi
 
 .PHONY: precommit
 precommit: fmt build vet staticcheck check-race shortcheck ## precommit hook

@@ -18,15 +18,22 @@ else
     end
 end
 
--- bucket level == time to drain / emission == (empty_at - now) / emission
--- free capacity left after increment == capacity - bucket level - increment
--- If free capacity is negative then retry is possible after -(free capacity * emission)
--- Calculate and check the value of x == free capacity * emission
-local x = (capacity - increment) * emission - (empty_at - now)
-if x >= 0 then
-    empty_at = empty_at + increment * emission
+-- The leaky bucket state is stored as a single value: the timestamp when the bucket will be empty.
+-- An increment is allowed if it does not cause the bucket to overflow its capacity.
+-- The bucket's capacity can be expressed as the maximum time-to-drain, which is `capacity * emission`.
 
-    redis.call("SET", bucket_id, empty_at, "PX", math.ceil((empty_at - now) / 1000))
+-- Calculate `new_empty_at`: the time when the bucket would be empty if the increment is added.
+local new_empty_at = empty_at + increment * emission
+
+-- Calculate `max_empty_at`: the latest possible drain time if the bucket was filled to capacity now.
+local max_empty_at = now + capacity * emission
+
+-- If `new_empty_at` does not exceed `max_empty_at`, the increment is allowed.
+if new_empty_at <= max_empty_at then
+    redis.call("SET", bucket_id, new_empty_at, "PX", math.ceil((new_empty_at - now) / 1000))
+    return 1 -- success
 end
 
-return x
+-- If not allowed, return a negative value indicating the number of microseconds to wait for a retry,
+-- which is the time until enough units have leaked to accommodate the increment.
+return max_empty_at - new_empty_at

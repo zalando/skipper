@@ -208,7 +208,7 @@ func TestTrafficSegmentTeeLoopback(t *testing.T) {
 		RoutingOptions: routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 			Predicates: []routing.PredicateSpec{
-				traffic.NewSegment(),
+				traffic.WithRandFloat64(traffic.NewSegment(), newTestRandFloat64()),
 				tee.New(),
 				primitive.NewTrue(),
 			},
@@ -240,14 +240,14 @@ func TestTrafficSegmentLoopbackBackend(t *testing.T) {
 		RoutingOptions: routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 			Predicates: []routing.PredicateSpec{
-				traffic.NewSegment(),
+				traffic.WithRandFloat64(traffic.NewSegment(), newTestRandFloat64()),
 				tee.New(),
 				primitive.NewTrue(),
 			},
 		},
 		Routes: eskip.MustParse(`
 			r0: * -> status(200) -> inlineContent("") -> <shunt>;
-			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> setPath("a-loop") -> <loopback>;
+			r1: Path("/test") && TrafficSegment(0.0, 0.5) -> setPath("/a-loop") -> <loopback>;
 			r2: Path("/a-loop") -> status(201) -> inlineContent("") -> <shunt>;
 		`),
 	}.Create()

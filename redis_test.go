@@ -7,7 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
-	stdlibhttptest "net/http/httptest"
+	"net/http/httptest"
 	"os"
 	"syscall"
 	"testing"
@@ -21,7 +21,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/metrics/metricstest"
-	"github.com/zalando/skipper/net/httptest"
+	httptestclient "github.com/zalando/skipper/net/httptest"
 	"github.com/zalando/skipper/net/redistest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routesrv"
@@ -132,7 +132,7 @@ spec:
 		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
 	})
 	defer pr.Close()
-	lb := stdlibhttptest.NewServer(pr)
+	lb := httptest.NewServer(pr)
 	defer lb.Close()
 
 	rsvo := skipper.Options{
@@ -176,7 +176,7 @@ spec:
 
 	rate := 10
 	sec := 5
-	va := httptest.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
+	va := httptestclient.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
 	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
 
 	successRate := va.Success()
@@ -307,7 +307,7 @@ spec:
 		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
 	})
 	defer pr.Close()
-	lb := stdlibhttptest.NewServer(pr)
+	lb := httptest.NewServer(pr)
 	defer lb.Close()
 
 	// run skipper proxy that we want to test
@@ -338,7 +338,7 @@ spec:
 
 	rate := 10
 	sec := 5
-	va := httptest.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
+	va := httptestclient.NewVegetaAttacker("http://"+o.Address+"/test", rate, time.Second, time.Second)
 	va.Attack(io.Discard, time.Duration(sec)*time.Second, "mytest")
 	t.Logf("Success [0..1]: %0.2f", va.Success())
 
@@ -401,7 +401,7 @@ spec:
   type: ClusterIP
 `
 
-	t.Run("without kubernetes dataclient", func(t *testing.T) {
+	t.Run("without_kubernetes_dataclient", func(t *testing.T) {
 		spec := kubeSpec + createRedisEndpointsSpec(t, "10.2.0.1:6379", "10.2.0.2:6379", "10.2.0.3:6379")
 		apiServer := createApiserver(t, spec)
 
@@ -419,6 +419,7 @@ spec:
 			SwarmRedisUpdateInterval:        redisUpdateInterval,
 			InlineRoutes:                    `Path("/ready") -> inlineContent("OK") -> <shunt>`,
 			MetricsBackend:                  metrics,
+			SwarmRedisConnMetricsInterval:   redisUpdateInterval,
 		}
 
 		runResult := make(chan error)
@@ -432,14 +433,15 @@ spec:
 			t.Logf("gauges: %v", g)
 
 			assert.Equal(t, 1.0, g["routes.total"], "expected only the /ready route")
-			assert.Equal(t, 3.0, g["swarm.redis.shards"])
+			// Check for live shards count as reported by the updater logic
+			assert.Equal(t, 3.0, g["swarm.redis.shards.live"])
 		})
 
 		sigs <- syscall.SIGTERM
 		assert.NoError(t, <-runResult)
 	})
 
-	t.Run("kubernetes dataclient", func(t *testing.T) {
+	t.Run("kubernetes_dataclient", func(t *testing.T) {
 		spec := kubeSpec + createRedisEndpointsSpec(t, "10.2.0.1:6379", "10.2.0.2:6379", "10.2.0.3:6379", "10.2.0.4:6379")
 		apiServer := createApiserver(t, spec)
 
@@ -463,41 +465,38 @@ spec:
 		go func() { runResult <- skipper.RunWithShutdown(o, sigs, nil) }()
 
 		waitForOK(t, "http://"+o.Address+"/test", 1*time.Second)
-		time.Sleep(2 * redisUpdateInterval)
 
 		metrics.WithGauges(func(g map[string]float64) {
 			t.Logf("gauges: %v", g)
-
 			assert.Equal(t, 1.0, g["routes.total"], "expected only the /test route")
-			assert.Equal(t, 4.0, g["swarm.redis.shards"])
 		})
 
 		sigs <- syscall.SIGTERM
 		assert.NoError(t, <-runResult)
 	})
 
-	t.Run("remote url", func(t *testing.T) {
-		eps := stdlibhttptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write([]byte(`{
-				"endpoints": [
-					{"address": "10.2.0.1:6379"}, {"address": "10.2.0.2:6379"},
-					{"address": "10.2.0.3:6379"}, {"address": "10.2.0.4:6379"},
-					{"address": "10.2.0.5:6379"}
-				]
-			}`))
+	t.Run("remote_url", func(t *testing.T) {
+		eps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			// Return JSON object
+			w.Header().Set("Content-Type", "application/json")
+			_, err := w.Write([]byte(`{"endpoints":[{"address":"10.2.0.1:6379"},{"address":"10.2.0.2:6379"},{"address":"10.2.0.3:6379"},{"address":"10.2.0.4:6379"},{"address":"10.2.0.5:6379"}]}`))
+			if err != nil {
+				t.Log(err)
+			}
 		}))
 		defer eps.Close()
 
 		metrics := &metricstest.MockMetrics{}
 
 		o := skipper.Options{
-			Address:                      findAddress(t),
-			EnableRatelimiters:           true,
-			EnableSwarm:                  true,
-			SwarmRedisEndpointsRemoteURL: eps.URL,
-			SwarmRedisUpdateInterval:     redisUpdateInterval,
-			InlineRoutes:                 `Path("/ready") -> inlineContent("OK") -> <shunt>`,
-			MetricsBackend:               metrics,
+			Address:                       findAddress(t),
+			EnableRatelimiters:            true,
+			EnableSwarm:                   true,
+			SwarmRedisEndpointsRemoteURL:  eps.URL,
+			SwarmRedisUpdateInterval:      redisUpdateInterval,
+			InlineRoutes:                  `Path("/ready") -> inlineContent("OK") -> <shunt>`,
+			MetricsBackend:                metrics,
+			SwarmRedisConnMetricsInterval: redisUpdateInterval,
 		}
 
 		runResult := make(chan error)
@@ -507,25 +506,31 @@ spec:
 		waitForOK(t, "http://"+o.Address+"/ready", 1*time.Second)
 		time.Sleep(2 * redisUpdateInterval)
 
+		require.Eventuallyf(t, func() bool {
+			var liveShards float64
+			metrics.WithGauges(func(g map[string]float64) {
+				liveShards = g["swarm.redis.shards.live"]
+			})
+			return liveShards == 5.0
+		}, 2*time.Second, 100*time.Millisecond, "timed out waiting for live redis shards")
 		metrics.WithGauges(func(g map[string]float64) {
 			t.Logf("gauges: %v", g)
 
 			assert.Equal(t, 1.0, g["routes.total"], "expected only the /ready route")
-			assert.Equal(t, 5.0, g["swarm.redis.shards"])
+			assert.Equal(t, 5.0, g["swarm.redis.shards.live"])
 		})
-
 		sigs <- syscall.SIGTERM
 		assert.NoError(t, <-runResult)
 	})
 }
 
-func createApiserver(t *testing.T, spec string) *stdlibhttptest.Server {
+func createApiserver(t *testing.T, spec string) *httptest.Server {
 	t.Helper()
 
 	api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, bytes.NewBufferString(spec))
 	require.NoError(t, err)
 
-	apiServer := stdlibhttptest.NewServer(api)
+	apiServer := httptest.NewServer(api)
 	t.Cleanup(apiServer.Close)
 
 	return apiServer

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 )
 
 const format = "v%d.%d.%d"
@@ -55,7 +56,7 @@ func main() {
 	}
 
 	var major, minor, patch int
-	_, err = fmt.Sscanf(current, format, &major, &minor, &patch)
+	_, err = fmt.Sscanf(strings.TrimPrefix(current, "v"), "%d.%d.%d", &major, &minor, &patch)
 	if err != nil {
 		log.Fatalln(err)
 	}

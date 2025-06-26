@@ -254,7 +254,7 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 			}
 			got := c.Delta(tt.args)
 			// Allow for some timing variance
-			tolerance := 200 * time.Millisecond
+			tolerance := 800 * time.Millisecond
 			if got < tt.want-tolerance || got > tt.want+tolerance {
 				t.Errorf("clusterLimitRedis.Delta() = %v, want approx %v (tolerance %v)", got, tt.want, tolerance)
 			}

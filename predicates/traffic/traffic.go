@@ -69,8 +69,10 @@ independent traffic controlled route sets, which uses session stickiness:
 package traffic
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
@@ -81,12 +83,28 @@ const (
 	PredicateName = predicates.TrafficName
 )
 
-type spec struct{}
+// lockedSource provides a thread-safe rand.Source for v2.
+type lockedSource struct {
+	mu sync.Mutex
+	s  rand.Source
+}
+
+// Uint64 implements the rand.Source interface for v2.
+func (s *lockedSource) Uint64() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.s.Uint64()
+}
+
+type spec struct {
+	randFloat64 func() float64
+}
 
 type predicate struct {
 	chance             float64
 	trafficGroup       string
 	trafficGroupCookie string
+	randFloat64        func() float64
 }
 
 // New creates a new traffic control predicate specification.
@@ -99,7 +117,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		return nil, predicates.ErrInvalidPredicateParameters
 	}
 
-	p := &predicate{}
+	p := &predicate{randFloat64: s.randFloat64}
 
 	if c, ok := args[0].(float64); ok && 0.0 <= c && c <= 1.0 {
 		p.chance = c
@@ -124,7 +142,7 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 }
 
 func (p *predicate) takeChance() bool {
-	return rand.Float64() < p.chance // #nosec
+	return p.randFloat64() < p.chance
 }
 
 func (p *predicate) Match(r *http.Request) bool {

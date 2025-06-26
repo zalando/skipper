@@ -22,7 +22,7 @@ func (o *Options) findAndLoadPlugins() error {
 			if err != nil {
 				// don't fail when default plugin dir is missing
 				if _, ok := err.(*os.PathError); ok && dir == DefaultPluginDir {
-					return err
+					return nil
 				}
 
 				log.Fatalf("failed to search for plugins: %s", err)

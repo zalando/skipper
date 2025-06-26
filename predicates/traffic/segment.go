@@ -1,8 +1,9 @@
 package traffic
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
+	"time"
 
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
@@ -24,7 +25,8 @@ var randomValue contextKey
 
 // NewSegment creates a new traffic segment predicate specification
 func NewSegment() routing.WeightedPredicateSpec {
-	return &segmentSpec{rand.Float64}
+	src := &lockedSource{s: rand.NewPCG(uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano()/2))}
+	return &segmentSpec{rand.New(src).Float64}
 }
 
 func (*segmentSpec) Name() string {

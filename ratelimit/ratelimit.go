@@ -449,6 +449,9 @@ func newRatelimit(s Settings, sw Swarmer, redisClient *net.RedisClient) *Ratelim
 	} else {
 		switch s.Type {
 		case ServiceRatelimit:
+			if s.Lookuper == nil {
+				s.Lookuper = NewSameBucketLookuper()
+			}
 			impl = circularbuffer.NewRateLimiter(s.MaxHits, s.TimeWindow)
 		case LocalRatelimit:
 			log.Warning("LocalRatelimit is deprecated, please use ClientRatelimit instead")

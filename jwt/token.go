@@ -18,6 +18,9 @@ type Token struct {
 
 func Parse(value string) (*Token, error) {
 	parts := strings.SplitN(value, ".", 4)
+	if len(parts) > 3 {
+		parts = parts[:3]
+	}
 	if len(parts) != 3 {
 		return nil, errInvalidToken
 	}

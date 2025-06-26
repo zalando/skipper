@@ -12,7 +12,7 @@ type HostPatch struct {
 	RemovePort bool
 
 	// Remove trailing dot if present
-	RemoteTrailingDot bool
+	RemoveTrailingDot bool
 
 	// Convert to lowercase
 	ToLower bool
@@ -32,7 +32,7 @@ func (h *HostPatch) Apply(original string) string {
 		port = ""
 	}
 
-	if h.RemoteTrailingDot {
+	if h.RemoveTrailingDot {
 		last := len(host) - 1
 		if last >= 0 && host[last] == '.' {
 			host = host[:last]
