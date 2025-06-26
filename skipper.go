@@ -1513,10 +1513,11 @@ type RedisEndpoints struct {
 	Endpoints []RedisEndpoint `json:"endpoints"`
 }
 
-func getRemoteURLRedisAddrUpdater(address string) func() ([]string, error) {
+func getRemoteURLRedisAddrUpdater(address string, timeout time.Duration) func() ([]string, error) {
+	client := &http.Client{Timeout: timeout}
 	/* #nosec */
 	return func() ([]string, error) {
-		resp, err := http.Get(address)
+		resp, err := client.Get(address)
 		if err != nil {
 			log.Errorf("failed to connect to redis endpoint %v, due to: %v", address, err)
 			return nil, err
@@ -1832,7 +1833,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 			kdc := findKubernetesDataclient(dataClients)
 			if kdc != nil {
-				redisOptions.AddrUpdater = getKubernetesRedisAddrUpdater(&o, kdc, true)
+				redisOptions.AddrUpdater = getKubernetesRedisAddrUpdater(&o, kdc, false)
 			} else {
 				kdc, err := kubernetes.New(o.KubernetesDataClientOptions())
 				if err != nil {
@@ -1850,7 +1851,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			}
 		} else if redisOptions != nil && o.SwarmRedisEndpointsRemoteURL != "" {
 			log.Infof("Use remote address %s to fetch updates redis shards", o.SwarmRedisEndpointsRemoteURL)
-			redisOptions.AddrUpdater = getRemoteURLRedisAddrUpdater(o.SwarmRedisEndpointsRemoteURL)
+			redisOptions.AddrUpdater = getRemoteURLRedisAddrUpdater(o.SwarmRedisEndpointsRemoteURL, o.SourcePollTimeout)
 
 			_, err = redisOptions.AddrUpdater()
 			if err != nil {

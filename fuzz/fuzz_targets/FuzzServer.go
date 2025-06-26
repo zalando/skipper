@@ -57,7 +57,9 @@ func run_server() {
 
 	cfg := config.NewConfig()
 	cfg.InlineRoutes = `r: * -> status(200) -> inlineContent("ok") -> <shunt>`
-	cfg.ApplicationLogLevel = logrus.PanicLevel
+	if l, err := logrus.ParseLevel("panic"); err == nil {
+		cfg.ApplicationLogLevel = l
+	}
 	cfg.AccessLogDisabled = true
 	cfg.ApplicationLog = "/dev/null"
 	cfg.Address = addr
