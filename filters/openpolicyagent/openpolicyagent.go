@@ -455,17 +455,18 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 }
 
 type OpenPolicyAgentInstance struct {
-	manager                *plugins.Manager
-	instanceConfig         OpenPolicyAgentInstanceConfig
-	opaConfig              *config.Config
-	bundleName             string
-	preparedQuery          *rego.PreparedEvalQuery
-	preparedQueryDoOnce    *sync.Once
-	preparedQueryErr       error
-	interQueryBuiltinCache iCache.InterQueryCache
-	once                   sync.Once
-	closing                bool
-	registry               *OpenPolicyAgentRegistry
+	manager                     *plugins.Manager
+	instanceConfig              OpenPolicyAgentInstanceConfig
+	opaConfig                   *config.Config
+	bundleName                  string
+	preparedQuery               *rego.PreparedEvalQuery
+	preparedQueryDoOnce         *sync.Once
+	preparedQueryErr            error
+	interQueryBuiltinCache      iCache.InterQueryCache
+	interQueryBuiltinValueCache iCache.InterQueryValueCache
+	once                        sync.Once
+	closing                     bool
+	registry                    *OpenPolicyAgentRegistry
 
 	maxBodyBytes       int64
 	bodyReadBufferSize int64
@@ -565,8 +566,9 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 		maxBodyBytes:       maxBodyBytes,
 		bodyReadBufferSize: bodyReadBufferSize,
 
-		preparedQueryDoOnce:    new(sync.Once),
-		interQueryBuiltinCache: iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
+		preparedQueryDoOnce:         new(sync.Once),
+		interQueryBuiltinCache:      iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
+		interQueryBuiltinValueCache: iCache.NewInterQueryValueCache(context.Background(), manager.InterQueryBuiltinCacheConfig()),
 
 		idGenerator: uniqueIDGenerator,
 	}
@@ -945,6 +947,11 @@ func (opa *OpenPolicyAgentInstance) Logger() logging.Logger { return opa.manager
 // InterQueryBuiltinCache is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) InterQueryBuiltinCache() iCache.InterQueryCache {
 	return opa.interQueryBuiltinCache
+}
+
+// InterQueryBuiltinValueCache is an implementation of the envoyauth.EvalContext interface
+func (opa *OpenPolicyAgentInstance) InterQueryBuiltinValueCache() iCache.InterQueryValueCache {
+	return opa.interQueryBuiltinValueCache
 }
 
 // Config is an implementation of the envoyauth.EvalContext interface
