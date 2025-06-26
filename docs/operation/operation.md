@@ -4,15 +4,19 @@ This is the work in progress operations guide for showing information,
 which are relevant for production use.
 
 Skipper is proven to scale with number of routes beyond 300.000 routes
-per instance. Skipper is running with peaks to 65.000 http requests
-per second using multiple instances.
+per instance. In Kubernetes we run beyond 15000 routes in a single
+cluster. A single Skipper instance was tested to respond 65.000 http
+requests per second in continuous load tests at `<=25ms` p999 in a
+production like setup with logs, metrics and tracing enabled. Skipper
+regularly runs in production at 2 million requests per second running
+multiple instances.
 
 ## Connection Options
 
 Skipper's connection options are allowing you to set Go's [http.Server](https://golang.org/pkg/net/http/#Server)
 Options on the client side and [http.Transport](https://golang.org/pkg/net/http/#Transport) on the backend side.
 
-"It is recommended to read
+It is recommended to read
 [this blog post about net http timeouts](https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/)
 in order to better understand the impact of these settings.
 
@@ -788,6 +792,72 @@ Metrics explanation:
 
 
 If you want to read more about RouteSRV see [deploy RouteSRV](../kubernetes/ingress-controller.md#routesrv).
+
+### Route validation metrics
+
+Skipper provides metrics to track the success and failure rates of route processing during configuration updates. These
+metrics help monitor the health of route definitions and identify common configuration issues.
+
+#### Gauge metrics
+
+The following gauge metrics show the current count of invalid routes by failure reason:
+
+- `skipper_route_invalid{reason="<reason>"}`: Current number of invalid routes by reason
+- `routes.total`: Total number of valid routes currently loaded (available as
+  `routesrv_custom_gauges{key="routes.total"}` in RouteSRV)
+
+The `routes.total` gauge metric represents the current number of successfully loaded and valid routes. This metric can
+be used in combination with the invalid route metrics to calculate error rates during route processing.
+
+#### Failure reasons
+
+The metrics track different types of route validation failures:
+
+- `unknown_filter`: Route uses a filter that is not registered or available
+- `invalid_filter_params`: Route has a filter with invalid parameters
+- `unknown_predicate`: Route uses a predicate that is not registered or available
+- `invalid_predicate_params`: Route has a predicate with invalid parameters
+- `failed_backend_split`: Route has an invalid backend URL or configuration
+- `other`: Route has other unclassified validation errors
+
+#### Prometheus example
+
+```
+# HELP skipper_route_invalid Number of invalid routes by reason.
+# TYPE skipper_route_invalid gauge
+skipper_route_invalid{reason="unknown_filter"} 3
+skipper_route_invalid{reason="invalid_filter_params"} 1
+skipper_route_invalid{reason="failed_backend_split"} 2
+
+# HELP skipper_custom_gauges Gauges number of custom metrics.
+# TYPE skipper_custom_gauges gauge
+skipper_custom_gauges{key="routes.total"} 1250
+```
+
+#### Codahale example
+
+```json
+{
+  "gauges": {
+    "route.invalid.unknown_filter": {
+      "value": 3
+    },
+    "route.invalid.invalid_filter_params": {
+      "value": 1
+    },
+    "route.invalid.failed_backend_split": {
+      "value": 2
+    }
+  }
+}
+```
+
+These metrics are particularly useful for:
+
+- Monitoring configuration deployment health
+- Identifying common route definition errors
+- Alerting on configuration issues
+- Tracking the success rate of route updates
 
 ## OpenTracing
 

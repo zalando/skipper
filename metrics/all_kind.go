@@ -64,6 +64,11 @@ func (a *All) MeasureAllFiltersRequest(routeId string, start time.Time) {
 	a.codaHale.MeasureAllFiltersRequest(routeId, start)
 }
 
+func (a *All) MeasureBackendRequestHeader(host string, size int) {
+	a.prometheus.MeasureBackendRequestHeader(host, size)
+	a.codaHale.MeasureBackendRequestHeader(host, size)
+}
+
 func (a *All) MeasureBackend(routeId string, start time.Time) {
 	a.prometheus.MeasureBackend(routeId, start)
 	a.codaHale.MeasureBackend(routeId, start)
@@ -87,6 +92,11 @@ func (a *All) MeasureAllFiltersResponse(routeId string, start time.Time) {
 func (a *All) MeasureResponse(code int, method string, routeId string, start time.Time) {
 	a.prometheus.MeasureResponse(code, method, routeId, start)
 	a.codaHale.MeasureResponse(code, method, routeId, start)
+}
+
+func (a *All) MeasureResponseSize(host string, size int64) {
+	a.prometheus.MeasureResponseSize(host, size)
+	a.codaHale.MeasureResponseSize(host, size)
 }
 
 func (a *All) MeasureProxy(requestDuration, responseDuration time.Duration) {
@@ -121,14 +131,9 @@ func (a *All) IncErrorsStreaming(routeId string) {
 
 }
 
-func (a *All) IncValidRoutes() {
-	a.prometheus.IncValidRoutes()
-	a.codaHale.IncValidRoutes()
-}
-
-func (a *All) IncInvalidRoutes(reason string) {
-	a.prometheus.IncInvalidRoutes(reason)
-	a.codaHale.IncInvalidRoutes(reason)
+func (a *All) UpdateInvalidRoute(reasonCounts map[string]int) {
+	a.prometheus.UpdateInvalidRoute(reasonCounts)
+	a.codaHale.UpdateInvalidRoute(reasonCounts)
 }
 
 func (a *All) Close() {

@@ -25,18 +25,36 @@ const (
 	promCustomSubsystem    = "custom"
 )
 
+const (
+	KiB = 1024
+	MiB = 1024 * KiB
+	GiB = 1024 * MiB
+)
+
+// headerSizeBuckets are chosen to cover typical max request header sizes:
+//   - 64 KiB for [AWS ELB](https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html#http-header-limits)
+//   - 16 KiB for [NodeJS](https://nodejs.org/api/cli.html#cli_max_http_header_size_size)
+//   - 8 KiB for [Nginx](https://nginx.org/en/docs/http/ngx_http_core_module.html#large_client_header_buffers)
+//   - 8 KiB for [Spring Boot](https://docs.spring.io/spring-boot/appendix/application-properties/index.html#application-properties.server.server.max-http-request-header-size)
+var headerSizeBuckets = []float64{4 * KiB, 8 * KiB, 16 * KiB, 64 * KiB}
+
+// responseSizeBuckets are chosen to cover 2^(10*n) sizes up to 1 GiB and halves of those.
+var responseSizeBuckets = []float64{1, 512, 1 * KiB, 512 * KiB, 1 * MiB, 512 * MiB, 1 * GiB}
+
 // Prometheus implements the prometheus metrics backend.
 type Prometheus struct {
 	// Metrics.
 	routeLookupM               *prometheus.HistogramVec
 	routeErrorsM               *prometheus.CounterVec
 	responseM                  *prometheus.HistogramVec
+	responseSizeM              *prometheus.HistogramVec
 	filterCreateM              *prometheus.HistogramVec
 	filterRequestM             *prometheus.HistogramVec
 	filterAllRequestM          *prometheus.HistogramVec
 	filterAllCombinedRequestM  *prometheus.HistogramVec
-	proxyBackendM              *prometheus.HistogramVec
-	proxyBackendCombinedM      *prometheus.HistogramVec
+	backendRequestHeadersM     *prometheus.HistogramVec
+	backendM                   *prometheus.HistogramVec
+	backendCombinedM           *prometheus.HistogramVec
 	filterResponseM            *prometheus.HistogramVec
 	filterAllResponseM         *prometheus.HistogramVec
 	filterAllCombinedResponseM *prometheus.HistogramVec
@@ -47,14 +65,13 @@ type Prometheus struct {
 	proxyTotalM                *prometheus.HistogramVec
 	proxyRequestM              *prometheus.HistogramVec
 	proxyResponseM             *prometheus.HistogramVec
-	proxyBackend5xxM           *prometheus.HistogramVec
-	proxyBackendErrorsM        *prometheus.CounterVec
+	backend5xxM                *prometheus.HistogramVec
+	backendErrorsM             *prometheus.CounterVec
 	proxyStreamingErrorsM      *prometheus.CounterVec
 	customHistogramM           *prometheus.HistogramVec
 	customCounterM             *prometheus.CounterVec
 	customGaugeM               *prometheus.GaugeVec
-	validRoutesM               *prometheus.CounterVec
-	invalidRoutesM             *prometheus.CounterVec
+	invalidRouteM              *prometheus.GaugeVec
 
 	opts     Options
 	registry *prometheus.Registry
@@ -102,6 +119,14 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{"code", "method", "route"}))
 
+	p.responseSizeM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promResponseSubsystem,
+		Name:      "size_bytes",
+		Help:      "Size of response in bytes.",
+		Buckets:   responseSizeBuckets,
+	}, []string{"host"}))
+
 	p.filterCreateM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promFilterSubsystem,
@@ -134,7 +159,15 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{}))
 
-	p.proxyBackendM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	p.backendRequestHeadersM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: promBackendSubsystem,
+		Name:      "request_header_bytes",
+		Help:      "Size of a backend request header.",
+		Buckets:   headerSizeBuckets,
+	}, []string{"host"}))
+
+	p.backendM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promBackendSubsystem,
 		Name:      "duration_seconds",
@@ -142,7 +175,7 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{"route", "host"}))
 
-	p.proxyBackendCombinedM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	p.backendCombinedM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promBackendSubsystem,
 		Name:      "combined_duration_seconds",
@@ -233,19 +266,20 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{}))
 
-	p.proxyBackend5xxM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	p.backend5xxM = register(p, prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: promBackendSubsystem,
 		Name:      "5xx_duration_seconds",
 		Help:      "Duration in seconds of backend 5xx.",
 		Buckets:   opts.HistogramBuckets,
 	}, []string{}))
-	p.proxyBackendErrorsM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+	p.backendErrorsM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promBackendSubsystem,
 		Name:      "error_total",
 		Help:      "Total number of backend route errors.",
 	}, []string{"route"}))
+
 	p.proxyStreamingErrorsM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: promStreamingSubsystem,
@@ -273,18 +307,11 @@ func NewPrometheus(opts Options) *Prometheus {
 		Buckets:   opts.HistogramBuckets,
 	}, []string{"key"}))
 
-	p.validRoutesM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
+	p.invalidRouteM = register(p, prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: promRouteSubsystem,
-		Name:      "valid_routes",
-		Help:      "Total number of successfully processed routes.",
-	}, []string{}))
-
-	p.invalidRoutesM = register(p, prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: namespace,
-		Subsystem: promRouteSubsystem,
-		Name:      "invalid_routes",
-		Help:      "Total number of invalid routes with failure reasons.",
+		Name:      "invalid",
+		Help:      "Number of invalid routes by reason.",
 	}, []string{"reason"}))
 
 	// Register prometheus runtime collectors if required.
@@ -382,12 +409,16 @@ func (p *Prometheus) MeasureAllFiltersRequest(routeID string, start time.Time) {
 	}
 }
 
+func (p *Prometheus) MeasureBackendRequestHeader(host string, size int) {
+	p.backendRequestHeadersM.WithLabelValues(hostForKey(host)).Observe(float64(size))
+}
+
 // MeasureBackend satisfies Metrics interface.
 func (p *Prometheus) MeasureBackend(routeID string, start time.Time) {
 	t := p.sinceS(start)
-	p.proxyBackendCombinedM.WithLabelValues().Observe(t)
+	p.backendCombinedM.WithLabelValues().Observe(t)
 	if p.opts.EnableRouteBackendMetrics {
-		p.proxyBackendM.WithLabelValues(routeID, "").Observe(t)
+		p.backendM.WithLabelValues(routeID, "").Observe(t)
 	}
 }
 
@@ -395,7 +426,7 @@ func (p *Prometheus) MeasureBackend(routeID string, start time.Time) {
 func (p *Prometheus) MeasureBackendHost(routeBackendHost string, start time.Time) {
 	t := p.sinceS(start)
 	if p.opts.EnableBackendHostMetrics {
-		p.proxyBackendM.WithLabelValues("", routeBackendHost).Observe(t)
+		p.backendM.WithLabelValues("", routeBackendHost).Observe(t)
 	}
 }
 
@@ -424,6 +455,10 @@ func (p *Prometheus) MeasureResponse(code int, method string, routeID string, st
 	if p.opts.EnableRouteResponseMetrics {
 		p.responseM.WithLabelValues(fmt.Sprint(code), method, routeID).Observe(t)
 	}
+}
+
+func (p *Prometheus) MeasureResponseSize(host string, size int64) {
+	p.responseSizeM.WithLabelValues(hostForKey(host)).Observe(float64(size))
 }
 
 func (p *Prometheus) MeasureProxy(requestDuration, responseDuration time.Duration) {
@@ -474,13 +509,13 @@ func (p *Prometheus) IncRoutingFailures() {
 
 // IncErrorsBackend satisfies Metrics interface.
 func (p *Prometheus) IncErrorsBackend(routeID string) {
-	p.proxyBackendErrorsM.WithLabelValues(routeID).Inc()
+	p.backendErrorsM.WithLabelValues(routeID).Inc()
 }
 
 // MeasureBackend5xx satisfies Metrics interface.
 func (p *Prometheus) MeasureBackend5xx(start time.Time) {
 	t := p.sinceS(start)
-	p.proxyBackend5xxM.WithLabelValues().Observe(t)
+	p.backend5xxM.WithLabelValues().Observe(t)
 }
 
 // IncErrorsStreaming satisfies Metrics interface.
@@ -488,14 +523,11 @@ func (p *Prometheus) IncErrorsStreaming(routeID string) {
 	p.proxyStreamingErrorsM.WithLabelValues(routeID).Inc()
 }
 
-// IncValidRoutes satisfies Metrics interface.
-func (p *Prometheus) IncValidRoutes() {
-	p.validRoutesM.WithLabelValues().Inc()
-}
-
-// IncInvalidRoutes satisfies Metrics interface.
-func (p *Prometheus) IncInvalidRoutes(reason string) {
-	p.invalidRoutesM.WithLabelValues(reason).Inc()
+// UpdateInvalidRoute satisfies Metrics interface.
+func (p *Prometheus) UpdateInvalidRoute(reasonCounts map[string]int) {
+	for reason, count := range reasonCounts {
+		p.invalidRouteM.WithLabelValues(reason).Set(float64(count))
+	}
 }
 
 func (p *Prometheus) Close() {}

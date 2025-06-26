@@ -39,6 +39,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/fastcgi"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/rfc"
@@ -966,6 +967,8 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
+	payloadProtocol := getUpgradeRequest(ctx.Request())
+
 	req, endpointMetrics, err := p.mapRequest(ctx, requestContext)
 	if err != nil {
 		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
@@ -980,7 +983,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		defer endpointMetrics.DecInflightRequest()
 	}
 
-	if p.experimentalUpgrade && isUpgradeRequest(req) {
+	if p.experimentalUpgrade && payloadProtocol != "" {
+		// see also https://github.com/golang/go/blob/9159cd4ec6b0e9475dc9c71c830035c1c4c13483/src/net/http/httputil/reverseproxy.go#L423-L428
+		req.Header.Set("Connection", "Upgrade")
+		req.Header.Set("Upgrade", payloadProtocol)
 		p.makeUpgradeRequest(ctx, req)
 
 		// We are not owner of the connection anymore.
@@ -1022,6 +1028,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	p.metrics.IncCounter("outgoing." + req.Proto)
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
+
+	p.metrics.MeasureBackendRequestHeader(ctx.metricsHost(), snet.SizeOfRequestHeader(req))
 
 	ctx.proxyWatch.Stop()
 	ctx.proxyRequestLatency = ctx.proxyWatch.Elapsed()
@@ -1255,6 +1263,10 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
 		ctx.parentSpan = loopSpan
 
+		r := loopCTX.Request()
+		r = r.WithContext(ot.ContextWithSpan(r.Context(), loopSpan))
+		loopCTX.request = r
+
 		defer loopSpan.Finish()
 
 		if err := p.do(loopCTX, loopSpan); err != nil {
@@ -1404,6 +1416,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
+		p.metrics.MeasureResponseSize(ctx.metricsHost(), n)
 	}
 	p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
 }

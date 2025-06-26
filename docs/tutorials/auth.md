@@ -448,7 +448,7 @@ The variable `.bundlename` is the first argument in the following filters and ca
 
 ### Input Structures
 
-Input structures to policies follow those that are used by the [opa-envoy-plugin](https://github.com/open-policy-agent/opa-envoy-plugin), the existing [examples and documentation](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-input) apply also to Skipper. Please note that the filters in Skipper always generate v3 input structures.
+Input structures to policies follow those that are used by the [opa-envoy-plugin](https://github.com/open-policy-agent/opa-envoy-plugin), the existing [examples and documentation](https://www.openpolicyagent.org/docs/envoy/primer#example-input) apply also to Skipper. Please note that the filters in Skipper always generate v3 input structures.
 
 ### Passing context to the policy
 
