@@ -217,11 +217,9 @@ func BenchmarkJwtValidation(b *testing.B) {
 	}
 
 	for _, bc := range cases {
-		b.Run(bc.name, func(b *testing.B) {
-
-			opaControlPlane := opasdktest.MustNewServer(
-				opasdktest.MockBundle(testBundleEndpoint, map[string]string{
-					"main.rego": fmt.Sprintf(`
+		opaControlPlane := opasdktest.MustNewServer(
+			opasdktest.MockBundle(testBundleEndpoint, map[string]string{
+				"main.rego": fmt.Sprintf(`
 					package envoy.authz
 
 					import rego.v1
@@ -247,44 +245,45 @@ func BenchmarkJwtValidation(b *testing.B) {
 						payload.sub == "5974934733"
 					}				
 				`, publicKey),
-				}),
-			)
-			defer opaControlPlane.Stop()
+			}),
+		)
+		defer opaControlPlane.Stop()
 
-			filterOpts := FilterOptions{
-				OpaControlPlaneUrl:  opaControlPlane.URL(),
-				DecisionConsumerUrl: "",
-				DecisionPath:        testDecisionPath,
-				BundleNames:         []string{testBundleName},
-				DecisionLogging:     false,
-				ContextExtensions:   "",
-				JwtCache:            bc.jwtCache,
-			}
+		filterOpts := FilterOptions{
+			OpaControlPlaneUrl:  opaControlPlane.URL(),
+			DecisionConsumerUrl: "",
+			DecisionPath:        testDecisionPath,
+			BundleNames:         []string{testBundleName},
+			DecisionLogging:     false,
+			ContextExtensions:   "",
+			JwtCache:            bc.jwtCache,
+		}
 
-			f, err := createOpaFilter(filterOpts)
-			require.NoError(b, err)
+		f, err := createOpaFilter(filterOpts)
+		require.NoError(b, err)
 
-			reqUrl, err := url.Parse("http://opa-authorized.test/somepath")
-			require.NoError(b, err)
+		reqUrl, err := url.Parse("http://opa-authorized.test/somepath")
+		require.NoError(b, err)
 
-			claims := jwt.MapClaims{
-				"iss":   "https://some.identity.acme.com",
-				"sub":   "5974934733",
-				"aud":   "nqz3xhorr5",
-				"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
-				"exp":   time.Now().Add(tokenExp).UTC().Unix(),
-				"email": "someone@example.org",
-			}
+		claims := jwt.MapClaims{
+			"iss":   "https://some.identity.acme.com",
+			"sub":   "5974934733",
+			"aud":   "nqz3xhorr5",
+			"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
+			"exp":   time.Now().Add(tokenExp).UTC().Unix(),
+			"email": "someone@example.org",
+		}
 
-			token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
-			key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
-			require.NoError(b, err, "Failed to parse RSA PEM")
+		key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
+		require.NoError(b, err, "Failed to parse RSA PEM")
 
-			// Sign and get the complete encoded token as a string using the secret
-			signedToken, err := token.SignedString(key)
-			require.NoError(b, err, "Failed to sign token")
+		// Sign and get the complete encoded token as a string using the secret
+		signedToken, err := token.SignedString(key)
+		require.NoError(b, err, "Failed to sign token")
 
+		b.Run(bc.name, func(b *testing.B) {
 			ctx := &filtertest.Context{
 				FStateBag: map[string]interface{}{},
 				FResponse: &http.Response{},
