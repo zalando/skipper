@@ -124,6 +124,7 @@ func BenchmarkMinimalPolicyWithDecisionLogs(b *testing.B) {
 		BundleNames:         []string{testBundleName},
 		DecisionLogging:     true,
 		ContextExtensions:   "",
+		JwtCache:            false,
 	}
 	f, err := createOpaFilter(filterOpts)
 	require.NoError(b, err)
@@ -199,9 +200,26 @@ func BenchmarkAllowWithReqBody(b *testing.B) {
 }
 
 func BenchmarkJwtValidation(b *testing.B) {
-	opaControlPlane := opasdktest.MustNewServer(
-		opasdktest.MockBundle(testBundleEndpoint, map[string]string{
-			"main.rego": fmt.Sprintf(`
+	type benchmarkCase struct {
+		name     string
+		jwtCache bool
+	}
+
+	cases := []benchmarkCase{
+		{
+			name:     "default_filter",
+			jwtCache: false,
+		},
+		{
+			name:     "with_jwt_cache",
+			jwtCache: true,
+		},
+	}
+
+	for _, bc := range cases {
+		opaControlPlane := opasdktest.MustNewServer(
+			opasdktest.MockBundle(testBundleEndpoint, map[string]string{
+				"main.rego": fmt.Sprintf(`
 					package envoy.authz
 
 					import rego.v1
@@ -227,54 +245,66 @@ func BenchmarkJwtValidation(b *testing.B) {
 						payload.sub == "5974934733"
 					}				
 				`, publicKey),
-		}),
-	)
-	defer opaControlPlane.Stop()
+			}),
+		)
+		defer opaControlPlane.Stop()
 
-	filterOpts := NewFilterOptionsWithDefaults(opaControlPlane.URL())
-	f, err := createOpaFilter(filterOpts)
-	require.NoError(b, err)
-
-	reqUrl, err := url.Parse("http://opa-authorized.test/somepath")
-	require.NoError(b, err)
-
-	claims := jwt.MapClaims{
-		"iss":   "https://some.identity.acme.com",
-		"sub":   "5974934733",
-		"aud":   "nqz3xhorr5",
-		"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
-		"exp":   time.Now().Add(tokenExp).UTC().Unix(),
-		"email": "someone@example.org",
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-
-	key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
-	require.NoError(b, err, "Failed to parse RSA PEM")
-
-	// Sign and get the complete encoded token as a string using the secret
-	signedToken, err := token.SignedString(key)
-	require.NoError(b, err, "Failed to sign token")
-
-	ctx := &filtertest.Context{
-		FStateBag: map[string]interface{}{},
-		FResponse: &http.Response{},
-		FRequest: &http.Request{
-			Header: map[string][]string{
-				"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
-			},
-			URL: reqUrl,
-		},
-		FMetrics: &metricstest.MockMetrics{},
-	}
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			f.Request(ctx)
-			assert.False(b, ctx.FServed)
+		filterOpts := FilterOptions{
+			OpaControlPlaneUrl:  opaControlPlane.URL(),
+			DecisionConsumerUrl: "",
+			DecisionPath:        testDecisionPath,
+			BundleNames:         []string{testBundleName},
+			DecisionLogging:     false,
+			ContextExtensions:   "",
+			JwtCache:            bc.jwtCache,
 		}
-	})
+
+		f, err := createOpaFilter(filterOpts)
+		require.NoError(b, err)
+
+		reqUrl, err := url.Parse("http://opa-authorized.test/somepath")
+		require.NoError(b, err)
+
+		claims := jwt.MapClaims{
+			"iss":   "https://some.identity.acme.com",
+			"sub":   "5974934733",
+			"aud":   "nqz3xhorr5",
+			"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
+			"exp":   time.Now().Add(tokenExp).UTC().Unix(),
+			"email": "someone@example.org",
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
+		key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
+		require.NoError(b, err, "Failed to parse RSA PEM")
+
+		// Sign and get the complete encoded token as a string using the secret
+		signedToken, err := token.SignedString(key)
+		require.NoError(b, err, "Failed to sign token")
+
+		b.Run(bc.name, func(b *testing.B) {
+			ctx := &filtertest.Context{
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{},
+				FRequest: &http.Request{
+					Header: map[string][]string{
+						"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
+					},
+					URL: reqUrl,
+				},
+				FMetrics: &metricstest.MockMetrics{},
+			}
+
+			b.ResetTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					f.Request(ctx)
+					assert.False(b, ctx.FServed)
+				}
+			})
+		})
+	}
 }
 
 // BenchmarkPolicyBundle measures the performance of the OPA authorization filter
@@ -311,6 +341,7 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 		DecisionPath:        "envoy/authz/allow",
 		BundleNames:         []string{bundleName},
 		DecisionLogging:     false,
+		JwtCache:            false,
 	}
 	f, err := createOpaFilter(filterOpts)
 	require.NoError(b, err)
@@ -395,6 +426,7 @@ func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 				DecisionPath:        "policy/allow",
 				BundleNames:         []string{"policy", "context-data"},
 				DecisionLogging:     false,
+				JwtCache:            false,
 			}
 
 			f, err := bc.createFunc(filterOpts)
@@ -464,20 +496,20 @@ func newDecisionConsumer() *httptest.Server {
 }
 
 func createOpaFilter(opts FilterOptions) (filters.Filter, error) {
-	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
+	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging, opts.JwtCache)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
 func createBodyBasedOpaFilter(opts FilterOptions) (filters.Filter, error) {
-	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
+	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging, opts.JwtCache)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestWithBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
-func generateConfig(opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool) []byte {
+func generateConfig(opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool, jwtCache bool) []byte {
 	var decisionPlugin string
 	if decisionLogging {
 		decisionPlugin = `
@@ -487,6 +519,21 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
   				"reporting": {
 					"min_delay_seconds": 300,
 					"max_delay_seconds": 600				
+				}
+			},
+		`
+	}
+
+	var jwtCacheConfig string
+	if jwtCache {
+		jwtCacheConfig = `
+			"caching": {
+				"inter_query_builtin_value_cache": {
+					"named": {
+						"io_jwt": {
+							"max_num_entries": 1000
+						}
+					}
 				}
 			},
 		`
@@ -520,8 +567,9 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
 				"path": %q,
 				"dry-run": false    
 			}
-		}
-	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath))
+		},
+		%s
+	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath, jwtCacheConfig))
 }
 
 func createOpaFilterForMultipleBundles(opts FilterOptions) (filters.Filter, error) {
@@ -600,6 +648,7 @@ type FilterOptions struct {
 	BundleNames         []string
 	DecisionLogging     bool
 	ContextExtensions   string
+	JwtCache            bool
 }
 
 func NewFilterOptionsWithDefaults(opaControlPlaneURL string) FilterOptions {
@@ -610,5 +659,6 @@ func NewFilterOptionsWithDefaults(opaControlPlaneURL string) FilterOptions {
 		BundleNames:         []string{testBundleName},
 		DecisionLogging:     false,
 		ContextExtensions:   "",
+		JwtCache:            false,
 	}
 }
