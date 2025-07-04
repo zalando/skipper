@@ -148,10 +148,10 @@ func TestTracingIngressSpanLoopback(t *testing.T) {
 	}
 
 	doc := fmt.Sprintf(`
-%s: Path("/shunt") -> setPath("/bye") -> setQuery("void") -> status(204) -> <shunt>;
-%s: Path("/loop1") -> setPath("/shunt") -> <loopback>;
-%s: Path("/loop2") -> setPath("/loop1") -> <loopback>;
-`, shuntRouteID, loop1RouteID, loop2RouteID)
+%s: Path("/shunt") -> setPath("/bye") -> setQuery("void") -> tracingTag("tracing-tag", "%s") -> status(204) -> <shunt>;
+%s: Path("/loop1") -> setPath("/shunt") -> tracingTag("tracing-tag", "%s") -> <loopback>;
+%s: Path("/loop2") -> setPath("/loop1") -> tracingTag("tracing-tag", "%s") -> <loopback>;
+`, shuntRouteID, shuntRouteID, loop1RouteID, loop1RouteID, loop2RouteID, loop2RouteID)
 
 	tracer := tracingtest.NewTracer()
 	params := Params{
@@ -205,6 +205,7 @@ func TestTracingIngressSpanLoopback(t *testing.T) {
 		verifyTag(t, span, HTTPPathTag, paths[rid])
 		verifyTag(t, span, HTTPHostTag, ps.Listener.Addr().String())
 		verifyTag(t, span, FlowIDTag, "test-flow-id")
+		verifyTag(t, span, "tracing-tag", rid)
 	}
 }
 
