@@ -1,8 +1,10 @@
 package queuelistener
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -28,8 +30,7 @@ type stackListener struct {
 func StackListener(o Options) (net.Listener, error) {
 	nl, err := net.Listen(o.Network, o.Address)
 	if err != nil {
-		fmt.Errorf("StackListener failed net.Listen: %w", err)
-		return nil, err
+		return nil, fmt.Errorf("StackListener failed net.Listen: %w", err)
 	}
 
 	acceptCH := make(chan external)
@@ -84,7 +85,9 @@ func (l *stackListener) Accept() (net.Conn, error) {
 		d := time.Since(c.accepted)
 		if d > l.queueTimeout {
 			l.metrics.IncCounter(queueTimeoutKey)
-			c.Conn.Close()
+			if c.Conn != nil {
+				c.Conn.Close()
+			}
 			return nil, errAcceptTimeout
 		}
 		return c, nil
@@ -119,8 +122,15 @@ func (l *stackListener) listenExternal() {
 
 		c, err = l.externalListener.Accept()
 		if err != nil {
-			l.log.Errorf("Failed to accept connection: %v", err)
+			if errors.Is(err, http.ErrServerClosed) {
+				l.log.Infof("Server closed: %v", err)
+				return
+			}
+
+			// client closed for example
+			l.log.Infof("Failed to accept connection (%T): %v", err, err)
 			if c != nil {
+				l.log.Info("close connection")
 				c.Close()
 			}
 			continue
@@ -136,7 +146,6 @@ func (l *stackListener) listenInternal() {
 		case <-l.quit:
 			return
 		default:
-			time.Sleep(time.Second) // slow down for testing
 		}
 		cc := l.stack.Pop()
 		if cc == nil {

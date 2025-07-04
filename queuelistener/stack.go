@@ -7,18 +7,15 @@ import (
 const stackSize int = 10000
 
 type naiveStack[T any] struct {
-	mu sync.Mutex
-	//cond  *sync.Cond
+	mu    sync.Mutex
 	top   int
 	items [stackSize]*T
 }
 
 func NewStack() *naiveStack[external] {
-	ns := &naiveStack[external]{
+	return &naiveStack[external]{
 		top: -1,
 	}
-	//ns.cond = sync.NewCond(&ns.mu)
-	return ns
 }
 
 func (s *naiveStack[T]) Push(data *T) {
@@ -31,8 +28,6 @@ func (s *naiveStack[T]) Push(data *T) {
 
 	s.top++
 	s.items[s.top] = data
-	//s.mu.Unlock()
-	//s.cond.Signal()
 }
 
 func (s *naiveStack[T]) Pop() *T {
@@ -41,7 +36,6 @@ func (s *naiveStack[T]) Pop() *T {
 
 	if s.top == -1 {
 		return nil
-		//s.cond.Wait()
 	} else {
 		defer func() { s.top-- }()
 	}
