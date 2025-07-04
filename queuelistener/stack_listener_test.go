@@ -467,10 +467,14 @@ func BenchmarkStackListener(b *testing.B) {
 
 	// check ready
 	err = fmt.Errorf("an error")
+	var rsp *http.Response
 	for err != nil {
-		_, err = http.DefaultClient.Get("http://" + l.Addr().String() + "/")
+		rsp, err = http.DefaultClient.Get("http://" + l.Addr().String() + "/")
 		time.Sleep(time.Millisecond)
 	}
+	io.Copy(io.Discard, rsp.Body)
+	rsp.Body.Close()
+	http.DefaultClient.CloseIdleConnections()
 
 	b.ResetTimer()
 
