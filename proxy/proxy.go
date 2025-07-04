@@ -1255,6 +1255,10 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
 		ctx.parentSpan = loopSpan
 
+		r := loopCTX.Request()
+		r = r.WithContext(ot.ContextWithSpan(r.Context(), loopSpan))
+		loopCTX.request = r
+
 		defer loopSpan.Finish()
 
 		if err := p.do(loopCTX, loopSpan); err != nil {
