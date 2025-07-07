@@ -20,11 +20,11 @@ func NewLoopbackIfStatus() filters.Spec {
 	return &loopbackIfStatusSpec{}
 }
 
-func (c loopbackIfStatusFilter) Request(ctx filters.FilterContext) {
+func (c *loopbackIfStatusFilter) Request(ctx filters.FilterContext) {
 
 }
 
-func (c loopbackIfStatusFilter) Response(context filters.FilterContext) {
+func (c *loopbackIfStatusFilter) Response(context filters.FilterContext) {
 	if context.Response().StatusCode == c.statusCode {
 		context.Request().URL.Path = c.path
 		context.LoopbackWithResponse()
@@ -55,7 +55,7 @@ func (s *loopbackIfStatusSpec) CreateFilter(args []interface{}) (filters.Filter,
 		return nil, filters.ErrInvalidFilterParameters
 	}
 
-	return f, nil
+	return &f, nil
 }
 
 func (s *loopbackIfStatusSpec) Name() string {
