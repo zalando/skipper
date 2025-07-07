@@ -103,6 +103,7 @@ func NewApiUsageMonitoring(
 		unknownPath:           unknownPath,
 		realmsTrackingMatcher: realmsTrackingMatcher,
 		sometimes:             rate.Sometimes{First: 3, Interval: 1 * time.Minute},
+		filterMap:             make(map[string]*apiUsageMonitoringFilter),
 	}
 	log.Debugf("created filter spec: %+v", spec)
 	return spec
@@ -124,6 +125,9 @@ type apiUsageMonitoringSpec struct {
 	realmsTrackingMatcher *regexp.Regexp
 	unknownPath           *pathInfo
 	sometimes             rate.Sometimes
+
+	mu        sync.Mutex
+	filterMap map[string]*apiUsageMonitoringFilter
 }
 
 func (s *apiUsageMonitoringSpec) errorf(format string, args ...interface{}) {
@@ -154,7 +158,31 @@ func (s *apiUsageMonitoringSpec) Name() string {
 	return filters.ApiUsageMonitoringName
 }
 
-func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filters.Filter, err error) {
+func keyFromArgs(args []interface{}) string {
+	var sb strings.Builder
+	for _, a := range args {
+		s, ok := a.(string)
+		if !ok {
+			sb.Reset()
+			break
+		}
+		sb.WriteString(s)
+	}
+	return sb.String()
+}
+
+func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
+	key := keyFromArgs(args)
+	if key != "" {
+		s.mu.Lock()
+		f, ok := s.filterMap[key]
+		if ok {
+			s.mu.Unlock()
+			return f, nil
+		}
+		s.mu.Unlock()
+	}
+
 	apis := s.parseJsonConfiguration(args)
 	paths := s.buildPathInfoListFromConfiguration(apis)
 
@@ -163,13 +191,18 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filter filter
 		return noopFilter{}, nil
 	}
 
-	filter = &apiUsageMonitoringFilter{
+	f := &apiUsageMonitoringFilter{
 		realmKeys:   s.realmKeys,
 		clientKeys:  s.clientKeys,
 		Paths:       paths,
 		UnknownPath: s.buildUnknownPathInfo(paths),
 	}
-	return
+
+	s.mu.Lock()
+	s.filterMap[key] = f
+	s.mu.Unlock()
+
+	return f, nil
 }
 
 func (s *apiUsageMonitoringSpec) parseJsonConfiguration(args []interface{}) []*apiConfig {
