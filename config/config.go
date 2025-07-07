@@ -380,7 +380,7 @@ func NewConfig() *Config {
 	flag.Var(&cfg.Ratelimits, "ratelimits", ratelimitsUsage)
 	flag.BoolVar(&cfg.EnableRouteFIFOMetrics, "enable-route-fifo-metrics", false, "enable metrics for the individual route FIFO queues")
 	flag.BoolVar(&cfg.EnableRouteLIFOMetrics, "enable-route-lifo-metrics", false, "enable metrics for the individual route LIFO queues")
-	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them")
+	flag.Var(cfg.MetricsFlavour, "metrics-flavour", "Metrics flavour is used to change the exposed metrics format. Supported metric formats: 'codahale' and 'prometheus', you can select both of them by using one option with ',' separated values")
 	flag.Var(cfg.FilterPlugins, "filter-plugin", "set a custom filter plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.PredicatePlugins, "predicate-plugin", "set a custom predicate plugins to load, a comma separated list of name and arguments")
 	flag.Var(cfg.DataclientPlugins, "dataclient-plugin", "set a custom dataclient plugins to load, a comma separated list of name and arguments")
