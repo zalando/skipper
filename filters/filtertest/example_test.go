@@ -16,13 +16,14 @@ package filtertest_test
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/filtertest"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
-	"log"
 )
 
 type customFilter struct{}

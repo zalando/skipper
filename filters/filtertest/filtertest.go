@@ -86,6 +86,8 @@ func (spec *Filter) CreateFilter(config []interface{}) (filters.Filter, error) {
 
 func (fc *Context) Loopback() {}
 
+func (fc *Context) LoopbackWithResponse() {}
+
 func (fc *Context) Split() (filters.FilterContext, error) {
 	return fc, nil
 }

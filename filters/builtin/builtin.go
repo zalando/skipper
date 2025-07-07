@@ -149,6 +149,7 @@ func Filters() []filters.Spec {
 		NewStripQuery(),
 		NewInlineContent(),
 		NewInlineContentIfStatus(),
+		NewLoopbackIfStatus(),
 		flowid.New(),
 		xforward.New(),
 		xforward.NewFirst(),
