@@ -307,11 +307,11 @@ func (c *context) LoopbackWithResponse() {
 	c.loopbackInternal(true)
 }
 
-func (c *context) loopbackInternal(keepReponse bool) {
+func (c *context) loopbackInternal(keepResponse bool) {
 	loopSpan := c.tracer.StartSpan(c.proxy.tracing.initialOperationName, opentracing.ChildOf(c.parentSpan.Context()))
 	defer loopSpan.Finish()
 	err := c.proxy.do(c, loopSpan)
-	if c.response != nil && c.response.Body != nil && !keepReponse {
+	if c.response != nil && c.response.Body != nil && !keepResponse {
 		if _, err := io.Copy(io.Discard, c.response.Body); err != nil {
 			c.Logger().Errorf("context: error while discarding remainder response body: %v.", err)
 		}
