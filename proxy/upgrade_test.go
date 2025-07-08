@@ -95,6 +95,7 @@ func TestServeHTTP(t *testing.T) {
 		backendClosesConnection    bool
 		backendHangs               bool
 		noBackend                  bool
+		dropHopHeaders             bool
 		backendStatusCode          int
 		expectedResponseStatusCode int
 		expectedResponseBody       string
@@ -110,6 +111,13 @@ func TestServeHTTP(t *testing.T) {
 			msg:               "Simple route",
 			route:             `route: Path("/ws") -> "%s";`,
 			method:            http.MethodGet,
+			backendStatusCode: http.StatusSwitchingProtocols,
+		},
+		{
+			msg:               "Simple route with hop-headers dropped",
+			route:             `route: Path("/ws") -> "%s";`,
+			method:            http.MethodGet,
+			dropHopHeaders:    true,
 			backendStatusCode: http.StatusSwitchingProtocols,
 		},
 		{
@@ -247,7 +255,14 @@ func TestServeHTTP(t *testing.T) {
 				defer backend.Close()
 			}
 
-			tp, err := newTestProxyWithParams(routes, Params{ExperimentalUpgrade: true})
+			flags := FlagsNone
+			if ti.dropHopHeaders {
+				flags = HopHeadersRemoval
+			}
+			tp, err := newTestProxyWithParams(routes, Params{
+				ExperimentalUpgrade: true,
+				Flags:               flags,
+			})
 			require.NoError(t, err)
 
 			defer tp.close()
