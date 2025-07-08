@@ -966,6 +966,12 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
+	var payloadProtocol string
+	isUpgrade := isUpgradeRequest(ctx.Request())
+	if isUpgrade {
+		payloadProtocol = ctx.Request().Header.Get("Upgrade")
+	}
+
 	req, endpointMetrics, err := p.mapRequest(ctx, requestContext)
 	if err != nil {
 		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
@@ -980,7 +986,9 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		defer endpointMetrics.DecInflightRequest()
 	}
 
-	if p.experimentalUpgrade && isUpgradeRequest(req) {
+	if p.experimentalUpgrade && isUpgrade {
+		req.Header.Set("Upgrade", payloadProtocol)
+		req.Header.Set("Connection", "Upgrade")
 		p.makeUpgradeRequest(ctx, req)
 
 		// We are not owner of the connection anymore.
