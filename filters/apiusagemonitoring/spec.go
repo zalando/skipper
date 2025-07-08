@@ -2,6 +2,7 @@ package apiusagemonitoring
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -158,22 +159,23 @@ func (s *apiUsageMonitoringSpec) Name() string {
 	return filters.ApiUsageMonitoringName
 }
 
-func keyFromArgs(args []interface{}) string {
+func keyFromArgs(args []interface{}) (string, error) {
 	var sb strings.Builder
 	for _, a := range args {
 		s, ok := a.(string)
 		if !ok {
 			sb.Reset()
-			break
+			return "", fmt.Errorf("failed to cast '%v' to string", a)
 		}
 		sb.WriteString(s)
 	}
-	return sb.String()
+	return sb.String(), nil
 }
 
 func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filter, error) {
-	key := keyFromArgs(args)
-	if key != "" {
+	key, err := keyFromArgs(args)
+	// cache lookup
+	if err == nil {
 		s.mu.Lock()
 		f, ok := s.filterMap[key]
 		if ok {
@@ -198,6 +200,7 @@ func (s *apiUsageMonitoringSpec) CreateFilter(args []interface{}) (filters.Filte
 		UnknownPath: s.buildUnknownPathInfo(paths),
 	}
 
+	// cache write
 	s.mu.Lock()
 	s.filterMap[key] = f
 	s.mu.Unlock()
