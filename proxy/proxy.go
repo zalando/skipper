@@ -39,6 +39,7 @@ import (
 	"github.com/zalando/skipper/loadbalancer"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
+	snet "github.com/zalando/skipper/net"
 	"github.com/zalando/skipper/proxy/fastcgi"
 	"github.com/zalando/skipper/ratelimit"
 	"github.com/zalando/skipper/rfc"
@@ -1023,6 +1024,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	ctx.proxySpan.LogKV("http_roundtrip", StartEvent)
 	req = injectClientTrace(req, ctx.proxySpan)
 
+	p.metrics.MeasureBackendRequestHeader(ctx.metricsHost(), snet.SizeOfRequestHeader(req))
+
 	ctx.proxyWatch.Stop()
 	ctx.proxyRequestLatency = ctx.proxyWatch.Elapsed()
 	response, err := roundTripper.RoundTrip(req)
@@ -1408,6 +1411,7 @@ func (p *Proxy) serveResponse(ctx *context) {
 		p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, fmt.Sprintf("Failed to stream response: %v", err))
 	} else {
 		p.metrics.MeasureResponse(ctx.response.StatusCode, ctx.request.Method, ctx.route.Id, start)
+		p.metrics.MeasureResponseSize(ctx.metricsHost(), n)
 	}
 	p.metrics.MeasureServe(ctx.route.Id, ctx.metricsHost(), ctx.request.Method, ctx.response.StatusCode, ctx.startServe)
 }

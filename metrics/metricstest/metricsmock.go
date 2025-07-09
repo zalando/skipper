@@ -17,6 +17,7 @@ type MockMetrics struct {
 	floatCounters map[string]float64
 	gauges        map[string]float64
 	measures      map[string][]time.Duration
+	values        map[string][]float64
 	Now           time.Time
 }
 
@@ -51,13 +52,21 @@ func (m *MockMetrics) WithMeasures(f func(measures map[string][]time.Duration)) 
 	f(m.measures)
 }
 
+func (m *MockMetrics) WithValues(f func(measures map[string][]float64)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.values == nil {
+		m.values = make(map[string][]float64)
+	}
+	f(m.values)
+}
+
 func (m *MockMetrics) WithGauges(f func(map[string]float64)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.gauges == nil {
 		m.gauges = make(map[string]float64)
 	}
-
 	f(m.gauges)
 }
 
@@ -128,6 +137,13 @@ func (m *MockMetrics) MeasureAllFiltersRequest(routeId string, start time.Time) 
 	// implement me
 }
 
+func (m *MockMetrics) MeasureBackendRequestHeader(host string, size int) {
+	headerSizeKey := fmt.Sprintf("%sbackend.%s.request_header_bytes", m.Prefix, host)
+	m.WithValues(func(values map[string][]float64) {
+		values[headerSizeKey] = append(values[headerSizeKey], float64(size))
+	})
+}
+
 func (m *MockMetrics) MeasureBackend(routeId string, start time.Time) {
 	// implement me
 }
@@ -146,6 +162,13 @@ func (m *MockMetrics) MeasureAllFiltersResponse(routeId string, start time.Time)
 
 func (m *MockMetrics) MeasureResponse(code int, method string, routeId string, start time.Time) {
 	// implement me
+}
+
+func (m *MockMetrics) MeasureResponseSize(host string, size int64) {
+	responseSizeKey := fmt.Sprintf("%sresponse.%s.size_bytes", m.Prefix, host)
+	m.WithValues(func(measures map[string][]float64) {
+		measures[responseSizeKey] = append(measures[responseSizeKey], float64(size))
+	})
 }
 
 func (m *MockMetrics) MeasureProxy(requestDuration, responseDuration time.Duration) {
