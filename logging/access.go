@@ -2,13 +2,16 @@ package logging
 
 import (
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/sirupsen/logrus"
 
+	al "github.com/zalando/skipper/filters/accesslog"
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
 	logFilter "github.com/zalando/skipper/filters/log"
 )
@@ -109,6 +112,27 @@ func stripQueryString(u string) string {
 	}
 }
 
+// maskQueryParams masks (i.e., hashing) specific query parameters in the provided request's URI.
+// Returns the obfuscated URI.
+func maskQueryParams(req *http.Request, maskedQueryParams map[string]struct{}) string {
+	strippedURI := stripQueryString(req.RequestURI)
+
+	params := req.URL.Query()
+	for k := range maps.Keys(maskedQueryParams) {
+		val := params.Get(k)
+		if val == "" {
+			continue
+		}
+		params.Set(k, fmt.Sprintf("%d", hash(val)))
+	}
+
+	return fmt.Sprintf("%s?%s", strippedURI, params.Encode())
+}
+
+func hash(val string) uint64 {
+	return xxhash.Sum64String(val)
+}
+
 // Logs an access event in Apache combined log format (with a minor customization with the duration).
 // Additional allows to provide extra data that may be also logged, depending on the specific log format.
 func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
@@ -144,6 +168,8 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		uri = entry.Request.RequestURI
 		if stripQuery {
 			uri = stripQueryString(uri)
+		} else if keys, ok := additional[al.KeyMaskedQueryParams].(map[string]struct{}); ok && len(keys) > 0 {
+			uri = maskQueryParams(entry.Request, keys)
 		}
 
 		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
@@ -166,9 +192,9 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		"auth-user":      authUser,
 	}
 
-	for k, v := range additional {
-		logData[k] = v
-	}
+	delete(additional, al.KeyMaskedQueryParams)
+
+	maps.Copy(logData, additional)
 
 	logEntry := accessLog.WithFields(logData)
 	if entry.Request != nil {
