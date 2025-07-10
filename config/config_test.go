@@ -147,8 +147,11 @@ func defaultConfig(with func(*Config)) *Config {
 		SwarmRedisReadTimeout:                   25 * time.Millisecond,
 		SwarmRedisWriteTimeout:                  25 * time.Millisecond,
 		SwarmRedisPoolTimeout:                   25 * time.Millisecond,
-		SwarmRedisMinConns:                      100,
-		SwarmRedisMaxConns:                      100,
+		SwarmRedisMinIdleConns:                  100,
+		SwarmRedisMaxIdleConns:                  100,
+		SwarmRedisEndpointsUpdateInterval:       defaultSwarmRedisUpdateInterval,
+		SwarmRedisConnMetricsInterval:           defaultSwarmRedisConnMetricsInterval,
+		SwarmRedisMetricsPrefix:                 defaultSwarmRedisMetricsPrefix,
 		SwarmKubernetesNamespace:                "kube-system",
 		SwarmKubernetesLabelSelectorKey:         "application",
 		SwarmKubernetesLabelSelectorValue:       "skipper-ingress",
@@ -192,7 +195,7 @@ func TestToOptions(t *testing.T) {
 		c.ForwardedHeadersList.Set("X-Forwarded-For,X-Forwarded-Host,X-Forwarded-Method,X-Forwarded-Uri,X-Forwarded-Port=,X-Forwarded-Proto=http")
 		c.HostPatch = net.HostPatch{
 			ToLower:           true,
-			RemoteTrailingDot: true,
+			RemoveTrailingDot: true,
 		}
 		c.RefusePayload = append(c.RefusePayload, "refuse")
 		c.ValidateQuery = true
@@ -217,7 +220,7 @@ func TestToOptions(t *testing.T) {
 	if !c.HostPatch.ToLower {
 		t.Error("Failed to set HostPatch ToLower")
 	}
-	if !c.HostPatch.RemoteTrailingDot {
+	if !c.HostPatch.RemoveTrailingDot {
 		t.Error("Failed to set HostPatch RemoteTrailingDot")
 	}
 	if opt.ProxyFlags != proxy.Flags(2+8+32+64) {
@@ -348,6 +351,10 @@ func Test_NewConfigWithArgs(t *testing.T) {
 					values:  []string{"http://foo.test/bar", "http://baz.test/qux"},
 				}
 				c.SwarmRedisPassword = "set_from_file"
+				c.SwarmRedisEndpointsUpdateInterval = 10 * time.Second
+				c.SwarmRedisConnMetricsInterval = defaultSwarmRedisConnMetricsInterval
+				c.SwarmRedisMetricsPrefix = defaultSwarmRedisMetricsPrefix
+				c.SwarmKubernetesNamespace = "kube-system"
 				c.RefusePayload = multiFlag{"foo", "bar", "baz"}
 			}),
 		},
@@ -361,7 +368,7 @@ func Test_NewConfigWithArgs(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				d := cmp.Diff(cfg, tt.want,
+				d := cmp.Diff(tt.want, cfg,
 					cmp.AllowUnexported(listFlag{}, pluginFlag{}, defaultFiltersFlags{}, mapFlags{}),
 					cmpopts.IgnoreUnexported(Config{}), cmpopts.IgnoreFields(Config{}, "Flags"),
 				)

@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
-	stdlibhttptest "net/http/httptest"
+	"net/http/httptest"
 	"os"
 	"syscall"
 	"testing"
@@ -580,20 +580,41 @@ func TestDataClients(t *testing.T) {
 		OpenTracing: &proxy.OpenTracingParams{Tracer: tracer},
 	})
 	defer pr.Close()
-	lb := stdlibhttptest.NewServer(pr)
+	lb := httptest.NewServer(pr)
 	defer lb.Close()
 
 	sigs := make(chan os.Signal, 1)
 	go run(o, sigs, nil)
 
-	for i := 0; i < 10; i++ {
+	var (
+		ready   bool
+		lastErr error
+	)
+	for i := 0; i < 100; i++ {
 		t.Logf("Waiting for proxy being ready")
 
-		rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
-		if rsp != nil && rsp.StatusCode == 200 {
+		rsp, err := http.Get("http://localhost:8090/healthz")
+		if err != nil {
+			lastErr = err
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		if rsp.StatusCode == http.StatusOK {
+			ready = true
+		}
+		rsp.Body.Close()
+
+		if ready {
 			break
 		}
+
+		lastErr = fmt.Errorf("unexpected status: %d", rsp.StatusCode)
 		time.Sleep(100 * time.Millisecond)
+	}
+
+	if !ready {
+		t.Fatalf("Failed to wait for proxy: %v", lastErr)
 	}
 
 	rsp, err := http.DefaultClient.Get("http://localhost:8090/routes-file")

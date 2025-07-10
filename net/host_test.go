@@ -36,7 +36,7 @@ func TestHostPatch(t *testing.T) {
 			"EXAMPLE.ORG:8080":  "EXAMPLE.ORG",
 			"EXAMPLE.ORG.:8080": "EXAMPLE.ORG.",
 		},
-		{RemoteTrailingDot: true}: {
+		{RemoveTrailingDot: true}: {
 			"":                  "",
 			"example.org":       "example.org",
 			"example.org.":      "example.org",
@@ -46,7 +46,7 @@ func TestHostPatch(t *testing.T) {
 			"EXAMPLE.ORG:8080":  "EXAMPLE.ORG:8080",
 			"EXAMPLE.ORG.:8080": "EXAMPLE.ORG:8080",
 		},
-		{RemovePort: true, RemoteTrailingDot: true}: {
+		{RemovePort: true, RemoveTrailingDot: true}: {
 			"":                  "",
 			"example.org":       "example.org",
 			"example.org.":      "example.org",
@@ -60,7 +60,7 @@ func TestHostPatch(t *testing.T) {
 			"EXAMPLE.ORG:8080":  "EXAMPLE.ORG",
 			"EXAMPLE.ORG.:8080": "EXAMPLE.ORG",
 		},
-		{RemovePort: true, RemoteTrailingDot: true, ToLower: true}: {
+		{RemovePort: true, RemoveTrailingDot: true, ToLower: true}: {
 			"":                  "",
 			"example.org":       "example.org",
 			"example.org.":      "example.org",
@@ -91,7 +91,7 @@ func TestHostPatchHandler(t *testing.T) {
 	rh := HostPatchHandler{
 		HostPatch{
 			RemovePort:        true,
-			RemoteTrailingDot: true,
+			RemoveTrailingDot: true,
 		},
 		http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { host = r.Host }),
 	}
@@ -103,7 +103,7 @@ func TestHostPatchHandler(t *testing.T) {
 }
 
 func BenchmarkHostPatchCommon(b *testing.B) {
-	hp := HostPatch{RemovePort: true, RemoteTrailingDot: true, ToLower: true}
+	hp := HostPatch{RemovePort: true, RemoveTrailingDot: true, ToLower: true}
 	if hp.Apply("www.example.org") != "www.example.org" {
 		b.Fatal("expected www.example.org")
 	}
@@ -114,7 +114,7 @@ func BenchmarkHostPatchCommon(b *testing.B) {
 }
 
 func BenchmarkHostPatchUncommon(b *testing.B) {
-	hp := HostPatch{RemovePort: true, RemoteTrailingDot: true, ToLower: true}
+	hp := HostPatch{RemovePort: true, RemoveTrailingDot: true, ToLower: true}
 	if hp.Apply("WWW.EXAMPLE.ORG.:8080") != "www.example.org" {
 		b.Fatal("expected www.example.org")
 	}
