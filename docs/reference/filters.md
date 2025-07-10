@@ -2033,13 +2033,13 @@ The difference is that if the decision in (3) is equivalent to false, the respon
 
 *Manipulating Request Headers*
 
-Headers both to the upstream and the downstream service can be manipulated the same way this works for [Envoy external authorization](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-policy-with-additional-controls)
+Headers both to the upstream and the downstream service can be manipulated the same way this works for [Envoy external authorization](https://www.openpolicyagent.org/docs/envoy/primer#example-policy-with-additional-controls)
 
 This allows both to add and remove unwanted headers in allow/deny cases.
 
 #### opaAuthorizeRequestWithBody
 
-Requests can also be authorized based on the request body the same way that is supported with the [Open Policy Agent Envoy plugin](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-input), look for the input attribute `parsed_body` in the upstream documentation.
+Requests can also be authorized based on the request body the same way that is supported with the [Open Policy Agent Envoy plugin](https://www.openpolicyagent.org/docs/envoy/primer#example-input), look for the input attribute `parsed_body` in the upstream documentation.
 
 This filter has the same parameters that the `opaAuthorizeRequest` filter has.
 
@@ -2096,7 +2096,7 @@ For this filter, the data flow looks like this independent of an allow/deny deci
 
 #### opaServeResponseWithReqBody
 
-If you want to serve requests directly from an Open Policy Agent policy that uses the request body, this can be done by using the `input.parsed_body` attribute the same way that is supported with the [Open Policy Agent Envoy plugin](https://www.openpolicyagent.org/docs/latest/envoy-primer/#example-input).
+If you want to serve requests directly from an Open Policy Agent policy that uses the request body, this can be done by using the `input.parsed_body` attribute the same way that is supported with the [Open Policy Agent Envoy plugin](https://www.openpolicyagent.org/docs/envoy/primer#example-input).
 
 This filter has the same parameters that the `opaServeResponse` filter has.
 
