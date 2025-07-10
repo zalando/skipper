@@ -789,6 +789,72 @@ Metrics explanation:
 
 If you want to read more about RouteSRV see [deploy RouteSRV](../kubernetes/ingress-controller.md#routesrv).
 
+### Route validation metrics
+
+Skipper provides metrics to track the success and failure rates of route processing during configuration updates. These
+metrics help monitor the health of route definitions and identify common configuration issues.
+
+#### Gauge metrics
+
+The following gauge metrics show the current count of invalid routes by failure reason:
+
+- `skipper_route_invalid{reason="<reason>"}`: Current number of invalid routes by reason
+- `routes.total`: Total number of valid routes currently loaded (available as
+  `routesrv_custom_gauges{key="routes.total"}` in RouteSRV)
+
+The `routes.total` gauge metric represents the current number of successfully loaded and valid routes. This metric can
+be used in combination with the invalid route metrics to calculate error rates during route processing.
+
+#### Failure reasons
+
+The metrics track different types of route validation failures:
+
+- `unknown_filter`: Route uses a filter that is not registered or available
+- `invalid_filter_params`: Route has a filter with invalid parameters
+- `unknown_predicate`: Route uses a predicate that is not registered or available
+- `invalid_predicate_params`: Route has a predicate with invalid parameters
+- `failed_backend_split`: Route has an invalid backend URL or configuration
+- `other`: Route has other unclassified validation errors
+
+#### Prometheus example
+
+```
+# HELP skipper_route_invalid Number of invalid routes by reason.
+# TYPE skipper_route_invalid gauge
+skipper_route_invalid{reason="unknown_filter"} 3
+skipper_route_invalid{reason="invalid_filter_params"} 1
+skipper_route_invalid{reason="failed_backend_split"} 2
+
+# HELP skipper_custom_gauges Gauges number of custom metrics.
+# TYPE skipper_custom_gauges gauge
+skipper_custom_gauges{key="routes.total"} 1250
+```
+
+#### Codahale example
+
+```json
+{
+  "gauges": {
+    "route.invalid.unknown_filter": {
+      "value": 3
+    },
+    "route.invalid.invalid_filter_params": {
+      "value": 1
+    },
+    "route.invalid.failed_backend_split": {
+      "value": 2
+    }
+  }
+}
+```
+
+These metrics are particularly useful for:
+
+- Monitoring configuration deployment health
+- Identifying common route definition errors
+- Alerting on configuration issues
+- Tracking the success rate of route updates
+  
 ## OpenTracing
 
 Skipper has support for different [OpenTracing API](http://opentracing.io/) vendors, including
