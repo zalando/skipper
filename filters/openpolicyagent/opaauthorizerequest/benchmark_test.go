@@ -125,7 +125,6 @@ func BenchmarkMinimalPolicyWithDecisionLogs(b *testing.B) {
 		BundleNames:         []string{testBundleName},
 		DecisionLogging:     true,
 		ContextExtensions:   "",
-		JwtCache:            false,
 	}
 	f, err := createOpaFilter(filterOpts)
 	require.NoError(b, err)
@@ -204,18 +203,22 @@ func BenchmarkAllowWithReqBody(b *testing.B) {
 // with and without JWT cache configuration enabled.
 func BenchmarkJwtValidation(b *testing.B) {
 	type benchmarkCase struct {
-		name     string
-		jwtCache bool
+		name       string
+		createFunc func(FilterOptions) (filters.Filter, error)
 	}
 
 	cases := []benchmarkCase{
 		{
-			name:     "default_filter",
-			jwtCache: false,
+			name: "default_filter",
+			createFunc: func(opts FilterOptions) (filters.Filter, error) {
+				return createOpaFilter(opts)
+			},
 		},
 		{
-			name:     "with_jwt_cache",
-			jwtCache: true,
+			name: "with_jwt_cache",
+			createFunc: func(opts FilterOptions) (filters.Filter, error) {
+				return createOpaFilterWithJwtCache(opts)
+			},
 		},
 	}
 
@@ -259,10 +262,9 @@ func BenchmarkJwtValidation(b *testing.B) {
 			BundleNames:         []string{testBundleName},
 			DecisionLogging:     false,
 			ContextExtensions:   "",
-			JwtCache:            bc.jwtCache,
 		}
 
-		f, err := createOpaFilter(filterOpts)
+		f, err := bc.createFunc(filterOpts)
 		require.NoError(b, err)
 
 		reqUrl, err := url.Parse("http://opa-authorized.test/somepath")
@@ -352,10 +354,9 @@ func BenchmarkJwtValidationWithVaryingTokenCounts(b *testing.B) {
 		BundleNames:         []string{testBundleName},
 		DecisionLogging:     false,
 		ContextExtensions:   "",
-		JwtCache:            true,
 	}
 
-	f, err := createOpaFilter(filterOpts)
+	f, err := createOpaFilterWithJwtCache(filterOpts)
 
 	require.NoError(b, err)
 
@@ -447,7 +448,6 @@ func BenchmarkMinimalPolicyBundle(b *testing.B) {
 		DecisionPath:        "envoy/authz/allow",
 		BundleNames:         []string{bundleName},
 		DecisionLogging:     false,
-		JwtCache:            false,
 	}
 	f, err := createOpaFilter(filterOpts)
 	require.NoError(b, err)
@@ -532,7 +532,6 @@ func BenchmarkSplitPolicyAndDataBundles(b *testing.B) {
 				DecisionPath:        "policy/allow",
 				BundleNames:         []string{"policy", "context-data"},
 				DecisionLogging:     false,
-				JwtCache:            false,
 			}
 
 			f, err := bc.createFunc(filterOpts)
@@ -602,20 +601,27 @@ func newDecisionConsumer() *httptest.Server {
 }
 
 func createOpaFilter(opts FilterOptions) (filters.Filter, error) {
-	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging, opts.JwtCache)
+	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
+func createOpaFilterWithJwtCache(opts FilterOptions) (filters.Filter, error) {
+	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
+	registry := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithJwtCacheMaxNumEntries(5))
+	spec := NewOpaAuthorizeRequestSpec(registry, openpolicyagent.WithConfigTemplate(config))
+	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
+}
+
 func createBodyBasedOpaFilter(opts FilterOptions) (filters.Filter, error) {
-	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging, opts.JwtCache)
+	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
 	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
 	spec := NewOpaAuthorizeRequestWithBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
-func generateConfig(opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool, jwtCache bool) []byte {
+func generateConfig(opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool) []byte {
 	var decisionPlugin string
 	if decisionLogging {
 		decisionPlugin = `
@@ -625,21 +631,6 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
   				"reporting": {
 					"min_delay_seconds": 300,
 					"max_delay_seconds": 600				
-				}
-			},
-		`
-	}
-
-	var jwtCacheConfig string
-	if jwtCache {
-		jwtCacheConfig = `
-			"caching": {
-				"inter_query_builtin_value_cache": {
-					"named": {
-						"io_jwt": {
-							"max_num_entries": 5
-						}
-					}
 				}
 			},
 		`
@@ -673,9 +664,8 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
 				"path": %q,
 				"dry-run": false    
 			}
-		},
-		%s
-	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath, jwtCacheConfig))
+		}
+	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath))
 }
 
 func createOpaFilterForMultipleBundles(opts FilterOptions) (filters.Filter, error) {
@@ -754,7 +744,6 @@ type FilterOptions struct {
 	BundleNames         []string
 	DecisionLogging     bool
 	ContextExtensions   string
-	JwtCache            bool
 }
 
 func NewFilterOptionsWithDefaults(opaControlPlaneURL string) FilterOptions {
@@ -765,6 +754,5 @@ func NewFilterOptionsWithDefaults(opaControlPlaneURL string) FilterOptions {
 		BundleNames:         []string{testBundleName},
 		DecisionLogging:     false,
 		ContextExtensions:   "",
-		JwtCache:            false,
 	}
 }
