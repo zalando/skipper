@@ -3,10 +3,8 @@ package openpolicyagent
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/open-policy-agent/opa/topdown/cache"
 	"io"
 	"maps"
 	"math/rand"
@@ -189,26 +187,20 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 }
 
 func (registry *OpenPolicyAgentRegistry) initializeCache() {
-	interQueryBuiltinCacheConfig, err := cache.ParseCachingConfig(createJwtCacheConfig(registry.jwtCacheMaxNumEntries))
-	if err != nil {
-		fmt.Errorf("failed to parse OPA cache config: %v", err)
-		return
+	defaultInterQueryBuiltinValueCacheSize := 0
+
+	interQueryBuiltinCacheConfig := iCache.Config{
+		InterQueryBuiltinValueCache: iCache.InterQueryBuiltinValueCacheConfig{
+			MaxNumEntries: &defaultInterQueryBuiltinValueCacheSize,
+			NamedCacheConfigs: map[string]*iCache.NamedValueCacheConfig{
+				"io_jwt": {
+					MaxNumEntries: &registry.jwtCacheMaxNumEntries,
+				},
+			},
+		},
 	}
-	registry.valueCache = iCache.NewInterQueryValueCache(context.Background(), interQueryBuiltinCacheConfig)
-}
 
-func createJwtCacheConfig(maxNumEntries int) json.RawMessage {
-	config := fmt.Sprintf(`{
-  		"inter_query_builtin_value_cache" : {
-			"named" : {
-	  			"io_jwt" : {
-					"max_num_entries" : %d
-				}
-			}
-  		}
-	}`, maxNumEntries)
-
-	return json.RawMessage(config)
+	registry.valueCache = iCache.NewInterQueryValueCache(context.Background(), &interQueryBuiltinCacheConfig)
 }
 
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
