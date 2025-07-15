@@ -967,6 +967,8 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
+	payloadProtocol := getUpgradeRequest(ctx.Request())
+
 	req, endpointMetrics, err := p.mapRequest(ctx, requestContext)
 	if err != nil {
 		return nil, &proxyError{err: fmt.Errorf("could not map backend request: %w", err)}
@@ -981,7 +983,10 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		defer endpointMetrics.DecInflightRequest()
 	}
 
-	if p.experimentalUpgrade && isUpgradeRequest(req) {
+	if p.experimentalUpgrade && payloadProtocol != "" {
+		// see also https://github.com/golang/go/blob/9159cd4ec6b0e9475dc9c71c830035c1c4c13483/src/net/http/httputil/reverseproxy.go#L423-L428
+		req.Header.Set("Connection", "Upgrade")
+		req.Header.Set("Upgrade", payloadProtocol)
 		p.makeUpgradeRequest(ctx, req)
 
 		// We are not owner of the connection anymore.
