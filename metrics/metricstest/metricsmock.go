@@ -225,12 +225,10 @@ func (m *MockMetrics) Gauge(key string) (v float64, ok bool) {
 	return
 }
 
-func (m *MockMetrics) IncValidRoutes() {
-	m.IncCounter("route.valid")
-}
-
-func (m *MockMetrics) IncInvalidRoutes(reason string) {
-	m.IncCounter("route.invalid." + reason)
+func (m *MockMetrics) UpdateInvalidRoute(reasonCounts map[string]int) {
+	for reason, count := range reasonCounts {
+		m.UpdateGauge("route.invalid."+reason, float64(count))
+	}
 }
 
 func (m *MockMetrics) Close() {}
