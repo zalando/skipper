@@ -109,8 +109,7 @@ func (NoMetric) MeasureBackend5xx(time.Time)                         {}
 func (NoMetric) IncErrorsStreaming(string)                           {}
 func (NoMetric) RegisterHandler(string, *http.ServeMux)              {}
 func (NoMetric) UpdateGauge(string, float64)                         {}
-func (NoMetric) IncValidRoutes()                                     {}
-func (NoMetric) IncInvalidRoutes(string)                             {}
+func (NoMetric) UpdateInvalidRoute(map[string]int)                   {}
 func (NoMetric) Close()                                              {}
 
 var _ Metrics = NoMetric{}
