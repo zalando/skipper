@@ -79,6 +79,7 @@ type OpenPolicyAgentRegistry struct {
 	reuseDuration          time.Duration
 	cleanInterval          time.Duration
 	instanceStartupTimeout time.Duration
+	config                 *OpenPolicyAgentInstanceConfig
 
 	maxMemoryBodyParsingSem *semaphore.Weighted
 	maxRequestBodyBytes     int64
@@ -135,6 +136,18 @@ func WithCleanInterval(interval time.Duration) func(*OpenPolicyAgentRegistry) er
 func WithInstanceStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.instanceStartupTimeout = timeout
+		return nil
+	}
+}
+
+func WithOpenPolicyAgentInstanceConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		// Create config from registry's default config
+		config, err := NewOpenPolicyAgentConfig(opts...)
+		if err != nil {
+			return err
+		}
+		cfg.config = config
 		return nil
 	}
 }
@@ -391,7 +404,8 @@ func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.
 	return routes
 }
 
-func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
+// NewOpenPolicyAgentInstance returns an existing instance immediately, or creates one using registry config
+func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 
@@ -404,7 +418,7 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 		return instance, nil
 	}
 
-	instance, err := registry.newOpenPolicyAgentInstance(bundleName, config, filterName)
+	instance, err := registry.newOpenPolicyAgentInstance(bundleName, *registry.config, filterName)
 	if err != nil {
 		return nil, err
 	}

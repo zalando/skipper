@@ -302,10 +302,11 @@ func TestServerResponseFilter(t *testing.T) {
 				}
 			}`, opaControlPlane.URL(), ti.regoQuery))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()))
-			ftSpec := NewOpaServeResponseSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
+				openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)))
+			ftSpec := NewOpaServeResponseSpec(opaFactory)
 			fr.Register(ftSpec)
-			ftSpec = NewOpaServeResponseWithReqBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+			ftSpec = NewOpaServeResponseWithReqBodySpec(opaFactory)
 			fr.Register(ftSpec)
 
 			filterArgs := []interface{}{ti.bundleName}
@@ -349,8 +350,8 @@ func TestServerResponseFilter(t *testing.T) {
 }
 
 func TestCreateFilterArguments(t *testing.T) {
-	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry()
-	ftSpec := NewOpaServeResponseSpec(opaRegistry, openpolicyagent.WithConfigTemplate([]byte("")))
+	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate([]byte(""))))
+	ftSpec := NewOpaServeResponseSpec(opaRegistry)
 
 	_, err := ftSpec.CreateFilter([]interface{}{})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
