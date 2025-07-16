@@ -983,6 +983,7 @@ type Options struct {
 	OpenPolicyAgentMaxRequestBodySize                  int64
 	OpenPolicyAgentRequestBodyBufferSize               int64
 	OpenPolicyAgentMaxMemoryBodyParsing                int64
+	OpenPolicyAgentJwtCacheMaxNumEntries               int
 
 	PassiveHealthCheck map[string]string
 }
@@ -1937,7 +1938,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithEnableCustomControlLoop(o.EnableOpenPolicyAgentCustomControlLoop),
 			openpolicyagent.WithControlLoopInterval(o.OpenPolicyAgentControlLoopInterval),
 			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter),
-			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization))
+			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
+			openpolicyagent.WithJwtCacheMaxNumEntries(o.OpenPolicyAgentJwtCacheMaxNumEntries))
 		defer opaRegistry.Close()
 
 		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
