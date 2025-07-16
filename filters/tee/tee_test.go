@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
@@ -168,6 +169,7 @@ func TestTeeEndToEndBody(t *testing.T) {
 	}
 
 	<-shadowHandler.served
+	<-originalHandler.served
 
 	rsp.Body.Close()
 	if shadowHandler.body != testingStr || originalHandler.body != testingStr {
@@ -228,6 +230,7 @@ func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
 		}
 
 		<-shadowHandler.served
+		<-originalHandler.served
 
 		rsp.Body.Close()
 		if shadowHandler.body != testingStr || originalHandler.body != testingStr {
@@ -243,34 +246,54 @@ func TestTeeEndToEndBody2TeeRoutesAndClosing(t *testing.T) {
 	testFunc()
 
 	dc.Update(routeNoShadow, nil)
-	originalHandler.served = make(chan struct{})
-	shadowHandler.served = make(chan struct{})
 
-	// test shadow do not get anything
-	testingStr := "TESTEST"
-	req, err := http.NewRequest("GET", p.URL, strings.NewReader(testingStr))
-	if err != nil {
-		t.Error(err)
+	// The route update is asynchronous. We poll until the proxy has applied
+	// the new route to avoid a flaky test.
+	var success bool
+	for i := 0; i < 30; i++ { // max wait ~3s
+		originalHandler.served = make(chan struct{})
+		shadowHandler.served = make(chan struct{})
+		testingStr := "TESTEST"
+
+		req, err := http.NewRequest("GET", p.URL, strings.NewReader(testingStr))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Host = "www.example.org"
+		req.Close = true
+
+		rt := net.NewTransport(net.Options{})
+		rsp, err := rt.RoundTrip(req)
+		rt.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Wait for the main request to be served before checking the shadow one.
+		<-originalHandler.served
+
+		select {
+		case <-shadowHandler.served:
+			// The old route with tee() was still active. Retry.
+			rsp.Body.Close()
+			time.Sleep(100 * time.Millisecond)
+			continue
+		default:
+			// The new route without tee() is active. Success.
+			if originalHandler.body != testingStr {
+				t.Fatalf("Body mismatch, expected '%s', got '%s'", testingStr, originalHandler.body)
+			}
+			rsp.Body.Close()
+			success = true
+		}
+
+		if success {
+			break
+		}
 	}
 
-	req.Host = "www.example.org"
-	req.Close = true
-	rt := net.NewTransport(net.Options{})
-	defer rt.Close()
-	rsp, err := rt.RoundTrip(req)
-	if err != nil {
-		t.Error(err)
-	}
-
-	select {
-	case <-shadowHandler.served:
-		t.Fatal("shadow handler got a request, but should not")
-	default:
-	}
-
-	rsp.Body.Close()
-	if originalHandler.body != testingStr {
-		t.Error("Bodies are not equal")
+	if !success {
+		t.Fatal("shadow handler continued to receive requests after route update")
 	}
 }
 

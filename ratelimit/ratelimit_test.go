@@ -650,10 +650,10 @@ func TestRatelimitImpl(t *testing.T) {
 func TestHeaders(t *testing.T) {
 	h := Headers(1, time.Hour, 5)
 	t.Logf("h: %v", h)
-	if s := h.Get("X-Rate-Limit"); s != "1" {
+	if s := h.Get("RateLimit-Limit"); s != "1" {
 		t.Errorf("Failed to get X-Rate-Limit Header value: %s", s)
 	}
-	if s := h.Get("Retry-After"); s != "5" {
+	if s := h.Get("RateLimit-Reset"); s != "5" {
 		t.Errorf("Failed to get Retry-After Header value: %s", s)
 	}
 }

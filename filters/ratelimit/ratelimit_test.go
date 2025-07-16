@@ -129,8 +129,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		3,
@@ -148,8 +150,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		3.3,
@@ -167,8 +171,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusServiceUnavailable,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		3.3,
@@ -188,8 +194,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"1"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"2"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"1"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		2,
@@ -208,8 +216,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		3,
@@ -230,8 +240,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		3,
@@ -250,8 +262,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		3,
@@ -271,8 +285,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		"mygroup",
@@ -292,8 +308,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusServiceUnavailable,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		"mygroup",
@@ -316,8 +334,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		"mygroup",
@@ -338,8 +358,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		"mygroup",
@@ -362,8 +384,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		"mygroup",
@@ -385,8 +409,10 @@ func TestRateLimit(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Header: http.Header{
-				"X-Rate-Limit": []string{"10800"},
-				"Retry-After":  []string{"31415"},
+				"Ratelimit-Limit": {"3"},
+				"Ratelimit-Reset": {"31415"},
+				"X-Rate-Limit":    []string{"10800"},
+				"Retry-After":     []string{"31415"},
 			},
 		},
 		"mygroup",
