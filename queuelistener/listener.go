@@ -80,6 +80,8 @@ type Options struct {
 }
 
 type listener struct {
+	metrics           metrics.Metrics
+	log               logging.Logger
 	options           Options
 	maxConcurrency    int64
 	maxQueueSize      int64
@@ -154,6 +156,8 @@ func listenWith(nl net.Listener, o Options) (net.Listener, error) {
 
 	l := &listener{
 		options:           o,
+		log:               o.Log,
+		metrics:           o.Metrics,
 		maxConcurrency:    o.maxConcurrency(),
 		maxQueueSize:      o.maxQueueSize(),
 		externalListener:  nl,
@@ -164,7 +168,10 @@ func listenWith(nl net.Listener, o Options) (net.Listener, error) {
 		releaseConnection: make(chan struct{}),
 		quit:              make(chan struct{}),
 	}
-	o.Log.Infof("TCP lifo listener config: %s", l)
+	if l.metrics == nil {
+		l.metrics = metrics.NoMetric{}
+	}
+	l.log.Infof("TCP lifo listener config: %s", l)
 
 	go l.listenExternal()
 	go l.listenInternal()
@@ -232,7 +239,7 @@ func (l *listener) listenExternal() {
 			//lint:ignore SA1019 Temporary is deprecated in Go 1.18, but keep it for now (https://github.com/zalando/skipper/issues/1992)
 			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
 				delay = bounce(delay)
-				l.options.Log.Errorf(
+				l.log.Errorf(
 					"queue listener: accept error: %v, retrying in %v",
 					err,
 					delay,
@@ -308,10 +315,8 @@ func (l *listener) listenInternal() {
 			)
 		}
 
-		if l.options.Metrics != nil {
-			l.options.Metrics.UpdateGauge(acceptedConnectionsKey, float64(concurrency))
-			l.options.Metrics.UpdateGauge(queuedConnectionsKey, float64(queue.size))
-		}
+		l.metrics.UpdateGauge(acceptedConnectionsKey, float64(concurrency))
+		l.metrics.UpdateGauge(queuedConnectionsKey, float64(queue.size))
 
 		select {
 		case conn := <-l.acceptExternal:
@@ -361,7 +366,7 @@ func (l *listener) listenInternal() {
 			// Closing the real listener in a separate goroutine is based on inspecting the
 			// stdlib. It's fair to just log the errors.
 			if err := l.externalListener.Close(); err != nil {
-				l.options.Log.Errorf("Failed to close network listener: %v.", err)
+				l.log.Errorf("Failed to close network listener: %v.", err)
 			}
 
 			if l.closedHook != nil {
@@ -376,9 +381,7 @@ func (l *listener) listenInternal() {
 func (l *listener) Accept() (net.Conn, error) {
 	select {
 	case c := <-l.acceptInternal:
-		if l.options.Metrics != nil {
-			l.options.Metrics.MeasureSince(acceptLatencyKey, c.external.accepted)
-		}
+		l.metrics.MeasureSince(acceptLatencyKey, c.external.accepted)
 		return c, nil
 	case err := <-l.internalError:
 		return nil, err
