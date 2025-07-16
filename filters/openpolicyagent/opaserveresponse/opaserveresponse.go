@@ -67,7 +67,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	// Try to get instance with new non-blocking approach
-	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, s.Name())
+	opa, err := s.registry.GetOrStartInstance(bundleName, s.Name())
 	if err != nil {
 		return nil, err
 	}
