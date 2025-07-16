@@ -94,11 +94,13 @@ func (NoMetric) MeasureRouteLookup(time.Time)                        {}
 func (NoMetric) MeasureFilterCreate(string, time.Time)               {}
 func (NoMetric) MeasureFilterRequest(string, time.Time)              {}
 func (NoMetric) MeasureAllFiltersRequest(string, time.Time)          {}
+func (NoMetric) MeasureBackendRequestHeader(string, int)             {}
 func (NoMetric) MeasureBackend(string, time.Time)                    {}
 func (NoMetric) MeasureBackendHost(string, time.Time)                {}
 func (NoMetric) MeasureFilterResponse(string, time.Time)             {}
 func (NoMetric) MeasureAllFiltersResponse(string, time.Time)         {}
 func (NoMetric) MeasureResponse(int, string, string, time.Time)      {}
+func (NoMetric) MeasureResponseSize(string, int64)                   {}
 func (NoMetric) MeasureProxy(time.Duration, time.Duration)           {}
 func (NoMetric) MeasureServe(string, string, string, int, time.Time) {}
 func (NoMetric) IncRoutingFailures()                                 {}
