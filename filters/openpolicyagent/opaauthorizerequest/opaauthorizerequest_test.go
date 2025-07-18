@@ -2,6 +2,12 @@ package opaauthorizerequest
 
 import (
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -10,11 +16,6 @@ import (
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/tracing/tracingtest"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
 
 	"github.com/zalando/skipper/filters/openpolicyagent"
 )
@@ -554,12 +555,14 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 			opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
 			opts = append(opts,
 				openpolicyagent.WithConfigTemplate(config),
-				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
+				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig),
+			)
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()))
-			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
+				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
+			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
 			fr.Register(ftSpec)
-			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
+			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory)
 			fr.Register(ftSpec)
 			fr.Register(builtin.NewSetPath())
 
@@ -602,8 +605,9 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 }
 
 func TestCreateFilterArguments(t *testing.T) {
-	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry()
-	ftSpec := NewOpaAuthorizeRequestSpec(opaRegistry, openpolicyagent.WithConfigTemplate([]byte("")))
+	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate([]byte(""))))
+	ftSpec := NewOpaAuthorizeRequestSpec(opaRegistry)
 
 	_, err := ftSpec.CreateFilter([]interface{}{})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
@@ -722,10 +726,11 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 				openpolicyagent.WithConfigTemplate(config),
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()))
-			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory, opts...)
+			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
+				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
+			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
 			fr.Register(ftSpec)
-			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory, opts...)
+			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory)
 			fr.Register(ftSpec)
 			fr.Register(builtin.NewSetPath())
 
