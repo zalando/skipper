@@ -87,6 +87,19 @@ func TestValidGetUpgradeRequest(t *testing.T) {
 
 }
 
+func TestValidGetUpgradeRequestCaseInsensitivity(t *testing.T) {
+	req, prot := getValidUpgradeRequest()
+	req.Header.Set("Connection", "uPgRaDe")
+	if !isUpgradeRequest(req) {
+		t.Errorf("Request has an upgrade header, but isUpgradeRequest returned false for %+v", req)
+	}
+	gotProt := getUpgradeRequest(req)
+	if gotProt != prot {
+		t.Errorf("%s != %s for %+v", gotProt, prot, req)
+	}
+
+}
+
 func TestServeHTTP(t *testing.T) {
 	for _, ti := range []struct {
 		msg                        string

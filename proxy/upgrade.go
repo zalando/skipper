@@ -32,7 +32,7 @@ func isUpgradeRequest(req *http.Request) bool {
 func getUpgradeRequest(req *http.Request) string {
 	for _, h := range req.Header[http.CanonicalHeaderKey("Connection")] {
 		if strings.Contains(strings.ToLower(h), "upgrade") {
-			return strings.Join(req.Header[h], " ")
+			return strings.Join(req.Header.Values(h), " ")
 		}
 	}
 	return ""
