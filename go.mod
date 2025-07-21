@@ -23,7 +23,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.5.3
-	github.com/instana/go-sensor v1.67.7
+	github.com/instana/go-sensor v1.68.0
 	github.com/lightstep/lightstep-tracer-go v0.26.0
 	github.com/miekg/dns v1.1.67
 	github.com/oklog/ulid v1.3.1
@@ -40,7 +40,7 @@ require (
 	github.com/sony/gobreaker v1.0.0
 	github.com/stretchr/testify v1.10.0
 	github.com/szuecs/rate-limit-buffer v0.9.0
-	github.com/testcontainers/testcontainers-go v0.37.0
+	github.com/testcontainers/testcontainers-go v0.38.0
 	github.com/tidwall/gjson v1.18.0
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
@@ -77,6 +77,7 @@ require (
 	github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3 // indirect
 	github.com/containerd/containerd v1.7.27 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
@@ -85,10 +86,10 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
 	github.com/dgryski/go-gk v0.0.0-20200319235926-a69029f61654 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/docker v28.0.1+incompatible // indirect
+	github.com/docker/docker v28.2.2+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
@@ -102,6 +103,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
+	github.com/google/pprof v0.0.0-20250630185457-6e76a2b096b5 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -115,16 +117,17 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20210210170715-a8dfcb80d3a7 // indirect
-	github.com/looplab/fsm v1.0.2 // indirect
+	github.com/looplab/fsm v1.0.3 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/go-archive v0.1.0 // indirect
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
-	github.com/moby/sys/sequential v0.5.0 // indirect
-	github.com/moby/sys/user v0.3.0 // indirect
+	github.com/moby/sys/sequential v0.6.0 // indirect
+	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
@@ -143,7 +146,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.1 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.5 // indirect
 	github.com/streadway/quantile v0.0.0-20220407130108-4246515d968d // indirect
 	github.com/tchap/go-patricia/v2 v2.3.2 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
