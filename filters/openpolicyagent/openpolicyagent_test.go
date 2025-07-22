@@ -55,11 +55,15 @@ func (f *MockOpenPolicyAgentFilter) Response(filters.FilterContext) {}
 
 func TestInterpolateTemplate(t *testing.T) {
 	os.Setenv("CONTROL_PLANE_TOKEN", "testtoken")
-	interpolatedConfig, err := interpolateConfigTemplate([]byte(`
+
+	template := &OpenPolicyAgentInstanceConfig{
+		configTemplate: []byte(`
 		token: {{.Env.CONTROL_PLANE_TOKEN }}
 		bundle: {{ .bundlename }}
 		`),
-		"helloBundle")
+	}
+
+	interpolatedConfig, err := template.interpolateConfigTemplate("helloBundle")
 
 	assert.NoError(t, err)
 
@@ -342,12 +346,9 @@ func TestOpaEngineStartFailure(t *testing.T) {
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop))
+			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 
-			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
-			assert.NoError(t, err)
-
-			engine, err := registry.new(inmem.New(), config, *cfg, "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
+			engine, err := registry.new(inmem.New(), "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
 			assert.NoError(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
