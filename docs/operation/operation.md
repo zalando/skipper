@@ -4,15 +4,19 @@ This is the work in progress operations guide for showing information,
 which are relevant for production use.
 
 Skipper is proven to scale with number of routes beyond 300.000 routes
-per instance. Skipper is running with peaks to 65.000 http requests
-per second using multiple instances.
+per instance. In Kubernetes we run beyond 15000 routes in a single
+cluster. A single Skipper instance was tested to respond 65.000 http
+requests per second in continuous load tests at `<=25ms` p999 in a
+production like setup with logs, metrics and tracing enabled. Skipper
+regularly runs in production at 2 million requests per second running
+multiple instances.
 
 ## Connection Options
 
 Skipper's connection options are allowing you to set Go's [http.Server](https://golang.org/pkg/net/http/#Server)
 Options on the client side and [http.Transport](https://golang.org/pkg/net/http/#Transport) on the backend side.
 
-"It is recommended to read
+It is recommended to read
 [this blog post about net http timeouts](https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/)
 in order to better understand the impact of these settings.
 
@@ -854,7 +858,7 @@ These metrics are particularly useful for:
 - Identifying common route definition errors
 - Alerting on configuration issues
 - Tracking the success rate of route updates
-  
+
 ## OpenTracing
 
 Skipper has support for different [OpenTracing API](http://opentracing.io/) vendors, including
