@@ -80,6 +80,8 @@ func (c *Client) LoadUpdate() ([]*eskip.Route, []string, error) {
 		c.upsert, c.deletedIDs = update.upsert, update.deletedIDs
 	case <-c.quit:
 		return nil, nil, nil
+		//default:
+		//	return nil, nil, nil
 	}
 
 	for _, id := range c.deletedIDs {
@@ -133,6 +135,10 @@ func (c *Client) FailNext() {
 
 func (c *Client) WithLoadAllDelay(d time.Duration) {
 	c.loadAllDelay = d
+}
+
+func (c *Client) GetRoutes() map[string]*eskip.Route {
+	return c.routes
 }
 
 func (c *Client) Close() {

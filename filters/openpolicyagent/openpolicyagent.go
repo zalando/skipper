@@ -123,8 +123,8 @@ type OpenPolicyAgentRegistry struct {
 	inFlightMu       sync.RWMutex
 
 	// Background task system
-	backgroundTaskChan   chan *BackgroundTask
-	backgroundWorkerOnce sync.Once
+	backgroundTaskChan   chan *BackgroundTask //ToDO Q : Has a size?
+	backgroundWorkerOnce sync.Once            //ToDo Q: Only load once at startup?
 }
 
 type OpenPolicyAgentFilter interface {
@@ -239,8 +239,8 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
 		controlLoopInterval:    DefaultControlLoopInterval,
 		controlLoopMaxJitter:   DefaultControlLoopMaxJitter,
-		inFlightCreation:       make(map[string]chan *OpenPolicyAgentInstance),
-		backgroundTaskChan:     make(chan *BackgroundTask, 100), // Buffered channel for background tasks
+		inFlightCreation:       make(map[string]chan *OpenPolicyAgentInstance), //ToDO Q: prevents multiple goroutines from creating the same OPA instance simultaneously
+		backgroundTaskChan:     make(chan *BackgroundTask, 100),                // Buffered channel for background tasks
 	}
 
 	for _, opt := range opts {
@@ -522,7 +522,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string
 			return instance, nil
 		}
 
-		// Check if another goroutine is already creating this instance
+		// Check if another goroutine is already creating this instance //ToDo Q: No instance available, no error, then someone else can be creating it. Then lock?
 		if inFlightChan, isInFlight := registry.inFlightCreation[bundleName]; isInFlight {
 			registry.inFlightMu.Unlock()
 			// Another goroutine is creating this instance, wait for it
@@ -546,6 +546,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string
 			registry.inFlightMu.Unlock()
 		}()
 
+		//toDo Q: I am not getting this
 		instance, err = registry.newOpenPolicyAgentInstance(bundleName, *registry.config, filterName)
 		if err != nil {
 			return nil, err

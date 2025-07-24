@@ -110,7 +110,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 	}
 }
 
-// TestPreprocessorRoutesUnchanged verifies the preprocessor doesn't modify routes
+// TestPreprocessorRoutesUnchanged verifies the preprocessor doesn't modify routes  //ToDO Q why this test is needed? What if pre processor drops erroneous OPA routes?
 func TestPreprocessorRoutesUnchanged(t *testing.T) {
 	registry := NewOpenPolicyAgentRegistry(WithPreloadingEnabled(true))
 	defer registry.Close()

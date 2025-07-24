@@ -85,7 +85,7 @@ func (p *opaPreProcessor) preloadInstancesParallel(requests map[string]bundleReq
 			defer wg.Done()
 
 			// Use the new PrepareInstanceLoader approach
-			loader := p.registry.PrepareInstanceLoader(r.bundleName, r.filterName)
+			loader := p.registry.PrepareInstanceLoader(r.bundleName, r.filterName) //ToDO why we need filterName here?
 			_, err := loader()
 			if err != nil {
 				log.Errorf("Failed to load OPA instance for bundle '%s': %v", r.bundleName, err)
