@@ -79,6 +79,7 @@ type OpenPolicyAgentRegistry struct {
 	reuseDuration          time.Duration
 	cleanInterval          time.Duration
 	instanceStartupTimeout time.Duration
+	configTemplate         *OpenPolicyAgentInstanceConfig
 
 	maxMemoryBodyParsingSem *semaphore.Weighted
 	maxRequestBodyBytes     int64
@@ -139,6 +140,18 @@ func WithInstanceStartupTimeout(timeout time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
+func WithOpenPolicyAgentInstanceConfig(opts ...func(*OpenPolicyAgentInstanceConfig) error) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		// Create config from registry's default config
+		config, err := NewOpenPolicyAgentConfig(opts...)
+		if err != nil {
+			return err
+		}
+		cfg.configTemplate = config
+		return nil
+	}
+}
+
 func WithTracer(tracer opentracing.Tracer) func(*OpenPolicyAgentRegistry) error {
 	return func(cfg *OpenPolicyAgentRegistry) error {
 		cfg.tracer = tracer
@@ -174,7 +187,7 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
-func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
+func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration:          defaultReuseDuration,
 		cleanInterval:          DefaultCleanIdlePeriod,
@@ -192,6 +205,16 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 		opt(registry)
 	}
 
+	if registry.configTemplate == nil {
+		config, err := NewOpenPolicyAgentConfig()
+
+		if err != nil {
+			return nil, err
+		}
+
+		registry.configTemplate = config
+	}
+
 	if registry.maxMemoryBodyParsingSem == nil {
 		registry.maxMemoryBodyParsingSem = semaphore.NewWeighted(DefaultMaxMemoryBodyParsing)
 	}
@@ -202,7 +225,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 		go registry.startCustomControlLoopDaemon()
 	}
 
-	return registry
+	return registry, nil
 }
 
 type OpenPolicyAgentInstanceConfig struct {
@@ -256,9 +279,9 @@ func WithEnvoyMetadataFile(file string) func(*OpenPolicyAgentInstanceConfig) err
 	}
 }
 
-func (cfg *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.Metadata {
-	if cfg.envoyMetadata != nil {
-		return proto.Clone(cfg.envoyMetadata).(*ext_authz_v3_core.Metadata)
+func (config *OpenPolicyAgentInstanceConfig) GetEnvoyMetadata() *ext_authz_v3_core.Metadata {
+	if config.envoyMetadata != nil {
+		return proto.Clone(config.envoyMetadata).(*ext_authz_v3_core.Metadata)
 	}
 	return nil
 }
@@ -391,7 +414,8 @@ func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.
 	return routes
 }
 
-func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
+// NewOpenPolicyAgentInstance returns an existing instance immediately, or creates one using registry config
+func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 
@@ -404,7 +428,7 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 		return instance, nil
 	}
 
-	instance, err := registry.newOpenPolicyAgentInstance(bundleName, config, filterName)
+	instance, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
 	if err != nil {
 		return nil, err
 	}
@@ -424,15 +448,10 @@ func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentIn
 	}
 }
 
-func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string, config OpenPolicyAgentInstanceConfig, filterName string) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
-	configBytes, err := interpolateConfigTemplate(config.configTemplate, bundleName)
-	if err != nil {
-		return nil, err
-	}
-
-	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), configBytes, config, filterName, bundleName,
+	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), filterName, bundleName,
 		registry.maxRequestBodyBytes, registry.bodyReadBufferSize)
 	if err != nil {
 		return nil, err
@@ -486,10 +505,10 @@ func envVariablesMap() map[string]string {
 }
 
 // Config sets the configuration file to use on the OPA instance.
-func interpolateConfigTemplate(configTemplate []byte, bundleName string) ([]byte, error) {
+func (config *OpenPolicyAgentInstanceConfig) interpolateConfigTemplate(bundleName string) ([]byte, error) {
 	var buf bytes.Buffer
 
-	tpl := template.Must(template.New("opa-config").Parse(string(configTemplate)))
+	tpl := template.Must(template.New("opa-config").Parse(string(config.configTemplate)))
 
 	binding := make(map[string]interface{})
 	binding["bundlename"] = bundleName
@@ -520,9 +539,14 @@ func (registry *OpenPolicyAgentRegistry) withTracingOptions(bundleName string) f
 }
 
 // new returns a new OPA object.
-func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []byte, instanceConfig OpenPolicyAgentInstanceConfig, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
 	uniqueIDGenerator, err := flowid.NewStandardGenerator(32)
+	if err != nil {
+		return nil, err
+	}
+
+	configBytes, err := registry.configTemplate.interpolateConfigTemplate(bundleName)
 	if err != nil {
 		return nil, err
 	}
@@ -557,7 +581,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, configBytes []
 
 	opa := &OpenPolicyAgentInstance{
 		registry:       registry,
-		instanceConfig: instanceConfig,
+		instanceConfig: *registry.configTemplate,
 		manager:        manager,
 		opaConfig:      opaConfig,
 		bundleName:     bundleName,
