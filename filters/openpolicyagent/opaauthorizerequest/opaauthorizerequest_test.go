@@ -558,8 +558,10 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig),
 			)
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
+			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
 				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
+			assert.NoError(t, err)
+
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
 			fr.Register(ftSpec)
 			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory)
@@ -605,11 +607,13 @@ func TestAuthorizeRequestFilter(t *testing.T) {
 }
 
 func TestCreateFilterArguments(t *testing.T) {
-	opaRegistry := openpolicyagent.NewOpenPolicyAgentRegistry(
+	opaRegistry, err := openpolicyagent.NewOpenPolicyAgentRegistry(
 		openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate([]byte(""))))
+	assert.NoError(t, err)
+
 	ftSpec := NewOpaAuthorizeRequestSpec(opaRegistry)
 
-	_, err := ftSpec.CreateFilter([]interface{}{})
+	_, err = ftSpec.CreateFilter([]interface{}{})
 	assert.ErrorIs(t, err, filters.ErrInvalidFilterParameters)
 
 	_, err = ftSpec.CreateFilter([]interface{}{"a bundle", "extra: value", "superfluous argument"})
@@ -726,8 +730,10 @@ func TestAuthorizeRequestInputContract(t *testing.T) {
 				openpolicyagent.WithConfigTemplate(config),
 				openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
 
-			opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
+			opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()),
 				openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
+			assert.NoError(t, err)
+
 			ftSpec := NewOpaAuthorizeRequestSpec(opaFactory)
 			fr.Register(ftSpec)
 			ftSpec = NewOpaAuthorizeRequestWithBodySpec(opaFactory)

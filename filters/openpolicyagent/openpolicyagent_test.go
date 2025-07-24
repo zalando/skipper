@@ -238,7 +238,8 @@ func TestRegistry(t *testing.T) {
 				_, config = mockControlPlaneWithResourceBundle()
 			}
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 			assert.NoError(t, err)
@@ -321,12 +322,13 @@ func TestWithEnableDataPreProcessingOptimization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, config := mockControlPlaneWithResourceBundle()
 
-			registry := NewOpenPolicyAgentRegistry(
+			registry, err := NewOpenPolicyAgentRegistry(
 				WithReuseDuration(1*time.Second),
 				WithCleanInterval(1*time.Second),
 				WithEnableDataPreProcessingOptimization(tt.enabled),
 				WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
 			)
+			assert.NoError(t, err)
 
 			inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 			assert.NoError(t, err)
@@ -346,7 +348,8 @@ func TestOpaEngineStartFailure(t *testing.T) {
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery-with-wrong-bundle")
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			engine, err := registry.new(inmem.New(), "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
 			assert.NoError(t, err)
@@ -366,11 +369,15 @@ func TestOpaEngineStartFailure(t *testing.T) {
 }
 
 func TestControlLoopIntervalCalculation(t *testing.T) {
-	registry := NewOpenPolicyAgentRegistry(WithControlLoopInterval(10*time.Second), WithControlLoopMaxJitter(0*time.Millisecond))
+	registry, err := NewOpenPolicyAgentRegistry(WithControlLoopInterval(10*time.Second), WithControlLoopMaxJitter(0*time.Millisecond), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate([]byte(""))))
+	require.NoError(t, err)
+
 	interval := registry.controlLoopIntervalWithJitter()
 	assert.Equal(t, 10*time.Second, interval)
 
-	registry = NewOpenPolicyAgentRegistry(WithControlLoopInterval(10*time.Second), WithControlLoopMaxJitter(1000*time.Millisecond))
+	registry, err = NewOpenPolicyAgentRegistry(WithControlLoopInterval(10*time.Second), WithControlLoopMaxJitter(1000*time.Millisecond), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate([]byte(""))))
+	require.NoError(t, err)
+
 	interval = registry.controlLoopIntervalWithJitter()
 	assert.NotEqual(t, 10*time.Second, interval)
 	start := time.Now()
@@ -379,7 +386,9 @@ func TestControlLoopIntervalCalculation(t *testing.T) {
 
 func TestRetryableErrors(t *testing.T) {
 	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
-	registry := NewOpenPolicyAgentRegistry(WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	registry, err := NewOpenPolicyAgentRegistry(WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	assert.NoError(t, err)
+
 	instance, _ := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 
 	testCases := []struct {
@@ -460,7 +469,8 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 				additionalWait += 2 * *tc.latency
 			}
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(true), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(true), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 			assert.Nil(t, instance)
@@ -489,7 +499,8 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 			assert.NotNil(t, instance)
@@ -501,7 +512,8 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 	_, config := mockControlPlaneWithDiscoveryBundle("bundles/discovery")
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	assert.NoError(t, err)
 
 	instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 	assert.NoError(t, err)
@@ -549,7 +561,8 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 			"service": "test"
 		}}`)
 
-		registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(configWithUnknownService)))
+		registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(configWithUnknownService)))
+		assert.NoError(t, err)
 
 		instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 		assert.Nil(t, instance)
@@ -573,7 +586,8 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle("/bundles/discovery-with-wrong-bundle")
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 			assert.Nil(t, instance)
@@ -601,7 +615,8 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 		func(t *testing.T, tc opaInstanceStartupTestCase) {
 			_, config := mockControlPlaneWithDiscoveryBundle(tc.discoveryBundle)
 
-			registry := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 			assert.Nil(t, instance)
@@ -638,7 +653,8 @@ func TestStartup(t *testing.T) {
 				_, config = mockControlPlaneWithResourceBundle()
 			}
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 			assert.NoError(t, err)
@@ -652,7 +668,8 @@ func TestStartup(t *testing.T) {
 func TestTracing(t *testing.T) {
 	_, config := mockControlPlaneWithResourceBundle()
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	assert.NoError(t, err)
 
 	inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 	assert.NoError(t, err)
@@ -697,7 +714,8 @@ func TestEval(t *testing.T) {
 				_, config = mockControlPlaneWithResourceBundle()
 			}
 
-			registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 			assert.NoError(t, err)
@@ -729,7 +747,8 @@ func TestEval(t *testing.T) {
 func TestResponses(t *testing.T) {
 	_, config := mockControlPlaneWithResourceBundle()
 
-	registry := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	assert.NoError(t, err)
 
 	inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
 	assert.NoError(t, err)
@@ -855,8 +874,9 @@ func TestBodyExtraction(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			t.Logf("Running test for %v", ti)
 
-			registry := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(ti.maxBodySize),
+			registry, err := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(ti.maxBodySize),
 				WithReadBodyBufferSize(ti.readBodyBuffer), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			assert.NoError(t, err)
 
 			inst, err := registry.NewOpenPolicyAgentInstance("use_body", "testfilter")
 			assert.NoError(t, err)
@@ -889,9 +909,10 @@ func TestBodyExtractionExhausingTotalBytes(t *testing.T) {
 
 	_, config := mockControlPlaneWithResourceBundle()
 
-	registry := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
+	registry, err := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
 		WithReadBodyBufferSize(21),
 		WithMaxMemoryBodyParsing(40), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	assert.NoError(t, err)
 
 	inst, err := registry.NewOpenPolicyAgentInstance("use_body", "testfilter")
 	assert.NoError(t, err)
@@ -931,9 +952,10 @@ func TestBodyExtractionEmptyBody(t *testing.T) {
 
 	_, config := mockControlPlaneWithResourceBundle()
 
-	registry := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
+	registry, err := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
 		WithReadBodyBufferSize(21),
 		WithMaxMemoryBodyParsing(40), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	assert.NoError(t, err)
 
 	inst, err := registry.NewOpenPolicyAgentInstance("use_body", "testfilter")
 	assert.NoError(t, err)
@@ -955,9 +977,10 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 
 	_, config := mockControlPlaneWithResourceBundle()
 
-	registry := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
+	registry, err := NewOpenPolicyAgentRegistry(WithMaxRequestBodyBytes(21),
 		WithReadBodyBufferSize(21),
 		WithMaxMemoryBodyParsing(21), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+	assert.NoError(t, err)
 
 	inst, err := registry.NewOpenPolicyAgentInstance("use_body", "testfilter")
 	assert.NoError(t, err)

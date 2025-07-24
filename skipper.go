@@ -1934,7 +1934,7 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
 		}
 
-		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(
+		opaRegistry, err = openpolicyagent.NewOpenPolicyAgentRegistry(
 			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
 			openpolicyagent.WithReadBodyBufferSize(o.OpenPolicyAgentRequestBodyBufferSize),
@@ -1947,6 +1947,11 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
 			openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
 		)
+
+		if err != nil {
+			log.Errorf("failed to create Open Policy Agent registry: %v.", err)
+			return err
+		}
 		defer opaRegistry.Close()
 
 		o.CustomFilters = append(o.CustomFilters,

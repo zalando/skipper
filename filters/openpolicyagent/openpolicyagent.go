@@ -187,7 +187,7 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
-func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *OpenPolicyAgentRegistry {
+func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration:          defaultReuseDuration,
 		cleanInterval:          DefaultCleanIdlePeriod,
@@ -205,6 +205,16 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 		opt(registry)
 	}
 
+	if registry.configTemplate == nil {
+		config, err := NewOpenPolicyAgentConfig()
+
+		if err != nil {
+			return nil, err
+		}
+
+		registry.configTemplate = config
+	}
+
 	if registry.maxMemoryBodyParsingSem == nil {
 		registry.maxMemoryBodyParsingSem = semaphore.NewWeighted(DefaultMaxMemoryBodyParsing)
 	}
@@ -215,7 +225,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) *O
 		go registry.startCustomControlLoopDaemon()
 	}
 
-	return registry
+	return registry, nil
 }
 
 type OpenPolicyAgentInstanceConfig struct {
