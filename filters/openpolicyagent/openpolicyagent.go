@@ -486,7 +486,7 @@ func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.
 // GetOrStartInstance returns an existing instance immediately, or creates one using registry config
 func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
 	// First check if instance already exists
-	instance, err := registry.getExistingInstance(bundleName, filterName)
+	instance, err := registry.getExistingInstance(bundleName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
 	}
@@ -506,7 +506,7 @@ func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string, f
 	return loader()
 }
 
-func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 
@@ -528,7 +528,7 @@ func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string, 
 func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string, filterName string) func() (*OpenPolicyAgentInstance, error) {
 	return func() (*OpenPolicyAgentInstance, error) {
 		// Check if instance already exists first (most common case)
-		instance, err := registry.getExistingInstance(bundleName, filterName)
+		instance, err := registry.getExistingInstance(bundleName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
 		}
@@ -540,7 +540,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string
 		registry.inFlightMu.Lock()
 
 		// Double-check that instance doesn't exist now that we have the lock
-		instance, err = registry.getExistingInstance(bundleName, filterName)
+		instance, err = registry.getExistingInstance(bundleName)
 		if err != nil {
 			registry.inFlightMu.Unlock()
 			return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
