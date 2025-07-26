@@ -1,6 +1,6 @@
 module github.com/zalando/skipper
 
-replace github.com/open-policy-agent/opa-envoy-plugin => github.com/open-policy-agent/opa-envoy-plugin v0.0.0-20240625142009-7ebf657a09b9
+replace github.com/open-policy-agent/opa-envoy-plugin => github.com/open-policy-agent/opa-envoy-plugin v0.0.0-20250710074849-7ebf657a09b9
 
 require (
 	github.com/AlexanderYastrebov/noleak v0.0.0-20230711175737-345842f874fb
