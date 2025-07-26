@@ -309,6 +309,7 @@ type Config struct {
 	OpenPolicyAgentRequestBodyBufferSize               int64         `yaml:"open-policy-agent-request-body-buffer-size"`
 	OpenPolicyAgentMaxRequestBodySize                  int64         `yaml:"open-policy-agent-max-request-body-size"`
 	OpenPolicyAgentMaxMemoryBodyParsing                int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
+	OpenPolicyAgentJwtCacheMaxNumEntries               int           `yaml:"open-policy-agent-jwt-cache-max-num-entries"`
 
 	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
 }
@@ -545,6 +546,7 @@ func NewConfig() *Config {
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxRequestBodySize, "open-policy-agent-max-request-body-size", openpolicyagent.DefaultMaxRequestBodySize, "Maximum number of bytes from a http request body that are passed as input to the policy")
 	flag.Int64Var(&cfg.OpenPolicyAgentRequestBodyBufferSize, "open-policy-agent-request-body-buffer-size", openpolicyagent.DefaultRequestBodyBufferSize, "Read buffer size for the request body")
 	flag.Int64Var(&cfg.OpenPolicyAgentMaxMemoryBodyParsing, "open-policy-agent-max-memory-body-parsing", openpolicyagent.DefaultMaxMemoryBodyParsing, "Total number of bytes used to parse http request bodies across all requests. Once the limit is met, requests will be rejected.")
+	flag.IntVar(&cfg.OpenPolicyAgentJwtCacheMaxNumEntries, "open-policy-agent-jwt-cache-max-num-entries", openpolicyagent.DefaultJwtCacheMaxNumEntries, "Maximum number of JWTs to cache for OPA JWT filters")
 
 	// TLS client certs
 	flag.StringVar(&cfg.ClientKeyFile, "client-tls-key", "", "TLS Key file for backend connections, multiple keys may be given comma separated - the order must match the certs")
@@ -1007,6 +1009,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenPolicyAgentMaxRequestBodySize:                  c.OpenPolicyAgentMaxRequestBodySize,
 		OpenPolicyAgentRequestBodyBufferSize:               c.OpenPolicyAgentRequestBodyBufferSize,
 		OpenPolicyAgentMaxMemoryBodyParsing:                c.OpenPolicyAgentMaxMemoryBodyParsing,
+		OpenPolicyAgentJwtCacheMaxNumEntries:               c.OpenPolicyAgentJwtCacheMaxNumEntries,
 
 		PassiveHealthCheck: c.PassiveHealthCheck.values,
 	}

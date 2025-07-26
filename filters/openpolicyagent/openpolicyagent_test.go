@@ -339,6 +339,50 @@ func TestWithEnableDataPreProcessingOptimization(t *testing.T) {
 	}
 }
 
+func TestWithJwtCacheConfig(t *testing.T) {
+	tests := []struct {
+		name               string
+		cacheMaxNumEntries int
+	}{
+		{
+			name:               "With JWT cache enabled",
+			cacheMaxNumEntries: 5,
+		},
+		{
+			name:               "With JWT cache disabled",
+			cacheMaxNumEntries: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, config := mockControlPlaneWithResourceBundle()
+
+			registry := NewOpenPolicyAgentRegistry(
+				WithReuseDuration(1*time.Second),
+				WithCleanInterval(1*time.Second),
+				WithJwtCacheMaxNumEntries(tt.cacheMaxNumEntries),
+			)
+
+			cfg, err := NewOpenPolicyAgentConfig(WithConfigTemplate(config))
+			assert.NoError(t, err)
+
+			inst1, err := registry.NewOpenPolicyAgentInstance("test", *cfg, "testfilter")
+			assert.NoError(t, err)
+
+			assert.Equal(t, tt.cacheMaxNumEntries, registry.jwtCacheMaxNumEntries)
+			assert.Equal(t, tt.cacheMaxNumEntries, inst1.registry.jwtCacheMaxNumEntries)
+			if tt.cacheMaxNumEntries == 0 {
+				assert.Nil(t, inst1.registry.valueCache)
+				assert.Nil(t, inst1.interQueryBuiltinValueCache)
+			} else {
+				assert.NotNil(t, inst1.registry.valueCache)
+				assert.NotNil(t, inst1.interQueryBuiltinValueCache)
+			}
+		})
+	}
+}
+
 func TestOpaEngineStartFailure(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{enableCustomControlLoop: true, expectedError: "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found"},
