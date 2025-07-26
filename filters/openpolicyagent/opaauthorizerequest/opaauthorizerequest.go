@@ -20,23 +20,20 @@ const responseHeadersKey = "open-policy-agent:decision-response-headers"
 
 type spec struct {
 	registry    *openpolicyagent.OpenPolicyAgentRegistry
-	opts        []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 	name        string
 	bodyParsing bool
 }
 
-func NewOpaAuthorizeRequestSpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+func NewOpaAuthorizeRequestSpec(registry *openpolicyagent.OpenPolicyAgentRegistry) filters.Spec {
 	return &spec{
 		registry: registry,
-		opts:     opts,
 		name:     filters.OpaAuthorizeRequestName,
 	}
 }
 
-func NewOpaAuthorizeRequestWithBodySpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+func NewOpaAuthorizeRequestWithBodySpec(registry *openpolicyagent.OpenPolicyAgentRegistry) filters.Spec {
 	return &spec{
 		registry:    registry,
-		opts:        opts,
 		name:        filters.OpaAuthorizeRequestWithBodyName,
 		bodyParsing: true,
 	}
@@ -74,15 +71,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
-	configOptions := s.opts
-
-	opaConfig, err := openpolicyagent.NewOpenPolicyAgentConfig(configOptions...)
-	if err != nil {
-		return nil, err
-	}
-
-	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, *opaConfig, s.Name())
-
+	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, s.Name())
 	if err != nil {
 		return nil, err
 	}

@@ -983,7 +983,6 @@ type Options struct {
 	OpenPolicyAgentMaxRequestBodySize                  int64
 	OpenPolicyAgentRequestBodyBufferSize               int64
 	OpenPolicyAgentMaxMemoryBodyParsing                int64
-	OpenPolicyAgentJwtCacheMaxNumEntries               int
 
 	PassiveHealthCheck map[string]string
 }
@@ -1928,7 +1927,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	var opaRegistry *openpolicyagent.OpenPolicyAgentRegistry
 	if o.EnableOpenPolicyAgent {
-		opaRegistry = openpolicyagent.NewOpenPolicyAgentRegistry(
+		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
+		opts = append(opts,
+			openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
+		if o.OpenPolicyAgentEnvoyMetadata != "" {
+			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
+		}
+
+		opaRegistry, err = openpolicyagent.NewOpenPolicyAgentRegistry(
 			openpolicyagent.WithMaxRequestBodyBytes(o.OpenPolicyAgentMaxRequestBodySize),
 			openpolicyagent.WithMaxMemoryBodyParsing(o.OpenPolicyAgentMaxMemoryBodyParsing),
 			openpolicyagent.WithReadBodyBufferSize(o.OpenPolicyAgentRequestBodyBufferSize),
@@ -1939,21 +1945,20 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 			openpolicyagent.WithControlLoopInterval(o.OpenPolicyAgentControlLoopInterval),
 			openpolicyagent.WithControlLoopMaxJitter(o.OpenPolicyAgentControlLoopMaxJitter),
 			openpolicyagent.WithEnableDataPreProcessingOptimization(o.EnableOpenPolicyAgentDataPreProcessingOptimization),
-			openpolicyagent.WithJwtCacheMaxNumEntries(o.OpenPolicyAgentJwtCacheMaxNumEntries))
+			openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
+		)
+
+		if err != nil {
+			log.Errorf("failed to create Open Policy Agent registry: %v.", err)
+			return err
+		}
 		defer opaRegistry.Close()
 
-		opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
-		opts = append(opts,
-			openpolicyagent.WithConfigTemplateFile(o.OpenPolicyAgentConfigTemplate))
-		if o.OpenPolicyAgentEnvoyMetadata != "" {
-			opts = append(opts, openpolicyagent.WithEnvoyMetadataFile(o.OpenPolicyAgentEnvoyMetadata))
-		}
-
 		o.CustomFilters = append(o.CustomFilters,
-			opaauthorizerequest.NewOpaAuthorizeRequestSpec(opaRegistry, opts...),
-			opaauthorizerequest.NewOpaAuthorizeRequestWithBodySpec(opaRegistry, opts...),
-			opaserveresponse.NewOpaServeResponseSpec(opaRegistry, opts...),
-			opaserveresponse.NewOpaServeResponseWithReqBodySpec(opaRegistry, opts...),
+			opaauthorizerequest.NewOpaAuthorizeRequestSpec(opaRegistry),
+			opaauthorizerequest.NewOpaAuthorizeRequestWithBodySpec(opaRegistry),
+			opaserveresponse.NewOpaServeResponseSpec(opaRegistry),
+			opaserveresponse.NewOpaServeResponseWithReqBodySpec(opaRegistry),
 		)
 	}
 

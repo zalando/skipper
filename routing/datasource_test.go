@@ -404,15 +404,15 @@ func testRouteValidationMetricsWithMock(t *testing.T, routes string, expectedVal
 	defer r.Close()
 	<-r.FirstLoad()
 
-	metrics.WithCounters(func(counters map[string]int64) {
-		if counters["route.valid"] != expectedValid {
-			t.Errorf("Expected %d valid routes, got %d", expectedValid, counters["route.valid"])
+	metrics.WithGauges(func(gauges map[string]float64) {
+		if gauges["routes.total"] != float64(expectedValid) {
+			t.Errorf("Expected %d valid routes, got %f", expectedValid, gauges["routes.total"])
 		}
 
 		for reason, expected := range expectedInvalid {
 			key := "route.invalid." + reason
-			if counters[key] != expected {
-				t.Errorf("Expected %d %s errors, got %d", expected, reason, counters[key])
+			if gauges[key] != float64(expected) {
+				t.Errorf("Expected %d %s errors, got %f", expected, reason, gauges[key])
 			}
 		}
 	})
@@ -457,14 +457,16 @@ func testRouteValidationMetricsWithPrometheus(t *testing.T, routes string, expec
 	if err != nil {
 		t.Fatal(err)
 	}
+	output := string(body)
 
-	validPattern := fmt.Sprintf(`skipper_route_valid_routes %d`, expectedValid)
-	if !strings.Contains(string(body), validPattern) {
-		t.Errorf("Expected to find %q in metrics output", validPattern)
+	// Check valid route count (via existing routes.total metric)
+	expectedRoutesTotalLine := fmt.Sprintf("skipper_custom_gauges{key=\"routes.total\"} %d", expectedValid)
+	if !strings.Contains(output, expectedRoutesTotalLine) {
+		t.Errorf("Expected to find %q in metrics output", expectedRoutesTotalLine)
 	}
 
 	for reason, expected := range expectedInvalid {
-		invalidPattern := fmt.Sprintf(`skipper_route_invalid_routes{reason="%s"} %d`, reason, expected)
+		invalidPattern := fmt.Sprintf(`skipper_route_invalid{reason="%s"} %d`, reason, expected)
 		if !strings.Contains(string(body), invalidPattern) {
 			t.Errorf("Expected to find %q in metrics output", invalidPattern)
 		}
@@ -510,3 +512,224 @@ func (s slowCreateSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 func (s slowCreateFilter) Request(ctx filters.FilterContext) {}
 func (s slowCreateFilter) Response(filters.FilterContext)    {}
+
+func TestRouteValidationReasonMetrics(t *testing.T) {
+	testCases := []struct {
+		name           string
+		routes         string
+		expectedValid  int
+		expectedCounts map[string]int
+	}{
+		{
+			name: "various error types",
+			routes: `
+				validRoute: Path("/valid") -> "https://example.org";
+				invalidBackend1: Path("/bad1") -> "invalid-url";
+				unknownFilter1: Path("/uf1") -> unknownFilter() -> "https://example.org";
+				invalidParams1: Path("/ip1") -> setPath() -> "https://example.org";
+				invalidParams2: Path("/ip2") -> setPath("too", "many", "params") -> "https://example.org";
+			`,
+			expectedValid: 1,
+			expectedCounts: map[string]int{
+				"failed_backend_split":  1,
+				"unknown_filter":        1,
+				"invalid_filter_params": 2,
+			},
+		},
+		{
+			name: "only valid routes",
+			routes: `
+				validRoute1: Path("/valid1") -> "https://example.org";
+				validRoute2: Path("/valid2") -> "https://example.org";
+			`,
+			expectedValid:  2,
+			expectedCounts: map[string]int{},
+		},
+		{
+			name: "only invalid backend routes",
+			routes: `
+				invalidBackend1: Path("/bad1") -> "invalid-url";
+			`,
+			expectedValid: 0,
+			expectedCounts: map[string]int{
+				"failed_backend_split": 1,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Run("MockMetrics", func(t *testing.T) {
+				testRouteValidationReasonMetricsWithMock(t, tc.routes, tc.expectedValid, tc.expectedCounts)
+			})
+
+			t.Run("Prometheus", func(t *testing.T) {
+				testRouteValidationReasonMetricsWithPrometheus(t, tc.routes, tc.expectedValid, tc.expectedCounts)
+			})
+		})
+	}
+}
+
+func testRouteValidationReasonMetricsWithMock(t *testing.T, routes string, expectedValid int, expectedCounts map[string]int) {
+	metrics := &metricstest.MockMetrics{}
+
+	dc, err := testdataclient.NewDoc(routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dc.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetPath())
+
+	r := routing.New(routing.Options{
+		DataClients:     []routing.DataClient{dc},
+		FilterRegistry:  fr,
+		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
+		Metrics:         metrics,
+		SignalFirstLoad: true,
+	})
+	defer r.Close()
+	<-r.FirstLoad()
+
+	// Wait for metrics to be updated
+	timeout := time.After(100 * time.Millisecond)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		metricsMatch := false
+		metrics.WithGauges(func(gauges map[string]float64) {
+			if gauges["routes.total"] != float64(expectedValid) {
+				return
+			}
+
+			for reason, expectedCount := range expectedCounts {
+				gaugeKey := "route.invalid." + reason
+				if gauges[gaugeKey] != float64(expectedCount) {
+					return
+				}
+			}
+
+			metricsMatch = true
+		})
+
+		if metricsMatch {
+			break
+		}
+
+		select {
+		case <-timeout:
+			// Final check with error reporting
+			metrics.WithGauges(func(gauges map[string]float64) {
+				if gauges["routes.total"] != float64(expectedValid) {
+					t.Errorf("Expected %d valid routes, got %f", expectedValid, gauges["routes.total"])
+				}
+
+				for reason, expectedCount := range expectedCounts {
+					gaugeKey := "route.invalid." + reason
+					actualCount := gauges[gaugeKey]
+					if actualCount != float64(expectedCount) {
+						t.Errorf("Expected %d for reason %s, got %f", expectedCount, reason, actualCount)
+					}
+				}
+			})
+			return
+		case <-ticker.C:
+			continue
+		}
+	}
+}
+
+func testRouteValidationReasonMetricsWithPrometheus(t *testing.T, routes string, expectedValid int, expectedCounts map[string]int) {
+	pm := metrics.NewPrometheus(metrics.Options{})
+	path := "/metrics"
+
+	mux := http.NewServeMux()
+	pm.RegisterHandler(path, mux)
+
+	dc, err := testdataclient.NewDoc(routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dc.Close()
+
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetPath())
+
+	r := routing.New(routing.Options{
+		DataClients:     []routing.DataClient{dc},
+		FilterRegistry:  fr,
+		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
+		Metrics:         pm,
+		SignalFirstLoad: true,
+	})
+	defer r.Close()
+	<-r.FirstLoad()
+
+	// Wait for metrics to be updated
+	timeout := time.After(100 * time.Millisecond)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	var output string
+	for {
+		req := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected status 200, got %d", resp.StatusCode)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		output = string(body)
+
+		// Check if metrics match expected values
+		expectedRoutesTotalLine := fmt.Sprintf(`skipper_custom_gauges{key="routes.total"} %d`, expectedValid)
+		if !strings.Contains(output, expectedRoutesTotalLine) {
+			select {
+			case <-timeout:
+				t.Errorf("Expected to find %q in metrics output", expectedRoutesTotalLine)
+				return
+			case <-ticker.C:
+				continue
+			}
+		}
+
+		allReasonCountsFound := true
+		for reason, expectedCount := range expectedCounts {
+			if expectedCount > 0 {
+				expectedLine := fmt.Sprintf(`skipper_route_invalid{reason="%s"} %d`, reason, expectedCount)
+				if !strings.Contains(output, expectedLine) {
+					allReasonCountsFound = false
+					break
+				}
+			}
+		}
+
+		if allReasonCountsFound {
+			break
+		}
+
+		select {
+		case <-timeout:
+			// Final check with error reporting
+			for reason, expectedCount := range expectedCounts {
+				if expectedCount > 0 {
+					expectedLine := fmt.Sprintf(`skipper_route_invalid{reason="%s"} %d`, reason, expectedCount)
+					if !strings.Contains(output, expectedLine) {
+						t.Errorf("Expected to find %q in metrics output", expectedLine)
+					}
+				}
+			}
+			return
+		case <-ticker.C:
+			continue
+		}
+	}
+}

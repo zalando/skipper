@@ -34,6 +34,7 @@ var (
 	errUnknownPredicate       = invalidDefinitionError("unknown_predicate")
 	errInvalidPredicateParams = invalidDefinitionError("invalid_predicate_params")
 	errFailedBackendSplit     = invalidDefinitionError("failed_backend_split")
+	errInvalidMatcher         = invalidDefinitionError("invalid_matcher")
 )
 
 func (it incomingType) String() string {
@@ -509,10 +510,6 @@ func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route)
 		return nil, err
 	}
 
-	if o.Metrics != nil {
-		o.Metrics.IncValidRoutes()
-	}
-
 	return r, nil
 }
 
@@ -529,6 +526,8 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 // processes a set of route definitions for the routing table
 func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route) {
 	cpm := mapPredicates(o.Predicates)
+	reasonCounts := make(map[string]int)
+
 	for _, def := range defs {
 		route, err := processRouteDef(o, cpm, def)
 		if err == nil {
@@ -538,13 +537,19 @@ func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalid
 			o.Log.Errorf("failed to process route %s: %v", def.Id, err)
 
 			var defErr invalidDefinitionError
-			if errors.As(err, &defErr) && o.Metrics != nil {
-				o.Metrics.IncInvalidRoutes(defErr.Code())
-			} else if o.Metrics != nil {
-				o.Metrics.IncInvalidRoutes("other")
+			reason := "other"
+			if errors.As(err, &defErr) {
+				reason = defErr.Code()
 			}
+
+			reasonCounts[reason]++
 		}
 	}
+
+	if o.Metrics != nil {
+		o.Metrics.UpdateInvalidRoute(reasonCounts)
+	}
+
 	return
 }
 
@@ -611,6 +616,10 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 			for _, err := range errs {
 				o.Log.Error(err)
 				invalidRouteIds[err.ID] = struct{}{}
+			}
+
+			if o.Metrics != nil {
+				o.Metrics.UpdateInvalidRoute(map[string]int{errInvalidMatcher.Code(): len(errs)})
 			}
 
 			for i := range routes {

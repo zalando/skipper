@@ -87,6 +87,19 @@ func TestValidGetUpgradeRequest(t *testing.T) {
 
 }
 
+func TestValidGetUpgradeRequestCaseInsensitivity(t *testing.T) {
+	req, prot := getValidUpgradeRequest()
+	req.Header.Set("Connection", "uPgRaDe")
+	if !isUpgradeRequest(req) {
+		t.Errorf("Request has an upgrade header, but isUpgradeRequest returned false for %+v", req)
+	}
+	gotProt := getUpgradeRequest(req)
+	if gotProt != prot {
+		t.Errorf("%s != %s for %+v", gotProt, prot, req)
+	}
+
+}
+
 func TestServeHTTP(t *testing.T) {
 	for _, ti := range []struct {
 		msg                        string
@@ -95,6 +108,7 @@ func TestServeHTTP(t *testing.T) {
 		backendClosesConnection    bool
 		backendHangs               bool
 		noBackend                  bool
+		dropHopHeaders             bool
 		backendStatusCode          int
 		expectedResponseStatusCode int
 		expectedResponseBody       string
@@ -110,6 +124,13 @@ func TestServeHTTP(t *testing.T) {
 			msg:               "Simple route",
 			route:             `route: Path("/ws") -> "%s";`,
 			method:            http.MethodGet,
+			backendStatusCode: http.StatusSwitchingProtocols,
+		},
+		{
+			msg:               "Simple route with hop-headers dropped",
+			route:             `route: Path("/ws") -> "%s";`,
+			method:            http.MethodGet,
+			dropHopHeaders:    true,
 			backendStatusCode: http.StatusSwitchingProtocols,
 		},
 		{
@@ -247,7 +268,14 @@ func TestServeHTTP(t *testing.T) {
 				defer backend.Close()
 			}
 
-			tp, err := newTestProxyWithParams(routes, Params{ExperimentalUpgrade: true})
+			flags := FlagsNone
+			if ti.dropHopHeaders {
+				flags = HopHeadersRemoval
+			}
+			tp, err := newTestProxyWithParams(routes, Params{
+				ExperimentalUpgrade: true,
+				Flags:               flags,
+			})
 			require.NoError(t, err)
 
 			defer tp.close()

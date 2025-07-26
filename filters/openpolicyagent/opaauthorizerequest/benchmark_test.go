@@ -3,14 +3,6 @@ package opaauthorizerequest
 import (
 	_ "embed"
 	"fmt"
-	"github.com/golang-jwt/jwt/v4"
-	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/zalando/skipper/filters"
-	"github.com/zalando/skipper/filters/filtertest"
-	"github.com/zalando/skipper/filters/openpolicyagent"
-	"github.com/zalando/skipper/metrics/metricstest"
 	"io"
 	"math/rand"
 	"net/http"
@@ -20,6 +12,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
+	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/filtertest"
+	"github.com/zalando/skipper/filters/openpolicyagent"
+	"github.com/zalando/skipper/metrics/metricstest"
 )
 
 const (
@@ -602,8 +603,13 @@ func newDecisionConsumer() *httptest.Server {
 
 func createOpaFilter(opts FilterOptions) (filters.Filter, error) {
 	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
-	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
-	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+
+	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)))
+	if err != nil {
+		return nil, err
+	}
+
+	spec := NewOpaAuthorizeRequestSpec(opaFactory)
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
@@ -616,8 +622,13 @@ func createOpaFilterWithJwtCache(opts FilterOptions) (filters.Filter, error) {
 
 func createBodyBasedOpaFilter(opts FilterOptions) (filters.Filter, error) {
 	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
-	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
-	spec := NewOpaAuthorizeRequestWithBodySpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+
+	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)))
+	if err != nil {
+		return nil, err
+	}
+
+	spec := NewOpaAuthorizeRequestWithBodySpec(opaFactory)
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
@@ -670,15 +681,24 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
 
 func createOpaFilterForMultipleBundles(opts FilterOptions) (filters.Filter, error) {
 	config := generateConfigForMultipleBundles(opts.BundleNames, opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
-	opaFactory := openpolicyagent.NewOpenPolicyAgentRegistry()
-	spec := NewOpaAuthorizeRequestSpec(opaFactory, openpolicyagent.WithConfigTemplate(config))
+	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)))
+	if err != nil {
+		return nil, err
+	}
+
+	// Enable data pre-processing optimization by default for multiple bundles
+	spec := NewOpaAuthorizeRequestSpec(opaFactory)
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
 func createOpaFilterWithDataProcessingOptimization(opts FilterOptions) (filters.Filter, error) {
 	config := generateConfigForMultipleBundles(opts.BundleNames, opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
-	registry := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithEnableDataPreProcessingOptimization(true))
-	spec := NewOpaAuthorizeRequestSpec(registry, openpolicyagent.WithConfigTemplate(config))
+	registry, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithEnableDataPreProcessingOptimization(true), openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)))
+	if err != nil {
+		return nil, err
+	}
+
+	spec := NewOpaAuthorizeRequestSpec(registry)
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 

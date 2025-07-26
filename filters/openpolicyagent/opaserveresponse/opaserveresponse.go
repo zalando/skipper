@@ -14,24 +14,21 @@ import (
 
 type spec struct {
 	registry    *openpolicyagent.OpenPolicyAgentRegistry
-	opts        []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error
 	name        string
 	bodyParsing bool
 }
 
-func NewOpaServeResponseSpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+func NewOpaServeResponseSpec(registry *openpolicyagent.OpenPolicyAgentRegistry) filters.Spec {
 	return &spec{
 		registry:    registry,
-		opts:        opts,
 		name:        filters.OpaServeResponseName,
 		bodyParsing: false,
 	}
 }
 
-func NewOpaServeResponseWithReqBodySpec(registry *openpolicyagent.OpenPolicyAgentRegistry, opts ...func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error) filters.Spec {
+func NewOpaServeResponseWithReqBodySpec(registry *openpolicyagent.OpenPolicyAgentRegistry) filters.Spec {
 	return &spec{
 		registry:    registry,
-		opts:        opts,
 		name:        filters.OpaServeResponseWithReqBodyName,
 		bodyParsing: true,
 	}
@@ -69,14 +66,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
-	configOptions := s.opts
-
-	opaConfig, err := openpolicyagent.NewOpenPolicyAgentConfig(configOptions...)
-	if err != nil {
-		return nil, err
-	}
-
-	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, *opaConfig, s.Name())
+	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, s.Name())
 	if err != nil {
 		return nil, err
 	}

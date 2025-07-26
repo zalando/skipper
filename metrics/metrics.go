@@ -65,11 +65,13 @@ type Metrics interface {
 	MeasureFilterCreate(filterName string, start time.Time)
 	MeasureFilterRequest(filterName string, start time.Time)
 	MeasureAllFiltersRequest(routeId string, start time.Time)
+	MeasureBackendRequestHeader(host string, size int)
 	MeasureBackend(routeId string, start time.Time)
 	MeasureBackendHost(routeBackendHost string, start time.Time)
 	MeasureFilterResponse(filterName string, start time.Time)
 	MeasureAllFiltersResponse(routeId string, start time.Time)
 	MeasureResponse(code int, method string, routeId string, start time.Time)
+	MeasureResponseSize(host string, size int64)
 	MeasureProxy(requestDuration, responseDuration time.Duration)
 	MeasureServe(routeId, host, method string, code int, start time.Time)
 	IncRoutingFailures()
@@ -78,8 +80,7 @@ type Metrics interface {
 	IncErrorsStreaming(routeId string)
 	RegisterHandler(path string, handler *http.ServeMux)
 	UpdateGauge(key string, value float64)
-	IncValidRoutes()
-	IncInvalidRoutes(reason string)
+	UpdateInvalidRoute(reasonCounts map[string]int)
 	Close()
 }
 
