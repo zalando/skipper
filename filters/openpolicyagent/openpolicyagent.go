@@ -92,6 +92,8 @@ type OpenPolicyAgentRegistry struct {
 	controlLoopMaxJitter    time.Duration
 
 	enableDataPreProcessingOptimization bool
+
+	valueCache iCache.InterQueryValueCache
 }
 
 type OpenPolicyAgentFilter interface {
@@ -187,6 +189,21 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
+func (registry *OpenPolicyAgentRegistry) initializeCache() {
+	id := uuid.New().String()
+	parsedConfig, err := config.ParseConfig(registry.configTemplate.configTemplate, id)
+	if err != nil {
+		fmt.Printf("failed to parse opa config template: %v", err)
+		return
+	}
+	interQueryBuiltinValueCache, err := iCache.ParseCachingConfig(parsedConfig.Caching)
+	if err != nil {
+		return
+	}
+
+	registry.valueCache = iCache.NewInterQueryValueCache(context.Background(), interQueryBuiltinValueCache)
+}
+
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration:          defaultReuseDuration,
@@ -218,6 +235,8 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 	if registry.maxMemoryBodyParsingSem == nil {
 		registry.maxMemoryBodyParsingSem = semaphore.NewWeighted(DefaultMaxMemoryBodyParsing)
 	}
+
+	registry.initializeCache()
 
 	go registry.startCleanerDaemon()
 
@@ -590,8 +609,9 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName str
 		maxBodyBytes:       maxBodyBytes,
 		bodyReadBufferSize: bodyReadBufferSize,
 
-		preparedQueryDoOnce:    new(sync.Once),
-		interQueryBuiltinCache: iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
+		preparedQueryDoOnce:         new(sync.Once),
+		interQueryBuiltinCache:      iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
+		interQueryBuiltinValueCache: registry.valueCache,
 
 		idGenerator: uniqueIDGenerator,
 	}
