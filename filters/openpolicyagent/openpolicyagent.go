@@ -201,6 +201,7 @@ func (registry *OpenPolicyAgentRegistry) initializeCache() {
 		return
 	}
 
+	fmt.Printf("cache initialized with: %d\n", *interQueryBuiltinValueCache.InterQueryBuiltinValueCache.NamedCacheConfigs["io_jwt"].MaxNumEntries)
 	registry.valueCache = iCache.NewInterQueryValueCache(context.Background(), interQueryBuiltinValueCache)
 }
 
