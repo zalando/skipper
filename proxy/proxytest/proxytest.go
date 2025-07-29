@@ -123,6 +123,27 @@ func (p *TestProxy) Client() *TestClient {
 	return &TestClient{p.server.Client()}
 }
 
+func (tp *TestProxy) UpdateRoutes(routes []*eskip.Route, deleted []string) error {
+	if tp.dc == nil {
+		panic("no test data client available for route updates")
+	}
+
+	tp.dc.Update(routes, deleted)
+	_, _, err := tp.dc.LoadUpdate()
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *TestProxy) GetRoutes() map[string]*eskip.Route {
+	if p.dc == nil {
+		return nil
+	}
+	return p.dc.GetRoutes()
+}
+
 func (p *TestProxy) Close() error {
 	p.Log.Close()
 	if p.dc != nil {

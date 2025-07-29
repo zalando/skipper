@@ -135,6 +135,10 @@ func (c *Client) WithLoadAllDelay(d time.Duration) {
 	c.loadAllDelay = d
 }
 
+func (c *Client) GetRoutes() map[string]*eskip.Route {
+	return c.routes
+}
+
 func (c *Client) Close() {
 	close(c.quit)
 }
