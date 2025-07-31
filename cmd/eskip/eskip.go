@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 )
 
 type (
@@ -40,6 +41,22 @@ var (
 	version string
 	commit  string
 )
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if version == "" {
+			version = info.Main.Version
+		}
+		if commit == "" {
+			for _, setting := range info.Settings {
+				if setting.Key == "vcs.revision" {
+					commit = setting.Value[:min(8, len(setting.Value))]
+					break
+				}
+			}
+		}
+	}
+}
 
 // map command string to command function
 var commands = map[command]commandFunc{
