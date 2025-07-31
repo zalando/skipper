@@ -1053,10 +1053,10 @@ to get the results paginated or getting all of them at the same time.
 curl localhost:9911/routes?offset=200&limit=100
 ```
 
-## Passive health check (*experimental*)
+## Passive Health Check
 
 Skipper has an option to automatically detect and mitigate faulty backend endpoints, this feature is called
-Passive Health Check(PHC).
+Passive Health Check (PHC).
 
 PHC works the following way: the entire uptime is divided in chunks of `period`, per every period Skipper calculates
 the total amount of requests and amount of requests failed per every endpoint. While next period is going on,
