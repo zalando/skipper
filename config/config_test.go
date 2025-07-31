@@ -129,6 +129,7 @@ func defaultConfig(with func(*Config)) *Config {
 		IdleConnsPerHost:                        64,
 		CloseIdleConnsPeriod:                    20 * time.Second,
 		BackendFlushInterval:                    20 * time.Millisecond,
+		TCPQueueTimeoutServer:                   time.Second,
 		ReadTimeoutServer:                       5 * time.Minute,
 		ReadHeaderTimeoutServer:                 1 * time.Minute,
 		WriteTimeoutServer:                      1 * time.Minute,
