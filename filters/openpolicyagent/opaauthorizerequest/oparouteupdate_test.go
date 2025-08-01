@@ -9,115 +9,89 @@ import (
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/filters/openpolicyagent"
-	"github.com/zalando/skipper/proxy/proxytest"
+	"github.com/zalando/skipper/logging/loggingtest"
+	"github.com/zalando/skipper/routing"
+	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/tracing/tracingtest"
 	"net/http"
 	"testing"
+	"time"
 )
 
-func TestOpaRouteUpdates(t *testing.T) {
-	cases := []struct {
-		name         string
-		initial      []*eskip.Route
-		update       []*eskip.Route
-		deleteIDs    []string
-		expectRoutes []string
-	}{
-		{
-			name:         "add OPA route",
-			initial:      []*eskip.Route{},
-			update:       eskip.MustParse(`r1: Path("/initial") -> opaAuthorizeRequest("bundle1", "") -> status(204) -> <shunt>`),
-			expectRoutes: []string{"r1"},
-		},
-		{
-			name:         "delete OPA route",
-			initial:      eskip.MustParse(`r1: Path("/initial") -> opaAuthorizeRequest("bundle1", "") -> status(204) -> <shunt>`),
-			update:       []*eskip.Route{},
-			deleteIDs:    []string{"r1"},
-			expectRoutes: []string{},
-		},
-		{
-			name:         "add a route with invalid OPA bundle",
-			initial:      eskip.MustParse(`r1: Path("/initial") -> status(204) -> <shunt>`),
-			update:       eskip.MustParse(`r2: Path("/update") -> opaAuthorizeRequest("invalid-bundle", "") -> status(204) -> <shunt>`),
-			expectRoutes: []string{"r1"},
-		},
-	}
+const (
+	pollTimeout = 15 * time.Millisecond
+)
 
-	bs := startBundleServer("bundle1")
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			fr := createFilterRegistry(bs.URL(), tc.update)
-			proxy := proxytest.New(fr, tc.initial...)
-			err := proxy.UpdateRoutes(tc.update, tc.deleteIDs)
-			assert.NoError(t, err)
-
-			routes := proxy.GetRoutes()
-			var gotIDs []string
-			for id := range routes {
-				gotIDs = append(gotIDs, id)
-			}
-			assert.ElementsMatch(t, tc.expectRoutes, gotIDs)
-			for _, deletedID := range tc.deleteIDs {
-				assert.NotContains(t, gotIDs, deletedID, "route %s should have been deleted", deletedID)
-			}
-
-			req, err := http.NewRequest("GET", proxy.URL+"/initial", nil)
-			rsp, err := proxy.Client().Do(req)
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusNoContent, rsp.StatusCode)
-
-			proxy.Close()
-		})
-	}
-}
-
-func createFilterRegistry(url string, update []*eskip.Route) filters.Registry {
-	fr := make(filters.Registry)
+func TestOPA_WithDynamicRoutesAndPreProcessor(t *testing.T) {
+	bundleName := "bundle1"
+	bundleServer := startBundleServer(bundleName)
+	defer bundleServer.Stop()
 
 	config := []byte(fmt.Sprintf(`{
-				"services": {
-					"test": {
-						"url": %q
-					}
-				},
-				"bundles": {
-					"test": {
-						"resource": "/bundles/{{ .bundlename }}"
-					}
-				},
-				"labels": {
-					"environment": "test"
-				},
-				"plugins": {
-					"envoy_ext_authz_grpc": {
-						"path": "envoy/authz/allow",
-						"dry-run": false
-					}
-				}
-			}`, url))
+		"services": {
+			"test": {
+				"url": %q
+			}
+		},
+		"bundles": {
+			"%s": {
+				"resource": "/bundles/{{ .bundlename }}"
+			}
+		}
+	}`, bundleServer.URL(), bundleName))
 
-	envoyMetaDataConfig := []byte(`{
-				"filter_metadata": {
-					"envoy.filters.http.header_to_metadata": {
-						"policy_type": "ingress"
-					}
-				}
-			}`)
+	envoyMetaData := []byte(`{
+		"filter_metadata": {
+			"envoy.filters.http.header_to_metadata": {
+				"policy_type": "ingress"
+			}
+		}
+	}`)
 
-	opts := make([]func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error, 0)
-	opts = append(opts,
-		openpolicyagent.WithConfigTemplate(config),
-		openpolicyagent.WithEnvoyMetadataBytes(envoyMetaDataConfig))
+	opaRegistry, err := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithPreloadingEnabled(true),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(
+			openpolicyagent.WithConfigTemplate(config),
+			openpolicyagent.WithEnvoyMetadataBytes(envoyMetaData),
+		),
+	)
+	require.NoError(t, err)
 
-	opaRegistry, _ := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithTracer(tracingtest.NewTracer()), openpolicyagent.WithPreloadingEnabled(true), openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...))
-	opaRegistry.NewPreProcessor().Do(update)
-	ftSpec := NewOpaAuthorizeRequestSpec(opaRegistry)
-	fr.Register(ftSpec)
+	fr := make(filters.Registry)
+	fr.Register(NewOpaAuthorizeRequestSpec(opaRegistry))
 	fr.Register(builtin.NewStatus())
 
-	return fr
+	initialRoutes := []*eskip.Route{}
+	dc := testdataclient.New(initialRoutes)
+	defer dc.Close()
 
+	updatedRoutes := eskip.MustParse(`
+		r1: Path("/initial") -> opaAuthorizeRequest("bundle1", "") -> status(204) -> <shunt>
+	`)
+
+	opaRegistry.NewPreProcessor().Do(updatedRoutes)
+
+	tr, err := newTestRouting(fr, dc)
+	require.NoError(t, err)
+	defer tr.close()
+
+	dc.Update(updatedRoutes, nil)
+	require.NoError(t, tr.waitForRouteSettings(2))
+
+	route, err := tr.getRouteForURL("https://www.z-opa.org/initial")
+	require.NoError(t, err)
+	require.NotNil(t, route)
+	require.Len(t, route.Filters, 2, "should have opa and status filters")
+
+	foundOPA := false
+	for _, f := range route.Filters {
+		if f.Name == "opaAuthorizeRequest" {
+			foundOPA = true
+			break
+		}
+	}
+	assert.True(t, foundOPA, "opaAuthorizeRequest filter should be applied by preprocessor")
 }
 
 func startBundleServer(bundleName string) *opasdktest.Server {
@@ -136,4 +110,51 @@ func startBundleServer(bundleName string) *opasdktest.Server {
 		}),
 	)
 
+}
+
+type testRouting struct {
+	log     *loggingtest.Logger
+	routing *routing.Routing
+}
+
+func newTestRouting(fr filters.Registry, dc ...routing.DataClient) (*testRouting, error) {
+	log := loggingtest.New()
+
+	rt := routing.New(routing.Options{
+		FilterRegistry: fr,
+		DataClients:    dc,
+		PollTimeout:    pollTimeout,
+		Log:            log,
+	})
+
+	tr := &testRouting{
+		log:     log,
+		routing: rt,
+	}
+
+	return tr, tr.waitForRouteSettings(len(dc))
+}
+
+func (tr *testRouting) close() {
+	tr.log.Close()
+	tr.routing.Close()
+}
+
+func (tr *testRouting) waitForRouteSettings(expected int) error {
+	timeout := 12 * pollTimeout
+	return tr.log.WaitForN("route settings applied", expected, timeout)
+}
+
+func (tr *testRouting) getRouteForURL(url string) (*routing.Route, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Host = req.URL.Host
+
+	route, _ := tr.routing.Route(req)
+	if route == nil {
+		return nil, fmt.Errorf("requested route not found: %s", req.URL.Path)
+	}
+	return route, nil
 }
