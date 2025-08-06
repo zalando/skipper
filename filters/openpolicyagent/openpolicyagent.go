@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/open-policy-agent/opa/topdown/cache"
 	"io"
 	"maps"
 	"math/rand"
@@ -93,8 +92,6 @@ type OpenPolicyAgentRegistry struct {
 	controlLoopMaxJitter    time.Duration
 
 	enableDataPreProcessingOptimization bool
-
-	valueCache iCache.InterQueryValueCache
 }
 
 type OpenPolicyAgentFilter interface {
@@ -190,21 +187,6 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
-func (registry *OpenPolicyAgentRegistry) initializeCache() {
-	id := uuid.New().String()
-	parsedConfig, err := config.ParseConfig(registry.configTemplate.configTemplate, id)
-	if err != nil {
-		fmt.Printf("failed to parse opa config template: %v", err)
-		return
-	}
-	interQueryBuiltinValueCache, err := cache.ParseCachingConfig(parsedConfig.Caching)
-	if err != nil {
-		return
-	}
-
-	registry.valueCache = iCache.NewInterQueryValueCache(context.Background(), interQueryBuiltinValueCache)
-}
-
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration:          defaultReuseDuration,
@@ -236,8 +218,6 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 	if registry.maxMemoryBodyParsingSem == nil {
 		registry.maxMemoryBodyParsingSem = semaphore.NewWeighted(DefaultMaxMemoryBodyParsing)
 	}
-
-	registry.initializeCache()
 
 	go registry.startCleanerDaemon()
 
@@ -494,18 +474,17 @@ func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName s
 }
 
 type OpenPolicyAgentInstance struct {
-	manager                     *plugins.Manager
-	instanceConfig              OpenPolicyAgentInstanceConfig
-	opaConfig                   *config.Config
-	bundleName                  string
-	preparedQuery               *rego.PreparedEvalQuery
-	preparedQueryDoOnce         *sync.Once
-	preparedQueryErr            error
-	interQueryBuiltinCache      iCache.InterQueryCache
-	interQueryBuiltinValueCache iCache.InterQueryValueCache
-	once                        sync.Once
-	closing                     bool
-	registry                    *OpenPolicyAgentRegistry
+	manager                *plugins.Manager
+	instanceConfig         OpenPolicyAgentInstanceConfig
+	opaConfig              *config.Config
+	bundleName             string
+	preparedQuery          *rego.PreparedEvalQuery
+	preparedQueryDoOnce    *sync.Once
+	preparedQueryErr       error
+	interQueryBuiltinCache iCache.InterQueryCache
+	once                   sync.Once
+	closing                bool
+	registry               *OpenPolicyAgentRegistry
 
 	maxBodyBytes       int64
 	bodyReadBufferSize int64
@@ -610,9 +589,8 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName str
 		maxBodyBytes:       maxBodyBytes,
 		bodyReadBufferSize: bodyReadBufferSize,
 
-		preparedQueryDoOnce:         new(sync.Once),
-		interQueryBuiltinCache:      iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
-		interQueryBuiltinValueCache: registry.valueCache,
+		preparedQueryDoOnce:    new(sync.Once),
+		interQueryBuiltinCache: iCache.NewInterQueryCache(manager.InterQueryBuiltinCacheConfig()),
 
 		idGenerator: uniqueIDGenerator,
 	}
@@ -991,11 +969,6 @@ func (opa *OpenPolicyAgentInstance) Logger() logging.Logger { return opa.manager
 // InterQueryBuiltinCache is an implementation of the envoyauth.EvalContext interface
 func (opa *OpenPolicyAgentInstance) InterQueryBuiltinCache() iCache.InterQueryCache {
 	return opa.interQueryBuiltinCache
-}
-
-// InterQueryBuiltinValueCache is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) InterQueryBuiltinValueCache() iCache.InterQueryValueCache {
-	return opa.interQueryBuiltinValueCache
 }
 
 // Config is an implementation of the envoyauth.EvalContext interface

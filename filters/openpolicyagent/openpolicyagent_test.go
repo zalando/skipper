@@ -153,18 +153,7 @@ func mockControlPlaneWithDiscoveryBundle(discoveryBundle string) (*opasdktest.Se
 	return opaControlPlane, config
 }
 
-type controlPlaneConfig struct {
-	enableJwtCaching bool
-}
-type ControlPlaneOption func(*controlPlaneConfig)
-
-func WithJwtCaching(enabled bool) ControlPlaneOption {
-	return func(cfg *controlPlaneConfig) {
-		cfg.enableJwtCaching = enabled
-	}
-}
-
-func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest.Server, []byte) {
+func mockControlPlaneWithResourceBundle() (*opasdktest.Server, []byte) {
 	opaControlPlane := opasdktest.MustNewServer(
 		opasdktest.MockBundle("/bundles/test", map[string]string{
 			"main.rego": `
@@ -193,28 +182,6 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 		}),
 	)
 
-	cfg := &controlPlaneConfig{
-		enableJwtCaching: false,
-	}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	jwtCacheConfig := ""
-	if cfg.enableJwtCaching {
-		jwtCacheConfig = `
-			"caching": {
-				"inter_query_builtin_value_cache": {
-					"named": {
-						"io_jwt": {
-							"max_num_entries": 5
-						}
-					}
-				}
-			},
-		`
-	}
-
 	config := []byte(fmt.Sprintf(`{
 		"services": {
 			"test": {
@@ -226,7 +193,6 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 				"resource": "/bundles/{{ .bundlename }}"
 			}
 		},
-		%s
 		"plugins": {
 			"envoy_ext_authz_grpc": {
 				"path": "envoy/authz/allow",
@@ -234,7 +200,7 @@ func mockControlPlaneWithResourceBundle(opts ...ControlPlaneOption) (*opasdktest
 				"skip-request-body-parse": false
 			}
 		}
-	}`, opaControlPlane.URL(), jwtCacheConfig))
+	}`, opaControlPlane.URL()))
 
 	return opaControlPlane, config
 }
@@ -371,43 +337,6 @@ func TestWithEnableDataPreProcessingOptimization(t *testing.T) {
 			assert.Equal(t, tt.enabled, inst1.registry.enableDataPreProcessingOptimization)
 		})
 	}
-}
-
-func TestWithJwtCacheConfig(t *testing.T) {
-	_, config := mockControlPlaneWithResourceBundle(WithJwtCaching(true))
-
-	registry, err := NewOpenPolicyAgentRegistry(
-		WithReuseDuration(1*time.Second),
-		WithCleanInterval(1*time.Second),
-		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
-	)
-	assert.NoError(t, err)
-
-	inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
-	assert.NoError(t, err)
-
-	expectedJSON := []byte(`{
-				"inter_query_builtin_value_cache": {
-            		"named": {
-                		"io_jwt": {
-                    		"max_num_entries": 5
-                		}
-            		}
-        		}
-    		}`)
-
-	var expected, actual map[string]interface{}
-	err = json.Unmarshal(expectedJSON, &expected)
-	if err != nil {
-		panic(err)
-	}
-	assert.NoError(t, err, "unmarshal expected caching json")
-
-	err = json.Unmarshal(inst1.manager.Config.Caching, &actual)
-	assert.NoError(t, err, "unmarshal actual caching json")
-
-	assert.Equal(t, expected, actual, "caching config should match expected value")
-
 }
 
 func TestOpaEngineStartFailure(t *testing.T) {

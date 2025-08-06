@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -126,7 +125,6 @@ func BenchmarkMinimalPolicyWithDecisionLogs(b *testing.B) {
 		BundleNames:         []string{testBundleName},
 		DecisionLogging:     true,
 		ContextExtensions:   "",
-		JwtCache:            false,
 	}
 	f, err := createOpaFilter(filterOpts)
 	require.NoError(b, err)
@@ -201,119 +199,7 @@ func BenchmarkAllowWithReqBody(b *testing.B) {
 
 }
 
-// BenchmarkJwtValidation measures the performance of the OPA authorization filter with a JWT validation
-// with and without JWT cache configuration enabled.
 func BenchmarkJwtValidation(b *testing.B) {
-	type benchmarkCase struct {
-		name     string
-		jwtCache bool
-	}
-
-	cases := []benchmarkCase{
-		{
-			name:     "without_jwt_filter",
-			jwtCache: false,
-		},
-		{
-			name:     "with_jwt_cache",
-			jwtCache: true,
-		},
-	}
-
-	for _, bc := range cases {
-		opaControlPlane := opasdktest.MustNewServer(
-			opasdktest.MockBundle(testBundleEndpoint, map[string]string{
-				"main.rego": fmt.Sprintf(`
-					package envoy.authz
-
-					import rego.v1
-
-					default allow = false
-
-					public_key_cert := %q
-
-					bearer_token := t if {
-						v := input.attributes.request.http.headers.authorization
-						startswith(v, "Bearer ")
-						t := substring(v, count("Bearer "), -1)
-					}
-
-					allow if {
-						[valid, _, payload] :=  io.jwt.decode_verify(bearer_token, {
-							"cert": public_key_cert,
-							"aud": "nqz3xhorr5"
-						})
-					
-						valid
-						
-						payload.sub == "5974934733"
-					}				
-				`, publicKey),
-			}),
-		)
-		defer opaControlPlane.Stop()
-
-		filterOpts := FilterOptions{
-			OpaControlPlaneUrl:  opaControlPlane.URL(),
-			DecisionConsumerUrl: "",
-			DecisionPath:        testDecisionPath,
-			BundleNames:         []string{testBundleName},
-			DecisionLogging:     false,
-			ContextExtensions:   "",
-			JwtCache:            bc.jwtCache,
-		}
-
-		f, err := createOpaFilter(filterOpts)
-		require.NoError(b, err)
-
-		reqUrl, err := url.Parse("http://opa-authorized.test/somepath")
-		require.NoError(b, err)
-
-		claims := jwt.MapClaims{
-			"iss":   "https://some.identity.acme.com",
-			"sub":   "5974934733",
-			"aud":   "nqz3xhorr5",
-			"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
-			"exp":   time.Now().Add(tokenExp).UTC().Unix(),
-			"email": "someone@example.org",
-		}
-
-		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-
-		key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
-		require.NoError(b, err, "Failed to parse RSA PEM")
-
-		// Sign and get the complete encoded token as a string using the secret
-		signedToken, err := token.SignedString(key)
-		require.NoError(b, err, "Failed to sign token")
-
-		b.Run(bc.name, func(b *testing.B) {
-			ctx := &filtertest.Context{
-				FStateBag: map[string]interface{}{},
-				FResponse: &http.Response{},
-				FRequest: &http.Request{
-					Header: map[string][]string{
-						"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
-					},
-					URL: reqUrl,
-				},
-				FMetrics: &metricstest.MockMetrics{},
-			}
-
-			b.ResetTimer()
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					f.Request(ctx)
-					assert.False(b, ctx.FServed)
-				}
-			})
-		})
-	}
-}
-
-// BenchmarkJwtValidationWithVaryingTokenCounts measures the performance of the OPA authorization filter with a JWT validation
-// with JWT cache configured to keep 5 entries and with varying number of tokens.
-func BenchmarkJwtValidationWithVaryingTokenCounts(b *testing.B) {
 	opaControlPlane := opasdktest.MustNewServer(
 		opasdktest.MockBundle(testBundleEndpoint, map[string]string{
 			"main.rego": fmt.Sprintf(`
@@ -346,72 +232,50 @@ func BenchmarkJwtValidationWithVaryingTokenCounts(b *testing.B) {
 	)
 	defer opaControlPlane.Stop()
 
-	filterOpts := FilterOptions{
-		OpaControlPlaneUrl:  opaControlPlane.URL(),
-		DecisionConsumerUrl: "",
-		DecisionPath:        testDecisionPath,
-		BundleNames:         []string{testBundleName},
-		DecisionLogging:     false,
-		ContextExtensions:   "",
-		JwtCache:            true,
-	}
-
+	filterOpts := NewFilterOptionsWithDefaults(opaControlPlane.URL())
 	f, err := createOpaFilter(filterOpts)
-
 	require.NoError(b, err)
 
 	reqUrl, err := url.Parse("http://opa-authorized.test/somepath")
 	require.NoError(b, err)
 
-	tokenCounts := []int{1, 5, 6, 10, 100}
-	for _, tokenCount := range tokenCounts {
-		tokens := make([]string, tokenCount)
-		for i := 0; i < tokenCount; i++ {
-			claims := jwt.MapClaims{
-				"iss":   "https://some.identity.acme.com",
-				"sub":   "5974934733",
-				"aud":   "nqz3xhorr5",
-				"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
-				"exp":   time.Now().Add(tokenExp).UTC().Unix(),
-				"email": "someone@example.org",
-				"jti":   fmt.Sprintf("token-%d", i),
-			}
-
-			token := jwt.NewWithClaims(jwt.SigningMethodRS512, claims)
-
-			key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
-			require.NoError(b, err, "Failed to parse RSA PEM")
-
-			// Sign and get the complete encoded token as a string using the secret
-			signedToken, err := token.SignedString(key)
-			require.NoError(b, err, "Failed to sign token")
-			tokens[i] = signedToken
-		}
-
-		b.Run(fmt.Sprintf("tokens_count_%d", tokenCount), func(b *testing.B) {
-
-			b.ResetTimer()
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					rnd := rand.New(rand.NewSource(time.Now().UnixNano() + int64(rand.Int())))
-					token := tokens[rnd.Intn(tokenCount)]
-					ctx := &filtertest.Context{
-						FStateBag: map[string]interface{}{},
-						FResponse: &http.Response{},
-						FRequest: &http.Request{
-							Header: map[string][]string{
-								"Authorization": {fmt.Sprintf("Bearer %s", token)},
-							},
-							URL: reqUrl,
-						},
-						FMetrics: &metricstest.MockMetrics{},
-					}
-					f.Request(ctx)
-					assert.False(b, ctx.FServed)
-				}
-			})
-		})
+	claims := jwt.MapClaims{
+		"iss":   "https://some.identity.acme.com",
+		"sub":   "5974934733",
+		"aud":   "nqz3xhorr5",
+		"iat":   time.Now().Add(-time.Minute).UTC().Unix(),
+		"exp":   time.Now().Add(tokenExp).UTC().Unix(),
+		"email": "someone@example.org",
 	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
+	key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
+	require.NoError(b, err, "Failed to parse RSA PEM")
+
+	// Sign and get the complete encoded token as a string using the secret
+	signedToken, err := token.SignedString(key)
+	require.NoError(b, err, "Failed to sign token")
+
+	ctx := &filtertest.Context{
+		FStateBag: map[string]interface{}{},
+		FResponse: &http.Response{},
+		FRequest: &http.Request{
+			Header: map[string][]string{
+				"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
+			},
+			URL: reqUrl,
+		},
+		FMetrics: &metricstest.MockMetrics{},
+	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			f.Request(ctx)
+			assert.False(b, ctx.FServed)
+		}
+	})
 }
 
 // BenchmarkPolicyBundle measures the performance of the OPA authorization filter
@@ -601,7 +465,7 @@ func newDecisionConsumer() *httptest.Server {
 }
 
 func createOpaFilter(opts FilterOptions) (filters.Filter, error) {
-	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging, opts.JwtCache)
+	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
 
 	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)))
 	if err != nil {
@@ -613,7 +477,7 @@ func createOpaFilter(opts FilterOptions) (filters.Filter, error) {
 }
 
 func createBodyBasedOpaFilter(opts FilterOptions) (filters.Filter, error) {
-	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging, opts.JwtCache)
+	config := generateConfig(opts.OpaControlPlaneUrl, opts.DecisionConsumerUrl, opts.DecisionPath, opts.DecisionLogging)
 
 	opaFactory, err := openpolicyagent.NewOpenPolicyAgentRegistry(openpolicyagent.WithOpenPolicyAgentInstanceConfig(openpolicyagent.WithConfigTemplate(config)))
 	if err != nil {
@@ -624,7 +488,7 @@ func createBodyBasedOpaFilter(opts FilterOptions) (filters.Filter, error) {
 	return spec.CreateFilter([]interface{}{opts.BundleNames[0], opts.ContextExtensions})
 }
 
-func generateConfig(opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool, jwtCache bool) []byte {
+func generateConfig(opaControlPlane string, decisionLogConsumer string, decisionPath string, decisionLogging bool) []byte {
 	var decisionPlugin string
 	if decisionLogging {
 		decisionPlugin = `
@@ -634,21 +498,6 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
   				"reporting": {
 					"min_delay_seconds": 300,
 					"max_delay_seconds": 600				
-				}
-			},
-		`
-	}
-
-	var jwtCacheConfig string
-	if jwtCache {
-		jwtCacheConfig = `
-			"caching": {
-				"inter_query_builtin_value_cache": {
-					"named": {
-						"io_jwt": {
-							"max_num_entries": 5
-						}
-					}
 				}
 			},
 		`
@@ -682,9 +531,8 @@ func generateConfig(opaControlPlane string, decisionLogConsumer string, decision
 				"path": %q,
 				"dry-run": false    
 			}
-		},
-		%s
-	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath, jwtCacheConfig))
+		}
+	}`, opaControlPlane, decisionLogConsumer, decisionPlugin, decisionPath))
 }
 
 func createOpaFilterForMultipleBundles(opts FilterOptions) (filters.Filter, error) {
@@ -772,7 +620,6 @@ type FilterOptions struct {
 	BundleNames         []string
 	DecisionLogging     bool
 	ContextExtensions   string
-	JwtCache            bool
 }
 
 func NewFilterOptionsWithDefaults(opaControlPlaneURL string) FilterOptions {
@@ -783,6 +630,5 @@ func NewFilterOptionsWithDefaults(opaControlPlaneURL string) FilterOptions {
 		BundleNames:         []string{testBundleName},
 		DecisionLogging:     false,
 		ContextExtensions:   "",
-		JwtCache:            false,
 	}
 }
