@@ -131,7 +131,7 @@ type FilterContext interface {
 	// Performs a new route lookup and executes the matched route if any
 	Loopback()
 
-	// Performs a new route lookup and executes the matched route if , keeping the response
+	// Performs a new route lookup and executes the matched route if any, keeping the response
 	LoopbackWithResponse()
 
 	Logger() FilterContextLogger
