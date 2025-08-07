@@ -66,6 +66,7 @@ import (
 	origlightstep "github.com/lightstep/lightstep-tracer-go"
 	origbasic "github.com/opentracing/basictracer-go"
 	origjaeger "github.com/uber/jaeger-client-go"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // InitTracer initializes an opentracing tracer. The first option item is the
@@ -152,6 +153,10 @@ func LogKV(k, v string, ctx context.Context) {
 	}
 }
 
+type otelSpanContext interface {
+	TraceID() trace.TraceID
+}
+
 // GetTraceID retrieves TraceID from HTTP request, for example to search for this trace
 // in the UI of your tracing solution and to get more context about it
 func GetTraceID(span ot.Span) string {
@@ -173,6 +178,8 @@ func GetTraceID(span ot.Span) string {
 		return spanContextType.TraceID().String()
 	case origlightstep.SpanContext:
 		return fmt.Sprintf("%x", spanContextType.TraceID)
+	case otelSpanContext:
+		return spanContextType.TraceID().String()
 	}
 
 	return ""
