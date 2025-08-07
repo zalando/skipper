@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging"
@@ -732,4 +733,97 @@ func testRouteValidationReasonMetricsWithPrometheus(t *testing.T, routes string,
 			continue
 		}
 	}
+}
+
+func TestProcessRouteDefsMetricsInitialization(t *testing.T) {
+	pm := metrics.NewPrometheus(metrics.Options{})
+	path := "/metrics"
+
+	mux := http.NewServeMux()
+	pm.RegisterHandler(path, mux)
+
+	getMetricsOutput := func() string {
+		req := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		resp := w.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		return string(body)
+	}
+
+	t.Log("Phase 1: Initial state - all metrics should be present with 0 values")
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetPath())
+
+	opts := &routing.Options{
+		FilterRegistry: fr,
+		Predicates:     []routing.PredicateSpec{primitive.NewTrue(), query.New()},
+		Metrics:        pm,
+		Log:            &logging.DefaultLog{},
+	}
+
+	t.Log("Test with all valid routes")
+	validRoutes := []*eskip.Route{
+		{Id: "valid1", Path: "/foo", Backend: "https://example.org"},
+		{Id: "valid2", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/bar"}}}, Backend: "https://example.org"},
+	}
+
+	routes, invalidRoutes := routing.ExportProcessRouteDefs(opts, validRoutes)
+	assert.Len(t, routes, 2)
+	assert.Len(t, invalidRoutes, 0)
+
+	output1 := getMetricsOutput()
+	assert.Contains(t, output1, `skipper_route_invalid{reason="unknown_filter"} 0`)
+	assert.Contains(t, output1, `skipper_route_invalid{reason="invalid_filter_params"} 0`)
+	assert.Contains(t, output1, `skipper_route_invalid{reason="unknown_predicate"} 0`)
+	assert.Contains(t, output1, `skipper_route_invalid{reason="invalid_predicate_params"} 0`)
+	assert.Contains(t, output1, `skipper_route_invalid{reason="failed_backend_split"} 0`)
+	assert.Contains(t, output1, `skipper_route_invalid{reason="invalid_matcher"} 0`)
+	assert.Contains(t, output1, `skipper_route_invalid{reason="other"} 0`)
+
+	t.Log("Phase 2: Test with various error types")
+	invalidRoutesSet := []*eskip.Route{
+		{Id: "unknownFilter", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/test"}}}, Filters: []*eskip.Filter{{Name: "unknownFilter"}}, Backend: "https://example.org"},
+		{Id: "invalidFilterParams", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/test2"}}}, Filters: []*eskip.Filter{{Name: "setPath"}}, Backend: "https://example.org"},
+		{Id: "unknownPredicate", Predicates: []*eskip.Predicate{{Name: "UnknownPredicate"}}, Backend: "https://example.org"},
+		{Id: "invalidPredicateParams", Predicates: []*eskip.Predicate{{Name: "QueryParam"}}, Backend: "https://example.org"},
+		{Id: "failedBackendSplit", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/test3"}}}, Backend: "invalid-url"},
+		{Id: "valid3", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/test4"}}}, Backend: "https://example.org"},
+	}
+
+	routes2, invalidRoutes2 := routing.ExportProcessRouteDefs(opts, invalidRoutesSet)
+	assert.Len(t, routes2, 1)
+	assert.Len(t, invalidRoutes2, 5)
+
+	output2 := getMetricsOutput()
+	assert.Contains(t, output2, `skipper_route_invalid{reason="unknown_filter"} 1`)
+	assert.Contains(t, output2, `skipper_route_invalid{reason="invalid_filter_params"} 1`)
+	assert.Contains(t, output2, `skipper_route_invalid{reason="unknown_predicate"} 1`)
+	assert.Contains(t, output2, `skipper_route_invalid{reason="invalid_predicate_params"} 1`)
+	assert.Contains(t, output2, `skipper_route_invalid{reason="failed_backend_split"} 1`)
+	assert.Contains(t, output2, `skipper_route_invalid{reason="invalid_matcher"} 0`)
+	assert.Contains(t, output2, `skipper_route_invalid{reason="other"} 0`)
+
+	t.Log("Phase 3: Test routes are fixed - all metrics should reset to 0")
+	allValidRoutes := []*eskip.Route{
+		{Id: "fixed1", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/fixed1"}}}, Backend: "https://example.org"},
+		{Id: "fixed2", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/fixed2"}}}, Backend: "https://example.org"},
+	}
+
+	routes3, invalidRoutes3 := routing.ExportProcessRouteDefs(opts, allValidRoutes)
+	assert.Len(t, routes3, 2)
+	assert.Len(t, invalidRoutes3, 0)
+
+	output3 := getMetricsOutput()
+	assert.Contains(t, output3, `skipper_route_invalid{reason="unknown_filter"} 0`)
+	assert.Contains(t, output3, `skipper_route_invalid{reason="invalid_filter_params"} 0`)
+	assert.Contains(t, output3, `skipper_route_invalid{reason="unknown_predicate"} 0`)
+	assert.Contains(t, output3, `skipper_route_invalid{reason="invalid_predicate_params"} 0`)
+	assert.Contains(t, output3, `skipper_route_invalid{reason="failed_backend_split"} 0`)
+	assert.Contains(t, output3, `skipper_route_invalid{reason="invalid_matcher"} 0`)
+	assert.Contains(t, output3, `skipper_route_invalid{reason="other"} 0`)
 }

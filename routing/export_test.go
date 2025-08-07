@@ -8,6 +8,7 @@ import (
 
 var (
 	ExportProcessRouteDef            = processRouteDef
+	ExportProcessRouteDefs           = processRouteDefs
 	ExportNewMatcher                 = newMatcher
 	ExportMatch                      = (*matcher).match
 	ExportProcessPredicates          = processPredicates
