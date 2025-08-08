@@ -1,6 +1,7 @@
 package opaauthorizerequest
 
 import (
+	"crypto/rsa"
 	_ "embed"
 	"fmt"
 	"io"
@@ -33,7 +34,15 @@ var (
 	//go:embed testResources/cert.pem
 	publicKey []byte
 	//go:embed testResources/key.pem
-	privateKey []byte
+	privateKeyPem []byte
+
+	privateKey = func() *rsa.PrivateKey {
+		key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKeyPem)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to parse RSA PEM: %v", err))
+		}
+		return key
+	}()
 
 	testBundleEndpoint = fmt.Sprintf("/bundles/%s", testBundleName)
 )
@@ -220,10 +229,9 @@ func BenchmarkJwtValidation(b *testing.B) {
 		},
 	}
 
-	for _, bc := range cases {
-		opaControlPlane := opasdktest.MustNewServer(
-			opasdktest.MockBundle(testBundleEndpoint, map[string]string{
-				"main.rego": fmt.Sprintf(`
+	opaControlPlane := opasdktest.MustNewServer(
+		opasdktest.MockBundle(testBundleEndpoint, map[string]string{
+			"main.rego": fmt.Sprintf(`
 					package envoy.authz
 
 					import rego.v1
@@ -249,10 +257,11 @@ func BenchmarkJwtValidation(b *testing.B) {
 						payload.sub == "5974934733"
 					}				
 				`, publicKey),
-			}),
-		)
-		defer opaControlPlane.Stop()
+		}),
+	)
+	defer opaControlPlane.Stop()
 
+	for _, bc := range cases {
 		filterOpts := FilterOptions{
 			OpaControlPlaneUrl:  opaControlPlane.URL(),
 			DecisionConsumerUrl: "",
@@ -280,11 +289,8 @@ func BenchmarkJwtValidation(b *testing.B) {
 
 		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
-		key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
-		require.NoError(b, err, "Failed to parse RSA PEM")
-
 		// Sign and get the complete encoded token as a string using the secret
-		signedToken, err := token.SignedString(key)
+		signedToken, err := token.SignedString(privateKey)
 		require.NoError(b, err, "Failed to sign token")
 
 		b.Run(bc.name, func(b *testing.B) {
@@ -365,7 +371,7 @@ func BenchmarkJwtValidationWithVaryingTokenCounts(b *testing.B) {
 
 	tokenCounts := []int{1, 5, 6, 10, 100}
 	for _, tokenCount := range tokenCounts {
-		tokens := make([]string, tokenCount)
+		ctxs := make([]*filtertest.Context, tokenCount)
 		for i := 0; i < tokenCount; i++ {
 			claims := jwt.MapClaims{
 				"iss":   "https://some.identity.acme.com",
@@ -379,33 +385,28 @@ func BenchmarkJwtValidationWithVaryingTokenCounts(b *testing.B) {
 
 			token := jwt.NewWithClaims(jwt.SigningMethodRS512, claims)
 
-			key, err := jwt.ParseRSAPrivateKeyFromPEM(privateKey)
-			require.NoError(b, err, "Failed to parse RSA PEM")
-
 			// Sign and get the complete encoded token as a string using the secret
-			signedToken, err := token.SignedString(key)
+			signedToken, err := token.SignedString(privateKey)
 			require.NoError(b, err, "Failed to sign token")
-			tokens[i] = signedToken
+
+			ctxs[i] = &filtertest.Context{
+				FStateBag: map[string]interface{}{},
+				FResponse: &http.Response{},
+				FRequest: &http.Request{
+					Header: map[string][]string{
+						"Authorization": {fmt.Sprintf("Bearer %s", signedToken)},
+					},
+					URL: reqUrl,
+				},
+				FMetrics: &metricstest.MockMetrics{},
+			}
 		}
 
 		b.Run(fmt.Sprintf("tokens_count_%d", tokenCount), func(b *testing.B) {
-
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
-					rnd := rand.New(rand.NewSource(time.Now().UnixNano() + int64(rand.Int())))
-					token := tokens[rnd.Intn(tokenCount)]
-					ctx := &filtertest.Context{
-						FStateBag: map[string]interface{}{},
-						FResponse: &http.Response{},
-						FRequest: &http.Request{
-							Header: map[string][]string{
-								"Authorization": {fmt.Sprintf("Bearer %s", token)},
-							},
-							URL: reqUrl,
-						},
-						FMetrics: &metricstest.MockMetrics{},
-					}
+					ctx := ctxs[rand.Intn(tokenCount)]
 					f.Request(ctx)
 					assert.False(b, ctx.FServed)
 				}
