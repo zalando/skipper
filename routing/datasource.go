@@ -526,7 +526,17 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 // processes a set of route definitions for the routing table
 func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route) {
 	cpm := mapPredicates(o.Predicates)
-	reasonCounts := make(map[string]int)
+	// Initialize reasonCounts with all available error codes to ensure metric values can be set to 0
+	// when the corresponding route error is resolved
+	reasonCounts := map[string]int{
+		errUnknownFilter.Code():          0,
+		errInvalidFilterParams.Code():    0,
+		errUnknownPredicate.Code():       0,
+		errInvalidPredicateParams.Code(): 0,
+		errFailedBackendSplit.Code():     0,
+		errInvalidMatcher.Code():         0,
+		"other":                          0,
+	}
 
 	for _, def := range defs {
 		route, err := processRouteDef(o, cpm, def)
