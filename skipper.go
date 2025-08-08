@@ -24,6 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/skipper/circuit"
+	"github.com/zalando/skipper/cmd/webhook/admission"
 	"github.com/zalando/skipper/dataclients/kubernetes"
 	"github.com/zalando/skipper/dataclients/routestring"
 	"github.com/zalando/skipper/eskip"
@@ -985,6 +986,12 @@ type Options struct {
 	OpenPolicyAgentMaxMemoryBodyParsing                int64
 
 	PassiveHealthCheck map[string]string
+
+	// ValidationWebhookEnabled enables the validation webhook server
+	ValidationWebhookEnabled  bool
+	ValidationWebhookAddress  string
+	ValidationWebhookCertFile string
+	ValidationWebhookKeyFile  string
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
@@ -2224,7 +2231,44 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	<-routing.FirstLoad()
 	log.Info("Dataclients are updated once, first load complete")
 
+	// start validation webhook server if enabled
+	if o.ValidationWebhookEnabled {
+		go func() {
+			if err := startValidationWebhook(o, o.filterRegistry(), o.CustomPredicates); err != nil {
+				log.Errorf("Failed to start validation webhook: %v", err)
+			}
+		}()
+	}
+
 	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
+}
+
+func startValidationWebhook(o Options, filterRegistry filters.Registry, predicateSpecs []routing.PredicateSpec) error {
+	log.Infof("Starting validation webhook server on %s", o.ValidationWebhookAddress)
+
+	mux := http.NewServeMux()
+
+	routeGroupAdmitter := admission.NewRouteGroupAdmitter(filterRegistry, predicateSpecs)
+	ingressAdmitter := admission.NewIngressAdmitter(filterRegistry, predicateSpecs)
+
+	mux.Handle("/routegroups", admission.Handler(routeGroupAdmitter))
+	mux.Handle("/ingresses", admission.Handler(ingressAdmitter))
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	server := &http.Server{
+		Addr:    o.ValidationWebhookAddress,
+		Handler: mux,
+	}
+
+	if o.ValidationWebhookCertFile == "" || o.ValidationWebhookKeyFile == "" {
+		return fmt.Errorf("validation webhook requires TLS: cert file or key file not provided")
+	}
+	log.Infof("Starting HTTPS validation webhook server with cert: %s, key: %s",
+		o.ValidationWebhookCertFile, o.ValidationWebhookKeyFile)
+	return server.ListenAndServeTLS(o.ValidationWebhookCertFile, o.ValidationWebhookKeyFile)
 }
 
 // Run skipper.

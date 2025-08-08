@@ -483,6 +483,12 @@ func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 	return nil
 }
 
+// ProcessRouteDef processes a route definition for the routing table.
+// This function is exported to be used by validation webhooks.
+func ProcessRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route) (*Route, error) {
+	return processRouteDef(o, cpm, def)
+}
+
 // processes a route definition for the routing table
 func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route) (*Route, error) {
 	scheme, host, err := splitBackend(def)
@@ -511,6 +517,12 @@ func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route)
 	}
 
 	return r, nil
+}
+
+// MapPredicates converts a slice of predicate specs to a map keyed by their names.
+// This function is exported to be used by validation webhooks.
+func MapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
+	return mapPredicates(cps)
 }
 
 // convert a slice of predicate specs to a map keyed by their names
