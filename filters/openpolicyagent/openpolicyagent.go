@@ -189,19 +189,20 @@ func WithControlLoopMaxJitter(maxJitter time.Duration) func(*OpenPolicyAgentRegi
 	}
 }
 
-func (registry *OpenPolicyAgentRegistry) initializeCache() {
+func (registry *OpenPolicyAgentRegistry) initializeCache() error {
 	id := uuid.New().String()
 	parsedConfig, err := config.ParseConfig(registry.configTemplate.configTemplate, id)
 	if err != nil {
-		fmt.Printf("failed to parse opa config template: %v", err)
-		return
+		return fmt.Errorf("failed to parse opa config template: %w", err)
 	}
 	interQueryBuiltinValueCache, err := iCache.ParseCachingConfig(parsedConfig.Caching)
 	if err != nil {
-		return
+		return err
 	}
 
 	registry.valueCache = iCache.NewInterQueryValueCache(context.Background(), interQueryBuiltinValueCache)
+
+	return nil
 }
 
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
@@ -236,7 +237,9 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 		registry.maxMemoryBodyParsingSem = semaphore.NewWeighted(DefaultMaxMemoryBodyParsing)
 	}
 
-	registry.initializeCache()
+	if err := registry.initializeCache(); err != nil {
+		return nil, err
+	}
 
 	go registry.startCleanerDaemon()
 
