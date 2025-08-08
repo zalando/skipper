@@ -17,16 +17,6 @@ updates:
       - dependency-name: "github.com/open-policy-agent/opa"
       - dependency-name: "github.com/open-policy-agent/opa-envoy-plugin"
       - dependency-name: "github.com/envoyproxy/go-control-plane"
-  - package-ecosystem: "gomod"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    groups:
-      opa:
-        patterns:
-          - "github.com/open-policy-agent/opa"
-          - "github.com/open-policy-agent/opa-envoy-plugin"
-        update-types: ["minor"]
   - package-ecosystem: "github-actions"
     directory: "/" # For GitHub Actions, set the directory to / to check for workflow files in .github/workflows
     schedule:
