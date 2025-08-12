@@ -13,7 +13,10 @@ import (
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/routing/testdataclient"
 	"github.com/zalando/skipper/tracing/tracingtest"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -50,6 +53,43 @@ func TestOPA_WithDynamicRoutesAndPreProcessor(t *testing.T) {
 	assert.True(t, hasFilter(route, "opaAuthorizeRequest"))
 	assert.True(t, hasFilter(route, "status"))
 }
+
+//func TestOPA_InvalidBundleBecomingAvailable(t *testing.T) {
+//	bundleName := "bundle"
+//	bundleServer := startControllableBundleServer(bundleName)
+//	defer bundleServer.Stop()
+//
+//	opaRegistry := createOPARegistry(t, bundleServer.URL(), bundleName)
+//	fr := setupFilterRegistry(opaRegistry)
+//	bundleServer.SetAvailable(true)
+//
+//	opaPreprocessor := opaRegistry.NewPreProcessor()
+//	opaPreprocessor.Do([]*eskip.Route{})
+//	initialRoutes := eskip.MustParse(fmt.Sprintf(`
+//		r1: Path("/initial") -> opaAuthorizeRequest("%s", "") -> status(204) -> <shunt>
+//	`, bundleName))
+//	dc := testdataclient.New(initialRoutes)
+//	defer dc.Close()
+//	opaPreprocessor.Do(initialRoutes)
+//	print("Initial routes with OPA filter:", initialRoutes[0].Name)
+//
+//	//updatedRoutes := eskip.MustParse(fmt.Sprintf(`
+//	//	r1: Path("/initial") -> opaAuthorizeRequest("%s", "") -> status(204) -> <shunt>
+//	//`, bundleName))
+//	opaPreprocessor.Do(initialRoutes)
+//	//print("Updated routes with OPA filter:", updatedRoutes)
+//
+//	tr := setupTestRouting(t, fr, dc)
+//	defer tr.close()
+//
+//	//dc.Update(updatedRoutes, nil)
+//	require.NoError(t, tr.waitForRouteSettings(2))
+//
+//	route := tr.requireRoute(t, "https://www.z-opa.org/initial")
+//	require.Len(t, route.Filters, 2)
+//	assert.True(t, hasFilter(route, "opaAuthorizeRequest"))
+//	assert.True(t, hasFilter(route, "status"))
+//}
 
 func TestOPA_WithMissingBundle_WithAnotherRoute(t *testing.T) {
 	missingBundle := "nonexistent-bundle"
@@ -239,4 +279,93 @@ func (tr *testRouting) requireMissingRoute(t *testing.T, path string) {
 	route, err := tr.getRouteForURL(url)
 	require.EqualError(t, err, fmt.Sprintf("requested route not found: %s", path))
 	require.Nil(t, route)
+}
+
+// Wrapper server with controllable availability:
+type controllableBundleServer struct {
+	realServer  *opasdktest.Server
+	proxyServer *httptest.Server
+	available   atomic.Bool
+	bundleName  string
+}
+
+func startControllableBundleServer(bundleName string) *controllableBundleServer {
+	realSrv := startBundleServer(bundleName)
+	cbs := &controllableBundleServer{
+		realServer: realSrv,
+		bundleName: bundleName,
+	}
+	cbs.available.Store(false) // initially unavailable
+
+	cbs.proxyServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !cbs.available.Load() {
+			w.WriteHeader(http.StatusTooManyRequests) // 429
+			w.Write([]byte("Bundle temporarily unavailable"))
+			return
+		}
+
+		// Proxy request to real bundle server
+		proxyURL := cbs.realServer.URL() + r.URL.Path
+		resp, err := http.Get(proxyURL)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Failed to fetch bundle"))
+			return
+		}
+		defer resp.Body.Close()
+
+		for k, vv := range resp.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	}))
+
+	return cbs
+}
+
+func (c *controllableBundleServer) SetAvailable(yes bool) {
+	c.available.Store(yes)
+}
+
+func (c *controllableBundleServer) URL() string {
+	return c.proxyServer.URL
+}
+
+func (c *controllableBundleServer) Stop() {
+	c.proxyServer.Close()
+	c.realServer.Stop()
+}
+
+func TestControllableBundleServer(t *testing.T) {
+	bundleName := "testbundle"
+	cbs := startControllableBundleServer(bundleName)
+	defer cbs.Stop()
+
+	url := cbs.URL() + "/bundles/" + bundleName
+
+	// Initially unavailable → expect 429
+	resp, err := http.Get(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "temporarily unavailable")
+
+	// Set available → expect 200 and bundle content
+	cbs.SetAvailable(true)
+
+	resp2, err := http.Get(url)
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	require.NoError(t, err)
+	body2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err)
+	assert.NotEmpty(t, body2, "Expected non-empty bundle content")
 }
