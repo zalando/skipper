@@ -20,7 +20,7 @@ func TestOPABootstrapWithPreProcessor_ValidBundle(t *testing.T) {
 	assert.True(t, hasOpaAuthorizeRequest(processed[0].Filters), "missing opaAuthorizeRequest")
 	assertStatusFilter(t, processed[0].Filters, 204)
 
-	inst, err := registry.GetOrStartInstance("test", "test")
+	inst, err := registry.GetOrStartInstance("test", "some-filter-name")
 	require.NoError(t, err)
 	require.NotNil(t, inst)
 	assert.Equal(t, "test", inst.bundleName)
