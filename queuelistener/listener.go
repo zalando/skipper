@@ -20,6 +20,7 @@ const (
 	maxCalculatedQueueSize          = 50_000
 	acceptedConnectionsKey          = "listener.accepted.connections"
 	queuedConnectionsKey            = "listener.queued.connections"
+	queueTimeoutKey                 = "listener.queued.timeouts"
 	acceptLatencyKey                = "listener.accept.latency"
 )
 
@@ -96,6 +97,7 @@ type listener struct {
 var (
 	token             struct{}
 	errListenerClosed = errors.New("listener closed")
+	errAcceptTimeout  = errors.New("accept timeout")
 )
 
 func (c *connection) Close() error {
@@ -132,10 +134,7 @@ func (o Options) maxQueueSize() int64 {
 		return int64(o.MaxQueueSize)
 	}
 
-	maxQueueSize := 10 * o.maxConcurrency()
-	if maxQueueSize > maxCalculatedQueueSize {
-		maxQueueSize = maxCalculatedQueueSize
-	}
+	maxQueueSize := min(10*o.maxConcurrency(), maxCalculatedQueueSize)
 
 	return maxQueueSize
 }
