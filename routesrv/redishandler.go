@@ -42,7 +42,7 @@ func (rh *RedisHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func getRedisAddresses(opts *skipper.Options, kdc *kubernetes.Client, m metrics.Metrics) func() ([]byte, error) {
 	return func() ([]byte, error) {
-		a := kdc.GetEndpointAddresses(opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
+		a := kdc.GetEndpointAddresses("", opts.KubernetesRedisServiceNamespace, opts.KubernetesRedisServiceName)
 		log.Debugf("Redis updater called and found %d redis endpoints: %v", len(a), a)
 		m.UpdateGauge("redis_endpoints", float64(len(a)))
 
