@@ -59,7 +59,11 @@ func (cm *ConnManager) Configure(server *http.Server) {
 }
 
 func (cm *ConnManager) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	state, _ := r.Context().Value(connection).(*connState)
+	state, ok := r.Context().Value(connection).(*connState)
+	if !ok || state == nil {
+		cm.handler.ServeHTTP(w, r)
+		return
+	}
 	state.requests++
 
 	if cm.KeepaliveRequests > 0 && state.requests >= cm.KeepaliveRequests {
