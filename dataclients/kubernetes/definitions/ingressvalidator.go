@@ -7,7 +7,9 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-type IngressV1Validator struct{}
+type IngressV1Validator struct {
+	EskipValidator
+}
 
 func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 	var errs []error
@@ -21,33 +23,45 @@ func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 
 func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
 	if filters, ok := annotations[IngressFilterAnnotation]; ok {
-		_, err := eskip.ParseFilters(filters)
+		filters, err := eskip.ParseFilters(filters)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err)
+			return fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err)
 		}
-		return err
+		if igv.EskipValidator != nil {
+			if err := igv.EskipValidator.ValidateFilters(filters); err != nil {
+				return fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err)
+			}
+		}
 	}
 	return nil
 }
 
 func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[string]string) error {
 	if predicates, ok := annotations[IngressPredicateAnnotation]; ok {
-		_, err := eskip.ParsePredicates(predicates)
+		predicates, err := eskip.ParsePredicates(predicates)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressPredicateAnnotation, err)
+			return fmt.Errorf("invalid \"%s\" annotation: %w", IngressPredicateAnnotation, err)
 		}
-		return err
+		if igv.EskipValidator != nil {
+			if err := igv.EskipValidator.ValidatePredicates(predicates); err != nil {
+				return fmt.Errorf("invalid \"%s\" annotation: %w", IngressPredicateAnnotation, err)
+			}
+		}
 	}
 	return nil
 }
 
 func (igv *IngressV1Validator) validateRoutesAnnotation(annotations map[string]string) error {
 	if routes, ok := annotations[IngressRoutesAnnotation]; ok {
-		_, err := eskip.Parse(routes)
+		route, err := eskip.Parse(routes)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err)
+			return fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err)
 		}
-		return err
+		if igv.EskipValidator != nil {
+			if err := igv.EskipValidator.ValidateRoute(route); err != nil {
+				return fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err)
+			}
+		}
 	}
 	return nil
 }
