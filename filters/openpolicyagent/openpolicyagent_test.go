@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -976,7 +977,7 @@ func TestBodyExtraction(t *testing.T) {
 	}
 }
 
-func TestBodyExtractionExhausingTotalBytes(t *testing.T) {
+func TestBodyExtractionExhaustingTotalBytes(t *testing.T) {
 
 	_, config := mockControlPlaneWithResourceBundle()
 
@@ -1100,4 +1101,56 @@ func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test fun
 			test(t, tc)
 		})
 	}
+}
+
+func TestOpenPolicyAgentRegistry_ConcurrentInstanceCreation(t *testing.T) {
+
+	mockServer := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/bundle1", map[string]string{
+			"main.rego": `package test`,
+		}),
+	)
+	defer mockServer.Stop()
+
+	// Minimal valid OPA config as JSON
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": { "url": %q }
+		},
+		"bundles": {
+			"bundle1": { "resource": "/bundles/bundle1" }
+		}
+	}`, mockServer.URL()))
+
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+	)
+	require.NoError(t, err)
+	defer registry.Close()
+
+	initInstance, err := registry.GetOrStartInstance("bundle1", "opaAuthorizeRequest")
+	require.NoError(t, err)
+
+	// Now we test concurrent instance retrieval/creation
+	var wg sync.WaitGroup
+	n := 10
+	results := make([]*OpenPolicyAgentInstance, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			inst, err := registry.GetOrStartInstance("bundle1", "opaAuthorizeRequest")
+			require.NoError(t, err)
+			results[idx] = inst
+		}(i)
+	}
+	wg.Wait()
+
+	// All results should point to the same instance
+	for i := 1; i < n; i++ {
+		assert.Equal(t, results[0], results[i])
+	}
+
+	assert.Equal(t, initInstance, results[0])
+	assert.Len(t, registry.instances, 1, "Registry should have only one instance after concurrent creation attempts")
 }

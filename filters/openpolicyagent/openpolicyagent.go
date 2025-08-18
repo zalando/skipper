@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/singleflight"
 	"io"
 	"maps"
 	"math/rand"
@@ -122,11 +123,11 @@ type OpenPolicyAgentRegistry struct {
 
 	// Track in-flight instance creation to prevent concurrent creation of the same bundle
 	inFlightCreation map[string]chan *OpenPolicyAgentInstance
-	inFlightMu       sync.RWMutex
 
 	// Background task system
 	backgroundTaskChan   chan *BackgroundTask
 	backgroundWorkerOnce sync.Once
+	singleflightGroup    singleflight.Group
 }
 
 type OpenPolicyAgentFilter interface {
@@ -309,13 +310,6 @@ func WithConfigTemplateFile(configTemplateFile string) func(*OpenPolicyAgentInst
 		var err error
 		cfg.configTemplate, err = os.ReadFile(configTemplateFile)
 		return err
-	}
-}
-
-func WithEnvoyMetadata(metadata *ext_authz_v3_core.Metadata) func(*OpenPolicyAgentInstanceConfig) error {
-	return func(cfg *OpenPolicyAgentInstanceConfig) error {
-		cfg.envoyMetadata = metadata
-		return nil
 	}
 }
 
@@ -522,73 +516,44 @@ func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) 
 	return nil, nil
 }
 
-// PrepareInstanceLoader returns a function that when called will create an OPA instance
-// This allows the preprocessor to control when and how the instance creation happens
-// Prevents concurrent creation of the same bundle by tracking in-flight operations
-func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string, filterName string) func() (*OpenPolicyAgentInstance, error) {
+// PrepareInstanceLoader returns a function that creates or retrieves
+// an OPA instance for the given bundle. Concurrent calls for the same
+// bundle are deduplicated via singleflight.
+func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filterName string) func() (*OpenPolicyAgentInstance, error) {
 	return func() (*OpenPolicyAgentInstance, error) {
-		// Check if instance already exists first (most common case)
-		instance, err := registry.getExistingInstance(bundleName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
-		}
-		if instance != nil {
-			return instance, nil
+		// Fast path: already exists
+		if inst, err := registry.getExistingInstance(bundleName); err != nil {
+			return nil, fmt.Errorf("failed to get existing OPA instance for bundle %q: %w", bundleName, err)
+		} else if inst != nil {
+			return inst, nil
 		}
 
-		// Atomically check for in-flight creation and claim creation if needed
-		registry.inFlightMu.Lock()
-
-		// Double-check that instance doesn't exist now that we have the lock
-		instance, err = registry.getExistingInstance(bundleName)
-		if err != nil {
-			registry.inFlightMu.Unlock()
-			return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
-		}
-		if instance != nil {
-			registry.inFlightMu.Unlock()
-			return instance, nil
-		}
-
-		// Check if another goroutine is already creating this instance
-		if inFlightChan, isInFlight := registry.inFlightCreation[bundleName]; isInFlight {
-			registry.inFlightMu.Unlock()
-			// Another goroutine is creating this instance, wait for it
-			select {
-			case instance := <-inFlightChan:
-				return instance, nil
-			case <-time.After(registry.instanceStartupTimeout):
-				return nil, fmt.Errorf("timeout waiting for in-flight creation of OPA instance for bundle '%s'", bundleName)
+		// Collapse concurrent creations into one using singleflight
+		v, err, _ := registry.singleflightGroup.Do(bundleName, func() (any, error) {
+			// Re-check after entering singleflight (another goroutine might have finished creation)
+			if inst, err := registry.getExistingInstance(bundleName); err != nil {
+				return nil, fmt.Errorf("failed to recheck OPA instance for bundle %q: %w", bundleName, err)
+			} else if inst != nil {
+				return inst, nil
 			}
-		}
 
-		// We're the first to claim creation for this bundle
-		creationChan := make(chan *OpenPolicyAgentInstance, 1)
-		registry.inFlightCreation[bundleName] = creationChan
-		registry.inFlightMu.Unlock()
+			// Create new OPA instance
+			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
+			if err != nil {
+				return nil, err
+			}
 
-		// Ensure cleanup on exit
-		defer func() {
-			registry.inFlightMu.Lock()
-			delete(registry.inFlightCreation, bundleName)
-			registry.inFlightMu.Unlock()
-		}()
+			// Cache instance
+			registry.mu.Lock()
+			registry.instances[bundleName] = inst
+			registry.mu.Unlock()
 
-		instance, err = registry.newOpenPolicyAgentInstance(bundleName, filterName)
+			return inst, nil
+		})
 		if err != nil {
 			return nil, err
 		}
-
-		// Store the instance in the registry
-		registry.mu.Lock()
-		registry.instances[bundleName] = instance
-		registry.mu.Unlock()
-
-		// Notify any waiting goroutines
-		creationChan <- instance
-		close(creationChan)
-
-		return instance, nil
+		return v.(*OpenPolicyAgentInstance), nil
 	}
 }
 

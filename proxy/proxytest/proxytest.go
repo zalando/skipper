@@ -136,7 +136,7 @@ func (p *TestProxy) UpdateRoutes(routes []*eskip.Route, deleted []string) error 
 
 func (p *TestProxy) GetRoutes() map[string]*eskip.Route {
 	if p.dc == nil {
-		return nil
+		panic("no test data client available to get routes")
 	}
 	return p.dc.GetRoutes()
 }
