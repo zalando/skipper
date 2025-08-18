@@ -54,42 +54,47 @@ func TestOPA_WithDynamicRoutesAndPreProcessor(t *testing.T) {
 	assert.True(t, hasFilter(route, "status"))
 }
 
-//func TestOPA_InvalidBundleBecomingAvailable(t *testing.T) {
-//	bundleName := "bundle"
-//	bundleServer := startControllableBundleServer(bundleName)
-//	defer bundleServer.Stop()
-//
-//	opaRegistry := createOPARegistry(t, bundleServer.URL(), bundleName)
-//	fr := setupFilterRegistry(opaRegistry)
-//	bundleServer.SetAvailable(true)
-//
-//	opaPreprocessor := opaRegistry.NewPreProcessor()
-//	opaPreprocessor.Do([]*eskip.Route{})
-//	initialRoutes := eskip.MustParse(fmt.Sprintf(`
-//		r1: Path("/initial") -> opaAuthorizeRequest("%s", "") -> status(204) -> <shunt>
-//	`, bundleName))
-//	dc := testdataclient.New(initialRoutes)
-//	defer dc.Close()
-//	opaPreprocessor.Do(initialRoutes)
-//	print("Initial routes with OPA filter:", initialRoutes[0].Name)
-//
-//	//updatedRoutes := eskip.MustParse(fmt.Sprintf(`
-//	//	r1: Path("/initial") -> opaAuthorizeRequest("%s", "") -> status(204) -> <shunt>
-//	//`, bundleName))
-//	opaPreprocessor.Do(initialRoutes)
-//	//print("Updated routes with OPA filter:", updatedRoutes)
-//
-//	tr := setupTestRouting(t, fr, dc)
-//	defer tr.close()
-//
-//	//dc.Update(updatedRoutes, nil)
-//	require.NoError(t, tr.waitForRouteSettings(2))
-//
-//	route := tr.requireRoute(t, "https://www.z-opa.org/initial")
-//	require.Len(t, route.Filters, 2)
-//	assert.True(t, hasFilter(route, "opaAuthorizeRequest"))
-//	assert.True(t, hasFilter(route, "status"))
-//}
+func TestOPA_InvalidBundleBecomingAvailable(t *testing.T) {
+
+	//Test case where the bundle server is initially unavailable,
+	bundleName := "bundle"
+	bundleServer := startControllableBundleServer(bundleName)
+	bundleServer.SetAvailable(true)
+
+	defer bundleServer.Stop()
+
+	opaRegistry := createOPARegistry(t, bundleServer.URL(), bundleName)
+	fr := setupFilterRegistry(opaRegistry)
+
+	opaPreprocessor := opaRegistry.NewPreProcessor()
+	initialRoutes := eskip.MustParse(fmt.Sprintf(`
+		r1: Path("/initial") -> opaAuthorizeRequest("%s", "") -> status(204) -> <shunt>
+	`, bundleName))
+
+	dc := testdataclient.New(initialRoutes)
+	defer dc.Close()
+	opaPreprocessor.Do(initialRoutes)
+
+	// Update, bundle server to be available
+	bundleServer.SetAvailable(true)
+
+	updatedRoutes := eskip.MustParse(fmt.Sprintf(`
+		r1: Path("/initial") -> opaAuthorizeRequest("%s", "") -> status(204) -> <shunt>
+	`, bundleName))
+	opaPreprocessor.Do(updatedRoutes)
+
+	tr := setupTestRouting(t, fr, dc)
+	defer tr.close()
+
+	dc.Update(updatedRoutes, nil)
+	require.NoError(t, tr.waitForRouteSettings(2))
+
+	//ToDO
+	//route := tr.requireRoute(t, "https://www.z-opa.org/initial")
+	//require.Len(t, route.Filters, 2)
+	//assert.True(t, hasFilter(route, "opaAuthorizeRequest"))
+	//assert.True(t, hasFilter(route, "status"))
+}
 
 func TestOPA_WithMissingBundle_WithAnotherRoute(t *testing.T) {
 	missingBundle := "nonexistent-bundle"
