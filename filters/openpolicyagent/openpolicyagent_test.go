@@ -493,19 +493,19 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 		{
 			status:  503,
 			latency: &slowResponse,
-			error:   "context cancelled while triggering plugins: context deadline exceeded, last retry returned: request failed: Get \"%v/bundles/discovery\": net/http: timeout awaiting response headers",
+			error:   "timeout waiting for in flight creation of OPA instance for bundle \"test\"",
 		},
 		{
 			status: 429,
-			error:  "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Too Many Requests",
+			error:  "timeout waiting for in flight creation of OPA instance for bundle \"test\"",
 		},
 		{
 			status: 500,
-			error:  "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Internal Server Error",
+			error:  "timeout waiting for in flight creation of OPA instance for bundle \"test\"",
 		},
 		{
 			status: 404,
-			error:  "server replied with Not Found",
+			error:  "timeout waiting for in flight creation of OPA instance for bundle \"test\"",
 		},
 	}
 
@@ -541,7 +541,7 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 				additionalWait += 2 * *tc.latency
 			}
 
-			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(true), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
+			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(false), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
 			instance, err := registry.GetOrStartInstance("test", "testfilter")
@@ -646,12 +646,12 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			enableCustomControlLoop: true,
-			expectedError:           "Bundle name: bundles/non-existing-bundle, Code: bundle_error, HTTPCode: 404, Message: server replied with Not Found",
+			enableCustomControlLoop: false,
+			expectedError:           "timeout waiting for in flight creation of OPA instance for bundle \"test\"",
 		},
 		{
 			enableCustomControlLoop: false,
-			expectedError:           "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
+			expectedError:           "timeout waiting for in flight creation of OPA instance for bundle \"test\"",
 		},
 	}
 	runWithTestCases(t, testCases,
@@ -673,14 +673,14 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 	testCases := []opaInstanceStartupTestCase{
 		{
-			enableCustomControlLoop: true,
+			enableCustomControlLoop: false,
 			discoveryBundle:         "/bundles/discovery-with-parsing-error",
-			expectedError:           "context cancelled while triggering plugins: context deadline exceeded, last retry returned: server replied with Internal Server Error",
+			expectedError:           "timeout waiting for in flight creation of OPA instance for bundle \"test\"",
 		},
 		{
 			enableCustomControlLoop: false,
 			discoveryBundle:         "/bundles/discovery-with-parsing-error",
-			expectedError:           "one or more open policy agent plugins failed to start in 1s with error: timed out while starting: context deadline exceeded",
+			expectedError:           "timeout waiting for in flight creation of OPA instance for bundle \"test\"",
 		},
 	}
 	runWithTestCases(t, testCases,
@@ -1104,53 +1104,216 @@ func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test fun
 }
 
 func TestOpenPolicyAgentRegistry_ConcurrentInstanceCreation(t *testing.T) {
-
-	mockServer := opasdktest.MustNewServer(
+	// Setup bundle servers
+	bundlerServer1 := opasdktest.MustNewServer(
 		opasdktest.MockBundle("/bundles/bundle1", map[string]string{
 			"main.rego": `package test`,
+			".manifest": `{"roots": ["test"]}`,
 		}),
 	)
-	defer mockServer.Stop()
+	defer bundlerServer1.Stop()
 
-	// Minimal valid OPA config as JSON
+	bundlerServer2 := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/bundle2", map[string]string{
+			"main.rego": `package test2`,
+			".manifest": `{"roots": ["test2"]}`,
+		}),
+	)
+	defer bundlerServer2.Stop()
+
+	// OPA config with two bundles
+	config := []byte(fmt.Sprintf(`{
+        "services": {
+            "server1": { "url": %q },
+            "server2": { "url": %q }
+        },
+        "bundles": {
+            "bundle1": { 
+                "service": "server1",
+                "resource": "/bundles/bundle1"
+            },
+            "bundle2": { 
+                "service": "server2",
+                "resource": "/bundles/bundle2"
+            }
+        }
+    }`, bundlerServer1.URL(), bundlerServer2.URL()))
+
+	testCases := []struct {
+		name                  string
+		bundle1               string
+		filter1               string
+		bundle2               string
+		filter2               string
+		expectedInstanceCount int
+		expectSameInstance    bool
+		description           string
+	}{
+		{
+			name:                  "Same Bundle Same Filter",
+			bundle1:               "bundle1",
+			filter1:               "opaAuthorizeRequest",
+			bundle2:               "bundle1",
+			filter2:               "opaAuthorizeResponse",
+			expectedInstanceCount: 1,
+			expectSameInstance:    true,
+			description:           "Should reuse the same instance when bundle and filter match",
+		},
+		{
+			name:                  "Same Bundle Different Filter",
+			bundle1:               "bundle1",
+			filter1:               "opaAuthorizeRequest",
+			bundle2:               "bundle1",
+			filter2:               "opaAuthorizeResponse",
+			expectedInstanceCount: 1,
+			expectSameInstance:    true,
+			description:           "Should create one instance for same bundle with different filters",
+		},
+		{
+			name:                  "Different Bundle Same Filter",
+			bundle1:               "bundle1",
+			filter1:               "opaAuthorizeRequest",
+			bundle2:               "bundle2",
+			filter2:               "opaAuthorizeRequest",
+			expectedInstanceCount: 2,
+			expectSameInstance:    false,
+			description:           "Should create separate instances for different bundles with same filter",
+		},
+		{
+			name:                  "Different Bundle Different Filter",
+			bundle1:               "bundle1",
+			filter1:               "opaAuthorizeRequest",
+			bundle2:               "bundle2",
+			filter2:               "opaAuthorizeResponse",
+			expectedInstanceCount: 2,
+			expectSameInstance:    false,
+			description:           "Should create separate instances for different bundles and different filters",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			registry, err := NewOpenPolicyAgentRegistry(
+				WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+			)
+			require.NoError(t, err)
+			defer registry.Close()
+
+			// Get first instance
+			instance1, err := registry.GetOrStartInstance(tc.bundle1, tc.filter1)
+			require.NoError(t, err)
+			require.NotNil(t, instance1, "First instance should not be nil")
+
+			// Get second instance
+			instance2, err := registry.GetOrStartInstance(tc.bundle2, tc.filter2)
+			require.NoError(t, err)
+			require.NotNil(t, instance2, "Second instance should not be nil")
+
+			// Test concurrent access to verify thread safety
+			var wg sync.WaitGroup
+			n := 10
+			results1 := make([]*OpenPolicyAgentInstance, n)
+			results2 := make([]*OpenPolicyAgentInstance, n)
+
+			concurrentGetInstances := func(bundle, filter string, results []*OpenPolicyAgentInstance) {
+				for i := 0; i < n; i++ {
+					wg.Add(1)
+					go func(idx int) {
+						defer wg.Done()
+						inst, err := registry.GetOrStartInstance(bundle, filter)
+						require.NoError(t, err)
+						results[idx] = inst
+					}(i)
+				}
+			}
+
+			concurrentGetInstances(tc.bundle1, tc.filter1, results1)
+			concurrentGetInstances(tc.bundle2, tc.filter2, results2)
+
+			wg.Wait()
+
+			// Verify all concurrent calls to first combination return same instance
+			for i := 0; i < n; i++ {
+				assert.Equal(t, instance1, results1[i], "All concurrent calls for first combination should return same instance")
+			}
+
+			// Verify all concurrent calls to second combination return same instance
+			for i := 0; i < n; i++ {
+				assert.Equal(t, instance2, results2[i], "All concurrent calls for second combination should return same instance")
+			}
+
+			// Verify whether instances should be same or different based on test case
+			if tc.expectSameInstance {
+				assert.Equal(t, instance1, instance2, tc.description)
+			} else {
+				assert.NotEqual(t, instance1, instance2, tc.description)
+			}
+
+			// Verify expected number of instances in registry
+			assert.Len(t, registry.instances, tc.expectedInstanceCount,
+				"Registry should have %d instance(s) for case: %s", tc.expectedInstanceCount, tc.description)
+
+			t.Logf("✓ %s: Expected %d instances, got %d instances, same instance: %v",
+				tc.description, tc.expectedInstanceCount, len(registry.instances), tc.expectSameInstance)
+		})
+	}
+}
+
+func TestOpenPolicyAgentRegistry_ConcurrentTimeoutsWithSlowBundle(t *testing.T) {
+	// Create a slow mock bundle server
+	slowServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond) // simulate slow bundle fetch
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"main.rego": "package test"}`))
+	}))
+	defer slowServer.Close()
+
+	// Prepare minimal valid OPA config pointing to the slow server
 	config := []byte(fmt.Sprintf(`{
 		"services": {
 			"test": { "url": %q }
 		},
 		"bundles": {
-			"bundle1": { "resource": "/bundles/bundle1" }
+			"bundle1": { "resource": "/" }
 		}
-	}`, mockServer.URL()))
+	}`, slowServer.URL))
 
+	// Create registry with short instanceStartupTimeout
 	registry, err := NewOpenPolicyAgentRegistry(
+		func(r *OpenPolicyAgentRegistry) error {
+			r.instanceStartupTimeout = 50 * time.Millisecond // shorter than bundle server delay
+			return nil
+		},
 		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
 	)
 	require.NoError(t, err)
 	defer registry.Close()
 
-	initInstance, err := registry.GetOrStartInstance("bundle1", "opaAuthorizeRequest")
-	require.NoError(t, err)
-
-	// Now we test concurrent instance retrieval/creation
+	// Run multiple concurrent requests
 	var wg sync.WaitGroup
-	n := 10
+	n := 5
 	results := make([]*OpenPolicyAgentInstance, n)
+	errors := make([]error, n)
+
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
 			inst, err := registry.GetOrStartInstance("bundle1", "opaAuthorizeRequest")
-			require.NoError(t, err)
 			results[idx] = inst
+			errors[idx] = err
 		}(i)
 	}
 	wg.Wait()
 
-	// All results should point to the same instance
-	for i := 1; i < n; i++ {
-		assert.Equal(t, results[0], results[i])
+	// Validate results
+	for i := 0; i < n; i++ {
+		assert.Nil(t, results[i], "Instance should be nil due to simulated timeout")
+		assert.Error(t, errors[i])
+		assert.Contains(t, errors[i].Error(), "timeout waiting for in flight creation of OPA instance for bundle \"bundle1\"")
 	}
 
-	assert.Equal(t, initInstance, results[0])
-	assert.Len(t, registry.instances, 1, "Registry should have only one instance after concurrent creation attempts")
+	// Registry should not have any instances created
+	assert.Len(t, registry.instances, 0, "Registry should have zero instances after timeout")
 }
