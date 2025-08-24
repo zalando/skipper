@@ -528,55 +528,32 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			return inst, nil
 		}
 
-		// Timeout context for the singleflight operation
-		ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
-		defer cancel()
-
-		vCh := make(chan struct {
-			val any
-			err error
-		}, 1)
-
 		// Collapse concurrent creations into one using singleflight
-		go func() {
-			v, err, _ := registry.singleflightGroup.Do(bundleName, func() (any, error) {
-				// Re-check after entering singleflight
-				if inst, err := registry.getExistingInstance(bundleName); err != nil {
-					return nil, fmt.Errorf("failed to recheck OPA instance for bundle %q: %w", bundleName, err)
-				} else if inst != nil {
-					return inst, nil
-				}
-
-				// Create new OPA instance
-				inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
-				if err != nil {
-					return nil, err
-				}
-
-				// Cache instance
-				registry.mu.Lock()
-				registry.instances[bundleName] = inst
-				registry.mu.Unlock()
-
+		v, err, _ := registry.singleflightGroup.Do(bundleName, func() (any, error) {
+			// Re-check after entering singleflight (another goroutine might have finished creation)
+			if inst, err := registry.getExistingInstance(bundleName); err != nil {
+				return nil, fmt.Errorf("failed to recheck OPA instance for bundle %q: %w", bundleName, err)
+			} else if inst != nil {
 				return inst, nil
-			})
-
-			vCh <- struct {
-				val any
-				err error
-			}{v, err}
-		}()
-
-		// Wait for result or timeout
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("timeout waiting for in flight creation of OPA instance for bundle %q", bundleName)
-		case res := <-vCh:
-			if res.err != nil {
-				return nil, res.err
 			}
-			return res.val.(*OpenPolicyAgentInstance), nil
+
+			// Create new OPA instance
+			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
+			if err != nil {
+				return nil, err
+			}
+
+			// Cache instance
+			registry.mu.Lock()
+			registry.instances[bundleName] = inst
+			registry.mu.Unlock()
+
+			return inst, nil
+		})
+		if err != nil {
+			return nil, err
 		}
+		return v.(*OpenPolicyAgentInstance), nil
 	}
 }
 
