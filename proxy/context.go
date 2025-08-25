@@ -300,10 +300,18 @@ func (c *context) Split() (filters.FilterContext, error) {
 }
 
 func (c *context) Loopback() {
+	c.loopbackInternal(true)
+}
+
+func (c *context) LoopbackWithResponse() {
+	c.loopbackInternal(false)
+}
+
+func (c *context) loopbackInternal(discardResponse bool) {
 	loopSpan := c.tracer.StartSpan(c.proxy.tracing.initialOperationName, opentracing.ChildOf(c.parentSpan.Context()))
 	defer loopSpan.Finish()
 	err := c.proxy.do(c, loopSpan)
-	if c.response != nil && c.response.Body != nil {
+	if discardResponse && c.response != nil && c.response.Body != nil {
 		if _, err := io.Copy(io.Discard, c.response.Body); err != nil {
 			c.Logger().Errorf("context: error while discarding remainder response body: %v.", err)
 		}
