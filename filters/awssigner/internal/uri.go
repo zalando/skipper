@@ -11,7 +11,7 @@ import (
 
 var noEscape [256]bool
 
-func InitializeEscape() {
+func init() {
 	for i := 0; i < len(noEscape); i++ {
 		// AWS expects every character except these to be escaped
 		noEscape[i] = (i >= 'A' && i <= 'Z') ||
@@ -26,7 +26,6 @@ func InitializeEscape() {
 
 // EscapePath escapes part of a URL path in Amazon style.
 func EscapePath(path string, encodeSep bool) string {
-	InitializeEscape() //TODO : is getting initialized every time
 	var buf bytes.Buffer
 	for i := 0; i < len(path); i++ {
 		c := path[i]
