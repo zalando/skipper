@@ -8,7 +8,9 @@ import (
 	"github.com/zalando/skipper/eskip"
 )
 
-type RouteGroupValidator struct{}
+type RouteGroupValidator struct {
+	EskipValidator
+}
 
 var (
 	errSingleFilterExpected    = errors.New("single filter expected")
@@ -72,6 +74,10 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 				errs = append(errs, err)
 			} else if len(filters) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSingleFilterExpected, f))
+			} else if rgv.EskipValidator != nil {
+				if err := rgv.EskipValidator.ValidateFilters(filters); err != nil {
+					errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
+				}
 			}
 		}
 	}
@@ -88,6 +94,10 @@ func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 				errs = append(errs, err)
 			} else if len(predicates) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
+			} else if rgv.EskipValidator != nil {
+				if err := rgv.EskipValidator.ValidatePredicates(predicates); err != nil {
+					errs = append(errs, fmt.Errorf("invalid predicate %q: %w", p, err))
+				}
 			}
 		}
 	}
@@ -104,6 +114,12 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 			} else {
 				if address.Path != "" || address.RawQuery != "" || address.Scheme == "" || address.Host == "" {
 					errs = append(errs, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address))
+				}
+			}
+
+			if rgv.EskipValidator != nil {
+				if err := rgv.EskipValidator.ValidateBackend(backend.Address, backend.Type); err != nil {
+					errs = append(errs, fmt.Errorf("invalid backend %q: %w", backend.Address, err))
 				}
 			}
 		}
