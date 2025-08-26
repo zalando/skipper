@@ -34,13 +34,15 @@ func TestOPA_WithDynamicRoutesAndPreProcessor(t *testing.T) {
 	opaPreprocessor := opaRegistry.NewPreProcessor()
 	initialRoutes := []*eskip.Route{}
 	dc := testdataclient.New(initialRoutes)
-	//opaPreprocessor.Do(initialRoutes)        //ToDo investigate why fail with this
+	opaPreprocessor.Do(initialRoutes)
 	defer dc.Close()
 
 	updatedRoutes := eskip.MustParse(fmt.Sprintf(`
 		r1: Path("/initial") -> opaAuthorizeRequest("%s", "") -> status(204) -> <shunt>
 	`, bundleName))
 	opaPreprocessor.Do(updatedRoutes)
+
+	time.Sleep(100 * time.Millisecond) // ToDo wait for bundle to be loaded in a more deterministic way
 
 	tr := setupTestRouting(t, fr, dc)
 	defer tr.close()
