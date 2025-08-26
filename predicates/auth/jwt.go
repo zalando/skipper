@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/zalando/skipper/jwt"
 	"github.com/zalando/skipper/predicates"
@@ -49,14 +51,21 @@ const (
 )
 
 type (
+	registry struct {
+		quit       chan struct{}
+		predicates []*predicate
+	}
+
 	spec struct {
 		name          string
 		matchBehavior matchBehavior
 		matchMode     matchMode
+		reg           *registry
 	}
 	predicate struct {
 		kv            map[string][]valueMatcher
 		matchBehavior matchBehavior
+		cache         sync.Map
 	}
 	exactMatcher struct {
 		expected string
@@ -65,6 +74,26 @@ type (
 		regexp *regexp.Regexp
 	}
 )
+
+func (r *registry) Close() {
+	close(r.quit)
+}
+
+func (r *registry) clean() {
+	tick := time.NewTicker(time.Hour)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-r.quit:
+			return
+		case <-tick.C:
+			for _, p := range r.predicates {
+				p.cache.Clear()
+			}
+		}
+	}
+}
 
 func NewJWTPayloadAnyKV() routing.PredicateSpec {
 	return &spec{
@@ -83,18 +112,32 @@ func NewJWTPayloadAllKV() routing.PredicateSpec {
 }
 
 func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
+	reg := &registry{
+		quit:       make(chan struct{}),
+		predicates: make([]*predicate, 0),
+	}
+	go reg.clean()
+
 	return &spec{
 		name:          predicates.JWTPayloadAnyKVRegexpName,
 		matchBehavior: matchBehaviorAny,
 		matchMode:     matchModeRegexp,
+		reg:           reg,
 	}
 }
 
 func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
+	reg := &registry{
+		quit:       make(chan struct{}),
+		predicates: make([]*predicate, 0),
+	}
+	go reg.clean()
+
 	return &spec{
 		name:          predicates.JWTPayloadAllKVRegexpName,
 		matchBehavior: matchBehaviorAll,
 		matchMode:     matchModeRegexp,
+		reg:           reg,
 	}
 }
 
@@ -131,10 +174,17 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		kv[key] = append(kv[key], matcher)
 	}
 
-	return &predicate{
+	if s.matchMode == matchModeRegexp {
+
+	}
+
+	p := &predicate{
 		kv:            kv,
 		matchBehavior: s.matchBehavior,
-	}, nil
+	}
+	s.reg.predicates = append(s.reg.predicates, p)
+
+	return p, nil
 }
 
 func (m exactMatcher) Match(jwtValue string) bool {
@@ -152,19 +202,27 @@ func (p *predicate) Match(r *http.Request) bool {
 		return false
 	}
 
+	if v, ok := p.cache.Load(ahead); ok {
+		return v.(bool)
+	}
+
 	token, err := jwt.Parse(tv)
 	if err != nil {
+		p.cache.Store(ahead, false)
 		return false
 	}
 
+	var res bool
 	switch p.matchBehavior {
 	case matchBehaviorAll:
-		return allMatch(p.kv, token.Claims)
+		res = allMatch(p.kv, token.Claims)
 	case matchBehaviorAny:
-		return anyMatch(p.kv, token.Claims)
+		res = anyMatch(p.kv, token.Claims)
 	default:
-		return false
+		res = false
 	}
+	p.cache.Store(ahead, res)
+	return res
 }
 
 func stringValue(payload map[string]interface{}, key string) (string, bool) {
