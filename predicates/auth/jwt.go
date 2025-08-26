@@ -174,15 +174,13 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		kv[key] = append(kv[key], matcher)
 	}
 
-	if s.matchMode == matchModeRegexp {
-
-	}
-
 	p := &predicate{
 		kv:            kv,
 		matchBehavior: s.matchBehavior,
 	}
-	s.reg.predicates = append(s.reg.predicates, p)
+	if s.matchMode == matchModeRegexp {
+		s.reg.predicates = append(s.reg.predicates, p)
+	}
 
 	return p, nil
 }
