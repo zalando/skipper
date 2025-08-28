@@ -544,5 +544,40 @@ func Test_anyMatch(t *testing.T) {
 			}
 		})
 	}
+}
 
+func BenchmarkJWTPayloadAnyKVRegexp(b *testing.B) {
+	sp := NewJWTPayloadAnyKVRegexp()
+	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "^ssz", "https://identity.zalando.com/token", "^Bear"})
+	if err != nil {
+		b.Fatalf("Failed to create predicate: %v", err)
+	}
+	benchPredicate(b, p)
+}
+
+func BenchmarkJWTPayloadAllKVRegexp(b *testing.B) {
+	sp := NewJWTPayloadAllKVRegexp()
+	p, err := sp.Create([]interface{}{"https://identity.zalando.com/managed-id", "^ssz", "https://identity.zalando.com/token", "^Bear"})
+	if err != nil {
+		b.Fatalf("Failed to create predicate: %v", err)
+	}
+	benchPredicate(b, p)
+}
+
+func benchPredicate(b *testing.B, p routing.Predicate) {
+	token := "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic3N6dWVjcyIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA"
+
+	r := &http.Request{
+		Header: http.Header{
+			authHeaderName: []string{"Bearer " + token},
+		},
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		if !p.Match(r) {
+			b.Fatal("Failed to match but want a match")
+		}
+	}
 }
