@@ -1,7 +1,9 @@
 package traffic
 
 import (
+	"math/rand/v2"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/zalando/skipper/eskip"
@@ -14,6 +16,24 @@ import (
 const (
 	defaultTrafficGroupCookie = "testcookie"
 )
+
+// testLockedSource provides a thread-safe rand.Source for v2, for testing purposes.
+type testLockedSource struct {
+	mu sync.Mutex
+	s  rand.Source
+}
+
+// Uint64 implements the rand.Source interface for v2.
+func (s *testLockedSource) Uint64() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.s.Uint64()
+}
+
+// newTestTrafficRandFloat64 returns a function that generates a fixed sequence of random float64 values for testing.
+func newTestTrafficRandFloat64() func() float64 {
+	return rand.New(&testLockedSource{s: rand.NewPCG(0x5EED_1, 0x5EED_2)}).Float64
+}
 
 func TestCreate(t *testing.T) {
 	for _, ti := range []struct {
@@ -82,7 +102,7 @@ func TestCreate(t *testing.T) {
 		predicate{chance: .3, trafficGroup: "group", trafficGroupCookie: "testname"},
 		false,
 	}} {
-		pi, err := (&spec{}).Create(ti.args)
+		pi, err := New().Create(ti.args)
 		if err == nil && ti.err || err != nil && !ti.err {
 			t.Error(ti.msg, "failure case", err, ti.err)
 		} else if err == nil {
@@ -139,7 +159,9 @@ func TestMatch(t *testing.T) {
 		http.Request{Header: http.Header{}},
 		true,
 	}} {
-		if (&ti.p).Match(&ti.r) != ti.match {
+		p := ti.p
+		p.randFloat64 = func() float64 { return 0.5 }
+		if p.Match(&ti.r) != ti.match {
 			t.Error(ti.msg)
 		}
 	}
@@ -180,9 +202,12 @@ func TestTrafficPredicateInRoutes(t *testing.T) {
 
 			r := eskip.MustParse(tc.routes)
 
+			s := New().(*spec)
+			s.randFloat64 = newTestTrafficRandFloat64()
+
 			p := proxytest.WithRoutingOptions(builtin.MakeRegistry(), routing.Options{
 				Predicates: []routing.PredicateSpec{
-					New(),
+					s,
 					primitive.NewTrue(),
 				},
 			}, r...)
