@@ -374,4 +374,5 @@ const (
 	SetFastCgiFilenameName = "setFastCgiFilename"
 	DisableRatelimitName   = "disableRatelimit"
 	UnknownRatelimitName   = "unknownRatelimit"
+	NormalizePath          = "normalizePath"
 )
