@@ -967,6 +967,9 @@ func (p *Proxy) makeUpgradeRequest(ctx *context, req *http.Request) {
 }
 
 func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Context) (*http.Response, *proxyError) {
+	requestStopWatch, responseStopWatch := newStopWatch(), newStopWatch()
+	requestStopWatch.Start()
+
 	payloadProtocol := getUpgradeRequest(ctx.Request())
 
 	req, endpointMetrics, err := p.mapRequest(ctx, requestContext)
@@ -1031,11 +1034,11 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 
 	p.metrics.MeasureBackendRequestHeader(ctx.metricsHost(), snet.SizeOfRequestHeader(req))
 
-	ctx.proxyWatch.Stop()
-	ctx.proxyRequestLatency = ctx.proxyWatch.Elapsed()
+	requestStopWatch.Stop()
+
 	response, err := roundTripper.RoundTrip(req)
-	ctx.proxyWatch.Reset()
-	ctx.proxyWatch.Start()
+
+	responseStopWatch.Start()
 
 	if endpointMetrics != nil {
 		endpointMetrics.IncRequests(routing.IncRequestsOptions{FailedRoundTrip: err != nil})
@@ -1187,6 +1190,11 @@ func stack() []byte {
 }
 
 func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
+	var requestElapsed, responseElapsed time.Duration
+
+	requestStopWatch, responseStopWatch := newStopWatch(), newStopWatch()
+	requestStopWatch.Start()
+
 	defer func() {
 		if r := recover(); r != nil {
 			p.onPanicSometimes.Do(func() {
@@ -1199,6 +1207,10 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			p.makeErrorResponse(ctx, perr)
 			err = perr
 		}
+		requestStopWatch.Stop()
+		responseStopWatch.Stop()
+		ctx.proxyRequestElapsed = requestElapsed + requestStopWatch.Elapsed()
+		ctx.proxyResponseElapsed = responseElapsed + responseStopWatch.Elapsed()
 	}()
 
 	if ctx.executionCounter > p.maxLoops {
@@ -1234,22 +1246,27 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 	ctx.applyRoute(route, params, p.flags.PreserveHost())
 
-	ctx.proxyWatch.Stop()
+	requestStopWatch.Stop()
 	processedFilters := p.applyFiltersToRequest(ctx.route.Filters, ctx)
-	ctx.proxyWatch.Start()
+	requestStopWatch.Start()
 
+	// not every of these branches could endup in a response to the client
 	if ctx.deprecatedShunted() {
 		ctx.Logger().Debugf("deprecated shunting detected in route: %s", ctx.route.Id)
 		return &proxyError{handled: true}
 	} else if ctx.shunted() || ctx.route.Shunt || ctx.route.BackendType == eskip.ShuntBackend {
+		requestStopWatch.Stop()
 		// consume the body to prevent goroutine leaks
 		if ctx.request.Body != nil {
 			if _, err := io.Copy(io.Discard, ctx.request.Body); err != nil {
 				ctx.Logger().Debugf("error while discarding remainder request body: %v.", err)
 			}
 		}
+
+		responseStopWatch.Start()
 		ctx.ensureDefaultResponse()
 	} else if ctx.route.BackendType == eskip.LoopBackend {
+
 		loopCTX := ctx.clone()
 
 		loopSpanOpts := []ot.StartSpanOption{ot.Tags{
@@ -1270,18 +1287,30 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		r := loopCTX.Request()
 		r = r.WithContext(ot.ContextWithSpan(r.Context(), loopSpan))
 		loopCTX.request = r
-		if err := p.do(loopCTX, loopSpan); err != nil {
+
+		requestStopWatch.Stop()
+
+		err := p.do(loopCTX, loopSpan)
+
+		loopSpan.Finish()
+		responseStopWatch.Start()
+
+		if err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
 			ctx.response = loopCTX.response
 			p.applyFiltersOnError(ctx, processedFilters)
-			loopSpan.Finish()
 			return err
 		}
-		loopSpan.Finish()
+
+		requestElapsed += loopCTX.proxyRequestElapsed
+		responseElapsed += loopCTX.proxyResponseElapsed
+
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
+		requestStopWatch.Stop()
 		debugReq, _, err := p.mapRequest(ctx, ctx.request.Context())
+		responseStopWatch.Start()
 		if err != nil {
 			perr := &proxyError{err: err}
 			p.makeErrorResponse(ctx, perr)
@@ -1313,8 +1342,13 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 				ctx.Logger().Errorf("Failed to set read deadline: %v", e)
 			}
 		}
+
+		requestStopWatch.Stop()
 		rsp, perr := p.makeBackendRequest(ctx, backendContext)
+		requestElapsed += ctx.proxyRequestElapsed
+		responseElapsed += ctx.proxyResponseElapsed
 		if perr != nil {
+			requestStopWatch.Start()
 			if done != nil {
 				done(false)
 			}
@@ -1331,23 +1365,31 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 
 				perr = nil
 				var perr2 *proxyError
+				requestStopWatch.Stop()
 				rsp, perr2 = p.makeBackendRequest(ctx, backendContext)
+				requestElapsed += ctx.proxyRequestElapsed
+				responseElapsed += ctx.proxyResponseElapsed
+				responseStopWatch.Start()
 				if perr2 != nil {
 					ctx.Logger().Errorf("Failed to retry backend request: %v", perr2)
 					if perr2.code >= http.StatusInternalServerError {
 						p.metrics.MeasureBackend5xx(backendStart)
 					}
+
 					p.makeErrorResponse(ctx, perr2)
 					p.applyFiltersOnError(ctx, processedFilters)
 					return perr2
 				}
 			} else {
+				requestStopWatch.Stop()
+				responseStopWatch.Start()
 				p.makeErrorResponse(ctx, perr)
 				p.applyFiltersOnError(ctx, processedFilters)
 				return perr
 			}
+		} else {
+			responseStopWatch.Start()
 		}
-
 		if rsp.StatusCode >= http.StatusInternalServerError {
 			p.metrics.MeasureBackend5xx(backendStart)
 		}
@@ -1362,9 +1404,9 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 	}
 
 	addBranding(ctx.response.Header)
-	ctx.proxyWatch.Stop()
+	responseStopWatch.Stop()
 	p.applyFiltersToResponse(processedFilters, ctx)
-	ctx.proxyWatch.Start()
+	responseStopWatch.Start()
 	return nil
 }
 
@@ -1376,6 +1418,14 @@ func retryable(ctx *context, perr *proxyError) bool {
 }
 
 func (p *Proxy) serveResponse(ctx *context) {
+
+	responseStopWatch := newStopWatch()
+	responseStopWatch.Start()
+	defer func() {
+		responseStopWatch.Stop()
+		ctx.proxyResponseElapsed = responseStopWatch.Elapsed()
+	}()
+
 	if p.flags.Debug() {
 		dbgResponse(ctx.responseWriter, &debugInfo{
 			route:    &ctx.route.Route,
@@ -1405,9 +1455,11 @@ func (p *Proxy) serveResponse(ctx *context) {
 	ctx.responseWriter.Flush()
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamHeadersEvent, EndEvent)
 
-	ctx.proxyWatch.Stop()
+	responseStopWatch.Stop()
+
 	n, err := copyStream(ctx.responseWriter, ctx.response.Body)
-	ctx.proxyWatch.Start()
+
+	responseStopWatch.Start()
 
 	p.tracing.logStreamEvent(ctx.proxySpan, StreamBodyEvent, strconv.FormatInt(n, 10))
 	if err != nil {
@@ -1424,6 +1476,13 @@ func (p *Proxy) serveResponse(ctx *context) {
 }
 
 func (p *Proxy) errorResponse(ctx *context, err error) {
+	responseStopWatch := newStopWatch()
+	responseStopWatch.Start()
+	defer func() {
+		responseStopWatch.Stop()
+		ctx.proxyResponseElapsed = responseStopWatch.Elapsed()
+	}()
+
 	perr, ok := err.(*proxyError)
 	if ok && perr.handled {
 		return
@@ -1505,9 +1564,9 @@ func (p *Proxy) errorResponse(ctx *context, err error) {
 	ctx.responseWriter.WriteHeader(ctx.response.StatusCode)
 	ctx.responseWriter.Flush()
 
-	ctx.proxyWatch.Stop()
+	responseStopWatch.Stop()
 	_, _ = copyStream(ctx.responseWriter, ctx.response.Body)
-	ctx.proxyWatch.Start()
+	responseStopWatch.Start()
 
 	p.metrics.MeasureServe(
 		id,
@@ -1566,8 +1625,10 @@ func shouldLog(statusCode int, filter *al.AccessLogFilter) bool {
 
 // http.Handler implementation
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	proxyStopWatch := newStopWatch()
-	proxyStopWatch.Start()
+
+	var requestElapsed, responseElapsed time.Duration
+	requestStopWatch, responseStopWatch := newStopWatch(), newStopWatch()
+	requestStopWatch.Start()
 
 	lw := logging.NewLoggingWriter(w)
 
@@ -1587,9 +1648,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ctx.proxySpan.Finish()
 		}
 		span.Finish()
-		ctx.proxyWatch.Stop()
-		skipperResponseLatency := ctx.proxyWatch.Elapsed()
-		p.metrics.MeasureProxy(ctx.proxyRequestLatency, skipperResponseLatency)
+		requestStopWatch.Stop()
+		responseStopWatch.Stop()
+
+		p.metrics.MeasureProxy(requestElapsed+requestStopWatch.Elapsed(), responseElapsed+responseStopWatch.Elapsed())
 	}()
 
 	defer func() {
@@ -1636,7 +1698,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))
 
-	ctx = newContext(lw, r, p, proxyStopWatch)
+	ctx = newContext(lw, r, p)
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
@@ -1651,7 +1713,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	requestStopWatch.Stop()
+
 	err := p.do(ctx, span)
+
+	requestElapsed += ctx.proxyRequestElapsed
+	responseElapsed += ctx.proxyResponseElapsed
+
+	responseStopWatch.Start()
 
 	// writeTimeout() filter
 	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
@@ -1661,13 +1730,17 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	responseStopWatch.Stop()
 	// stream response body to client
 	if err != nil {
 		p.errorResponse(ctx, err)
+		responseElapsed += ctx.proxyResponseElapsed
 	} else {
 		p.serveResponse(ctx)
+		responseElapsed += ctx.proxyResponseElapsed
 	}
 
+	responseStopWatch.Start()
 	// fifoWtihBody() filter
 	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
 		if fs, ok := sbf.([]func()); ok {
