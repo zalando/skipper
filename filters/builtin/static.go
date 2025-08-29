@@ -14,7 +14,7 @@ type static struct {
 	handler http.Handler
 }
 
-// Returns a filter Spec to serve static content from a file system
+// NewStatic returns a filter Spec to serve static content from a file system
 // location. Behaves similarly to net/http.FileServer. It shunts the route.
 //
 // Filter instances of this specification expect two parameters: a

@@ -27,7 +27,7 @@ type stripQuery struct {
 	preserveAsHeader bool
 }
 
-// Returns a filter Spec to strip query parameters from the request and
+// NewStripQuery returns a filter Spec to strip query parameters from the request and
 // optionally transpose them to request headers.
 //
 // It always removes the query parameter from the request URL, and if the

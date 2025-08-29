@@ -15,13 +15,14 @@
 package builtin
 
 import (
-	"github.com/zalando/skipper/filters"
 	"net/http"
+
+	"github.com/zalando/skipper/filters"
 )
 
 type healthCheck struct{}
 
-// Creates a new filter Spec, whose instances set the status code of the
+// NewHealthCheck creates a new filter Spec, whose instances set the status code of the
 // response to 200 OK. Name: "healthcheck".
 func NewHealthCheck() filters.Spec { return &healthCheck{} }
 

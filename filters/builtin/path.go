@@ -21,13 +21,13 @@ type modPath struct {
 	template    *eskip.Template
 }
 
-// Returns a new modpath filter Spec, whose instances execute
+// NewModPath returns a new modpath filter Spec, whose instances execute
 // regexp.ReplaceAllString on the request path. Instances expect two
 // parameters: the expression to match and the replacement string.
 // Name: "modpath".
 func NewModPath() filters.Spec { return &modPath{behavior: regexpReplace} }
 
-// Returns a new setPath filter Spec, whose instances replace
+// NewSetPath returns a new setPath filter Spec, whose instances replace
 // the request path.
 //
 // Instances expect one parameter: the new path to be set, or the path
