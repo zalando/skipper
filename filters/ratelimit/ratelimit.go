@@ -112,7 +112,7 @@ func NewRatelimit(provider RatelimitProvider) filters.Spec {
 	return &spec{typ: ratelimit.ServiceRatelimit, provider: provider, filterName: filters.RatelimitName}
 }
 
-// NewClusterRatelimit creates a rate limiting that is aware of the
+// NewClusterRateLimit creates a rate limiting that is aware of the
 // other instances. The value given here should be the combined rate
 // of all instances. The ratelimit group parameter can be used to
 // select the same ratelimit group across one or more routes.
@@ -144,7 +144,7 @@ func NewShardedClusterRateLimit(provider RatelimitProvider, maxGroupShards int) 
 	return &spec{typ: ratelimit.ClusterServiceRatelimit, provider: provider, filterName: filters.ClusterRatelimitName, maxShards: maxGroupShards}
 }
 
-// NewClusterClientRatelimit creates a rate limiting that is aware of
+// NewClusterClientRateLimit creates a rate limiting that is aware of
 // the other instances. The value given here should be the combined
 // rate of all instances. The ratelimit group parameter can be used to
 // select the same ratelimit group across one or more routes.

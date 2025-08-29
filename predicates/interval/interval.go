@@ -62,13 +62,13 @@ type predicate struct {
 	getTime func() time.Time
 }
 
-// Creates Between predicate.
+// NewBetween creates Between predicate.
 func NewBetween() routing.PredicateSpec { return between }
 
-// Creates Before predicate.
+// NewBefore creates Before predicate.
 func NewBefore() routing.PredicateSpec { return before }
 
-// Creates After predicate.
+// NewAfter creates After predicate.
 func NewAfter() routing.PredicateSpec { return after }
 
 func (s spec) Name() string {

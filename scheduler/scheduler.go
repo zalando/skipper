@@ -533,7 +533,7 @@ func (r *Registry) deleteUnused(inUse map[queueId]struct{}) {
 	}
 }
 
-// Returns routing.PreProcessor that ensures single lifo filter instance per route
+// PreProcessor returns routing.PreProcessor that ensures single lifo filter instance per route
 //
 // Registry can not implement routing.PreProcessor directly due to unfortunate method name clash with routing.PostProcessor
 func (r *Registry) PreProcessor() routing.PreProcessor {
