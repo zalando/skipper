@@ -73,8 +73,58 @@ func TestMeasureProxyWatch(t *testing.T) {
 	m := &metricstest.MockMetrics{}
 	defer m.Close()
 
+	backendLatency := 10 * time.Millisecond
+	filterLatency := 20 * time.Millisecond
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(backendLatency)
+		w.Write([]byte("ok"))
+	}))
+	defer backend.Close()
+
 	tp := proxytest.Config{
-		Routes: eskip.MustParse(`test: * -> latency("10ms") -> backendLatency("20ms") -> status(200) -> <shunt>`),
+		Routes: eskip.MustParse(fmt.Sprintf(`test: * -> latency(%d)  -> status(200) -> "%s"`, filterLatency.Milliseconds(), backend.URL)),
+		RoutingOptions: routing.Options{
+			FilterRegistry: builtin.MakeRegistry(),
+		},
+		ProxyParams: proxy.Params{
+			Metrics: m,
+		},
+	}.Create()
+	defer tp.Close()
+
+	client := tp.Client()
+	rsp, body, err := client.GetBody(tp.URL + "/hello")
+	require.NoError(t, err)
+	require.Equal(t, 200, rsp.StatusCode)
+	require.Equal(t, []byte("ok"), body)
+
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		assert.Equal(t, len(measures), 3)
+		assert.Len(t, measures["proxy.total.duration"], 1)
+		assert.Len(t, measures["proxy.request.duration"], 1)
+		assert.Len(t, measures["proxy.response.duration"], 1)
+
+		assert.Greater(t, measures["proxy.total.duration"][0].Seconds(), 0.0)
+		assert.Greater(t, measures["proxy.request.duration"][0].Seconds(), 0.0)
+		assert.Greater(t, measures["proxy.response.duration"][0].Seconds(), 0.0)
+
+		assert.Less(t, measures["proxy.total.duration"][0].Seconds(), filterLatency.Seconds())
+		assert.Less(t, measures["proxy.total.duration"][0].Seconds(), backendLatency.Seconds())
+
+		assert.InDelta(t, measures["proxy.total.duration"][0].Seconds(), measures["proxy.request.duration"][0].Seconds()+measures["proxy.response.duration"][0].Seconds(), 1e-20, "total should be sum of request and response")
+	})
+}
+
+func TestMeasureProxyWatchShunt(t *testing.T) {
+	m := &metricstest.MockMetrics{}
+	defer m.Close()
+
+	backendLatency := 200 * time.Millisecond
+	filterLatency := 20 * time.Millisecond
+
+	tp := proxytest.Config{
+		Routes: eskip.MustParse(fmt.Sprintf(`test: * -> latency(%d) -> backendLatency(%d) -> status(200) -> <shunt>`, filterLatency.Milliseconds(), backendLatency.Milliseconds())),
 		RoutingOptions: routing.Options{
 			FilterRegistry: builtin.MakeRegistry(),
 		},
@@ -95,9 +145,59 @@ func TestMeasureProxyWatch(t *testing.T) {
 		assert.Len(t, measures["proxy.total.duration"], 1)
 		assert.Len(t, measures["proxy.request.duration"], 1)
 		assert.Len(t, measures["proxy.response.duration"], 1)
-		assert.InDelta(t, measures["proxy.total.duration"][0].Seconds(), 0.001, 0.001)
-		assert.InDelta(t, measures["proxy.request.duration"][0].Seconds(), 0.001, 0.001)
-		assert.InDelta(t, measures["proxy.response.duration"][0].Seconds(), 0.001, 0.001)
+
+		assert.Greater(t, measures["proxy.total.duration"][0].Seconds(), 0.0)
+		assert.Greater(t, measures["proxy.request.duration"][0].Seconds(), 0.0)
+		assert.Greater(t, measures["proxy.response.duration"][0].Seconds(), 0.0)
+
+		assert.Less(t, measures["proxy.total.duration"][0].Seconds(), filterLatency.Seconds())
+		assert.Less(t, measures["proxy.total.duration"][0].Seconds(), backendLatency.Seconds())
+
+		assert.InDelta(t, measures["proxy.total.duration"][0].Seconds(), measures["proxy.request.duration"][0].Seconds()+measures["proxy.response.duration"][0].Seconds(), 1e-20, "total should be sum of request and response")
+	})
+}
+
+func TestMeasureProxyWatchWithLoopback(t *testing.T) {
+	m := &metricstest.MockMetrics{}
+	defer m.Close()
+
+	backendLatency := 200 * time.Millisecond
+	filterLatency := 20 * time.Millisecond
+
+	tp := proxytest.Config{
+		Routes: eskip.MustParse(fmt.Sprintf(`
+                        loopback: * -> setRequestHeader("a", "b") -> <loopback>;
+                        real:  Header("a", "b") -> latency(%d) -> backendLatency(%d) -> status(200) -> inlineContent("x") -> <shunt>;
+                `, filterLatency.Milliseconds(), backendLatency.Milliseconds())),
+		RoutingOptions: routing.Options{
+			FilterRegistry: builtin.MakeRegistry(),
+		},
+		ProxyParams: proxy.Params{
+			Metrics: m,
+		},
+	}.Create()
+	defer tp.Close()
+
+	client := tp.Client()
+	rsp, body, err := client.GetBody(tp.URL + "/hello")
+	require.NoError(t, err)
+	require.Equal(t, 200, rsp.StatusCode)
+	require.Equal(t, []byte("x"), body)
+
+	m.WithMeasures(func(measures map[string][]time.Duration) {
+		assert.Equal(t, len(measures), 3)
+		assert.Len(t, measures["proxy.total.duration"], 1)
+		assert.Len(t, measures["proxy.request.duration"], 1)
+		assert.Len(t, measures["proxy.response.duration"], 1)
+
+		assert.Greater(t, measures["proxy.total.duration"][0].Seconds(), 0.0)
+		assert.Greater(t, measures["proxy.request.duration"][0].Seconds(), 0.0)
+		assert.Greater(t, measures["proxy.response.duration"][0].Seconds(), 0.0)
+
+		assert.Less(t, measures["proxy.total.duration"][0].Seconds(), filterLatency.Seconds())
+		assert.Less(t, measures["proxy.total.duration"][0].Seconds(), backendLatency.Seconds())
+
+		assert.InDelta(t, measures["proxy.total.duration"][0].Seconds(), measures["proxy.request.duration"][0].Seconds()+measures["proxy.response.duration"][0].Seconds(), 1e-20, "total should be sum of request and response")
 	})
 }
 
