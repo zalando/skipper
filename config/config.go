@@ -302,6 +302,7 @@ type Config struct {
 	OpenPolicyAgentControlLoopInterval                 time.Duration `yaml:"open-policy-agent-control-loop-interval"`
 	OpenPolicyAgentControlLoopMaxJitter                time.Duration `yaml:"open-policy-agent-control-loop-max-jitter"`
 	EnableOpenPolicyAgentDataPreProcessingOptimization bool          `yaml:"enable-open-policy-agent-data-preprocessing-optimization"`
+	EnableOpenPolicyAgentPreloading                    bool          `yaml:"enable-open-policy-agent-preloading"`
 	OpenPolicyAgentConfigTemplate                      string        `yaml:"open-policy-agent-config-template"`
 	OpenPolicyAgentEnvoyMetadata                       string        `yaml:"open-policy-agent-envoy-metadata"`
 	OpenPolicyAgentCleanerInterval                     time.Duration `yaml:"open-policy-agent-cleaner-interval"`
@@ -535,6 +536,7 @@ func NewConfig() *Config {
 	flag.DurationVar(&cfg.CredentialsUpdateInterval, "credentials-update-interval", 10*time.Minute, "sets the interval to update secrets")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgent, "enable-open-policy-agent", false, "enables Open Policy Agent filters")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentCustomControlLoop, "enable-open-policy-agent-custom-control-loop", false, "when enabled skipper will use a custom control loop to orchestrate certain opa behaviour (like the download of new bundles) instead of relying on periodic plugin triggers")
+	flag.BoolVar(&cfg.EnableOpenPolicyAgentPreloading, "enable-open-policy-agent-preloading", false, "EXPERIMENTAL: when enabled, OPA instances will be pre-loaded during route processing instead of during filter creation, making filter creation non-blocking")
 	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopInterval, "open-policy-agent-control-loop-interval", openpolicyagent.DefaultControlLoopInterval, "Interval between the execution of the control loop. Only applies if the custom control loop is enabled")
 	flag.DurationVar(&cfg.OpenPolicyAgentControlLoopMaxJitter, "open-policy-agent-control-loop-max-jitter", openpolicyagent.DefaultControlLoopMaxJitter, "Maximum jitter to add to the control loop interval. Only applies if the custom control loop is enabled")
 	flag.BoolVar(&cfg.EnableOpenPolicyAgentDataPreProcessingOptimization, "enable-open-policy-agent-data-preprocessing-optimization", false, "As a latency optimization, open policy agent will read values from in-memory storage as pre converted ASTs, removing conversion overhead at evaluation time. Currently experimental and if successful will be enabled by default")
@@ -1000,6 +1002,7 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenPolicyAgentControlLoopInterval:                 c.OpenPolicyAgentControlLoopInterval,
 		OpenPolicyAgentControlLoopMaxJitter:                c.OpenPolicyAgentControlLoopMaxJitter,
 		EnableOpenPolicyAgentDataPreProcessingOptimization: c.EnableOpenPolicyAgentDataPreProcessingOptimization,
+		EnableOpenPolicyAgentPreloading:                    c.EnableOpenPolicyAgentPreloading,
 		OpenPolicyAgentConfigTemplate:                      c.OpenPolicyAgentConfigTemplate,
 		OpenPolicyAgentEnvoyMetadata:                       c.OpenPolicyAgentEnvoyMetadata,
 		OpenPolicyAgentCleanerInterval:                     c.OpenPolicyAgentCleanerInterval,

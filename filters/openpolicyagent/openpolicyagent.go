@@ -62,6 +62,28 @@ const (
 	spanNameEval = "open-policy-agent"
 )
 
+type BackgroundTask struct {
+	fn     func() (interface{}, error)
+	done   chan struct{}
+	result interface{}
+	err    error
+	once   sync.Once
+}
+
+// Wait blocks until the task completes and returns the result and error
+func (t *BackgroundTask) Wait() (interface{}, error) {
+	<-t.done
+	return t.result, t.err
+}
+
+// execute runs the task function and stores the result
+func (t *BackgroundTask) execute() {
+	t.once.Do(func() {
+		defer close(t.done)
+		t.result, t.err = t.fn()
+	})
+}
+
 type OpenPolicyAgentRegistry struct {
 	// Ideally share one Bundle storage across many OPA "instances" using this registry.
 	// This allows to save memory on bundles that are shared
@@ -94,6 +116,17 @@ type OpenPolicyAgentRegistry struct {
 	enableDataPreProcessingOptimization bool
 
 	valueCache iCache.InterQueryValueCache
+
+	// New fields for pre-loading support
+	preloadingEnabled bool
+
+	// Track in-flight instance creation to prevent concurrent creation of the same bundle
+	inFlightCreation map[string]chan *OpenPolicyAgentInstance
+	inFlightMu       sync.RWMutex
+
+	// Background task system
+	backgroundTaskChan   chan *BackgroundTask
+	backgroundWorkerOnce sync.Once
 }
 
 type OpenPolicyAgentFilter interface {
@@ -205,6 +238,13 @@ func (registry *OpenPolicyAgentRegistry) initializeCache() error {
 	return nil
 }
 
+func WithPreloadingEnabled(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.preloadingEnabled = enabled
+		return nil
+	}
+}
+
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration:          defaultReuseDuration,
@@ -217,6 +257,8 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
 		controlLoopInterval:    DefaultControlLoopInterval,
 		controlLoopMaxJitter:   DefaultControlLoopMaxJitter,
+		inFlightCreation:       make(map[string]chan *OpenPolicyAgentInstance),
+		backgroundTaskChan:     make(chan *BackgroundTask, 100), // Buffered channel for background tasks
 	}
 
 	for _, opt := range opts {
@@ -342,6 +384,11 @@ func (registry *OpenPolicyAgentRegistry) Close() {
 
 		registry.closed = true
 		close(registry.quit)
+
+		// Close background task channel
+		if registry.backgroundTaskChan != nil {
+			close(registry.backgroundTaskChan)
+		}
 	})
 }
 
@@ -436,8 +483,30 @@ func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.
 	return routes
 }
 
-// NewOpenPolicyAgentInstance returns an existing instance immediately, or creates one using registry config
-func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+// GetOrStartInstance returns an existing instance immediately, or creates one using registry config
+func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+	// First check if instance already exists
+	instance, err := registry.getExistingInstance(bundleName, filterName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
+	}
+
+	if instance != nil {
+		// Instance already exists, return it
+		return instance, nil
+	}
+
+	if registry.preloadingEnabled {
+		// In preloading mode, if instance doesn't exist, it means it's not ready yet
+		return nil, fmt.Errorf("open policy agent instance for bundle '%s' is not ready yet", bundleName)
+	}
+
+	// In non-preloading mode, create the instance synchronously using PrepareInstanceLoader
+	loader := registry.PrepareInstanceLoader(bundleName, filterName)
+	return loader()
+}
+
+func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 
@@ -450,13 +519,77 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 		return instance, nil
 	}
 
-	instance, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
-	if err != nil {
-		return nil, err
-	}
-	registry.instances[bundleName] = instance
+	return nil, nil
+}
 
-	return instance, nil
+// PrepareInstanceLoader returns a function that when called will create an OPA instance
+// This allows the preprocessor to control when and how the instance creation happens
+// Prevents concurrent creation of the same bundle by tracking in-flight operations
+func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string, filterName string) func() (*OpenPolicyAgentInstance, error) {
+	return func() (*OpenPolicyAgentInstance, error) {
+		// Check if instance already exists first (most common case)
+		instance, err := registry.getExistingInstance(bundleName, filterName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
+		}
+		if instance != nil {
+			return instance, nil
+		}
+
+		// Atomically check for in-flight creation and claim creation if needed
+		registry.inFlightMu.Lock()
+
+		// Double-check that instance doesn't exist now that we have the lock
+		instance, err = registry.getExistingInstance(bundleName, filterName)
+		if err != nil {
+			registry.inFlightMu.Unlock()
+			return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
+		}
+		if instance != nil {
+			registry.inFlightMu.Unlock()
+			return instance, nil
+		}
+
+		// Check if another goroutine is already creating this instance
+		if inFlightChan, isInFlight := registry.inFlightCreation[bundleName]; isInFlight {
+			registry.inFlightMu.Unlock()
+			// Another goroutine is creating this instance, wait for it
+			select {
+			case instance := <-inFlightChan:
+				return instance, nil
+			case <-time.After(registry.instanceStartupTimeout):
+				return nil, fmt.Errorf("timeout waiting for in-flight creation of OPA instance for bundle '%s'", bundleName)
+			}
+		}
+
+		// We're the first to claim creation for this bundle
+		creationChan := make(chan *OpenPolicyAgentInstance, 1)
+		registry.inFlightCreation[bundleName] = creationChan
+		registry.inFlightMu.Unlock()
+
+		// Ensure cleanup on exit
+		defer func() {
+			registry.inFlightMu.Lock()
+			delete(registry.inFlightCreation, bundleName)
+			registry.inFlightMu.Unlock()
+		}()
+
+		instance, err = registry.newOpenPolicyAgentInstance(bundleName, filterName)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store the instance in the registry
+		registry.mu.Lock()
+		registry.instances[bundleName] = instance
+		registry.mu.Unlock()
+
+		// Notify any waiting goroutines
+		creationChan <- instance
+		close(creationChan)
+
+		return instance, nil
+	}
 }
 
 func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentInstance]struct{}) {
@@ -1053,4 +1186,37 @@ func (l *QuietLogger) Error(fmt string, a ...interface{}) {
 
 func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
 	l.target.Warn(fmt, a)
+}
+
+// ScheduleBackgroundTask schedules a task to be executed in the background with limited parallelism (1)
+// Returns a BackgroundTask that can be used to wait for completion
+func (registry *OpenPolicyAgentRegistry) ScheduleBackgroundTask(fn func() (interface{}, error)) (*BackgroundTask, error) {
+	task := &BackgroundTask{
+		fn:   fn,
+		done: make(chan struct{}),
+	}
+
+	// Start the background worker if not already started
+	registry.startBackgroundWorker()
+
+	// Send the task to the worker
+	select {
+	case registry.backgroundTaskChan <- task:
+		return task, nil
+	default:
+		return nil, fmt.Errorf("open policy agent background task queue is full, try again later")
+	}
+}
+
+// startBackgroundWorker starts the background worker goroutine (thread-safe, only starts once)
+func (registry *OpenPolicyAgentRegistry) startBackgroundWorker() {
+	registry.backgroundWorkerOnce.Do(func() {
+		go func() {
+			for task := range registry.backgroundTaskChan {
+				if task != nil {
+					task.execute()
+				}
+			}
+		}()
+	})
 }
