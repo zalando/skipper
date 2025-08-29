@@ -42,8 +42,8 @@ func TestOPA_WithDynamicRoutesAndPreProcessor(t *testing.T) {
 	`, bundleName))
 	opaPreprocessor.Do(updatedRoutes)
 
-	time.Sleep(100 * time.Millisecond) // ToDo wait for bundle to be loaded in a more deterministic way
-
+	err := opaRegistry.WaitForInstance(bundleName, 200*time.Millisecond)
+	require.NoError(t, err, "failed to wait for instance")
 	tr := setupTestRouting(t, fr, dc)
 	defer tr.close()
 

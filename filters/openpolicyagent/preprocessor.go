@@ -1,12 +1,11 @@
 package openpolicyagent
 
 import (
-	"strings"
-	"sync"
-
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/routing"
+	"strings"
+	"sync"
 )
 
 type opaPreProcessor struct {

@@ -125,9 +125,11 @@ type OpenPolicyAgentRegistry struct {
 	inFlightCreation map[string]chan *OpenPolicyAgentInstance
 
 	// Background task system
-	backgroundTaskChan   chan *BackgroundTask
-	backgroundWorkerOnce sync.Once
-	singleflightGroup    singleflight.Group
+	backgroundTaskChan     chan *BackgroundTask
+	backgroundWorkerOnce   sync.Once
+	singleflightGroup      singleflight.Group
+	instanceCreationStatus map[string]*InstanceCreationStatus
+	statusMu               sync.RWMutex
 }
 
 type OpenPolicyAgentFilter interface {
@@ -253,6 +255,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 		instanceStartupTimeout: DefaultOpaStartupTimeout,
 		instances:              make(map[string]*OpenPolicyAgentInstance),
 		lastused:               make(map[*OpenPolicyAgentInstance]time.Time),
+		instanceCreationStatus: make(map[string]*InstanceCreationStatus),
 		quit:                   make(chan struct{}),
 		maxRequestBodyBytes:    DefaultMaxMemoryBodyParsing,
 		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
@@ -291,6 +294,27 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 	}
 
 	return registry, nil
+}
+
+func (registry *OpenPolicyAgentRegistry) setInstanceStatus(bundleName, state string, err error) {
+	registry.statusMu.Lock()
+	defer registry.statusMu.Unlock()
+
+	registry.instanceCreationStatus[bundleName] = &InstanceCreationStatus{
+		Name:  bundleName,
+		State: state,
+		Error: err,
+	}
+}
+
+func (registry *OpenPolicyAgentRegistry) getInstanceStatus(bundleName string) *InstanceCreationStatus {
+	registry.statusMu.RLock()
+	defer registry.statusMu.RUnlock()
+	return registry.instanceCreationStatus[bundleName]
+}
+
+func (registry *OpenPolicyAgentRegistry) GetInstanceStatus(bundleName string) *InstanceCreationStatus {
+	return registry.getInstanceStatus(bundleName)
 }
 
 type OpenPolicyAgentInstanceConfig struct {
@@ -528,6 +552,8 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			return inst, nil
 		}
 
+		registry.setInstanceStatus(bundleName, "creating", nil)
+
 		// Collapse concurrent creations into one using singleflight
 		v, err, _ := registry.singleflightGroup.Do(bundleName, func() (any, error) {
 			// Re-check after entering singleflight (another goroutine might have finished creation)
@@ -540,6 +566,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			// Create new OPA instance
 			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
 			if err != nil {
+				registry.setInstanceStatus(bundleName, "failed", err)
 				return nil, err
 			}
 
@@ -547,6 +574,8 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			registry.mu.Lock()
 			registry.instances[bundleName] = inst
 			registry.mu.Unlock()
+
+			registry.setInstanceStatus(bundleName, "ready", nil)
 
 			return inst, nil
 		})
@@ -611,6 +640,12 @@ type OpenPolicyAgentInstance struct {
 	bodyReadBufferSize int64
 
 	idGenerator flowid.Generator
+}
+
+type InstanceCreationStatus struct {
+	Name  string
+	State string // "creating", "ready", "failed"
+	Error error
 }
 
 func envVariablesMap() map[string]string {
@@ -1184,4 +1219,39 @@ func (registry *OpenPolicyAgentRegistry) startBackgroundWorker() {
 			}
 		}()
 	})
+}
+
+func (registry *OpenPolicyAgentRegistry) WaitForInstance(bundleName string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for time.Now().Before(deadline) {
+		select {
+		case <-ticker.C:
+			// Check if instance exists (ready)
+			if inst, _ := registry.getExistingInstance(bundleName); inst != nil {
+				return nil
+			}
+
+			// Check instance status
+			if status := registry.GetInstanceStatus(bundleName); status != nil {
+				if status.State == "ready" {
+					return nil
+				}
+				if status.State == "failed" && status.Error != nil {
+					return fmt.Errorf("instance for bundle %s creation failed: %w", bundleName, status.Error)
+				}
+			}
+
+		case <-time.After(timeout):
+			status := registry.GetInstanceStatus(bundleName)
+			if status != nil {
+				return fmt.Errorf("instance for bundle %s not ready within timeout %v, state: %s", bundleName, timeout, status.State)
+			}
+			return fmt.Errorf("instance for bundle %s not found within timeout %v", bundleName, timeout)
+		}
+	}
+
+	return fmt.Errorf("instance for bundle %s not ready within timeout %v", bundleName, timeout)
 }
