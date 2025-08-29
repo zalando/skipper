@@ -383,7 +383,7 @@ func TestWithJwtCacheConfig(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	inst1, err := registry.newOpenPolicyAgentInstance("test", "testfilter")
 	assert.NoError(t, err)
 
 	expectedJSON := []byte(`{
