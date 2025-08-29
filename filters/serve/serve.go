@@ -17,7 +17,7 @@ type pipedResponse struct {
 	headerDone chan struct{}
 }
 
-// Creates a response from a handler and a request.
+// ServeHTTP creates a response from a handler and a request.
 //
 // It calls the handler's ServeHTTP method with an internal response
 // writer that shares the status code, headers and the response body

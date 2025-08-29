@@ -24,7 +24,7 @@ type spec struct{}
 
 type filter bool
 
-// Returns a filter specification whose filter instances are used to override
+// PreserveHost returns a filter specification whose filter instances are used to override
 // the `proxyPreserveHost` behavior for individual routes.
 //
 // Instances expect one argument, with the possible values: "true" or "false",

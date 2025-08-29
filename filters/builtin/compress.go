@@ -95,7 +95,8 @@ func (e encodings) Less(i, j int) bool {
 }
 func (e encodings) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
 
-// Returns a filter specification that is used to compress the response content.
+// NewCompress returns a filter specification that is used to compress
+// the response content.
 //
 // Example:
 //

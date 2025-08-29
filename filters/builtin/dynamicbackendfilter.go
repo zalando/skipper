@@ -36,7 +36,7 @@ func dynamicBackendFilterConfig(config []interface{}) (string, error) {
 	return input, nil
 }
 
-// Returns a filter specification that is used to set dynamic backend host from a header.
+// NewSetDynamicBackendHostFromHeader returns a filter specification that is used to set dynamic backend host from a header.
 // Instances expect one parameters: a header name.
 // Name: "setDynamicBackendHostFromHeader".
 //
@@ -46,7 +46,7 @@ func NewSetDynamicBackendHostFromHeader() filters.Spec {
 	return &dynamicBackendFilter{typ: setDynamicBackendHostFromHeader}
 }
 
-// Returns a filter specification that is used to set dynamic backend scheme from a header.
+// NewSetDynamicBackendSchemeFromHeader returns a filter specification that is used to set dynamic backend scheme from a header.
 // Instances expect one parameters: a header name.
 // Name: "setDynamicBackendSchemeFromHeader".
 //
@@ -55,7 +55,7 @@ func NewSetDynamicBackendSchemeFromHeader() filters.Spec {
 	return &dynamicBackendFilter{typ: setDynamicBackendSchemeFromHeader}
 }
 
-// Returns a filter specification that is used to set dynamic backend url from a header.
+// NewSetDynamicBackendUrlFromHeader returns a filter specification that is used to set dynamic backend url from a header.
 // Instances expect one parameters: a header name.
 // Name: "setDynamicBackendUrlFromHeader".
 //
@@ -65,7 +65,7 @@ func NewSetDynamicBackendUrlFromHeader() filters.Spec {
 	return &dynamicBackendFilter{typ: setDynamicBackendUrlFromHeader}
 }
 
-// Returns a filter specification that is used to set dynamic backend host.
+// NewSetDynamicBackendHost returns a filter specification that is used to set dynamic backend host.
 // Instances expect one parameters: a host name.
 // Name: "setDynamicBackendHost".
 //
@@ -75,7 +75,7 @@ func NewSetDynamicBackendHost() filters.Spec {
 	return &dynamicBackendFilter{typ: setDynamicBackendHost}
 }
 
-// Returns a filter specification that is used to set dynamic backend scheme.
+// NewSetDynamicBackendScheme returns a filter specification that is used to set dynamic backend scheme.
 // Instances expect one parameters: a scheme name.
 // Name: "setDynamicBackendScheme".
 //
@@ -84,7 +84,7 @@ func NewSetDynamicBackendScheme() filters.Spec {
 	return &dynamicBackendFilter{typ: setDynamicBackendScheme}
 }
 
-// Returns a filter specification that is used to set dynamic backend url.
+// NewSetDynamicBackendUrl returns a filter specification that is used to set dynamic backend url.
 // Instances expect one parameters: a url.
 // Name: "setDynamicBackendUrl".
 //

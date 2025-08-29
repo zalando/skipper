@@ -174,19 +174,19 @@ func (d *dropCookie) Response(ctx filters.FilterContext) {
 	removeCookieResponse(ctx.Response(), d.name)
 }
 
-// Creates a filter spec for appending cookies to requests.
+// NewRequestCookie creates a filter spec for appending cookies to requests.
 // Name: requestCookie
 func NewRequestCookie() filters.Spec {
 	return &spec{request, filters.RequestCookieName}
 }
 
-// Creates a filter spec for appending cookies to responses.
+// NewResponseCookie creates a filter spec for appending cookies to responses.
 // Name: responseCookie
 func NewResponseCookie() filters.Spec {
 	return &spec{response, filters.ResponseCookieName}
 }
 
-// Creates a filter spec for appending cookies to responses without the
+// NewJSCookie creates a filter spec for appending cookies to responses without the
 // HttpOnly directive.
 // Name: jsCookie
 func NewJSCookie() filters.Spec {

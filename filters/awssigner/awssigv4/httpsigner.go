@@ -301,7 +301,7 @@ func (s *httpSigner) setRequiredSigningFields(headers http.Header, query url.Val
 	}
 }
 
-// The passed in request will be modified in place.
+// SignHTTP will modify the passed *http.Request in place.
 func (s Signer) SignHTTP(credentials internal.Credentials, r *http.Request, payloadHash string, service string, region string, signingTime time.Time, optFns ...func(options *SignerOptions)) error {
 	options := s.options
 

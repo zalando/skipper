@@ -57,7 +57,7 @@ func New() *flowIdSpec {
 	return NewWithGenerator(g)
 }
 
-// New behaves like New but allows you to specify any other Generator.
+// NewWithGenerator behaves like New but allows you to specify any other Generator.
 func NewWithGenerator(g Generator) *flowIdSpec {
 	return &flowIdSpec{generator: g}
 }

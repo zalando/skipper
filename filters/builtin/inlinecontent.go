@@ -14,7 +14,7 @@ type inlineContent struct {
 	mime string
 }
 
-// Creates a filter spec for the inlineContent() filter.
+// NewInlineContent creates a filter spec for the inlineContent() filter.
 //
 // Usage of the filter:
 //

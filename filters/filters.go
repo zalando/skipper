@@ -205,7 +205,7 @@ type Registry map[string]Spec
 // ErrInvalidFilterParameters is used in case of invalid filter parameters.
 var ErrInvalidFilterParameters = errors.New("invalid filter parameters")
 
-// Registers a filter specification.
+// Register a filter specification.
 func (r Registry) Register(s Spec) {
 	name := s.Name()
 	if _, ok := r[name]; ok {

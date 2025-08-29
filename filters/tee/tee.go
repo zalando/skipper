@@ -106,7 +106,7 @@ var hopHeaders = []string{
 	"Upgrade",
 }
 
-// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
+// NewTee returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 //
 // Name: "tee".
@@ -120,7 +120,7 @@ func NewTee() filters.Spec {
 	})
 }
 
-// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
+// NewTeeDeprecated returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 //
 // This version uses the capitalized version of the filter name and to follow conventions, it is deprecated
@@ -140,7 +140,7 @@ func NewTeeDeprecated() filters.Spec {
 	return ts
 }
 
-// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
+// NewTeeNoFollow returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend.
 // It does not follow the redirects from the backend.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 //
@@ -155,7 +155,7 @@ func NewTeeNoFollow() filters.Spec {
 	})
 }
 
-// Returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend with given
+// WithOptions returns a new tee filter Spec, whose instances execute the exact same Request against a shadow backend with given
 // options. Available options are nofollow and Timeout for http client. For more available options see Options type.
 // parameters: shadow backend url, optional - the path(as a regexp) to match and the replacement string.
 func WithOptions(o Options) filters.Spec {

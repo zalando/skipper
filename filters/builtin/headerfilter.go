@@ -88,7 +88,7 @@ func NewResponseHeader() filters.Spec {
 	return &headerFilter{typ: depResponseHeader}
 }
 
-// Returns a filter specification that is used to set headers for requests.
+// NewSetRequestHeader returns a filter specification that is used to set headers for requests.
 // Instances expect two parameters: the header name and the header value template,
 // see eskip.Template.ApplyContext
 // Name: "setRequestHeader".
@@ -100,7 +100,7 @@ func NewSetRequestHeader() filters.Spec {
 	return &headerFilter{typ: setRequestHeader}
 }
 
-// Returns a filter specification that is used to append headers for requests.
+// NewAppendRequestHeader returns a filter specification that is used to append headers for requests.
 // Instances expect two parameters: the header name and the header value template,
 // see eskip.Template.ApplyContext
 // Name: "appendRequestHeader".
@@ -112,14 +112,14 @@ func NewAppendRequestHeader() filters.Spec {
 	return &headerFilter{typ: appendRequestHeader}
 }
 
-// Returns a filter specification that is used to delete headers for requests.
+// NewDropRequestHeader returns a filter specification that is used to delete headers for requests.
 // Instances expect one parameter: the header name.
 // Name: "dropRequestHeader".
 func NewDropRequestHeader() filters.Spec {
 	return &headerFilter{typ: dropRequestHeader}
 }
 
-// Returns a filter specification that is used to set headers for responses.
+// NewSetResponseHeader returns a filter specification that is used to set headers for responses.
 // Instances expect two parameters: the header name and the header value template,
 // see eskip.Template.ApplyContext
 // Name: "setResponseHeader".
@@ -127,7 +127,7 @@ func NewSetResponseHeader() filters.Spec {
 	return &headerFilter{typ: setResponseHeader}
 }
 
-// Returns a filter specification that is used to append headers for responses.
+// NewAppendResponseHeader returns a filter specification that is used to append headers for responses.
 // Instances expect two parameters: the header name and the header value template,
 // see eskip.Template.ApplyContext
 // Name: "appendResponseHeader".
@@ -135,7 +135,7 @@ func NewAppendResponseHeader() filters.Spec {
 	return &headerFilter{typ: appendResponseHeader}
 }
 
-// Returns a filter specification that is used to delete headers for responses.
+// NewDropResponseHeader returns a filter specification that is used to delete headers for responses.
 // Instances expect one parameter: the header name.
 // Name: "dropResponseHeader".
 func NewDropResponseHeader() filters.Spec {
