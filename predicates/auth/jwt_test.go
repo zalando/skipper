@@ -2,12 +2,17 @@ package auth
 
 import (
 	"net/http"
+	"net/url"
 	"reflect"
 	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/predicates"
+	"github.com/zalando/skipper/proxy/proxytest"
 	"github.com/zalando/skipper/routing"
 )
 
@@ -544,6 +549,74 @@ func Test_anyMatch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTokenIsOkForOneRoute(t *testing.T) {
+	token := "eyJraWQiOiJwbGF0Zm9ybS1pYW0tdmNlaHloajYiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJjNGRkZmU5ZC1hMGQzLTRhZmItYmYyNi0yNGI5NTg4NzMxYTAiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3JlYWxtIjoidXNlcnMiLCJodHRwczovL2lkZW50aXR5LnphbGFuZG8uY29tL3Rva2VuIjoiQmVhcmVyIiwiaHR0cHM6Ly9pZGVudGl0eS56YWxhbmRvLmNvbS9tYW5hZ2VkLWlkIjoic3N6dWVjcyIsImF6cCI6Inp0b2tlbiIsImh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20vYnAiOiI4MTBkMWQwMC00MzEyLTQzZTUtYmQzMS1kODM3M2ZkZDI0YzciLCJhdXRoX3RpbWUiOjE1MjMyNTk0NjgsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuemFsYW5kby5jb20iLCJleHAiOjE1MjUwMjQyODUsImlhdCI6MTUyNTAyMDY3NX0.uxHcC7DJrkP-_G81Jmiba5liVP0LJOmkpal4wsUr7CmtMlE23P1bptIMxnJLv5EMSN1NFn-BJe9hcEB2A3LarA"
+
+	for _, ti := range []struct {
+		msg      string
+		doc      string
+		expected int
+	}{{
+		msg: "2 routes first match",
+		doc: `
+r: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^ssz") -> status(200) -> <shunt>;
+s: JWTPayloadAnyKVRegexp("foo", "^does-not-exist") && Weight(5) -> status(500) -> <shunt>;
+`,
+		expected: http.StatusOK,
+	}, {
+		msg: "2 routes second match",
+		doc: `
+r: JWTPayloadAnyKVRegexp("foo", "^does-not-exist") && Weight(5) -> status(500) -> <shunt>;
+s: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^ssz") -> status(200) -> <shunt>;
+`,
+		expected: http.StatusOK,
+	}, {
+		msg: "2 routes both match",
+		doc: `
+r: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^ssz") && Weight(5) -> status(200) -> <shunt>;
+s: JWTPayloadAnyKVRegexp("https://identity.zalando.com/managed-id", "^ssz") -> status(500) -> <shunt>;
+`,
+		expected: http.StatusOK,
+	}} {
+		t.Run(ti.msg, func(t *testing.T) {
+			fr := make(filters.Registry)
+			fr.Register(builtin.NewStatus())
+			r := eskip.MustParse(ti.doc)
+
+			opt := routing.Options{
+				Predicates: []routing.PredicateSpec{NewJWTPayloadAllKVRegexp(), NewJWTPayloadAnyKVRegexp()},
+			}
+			proxy := proxytest.WithRoutingOptions(fr, opt, r...)
+			defer proxy.Close()
+
+			reqURL, err := url.Parse(proxy.URL)
+			if err != nil {
+				t.Errorf("Failed to parse url %s: %v", proxy.URL, err)
+			}
+
+			for range 20 {
+				req, err := http.NewRequest("GET", reqURL.String(), nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				req.Header.Set(authHeaderName, authHeaderPrefix+token)
+
+				rsp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rsp.Body.Close()
+
+				if rsp.StatusCode != ti.expected {
+					t.Errorf("Failed to get expected=%d, got=%d", ti.expected, rsp.StatusCode)
+				}
+			}
+		})
+	}
+
 }
 
 func BenchmarkJWTPayloadAnyKVRegexp(b *testing.B) {
