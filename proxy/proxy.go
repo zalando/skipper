@@ -1258,7 +1258,11 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		if parentSpan := ot.SpanFromContext(ctx.request.Context()); parentSpan != nil {
 			loopSpanOpts = append(loopSpanOpts, ot.ChildOf(parentSpan.Context()))
 		}
+
+		// defer can't be used to finish the loopSpan, because it will be called only at the end of the outer function
+		// leading to distortion of the tracing picture, because response filters processing time will be included into the loopSpan timings
 		loopSpan := p.tracing.tracer.StartSpan("loopback", loopSpanOpts...)
+
 		p.tracing.setTag(loopSpan, SkipperRouteIDTag, ctx.route.Id)
 		p.setCommonSpanInfo(ctx.Request().URL, ctx.Request(), loopSpan)
 		ctx.parentSpan = loopSpan
@@ -1266,16 +1270,14 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		r := loopCTX.Request()
 		r = r.WithContext(ot.ContextWithSpan(r.Context(), loopSpan))
 		loopCTX.request = r
-
-		defer loopSpan.Finish()
-
 		if err := p.do(loopCTX, loopSpan); err != nil {
 			// in case of error we have to copy the response in this recursion unwinding
 			ctx.response = loopCTX.response
 			p.applyFiltersOnError(ctx, processedFilters)
+			loopSpan.Finish()
 			return err
 		}
-
+		loopSpan.Finish()
 		ctx.setResponse(loopCTX.response, p.flags.PreserveOriginal())
 		ctx.proxySpan = loopCTX.proxySpan
 	} else if p.flags.Debug() {
