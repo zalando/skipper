@@ -1154,3 +1154,71 @@ func TestOpenPolicyAgentRegistry_ConcurrentInstanceCreation(t *testing.T) {
 	assert.Equal(t, initInstance, results[0])
 	assert.Len(t, registry.instances, 1, "Registry should have only one instance after concurrent creation attempts")
 }
+
+func TestOpenPolicyAgentRegistry_InstanceStatusTracking(t *testing.T) {
+	mockServer := opasdktest.MustNewServer(
+		opasdktest.MockBundle("/bundles/test", map[string]string{
+			"main.rego": `package test`,
+		}),
+	)
+	defer mockServer.Stop()
+
+	config := []byte(fmt.Sprintf(`{
+			  "services": {"test": {"url": %q}},
+			  "bundles": {"test": {"resource": "/bundles/test"}}
+			 }`, mockServer.URL()))
+
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+	)
+	require.NoError(t, err)
+	defer registry.Close()
+
+	bundleName := "test"
+
+	// Test initial status (should be nil)
+	status := registry.GetInstanceStatus(bundleName)
+	assert.Nil(t, status)
+
+	// Test status during creation
+	go func() {
+		_, err := registry.GetOrStartInstance(bundleName, "testfilter")
+		require.NoError(t, err)
+	}()
+
+	// Wait and verify status progression
+	var foundCreating bool
+	for i := 0; i < 100; i++ {
+		status := registry.GetInstanceStatus(bundleName)
+		if status != nil && status.State == "creating" {
+			foundCreating = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.True(t, foundCreating, "Should have seen 'creating' status")
+
+	// Wait for completion and verify final status
+	err = registry.WaitForInstance(bundleName, 5*time.Second)
+	assert.NoError(t, err)
+
+	finalStatus := registry.GetInstanceStatus(bundleName)
+	assert.NotNil(t, finalStatus)
+	assert.Equal(t, "ready", finalStatus.State)
+	assert.Nil(t, finalStatus.Error)
+}
+
+func TestOpenPolicyAgentRegistry_WaitForInstanceTimeout(t *testing.T) {
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate([]byte(`{"invalid": "config"}`))),
+	)
+	require.NoError(t, err)
+	defer registry.Close()
+
+	// Set a failed status manually for testing
+	registry.setInstanceStatus("nonexistent", "failed", errors.New("creation failed"))
+
+	err = registry.WaitForInstance("nonexistent", 100*time.Millisecond)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "creation failed")
+}

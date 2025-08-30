@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/singleflight"
 	"io"
 	"maps"
@@ -125,11 +126,11 @@ type OpenPolicyAgentRegistry struct {
 	inFlightCreation map[string]chan *OpenPolicyAgentInstance
 
 	// Background task system
-	backgroundTaskChan     chan *BackgroundTask
-	backgroundWorkerOnce   sync.Once
-	singleflightGroup      singleflight.Group
-	instanceCreationStatus map[string]*InstanceCreationStatus
-	statusMu               sync.RWMutex
+	backgroundTaskChan       chan *BackgroundTask
+	backgroundWorkerOnce     sync.Once
+	singleflightGroup        singleflight.Group
+	instanceCreationStatuses map[string]*InstanceCreationStatus
+	statusMu                 sync.RWMutex
 }
 
 type OpenPolicyAgentFilter interface {
@@ -250,19 +251,19 @@ func WithPreloadingEnabled(enabled bool) func(*OpenPolicyAgentRegistry) error {
 
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
 	registry := &OpenPolicyAgentRegistry{
-		reuseDuration:          defaultReuseDuration,
-		cleanInterval:          DefaultCleanIdlePeriod,
-		instanceStartupTimeout: DefaultOpaStartupTimeout,
-		instances:              make(map[string]*OpenPolicyAgentInstance),
-		lastused:               make(map[*OpenPolicyAgentInstance]time.Time),
-		instanceCreationStatus: make(map[string]*InstanceCreationStatus),
-		quit:                   make(chan struct{}),
-		maxRequestBodyBytes:    DefaultMaxMemoryBodyParsing,
-		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
-		controlLoopInterval:    DefaultControlLoopInterval,
-		controlLoopMaxJitter:   DefaultControlLoopMaxJitter,
-		inFlightCreation:       make(map[string]chan *OpenPolicyAgentInstance),
-		backgroundTaskChan:     make(chan *BackgroundTask, 100), // Buffered channel for background tasks
+		reuseDuration:            defaultReuseDuration,
+		cleanInterval:            DefaultCleanIdlePeriod,
+		instanceStartupTimeout:   DefaultOpaStartupTimeout,
+		instances:                make(map[string]*OpenPolicyAgentInstance),
+		lastused:                 make(map[*OpenPolicyAgentInstance]time.Time),
+		instanceCreationStatuses: make(map[string]*InstanceCreationStatus),
+		quit:                     make(chan struct{}),
+		maxRequestBodyBytes:      DefaultMaxMemoryBodyParsing,
+		bodyReadBufferSize:       DefaultRequestBodyBufferSize,
+		controlLoopInterval:      DefaultControlLoopInterval,
+		controlLoopMaxJitter:     DefaultControlLoopMaxJitter,
+		inFlightCreation:         make(map[string]chan *OpenPolicyAgentInstance),
+		backgroundTaskChan:       make(chan *BackgroundTask, 100), // Buffered channel for background tasks
 	}
 
 	for _, opt := range opts {
@@ -296,21 +297,21 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 	return registry, nil
 }
 
-func (registry *OpenPolicyAgentRegistry) setInstanceStatus(bundleName, state string, err error) {
-	registry.statusMu.Lock()
-	defer registry.statusMu.Unlock()
-
-	registry.instanceCreationStatus[bundleName] = &InstanceCreationStatus{
-		Name:  bundleName,
-		State: state,
-		Error: err,
-	}
-}
+//func (registry *OpenPolicyAgentRegistry) setInstanceStatus(bundleName, state string, err error) {
+//	registry.statusMu.Lock()
+//	defer registry.statusMu.Unlock()
+//
+//	registry.instanceCreationStatus[bundleName] = &InstanceCreationStatus{
+//		Name:  bundleName,
+//		State: state,
+//		Error: err,
+//	}
+//}
 
 func (registry *OpenPolicyAgentRegistry) getInstanceStatus(bundleName string) *InstanceCreationStatus {
 	registry.statusMu.RLock()
 	defer registry.statusMu.RUnlock()
-	return registry.instanceCreationStatus[bundleName]
+	return registry.instanceCreationStatuses[bundleName]
 }
 
 func (registry *OpenPolicyAgentRegistry) GetInstanceStatus(bundleName string) *InstanceCreationStatus {
@@ -540,9 +541,41 @@ func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) 
 	return nil, nil
 }
 
-// PrepareInstanceLoader returns a function that creates or retrieves
-// an OPA instance for the given bundle. Concurrent calls for the same
-// bundle are deduplicated via singleflight.
+// Enhanced setInstanceStatus to capture more error details
+func (registry *OpenPolicyAgentRegistry) setInstanceStatus(bundleName, status string, err error) {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+
+	if registry.instanceCreationStatuses == nil {
+		registry.instanceCreationStatuses = make(map[string]*InstanceCreationStatus)
+	}
+
+	// Preserve the most recent error, even during transitions
+	existingStatus := registry.instanceCreationStatuses[bundleName]
+	var preservedError error
+	if err != nil {
+		preservedError = err
+	} else if existingStatus != nil && existingStatus.Error != nil && status == "creating" {
+		// Keep the previous error during creation attempts
+		preservedError = existingStatus.Error
+	}
+
+	registry.instanceCreationStatuses[bundleName] = &InstanceCreationStatus{
+		State: status,
+		Error: preservedError,
+	}
+
+	// Log detailed errors for debugging
+	if err != nil {
+		log.WithFields(log.Fields{
+			"bundle-name": bundleName,
+			"status":      status,
+			"error":       err.Error(),
+		}).Error("OPA instance status update with error")
+	}
+}
+
+// Alternative approach: Modify the singleflight function to update status progressively
 func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filterName string) func() (*OpenPolicyAgentInstance, error) {
 	return func() (*OpenPolicyAgentInstance, error) {
 		// Fast path: already exists
@@ -554,19 +587,23 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 
 		registry.setInstanceStatus(bundleName, "creating", nil)
 
+		// Create a channel to track intermediate errors during creation
+		errorCh := make(chan error, 1)
+
 		// Collapse concurrent creations into one using singleflight
-		v, err, _ := registry.singleflightGroup.Do(bundleName, func() (any, error) {
-			// Re-check after entering singleflight (another goroutine might have finished creation)
+		ch := registry.singleflightGroup.DoChan(bundleName, func() (any, error) {
+			// Re-check after entering singleflight
 			if inst, err := registry.getExistingInstance(bundleName); err != nil {
 				return nil, fmt.Errorf("failed to recheck OPA instance for bundle %q: %w", bundleName, err)
 			} else if inst != nil {
 				return inst, nil
 			}
 
-			// Create new OPA instance
+			// Create new OPA instance with error tracking
 			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
 			if err != nil {
 				registry.setInstanceStatus(bundleName, "failed", err)
+				registry.singleflightGroup.Forget(bundleName)
 				return nil, err
 			}
 
@@ -574,17 +611,99 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			registry.mu.Lock()
 			registry.instances[bundleName] = inst
 			registry.mu.Unlock()
-
 			registry.setInstanceStatus(bundleName, "ready", nil)
 
 			return inst, nil
 		})
-		if err != nil {
-			return nil, err
+
+		timeoutTimer := time.NewTimer(registry.instanceStartupTimeout)
+		defer timeoutTimer.Stop()
+
+		for {
+			select {
+			case res := <-ch:
+				if res.Err != nil {
+					print("OPA instance creation error: ", res.Err.Error())
+					return nil, res.Err
+				}
+				return res.Val.(*OpenPolicyAgentInstance), nil
+
+			case intermediateErr := <-errorCh:
+				// Update status with intermediate error but continue waiting
+				registry.setInstanceStatus(bundleName, "creating", intermediateErr)
+
+			case <-timeoutTimer.C:
+				// Get the most recent error information
+				registry.mu.Lock()
+				status, statusExists := registry.instanceCreationStatuses[bundleName]
+				registry.mu.Unlock()
+
+				registry.singleflightGroup.Forget(bundleName)
+
+				if statusExists && status.Error != nil {
+					return nil, fmt.Errorf("timeout creating OPA instance for bundle %q: %w", bundleName, status.Error)
+				}
+
+				return nil, fmt.Errorf("timeout waiting for in-flight creation of OPA instance for bundle %q", bundleName)
+			}
 		}
-		return v.(*OpenPolicyAgentInstance), nil
 	}
 }
+
+// PrepareInstanceLoader returns a function that creates or retrieves
+// an OPA instance for the given bundle. Concurrent calls for the same
+// bundle are deduplicated via singleflight.
+//func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filterName string) func() (*OpenPolicyAgentInstance, error) {
+//	return func() (*OpenPolicyAgentInstance, error) {
+//		// Fast path: already exists
+//		if inst, err := registry.getExistingInstance(bundleName); err != nil {
+//			return nil, fmt.Errorf("failed to get existing OPA instance for bundle %q: %w", bundleName, err)
+//		} else if inst != nil {
+//			return inst, nil
+//		}
+//
+//		registry.setInstanceStatus(bundleName, "creating", nil)
+//
+//		// Collapse concurrent creations into one using singleflight
+//		ch := registry.singleflightGroup.DoChan(bundleName, func() (any, error) {
+//			// Re-check after entering singleflight (another goroutine might have finished creation)
+//			if inst, err := registry.getExistingInstance(bundleName); err != nil {
+//				return nil, fmt.Errorf("failed to recheck OPA instance for bundle %q: %w", bundleName, err)
+//			} else if inst != nil {
+//				return inst, nil
+//			}
+//
+//			// Create new OPA instance
+//			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
+//			if err != nil {
+//				registry.setInstanceStatus(bundleName, "failed", err)
+//				registry.singleflightGroup.Forget(bundleName)
+//				return nil, err
+//			}
+//
+//			// Cache instance
+//			registry.mu.Lock()
+//			registry.instances[bundleName] = inst
+//			registry.mu.Unlock()
+//			registry.setInstanceStatus(bundleName, "ready", nil)
+//
+//			return inst, nil
+//		})
+//
+//		// Use a select statement with a timeout
+//		select {
+//		case res := <-ch:
+//			if res.Err != nil {
+//				return nil, res.Err
+//			}
+//			return res.Val.(*OpenPolicyAgentInstance), nil
+//		case <-time.After(registry.instanceStartupTimeout):
+//			// On timeout, forget the key so a new attempt can be made
+//			registry.singleflightGroup.Forget(bundleName)
+//			return nil, fmt.Errorf("timeout waiting for in-flight creation of OPA instance for bundle %q", bundleName)
+//		}
+//	}
+//}
 
 func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentInstance]struct{}) {
 	registry.mu.Lock()
@@ -643,7 +762,6 @@ type OpenPolicyAgentInstance struct {
 }
 
 type InstanceCreationStatus struct {
-	Name  string
 	State string // "creating", "ready", "failed"
 	Error error
 }
@@ -1222,36 +1340,57 @@ func (registry *OpenPolicyAgentRegistry) startBackgroundWorker() {
 }
 
 func (registry *OpenPolicyAgentRegistry) WaitForInstance(bundleName string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-
-	for time.Now().Before(deadline) {
-		select {
-		case <-ticker.C:
-			// Check if instance exists (ready)
-			if inst, _ := registry.getExistingInstance(bundleName); inst != nil {
-				return nil
-			}
-
-			// Check instance status
-			if status := registry.GetInstanceStatus(bundleName); status != nil {
-				if status.State == "ready" {
-					return nil
-				}
-				if status.State == "failed" && status.Error != nil {
-					return fmt.Errorf("instance for bundle %s creation failed: %w", bundleName, status.Error)
-				}
-			}
-
-		case <-time.After(timeout):
-			status := registry.GetInstanceStatus(bundleName)
-			if status != nil {
-				return fmt.Errorf("instance for bundle %s not ready within timeout %v, state: %s", bundleName, timeout, status.State)
-			}
-			return fmt.Errorf("instance for bundle %s not found within timeout %v", bundleName, timeout)
-		}
+	// Check if instance already exists
+	if inst, _ := registry.getExistingInstance(bundleName); inst != nil {
+		return nil
 	}
 
-	return fmt.Errorf("instance for bundle %s not ready within timeout %v", bundleName, timeout)
+	// Create a channel to receive notifications when the instance is ready
+	readyChan := make(chan struct{})
+	errorChan := make(chan error)
+
+	// Start a goroutine to monitor the instance status
+	go func() {
+		ticker := time.NewTicker(50 * time.Millisecond)
+		defer ticker.Stop()
+		defer close(readyChan)
+		defer close(errorChan)
+
+		for {
+			select {
+			case <-ticker.C:
+				// Check if instance exists (ready)
+				if inst, _ := registry.getExistingInstance(bundleName); inst != nil {
+					readyChan <- struct{}{}
+					return
+				}
+
+				// Check instance status
+				if status := registry.GetInstanceStatus(bundleName); status != nil {
+					if status.State == "ready" {
+						readyChan <- struct{}{}
+						return
+					}
+					if status.State == "failed" && status.Error != nil {
+						errorChan <- fmt.Errorf("instance for bundle %s creation failed: %w", bundleName, status.Error)
+						return
+					}
+				}
+			}
+		}
+	}()
+
+	// Wait for either success, failure, or timeout
+	select {
+	case <-readyChan:
+		return nil
+	case err := <-errorChan:
+		return err
+	case <-time.After(timeout):
+		status := registry.GetInstanceStatus(bundleName)
+		if status != nil {
+			return fmt.Errorf("instance for bundle %s not ready within timeout %v, state: %s", bundleName, timeout, status.State)
+		}
+		return fmt.Errorf("instance for bundle %s not found within timeout %v", bundleName, timeout)
+	}
 }
