@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1078,6 +1079,63 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 	f2()
 }
 
+func TestSingleflightInstanceCreationForgetErrorAtTimeout(t *testing.T) {
+	bundleName := "test_error_forget_bundle"
+	cbs := startControllableBundleServer(bundleName)
+	defer cbs.Stop()
+
+	registry := createOPARegistry(t, cbs.URL(), bundleName)
+	defer registry.Close()
+
+	// Test: PrepareInstanceLoader attempt OPA instance creation.
+	loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	_, err := loader()
+
+	assert.Error(t, err, "should timeout as bundle server is not available yet")
+
+	// Bundle server recovers
+	cbs.SetAvailable(true)
+
+	// Verify instance creation is attempted for the same bundle and succeeds
+	secondLoader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	instance, err := secondLoader()
+
+	require.NoError(t, err)
+	assert.NotNil(t, instance, "instance should be created successfully after bundle server recovers")
+	assert.Equal(t, instance.bundleName, bundleName)
+}
+
+func createOPARegistry(t *testing.T, url, bundleName string) *OpenPolicyAgentRegistry {
+	t.Helper()
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": { "url": %q }
+		},
+		"bundles": {
+			"%s": { "resource": "/bundles/{{ .bundlename }}" }
+		}
+	}`, url, bundleName))
+
+	envoyMetaData := []byte(`{
+		"filter_metadata": {
+			"envoy.filters.http.header_to_metadata": {
+				"policy_type": "ingress"
+			}
+		}
+	}`)
+
+	opaRegistry, err := NewOpenPolicyAgentRegistry(
+		WithTracer(tracingtest.NewTracer()),
+		WithPreloadingEnabled(true),
+		WithOpenPolicyAgentInstanceConfig(
+			WithConfigTemplate(config),
+			WithEnvoyMetadataBytes(envoyMetaData),
+		),
+		WithInstanceStartupTimeout(5*time.Second))
+	require.NoError(t, err)
+	return opaRegistry
+}
+
 type opaInstanceStartupTestCase struct {
 	enableCustomControlLoop bool
 	expectedError           string
@@ -1100,4 +1158,108 @@ func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test fun
 			test(t, tc)
 		})
 	}
+}
+
+// Wrapper server with controllable availability:
+type controllableBundleServer struct {
+	realServer  *opasdktest.Server
+	proxyServer *httptest.Server
+	available   atomic.Bool
+	bundleName  string
+}
+
+func startBundleServer(bundleName string) *opasdktest.Server {
+	return opasdktest.MustNewServer(
+		opasdktest.MockBundle(fmt.Sprintf("/bundles/%s", bundleName), map[string]string{
+			"main.rego": `
+				package envoy.authz
+				import rego.v1
+				default allow := false
+				allow if {
+					input.parsed_path == [ "initial" ]
+				}
+			`,
+		}),
+	)
+}
+
+func startControllableBundleServer(bundleName string) *controllableBundleServer {
+	realSrv := startBundleServer(bundleName)
+	cbs := &controllableBundleServer{
+		realServer: realSrv,
+		bundleName: bundleName,
+	}
+	cbs.available.Store(false) // initially unavailable
+
+	cbs.proxyServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !cbs.available.Load() {
+			w.WriteHeader(http.StatusTooManyRequests) // 429
+			w.Write([]byte("Bundle temporarily unavailable"))
+			return
+		}
+
+		// Proxy request to real bundle server
+		proxyURL := cbs.realServer.URL() + r.URL.Path
+		resp, err := http.Get(proxyURL)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Failed to fetch bundle"))
+			return
+		}
+		defer resp.Body.Close()
+
+		for k, vv := range resp.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	}))
+
+	return cbs
+}
+
+func (c *controllableBundleServer) SetAvailable(yes bool) {
+	c.available.Store(yes)
+}
+
+func (c *controllableBundleServer) URL() string {
+	return c.proxyServer.URL
+}
+
+func (c *controllableBundleServer) Stop() {
+	c.proxyServer.Close()
+	c.realServer.Stop()
+}
+
+func TestControllableBundleServer(t *testing.T) {
+	bundleName := "testbundle"
+	cbs := startControllableBundleServer(bundleName)
+	defer cbs.Stop()
+
+	url := cbs.URL() + "/bundles/" + bundleName
+
+	// Initially unavailable → expect 429
+	resp, err := http.Get(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "temporarily unavailable")
+
+	// Set available → expect 200 and bundle content
+	cbs.SetAvailable(true)
+
+	resp2, err := http.Get(url)
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	require.NoError(t, err)
+	body2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err)
+	assert.NotEmpty(t, body2, "Expected non-empty bundle content")
 }
