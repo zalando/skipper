@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/singleflight"
 	"io"
 	"maps"
 	"math/rand"
@@ -121,8 +122,8 @@ type OpenPolicyAgentRegistry struct {
 	preloadingEnabled bool
 
 	// Track in-flight instance creation to prevent concurrent creation of the same bundle
-	inFlightCreation map[string]chan *OpenPolicyAgentInstance
-	inFlightMu       sync.RWMutex
+	inFlightCreation  map[string]chan *OpenPolicyAgentInstance
+	singleflightGroup singleflight.Group
 
 	// Background task system
 	backgroundTaskChan   chan *BackgroundTask
@@ -486,7 +487,7 @@ func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.
 // GetOrStartInstance returns an existing instance immediately, or creates one using registry config
 func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
 	// First check if instance already exists
-	instance, err := registry.getExistingInstance(bundleName, filterName)
+	instance, err := registry.getExistingInstance(bundleName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
 	}
@@ -506,7 +507,7 @@ func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string, f
 	return loader()
 }
 
-func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 
@@ -525,70 +526,57 @@ func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string, 
 // PrepareInstanceLoader returns a function that when called will create an OPA instance
 // This allows the preprocessor to control when and how the instance creation happens
 // Prevents concurrent creation of the same bundle by tracking in-flight operations
-func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string, filterName string) func() (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filterName string) func() (*OpenPolicyAgentInstance, error) {
 	return func() (*OpenPolicyAgentInstance, error) {
-		// Check if instance already exists first (most common case)
-		instance, err := registry.getExistingInstance(bundleName, filterName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
-		}
-		if instance != nil {
-			return instance, nil
+		// Fast path: already exists
+		if inst, err := registry.getExistingInstance(bundleName); err != nil {
+			return nil, fmt.Errorf("failed to get existing OPA instance for bundle %q: %w", bundleName, err)
+		} else if inst != nil {
+			return inst, nil
 		}
 
-		// Atomically check for in-flight creation and claim creation if needed
-		registry.inFlightMu.Lock()
-
-		// Double-check that instance doesn't exist now that we have the lock
-		instance, err = registry.getExistingInstance(bundleName, filterName)
-		if err != nil {
-			registry.inFlightMu.Unlock()
-			return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
-		}
-		if instance != nil {
-			registry.inFlightMu.Unlock()
-			return instance, nil
-		}
-
-		// Check if another goroutine is already creating this instance
-		if inFlightChan, isInFlight := registry.inFlightCreation[bundleName]; isInFlight {
-			registry.inFlightMu.Unlock()
-			// Another goroutine is creating this instance, wait for it
-			select {
-			case instance := <-inFlightChan:
-				return instance, nil
-			case <-time.After(registry.instanceStartupTimeout):
-				return nil, fmt.Errorf("timeout waiting for in-flight creation of OPA instance for bundle '%s'", bundleName)
+		// Collapse concurrent creations into one using singleflight
+		ch := registry.singleflightGroup.DoChan(bundleName, func() (any, error) {
+			// Re-check after entering singleflight
+			if inst, err := registry.getExistingInstance(bundleName); err != nil {
+				registry.singleflightGroup.Forget(bundleName)
+				return nil, fmt.Errorf("failed to recheck OPA instance for bundle %q: %w", bundleName, err)
+			} else if inst != nil {
+				return inst, nil
 			}
+
+			// Create new OPA instance
+			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
+			if err != nil {
+				registry.singleflightGroup.Forget(bundleName)
+				return nil, err
+			}
+
+			// Cache instance
+			registry.mu.Lock()
+			registry.instances[bundleName] = inst
+			registry.mu.Unlock()
+
+			return inst, nil
+		})
+
+		// Coordination timeout: longer than the plugin startup timeout to allow detailed error propagation
+		// This protects against singleflight goroutine death/hang, apart from HTTP timeouts
+		coordinationTimeout := 3 * registry.instanceStartupTimeout // 3x longer ToDo? this implies in rare cases startup can take up to 3 times configured timeout
+		coordinationTimer := time.NewTimer(coordinationTimeout)
+		defer coordinationTimer.Stop()
+
+		select {
+		case res := <-ch:
+			if res.Err != nil {
+				return nil, res.Err // Detailed HTTP error (429, 404, 500, etc.)
+			}
+			return res.Val.(*OpenPolicyAgentInstance), nil
+		case <-coordinationTimer.C:
+			// This should rarely/never fire - only for catastrophic failures
+			registry.singleflightGroup.Forget(bundleName)
+			return nil, fmt.Errorf("coordination timeout: singleflight goroutine appears to have failed for bundle %q", bundleName)
 		}
-
-		// We're the first to claim creation for this bundle
-		creationChan := make(chan *OpenPolicyAgentInstance, 1)
-		registry.inFlightCreation[bundleName] = creationChan
-		registry.inFlightMu.Unlock()
-
-		// Ensure cleanup on exit
-		defer func() {
-			registry.inFlightMu.Lock()
-			delete(registry.inFlightCreation, bundleName)
-			registry.inFlightMu.Unlock()
-		}()
-
-		instance, err = registry.newOpenPolicyAgentInstance(bundleName, filterName)
-		if err != nil {
-			return nil, err
-		}
-
-		// Store the instance in the registry
-		registry.mu.Lock()
-		registry.instances[bundleName] = instance
-		registry.mu.Unlock()
-
-		// Notify any waiting goroutines
-		creationChan <- instance
-		close(creationChan)
-
-		return instance, nil
 	}
 }
 
