@@ -575,7 +575,6 @@ func (registry *OpenPolicyAgentRegistry) setInstanceStatus(bundleName, status st
 	}
 }
 
-// Alternative approach: Modify the singleflight function to update status progressively
 func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filterName string) func() (*OpenPolicyAgentInstance, error) {
 	return func() (*OpenPolicyAgentInstance, error) {
 		// Fast path: already exists
@@ -587,9 +586,6 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 
 		registry.setInstanceStatus(bundleName, "creating", nil)
 
-		// Create a channel to track intermediate errors during creation
-		errorCh := make(chan error, 1)
-
 		// Collapse concurrent creations into one using singleflight
 		ch := registry.singleflightGroup.DoChan(bundleName, func() (any, error) {
 			// Re-check after entering singleflight
@@ -599,7 +595,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 				return inst, nil
 			}
 
-			// Create new OPA instance with error tracking
+			// Create new OPA instance
 			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
 			if err != nil {
 				registry.setInstanceStatus(bundleName, "failed", err)
@@ -611,41 +607,27 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			registry.mu.Lock()
 			registry.instances[bundleName] = inst
 			registry.mu.Unlock()
-			registry.setInstanceStatus(bundleName, "ready", nil)
 
+			registry.setInstanceStatus(bundleName, "ready", nil)
 			return inst, nil
 		})
 
-		timeoutTimer := time.NewTimer(registry.instanceStartupTimeout)
-		defer timeoutTimer.Stop()
+		// Coordination timeout: much longer than any reasonable HTTP operation
+		// This protects against singleflight goroutine death/hang, not HTTP timeouts
+		coordinationTimeout := 10 * registry.instanceStartupTimeout // 10x longer
+		coordinationTimer := time.NewTimer(coordinationTimeout)
+		defer coordinationTimer.Stop()
 
-		for {
-			select {
-			case res := <-ch:
-				if res.Err != nil {
-					print("OPA instance creation error: ", res.Err.Error())
-					return nil, res.Err
-				}
-				return res.Val.(*OpenPolicyAgentInstance), nil
-
-			case intermediateErr := <-errorCh:
-				// Update status with intermediate error but continue waiting
-				registry.setInstanceStatus(bundleName, "creating", intermediateErr)
-
-			case <-timeoutTimer.C:
-				// Get the most recent error information
-				registry.mu.Lock()
-				status, statusExists := registry.instanceCreationStatuses[bundleName]
-				registry.mu.Unlock()
-
-				registry.singleflightGroup.Forget(bundleName)
-
-				if statusExists && status.Error != nil {
-					return nil, fmt.Errorf("timeout creating OPA instance for bundle %q: %w", bundleName, status.Error)
-				}
-
-				return nil, fmt.Errorf("timeout waiting for in-flight creation of OPA instance for bundle %q", bundleName)
+		select {
+		case res := <-ch:
+			if res.Err != nil {
+				return nil, res.Err // Detailed HTTP error (429, 404, 500, etc.)
 			}
+			return res.Val.(*OpenPolicyAgentInstance), nil
+		case <-coordinationTimer.C:
+			// This should rarely/never fire - only for catastrophic failures
+			registry.singleflightGroup.Forget(bundleName)
+			return nil, fmt.Errorf("coordination timeout: singleflight goroutine appears to have failed for bundle %q", bundleName)
 		}
 	}
 }
