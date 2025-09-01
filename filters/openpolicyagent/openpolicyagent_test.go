@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/filters/openpolicyagent/internal/opatestutils"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1087,10 +1087,10 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 // / and ensures that the following instance creation attempts for the same bundle are allowed and succeed.
 func TestSingleflightInstanceCreationForgetErrorAtTimeout(t *testing.T) {
 	bundleName := "test_error_forget_bundle"
-	cbs := startControllableBundleServer(bundleName)
+	cbs := opatestutils.StartControllableBundleServer(bundleName)
 	defer cbs.Stop()
 
-	registry := createOPARegistry(t, cbs.URL(), bundleName)
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName)
 	defer registry.Close()
 
 	// Test: PrepareInstanceLoader attempt OPA instance creation.
@@ -1114,10 +1114,10 @@ func TestSingleflightInstanceCreationForgetErrorAtTimeout(t *testing.T) {
 // / Verifies that concurrent requests for the same bundle result in only one instance creation
 func TestSingleflightConcurrentRequests(t *testing.T) {
 	bundleName := "test_concurrent_bundle"
-	cbs := createBundleServers([]string{bundleName})[0]
+	cbs := opatestutils.CreateBundleServers([]string{bundleName})[0]
 	defer cbs.Stop()
 
-	registry := createOPARegistry(t, cbs.URL(), bundleName)
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName)
 	defer registry.Close()
 
 	// Record baseline goroutine count for leak detection
@@ -1191,7 +1191,7 @@ func TestPrepareInstanceLoader_MultipleBundles(t *testing.T) {
 	bundles := []string{"bundle1", "bundle2", "bundle3"}
 
 	// Create bundle servers with proper root configurations
-	servers := createBundleServers(bundles)
+	servers := opatestutils.CreateBundleServers(bundles)
 	defer func() {
 		for _, server := range servers {
 			server.Stop()
@@ -1199,12 +1199,12 @@ func TestPrepareInstanceLoader_MultipleBundles(t *testing.T) {
 	}()
 
 	// Create OPA registry with multi-bundle configuration
-	config := createMultiBundleConfig(servers)
-	registry := createRegistryWithConfig(t, config)
+	config := opatestutils.CreateMultiBundleConfig(servers)
+	registry := CreateRegistryWithConfig(t, config)
 	defer registry.Close()
 
 	// Create instances for all bundles concurrently
-	instances := createInstancesConcurrently(t, registry, bundles)
+	instances := CreateInstancesConcurrently(t, registry, bundles)
 
 	// Verify all instances are different and properly stored
 	assert.Len(t, instances, len(bundles))
@@ -1219,10 +1219,10 @@ func TestPrepareInstanceLoader_MultipleBundles(t *testing.T) {
 func TestPrepareInstanceLoader_SingleflightCleanupAfterError(t *testing.T) {
 	bundleName := "error_cleanup_bundle"
 
-	cbs := startControllableBundleServer(bundleName)
+	cbs := opatestutils.StartControllableBundleServer(bundleName)
 	defer cbs.Stop()
 
-	registry := createOPARegistry(t, cbs.URL(), bundleName)
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName)
 	defer registry.Close()
 
 	// First attempt should fail and forget singleflight key
@@ -1244,11 +1244,11 @@ func TestPrepareInstanceLoader_SingleflightCleanupAfterError(t *testing.T) {
 // / Verifies that after instances are cleaned up, singleflight keys are forgotten
 func TestSingleflightForgetOnCleanup(t *testing.T) {
 	bundleName := "test_cleanup_bundle"
-	cbs := createBundleServers([]string{bundleName})[0]
+	cbs := opatestutils.CreateBundleServers([]string{bundleName})[0]
 	defer cbs.Stop()
 
 	// Create registry with a very short cleanup interval
-	registry := createOPARegistry(t, cbs.URL(), bundleName, 1*time.Second)
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName, 1*time.Second)
 	defer registry.Close()
 
 	// Create an instance
@@ -1293,7 +1293,7 @@ func TestPrepareInstanceLoader_CoordinationTimeout(t *testing.T) {
 
 	cleanupInterval := 1 * time.Second
 	startUpTimeOut := 2 * time.Second
-	registry := createOPARegistry(t, hangingServer.URL, bundleName, cleanupInterval, startUpTimeOut)
+	registry := CreateOPARegistry(t, hangingServer.URL, bundleName, cleanupInterval, startUpTimeOut)
 	defer registry.Close()
 
 	loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
@@ -1313,10 +1313,10 @@ func TestPrepareInstanceLoader_CoordinationTimeout(t *testing.T) {
 // / Verifies that after the registry is closed, all singleflight keys are forgotten
 func TestRegistryClose(t *testing.T) {
 	bundleName := "test_close_bundle"
-	cbs := createBundleServers([]string{bundleName})[0]
+	cbs := opatestutils.CreateBundleServers([]string{bundleName})[0]
 	defer cbs.Stop()
 
-	registry := createOPARegistry(t, cbs.URL(), bundleName)
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName)
 
 	loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
 	loader()
@@ -1331,145 +1331,12 @@ func TestRegistryClose(t *testing.T) {
 	assert.Equal(t, err.Error(), "failed to get existing OPA instance for bundle \"test_close_bundle\": open policy agent registry is already closed")
 
 	// Create new registry - should allow new instance creation
-	registry2 := createOPARegistry(t, cbs.URL(), bundleName)
+	registry2 := CreateOPARegistry(t, cbs.URL(), bundleName)
 	loader2 := registry2.PrepareInstanceLoader(bundleName, "opaRequestFilter")
 	instance, err := loader2()
 	assert.NoError(t, err)
 	assert.NotNil(t, instance, "should create new instance after registry is recreated")
 
-}
-
-// Helper function to create bundle servers
-func createBundleServers(bundles []string) []*opasdktest.Server {
-	var servers []*opasdktest.Server
-
-	for i, bundle := range bundles {
-		packageName := fmt.Sprintf("test%d", i+1)
-		server := opasdktest.MustNewServer(
-			opasdktest.MockBundle(fmt.Sprintf("/bundles/%s", bundle), map[string]string{
-				"main.rego": fmt.Sprintf(`
-					package %s
-					import rego.v1
-					default allow := false
-				`, packageName),
-				".manifest": fmt.Sprintf(`{
-					"roots": ["%s"]
-				}`, packageName),
-			}),
-		)
-		servers = append(servers, server)
-	}
-
-	return servers
-}
-
-// Helper function to create multi-bundle configuration
-func createMultiBundleConfig(servers []*opasdktest.Server) []byte {
-	services := make(map[string]interface{})
-	bundleConfigs := make(map[string]interface{})
-
-	for i, server := range servers {
-		bundleName := fmt.Sprintf("bundle%d", i+1)
-		services[bundleName] = map[string]string{"url": server.URL()}
-		bundleConfigs[bundleName] = map[string]string{
-			"resource": fmt.Sprintf("/bundles/%s", bundleName),
-			"service":  bundleName,
-		}
-	}
-
-	config := map[string]interface{}{
-		"services": services,
-		"bundles":  bundleConfigs,
-		"plugins": map[string]interface{}{
-			"envoy_ext_authz_grpc": map[string]interface{}{
-				"path":                    "envoy/authz/allow",
-				"dry-run":                 false,
-				"skip-request-body-parse": false,
-			},
-		},
-	}
-
-	configBytes, _ := json.Marshal(config)
-	return configBytes
-}
-
-// Helper function to create registry with configuration
-func createRegistryWithConfig(t *testing.T, config []byte) *OpenPolicyAgentRegistry {
-	registry, err := NewOpenPolicyAgentRegistry(
-		WithReuseDuration(1*time.Second),
-		WithCleanInterval(1*time.Second),
-		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
-	)
-	require.NoError(t, err)
-	return registry
-}
-
-// Helper function to create instances concurrently
-func createInstancesConcurrently(t *testing.T, registry *OpenPolicyAgentRegistry, bundles []string) map[string]*OpenPolicyAgentInstance {
-	var wg sync.WaitGroup
-	instances := make(map[string]*OpenPolicyAgentInstance)
-	var mu sync.Mutex
-
-	for _, bundle := range bundles {
-		wg.Add(1)
-		go func(bundleName string) {
-			defer wg.Done()
-			loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
-			instance, err := loader()
-			require.NoError(t, err)
-
-			mu.Lock()
-			instances[bundleName] = instance
-			mu.Unlock()
-		}(bundle)
-	}
-
-	wg.Wait()
-	return instances
-}
-
-func createOPARegistry(t *testing.T, url, bundleName string, options ...time.Duration) *OpenPolicyAgentRegistry {
-	t.Helper()
-
-	cleanUpInterval := 1 * time.Second // default value
-	startupTimeout := 1 * time.Second  // default value
-	if len(options) > 0 {
-		cleanUpInterval = options[0]
-	}
-
-	if len(options) > 1 {
-		startupTimeout = options[1]
-	}
-
-	config := []byte(fmt.Sprintf(`{
-		"services": {
-			"test": { "url": %q }
-		},
-		"bundles": {
-			"%s": { "resource": "/bundles/{{ .bundlename }}" }
-		}
-	}`, url, bundleName))
-
-	envoyMetaData := []byte(`{
-		"filter_metadata": {
-			"envoy.filters.http.header_to_metadata": {
-				"policy_type": "ingress"
-			}
-		}
-	}`)
-
-	opaRegistry, err := NewOpenPolicyAgentRegistry(
-		WithTracer(tracingtest.NewTracer()),
-		WithPreloadingEnabled(true),
-		WithOpenPolicyAgentInstanceConfig(
-			WithConfigTemplate(config),
-			WithEnvoyMetadataBytes(envoyMetaData),
-		),
-		WithInstanceStartupTimeout(startupTimeout),
-		WithCleanInterval(cleanUpInterval),
-		WithReuseDuration(1*time.Second))
-	require.NoError(t, err)
-	return opaRegistry
 }
 
 type opaInstanceStartupTestCase struct {
@@ -1496,91 +1363,72 @@ func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test fun
 	}
 }
 
-// Wrapper server with controllable availability:
-type controllableBundleServer struct {
-	realServer  *opasdktest.Server
-	proxyServer *httptest.Server
-	available   atomic.Bool
-	bundleName  string
+// CreateRegistryWithConfig Helper function to create registry with configuration
+func CreateRegistryWithConfig(t *testing.T, config []byte) *OpenPolicyAgentRegistry {
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+	)
+	require.NoError(t, err)
+	return registry
 }
 
-func startControllableBundleServer(bundleName string) *controllableBundleServer {
-	realSrv := createBundleServers([]string{bundleName})[0]
-	cbs := &controllableBundleServer{
-		realServer: realSrv,
-		bundleName: bundleName,
+// CreateInstancesConcurrently Helper function to create instances concurrently
+func CreateInstancesConcurrently(t *testing.T, registry *OpenPolicyAgentRegistry, bundles []string) map[string]*OpenPolicyAgentInstance {
+	var wg sync.WaitGroup
+	instances := make(map[string]*OpenPolicyAgentInstance)
+	var mu sync.Mutex
+
+	for _, bundle := range bundles {
+		wg.Add(1)
+		go func(bundleName string) {
+			defer wg.Done()
+			loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+			instance, err := loader()
+			require.NoError(t, err)
+
+			mu.Lock()
+			instances[bundleName] = instance
+			mu.Unlock()
+		}(bundle)
 	}
-	cbs.available.Store(false) // initially unavailable
 
-	cbs.proxyServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !cbs.available.Load() {
-			w.WriteHeader(http.StatusTooManyRequests) // 429
-			w.Write([]byte("Bundle temporarily unavailable"))
-			return
+	wg.Wait()
+	return instances
+}
+
+func CreateOPARegistry(t *testing.T, url, bundleName string, options ...time.Duration) *OpenPolicyAgentRegistry {
+	t.Helper()
+
+	cleanUpInterval := 1 * time.Second // default value
+	startupTimeout := 1 * time.Second  // default value
+	if len(options) > 0 {
+		cleanUpInterval = options[0]
+	}
+
+	if len(options) > 1 {
+		startupTimeout = options[1]
+	}
+
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": { "url": %q }
+		},
+		"bundles": {
+			"%s": { "resource": "/bundles/{{ .bundlename }}" }
 		}
+	}`, url, bundleName))
 
-		// Proxy request to real bundle server
-		proxyURL := cbs.realServer.URL() + r.URL.Path
-		resp, err := http.Get(proxyURL)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Failed to fetch bundle"))
-			return
-		}
-		defer resp.Body.Close()
-
-		for k, vv := range resp.Header {
-			for _, v := range vv {
-				w.Header().Add(k, v)
-			}
-		}
-		w.WriteHeader(resp.StatusCode)
-		_, _ = io.Copy(w, resp.Body)
-	}))
-
-	return cbs
-}
-
-func (c *controllableBundleServer) SetAvailable(yes bool) {
-	c.available.Store(yes)
-}
-
-func (c *controllableBundleServer) URL() string {
-	return c.proxyServer.URL
-}
-
-func (c *controllableBundleServer) Stop() {
-	c.proxyServer.Close()
-	c.realServer.Stop()
-}
-
-func TestControllableBundleServer(t *testing.T) {
-	bundleName := "testbundle"
-	cbs := startControllableBundleServer(bundleName)
-	defer cbs.Stop()
-
-	url := cbs.URL() + "/bundles/" + bundleName
-
-	// Initially unavailable → expect 429
-	resp, err := http.Get(url)
+	opaRegistry, err := NewOpenPolicyAgentRegistry(
+		WithTracer(tracingtest.NewTracer()),
+		WithPreloadingEnabled(true),
+		WithOpenPolicyAgentInstanceConfig(
+			WithConfigTemplate(config),
+		),
+		WithInstanceStartupTimeout(startupTimeout),
+		WithCleanInterval(cleanUpInterval),
+		WithReuseDuration(1*time.Second))
 	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Contains(t, string(body), "temporarily unavailable")
-
-	// Set available → expect 200 and bundle content
-	cbs.SetAvailable(true)
-
-	resp2, err := http.Get(url)
-	require.NoError(t, err)
-	defer resp2.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp2.StatusCode)
-	require.NoError(t, err)
-	body2, err := io.ReadAll(resp2.Body)
-	require.NoError(t, err)
-	assert.NotEmpty(t, body2, "Expected non-empty bundle content")
+	return opaRegistry
 }
