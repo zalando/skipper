@@ -148,7 +148,6 @@ func NewOAuthTokenintrospectionAllClaims(timeout time.Duration) filters.Spec {
 	return newOAuthTokenintrospectionFilter(checkOAuthTokenintrospectionAllClaims, timeout)
 }
 
-// Secure Introspection Point
 func NewSecureOAuthTokenintrospectionAnyKV(timeout time.Duration) filters.Spec {
 	return newSecureOAuthTokenintrospectionFilter(checkSecureOAuthTokenintrospectionAnyKV, timeout)
 }

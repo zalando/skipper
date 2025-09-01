@@ -89,7 +89,7 @@ type predicate struct {
 	trafficGroupCookie string
 }
 
-// Creates a new traffic control predicate specification.
+// New creates a new traffic control predicate specification.
 func New() routing.PredicateSpec { return &spec{} }
 
 func (s *spec) Name() string { return predicates.TrafficName }

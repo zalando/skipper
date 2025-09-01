@@ -15,7 +15,7 @@ type inlineContentIfStatus struct {
 	mime       string
 }
 
-// Creates a filter spec for the inlineContent() filter.
+// NewInlineContentIfStatus creates a filter spec for the inlineContent() filter.
 //
 //	r: * -> inlineContentIfStatus(401, "{\"foo\": 42}", "application/json") -> "https://www.example.org";
 //

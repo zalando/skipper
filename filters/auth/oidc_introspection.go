@@ -42,7 +42,7 @@ func NewOIDCQueryClaimsFilter() filters.Spec {
 	}
 }
 
-// Sets OIDC claims in the state bag.
+// SetOIDCClaims sets OIDC claims in the state bag.
 // Intended for use with the oidcClaimsQuery filter.
 func SetOIDCClaims(ctx filters.FilterContext, claims map[string]interface{}) {
 	ctx.StateBag()[oidcClaimsCacheKey] = tokenContainer{

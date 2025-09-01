@@ -6,7 +6,7 @@ type statusSpec struct{}
 
 type statusFilter int
 
-// Creates a filter specification whose instances set the
+// NewStatus creates a filter specification whose instances set the
 // status of the response to a fixed value regardless of
 // backend response.
 func NewStatus() filters.Spec { return new(statusSpec) }
