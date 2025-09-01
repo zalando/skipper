@@ -381,6 +381,7 @@ func (registry *OpenPolicyAgentRegistry) Close() {
 
 		for _, instance := range registry.instances {
 			instance.Close(ctx)
+			registry.singleflightGroup.Forget(instance.bundleName)
 		}
 
 		registry.closed = true
@@ -412,6 +413,7 @@ func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 
 			delete(registry.instances, key)
 			delete(registry.lastused, inst)
+			registry.singleflightGroup.Forget(key)
 		}
 	}
 }
