@@ -394,6 +394,13 @@ func (registry *OpenPolicyAgentRegistry) Close() {
 	})
 }
 
+// GetInstanceCount returns the number of instances in the registry (thread-safe)
+func (registry *OpenPolicyAgentRegistry) GetInstanceCount() int {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	return len(registry.instances)
+}
+
 func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()

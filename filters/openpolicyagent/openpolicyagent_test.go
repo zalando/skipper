@@ -1263,7 +1263,9 @@ func TestSingleflightForgetOnCleanup(t *testing.T) {
 
 	// Wait longer than the cleanup interval
 	time.Sleep(2 * time.Second)
+	registry.mu.Lock()
 	assert.Len(t, registry.instances, 0, "all instances should be cleaned up")
+	registry.mu.Unlock()
 
 	// After cleanup, singleflight should have forgotten the key
 	// and new instance creation should work (not be blocked by old singleflight)
@@ -1274,6 +1276,9 @@ func TestSingleflightForgetOnCleanup(t *testing.T) {
 
 	// Should be a different instance after cleanup
 	assert.NotEqual(t, instance, newInstance, "should create new instance after cleanup")
+	registry.mu.Lock()
+	assert.NotNil(t, registry.instances[bundleName], "newly created instance should be in registry")
+	registry.mu.Unlock()
 }
 
 // Verifies that instance creation respects the coordination timeout and do not hang indefinitely
