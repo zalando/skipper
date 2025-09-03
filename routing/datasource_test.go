@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/filters/builtin"
 	"github.com/zalando/skipper/logging"
@@ -346,26 +345,47 @@ func TestMetrics(t *testing.T) {
 	})
 }
 
-func TestRouteValidationMetrics(t *testing.T) {
+func TestRouteValidationReasonMetrics(t *testing.T) {
 	testCases := []struct {
-		name    string
-		routes  string
-		valid   int64
-		invalid map[string]int64
+		name                  string
+		routes                string
+		expectedValid         int
+		expectedInvalidRoutes map[string]string // routeId -> reason
 	}{
 		{
-			name: "valid and invalid routes",
+			name: "various error types",
 			routes: `
-				validRoute: Path("/foo") -> "https://example.org";
-				invalidBackend: Path("/bar") -> "invalid-url";
-				unknownFilter: Path("/baz") -> unknownFilter() -> "https://example.org";
-				unknownPredicate: UnknownPredicate() -> "https://example.org";
+				validRoute: Path("/valid") -> "https://example.org";
+				invalidBackend1: Path("/bad1") -> "invalid-url";
+				unknownFilter1: Path("/uf1") -> unknownFilter() -> "https://example.org";
+				invalidParams1: Path("/ip1") -> setPath() -> "https://example.org";
+				invalidParams2: Path("/ip2") -> setPath("too", "many", "params") -> "https://example.org";
 			`,
-			valid: 1,
-			invalid: map[string]int64{
-				"failed_backend_split": 1,
-				"unknown_filter":       1,
-				"unknown_predicate":    1,
+			expectedValid: 1,
+			expectedInvalidRoutes: map[string]string{
+				"invalidBackend1": "failed_backend_split",
+				"unknownFilter1":  "unknown_filter",
+				"invalidParams1":  "invalid_filter_params",
+				"invalidParams2":  "invalid_filter_params",
+			},
+		},
+		{
+			name: "only valid routes",
+			routes: `
+				validRoute1: Path("/valid1") -> "https://example.org";
+				validRoute2: Path("/valid2") -> "https://example.org";
+			`,
+			expectedValid:         2,
+			expectedInvalidRoutes: map[string]string{},
+		},
+		{
+			name: "only invalid backend routes",
+			routes: `
+				invalidBackend1: Path("/bad1") -> "invalid-url";
+			`,
+			expectedValid: 0,
+			expectedInvalidRoutes: map[string]string{
+				"invalidBackend1": "failed_backend_split",
 			},
 		},
 	}
@@ -373,24 +393,218 @@ func TestRouteValidationMetrics(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("MockMetrics", func(t *testing.T) {
-				testRouteValidationMetricsWithMock(t, tc.routes, tc.valid, tc.invalid)
+				testRouteValidationReasonMetricsWithMock(t, tc.routes, tc.expectedValid, tc.expectedInvalidRoutes)
 			})
 
 			t.Run("Prometheus", func(t *testing.T) {
-				testRouteValidationMetricsWithPrometheus(t, tc.routes, tc.valid, tc.invalid)
+				testRouteValidationReasonMetricsWithPrometheus(t, tc.routes, tc.expectedValid, tc.expectedInvalidRoutes)
 			})
 		})
 	}
 }
 
-func testRouteValidationMetricsWithMock(t *testing.T, routes string, expectedValid int64, expectedInvalid map[string]int64) {
+func testRouteValidationReasonMetricsWithMock(t *testing.T, routes string, expectedValid int, expectedInvalidRoutes map[string]string) {
 	metrics := &metricstest.MockMetrics{}
 
 	dc, err := testdataclient.NewDoc(routes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer dc.Close()
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetPath())
+
+	r := routing.New(routing.Options{
+		DataClients:     []routing.DataClient{dc},
+		FilterRegistry:  fr,
+		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
+		Metrics:         metrics,
+		SignalFirstLoad: true,
+	})
+	defer func() {
+		r.Close()
+		dc.Close()
+		time.Sleep(100 * time.Millisecond) // Allow goroutines to clean up
+	}()
+	<-r.FirstLoad()
+
+	waitForIndividualRouteMetrics(t, metrics, int64(expectedValid), expectedInvalidRoutes)
+}
+
+func testRouteValidationReasonMetricsWithPrometheus(t *testing.T, routes string, expectedValid int, expectedInvalidRoutes map[string]string) {
+	pm := metrics.NewPrometheus(metrics.Options{})
+	path := "/metrics"
+
+	mux := http.NewServeMux()
+	pm.RegisterHandler(path, mux)
+
+	dc, err := testdataclient.NewDoc(routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fr := make(filters.Registry)
+	fr.Register(builtin.NewSetPath())
+
+	r := routing.New(routing.Options{
+		DataClients:     []routing.DataClient{dc},
+		FilterRegistry:  fr,
+		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
+		Metrics:         pm,
+		SignalFirstLoad: true,
+	})
+	defer func() {
+		r.Close()
+		dc.Close()
+		time.Sleep(100 * time.Millisecond) // Allow goroutines to clean up
+	}()
+	<-r.FirstLoad()
+
+	// Wait for metrics to be updated
+	timeout := time.After(100 * time.Millisecond)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	var output string
+	for {
+		req := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected status 200, got %d", resp.StatusCode)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		output = string(body)
+
+		expectedRoutesTotalLine := fmt.Sprintf("skipper_custom_gauges{key=\"routes.total\"} %d", expectedValid)
+		if !strings.Contains(output, expectedRoutesTotalLine) {
+			select {
+			case <-timeout:
+				t.Errorf("Expected to find %q in metrics output", expectedRoutesTotalLine)
+				t.Logf("Metrics output:\n%s", output)
+				return
+			case <-ticker.C:
+				continue
+			}
+		}
+
+		// Check individual invalid route metrics
+		allFound := true
+		for routeId, expectedReason := range expectedInvalidRoutes {
+			expectedMetricLine := fmt.Sprintf("skipper_route_invalid{reason=\"%s\",route_id=\"%s\"} 1", expectedReason, routeId)
+			if !strings.Contains(output, expectedMetricLine) {
+				allFound = false
+				break
+			}
+		}
+
+		if allFound {
+			break
+		}
+
+		select {
+		case <-timeout:
+			for routeId, expectedReason := range expectedInvalidRoutes {
+				expectedMetricLine := fmt.Sprintf("skipper_route_invalid{reason=\"%s\",route_id=\"%s\"} 1", expectedReason, routeId)
+				if !strings.Contains(output, expectedMetricLine) {
+					t.Errorf("Expected to find %q in metrics output", expectedMetricLine)
+				}
+			}
+			t.Logf("Metrics output:\n%s", output)
+			return
+		case <-ticker.C:
+			continue
+		}
+	}
+}
+
+func waitForIndividualRouteMetrics(t *testing.T, metrics *metricstest.MockMetrics, expectedValid int64, expectedInvalidRoutes map[string]string) {
+	timeout := time.After(100 * time.Millisecond)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		metricsMatch := false
+		metrics.WithGauges(func(gauges map[string]float64) {
+			if gauges["routes.total"] != float64(expectedValid) {
+				return
+			}
+
+			// Check that all expected invalid routes have their metrics set to 1
+			for routeId, expectedReason := range expectedInvalidRoutes {
+				expectedKey := fmt.Sprintf("route.invalid.%s..%s", routeId, expectedReason)
+				if gauges[expectedKey] != 1 {
+					return
+				}
+			}
+
+			// Check that we don't have unexpected invalid route metrics
+			for key := range gauges {
+				if strings.HasPrefix(key, "route.invalid.") && key != "routes.total" {
+					// Extract route ID from the key
+					parts := strings.Split(key, ".")
+					if len(parts) >= 4 {
+						routeId := parts[2]
+						if _, expected := expectedInvalidRoutes[routeId]; !expected {
+							// Allow 0 values (set when routes become valid)
+							if gauges[key] != 0 {
+								return // Found unexpected invalid route metric
+							}
+						}
+					}
+				}
+			}
+
+			metricsMatch = true
+		})
+
+		if metricsMatch {
+			break
+		}
+
+		select {
+		case <-timeout:
+			metrics.WithGauges(func(gauges map[string]float64) {
+				if gauges["routes.total"] != float64(expectedValid) {
+					t.Errorf("Expected routes.total to be %d, got %f", expectedValid, gauges["routes.total"])
+				}
+
+				for routeId, expectedReason := range expectedInvalidRoutes {
+					expectedKey := fmt.Sprintf("route.invalid.%s..%s", routeId, expectedReason)
+					if gauges[expectedKey] != 1 {
+						t.Errorf("Expected metric for invalid route %s with reason %s to be 1, got %f", routeId, expectedReason, gauges[expectedKey])
+					}
+				}
+			})
+			return
+		case <-ticker.C:
+			continue
+		}
+	}
+}
+
+func TestRouteMetricsSetToZeroWhenFixed(t *testing.T) {
+	t.Run("MockMetrics", func(t *testing.T) {
+		testRouteMetricsSetToZeroWhenFixedWithMock(t)
+	})
+
+	t.Run("Prometheus", func(t *testing.T) {
+		testRouteMetricsSetToZeroWhenFixedWithPrometheus(t)
+	})
+}
+
+func testRouteMetricsSetToZeroWhenFixedWithMock(t *testing.T) {
+	metrics := &metricstest.MockMetrics{}
+
+	// Start with an invalid route
+	dc, err := testdataclient.NewDoc(`invalidBackend1: Path("/bad1") -> "invalid-url";`)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	fr := make(filters.Registry)
 	fr.Register(builtin.NewSetPath())
@@ -402,27 +616,49 @@ func testRouteValidationMetricsWithMock(t *testing.T, routes string, expectedVal
 		Metrics:         metrics,
 		SignalFirstLoad: true,
 	})
-	defer r.Close()
+	defer func() {
+		r.Close()
+		dc.Close()
+		time.Sleep(100 * time.Millisecond) // Allow goroutines to clean up
+	}()
 	<-r.FirstLoad()
 
-	waitForMockMetrics(t, metrics, metricsExpectation{
-		expectedValid:   expectedValid,
-		expectedInvalid: expectedInvalid,
+	// Verify the invalid route metric is set to 1
+	time.Sleep(10 * time.Millisecond)
+	metrics.WithGauges(func(gauges map[string]float64) {
+		expectedKey := "route.invalid.invalidBackend1..failed_backend_split"
+		if gauges[expectedKey] != 1 {
+			t.Errorf("Expected invalid route metric to be 1, got %f", gauges[expectedKey])
+		}
+	})
+
+	// Now fix the route by updating with a valid backend
+	dc.UpdateDoc(`invalidBackend1: Path("/bad1") -> "https://example.org";`, nil)
+
+	// Wait for the update to be processed
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify the metric is now set to 0 (not deleted)
+	metrics.WithGauges(func(gauges map[string]float64) {
+		expectedKey := "route.invalid.invalidBackend1..failed_backend_split"
+		if gauges[expectedKey] != 0 {
+			t.Errorf("Expected invalid route metric to be set to 0 when route becomes valid, got %f", gauges[expectedKey])
+		}
 	})
 }
 
-func testRouteValidationMetricsWithPrometheus(t *testing.T, routes string, expectedValid int64, expectedInvalid map[string]int64) {
+func testRouteMetricsSetToZeroWhenFixedWithPrometheus(t *testing.T) {
 	pm := metrics.NewPrometheus(metrics.Options{})
 	path := "/metrics"
 
 	mux := http.NewServeMux()
 	pm.RegisterHandler(path, mux)
 
-	dc, err := testdataclient.NewDoc(routes)
+	// Start with an invalid route
+	dc, err := testdataclient.NewDoc(`invalidBackend1: Path("/bad1") -> "invalid-url";`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer dc.Close()
 
 	fr := make(filters.Registry)
 	fr.Register(builtin.NewSetPath())
@@ -434,13 +670,45 @@ func testRouteValidationMetricsWithPrometheus(t *testing.T, routes string, expec
 		Metrics:         pm,
 		SignalFirstLoad: true,
 	})
-	defer r.Close()
+	defer func() {
+		r.Close()
+		dc.Close()
+		time.Sleep(100 * time.Millisecond) // Allow goroutines to clean up
+	}()
 	<-r.FirstLoad()
 
-	waitForPrometheusMetrics(t, mux, path, metricsExpectation{
-		expectedValid:   expectedValid,
-		expectedInvalid: expectedInvalid,
-	})
+	// Verify the invalid route metric is set to 1
+	time.Sleep(10 * time.Millisecond)
+	req := httptest.NewRequest("GET", path, nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	body, _ := io.ReadAll(w.Result().Body)
+	output := string(body)
+
+	expectedLine := `skipper_route_invalid{reason="failed_backend_split",route_id="invalidBackend1"} 1`
+	if !strings.Contains(output, expectedLine) {
+		t.Errorf("Expected to find invalid route metric set to 1")
+		t.Logf("Output: %s", output)
+	}
+
+	// Now fix the route
+	dc.UpdateDoc(`invalidBackend1: Path("/bad1") -> "https://example.org";`, nil)
+
+	// Wait for the update to be processed
+	time.Sleep(50 * time.Millisecond)
+
+	// Check that the metric is now set to 0
+	req = httptest.NewRequest("GET", path, nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	body, _ = io.ReadAll(w.Result().Body)
+	output = string(body)
+
+	expectedZeroLine := `skipper_route_invalid{reason="failed_backend_split",route_id="invalidBackend1"} 0`
+	if !strings.Contains(output, expectedZeroLine) {
+		t.Errorf("Expected to find invalid route metric set to 0 when route becomes valid")
+		t.Logf("Output: %s", output)
+	}
 }
 
 type weightedPredicateSpec struct {
@@ -482,345 +750,3 @@ func (s slowCreateSpec) CreateFilter(args []interface{}) (filters.Filter, error)
 
 func (s slowCreateFilter) Request(ctx filters.FilterContext) {}
 func (s slowCreateFilter) Response(filters.FilterContext)    {}
-
-func TestRouteValidationReasonMetrics(t *testing.T) {
-	testCases := []struct {
-		name           string
-		routes         string
-		expectedValid  int
-		expectedCounts map[string]int
-	}{
-		{
-			name: "various error types",
-			routes: `
-				validRoute: Path("/valid") -> "https://example.org";
-				invalidBackend1: Path("/bad1") -> "invalid-url";
-				unknownFilter1: Path("/uf1") -> unknownFilter() -> "https://example.org";
-				invalidParams1: Path("/ip1") -> setPath() -> "https://example.org";
-				invalidParams2: Path("/ip2") -> setPath("too", "many", "params") -> "https://example.org";
-			`,
-			expectedValid: 1,
-			expectedCounts: map[string]int{
-				"failed_backend_split":  1,
-				"unknown_filter":        1,
-				"invalid_filter_params": 2,
-			},
-		},
-		{
-			name: "only valid routes",
-			routes: `
-				validRoute1: Path("/valid1") -> "https://example.org";
-				validRoute2: Path("/valid2") -> "https://example.org";
-			`,
-			expectedValid:  2,
-			expectedCounts: map[string]int{},
-		},
-		{
-			name: "only invalid backend routes",
-			routes: `
-				invalidBackend1: Path("/bad1") -> "invalid-url";
-			`,
-			expectedValid: 0,
-			expectedCounts: map[string]int{
-				"failed_backend_split": 1,
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Run("MockMetrics", func(t *testing.T) {
-				testRouteValidationReasonMetricsWithMock(t, tc.routes, tc.expectedValid, tc.expectedCounts)
-			})
-
-			t.Run("Prometheus", func(t *testing.T) {
-				testRouteValidationReasonMetricsWithPrometheus(t, tc.routes, tc.expectedValid, tc.expectedCounts)
-			})
-		})
-	}
-}
-
-func testRouteValidationReasonMetricsWithMock(t *testing.T, routes string, expectedValid int, expectedCounts map[string]int) {
-	metrics := &metricstest.MockMetrics{}
-
-	dc, err := testdataclient.NewDoc(routes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dc.Close()
-
-	fr := make(filters.Registry)
-	fr.Register(builtin.NewSetPath())
-
-	r := routing.New(routing.Options{
-		DataClients:     []routing.DataClient{dc},
-		FilterRegistry:  fr,
-		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
-		Metrics:         metrics,
-		SignalFirstLoad: true,
-	})
-	defer r.Close()
-	<-r.FirstLoad()
-
-	expectedInvalid := make(map[string]int64)
-	for reason, count := range expectedCounts {
-		expectedInvalid[reason] = int64(count)
-	}
-
-	waitForMockMetrics(t, metrics, metricsExpectation{
-		expectedValid:   int64(expectedValid),
-		expectedInvalid: expectedInvalid,
-	})
-}
-
-func testRouteValidationReasonMetricsWithPrometheus(t *testing.T, routes string, expectedValid int, expectedCounts map[string]int) {
-	pm := metrics.NewPrometheus(metrics.Options{})
-	path := "/metrics"
-
-	mux := http.NewServeMux()
-	pm.RegisterHandler(path, mux)
-
-	dc, err := testdataclient.NewDoc(routes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dc.Close()
-
-	fr := make(filters.Registry)
-	fr.Register(builtin.NewSetPath())
-
-	r := routing.New(routing.Options{
-		DataClients:     []routing.DataClient{dc},
-		FilterRegistry:  fr,
-		Predicates:      []routing.PredicateSpec{primitive.NewTrue()},
-		Metrics:         pm,
-		SignalFirstLoad: true,
-	})
-	defer r.Close()
-	<-r.FirstLoad()
-
-	expectedInvalid := make(map[string]int64)
-	for reason, count := range expectedCounts {
-		expectedInvalid[reason] = int64(count)
-	}
-
-	waitForPrometheusMetrics(t, mux, path, metricsExpectation{
-		expectedValid:   int64(expectedValid),
-		expectedInvalid: expectedInvalid,
-	})
-}
-
-func TestProcessRouteDefsMetricsInitialization(t *testing.T) {
-	pm := metrics.NewPrometheus(metrics.Options{})
-	path := "/metrics"
-
-	mux := http.NewServeMux()
-	pm.RegisterHandler(path, mux)
-
-	getMetricsOutput := func() string {
-		req := httptest.NewRequest("GET", path, nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		resp := w.Result()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
-		return string(body)
-	}
-
-	t.Log("Phase 1: Initial state - all metrics should be present with 0 values")
-	fr := make(filters.Registry)
-	fr.Register(builtin.NewSetPath())
-
-	opts := &routing.Options{
-		FilterRegistry: fr,
-		Predicates:     []routing.PredicateSpec{primitive.NewTrue(), query.New()},
-		Metrics:        pm,
-		Log:            &logging.DefaultLog{},
-	}
-
-	t.Log("Test with all valid routes")
-	validRoutes := []*eskip.Route{
-		{Id: "valid1", Path: "/foo", Backend: "https://example.org"},
-		{Id: "valid2", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/bar"}}}, Backend: "https://example.org"},
-	}
-
-	routes, invalidRoutes := routing.ExportProcessRouteDefs(opts, validRoutes)
-	assert.Len(t, routes, 2)
-	assert.Len(t, invalidRoutes, 0)
-
-	output1 := getMetricsOutput()
-	assert.Contains(t, output1, `skipper_route_invalid{reason="unknown_filter"} 0`)
-	assert.Contains(t, output1, `skipper_route_invalid{reason="invalid_filter_params"} 0`)
-	assert.Contains(t, output1, `skipper_route_invalid{reason="unknown_predicate"} 0`)
-	assert.Contains(t, output1, `skipper_route_invalid{reason="invalid_predicate_params"} 0`)
-	assert.Contains(t, output1, `skipper_route_invalid{reason="failed_backend_split"} 0`)
-	assert.Contains(t, output1, `skipper_route_invalid{reason="invalid_matcher"} 0`)
-	assert.Contains(t, output1, `skipper_route_invalid{reason="other"} 0`)
-
-	t.Log("Phase 2: Test with various error types")
-	invalidRoutesSet := []*eskip.Route{
-		{Id: "unknownFilter", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/test"}}}, Filters: []*eskip.Filter{{Name: "unknownFilter"}}, Backend: "https://example.org"},
-		{Id: "invalidFilterParams", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/test2"}}}, Filters: []*eskip.Filter{{Name: "setPath"}}, Backend: "https://example.org"},
-		{Id: "unknownPredicate", Predicates: []*eskip.Predicate{{Name: "UnknownPredicate"}}, Backend: "https://example.org"},
-		{Id: "invalidPredicateParams", Predicates: []*eskip.Predicate{{Name: "QueryParam"}}, Backend: "https://example.org"},
-		{Id: "failedBackendSplit", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/test3"}}}, Backend: "invalid-url"},
-		{Id: "valid3", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/test4"}}}, Backend: "https://example.org"},
-	}
-
-	routes2, invalidRoutes2 := routing.ExportProcessRouteDefs(opts, invalidRoutesSet)
-	assert.Len(t, routes2, 1)
-	assert.Len(t, invalidRoutes2, 5)
-
-	output2 := getMetricsOutput()
-	assert.Contains(t, output2, `skipper_route_invalid{reason="unknown_filter"} 1`)
-	assert.Contains(t, output2, `skipper_route_invalid{reason="invalid_filter_params"} 1`)
-	assert.Contains(t, output2, `skipper_route_invalid{reason="unknown_predicate"} 1`)
-	assert.Contains(t, output2, `skipper_route_invalid{reason="invalid_predicate_params"} 1`)
-	assert.Contains(t, output2, `skipper_route_invalid{reason="failed_backend_split"} 1`)
-	assert.Contains(t, output2, `skipper_route_invalid{reason="invalid_matcher"} 0`)
-	assert.Contains(t, output2, `skipper_route_invalid{reason="other"} 0`)
-
-	t.Log("Phase 3: Test routes are fixed - all metrics should reset to 0")
-	allValidRoutes := []*eskip.Route{
-		{Id: "fixed1", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/fixed1"}}}, Backend: "https://example.org"},
-		{Id: "fixed2", Predicates: []*eskip.Predicate{{Name: "Path", Args: []interface{}{"/fixed2"}}}, Backend: "https://example.org"},
-	}
-
-	routes3, invalidRoutes3 := routing.ExportProcessRouteDefs(opts, allValidRoutes)
-	assert.Len(t, routes3, 2)
-	assert.Len(t, invalidRoutes3, 0)
-
-	output3 := getMetricsOutput()
-	assert.Contains(t, output3, `skipper_route_invalid{reason="unknown_filter"} 0`)
-	assert.Contains(t, output3, `skipper_route_invalid{reason="invalid_filter_params"} 0`)
-	assert.Contains(t, output3, `skipper_route_invalid{reason="unknown_predicate"} 0`)
-	assert.Contains(t, output3, `skipper_route_invalid{reason="invalid_predicate_params"} 0`)
-	assert.Contains(t, output3, `skipper_route_invalid{reason="failed_backend_split"} 0`)
-	assert.Contains(t, output3, `skipper_route_invalid{reason="invalid_matcher"} 0`)
-	assert.Contains(t, output3, `skipper_route_invalid{reason="other"} 0`)
-}
-
-type metricsExpectation struct {
-	expectedValid   int64
-	expectedInvalid map[string]int64
-}
-
-func waitForPrometheusMetrics(t *testing.T, mux *http.ServeMux, path string, expectation metricsExpectation) {
-	timeout := time.After(100 * time.Millisecond)
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
-
-	var output string
-	for {
-		req := httptest.NewRequest("GET", path, nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		resp := w.Result()
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("Expected status 200, got %d", resp.StatusCode)
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		output = string(body)
-
-		expectedRoutesTotalLine := fmt.Sprintf("skipper_custom_gauges{key=\"routes.total\"} %d", expectation.expectedValid)
-		if !strings.Contains(output, expectedRoutesTotalLine) {
-			select {
-			case <-timeout:
-				t.Errorf("Expected to find %q in metrics output", expectedRoutesTotalLine)
-				return
-			case <-ticker.C:
-				continue
-			}
-		}
-
-		allInvalidCountsFound := true
-		for reason, expected := range expectation.expectedInvalid {
-			if expected > 0 {
-				invalidPattern := fmt.Sprintf(`skipper_route_invalid{reason="%s"} %d`, reason, expected)
-				if !strings.Contains(output, invalidPattern) {
-					allInvalidCountsFound = false
-					break
-				}
-			}
-		}
-
-		if allInvalidCountsFound {
-			break
-		}
-
-		select {
-		case <-timeout:
-			for reason, expected := range expectation.expectedInvalid {
-				if expected > 0 {
-					invalidPattern := fmt.Sprintf(`skipper_route_invalid{reason="%s"} %d`, reason, expected)
-					if !strings.Contains(output, invalidPattern) {
-						t.Errorf("Expected to find %q in metrics output", invalidPattern)
-					}
-				}
-			}
-			return
-		case <-ticker.C:
-			continue
-		}
-	}
-}
-
-func waitForMockMetrics(t *testing.T, metrics *metricstest.MockMetrics, expectation metricsExpectation) {
-	timeout := time.After(100 * time.Millisecond)
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		metricsMatch := false
-		metrics.WithGauges(func(gauges map[string]float64) {
-			if gauges["routes.total"] != float64(expectation.expectedValid) {
-				return
-			}
-
-			for reason, expectedCount := range expectation.expectedInvalid {
-				if expectedCount > 0 {
-					gaugeKey := "route.invalid." + reason
-					if gauges[gaugeKey] != float64(expectedCount) {
-						return
-					}
-				}
-			}
-
-			metricsMatch = true
-		})
-
-		if metricsMatch {
-			break
-		}
-
-		select {
-		case <-timeout:
-			metrics.WithGauges(func(gauges map[string]float64) {
-				if gauges["routes.total"] != float64(expectation.expectedValid) {
-					t.Errorf("Expected %d valid routes, got %f", expectation.expectedValid, gauges["routes.total"])
-				}
-
-				for reason, expectedCount := range expectation.expectedInvalid {
-					if expectedCount > 0 {
-						gaugeKey := "route.invalid." + reason
-						actualCount := gauges[gaugeKey]
-						if actualCount != float64(expectedCount) {
-							t.Errorf("Expected %d for reason %s, got %f", expectedCount, reason, actualCount)
-						}
-					}
-				}
-			})
-			return
-		case <-ticker.C:
-			continue
-		}
-	}
-}
