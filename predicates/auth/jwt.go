@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/jwt"
 	"github.com/zalando/skipper/predicates"
 	"github.com/zalando/skipper/routing"
@@ -52,8 +53,12 @@ const (
 
 type (
 	registry struct {
-		quit       chan struct{}
-		predicates []*predicate
+		quit chan struct{}
+
+		// Map to share predicate instance for the same config
+		// and do not create waste on each route table update
+		mu           sync.Mutex
+		predicateMap map[string]*predicate // eskip string to predicate
 	}
 
 	spec struct {
@@ -88,9 +93,11 @@ func (r *registry) clean() {
 		case <-r.quit:
 			return
 		case <-tick.C:
-			for _, p := range r.predicates {
+			r.mu.Lock()
+			for _, p := range r.predicateMap {
 				p.cache.Clear()
 			}
+			r.mu.Unlock()
 		}
 	}
 }
@@ -113,8 +120,8 @@ func NewJWTPayloadAllKV() routing.PredicateSpec {
 
 func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 	reg := &registry{
-		quit:       make(chan struct{}),
-		predicates: make([]*predicate, 0),
+		quit:         make(chan struct{}),
+		predicateMap: make(map[string]*predicate),
 	}
 	go reg.clean()
 
@@ -128,8 +135,8 @@ func NewJWTPayloadAnyKVRegexp() routing.PredicateSpec {
 
 func NewJWTPayloadAllKVRegexp() routing.PredicateSpec {
 	reg := &registry{
-		quit:       make(chan struct{}),
-		predicates: make([]*predicate, 0),
+		quit:         make(chan struct{}),
+		predicateMap: make(map[string]*predicate),
 	}
 	go reg.clean()
 
@@ -148,6 +155,20 @@ func (s *spec) Name() string {
 func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 	if len(args) == 0 || len(args)%2 != 0 {
 		return nil, predicates.ErrInvalidPredicateParameters
+	}
+
+	// lookup cached predicate
+	if s.matchMode == matchModeRegexp {
+		sp := (&eskip.Predicate{
+			Name: s.Name(),
+			Args: args,
+		}).String()
+		s.reg.mu.Lock()
+		if p, ok := s.reg.predicateMap[sp]; ok {
+			s.reg.mu.Unlock()
+			return p, nil
+		}
+		s.reg.mu.Unlock()
 	}
 
 	kv := make(map[string][]valueMatcher)
@@ -178,8 +199,16 @@ func (s *spec) Create(args []interface{}) (routing.Predicate, error) {
 		kv:            kv,
 		matchBehavior: s.matchBehavior,
 	}
+
+	// store predicate to cache
 	if s.matchMode == matchModeRegexp {
-		s.reg.predicates = append(s.reg.predicates, p)
+		sp := (&eskip.Predicate{
+			Name: s.Name(),
+			Args: args,
+		}).String()
+		s.reg.mu.Lock()
+		s.reg.predicateMap[sp] = p
+		s.reg.mu.Unlock()
 	}
 
 	return p, nil
