@@ -3,6 +3,7 @@ package metricstest
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -225,10 +226,20 @@ func (m *MockMetrics) Gauge(key string) (v float64, ok bool) {
 	return
 }
 
-func (m *MockMetrics) UpdateInvalidRoute(reasonCounts map[string]int) {
-	for reason, count := range reasonCounts {
-		m.UpdateGauge("route.invalid."+reason, float64(count))
-	}
+func (m *MockMetrics) SetInvalidRoute(routeId, reason string) {
+	key := fmt.Sprintf("route.invalid.%s..%s", routeId, reason)
+	m.UpdateGauge(key, 1)
+}
+
+func (m *MockMetrics) DeleteInvalidRoute(routeId string) {
+	m.WithGauges(func(gauges map[string]float64) {
+		prefix := fmt.Sprintf("route.invalid.%s.", routeId)
+		for key := range gauges {
+			if strings.HasPrefix(key, prefix) {
+				gauges[key] = 0
+			}
+		}
+	})
 }
 
 func (m *MockMetrics) Close() {}

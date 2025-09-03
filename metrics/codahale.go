@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
@@ -33,7 +34,7 @@ const (
 
 	KeyErrorsBackend   = "errors.backend.%s"
 	KeyErrorsStreaming = "errors.streaming.%s"
-	KeyInvalidRoutes   = "route.invalid.%s"
+	KeyInvalidRoutes   = "route.invalid.%s.%s"
 
 	statsRefreshDuration = time.Duration(5 * time.Second)
 
@@ -44,13 +45,15 @@ const (
 
 // CodaHale is the CodaHale format backend, implements Metrics interface in DropWizard's CodaHale metrics format.
 type CodaHale struct {
-	reg           metrics.Registry
-	createTimer   func() metrics.Timer
-	createCounter func() metrics.Counter
-	createGauge   func() metrics.GaugeFloat64
-	options       Options
-	handler       http.Handler
-	quit          chan struct{}
+	reg             metrics.Registry
+	createTimer     func() metrics.Timer
+	createCounter   func() metrics.Counter
+	createGauge     func() metrics.GaugeFloat64
+	options         Options
+	handler         http.Handler
+	quit            chan struct{}
+	invalidRoutesMu sync.RWMutex
+	invalidRoutes   map[string]string // routeId -> metric key
 }
 
 // NewCodaHale returns a new CodaHale backend of metrics.
@@ -61,6 +64,7 @@ func NewCodaHale(o Options) *CodaHale {
 
 	c.quit = make(chan struct{})
 	c.reg = metrics.NewRegistry()
+	c.invalidRoutes = make(map[string]string)
 
 	var createSample func() metrics.Sample
 	if o.UseExpDecaySample {
@@ -265,9 +269,22 @@ func (c *CodaHale) IncErrorsStreaming(routeId string) {
 	}
 }
 
-func (c *CodaHale) UpdateInvalidRoute(reasonCounts map[string]int) {
-	for reason, count := range reasonCounts {
-		c.UpdateGauge(fmt.Sprintf(KeyInvalidRoutes, reason), float64(count))
+func (c *CodaHale) SetInvalidRoute(routeId, reason string) {
+	c.invalidRoutesMu.Lock()
+	defer c.invalidRoutesMu.Unlock()
+
+	key := fmt.Sprintf(KeyInvalidRoutes, routeId, reason)
+	c.invalidRoutes[routeId] = key
+	c.UpdateGauge(key, 1)
+}
+
+func (c *CodaHale) DeleteInvalidRoute(routeId string) {
+	c.invalidRoutesMu.Lock()
+	defer c.invalidRoutesMu.Unlock()
+
+	if key, exists := c.invalidRoutes[routeId]; exists {
+		c.UpdateGauge(key, 0)
+		delete(c.invalidRoutes, routeId)
 	}
 }
 

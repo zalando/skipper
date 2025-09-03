@@ -800,14 +800,15 @@ metrics help monitor the health of route definitions and identify common configu
 
 #### Gauge metrics
 
-The following gauge metrics show the current count of invalid routes by failure reason:
+The following gauge metrics show individual invalid routes with detailed context:
 
-- `skipper_route_invalid{reason="<reason>"}`: Current number of invalid routes by reason
+- `skipper_route_invalid{route_id="<id>", reason="<reason>"}`: Individual invalid route (1 = invalid, 0 = was invalid but now valid)
 - `routes.total`: Total number of valid routes currently loaded (available as
   `routesrv_custom_gauges{key="routes.total"}` in RouteSRV)
 
-The `routes.total` gauge metric represents the current number of successfully loaded and valid routes. This metric can
-be used in combination with the invalid route metrics to calculate error rates during route processing.
+Each invalid route gets its own metric with the route ID and failure reason as labels. When a route becomes
+valid, its metric is automatically set to 0 (rather than deleted) to maintain time series continuity. This provides 
+detailed tracking of exactly which routes are invalid and why, while preserving historical data for trend analysis.
 
 #### Failure reasons
 
@@ -823,11 +824,18 @@ The metrics track different types of route validation failures:
 #### Prometheus example
 
 ```
-# HELP skipper_route_invalid Number of invalid routes by reason.
+# HELP skipper_route_invalid Invalid route by route ID.
 # TYPE skipper_route_invalid gauge
-skipper_route_invalid{reason="unknown_filter"} 3
-skipper_route_invalid{reason="invalid_filter_params"} 1
-skipper_route_invalid{reason="failed_backend_split"} 2
+skipper_route_invalid{reason="unknown_filter",route_id="api_route_1"} 1
+skipper_route_invalid{reason="unknown_filter",route_id="web_route_2"} 1
+skipper_route_invalid{reason="unknown_filter",route_id="mobile_api"} 1
+skipper_route_invalid{reason="invalid_filter_params",route_id="bad_params_route"} 1
+skipper_route_invalid{reason="failed_backend_split",route_id="broken_backend_1"} 1
+skipper_route_invalid{reason="failed_backend_split",route_id="broken_backend_2"} 1
+
+# Routes that were invalid but are now fixed (set to 0 for historical tracking)
+skipper_route_invalid{reason="unknown_filter",route_id="fixed_route_1"} 0
+skipper_route_invalid{reason="failed_backend_split",route_id="fixed_route_2"} 0
 
 # HELP skipper_custom_gauges Gauges number of custom metrics.
 # TYPE skipper_custom_gauges gauge
@@ -839,14 +847,29 @@ skipper_custom_gauges{key="routes.total"} 1250
 ```json
 {
   "gauges": {
-    "route.invalid.unknown_filter": {
-      "value": 3
-    },
-    "route.invalid.invalid_filter_params": {
+    "route.invalid.api_route_1.unknown_filter": {
       "value": 1
     },
-    "route.invalid.failed_backend_split": {
-      "value": 2
+    "route.invalid.web_route_2.unknown_filter": {
+      "value": 1
+    },
+    "route.invalid.mobile_api.unknown_filter": {
+      "value": 1
+    },
+    "route.invalid.bad_params_route.invalid_filter_params": {
+      "value": 1
+    },
+    "route.invalid.broken_backend_1.failed_backend_split": {
+      "value": 1
+    },
+    "route.invalid.broken_backend_2.failed_backend_split": {
+      "value": 1
+    },
+    "route.invalid.fixed_route_1.unknown_filter": {
+      "value": 0
+    },
+    "route.invalid.fixed_route_2.failed_backend_split": {
+      "value": 0
     }
   }
 }
@@ -854,10 +877,13 @@ skipper_custom_gauges{key="routes.total"} 1250
 
 These metrics are particularly useful for:
 
-- Monitoring configuration deployment health
-- Identifying common route definition errors
-- Alerting on configuration issues
-- Tracking the success rate of route updates
+- Monitoring configuration deployment health for individual routes
+- Identifying specific routes with configuration errors
+- Alerting on individual route configuration issues
+- Tracking which exact routes fail during updates
+- Debugging route-specific problems with detailed context
+- Historical analysis of route stability (metrics set to 0 when fixed, preserving time series)
+- Trend analysis over your retention period (e.g., 30 days)
 
 ## OpenTracing
 

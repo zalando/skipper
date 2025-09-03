@@ -131,9 +131,14 @@ func (a *All) IncErrorsStreaming(routeId string) {
 
 }
 
-func (a *All) UpdateInvalidRoute(reasonCounts map[string]int) {
-	a.prometheus.UpdateInvalidRoute(reasonCounts)
-	a.codaHale.UpdateInvalidRoute(reasonCounts)
+func (a *All) SetInvalidRoute(routeId, reason string) {
+	a.prometheus.SetInvalidRoute(routeId, reason)
+	a.codaHale.SetInvalidRoute(routeId, reason)
+}
+
+func (a *All) DeleteInvalidRoute(routeId string) {
+	a.prometheus.DeleteInvalidRoute(routeId)
+	a.codaHale.DeleteInvalidRoute(routeId)
 }
 
 func (a *All) Close() {

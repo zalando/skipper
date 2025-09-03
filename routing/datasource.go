@@ -526,22 +526,13 @@ func mapPredicates(cps []PredicateSpec) map[string]PredicateSpec {
 // processes a set of route definitions for the routing table
 func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalidDefs []*eskip.Route) {
 	cpm := mapPredicates(o.Predicates)
-	// Initialize reasonCounts with all available error codes to ensure metric values can be set to 0
-	// when the corresponding route error is resolved
-	reasonCounts := map[string]int{
-		errUnknownFilter.Code():          0,
-		errInvalidFilterParams.Code():    0,
-		errUnknownPredicate.Code():       0,
-		errInvalidPredicateParams.Code(): 0,
-		errFailedBackendSplit.Code():     0,
-		errInvalidMatcher.Code():         0,
-		"other":                          0,
-	}
-
 	for _, def := range defs {
 		route, err := processRouteDef(o, cpm, def)
 		if err == nil {
 			routes = append(routes, route)
+			if o.Metrics != nil {
+				o.Metrics.DeleteInvalidRoute(def.Id)
+			}
 		} else {
 			invalidDefs = append(invalidDefs, def)
 			o.Log.Errorf("failed to process route %s: %v", def.Id, err)
@@ -552,12 +543,10 @@ func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalid
 				reason = defErr.Code()
 			}
 
-			reasonCounts[reason]++
+			if o.Metrics != nil {
+				o.Metrics.SetInvalidRoute(def.Id, reason)
+			}
 		}
-	}
-
-	if o.Metrics != nil {
-		o.Metrics.UpdateInvalidRoute(reasonCounts)
 	}
 
 	return
@@ -628,14 +617,14 @@ func receiveRouteMatcher(o Options, out chan<- *routeTable, quit <-chan struct{}
 				invalidRouteIds[err.ID] = struct{}{}
 			}
 
-			if o.Metrics != nil {
-				o.Metrics.UpdateInvalidRoute(map[string]int{errInvalidMatcher.Code(): len(errs)})
-			}
-
 			for i := range routes {
 				r := routes[i]
 				if _, found := invalidRouteIds[r.Id]; found {
 					invalidRoutes = append(invalidRoutes, &r.Route)
+					// Set individual route metric for matcher errors
+					if o.Metrics != nil {
+						o.Metrics.SetInvalidRoute(r.Id, errInvalidMatcher.Code())
+					}
 				} else {
 					validRoutes = append(validRoutes, &r.Route)
 				}
