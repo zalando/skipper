@@ -1171,7 +1171,7 @@ func TestSingleflightConcurrentRequests(t *testing.T) {
 			"All concurrent requests should get the same instance")
 	}
 
-	assert.Equal(t, registry.instances[bundleName], instances[0],
+	assert.Equal(t, registry.instances[bundleName].instance, instances[0],
 		"Instance should be stored in registry")
 	assert.Len(t, registry.instances, 1,
 		"Only one instance should be created despite concurrent requests")

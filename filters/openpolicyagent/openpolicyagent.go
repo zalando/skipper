@@ -85,6 +85,21 @@ func (t *BackgroundTask) execute() {
 	})
 }
 
+type InstanceState string
+
+const (
+	InstanceStateLoading InstanceState = "loading"
+	InstanceStateReady   InstanceState = "ready"
+	InstanceStateFailed  InstanceState = "failed"
+)
+
+type InstanceInfo struct {
+	instance *OpenPolicyAgentInstance
+	state    InstanceState
+	lastUsed time.Time
+	error    error
+}
+
 type OpenPolicyAgentRegistry struct {
 	// Ideally share one Bundle storage across many OPA "instances" using this registry.
 	// This allows to save memory on bundles that are shared
@@ -93,8 +108,7 @@ type OpenPolicyAgentRegistry struct {
 	// See https://github.com/open-policy-agent/opa/issues/5707
 
 	mu        sync.Mutex
-	instances map[string]*OpenPolicyAgentInstance
-	lastused  map[*OpenPolicyAgentInstance]time.Time
+	instances map[string]*InstanceInfo
 
 	once                   sync.Once
 	closed                 bool
@@ -251,8 +265,7 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 		reuseDuration:          defaultReuseDuration,
 		cleanInterval:          DefaultCleanIdlePeriod,
 		instanceStartupTimeout: DefaultOpaStartupTimeout,
-		instances:              make(map[string]*OpenPolicyAgentInstance),
-		lastused:               make(map[*OpenPolicyAgentInstance]time.Time),
+		instances:              make(map[string]*InstanceInfo),
 		quit:                   make(chan struct{}),
 		maxRequestBodyBytes:    DefaultMaxMemoryBodyParsing,
 		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
@@ -379,9 +392,9 @@ func (registry *OpenPolicyAgentRegistry) Close() {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultShutdownGracePeriod)
 		defer cancel()
 
-		for _, instance := range registry.instances {
-			instance.Close(ctx)
-			registry.singleflightGroup.Forget(instance.bundleName)
+		for _, instanceInfo := range registry.instances {
+			instanceInfo.instance.Close(ctx)
+			registry.singleflightGroup.Forget(instanceInfo.instance.bundleName)
 		}
 
 		registry.closed = true
@@ -412,14 +425,12 @@ func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultShutdownGracePeriod)
 	defer cancel()
 
-	for key, inst := range registry.instances {
-		lastused, ok := registry.lastused[inst]
+	for key, instanceInfo := range registry.instances {
+		if instanceInfo != nil && instanceInfo.instance != nil &&
+			t.Sub(instanceInfo.lastUsed) > registry.reuseDuration {
 
-		if ok && t.Sub(lastused) > registry.reuseDuration {
-			inst.Close(ctx)
-
+			instanceInfo.instance.Close(ctx)
 			delete(registry.instances, key)
-			delete(registry.lastused, inst)
 			registry.singleflightGroup.Forget(key)
 		}
 	}
@@ -456,11 +467,11 @@ func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
 			instances := slices.Collect(maps.Values(registry.instances))
 			registry.mu.Unlock()
 
-			for _, opa := range instances {
+			for _, opaInfo := range instances {
 				func() {
 					ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
 					defer cancel()
-					opa.triggerPlugins(ctx)
+					opaInfo.instance.triggerPlugins(ctx)
 				}()
 			}
 			ticker.Reset(registry.controlLoopIntervalWithJitter())
@@ -524,9 +535,9 @@ func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) 
 		return nil, fmt.Errorf("open policy agent registry is already closed")
 	}
 
-	if instance, ok := registry.instances[bundleName]; ok {
-		delete(registry.lastused, instance)
-		return instance, nil
+	if instanceInfo, ok := registry.instances[bundleName]; ok {
+		registry.instances[bundleName].lastUsed = time.Now()
+		return instanceInfo.instance, nil
 	}
 
 	return nil, nil
@@ -563,7 +574,12 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 
 			// Cache instance
 			registry.mu.Lock()
-			registry.instances[bundleName] = inst
+			registry.instances[bundleName] = &InstanceInfo{
+				instance: inst,
+				state:    InstanceStateReady,
+				lastUsed: time.Now(),
+				error:    nil,
+			}
 			registry.mu.Unlock()
 
 			return inst, nil
@@ -593,9 +609,11 @@ func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentIn
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 
-	for _, instance := range registry.instances {
-		if _, ok := inUse[instance]; !ok {
-			registry.lastused[instance] = time.Now()
+	for _, instanceInfo := range registry.instances {
+		if instanceInfo != nil && instanceInfo.instance != nil {
+			if _, ok := inUse[instanceInfo.instance]; !ok {
+				instanceInfo.lastUsed = time.Now()
+			}
 		}
 	}
 }
