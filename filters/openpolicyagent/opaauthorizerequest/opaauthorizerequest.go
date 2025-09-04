@@ -3,6 +3,7 @@ package opaauthorizerequest
 import (
 	"encoding/json"
 	"errors"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"time"
@@ -74,7 +75,8 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	// Try to get instance with new non-blocking approach
 	opa, err := s.registry.GetOrStartInstance(bundleName, s.Name())
 	if err != nil {
-		return nil, err
+		// Instance is not ready yet, log a warning and continue. The route will return 503 until the instance is ready. A background task will re-try loading the instance.
+		log.Warnf("OPA instance not ready for bundle '%s', filter will return 503 until ready: %v", bundleName, err)
 	}
 
 	return &opaAuthorizeRequestFilter{

@@ -177,9 +177,11 @@ func TestOPA_BootstrapEmpty_UpdateWithMissingBundleAndValidRoute(t *testing.T) {
 
 	require.NoError(t, ts.updateRoutes(updatedRoutes))
 
-	ts.routing.requireMissingRoute(t, "/fail")
-	route := ts.routing.requireRoute(t, "https://www.z-opa.org/ok")
-	assert.True(t, hasFilter(route, "status"))
+	r1 := ts.routing.requireRoute(t, "https://opa.test/fail")
+	assert.True(t, hasFilter(r1, "opaAuthorizeRequest"))
+
+	r2 := ts.routing.requireRoute(t, "https://opa.test/ok")
+	assert.True(t, hasFilter(r2, "status"))
 }
 
 func TestOPA_BootstrapEmpty_UpdateWithManyInvalidBundles(t *testing.T) {
@@ -197,10 +199,10 @@ func TestOPA_BootstrapEmpty_UpdateWithManyInvalidBundles(t *testing.T) {
 	require.NoError(t, ts.updateRoutes(eskipRoutes))
 
 	for i := 1; i <= numInvalidRoutes; i++ {
-		ts.routing.requireMissingRoute(t, fmt.Sprintf("/fail/%d", i))
+		ts.routing.requireRoute(t, fmt.Sprintf("https://opa.test/fail/%d", i))
 	}
 
-	okRoute := ts.routing.requireRoute(t, "https://www.z-opa.org/ok")
+	okRoute := ts.routing.requireRoute(t, "https://opa.test/ok")
 	assert.True(t, hasFilter(okRoute, "status"))
 }
 
