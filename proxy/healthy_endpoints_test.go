@@ -174,6 +174,10 @@ func TestPHCForSingleHealthyEndpoint(t *testing.T) {
 }
 
 func TestPHC(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	rpsFactor := 0.0
 	for _, tt := range []struct {
 		name               string
