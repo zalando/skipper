@@ -392,6 +392,16 @@ func TestGetRoundtrip(t *testing.T) {
 }
 
 func TestRetries(t *testing.T) {
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Close()
+
+	unavailableBackend := "http://" + l.Addr().String() // refuses connections
+
+	t.Logf("Unavailable backend: %s", unavailableBackend)
+
 	for _, tt := range []struct {
 		name   string
 		method string
@@ -429,8 +439,6 @@ func TestRetries(t *testing.T) {
 				fmt.Fprintln(w, "backend reply")
 			}))
 			defer backend.Close()
-
-			unavailableBackend := "http://127.0.0.5:9" // refuses connections
 
 			doc := fmt.Sprintf(`hello: * -> <roundRobin, "%s", "%s">`, unavailableBackend, backend.URL)
 			tp, err := newTestProxy(doc, FlagsNone)
