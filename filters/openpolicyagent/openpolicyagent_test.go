@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/filters/openpolicyagent/internal/opatestutils"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -275,7 +278,7 @@ func TestRegistry(t *testing.T) {
 			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			inst1, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NoError(t, err)
 
 			if tc.discoveryBundle != "" {
@@ -285,11 +288,11 @@ func TestRegistry(t *testing.T) {
 
 			registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
 
-			inst2, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			inst2, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NoError(t, err)
 			assert.Equal(t, inst1, inst2, "same instance is reused after release")
 
-			inst3, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			inst3, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NoError(t, err)
 			assert.Equal(t, inst2, inst3, "same instance is reused multiple times")
 
@@ -298,10 +301,10 @@ func TestRegistry(t *testing.T) {
 			//Allow clean up
 			time.Sleep(3 * time.Second)
 
-			inst_different_bundle, err := registry.NewOpenPolicyAgentInstance("anotherbundlename", "testfilter")
+			inst_different_bundle, err := registry.GetOrStartInstance("anotherbundlename", "testfilter")
 			assert.NoError(t, err)
 
-			inst4, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			inst4, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NoError(t, err)
 			assert.NotEqual(t, inst1, inst4, "after cleanup a new instance should be created")
 
@@ -315,13 +318,13 @@ func TestRegistry(t *testing.T) {
 			// Allow clean up
 			time.Sleep(3 * time.Second)
 
-			inst5, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			inst5, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NoError(t, err)
 			assert.NotEqual(t, inst4, inst5, "after cleanup a new instance should be created")
 
 			registry.Close()
 
-			_, err = registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			_, err = registry.GetOrStartInstance("test", "testfilter")
 			assert.Error(t, err, "should not work after close")
 		})
 }
@@ -364,7 +367,7 @@ func TestWithEnableDataPreProcessingOptimization(t *testing.T) {
 			)
 			assert.NoError(t, err)
 
-			inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			inst1, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NoError(t, err)
 
 			assert.Equal(t, tt.enabled, registry.enableDataPreProcessingOptimization)
@@ -383,7 +386,7 @@ func TestWithJwtCacheConfig(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	inst1, err := registry.newOpenPolicyAgentInstance("test", "testfilter")
 	assert.NoError(t, err)
 
 	expectedJSON := []byte(`{
@@ -460,7 +463,7 @@ func TestRetryableErrors(t *testing.T) {
 	registry, err := NewOpenPolicyAgentRegistry(WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 	assert.NoError(t, err)
 
-	instance, _ := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	instance, _ := registry.GetOrStartInstance("test", "testfilter")
 
 	testCases := []struct {
 		err       error
@@ -543,7 +546,7 @@ func TestOpaActivationFailureWithRetry(t *testing.T) {
 			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(500*time.Millisecond+additionalWait), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(true), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			instance, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.Nil(t, instance)
 
 			if strings.Contains(tc.error, "%") {
@@ -573,7 +576,7 @@ func TestOpaActivationSuccessWithDiscovery(t *testing.T) {
 			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			instance, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NotNil(t, instance)
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(registry.instances))
@@ -586,7 +589,7 @@ func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 	registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 	assert.NoError(t, err)
 
-	instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	instance, err := registry.GetOrStartInstance("test", "testfilter")
 	assert.NoError(t, err)
 	assert.NotNil(t, instance)
 	assert.NotNil(t, instance.Runtime())
@@ -635,7 +638,7 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 		registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(configWithUnknownService)))
 		assert.NoError(t, err)
 
-		instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+		instance, err := registry.GetOrStartInstance("test", "testfilter")
 		assert.Nil(t, instance)
 		assert.Contains(t, err.Error(), tc.expectedError)
 		assert.Equal(t, 0, len(registry.instances))
@@ -660,7 +663,7 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			instance, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.Nil(t, instance)
 			assert.Equal(t, 0, len(registry.instances))
 
@@ -689,7 +692,7 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			instance, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			instance, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.Nil(t, instance)
 			assert.Contains(t, err.Error(), tc.expectedError)
 			assert.Equal(t, 0, len(registry.instances))
@@ -727,7 +730,7 @@ func TestStartup(t *testing.T) {
 			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			inst1, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			inst1, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NoError(t, err)
 
 			target := envoy.PluginConfig{Path: "envoy/authz/allow", DryRun: false}
@@ -742,7 +745,7 @@ func TestTracing(t *testing.T) {
 	registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 	assert.NoError(t, err)
 
-	inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	inst, err := registry.GetOrStartInstance("test", "testfilter")
 	assert.NoError(t, err)
 
 	tracer := tracingtest.NewTracer()
@@ -788,7 +791,7 @@ func TestEval(t *testing.T) {
 			registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+			inst, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.NoError(t, err)
 
 			tracer := tracingtest.NewTracer()
@@ -821,7 +824,7 @@ func TestResponses(t *testing.T) {
 	registry, err := NewOpenPolicyAgentRegistry(WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 	assert.NoError(t, err)
 
-	inst, err := registry.NewOpenPolicyAgentInstance("test", "testfilter")
+	inst, err := registry.GetOrStartInstance("test", "testfilter")
 	assert.NoError(t, err)
 
 	tracer := tracingtest.NewTracer()
@@ -949,7 +952,7 @@ func TestBodyExtraction(t *testing.T) {
 				WithReadBodyBufferSize(ti.readBodyBuffer), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			inst, err := registry.NewOpenPolicyAgentInstance("use_body", "testfilter")
+			inst, err := registry.GetOrStartInstance("use_body", "testfilter")
 			assert.NoError(t, err)
 
 			contentLength := ti.contentLength
@@ -985,7 +988,7 @@ func TestBodyExtractionExhausingTotalBytes(t *testing.T) {
 		WithMaxMemoryBodyParsing(40), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 	assert.NoError(t, err)
 
-	inst, err := registry.NewOpenPolicyAgentInstance("use_body", "testfilter")
+	inst, err := registry.GetOrStartInstance("use_body", "testfilter")
 	assert.NoError(t, err)
 
 	req1 := http.Request{
@@ -1028,7 +1031,7 @@ func TestBodyExtractionEmptyBody(t *testing.T) {
 		WithMaxMemoryBodyParsing(40), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 	assert.NoError(t, err)
 
-	inst, err := registry.NewOpenPolicyAgentInstance("use_body", "testfilter")
+	inst, err := registry.GetOrStartInstance("use_body", "testfilter")
 	assert.NoError(t, err)
 
 	req1 := http.Request{
@@ -1053,7 +1056,7 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 		WithMaxMemoryBodyParsing(21), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 	assert.NoError(t, err)
 
-	inst, err := registry.NewOpenPolicyAgentInstance("use_body", "testfilter")
+	inst, err := registry.GetOrStartInstance("use_body", "testfilter")
 	assert.NoError(t, err)
 
 	req1 := http.Request{
@@ -1078,6 +1081,264 @@ func TestBodyExtractionUnknownBody(t *testing.T) {
 	f2()
 }
 
+/// ------------------ Singleflight Instance Creation tests ------------------
+
+// / Verifies singleflight instance creation behavior when instance creation fails due to timeout
+// / and ensures that the following instance creation attempts for the same bundle are allowed and succeed.
+func TestSingleflightInstanceCreationForgetErrorAtTimeout(t *testing.T) {
+	bundleName := "test_error_forget_bundle"
+	cbs := opatestutils.StartControllableBundleServer(bundleName)
+	defer cbs.Stop()
+
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName)
+	defer registry.Close()
+
+	// Test: PrepareInstanceLoader attempt OPA instance creation.
+	loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	_, err := loader()
+
+	assert.Error(t, err, "should timeout as bundle server is not available yet")
+
+	// Bundle server recovers
+	cbs.SetAvailable(true)
+
+	// Verify instance creation is attempted for the same bundle again and succeeds
+	secondLoader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	instance, err := secondLoader()
+
+	require.NoError(t, err)
+	assert.NotNil(t, instance, "instance should be created successfully after bundle server recovers")
+	assert.Equal(t, instance.bundleName, bundleName)
+}
+
+// / Verifies that concurrent requests for the same bundle result in only one instance creation
+func TestSingleflightConcurrentRequests(t *testing.T) {
+	bundleName := "test_concurrent_bundle"
+	cbs := opatestutils.CreateBundleServers([]string{bundleName})[0]
+	defer cbs.Stop()
+
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName)
+	defer registry.Close()
+
+	// Record baseline goroutine count for leak detection
+	runtime.GC()
+	time.Sleep(50 * time.Millisecond)
+	initialGoroutines := runtime.NumGoroutine()
+
+	// Start multiple concurrent requests for the same bundle
+	const numRequests = 20
+	results := make(chan *OpenPolicyAgentInstance, numRequests)
+	errors := make(chan error, numRequests)
+	var wg sync.WaitGroup
+
+	for i := 0; i < numRequests; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			loader := registry.PrepareInstanceLoader(bundleName, fmt.Sprintf("filter-%d", id))
+			instance, err := loader()
+
+			if err != nil {
+				errors <- err
+			} else {
+				results <- instance
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(results)
+	close(errors)
+
+	// Collect all results
+	var instances []*OpenPolicyAgentInstance
+	var errs []error
+
+	for instance := range results {
+		instances = append(instances, instance)
+	}
+	for err := range errors {
+		errs = append(errs, err)
+	}
+
+	// All requests should succeed
+	assert.Empty(t, errs, "All concurrent requests should succeed")
+	assert.Len(t, instances, numRequests, "Should have results from all requests")
+
+	// All instances should be the same (singleflight ensures only one creation)
+	for i := 1; i < len(instances); i++ {
+		assert.Equal(t, instances[0], instances[i],
+			"All concurrent requests should get the same instance")
+	}
+
+	assert.Equal(t, registry.instances[bundleName], instances[0],
+		"Instance should be stored in registry")
+	assert.Len(t, registry.instances, 1,
+		"Only one instance should be created despite concurrent requests")
+
+	// Verify no goroutine leaks
+	runtime.GC()
+	time.Sleep(100 * time.Millisecond)
+	finalGoroutines := runtime.NumGoroutine()
+	goroutineDiff := finalGoroutines - initialGoroutines
+
+	assert.LessOrEqual(t, goroutineDiff, 5,
+		"Should not have significant goroutine increase (was %d, now %d, diff %d)",
+		initialGoroutines, finalGoroutines, goroutineDiff)
+}
+
+func TestPrepareInstanceLoader_MultipleBundles(t *testing.T) {
+	bundles := []string{"bundle1", "bundle2", "bundle3"}
+
+	// Create bundle servers with proper root configurations
+	servers := opatestutils.CreateBundleServers(bundles)
+	defer func() {
+		for _, server := range servers {
+			server.Stop()
+		}
+	}()
+
+	// Create OPA registry with multi-bundle configuration
+	config := opatestutils.CreateMultiBundleConfig(servers)
+	registry := CreateRegistryWithConfig(t, config)
+	defer registry.Close()
+
+	// Create instances for all bundles concurrently
+	instances := CreateInstancesConcurrently(t, registry, bundles)
+
+	// Verify all instances are different and properly stored
+	assert.Len(t, instances, len(bundles))
+	assert.Len(t, registry.instances, len(bundles))
+
+	for _, bundle := range bundles {
+		assert.NotNil(t, registry.instances[bundle])
+	}
+}
+
+// Verifies that if instance creation fails, the singleflight key is forgotten allowing reattempts
+func TestPrepareInstanceLoader_SingleflightCleanupAfterError(t *testing.T) {
+	bundleName := "error_cleanup_bundle"
+
+	cbs := opatestutils.StartControllableBundleServer(bundleName)
+	defer cbs.Stop()
+
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName)
+	defer registry.Close()
+
+	// First attempt should fail and forget singleflight key
+	loader1 := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	_, err := loader1()
+	assert.Error(t, err)
+
+	// Make bundle server available
+	cbs.SetAvailable(true)
+
+	// Second attempt should succeed (not blocked by previous failure)
+	loader2 := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	instance, err := loader2()
+	assert.NoError(t, err)
+	assert.NotNil(t, instance)
+	assert.Equal(t, instance.bundleName, bundleName)
+}
+
+// / Verifies that after instances are cleaned up, singleflight keys are forgotten
+func TestSingleflightForgetOnCleanup(t *testing.T) {
+	bundleName := "test_cleanup_bundle"
+	cbs := opatestutils.CreateBundleServers([]string{bundleName})[0]
+	defer cbs.Stop()
+
+	// Create registry with a very short cleanup interval
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName, 1*time.Second)
+	defer registry.Close()
+
+	// Create an instance
+	loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	instance, err := loader()
+	require.NoError(t, err)
+	require.NotNil(t, registry.instances[bundleName], "should have one instance in registry")
+
+	// Mark all instances as unused to trigger cleanup
+	registry.markUnused(map[*OpenPolicyAgentInstance]struct{}{})
+	registry.cleanUnusedInstances(time.Now().Add(-1 * time.Second))
+
+	// Wait longer than the cleanup interval
+	time.Sleep(2 * time.Second)
+	registry.mu.Lock()
+	assert.Len(t, registry.instances, 0, "all instances should be cleaned up")
+	registry.mu.Unlock()
+
+	// After cleanup, singleflight should have forgotten the key
+	// and new instance creation should work (not be blocked by old singleflight)
+	newLoader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	newInstance, err := newLoader()
+	require.NoError(t, err)
+	require.NotNil(t, newInstance)
+
+	// Should be a different instance after cleanup
+	assert.NotEqual(t, instance, newInstance, "should create new instance after cleanup")
+	registry.mu.Lock()
+	assert.NotNil(t, registry.instances[bundleName], "newly created instance should be in registry")
+	registry.mu.Unlock()
+}
+
+// Verifies that instance creation respects the coordination timeout and do not hang indefinitely
+func TestPrepareInstanceLoader_CoordinationTimeout(t *testing.T) {
+	bundleName := "timeout_test_bundle"
+
+	// Create a server that never responds to simulate hanging creation
+	hangingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(10 * time.Second) // Hang longer than coordination timeout
+	}))
+	defer hangingServer.Close()
+
+	cleanupInterval := 1 * time.Second
+	startUpTimeOut := 2 * time.Second
+	registry := CreateOPARegistry(t, hangingServer.URL, bundleName, cleanupInterval, startUpTimeOut)
+	defer registry.Close()
+
+	loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+
+	start := time.Now()
+	instance, err := loader()
+	elapsed := time.Since(start)
+
+	// Should timeout less than coordination timeout (3x startup timeout = 6s)
+	assert.Error(t, err)
+	assert.Nil(t, instance)
+	assert.Contains(t, err.Error(), "timed out while starting")
+	assert.Greater(t, elapsed, startUpTimeOut)
+	assert.Less(t, elapsed, 3*startUpTimeOut, "should timeout less than coordination timeout")
+}
+
+// / Verifies that after the registry is closed, all singleflight keys are forgotten
+func TestRegistryClose(t *testing.T) {
+	bundleName := "test_close_bundle"
+	cbs := opatestutils.CreateBundleServers([]string{bundleName})[0]
+	defer cbs.Stop()
+
+	registry := CreateOPARegistry(t, cbs.URL(), bundleName)
+
+	loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	loader()
+
+	// Close registry - should forget all singleflight keys
+	registry.Close()
+
+	// After close, new instance creation should fail
+	newLoader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	_, err := newLoader()
+	assert.Error(t, err, "should fail after registry is closed")
+	assert.Equal(t, err.Error(), "failed to get existing OPA instance for bundle \"test_close_bundle\": open policy agent registry is already closed")
+
+	// Create new registry - should allow new instance creation
+	registry2 := CreateOPARegistry(t, cbs.URL(), bundleName)
+	loader2 := registry2.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+	instance, err := loader2()
+	assert.NoError(t, err)
+	assert.NotNil(t, instance, "should create new instance after registry is recreated")
+
+}
+
 type opaInstanceStartupTestCase struct {
 	enableCustomControlLoop bool
 	expectedError           string
@@ -1100,4 +1361,74 @@ func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test fun
 			test(t, tc)
 		})
 	}
+}
+
+// CreateRegistryWithConfig Helper function to create registry with configuration
+func CreateRegistryWithConfig(t *testing.T, config []byte) *OpenPolicyAgentRegistry {
+	registry, err := NewOpenPolicyAgentRegistry(
+		WithReuseDuration(1*time.Second),
+		WithCleanInterval(1*time.Second),
+		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
+	)
+	require.NoError(t, err)
+	return registry
+}
+
+// CreateInstancesConcurrently Helper function to create instances concurrently
+func CreateInstancesConcurrently(t *testing.T, registry *OpenPolicyAgentRegistry, bundles []string) map[string]*OpenPolicyAgentInstance {
+	var wg sync.WaitGroup
+	instances := make(map[string]*OpenPolicyAgentInstance)
+	var mu sync.Mutex
+
+	for _, bundle := range bundles {
+		wg.Add(1)
+		go func(bundleName string) {
+			defer wg.Done()
+			loader := registry.PrepareInstanceLoader(bundleName, "opaRequestFilter")
+			instance, err := loader()
+			require.NoError(t, err)
+
+			mu.Lock()
+			instances[bundleName] = instance
+			mu.Unlock()
+		}(bundle)
+	}
+
+	wg.Wait()
+	return instances
+}
+
+func CreateOPARegistry(t *testing.T, url, bundleName string, options ...time.Duration) *OpenPolicyAgentRegistry {
+	t.Helper()
+
+	cleanUpInterval := 1 * time.Second // default value
+	startupTimeout := 1 * time.Second  // default value
+	if len(options) > 0 {
+		cleanUpInterval = options[0]
+	}
+
+	if len(options) > 1 {
+		startupTimeout = options[1]
+	}
+
+	config := []byte(fmt.Sprintf(`{
+		"services": {
+			"test": { "url": %q }
+		},
+		"bundles": {
+			"%s": { "resource": "/bundles/{{ .bundlename }}" }
+		}
+	}`, url, bundleName))
+
+	opaRegistry, err := NewOpenPolicyAgentRegistry(
+		WithTracer(tracingtest.NewTracer()),
+		WithPreloadingEnabled(true),
+		WithOpenPolicyAgentInstanceConfig(
+			WithConfigTemplate(config),
+		),
+		WithInstanceStartupTimeout(startupTimeout),
+		WithCleanInterval(cleanUpInterval),
+		WithReuseDuration(1*time.Second))
+	require.NoError(t, err)
+	return opaRegistry
 }
