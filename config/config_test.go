@@ -162,6 +162,7 @@ func defaultConfig(with func(*Config)) *Config {
 		ClusterRatelimitMaxGroupShards:          1,
 		ValidateQuery:                           true,
 		ValidateQueryLog:                        true,
+		LetsencryptDomains:                      commaListFlag(),
 		LuaModules:                              commaListFlag(),
 		LuaSources:                              commaListFlag(),
 		OpenPolicyAgentCleanerInterval:          openpolicyagent.DefaultCleanIdlePeriod,
