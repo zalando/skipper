@@ -175,15 +175,12 @@ func (m *MockMetrics) MeasureResponseSize(host string, size int64) {
 func (m *MockMetrics) MeasureProxy(requestDuration, responseDuration time.Duration) {
 	totalDuration := requestDuration + responseDuration
 	totalDurationKey := fmt.Sprintf("%sproxy.total.duration", m.Prefix)
+	requestDurationKey := fmt.Sprintf("%sproxy.request.duration", m.Prefix)
+	responseDurationKey := fmt.Sprintf("%sproxy.response.duration", m.Prefix)
+
 	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measures[totalDurationKey] = append(measures[totalDurationKey], totalDuration)
-	})
-	requestDurationKey := fmt.Sprintf("%sproxy.request.duration", m.Prefix)
-	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measures[requestDurationKey] = append(measures[requestDurationKey], requestDuration)
-	})
-	responseDurationKey := fmt.Sprintf("%sproxy.response.duration", m.Prefix)
-	m.WithMeasures(func(measures map[string][]time.Duration) {
 		measures[responseDurationKey] = append(measures[responseDurationKey], responseDuration)
 	})
 }
