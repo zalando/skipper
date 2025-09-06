@@ -27,7 +27,7 @@ type accessLogFormatter struct {
 	format string
 }
 
-// Access log entry.
+// AccessEntry is the access log entry.
 type AccessEntry struct {
 
 	// The client request.

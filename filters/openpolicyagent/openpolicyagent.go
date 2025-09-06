@@ -1022,7 +1022,7 @@ func (opa *OpenPolicyAgentInstance) CreatePreparedQueryOnce(opts envoyauth.Prepa
 	return opa.preparedQuery, opa.preparedQueryErr
 }
 
-// logging.Logger that does not pollute info with debug logs
+// QuietLogger is a logging.Logger that does not pollute info with debug logs
 type QuietLogger struct {
 	target logging.Logger
 }

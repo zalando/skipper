@@ -23,7 +23,7 @@ type IngressV1Item struct {
 	Spec     *IngressV1Spec `json:"spec"`
 }
 
-// IngressSpecV1 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressspec-v1-networking-k8s-io
+// IngressV1Spec https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.22/#ingressspec-v1-networking-k8s-io
 type IngressV1Spec struct {
 	DefaultBackend   *BackendV1 `json:"defaultBackend,omitempty"`
 	IngressClassName string     `json:"ingressClassName,omitempty"`

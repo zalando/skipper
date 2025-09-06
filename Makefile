@@ -131,9 +131,8 @@ vet: $(SOURCES) ## run Go vet
 # -ST1000 missing package doc in many packages
 # -ST1003 wrong naming convention Api vs API, Id vs ID
 # -ST1020 too many wrong comments on exported functions to fix right away
-# -ST1021 too many wrong comments on exported functions to fix right away
 staticcheck: $(SOURCES) ## run staticcheck
-	staticcheck -checks "all,-ST1000,-ST1003,-ST1020,-ST1021" ./...
+	staticcheck -checks "all,-ST1000,-ST1003,-ST1020" ./...
 
 .PHONY: gosec
 # TODO(sszuecs) review disabling these checks, f.e.:

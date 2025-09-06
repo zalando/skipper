@@ -15,7 +15,6 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
-// SecretSource
 type SecretSource interface {
 	GetSecret() ([][]byte, error)
 }
