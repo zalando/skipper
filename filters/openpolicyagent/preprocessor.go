@@ -86,6 +86,7 @@ func (p *opaPreProcessor) preloadInstancesParallel(requests map[string]bundleReq
 
 			// Use the new PrepareInstanceLoader approach
 			loader := p.registry.PrepareInstanceLoader(r.bundleName, r.filterName)
+			p.registry.setInstanceLoading(r.bundleName)
 			_, err := loader()
 			if err != nil {
 				log.Errorf("Failed to load OPA instance for bundle '%s': %v", r.bundleName, err)
@@ -113,6 +114,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(requests map[string]bundleR
 
 		// Schedule background task for sequential processing
 		_, err = p.registry.ScheduleBackgroundTask(func() (interface{}, error) {
+			p.registry.setInstanceLoading(req.bundleName)
 			return p.registry.PrepareInstanceLoader(req.bundleName, req.filterName)()
 		})
 

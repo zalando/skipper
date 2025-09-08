@@ -393,8 +393,10 @@ func (registry *OpenPolicyAgentRegistry) Close() {
 		defer cancel()
 
 		for _, instanceInfo := range registry.instances {
-			instanceInfo.instance.Close(ctx)
-			registry.singleflightGroup.Forget(instanceInfo.instance.bundleName)
+			if instanceInfo != nil && instanceInfo.instance != nil {
+				instanceInfo.instance.Close(ctx)
+				registry.singleflightGroup.Forget(instanceInfo.instance.bundleName)
+			}
 		}
 
 		registry.closed = true
@@ -412,6 +414,35 @@ func (registry *OpenPolicyAgentRegistry) GetInstanceCount() int {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 	return len(registry.instances)
+}
+
+// countInstancesByState returns the count of instances with the specified state
+func (registry *OpenPolicyAgentRegistry) countInstancesByState(state InstanceState) int {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+
+	count := 0
+	for _, instanceInfo := range registry.instances {
+		if instanceInfo.state == state {
+			count++
+		}
+	}
+	return count
+}
+
+// GetReadyInstanceCount returns the number of ready instances in the registry (thread-safe)
+func (registry *OpenPolicyAgentRegistry) GetReadyInstanceCount() int {
+	return registry.countInstancesByState(InstanceStateReady)
+}
+
+// GetFailedInstanceCount returns the number of failed instances in the registry (thread-safe)
+func (registry *OpenPolicyAgentRegistry) GetFailedInstanceCount() int {
+	return registry.countInstancesByState(InstanceStateFailed)
+}
+
+// GetLoadingInstanceCount returns the number of loading instances in the registry (thread-safe)
+func (registry *OpenPolicyAgentRegistry) GetLoadingInstanceCount() int {
+	return registry.countInstancesByState(InstanceStateLoading)
 }
 
 func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
@@ -569,25 +600,19 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
 			if err != nil {
 				registry.singleflightGroup.Forget(bundleName)
+				registry.setInstanceFailed(bundleName, err)
 				return nil, err
 			}
 
 			// Cache instance
-			registry.mu.Lock()
-			registry.instances[bundleName] = &InstanceInfo{
-				instance: inst,
-				state:    InstanceStateReady,
-				lastUsed: time.Now(),
-				error:    nil,
-			}
-			registry.mu.Unlock()
+			registry.setInstanceReady(bundleName, inst)
 
 			return inst, nil
 		})
 
 		// Coordination timeout: longer than the plugin startup timeout to allow detailed error propagation
 		// This protects against singleflight goroutine death/hang, apart from HTTP timeouts
-		coordinationTimeout := 3 * registry.instanceStartupTimeout // 3x longer ToDo? this implies in rare cases startup can take up to 3 times configured timeout
+		coordinationTimeout := 3 * registry.instanceStartupTimeout // 3x longer - this implies in rare cases startup can take up to 3 times configured timeout
 		coordinationTimer := time.NewTimer(coordinationTimeout)
 		defer coordinationTimer.Stop()
 
@@ -603,6 +628,35 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			return nil, fmt.Errorf("coordination timeout: singleflight goroutine appears to have failed for bundle %q", bundleName)
 		}
 	}
+}
+
+func (registry *OpenPolicyAgentRegistry) setInstanceState(bundleName string, state InstanceState, inst *OpenPolicyAgentInstance, err error) {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+
+	var lastUsed time.Time
+	if state == InstanceStateReady {
+		lastUsed = time.Now()
+	}
+
+	registry.instances[bundleName] = &InstanceInfo{
+		instance: inst,
+		state:    state,
+		lastUsed: lastUsed,
+		error:    err,
+	}
+}
+
+func (registry *OpenPolicyAgentRegistry) setInstanceReady(bundleName string, inst *OpenPolicyAgentInstance) {
+	registry.setInstanceState(bundleName, InstanceStateReady, inst, nil)
+}
+
+func (registry *OpenPolicyAgentRegistry) setInstanceFailed(bundleName string, err error) {
+	registry.setInstanceState(bundleName, InstanceStateFailed, nil, err)
+}
+
+func (registry *OpenPolicyAgentRegistry) setInstanceLoading(bundleName string) {
+	registry.setInstanceState(bundleName, InstanceStateLoading, nil, nil)
 }
 
 func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentInstance]struct{}) {

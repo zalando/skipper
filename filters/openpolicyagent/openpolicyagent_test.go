@@ -641,7 +641,8 @@ func TestOpaActivationFailureWithWrongServiceConfig(t *testing.T) {
 		instance, err := registry.GetOrStartInstance("test", "testfilter")
 		assert.Nil(t, instance)
 		assert.Contains(t, err.Error(), tc.expectedError)
-		assert.Equal(t, 0, len(registry.instances))
+		assert.Equal(t, 0, registry.GetReadyInstanceCount())
+		assert.Equal(t, 1, registry.GetFailedInstanceCount())
 	})
 }
 
@@ -665,7 +666,8 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 
 			instance, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.Nil(t, instance)
-			assert.Equal(t, 0, len(registry.instances))
+			assert.Equal(t, 0, registry.GetReadyInstanceCount())
+			assert.Equal(t, 1, registry.GetFailedInstanceCount())
 
 			assert.Contains(t, err.Error(), tc.expectedError)
 
@@ -695,7 +697,8 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 			instance, err := registry.GetOrStartInstance("test", "testfilter")
 			assert.Nil(t, instance)
 			assert.Contains(t, err.Error(), tc.expectedError)
-			assert.Equal(t, 0, len(registry.instances))
+			assert.Equal(t, 0, registry.GetReadyInstanceCount())
+			assert.Equal(t, 1, registry.GetFailedInstanceCount())
 		})
 }
 
