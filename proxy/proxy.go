@@ -1741,7 +1741,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseStopWatch.Start()
-	// fifoWtihBody() filter
+	// fifoWithBody() filter
 	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
 		if fs, ok := sbf.([]func()); ok {
 			for i := len(fs) - 1; i >= 0; i-- {
