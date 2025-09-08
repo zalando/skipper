@@ -106,15 +106,15 @@ func (p *opaPreProcessor) enqueueInstancesSequential(requests map[string]bundleR
 
 	for _, req := range requests {
 		// Check if instance already exists to avoid unnecessary work
-		_, err := p.registry.GetOrStartInstance(req.bundleName, req.filterName)
-		if err == nil {
-			// Instance already ready, skip
+		isReady := p.registry.IsInstanceReadyOrLoading(req.bundleName)
+		if isReady {
+			// Instance already ready or loading, skip
 			continue
 		}
 
 		// Schedule background task for sequential processing
-		_, err = p.registry.ScheduleBackgroundTask(func() (interface{}, error) {
-			p.registry.setInstanceLoading(req.bundleName)
+		p.registry.setInstanceLoading(req.bundleName)
+		_, err := p.registry.ScheduleBackgroundTask(func() (interface{}, error) {
 			return p.registry.PrepareInstanceLoader(req.bundleName, req.filterName)()
 		})
 

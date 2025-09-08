@@ -567,11 +567,23 @@ func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) 
 	}
 
 	if instanceInfo, ok := registry.instances[bundleName]; ok {
-		registry.instances[bundleName].lastUsed = time.Now()
-		return instanceInfo.instance, nil
+		if instanceInfo.state == InstanceStateReady {
+			registry.instances[bundleName].lastUsed = time.Now()
+			return instanceInfo.instance, nil
+		}
 	}
 
 	return nil, nil
+}
+
+func (registry *OpenPolicyAgentRegistry) IsInstanceReadyOrLoading(bundleName string) bool {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+
+	if instanceInfo, ok := registry.instances[bundleName]; ok {
+		return instanceInfo.state == InstanceStateReady || instanceInfo.state == InstanceStateLoading
+	}
+	return false
 }
 
 // PrepareInstanceLoader returns a function that when called will create an OPA instance
@@ -597,7 +609,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			}
 
 			// Create new OPA instance
-			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
+			inst, err := registry.newOpenPolicyAgentInstance(bundleName)
 			if err != nil {
 				registry.singleflightGroup.Forget(bundleName)
 				registry.setInstanceFailed(bundleName, err)
@@ -619,7 +631,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 		select {
 		case res := <-ch:
 			if res.Err != nil {
-				return nil, res.Err // Detailed HTTP error (429, 404, 500, etc.)
+				return nil, res.Err
 			}
 			return res.Val.(*OpenPolicyAgentInstance), nil
 		case <-coordinationTimer.C:
@@ -672,10 +684,10 @@ func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentIn
 	}
 }
 
-func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
-	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), filterName, bundleName,
+	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), bundleName,
 		registry.maxRequestBodyBytes, registry.bodyReadBufferSize)
 	if err != nil {
 		return nil, err
@@ -764,7 +776,7 @@ func (registry *OpenPolicyAgentRegistry) withTracingOptions(bundleName string) f
 }
 
 // new returns a new OPA object.
-func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
 	uniqueIDGenerator, err := flowid.NewStandardGenerator(32)
 	if err != nil {
@@ -784,7 +796,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName str
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
-	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName, "bundle-name": bundleName})
+	logger = logger.WithFields(map[string]interface{}{"opa-bundle-name": bundleName})
 
 	configHooks := hooks.New()
 	if registry.enableCustomControlLoop {

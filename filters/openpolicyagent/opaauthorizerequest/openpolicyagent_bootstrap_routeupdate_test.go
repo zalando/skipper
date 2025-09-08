@@ -104,7 +104,7 @@ func (ts *testSetup) updateRoutes(routes []*eskip.Route) error {
 
 func (ts *testSetup) waitForInstanceLoad() error {
 	return waitEventually(func() bool {
-		return ts.opaRegistry.GetInstanceCount() > 0
+		return ts.opaRegistry.GetReadyInstanceCount() > 0
 	}, instanceTimeout, 100*time.Millisecond)
 }
 
@@ -117,8 +117,8 @@ func TestOPA_PreProcessor_AtBootstrap(t *testing.T) {
 	ts := setupTestWithBootstrapRoutes(t, initialRoutes)
 	defer ts.close()
 
-	assert.Equal(t, 1, ts.opaRegistry.GetInstanceCount())
-	route := ts.routing.requireRoute(t, "https://www.z-opa.org/initial")
+	assert.Equal(t, 1, ts.opaRegistry.GetReadyInstanceCount())
+	route := ts.routing.requireRoute(t, "https://opa.test/initial")
 	assert.True(t, hasFilter(route, "opaAuthorizeRequest"))
 	assert.True(t, hasFilter(route, "status"))
 }
@@ -138,7 +138,7 @@ func TestOPA_BootstrapEmpty_UpdateWithValidBundle(t *testing.T) {
 	ts.dataClient.Update(updatedRoutes, nil)
 	require.NoError(t, ts.routing.waitForRouteSettings(2))
 
-	route := ts.routing.requireRoute(t, "https://www.z-opa.org/initial")
+	route := ts.routing.requireRoute(t, "https://opa.test/initial")
 	assert.True(t, hasFilter(route, "opaAuthorizeRequest"))
 	assert.True(t, hasFilter(route, "status"))
 }
@@ -158,7 +158,7 @@ func TestOPA_BootstrapWithUnavailableBundle_UpdateWhenAvailable(t *testing.T) {
 	require.NoError(t, ts.waitForInstanceLoad())
 	require.NoError(t, ts.updateRoutes(updatedRoutes))
 
-	route := ts.routing.requireRoute(t, "https://www.z-opa.org/initial")
+	route := ts.routing.requireRoute(t, "https://opa,test/initial")
 	assert.True(t, hasFilter(route, "opaAuthorizeRequest"))
 	assert.True(t, hasFilter(route, "status"))
 }
@@ -168,7 +168,7 @@ func TestOPA_BootstrapEmpty_UpdateWithMissingBundleAndValidRoute(t *testing.T) {
 	defer ts.close()
 
 	ts.bootstrap([]*eskip.Route{})
-	assert.Equal(t, 0, ts.opaRegistry.GetInstanceCount())
+	assert.Equal(t, 0, ts.opaRegistry.GetReadyInstanceCount())
 
 	updatedRoutes := eskip.MustParse(`
   r1: Path("/fail") -> opaAuthorizeRequest("nonexistent-bundle", "") -> status(204) -> <shunt>;
@@ -191,7 +191,6 @@ func TestOPA_BootstrapEmpty_UpdateWithManyInvalidBundles(t *testing.T) {
 	defer ts.close()
 
 	ts.bootstrap([]*eskip.Route{})
-	assert.Equal(t, 0, ts.opaRegistry.GetInstanceCount())
 
 	routes := generateFailingRoutes(numInvalidRoutes) + `ok: Path("/ok") -> status(200) -> <shunt>`
 	eskipRoutes := eskip.MustParse(routes)
@@ -204,6 +203,9 @@ func TestOPA_BootstrapEmpty_UpdateWithManyInvalidBundles(t *testing.T) {
 
 	okRoute := ts.routing.requireRoute(t, "https://opa.test/ok")
 	assert.True(t, hasFilter(okRoute, "status"))
+	assert.Equal(t, 0, ts.opaRegistry.GetReadyInstanceCount())
+	assert.Equal(t, 0, ts.opaRegistry.GetFailedInstanceCount())
+	assert.Equal(t, 101, ts.opaRegistry.GetLoadingInstanceCount())
 }
 
 // Helper functions
@@ -303,7 +305,7 @@ func (tr *testRouting) requireRoute(t *testing.T, url string) *routing.Route {
 
 func (tr *testRouting) requireMissingRoute(t *testing.T, path string) {
 	t.Helper()
-	url := "https://www.z-opa.org" + path
+	url := "https://opa.test" + path
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Host = req.URL.Host
 	route, _ := tr.routing.Route(req)

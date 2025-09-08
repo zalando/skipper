@@ -386,7 +386,7 @@ func TestWithJwtCacheConfig(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	inst1, err := registry.newOpenPolicyAgentInstance("test", "testfilter")
+	inst1, err := registry.newOpenPolicyAgentInstance("test")
 	assert.NoError(t, err)
 
 	expectedJSON := []byte(`{
@@ -425,7 +425,7 @@ func TestOpaEngineStartFailure(t *testing.T) {
 			registry, err := NewOpenPolicyAgentRegistry(WithInstanceStartupTimeout(1*time.Second), WithReuseDuration(1*time.Second), WithCleanInterval(1*time.Second), WithEnableCustomControlLoop(tc.enableCustomControlLoop), WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)))
 			assert.NoError(t, err)
 
-			engine, err := registry.new(inmem.New(), "testfilter", "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
+			engine, err := registry.new(inmem.New(), "test", DefaultMaxRequestBodySize, DefaultRequestBodyBufferSize)
 			assert.NoError(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
