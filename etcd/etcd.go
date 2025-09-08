@@ -76,7 +76,7 @@ func (ee *endpointErrors) String() string {
 	return ee.Error()
 }
 
-// Initialization options.
+// Options is use to configure the client created by New
 type Options struct {
 
 	// A slice of etcd endpoint addresses.
@@ -125,7 +125,7 @@ var (
 	errInvalidResponseDocument = errors.New("invalid response document")
 )
 
-// Creates a new Client with the provided options.
+// New creates a new Client with the provided options.
 func New(o Options) (*Client, error) {
 	if len(o.Endpoints) == 0 {
 		return nil, errMissingEtcdEndpoint

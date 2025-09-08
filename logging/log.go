@@ -12,7 +12,7 @@ type prefixFormatter struct {
 	formatter logrus.Formatter
 }
 
-// Init options for logging.
+// Options for logging.
 type Options struct {
 
 	// Prefix for application log entries. Primarily used to be

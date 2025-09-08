@@ -13,14 +13,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Noop filter, used to verify the filter name and the args in the route.
+// Filter is a noop filter, used to verify the filter name and the args in the route.
 // Implements both the Filter and the Spec interfaces.
 type Filter struct {
 	FilterName string
 	Args       []interface{}
 }
 
-// Simple FilterContext implementation.
+// Context is a simple FilterContext implementation.
 type Context struct {
 	FResponseWriter     http.ResponseWriter
 	FOriginalRequest    *http.Request

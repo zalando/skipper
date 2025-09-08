@@ -16,7 +16,7 @@ const (
 	AccessLogAdditionalDataKey = "statebag:access_log:additional"
 )
 
-// Common filter struct for holding access log state
+// AccessLogFilter stores access log state
 type AccessLogFilter struct {
 	Enable   bool
 	Prefixes []int

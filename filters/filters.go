@@ -164,7 +164,7 @@ type Metrics interface {
 	IncFloatCounterBy(key string, value float64)
 }
 
-// Filters are created by the Spec components, optionally using filter
+// Filter is created by the Spec components, optionally using filter
 // specific settings. When implementing filters, it needs to be taken
 // into consideration, that filter instances are route specific and not
 // request specific, so any state stored with a filter is shared between

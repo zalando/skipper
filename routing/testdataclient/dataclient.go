@@ -19,7 +19,7 @@ type incomingUpdate struct {
 	deletedIDs []string
 }
 
-// DataClient implementation.
+// Client is a DataClient implementation.
 type Client struct {
 	routes       map[string]*eskip.Route
 	upsert       []*eskip.Route

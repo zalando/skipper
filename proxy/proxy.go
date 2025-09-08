@@ -249,7 +249,7 @@ func InitPassiveHealthChecker(o map[string]string) (bool, *PassiveHealthCheck, e
 	return true, result, nil
 }
 
-// Proxy initialization options.
+// Params are Proxy initialization options.
 type Params struct {
 	// The proxy expects a routing instance that is used to match
 	// the incoming requests to routes.
@@ -418,7 +418,7 @@ func (f Flags) HopHeadersRemoval() bool { return f&HopHeadersRemoval != 0 }
 
 func (f Flags) patchPath() bool { return f&PatchPath != 0 }
 
-// Priority routes are custom route implementations that are matched against
+// PriorityRoute are custom route implementations that are matched against
 // each request before the routes in the general lookup tree.
 type PriorityRoute interface {
 	// If the request is matched, returns a route, otherwise nil.

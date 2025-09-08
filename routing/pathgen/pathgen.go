@@ -26,7 +26,7 @@ type PathGeneratorOptions struct {
 	Separator            string
 }
 
-// Generates paths, separated with a slash or custom separator.
+// PathGenerator generates paths, separated with a slash or custom separator.
 // The paths have a random number of filenames in them, and the
 // filenames consist of random characters of random length.
 // The generated sequences are reproducible, controlled by
