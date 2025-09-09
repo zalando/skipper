@@ -1734,12 +1734,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// stream response body to client
 	if err != nil {
 		p.errorResponse(ctx, err)
-		responseElapsed += ctx.proxyResponseElapsed
 	} else {
 		p.serveResponse(ctx)
-		responseElapsed += ctx.proxyResponseElapsed
 	}
-
+	responseElapsed += ctx.proxyResponseElapsed
 	responseStopWatch.Start()
 	// fifoWithBody() filter
 	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
