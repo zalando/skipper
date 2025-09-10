@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/singleflight"
 	"io"
 	"maps"
 	"math/rand"
@@ -15,8 +14,11 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"google.golang.org/protobuf/proto"
 
@@ -507,13 +509,13 @@ func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string) (
 	}
 
 	if registry.preloadingEnabled {
+		//TODO: This is most likely a hard error in the sense that even an unhealthy instance could not be created.
 		// In preloading mode, if instance doesn't exist, it means it's not ready yet
 		return nil, fmt.Errorf("open policy agent instance for bundle '%s' is not ready yet", bundleName)
 	}
 
-	// In non-preloading mode, create the instance synchronously using PrepareInstanceLoader
-	loader := registry.PrepareInstanceLoader(bundleName)
-	return loader()
+	// In non-preloading mode, create the instance synchronously
+	return registry.createAndCacheInstance(bundleName)
 }
 
 func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
@@ -532,6 +534,21 @@ func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) 
 	return nil, nil
 }
 
+func (registry *OpenPolicyAgentRegistry) createAndCacheInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
+	// Create new OPA instance
+	inst, err := registry.newOpenPolicyAgentInstance(bundleName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache instance
+	registry.mu.Lock()
+	registry.instances[bundleName] = inst
+	registry.mu.Unlock()
+
+	return inst, nil
+}
+
 // PrepareInstanceLoader returns a function that when called will create an OPA instance
 // This allows the preprocessor to control when and how the instance creation happens
 // Prevents concurrent creation of the same bundle by tracking in-flight operations
@@ -545,7 +562,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string
 		}
 
 		// Collapse concurrent creations into one using singleflight
-		ch := registry.singleflightGroup.DoChan(bundleName, func() (any, error) {
+		inst, err, _ := registry.singleflightGroup.Do(bundleName, func() (any, error) {
 			// Re-check after entering singleflight
 			if inst, err := registry.getExistingInstance(bundleName); err != nil {
 				registry.singleflightGroup.Forget(bundleName)
@@ -554,38 +571,10 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string
 				return inst, nil
 			}
 
-			// Create new OPA instance
-			inst, err := registry.newOpenPolicyAgentInstance(bundleName)
-			if err != nil {
-				registry.singleflightGroup.Forget(bundleName)
-				return nil, err
-			}
-
-			// Cache instance
-			registry.mu.Lock()
-			registry.instances[bundleName] = inst
-			registry.mu.Unlock()
-
-			return inst, nil
+			return registry.createAndCacheInstance(bundleName)
 		})
 
-		// Coordination timeout: longer than the plugin startup timeout to allow detailed error propagation
-		// This protects against singleflight goroutine death/hang, apart from HTTP timeouts
-		coordinationTimeout := 3 * registry.instanceStartupTimeout // 3x longer ToDo? this implies in rare cases startup can take up to 3 times configured timeout
-		coordinationTimer := time.NewTimer(coordinationTimeout)
-		defer coordinationTimer.Stop()
-
-		select {
-		case res := <-ch:
-			if res.Err != nil {
-				return nil, res.Err // Detailed HTTP error (429, 404, 500, etc.)
-			}
-			return res.Val.(*OpenPolicyAgentInstance), nil
-		case <-coordinationTimer.C:
-			// This should rarely/never fire - only for catastrophic failures
-			registry.singleflightGroup.Forget(bundleName)
-			return nil, fmt.Errorf("coordination timeout: singleflight goroutine appears to have failed for bundle %q", bundleName)
-		}
+		return inst.(*OpenPolicyAgentInstance), err
 	}
 }
 
@@ -638,6 +627,7 @@ type OpenPolicyAgentInstance struct {
 	once                        sync.Once
 	closing                     bool
 	registry                    *OpenPolicyAgentRegistry
+	healthy                     atomic.Bool
 
 	maxBodyBytes       int64
 	bodyReadBufferSize int64
@@ -750,8 +740,20 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
+	manager.RegisterPluginStatusListener("instance-health-check", func(status map[string]*plugins.Status) {
+		opa.healthy.Store(allPluginsReady(status))
+	})
 
 	return opa, nil
+}
+
+func allPluginsReady(allPluginsStatus map[string]*plugins.Status) bool {
+	for _, status := range allPluginsStatus {
+		if status != nil && status.State != plugins.StateOK {
+			return false
+		}
+	}
+	return true
 }
 
 // Start asynchronously starts the policy engine's plugins that download
@@ -765,12 +767,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 
 	// check readiness of all plugins
 	pluginsReady := func() bool {
-		for _, status := range opa.manager.PluginStatus() {
-			if status != nil && status.State != plugins.StateOK {
-				return false
-			}
-		}
-		return true
+		return allPluginsReady(opa.manager.PluginStatus())
 	}
 
 	err = waitFunc(ctx, pluginsReady, 100*time.Millisecond)
@@ -789,6 +786,10 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 		return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, err)
 	}
 	return nil
+}
+
+func (opa *OpenPolicyAgentInstance) Healthy() bool {
+	return opa.healthy.Load()
 }
 
 // StartAndTriggerPlugins Start starts the policy engine's plugin manager and triggers the plugins to download policies etc.
