@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -1200,6 +1201,8 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			err = perr
 		}
 	}()
+	traceIDCtx, _ := pprof.Label(*ctx.goCtx, "trace_id")
+	ctx.Logger().Debugf("trace id in goroutine context: %s", traceIDCtx)
 
 	if ctx.executionCounter > p.maxLoops {
 		// TODO(sszuecs): think about setting status code to 463 or 465 (check what AWS ALB sets for redirect loop) or similar
@@ -1639,6 +1642,20 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
 	ctx.parentSpan = span
+
+	traceID := tracing.GetTraceID(span)
+
+	gCtx := stdlibcontext.Background()
+
+	defer pprof.SetGoroutineLabels(gCtx)
+	labels := pprof.Labels("trace_id", traceID)
+	gCtx = pprof.WithLabels(gCtx, labels)
+	pprof.SetGoroutineLabels(gCtx)
+
+	ctx.goCtx = &gCtx
+
+	traceIDCtx, _ := pprof.Label(gCtx, "trace_id")
+	ctx.Logger().Debugf("trace id in goroutine context: %s", traceIDCtx)
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
