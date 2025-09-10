@@ -92,6 +92,11 @@ func (f *opaServeResponseFilter) Request(fc filters.FilterContext) {
 	defer span.Finish()
 	req := fc.Request()
 
+	if !f.opa.Healthy() {
+		f.opa.HandleInstanceNotReadyError(fc, span, !f.opa.EnvoyPluginConfig().DryRun)
+		return
+	}
+
 	var rawBodyBytes []byte
 	if f.bodyParsing {
 		var body io.ReadCloser
