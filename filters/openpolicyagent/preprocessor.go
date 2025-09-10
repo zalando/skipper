@@ -1,6 +1,7 @@
 package openpolicyagent
 
 import (
+	"slices"
 	"strings"
 	"sync"
 
@@ -46,18 +47,16 @@ func (p *opaPreProcessor) Do(routes []*eskip.Route) []*eskip.Route {
 }
 
 // extractOpaBundleRequests scans routes for OPA filter usage and extracts bundle requirements
-func (p *opaPreProcessor) extractOpaBundleRequests(routes []*eskip.Route) map[string]bundleRequest {
-	requirements := make(map[string]bundleRequest)
+func (p *opaPreProcessor) extractOpaBundleRequests(routes []*eskip.Route) []string {
+	requirements := []string{}
 
 	for _, route := range routes {
 		for _, filter := range route.Filters {
 			if p.isOpaFilter(filter.Name) && len(filter.Args) > 0 {
 				if bundleName, ok := filter.Args[0].(string); ok {
-					req := bundleRequest{
-						bundleName: bundleName,
-						filterName: filter.Name,
+					if !slices.Contains(requirements, bundleName) {
+						requirements = append(requirements, bundleName)
 					}
-					requirements[bundleName] = req
 				}
 			}
 		}
@@ -66,31 +65,26 @@ func (p *opaPreProcessor) extractOpaBundleRequests(routes []*eskip.Route) map[st
 	return requirements
 }
 
-type bundleRequest struct {
-	bundleName string
-	filterName string
-}
-
 func (p *opaPreProcessor) isOpaFilter(filterName string) bool {
 	return strings.HasPrefix(filterName, "opa")
 }
 
-func (p *opaPreProcessor) preloadInstancesParallel(requests map[string]bundleRequest) {
+func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 	var wg sync.WaitGroup
 	log := &logging.DefaultLog{}
 
-	for _, req := range requests {
+	for _, req := range bundles {
 		wg.Add(1)
-		go func(r bundleRequest) {
+		go func(b string) {
 			defer wg.Done()
 
 			// Use the new PrepareInstanceLoader approach
-			loader := p.registry.PrepareInstanceLoader(r.bundleName, r.filterName)
+			loader := p.registry.PrepareInstanceLoader(b)
 			_, err := loader()
 			if err != nil {
-				log.Errorf("Failed to load OPA instance for bundle '%s': %v", r.bundleName, err)
+				log.Errorf("Failed to load OPA instance for bundle '%s': %v", b, err)
 			} else {
-				log.Debugf("Successfully preloaded OPA instance for bundle '%s'", r.bundleName)
+				log.Debugf("Successfully preloaded OPA instance for bundle '%s'", b)
 			}
 		}(req)
 	}
@@ -100,12 +94,12 @@ func (p *opaPreProcessor) preloadInstancesParallel(requests map[string]bundleReq
 }
 
 // enqueueInstancesSequential enqueues new instances for sequential processing using background tasks
-func (p *opaPreProcessor) enqueueInstancesSequential(requests map[string]bundleRequest) {
+func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 	log := &logging.DefaultLog{}
 
-	for _, req := range requests {
+	for _, bundle := range bundles {
 		// Check if instance already exists to avoid unnecessary work
-		_, err := p.registry.GetOrStartInstance(req.bundleName, req.filterName)
+		_, err := p.registry.GetOrStartInstance(bundle)
 		if err == nil {
 			// Instance already ready, skip
 			continue
@@ -113,14 +107,14 @@ func (p *opaPreProcessor) enqueueInstancesSequential(requests map[string]bundleR
 
 		// Schedule background task for sequential processing
 		_, err = p.registry.ScheduleBackgroundTask(func() (interface{}, error) {
-			return p.registry.PrepareInstanceLoader(req.bundleName, req.filterName)()
+			return p.registry.PrepareInstanceLoader(bundle)()
 		})
 
 		if err != nil {
-			log.Errorf("Failed to schedule OPA instance for bundle '%s': %v", req.bundleName, err)
+			log.Errorf("Failed to schedule OPA instance for bundle '%s': %v", bundle, err)
 			continue
 		}
 
-		log.Debugf("Scheduled OPA instance for bundle '%s' for background loading", req.bundleName)
+		log.Debugf("Scheduled OPA instance for bundle '%s' for background loading", bundle)
 	}
 }

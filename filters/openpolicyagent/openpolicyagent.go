@@ -494,7 +494,7 @@ func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.
 }
 
 // GetOrStartInstance returns an existing instance immediately, or creates one using registry config
-func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	// First check if instance already exists
 	instance, err := registry.getExistingInstance(bundleName)
 	if err != nil {
@@ -512,7 +512,7 @@ func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string, f
 	}
 
 	// In non-preloading mode, create the instance synchronously using PrepareInstanceLoader
-	loader := registry.PrepareInstanceLoader(bundleName, filterName)
+	loader := registry.PrepareInstanceLoader(bundleName)
 	return loader()
 }
 
@@ -535,7 +535,7 @@ func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) 
 // PrepareInstanceLoader returns a function that when called will create an OPA instance
 // This allows the preprocessor to control when and how the instance creation happens
 // Prevents concurrent creation of the same bundle by tracking in-flight operations
-func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filterName string) func() (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName string) func() (*OpenPolicyAgentInstance, error) {
 	return func() (*OpenPolicyAgentInstance, error) {
 		// Fast path: already exists
 		if inst, err := registry.getExistingInstance(bundleName); err != nil {
@@ -555,7 +555,7 @@ func (registry *OpenPolicyAgentRegistry) PrepareInstanceLoader(bundleName, filte
 			}
 
 			// Create new OPA instance
-			inst, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
+			inst, err := registry.newOpenPolicyAgentInstance(bundleName)
 			if err != nil {
 				registry.singleflightGroup.Forget(bundleName)
 				return nil, err
@@ -600,10 +600,10 @@ func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentIn
 	}
 }
 
-func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
-	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), filterName, bundleName,
+	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), bundleName,
 		registry.maxRequestBodyBytes, registry.bodyReadBufferSize)
 	if err != nil {
 		return nil, err
@@ -692,7 +692,7 @@ func (registry *OpenPolicyAgentRegistry) withTracingOptions(bundleName string) f
 }
 
 // new returns a new OPA object.
-func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
 	uniqueIDGenerator, err := flowid.NewStandardGenerator(32)
 	if err != nil {
@@ -712,7 +712,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName str
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
-	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName, "bundle-name": bundleName})
+	logger = logger.WithFields(map[string]interface{}{"opa-bundle-name": bundleName})
 
 	configHooks := hooks.New()
 	if registry.enableCustomControlLoop {

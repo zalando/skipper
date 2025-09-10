@@ -73,7 +73,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	}
 
 	// Try to get instance with new non-blocking approach
-	opa, err := s.registry.GetOrStartInstance(bundleName, s.Name())
+	opa, err := s.registry.GetOrStartInstance(bundleName)
 	if err != nil {
 		// Instance is not ready yet, log a warning and continue. The route will return 503 until the instance is ready. A background task will re-try loading the instance.
 		log.Warnf("OPA instance not ready for bundle '%s', filter will return 503 until ready: %v", bundleName, err)

@@ -19,7 +19,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 	testCases := []struct {
 		name     string
 		routes   []*eskip.Route
-		expected map[string]bundleRequest
+		expected []string
 	}{
 		{
 			name: "multiple different bundles",
@@ -37,10 +37,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]bundleRequest{
-				"bundle1": {bundleName: "bundle1", filterName: "opaAuthorizeRequest"},
-				"bundle2": {bundleName: "bundle2", filterName: "opaServeResponse"},
-			},
+			expected: []string{"bundle1", "bundle2"},
 		},
 		{
 			name: "duplicate bundles should be deduplicated",
@@ -58,9 +55,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]bundleRequest{
-				"bundle1": {bundleName: "bundle1", filterName: "opaAuthorizeRequest"},
-			},
+			expected: []string{"bundle1"},
 		},
 		{
 			name: "non-opa filters should be ignored",
@@ -74,9 +69,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]bundleRequest{
-				"bundle1": {bundleName: "bundle1", filterName: "opaAuthorizeRequest"},
-			},
+			expected: []string{"bundle1"},
 		},
 		{
 			name: "no opa filters should return empty",
@@ -88,7 +81,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]bundleRequest{},
+			expected: []string{},
 		},
 		{
 			name: "opa filters without args should be ignored",
@@ -100,7 +93,7 @@ func TestPreProcessorBundleExtraction(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]bundleRequest{},
+			expected: []string{},
 		},
 	}
 
