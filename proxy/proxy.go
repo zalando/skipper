@@ -1213,8 +1213,6 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 		ctx.proxyRequestElapsed = requestElapsed + requestStopWatch.Elapsed()
 		ctx.proxyResponseElapsed = responseElapsed + responseStopWatch.Elapsed()
 	}()
-	_, exist := pprof.Label(ctx.request.Context(), "trace_id")
-	fmt.Printf("trace_id %t in pprof label:\n", exist)
 
 	if ctx.executionCounter > p.maxLoops {
 		// TODO(sszuecs): think about setting status code to 463 or 465 (check what AWS ALB sets for redirect loop) or similar
