@@ -1,2 +1,2 @@
-Failed to get service myappv1, 80
+Failed to get service myappv1:80
 kind=Ingress name=myappv1 ns=default

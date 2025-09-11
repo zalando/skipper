@@ -96,7 +96,7 @@ func convertPathRuleV1(
 
 	svc, err = state.getService(ns, svcName)
 	if err != nil {
-		ic.logger.Errorf("Failed to get service %s, %s", svcName, svcPort)
+		ic.logger.Errorf("Failed to get service %s:%s", svcName, svcPort)
 		return nil, err
 	}
 
@@ -350,7 +350,7 @@ func (ing *ingress) convertDefaultBackendV1(
 
 	svc, err := state.getService(ns, svcName)
 	if err != nil {
-		ic.logger.Errorf("Failed to get service %s, %s", svcName, svcPort)
+		ic.logger.Errorf("Failed to get service %s:%s", svcName, svcPort)
 		return nil, false, err
 	}
 
