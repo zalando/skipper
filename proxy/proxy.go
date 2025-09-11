@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -1698,7 +1699,16 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))
 
+	rCtx := r.Context()
+	defer pprof.SetGoroutineLabels(rCtx)
+	defer r.WithContext(rCtx)
+
+	tCtx := pprof.WithLabels(r.Context(), pprof.Labels("trace_id", tracing.GetTraceID(span)))
+	pprof.SetGoroutineLabels(tCtx)
+	r = r.WithContext(tCtx)
+
 	ctx = newContext(lw, r, p)
+
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
