@@ -1,1 +1,1 @@
-level=error msg="Failed to get service bar, baz" kind=Ingress name=qux ns=foo
+level=error msg="Failed to get service bar:baz" kind=Ingress name=qux ns=foo

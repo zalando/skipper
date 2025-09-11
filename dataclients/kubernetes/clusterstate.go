@@ -43,7 +43,7 @@ func (state *clusterState) getServiceRG(namespace, name string) (*service, error
 	defer state.mu.Unlock()
 	s, ok := state.services[newResourceID(namespace, name)]
 	if !ok {
-		return nil, fmt.Errorf("service not found: %s/%s", namespace, name)
+		return nil, fmt.Errorf("%w: %s/%s", errServiceNotFound, namespace, name)
 	}
 
 	return s, nil
