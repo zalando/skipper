@@ -22,6 +22,9 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	otBridge "go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/zalando/skipper/circuit"
 	"github.com/zalando/skipper/dataclients/kubernetes"
@@ -46,6 +49,7 @@ import (
 	"github.com/zalando/skipper/logging"
 	"github.com/zalando/skipper/metrics"
 	skpnet "github.com/zalando/skipper/net"
+	sotel "github.com/zalando/skipper/otel"
 	pauth "github.com/zalando/skipper/predicates/auth"
 	"github.com/zalando/skipper/predicates/content"
 	"github.com/zalando/skipper/predicates/cookie"
@@ -74,6 +78,7 @@ import (
 const (
 	defaultSourcePollTimeout   = 30 * time.Millisecond
 	defaultRoutingUpdateBuffer = 1 << 5
+	otelTracerName             = "skipper"
 )
 
 const DefaultPluginDir = "./plugins"
@@ -731,6 +736,12 @@ type Options struct {
 	// OpenTracingTracer allows pre-created tracer to be passed on to skipper. Providing the
 	// tracer instance overrides options provided under OpenTracing property.
 	OpenTracingTracer ot.Tracer
+
+	// OpenTelemetry configures the OpenTelemetry pipeline.
+	// When set Skipper ignores OpenTracing and OpenTracingTracer options and configures OpenTracing bridge.
+	// If not specified, Skipper will use [otel.Tracer] function to get the OpenTelemetry tracer
+	// which could be a noop tracer or a wrapper tracer if library user configured OpenTracing bridge tracer.
+	OpenTelemetry *sotel.Options
 
 	// PluginDir defines the directory to load plugins from, DEPRECATED, use PluginDirs
 	PluginDir string
@@ -1640,10 +1651,38 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	o.PluginDirs = append(o.PluginDirs, o.PluginDir)
 
-	tracer, err := o.openTracingTracerInstance()
-	if err != nil {
-		return err
+	var (
+		tracer     ot.Tracer
+		otelTracer trace.Tracer
+	)
+
+	if o.OpenTelemetry != nil {
+		shutdown, err := sotel.Init(context.Background(), o.OpenTelemetry)
+		if err != nil {
+			return fmt.Errorf("failed to setup OpenTelemetry: %w", err)
+		}
+		defer shutdown(context.Background())
+
+		// Setup OpenTracing bridge tracer
+		bridgeTracer, wrapperTracerProvider := otBridge.NewTracerPair(otel.Tracer(otelTracerName))
+
+		bridgeTracer.SetWarningHandler(func(msg string) { log.Warnf("OpenTracing bridge warning: %s", msg) })
+		otel.SetTracerProvider(wrapperTracerProvider)
+
+		tracer = bridgeTracer
+		otelTracer = otel.Tracer(otelTracerName)
+
+		log.Info("OpenTelemetry configured")
+	} else {
+		tracer, err = o.openTracingTracerInstance()
+		if err != nil {
+			return err
+		}
+		// Could be a noop tracer or a wrapper if library user configured OpenTracing bridge tracer
+		otelTracer = otel.Tracer(otelTracerName)
 	}
+
+	_ = otelTracer // unused for now
 
 	// tee filters override with initialized tracer
 	o.CustomFilters = append(o.CustomFilters,
