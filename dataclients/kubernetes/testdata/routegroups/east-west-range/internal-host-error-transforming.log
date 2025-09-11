@@ -1,2 +1,2 @@
-Ignoring route: service not found: default/myapp
+Ignoring route: default/myapp: service not found
 kind=RouteGroup name=myapp
