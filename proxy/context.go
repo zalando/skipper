@@ -53,7 +53,6 @@ type context struct {
 	logger               filters.FilterContextLogger
 	proxyWatch           stopWatch
 	proxyRequestLatency  time.Duration
-	goCtx                *stdlibcontext.Context
 }
 
 type filterMetrics struct {

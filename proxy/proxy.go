@@ -1201,8 +1201,8 @@ func (p *Proxy) do(ctx *context, parentSpan ot.Span) (err error) {
 			err = perr
 		}
 	}()
-	traceIDCtx, _ := pprof.Label(*ctx.goCtx, "trace_id")
-	ctx.Logger().Debugf("trace id in goroutine context: %s", traceIDCtx)
+	_, exist := pprof.Label(ctx.request.Context(), "trace_id")
+	fmt.Printf("trace_id %t in pprof label:\n", exist)
 
 	if ctx.executionCounter > p.maxLoops {
 		// TODO(sszuecs): think about setting status code to 463 or 465 (check what AWS ALB sets for redirect loop) or similar
@@ -1637,25 +1637,19 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
 	r = r.WithContext(routing.NewContext(r.Context()))
 
+	rCtx := r.Context()
+	defer pprof.SetGoroutineLabels(rCtx)
+	defer r.WithContext(rCtx)
+	
+	tCtx := pprof.WithLabels(r.Context(), pprof.Labels("trace_id", tracing.GetTraceID(span)))
+	pprof.SetGoroutineLabels(tCtx)
+	r = r.WithContext(tCtx)
+
 	ctx = newContext(lw, r, p, proxyStopWatch)
 	ctx.startServe = time.Now()
 	ctx.tracer = p.tracing.tracer
 	ctx.initialSpan = span
 	ctx.parentSpan = span
-
-	traceID := tracing.GetTraceID(span)
-
-	gCtx := stdlibcontext.Background()
-
-	defer pprof.SetGoroutineLabels(gCtx)
-	labels := pprof.Labels("trace_id", traceID)
-	gCtx = pprof.WithLabels(gCtx, labels)
-	pprof.SetGoroutineLabels(gCtx)
-
-	ctx.goCtx = &gCtx
-
-	traceIDCtx, _ := pprof.Label(gCtx, "trace_id")
-	ctx.Logger().Debugf("trace id in goroutine context: %s", traceIDCtx)
 
 	defer func() {
 		if ctx.response != nil && ctx.response.Body != nil {
@@ -1665,7 +1659,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
-
 	err := p.do(ctx, span)
 
 	// writeTimeout() filter
