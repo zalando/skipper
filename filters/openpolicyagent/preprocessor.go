@@ -14,6 +14,8 @@ type opaPreProcessor struct {
 	registry    *OpenPolicyAgentRegistry
 	initialLoad sync.Once
 	mu          sync.Mutex
+
+	log logging.Logger
 }
 
 // NewPreProcessor creates a pre-processor that pre-loads OPA instances
@@ -21,6 +23,8 @@ type opaPreProcessor struct {
 func (registry *OpenPolicyAgentRegistry) NewPreProcessor() routing.PreProcessor {
 	return &opaPreProcessor{
 		registry: registry,
+
+		log: &logging.DefaultLog{},
 	}
 }
 
@@ -71,21 +75,34 @@ func (p *opaPreProcessor) isOpaFilter(filterName string) bool {
 
 func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 	var wg sync.WaitGroup
-	log := &logging.DefaultLog{}
 
 	for _, req := range bundles {
 		wg.Add(1)
-		go func(b string) {
+		go func(bundleName string) {
 			defer wg.Done()
 
-			// Use the new PrepareInstanceLoader approach
-			loader := p.registry.PrepareInstanceLoader(b)
-			_, err := loader()
+			inst, err := p.registry.getExistingInstance(bundleName)
 			if err != nil {
-				log.Errorf("Failed to load OPA instance for bundle '%s': %v", b, err)
-			} else {
-				log.Debugf("Successfully preloaded OPA instance for bundle '%s'", b)
+				p.log.Errorf("Failed to get existing OPA instance for bundle '%s': %v", bundleName, err)
 			}
+
+			if inst != nil {
+				// Instance already ready, skip
+				return
+			}
+
+			inst, err = p.registry.createAndCacheInstance(bundleName)
+			if err != nil {
+				p.log.Errorf("Failed to create OPA instance for bundle '%s': %v", bundleName, err)
+				return
+			}
+			err = inst.Start()
+			if err != nil {
+				p.log.Errorf("Failed to start OPA instance for bundle '%s': %v", bundleName, err)
+				return
+			}
+
+			p.log.Infof("Successfully preloaded OPA instance for bundle '%s'", bundleName)
 		}(req)
 	}
 
@@ -95,26 +112,34 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 
 // enqueueInstancesSequential enqueues new instances for sequential processing using background tasks
 func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
-	log := &logging.DefaultLog{}
-
 	for _, bundle := range bundles {
 		// Check if instance already exists to avoid unnecessary work
-		_, err := p.registry.GetOrStartInstance(bundle)
-		if err == nil {
+		inst, err := p.registry.getExistingInstance(bundle)
+
+		if err != nil {
+			p.log.Errorf("Failed to get existing OPA instance for bundle '%s': %v", bundle, err)
+			continue
+		}
+
+		if inst != nil {
 			// Instance already ready, skip
 			continue
 		}
 
-		// Schedule background task for sequential processing
-		_, err = p.registry.ScheduleBackgroundTask(func() (interface{}, error) {
-			return p.registry.PrepareInstanceLoader(bundle)()
-		})
-
+		inst, err = p.registry.createAndCacheInstance(bundle)
 		if err != nil {
-			log.Errorf("Failed to schedule OPA instance for bundle '%s': %v", bundle, err)
+			p.log.Errorf("Failed to create OPA instance for bundle '%s': %v", bundle, err)
 			continue
 		}
 
-		log.Debugf("Scheduled OPA instance for bundle '%s' for background loading", bundle)
+		// Schedule background task for sequential processing
+		_, err = p.registry.ScheduleBackgroundTask(inst.Start)
+
+		if err != nil {
+			p.log.Errorf("Failed to schedule OPA instance for bundle '%s': %v", bundle, err)
+			continue
+		}
+
+		p.log.Infof("Scheduled OPA instance for bundle '%s' for background loading", bundle)
 	}
 }

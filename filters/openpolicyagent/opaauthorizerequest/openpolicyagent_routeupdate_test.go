@@ -53,7 +53,7 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 				routes:            "",
 				expectedInstances: 0,
 				testPath:          "",
-				expectedStatus:    0,
+				expectedStatus:    http.StatusNotFound,
 			},
 			targetPhase: &testPhase{
 				routes:            `r1: Path("/initial") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
