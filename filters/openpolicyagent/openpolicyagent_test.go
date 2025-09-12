@@ -662,7 +662,7 @@ func TestOpaActivationFailureWithDiscoveryPointingWrongBundle(t *testing.T) {
 
 			instance, err := registry.GetOrStartInstance("test")
 			assert.Nil(t, instance)
-			assert.Equal(t, 0, len(registry.instances))
+			assert.Equal(t, false, registry.instances["test"].healthy.Load())
 
 			assert.Contains(t, err.Error(), tc.expectedError)
 
@@ -692,7 +692,7 @@ func TestOpaActivationTimeOutWithDiscoveryParsingError(t *testing.T) {
 			instance, err := registry.GetOrStartInstance("test")
 			assert.Nil(t, instance)
 			assert.Contains(t, err.Error(), tc.expectedError)
-			assert.Equal(t, 0, len(registry.instances))
+			assert.Equal(t, false, registry.instances["test"].healthy.Load())
 		})
 }
 
