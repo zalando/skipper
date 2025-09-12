@@ -3,7 +3,7 @@ package opaauthorizerequest
 import (
 	"encoding/json"
 	"errors"
-	log "github.com/sirupsen/logrus"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -75,8 +75,7 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 	// Try to get instance with new non-blocking approach
 	opa, err := s.registry.GetOrStartInstance(bundleName)
 	if err != nil {
-		log.Warnf("OPA instance not ready for bundle '%s', filter will return 503 until ready: %v", bundleName, err)
-		//return nil, fmt.Errorf("open policy agent instance for bundle name '%s' could not be obtained: %w", bundleName, err)
+		return nil, fmt.Errorf("open policy agent instance for bundle name '%s' could not be obtained: %w", bundleName, err)
 	}
 
 	return &opaAuthorizeRequestFilter{
@@ -84,7 +83,6 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		registry:               s.registry,
 		envoyContextExtensions: envoyContextExtensions,
 		bodyParsing:            s.bodyParsing,
-		bundleName:             bundleName,
 	}, nil
 }
 
@@ -93,22 +91,11 @@ type opaAuthorizeRequestFilter struct {
 	registry               *openpolicyagent.OpenPolicyAgentRegistry
 	envoyContextExtensions map[string]string
 	bodyParsing            bool
-	bundleName             string
 }
 
 func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	req := fc.Request()
-	if f.opa == nil {
-		if opa, err := f.registry.GetOrStartInstance(f.bundleName); err == nil { //ToDo?
-			f.opa = opa // Update the filter with the now-ready instance
-		} else {
-			// Still not ready, return 503
-			resp := http.Response{}
-			resp.StatusCode = http.StatusServiceUnavailable
-			fc.Serve(&resp)
-			return
-		}
-	}
+
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
 

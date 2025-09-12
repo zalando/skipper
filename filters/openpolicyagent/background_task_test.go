@@ -16,35 +16,29 @@ func TestBackgroundTaskSystem(t *testing.T) {
 	defer registry.Close()
 
 	t.Run("successful task", func(t *testing.T) {
-		expectedResult := "test result"
-		task, err := registry.ScheduleBackgroundTask(func() (interface{}, error) {
+		task, err := registry.ScheduleBackgroundTask(func() error {
 			time.Sleep(10 * time.Millisecond) // Simulate some work
-			return expectedResult, nil
+			return nil
 		})
 
 		assert.NoError(t, err, "Expected no error scheduling task")
 
-		result, err := task.Wait()
+		err = task.Wait()
 		assert.NoError(t, err, "Expected no error waiting for task")
-
-		if result != expectedResult {
-			t.Fatalf("Expected result %v, got: %v", expectedResult, result)
-		}
 	})
 
 	t.Run("task with error", func(t *testing.T) {
 		expectedError := errors.New("test error")
-		task, err := registry.ScheduleBackgroundTask(func() (interface{}, error) {
+		task, err := registry.ScheduleBackgroundTask(func() error {
 			time.Sleep(10 * time.Millisecond) // Simulate some work
-			return nil, expectedError
+			return expectedError
 		})
 
 		assert.NoError(t, err, "Expected no error scheduling task")
 
-		result, err := task.Wait()
+		err = task.Wait()
 		assert.Error(t, err, "Expected error waiting for task")
 		assert.Equal(t, expectedError, err, "Expected error to match")
-		assert.Nil(t, result, "Expected nil result")
 	})
 
 	t.Run("multiple tasks execute sequentially", func(t *testing.T) {
@@ -55,23 +49,20 @@ func TestBackgroundTaskSystem(t *testing.T) {
 		errs := make([]error, 3)
 		for i := 0; i < 3; i++ {
 			taskNum := i
-			tasks[i], errs[i] = registry.ScheduleBackgroundTask(func() (interface{}, error) {
+			tasks[i], errs[i] = registry.ScheduleBackgroundTask(func() error {
 				time.Sleep(10 * time.Millisecond) // Simulate some work
 				orderMutex.Lock()
 				executionOrder = append(executionOrder, taskNum)
 				orderMutex.Unlock()
-				return taskNum, nil
+				return nil
 			})
 		}
 
 		// Wait for all tasks to complete
 		for i, task := range tasks {
-			result, err := task.Wait()
+			err := task.Wait()
 			if err != nil {
 				t.Fatalf("Task %d failed: %v", i, err)
-			}
-			if result != i {
-				t.Fatalf("Task %d returned wrong result: expected %d, got %v", i, i, result)
 			}
 		}
 
