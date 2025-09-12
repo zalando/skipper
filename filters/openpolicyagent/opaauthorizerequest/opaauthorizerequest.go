@@ -3,6 +3,7 @@ package opaauthorizerequest
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -71,9 +72,10 @@ func (s *spec) CreateFilter(args []interface{}) (filters.Filter, error) {
 		}
 	}
 
-	opa, err := s.registry.NewOpenPolicyAgentInstance(bundleName, s.Name())
+	// Try to get instance with new non-blocking approach
+	opa, err := s.registry.GetOrStartInstance(bundleName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open policy agent instance for bundle name '%s' could not be obtained: %w", bundleName, err)
 	}
 
 	return &opaAuthorizeRequestFilter{
@@ -93,8 +95,14 @@ type opaAuthorizeRequestFilter struct {
 
 func (f *opaAuthorizeRequestFilter) Request(fc filters.FilterContext) {
 	req := fc.Request()
+
 	span, ctx := f.opa.StartSpanFromFilterContext(fc)
 	defer span.Finish()
+
+	if !f.opa.Healthy() {
+		f.opa.HandleInstanceNotReadyError(fc, span, !f.opa.EnvoyPluginConfig().DryRun)
+		return
+	}
 
 	var rawBodyBytes []byte
 	if f.bodyParsing {

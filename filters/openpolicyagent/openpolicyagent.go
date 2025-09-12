@@ -14,8 +14,11 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"google.golang.org/protobuf/proto"
 
@@ -62,6 +65,27 @@ const (
 	spanNameEval = "open-policy-agent"
 )
 
+type BackgroundTask struct {
+	fn   func() error
+	done chan struct{}
+	err  error
+	once sync.Once
+}
+
+// Wait blocks until the task completes and returns the result and error
+func (t *BackgroundTask) Wait() error {
+	<-t.done
+	return t.err
+}
+
+// execute runs the task function and stores the result
+func (t *BackgroundTask) execute() {
+	t.once.Do(func() {
+		defer close(t.done)
+		t.err = t.fn()
+	})
+}
+
 type OpenPolicyAgentRegistry struct {
 	// Ideally share one Bundle storage across many OPA "instances" using this registry.
 	// This allows to save memory on bundles that are shared
@@ -94,6 +118,17 @@ type OpenPolicyAgentRegistry struct {
 	enableDataPreProcessingOptimization bool
 
 	valueCache iCache.InterQueryValueCache
+
+	// New fields for pre-loading support
+	preloadingEnabled bool
+
+	// Track in-flight instance creation to prevent concurrent creation of the same bundle
+	inFlightCreation  map[string]chan *OpenPolicyAgentInstance
+	singleflightGroup singleflight.Group
+
+	// Background task system
+	backgroundTaskChan   chan *BackgroundTask
+	backgroundWorkerOnce sync.Once
 }
 
 type OpenPolicyAgentFilter interface {
@@ -205,6 +240,13 @@ func (registry *OpenPolicyAgentRegistry) initializeCache() error {
 	return nil
 }
 
+func WithPreloadingEnabled(enabled bool) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.preloadingEnabled = enabled
+		return nil
+	}
+}
+
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
 	registry := &OpenPolicyAgentRegistry{
 		reuseDuration:          defaultReuseDuration,
@@ -217,6 +259,8 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
 		controlLoopInterval:    DefaultControlLoopInterval,
 		controlLoopMaxJitter:   DefaultControlLoopMaxJitter,
+		inFlightCreation:       make(map[string]chan *OpenPolicyAgentInstance),
+		backgroundTaskChan:     make(chan *BackgroundTask, 100), // Buffered channel for background tasks
 	}
 
 	for _, opt := range opts {
@@ -338,11 +382,24 @@ func (registry *OpenPolicyAgentRegistry) Close() {
 
 		for _, instance := range registry.instances {
 			instance.Close(ctx)
+			registry.singleflightGroup.Forget(instance.bundleName)
 		}
 
 		registry.closed = true
 		close(registry.quit)
+
+		// Close background task channel
+		if registry.backgroundTaskChan != nil {
+			close(registry.backgroundTaskChan)
+		}
 	})
+}
+
+// GetInstanceCount returns the number of instances in the registry (thread-safe)
+func (registry *OpenPolicyAgentRegistry) GetInstanceCount() int {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	return len(registry.instances)
 }
 
 func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
@@ -364,6 +421,7 @@ func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 
 			delete(registry.instances, key)
 			delete(registry.lastused, inst)
+			registry.singleflightGroup.Forget(key)
 		}
 	}
 }
@@ -436,8 +494,39 @@ func (registry *OpenPolicyAgentRegistry) Do(routes []*routing.Route) []*routing.
 	return routes
 }
 
-// NewOpenPolicyAgentInstance returns an existing instance immediately, or creates one using registry config
-func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+// GetOrStartInstance returns an existing instance immediately, or creates one using registry config
+func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
+	// First check if instance already exists
+	instance, err := registry.getExistingInstance(bundleName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing OPA instance for bundle '%s': %w", bundleName, err)
+	}
+
+	if instance != nil {
+		// Instance already exists, return it
+		return instance, nil
+	}
+
+	if registry.preloadingEnabled {
+		//TODO: This is most likely a hard error in the sense that even an unhealthy instance could not be created.
+		// In preloading mode, if instance doesn't exist, it means it's not ready yet
+		return nil, fmt.Errorf("open policy agent instance for bundle '%s' is not ready yet", bundleName)
+	}
+
+	// In non-preloading mode, create and start the instance synchronously
+	inst, err := registry.createAndCacheInstance(bundleName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OPA instance for bundle '%s': %w", bundleName, err)
+	}
+	err = inst.Start()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start OPA instance for bundle '%s': %w", bundleName, err)
+	}
+
+	return inst, nil
+}
+
+func (registry *OpenPolicyAgentRegistry) getExistingInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 
@@ -450,13 +539,22 @@ func (registry *OpenPolicyAgentRegistry) NewOpenPolicyAgentInstance(bundleName s
 		return instance, nil
 	}
 
-	instance, err := registry.newOpenPolicyAgentInstance(bundleName, filterName)
+	return nil, nil
+}
+
+func (registry *OpenPolicyAgentRegistry) createAndCacheInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
+	// Create new OPA instance
+	inst, err := registry.newOpenPolicyAgentInstance(bundleName)
 	if err != nil {
 		return nil, err
 	}
-	registry.instances[bundleName] = instance
 
-	return instance, nil
+	// Cache instance
+	registry.mu.Lock()
+	registry.instances[bundleName] = inst
+	registry.mu.Unlock()
+
+	return inst, nil
 }
 
 func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentInstance]struct{}) {
@@ -470,26 +568,13 @@ func (registry *OpenPolicyAgentRegistry) markUnused(inUse map[*OpenPolicyAgentIn
 	}
 }
 
-func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string, filterName string) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) newOpenPolicyAgentInstance(bundleName string) (*OpenPolicyAgentInstance, error) {
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
-	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), filterName, bundleName,
+	engine, err := registry.new(inmem.NewWithOpts(inmem.OptReturnASTValuesOnRead(registry.enableDataPreProcessingOptimization)), bundleName,
 		registry.maxRequestBodyBytes, registry.bodyReadBufferSize)
 	if err != nil {
 		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), registry.instanceStartupTimeout)
-	defer cancel()
-
-	if registry.enableCustomControlLoop {
-		if err = engine.StartAndTriggerPlugins(ctx); err != nil {
-			return nil, err
-		}
-	} else {
-		if err = engine.Start(ctx, registry.instanceStartupTimeout); err != nil {
-			return nil, err
-		}
 	}
 
 	return engine, nil
@@ -508,6 +593,7 @@ type OpenPolicyAgentInstance struct {
 	once                        sync.Once
 	closing                     bool
 	registry                    *OpenPolicyAgentRegistry
+	healthy                     atomic.Bool
 
 	maxBodyBytes       int64
 	bodyReadBufferSize int64
@@ -562,7 +648,7 @@ func (registry *OpenPolicyAgentRegistry) withTracingOptions(bundleName string) f
 }
 
 // new returns a new OPA object.
-func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName string, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
+func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName string, maxBodyBytes int64, bodyReadBufferSize int64) (*OpenPolicyAgentInstance, error) {
 	id := uuid.New().String()
 	uniqueIDGenerator, err := flowid.NewStandardGenerator(32)
 	if err != nil {
@@ -582,7 +668,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName str
 	runtime.RegisterPlugin(envoy.PluginName, envoy.Factory{})
 
 	var logger logging.Logger = &QuietLogger{target: logging.Get()}
-	logger = logger.WithFields(map[string]interface{}{"skipper-filter": filterName, "bundle-name": bundleName})
+	logger = logger.WithFields(map[string]interface{}{"opa-bundle-name": bundleName})
 
 	configHooks := hooks.New()
 	if registry.enableCustomControlLoop {
@@ -620,13 +706,37 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, filterName str
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
+	manager.RegisterPluginStatusListener("instance-health-check", func(status map[string]*plugins.Status) {
+		opa.healthy.Store(allPluginsReady(status))
+	})
 
 	return opa, nil
 }
 
+func allPluginsReady(allPluginsStatus map[string]*plugins.Status) bool {
+	for _, status := range allPluginsStatus {
+		if status != nil && status.State != plugins.StateOK {
+			return false
+		}
+	}
+	return true
+}
+
+func (opa *OpenPolicyAgentInstance) Start() error {
+	ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
+	defer cancel()
+
+	if opa.registry.enableCustomControlLoop {
+		return opa.startAndTriggerPlugins(ctx)
+	} else {
+		return opa.start(ctx, opa.registry.instanceStartupTimeout)
+
+	}
+}
+
 // Start asynchronously starts the policy engine's plugins that download
 // policies, report status, etc.
-func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Duration) error {
+func (opa *OpenPolicyAgentInstance) start(ctx context.Context, timeout time.Duration) error {
 	err := opa.manager.Start(ctx)
 
 	if err != nil {
@@ -635,12 +745,7 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 
 	// check readiness of all plugins
 	pluginsReady := func() bool {
-		for _, status := range opa.manager.PluginStatus() {
-			if status != nil && status.State != plugins.StateOK {
-				return false
-			}
-		}
-		return true
+		return allPluginsReady(opa.manager.PluginStatus())
 	}
 
 	err = waitFunc(ctx, pluginsReady, 100*time.Millisecond)
@@ -661,8 +766,12 @@ func (opa *OpenPolicyAgentInstance) Start(ctx context.Context, timeout time.Dura
 	return nil
 }
 
+func (opa *OpenPolicyAgentInstance) Healthy() bool {
+	return opa.healthy.Load()
+}
+
 // StartAndTriggerPlugins Start starts the policy engine's plugin manager and triggers the plugins to download policies etc.
-func (opa *OpenPolicyAgentInstance) StartAndTriggerPlugins(ctx context.Context) error {
+func (opa *OpenPolicyAgentInstance) startAndTriggerPlugins(ctx context.Context) error {
 	err := opa.manager.Start(ctx)
 	if err != nil {
 		return err
@@ -1053,4 +1162,37 @@ func (l *QuietLogger) Error(fmt string, a ...interface{}) {
 
 func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
 	l.target.Warn(fmt, a)
+}
+
+// ScheduleBackgroundTask schedules a task to be executed in the background with limited parallelism (1)
+// Returns a BackgroundTask that can be used to wait for completion
+func (registry *OpenPolicyAgentRegistry) ScheduleBackgroundTask(fn func() error) (*BackgroundTask, error) {
+	task := &BackgroundTask{
+		fn:   fn,
+		done: make(chan struct{}),
+	}
+
+	// Start the background worker if not already started
+	registry.startBackgroundWorker()
+
+	// Send the task to the worker
+	select {
+	case registry.backgroundTaskChan <- task:
+		return task, nil
+	default:
+		return nil, fmt.Errorf("open policy agent background task queue is full, try again later")
+	}
+}
+
+// startBackgroundWorker starts the background worker goroutine (thread-safe, only starts once)
+func (registry *OpenPolicyAgentRegistry) startBackgroundWorker() {
+	registry.backgroundWorkerOnce.Do(func() {
+		go func() {
+			for task := range registry.backgroundTaskChan {
+				if task != nil {
+					task.execute()
+				}
+			}
+		}()
+	})
 }
