@@ -1,3 +1,4 @@
+// Package rfc provides filters to conform standards.
 package rfc
 
 import (

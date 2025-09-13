@@ -1,3 +1,5 @@
+// Package opaauthorizerequest provides filters that work on the
+// request path.
 package opaauthorizerequest
 
 import (

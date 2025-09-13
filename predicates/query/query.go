@@ -1,5 +1,5 @@
 /*
-Package source implements a custom predicate to match routes
+Package query  implements a custom predicate to match routes
 based on the Query Params in URL
 
 It supports checking existence of query params and also checking whether

@@ -1,3 +1,4 @@
+// Package xforward provides filters to change XFF headers.
 package xforward
 
 import (

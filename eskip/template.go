@@ -1,7 +1,3 @@
-// Package template provides a simple templating solution reusable in filters.
-//
-// (Note that the current template syntax is EXPERIMENTAL, and may change in
-// the near future.)
 package eskip
 
 import (

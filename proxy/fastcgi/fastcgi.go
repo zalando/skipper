@@ -1,3 +1,5 @@
+// Package fastcgi provides an http.RoundTripper, that allows to use
+// FastCGI to call backends.
 package fastcgi
 
 import (

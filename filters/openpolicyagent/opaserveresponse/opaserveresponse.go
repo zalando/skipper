@@ -1,3 +1,5 @@
+// Package opaserveresponse provides OPA filters that can respond to
+// the client.
 package opaserveresponse
 
 import (

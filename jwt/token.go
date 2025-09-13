@@ -1,3 +1,4 @@
+// Package jwt provides JWT related code, that is used in filters.
 package jwt
 
 import (

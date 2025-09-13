@@ -1,3 +1,6 @@
+// Package tee provides a predicate to be used in combination with
+// teeLoopback() filter to implement shadow traffic, that can be
+// scaled up and down, if used with Traffic() predicate.
 package tee
 
 import (

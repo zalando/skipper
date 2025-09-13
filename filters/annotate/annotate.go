@@ -1,3 +1,5 @@
+// Package annotate provides filters that allow to add annotations to
+// a route.
 package annotate
 
 import (
