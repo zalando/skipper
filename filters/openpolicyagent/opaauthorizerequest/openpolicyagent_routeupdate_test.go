@@ -19,14 +19,16 @@ import (
 	"github.com/zalando/skipper/tracing/tracingtest"
 )
 
-const routeUpdatePollingTimeout = 12 * time.Millisecond
-const startUpTimeOut = 1 * time.Second
+const (
+	routeUpdatePollingTimeout = 12 * time.Millisecond
+	startUpTimeOut            = 1 * time.Second
+)
 
 type testPhase struct {
-	routes            string
-	expectedInstances int
-	testPath          string
-	expectedStatus    int
+	routes         string
+	testPath       string
+	expectedStatus int
+	healthy        bool
 }
 
 func TestOpaRoutesAtRouteUpdate(t *testing.T) {
@@ -40,26 +42,25 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 			msg:        "Bootstrap with OPA route",
 			bundleName: "somebundle",
 			bootstrapPhase: testPhase{
-				routes:            `r1: Path("/initial") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
-				expectedInstances: 1,
-				testPath:          "/initial",
-				expectedStatus:    http.StatusNoContent,
+				routes:         `r1: Path("/initial") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
+				testPath:       "/initial",
+				expectedStatus: http.StatusNoContent,
+				healthy:        true,
 			},
 		},
 		{
 			msg:        "Bootstrap empty then update with OPA route",
 			bundleName: "somebundle",
 			bootstrapPhase: testPhase{
-				routes:            "",
-				expectedInstances: 0,
-				testPath:          "",
-				expectedStatus:    http.StatusNotFound,
+				routes:         "",
+				testPath:       "",
+				expectedStatus: http.StatusNotFound,
 			},
 			targetPhase: &testPhase{
-				routes:            `r1: Path("/initial") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
-				expectedInstances: 1,
-				testPath:          "/initial",
-				expectedStatus:    http.StatusNoContent,
+				routes:         `r1: Path("/initial") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>`,
+				testPath:       "/initial",
+				expectedStatus: http.StatusNoContent,
+				healthy:        true,
 			},
 		},
 		{
@@ -69,9 +70,9 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 				routes: `r1: Path("/secure") -> opaAuthorizeRequest("somebundle", "") -> status(204) -> <shunt>;
 							r2: Path("/public") -> status(200) -> <shunt>
 							`,
-				testPath:          "/public",
-				expectedInstances: 1,
-				expectedStatus:    http.StatusOK,
+				testPath:       "/public",
+				expectedStatus: http.StatusOK,
+				healthy:        true,
 			},
 		},
 	} {
@@ -150,7 +151,11 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 
 			// Check the initial state - following bootstrap test pattern
 			if ti.bootstrapPhase.routes != "" {
-				assert.Equal(t, ti.bootstrapPhase.expectedInstances, opaRegistry.GetInstanceCount())
+				assertOpaInstanceHealth(t, opaRegistry, ti.bundleName, ti.bootstrapPhase.healthy)
+				rsp, err := makeHTTPRequest(proxy, ti.bootstrapPhase.testPath)
+				require.NoError(t, err)
+				defer rsp.Body.Close()
+				assert.Equal(t, ti.bootstrapPhase.expectedStatus, rsp.StatusCode)
 			}
 
 			if ti.targetPhase != nil && ti.targetPhase.routes != "" {
@@ -159,12 +164,11 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 
 				require.Eventually(t, func() bool {
 					inst, err := opaRegistry.GetOrStartInstance(ti.bundleName)
-					return inst != nil && err == nil
+					return inst != nil && err == nil && inst.Healthy()
 				}, startUpTimeOut, routeUpdatePollingTimeout)
 
 				require.Eventually(t, func() bool {
-					req, _ := http.NewRequest("GET", proxy.URL+ti.targetPhase.testPath, nil)
-					rsp, err := proxy.Client().Do(req)
+					rsp, err := makeHTTPRequest(proxy, ti.targetPhase.testPath)
 					if err != nil {
 						return false
 					}
@@ -174,4 +178,16 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func makeHTTPRequest(proxy *proxytest.TestProxy, path string) (*http.Response, error) {
+	req, _ := http.NewRequest("GET", proxy.URL+path, nil)
+	return proxy.Client().Do(req)
+}
+
+func assertOpaInstanceHealth(t *testing.T, registry *openpolicyagent.OpenPolicyAgentRegistry, bundleName string, expectedHealth bool) {
+	inst, err := registry.GetOrStartInstance(bundleName)
+	require.NoError(t, err)
+	assert.NotNil(t, inst)
+	assert.Equal(t, expectedHealth, inst.Healthy())
 }
