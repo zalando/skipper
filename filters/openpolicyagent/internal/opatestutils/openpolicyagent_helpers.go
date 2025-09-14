@@ -1,89 +1,41 @@
 package opatestutils
 
 import (
-	"encoding/json"
 	"fmt"
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
+	"time"
 )
 
-// CreateBundleServers Helper function to create bundle servers
-func CreateBundleServers(bundles []string) []*opasdktest.Server {
-	var servers []*opasdktest.Server
-
-	for i, bundle := range bundles {
-		packageName := fmt.Sprintf("test%d", i+1)
-		server := opasdktest.MustNewServer(
-			opasdktest.MockBundle(fmt.Sprintf("/bundles/%s", bundle), map[string]string{
-				"main.rego": fmt.Sprintf(`
-					package %s
-					import rego.v1
-					default allow := false
-				`, packageName),
-				".manifest": fmt.Sprintf(`{
-					"roots": ["%s"]
-				}`, packageName),
-			}),
-		)
-		servers = append(servers, server)
-	}
-
-	return servers
-}
-
-// CreateMultiBundleConfig Helper function to create multi-bundle configuration
-func CreateMultiBundleConfig(servers []*opasdktest.Server) []byte {
-	services := make(map[string]interface{})
-	bundleConfigs := make(map[string]interface{})
-
-	for i, server := range servers {
-		bundleName := fmt.Sprintf("bundle%d", i+1)
-		services[bundleName] = map[string]string{"url": server.URL()}
-		bundleConfigs[bundleName] = map[string]string{
-			"resource": fmt.Sprintf("/bundles/%s", bundleName),
-			"service":  bundleName,
-		}
-	}
-
-	config := map[string]interface{}{
-		"services": services,
-		"bundles":  bundleConfigs,
-		"plugins": map[string]interface{}{
-			"envoy_ext_authz_grpc": map[string]interface{}{
-				"path":                    "envoy/authz/allow",
-				"dry-run":                 false,
-				"skip-request-body-parse": false,
-			},
-		},
-	}
-
-	configBytes, _ := json.Marshal(config)
-	return configBytes
-}
-
-// ControllableBundleServer Wrapper server with controllable availability:
+// ControllableBundleServer - A bundle server whose response code and response latency can be controlled for testing
 type ControllableBundleServer struct {
 	realServer  *opasdktest.Server
 	proxyServer *httptest.Server
-	available   atomic.Bool
+	respCode    atomic.Value // stores http status code (int)
+	delay       atomic.Value // stores time.Duration - artificial delay to apply to each bundle request before responding
 	bundleName  string
 }
 
-func StartControllableBundleServer(bundleName string) *ControllableBundleServer {
+func StartControllableBundleServer(bundleName string, respCode int) *ControllableBundleServer {
 	realSrv := CreateBundleServers([]string{bundleName})[0]
 	cbs := &ControllableBundleServer{
 		realServer: realSrv,
 		bundleName: bundleName,
 	}
-	cbs.available.Store(false) // initially unavailable
+	cbs.respCode.Store(respCode)
+	cbs.delay.Store(time.Duration(0))
 
 	cbs.proxyServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !cbs.available.Load() {
-			w.WriteHeader(http.StatusTooManyRequests) // 429
-			w.Write([]byte("Bundle temporarily unavailable"))
+		if delay, ok := cbs.delay.Load().(time.Duration); ok && delay > 0 {
+			time.Sleep(delay)
+		}
+
+		if cbs.respCode.Load().(int) != http.StatusOK {
+			w.WriteHeader(cbs.respCode.Load().(int))
+			w.Write([]byte("Bundle server error"))
 			return
 		}
 
@@ -109,8 +61,12 @@ func StartControllableBundleServer(bundleName string) *ControllableBundleServer 
 	return cbs
 }
 
-func (c *ControllableBundleServer) SetAvailable(yes bool) {
-	c.available.Store(yes)
+func (c *ControllableBundleServer) SetRespCode(respCode int) {
+	c.respCode.Store(respCode)
+}
+
+func (c *ControllableBundleServer) SetDelay(delay time.Duration) {
+	c.delay.Store(delay)
 }
 
 func (c *ControllableBundleServer) URL() string {
@@ -120,4 +76,57 @@ func (c *ControllableBundleServer) URL() string {
 func (c *ControllableBundleServer) Stop() {
 	c.proxyServer.Close()
 	c.realServer.Stop()
+}
+
+// StartMultipleControllableBundleServers - Helper to create multiple bundle servers
+func StartMultipleControllableBundleServers(bundleConfigs []BundleServerConfig) []*ControllableBundleServer {
+	var servers []*ControllableBundleServer
+	for _, config := range bundleConfigs {
+		server := StartControllableBundleServer(config.BundleName, config.RespCode)
+		if config.Delay > 0 {
+			server.SetDelay(config.Delay)
+		}
+		servers = append(servers, server)
+	}
+	return servers
+}
+
+type BundleServerConfig struct {
+	BundleName string
+	RespCode   int
+	Delay      time.Duration
+}
+
+// CreateBundleServers creates multiple OPA bundle servers for testing.
+// Creates a policy that allows access if input.parsed_path matches the bundle name.
+func CreateBundleServers(bundleNames []string) []*opasdktest.Server {
+	var servers []*opasdktest.Server
+	for i, bundleName := range bundleNames {
+		packageName := fmt.Sprintf("test%d", i+1)
+		server := opasdktest.MustNewServer(
+			opasdktest.MockBundle("/bundles/"+bundleName, map[string]string{
+				"main.rego": fmt.Sprintf(`
+					package %s
+					import rego.v1
+					default allow := false
+
+					allow if {
+						input.parsed_path == ["%s"]
+					}
+				`, packageName, bundleName),
+				".manifest": fmt.Sprintf(`{
+					"roots": ["%s"]
+				}`, packageName),
+			}),
+		)
+		servers = append(servers, server)
+	}
+	return servers
+}
+
+// StopBundleServers stops multiple bundle servers
+func StopBundleServers(servers []*opasdktest.Server) {
+	for _, server := range servers {
+		server.Stop()
+	}
 }
