@@ -1703,7 +1703,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer pprof.SetGoroutineLabels(rCtx)
 	defer r.WithContext(rCtx)
 
-	tCtx := pprof.WithLabels(r.Context(), pprof.Labels("trace_id", tracing.GetTraceID(span)))
+	tCtx := pprof.WithLabels(rCtx, pprof.Labels("trace_id", tracing.GetTraceID(span)))
 	pprof.SetGoroutineLabels(tCtx)
 	r = r.WithContext(tCtx)
 
