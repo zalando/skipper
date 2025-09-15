@@ -772,13 +772,17 @@ func (opa *OpenPolicyAgentInstance) startAndTriggerPlugins(ctx context.Context) 
 
 	err = opa.triggerPluginsWithRetry(ctx)
 	if err != nil {
-		opa.Close(ctx)
+		if !opa.registry.preloadingEnabled { //ToDo
+			opa.Close(ctx)
+		}
 		return err
 	}
 
 	err = opa.verifyAllPluginsStarted()
 	if err != nil {
-		opa.Close(ctx)
+		if !opa.registry.preloadingEnabled { //ToDo
+			opa.Close(ctx)
+		}
 		return err
 	}
 	return nil
