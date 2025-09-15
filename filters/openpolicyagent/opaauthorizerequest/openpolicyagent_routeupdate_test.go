@@ -197,7 +197,7 @@ func assertOpaInstanceHealth(t *testing.T, registry *openpolicyagent.OpenPolicyA
 
 // TestOpaRoutesWithSlowBundleServer simulates a slow OPA bundle server responding with a timeout failing the OPA filter
 // and returning 503. Non-OPA routes should be successfully added to the route table and work fine.
-func TestOpaRoutesWithSlowBundleServerNotBlockingOtherRoutes(t *testing.T) {
+func TestOpaRoutesWithSlowBundleServerNotBlockingOtherRouteUpdates(t *testing.T) {
 	bundleName := "slowbundle"
 
 	bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusGatewayTimeout)
@@ -245,61 +245,55 @@ func TestOpaRoutesWithSlowBundleServerNotBlockingOtherRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, rsp.StatusCode)
 }
 
-// ToDo adjust and enable when unhealthy instances can recover via retry routine
-//func TestOpaRoutesWithBundleServerRecovery(t *testing.T) {
-//	bundleName := "recoverybundle"
-//
-//	bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusTooManyRequests)
-//	defer bundleServer.Stop()
-//
-//	opaRegistry, fr := setupOpaTestEnvironment(t, bundleServer.URL())
-//
-//	initialRoutes := eskip.MustParse(`r1: Path("/recoverybundle") -> opaAuthorizeRequest("recoverybundle", "") -> status(204) -> <shunt>`)
-//	dc := testdataclient.New(initialRoutes)
-//	defer dc.Close()
-//
-//	preprocessor := opaRegistry.NewPreProcessor()
-//	proxy := proxytest.WithRoutingOptions(fr, routing.Options{
-//		FilterRegistry: fr,
-//		DataClients:    []routing.DataClient{dc},
-//		PreProcessors:  []routing.PreProcessor{preprocessor},
-//		PollTimeout:    routeUpdatePollingTimeout,
-//	})
-//	defer proxy.Close()
-//
-//	// Initially should be unhealthy
-//	assertOpaInstanceHealth(t, opaRegistry, bundleName, false)
-//
-//	// Initial request should fail
-//	rsp, err := makeHTTPRequest(proxy, "/recoverybundle")
-//	require.NoError(t, err)
-//	defer rsp.Body.Close()
-//	assert.Equal(t, http.StatusServiceUnavailable, rsp.StatusCode)
-//
-//	bundleServer.SetRespCode(http.StatusOK)
-//	print("Bundle server set to return 200 OK")
-//
-//	require.Eventually(t, func() bool {
-//		inst, err := opaRegistry.GetOrStartInstance(bundleName)
-//		return inst != nil && err == nil && !inst.Healthy()
-//	}, 5*time.Second, routeUpdatePollingTimeout)
-//
-//	// Request still fails as instance is not healthy yet
-//	require.Eventually(t, func() bool {
-//		rsp, err := makeHTTPRequest(proxy, "/recoverybundle")
-//		if err != nil {
-//			return false
-//		}
-//		defer rsp.Body.Close()
-//		return rsp.StatusCode == http.StatusNoContent
-//	}, 5*startUpTimeOut, routeUpdatePollingTimeout)
-//}
+// TestOpaRoutesWithBundleServerRecoveryBootstrap simulates a scenario where the OPA bundle server is unavailable at
+// Skipper bootstrap and recovers later. The OPA instance should become healthy and the OPA route should start working.
+func TestOpaRoutesWithBundleServerRecoveryBootstrap(t *testing.T) {
+	bundleName := "recoverybundle"
+
+	bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusTooManyRequests)
+	defer bundleServer.Stop()
+
+	opaRegistry, fr := setupOpaTestEnvironment(t, bundleServer.URL())
+
+	initialRoutes := eskip.MustParse(`r1: Path("/recoverybundle") -> opaAuthorizeRequest("recoverybundle", "") -> status(204) -> <shunt>`)
+	dc := testdataclient.New(initialRoutes)
+	defer dc.Close()
+
+	preprocessor := opaRegistry.NewPreProcessor()
+
+	proxy := proxytest.WithRoutingOptions(fr, routing.Options{
+		FilterRegistry: fr,
+		DataClients:    []routing.DataClient{dc},
+		PreProcessors:  []routing.PreProcessor{preprocessor},
+		PollTimeout:    routeUpdatePollingTimeout,
+	})
+	defer proxy.Close()
+
+	assertOpaInstanceHealth(t, opaRegistry, bundleName, false)
+
+	rsp, err := makeHTTPRequest(proxy, "/recoverybundle")
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+	assert.Equal(t, http.StatusServiceUnavailable, rsp.StatusCode)
+
+	bundleServer.SetRespCode(http.StatusOK)
+
+	require.Eventually(t, func() bool {
+		inst, err := opaRegistry.GetOrStartInstance(bundleName)
+		return inst != nil && err == nil && inst.Healthy()
+	}, startUpTimeOut, routeUpdatePollingTimeout)
+
+	rsp, err = makeHTTPRequest(proxy, "/recoverybundle")
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, rsp.StatusCode)
+}
 
 func setupOpaTestEnvironment(t *testing.T, bundleServerURL string) (*openpolicyagent.OpenPolicyAgentRegistry, filters.Registry) {
 	fr := make(filters.Registry)
 	config := []byte(fmt.Sprintf(`{
 		  "services": {"test": {"url": %q}},
-		  "bundles": {"test": {"resource": "/bundles/{{ .bundlename }}"}},
+          "bundles": {"test": {"resource": "/bundles/{{ .bundlename }}", "polling": {"min_delay_seconds": 1, "max_delay_seconds": 2}}},
 		  "plugins": {
 		   "envoy_ext_authz_grpc": {
 			"path": "test1/allow",
@@ -316,9 +310,12 @@ func setupOpaTestEnvironment(t *testing.T, bundleServerURL string) (*openpolicya
 		openpolicyagent.WithTracer(tracingtest.NewTracer()),
 		openpolicyagent.WithPreloadingEnabled(true),
 		openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
-		openpolicyagent.WithInstanceStartupTimeout(startUpTimeOut),
-		openpolicyagent.WithCleanInterval(5*time.Second),
-		openpolicyagent.WithReuseDuration(5*time.Second),
+		openpolicyagent.WithInstanceStartupTimeout(2*time.Second),
+		openpolicyagent.WithCleanInterval(5*time.Minute),
+		openpolicyagent.WithReuseDuration(5*time.Minute),
+		openpolicyagent.WithEnableCustomControlLoop(true),
+		openpolicyagent.WithControlLoopInterval(30*time.Millisecond),
+		openpolicyagent.WithControlLoopMaxJitter(3*time.Millisecond),
 	)
 	require.NoError(t, err)
 
