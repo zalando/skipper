@@ -437,3 +437,161 @@ func setupOpaTestEnvironment(t *testing.T, bundleServerURL string, enableControl
 
 	return opaRegistry, fr
 }
+
+// TestOpaRoutesWithBundleServerFailover simulates a scenario where the OPA bundle server becomes unavailable after
+// successfully serving bundles. The OPA instance should remain healthy and continue serving requests using the cached bundle.
+func TestOpaRoutesWithBundleServerFailover(t *testing.T) {
+	testCases := []struct {
+		msg               string
+		enableControlLoop bool
+	}{
+		{
+			msg:               "Bundle server failover - control loop disabled",
+			enableControlLoop: false,
+		},
+		{
+			msg:               "Bundle server failover - control loop enabled",
+			enableControlLoop: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.msg, func(t *testing.T) {
+			bundleName := "failoverbundle"
+
+			bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusOK)
+			defer bundleServer.Stop()
+
+			opaRegistry, fr := setupOpaTestEnvironment(t, bundleServer.URL(), tc.enableControlLoop)
+
+			initialRoutes := eskip.MustParse(`r1: Path("/failoverbundle") -> opaAuthorizeRequest("failoverbundle", "") -> status(204) -> <shunt>`)
+			dc := testdataclient.New(initialRoutes)
+			defer dc.Close()
+
+			preprocessor := opaRegistry.NewPreProcessor()
+			proxy := proxytest.WithRoutingOptionsWithWait(fr, routing.Options{
+				FilterRegistry: fr,
+				DataClients:    []routing.DataClient{dc},
+				PreProcessors:  []routing.PreProcessor{preprocessor},
+				PollTimeout:    routeUpdatePollingTimeout,
+			}, proxyWaitTime)
+			defer proxy.Close()
+
+			// Phase 1: Establish healthy state
+			require.Eventually(t, func() bool {
+				inst, err := opaRegistry.GetOrStartInstance(bundleName)
+				return inst != nil && err == nil && inst.Healthy()
+			}, startUpTimeOut, routeUpdatePollingTimeout)
+
+			rsp, err := makeHTTPRequest(proxy, "/failoverbundle")
+			require.NoError(t, err)
+			defer rsp.Body.Close()
+			assert.Equal(t, http.StatusNoContent, rsp.StatusCode)
+
+			bundleServer.SetRespCode(http.StatusServiceUnavailable)
+
+			time.Sleep(2 * startupTimeoutWithoutControlLoop) // Give time take effects
+
+			// Should still work with the cached bundle
+			inst, err := opaRegistry.GetOrStartInstance(bundleName)
+			assert.NoError(t, err)
+			assert.NotNil(t, inst)
+			assert.True(t, inst.Healthy(), "Healthy instance should remain healthy despite bundle server failure")
+
+			rsp, err = makeHTTPRequest(proxy, "/failoverbundle")
+			require.NoError(t, err)
+			defer rsp.Body.Close()
+			assert.Equal(t, http.StatusNoContent, rsp.StatusCode,
+				"Should continue serving requests with cached bundle after server failure")
+		})
+	}
+}
+
+// TestOpaRouteRemovalAndCleanup simulates a scenario where an OPA route is removed from the route table. OPA instance
+// should be cleaned up after the reuse duration if no other route requires it.
+func TestOpaRouteRemovalAndCleanup(t *testing.T) {
+	bundleName := "bundle"
+
+	bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusOK)
+	defer bundleServer.Stop()
+
+	fr := make(filters.Registry)
+	config := []byte(fmt.Sprintf(`{
+		  "services": {"test": {"url": %q}},
+          "bundles": {"test": {"resource": "/bundles/{{ .bundlename }}"}},
+		  "plugins": {
+		   "envoy_ext_authz_grpc": {
+			"path": "test1/allow",
+			"dry-run": false
+		   }
+		  }
+		 }`, bundleServer.URL()))
+
+	opts := []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error{
+		openpolicyagent.WithConfigTemplate(config),
+	}
+
+	var opaRegistry *openpolicyagent.OpenPolicyAgentRegistry
+	var err error
+
+	opaRegistry, err = openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithPreloadingEnabled(true),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
+		openpolicyagent.WithInstanceStartupTimeout(startupTimeoutWithoutControlLoop),
+		openpolicyagent.WithCleanInterval(3*time.Second),
+		openpolicyagent.WithReuseDuration(1*time.Second),
+	)
+
+	require.NoError(t, err)
+
+	ftSpec := NewOpaAuthorizeRequestSpec(opaRegistry)
+	fr.Register(ftSpec)
+	fr.Register(builtin.NewStatus())
+
+	routesDef := `
+		r1: Path("/bundle") -> opaAuthorizeRequest("bundle", "") -> status(204) -> <shunt>;
+		r2: Path("/simple") -> status(200) -> <shunt>
+	`
+	initialRoutes := eskip.MustParse(routesDef)
+	dc := testdataclient.New(initialRoutes)
+	defer dc.Close()
+
+	preprocessor := opaRegistry.NewPreProcessor()
+
+	proxy := proxytest.WithRoutingOptions(fr, routing.Options{
+		FilterRegistry: fr,
+		DataClients:    []routing.DataClient{dc},
+		PreProcessors:  []routing.PreProcessor{preprocessor},
+		PostProcessors: []routing.PostProcessor{opaRegistry},
+		PollTimeout:    routeUpdatePollingTimeout,
+	})
+
+	defer proxy.Close()
+
+	assertOpaInstanceHealth(t, opaRegistry, bundleName, true)
+
+	require.Eventually(t, func() bool {
+		inst, err := opaRegistry.GetOrStartInstance(bundleName)
+		return inst != nil && err == nil && inst.Healthy()
+	}, startUpTimeOut, routeUpdatePollingTimeout)
+
+	rsp, err := makeHTTPRequest(proxy, "/bundle")
+	require.NoError(t, err)
+	defer rsp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, rsp.StatusCode)
+
+	updatedRoutes := eskip.MustParse(`r2: Path("/simple") -> status(200) -> <shunt>`)
+	dc.Update(updatedRoutes, []string{"r1"})
+
+	require.Eventually(t, func() bool {
+		rsp, err = makeHTTPRequest(proxy, "/bundle")
+		require.NoError(t, err)
+		defer rsp.Body.Close()
+		return http.StatusNotFound == rsp.StatusCode
+	}, 2*routeUpdatePollingTimeout, routeUpdatePollingTimeout)
+
+	time.Sleep(6 * time.Second) // Wait for two cleanup cycles time
+	inst, err := opaRegistry.GetOrStartInstance(bundleName)
+	assert.Nil(t, inst, "OPA instance should be cleaned up after route removal and reuse duration")
+}

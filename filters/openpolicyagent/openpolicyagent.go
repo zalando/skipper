@@ -18,8 +18,6 @@ import (
 	"text/template"
 	"time"
 
-	"golang.org/x/sync/singleflight"
-
 	"google.golang.org/protobuf/proto"
 
 	ext_authz_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -123,8 +121,7 @@ type OpenPolicyAgentRegistry struct {
 	preloadingEnabled bool
 
 	// Track in-flight instance creation to prevent concurrent creation of the same bundle
-	inFlightCreation  map[string]chan *OpenPolicyAgentInstance
-	singleflightGroup singleflight.Group
+	inFlightCreation map[string]chan *OpenPolicyAgentInstance
 
 	// Background task system
 	backgroundTaskChan   chan *BackgroundTask
@@ -382,7 +379,6 @@ func (registry *OpenPolicyAgentRegistry) Close() {
 
 		for _, instance := range registry.instances {
 			instance.Close(ctx)
-			registry.singleflightGroup.Forget(instance.bundleName)
 		}
 
 		registry.closed = true
@@ -414,7 +410,6 @@ func (registry *OpenPolicyAgentRegistry) cleanUnusedInstances(t time.Time) {
 
 			delete(registry.instances, key)
 			delete(registry.lastused, inst)
-			registry.singleflightGroup.Forget(key)
 		}
 	}
 }
