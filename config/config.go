@@ -21,6 +21,7 @@ import (
 	"github.com/zalando/skipper/eskip"
 	"github.com/zalando/skipper/filters/openpolicyagent"
 	"github.com/zalando/skipper/net"
+	"github.com/zalando/skipper/otel"
 	"github.com/zalando/skipper/proxy"
 	"github.com/zalando/skipper/swarm"
 )
@@ -116,6 +117,8 @@ type Config struct {
 	AccessLogJSONEnabled                bool      `yaml:"access-log-json-enabled"`
 	AccessLogStripQuery                 bool      `yaml:"access-log-strip-query"`
 	SuppressRouteUpdateLogs             bool      `yaml:"suppress-route-update-logs"`
+
+	OpenTelemetry *otel.Options `yaml:"open-telemetry"`
 
 	// route sources:
 	EtcdUrls           string               `yaml:"etcd-urls"`
@@ -433,6 +436,8 @@ func NewConfig() *Config {
 	flag.BoolVar(&cfg.AccessLogJSONEnabled, "access-log-json-enabled", false, "when this flag is set, log in JSON format is used")
 	flag.BoolVar(&cfg.AccessLogStripQuery, "access-log-strip-query", false, "when this flag is set, the access log strips the query strings from the access log")
 	flag.BoolVar(&cfg.SuppressRouteUpdateLogs, "suppress-route-update-logs", false, "print only summaries on route updates/deletes")
+
+	flag.Var(newYamlFlag(&cfg.OpenTelemetry), "open-telemetry", "OpenTelemetry configuration in YAML format, use flow-style for convenience")
 
 	// route sources:
 	flag.StringVar(&cfg.EtcdUrls, "etcd-urls", "", "urls of nodes in an etcd cluster, storing route definitions")
@@ -849,6 +854,8 @@ func (c *Config) ToOptions() skipper.Options {
 		AccessLogJSONEnabled:                c.AccessLogJSONEnabled,
 		AccessLogStripQuery:                 c.AccessLogStripQuery,
 		SuppressRouteUpdateLogs:             c.SuppressRouteUpdateLogs,
+
+		OpenTelemetry: c.OpenTelemetry,
 
 		// route sources:
 		EtcdUrls:        eus,
