@@ -1,3 +1,6 @@
+// Package certregistry provides building blocks to have more than one
+// certificate and use SNI to select the right certificate for the
+// request.
 package certregistry
 
 import (
@@ -25,7 +28,7 @@ func NewCertRegistry() *CertRegistry {
 	}
 }
 
-// Configures certificate for the host if no configuration exists or
+// ConfigureCertificate for the host if no configuration exists or
 // if certificate is valid (`NotBefore` field) after previously configured certificate.
 func (r *CertRegistry) ConfigureCertificate(host string, cert *tls.Certificate) error {
 	if cert == nil {
