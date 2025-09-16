@@ -29,6 +29,7 @@ import (
 	"github.com/open-policy-agent/opa/v1/hooks"
 	"github.com/open-policy-agent/opa/v1/logging"
 	"github.com/open-policy-agent/opa/v1/plugins"
+	"github.com/open-policy-agent/opa/v1/plugins/bundle"
 	"github.com/open-policy-agent/opa/v1/plugins/discovery"
 	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/open-policy-agent/opa/v1/runtime"
@@ -256,7 +257,6 @@ func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*
 		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
 		controlLoopInterval:    DefaultControlLoopInterval,
 		controlLoopMaxJitter:   DefaultControlLoopMaxJitter,
-		inFlightCreation:       make(map[string]chan *OpenPolicyAgentInstance),
 		backgroundTaskChan:     make(chan *BackgroundTask, 100), // Buffered channel for background tasks
 	}
 
@@ -669,12 +669,12 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		return nil, err
 	}
 
-	discovery, err := discovery.New(manager, discovery.Factories(map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}), discovery.Hooks(configHooks))
+	discoveryPlugin, err := discovery.New(manager, discovery.Factories(map[string]plugins.Factory{envoy.PluginName: envoy.Factory{}}), discovery.Hooks(configHooks))
 	if err != nil {
 		return nil, err
 	}
 
-	manager.Register("discovery", discovery)
+	manager.Register("discovery", discoveryPlugin)
 
 	opa := &OpenPolicyAgentInstance{
 		registry:       registry,
@@ -695,14 +695,19 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
 	manager.RegisterPluginStatusListener("instance-health-check", func(status map[string]*plugins.Status) {
-		opa.healthy.Store(allPluginsReady(status))
+		opa.healthy.Store(allPluginsReady(status, bundle.Name, discovery.Name))
+		opa.Logger().Info("Instance health updated: healthy=%t", opa.healthy.Load())
 	})
 
 	return opa, nil
 }
 
-func allPluginsReady(allPluginsStatus map[string]*plugins.Status) bool {
-	for _, status := range allPluginsStatus {
+func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ...string) bool {
+	for pluginName, status := range allPluginsStatus {
+		if pluginNames != nil && !slices.Contains(pluginNames, pluginName) {
+			continue
+		}
+
 		if status != nil && status.State != plugins.StateOK {
 			return false
 		}
@@ -748,7 +753,9 @@ func (opa *OpenPolicyAgentInstance) start(ctx context.Context, timeout time.Dura
 				}).Error("Open policy agent plugin did not start in time")
 			}
 		}
-		opa.Close(ctx)
+		if !opa.registry.preloadingEnabled {
+			opa.Close(ctx)
+		}
 		return fmt.Errorf("one or more open policy agent plugins failed to start in %v with error: %w", timeout, err)
 	}
 	return nil
@@ -767,7 +774,7 @@ func (opa *OpenPolicyAgentInstance) startAndTriggerPlugins(ctx context.Context) 
 
 	err = opa.triggerPluginsWithRetry(ctx)
 	if err != nil {
-		if !opa.registry.preloadingEnabled { //ToDo
+		if !opa.registry.preloadingEnabled {
 			opa.Close(ctx)
 		}
 		return err
@@ -775,7 +782,7 @@ func (opa *OpenPolicyAgentInstance) startAndTriggerPlugins(ctx context.Context) 
 
 	err = opa.verifyAllPluginsStarted()
 	if err != nil {
-		if !opa.registry.preloadingEnabled { //ToDo
+		if !opa.registry.preloadingEnabled {
 			opa.Close(ctx)
 		}
 		return err
