@@ -298,21 +298,23 @@ func TestOpaRoutesWithBundleServerRecoveryBootstrap(t *testing.T) {
 			defer rsp.Body.Close()
 			assert.Equal(t, http.StatusServiceUnavailable, rsp.StatusCode)
 
-			if !tc.enableControlLoop { //ToDo confirm if this is the desired behavior
-				// In the bootstrap case without control loop, the instance can't recover unless the bundle server
-				//recovers within the startup timeout
-				inst, err := opaRegistry.GetOrStartInstance(bundleName)
-				assert.NotNil(t, inst)
-				assert.NoError(t, err)
-				return
+			maxOpaPollingInterval := 2 * time.Second
+			if !tc.enableControlLoop {
+				time.Sleep(startupTimeoutWithoutControlLoop) //Let the startup timeout pass as the plugin picks up the recovered bundle within this time
+				bundleServer.SetRespCode(http.StatusOK)
+
+				require.Eventually(t, func() bool {
+					inst, err := opaRegistry.GetOrStartInstance(bundleName)
+					return inst != nil && err == nil && inst.Healthy()
+				}, maxOpaPollingInterval, routeUpdatePollingTimeout) // When control loop is disabled, OPA inbuilt polling is used to download the bundle
+			} else {
+				bundleServer.SetRespCode(http.StatusOK)
+
+				require.Eventually(t, func() bool {
+					inst, err := opaRegistry.GetOrStartInstance(bundleName)
+					return inst != nil && err == nil && inst.Healthy()
+				}, startUpTimeOut, routeUpdatePollingTimeout)
 			}
-
-			bundleServer.SetRespCode(http.StatusOK)
-
-			require.Eventually(t, func() bool {
-				inst, err := opaRegistry.GetOrStartInstance(bundleName)
-				return inst != nil && err == nil && inst.Healthy()
-			}, startUpTimeOut, routeUpdatePollingTimeout)
 
 			rsp, err = makeHTTPRequest(proxy, "/recoverybundle")
 			require.NoError(t, err)
