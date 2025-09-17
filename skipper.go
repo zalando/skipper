@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/zalando/skipper/validation/webhook"
 	"io"
 	"net"
 	"net/http"
@@ -16,6 +17,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/zalando/skipper/validation"
 
 	stdlog "log"
 
@@ -985,6 +988,10 @@ type Options struct {
 	OpenPolicyAgentMaxMemoryBodyParsing                int64
 
 	PassiveHealthCheck map[string]string
+
+	// ValidationWebhookEnabled enables the validation webhook server
+	ValidationWebhookEnabled bool
+	ValidationWebhookConfig  validation.Config
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
@@ -2223,6 +2230,14 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 	// wait for the first route configuration to be loaded if enabled:
 	<-routing.FirstLoad()
 	log.Info("Dataclients are updated once, first load complete")
+
+	// start validation webhook server if enabled
+	if o.ValidationWebhookEnabled {
+		runner := webhook.NewRunner(mtr)
+		if err = runner.StartValidation(o.ValidationWebhookConfig, ro.FilterRegistry, ro.Predicates); err != nil {
+			log.Fatalf("Failed to start validation webhook: %v", err)
+		}
+	}
 
 	return listenAndServeQuit(o.CustomHttpHandlerWrap(proxy), &o, sig, idleConnsCH, mtr, cr)
 }
