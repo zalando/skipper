@@ -1,2 +1,2 @@
-Ignoring route: service not found: foo/non-existent
+Ignoring route: foo/non-existent: service not found
 kind=RouteGroup name=myapp-no-service ns=foo
