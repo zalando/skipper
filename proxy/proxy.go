@@ -1644,121 +1644,118 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	span := p.tracing.tracer.StartSpan(p.tracing.initialOperationName, spanOpts...)
 
-	defer func() {
-		if ctx != nil && ctx.proxySpan != nil {
-			ctx.proxySpan.Finish()
+	sCtx := stdlibcontext.Background()
+
+	pprof.Do(sCtx, pprof.Labels("trace_id", tracing.GetTraceID(span)), func(sCtx stdlibcontext.Context) {
+
+		defer func() {
+			if ctx != nil && ctx.proxySpan != nil {
+				ctx.proxySpan.Finish()
+			}
+			span.Finish()
+			requestStopWatch.Stop()
+			responseStopWatch.Stop()
+
+			p.metrics.MeasureProxy(requestElapsed+requestStopWatch.Elapsed(), responseElapsed+responseStopWatch.Elapsed())
+		}()
+
+		defer func() {
+			accessLogEnabled, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
+
+			if !ok {
+				if p.accessLogDisabled {
+					accessLogEnabled = &disabledAccessLog
+				} else {
+					accessLogEnabled = &enabledAccessLog
+				}
+			}
+
+			statusCode := lw.GetCode()
+
+			if shouldLog(statusCode, accessLogEnabled) {
+				authUser, _ := ctx.stateBag[filterslog.AuthUserKey].(string)
+				entry := &logging.AccessEntry{
+					Request:      r,
+					ResponseSize: lw.GetBytes(),
+					StatusCode:   statusCode,
+					RequestTime:  ctx.startServe,
+					Duration:     time.Since(ctx.startServe),
+					AuthUser:     authUser,
+				}
+
+				additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
+
+				logging.LogAccess(entry, additionalData)
+			}
+
+			// This flush is required in I/O error
+			if !ctx.successfulUpgrade {
+				lw.Flush()
+			}
+		}()
+
+		if p.flags.patchPath() {
+			r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
 		}
-		span.Finish()
+
+		p.tracing.setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
+		p.setCommonSpanInfo(r.URL, r, span)
+		r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
+		r = r.WithContext(routing.NewContext(r.Context()))
+
+		ctx = newContext(lw, r, p)
+		ctx.startServe = time.Now()
+		ctx.tracer = p.tracing.tracer
+		ctx.initialSpan = span
+		ctx.parentSpan = span
+
+		defer func() {
+			if ctx.response != nil && ctx.response.Body != nil {
+				err := ctx.response.Body.Close()
+				if err != nil {
+					ctx.Logger().Errorf("error during closing the response body: %v", err)
+				}
+			}
+		}()
+
 		requestStopWatch.Stop()
+		err := p.do(ctx, span)
+
+		requestElapsed += ctx.proxyRequestElapsed
+		responseElapsed += ctx.proxyResponseElapsed
+
+		responseStopWatch.Start()
+
+		// writeTimeout() filter
+		if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
+			e := ctx.ResponseController().SetWriteDeadline(time.Now().Add(d))
+			if e != nil {
+				ctx.Logger().Errorf("Failed to set write deadline: %v", e)
+			}
+		}
+
 		responseStopWatch.Stop()
-
-		p.metrics.MeasureProxy(requestElapsed+requestStopWatch.Elapsed(), responseElapsed+responseStopWatch.Elapsed())
-	}()
-
-	defer func() {
-		accessLogEnabled, ok := ctx.stateBag[al.AccessLogEnabledKey].(*al.AccessLogFilter)
-
-		if !ok {
-			if p.accessLogDisabled {
-				accessLogEnabled = &disabledAccessLog
-			} else {
-				accessLogEnabled = &enabledAccessLog
+		// stream response body to client
+		if err != nil {
+			p.errorResponse(ctx, err)
+		} else {
+			p.serveResponse(ctx)
+		}
+		responseElapsed += ctx.proxyResponseElapsed
+		responseStopWatch.Start()
+		// fifoWithBody() filter
+		if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
+			if fs, ok := sbf.([]func()); ok {
+				for i := len(fs) - 1; i >= 0; i-- {
+					fs[i]()
+				}
 			}
 		}
 
-		statusCode := lw.GetCode()
-
-		if shouldLog(statusCode, accessLogEnabled) {
-			authUser, _ := ctx.stateBag[filterslog.AuthUserKey].(string)
-			entry := &logging.AccessEntry{
-				Request:      r,
-				ResponseSize: lw.GetBytes(),
-				StatusCode:   statusCode,
-				RequestTime:  ctx.startServe,
-				Duration:     time.Since(ctx.startServe),
-				AuthUser:     authUser,
-			}
-
-			additionalData, _ := ctx.stateBag[al.AccessLogAdditionalDataKey].(map[string]interface{})
-
-			logging.LogAccess(entry, additionalData)
+		if ctx.cancelBackendContext != nil {
+			ctx.cancelBackendContext()
 		}
-
-		// This flush is required in I/O error
-		if !ctx.successfulUpgrade {
-			lw.Flush()
-		}
-	}()
-
-	if p.flags.patchPath() {
-		r.URL.Path = rfc.PatchPath(r.URL.Path, r.URL.RawPath)
-	}
-
-	p.tracing.setTag(span, HTTPRemoteIPTag, stripPort(r.RemoteAddr))
-	p.setCommonSpanInfo(r.URL, r, span)
-	r = r.WithContext(ot.ContextWithSpan(r.Context(), span))
-	r = r.WithContext(routing.NewContext(r.Context()))
-
-	rCtx := r.Context()
-	defer pprof.SetGoroutineLabels(rCtx)
-
-	tCtx := pprof.WithLabels(rCtx, pprof.Labels("trace_id", tracing.GetTraceID(span)))
-	pprof.SetGoroutineLabels(tCtx)
-	r = r.WithContext(tCtx)
-
-	ctx = newContext(lw, r, p)
-	ctx.startServe = time.Now()
-	ctx.tracer = p.tracing.tracer
-	ctx.initialSpan = span
-	ctx.parentSpan = span
-
-	defer func() {
-		if ctx.response != nil && ctx.response.Body != nil {
-			err := ctx.response.Body.Close()
-			if err != nil {
-				ctx.Logger().Errorf("error during closing the response body: %v", err)
-			}
-		}
-	}()
-
-	requestStopWatch.Stop()
-
-	err := p.do(ctx, span)
-
-	requestElapsed += ctx.proxyRequestElapsed
-	responseElapsed += ctx.proxyResponseElapsed
-
-	responseStopWatch.Start()
-
-	// writeTimeout() filter
-	if d, ok := ctx.StateBag()[filters.WriteTimeout].(time.Duration); ok {
-		e := ctx.ResponseController().SetWriteDeadline(time.Now().Add(d))
-		if e != nil {
-			ctx.Logger().Errorf("Failed to set write deadline: %v", e)
-		}
-	}
-
-	responseStopWatch.Stop()
-	// stream response body to client
-	if err != nil {
-		p.errorResponse(ctx, err)
-	} else {
-		p.serveResponse(ctx)
-	}
-	responseElapsed += ctx.proxyResponseElapsed
-	responseStopWatch.Start()
-	// fifoWithBody() filter
-	if sbf, ok := ctx.StateBag()[filters.FifoWithBodyName]; ok {
-		if fs, ok := sbf.([]func()); ok {
-			for i := len(fs) - 1; i >= 0; i-- {
-				fs[i]()
-			}
-		}
-	}
-
-	if ctx.cancelBackendContext != nil {
-		ctx.cancelBackendContext()
-	}
+	})
 }
 
 // Close causes the proxy to stop closing idle
