@@ -587,8 +587,7 @@ type OpenPolicyAgentInstance struct {
 	interQueryBuiltinValueCache iCache.InterQueryValueCache
 	closingOnce                 sync.Once
 	closing                     bool
-	startedOnce                 sync.Once
-	started                     bool
+	started                     atomic.Bool
 	registry                    *OpenPolicyAgentRegistry
 	healthy                     atomic.Bool
 
@@ -727,19 +726,15 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 func (opa *OpenPolicyAgentInstance) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 	defer cancel()
-	defer opa.startedOnce.Do(func() {
-		opa.started = true
-	})
 
-	if opa.started {
-		return nil //started instances shouldn't be started again
+	if opa.started.CompareAndSwap(false, true) {
+		if opa.registry.enableCustomControlLoop {
+			return opa.startAndTriggerPlugins(ctx)
+		} else {
+			return opa.start(ctx, opa.registry.instanceStartupTimeout)
+		}
 	}
-
-	if opa.registry.enableCustomControlLoop {
-		return opa.startAndTriggerPlugins(ctx)
-	} else {
-		return opa.start(ctx, opa.registry.instanceStartupTimeout)
-	}
+	return nil // already started
 }
 
 // Start asynchronously starts the policy engine's plugins that download
@@ -781,7 +776,7 @@ func (opa *OpenPolicyAgentInstance) Healthy() bool {
 }
 
 func (opa *OpenPolicyAgentInstance) Started() bool {
-	return opa.started
+	return opa.started.Load()
 }
 
 // StartAndTriggerPlugins Start starts the policy engine's plugin manager and triggers the plugins to download policies etc.

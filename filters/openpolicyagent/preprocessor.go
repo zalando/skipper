@@ -122,7 +122,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 		}
 
 		if inst != nil {
-			if !inst.started {
+			if !inst.Started() {
 				if err := inst.Start(); err != nil {
 					p.log.Errorf("Failed to start OPA instance for bundle '%s': %v", bundle, err)
 				}
