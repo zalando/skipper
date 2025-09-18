@@ -204,7 +204,7 @@ func assertOpaInstanceHealth(t *testing.T, registry *openpolicyagent.OpenPolicyA
 func TestOpaRoutesWithSlowBundleServerNotBlockingOtherRouteUpdates(t *testing.T) {
 	bundleName := "slowbundle"
 
-	bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusGatewayTimeout)
+	bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusGatewayTimeout})
 	bundleServer.SetDelay(5 * time.Second)
 	defer bundleServer.Stop()
 
@@ -270,7 +270,7 @@ func TestOpaRoutesWithBundleServerRecoveryBootstrap(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			bundleName := "recoverybundle"
 
-			bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusTooManyRequests)
+			bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusTooManyRequests})
 			defer bundleServer.Stop()
 
 			opaRegistry, fr := setupOpaTestEnvironment(t, bundleServer.URL(), tc.enableControlLoop)
@@ -345,7 +345,7 @@ func TestOpaRoutesWithBundleServerRecoveryRouteUpdates(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			bundleName := "recoverybundle"
 
-			bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusGatewayTimeout)
+			bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusGatewayTimeout})
 			defer bundleServer.Stop()
 
 			// Bootstrap phase: start with a simple route
@@ -461,7 +461,7 @@ func TestOpaRoutesWithBundleServerFailover(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			bundleName := "failoverbundle"
 
-			bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusOK)
+			bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusOK})
 			defer bundleServer.Stop()
 
 			opaRegistry, fr := setupOpaTestEnvironment(t, bundleServer.URL(), tc.enableControlLoop)
@@ -514,7 +514,7 @@ func TestOpaRoutesWithBundleServerFailover(t *testing.T) {
 func TestOpaRouteRemovalAndCleanup(t *testing.T) {
 	bundleName := "bundle"
 
-	bundleServer := opatestutils.StartControllableBundleServer(bundleName, http.StatusOK)
+	bundleServer := opatestutils.StartControllableBundleServer(opatestutils.BundleServerConfig{BundleName: bundleName, RespCode: http.StatusOK})
 	defer bundleServer.Stop()
 
 	fr := make(filters.Registry)
@@ -596,4 +596,98 @@ func TestOpaRouteRemovalAndCleanup(t *testing.T) {
 	time.Sleep(6 * time.Second) // Wait for two cleanup cycles time
 	inst, err := opaRegistry.GetOrStartInstance(bundleName)
 	assert.Nil(t, inst, "OPA instance should be cleaned up after route removal and reuse duration")
+}
+
+// TestExceedingBackgroundTaskBuffer tests multiple bundles being handled in the background task exceeding the buffer size.
+func TestExceedingBackgroundTaskBuffer(t *testing.T) {
+	// Use multiple bundles to trigger multiple background tasks
+	bundleConfigs := []opatestutils.BundleServerConfig{{
+		BundleName: "bundle1", RespCode: http.StatusOK,
+	}, {
+		BundleName: "bundle2", RespCode: http.StatusServiceUnavailable,
+	}, {
+		BundleName: "bundle3", RespCode: http.StatusUnauthorized,
+	}, {
+		BundleName: "bundle4", RespCode: http.StatusGatewayTimeout,
+	}}
+
+	bundleServer, controller := opatestutils.StartMultiBundleProxyServer(bundleConfigs)
+	defer controller.Stop(bundleServer, controller.Servers)
+
+	// Bootstrap phase
+	initialRoutes := []*eskip.Route{}
+	dc := testdataclient.New(initialRoutes)
+	defer dc.Close()
+
+	fr := make(filters.Registry)
+
+	config := []byte(fmt.Sprintf(`{
+		  "services": {"test": {"url": %q}},
+          "bundles": {"test": {"resource": "/bundles/{{ .bundlename }}"}},
+		  "plugins": {
+		   "envoy_ext_authz_grpc": {
+			"path": "test1/allow",
+			"dry-run": false
+		   }
+		  }
+		 }`, bundleServer.URL))
+
+	opts := []func(*openpolicyagent.OpenPolicyAgentInstanceConfig) error{
+		openpolicyagent.WithConfigTemplate(config),
+	}
+
+	opaRegistry, err := openpolicyagent.NewOpenPolicyAgentRegistry(
+		openpolicyagent.WithTracer(tracingtest.NewTracer()),
+		openpolicyagent.WithPreloadingEnabled(true),
+		openpolicyagent.WithOpenPolicyAgentInstanceConfig(opts...),
+		openpolicyagent.WithInstanceStartupTimeout(startUpTimeOut),
+		openpolicyagent.WithCleanInterval(cleanInterval),
+		openpolicyagent.WithReuseDuration(reuseDuration),
+		openpolicyagent.WithBackgroundTaskBufferSize(1), // Small buffer to test queuing
+	)
+	require.NoError(t, err)
+
+	ftSpec := NewOpaAuthorizeRequestSpec(opaRegistry)
+	fr.Register(ftSpec)
+	fr.Register(builtin.NewStatus())
+	preprocessor := opaRegistry.NewPreProcessor()
+	proxy := proxytest.WithRoutingOptions(fr, routing.Options{
+		FilterRegistry: fr,
+		DataClients:    []routing.DataClient{dc},
+		PreProcessors:  []routing.PreProcessor{preprocessor},
+		PollTimeout:    routeUpdatePollingTimeout,
+	})
+	defer proxy.Close()
+
+	routesDef := `
+		r1: Path("/bundle1") -> opaAuthorizeRequest("bundle1", "") -> status(204) -> <shunt>;
+	r2: Path("/bundle2") -> opaAuthorizeRequest("bundle2", "") -> status(204) -> <shunt>;
+	r3: Path("/bundle3") -> opaAuthorizeRequest("bundle3", "") -> status(204) -> <shunt>;
+	r4: Path("/bundle4") -> opaAuthorizeRequest("bundle4", "") -> status(204) -> <shunt>`
+	updatedRoutes := eskip.MustParse(routesDef)
+	dc.Update(updatedRoutes, nil)
+
+	// bundle1 should eventually become healthy
+	require.Eventually(t, func() bool {
+		inst, err := opaRegistry.GetOrStartInstance("bundle1")
+		return inst != nil && err == nil && inst.Healthy()
+	}, startUpTimeOut, routeUpdatePollingTimeout)
+
+	require.Eventually(t, func() bool {
+		inst2, _ := opaRegistry.GetOrStartInstance("bundle2")
+		inst3, _ := opaRegistry.GetOrStartInstance("bundle3")
+		inst4, _ := opaRegistry.GetOrStartInstance("bundle4")
+
+		return inst2 != nil && inst2.Started() && inst3 != nil && inst3.Started() && inst4 != nil && inst4.Started()
+	}, 3*startUpTimeOut, routeUpdatePollingTimeout)
+
+	controller.SetStatus("bundle2", http.StatusOK)
+	controller.SetStatus("bundle3", http.StatusOK)
+	controller.SetStatus("bundle4", http.StatusOK)
+	require.Eventually(t, func() bool {
+		inst2, _ := opaRegistry.GetOrStartInstance("bundle2")
+		inst3, _ := opaRegistry.GetOrStartInstance("bundle3")
+		inst4, _ := opaRegistry.GetOrStartInstance("bundle4")
+		return inst2 != nil && inst2.Healthy() && inst3 != nil && inst3.Healthy() && inst4 != nil && inst4.Healthy()
+	}, startUpTimeOut, routeUpdatePollingTimeout)
 }
