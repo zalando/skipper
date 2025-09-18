@@ -50,12 +50,13 @@ import (
 )
 
 const (
-	DefaultCleanIdlePeriod      = 10 * time.Second
-	DefaultControlLoopInterval  = 60 * time.Second
-	DefaultControlLoopMaxJitter = 1000 * time.Millisecond
-	defaultReuseDuration        = 30 * time.Second
-	defaultShutdownGracePeriod  = 30 * time.Second
-	DefaultOpaStartupTimeout    = 30 * time.Second
+	DefaultCleanIdlePeriod          = 10 * time.Second
+	DefaultControlLoopInterval      = 60 * time.Second
+	DefaultControlLoopMaxJitter     = 1000 * time.Millisecond
+	defaultReuseDuration            = 30 * time.Second
+	defaultShutdownGracePeriod      = 30 * time.Second
+	DefaultOpaStartupTimeout        = 30 * time.Second
+	DefaultBackgroundTaskBufferSize = 100
 
 	DefaultMaxRequestBodySize    = 1 << 20 // 1 MB
 	DefaultMaxMemoryBodyParsing  = 100 * DefaultMaxRequestBodySize
@@ -121,12 +122,10 @@ type OpenPolicyAgentRegistry struct {
 	// New fields for pre-loading support
 	preloadingEnabled bool
 
-	// Track in-flight instance creation to prevent concurrent creation of the same bundle
-	inFlightCreation map[string]chan *OpenPolicyAgentInstance
-
 	// Background task system
-	backgroundTaskChan   chan *BackgroundTask
-	backgroundWorkerOnce sync.Once
+	backgroundTaskChan       chan *BackgroundTask
+	backgroundWorkerOnce     sync.Once
+	backgroundTaskBufferSize int
 }
 
 type OpenPolicyAgentFilter interface {
@@ -245,24 +244,32 @@ func WithPreloadingEnabled(enabled bool) func(*OpenPolicyAgentRegistry) error {
 	}
 }
 
+func WithBackgroundTaskBufferSize(size int) func(*OpenPolicyAgentRegistry) error {
+	return func(cfg *OpenPolicyAgentRegistry) error {
+		cfg.backgroundTaskBufferSize = size
+		return nil
+	}
+}
+
 func NewOpenPolicyAgentRegistry(opts ...func(*OpenPolicyAgentRegistry) error) (*OpenPolicyAgentRegistry, error) {
 	registry := &OpenPolicyAgentRegistry{
-		reuseDuration:          defaultReuseDuration,
-		cleanInterval:          DefaultCleanIdlePeriod,
-		instanceStartupTimeout: DefaultOpaStartupTimeout,
-		instances:              make(map[string]*OpenPolicyAgentInstance),
-		lastused:               make(map[*OpenPolicyAgentInstance]time.Time),
-		quit:                   make(chan struct{}),
-		maxRequestBodyBytes:    DefaultMaxMemoryBodyParsing,
-		bodyReadBufferSize:     DefaultRequestBodyBufferSize,
-		controlLoopInterval:    DefaultControlLoopInterval,
-		controlLoopMaxJitter:   DefaultControlLoopMaxJitter,
-		backgroundTaskChan:     make(chan *BackgroundTask, 100), // Buffered channel for background tasks
+		reuseDuration:            defaultReuseDuration,
+		cleanInterval:            DefaultCleanIdlePeriod,
+		instanceStartupTimeout:   DefaultOpaStartupTimeout,
+		instances:                make(map[string]*OpenPolicyAgentInstance),
+		lastused:                 make(map[*OpenPolicyAgentInstance]time.Time),
+		quit:                     make(chan struct{}),
+		maxRequestBodyBytes:      DefaultMaxMemoryBodyParsing,
+		bodyReadBufferSize:       DefaultRequestBodyBufferSize,
+		controlLoopInterval:      DefaultControlLoopInterval,
+		controlLoopMaxJitter:     DefaultControlLoopMaxJitter,
+		backgroundTaskBufferSize: DefaultBackgroundTaskBufferSize,
 	}
 
 	for _, opt := range opts {
 		opt(registry)
 	}
+	registry.backgroundTaskChan = make(chan *BackgroundTask, registry.backgroundTaskBufferSize)
 
 	if registry.configTemplate == nil {
 		config, err := NewOpenPolicyAgentConfig()
@@ -578,8 +585,10 @@ type OpenPolicyAgentInstance struct {
 	preparedQueryErr            error
 	interQueryBuiltinCache      iCache.InterQueryCache
 	interQueryBuiltinValueCache iCache.InterQueryValueCache
-	once                        sync.Once
+	closingOnce                 sync.Once
 	closing                     bool
+	startedOnce                 sync.Once
+	started                     bool
 	registry                    *OpenPolicyAgentRegistry
 	healthy                     atomic.Bool
 
@@ -718,12 +727,18 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 func (opa *OpenPolicyAgentInstance) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 	defer cancel()
+	defer opa.startedOnce.Do(func() {
+		opa.started = true
+	})
+
+	if opa.started {
+		return nil //started instances shouldn't be started again
+	}
 
 	if opa.registry.enableCustomControlLoop {
 		return opa.startAndTriggerPlugins(ctx)
 	} else {
 		return opa.start(ctx, opa.registry.instanceStartupTimeout)
-
 	}
 }
 
@@ -763,6 +778,10 @@ func (opa *OpenPolicyAgentInstance) start(ctx context.Context, timeout time.Dura
 
 func (opa *OpenPolicyAgentInstance) Healthy() bool {
 	return opa.healthy.Load()
+}
+
+func (opa *OpenPolicyAgentInstance) Started() bool {
+	return opa.started
 }
 
 // StartAndTriggerPlugins Start starts the policy engine's plugin manager and triggers the plugins to download policies etc.
@@ -873,7 +892,7 @@ func (opa *OpenPolicyAgentInstance) triggerPlugins(ctx context.Context) error {
 }
 
 func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
-	opa.once.Do(func() {
+	opa.closingOnce.Do(func() {
 		opa.closing = true
 		opa.manager.Stop(ctx)
 	})

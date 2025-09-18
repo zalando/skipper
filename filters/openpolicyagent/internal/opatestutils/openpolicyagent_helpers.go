@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -19,13 +20,14 @@ type ControllableBundleServer struct {
 	bundleName  string
 }
 
-func StartControllableBundleServer(bundleName string, respCode int) *ControllableBundleServer {
-	realSrv := CreateBundleServers([]string{bundleName})[0]
+func StartControllableBundleServer(config BundleServerConfig) *ControllableBundleServer {
+	bundleName := config.BundleName
+	realSrvs := CreateBundleServers([]string{bundleName})
 	cbs := &ControllableBundleServer{
-		realServer: realSrv,
+		realServer: realSrvs[bundleName],
 		bundleName: bundleName,
 	}
-	cbs.respCode.Store(respCode)
+	cbs.respCode.Store(config.RespCode)
 	cbs.delay.Store(time.Duration(0))
 
 	cbs.proxyServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -78,19 +80,6 @@ func (c *ControllableBundleServer) Stop() {
 	c.realServer.Stop()
 }
 
-// StartMultipleControllableBundleServers - Helper to create multiple bundle servers
-func StartMultipleControllableBundleServers(bundleConfigs []BundleServerConfig) []*ControllableBundleServer {
-	var servers []*ControllableBundleServer
-	for _, config := range bundleConfigs {
-		server := StartControllableBundleServer(config.BundleName, config.RespCode)
-		if config.Delay > 0 {
-			server.SetDelay(config.Delay)
-		}
-		servers = append(servers, server)
-	}
-	return servers
-}
-
 type BundleServerConfig struct {
 	BundleName string
 	RespCode   int
@@ -99,8 +88,8 @@ type BundleServerConfig struct {
 
 // CreateBundleServers creates multiple OPA bundle servers for testing.
 // Creates a policy that allows access if input.parsed_path matches the bundle name.
-func CreateBundleServers(bundleNames []string) []*opasdktest.Server {
-	var servers []*opasdktest.Server
+func CreateBundleServers(bundleNames []string) map[string]*opasdktest.Server {
+	servers := make(map[string]*opasdktest.Server)
 	for i, bundleName := range bundleNames {
 		packageName := fmt.Sprintf("test%d", i+1)
 		server := opasdktest.MustNewServer(
@@ -119,14 +108,88 @@ func CreateBundleServers(bundleNames []string) []*opasdktest.Server {
 				}`, packageName),
 			}),
 		)
-		servers = append(servers, server)
+		servers[bundleName] = server
 	}
 	return servers
 }
 
 // StopBundleServers stops multiple bundle servers
-func StopBundleServers(servers []*opasdktest.Server) {
-	for _, server := range servers {
-		server.Stop()
+func (c *MultiBundleProxyController) Stop(proxy *httptest.Server, servers map[string]*opasdktest.Server) {
+	proxy.Close()
+	for _, srv := range servers {
+		srv.Stop()
 	}
+}
+
+type MultiBundleProxyController struct {
+	StatusMap map[string]*atomic.Value
+	DelayMap  map[string]*atomic.Value
+	Servers   map[string]*opasdktest.Server
+}
+
+func (c *MultiBundleProxyController) SetStatus(bundleName string, code int) {
+	if v, ok := c.StatusMap[bundleName]; ok {
+		v.Store(code)
+	}
+}
+func (c *MultiBundleProxyController) SetDelay(bundleName string, delay time.Duration) {
+	if v, ok := c.DelayMap[bundleName]; ok {
+		v.Store(delay)
+	}
+}
+
+// StartMultiBundleProxyServer starts a proxy server that routes requests to multiple controllable bundle servers.
+// ToDo clean up
+func StartMultiBundleProxyServer(bundleConfigs []BundleServerConfig) (*httptest.Server, *MultiBundleProxyController) {
+	bundleNames := make([]string, 0, len(bundleConfigs))
+	statusMap := make(map[string]*atomic.Value)
+	delayMap := make(map[string]*atomic.Value)
+	for _, config := range bundleConfigs {
+		bundleNames = append(bundleNames, config.BundleName)
+		status := &atomic.Value{}
+		status.Store(config.RespCode)
+		statusMap[config.BundleName] = status
+
+		delay := &atomic.Value{}
+		delay.Store(config.Delay)
+		delayMap[config.BundleName] = delay
+	}
+	servers := CreateBundleServers(bundleNames)
+	controller := &MultiBundleProxyController{StatusMap: statusMap, DelayMap: delayMap, Servers: servers}
+
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bundleName := strings.TrimPrefix(r.URL.Path, "/bundles/")
+		realSrv, ok := servers[bundleName]
+		status, okStatus := statusMap[bundleName]
+		delay, okDelay := delayMap[bundleName]
+		if !ok || !okStatus || !okDelay {
+			http.NotFound(w, r)
+			return
+		}
+		if d, ok := delay.Load().(time.Duration); ok && d > 0 {
+			time.Sleep(d)
+		}
+		if status.Load().(int) != http.StatusOK {
+			w.WriteHeader(status.Load().(int))
+			w.Write([]byte("Bundle server error"))
+			return
+		}
+		proxyURL := realSrv.URL() + r.URL.Path
+		resp, err := http.Get(proxyURL)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Failed to fetch bundle"))
+			return
+		}
+		defer resp.Body.Close()
+		for k, vv := range resp.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	}))
+
+	return proxy, controller
 }
