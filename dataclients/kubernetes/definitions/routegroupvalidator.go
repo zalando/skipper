@@ -21,31 +21,19 @@ func NewRouteGroupValidator(validator validation.EskipValidator) *RouteGroupVali
 }
 
 func (rgv *RouteGroupValidator) ValidateFilters(ctx validation.ResourceContext, filters []*eskip.Filter) error {
-	if rgv.validator != nil {
-		return rgv.validator.ValidateFilters(ctx, filters)
-	}
-	return nil
+	return rgv.validator.ValidateFilters(ctx, filters)
 }
 
 func (rgv *RouteGroupValidator) ValidatePredicates(ctx validation.ResourceContext, predicates []*eskip.Predicate) error {
-	if rgv.validator != nil {
-		return rgv.validator.ValidatePredicates(ctx, predicates)
-	}
-	return nil
+	return rgv.validator.ValidatePredicates(ctx, predicates)
 }
 
 func (rgv *RouteGroupValidator) ValidateRoute(ctx validation.ResourceContext, routes []*eskip.Route) error {
-	if rgv.validator != nil {
-		return rgv.validator.ValidateRoute(ctx, routes)
-	}
-	return nil
+	return rgv.validator.ValidateRoute(ctx, routes)
 }
 
 func (rgv *RouteGroupValidator) ValidateBackend(ctx validation.ResourceContext, backend string, backendType eskip.BackendType) error {
-	if rgv.validator != nil {
-		return rgv.validator.ValidateBackend(ctx, backend, backendType)
-	}
-	return nil
+	return rgv.validator.ValidateBackend(ctx, backend, backendType)
 }
 
 var (

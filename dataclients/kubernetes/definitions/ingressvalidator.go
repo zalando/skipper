@@ -20,31 +20,19 @@ func NewIngressV1Validator(validator validation.EskipValidator) *IngressV1Valida
 }
 
 func (igv *IngressV1Validator) ValidateFilters(ctx validation.ResourceContext, filters []*eskip.Filter) error {
-	if igv.validator != nil {
-		return igv.validator.ValidateFilters(ctx, filters)
-	}
-	return nil
+	return igv.validator.ValidateFilters(ctx, filters)
 }
 
 func (igv *IngressV1Validator) ValidatePredicates(ctx validation.ResourceContext, predicates []*eskip.Predicate) error {
-	if igv.validator != nil {
-		return igv.validator.ValidatePredicates(ctx, predicates)
-	}
-	return nil
+	return igv.validator.ValidatePredicates(ctx, predicates)
 }
 
 func (igv *IngressV1Validator) ValidateRoute(ctx validation.ResourceContext, routes []*eskip.Route) error {
-	if igv.validator != nil {
-		return igv.validator.ValidateRoute(ctx, routes)
-	}
-	return nil
+	return igv.validator.ValidateRoute(ctx, routes)
 }
 
 func (igv *IngressV1Validator) ValidateBackend(ctx validation.ResourceContext, backend string, backendType eskip.BackendType) error {
-	if igv.validator != nil {
-		return igv.validator.ValidateBackend(ctx, backend, backendType)
-	}
-	return nil
+	return igv.validator.ValidateBackend(ctx, backend, backendType)
 }
 
 func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
