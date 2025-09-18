@@ -726,15 +726,13 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 func (opa *OpenPolicyAgentInstance) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 	defer cancel()
+	defer opa.started.Store(true)
 
-	if opa.started.CompareAndSwap(false, true) {
-		if opa.registry.enableCustomControlLoop {
-			return opa.startAndTriggerPlugins(ctx)
-		} else {
-			return opa.start(ctx, opa.registry.instanceStartupTimeout)
-		}
+	if opa.registry.enableCustomControlLoop {
+		return opa.startAndTriggerPlugins(ctx)
+	} else {
+		return opa.start(ctx, opa.registry.instanceStartupTimeout)
 	}
-	return nil // already started
 }
 
 // Start asynchronously starts the policy engine's plugins that download
