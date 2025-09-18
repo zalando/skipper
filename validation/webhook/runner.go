@@ -30,10 +30,10 @@ func (r *Runner) StartValidation(config validation.Config, filterRegistry filter
 
 	validator := validation.NewComprehensiveValidator(filterRegistry, predicateSpecs, r.metrics)
 	rgAdmitter := &admission.RouteGroupAdmitter{
-		RouteGroupValidator: &definitions.RouteGroupValidator{EskipValidator: validator},
+		RouteGroupValidator: definitions.NewRouteGroupValidator(validator),
 	}
 	ingressAdmitter := &admission.IngressAdmitter{
-		IngressValidator: &definitions.IngressV1Validator{EskipValidator: validator},
+		IngressValidator: definitions.NewIngressV1Validator(validator),
 	}
 
 	mux.Handle("/routegroups", admission.Handler(rgAdmitter))

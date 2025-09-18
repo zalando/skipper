@@ -3,14 +3,49 @@ package definitions
 import (
 	"errors"
 	"fmt"
-	"github.com/zalando/skipper/validation"
 	"net/url"
+
+	"github.com/zalando/skipper/validation"
 
 	"github.com/zalando/skipper/eskip"
 )
 
 type RouteGroupValidator struct {
-	validation.EskipValidator
+	validator validation.EskipValidator
+}
+
+func NewRouteGroupValidator(validator validation.EskipValidator) *RouteGroupValidator {
+	return &RouteGroupValidator{
+		validator: validator,
+	}
+}
+
+func (rgv *RouteGroupValidator) ValidateFilters(ctx validation.ResourceContext, filters []*eskip.Filter) error {
+	if rgv.validator != nil {
+		return rgv.validator.ValidateFilters(ctx, filters)
+	}
+	return nil
+}
+
+func (rgv *RouteGroupValidator) ValidatePredicates(ctx validation.ResourceContext, predicates []*eskip.Predicate) error {
+	if rgv.validator != nil {
+		return rgv.validator.ValidatePredicates(ctx, predicates)
+	}
+	return nil
+}
+
+func (rgv *RouteGroupValidator) ValidateRoute(ctx validation.ResourceContext, routes []*eskip.Route) error {
+	if rgv.validator != nil {
+		return rgv.validator.ValidateRoute(ctx, routes)
+	}
+	return nil
+}
+
+func (rgv *RouteGroupValidator) ValidateBackend(ctx validation.ResourceContext, backend string, backendType eskip.BackendType) error {
+	if rgv.validator != nil {
+		return rgv.validator.ValidateBackend(ctx, backend, backendType)
+	}
+	return nil
 }
 
 var (
@@ -75,16 +110,16 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 				errs = append(errs, err)
 			} else if len(filters) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSingleFilterExpected, f))
-			} else if rgv.EskipValidator != nil {
-				ctx := validation.ResourceContext{
-					ResourceType: validation.ResourceTypeRouteGroup,
-					Namespace:    item.Metadata.Namespace,
-					Name:         item.Metadata.Name,
-				}
-				if err := rgv.EskipValidator.ValidateFilters(ctx, filters); err != nil {
-					errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
-				}
 			}
+			ctx := validation.ResourceContext{
+				ResourceType: validation.ResourceTypeRouteGroup,
+				Namespace:    item.Metadata.Namespace,
+				Name:         item.Metadata.Name,
+			}
+			if err := rgv.ValidateFilters(ctx, filters); err != nil {
+				errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
+			}
+
 		}
 	}
 
@@ -100,13 +135,13 @@ func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 				errs = append(errs, err)
 			} else if len(predicates) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
-			} else if rgv.EskipValidator != nil {
+			} else {
 				ctx := validation.ResourceContext{
 					ResourceType: validation.ResourceTypeRouteGroup,
 					Namespace:    item.Metadata.Namespace,
 					Name:         item.Metadata.Name,
 				}
-				if err := rgv.EskipValidator.ValidatePredicates(ctx, predicates); err != nil {
+				if err := rgv.ValidatePredicates(ctx, predicates); err != nil {
 					errs = append(errs, fmt.Errorf("invalid predicate %q: %w", p, err))
 				}
 			}
@@ -127,15 +162,13 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 					errs = append(errs, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address))
 				}
 			}
-			if rgv.EskipValidator != nil {
-				ctx := validation.ResourceContext{
-					ResourceType: validation.ResourceTypeRouteGroup,
-					Namespace:    item.Metadata.Namespace,
-					Name:         item.Metadata.Name,
-				}
-				if err := rgv.EskipValidator.ValidateBackend(ctx, backend.Address, backend.Type); err != nil {
-					errs = append(errs, fmt.Errorf("invalid backend %q: %w", backend.Address, err))
-				}
+			ctx := validation.ResourceContext{
+				ResourceType: validation.ResourceTypeRouteGroup,
+				Namespace:    item.Metadata.Namespace,
+				Name:         item.Metadata.Name,
+			}
+			if err := rgv.ValidateBackend(ctx, backend.Address, backend.Type); err != nil {
+				errs = append(errs, fmt.Errorf("invalid backend %q: %w", backend.Address, err))
 			}
 		}
 	}
