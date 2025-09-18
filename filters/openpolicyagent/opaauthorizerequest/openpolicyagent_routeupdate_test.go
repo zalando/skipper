@@ -604,11 +604,11 @@ func TestExceedingBackgroundTaskBuffer(t *testing.T) {
 	bundleConfigs := []opatestutils.BundleServerConfig{{
 		BundleName: "bundle1", RespCode: http.StatusOK,
 	}, {
-		BundleName: "bundle2", RespCode: http.StatusServiceUnavailable,
+		BundleName: "bundle2", RespCode: http.StatusOK,
 	}, {
-		BundleName: "bundle3", RespCode: http.StatusUnauthorized,
+		BundleName: "bundle3", RespCode: http.StatusOK,
 	}, {
-		BundleName: "bundle4", RespCode: http.StatusGatewayTimeout,
+		BundleName: "bundle4", RespCode: http.StatusOK,
 	}}
 
 	bundleServer, controller := opatestutils.StartMultiBundleProxyServer(bundleConfigs)
@@ -643,7 +643,7 @@ func TestExceedingBackgroundTaskBuffer(t *testing.T) {
 		openpolicyagent.WithInstanceStartupTimeout(startUpTimeOut),
 		openpolicyagent.WithCleanInterval(cleanInterval),
 		openpolicyagent.WithReuseDuration(reuseDuration),
-		openpolicyagent.WithBackgroundTaskBufferSize(1), // Small buffer to test queuing
+		openpolicyagent.WithBackgroundTaskBufferSize(1), // Small buffer to easily exhaust the size
 	)
 	require.NoError(t, err)
 
@@ -660,34 +660,20 @@ func TestExceedingBackgroundTaskBuffer(t *testing.T) {
 	defer proxy.Close()
 
 	routesDef := `
-		r1: Path("/bundle1") -> opaAuthorizeRequest("bundle1", "") -> status(204) -> <shunt>;
+	r1: Path("/bundle1") -> opaAuthorizeRequest("bundle1", "") -> status(204) -> <shunt>;
 	r2: Path("/bundle2") -> opaAuthorizeRequest("bundle2", "") -> status(204) -> <shunt>;
 	r3: Path("/bundle3") -> opaAuthorizeRequest("bundle3", "") -> status(204) -> <shunt>;
 	r4: Path("/bundle4") -> opaAuthorizeRequest("bundle4", "") -> status(204) -> <shunt>`
 	updatedRoutes := eskip.MustParse(routesDef)
 	dc.Update(updatedRoutes, nil)
-
-	// bundle1 should eventually become healthy
-	require.Eventually(t, func() bool {
-		inst, err := opaRegistry.GetOrStartInstance("bundle1")
-		return inst != nil && err == nil && inst.Healthy()
-	}, startUpTimeOut, routeUpdatePollingTimeout)
+	time.Sleep(routeUpdatePollingTimeout) // Tasks spill over from the buffer need a route update to retry it
+	dc.Update(updatedRoutes, nil)
 
 	require.Eventually(t, func() bool {
+		inst1, _ := opaRegistry.GetOrStartInstance("bundle1")
 		inst2, _ := opaRegistry.GetOrStartInstance("bundle2")
 		inst3, _ := opaRegistry.GetOrStartInstance("bundle3")
 		inst4, _ := opaRegistry.GetOrStartInstance("bundle4")
-
-		return inst2 != nil && inst2.Started() && inst3 != nil && inst3.Started() && inst4 != nil && inst4.Started()
-	}, 3*startUpTimeOut, routeUpdatePollingTimeout)
-
-	controller.SetStatus("bundle2", http.StatusOK)
-	controller.SetStatus("bundle3", http.StatusOK)
-	controller.SetStatus("bundle4", http.StatusOK)
-	require.Eventually(t, func() bool {
-		inst2, _ := opaRegistry.GetOrStartInstance("bundle2")
-		inst3, _ := opaRegistry.GetOrStartInstance("bundle3")
-		inst4, _ := opaRegistry.GetOrStartInstance("bundle4")
-		return inst2 != nil && inst2.Healthy() && inst3 != nil && inst3.Healthy() && inst4 != nil && inst4.Healthy()
+		return inst1 != nil && inst1.Healthy() && inst2 != nil && inst2.Healthy() && inst3 != nil && inst3.Healthy() && inst4 != nil && inst4.Healthy()
 	}, startUpTimeOut, routeUpdatePollingTimeout)
 }

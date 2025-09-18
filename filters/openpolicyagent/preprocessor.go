@@ -122,7 +122,11 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 		}
 
 		if inst != nil {
-			// Instance already ready, skip
+			if !inst.started {
+				if err := inst.Start(); err != nil {
+					p.log.Errorf("Failed to start OPA instance for bundle '%s': %v", bundle, err)
+				}
+			}
 			continue
 		}
 
@@ -136,12 +140,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 		_, err = p.registry.ScheduleBackgroundTask(inst.Start)
 
 		if err != nil {
-			p.log.Errorf("Failed to schedule OPA instance for bundle '%s': %v. Will attempt immediate start.", bundle, err)
-			err := inst.Start() //ToDo is this bad as queue full means it's already very busy
-			if err != nil {
-				p.log.Errorf("Failed to start OPA instance for bundle '%s': %v", bundle, err)
-			}
-			continue
+			p.log.Errorf("Failed to schedule OPA instance for bundle '%s': %v", bundle, err)
 		}
 
 		p.log.Infof("Scheduled OPA instance for bundle '%s' for background loading", bundle)
