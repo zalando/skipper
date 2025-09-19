@@ -7,7 +7,7 @@ import (
 )
 
 type IngressAdmitter struct {
-	IngressValidator *definitions.IngressV1Validator
+	IngressValidator definitions.Validator[*definitions.IngressV1Item]
 }
 
 func (iga *IngressAdmitter) name() string {
