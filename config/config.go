@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"github.com/zalando/skipper/validation"
 	"net/http"
 	"os"
 	"sort"
@@ -311,6 +312,9 @@ type Config struct {
 	OpenPolicyAgentMaxMemoryBodyParsing                int64         `yaml:"open-policy-agent-max-memory-body-parsing"`
 
 	PassiveHealthCheck mapFlags `yaml:"passive-health-check"`
+
+	// Validation webhook
+	EnableValidationWebhook bool `yaml:"enable-validation-webhook"`
 }
 
 const (
@@ -621,6 +625,9 @@ func NewConfig() *Config {
 
 	// Passive Health Checks
 	flag.Var(&cfg.PassiveHealthCheck, "passive-health-check", "sets the parameters for passive health check feature")
+
+	// Validation webhook
+	flag.BoolVar(&cfg.EnableValidationWebhook, "validation-webhook-enabled", false, "enables validation webhook for incoming requests")
 
 	cfg.Flags = flag
 	return cfg
@@ -1009,6 +1016,13 @@ func (c *Config) ToOptions() skipper.Options {
 		OpenPolicyAgentMaxMemoryBodyParsing:                c.OpenPolicyAgentMaxMemoryBodyParsing,
 
 		PassiveHealthCheck: c.PassiveHealthCheck.values,
+
+		ValidationWebhookEnabled: c.EnableValidationWebhook,
+		ValidationWebhookConfig: validation.Config{
+			Address:  c.Address,
+			CertFile: c.ClientCertFile,
+			KeyFile:  c.ClientKeyFile,
+		},
 	}
 	for _, rcci := range c.CloneRoute {
 		eskipClone := eskip.NewClone(rcci.Reg, rcci.Repl)
