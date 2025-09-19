@@ -728,6 +728,10 @@ func (opa *OpenPolicyAgentInstance) Start() error {
 	defer cancel()
 	defer opa.started.Store(true)
 
+	if opa.started.Load() {
+		return nil
+	}
+
 	if opa.registry.enableCustomControlLoop {
 		return opa.startAndTriggerPlugins(ctx)
 	} else {
