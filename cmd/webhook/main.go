@@ -13,8 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/cmd/webhook/admission"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
-	"github.com/zalando/skipper/eskip"
-	"github.com/zalando/skipper/validation"
 )
 
 const (
@@ -51,31 +49,12 @@ func (c *config) parse() {
 	}
 }
 
-type noopValidator struct{}
-
-func (noopValidator) ValidateFilters(ctx validation.ResourceContext, filters []*eskip.Filter) error {
-	return nil
-}
-
-func (noopValidator) ValidatePredicates(ctx validation.ResourceContext, predicates []*eskip.Predicate) error {
-	return nil
-}
-
-func (noopValidator) ValidateRoute(ctx validation.ResourceContext, routes []*eskip.Route) error {
-	return nil
-}
-
-func (noopValidator) ValidateBackend(ctx validation.ResourceContext, backend string, backendType eskip.BackendType) error {
-	return nil
-}
-
 func main() {
 	var cfg = &config{}
 	cfg.parse()
 
-	noopVal := noopValidator{}
-	rgAdmitter := &admission.RouteGroupAdmitter{RouteGroupValidator: definitions.NewRouteGroupValidator(noopVal)}
-	ingressAdmitter := &admission.IngressAdmitter{IngressValidator: definitions.NewIngressV1Validator(noopVal)}
+	rgAdmitter := &admission.RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}}
+	ingressAdmitter := &admission.IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}}
 	handler := http.NewServeMux()
 	handler.Handle("/routegroups", admission.Handler(rgAdmitter))
 	handler.Handle("/ingresses", admission.Handler(ingressAdmitter))

@@ -7,7 +7,7 @@ import (
 )
 
 type RouteGroupAdmitter struct {
-	RouteGroupValidator *definitions.RouteGroupValidator
+	RouteGroupValidator definitions.Validator[*definitions.RouteGroupItem]
 }
 
 func (rga *RouteGroupAdmitter) name() string {
