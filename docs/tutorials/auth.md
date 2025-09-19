@@ -474,23 +474,45 @@ This decision ID can be located within the input at:
 Typical use cases are either propagation of the decision ID to downstream systems or returning it as part of the response. As an example this can allow to trouble shoot deny requests by looking up details using the full decision in a control plane.
 
 
-### Quick Start Rego Playground
+### Quick Start 
 
-A quick way without setting up Backend APIs is to use the [Rego Playground](https://play.openpolicyagent.org/).
+Create a directory called `bundles/my-application/`. 
 
-To get started pick from examples Envoy > Hello World. Click on "Publish" and note the random ID in the section "Run OPA with playground policy".
+Paste the following content into a file called `bundles/my-application/policy.rego`:
+
+```
+# For more information see:
+#
+#	* Rego Rules: https://www.openpolicyagent.org/docs/latest/#rules
+
+package envoy.http.public
+
+# If neither of the rules below match, `allow` is `false`.
+default allow := false
+
+allow if {
+	input.attributes.request.http.method == "GET"
+	input.attributes.request.http.path == "/"
+}
+
+allow if input.attributes.request.http.headers.authorization == "Basic charlie"
+```
+
+Build the bundle with `opa build -b ./bundles/my-application/ -o bundles/my-application.tar.gz`.
+
+Run an https server to serve the bundle: `python3 -m http.server 8000 --directory bundles/`
 
 Place the following file in your local directory with the name `opaconfig.yaml`
 
 ```yaml
 bundles:
   play:
-    resource: bundles/{{ .bundlename }}
+    resource: "{{ .bundlename }}.tar.gz"
     polling:
       long_polling_timeout_seconds: 45
 services:
   - name: play
-    url: https://play.openpolicyagent.org
+    url: http://localhost:8000/
 plugins:
   envoy_ext_authz_grpc:
     # This needs to match the package, defaulting to envoy/authz/allow
@@ -498,13 +520,15 @@ plugins:
     dry-run: false
 decision_logs:
   console: true
+status:
+  console: true
 ```
 
 Start Skipper with
 
 ```
-skipper -enable-open-policy-agent -open-policy-agent-config-template opaconfig.yaml \
-  -inline-routes 'notfound: * -> opaAuthorizeRequest("<playground-bundle-id>") -> inlineContent("<h1>Authorized Hello</h1>") -> <shunt>'
+skipper -enable-open-policy-agent -open-policy-agent-config-template opaconfig.yaml --metrics-flavour=prometheus \
+  -inline-routes 'notfound: * -> opaAuthorizeRequest("my-application") -> inlineContent("<h1>Authorized Hello</h1>") -> <shunt>'
 ```
 
 You can test the policy with
