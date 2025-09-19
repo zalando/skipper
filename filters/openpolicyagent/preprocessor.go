@@ -87,7 +87,11 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 			}
 
 			if inst != nil {
-				// Instance already ready, skip
+				if !inst.Started() {
+					if err := inst.Start(); err != nil {
+						p.log.Errorf("Failed to parallel start OPA instance for bundle '%s': %v", bundleName, err)
+					}
+				}
 				return
 			}
 
@@ -98,7 +102,7 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 			}
 			err = inst.Start()
 			if err != nil {
-				p.log.Errorf("Failed to start OPA instance for bundle '%s': %v", bundleName, err)
+				p.log.Errorf("Failed to parallel start OPA instance for bundle '%s': %v", bundleName, err)
 				return
 			}
 

@@ -1101,14 +1101,3 @@ func runWithTestCases(t *testing.T, cases []opaInstanceStartupTestCase, test fun
 		})
 	}
 }
-
-// CreateRegistryWithConfig Helper function to create registry with configuration
-func CreateRegistryWithConfig(t *testing.T, config []byte) *OpenPolicyAgentRegistry {
-	registry, err := NewOpenPolicyAgentRegistry(
-		WithReuseDuration(1*time.Second),
-		WithCleanInterval(1*time.Second),
-		WithOpenPolicyAgentInstanceConfig(WithConfigTemplate(config)),
-	)
-	require.NoError(t, err)
-	return registry
-}
