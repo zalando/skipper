@@ -2,6 +2,9 @@ package webhook
 
 import (
 	"errors"
+	"net"
+	"net/http"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando/skipper/cmd/webhook/admission"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
@@ -9,8 +12,6 @@ import (
 	"github.com/zalando/skipper/metrics"
 	"github.com/zalando/skipper/routing"
 	"github.com/zalando/skipper/validation"
-	"net"
-	"net/http"
 )
 
 type Runner struct {
@@ -28,12 +29,19 @@ func (r *Runner) StartValidation(config validation.Config, filterRegistry filter
 
 	mux := http.NewServeMux()
 
-	validator := validation.NewComprehensiveValidator(filterRegistry, predicateSpecs, r.metrics)
 	rgAdmitter := &admission.RouteGroupAdmitter{
-		RouteGroupValidator: definitions.NewRouteGroupValidator(validator),
+		RouteGroupValidator: &definitions.RouteGroupValidator{
+			FilterRegistry: filterRegistry,
+			PredicateSpecs: predicateSpecs,
+			Metrics:        r.metrics,
+		},
 	}
 	ingressAdmitter := &admission.IngressAdmitter{
-		IngressValidator: definitions.NewIngressV1Validator(validator),
+		IngressValidator: &definitions.IngressV1Validator{
+			FilterRegistry: filterRegistry,
+			PredicateSpecs: predicateSpecs,
+			Metrics:        r.metrics,
+		},
 	}
 
 	mux.Handle("/routegroups", admission.Handler(rgAdmitter))

@@ -3,38 +3,21 @@ package definitions
 import (
 	"errors"
 	"fmt"
-	"net/url"
-
-	"github.com/zalando/skipper/validation"
 
 	"github.com/zalando/skipper/eskip"
+	"github.com/zalando/skipper/filters"
+	"github.com/zalando/skipper/metrics"
+	"github.com/zalando/skipper/routing"
 )
 
 type RouteGroupValidator struct {
-	validator validation.EskipValidator
+	FilterRegistry filters.Registry
+	PredicateSpecs []routing.PredicateSpec
+	Metrics        metrics.Metrics
 }
 
-func NewRouteGroupValidator(validator validation.EskipValidator) *RouteGroupValidator {
-	return &RouteGroupValidator{
-		validator: validator,
-	}
-}
-
-func (rgv *RouteGroupValidator) ValidateFilters(ctx validation.ResourceContext, filters []*eskip.Filter) error {
-	return rgv.validator.ValidateFilters(ctx, filters)
-}
-
-func (rgv *RouteGroupValidator) ValidatePredicates(ctx validation.ResourceContext, predicates []*eskip.Predicate) error {
-	return rgv.validator.ValidatePredicates(ctx, predicates)
-}
-
-func (rgv *RouteGroupValidator) ValidateRoute(ctx validation.ResourceContext, routes []*eskip.Route) error {
-	return rgv.validator.ValidateRoute(ctx, routes)
-}
-
-func (rgv *RouteGroupValidator) ValidateBackend(ctx validation.ResourceContext, backend string, backendType eskip.BackendType) error {
-	return rgv.validator.ValidateBackend(ctx, backend, backendType)
-}
+// check if RouteGroupValidator implements the interface
+var _ Validator[*RouteGroupItem] = &RouteGroupValidator{}
 
 var (
 	errSingleFilterExpected    = errors.New("single filter expected")
@@ -99,15 +82,16 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 			} else if len(filters) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSingleFilterExpected, f))
 			}
-			ctx := validation.ResourceContext{
-				ResourceType: validation.ResourceTypeRouteGroup,
+			// We can add a flag to enable/disable this advance validation
+			// ingress and routegroup can have different flag values
+			err = validateFilters(ResourceContext{
 				Namespace:    item.Metadata.Namespace,
 				Name:         item.Metadata.Name,
-			}
-			if err := rgv.ValidateFilters(ctx, filters); err != nil {
+				ResourceType: ResourceTypeRouteGroup,
+			}, rgv.FilterRegistry, filters)
+			if err != nil {
 				errs = append(errs, fmt.Errorf("invalid filter %q: %w", f, err))
 			}
-
 		}
 	}
 
@@ -117,21 +101,23 @@ func (rgv *RouteGroupValidator) validateFilters(item *RouteGroupItem) error {
 func (rgv *RouteGroupValidator) validatePredicates(item *RouteGroupItem) error {
 	var errs []error
 	for _, r := range item.Spec.Routes {
-		for _, p := range r.Predicates {
+		for routePredicate, p := range r.Predicates {
 			predicates, err := eskip.ParsePredicates(p)
 			if err != nil {
 				errs = append(errs, err)
 			} else if len(predicates) != 1 {
 				errs = append(errs, fmt.Errorf("%w at %q", errSinglePredicateExpected, p))
-			} else {
-				ctx := validation.ResourceContext{
-					ResourceType: validation.ResourceTypeRouteGroup,
-					Namespace:    item.Metadata.Namespace,
-					Name:         item.Metadata.Name,
-				}
-				if err := rgv.ValidatePredicates(ctx, predicates); err != nil {
-					errs = append(errs, fmt.Errorf("invalid predicate %q: %w", p, err))
-				}
+				break
+			}
+			// We can add a flag to enable/disable this advance validation
+			// ingress and routegroup can have different flag values
+			err = validatePredicates(ResourceContext{
+				Namespace:    item.Metadata.Namespace,
+				Name:         item.Metadata.Name,
+				ResourceType: ResourceTypeRouteGroup,
+			}, rgv.PredicateSpecs, predicates)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("invalid predicate %d: %w", routePredicate, err))
 			}
 		}
 	}
@@ -142,21 +128,9 @@ func (rgv *RouteGroupValidator) validateBackends(item *RouteGroupItem) error {
 	var errs []error
 	for _, backend := range item.Spec.Backends {
 		if backend.Type == eskip.NetworkBackend {
-			address, err := url.Parse(backend.Address)
+			_, _, err := routing.SplitBackend(backend.Address, backend.Type, false)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to parse backend address %q: %w", backend.Address, err))
-			} else {
-				if address.Path != "" || address.RawQuery != "" || address.Scheme == "" || address.Host == "" {
-					errs = append(errs, fmt.Errorf("backend address %q does not match scheme://host format", backend.Address))
-				}
-			}
-			ctx := validation.ResourceContext{
-				ResourceType: validation.ResourceTypeRouteGroup,
-				Namespace:    item.Metadata.Namespace,
-				Name:         item.Metadata.Name,
-			}
-			if err := rgv.ValidateBackend(ctx, backend.Address, backend.Type); err != nil {
-				errs = append(errs, fmt.Errorf("invalid backend %q: %w", backend.Address, err))
 			}
 		}
 	}
