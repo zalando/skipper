@@ -3,51 +3,81 @@ package definitions
 import (
 	"errors"
 	"fmt"
+	"github.com/zalando/skipper/validation"
 
 	"github.com/zalando/skipper/eskip"
 )
 
-type IngressV1Validator struct{}
+type IngressV1Validator struct {
+	validation.EskipValidator
+}
 
 func (igv *IngressV1Validator) Validate(item *IngressV1Item) error {
 	var errs []error
 
-	errs = append(errs, igv.validateFilterAnnotation(item.Metadata.Annotations))
-	errs = append(errs, igv.validatePredicateAnnotation(item.Metadata.Annotations))
-	errs = append(errs, igv.validateRoutesAnnotation(item.Metadata.Annotations))
+	errs = append(errs, igv.validateFilterAnnotation(item))
+	errs = append(errs, igv.validatePredicateAnnotation(item))
+	errs = append(errs, igv.validateRoutesAnnotation(item))
 
 	return errors.Join(errs...)
 }
 
-func (igv *IngressV1Validator) validateFilterAnnotation(annotations map[string]string) error {
-	if filters, ok := annotations[IngressFilterAnnotation]; ok {
-		_, err := eskip.ParseFilters(filters)
+func (igv *IngressV1Validator) validateFilterAnnotation(item *IngressV1Item) error {
+	if filters, ok := item.Metadata.Annotations[IngressFilterAnnotation]; ok {
+		filters, err := eskip.ParseFilters(filters)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err)
+			return fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err)
 		}
-		return err
+		if igv.EskipValidator != nil {
+			ctx := validation.ResourceContext{
+				Namespace:    namespaceString(item.Metadata.Namespace),
+				Name:         item.Metadata.Name,
+				ResourceType: validation.ResourceTypeIngress,
+			}
+			if err := igv.EskipValidator.ValidateFilters(ctx, filters); err != nil {
+				return fmt.Errorf("invalid \"%s\" annotation: %w", IngressFilterAnnotation, err)
+			}
+		}
 	}
 	return nil
 }
 
-func (igv *IngressV1Validator) validatePredicateAnnotation(annotations map[string]string) error {
-	if predicates, ok := annotations[IngressPredicateAnnotation]; ok {
-		_, err := eskip.ParsePredicates(predicates)
+func (igv *IngressV1Validator) validatePredicateAnnotation(item *IngressV1Item) error {
+	if predicates, ok := item.Metadata.Annotations[IngressPredicateAnnotation]; ok {
+		predicates, err := eskip.ParsePredicates(predicates)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressPredicateAnnotation, err)
+			return fmt.Errorf("invalid \"%s\" annotation: %w", IngressPredicateAnnotation, err)
 		}
-		return err
+		if igv.EskipValidator != nil {
+			ctx := validation.ResourceContext{
+				Namespace:    namespaceString(item.Metadata.Namespace),
+				Name:         item.Metadata.Name,
+				ResourceType: validation.ResourceTypeIngress,
+			}
+			if err := igv.EskipValidator.ValidatePredicates(ctx, predicates); err != nil {
+				return fmt.Errorf("invalid \"%s\" annotation: %w", IngressPredicateAnnotation, err)
+			}
+		}
 	}
 	return nil
 }
 
-func (igv *IngressV1Validator) validateRoutesAnnotation(annotations map[string]string) error {
-	if routes, ok := annotations[IngressRoutesAnnotation]; ok {
-		_, err := eskip.Parse(routes)
+func (igv *IngressV1Validator) validateRoutesAnnotation(item *IngressV1Item) error {
+	if routes, ok := item.Metadata.Annotations[IngressRoutesAnnotation]; ok {
+		route, err := eskip.Parse(routes)
 		if err != nil {
-			err = fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err)
+			return fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err)
 		}
-		return err
+		if igv.EskipValidator != nil {
+			ctx := validation.ResourceContext{
+				Namespace:    namespaceString(item.Metadata.Namespace),
+				Name:         item.Metadata.Name,
+				ResourceType: validation.ResourceTypeIngress,
+			}
+			if err := igv.EskipValidator.ValidateRoute(ctx, route); err != nil {
+				return fmt.Errorf("invalid \"%s\" annotation: %w", IngressRoutesAnnotation, err)
+			}
+		}
 	}
 	return nil
 }
