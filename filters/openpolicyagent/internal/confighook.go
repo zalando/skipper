@@ -10,6 +10,7 @@ import (
 	"github.com/open-policy-agent/opa/v1/plugins"
 	"github.com/open-policy-agent/opa/v1/plugins/bundle"
 	"github.com/open-policy-agent/opa/v1/plugins/discovery"
+	"github.com/open-policy-agent/opa/v1/plugins/status"
 )
 
 // ManualOverride is override the plugin trigger to manual trigger mode, allowing the openpolicyagent filter
@@ -80,5 +81,33 @@ func bundlePluginConfigOverride(config *config.Config) (*config.Config, error) {
 		}
 		config.Bundles = message
 	}
+	return config, nil
+}
+
+// PrometheusOverride is a config hook that enables Prometheus metrics for the status plugin.
+type PrometheusOverride struct {
+}
+
+func (p *PrometheusOverride) OnConfig(ctx context.Context, config *config.Config) (*config.Config, error) {
+	var (
+		statusConfig status.Config
+		message      []byte
+	)
+
+	if config.Status != nil {
+		err := json.Unmarshal(config.Status, &statusConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		statusConfig.Prometheus = true
+
+		message, err = json.Marshal(statusConfig)
+		if err != nil {
+			return nil, err
+		}
+		config.Status = message
+	}
+
 	return config, nil
 }
