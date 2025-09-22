@@ -453,7 +453,7 @@ func (registry *OpenPolicyAgentRegistry) startCustomControlLoopDaemon() {
 			registry.mu.Unlock()
 
 			for _, opa := range instances {
-				if opa != nil && opa.Healthy() { // Skip retriggering plugins of healthy instance
+				if opa != nil && !opa.Started() { // Skip retriggering plugins of unstarted instances
 					continue
 				}
 				func() {

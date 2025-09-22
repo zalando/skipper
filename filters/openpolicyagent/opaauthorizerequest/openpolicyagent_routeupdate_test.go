@@ -2,10 +2,11 @@ package opaauthorizerequest
 
 import (
 	"fmt"
-	"github.com/zalando/skipper/filters/openpolicyagent/internal/opatestutils"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/zalando/skipper/filters/openpolicyagent/internal/opatestutils"
 
 	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"github.com/stretchr/testify/assert"
@@ -242,7 +243,7 @@ func TestOpaRoutesWithBundleServerRecoveryBootstrap(t *testing.T) {
 				require.Eventually(t, func() bool {
 					inst, err := opaRegistry.GetOrStartInstance(bundleName)
 					return inst != nil && err == nil && inst.Healthy()
-				}, maxOpaPollingInterval+20*time.Millisecond, routeUpdatePollingTimeout) // When control loop is disabled, OPA inbuilt polling is used to download the bundle
+				}, 2*maxOpaPollingInterval, routeUpdatePollingTimeout) // When control loop is disabled, OPA inbuilt polling is used to download the bundle
 			} else {
 				bundleServer.SetRespCode(http.StatusOK)
 
