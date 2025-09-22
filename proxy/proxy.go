@@ -971,6 +971,13 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 	requestStopWatch, responseStopWatch := newStopWatch(), newStopWatch()
 	requestStopWatch.Start()
 
+	defer func() {
+		requestStopWatch.Stop()
+		responseStopWatch.Stop()
+		ctx.proxyRequestElapsed = requestStopWatch.Elapsed()
+		ctx.proxyResponseElapsed = responseStopWatch.Elapsed()
+	}()
+
 	payloadProtocol := getUpgradeRequest(ctx.Request())
 
 	req, endpointMetrics, err := p.mapRequest(ctx, requestContext)
