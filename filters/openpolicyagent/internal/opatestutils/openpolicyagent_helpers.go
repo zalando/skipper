@@ -2,13 +2,14 @@ package opatestutils
 
 import (
 	"fmt"
-	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	opasdktest "github.com/open-policy-agent/opa/v1/sdk/test"
 )
 
 // ControllableBundleServer - A bundle server whose response code and response latency can be controlled for testing
@@ -113,23 +114,6 @@ func CreateBundleServers(bundleNames []string) map[string]*opasdktest.Server {
 	return servers
 }
 
-//type MultiBundleProxyController struct {
-//	StatusMap map[string]*atomic.Value
-//	DelayMap  map[string]*atomic.Value
-//	Servers   map[string]*opasdktest.Server
-//}
-//
-//func (c *MultiBundleProxyController) SetStatus(bundleName string, code int) {
-//	if v, ok := c.StatusMap[bundleName]; ok {
-//		v.Store(code)
-//	}
-//}
-//func (c *MultiBundleProxyController) SetDelay(bundleName string, delay time.Duration) {
-//	if v, ok := c.DelayMap[bundleName]; ok {
-//		v.Store(delay)
-//	}
-//}
-
 // StartMultiBundleProxyServer starts a proxy server that routes requests to multiple controllable bundle servers.
 func StartMultiBundleProxyServer(bundleConfigs []BundleServerConfig) (*httptest.Server, map[string]*opasdktest.Server) {
 	bundleNames := make([]string, 0, len(bundleConfigs))
@@ -177,11 +161,3 @@ func StartMultiBundleProxyServer(bundleConfigs []BundleServerConfig) (*httptest.
 
 	return proxy, servers
 }
-
-// StopBundleServers stops multiple bundle servers
-//func (c *MultiBundleProxyController) Stop(proxy *httptest.Server, servers map[string]*opasdktest.Server) {
-//	proxy.Close()
-//	for _, srv := range servers {
-//		srv.Stop()
-//	}
-//}
