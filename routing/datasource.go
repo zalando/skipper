@@ -23,18 +23,18 @@ const (
 
 var errInvalidWeightParams = errors.New("invalid argument for the Weight predicate")
 
-type invalidDefinitionError string
+type InvalidDefinitionError string
 
-func (e invalidDefinitionError) Error() string { return string(e) }
-func (e invalidDefinitionError) Code() string  { return string(e) }
+func (e InvalidDefinitionError) Error() string { return string(e) }
+func (e InvalidDefinitionError) Code() string  { return string(e) }
 
 var (
-	errUnknownFilter          = invalidDefinitionError("unknown_filter")
-	errInvalidFilterParams    = invalidDefinitionError("invalid_filter_params")
-	errUnknownPredicate       = invalidDefinitionError("unknown_predicate")
-	errInvalidPredicateParams = invalidDefinitionError("invalid_predicate_params")
-	errFailedBackendSplit     = invalidDefinitionError("failed_backend_split")
-	errInvalidMatcher         = invalidDefinitionError("invalid_matcher")
+	errUnknownFilter          = InvalidDefinitionError("unknown_filter")
+	errInvalidFilterParams    = InvalidDefinitionError("invalid_filter_params")
+	errUnknownPredicate       = InvalidDefinitionError("unknown_predicate")
+	errInvalidPredicateParams = InvalidDefinitionError("invalid_predicate_params")
+	errFailedBackendSplit     = InvalidDefinitionError("failed_backend_split")
+	errInvalidMatcher         = InvalidDefinitionError("invalid_matcher")
 )
 
 func (it incomingType) String() string {
@@ -216,15 +216,18 @@ func receiveRouteDefs(o Options, quit <-chan struct{}) <-chan mergedDefs {
 	return out
 }
 
-// splits the backend address of a route definition into separate
-// scheme and host variables.
-func splitBackend(r *eskip.Route) (string, string, error) {
-	if r.Shunt || r.BackendType == eskip.ShuntBackend || r.BackendType == eskip.LoopBackend ||
-		r.BackendType == eskip.DynamicBackend || r.BackendType == eskip.LBBackend {
+// SplitBackend splits the backend address into separate scheme and host variables.
+// This function is exported to be used by validation components.
+func SplitBackend(backend string, backendType eskip.BackendType, shunt bool) (string, string, error) {
+	if backend == "" {
+		return "", "", nil
+	}
+	if shunt || backendType == eskip.ShuntBackend || backendType == eskip.LoopBackend ||
+		backendType == eskip.DynamicBackend || backendType == eskip.LBBackend {
 		return "", "", nil
 	}
 
-	return net.SchemeHost(r.Backend)
+	return net.SchemeHost(backend)
 }
 
 // creates a filter instance based on its definition and its
@@ -483,9 +486,15 @@ func processTreePredicates(r *Route, predicateList []*eskip.Predicate) error {
 	return nil
 }
 
+// ValidateRoute processes a route definition for the routing table.
+// This function is exported to be used by validation webhooks.
+func ValidateRoute(o *Options, def *eskip.Route) (*Route, error) {
+	return processRouteDef(o, mapPredicates(o.Predicates), def)
+}
+
 // processes a route definition for the routing table
 func processRouteDef(o *Options, cpm map[string]PredicateSpec, def *eskip.Route) (*Route, error) {
-	scheme, host, err := splitBackend(def)
+	scheme, host, err := SplitBackend(def.Backend, def.BackendType, def.Shunt)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errFailedBackendSplit, err)
 	}
@@ -537,7 +546,7 @@ func processRouteDefs(o *Options, defs []*eskip.Route) (routes []*Route, invalid
 			invalidDefs = append(invalidDefs, def)
 			o.Log.Errorf("failed to process route %s: %v", def.Id, err)
 
-			var defErr invalidDefinitionError
+			var defErr InvalidDefinitionError
 			reason := "other"
 			if errors.As(err, &defErr) {
 				reason = defErr.Code()
