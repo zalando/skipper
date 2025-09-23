@@ -105,8 +105,6 @@ func (p *opaPreProcessor) preloadInstancesParallel(bundles []string) {
 				p.log.Errorf("Failed to parallel start OPA instance for bundle '%s': %v", bundleName, err)
 				return
 			}
-
-			p.log.Infof("Successfully preloaded OPA instance for bundle '%s'", bundleName)
 		}(req)
 	}
 
