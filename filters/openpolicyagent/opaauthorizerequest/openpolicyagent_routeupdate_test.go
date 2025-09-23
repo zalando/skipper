@@ -503,15 +503,16 @@ func TestExceedingBackgroundTaskBuffer(t *testing.T) {
 	updatedRoutes := eskip.MustParse(routesDef)
 	dc.Update(updatedRoutes, nil)
 	time.Sleep(routeUpdatePollingTimeout) // Tasks spill over from the buffer need another route update to retry it
-	dc.Update(updatedRoutes, nil)
 
 	require.Eventually(t, func() bool {
+		dc.Update(updatedRoutes, nil) // if the queue has not been freed, it need multiple route updates to get processed
+
 		inst1, _ := opaRegistry.GetOrStartInstance("bundle1")
 		inst2, _ := opaRegistry.GetOrStartInstance("bundle2")
 		inst3, _ := opaRegistry.GetOrStartInstance("bundle3")
 		inst4, _ := opaRegistry.GetOrStartInstance("bundle4")
 		return inst1 != nil && inst1.Healthy() && inst2 != nil && inst2.Healthy() && inst3 != nil && inst3.Healthy() && inst4 != nil && inst4.Healthy()
-	}, startUpTimeOut, routeUpdatePollingTimeout)
+	}, 3*startUpTimeOut, routeUpdatePollingTimeout)
 }
 
 // TestMalformedBundleResponse simulates a scenario where the OPA bundle server returns a malformed bundle response.

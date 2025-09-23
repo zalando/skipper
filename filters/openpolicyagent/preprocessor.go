@@ -127,8 +127,8 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 
 		if inst != nil {
 			if !inst.Started() {
-				if err := inst.Start(); err != nil {
-					p.log.Errorf("Failed to start OPA instance for bundle '%s': %v", bundle, err)
+				if _, err := p.registry.ScheduleBackgroundTask(inst.Start); err != nil {
+					p.log.Errorf("Failed to reschedule OPA instance for bundle '%s': %v", bundle, err)
 				}
 			}
 			continue
