@@ -28,12 +28,21 @@ func (r *Runner) StartValidation(config validation.Config, filterRegistry filter
 
 	mux := http.NewServeMux()
 
-	validator := validation.NewComprehensiveValidator(filterRegistry, predicateSpecs, r.metrics)
 	rgAdmitter := &admission.RouteGroupAdmitter{
-		RouteGroupValidator: &definitions.RouteGroupValidator{EskipValidator: validator},
+		RouteGroupValidator: &definitions.RouteGroupValidator{
+			FilterRegistry:          filterRegistry,
+			PredicateSpecs:          predicateSpecs,
+			Metrics:                 r.metrics,
+			EnableWebhookValidation: true,
+		},
 	}
 	ingressAdmitter := &admission.IngressAdmitter{
-		IngressValidator: &definitions.IngressV1Validator{EskipValidator: validator},
+		IngressValidator: &definitions.IngressV1Validator{
+			FilterRegistry:          filterRegistry,
+			PredicateSpecs:          predicateSpecs,
+			Metrics:                 r.metrics,
+			EnableWebhookValidation: true,
+		},
 	}
 
 	mux.Handle("/routegroups", admission.Handler(rgAdmitter))

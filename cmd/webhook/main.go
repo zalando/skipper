@@ -53,8 +53,16 @@ func main() {
 	var cfg = &config{}
 	cfg.parse()
 
-	rgAdmitter := &admission.RouteGroupAdmitter{RouteGroupValidator: &definitions.RouteGroupValidator{}}
-	ingressAdmitter := &admission.IngressAdmitter{IngressValidator: &definitions.IngressV1Validator{}}
+	rgAdmitter := &admission.RouteGroupAdmitter{
+		RouteGroupValidator: &definitions.RouteGroupValidator{
+			EnableWebhookValidation: false,
+		},
+	}
+	ingressAdmitter := &admission.IngressAdmitter{
+		IngressValidator: &definitions.IngressV1Validator{
+			EnableWebhookValidation: false,
+		},
+	}
 	handler := http.NewServeMux()
 	handler.Handle("/routegroups", admission.Handler(rgAdmitter))
 	handler.Handle("/ingresses", admission.Handler(ingressAdmitter))
