@@ -506,7 +506,7 @@ func (registry *OpenPolicyAgentRegistry) GetOrStartInstance(bundleName string) (
 	}
 
 	if registry.preloadingEnabled {
-		//TODO: This is most likely a hard error in the sense that even an unhealthy instance could not be created.
+		// This is a hard error in the sense that even an unhealthy instance could not be created.
 		// In preloading mode, if instance doesn't exist, it means it's not ready yet
 		return nil, fmt.Errorf("open policy agent instance for bundle '%s' is not ready yet", bundleName)
 	}
@@ -595,6 +595,7 @@ type OpenPolicyAgentInstance struct {
 	started                     atomic.Bool
 	registry                    *OpenPolicyAgentRegistry
 	healthy                     atomic.Bool
+	logger                      logging.Logger
 
 	maxBodyBytes       int64
 	bodyReadBufferSize int64
@@ -704,6 +705,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 		interQueryBuiltinValueCache: registry.valueCache,
 
 		idGenerator: uniqueIDGenerator,
+		logger:      logging.Get().WithFields(map[string]any{"opa-bundle-name": bundleName}),
 	}
 
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
@@ -740,6 +742,7 @@ func (opa *OpenPolicyAgentInstance) Start() error {
 		}
 
 		opa.started.Store(true)
+		opa.Logger().Info("Instance started for bundle. (Await it to be healthy to start authorizing traffic) ")
 	})
 	return opa.startingErr
 }
@@ -898,6 +901,13 @@ func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 		opa.closing = true
 		opa.manager.Stop(ctx)
 	})
+}
+
+func (opa *OpenPolicyAgentInstance) Logger() logging.Logger {
+	if opa.logger != nil {
+		return opa.logger
+	}
+	return nil
 }
 
 func waitFunc(ctx context.Context, fun func() bool, interval time.Duration) error {
@@ -1102,53 +1112,57 @@ func (opa *OpenPolicyAgentInstance) ExtractHttpBodyOptionally(req *http.Request)
 	return req.Body, nil, func() {}, nil
 }
 
+type evalContext struct {
+	opa *OpenPolicyAgentInstance
+}
+
 // ParsedQuery is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) ParsedQuery() ast.Body {
-	return opa.EnvoyPluginConfig().ParsedQuery
+func (evalctx *evalContext) ParsedQuery() ast.Body {
+	return evalctx.opa.EnvoyPluginConfig().ParsedQuery
 }
 
 // Store is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) Store() storage.Store { return opa.manager.Store }
+func (evalctx *evalContext) Store() storage.Store { return evalctx.opa.manager.Store }
 
 // Compiler is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) Compiler() *ast.Compiler { return opa.manager.GetCompiler() }
+func (evalctx *evalContext) Compiler() *ast.Compiler { return evalctx.opa.manager.GetCompiler() }
 
 // Runtime is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) Runtime() *ast.Term { return opa.manager.Info }
+func (evalctx *evalContext) Runtime() *ast.Term { return evalctx.opa.manager.Info }
 
 // Logger is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) Logger() logging.Logger { return opa.manager.Logger() }
+func (evalctx *evalContext) Logger() logging.Logger { return evalctx.opa.manager.Logger() }
 
 // InterQueryBuiltinCache is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) InterQueryBuiltinCache() iCache.InterQueryCache {
-	return opa.interQueryBuiltinCache
+func (evalctx *evalContext) InterQueryBuiltinCache() iCache.InterQueryCache {
+	return evalctx.opa.interQueryBuiltinCache
 }
 
 // InterQueryBuiltinValueCache is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) InterQueryBuiltinValueCache() iCache.InterQueryValueCache {
-	return opa.interQueryBuiltinValueCache
+func (evalctx *evalContext) InterQueryBuiltinValueCache() iCache.InterQueryValueCache {
+	return evalctx.opa.interQueryBuiltinValueCache
 }
 
 // Config is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) Config() *config.Config { return opa.opaConfig }
+func (evalctx *evalContext) Config() *config.Config { return evalctx.opa.opaConfig }
 
 // DistributedTracing is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) DistributedTracing() opatracing.Options {
-	return buildTracingOptions(opa.registry.tracer, opa.bundleName, opa.manager)
+func (evalctx *evalContext) DistributedTracing() opatracing.Options {
+	return buildTracingOptions(evalctx.opa.registry.tracer, evalctx.opa.bundleName, evalctx.opa.manager)
 }
 
 // CreatePreparedQueryOnce is an implementation of the envoyauth.EvalContext interface
-func (opa *OpenPolicyAgentInstance) CreatePreparedQueryOnce(opts envoyauth.PrepareQueryOpts) (*rego.PreparedEvalQuery, error) {
-	opa.preparedQueryDoOnce.Do(func() {
-		regoOpts := append(opts.Opts, rego.DistributedTracingOpts(opa.DistributedTracing()))
+func (evalctx *evalContext) CreatePreparedQueryOnce(opts envoyauth.PrepareQueryOpts) (*rego.PreparedEvalQuery, error) {
+	evalctx.opa.preparedQueryDoOnce.Do(func() {
+		regoOpts := append(opts.Opts, rego.DistributedTracingOpts(evalctx.DistributedTracing()))
 
 		pq, err := rego.New(regoOpts...).PrepareForEval(context.Background())
 
-		opa.preparedQuery = &pq
-		opa.preparedQueryErr = err
+		evalctx.opa.preparedQuery = &pq
+		evalctx.opa.preparedQueryErr = err
 	})
 
-	return opa.preparedQuery, opa.preparedQueryErr
+	return evalctx.opa.preparedQuery, evalctx.opa.preparedQueryErr
 }
 
 // logging.Logger that does not pollute info with debug logs
@@ -1168,20 +1182,28 @@ func (l *QuietLogger) GetLevel() logging.Level {
 	return l.target.GetLevel()
 }
 
-func (l *QuietLogger) Debug(fmt string, a ...interface{}) {
-	l.target.Debug(fmt, a)
+func logWithArgs(logFunc func(string, ...interface{}), msg string, args ...interface{}) {
+	if len(args) == 0 {
+		logFunc(msg)
+	} else {
+		logFunc(msg, args...)
+	}
 }
 
-func (l *QuietLogger) Info(fmt string, a ...interface{}) {
-	l.target.Debug(fmt, a)
+func (l *QuietLogger) Debug(msg string, args ...interface{}) {
+	logWithArgs(l.target.Debug, msg, args...)
 }
 
-func (l *QuietLogger) Error(fmt string, a ...interface{}) {
-	l.target.Error(fmt, a)
+func (l *QuietLogger) Info(msg string, args ...interface{}) {
+	logWithArgs(l.target.Debug, msg, args...)
 }
 
-func (l *QuietLogger) Warn(fmt string, a ...interface{}) {
-	l.target.Warn(fmt, a)
+func (l *QuietLogger) Warn(msg string, args ...interface{}) {
+	logWithArgs(l.target.Warn, msg, args...)
+}
+
+func (l *QuietLogger) Error(msg string, args ...interface{}) {
+	logWithArgs(l.target.Error, msg, args...)
 }
 
 // ScheduleBackgroundTask schedules a task to be executed in the background with limited parallelism (1)

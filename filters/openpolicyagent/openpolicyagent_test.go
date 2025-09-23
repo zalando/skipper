@@ -589,9 +589,9 @@ func TestOpaLabelsSetInRuntimeWithDiscovery(t *testing.T) {
 	instance, err := registry.GetOrStartInstance("test")
 	assert.NoError(t, err)
 	assert.NotNil(t, instance)
-	assert.NotNil(t, instance.Runtime())
+	assert.NotNil(t, instance.manager.Info)
 
-	value := instance.Runtime().Value
+	value := instance.manager.Info.Value
 
 	j, err := ast.JSON(value)
 	assert.NoError(t, err)
