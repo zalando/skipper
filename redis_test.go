@@ -35,6 +35,9 @@ import (
 )
 
 func TestConcurrentKubernetesClusterStateAccessWithRemoteRedis(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skip Redis container tests during short test runs")
+	}
 	kubeSpec := `
 apiVersion: zalando.org/v1
 kind: RouteGroup
@@ -210,6 +213,9 @@ spec:
 }
 
 func TestConcurrentKubernetesClusterStateAccess(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skip Redis container tests during short test runs")
+	}
 	kubeSpec := `
 apiVersion: zalando.org/v1
 kind: RouteGroup
@@ -363,6 +369,9 @@ spec:
 }
 
 func TestRedisAddrUpdater(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skip Redis address updater tests during short test runs")
+	}
 	dm := metrics.Default
 	t.Cleanup(func() { metrics.Default = dm })
 
