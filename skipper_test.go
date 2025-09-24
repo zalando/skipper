@@ -586,14 +586,14 @@ func TestDataClients(t *testing.T) {
 	sigs := make(chan os.Signal, 1)
 	go run(o, sigs, nil)
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 30; i++ {
 		t.Logf("Waiting for proxy being ready")
 
 		rsp, _ := http.DefaultClient.Get("http://localhost:8090/healthz")
 		if rsp != nil && rsp.StatusCode == 200 {
 			break
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	rsp, err := http.DefaultClient.Get("http://localhost:8090/routes-file")
