@@ -711,7 +711,7 @@ func (registry *OpenPolicyAgentRegistry) new(store storage.Store, bundleName str
 	manager.RegisterCompilerTrigger(opa.compilerUpdated)
 	manager.RegisterPluginStatusListener("instance-health-check", func(status map[string]*plugins.Status) {
 		opa.healthy.Store(allPluginsReady(status, bundle.Name, discovery.Name))
-		opa.Logger().Info("Instance health updated: healthy=%t", opa.healthy.Load())
+		opa.Logger().Info("OPA instance health updated: healthy=%t", opa.healthy.Load())
 	})
 
 	return opa, nil
@@ -731,7 +731,7 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 }
 
 func (opa *OpenPolicyAgentInstance) Start() error {
-	opa.Logger().Info("Starting OpenPolicyAgentInstance")
+	opa.Logger().Info("Starting OPA instance...")
 	opa.startedOnce.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 		defer cancel()
@@ -744,7 +744,6 @@ func (opa *OpenPolicyAgentInstance) Start() error {
 		}
 
 		opa.started.Store(true)
-		opa.Logger().Info("Instance started for bundle. (Instance has to be healthy as well to start authorizing traffic) ")
 	})
 	return opa.startingErr
 }
@@ -903,6 +902,7 @@ func (opa *OpenPolicyAgentInstance) triggerPlugins(ctx context.Context) error {
 
 func (opa *OpenPolicyAgentInstance) Close(ctx context.Context) {
 	opa.closingOnce.Do(func() {
+		opa.Logger().Info("Closing OPA instance...")
 		opa.closing = true
 		opa.manager.Stop(ctx)
 	})
