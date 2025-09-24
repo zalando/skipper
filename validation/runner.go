@@ -3,8 +3,7 @@ package validation
 import (
 	"errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/cmd/validation"
-	"github.com/zalando/skipper/cmd/webhook/admission"
+	"github.com/zalando/skipper/dataclients/kubernetes/admission"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 	"github.com/zalando/skipper/filters"
 	"github.com/zalando/skipper/metrics"

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"github.com/zalando/skipper/dataclients/kubernetes/admission"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-	"github.com/zalando/skipper/cmd/webhook/admission"
 	"github.com/zalando/skipper/dataclients/kubernetes/definitions"
 )
 
