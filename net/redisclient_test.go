@@ -27,6 +27,9 @@ func getTestLogger(t *testing.T) logging.Logger {
 }
 
 func TestRedisContainer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 	if redisAddr == "" {
@@ -173,6 +176,9 @@ func (u *addressUpdater) setError(err error) {
 
 // TestRedisClient renamed to TestRedisClient_RingMode and adapted
 func TestRedisClient_RingMode_Lifecycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	tracer, err := basic.InitTracer([]string{"recorder=in-memory"})
 	require.NoError(t, err, "Failed to get a tracer")
 	defer tracer.Close()
@@ -328,6 +334,9 @@ func TestRedisClient_RingMode_Lifecycle(t *testing.T) {
 
 // TestRedisClientGetSet adapted for the new client (Ring Mode)
 func TestRedisClient_RingMode_GetSet(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 	redisAddr2, done2 := redistest.NewTestRedis(t) // Add second node for hashing tests
@@ -531,6 +540,9 @@ func cleanupZSetData(t *testing.T, cli *RedisClient, data map[string][]valScore)
 
 // TestRedisClientZAddZCard adapted (Ring Mode)
 func TestRedisClient_RingMode_ZAddZCard(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
@@ -630,6 +642,9 @@ func TestRedisClient_RingMode_ZAddZCard(t *testing.T) {
 
 // TestRedisClientExpire adapted (Ring Mode)
 func TestRedisClient_RingMode_Expire(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
@@ -740,6 +755,9 @@ func TestRedisClient_RingMode_Expire(t *testing.T) {
 
 // TestRedisClientZRemRangeByScore adapted (Ring Mode)
 func TestRedisClient_RingMode_ZRemRangeByScore(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
@@ -884,6 +902,9 @@ func TestRedisClient_RingMode_ZRemRangeByScore(t *testing.T) {
 
 // TestRedisClientZRangeByScoreWithScoresFirst adapted (Ring Mode)
 func TestRedisClient_RingMode_ZRangeByScoreWithScoresFirst(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
@@ -1054,6 +1075,9 @@ func TestRedisClient_RingMode_ZRangeByScoreWithScoresFirst(t *testing.T) {
 
 // TestRedisClientSetAddr adapted (Ring Mode)
 func TestRedisClient_RingMode_SetAddrs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr1, done1 := redistest.NewTestRedis(t)
 	defer done1()
 	redisAddr2, done2 := redistest.NewTestRedis(t)
@@ -1172,6 +1196,9 @@ func TestRedisClient_RingMode_SetAddrs(t *testing.T) {
 
 // TestRedisClientFailingAddrUpdater adapted (Ring Mode)
 func TestRedisClient_RingMode_FailingAddrUpdater(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	failErr := errors.New("simulated updater failure")
 
 	opts := &RedisOptions{
@@ -1229,6 +1256,9 @@ func TestRedisClient_RingMode_FailingAddrUpdater(t *testing.T) {
 }
 
 func TestRedisClient_RingMode_RemoteURL_Success(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr1, done1 := redistest.NewTestRedis(t)
 	if redisAddr1 == "" {
 		t.Skip("Skipping test, failed to start Redis instance 1")
@@ -1310,6 +1340,9 @@ func TestRedisClient_RingMode_RemoteURL_Success(t *testing.T) {
 }
 
 func TestRedisClient_RingMode_RemoteURL_Failures(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr1, done1 := redistest.NewTestRedis(t) // Have one static addr for fallback test
 	defer done1()
 
@@ -1424,6 +1457,9 @@ func TestRedisClient_RingMode_RemoteURL_Failures(t *testing.T) {
 // We will assume a single node *acting* like a cluster seed is sufficient for basic API tests.
 
 func TestRedisClient_ClusterMode_Lifecycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	// Use the single test Redis instance as a "seed" node.
 	// This won't test real cluster topology discovery or slot handling,
 	// but verifies the ClusterClient path is taken and basic commands work.

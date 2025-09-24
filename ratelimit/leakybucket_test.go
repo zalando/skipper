@@ -20,6 +20,9 @@ type attempt struct {
 }
 
 func TestLeakyBucketAdd(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	verifyAttempts(t, 3, time.Minute, 1, []attempt{
 		// initial burst of three units fills up capacity
 		{+0, true, 0}, // just added unit leaks after 60s
@@ -48,6 +51,9 @@ func TestLeakyBucketAdd(t *testing.T) {
 }
 
 func TestLeakyBucketAddMoreThanCapacity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	verifyAttempts(t, 1, time.Minute, 2, []attempt{
 		{+0, false, 0},  // not allowed and no retry possible (increment > capacity)
 		{+61, false, 0}, // even after a minute
@@ -55,6 +61,9 @@ func TestLeakyBucketAddMoreThanCapacity(t *testing.T) {
 }
 
 func TestLeakyBucketAddAtSlowRate(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	verifyAttempts(t, 1, time.Second/2, 1, []attempt{
 		{+0, true, 0},
 		{+1, true, 0},
@@ -117,6 +126,9 @@ func TestLeakyBucketId(t *testing.T) {
 }
 
 func TestLeakyBucketRedisStoredNumberPrecision(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 

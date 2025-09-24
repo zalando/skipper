@@ -28,9 +28,9 @@ import (
 
 // Define defaults locally within the config package
 const (
-	defaultSwarmRedisUpdateInterval      = 10 * time.Second
-	defaultSwarmRedisConnMetricsInterval = 60 * time.Second
-	defaultSwarmRedisMetricsPrefix       = "swarm.redis."
+	defaultSwarmRedisUpdateInterval      = 0 * time.Second
+	defaultSwarmRedisConnMetricsInterval = 0 * time.Second
+	defaultSwarmRedisMetricsPrefix       = ""
 	defaultSwarmRedisDialTimeout         = 25 * time.Millisecond
 	defaultSwarmRedisReadTimeout         = 25 * time.Millisecond
 	defaultSwarmRedisWriteTimeout        = 25 * time.Millisecond

@@ -10,6 +10,9 @@ import (
 )
 
 func Test_newClusterRateLimiter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 

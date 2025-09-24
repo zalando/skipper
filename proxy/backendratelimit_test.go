@@ -72,6 +72,9 @@ func (backends countingBackends) String() string {
 // Round robin distributes requests evenly between backends,
 // test each backend gets exactly max hits before limit kicks-in
 func TestBackendRatelimitRoundRobin(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	const (
 		nBackends  = 3
 		maxHits    = 7
@@ -109,6 +112,9 @@ func TestBackendRatelimitRoundRobin(t *testing.T) {
 }
 
 func TestBackendRatelimitScenarios(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	// Use shared instance for all tests.
 	// If this test flakes because of backend IP reuse between test cases,
 	// implement database cleanup, see https://redis.io/commands/flushdb/.

@@ -16,6 +16,9 @@ import (
 )
 
 func Test_clusterLimitRedis_WithPass(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	const redisPassword = "pass"
 
 	redisAddr, done := redistest.NewTestRedisWithPassword(t, redisPassword)
@@ -90,6 +93,9 @@ func Test_clusterLimitRedis_WithPass(t *testing.T) {
 }
 
 func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping Redis container benchmark in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(b)
 	defer done()
 
@@ -122,6 +128,9 @@ func Benchmark_clusterLimitRedis_Allow(b *testing.B) {
 }
 
 func Test_clusterLimitRedis_Allow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
@@ -197,6 +206,9 @@ func Test_clusterLimitRedis_Allow(t *testing.T) {
 }
 
 func Test_clusterLimitRedis_Delta(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
@@ -263,6 +275,9 @@ func Test_clusterLimitRedis_Delta(t *testing.T) {
 }
 
 func Test_clusterLimitRedis_Oldest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
@@ -328,6 +343,9 @@ func Test_clusterLimitRedis_Oldest(t *testing.T) {
 }
 
 func Test_clusterLimitRedis_RetryAfter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Redis container test in short mode")
+	}
 	redisAddr, done := redistest.NewTestRedis(t)
 	defer done()
 
