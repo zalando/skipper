@@ -1,4 +1,4 @@
-package webhook
+package validation
 
 import (
 	"errors"
@@ -23,8 +23,8 @@ func NewRunner(mtr metrics.Metrics) *Runner {
 	}
 }
 
-func (r *Runner) StartValidation(config validation.Config, filterRegistry filters.Registry, predicateSpecs []routing.PredicateSpec) error {
-	log.Infof("Starting validation webhook server on %s", config.Address)
+func (r *Runner) StartValidation(address string, certFile string, keyFile string, filterRegistry filters.Registry, predicateSpecs []routing.PredicateSpec) error {
+	log.Infof("Starting validation webhook server on %s", address)
 
 	mux := http.NewServeMux()
 
@@ -53,25 +53,25 @@ func (r *Runner) StartValidation(config validation.Config, filterRegistry filter
 	})
 
 	server := &http.Server{
-		Addr:    config.Address,
+		Addr:    address,
 		Handler: mux,
 	}
 
-	if config.CertFile == "" || config.KeyFile == "" {
+	if certFile == "" || keyFile == "" {
 		log.Fatalf("validation webhook requires TLS: cert file or key file not provided")
 		return errors.New("validation webhook requires TLS: cert file or key file not provided")
 	}
 
 	// Fail fast if the port cannot be bound, then serve TLS in a goroutine.
-	ln, err := net.Listen("tcp", config.Address)
+	ln, err := net.Listen("tcp", address)
 	if err != nil {
-		log.Fatalf("failed to bind %s: %v", config.Address, err)
+		log.Fatalf("failed to bind %s: %v", address, err)
 		return err
 	}
 
-	log.Infof("Starting HTTPS validation webhook server with cert: %s, key: %s", config.CertFile, config.KeyFile)
+	log.Infof("Starting HTTPS validation webhook server with cert: %s, key: %s", certFile, keyFile)
 
-	if err = server.ServeTLS(ln, config.CertFile, config.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err = server.ServeTLS(ln, certFile, keyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("validation webhook server stopped: %v", err)
 		return err
 	}

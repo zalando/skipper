@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/zalando/skipper/cmd/validation"
 	"net/http"
 	"os"
 	"sort"
@@ -953,11 +952,9 @@ func (c *Config) ToOptions() skipper.Options {
 		CredentialsPaths:                  c.CredentialPaths.values,
 		CredentialsUpdateInterval:         c.CredentialsUpdateInterval,
 		ValidationWebhookEnabled:          c.ValidationWebhookEnabled,
-		ValidationWebhookConfig: validation.Config{
-			Address:  c.ValidationWebhookAddress,
-			CertFile: c.ValidationWebhookCertFile,
-			KeyFile:  c.ValidationWebhookKeyFile,
-		},
+		ValidationWebhookAddress:          c.ValidationWebhookAddress,
+		ValidationWebhookCertFile:         c.ValidationWebhookCertFile,
+		ValidationWebhookKeyFile:          c.ValidationWebhookKeyFile,
 
 		// connections, timeouts:
 		WaitForHealthcheckInterval:   c.WaitForHealthcheckInterval,

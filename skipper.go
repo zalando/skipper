@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/zalando/skipper/cmd/validation/webhook"
 	"io"
 	"net"
 	"net/http"
@@ -17,8 +16,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/zalando/skipper/cmd/validation"
 
 	stdlog "log"
 
@@ -72,6 +69,7 @@ import (
 	"github.com/zalando/skipper/secrets/certregistry"
 	"github.com/zalando/skipper/swarm"
 	"github.com/zalando/skipper/tracing"
+	"github.com/zalando/skipper/validation"
 )
 
 const (
@@ -990,8 +988,10 @@ type Options struct {
 	PassiveHealthCheck map[string]string
 
 	// ValidationWebhookEnabled enables the validation webhook server
-	ValidationWebhookEnabled bool
-	ValidationWebhookConfig  validation.Config
+	ValidationWebhookEnabled  bool
+	ValidationWebhookAddress  string
+	ValidationWebhookCertFile string
+	ValidationWebhookKeyFile  string
 }
 
 func (o *Options) KubernetesDataClientOptions() kubernetes.Options {
@@ -2233,8 +2233,8 @@ func run(o Options, sig chan os.Signal, idleConnsCH chan struct{}) error {
 
 	// start validation webhook server if enabled
 	if o.ValidationWebhookEnabled {
-		runner := webhook.NewRunner(mtr)
-		if err = runner.StartValidation(o.ValidationWebhookConfig, ro.FilterRegistry, ro.Predicates); err != nil {
+		runner := validation.NewRunner(mtr)
+		if err = runner.StartValidation(o.ValidationWebhookAddress, o.ValidationWebhookCertFile, o.ValidationWebhookKeyFile, ro.FilterRegistry, ro.Predicates); err != nil {
 			log.Fatalf("Failed to start validation webhook: %v", err)
 		}
 	}
