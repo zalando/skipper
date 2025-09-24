@@ -127,7 +127,7 @@ func TestOpaRoutesAtRouteUpdate(t *testing.T) {
 
 				require.Eventually(t, func() bool {
 					inst, err := opaRegistry.GetOrStartInstance(ti.bundleName)
-					return inst != nil && err == nil && inst.Healthy()
+					return err == nil && inst.Healthy() && inst.Started()
 				}, startUpTimeOut, routeUpdatePollingTimeout)
 
 				require.Eventually(t, func() bool {
@@ -309,7 +309,7 @@ func TestOpaRoutesWithBundleServerRecoveryRouteUpdates(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				inst, err := opaRegistry.GetOrStartInstance(bundleName)
-				return inst != nil && err == nil && inst.Healthy()
+				return err == nil && inst.Healthy() && inst.Started()
 			}, startUpTimeOut, routeUpdatePollingTimeout)
 
 			rsp, err := makeHTTPRequest(proxy, "/recoverybundle")
@@ -511,7 +511,7 @@ func TestExceedingBackgroundTaskBuffer(t *testing.T) {
 		inst2, _ := opaRegistry.GetOrStartInstance("bundle2")
 		inst3, _ := opaRegistry.GetOrStartInstance("bundle3")
 		inst4, _ := opaRegistry.GetOrStartInstance("bundle4")
-		return inst1 != nil && inst1.Healthy() && inst2 != nil && inst2.Healthy() && inst3 != nil && inst3.Healthy() && inst4 != nil && inst4.Healthy()
+		return inst1.Started() && inst1.Healthy() && inst2.Started() && inst2.Healthy() && inst3.Started() && inst3.Healthy() && inst4.Started() && inst4.Healthy()
 	}, 3*startUpTimeOut, routeUpdatePollingTimeout)
 }
 

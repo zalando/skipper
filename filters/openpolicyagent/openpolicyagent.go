@@ -731,18 +731,20 @@ func allPluginsReady(allPluginsStatus map[string]*plugins.Status, pluginNames ..
 }
 
 func (opa *OpenPolicyAgentInstance) Start() error {
+	opa.Logger().Info("Starting OpenPolicyAgentInstance")
 	opa.startedOnce.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), opa.registry.instanceStartupTimeout)
 		defer cancel()
 
 		if opa.registry.enableCustomControlLoop {
+			opa.Logger().Info("Custom control loop enabled, starting and triggering plugins")
 			opa.startingErr = opa.startAndTriggerPlugins(ctx)
 		} else {
 			opa.startingErr = opa.start(ctx, opa.registry.instanceStartupTimeout)
 		}
 
 		opa.started.Store(true)
-		opa.Logger().Info("Instance started for bundle. (Await it to be healthy to start authorizing traffic) ")
+		opa.Logger().Info("Instance started for bundle. (Instance has to be healthy as well to start authorizing traffic) ")
 	})
 	return opa.startingErr
 }
@@ -782,6 +784,9 @@ func (opa *OpenPolicyAgentInstance) start(ctx context.Context, timeout time.Dura
 }
 
 func (opa *OpenPolicyAgentInstance) Healthy() bool {
+	if opa == nil {
+		return false
+	}
 	return opa.healthy.Load()
 }
 

@@ -125,6 +125,7 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 
 		if inst != nil {
 			if !inst.Started() {
+				p.log.Info("Scheduling background task to start existing OPA instance for bundle: ", bundle)
 				if _, err := p.registry.ScheduleBackgroundTask(inst.Start); err != nil {
 					p.log.Errorf("Failed to reschedule OPA instance for bundle '%s': %v", bundle, err)
 				}
@@ -139,12 +140,11 @@ func (p *opaPreProcessor) enqueueInstancesSequential(bundles []string) {
 		}
 
 		// Schedule background task for sequential processing
+		p.log.Info("Scheduling background task for new OPA instance for bundle: ", bundle)
 		_, err = p.registry.ScheduleBackgroundTask(inst.Start)
 
 		if err != nil {
 			p.log.Errorf("Failed to schedule OPA instance for bundle '%s': %v", bundle, err)
 		}
-
-		p.log.Infof("Scheduled OPA instance for bundle '%s' for background loading", bundle)
 	}
 }
